@@ -64,7 +64,7 @@ Residual-risk (잔여 위험):
 ```yaml
 run_status: audit-ready
 run_complete_at: 2026-08-24
-run_commit_sha: pending-backfill-M5
+run_commit_sha: e0d252b4e172b3b358659ee39f02285c471f7160
 ac_pass_count: 17
 ac_fail_count: 0
 preserve_list_post_run_count: 0
