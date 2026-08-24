@@ -1,0 +1,17 @@
+# Force LF line endings for all text files, regardless of platform/local
+# git config. This repo hit a Windows core.autocrlf=true issue where every
+# checked-out file was flagged by `prettier --check` because CRLF was
+# introduced on checkout while Prettier expects LF (Node/web tooling default).
+* text=auto eol=lf
+
+# Binary assets — do not touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

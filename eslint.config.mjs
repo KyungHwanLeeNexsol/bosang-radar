@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // MoAI-ADK scaffold + isolated agent worktrees — never app source.
+    ".claude/**",
+    ".moai/**",
+    ".git/**",
   ]),
 ]);
 

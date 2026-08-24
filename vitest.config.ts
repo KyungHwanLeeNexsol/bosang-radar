@@ -14,11 +14,11 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["node_modules", ".next"],
+    exclude: ["node_modules", ".next", ".claude/**", ".moai/**", ".git/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      exclude: ["node_modules/**", ".next/**", "**/*.config.{ts,mjs}"],
+      exclude: ["node_modules/**", ".next/**", ".claude/**", ".moai/**", "**/*.config.{ts,mjs}"],
     },
   },
 });
