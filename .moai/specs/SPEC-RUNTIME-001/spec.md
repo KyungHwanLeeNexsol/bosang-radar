@@ -1,7 +1,7 @@
 ---
 id: SPEC-RUNTIME-001
 title: "보상레이더 MVP scaffold 실제 런타임 활성화 (DB 연결·시드·테스터 프로비저닝·E2E 검증)"
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 created: 2026-08-24
 updated: 2026-08-24
@@ -18,6 +18,7 @@ depends_on: [SPEC-SCAFFOLD-001]
 ## HISTORY
 
 - 2026-08-24: 최초 작성 (Nexsol) — SPEC-SCAFFOLD-001(completed)이 구축한 scaffold를 실제 로컬 런타임에서 end-to-end 실행 가능한 상태로 만드는 런타임 활성화 SPEC. 현행 코드베이스 실측(`lib/db/client.ts`, `lib/auth/config.ts`, `db/migrations/`, `db/seed/evidence.json`, `package.json`) 기반으로 작성.
+- 2026-08-24: 플랜 개정 v0.2.0 (Nexsol 요청) — 구현 착수 승인 전, 사용자 설계 검토 결과 **구현 접근 방식 3건**을 개정했다. SPEC의 목표(WHY/WHAT)와 §4 제외 범위는 변경하지 않는다. (1) E2E 시크릿 수명주기를 Playwright `globalSetup` 환경 상속 가정에서 **단일 진입점 스크립트 소유 방식**으로 교체, (2) 테스터 계정 생성을 Better Auth 내부 해시 API + 직접 INSERT에서 **프로비저닝 전용 인스턴스의 공식 `auth.api.signUpEmail` 호출**로 교체, (3) 환경변수 검증을 단일 평면 집합에서 **실행 목적별 스코프 검증**으로 교체. 근거 실측은 `research.md` §0에 추가 기록.
 
 ## §1. 개요 (Overview)
 
@@ -41,9 +42,9 @@ SPEC-SCAFFOLD-001은 Next.js/TypeScript/Drizzle/Turso/Better Auth/Gemini 스택 
 
 - 실제 Turso/libSQL 인스턴스에 대한 연결 확립 + 기존 Drizzle 마이그레이션의 실제 적용 절차
 - `evidence` seed 데이터를 실제 DB에 적재하는 재실행 안전(idempotent) 시드 절차
-- 초대 전용 테스터 계정의 안전한 프로비저닝 절차(allowlist 등록 + 실제 로그인 가능한 계정 생성, 평문 시크릿 커밋 금지)
-- 부팅 시점 환경변수 fail-fast 검증(누락 변수명 + 필요 이유 명시)
-- 로그인 → 사건 입력 → 처리 → 저장 → 리포트 조회 → 피드백 저장 → 타 사용자 격리까지를 단일 명령으로 재현하는 자동화 E2E 스위트
+- 초대 전용 테스터 계정의 안전한 프로비저닝 절차(allowlist 등록 + 실제 로그인 가능한 계정 생성, 평문 시크릿 커밋 금지, 셀프 가입 HTTP 경로 미노출)
+- 실행 목적별(앱 런타임 부팅 · 마이그레이션/시드 · 프로비저닝 · E2E) 환경변수 fail-fast 검증(누락 변수명 + 필요 이유 명시)
+- 로그인 → 사건 입력 → 처리 → 저장 → 리포트 조회 → 피드백 저장 → 타 사용자 격리까지를 단일 명령으로 재현하는 자동화 E2E 스위트(서버 프로세스와 테스트 프로세스가 동일한 실행 시점 시크릿을 공유함이 보장되는 형태)
 - 위 절차를 운영자가 따라 할 수 있는 런북 문서
 
 파이프라인 단계의 실제 LLM 로직, 대규모 근거자료 수집, UI 고도화는 이번 SPEC의 범위가 아니다(§4 참고).
@@ -58,16 +59,16 @@ SPEC-SCAFFOLD-001은 Next.js/TypeScript/Drizzle/Turso/Better Auth/Gemini 스택 
 | REQ-RUNTIME-004 | Event-driven | 운영자가 시드 명령(`pnpm db:seed`)을 실행하면, 시드 러너는 `db/seed/evidence.json`의 모든 레코드를 `evidence` 테이블에 적재해야 한다. | 사용자 요구사항 MUST-2 |
 | REQ-RUNTIME-005 | Event-driven | 운영자가 시드 명령을 재실행하면, 시드 러너는 동일 `id` 레코드를 중복 생성하지 않고 `evidence` 테이블의 행 수를 불변으로 유지해야 한다. | 사용자 요구사항 MUST-2 (idempotent) |
 | REQ-RUNTIME-006 | Event-driven | 운영자가 테스터 프로비저닝 명령을 대상 이메일과 함께 실행하면, 프로비저닝 스크립트는 해당 이메일을 `allowed_testers` 테이블에 등록해야 한다. | 사용자 요구사항 MUST-3 |
-| REQ-RUNTIME-007 | Event-driven | 운영자가 테스터 프로비저닝 명령을 실행하면, 프로비저닝 스크립트는 `disableSignUp: true`(셀프 가입 경로 차단)를 유지한 상태에서 실제 로그인 가능한 Better Auth 계정(`user` 행 + credential `account` 행, 해시된 비밀번호)을 생성해야 한다. | 사용자 요구사항 MUST-3, 실측: `lib/auth/config.ts` |
+| REQ-RUNTIME-007 | Event-driven | 운영자가 테스터 프로비저닝 명령을 실행하면, 프로비저닝 스크립트는 프로덕션 인증 설정(`lib/auth/config.ts`의 `disableSignUp: true`)을 변경하지 않고, 어떤 HTTP 라우트에도 마운트되지 않은 경로를 통해 실제 로그인 가능한 Better Auth 계정(`user` 행 + credential `account` 행, 해시된 비밀번호)을 생성해야 한다. | 사용자 요구사항 MUST-3, 실측: `lib/auth/config.ts` |
 | REQ-RUNTIME-008 | Unwanted | 프로비저닝 스크립트를 포함한 이 SPEC의 어떤 커밋 대상 파일도 실제 비밀번호·API 키·인증 토큰을 평문으로 포함해서는 안 된다. | 사용자 요구사항 MUST-3 (보안 제약) |
 | REQ-RUNTIME-009 | Event-driven | 운영자가 이미 프로비저닝된 이메일에 대해 프로비저닝 명령을 재실행하면, 스크립트는 중복 `user`/`account` 행을 생성하지 않아야 한다. | 재실행 안전성 |
-| REQ-RUNTIME-010 | When(event-detected) | 애플리케이션 부팅 시점에 필수 환경변수 누락이 감지되면, 환경변수 검증 모듈은 누락된 변수 이름과 그 변수가 필요한 이유를 명시한 오류 메시지와 함께 즉시 실패(fail-fast)해야 한다. | 사용자 요구사항 MUST-4 |
+| REQ-RUNTIME-010 | When(event-detected) | 각 실행 목적(앱 런타임 부팅 · 마이그레이션/시드 · 테스터 프로비저닝 · E2E)의 진입 시점에 **그 목적이 요구하는** 환경변수의 누락이 감지되면, 환경변수 검증 모듈은 누락된 변수 이름과 그 변수가 필요한 이유를 명시한 오류 메시지와 함께 즉시 실패(fail-fast)해야 한다. 검증은 목적별로 스코프가 나뉘며, 어떤 목적도 그 목적이 실제로 소비하지 않는 변수를 진입 조건으로 요구해서는 안 된다. | 사용자 요구사항 MUST-4 |
 | REQ-RUNTIME-011 | Unwanted | 환경변수 검증 오류 메시지는 환경변수의 실제 값(시크릿)을 포함해서는 안 된다. | 보안 제약 |
 | REQ-RUNTIME-012 | Ubiquitous | E2E 테스트 스위트는 `allowed_testers`에 등록된 테스터의 로그인 성공과, 미등록 이메일의 로그인 거부를 모두 검증해야 한다. | 사용자 요구사항 MUST-5 (로그인) |
 | REQ-RUNTIME-013 | Ubiquitous | E2E 테스트 스위트는 `/cases/new` 사건 입력 → `/api/cases` 처리 → `cases`/`reports` DB 저장 → `/cases/[caseId]` 리포트 조회 흐름을 end-to-end로 검증해야 한다. | 사용자 요구사항 MUST-5 |
 | REQ-RUNTIME-014 | Ubiquitous | E2E 테스트 스위트는 사건 상세 화면에서 제출한 전문가 피드백이 `feedback` 테이블에 저장됨을 검증해야 한다. | 사용자 요구사항 MUST-5 (feedback) |
 | REQ-RUNTIME-015 | Ubiquitous | E2E 테스트 스위트는 사용자 B가 사용자 A 소유 사건(`/cases/[caseId]`)에 접근할 수 없음을 검증해야 한다. | 사용자 요구사항 MUST-5 (tenant isolation) |
-| REQ-RUNTIME-016 | Event-driven | 개발자가 단일 E2E 명령(`pnpm test:e2e`)을 실행하면, E2E 스위트는 사람의 수동 조작 없이 앱 기동·DB 준비·시나리오 실행·정리까지 자동 수행해야 한다. | 사용자 요구사항 MUST-6 (재현 가능성) |
+| REQ-RUNTIME-016 | Event-driven | 개발자가 단일 E2E 명령(`pnpm test:e2e`)을 실행하면, 단일 진입점 프로세스가 사람의 수동 조작 없이 시크릿 생성·DB 준비·앱 기동·시나리오 실행·정리까지 자동 수행해야 하며, 검증 대상 앱 서버 프로세스와 E2E 테스트 프로세스가 **동일한 실행 시점 시크릿을 공유함이 보장**되어야 한다(테스트 프레임워크 내부 훅의 실행 순서나 환경 전파 동작에 의존해서는 안 된다). | 사용자 요구사항 MUST-6 (재현 가능성) |
 | REQ-RUNTIME-017 | Where(capability gate) | Where E2E 전용 환경 설정이 활성화된 경우, E2E 스위트는 로컬 libSQL 파일 DB를 사용하여 개발자의 실제 Turso 인스턴스를 오염시키지 않아야 한다. | 사용자 요구사항 MUST-6 (재현 가능성) |
 | REQ-RUNTIME-018 | Ubiquitous | 이 SPEC의 모든 변경 이후에도 `pnpm test`, `pnpm lint`, `pnpm build`, `pnpm format:check`는 계속 통과(exit 0)해야 한다. | 사용자 요구사항 MUST-7 |
 | REQ-RUNTIME-019 | Unwanted | 이 SPEC은 SPEC-SCAFFOLD-001이 확립한 아키텍처 경계(6단계 mock 파이프라인, `lib/ai/provider.ts` 인터페이스, Drizzle ORM 단일 DB 접근 경로, `lib/validation/` PII 차단 계층)를 리팩토링하거나 대체해서는 안 된다. | 사용자 지시: 기존 구조 유지, 불필요한 리팩토링 금지 |
@@ -79,6 +80,7 @@ REQ 개수: 20개 (Tier L 상한 25개 이내).
 
 - **시크릿 비커밋**: 실제 비밀번호·API 키·토큰은 커밋되는 어떤 파일(`spec.md`, `plan.md`, 스크립트, `.env.local.example`, 런북 문서)에도 평문으로 포함하지 않는다. 예시 파일은 플레이스홀더만 사용한다.
 - **아키텍처 보존**: SPEC-SCAFFOLD-001의 계층 경계를 유지한다. 파이프라인 단계는 mock 구현을 유지하고, DB 접근은 Drizzle ORM만 사용하며, Gemini SDK는 `lib/ai/providers/gemini.ts` 밖에서 import하지 않는다.
+- **프로비저닝 전용 인증 인스턴스의 비노출**: 프로비저닝 경로가 별도의 Better Auth 인스턴스를 구성하는 경우, 그 인스턴스는 어떤 HTTP 핸들러·라우트에도 마운트되지 않으며 `scripts/` 밖으로 export되지 않는다. 프로덕션 `lib/auth/config.ts`(`disableSignUp: true`)는 변경하지 않는다 — 즉 공개 셀프 가입 표면은 어느 시점에도 생기지 않는다.
 - **무료 tier 우선**: Turso/Vercel 무료 tier에서 동작 가능해야 한다(`tech.md` §비용 태도). E2E는 외부 계정 없이 로컬 파일 DB로 재현 가능해야 한다.
 - **overengineering 금지**: 별도 vector DB, microservice, 외부 시크릿 관리 서비스를 도입하지 않는다(`product.md` §핵심 원칙 8).
 - **패키지 매니저**: pnpm으로 통일한다. Node.js 20.x LTS 이상(`tech.md` §개발 환경 요구사항).
@@ -108,11 +110,13 @@ REQ 개수: 20개 (Tier L 상한 25개 이내).
 
 ## §5. 잔여 위험 (Residual Risks)
 
-- **Better Auth 1.7.1의 credential `account` 행 요구 스키마**: `lib/db/schema.ts`의 `account.issuer`는 M2에서 발견된 non-nullish 요구사항이다. 프로비저닝 스크립트가 직접 행을 삽입할 경우 이 필드를 포함한 필수 컬럼 집합이 라이브러리 내부 규약과 어긋날 위험이 있다 — 구현 시 실제 로그인 성공(AC-RUNTIME-007)으로 검증한다.
+- **프로비저닝 경로의 트랜잭션·어댑터 상호작용**: 프로비저닝이 Better Auth의 공식 계정 생성 API를 경유하도록 개정되면서(v0.2.0), `account.issuer`를 포함한 필수 컬럼 집합을 스크립트가 추정할 필요는 사라졌다(라이브러리가 채운다 — `research.md` §0). 남는 위험은 그 API가 내부적으로 어댑터 트랜잭션으로 감싸여 실행된다는 점이며, libSQL/Drizzle 어댑터에서의 실제 동작은 미검증이다 — AC-RUNTIME-007(실제 로그인 성공)이 이 경로를 검증 대상으로 삼는다.
+- **프로비저닝 전용 인증 인스턴스의 오용**: 프로비저닝 인스턴스는 셀프 가입이 허용된 설정을 갖는다. 이 인스턴스가 실수로 HTTP 라우트에 마운트되거나 `scripts/` 밖으로 export되면 공개 가입 표면이 열린다 — AC-RUNTIME-017이 이 비노출을 정적으로 검증하며, 스크립트에 `@MX:WARN`을 부착한다.
 - **Turso 무료 tier 한도**: 실사용 테스터 10명 규모에서는 충분할 것으로 판단하나, 대시보드에서 실제 한도를 재확인해야 한다.
 - **로그인 시도 rate-limiting 미구현**: SPEC-SCAFFOLD-001 §5에서 이연된 잔여 위험이 이번 SPEC에서도 해소되지 않는다. 프로비저닝된 계정이 실제로 로그인 가능해지므로 노출 표면이 커진다 — 프로덕션 하드닝 SPEC에서 우선 검토 대상.
 - **E2E 셀렉터 취약성**: UI 고도화가 out of scope이므로 E2E는 현행 마크업에 의존한다. 후속 UI SPEC에서 마크업이 바뀌면 E2E가 깨질 수 있다 — 안정적 셀렉터(`data-testid`) 부착을 최소 범위로 허용한다.
 - **`file:` 스킴과 원격 Turso의 동작 차이**: E2E가 로컬 파일 DB에서 통과해도 원격 Turso에서의 네트워크 지연·인증 실패 경로는 검증되지 않는다. 원격 연결은 별도 수동 확인(런북 절차)으로 보완한다.
+- **`GEMINI_API_KEY` 부재 상태로의 앱 기동 가능성**: 이번 SPEC의 파이프라인은 mock 구현을 유지하므로(§4 제외 범위) 앱 런타임 스코프는 `GEMINI_API_KEY`를 요구하지 않는다(`design.md` §3.1). 그 결과 실제 Gemini 호출을 활성화하는 후속 SPEC 이전까지는, 키가 없는 상태로 앱이 정상 기동한다 — 후속 SPEC이 실호출을 도입하는 시점에 이 변수를 앱 런타임 스코프의 필수 항목으로 승격해야 하며, 승격이 누락되면 실패 지점이 부팅에서 첫 호출 시점으로 밀린다.
 
 ## §6. 참고 문서
 
