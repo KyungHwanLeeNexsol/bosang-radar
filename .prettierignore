@@ -1,0 +1,12 @@
+.next
+node_modules
+pnpm-lock.yaml
+coverage
+.moai
+.claude
+.github
+.git_hooks
+.mcp.json
+CLAUDE.md
+.worktreeinclude
+.claudeignore

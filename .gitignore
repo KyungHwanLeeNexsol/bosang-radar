@@ -126,6 +126,7 @@ logs/*
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # Certificate files
 *.pem
@@ -225,6 +226,7 @@ node_modules/
 .tscache/
 .next/
 out/
+next-env.d.ts
 
 # ===========================================
 # Build Tools & Frameworks
