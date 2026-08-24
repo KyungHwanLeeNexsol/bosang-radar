@@ -26,4 +26,12 @@ describe("lib/db/schema", () => {
     expect(schema.session.userId).toBeDefined();
     expect(schema.account.userId).toBeDefined();
   });
+
+  it("account 테이블은 Better Auth 1.7.1 Drizzle 어댑터가 요구하는 issuer 컬럼을 가진다 (plan.md §E, M2 발견)", () => {
+    // Better Auth 1.7.1의 accountSchema는 issuer: z.string()을 필수(nullish 아님) 필드로
+    // 요구한다 — M1의 스키마 초안에는 없었던 항목으로, M2에서 Better Auth Drizzle 어댑터
+    // 요구사항을 검증하는 과정에서 발견됐다(plan.md §E "Better Auth Drizzle 어댑터
+    // 스키마 요구사항" 위험이 실제로 발생한 사례).
+    expect(schema.account.issuer).toBeDefined();
+  });
 });

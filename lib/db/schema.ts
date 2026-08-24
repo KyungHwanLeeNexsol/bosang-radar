@@ -31,6 +31,9 @@ export const account = sqliteTable("account", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
+  // M2에서 발견 — Better Auth 1.7.1의 accountSchema는 issuer를 필수(non-nullish)
+  // 필드로 요구한다(M1 초안 작성 시점에는 없었던 요구사항, plan.md §E 위험 실현 사례).
+  issuer: text("issuer").notNull(),
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
