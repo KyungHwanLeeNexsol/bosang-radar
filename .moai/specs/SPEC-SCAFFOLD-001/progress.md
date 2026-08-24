@@ -81,7 +81,7 @@ m5_modified_files: 2 (app/page.tsx, app/layout.tsx)
 ```yaml
 sync_status: audit-ready
 sync_complete_at: 2026-08-24
-sync_commit_sha: pending-backfill
+sync_commit_sha: ddc8c288f1f48614207413f72eb0897f27f9ac17
 ```
 
 - 작성자: manager-docs (sync-phase)
