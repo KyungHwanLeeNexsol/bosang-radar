@@ -1,0 +1,21 @@
+# .moai/project/harness-spec.yaml — machine-readable harness generation input
+# Generated from .moai/project/interview.md (Stage A + Stage B answers).
+
+domain: "insurance-research-assistant"
+goal: "현직 보험설계사·손해사정사 10명이 실제로 사용해 볼 수 있는, evidence 기반 AI 리서치 보조 도구의 최소 실행 가능 제품(MVP)을 만든다."
+constraints:
+  - "AI는 보험금 지급 여부/지급 확률을 단정하지 않는다."
+  - "모든 주요 AI 판단은 evidence와 연결되어야 한다."
+  - "개인정보·민감정보 저장 최소화 — 주민번호, 전화번호, 상세주소, 의료기록 원본은 MVP에서 받지 않는다."
+  - "특정 LLM에 application logic이 종속되지 않도록 AI provider abstraction 필요."
+  - "DB는 Drizzle ORM 뒤에 두어 향후 PostgreSQL 이전 가능해야 한다."
+  - "microservice, Kubernetes, 별도 vector DB 등 overengineering 금지."
+  - "무료 tier 인프라 우선."
+scope: "In-scope: 상해후유장해/질병후유장해 리서치 파이프라인, 사건 입력 UI, evidence 기반 리서치 리포트, 전문가 피드백 저장. Out-of-scope (이번 SPEC): 보험금 지급 판단/확률 제공, 대규모 실데이터 수집, 다른 담보 영역, PostgreSQL 마이그레이션 실행, microservice/K8s/vector DB."
+
+verification: "Vitest (pnpm test)"
+external_systems:
+  - "Turso/libSQL (DB)"
+  - "Gemini API (LLM)"
+ui_surface: "has-ui"
+team_sharing: "solo"
