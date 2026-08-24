@@ -2,7 +2,7 @@
 id: SPEC-SCAFFOLD-001
 title: "보상레이더 MVP 최초 프로젝트 scaffold 및 핵심 아키텍처 구축"
 version: "0.1.0"
-status: in-progress
+status: completed
 created: 2026-08-24
 updated: 2026-08-24
 author: Nexsol

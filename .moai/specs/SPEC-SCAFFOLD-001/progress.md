@@ -78,7 +78,15 @@ m5_modified_files: 2 (app/page.tsx, app/layout.tsx)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+```yaml
+sync_status: audit-ready
+sync_complete_at: 2026-08-24
+sync_commit_sha: pending-backfill
+```
+
+- 작성자: manager-docs (sync-phase)
+- 산출물: README.md 전면 재작성(create-next-app 보일러플레이트 → 실제 프로젝트 문서), CHANGELOG.md 신규 생성([Unreleased] SPEC-SCAFFOLD-001 항목), spec.md frontmatter `status: in-progress → completed` 전환.
+- 검증: sync 커밋 이전 `pnpm build && pnpm lint && pnpm test && pnpm format:check` 재실행 — 문서 파일만 수정했으므로 회귀 없음 재확인.
 
 ## §F Phase 4 Mode Selection
 
