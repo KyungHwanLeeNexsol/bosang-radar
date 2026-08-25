@@ -107,7 +107,15 @@ plan_revisions:
 
 **개정 범위 불변 확인**: `spec.md` §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변, Tier L·Route B 불변, 아티팩트 집합 불변(5 + progress.md). REQ 20 → 21, AC 20 → 22 (Tier L 상한 25/25 이내). **어떤 AC의 판정 기준도 낮추지 않았다** — AC-RUNTIME-007의 "실제 로그인 성공" 기준 불변이며, 개정 3은 AC-015에서 **증명되지 않던 주장을 제거하고 그 성질을 직접 관측하는 AC로 승격**한 것이므로 검증 범위는 넓어졌다.
 
-**다음 단계**: plan-auditor 신규 전체 감사(v0.3.0 아티팩트 대상). v0.2.0에 대한 iteration 3 PASS는 **이 아티팩트 집합의 통과 근거가 아니다** — `plan_status`를 `audit-ready`로 올리는 것은 신규 감사 PASS 확인 이후다.
+**감사 4회차 — v0.3.0 개정 아티팩트 신규 전체 감사 (2026-08-25)**: 위 개정 3건(REQ-RUNTIME-021 신설, AC-RUNTIME-015 sentinel 교체, AC-RUNTIME-022 신설) 반영 후 plan-auditor 재감사를 실시해 **PASS(0.97, Tier L 기준선 0.85)**를 받았다. 필수 통과 기준 7개 전항목 PASS(REQ 일관성·GEARS 형식·프론트매터·D7 교차SPEC·D8 크로스플랫폼·명확화 게이트). progress.md 자기기술 수치(REQ 21개·AC 22개)도 spec.md/acceptance.md 실측과 교차 검증해 일치를 확인했다. 개정 3건 모두 5개 아티팩트 전체에 걸쳐 정확·완전 반영됨을 확인했다.
+
+- **D1(minor, 비차단)** — REQ-RUNTIME-021 하나에 정규 진술 3건이 묶여 있음(원자성 위반은 아님, 참고만).
+- **D2(minor, 비차단) → 적용** — 프론트매터 `phase: "v0.2.0 target"`이 `version: "0.3.0"`과 라벨 드리프트 상태였다(스키마 위반은 아님). `"v0.3.0 target"`으로 정정하고 `updated`를 갱신했다.
+- **D3(cosmetic, 기종결)** — REQ-RUNTIME-010 GEARS 라벨 건은 3·4회차 모두 재확인 후 종결 유지, 재오픈 없음.
+
+보고서: `.moai/reports/plan-audit/SPEC-RUNTIME-001-review-4.md`.
+
+**다음 단계**: 감사 4회차 PASS(0.97) 확인 완료로 `plan_status`는 `audit-ready`다. 다음은 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**이다.
 
 ## §E.2 Run-phase Evidence
 
