@@ -4,7 +4,7 @@
 
 ```yaml
 plan_complete_at: 2026-08-24
-plan_status: audit-ready   # v0.4.0 개정 아티팩트에 대한 5차 감사 PASS(0.97) 확정 — Implementation Kickoff Approval 대기
+plan_status: audit-ready   # /moai run Phase 1 게이트 — 6차 감사 PASS(0.97) 확정 (D4 qualifier 문장 반영 후 재감사) — Implementation Kickoff Approval 대기
 spec_version: "0.4.0"
 tier: L
 route: B (PR route — Tier L)
@@ -46,6 +46,11 @@ audit_iterations:
     score: 0.97          # Tier L threshold 0.85; must-pass 7/7 PASS — v0.4.0 아티팩트에 대한 신규 전체 감사
     disposition: v0.4.0 개정 3건(AC-RUNTIME-022 검증 범위 조정 / .env.local 안전 교체-복원 설계 신설 / 잔존 문서 오류 3건 정리) 전건 검증 완료. AC-RUNTIME-022의 좁혀진 범위가 REQ-RUNTIME-016 커버리지 갭을 만들지 않음(AC-022 + AC-RUNTIME-015 (3)항이 함께 여전히 완전히 충족)을 확인했고, .env.local 안전장치(design.md §3.6)가 AC-RUNTIME-015·AC-RUNTIME-021 Given에 정확히 배선되었으며, kill-9 잔여 위험이 4곳 모두에서 일관되게 정직히 명시됨을 확인했다. 전체 6개 아티팩트에서 잔존 `e2e/global-setup.ts` 현재 시제 참조 0건(정당한 과거 시제·존재 확인 항목만 남음). D1(carried, REQ-021 3개 규범문 번들, non-actionable) / D3(carried, closed — REQ-010 GEARS 라벨, 재확인 종결) 유지. D4(신규, minor) — acceptance.md AC-022 역할 분담 서술의 "AC-022+AC-015 함께 완전히 충족한다" 요약이 러너→서버 구간의 값 수준 동일성(OS 상속 + 정적 검증에 근거한 추론이지 직접 관측이 아님)에 비해 아주 약간 강하게 읽힘 — non-blocking. D4 대응으로 acceptance.md AC-022 역할 분담 문단에 한 문장 qualifier 추가(오케스트레이터 반영, 재감사 불필요)
     report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-5.md
+  - iteration: 6
+    verdict: PASS
+    score: 0.97          # Tier L threshold 0.85; must-pass 7/7 PASS(1건 N/A) — /moai run Phase 1 Plan Audit Gate 정식 호출
+    disposition: 5차 감사 이후 acceptance.md AC-RUNTIME-022 역할 분담 문단에 추가된 D4 qualifier 한 문장으로 플랜 아티팩트 해시가 변경되어 캐시 재사용 불가 — 신규 전체 감사 실시. 필수 통과 기준 7개 전항목 PASS(1건 N/A). 변경된 그 한 문장이 design.md·research.md와 일관되며 새 결함을 만들지 않음을 확인. D1(carried, non-actionable)·D3(carried, closed) 유지, D4 RESOLVED 확인. SPEC은 구현 착수 승인 준비 완료.
+    report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-6.md
 plan_revisions:
   - version: "0.4.0"
     date: 2026-08-25
