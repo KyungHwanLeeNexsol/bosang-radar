@@ -8,6 +8,16 @@ import { connectE2EDb, loginAsTester } from "./helpers.ts";
 // AC-RUNTIME-013 — 전문가 피드백 저장.
 
 test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
+  // connectE2EDb()가 연 libsql 연결을 테스트 성공·실패와 무관하게 닫는다 —
+  // afterEach는 본문이 예외로 중단돼도 실행되므로 try/finally로 본문 전체를
+  // 감싸지 않고도 해제를 보장한다.
+  let closeDb: (() => void) | undefined;
+
+  test.afterEach(() => {
+    closeDb?.();
+    closeDb = undefined;
+  });
+
   test("사건 입력이 저장되고 리포트가 렌더링되며, 피드백이 저장된다", async ({ page }) => {
     await loginAsTester(page, TESTER_A_EMAIL);
 
@@ -29,7 +39,8 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     await page.waitForURL(`/cases/${caseId}`);
     await expect(page.getByTestId("case-report")).toBeVisible();
 
-    const db = connectE2EDb();
+    const { db, close } = connectE2EDb();
+    closeDb = close;
     const [tester] = await db
       .select({ id: schema.user.id })
       .from(schema.user)

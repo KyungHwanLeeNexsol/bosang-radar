@@ -13,8 +13,10 @@ SPEC-RUNTIME-001 (Tier L, 6 milestones) 문서 동기화(sync-phase)를 완료�
 | Tests | 33 files / 139 tests — PASS |
 | Lint | 0 issues |
 | Format check | PASS |
-| Acceptance criteria | 22/22 PASS (AC-RUNTIME-001~022) |
+| Acceptance criteria | 21/22 PASS (AC-RUNTIME-001~022) — **AC-RUNTIME-015 FAIL**, 아래 주석 참고 |
 | Files updated (sync-phase) | 5 |
+
+> **정정 (M7, 2026-08-25)**: 이 보고서는 최초 작성 시 AC를 `22/22 PASS`로 기록했으나, 이는 AC-RUNTIME-015를 실측으로 확인하지 않은 주장이었다. M7에서 `pnpm test:e2e`를 실제 실행해 관측한 결과, 4개 시나리오는 전부 통과하지만 **프로세스가 스스로 종료하지 못한다**(Playwright `webServer`의 `next start`가 teardown에서 살아남아 약 11분간 행 — 해당 PID를 수동 종료해야 비로소 exit 0). AC-RUNTIME-015 (1)항 "사람의 수동 조작 없이 exit 0으로 종료"는 **미충족**이므로 위 표를 `21/22`로 정정한다. 근거·프로세스 트리 관측·인과 확정 절차는 `.moai/specs/SPEC-RUNTIME-001/progress.md` §E.2 M7 참고.
 
 ## Updated documents
 

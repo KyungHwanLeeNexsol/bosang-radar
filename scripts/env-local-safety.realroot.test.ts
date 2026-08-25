@@ -1,60 +1,61 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withSafeEnvLocal } from "./env-local-safety.ts";
 
-// design.md §3.6 B4 요구 — throwaway fake 값으로 실제 프로젝트 루트 .env.local을
-// 대상으로 왕복 검증한다. 이 테스트 시작 시점에 실제 .env.local이 존재하지
-// 않음(오케스트레이터 사전 확인 완료)을 전제하며, 테스트 자신이 그 "부재" 상태를
-// 명시적으로 확인·복원하고 마지막에도 재확인한다 — 잔존 시 이 테스트가 실패한다.
+// design.md §3.6 B4 요구 — throwaway fake 값으로 .env.local 왕복(백업 → sentinel
+// 쓰기 → 복원)을 정상 종료·예외·시뮬레이션된 SIGINT 세 경로에서 검증한다.
+//
+// 검증 대상 경로는 OS 임시 디렉터리에 매 실행마다 새로 만드는 격리된 픽스처다.
+// 프로젝트 루트의 실제 .env.local은 읽지도 쓰지도 않는다 — README의 정상 개발
+// 설정이 .env.local 생성을 요구하므로, 실제 루트를 대상으로 삼으면 설정을 마친
+// 개발자에게서 이 테스트가(따라서 pnpm test 전체가) 실패한다. withSafeEnvLocal/
+// prepareSafeEnvLocal이 명시적 경로 인자를 받으므로(env-local-safety.ts) 검증의
+// 왕복 범위는 그대로 유지하면서 대상 경로만 격리한다.
 
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const realEnvLocalPath = path.join(projectRoot, ".env.local");
+const fixtureDir = mkdtempSync(path.join(tmpdir(), "moai-env-local-realroot-"));
+const fixtureEnvLocalPath = path.join(fixtureDir, ".env.local");
 
-describe("withSafeEnvLocal — 실제 프로젝트 루트 왕복 (throwaway 값)", () => {
+describe("withSafeEnvLocal — 격리된 임시 루트 왕복 (throwaway 값)", () => {
   beforeAll(() => {
-    // 사전 조건: 실제 .env.local이 이미 존재하면 이 테스트는 실행하지 않는다
-    // (개발자의 실제 파일을 이 테스트가 건드릴 근거가 없다).
-    if (existsSync(realEnvLocalPath)) {
-      throw new Error(
-        "실제 .env.local이 이미 존재합니다 — 이 테스트는 부재 상태에서만 실행해야 합니다."
-      );
-    }
+    // 사전 조건: 픽스처는 방금 만든 빈 디렉터리이므로 .env.local이 없어야 한다.
+    expect(existsSync(fixtureEnvLocalPath)).toBe(false);
   });
 
   afterAll(() => {
-    // 최종 방어선: 이 describe 블록의 모든 테스트가 끝난 뒤 실제 .env.local이
-    // 여전히 부재 상태인지 재확인한다.
-    expect(existsSync(realEnvLocalPath)).toBe(false);
+    // 최종 방어선: 모든 테스트가 끝난 뒤 픽스처 .env.local이 부재 상태인지
+    // 재확인한 뒤 임시 디렉터리 자체를 제거한다.
+    expect(existsSync(fixtureEnvLocalPath)).toBe(false);
+    rmSync(fixtureDir, { recursive: true, force: true });
   });
 
-  it("(a) 정상 종료 — 실행 후 실제 .env.local이 부재 상태로 복원된다", async () => {
+  it("(a) 정상 종료 — 실행 후 .env.local이 부재 상태로 복원된다", async () => {
     await withSafeEnvLocal(
       "TURSO_DATABASE_URL=libsql://throwaway-fake-value.invalid\n",
       async () => {
-        expect(existsSync(realEnvLocalPath)).toBe(true);
-        expect(readFileSync(realEnvLocalPath, "utf-8")).toContain("throwaway-fake-value");
+        expect(existsSync(fixtureEnvLocalPath)).toBe(true);
+        expect(readFileSync(fixtureEnvLocalPath, "utf-8")).toContain("throwaway-fake-value");
       },
-      realEnvLocalPath
+      fixtureEnvLocalPath
     );
 
-    expect(existsSync(realEnvLocalPath)).toBe(false);
+    expect(existsSync(fixtureEnvLocalPath)).toBe(false);
   });
 
-  it("(b) 실행 중 에러 발생 — 에러가 전파되어도 실제 .env.local이 부재 상태로 복원된다", async () => {
+  it("(b) 실행 중 에러 발생 — 에러가 전파되어도 .env.local이 부재 상태로 복원된다", async () => {
     await expect(
       withSafeEnvLocal(
         "TURSO_DATABASE_URL=libsql://throwaway-fake-value-2.invalid\n",
         async () => {
-          expect(existsSync(realEnvLocalPath)).toBe(true);
+          expect(existsSync(fixtureEnvLocalPath)).toBe(true);
           throw new Error("시뮬레이션된 실행 중 실패");
         },
-        realEnvLocalPath
+        fixtureEnvLocalPath
       )
     ).rejects.toThrow("시뮬레이션된 실행 중 실패");
 
-    expect(existsSync(realEnvLocalPath)).toBe(false);
+    expect(existsSync(fixtureEnvLocalPath)).toBe(false);
   });
 
   it("(c) 시뮬레이션된 SIGINT — 시그널 핸들러 직접 호출 시에도 부재 상태로 복원된다", async () => {
@@ -74,16 +75,16 @@ describe("withSafeEnvLocal — 실제 프로젝트 루트 왕복 (throwaway 값)
       await withSafeEnvLocal(
         "TURSO_DATABASE_URL=libsql://throwaway-fake-value-3.invalid\n",
         async () => {
-          expect(existsSync(realEnvLocalPath)).toBe(true);
+          expect(existsSync(fixtureEnvLocalPath)).toBe(true);
           sigintHandler?.();
         },
-        realEnvLocalPath
+        fixtureEnvLocalPath
       );
     } finally {
       process.on = originalOn;
       process.exit = originalExit;
     }
 
-    expect(existsSync(realEnvLocalPath)).toBe(false);
+    expect(existsSync(fixtureEnvLocalPath)).toBe(false);
   });
 });

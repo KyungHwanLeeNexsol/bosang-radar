@@ -11,8 +11,19 @@ import { connectE2EDb, loginAsTester } from "./helpers.ts";
 // 실행 순서에 결합되지 않도록).
 
 test.describe("Tenant Isolation — AC-RUNTIME-014", () => {
+  // connectE2EDb()가 연 libsql 연결을 테스트 성공·실패와 무관하게 닫는다 —
+  // afterEach는 본문이 예외로 중단돼도 실행되므로 try/finally로 본문 전체를
+  // 감싸지 않고도 해제를 보장한다.
+  let closeDb: (() => void) | undefined;
+
+  test.afterEach(() => {
+    closeDb?.();
+    closeDb = undefined;
+  });
+
   test("테스터 B는 테스터 A가 소유한 사건 상세에 접근할 수 없다", async ({ page }) => {
-    const db = connectE2EDb();
+    const { db, close } = connectE2EDb();
+    closeDb = close;
     const [testerA] = await db
       .select({ id: schema.user.id })
       .from(schema.user)

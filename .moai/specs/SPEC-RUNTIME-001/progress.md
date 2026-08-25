@@ -355,6 +355,65 @@ justification: |
   - **`pnpm test:e2e`가 4/4 테스트 통과 후 exit 0으로 종료하지 못하고 무기한 행(hang)한다** — Playwright의 `webServer`(Next.js `next start`) 프로세스 종료(teardown) 단계에서 멈춘다. 3회 독립 재현(래퍼 스크립트 경유 1회 + `pnpm test:e2e` 직접 터미널 실행 2회, 매회 4/4 테스트 통과 후 5분 이상 응답 없어 프로세스 트리를 수동 종료) — **제 검증 래퍼의 추가 셸 중첩이 원인이 아님을 직접 터미널 실행으로 배제**했다. 근본 원인으로 추정되는 것: `webServer.command`가 `pnpm build && pnpm start`로 `&&`를 포함해 Playwright 자신이 내부적으로 셸을 통해 spawn해야 하며, 여기에 pnpm의 자체 `exec` 내부 셸 래핑과 Windows의 cmd.exe 프로세스 트리 종료 신뢰성 문제(각 중첩 셸 계층이 Job Object로 완전히 묶이지 않을 수 있음)가 겹친 것으로 보인다 — Playwright·Next.js·pnpm 각각의 내부 구현이라 `run-e2e.ts`/`playwright.config.ts` 코드 변경만으로 근본 해결은 어렵다(`spawnPlaywrightRunner()`의 `shell:true` 제거를 시도했으나 위에서 기록했듯 다른 방식으로 실패했다). **테스트 자체의 정확성(4/4 PASS)에는 영향이 없다** — 순수하게 프로세스 정리(cleanup) 단계의 문제다.
 - Residual-risk (추가, Windows 특유): 이 환경(Windows, Node v24.19.0, pnpm 11.23.0)에서 `pnpm test:e2e`를 사람이 직접 실행하면 4개 시나리오가 전부 통과한 뒤에도 터미널이 반환되지 않고 걸려 있을 수 있다 — 운영자는 Ctrl+C 또는 작업 관리자로 남은 `next start`/`node` 프로세스를 수동 종료해야 완전히 마무리된다. CI(대개 Linux 컨테이너)에서는 이 Windows 특유의 셸 중첩·프로세스 트리 종료 문제가 적용되지 않을 가능성이 높으나, 이 세션에서는 Linux 환경 실측 기회가 없었다 — CI 최초 실행 시 exit code를 재확인 권장.
 
+### M7 — 병합 차단 결함 4건 수정 + teardown hang 근본 원인 확정 (완료, 단 AC-RUNTIME-015는 여전히 미충족)
+
+**대상**: sync 이후 코드 리뷰에서 발견된 병합 차단 결함 4건(P0-1 libSQL 연결 누수, P0-2 문서 정합성, P1-1 실제 `.env.local` 결합, P1-2 Node 20 실행 호환성).
+
+**실행 환경**: 격리 워크트리 `.claude/worktrees/agent-a9e02c165e0be6d88`, Windows, Node v24.19.0, pnpm 11.23.0. E2E는 `.env.local` 없이 동작한다 — `assembleE2EEnv()`가 네 값(`TURSO_DATABASE_URL=file:./.tmp/e2e.db`, 빈 포트 기반 `BETTER_AUTH_URL`, 난수 `BETTER_AUTH_SECRET`/`TESTER_PASSWORD`)을 실행 시점에 스스로 생성하므로 외부 자격증명이 필요 없다(실측 확인).
+
+**구현 시 확정 항목 (spec/plan/acceptance 미변경)**:
+
+- **P0-1** — `e2e/helpers.ts`의 `connectE2EDb()`가 `drizzle` 래퍼만 반환해 하부 libsql `client` 참조가 유실되던 것을 `{ db, close }` 쌍 반환으로 변경했다. 두 소비자(`e2e/case-flow.spec.ts`, `e2e/tenant-isolation.spec.ts`)는 `test.afterEach`에 `close`를 등록해 **성공·실패 경로 모두에서** 해제를 보장한다(본문 전체를 try/finally로 감싸지 않아 diff를 최소화). `e2e/auth.spec.ts`는 `connectE2EDb()`를 사용하지 않음을 grep으로 확인 — 소비자는 정확히 2곳이다.
+- **P1-1** — `scripts/env-local-safety.realroot.test.ts`가 실제 프로젝트 루트 `.env.local`을 대상으로 삼아, README의 정상 설정을 마친 개발자에게서 `pnpm test` 전체가 실패하던 결합을 제거했다. 매 실행마다 `mkdtempSync`로 만드는 격리 임시 디렉터리를 대상으로 바꿨다 — `withSafeEnvLocal`/`prepareSafeEnvLocal`이 이미 명시적 경로 인자를 받으므로 왕복 검증 범위(정상/에러/시뮬레이션 SIGINT 3경로)는 그대로 유지된다.
+- **P1-2** — `tsx@4.23.12`를 devDependency로 추가하고 `db:migrate`/`db:seed`/`tester:add`/`test:e2e` 4개 스크립트를 `node scripts/X.ts` → `tsx scripts/X.ts`로 교체했다(README/tech.md가 주장하는 Node 20.x 지원에서 네이티브 타입 스트리핑을 신뢰할 수 없기 때문).
+- **P1-2 파생 회귀 + 수정 (같은 SPEC 스코프 내 cascade)** — tsx 교체 직후 `pnpm test:e2e`가 즉시 실패했다. tsx의 CJS 트랜스폼에서 `import nextEnv from "@next/env"`의 `.default`가 `undefined`가 되어 `scripts/cli-bootstrap.ts:13`의 구조분해가 죽는다. 두 러너의 모듈 형태를 실측 비교한 뒤(아래 Evidence 참고) namespace import + `.default ?? ns` 폴백으로 교체해 Node ESM·tsx 양쪽에서 `loadEnvConfig`를 얻도록 했다. 기존 주석의 "named import는 SyntaxError" 근거는 유지하고, 새로 측정한 러너별 차이를 덧붙였다.
+
+**§E items (verification-claim-integrity.md §3)**:
+
+- Claim: P1-1 결합이 실제로 존재했고(RED), 수정 후 `.env.local` 유무와 무관하게 통과한다(GREEN).
+  Evidence:
+  - RED — 루트에 개발자 `.env.local`을 만든 뒤 `pnpm vitest run scripts/env-local-safety.realroot.test.ts` → **exit=1**, verbatim: `"실제 .env.local이 이미 존재합니다 — 이 테스트는 부재 상태에서만 실행해야 합니다."` + `afterAll`의 `AssertionError: expected true to be false`, `Test Files 1 failed (1) / Tests 3 skipped (3)`.
+  - GREEN(`.env.local` 존재 상태) — 동일 명령 → **exit=0**, `Test Files 1 passed (1) / Tests 3 passed (3)`. 실행 후 `.env.local` 내용이 바이트 단위로 불변임을 `cat`으로 확인(개발자 파일 미훼손).
+  - GREEN(`.env.local` 부재 상태) — `.env.local` 삭제 후 동일 명령 → **exit=0**, `Tests 3 passed (3)`.
+  Baseline-attribution: 이 M7 워크트리, 이 3회 실행. 로그: `.moai/state/verify/m7/01-RED-realroot.log`, `02-GREEN-realroot-with-envlocal.log`, `03-GREEN-realroot-no-envlocal.log`.
+- Claim: tsx 교체가 `@next/env` 인터롭 회귀를 유발했고, namespace 폴백이 두 러너 모두에서 동작한다.
+  Evidence: 프로브 스크립트를 두 러너로 실행한 verbatim 대비 —
+  ```
+  === under tsx:   ns keys: initialEnv,loadEnvConfig,processEnv,resetEnv,updateInitialEnv
+                   has ns.default: false      loadEnvConfig typeof: function
+  === under node:  ns keys: default,module.exports
+                   has ns.default: true       loadEnvConfig typeof: function
+  ```
+  즉 tsx는 named export를 직접 노출하고 Node ESM은 `.default` 아래에 둔다 — `.default ?? ns` 폴백이 양쪽을 모두 만족한다. 수정 후 `pnpm vitest run scripts/cli-bootstrap.test.ts` → exit=0, `Tests 4 passed (4)`. 프로브 파일은 검증 후 삭제.
+  Baseline-attribution: 이 M7 워크트리, 이 실행(실제 두 러너 프로세스, mock 아님).
+- Claim: tsx로 교체한 4개 스크립트가 실제로 기동한다.
+  Evidence: 스크래치 file DB(`file:./.tmp/tsxcheck.db`)로 실행 —
+  `pnpm db:migrate` → exit=0 `✅ 마이그레이션 완료` / `pnpm db:seed` → exit=0 `✅ 시드 완료` / `pnpm tester:add -- --email tsxcheck@example.com` → exit=0 `✅ 테스터 프로비저닝 완료` / `pnpm test:e2e` → 아래 항목에서 별도 검증. 스크래치 DB는 검증 후 삭제.
+  Baseline-attribution: 이 M7 워크트리, 이 실행(실제 CLI 프로세스).
+- Claim: 전체 품질 게이트 4종이 통과한다.
+  Evidence: `pnpm test` → exit=0, `Test Files 33 passed (33) / Tests 139 passed (139)`. `pnpm lint` → exit=0(무출력). `pnpm format:check` → exit=0, `All matched files use Prettier code style!`. `pnpm build` → exit=0(7개 라우트 정상 빌드).
+  Baseline-attribution: 이 M7 워크트리, 이 실행. 로그: `.moai/state/verify/m7/08-test.log`, `09-lint.log`, `10-format.log`, `11-build.log`.
+- Claim (**부정 결과 — 중요**): **P0-1 연결 누수 수정은 `pnpm test:e2e`의 teardown hang을 해소하지 못했다. AC-RUNTIME-015 (1)항의 "exit 0 자동 종료"는 여전히 미충족이다.**
+  Evidence: P0-1 + 인터롭 수정을 모두 적용한 뒤 `pnpm test:e2e` 실행(시작 17:01:41). 4개 시나리오 전부 통과 —
+  ```
+  Running 4 tests using 3 workers
+    ✓ 3 [chromium] › e2e\auth.spec.ts:10:7 › ... (1.4s)
+    ✓ 2 [chromium] › e2e\tenant-isolation.spec.ts:24:7 › ... (1.6s)
+    ✓ 4 [chromium] › e2e\auth.spec.ts:17:7 › ... (563ms)
+    ✓ 1 [chromium] › e2e\case-flow.spec.ts:21:7 › ... (2.6s)
+  ```
+  그러나 로그가 여기서 멈추고 요약 라인도, 프로세스 종료도 발생하지 않았다. **약 11분간 행(hang)** 상태에서 프로세스 트리를 WMIC로 관측한 결과, 이 실행에 속한 사슬이 전부 살아 있었다:
+  `pnpm test:e2e`(14020) → `tsx run-e2e.ts`(28336→3440) → `pnpm exec playwright test`(7656) → `playwright cli.js`(27824) → `pnpm start`(26204) → **`next start`(9536)**.
+  즉 Playwright의 `webServer`(Next.js 프로덕션 서버)가 teardown에서 종료되지 않았다. **인과 확정**: 고아 `next start`(PID 9536) 하나만 `taskkill /F`로 종료하자 사슬 전체가 즉시 풀리며 `pnpm test:e2e`가 **exit=0**으로 반환됐다(17:12:52). 종료 후 이 워크트리에 속한 잔여 node 프로세스는 0개(WMIC 재확인).
+  Baseline-attribution: 이 M7 워크트리, 이 실행(실제 프로세스·실제 chromium, mock 아님). 로그: `.moai/state/verify/m7/07-e2e-run2.log`, 종료 코드/시각: `e2e2.start`, `e2e2.exit`.
+- Gaps (미검증):
+  - **teardown 수정 자체는 시도하지 않았다.** 근본 원인은 확정됐으나(위), 이를 고치려면 `webServer.command`의 `pnpm build && pnpm start` 복합 명령 구조 또는 서버 라이프사이클 소유권을 바꿔야 한다 — 이는 design.md §3.3/§3.4에 명시적으로 문서화된 설계 결정(프로세스 계보에 시크릿 상속을 위임)에 대한 변경이므로, run-phase 에이전트가 단독으로 수행할 범위를 벗어난다. 후보 수정안은 아래 Residual-risk에 기록하되 **어느 것도 실측 검증하지 않았다 — 전부 가설이다.**
+  - Linux/CI 환경에서의 동일 시나리오는 이 세션에서도 실측 기회가 없었다(M5의 동일 Gap 유지).
+  - P0-1 수정이 누수 자체를 없앴다는 것은 코드 구조로 확인했으나(두 소비자 모두 `close()` 등록), 파일 핸들 수준의 계측(예: handle count 전후 비교)은 하지 않았다.
+- Residual-risk:
+  - `pnpm test:e2e`는 이 환경에서 **여전히 사람의 수동 개입을 요구한다** — 4/4 통과 후 고아 `next start`를 직접 종료해야 터미널이 반환된다. 운영자 안내(M6 런북)의 teardown hang 항목은 그대로 유효하다.
+  - 미검증 후보 수정안(전부 가설): (a) `webServer.command`에서 `&&` 복합을 제거하고 `pnpm build`를 `run-e2e.ts`가 선행 수행하도록 이동, (b) `pnpm start` 대신 `pnpm exec next start`로 래퍼 계층 축소, (c) Playwright `webServer.gracefulShutdown` 설정, (d) `run-e2e.ts`가 서버 라이프사이클을 직접 소유하고 PID 트리를 종료. Windows 프로세스 트리 종료는 중간 셸이 먼저 종료되며 재부모화가 일어나는 특성이 있어, 어느 안도 실측 없이는 효과를 단정할 수 없다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 ```yaml
@@ -383,16 +442,25 @@ milestones:
     commit: 80cd6eb, 5d627cb
     blocker_resolved: true   # 포트 3000 충돌(무관한 다른 프로젝트 프로세스) 발견 → AskUserQuestion → 동적 빈 포트 탐색으로 전환
     verified_by_orchestrator: true   # 오케스트레이터가 직접 pnpm test:e2e 실행, 4/4 실제 Chromium 시나리오 통과 확인(2.4분), .env.local 안전 복원 확인, 잔여 프로세스 없음 확인
-    residual_risk: pnpm test:e2e teardown hang (Windows, 프로세스 정리 단계, 테스트 정확성 무관 — 사용자 승인으로 기록만 하고 진행)
+    residual_risk: pnpm test:e2e teardown hang (Windows, 프로세스 정리 단계, 테스트 정확성 무관 — 사용자 승인으로 기록만 하고 진행). M7에서 근본 원인 확정(고아 next start 미종료) — 여전히 미해소
   - id: M6
     title: 런북 문서화
     commit: c16cc65
     verified_by_orchestrator: true   # 런북 내용 직접 검토(스코프 매트릭스 일치, 시크릿 미기재, teardown hang 안내 포함) + .env.local.example 플레이스홀더 확인
+  - id: M7
+    title: 병합 차단 결함 4건 수정 (libSQL 누수 / 문서 정합 / .env.local 결합 / Node 20 실행 호환)
+    commit: pending-backfill-M7
+    verified_by_orchestrator: false   # manager-develop 자체 검증만 완료, 오케스트레이터 독립 재실행 대기
+    ac_runtime_015: FAIL   # 4/4 시나리오는 통과하나 exit 0 자동 종료 미충족 — 고아 next start 수동 종료 필요
+    teardown_root_cause: confirmed   # Playwright webServer(next start, PID 관측) 미종료. 해당 PID만 kill하면 사슬 전체가 즉시 풀리며 exit 0 — 인과 확정
+    teardown_fix_attempted: false    # design.md §3.3/§3.4 설계 결정 변경이 필요해 run-phase 단독 범위 밖 — 후보안은 §E.2 M7 Residual-risk에 기록(전부 미검증 가설)
 final_gate:
-  pnpm_test: PASS   # 32 test files, 137 tests, exit 0 (오케스트레이터 최종 재실행)
-  pnpm_lint: PASS   # 0 issues (오케스트레이터 최종 재실행)
-  pnpm_build: PASS  # exit 0 (오케스트레이터 최종 재실행)
-next_step: sync-phase 진행 여부 사용자 확인 대기
+  pnpm_test: PASS   # M7 재실행: 33 test files, 139 tests, exit 0
+  pnpm_lint: PASS   # M7 재실행: 0 issues, exit 0
+  pnpm_format_check: PASS  # M7 재실행: All matched files use Prettier code style, exit 0
+  pnpm_build: PASS  # M7 재실행: exit 0
+  pnpm_test_e2e: FAIL   # 4/4 시나리오 통과하나 자동 종료 실패(teardown hang) — AC-RUNTIME-015 (1)항 미충족
+next_step: AC-RUNTIME-015 teardown 수정 범위에 대한 사용자 결정 대기(설계 변경 필요 여부)
 ```
 
 이번 run-phase는 두 차례의 진짜 블로커를 만났다 — 둘 다 계획에서 예견하지 못했던 실측 발견이었고, 둘 다 `AskUserQuestion`으로 사용자 결정을 거쳐 해소했다. (1) M2에서 SPEC-SCAFFOLD-001이 남긴 스키마/마이그레이션 드리프트(`account.issuer` 컬럼 누락)를 발견 — 보정 마이그레이션 1건 + AC-RUNTIME-017 문구의 좁은 예외(plan revision v0.5.0)로 해소했다. (2) M5에서 포트 3000이 이 세션과 무관한 다른 프로젝트에 점유되어 있음을 발견 — E2E 포트를 실행 시점 동적 탐색으로 바꿔 근본적으로 같은 충돌 클래스를 제거했다. 두 사안 모두 SPEC 자신의 설계 결함이 아니라 외부 요인(선행 SPEC의 잔여 결함, 무관한 프로세스와의 우연한 충돌)이었다.
