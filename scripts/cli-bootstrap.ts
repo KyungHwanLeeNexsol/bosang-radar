@@ -1,7 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import nextEnv from "@next/env";
-import { validateEnv, type EnvScope, type ValidatedEnv } from "../lib/env";
+// Node의 네이티브 타입 스트리핑 실행(`node scripts/*.ts`)은 확장자 없는 상대
+// import를 해석하지 못한다(실측: M3) — `.ts` 확장자를 명시해야
+// `node scripts/db-migrate.ts` 등 독립 스크립트가 실제로 기동한다.
+import { validateEnv, type EnvScope, type ValidatedEnv } from "../lib/env.ts";
 
 // @next/env는 ncc로 번들된 CommonJS 모듈이라 cjs-module-lexer가 named export를
 // 정적으로 감지하지 못한다 — `import { loadEnvConfig } from "@next/env"`는

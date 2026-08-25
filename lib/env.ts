@@ -48,16 +48,22 @@ const VAR_INFO: Record<string, VarInfo> = {
 
 /** AC-RUNTIME-010: 오류 메시지는 스코프 + 변수명 + 필요 이유 + 획득 경로를 담되, 값은 절대 포함하지 않는다. */
 export class EnvValidationError extends Error {
-  constructor(
-    public readonly scope: EnvScope,
-    public readonly missing: readonly string[]
-  ) {
+  readonly scope: EnvScope;
+  readonly missing: readonly string[];
+
+  // TS 파라미터 프로퍼티(생성자 인자에 public/readonly)는 Node의 네이티브
+  // strip-only 타입 스트리핑이 지원하지 않는다(실측: M3, ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX)
+  // — 필드 선언 + 생성자 본문 대입으로 풀어써서 `node scripts/db-migrate.ts` 등
+  // 독립 스크립트가 이 모듈을 거쳐 기동할 수 있게 한다.
+  constructor(scope: EnvScope, missing: readonly string[]) {
     const lines = missing.map((name) => {
       const info = VAR_INFO[name];
       return `  - ${name}: ${info?.reason ?? "필요한 환경변수입니다."} (${info?.howToObtain ?? ""})`;
     });
     super(`[${scope}] 환경변수 검증 실패 — 다음 변수가 누락되었습니다:\n${lines.join("\n")}`);
     this.name = "EnvValidationError";
+    this.scope = scope;
+    this.missing = missing;
   }
 }
 

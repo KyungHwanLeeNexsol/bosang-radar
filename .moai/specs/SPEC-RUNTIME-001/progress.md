@@ -218,6 +218,42 @@ justification: |
 - Gaps (미검증, M1 범위 밖): AC-RUNTIME-001/002/004~008/011~018/022는 M2~M6에서 검증한다. `@next/env`의 `.env.local` 우선순위 실제 관측(`processEnv`가 상속값을 덮지 않는지)은 여전히 M5 실측 범위다(`design.md` §6, `research.md` §6) — 이번 M1은 그 우선순위 메커니즘 자체를 관측하지 않았다(cli-bootstrap 단위 테스트는 `@next/env`를 목으로 대체했으므로 실제 `loadEnvConfig` 파일 로딩 동작은 검증 범위 밖 — B4가 명시한 대로 `NODE_ENV=test`에서 `.env.local`이 로드 목록에서 제외되므로 구조적으로 단위 테스트에서 검증 불가능하고, 이는 AC-RUNTIME-021의 통합 수준 검증(M5 또는 별도 통합 테스트)이 담당한다).
 - Residual-risk: (1) Node 20.x/21.x 하한 미검증(위 M1-a 항목). (2) Turbopack이 `instrumentation.ts`의 `process.exit` 호출을 Edge Runtime 미지원 API로 경고(빌드는 exit 0으로 통과, 경고만 존재) — 정적 분석기가 런타임 가드(`NEXT_RUNTIME !== "edge"`)를 인식하지 못하기 때문이며, 기능적으로는 Edge Runtime 경로에서 `process.exit`가 호출되지 않는다. (3) `pnpm start`의 "✓ Ready in Nms" 로그는 HTTP 리스너 바인딩 시점에 출력되며 `register()` 완료를 기다리지 않는다는 사실을 실측으로 확인했다 — Next.js 공식 문서("register()가 완료되어야 서버가 요청을 처리할 준비 상태가 된다")와 다른 실제 동작이었다. `process.exit(1)` 명시 호출로 이 간극을 메웠으나, 이는 Next.js 내부 구현에 대한 관측이지 문서화된 계약이 아니므로 향후 Next.js 버전에서 타이밍이 달라질 수 있다.
 
+### M3 — 마이그레이션 적용 절차 (완료)
+
+**대상**: REQ-RUNTIME-001, REQ-RUNTIME-002
+
+**구현 파일**:
+- `scripts/db-migrate.ts` (신규) — `runMigrations()`: `bootstrapCli("db")` → `createClient`/`drizzle` → `drizzle-orm/libsql/migrator`의 `migrate()` → `client.close()`(finally). `reportCliResult(promise)`: 성공/실패 로그 + exit code 부여를 `runMigrations()`와 분리(in-process 재사용 대상은 로그를 섞지 않는다 — design.md §3.3). 직접 실행 판별은 `import.meta.url === pathToFileURL(process.argv[1]).href`.
+- `scripts/db-migrate.test.ts` (신규) — 실제 `node scripts/db-migrate.ts` 자식 프로세스 스폰 통합 테스트 2건(AC-RUNTIME-001/002) + in-process 재사용 테스트 1건 + `reportCliResult` 단위 테스트 2건.
+- `package.json` — `db:migrate: "node scripts/db-migrate.ts"` 스크립트 추가.
+
+**M3 실측으로 발견한 M1 잔여 결함 2건(모두 이번 마일스톤에서 해소)**:
+- **(a) 확장자 없는 상대 import 미해석**: Node 네이티브 타입 스트리핑 실행(`node scripts/*.ts`)은 확장자 없는 상대 import(`from "../lib/env"`)를 해석하지 못한다(`ERR_MODULE_NOT_FOUND`, 실측). M1의 `probe.ts` 실측은 로컬 상대 import가 없는 스크립트였으므로 이 결함을 드러내지 않았다. `scripts/cli-bootstrap.ts`의 `../lib/env` → `../lib/env.ts`로 확장자 명시, `tsconfig.json`에 `allowImportingTsExtensions: true` 추가(이미 `noEmit: true`라 전제조건 충족)로 해소.
+- **(b) TS 파라미터 프로퍼티 미지원**: `lib/env.ts`의 `EnvValidationError` 생성자가 쓰던 `constructor(public readonly scope: ..., public readonly missing: ...)` 형태는 Node의 strip-only 모드가 지원하지 않는다(`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`, 실측 — `--experimental-transform-types` 플래그로는 회피 가능하나 여전히 experimental이라 채택하지 않음). 필드 선언 + 생성자 본문 대입으로 동일 동작을 유지하며 재작성(공개 API 불변: `.scope`/`.missing`/`.message`/`.name`).
+- 두 결함 모두 `lib/env.ts`는 §A.5 PRESERVE 목록에 없고(§D "신규 코드는 lib/env.ts, scripts/... 에 집중된다"), `scripts/cli-bootstrap.ts`도 명시적 PRESERVE 대상이 아니므로 수정 범위 내. B1의 "재구현 금지"는 `.env.local` **로드 로직**(순서, 단일 정의)에 대한 제약이며, 이번 수정은 로드 로직을 그대로 두고 모듈 해석 가능성만 고친 기계적 변경이다.
+
+**§E items (verification-claim-integrity.md §3, Claim/Evidence/Baseline/Gaps/Residual-risk)**:
+
+- Claim: AC-RUNTIME-001(실제 마이그레이션 적용, 9개 테이블 생성) PASS.
+  Evidence: `scripts/db-migrate.test.ts` `[AC-RUNTIME-001] pnpm db:migrate 실행 시 9개 테이블이 모두 생성된다` — 실제 자식 프로세스로 `node scripts/db-migrate.ts`를 `TURSO_DATABASE_URL=file:.tmp/db-migrate-cli-*.db`로 실행 후, 별도 `@libsql/client` 연결로 `sqlite_master`를 직접 조회해 `["account","allowed_testers","cases","evidence","feedback","reports","session","user","verification"]` 9개 테이블 확인(schema.ts의 9개 `sqliteTable()` 선언과 1:1 대응). PASS.
+  Baseline-attribution: 이 M3 커밋 트리(HEAD `4bc9370` 이후 스테이징), 이 실행.
+- Claim: AC-RUNTIME-002(재실행 idempotent, no-op) PASS.
+  Evidence: `[AC-RUNTIME-002] ...` — 동일 `file:` DB에 대해 `node scripts/db-migrate.ts`를 2회 연속 실행(실제 프로세스, mock 아님). 2회차도 예외 없이 종료(`expect(() => runMigrateCli(dbFile)).not.toThrow()`), 1회차/2회차 테이블 집합이 완전히 동일함을 확인(Drizzle의 `__drizzle_migrations` 추적 테이블에 위임, 자체 상태 추적 미구현 — plan.md §D "idempotency는 라이브러리/DB 제약에 위임"과 일치). PASS.
+- Claim: RED→GREEN 순서 준수(test-after 아님).
+  Evidence: 구현 파일(`scripts/db-migrate.ts`) 작성 전 `scripts/db-migrate.test.ts` 3건 실행 → verbatim RED: `Error: Cannot find module 'C:\Users\Nexsol\Documents\bosang-radar\scripts\db-migrate.ts'`(자식 프로세스 스폰 2건) + `Error: Cannot find module '/scripts/db-migrate.ts' imported from ...db-migrate.test.ts`(in-process 1건), `Test Files 1 failed | 25 passed (26)`, `Tests 3 failed | 95 passed (98)`. 구현 후 재실행 → `Test Files 26 passed (26)`, `Tests 98 passed (98)`(이후 `reportCliResult` 단위 테스트 2건 추가로 최종 100 passed).
+- Claim: 기존 회귀 없음 — 전체 스위트 GREEN, `pnpm build`/`pnpm lint` 통과.
+  Evidence: `pnpm test` → `Test Files 26 passed (26)`, `Tests 100 passed (100)`(M1의 95건 + M3의 5건). `pnpm build` → TypeScript 통과, 6/6 정적 페이지 생성, exit 0(`instrumentation.ts`의 Edge Runtime `process.exit` 경고는 M1에서 이미 기록된 잔여 위험이며 M3에서 신규 발생한 문제 아님). `pnpm lint` → 출력 없음(exit 0, 신규 이슈 없음, M1 기준선 그대로 유지).
+- Claim: subagent 경계 위반 없음.
+  Evidence: `grep -rn 'AskUserQuestion' scripts/ | grep -v "_test\|\.test\."` → 매치 0건(grep exit 1).
+- Claim: `scripts/db-migrate.ts` 커버리지 목표(85%) 충족.
+  Evidence: `npx vitest run --coverage scripts/db-migrate.test.ts` → `db-migrate.ts` Stmts 93.33%(28/30), Branch 75%, Funcs 100%, Lines 93.33%. 미달 라인(50번, `if (isDirectExecution) { void reportCliResult(runMigrations()); }` 가드 자체)은 실제 자식 프로세스 실행 경로로만 타므로 V8 커버리지 계측 범위 밖(별도 프로세스) — `reportCliResult`를 분리 추출해 그 내부 로직은 단위 테스트로 별도 커버.
+- Claim: 커밋 대상 파일에 평문 시크릿 없음.
+  Evidence: `scripts/db-migrate.ts`/`scripts/db-migrate.test.ts`/`lib/env.ts`/`scripts/cli-bootstrap.ts`/`tsconfig.json`/`package.json` 패턴 검사 결과 0건. 테스트에 사용한 `TURSO_AUTH_TOKEN=""`(빈 문자열, `file:` 스킴이라 불필요)만 존재.
+- Claim: `.tmp/*.db` 테스트 아티팩트 미커밋.
+  Evidence: `git status --porcelain -- scripts/ lib/ package.json tsconfig.json` 결과에 `.tmp/` 항목 없음(`.gitignore:108:*.tmp` 패턴이 `.tmp/` 디렉터리 전체를 커버함을 `git check-ignore -v`로 확인) + 테스트 종료 후 `afterEach`에서 실제 파일 삭제 확인(Windows에서 libsql 네이티브 바인딩이 `close()` 반환 후 잠금을 지연 해제하는 문제를 5회·50ms 재시도로 흡수).
+- Gaps (미검증, M3 범위 밖): 원격 Turso(libsql://) 인스턴스에 대한 실제 마이그레이션은 검증하지 않았다(로컬 `file:` 스킴만 실측 — 이는 B2가 명시한 로컬 테스트 경로와 일치하며, `TURSO_AUTH_TOKEN` capability gate 자체는 M1에서 이미 양방향 검증됨). `scripts/db-seed.ts`(M4)와의 실행 순서 통합은 다음 마일스톤 범위.
+- Residual-risk: (1) `--experimental-transform-types` 미채택 결정은 이번 저장소의 `lib/env.ts` 코드베이스 전체에 파라미터 프로퍼티를 쓰지 않는다는 암묵적 관례를 만든다 — 향후 신규 클래스가 이 패턴을 재도입하면 동일 결함이 재발한다(현재 lint 규칙으로 강제되지 않음, ESLint 규칙 추가는 이번 SPEC 범위 밖). (2) Node의 `[MODULE_TYPELESS_PACKAGE_JSON]` 경고가 모든 스크립트 실행 시 stderr에 출력된다 — 기능에는 영향 없으나 운영자 로그에 노이즈로 남는다(M1 결정 "tsx 미사용, `package.json`에 `"type": "module"` 추가 안 함"의 알려진 부작용이며 이번 SPEC 범위에서 해소 대상 아님).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
