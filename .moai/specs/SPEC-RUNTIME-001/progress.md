@@ -52,6 +52,16 @@ audit_iterations:
     disposition: 5차 감사 이후 acceptance.md AC-RUNTIME-022 역할 분담 문단에 추가된 D4 qualifier 한 문장으로 플랜 아티팩트 해시가 변경되어 캐시 재사용 불가 — 신규 전체 감사 실시. 필수 통과 기준 7개 전항목 PASS(1건 N/A). 변경된 그 한 문장이 design.md·research.md와 일관되며 새 결함을 만들지 않음을 확인. D1(carried, non-actionable)·D3(carried, closed) 유지, D4 RESOLVED 확인. SPEC은 구현 착수 승인 준비 완료.
     report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-6.md
 plan_revisions:
+  - version: "0.5.0"
+    date: 2026-08-25
+    origin: run-phase M2 진행 중 발견된 SPEC-SCAFFOLD-001 스키마/마이그레이션 드리프트 보정 (사용자 승인)
+    kind: 선행 SPEC 결함 보정 — 이 SPEC 자신의 설계 결정 아님 — 상태 전이 amendment 아님 (status는 in-progress 유지, D-NEW-1 inline-fix 재-delegation)
+    changes: 1   # AC-RUNTIME-017 (3)항 + §B DoD 대응 항목에 보정 마이그레이션 1건 예외 허용 문구 추가
+    scope_changed: false   # spec.md §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변
+    ac_bar_lowered: false  # 예외는 SPEC-SCAFFOLD-001 결함을 보정하는 정확히 1건의 마이그레이션에만 좁게 적용됨
+    req_delta: "21 → 21 (변경 없음)"
+    ac_delta: "22 → 22 (no new AC, AC-RUNTIME-017 (3) wording narrowed with a scoped exception)"
+    reaudit: pending
   - version: "0.4.0"
     date: 2026-08-25
     origin: 사용자 요청 최종 정합성 점검 (구현 착수 승인 전)

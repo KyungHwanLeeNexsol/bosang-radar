@@ -67,6 +67,16 @@
 - `lib/cases/**`, `app/**` — 단, E2E 안정 셀렉터(`data-testid`) 부착은 최소 범위로 허용
 - `.moai/specs/SPEC-SCAFFOLD-001/**` — 완료된 선행 SPEC 아티팩트
 
+### §A.6 플랜 개정 v0.5.0 (run-phase M2 진행 중, 선행 SPEC 결함 보정)
+
+run-phase M2(테스터 프로비저닝) 실행 중 발견된 **선행 SPEC(SPEC-SCAFFOLD-001)의 스키마/마이그레이션 드리프트**를 보정하기 위한 개정이다. SPEC의 목표(WHY/WHAT)와 `spec.md` §4 제외 범위는 변경하지 않는다 — 이 SPEC 자신의 설계 결정이 아니라 기존 결함을 보정하는 개정이다.
+
+| # | 대상 | 개정 전 | 개정 후 | 영향 마일스톤 |
+|---|------|---------|---------|---------------|
+| 1 | SPEC-SCAFFOLD-001 schema/migration drift 발견 | AC-RUNTIME-017(3): "신규 마이그레이션 파일 0건" | 이 SPEC 자신의 설계로 인한 신규 마이그레이션 0건 + SPEC-SCAFFOLD-001 결함 보정 마이그레이션 1건 예외 허용 | M2 |
+
+`lib/db/schema.ts`는 SPEC-SCAFFOLD-001 커밋 `5dbaff7`에서 이미 `account.issuer` 컬럼을 선언했으나(Better Auth 1.7.1 요구), `db/migrations/0000_broad_big_bertha.sql`의 `CREATE TABLE account`에는 그 컬럼이 반영되지 않았다 — 마이그레이션 파일이 스키마 패치 후 재생성되지 않은 드리프트다. 이 드리프트는 실제 `auth.api.signUpEmail()` 호출을 `SQLITE_ERROR: table account has no column named issuer`로 실패시켜 M2 전체를 막는다. 보정은 `pnpm db:generate`로 이미 선언된 스키마와 동기화하는 마이그레이션 파일 **1건**만 생성하며, `lib/db/schema.ts` 자체는 이 보정으로 변경되지 않는다(§A.5 PRESERVE 목록의 취지와 충돌하지 않음 — 스키마를 "바꾸는" 것이 아니라 이미 선언된 스키마에 마이그레이션을 "맞추는" 것). **어떤 AC의 판정 기준도 낮추지 않았다** — AC-RUNTIME-017 (3)항의 예외는 이 1건의 보정 마이그레이션에만 정확히 좁게 적용된다.
+
 ## §B. 순서 안내 (결정 가역성 기준 정렬)
 
 아래 §C 마일스톤은 **검토 우선순위**(decision-reversibility) 기준으로 정렬한다 — 변경 가능성이 높은 결정(새 타입 인터페이스, 운영자 흐름, 보안 결정)을 먼저 제시하고, 기계적 작업(문서화)을 마지막에 배치한다.

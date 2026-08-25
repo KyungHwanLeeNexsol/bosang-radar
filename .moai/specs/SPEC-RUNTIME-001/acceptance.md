@@ -2,6 +2,8 @@
 
 모든 AC는 Given-When-Then 형식으로 이진(binary) 검증 가능하게 작성한다. 각 AC는 검증 대상 요구사항(REQ-RUNTIME-XXX)을 **Traces** 라인으로 명시적으로 추적한다. AC 개수: 22개 (Tier L 상한 25개 이내). REQ 21개 전체가 최소 1개의 AC에 의해 추적된다(§C 추적 매트릭스 참고).
 
+> **개정 v0.5.0**: M2(테스터 프로비저닝) 실행 중, `lib/db/schema.ts`가 SPEC-SCAFFOLD-001에서 이미 선언한 `account.issuer` 컬럼(Better Auth 1.7.1 요구, 커밋 `5dbaff7`)이 `db/migrations/0000_broad_big_bertha.sql`의 `CREATE TABLE account`에는 반영되지 않은 스키마/마이그레이션 드리프트가 발견되었다 — 이 드리프트는 실제 `auth.api.signUpEmail()` 호출을 `SQLITE_ERROR: table account has no column named issuer`로 실패시켜 M2 전체를 막는다. 사용자 승인에 따라 그 드리프트를 동기화하는 보정 마이그레이션 **1건**만 추가하기로 하고, AC-RUNTIME-017 (3)항과 §B DoD의 대응 항목에 그 1건만을 좁게 허용하는 예외 문구를 추가했다. **어떤 AC의 판정 기준도 낮추지 않았다** — 이 개정은 이번 SPEC 자신의 설계 결정이 아니라 SPEC-SCAFFOLD-001이 남긴 기존 결함을 보정하는 것이며, `lib/db/schema.ts` 자체는 이 보정으로 변경되지 않는다(해당 컬럼은 이미 선언되어 있었다). REQ 21 / AC 22 개수는 불변이다.
+>
 > **개정 v0.4.0**: 구현 착수 승인 전 최종 정합성 점검(`plan.md` §A.4)에 따라 AC-RUNTIME-022의 검증 범위를 `run-e2e.ts`가 직접 spawn하는 Playwright 러너 구간으로 좁히고, AC-RUNTIME-015·AC-RUNTIME-021의 Given이 전제하는 sentinel/테스트 `.env.local` 상태를 안전하게 만들고 복원하는 절차(`design.md` §3.6)를 참조로 추가했으며, AC-RUNTIME-011의 잔존 표현을 정정했다. **어떤 AC의 판정 기준도 낮추지 않았다** — AC-RUNTIME-022는 자신의 Given/When으로 만들어낼 수 없던 관측(앱 서버 프로세스 env)을 주장에서 제거했을 뿐이며, REQ-RUNTIME-016의 커버리지는 AC-RUNTIME-022(구조적)와 AC-RUNTIME-015(기능적)가 여전히 함께 완전히 충족한다.
 >
 > **개정 v0.3.0**: 3차 설계 검토 3건(`plan.md` §A.3)에 따라 AC-RUNTIME-015를 갱신하고 AC-RUNTIME-021·022를 신설했다. **어떤 AC의 판정 기준도 낮추지 않았다** — 두 건은 **강화**이고 한 건은 **과잉주장 제거**다: (1) AC-RUNTIME-021 신설로 독립 CLI의 명시적 `.env.local` 로드가 검증 대상이 되고, (2) AC-RUNTIME-015의 `.env.local` Given이 실제 원격 자격증명 → **sentinel 값**으로 교체되어 우선순위 가정이 틀렸을 때의 blast radius가 제거되며(검증 대상 성질은 불변), (3) AC-RUNTIME-015 (3)항의 "로그인 성공이 시크릿 동일성을 입증한다"는 **논리적 과잉주장을 삭제**하고 그 성질을 직접 관측하는 AC-RUNTIME-022를 신설했다 — 삭제가 아니라 **간접 추론 → 직접 관측으로의 승격**이다.
@@ -120,7 +122,7 @@
 **Traces**: REQ-RUNTIME-019, REQ-RUNTIME-007 (항목 4 — 프로비저닝 전용 인스턴스 비노출)
 - **Given** 이 SPEC의 모든 변경이 반영된 작업 트리가 있을 때
 - **When** SPEC-SCAFFOLD-001이 확립한 경계를 정적 검사하면
-- **Then** (1) `git diff`상 `lib/pipeline/**`, `lib/ai/**`, `lib/validation/**`, `lib/db/schema.ts`에 대한 동작 변경이 0건이고, (2) `lib/pipeline/`에서 `@google/genai` import가 여전히 0건이며, (3) `db/migrations/`에 새 마이그레이션 파일이 추가되지 않았고(스키마 불변), (4) **프로비저닝 전용 Better Auth 인스턴스가 어디에도 노출되지 않는다** — 구체적으로 (4a) `lib/auth/config.ts`의 `disableSignUp: true`가 `git diff`상 변경되지 않았고, (4b) `scripts/` 밖의 어떤 파일도 프로비저닝 인스턴스 생성 함수를 import하지 않으며, (4c) `app/**`의 어떤 라우트 핸들러·미들웨어도 그 인스턴스를 참조하지 않는다.
+- **Then** (1) `git diff`상 `lib/pipeline/**`, `lib/ai/**`, `lib/validation/**`, `lib/db/schema.ts`에 대한 동작 변경이 0건이고, (2) `lib/pipeline/`에서 `@google/genai` import가 여전히 0건이며, (3) `db/migrations/`에 **이 SPEC 자신의 설계로 인한** 신규 마이그레이션 파일이 추가되지 않았고(이 SPEC이 스키마를 변경하지 않음) — **예외 (개정 v0.5.0)**: SPEC-SCAFFOLD-001이 `lib/db/schema.ts`에 이미 선언했으나 `db/migrations/`에 반영되지 않았던 `account.issuer` 컬럼을 동기화하는 **보정 마이그레이션 1건**은 허용한다(`lib/db/schema.ts` 자체는 이 보정으로 변경되지 않는다 — 해당 컬럼은 SPEC-SCAFFOLD-001에서 이미 선언되어 있었다), (4) **프로비저닝 전용 Better Auth 인스턴스가 어디에도 노출되지 않는다** — 구체적으로 (4a) `lib/auth/config.ts`의 `disableSignUp: true`가 `git diff`상 변경되지 않았고, (4b) `scripts/` 밖의 어떤 파일도 프로비저닝 인스턴스 생성 함수를 import하지 않으며, (4c) `app/**`의 어떤 라우트 핸들러·미들웨어도 그 인스턴스를 참조하지 않는다.
 - **(4)항의 근거 (개정 v0.2.0)**: 프로비저닝 인스턴스는 셀프 가입이 허용된 설정을 갖는다(`design.md` §3.2.1). "공개 가입 표면이 열리지 않는다"는 주장은 **그 인스턴스에 네트워크로 도달할 경로가 없다**는 사실에만 근거하므로, 비노출이 깨지는 순간 주장 자체가 무효가 된다 — 따라서 이 불변식은 문서 경고가 아니라 정적 검증 대상이다.
 
 ### AC-RUNTIME-018 — 런북 문서 완결성
@@ -182,7 +184,7 @@
 - [ ] AC-RUNTIME-022의 서술·테스트 어디에도 앱 서버(Next.js) 프로세스에 전달된 env를 이 AC의 관측 대상으로 주장하는 문구가 없음 (AC-RUNTIME-022 [HARD] 검증 범위 제약, 신규 v0.4.0)
 - [ ] AC-RUNTIME-015·AC-RUNTIME-021 검증 실행 전후로 개발자의 원본 `.env.local`(존재했던 경우) 또는 "파일 부재" 상태(존재하지 않았던 경우)가 그대로 복원됨을 확인 — 정상/실패 종료 경로 기준 (`design.md` §3.6, 신규 v0.4.0)
 - [ ] 커밋 대상 파일 내 평문 시크릿 0건 (AC-RUNTIME-008)
-- [ ] `db/migrations/`에 신규 마이그레이션 파일 추가 없음 (스키마 불변, AC-RUNTIME-017)
+- [ ] `db/migrations/`에 이 SPEC 자신의 설계로 인한 신규 마이그레이션 파일 추가 없음 — 단 SPEC-SCAFFOLD-001의 `account.issuer` 스키마/마이그레이션 드리프트를 보정하는 마이그레이션 1건은 예외로 허용 (AC-RUNTIME-017, 개정 v0.5.0)
 - [ ] E2E DB 파일이 커밋되지 않음 — `git check-ignore -v .tmp/e2e.db`가 성공(exit 0)으로 무시 규칙을 보고한다. 기존 `*.tmp` 글롭이 이미 이를 덮으므로 `.gitignore` 항목 추가는 이 확인이 실패할 때만 수행한다
 - [ ] spec.md §4 Out of Scope 6개 항목이 구현 범위에 포함되지 않았음을 확인
 - [ ] 프로덕션 `lib/auth/config.ts`가 변경되지 않았음을 확인 — `git diff --exit-code lib/auth/config.ts`가 exit 0 (AC-RUNTIME-017 (4a))
