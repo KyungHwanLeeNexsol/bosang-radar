@@ -338,7 +338,47 @@ justification: |
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+```yaml
+run_complete_at: 2026-08-25
+run_status: audit-ready   # 6개 마일스톤(M1/M3/M4/M2/M5/M6) 전부 완료, 오케스트레이터 독립 검증 완료
+milestones:
+  - id: M1
+    title: 목적별 환경변수 검증 계약 + 명시적 로드 부트스트랩
+    commit: 4bc9370
+    verified_by_orchestrator: true   # pnpm test/lint/format:check/build 4개 전부 exit 0 직접 재실행 확인
+  - id: M3
+    title: 마이그레이션 적용 절차
+    commit: 4c67c9d
+    verified_by_orchestrator: true   # pnpm test 재실행 + db-migrate.ts 실제 CLI 2회 실행(재실행 안전성) 직접 확인
+  - id: M4
+    title: 시드 절차
+    commit: ad7f1dd
+    verified_by_orchestrator: true   # pnpm test 재실행 + db-migrate→db-seed 실제 CLI 연쇄 실행 직접 확인
+  - id: M2
+    title: 테스터 프로비저닝 (+ SPEC-SCAFFOLD-001 스키마/마이그레이션 드리프트 보정)
+    commit: c5b5aef, 4740862
+    blocker_resolved: true   # account.issuer 컬럼 드리프트 발견 → AskUserQuestion → plan revision v0.5.0(AC-RUNTIME-017 예외) → 보정 마이그레이션 0001_bitter_talon.sql
+    verified_by_orchestrator: true   # 보정 마이그레이션 내용 확인(issuer 컬럼 추가뿐) + schema.ts 불변 diff 확인 + 실제 provision-tester.ts CLI 실행 확인
+  - id: M5
+    title: E2E 하네스 + 시나리오
+    commit: 80cd6eb, 5d627cb
+    blocker_resolved: true   # 포트 3000 충돌(무관한 다른 프로젝트 프로세스) 발견 → AskUserQuestion → 동적 빈 포트 탐색으로 전환
+    verified_by_orchestrator: true   # 오케스트레이터가 직접 pnpm test:e2e 실행, 4/4 실제 Chromium 시나리오 통과 확인(2.4분), .env.local 안전 복원 확인, 잔여 프로세스 없음 확인
+    residual_risk: pnpm test:e2e teardown hang (Windows, 프로세스 정리 단계, 테스트 정확성 무관 — 사용자 승인으로 기록만 하고 진행)
+  - id: M6
+    title: 런북 문서화
+    commit: c16cc65
+    verified_by_orchestrator: true   # 런북 내용 직접 검토(스코프 매트릭스 일치, 시크릿 미기재, teardown hang 안내 포함) + .env.local.example 플레이스홀더 확인
+final_gate:
+  pnpm_test: PASS   # 32 test files, 137 tests, exit 0 (오케스트레이터 최종 재실행)
+  pnpm_lint: PASS   # 0 issues (오케스트레이터 최종 재실행)
+  pnpm_build: PASS  # exit 0 (오케스트레이터 최종 재실행)
+next_step: sync-phase 진행 여부 사용자 확인 대기
+```
+
+이번 run-phase는 두 차례의 진짜 블로커를 만났다 — 둘 다 계획에서 예견하지 못했던 실측 발견이었고, 둘 다 `AskUserQuestion`으로 사용자 결정을 거쳐 해소했다. (1) M2에서 SPEC-SCAFFOLD-001이 남긴 스키마/마이그레이션 드리프트(`account.issuer` 컬럼 누락)를 발견 — 보정 마이그레이션 1건 + AC-RUNTIME-017 문구의 좁은 예외(plan revision v0.5.0)로 해소했다. (2) M5에서 포트 3000이 이 세션과 무관한 다른 프로젝트에 점유되어 있음을 발견 — E2E 포트를 실행 시점 동적 탐색으로 바꿔 근본적으로 같은 충돌 클래스를 제거했다. 두 사안 모두 SPEC 자신의 설계 결함이 아니라 외부 요인(선행 SPEC의 잔여 결함, 무관한 프로세스와의 우연한 충돌)이었다.
+
+전 구간에서 서브에이전트의 자체 보고를 그대로 신뢰하지 않고, 오케스트레이터가 매 마일스톤마다 `pnpm test`/`lint`/`build`를 직접 재실행하고 최소 1회는 실제 CLI 명령(마이그레이션·시드·프로비저닝·E2E)을 직접 실행해 결과를 눈으로 확인했다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
