@@ -59,7 +59,7 @@ export function CaseInputForm() {
         <CardTitle>사건 입력</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4" data-testid="case-input-form">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="incidentDescription">상해/질병 경위</Label>
             <Textarea
@@ -68,6 +68,7 @@ export function CaseInputForm() {
               required
               value={incidentDescription}
               onChange={(event) => setIncidentDescription(event.target.value)}
+              data-testid="case-incident-description"
             />
             {fieldErrors.incidentDescription?.map((message) => (
               <p key={message} className="text-sm text-destructive">
@@ -84,6 +85,7 @@ export function CaseInputForm() {
               required
               value={diagnosisName}
               onChange={(event) => setDiagnosisName(event.target.value)}
+              data-testid="case-diagnosis-name"
             />
             {fieldErrors.diagnosisName?.map((message) => (
               <p key={message} className="text-sm text-destructive">
@@ -100,6 +102,7 @@ export function CaseInputForm() {
               required
               value={disabilityBodyPart}
               onChange={(event) => setDisabilityBodyPart(event.target.value)}
+              data-testid="case-disability-body-part"
             />
             {fieldErrors.disabilityBodyPart?.map((message) => (
               <p key={message} className="text-sm text-destructive">
@@ -117,6 +120,7 @@ export function CaseInputForm() {
               required
               value={incidentDate}
               onChange={(event) => setIncidentDate(event.target.value)}
+              data-testid="case-incident-date"
             />
             {fieldErrors.incidentDate?.map((message) => (
               <p key={message} className="text-sm text-destructive">
@@ -127,7 +131,7 @@ export function CaseInputForm() {
 
           {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} data-testid="case-submit">
             {isSubmitting ? "제출 중..." : "제출"}
           </Button>
         </form>

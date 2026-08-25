@@ -51,7 +51,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       <h1 className="text-xl font-semibold">사건 상세</h1>
 
       {report ? (
-        <>
+        <div data-testid="case-report">
           <Card>
             <CardHeader>
               <CardTitle>사건 요약</CardTitle>
@@ -109,7 +109,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               </p>
             </CardContent>
           </Card>
-        </>
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">아직 생성된 리서치 리포트가 없습니다.</p>
       )}
@@ -119,10 +119,19 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
           <CardTitle>전문가 피드백</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={handleFeedbackSubmit} className="flex flex-col gap-3">
+          <form
+            action={handleFeedbackSubmit}
+            className="flex flex-col gap-3"
+            data-testid="feedback-form"
+          >
             <Label htmlFor="feedback-content">의견</Label>
-            <Textarea id="feedback-content" name="content" required />
-            <Button type="submit" className="self-start">
+            <Textarea
+              id="feedback-content"
+              name="content"
+              required
+              data-testid="feedback-content"
+            />
+            <Button type="submit" className="self-start" data-testid="feedback-submit">
               제출
             </Button>
           </form>

@@ -264,6 +264,48 @@ justification: |
 - Gaps (미검증, M3 범위 밖): 원격 Turso(libsql://) 인스턴스에 대한 실제 마이그레이션은 검증하지 않았다(로컬 `file:` 스킴만 실측 — 이는 B2가 명시한 로컬 테스트 경로와 일치하며, `TURSO_AUTH_TOKEN` capability gate 자체는 M1에서 이미 양방향 검증됨). `scripts/db-seed.ts`(M4)와의 실행 순서 통합은 다음 마일스톤 범위.
 - Residual-risk: (1) `--experimental-transform-types` 미채택 결정은 이번 저장소의 `lib/env.ts` 코드베이스 전체에 파라미터 프로퍼티를 쓰지 않는다는 암묵적 관례를 만든다 — 향후 신규 클래스가 이 패턴을 재도입하면 동일 결함이 재발한다(현재 lint 규칙으로 강제되지 않음, ESLint 규칙 추가는 이번 SPEC 범위 밖). (2) Node의 `[MODULE_TYPELESS_PACKAGE_JSON]` 경고가 모든 스크립트 실행 시 stderr에 출력된다 — 기능에는 영향 없으나 운영자 로그에 노이즈로 남는다(M1 결정 "tsx 미사용, `package.json`에 `"type": "module"` 추가 안 함"의 알려진 부작용이며 이번 SPEC 범위에서 해소 대상 아님).
 
+### M5 — E2E 하네스 + 시나리오 (완료)
+
+**대상**: REQ-RUNTIME-012 ~ REQ-RUNTIME-017
+
+**구현 파일**:
+- `scripts/env-local-safety.ts` (신규) — `prepareSafeEnvLocal()`/`withSafeEnvLocal()`: `.env.local` 백업(OS 임시 디렉터리)→sentinel 기입→`SIGINT`/`SIGTERM`/`exit`/정상 종료 전 경로 복원(design.md §3.6). `kill -9`는 명시적으로 닫히지 않는 잔여 위험으로 남김.
+- `scripts/run-e2e.ts` (신규) — `pnpm test:e2e`의 실제 진입점. `assembleE2EEnv()`(시크릿 생성 + `process.env` 조립) → `bootstrapCli("e2e")` → `resetE2EDatabase()` → `runMigrations()`/`runSeed()`/`provisionTester()` × 2(테스터 A·B, in-process 재사용) → `spawnPlaywrightRunner(spawnFn)`(injectable). `TESTER_A_EMAIL`/`TESTER_B_EMAIL` export로 `e2e/*.spec.ts`의 SSOT 제공. `e2e/global-setup.ts`는 존재하지 않는다(design.md §3.3).
+- `playwright.config.ts` (신규) — `webServer: pnpm build && pnpm start`, chromium 단일 프로젝트. `webServer.env` 필드 자체를 생략해 4개 키(BETTER_AUTH_SECRET/TESTER_PASSWORD/TURSO_DATABASE_URL/BETTER_AUTH_URL) 재선언 없음.
+- `e2e/helpers.ts`, `e2e/auth.spec.ts`, `e2e/case-flow.spec.ts`, `e2e/tenant-isolation.spec.ts` (신규) — AC-RUNTIME-011/012/013/014.
+- `app/login/login-form.tsx`, `app/cases/new/case-input-form.tsx`, `app/cases/[caseId]/page.tsx` (수정) — 안정적 E2E 셀렉터를 위한 `data-testid` 최소 추가만(마크업/스타일 변경 없음, §A.5 PRESERVE 준수).
+- `vitest.config.ts` (수정) — `exclude`에 `e2e/**` 추가.
+- `package.json` (수정) — `test:e2e` 스크립트 + `@playwright/test@^1.62.1` devDependency.
+- `.gitignore` (수정) — `/test-results/`, `/playwright-report/`, `/blob-report/`, `/playwright/.cache/` 추가(이번 마일스톤이 처음 만들어내는 아티팩트 종류).
+
+**§E items (verification-claim-integrity.md §3, Claim/Evidence/Baseline/Gaps/Residual-risk)**:
+
+- Claim: `.env.local` 안전 교체·복원 메커니즘(design.md §3.6)이 정상 종료·실행 중 예외·시뮬레이션된 `SIGINT` 3가지 경로 모두에서 원본 상태를 복원한다.
+  Evidence: `scripts/env-local-safety.test.ts`(임시 디렉터리 fake 파일, 7 tests) + `scripts/env-local-safety.realroot.test.ts`(실제 프로젝트 루트 `.env.local` 대상, throwaway 값, 3 tests: (a) 정상 종료 (b) 실행 중 에러 (c) 시뮬레이션된 SIGINT) 모두 PASS. RED(사전): `Cannot find module './env-local-safety.ts'`. GREEN(사후): `Test Files 1 passed (1)`, `Tests 7 passed (7)` / `Tests 3 passed (3)`.
+  Baseline-attribution: 이 M5 커밋 트리, 이 실행. 각 테스트가 자체적으로 `existsSync(realEnvLocalPath)`를 실행 전/후 단언.
+- Claim: AC-RUNTIME-022 — 진입점→Playwright 러너 spawn 호출에 전달된 env가 조립값과 값 단위로 일치하며 `TURSO_DATABASE_URL`이 `file:` 스킴이다. Playwright·브라우저·앱 기동 불필요.
+  Evidence: `scripts/run-e2e.test.ts` — 기록용 spawn 대역을 주입해 실제 `runMigrations()`/`runSeed()`/`provisionTester()` × 2(실제 `.tmp/e2e.db`)를 수행한 뒤 spawn 호출 인자의 `env`를 캡처, `BETTER_AUTH_SECRET`/`TESTER_PASSWORD`/`TURSO_DATABASE_URL`/`BETTER_AUTH_URL` 4개 항목 일치 + `file:` 스킴 단언 PASS(4 tests). 정적 보완: `scripts/playwright-config-static.test.ts` — `playwright.config.ts`의 코드(주석 제외) 어디에도 4개 키가 재선언되지 않음 + `e2e/global-setup.ts` 부재 확인(2 tests). RED(사전): `Cannot find module '/scripts/run-e2e.ts'`. GREEN(사후): 4/4, 2/2 PASS.
+  Baseline-attribution: 이 M5 커밋 트리, 이 실행.
+- Claim: AC-RUNTIME-021 — 셸에 환경변수가 전무하고 `.env.local`에만 `TURSO_DATABASE_URL=file:./.tmp/ac021.db`가 기입된 상태에서 `pnpm db:migrate` → `pnpm db:seed`가 exit 0으로 완료하고, 실제로 9개 테이블이 생성되며 `evidence` 행이 적재된다.
+  Evidence: `withSafeEnvLocal()`로 실제 프로젝트 루트 `.env.local`을 위 내용으로 교체한 뒤, `TURSO_*`/`BETTER_AUTH_*`/`TESTER_PASSWORD`/`GEMINI_API_KEY`를 전부 제거한 셸 환경에서 `execFileSync("pnpm", ["db:migrate"])` → stdout `✅ 마이그레이션 완료`(exit 0), 이어서 `pnpm db:seed` → stdout `✅ 시드 완료`(exit 0). 별도 `@libsql/client` 연결로 `.tmp/ac021.db`를 직접 조회 — `sqlite_master` 9개 테이블(`account,allowed_testers,cases,evidence,feedback,reports,session,user,verification`) + `evidence` 4행 확인. 실행 후 `existsSync(project-root/.env.local)` → `false`(원상 복원 확인, 검증 시작 전 상태와 동일).
+  Baseline-attribution: 이 M5 커밋 트리, 이 실행(실제 자식 프로세스, mock 아님). `.tmp/ac021.db`는 검증 후 `.tmp/` 디렉터리 전체와 함께 삭제.
+- Claim: AC-RUNTIME-015 — `pnpm test:e2e` 단일 명령이 (1) 셸에 시크릿 미설정 + (2) `.env.local`에 sentinel 원격 자격증명(`libsql://sentinel-nonexistent-host.invalid` + 더미 토큰)이 동시에 존재하는 상태에서, 상속된 `file:` 값이 우선해 로컬 DB만 사용하고 sentinel 호스트에는 어떤 연결도 발생하지 않는다.
+  Evidence: 위와 동일한 `withSafeEnvLocal()` 절차로 sentinel `.env.local`을 만들고 `execFileSync("pnpm", ["test:e2e"])`를 실제 실행(셸에 시크릿 미설정). 실행 후 `.tmp/e2e.db`가 생성되었고, 직접 쿼리로 `user` 테이블에 `e2e-tester-a@example.com`/`e2e-tester-b@example.com` 2행, `evidence` 4행이 확인됨 — `run-e2e.ts`의 `assembleE2EEnv()`→`bootstrapCli("e2e")`(`.env.local` 로드 포함)→`resetE2EDatabase()`→`runMigrations()`→`runSeed()`→`provisionTester()` × 2 전 구간이 sentinel `.env.local`이 디스크에 존재하는 채로 정상 완료됨을 확인했다 — 이는 상속된 `file:` 값이 sentinel을 이겼다는(가정 붕괴가 아니라 기대 경로가 성립했다는) 직접 증거다. 실행 후 `existsSync(project-root/.env.local)` → `false`(원상 복원 확인 — 이 실행은 아래 Gaps에 기재된 사유로 실패 종료했음에도 정리 경로가 정상 동작했다는 추가 증거).
+  Baseline-attribution: 이 M5 커밋 트리, 이 실행(실제 `pnpm test:e2e` 프로세스, mock 아님).
+- Claim: 기존 품질 게이트(`pnpm test`/`pnpm lint`/`pnpm build`/`pnpm format:check`) 유지, `pnpm test`가 `e2e/**`를 수집하지 않는다.
+  Evidence: `pnpm test` → `Test Files 32 passed (32)`, `Tests 137 passed (137)`(M3 종료 시점 100건 대비 +37 — M2/M4가 추가한 회귀 테스트 포함, 이번 M5가 추가한 신규 4개 파일 16 tests 포함: `env-local-safety.test.ts` 7 + `env-local-safety.realroot.test.ts` 3 + `run-e2e.test.ts` 4 + `playwright-config-static.test.ts` 2), `e2e/*.spec.ts` 3개 파일은 목록에 없음(vitest.config.ts exclude 반영 확인). `pnpm lint` → 0 errors, 0 warnings(신규 파일의 unused-var 경고 2건은 발견 즉시 수정). `pnpm build` → TypeScript 통과, Turbopack 경고 1건은 M1에서 이미 기록된 기존 잔여 위험(`instrumentation.ts`의 Edge Runtime `process.exit`)이며 M5 신규 아님. `pnpm format:check` → 신규 파일 4개(`e2e/*.spec.ts` 3개 + `scripts/run-e2e.test.ts`)에 대해 `prettier --write` 1회 적용 후 재확인 — 남은 경고 1건(`scripts/db-seed.test.ts`)은 `git diff --stat`으로 미변경 확인된 기존 파일이므로 아래 Gaps에 기록.
+  Baseline-attribution: 이 M5 커밋 트리, 이 실행.
+- Claim: subagent 경계 위반 없음.
+  Evidence: `grep -rn 'AskUserQuestion' scripts/ e2e/ | grep -v "_test\|\.test\."` → 매치 0건(grep exit 1).
+- Claim: 아키텍처 경계 보존(AC-RUNTIME-017 관련 부분).
+  Evidence: `git diff --exit-code lib/pipeline lib/ai lib/validation lib/db/schema.ts lib/auth/config.ts` → exit 0(변경 없음). M5는 이 5개 경로를 전혀 건드리지 않았다.
+- Claim: 검증 실행 종료 후 개발자의 원본 `.env.local`(부재 상태)과 `.tmp/` 산출물이 남지 않는다.
+  Evidence: AC-021/AC-015 검증 스크립트 실행 직후 및 최종 정리 후 각각 `existsSync(.env.local) === false`(2회 독립 확인) + `.tmp/` 디렉터리 수동 삭제 후 `ls .tmp` → `No such file or directory`.
+- Gaps (미검증, 환경적 사유):
+  - AC-RUNTIME-011/012/013/014의 **실제 브라우저 E2E 실행**(Playwright chromium을 통한 로그인·사건입력·피드백·tenant isolation 시나리오)은 이 환경에서 완주하지 못했다. 사유: `pnpm test:e2e`가 Playwright의 `webServer`를 기동하려 할 때 로컬 포트 3000이 **이 세션과 무관한 별도 프로젝트**(`D:\Workspace\frontend-Tpa-Mutual-Fund-Admin` — 세션의 Additional working directories 중 하나로, 이 SPEC 시작 전인 11:26에 이미 실행 중이던 dev 서버, PID 26600)에 의해 점유되어 있어 `Error: http://localhost:3000 is already used`로 실패했다. 해당 프로세스는 이 SPEC과 무관한 작업에 속하므로 종료하지 않았다(scope discipline). 위 AC-RUNTIME-015 Evidence가 보이듯 **DB 준비 단계(시크릿 생성→env 조립→스코프 검증→마이그레이션→시드→테스터 A·B 프로비저닝) 전체는 이 정확히 동일한 실행에서 성공**했고, Playwright 자신의 사전 포트 점검에서만 실패했다 — `run-e2e.ts`가 소유한 로직 자체의 결함이 아니라 환경 충돌이다. `e2e/*.spec.ts` 3개 파일은 소스 정적으로는 완성되어 있으나 chromium을 통한 실행으로는 검증되지 않았다.
+  - `pnpm format:check`의 `scripts/db-seed.test.ts` 경고는 M5 이전부터 존재하던 기존 파일의 포맷 이슈(git diff로 미변경 확인)이며, B10(untouched paths PRESERVE)에 따라 이번 마일스톤에서 수정하지 않았다.
+- Residual-risk: (1) `kill -9`(SIGKILL)는 `.env.local` 안전 복원 메커니즘이 명시적으로 닫지 않는 잔여 위험이다(design.md §3.6, spec.md §5) — 인-프로세스 시그널 핸들러 자체를 우회하므로 이 설계로 해결 불가능하며, AC-021/AC-015 실측 검증 모두 정상/에러/SIGINT 경로만 실측했고 SIGKILL 경로는 실측하지 않았다(설계상 의도적으로 열어둔 위험이므로 실측 대상이 아니다). (2) AC-RUNTIME-011/012/013/014의 브라우저 수준 검증이 이 세션에서 완주되지 못했으므로, 로그인 폼·사건입력 폼·피드백 폼의 실제 DOM 상호작용(클릭·입력·페이지 전환)에서 발생할 수 있는 셀렉터 불일치나 타이밍 이슈는 코드 리뷰 수준으로만 확인되었다 — 포트 충돌이 해소된 환경(예: CI)에서 최초 실행 시 재확인이 필요하다. (3) `resetE2EDatabase()`는 Windows에서 직전 실행의 libsql 파일 핸들이 즉시 해제되지 않아 삭제가 실패할 수 있음을 실측했다(EPERM) — best-effort로 무시하도록 구현했으며, Drizzle 추적 테이블의 멱등성에 기대어 기능적으로는 영향이 없음을 확인했으나(재실행 시 정상 동작), 완전한 "매 실행 클린 슬레이트" 보장은 아니다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

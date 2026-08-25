@@ -32,7 +32,11 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
+    <form
+      onSubmit={handleSubmit}
+      className="flex w-full max-w-sm flex-col gap-4"
+      data-testid="login-form"
+    >
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-sm font-medium">
           이메일
@@ -46,6 +50,7 @@ export function LoginForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          data-testid="login-email"
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -61,10 +66,15 @@ export function LoginForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          data-testid="login-password"
         />
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button type="submit" disabled={isSubmitting}>
+      {error ? (
+        <p className="text-sm text-destructive" data-testid="login-error">
+          {error}
+        </p>
+      ) : null}
+      <Button type="submit" disabled={isSubmitting} data-testid="login-submit">
         {isSubmitting ? "로그인 중..." : "로그인"}
       </Button>
     </form>
