@@ -401,4 +401,26 @@ next_step: sync-phase 진행 여부 사용자 확인 대기
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+```yaml
+sync_complete_at: 2026-08-25
+sync_status: audit-ready   # 문서 동기화 + status 전환 완료, 오케스트레이터 독립 재검증 완료
+sync_commit_sha: pending-backfill-sync-runtime-001   # 커밋 후 별도 커밋으로 backfill 예정 (spec-frontmatter-schema.md § SHA placeholder backfill exemption)
+updated_artifacts:
+  - path: CHANGELOG.md
+    change: "[Unreleased] 아래 SPEC-RUNTIME-001 섹션 신설 (DB 마이그레이션/시드/테스터 프로비저닝/env 검증/E2E 요약)"
+  - path: README.md
+    change: "구현 상태·환경변수 설정·DB/E2E 실행 절차·스크립트 표·프로젝트 구조·다음 단계 갱신, runtime-runbook.md 링크 추가"
+  - path: .moai/project/tech.md
+    change: "@playwright/test(테스트 도구), @next/env(신규 '런타임 활성화 도구' 절) 근거 기록"
+  - path: .moai/project/structure.md
+    change: "scripts/, e2e/, instrumentation.ts, playwright.config.ts 트리 반영 + scripts/e2e 목적 설명 절 신설"
+  - path: .moai/specs/SPEC-RUNTIME-001/spec.md
+    change: "frontmatter status: in-progress → implemented (body 미변경)"
+codemaps_regenerated: false   # 이번 SPEC은 기존 scaffold 아키텍처를 활성화만 함(새 아키텍처 계층 없음) — 재생성 불필요로 판단
+plan_acceptance_frontmatter_note: "plan.md·acceptance.md는 이 프로젝트 관례상 YAML frontmatter 자체가 없음(SPEC-SCAFFOLD-001과 동일 패턴) — status 필드는 spec.md에만 존재하므로 그쪽만 전환"
+verification_rerun:
+  pnpm_test: PASS   # 33 test files, 139 tests, exit 0 (manager-docs 직접 재실행 재확인)
+  pnpm_lint: PASS   # 0 issues (manager-docs 직접 재실행 재확인)
+  pnpm_format_check: PASS   # Prettier 포맷 준수 확인
+next_step: manager-git 위임(Tier L PR 라우트) 또는 사용자 확인 대기
+```

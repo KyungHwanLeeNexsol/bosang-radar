@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sync Report — SPEC-RUNTIME-001</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --ivory:  #FAF9F5;
+      --paper:  #FFFFFF;
+      --slate:  #141413;
+      --clay:   #D97757;
+      --clay-d: #B85C3E;
+      --oat:    #E3DACC;
+      --olive:  #788C5D;
+      --g100: #F0EEE6;
+      --g300: #D1CFC5;
+      --g500: #87867F;
+      --g700: #3D3D3A;
+      --sans:  "Pretendard", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --serif: "Pretendard", ui-serif, Georgia, serif;
+      --mono:  "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --max-width:    860px;
+      --radius-panel: 12px;
+      --radius-row:   8px;
+      --border:       1.5px solid var(--g300);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 56px 24px 120px;
+      background: var(--ivory); color: var(--slate);
+      font-family: var(--sans); font-size: 15px; line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: var(--max-width); margin: 0 auto; }
+    header { margin-bottom: 40px; }
+    .header-top { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+    .eyebrow { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--g500); margin: 0 0 10px; }
+    h1 { font-family: var(--serif); font-weight: 600; font-size: 34px; letter-spacing: -0.01em; margin: 0; color: var(--slate); line-height: 1.2; }
+    .auto-pill { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--g500); background: var(--g100); border: var(--border); border-radius: 999px; padding: 5px 11px; white-space: nowrap; flex-shrink: 0; }
+    .date-range { color: var(--g500); font-size: 14px; margin-top: 6px; }
+    .date-range .repo { font-family: var(--mono); font-size: 13px; color: var(--g700); }
+    .lead { font-size: 15px; color: var(--g700); margin: 18px 0 0; padding: 16px 18px; background: var(--paper); border: var(--border); border-radius: var(--radius-panel); }
+    .lead strong { color: var(--slate); }
+    section { margin-bottom: 48px; }
+    h2 { font-family: var(--serif); font-weight: 600; font-size: 21px; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--slate); }
+    .section-lead { font-size: 13.5px; color: var(--g500); margin: 0 0 16px; }
+    hr.rule { border: none; border-top: 1px solid var(--g300); margin: 0 0 20px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 720px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 400px) { .metrics-grid { grid-template-columns: 1fr; } }
+    .stat-card { background: var(--paper); border: var(--border); border-radius: var(--radius-panel); padding: 20px 22px 18px; }
+    .stat-num { font-family: var(--serif); font-size: 38px; font-weight: 600; line-height: 1; color: var(--slate); margin-bottom: 8px; }
+    .stat-label { font-family: var(--sans); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--g500); }
+    .highlights { list-style: none; margin: 0; padding: 0; }
+    .highlights li { position: relative; padding: 0 0 14px 26px; font-size: 15px; color: var(--g700); }
+    .highlights li::before { content: ""; position: absolute; left: 6px; top: 8px; width: 7px; height: 7px; border-radius: 2px; background: var(--clay); }
+    .highlights li strong { color: var(--slate); font-weight: 600; }
+    table.shipped { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--paper); border: var(--border); border-radius: var(--radius-panel); overflow: hidden; }
+    table.shipped thead th { text-align: left; font-family: var(--sans); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--g500); background: var(--g100); padding: 12px 16px; border-bottom: 1px solid var(--g300); }
+    table.shipped tbody td { padding: 13px 16px; border-bottom: 1px solid var(--g100); font-size: 14px; vertical-align: middle; color: var(--slate); }
+    table.shipped tbody tr:last-child td { border-bottom: none; }
+    table.shipped tbody tr:hover { background: var(--ivory); }
+    code.file { font-family: var(--mono); font-size: 13px; color: var(--clay); }
+    .glossary { background: var(--oat); border-radius: var(--radius-panel); padding: 16px 20px; margin-top: 8px; }
+    .glossary dt { font-family: var(--mono); font-size: 13px; color: var(--slate); font-weight: 600; margin-top: 8px; }
+    .glossary dt:first-child { margin-top: 0; }
+    .glossary dd { margin: 2px 0 0; font-size: 13.5px; color: var(--g700); }
+    .diagram-panel { background: var(--paper); border: var(--border); border-radius: var(--radius-panel); padding: 20px 22px; }
+    pre.mermaid { margin: 0; font-family: var(--mono); font-size: 13px; }
+    .verify-panel { background: var(--paper); border: var(--border); border-radius: var(--radius-panel); padding: 18px 20px; }
+    .verify-panel pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: var(--g700); }
+    .gap-panel { background: var(--oat); border-radius: var(--radius-panel); padding: 16px 20px; font-size: 14px; color: var(--g700); }
+    footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--g300); font-family: var(--mono); font-size: 12px; color: var(--g500); }
+    @media print {
+      body { background: white; color: black; padding: 0; font-size: 12pt; }
+      .page { max-width: none; }
+      h1, h2 { page-break-after: avoid; }
+      table, .diagram-panel, .verify-panel { page-break-inside: avoid; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header>
+      <p class="eyebrow">Sync Report &middot; 2026-08-25</p>
+      <div class="header-top">
+        <h1>SPEC-RUNTIME-001 문서 동기화 보고서</h1>
+        <span class="auto-pill">Auto-generated</span>
+      </div>
+      <div class="date-range">
+        2026-08-25 &nbsp;&middot;&nbsp;
+        <span class="repo">bosang-radar &middot; feat/SPEC-RUNTIME-001</span>
+      </div>
+      <p class="lead">
+        <strong>이 문서는 무엇인가</strong> — <strong>동기화(sync)</strong>는 코드 구현이 끝난 뒤,
+        README·CHANGELOG 같은 문서가 실제 코드 상태와 일치하도록 갱신하는 마무리 단계다.
+        이번 SPEC(SPEC-RUNTIME-001)은 이전 SPEC이 만든 "코드는 있지만 실제로 켜본 적 없는" 상태를
+        "DB에 실제로 붙어서 로그인하고 E2E 테스트가 통과하는" 상태로 바꾸는 작업이었고,
+        이 보고서는 그 구현 내용을 문서에 반영한 결과를 정리한다.
+      </p>
+    </header>
+
+    <section aria-label="Key metrics">
+      <h2>핵심 지표</h2>
+      <p class="section-lead">이번 sync-phase에서 재확인한 품질 게이트 수치다.</p>
+      <div class="metrics-grid">
+        <div class="stat-card">
+          <div class="stat-num">139/139</div>
+          <div class="stat-label">Tests (33 files)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">0</div>
+          <div class="stat-label">Lint issues</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">22/22</div>
+          <div class="stat-label">Acceptance criteria PASS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">5</div>
+          <div class="stat-label">Docs updated</div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-label="Highlights">
+      <h2>주요 변경 요약</h2>
+      <p class="section-lead">이번 SPEC이 실제로 무엇을 가능하게 했는지, 문서에 어떻게 반영했는지.</p>
+      <ul class="highlights">
+        <li><strong>실제로 실행 가능해졌다</strong> — 이전에는 스키마와 타입 계약만 있던 것을, <code class="file">pnpm db:migrate</code> → <code class="file">pnpm db:seed</code> → <code class="file">pnpm tester:add</code> 순서로 실행하면 실제 DB에 마이그레이션이 적용되고 테스터 계정이 생기는 상태로 바꿨다. README와 새로 만든 <code class="file">.moai/docs/runtime-runbook.md</code>에 이 절차를 그대로 반영했다.</li>
+        <li><strong>목적별 환경변수 검증</strong>(<code class="file">lib/env.ts</code>) — "이 명령을 실행하려면 어떤 환경변수가 필요한가"를 <em>실행 목적(db/provision/app/e2e)</em>별로 나눠 검증한다. 불필요한 값까지 요구하지 않는다는 점을 README와 <code class="file">.env.local.example</code>에서 이미 밝히고 있었으므로, README 설명을 이 스코프 매트릭스에 맞춰 갱신했다.</li>
+        <li><strong>실제 E2E 테스트</strong>(<code class="file">pnpm test:e2e</code>) — 흉내만 내는 테스트가 아니라 진짜 Chromium 브라우저를 띄워 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 검증한다. 실행할 때마다 로컬 DB를 새로 초기화하므로 개발자가 쓰던 데이터에는 영향이 없다.</li>
+        <li><strong>SPEC 상태 전환</strong> — <code class="file">spec.md</code>의 <code class="file">status</code>를 <code class="file">in-progress</code>에서 <code class="file">implemented</code>로 바꿨다(병합 후 <code class="file">completed</code>로 다시 전환 예정).</li>
+      </ul>
+      <div class="glossary">
+        <dt>동기화 (sync-phase)</dt>
+        <dd>구현이 끝난 뒤 문서·CHANGELOG·SPEC 상태를 코드와 맞추는 마무리 단계. 새 기능을 만드는 단계가 아니다.</dd>
+        <dt>인수 기준 (acceptance criteria, AC)</dt>
+        <dd>"이 조건을 만족하면 이 요구사항이 실제로 완료된 것이다"라고 미리 정해 둔 이진(pass/fail) 판정 기준.</dd>
+      </div>
+    </section>
+
+    <section aria-label="Sync flow">
+      <h2>이번 sync-phase가 한 일 (흐름)</h2>
+      <p class="section-lead">구현 완료 신호부터 문서 반영까지, 이번 세션이 거친 순서.</p>
+      <div class="diagram-panel">
+        <pre class="mermaid">
+flowchart LR
+  A["구현 완료\n(139/139 테스트 통과)"] --> B["문서 조사\n기존 README/CHANGELOG/tech.md 읽기"]
+  B --> C["문서 갱신\nCHANGELOG · README · tech.md · structure.md"]
+  C --> D["SPEC 상태 전환\nstatus: in-progress -&gt; implemented"]
+  D --> E["재검증\ntest / lint / format:check 재실행"]
+  E --> F["동기화 보고서 작성\n(이 문서)"]
+        </pre>
+        <div class="chart-caption" style="font-size:12px;color:var(--g500);margin-top:12px;">
+          코드는 건드리지 않았다 — 이번 단계는 문서와 SPEC 메타데이터만 바꿨다.
+        </div>
+      </div>
+      <noscript>
+        <p>흐름: 구현 완료(139/139 테스트 통과) → 기존 문서 조사 → CHANGELOG/README/tech.md/structure.md 갱신 → SPEC 상태 전환(in-progress → implemented) → test/lint/format:check 재검증 → 이 동기화 보고서 작성. 코드 변경은 없었다.</p>
+      </noscript>
+    </section>
+
+    <section aria-label="Updated documents">
+      <h2>갱신한 문서</h2>
+      <p class="section-lead">파일별로 무엇을 왜 바꿨는지.</p>
+      <table class="shipped">
+        <thead>
+          <tr><th style="width: 220px;">파일</th><th>변경 내용</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code class="file">CHANGELOG.md</code></td><td>[Unreleased] 아래 SPEC-RUNTIME-001 섹션 신설 — DB 마이그레이션/시드/테스터 프로비저닝/E2E 요약</td></tr>
+          <tr><td><code class="file">README.md</code></td><td>구현 상태, 환경변수 설정, DB/E2E 실행 절차, 스크립트 표, 프로젝트 구조, 다음 단계 갱신 + runtime-runbook.md 링크 추가</td></tr>
+          <tr><td><code class="file">.moai/project/tech.md</code></td><td><code class="file">@playwright/test</code>(테스트 도구), <code class="file">@next/env</code>(신규 "런타임 활성화 도구" 절) 채택 근거 기록</td></tr>
+          <tr><td><code class="file">.moai/project/structure.md</code></td><td><code class="file">scripts/</code>, <code class="file">e2e/</code>, <code class="file">instrumentation.ts</code>, <code class="file">playwright.config.ts</code> 트리 및 목적 설명 반영</td></tr>
+          <tr><td><code class="file">.moai/specs/SPEC-RUNTIME-001/spec.md</code></td><td>frontmatter <code class="file">status: in-progress → implemented</code> (본문 미변경)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-label="Verification">
+      <h2>재검증 결과</h2>
+      <p class="section-lead">manager-docs가 직접 재실행해 확인한 결과다 (오케스트레이터가 아닌 이 세션의 실행).</p>
+      <div class="verify-panel">
+<pre>$ npm run test
+Test Files  33 passed (33)
+     Tests  139 passed (139)
+
+$ npm run lint
+(0 issues)
+
+$ npm run format:check
+All matched files use Prettier code style!</pre>
+      </div>
+    </section>
+
+    <section aria-label="Gaps">
+      <h2>확인하지 못한 부분 (Gaps)</h2>
+      <p class="section-lead">정직하게 밝혀둔다 — 이번 sync-phase에서 재실행하지 않은 것.</p>
+      <div class="gap-panel">
+        <code class="file">pnpm build</code>는 이번 sync-phase에서 별도로 재실행하지 않았다.
+        직전 run-phase에서 오케스트레이터가 이미 exit 0으로 직접 재확인했기 때문이다
+        (<code class="file">progress.md</code> §E.3 참고). codemaps 재생성도 하지 않았다 —
+        이 프로젝트에는 <code class="file">codemaps/</code> 디렉터리 자체가 존재하지 않고,
+        이번 SPEC이 새 아키텍처 계층을 추가한 것이 아니라 기존 scaffold를 활성화한 것이기 때문이다.
+      </div>
+    </section>
+
+    <footer>
+      Sources: CHANGELOG.md, README.md, .moai/project/tech.md, .moai/project/structure.md, .moai/specs/SPEC-RUNTIME-001/{spec,progress}.md &nbsp;&mdash;&nbsp; Generated: 2026-08-25 by manager-docs
+    </footer>
+
+  </div>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      themeVariables: {
+        primaryColor:      "#FAF9F5",
+        primaryTextColor:  "#141413",
+        primaryBorderColor:"#D97757",
+        lineColor:         "#87867F",
+        secondaryColor:    "#E3DACC",
+        tertiaryColor:     "#F0EEE6"
+      }
+    });
+  </script>
+</body>
+</html>

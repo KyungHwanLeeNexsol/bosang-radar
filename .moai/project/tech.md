@@ -1,6 +1,6 @@
 # 기술 스택
 
-> 최종 수정: 2026-08-24 (D1/D2 후속 개정 — Auth.js/Zod 스택 및 rate-limit 대응 추가)
+> 최종 수정: 2026-08-25 (SPEC-RUNTIME-001 후속 — `@next/env`, `@playwright/test` 추가)
 
 ## 개요
 
@@ -55,6 +55,11 @@
 
 - **Vitest** — 단위/통합 테스트 프레임워크. `pnpm test` 명령으로 실행한다.
 - 리서치 파이프라인의 각 단계(CaseNormalizer, QueryPlanner 등)는 독립적으로 테스트 가능하도록 설계하며, seed evidence 데이터를 활용한 end-to-end 파이프라인 테스트도 Vitest로 작성한다.
+- **`@playwright/test`**(SPEC-RUNTIME-001) — 실제 Chromium 브라우저 기반 E2E 테스트 프레임워크. Next.js 앱을 `webServer`로 직접 구동해 로그인·사건입력·피드백·테넌트 격리 시나리오를 검증한다. `pnpm test:e2e`(`scripts/run-e2e.ts`)가 진입점이며, `vitest.config.ts`에서 `e2e/**`를 명시적으로 제외해 Vitest 단위 테스트 스위트와 실행 경로를 분리한다.
+
+## 런타임 활성화 도구 (SPEC-RUNTIME-001)
+
+- **`@next/env`** — Next.js가 내부적으로 사용하는 것과 동일한 `.env.local` 로더를, `pnpm db:migrate`/`pnpm db:seed`/`pnpm tester:add` 같은 독립 CLI 스크립트(Next.js 서버 프로세스 바깥에서 실행)에서도 재사용하기 위해 채택했다. 이 세 CLI는 `scripts/cli-bootstrap.ts`를 통해 셸 `export` 없이 `.env.local` 파일을 직접 로드하며, 이는 Next.js 자체가 환경변수를 로드하는 것과 동일한 방식(우선순위·오버라이드 규칙)을 CLI 스크립트에서도 그대로 재현하기 위함이다.
 
 ## 린트 / 포맷터
 

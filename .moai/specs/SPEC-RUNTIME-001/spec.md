@@ -2,7 +2,7 @@
 id: SPEC-RUNTIME-001
 title: "보상레이더 MVP scaffold 실제 런타임 활성화 (DB 연결·시드·테스터 프로비저닝·E2E 검증)"
 version: "0.5.1"
-status: in-progress
+status: implemented
 created: 2026-08-24
 updated: 2026-08-25
 author: Nexsol
