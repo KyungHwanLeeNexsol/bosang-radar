@@ -18,6 +18,7 @@ function clearAssembledKeys(): void {
   delete process.env.BETTER_AUTH_SECRET;
   delete process.env.TESTER_PASSWORD;
   delete process.env.TURSO_AUTH_TOKEN;
+  delete process.env.E2E_PORT;
 }
 
 describe("assembleE2EEnv", () => {
@@ -32,27 +33,35 @@ describe("assembleE2EEnv", () => {
   it("file: 스킴 로컬 DB, 8자 이상 TESTER_PASSWORD, E2E 전용 BETTER_AUTH_SECRET을 조립하고 자신의 process.env에 반영한다", async () => {
     const { assembleE2EEnv } = await import("./run-e2e.ts");
 
-    const assembled = assembleE2EEnv();
+    const assembled = await assembleE2EEnv();
 
     expect(assembled.TURSO_DATABASE_URL.startsWith("file:")).toBe(true);
     expect(assembled.TESTER_PASSWORD.length).toBeGreaterThanOrEqual(8);
     expect(assembled.BETTER_AUTH_SECRET.length).toBeGreaterThan(0);
-    expect(assembled.BETTER_AUTH_URL).toBe("http://localhost:3000");
+    // 포트 3000은 이 세션과 무관한 다른 프로세스가 이미 점유하고 있을 수
+    // 있다(2026-08-25 실측 — team-lead 승인에 따라 고정 3000 대신 실행 시점
+    // 빈 포트를 탐색한다). 값 자체가 아니라 "유효한 localhost URL" 형태만
+    // 단언한다.
+    expect(assembled.BETTER_AUTH_URL).toMatch(/^http:\/\/localhost:\d+$/);
 
     expect(process.env.TURSO_DATABASE_URL).toBe(assembled.TURSO_DATABASE_URL);
     expect(process.env.BETTER_AUTH_URL).toBe(assembled.BETTER_AUTH_URL);
     expect(process.env.BETTER_AUTH_SECRET).toBe(assembled.BETTER_AUTH_SECRET);
     expect(process.env.TESTER_PASSWORD).toBe(assembled.TESTER_PASSWORD);
+    // playwright.config.ts가 별도 프로세스(상속 경계)에서 동일 포트를
+    // 재구성할 수 있도록 E2E_PORT로도 노출한다.
+    expect(process.env.E2E_PORT).toBe(String(new URL(assembled.BETTER_AUTH_URL).port));
   });
 
-  it("매 호출마다 다른 시크릿을 생성한다", async () => {
+  it("매 호출마다 다른 시크릿과 다른(또는 재사용 가능한) 빈 포트를 조립한다", async () => {
     const { assembleE2EEnv } = await import("./run-e2e.ts");
 
-    const first = assembleE2EEnv();
-    const second = assembleE2EEnv();
+    const first = await assembleE2EEnv();
+    const second = await assembleE2EEnv();
 
     expect(first.BETTER_AUTH_SECRET).not.toBe(second.BETTER_AUTH_SECRET);
     expect(first.TESTER_PASSWORD).not.toBe(second.TESTER_PASSWORD);
+    expect(second.BETTER_AUTH_URL).toMatch(/^http:\/\/localhost:\d+$/);
   });
 });
 

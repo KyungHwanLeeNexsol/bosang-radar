@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as schema from "../lib/db/schema.ts";
-import { TESTER_A_EMAIL } from "../scripts/run-e2e.ts";
+import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 import { connectE2EDb, loginAsTester } from "./helpers.ts";
 
 // AC-RUNTIME-012 — 사건 입력 → 처리 → 저장 → 리포트 조회.

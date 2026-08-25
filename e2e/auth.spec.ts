@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { TESTER_A_EMAIL } from "../scripts/run-e2e.ts";
+import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 import { loginAsTester, requireTesterPassword } from "./helpers.ts";
 
 // AC-RUNTIME-011 — 로그인 성공 및 미등록 이메일 거부. 시크릿 값 동일성은

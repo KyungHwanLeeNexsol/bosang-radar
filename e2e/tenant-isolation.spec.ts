@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { test, expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as schema from "../lib/db/schema.ts";
-import { TESTER_A_EMAIL, TESTER_B_EMAIL } from "../scripts/run-e2e.ts";
+import { TESTER_A_EMAIL, TESTER_B_EMAIL } from "../scripts/e2e-tester-emails.ts";
 import { connectE2EDb, loginAsTester } from "./helpers.ts";
 
 // AC-RUNTIME-014 — tenant isolation: 타 사용자 사건 접근 차단. case-flow.spec.ts의

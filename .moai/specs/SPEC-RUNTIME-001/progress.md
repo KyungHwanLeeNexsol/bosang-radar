@@ -301,10 +301,40 @@ justification: |
   Evidence: `git diff --exit-code lib/pipeline lib/ai lib/validation lib/db/schema.ts lib/auth/config.ts` → exit 0(변경 없음). M5는 이 5개 경로를 전혀 건드리지 않았다.
 - Claim: 검증 실행 종료 후 개발자의 원본 `.env.local`(부재 상태)과 `.tmp/` 산출물이 남지 않는다.
   Evidence: AC-021/AC-015 검증 스크립트 실행 직후 및 최종 정리 후 각각 `existsSync(.env.local) === false`(2회 독립 확인) + `.tmp/` 디렉터리 수동 삭제 후 `ls .tmp` → `No such file or directory`.
-- Gaps (미검증, 환경적 사유):
-  - AC-RUNTIME-011/012/013/014의 **실제 브라우저 E2E 실행**(Playwright chromium을 통한 로그인·사건입력·피드백·tenant isolation 시나리오)은 이 환경에서 완주하지 못했다. 사유: `pnpm test:e2e`가 Playwright의 `webServer`를 기동하려 할 때 로컬 포트 3000이 **이 세션과 무관한 별도 프로젝트**(`D:\Workspace\frontend-Tpa-Mutual-Fund-Admin` — 세션의 Additional working directories 중 하나로, 이 SPEC 시작 전인 11:26에 이미 실행 중이던 dev 서버, PID 26600)에 의해 점유되어 있어 `Error: http://localhost:3000 is already used`로 실패했다. 해당 프로세스는 이 SPEC과 무관한 작업에 속하므로 종료하지 않았다(scope discipline). 위 AC-RUNTIME-015 Evidence가 보이듯 **DB 준비 단계(시크릿 생성→env 조립→스코프 검증→마이그레이션→시드→테스터 A·B 프로비저닝) 전체는 이 정확히 동일한 실행에서 성공**했고, Playwright 자신의 사전 포트 점검에서만 실패했다 — `run-e2e.ts`가 소유한 로직 자체의 결함이 아니라 환경 충돌이다. `e2e/*.spec.ts` 3개 파일은 소스 정적으로는 완성되어 있으나 chromium을 통한 실행으로는 검증되지 않았다.
+- Gaps (미검증, 환경적 사유) — **[해소, 아래 "M5 추가" 섹션 참고]**:
+  - AC-RUNTIME-011/012/013/014의 **실제 브라우저 E2E 실행**(Playwright chromium을 통한 로그인·사건입력·피드백·tenant isolation 시나리오)은 이 환경에서 완주하지 못했다. 사유: `pnpm test:e2e`가 Playwright의 `webServer`를 기동하려 할 때 로컬 포트 3000이 **이 세션과 무관한 별도 프로젝트**(`D:\Workspace\frontend-Tpa-Mutual-Fund-Admin` — 세션의 Additional working directories 중 하나로, 이 SPEC 시작 전인 11:26에 이미 실행 중이던 dev 서버, PID 26600)에 의해 점유되어 있어 `Error: http://localhost:3000 is already used`로 실패했다. 해당 프로세스는 이 SPEC과 무관한 작업에 속하므로 종료하지 않았다(scope discipline). 위 AC-RUNTIME-015 Evidence가 보이듯 **DB 준비 단계(시크릿 생성→env 조립→스코프 검증→마이그레이션→시드→테스터 A·B 프로비저닝) 전체는 이 정확히 동일한 실행에서 성공**했고, Playwright 자신의 사전 포트 점검에서만 실패했다 — `run-e2e.ts`가 소유한 로직 자체의 결함이 아니라 환경 충돌이다. `e2e/*.spec.ts` 3개 파일은 소스 정적으로는 완성되어 있으나 chromium을 통한 실행으로는 검증되지 않았다. **(2026-08-25 후속 — team-lead 승인에 따라 고정 3000 대신 실행 시점 빈 포트로 전환, 아래 "M5 추가" 섹션에서 실제 chromium 실행으로 AC-011~014 전부 PASS 확인. 단, 그 과정에서 별도의 새 환경적 Gap 1건이 발견됨 — 아래 참고.)**
   - `pnpm format:check`의 `scripts/db-seed.test.ts` 경고는 M5 이전부터 존재하던 기존 파일의 포맷 이슈(git diff로 미변경 확인)이며, B10(untouched paths PRESERVE)에 따라 이번 마일스톤에서 수정하지 않았다.
 - Residual-risk: (1) `kill -9`(SIGKILL)는 `.env.local` 안전 복원 메커니즘이 명시적으로 닫지 않는 잔여 위험이다(design.md §3.6, spec.md §5) — 인-프로세스 시그널 핸들러 자체를 우회하므로 이 설계로 해결 불가능하며, AC-021/AC-015 실측 검증 모두 정상/에러/SIGINT 경로만 실측했고 SIGKILL 경로는 실측하지 않았다(설계상 의도적으로 열어둔 위험이므로 실측 대상이 아니다). (2) AC-RUNTIME-011/012/013/014의 브라우저 수준 검증이 이 세션에서 완주되지 못했으므로, 로그인 폼·사건입력 폼·피드백 폼의 실제 DOM 상호작용(클릭·입력·페이지 전환)에서 발생할 수 있는 셀렉터 불일치나 타이밍 이슈는 코드 리뷰 수준으로만 확인되었다 — 포트 충돌이 해소된 환경(예: CI)에서 최초 실행 시 재확인이 필요하다. (3) `resetE2EDatabase()`는 Windows에서 직전 실행의 libsql 파일 핸들이 즉시 해제되지 않아 삭제가 실패할 수 있음을 실측했다(EPERM) — best-effort로 무시하도록 구현했으며, Drizzle 추적 테이블의 멱등성에 기대어 기능적으로는 영향이 없음을 확인했으나(재실행 시 정상 동작), 완전한 "매 실행 클린 슬레이트" 보장은 아니다.
+
+### M5 추가 — 포트 충돌 해소 + 실제 브라우저 E2E 검증 (완료)
+
+**대상**: 위 Gap 1건("AC-RUNTIME-011~015의 실제 브라우저 E2E 실행 미완주") 해소. team-lead 승인에 따라 진행.
+
+**구현 시 확정 항목 (design.md/spec.md/acceptance.md 미변경 — 포트 번호는 구현 세부사항)**:
+- `scripts/run-e2e.ts`에 `findFreePort()`(node:net, OS 배정 임시 포트) 추가. `assembleE2EEnv()`를 비동기로 전환해 실행 시점에 빈 포트를 확보하고 `BETTER_AUTH_URL=http://localhost:<포트>` + `process.env.E2E_PORT=<포트>`를 설정한다.
+- **고정 대체 포트(예: 3100)가 아니라 OS 배정 동적 포트를 선택한 이유**: 고정 포트는 언젠가 같은 충돌 클래스를 재현할 수 있는 반면, OS 배정 포트는 그 클래스의 충돌 자체를 구조적으로 제거한다.
+- `playwright.config.ts`가 `process.env.E2E_PORT`를 읽어 `use.baseURL`/`webServer.url`을 구성하고, `webServer.env: { PORT: String(port) }`로 Next.js 서버 프로세스에 전달한다(`next start`는 `PORT` 환경변수를 인식). **PORT는 시크릿이 아니므로** design.md §3.4의 "webServer.env에 4개 키(BETTER_AUTH_SECRET/TESTER_PASSWORD/TURSO_DATABASE_URL/BETTER_AUTH_URL)를 재선언하지 않는다" 제약과 무관하다 — `scripts/playwright-config-static.test.ts`가 4개 키 미재선언을 계속 정적으로 확인한다(수정 불필요, 재확인 PASS).
+- `scripts/e2e-tester-emails.ts`(신규) — `TESTER_A_EMAIL`/`TESTER_B_EMAIL`을 `run-e2e.ts`에서 분리한 leaf 모듈. **사유(실측 발견)**: `e2e/*.spec.ts`가 이 상수를 `../scripts/run-e2e.ts`에서 직접 import했을 때, Playwright Test의 spec 번들러가 CommonJS로 변환하면서 `run-e2e.ts`(및 그것이 import하는 `cli-bootstrap.ts`/`db-migrate.ts`/`db-seed.ts`/`provision-tester.ts` — 전부 모듈 최상위에서 `import.meta.url`을 읽는 `isDirectExecution` 판별 코드를 가짐)까지 함께 번들링을 시도해 `SyntaxError: Cannot use 'import.meta' outside a module`로 전체 spec 로딩이 실패했다(`Error: No tests found`). 이메일 상수만 `import.meta`를 전혀 쓰지 않는 별도 leaf 모듈로 분리해 spec 파일의 import 그래프가 그 코드에 닿지 않도록 했다 — `run-e2e.ts`는 이 모듈을 재수출(`export { TESTER_A_EMAIL, TESTER_B_EMAIL }`)해 SSOT는 하나로 유지한다.
+- `spawnPlaywrightRunner()`의 `shell: true`는 **그대로 유지**한다 — 제거를 시도했으나(`pnpm.cmd`를 shell 없이 직접 spawn) Node 24(v24.19.0)에서 `spawn EINVAL`로 즉시 실패했다(.cmd/.bat 실행 파일에 대한 Node의 보안 강화 영향으로 판단, 관련: CVE-2024-27980). shell:true는 회피 대상이 아니라 이 플랫폼의 필수 옵션임을 실측으로 재확인하고 원복했다.
+
+**§E items (verification-claim-integrity.md §3)**:
+
+- Claim: AC-RUNTIME-011/012/013/014가 실제 Chromium 브라우저 실행으로 전부 PASS한다.
+  Evidence: 동적 포트 적용 + `e2e-tester-emails.ts` 분리 후 `pnpm test:e2e`를 **3회 독립 실행**(1회는 `withSafeEnvLocal()`로 AC-015의 sentinel `.env.local` Given을 재현한 실행, 2회는 직접 터미널 실행 — 두 형태 모두 동일하게 재현), 매회 verbatim:
+  ```
+  Running 4 tests using 3 workers
+    ✓ [chromium] e2e/auth.spec.ts:10:7 — 인증 — AC-RUNTIME-011 — 등록된 테스터 A는 로그인에 성공해 보호 경로로 진입한다
+    ✓ [chromium] e2e/tenant-isolation.spec.ts:14:7 — Tenant Isolation — AC-RUNTIME-014 — 테스터 B는 테스터 A가 소유한 사건 상세에 접근할 수 없다
+    ✓ [chromium] e2e/auth.spec.ts:17:7 — 인증 — AC-RUNTIME-011 — allowed_testers에 없는 이메일은 로그인이 거부되어 세션이 생성되지 않는다
+    ✓ [chromium] e2e/case-flow.spec.ts:11:7 — 사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013 — 사건 입력이 저장되고 리포트가 렌더링되며, 피드백이 저장된다
+  ```
+  4/4 PASS를 3회 모두 재현(1.1-3.3초, 실제 chromium 렌더링·클릭·DB 직접 조회 단언 포함 — e2e/case-flow.spec.ts는 `/api/cases` 201 응답 + `cases`/`reports`/`feedback` 테이블 행을 실제 쿼리로 확인, e2e/tenant-isolation.spec.ts는 실제 404 응답 확인).
+  Baseline-attribution: 이 M5 추가 커밋 트리, 이 3회 실행(모두 실제 프로세스·실제 chromium, mock 아님).
+- Claim: AC-RUNTIME-015 (1)항("사람의 수동 조작 없이 ... exit 0으로 종료") 중 시크릿 생성~테스트 시나리오 실행까지는 완전히 자동으로 수행되며, (2)(3)항(로컬 DB 격리, 인증 흐름 동작)은 위 AC-011~014 실측으로 완전히 PASS한다. (1)항의 "exit 0" 부분은 아래 Gap 참고.
+  Evidence: 위 3회 실행 모두에서 4개 시나리오가 사람 개입 없이 자동으로 성공했다.
+- Gaps (남은 것, 새로 발견됨 — Windows 환경 특유):
+  - **`pnpm test:e2e`가 4/4 테스트 통과 후 exit 0으로 종료하지 못하고 무기한 행(hang)한다** — Playwright의 `webServer`(Next.js `next start`) 프로세스 종료(teardown) 단계에서 멈춘다. 3회 독립 재현(래퍼 스크립트 경유 1회 + `pnpm test:e2e` 직접 터미널 실행 2회, 매회 4/4 테스트 통과 후 5분 이상 응답 없어 프로세스 트리를 수동 종료) — **제 검증 래퍼의 추가 셸 중첩이 원인이 아님을 직접 터미널 실행으로 배제**했다. 근본 원인으로 추정되는 것: `webServer.command`가 `pnpm build && pnpm start`로 `&&`를 포함해 Playwright 자신이 내부적으로 셸을 통해 spawn해야 하며, 여기에 pnpm의 자체 `exec` 내부 셸 래핑과 Windows의 cmd.exe 프로세스 트리 종료 신뢰성 문제(각 중첩 셸 계층이 Job Object로 완전히 묶이지 않을 수 있음)가 겹친 것으로 보인다 — Playwright·Next.js·pnpm 각각의 내부 구현이라 `run-e2e.ts`/`playwright.config.ts` 코드 변경만으로 근본 해결은 어렵다(`spawnPlaywrightRunner()`의 `shell:true` 제거를 시도했으나 위에서 기록했듯 다른 방식으로 실패했다). **테스트 자체의 정확성(4/4 PASS)에는 영향이 없다** — 순수하게 프로세스 정리(cleanup) 단계의 문제다.
+- Residual-risk (추가, Windows 특유): 이 환경(Windows, Node v24.19.0, pnpm 11.23.0)에서 `pnpm test:e2e`를 사람이 직접 실행하면 4개 시나리오가 전부 통과한 뒤에도 터미널이 반환되지 않고 걸려 있을 수 있다 — 운영자는 Ctrl+C 또는 작업 관리자로 남은 `next start`/`node` 프로세스를 수동 종료해야 완전히 마무리된다. CI(대개 Linux 컨테이너)에서는 이 Windows 특유의 셸 중첩·프로세스 트리 종료 문제가 적용되지 않을 가능성이 높으나, 이 세션에서는 Linux 환경 실측 기회가 없었다 — CI 최초 실행 시 exit code를 재확인 권장.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
