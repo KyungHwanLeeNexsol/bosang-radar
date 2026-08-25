@@ -153,9 +153,70 @@ plan_revisions:
 
 **다음 단계**: 5차 감사 PASS(0.97) 확정으로 `plan_status`는 `audit-ready`다. v0.4.0 아티팩트에 대한 감사가 완료되었으므로 추가 재감사는 불필요하다. 다음은 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**이다.
 
+**구현 착수 승인 (2026-08-25)**: `/moai run SPEC-RUNTIME-001` 진입 후 Phase 1 게이트 6차 감사 PASS(0.97) 확정을 거쳐, 사용자가 `AskUserQuestion`으로 다음 3건을 승인했다 — (1) 구현 착수, (2) 브랜치를 `plan/SPEC-RUNTIME-001` → `feat/SPEC-RUNTIME-001`로 이름 변경(로컬 rename, 원격 미푸시 상태이므로 안전), (3) 자율 진행 방식(마일스톤마다 중단 없이 진행, 문제 발생 시에만 보고). 목표 엔진(goal engine)이 이 환경에 배선돼 있지 않아(`moai` CLI 미검출, MCP goal_arm 도구 미검색) `ac_converge` 목표를 정식으로 무장(arm)하지 못했다 — graceful degradation 경로에 따라 오케스트레이터가 턴 단위로 직접 진행을 이어간다(동작상 자율 진행과 동일, 다만 훅 강제가 아닌 오케스트레이터 재량).
+
+## §F Phase 4 Mode Selection
+
+```yaml
+input_parameters:
+  tier: L
+  scope_file_count: ~15 (scripts/cli-bootstrap.ts, scripts/db-migrate.ts, scripts/db-seed.ts, scripts/provision-tester.ts, scripts/run-e2e.ts, lib/env.ts 확장, e2e/*.spec.ts 다수, playwright.config.ts, db/migrations 적용 로직 등)
+  domain_count: 4 (backend CLI / DB / auth-provisioning / E2E testing) — 그러나 M1→M2~M4→M5→M6은 강한 순차 의존관계(M1이 M2~M4의 선행조건, M5는 M1~M4 완료 후)
+  file_language_mix: 100% TypeScript
+  concurrency_benefit: LOW — 마일스톤 간 순차 의존성이 강해 병렬화 이득이 없음 (Anthropic coding-task parallelism caveat)
+  agent_teams_prereqs: not requested by user
+mode_evaluation:
+  direct: not selected — 자명한 1줄 수정이 아님
+  serial: selected — 코딩 중심 + 마일스톤 간 강한 순차 의존성, Anthropic 권고와 일치
+  fanout: not selected — 리서치 중심 작업이 아니며(구현 자체), 마일스톤이 병렬화 가능한 독립 조사가 아님
+  sweep: not selected — 30개 이상의 균일한 기계적 변환이 아니라 다양한 신규 로직 구현
+  manager-lead: not selected — Tier L이고 6개 마일스톤이지만, M1→M2~M4→M5→M6의 강한 순차 의존성 때문에 워크트리 격리 병렬 분기의 이득이 없음. serial이 더 단순하고 충분함
+decision: serial
+justification: |
+  SPEC-RUNTIME-001은 신규 아키텍처가 아니라 이미 완성된 scaffold(SPEC-SCAFFOLD-001)를 활성화하는
+  코딩 중심 작업이다. 6개 마일스톤(M1 env 부트스트랩 → M2 테스터 프로비저닝/M3 마이그레이션/M4 시드 →
+  M5 E2E → M6 런북)은 실질적으로 순차 의존 체인이며, 병렬 실행으로 얻을 이득이 없다
+  (Anthropic 권고: "most coding tasks involve fewer truly parallelizable tasks than research").
+  manager-develop 1개를 순차 재-spawn(cycle_type=tdd)하는 serial 모드가 가장 단순하고 충분하다.
+```
+
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### M1 — 목적별 환경변수 검증 계약 + 명시적 로드 부트스트랩 (완료)
+
+**대상**: REQ-RUNTIME-003, REQ-RUNTIME-010, REQ-RUNTIME-011, REQ-RUNTIME-021
+
+**M1-a 선행 조건 실측 결과**:
+- `node --version` → `v24.19.0` — Node 22.6+(타입 스트리핑) 및 22.18+(기본 활성화) 하한을 모두 상회한다. `tsx`를 devDependency로 추가하지 않고, `node`가 `.ts`를 직접 실행하는 경로를 채택했다(`spec.md` §3 "의존성 추가의 허용 범위" — 새 런타임 의존성 미추가). `node scripts/probe.ts` 실측 결과 flag 없이도(`node --experimental-strip-types` 동일 결과) 정상 실행됨을 확인.
+  - **잔여 위험(정직하게 기록)**: `tech.md` §개발 환경 요구사항의 문서상 Node 하한은 `20.x LTS 이상`이나, 타입 스트리핑 직접 실행은 Node 22.6+ 요구(`design.md` §6 잔여 위험 목록의 기존 항목과 동일 성격). 이 프로젝트의 실제 실행 환경(v24.19.0)에서는 문제가 없으나, Node 20.x/21.x 환경에서 독립 스크립트를 실행하면 실패한다 — 그런 환경이 실제로 존재한다면 `tsx` 직접 devDependency 선언으로 전환해야 한다(트리에 이미 존재하는 전이 의존성 명시화이므로 §3 허용 범위 내).
+- `pnpm add -D @next/env@16.3.2`(`next`와 동일 버전 고정) 실행 → `node_modules/@next/env` 실제 하이드레이션 확인.
+  - **[HARD] 실측으로 확정한 구현 세부사항 (design.md §3.2.2가 예시로 든 코드와 실제 필요 형태가 다름)**: `import { loadEnvConfig } from "@next/env"`(named import) 형태는 Node ESM 인터롭에서 `SyntaxError: Named export 'loadEnvConfig' not found`로 **실패**했다 — `@next/env`가 ncc로 번들된 CommonJS 모듈이라 `cjs-module-lexer`가 named export를 정적으로 감지하지 못하기 때문이다. `import pkg from "@next/env"; const { loadEnvConfig } = pkg;`(default import 후 구조분해) 형태는 정상 동작함을 실측 확인했다 — `scripts/cli-bootstrap.ts`는 이 형태를 채택했다. 이는 REQ-RUNTIME-021이 요구하는 "명시적 로드"라는 성질 자체는 바꾸지 않으며, import 구문의 구현 세부사항만 실측으로 확정한 것이다(`design.md` §6 "설계상 열린 지점"의 일부로 이미 예견된 구현-시-확정 항목).
+
+**구현 파일**:
+- `lib/env.ts` (신규) — `EnvScope`(`db`/`provision`/`app`/`e2e`) + `validateEnv(scope, source?)`. `design.md` §3.1 스코프×변수 매트릭스를 그대로 반영. `EnvValidationError`는 스코프+변수명+이유+획득경로를 담고 값은 절대 포함하지 않는다. `file:` capability gate는 전 스코프 공통.
+- `scripts/cli-bootstrap.ts` (신규) — `bootstrapCli(scope)`: `loadEnvConfig(projectRoot)` → `validateEnv(scope)` 순서 고정. `projectRoot`는 `import.meta.url` 기반(cwd 비의존).
+- `instrumentation.ts` (신규) — `register()`: `NEXT_PHASE === "phase-production-build"`일 때 검증 스킵, 그 외에는 `validateEnv("app")` 호출. **[실측, M1]** Next.js는 `register()` 실패를 프로세스 종료가 아니라 요청별 500 응답으로 흡수함을 실제 `pnpm build && pnpm start` 실행으로 확인했다 — AC-RUNTIME-009가 요구하는 "요청 수신 가능 상태 미도달"을 만족시키기 위해 `process.exit(1)`을 명시 호출하도록 구현했다(테스트 환경 NODE_ENV=test 제외, Edge Runtime 제외 — Turbopack이 `process.exit`을 Edge Runtime 미지원 API로 경고하므로 `NEXT_RUNTIME !== "edge"` 가드 추가).
+- `lib/db/client.ts` (수정) — `createDbClient()`의 인라인 검사를 `validateEnv("app")` 위임으로 교체. `getDb()` 싱글턴 지연 생성 패턴은 불변(원본 `@MX:ANCHOR`/`@MX:REASON` 유지).
+- `package.json` — `@next/env@16.3.2` devDependency 추가(유일한 신규 의존성 선언).
+
+**§E items (verification-claim-integrity.md §3, Claim/Evidence/Baseline/Gaps/Residual-risk)**:
+
+- Claim: 신규/수정 4개 파일(`lib/env.ts`, `lib/db/client.ts`, `scripts/cli-bootstrap.ts`, `instrumentation.ts`) 전체 테스트 GREEN + 100% statement coverage.
+  Evidence: `corepack pnpm test` → exit 0, `Test Files 25 passed (25)`, `Tests 95 passed (95)`. `corepack pnpm exec vitest run --coverage <4 files>` → 4개 파일 각각 100% (HTML 리포트 `<span class="strong">100%</span>` 확인, 커버리지 아티팩트는 검증 후 삭제).
+  Baseline-attribution: 이 M1 커밋 트리, 이 실행. baseline(M1 착수 전) `pnpm test` → `Test Files 22 passed`, `Tests 71 passed` (기존 스위트, 변경 없음).
+- Claim: AC-RUNTIME-003(file: capability gate 양방향), AC-RUNTIME-010(오류 메시지 시크릿 미노출), AC-RUNTIME-019(전량 열거), AC-RUNTIME-020(스코프 좁힘 양방향 3+3), AC-RUNTIME-021(독립 CLI 명시적 로드 + 순서 불변 + 단일 정의) 모두 PASS.
+  Evidence: `lib/env.test.ts`(14 tests), `scripts/cli-bootstrap.test.ts`(4 tests) 전체 verbose 통과 로그 확보(§E items 하단 AC 매트릭스 표 참고).
+- Claim: AC-RUNTIME-009(app 스코프 부팅 시점 fail-fast)는 직접 함수 호출이 아니라 실제 `pnpm build && pnpm start` 부팅 경로로 검증했다.
+  Evidence: env 미설정 상태에서 `next start -p 3998` → 프로세스가 누락 변수명+이유를 stdout에 출력 후 **exit 1로 종료**(포그라운드 실행, `$?` 확인), 이후 `curl http://localhost:3998/` → `Couldn't connect to server`(리스너 없음, 요청 수신 가능 상태 미도달 확인). 대조군: `TURSO_DATABASE_URL=file:./.tmp/*.db` + `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` 설정 후 `next start -p 3997` → `curl http://localhost:3997/login` → `http_code=200`(정상 부팅 확인). 두 프로브 모두 종료 후 프로세스/임시 DB 파일 정리 완료.
+  Baseline-attribution: 이 M1 커밋 트리, 이 실행(포그라운드 실측, 함수 직접 호출 아님 — AC-RUNTIME-009 요건 충족).
+- Claim: 기존 품질 게이트(`pnpm test`/`pnpm lint`/`pnpm build`/`pnpm format:check`) 전체 유지.
+  Evidence: 4개 명령 모두 exit 0 확인(`pnpm build`는 TypeScript 통과 + 정적 페이지 생성 완료; `pnpm format:check`는 최초 실행에서 신규 파일 2건에 대해 `pnpm format` 1회 적용 후 재확인 exit 0).
+- Claim: subagent 경계 위반 없음(C-HRA-008 계열).
+  Evidence: `grep -rn 'AskUserQuestion' lib/ scripts/ instrumentation.ts | grep -v "_test\|\.test\."` → 매치 0건.
+- Claim: 커밋 대상 파일에 평문 시크릿 없음(이번 마일스톤 범위 한정 — AC-RUNTIME-008 전체 검증은 M2/M5 완료 후).
+  Evidence: `lib/env.ts`/`lib/db/client.ts`/`scripts/cli-bootstrap.ts`/`instrumentation.ts`에 대한 패턴 검사 결과 0건. 부팅 프로브에 사용한 `BETTER_AUTH_SECRET` 값(`m1-boot-check-secret-value-not-real`)은 셸 환경변수로만 존재했으며 어떤 커밋 대상 파일에도 기록되지 않았다.
+- Gaps (미검증, M1 범위 밖): AC-RUNTIME-001/002/004~008/011~018/022는 M2~M6에서 검증한다. `@next/env`의 `.env.local` 우선순위 실제 관측(`processEnv`가 상속값을 덮지 않는지)은 여전히 M5 실측 범위다(`design.md` §6, `research.md` §6) — 이번 M1은 그 우선순위 메커니즘 자체를 관측하지 않았다(cli-bootstrap 단위 테스트는 `@next/env`를 목으로 대체했으므로 실제 `loadEnvConfig` 파일 로딩 동작은 검증 범위 밖 — B4가 명시한 대로 `NODE_ENV=test`에서 `.env.local`이 로드 목록에서 제외되므로 구조적으로 단위 테스트에서 검증 불가능하고, 이는 AC-RUNTIME-021의 통합 수준 검증(M5 또는 별도 통합 테스트)이 담당한다).
+- Residual-risk: (1) Node 20.x/21.x 하한 미검증(위 M1-a 항목). (2) Turbopack이 `instrumentation.ts`의 `process.exit` 호출을 Edge Runtime 미지원 API로 경고(빌드는 exit 0으로 통과, 경고만 존재) — 정적 분석기가 런타임 가드(`NEXT_RUNTIME !== "edge"`)를 인식하지 못하기 때문이며, 기능적으로는 Edge Runtime 경로에서 `process.exit`가 호출되지 않는다. (3) `pnpm start`의 "✓ Ready in Nms" 로그는 HTTP 리스너 바인딩 시점에 출력되며 `register()` 완료를 기다리지 않는다는 사실을 실측으로 확인했다 — Next.js 공식 문서("register()가 완료되어야 서버가 요청을 처리할 준비 상태가 된다")와 다른 실제 동작이었다. `process.exit(1)` 명시 호출로 이 간극을 메웠으나, 이는 Next.js 내부 구현에 대한 관측이지 문서화된 계약이 아니므로 향후 Next.js 버전에서 타이밍이 달라질 수 있다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
