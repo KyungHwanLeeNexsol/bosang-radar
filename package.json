@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.ts",
-    "db:seed": "node scripts/db-seed.ts"
+    "db:seed": "node scripts/db-seed.ts",
+    "tester:add": "node scripts/provision-tester.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
