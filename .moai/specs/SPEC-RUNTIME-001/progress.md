@@ -404,7 +404,7 @@ next_step: sync-phase 진행 여부 사용자 확인 대기
 ```yaml
 sync_complete_at: 2026-08-25
 sync_status: audit-ready   # 문서 동기화 + status 전환 완료, 오케스트레이터 독립 재검증 완료
-sync_commit_sha: pending-backfill-sync-runtime-001   # 커밋 후 별도 커밋으로 backfill 예정 (spec-frontmatter-schema.md § SHA placeholder backfill exemption)
+sync_commit_sha: f4b0dc8   # docs(SPEC-RUNTIME-001): sync-phase 문서 동기화 + status: implemented
 updated_artifacts:
   - path: CHANGELOG.md
     change: "[Unreleased] 아래 SPEC-RUNTIME-001 섹션 신설 (DB 마이그레이션/시드/테스터 프로비저닝/env 검증/E2E 요약)"
