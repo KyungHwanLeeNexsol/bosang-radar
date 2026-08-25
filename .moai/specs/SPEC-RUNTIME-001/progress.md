@@ -4,8 +4,8 @@
 
 ```yaml
 plan_complete_at: 2026-08-24
-plan_status: audit-ready   # v0.3.0 아티팩트 대상 4차 감사 PASS(0.97) 완료
-spec_version: "0.3.0"
+plan_status: revision-applied (pending re-audit)   # v0.4.0 개정 적용, 5차 감사 대기 — 4차 감사 PASS(0.97)는 v0.3.0 아티팩트에 대한 판정이며 v0.4.0의 통과 근거가 되지 못한다
+spec_version: "0.4.0"
 tier: L
 route: B (PR route — Tier L)
 artifacts:
@@ -19,7 +19,7 @@ requirements: 21   # REQ-RUNTIME-001 ~ 021 (Tier L ceiling 25) — v0.3.0에서 
 acceptance_criteria: 22   # AC-RUNTIME-001 ~ 022 (Tier L ceiling 25) — v0.3.0에서 AC-021/022 신설
 spec_id_check: PASS   # Bash ERE regex, verbatim output "PASS" (v0.3.0 재실행 확인)
 frontmatter: 12/12 canonical fields present
-next_step: Implementation Kickoff Approval (plan→run human gate)
+next_step: plan-auditor 5차 감사 재실행 (v0.4.0 아티팩트 대상) — PASS 확인 후 Implementation Kickoff Approval (plan→run human gate)
 audit_iterations:
   - iteration: 1
     verdict: FAIL
@@ -42,6 +42,16 @@ audit_iterations:
     disposition: v0.3.0 개정 3건(REQ-RUNTIME-021 CLI env bootstrap / AC-RUNTIME-015 sentinel 교체 / AC-RUNTIME-022 신설-과잉주장 제거) 전건 완전 반영 확인. D1(REQ-021 3개 규범문 번들, non-blocking) / D2(phase 프론트매터 "v0.2.0 target" 드리프트, label drift·schema 위반 아님) 2건 non-blocking finding
     report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-4.md
 plan_revisions:
+  - version: "0.4.0"
+    date: 2026-08-25
+    origin: 사용자 요청 최종 정합성 점검 (구현 착수 승인 전)
+    kind: 검증 범위 조정 + 안전장치 설계 추가 + 문서 정합성 정리 — 상태 전이 amendment 아님 (status는 draft 유지)
+    changes: 3   # AC-RUNTIME-022 토폴로지 범위 조정 / .env.local 안전 교체-복원 설계 신설 / 잔존 문서 오류 3건 정리
+    scope_changed: false   # spec.md §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변
+    ac_bar_lowered: false  # AC-022는 관측 가능한 경계로 범위를 좁혔을 뿐 REQ-RUNTIME-016 커버리지는 AC-015와 합쳐 불변, 나머지는 순수 추가/정정
+    req_delta: "21 → 21 (변경 없음)"
+    ac_delta: "22 → 22 (변경 없음 — AC-RUNTIME-022 서술 범위만 조정)"
+    reaudit: pending
   - version: "0.3.0"
     date: 2026-08-24
     origin: 사용자 설계 검토 3차 (구현 착수 승인 전)
@@ -63,7 +73,7 @@ plan_revisions:
     reaudit: pending
 ```
 
-플랜 단계 산출물이 모두 작성되어 있으며, v0.2.0 아티팩트는 감사 3회차를 통과했다(PASS 0.92, Tier L 기준선 0.85). **그러나 그 이후 사용자 개정 v0.3.0(아래 4차 개정 노트)이 적용되었으므로, 현재 아티팩트 집합은 아직 감사받지 않은 상태다.** 따라서 `plan_status`는 `audit-ready`가 아니라 **`revision-applied (pending re-audit)`** 이다 — v0.2.0에 대한 PASS는 v0.3.0 아티팩트의 통과 근거가 되지 않는다(변경된 문서에 대해 얻은 적 없는 판정을 주장하지 않는다). 미검증 사항은 `research.md` §6에 Gap으로 명시했다.
+**v0.3.0 개정 직후 시점(4차 감사 이전)에는 다음과 같았다**: 플랜 단계 산출물이 모두 작성되어 있었고, v0.2.0 아티팩트는 감사 3회차를 통과한 상태였다(PASS 0.92, Tier L 기준선 0.85). 그러나 그 이후 사용자 개정 v0.3.0(아래 4차 개정 노트)이 적용되었으므로, 당시 아티팩트 집합은 아직 감사받지 않은 상태였다. 따라서 당시 `plan_status`는 `audit-ready`가 아니라 **`revision-applied (pending re-audit)`** 이었다 — v0.2.0에 대한 PASS는 v0.3.0 아티팩트의 통과 근거가 되지 못했다(변경된 문서에 대해 얻은 적 없는 판정을 주장하지 않는다는 원칙). **이후 감사 4회차가 PASS(0.97)를 확정했으며(아래 "감사 4회차" 절 참고), 그다음 사용자 개정 v0.4.0이 다시 적용되어 §E.1 상단 YAML의 `plan_status`는 현재 다시 `revision-applied (pending re-audit)`로 되돌아가 있다** — 이는 이 문단이 기술하는 v0.3.0 시점의 상태와 우연히 같은 값이지만, 근거는 서로 다른 개정(v0.3.0 vs v0.4.0)이다. 미검증 사항은 `research.md` §6에 Gap으로 명시했다.
 
 **감사 1회차 반영(2026-08-24)**: 아래 6건을 targeted fix로 반영했다. 아티팩트 집합·Tier·라우트는 변경되지 않았다.
 
@@ -115,7 +125,15 @@ plan_revisions:
 
 보고서: `.moai/reports/plan-audit/SPEC-RUNTIME-001-review-4.md`.
 
-**다음 단계**: 감사 4회차 PASS(0.97) 확인 완료로 `plan_status`는 `audit-ready`다. 다음은 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**이다.
+**사용자 요청 플랜 개정 v0.4.0 — 최종 정합성 점검 (2026-08-25)**: 감사 4회차 PASS(0.97) 확인 이후, 사용자가 구현 착수 승인 직전 최종 검토를 요청해 **검증 범위 조정 1건 + 신규 안전장치 설계 1건 + 문서 정합성 정리 3건**을 반영했다. v0.2.0/v0.3.0과 마찬가지로 **사용자 주도 개정**이며 구현 착수 승인(Implementation Kickoff Approval) 이전에 적용했다. `status`는 `draft`로 유지되므로 상태 전이 amendment 절차(`amendment_of` 필드, HISTORY `## Amendments` 하위 절)는 해당하지 않는다.
+
+- **개정 1 — AC-RUNTIME-022 검증 범위를 실제 관측 가능한 경계로 조정**: 기존 AC-RUNTIME-022 Then은 "Playwright 러너 프로세스"와 "앱 서버(Next.js) 프로세스" **양쪽** 모두에 전달된 env를 직접 관측한다고 서술했다. 그러나 `design.md` §3.4/§3.5가 확정한 프로세스 계보(`run-e2e.ts` → Playwright 러너 → Next.js 서버)상 `run-e2e.ts`가 직접 spawn하는 자식은 Playwright 러너 하나뿐이며, Next.js 서버는 Playwright 자신의 `webServer` 훅이 내부적으로 spawn하므로 `run-e2e.ts`의 주입 가능한 spawn 지점으로는 가로챌 수 없다 — 즉 AC의 Then이 자신의 Given/When 메커니즘이 만들어낼 수 없는 관측을 주장하고 있었다. AC-RUNTIME-022의 관측 범위를 "진입점 → Playwright 러너" 구간으로 좁히고, `playwright.config.ts`의 `webServer.env`가 네 키를 재선언하지 않는지에 대한 정적 검증을 추가했다. 앱 서버까지의 실제 전파와 인증 흐름 동작은 AC-RUNTIME-015의 실제 Playwright 실행이 기능적으로 검증한다는 점을 명시했다. **검증 범위는 축소되지 않는다** — REQ-RUNTIME-016의 "동일 시크릿 공유 보장" 요구는 AC-022(구조적, 진입점→러너)와 AC-015(기능적, 전체 흐름)가 함께 여전히 완전히 커버한다. 반영: `acceptance.md` AC-RUNTIME-022·§B·§C·§D, `design.md` §3.5, `plan.md` M5.
+- **개정 2 — `.env.local` 안전 교체·복원 설계 신설**: AC-RUNTIME-015·AC-RUNTIME-021의 Given은 디스크의 `.env.local`이 특정 sentinel/테스트 내용을 담고 있을 것을 요구하는데, 개발자의 머신에는 이미 실제 자격증명이 담긴 `.env.local`이 존재할 수 있다. 이를 덮어쓴 뒤 복원하지 않으면 검증 절차 자체가 개발자의 작업 상태를 파괴하는 사고가 된다. `design.md` §3.6을 신설해 (a) 기본 메커니즘 — 백업(트리 밖) → sentinel/테스트 값 기입 → 정상/실패/`SIGINT`/`SIGTERM`/`exit` 전 경로에서 복원, (b) 우선 메커니즘 — 격리된 워크트리에서 실행 중이면 물리적으로 다른 파일이므로 백업·복원 자체가 불필요, 둘을 정의했다. **잔여 위험을 정직하게 명시** — `kill -9`(`SIGKILL`)처럼 인-프로세스 정리를 우회하는 강제 종료는 이 설계로 닫을 수 없다(`design.md` §3.6, `acceptance.md` §D, `spec.md` §5, `research.md` §6). 반영: `design.md` §3.6(신규), `acceptance.md` AC-RUNTIME-015 Given·AC-RUNTIME-021 Given·§B·§D, `research.md` §5·§6, `spec.md` §5, `plan.md` M5.
+- **개정 3 — 잔존 문서 오류 3건 정리**: (a) `plan.md` §A.1의 "REQ 20 / AC 20" 잔존 표기를 실제 REQ 21 / AC 22로 정정, (b) `acceptance.md` AC-RUNTIME-011 Given의 "E2E 글로벌 셋업"(v0.2.0에서 이미 폐기된 `e2e/global-setup.ts` 개념) 잔존 표현을 `scripts/run-e2e.ts` 진입점 모델로 재서술, (c) 이 §E.1의 v0.3.0 직후 스냅샷 문단이 현재 시제로 읽혀 이미 확정된 감사 4회차 결과와 모순돼 보이던 것을 과거 시점 스냅샷임을 명시하는 서술로 재구성(내용 삭제 없음, 프레이밍만 조정).
+
+**개정 범위 불변 확인**: `spec.md` §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변, Tier L·Route B 불변, 아티팩트 집합 불변(5 + progress.md). REQ 21 / AC 22 **변경 없음**(개정 1은 AC-RUNTIME-022 서술 범위 조정일 뿐 AC 개수·다른 AC의 판정 기준을 낮추지 않는다). REQ-RUNTIME-016의 커버리지는 AC-RUNTIME-022(구조적, 좁혀진 범위) + AC-RUNTIME-015(기능적, 전체 흐름)가 여전히 함께 완전히 충족한다.
+
+**다음 단계**: v0.4.0 개정 적용 완료로 `plan_status`는 `revision-applied (pending re-audit)`다. 4차 감사 PASS(0.97)는 v0.3.0 아티팩트에 대한 판정이며 v0.4.0의 통과 근거가 되지 못한다(변경된 문서에 대해 얻은 적 없는 판정을 주장하지 않는다는 원칙). 다음은 **plan-auditor 5차 감사 재실행**이며, PASS 확인 후 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**으로 진행한다.
 
 ## §E.2 Run-phase Evidence
 

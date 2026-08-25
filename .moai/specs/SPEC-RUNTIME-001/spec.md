@@ -1,13 +1,13 @@
 ---
 id: SPEC-RUNTIME-001
 title: "보상레이더 MVP scaffold 실제 런타임 활성화 (DB 연결·시드·테스터 프로비저닝·E2E 검증)"
-version: "0.3.0"
+version: "0.4.0"
 status: draft
 created: 2026-08-24
 updated: 2026-08-25
 author: Nexsol
 priority: P1
-phase: "v0.3.0 target"
+phase: "v0.4.0 target"
 module: "lib/, scripts/, e2e/, db/"
 lifecycle: spec-anchored
 tags: "runtime, turso, migration, seed, better-auth, provisioning, e2e, env-validation"
@@ -18,6 +18,7 @@ depends_on: [SPEC-SCAFFOLD-001]
 ## HISTORY
 
 - 2026-08-24: 최초 작성 (Nexsol) — SPEC-SCAFFOLD-001(completed)이 구축한 scaffold를 실제 로컬 런타임에서 end-to-end 실행 가능한 상태로 만드는 런타임 활성화 SPEC. 현행 코드베이스 실측(`lib/db/client.ts`, `lib/auth/config.ts`, `db/migrations/`, `db/seed/evidence.json`, `package.json`) 기반으로 작성.
+- 2026-08-25: 플랜 개정 v0.4.0 (Nexsol 요청, 구현 착수 승인 전 최종 정합성 점검) — AC-RUNTIME-022의 검증 범위를 `run-e2e.ts`가 직접 spawn하는 Playwright 러너 구간으로 좁히고(앱 서버 프로세스에 전달된 env는 이 AC의 관측 대상이 아니며, 그 구간까지의 실제 전파는 AC-RUNTIME-015의 실제 Playwright 실행이 기능적으로 커버함을 명시), sentinel/테스트 `.env.local`을 쓰고 검증 종료 후 원상복구하는 안전 교체·복원 설계를 신설했으며(`design.md` §3.6 — 모든 정상/실패/시그널 종료 경로에서 복원, `kill -9`는 닫히지 않는 잔여 위험으로 정직하게 명시), 잔존 문서 오류 3건(REQ/AC 개수 표기, `e2e/global-setup.ts` 잔존 표현, `progress.md` §E.1 시제 모호성)을 정리했다. `spec.md` §4 제외 범위·WHY/WHAT은 변경하지 않으며 REQ 21 / AC 22 개수는 불변이다. 근거는 `research.md` §5, `design.md` §3.5/§3.6, `progress.md` §E.1에 기록.
 - 2026-08-24: 플랜 개정 v0.3.0 (Nexsol 요청, 3차 설계 검토) — 구현 착수 승인 전, **구현 접근 방식 3건**을 추가 개정했다. SPEC의 목표(WHY/WHAT)와 §4 제외 범위는 변경하지 않는다. (1) 독립 실행 CLI 스크립트(`db:migrate`/`db:seed`/`tester:add`)가 Next.js의 자동 `.env.local` 로딩에 무임승차한다는 암묵적 가정을 제거하고 **공용 CLI 부트스트랩의 명시적 로드 → 검증 순서**를 신설(REQ-RUNTIME-021), (2) AC-RUNTIME-015의 `.env.local` 우선순위 시험이 **실제 원격 Turso 자격증명**을 쓰던 것을 **비라우팅 sentinel 값**으로 교체(우선순위 가정이 틀렸을 때도 실제 DB에 도달·기록이 불가능하도록 blast radius 제거), (3) "로그인 성공이 `BETTER_AUTH_SECRET` 동일성을 입증한다"는 **논리적 과잉주장을 제거**하고 구조적 검증(AC-RUNTIME-022)과 기능적 검증(AC-RUNTIME-015)으로 분리. 근거 실측은 `research.md` §0.2에 기록.
 - 2026-08-24: 플랜 개정 v0.2.0 (Nexsol 요청) — 구현 착수 승인 전, 사용자 설계 검토 결과 **구현 접근 방식 3건**을 개정했다. SPEC의 목표(WHY/WHAT)와 §4 제외 범위는 변경하지 않는다. (1) E2E 시크릿 수명주기를 Playwright `globalSetup` 환경 상속 가정에서 **단일 진입점 스크립트 소유 방식**으로 교체, (2) 테스터 계정 생성을 Better Auth 내부 해시 API + 직접 INSERT에서 **프로비저닝 전용 인스턴스의 공식 `auth.api.signUpEmail` 호출**로 교체, (3) 환경변수 검증을 단일 평면 집합에서 **실행 목적별 스코프 검증**으로 교체. 근거 실측은 `research.md` §0에 추가 기록.
 
@@ -124,6 +125,7 @@ REQ 개수: 21개 (Tier L 상한 25개 이내).
 - **독립 스크립트의 TypeScript 실행 수단 미확정 (개정 v0.3.0)**: `tsx@4.23.12`는 전이 의존성으로 스토어에 존재하나 `node_modules/.bin/tsx`로 링크되어 있지 않아 현재 `tsx scripts/*.ts`를 실행할 수 없다(`research.md` §0.2). 또한 `node --experimental-strip-types`는 Node 22.6+ 기능이라 `tech.md`가 요구하는 Node 20.x LTS 하한에서는 성립하지 않는다. M1에서 실제 Node 버전을 실측해 (a) 타입 스트리핑 직접 실행, (b) `tsx` 직접 devDependency 명시 중 하나로 확정한다 — 어느 쪽이든 REQ-RUNTIME-021의 부트스트랩 경유 구조는 변하지 않는다.
 - **sentinel 우선순위 시험의 잔여 위험 (개정 v0.3.0)**: AC-RUNTIME-015는 이제 sentinel 값으로만 우선순위를 시험하므로 실제 인스턴스 오염 위험은 제거됐다. 남는 위험은 **오진**이다 — 우선순위 가정이 틀렸을 경우 증상이 "sentinel 호스트에 대한 연결/DNS 실패"로 나타나는데, 이를 네트워크 일시 장애로 오해하면 근본 원인(우선순위 역전)을 놓친다. AC-RUNTIME-015 Then이 이 실패 양상을 **우선순위 역전의 진단 신호로 해석하라**고 명시해 완화한다.
 - **`GEMINI_API_KEY` 부재 상태로의 앱 기동 가능성**: 이번 SPEC의 파이프라인은 mock 구현을 유지하므로(§4 제외 범위) 앱 런타임 스코프는 `GEMINI_API_KEY`를 요구하지 않는다(`design.md` §3.1). 그 결과 실제 Gemini 호출을 활성화하는 후속 SPEC 이전까지는, 키가 없는 상태로 앱이 정상 기동한다 — 후속 SPEC이 실호출을 도입하는 시점에 이 변수를 앱 런타임 스코프의 필수 항목으로 승격해야 하며, 승격이 누락되면 실패 지점이 부팅에서 첫 호출 시점으로 밀린다.
+- **`.env.local` 안전 교체·복원의 강제 종료(kill -9) 경로 (개정 v0.4.0)**: AC-RUNTIME-015·AC-RUNTIME-021의 검증은 개발자가 이미 보유했을 수 있는 실제 `.env.local`을 sentinel/테스트 내용으로 임시 교체한다. `design.md` §3.6이 정상 종료·테스트 실패·`SIGINT`/`SIGTERM`·프로세스 `exit` 경로 모두에서 원본을 복원하는 설계를 두지만, **`SIGKILL`(`kill -9`)처럼 인-프로세스 정리 로직 자체를 우회하는 강제 종료**는 이 설계로 닫을 수 없다 — 그 경로에서는 백업이 복원되지 못한 채 sentinel 내용이 `.env.local`에 남을 수 있다. 이는 의도적으로 열어두는 잔여 위험이며, 격리된 워크트리에서 실행하면(`design.md` §3.6) 이 위험 자체가 발생하지 않는다.
 
 ## §6. 참고 문서
 

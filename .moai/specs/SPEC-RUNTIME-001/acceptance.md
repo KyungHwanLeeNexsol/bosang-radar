@@ -2,6 +2,8 @@
 
 모든 AC는 Given-When-Then 형식으로 이진(binary) 검증 가능하게 작성한다. 각 AC는 검증 대상 요구사항(REQ-RUNTIME-XXX)을 **Traces** 라인으로 명시적으로 추적한다. AC 개수: 22개 (Tier L 상한 25개 이내). REQ 21개 전체가 최소 1개의 AC에 의해 추적된다(§C 추적 매트릭스 참고).
 
+> **개정 v0.4.0**: 구현 착수 승인 전 최종 정합성 점검(`plan.md` §A.4)에 따라 AC-RUNTIME-022의 검증 범위를 `run-e2e.ts`가 직접 spawn하는 Playwright 러너 구간으로 좁히고, AC-RUNTIME-015·AC-RUNTIME-021의 Given이 전제하는 sentinel/테스트 `.env.local` 상태를 안전하게 만들고 복원하는 절차(`design.md` §3.6)를 참조로 추가했으며, AC-RUNTIME-011의 잔존 표현을 정정했다. **어떤 AC의 판정 기준도 낮추지 않았다** — AC-RUNTIME-022는 자신의 Given/When으로 만들어낼 수 없던 관측(앱 서버 프로세스 env)을 주장에서 제거했을 뿐이며, REQ-RUNTIME-016의 커버리지는 AC-RUNTIME-022(구조적)와 AC-RUNTIME-015(기능적)가 여전히 함께 완전히 충족한다.
+>
 > **개정 v0.3.0**: 3차 설계 검토 3건(`plan.md` §A.3)에 따라 AC-RUNTIME-015를 갱신하고 AC-RUNTIME-021·022를 신설했다. **어떤 AC의 판정 기준도 낮추지 않았다** — 두 건은 **강화**이고 한 건은 **과잉주장 제거**다: (1) AC-RUNTIME-021 신설로 독립 CLI의 명시적 `.env.local` 로드가 검증 대상이 되고, (2) AC-RUNTIME-015의 `.env.local` Given이 실제 원격 자격증명 → **sentinel 값**으로 교체되어 우선순위 가정이 틀렸을 때의 blast radius가 제거되며(검증 대상 성질은 불변), (3) AC-RUNTIME-015 (3)항의 "로그인 성공이 시크릿 동일성을 입증한다"는 **논리적 과잉주장을 삭제**하고 그 성질을 직접 관측하는 AC-RUNTIME-022를 신설했다 — 삭제가 아니라 **간접 추론 → 직접 관측으로의 승격**이다.
 >
 > **개정 v0.2.0**: 구현 접근 방식 3건 개정(`plan.md` §A.2)에 따라 AC-RUNTIME-007/008/009/015/017/018/019를 갱신하고 AC-RUNTIME-020을 신설했다. **어떤 AC의 판정 기준도 낮추지 않았다** — 특히 AC-RUNTIME-007의 "실제 로그인 성공" 기준은 그대로다.
@@ -72,7 +74,7 @@
 
 ### AC-RUNTIME-011 — E2E: 로그인 성공 및 미등록 이메일 거부
 **Traces**: REQ-RUNTIME-012
-- **Given** E2E 글로벌 셋업으로 테스터 A가 프로비저닝된 로컬 파일 DB가 있을 때
+- **Given** `scripts/run-e2e.ts` 진입점(`design.md` §3.3)이 테스터 A를 프로비저닝한 로컬 파일 DB가 있을 때 (정정 v0.4.0 — 초판의 "E2E 글로벌 셋업"·`e2e/global-setup.ts` 표현은 v0.2.0에서 이미 단일 진입점 모델로 교체되었으나 이 AC의 표현만 갱신이 누락되어 있었다)
 - **When** E2E 스위트가 (1) 테스터 A의 자격증명으로 로그인하고, (2) `allowed_testers`에 없는 이메일로 로그인을 시도하면
 - **Then** (1)은 로그인에 성공해 보호 경로로 진입하고, (2)는 로그인이 거부되어 세션이 생성되지 않는다.
 
@@ -97,7 +99,7 @@
 ### AC-RUNTIME-015 — E2E: 단일 명령 재현성 + 시크릿 공유 보장 + 로컬 파일 DB 격리
 **Traces**: REQ-RUNTIME-016, REQ-RUNTIME-017
 - **Given** `.tmp/e2e.db`가 존재하지 않는 깨끗한 작업 트리와, **테스터 비밀번호를 포함해 어떤 시크릿도 셸에 미리 설정되어 있지 않은** 상태(개발자의 실제 Turso 자격증명·`BETTER_AUTH_SECRET`·`TESTER_PASSWORD` 모두 미설정)일 때
-- **Given (현실적 상태 — 필수, 개정 v0.3.0: sentinel 값)** 그와 **동시에** `.env.local`이 디스크에 존재하고 그 안에 **원격 형태의 sentinel 자격증명**이 기입되어 있을 때 — 구체적으로 `TURSO_DATABASE_URL=libsql://sentinel-nonexistent-host.invalid` 와 형태만 갖춘 더미 `TURSO_AUTH_TOKEN`. 이는 이 SPEC 자신의 런북(`research.md` §2: `.env.local.example` → `.env.local` 복사 후 값 기입)을 따른 개발자의 머신 상태를 **형태 그대로 재현**한다 — 스킴이 `libsql://`이므로 `lib/env.ts`의 capability gate가 실제 원격 케이스와 **같은 분기**를 탄다. "셸에 export된 시크릿이 없다"와 "`.env.local`이 없다"는 서로 **다른 조건**이며, 런북을 따른 개발자에게 현실적인 것은 전자뿐이다. 따라서 `.env.local` 부재 상태만으로 얻은 결과는 이 AC의 증거로 인정하지 않는다
+- **Given (현실적 상태 — 필수, 개정 v0.3.0: sentinel 값)** 그와 **동시에** `.env.local`이 디스크에 존재하고 그 안에 **원격 형태의 sentinel 자격증명**이 기입되어 있을 때 — 구체적으로 `TURSO_DATABASE_URL=libsql://sentinel-nonexistent-host.invalid` 와 형태만 갖춘 더미 `TURSO_AUTH_TOKEN`. 이는 이 SPEC 자신의 런북(`research.md` §2: `.env.local.example` → `.env.local` 복사 후 값 기입)을 따른 개발자의 머신 상태를 **형태 그대로 재현**한다 — 스킴이 `libsql://`이므로 `lib/env.ts`의 capability gate가 실제 원격 케이스와 **같은 분기**를 탄다. "셸에 export된 시크릿이 없다"와 "`.env.local`이 없다"는 서로 **다른 조건**이며, 런북을 따른 개발자에게 현실적인 것은 전자뿐이다. 따라서 `.env.local` 부재 상태만으로 얻은 결과는 이 AC의 증거로 인정하지 않는다. **이 sentinel 상태를 디스크에 만들고 검증 종료 후 원상복구하는 절차는 `design.md` §3.6이 정의하며(신규 v0.4.0), 개발자가 이미 보유한 실제 `.env.local`을 파괴하지 않는다**
 - **[HARD] Given 제약 — 실제 자격증명 사용 금지 (개정 v0.3.0)**: 이 AC의 **어떤 검증 방법도 실제로 동작하는 원격 Turso 자격증명을 사용해서는 안 된다.** 이유는 이 시험의 구조에 있다 — 검증 대상 명제가 "상속된 값이 `.env.local`을 이긴다"인데, **그 명제가 거짓이면 시험 자체가 실제 프로덕션 Turso 인스턴스에 연결하고 기록한다.** 즉 검증 절차가 REQ-RUNTIME-017이 막으려는 바로 그 사고를 유발하는 경로가 된다. 가정이 참일 때만 안전한 시험은 그 가정을 검증하는 데 쓸 수 없다. sentinel 호스트의 `.invalid` TLD는 **RFC 2606 §2**가 예약하고 **RFC 6761 §6.4**가 이름 해석 시 즉시 부정 응답을 반환하도록 규정하므로, 실패가 규격상 보장된다(`research.md` §0.2 결론 3)
 - **When** 개발자가 `pnpm test:e2e` 단일 명령을 실행하면
 - **Then** (1) 사람의 수동 조작 없이 시크릿 생성·DB 초기화·마이그레이션·시드·테스터 프로비저닝·앱 기동·전체 시나리오 실행·앱 종료가 자동 수행되어 exit 0으로 종료하고, (2) 실행 중 접근한 DB는 `file:` 스킴 로컬 파일이며 sentinel 호스트를 포함한 **어떤 원격 인스턴스에 대한 연결·읽기·쓰기도 발생하지 않으며**, (3) 로그인 시나리오(AC-RUNTIME-011)를 포함한 전체 시나리오가 통과한다 — 이는 **실제 인증 흐름이 end-to-end로 동작한다**는 기능적 검증이다.
@@ -147,7 +149,7 @@
 
 ### AC-RUNTIME-021 — 독립 실행 CLI의 명시적 `.env.local` 로드 (신규 v0.3.0)
 **Traces**: REQ-RUNTIME-021
-- **Given** 마이그레이션 대상 DB 설정이 **오직 `.env.local` 파일에만** 기입되어 있고, **셸에 export된 환경변수가 하나도 없는** 상태일 때 — 구체적으로 `TURSO_DATABASE_URL=file:./.tmp/ac021.db`가 `.env.local`에 기입되어 있고, 동일 이름의 셸 환경변수는 미설정이며, `TURSO_AUTH_TOKEN`·`BETTER_AUTH_SECRET`·`BETTER_AUTH_URL`·`GEMINI_API_KEY` 모두 셸에 미설정이다
+- **Given** 마이그레이션 대상 DB 설정이 **오직 `.env.local` 파일에만** 기입되어 있고, **셸에 export된 환경변수가 하나도 없는** 상태일 때 — 구체적으로 `TURSO_DATABASE_URL=file:./.tmp/ac021.db`가 `.env.local`에 기입되어 있고, 동일 이름의 셸 환경변수는 미설정이며, `TURSO_AUTH_TOKEN`·`BETTER_AUTH_SECRET`·`BETTER_AUTH_URL`·`GEMINI_API_KEY` 모두 셸에 미설정이다. 이 `.env.local` 상태를 만들고 검증 종료 후 원상복구하는 절차는 `design.md` §3.6을 따른다(신규 v0.4.0)
 - **When** 개발자가 `pnpm db:migrate`를 실행하고, 이어서 `pnpm db:seed`를 실행하면
 - **Then** (1) 두 명령이 모두 exit 0으로 종료하고, (2) `.env.local`에 지정된 파일 DB에 실제로 9개 테이블이 생성되고 `evidence` 행이 적재되어 **로드가 실제로 일어났음이 결과로 확인**되며, (3) 어느 명령도 "환경변수 누락"으로 실패하지 않는다.
 - **왜 이 AC가 필요한가**: Next.js의 자동 `.env.local` 로딩은 `next build`/`start`/`dev` 경로의 동작이며, `tsx`/`node`로 실행되는 독립 스크립트에는 적용되지 않는다. 이 AC가 없으면 "프레임워크가 해줄 것"이라는 가정이 검증되지 않은 채 남고, 실패 시 증상은 **"`.env.local`에 분명히 적었는데 없다고 한다"** 는 형태로 나타나 원인을 검증 모듈의 결함으로 오진하게 만든다(`design.md` §3.2.2).
@@ -155,13 +157,15 @@
 - **로드 → 검증 순서 검증 (단위)**: 부트스트랩이 **로드를 완료한 뒤에** 스코프 검증을 호출함을 단위 테스트로 확인한다. 순서가 뒤집히면 검증이 항상 "누락"을 보고하므로, 이 순서는 이진 판정 대상이다.
 - **비고 — AC-RUNTIME-020과의 구별**: AC-020은 "어떤 변수가 어떤 스코프에 속하는가"(검증 범위)를 다루고, 이 AC는 "검증할 값이 애초에 로드되는가"(로드 성립)를 다룬다. 스코프가 아무리 정확해도 로드가 없으면 모든 스코프가 실패하므로, 두 AC는 서로를 대체하지 못한다.
 
-### AC-RUNTIME-022 — E2E 자식 프로세스 간 env 공유의 구조적 검증 (신규 v0.3.0)
+### AC-RUNTIME-022 — 진입점→Playwright 러너 간 env 전달의 구조적 검증 (신규 v0.3.0, 범위 조정 v0.4.0)
 **Traces**: REQ-RUNTIME-016
-- **Given** `scripts/run-e2e.ts`가 시크릿을 생성하고 E2E 환경을 조립한 뒤 자식 프로세스를 생성하는 실행 경로가 있고, 그 자식 프로세스 생성 지점이 **테스트에서 대체 가능한 형태**로 분리되어 있을 때
-- **When** 단위 테스트가 실제 spawn 대신 **기록용 대역**을 주입해 진입점 실행 경로를 구동하고, 각 자식 프로세스 생성 호출에 전달된 env 객체를 수집하면
-- **Then** (1) Playwright 러너 프로세스에 전달된 env와 앱 서버 프로세스에 전달된 env가 `BETTER_AUTH_SECRET`·`TESTER_PASSWORD`·`TURSO_DATABASE_URL`·`BETTER_AUTH_URL` 네 항목에 대해 **각각 동일한 값**을 갖고, (2) 그 값들이 진입점이 생성·조립한 값과 일치하며(중간 재조립·누락 없음), (3) `TURSO_DATABASE_URL`의 값이 `file:` 스킴이다.
-- **[HARD] 검증 수단 제약**: 이 AC는 **Playwright·브라우저·앱 기동 없이** 판정되어야 한다. 로그인 성공 여부를 이 AC의 증거로 사용하는 것은 **금지**한다 — 로그인 성공은 인증 흐름의 동작에 대한 증거이지 env 값 동일성에 대한 직접 증거가 아니며, 그 역추론은 로그인을 성공시킬 다른 경로가 모두 배제되었을 때만 성립하는데 이 SPEC은 그 배제를 확보하지 않았다(`design.md` §3.5). 관측 대상은 **전달된 env 객체 자체**여야 한다.
-- **AC-RUNTIME-015와의 역할 분담**: 이 AC는 **구조적 성질**(전달된 env가 같은가)을, AC-RUNTIME-015 (3)항은 **기능적 성질**(인증 흐름이 동작하는가)을 검증한다. 하나의 관측이 두 명제를 겸하면 실패 시 원인이 "시크릿 불일치"인지 "인증 흐름 결함"인지 구별할 수 없으므로 분리한다. 두 AC는 함께 REQ-RUNTIME-016의 "동일한 실행 시점 시크릿을 공유함이 **보장**" 요구를 충족한다.
+- **Given** `scripts/run-e2e.ts`가 시크릿을 생성하고 E2E 환경을 조립한 뒤, **자신이 직접 spawn하는 단 하나의 자식 프로세스(Playwright 러너)** 를 생성하는 실행 경로가 있고, 그 생성 지점이 **테스트에서 대체 가능한 형태**로 분리되어 있을 때 — `design.md` §3.4/§3.5가 확정한 프로세스 계보(`run-e2e.ts` → Playwright 러너 → Next.js 서버)상 `run-e2e.ts`가 직접 생성하는 자식은 Playwright 러너 하나뿐이며, Next.js 서버는 Playwright 자신의 `webServer` 훅이 **Playwright 내부에서** spawn하므로 `run-e2e.ts`의 주입 가능한 spawn 지점으로는 가로챌 수 없다
+- **When** 단위 테스트가 실제 spawn 대신 **기록용 대역**을 주입해 진입점 실행 경로를 구동하고, Playwright 러너 생성 호출에 전달된 env 객체를 수집하면
+- **Then** (1) Playwright 러너 프로세스에 전달된 env가 `BETTER_AUTH_SECRET`·`TESTER_PASSWORD`·`TURSO_DATABASE_URL`·`BETTER_AUTH_URL` 네 항목에 대해 진입점이 생성·조립한 값과 **값 단위로 일치**하며(중간 재조립·누락·침묵 변경 없음), (2) `TURSO_DATABASE_URL`의 값이 `file:` 스킴이다.
+- **정적 보완 검증 (신규 v0.4.0)**: `playwright.config.ts`의 `webServer.env`가 위 네 키를 **재선언·재정의하지 않음**을 정적으로 확인한다 — 상속 경로 위에서 값을 덮어쓰는 지점이 없어야, (Then)이 확인한 "진입점이 조립한 값"이 Next.js 서버까지 이어지는 상속 경로에서 변조되지 않는다.
+- **[HARD] 검증 범위 제약 (범위 조정 v0.4.0)**: 이 AC는 진입점이 **자신이 직접 생성하는 자식 프로세스(Playwright 러너)** 에 전달한 env만을 관측 대상으로 삼는다. **앱 서버(Next.js) 프로세스가 실제로 수신한 env는 이 AC의 관측 대상이 아니다** — 그 프로세스는 `run-e2e.ts`가 아니라 Playwright의 `webServer` 훅이 내부적으로 spawn하므로, `run-e2e.ts`의 주입 가능한 spawn 지점을 통해서는 관측할 수 없다(`design.md` §3.5). 앱 서버까지 값이 실제로 전파되고 그 값으로 인증 흐름이 동작하는지는 **AC-RUNTIME-015의 실제 Playwright E2E 실행이 기능적으로 검증**하며, 이 AC는 그 대체물이 아니다. (v0.3.0판은 이 두 프로세스 모두를 이 AC의 관측 대상으로 주장했으나, 이는 이 AC 자신의 Given/When 메커니즘이 만들어낼 수 없는 관측이었다 — 이번 개정은 관측 가능한 경계로 주장을 좁힌다.)
+- **[HARD] 검증 수단 제약**: 이 AC는 **Playwright·브라우저·앱 기동 없이** 판정되어야 한다. 로그인 성공 여부를 이 AC의 증거로 사용하는 것은 **금지**한다 — 로그인 성공은 인증 흐름의 동작에 대한 증거이지 env 값 동일성에 대한 직접 증거가 아니며, 그 역추론은 로그인을 성공시킬 다른 경로가 모두 배제되었을 때만 성립하는데 이 SPEC은 그 배제를 확보하지 않았다(`design.md` §3.5). 관측 대상은 **Playwright 러너에 전달된 env 객체 자체**여야 한다.
+- **AC-RUNTIME-015와의 역할 분담**: 이 AC는 **진입점 → Playwright 러너 구간**의 구조적 성질(전달된 env가 진입점 조립값과 같은가)을, AC-RUNTIME-015 (3)항은 **인증 흐름 전체**의 기능적 성질(실제로 로그인 흐름이 동작하는가 — 이는 필연적으로 Playwright 러너 → Next.js 서버 구간까지 값이 올바르게 전파되었을 때만 성립 가능)을 검증한다. 하나의 관측이 두 명제를 겸하면 실패 시 원인이 "시크릿 불일치"인지 "인증 흐름 결함"인지 구별할 수 없으므로 분리한다. **REQ-RUNTIME-016의 "동일한 실행 시점 시크릿을 공유함이 보장" 요구는 두 AC가 함께 충족한다** — AC-RUNTIME-022가 진입점→러너 구간을, AC-RUNTIME-015가 러너→서버 구간을 포함한 전체 흐름을 커버하므로, 관측 범위를 좁힌 이번 개정은 REQ 커버리지를 축소하지 않는다.
 - **`pnpm test` 포함**: 이 AC의 검증은 Vitest 단위 테스트로 수행되므로 `pnpm test`에 포함되며 브라우저 없는 환경에서 통과해야 한다(REQ-RUNTIME-018 / AC-RUNTIME-016 유지).
 
 ## §B. Definition of Done
@@ -174,6 +178,9 @@
 - [ ] 셸 환경변수 전무 + `.env.local`만 존재하는 상태에서 `pnpm db:migrate`·`pnpm db:seed`가 exit 0 (AC-RUNTIME-021)
 - [ ] `.env.local` 로드 호출이 `scripts/cli-bootstrap.ts` **한 파일에만** 존재 (AC-RUNTIME-021 정적 검증)
 - [ ] 로그인 성공을 `BETTER_AUTH_SECRET` 동일성의 증거로 주장하는 서술이 아티팩트·테스트·주석 어디에도 없음 (AC-RUNTIME-022 [HARD] 검증 수단 제약)
+- [ ] `playwright.config.ts`의 `webServer.env`가 `BETTER_AUTH_SECRET`·`TESTER_PASSWORD`·`TURSO_DATABASE_URL`·`BETTER_AUTH_URL` 네 키를 재선언하지 않음 (AC-RUNTIME-022 정적 보완 검증, 신규 v0.4.0)
+- [ ] AC-RUNTIME-022의 서술·테스트 어디에도 앱 서버(Next.js) 프로세스에 전달된 env를 이 AC의 관측 대상으로 주장하는 문구가 없음 (AC-RUNTIME-022 [HARD] 검증 범위 제약, 신규 v0.4.0)
+- [ ] AC-RUNTIME-015·AC-RUNTIME-021 검증 실행 전후로 개발자의 원본 `.env.local`(존재했던 경우) 또는 "파일 부재" 상태(존재하지 않았던 경우)가 그대로 복원됨을 확인 — 정상/실패 종료 경로 기준 (`design.md` §3.6, 신규 v0.4.0)
 - [ ] 커밋 대상 파일 내 평문 시크릿 0건 (AC-RUNTIME-008)
 - [ ] `db/migrations/`에 신규 마이그레이션 파일 추가 없음 (스키마 불변, AC-RUNTIME-017)
 - [ ] E2E DB 파일이 커밋되지 않음 — `git check-ignore -v .tmp/e2e.db`가 성공(exit 0)으로 무시 규칙을 보고한다. 기존 `*.tmp` 글롭이 이미 이를 덮으므로 `.gitignore` 항목 추가는 이 확인이 실패할 때만 수행한다
@@ -200,7 +207,7 @@
 | REQ-RUNTIME-013 | AC-RUNTIME-012 |
 | REQ-RUNTIME-014 | AC-RUNTIME-013 |
 | REQ-RUNTIME-015 | AC-RUNTIME-014 |
-| REQ-RUNTIME-016 | AC-RUNTIME-015 (단일 명령 재현성 + 계보 형태 + 기능적 흐름), AC-RUNTIME-022 (전달된 env 값 동일성 — 구조적) |
+| REQ-RUNTIME-016 | AC-RUNTIME-015 (단일 명령 재현성 + 계보 형태 + 기능적 흐름 전체 — 러너→서버 구간 포함), AC-RUNTIME-022 (진입점→Playwright 러너 구간 env 값 동일성 — 구조적, 범위 조정 v0.4.0) |
 | REQ-RUNTIME-017 | AC-RUNTIME-015 |
 | REQ-RUNTIME-018 | AC-RUNTIME-016 |
 | REQ-RUNTIME-019 | AC-RUNTIME-017 |
@@ -211,7 +218,8 @@
 
 - **원격 Turso 인스턴스에 대한 자동 검증**: AC-RUNTIME-015가 로컬 `file:` DB 격리를 요구하므로, 원격 Turso 연결의 네트워크·인증 실패 경로는 자동 E2E 대상이 아니다. AC-RUNTIME-001/002는 로컬·원격 어느 인스턴스에서도 성립하지만, 원격 확인은 런북(AC-RUNTIME-018)의 수동 절차로 보완한다. **개정 v0.3.0**: AC-RUNTIME-015가 쓰는 sentinel 값은 의도적으로 **도달 불가능한 호스트**이므로, 이 SPEC의 자동 검증은 **실제로 동작하는 원격 인스턴스와의 연결을 어느 지점에서도 시험하지 않는다** — 이는 의도된 설계 제약(`spec.md` §3 "실제 원격 DB 무접근")이며, 실제 원격 연결 확인은 전적으로 런북의 수동 절차에 남는다.
 - **`@next/env` 로드 우선순위의 실행 관측**: v0.3.0에서 `processEnv`의 우선순위 구현을 **소스로** 확인했으나(`research.md` §0.2 결론 2), 이 프로젝트 구성에서 실제로 실행해 관측하지는 않았다(조사 셸에 `node` 부재). 소스는 근거이지 관측이 아니므로 M5 실측 의무가 유지되며, AC-RUNTIME-015의 sentinel Given이 그 실측의 검증 지점이다.
-- **AC-RUNTIME-022가 다루지 않는 것**: 이 AC는 진입점이 각 자식 프로세스 생성 호출에 **전달한 env 객체**를 관측한다. 자식 프로세스가 그 env를 **실제로 수신해 사용했는지**(OS 수준 상속의 실제 동작)까지는 단위 검증 대상이 아니다 — 그 성질은 AC-RUNTIME-015의 실제 실행 경로에서 간접적으로만 드러난다. 두 AC를 합쳐도 "전달했다"와 "동작했다" 사이의 OS 상속 구간은 실행 관측으로만 닫히며, 이는 M5의 실측 범위다.
+- **AC-RUNTIME-022가 다루지 않는 것 (범위 조정 v0.4.0)**: 이 AC는 진입점이 **자신이 직접 spawn하는 Playwright 러너 프로세스**에 전달한 env 객체만 관측한다. 다음 두 가지 모두 이 AC의 단위 검증 대상이 아니다 — (a) Playwright 러너가 그 env를 **실제로 수신해 사용했는지**(OS 수준 상속의 실제 동작), (b) **앱 서버(Next.js) 프로세스가 받는 env**(Playwright의 `webServer` 훅이 내부적으로 spawn하므로 `run-e2e.ts`의 주입 지점으로는 애초에 도달할 수 없음). 두 성질 모두 AC-RUNTIME-015의 실제 실행 경로에서만 드러난다. "진입점이 러너에 전달했다"(AC-022) + "전체 흐름이 실제로 동작한다"(AC-015) 사이의 OS 상속 구간(진입점→러너, 러너→서버 둘 다)은 실행 관측으로만 닫히며, 이는 M5의 실측 범위다.
+- **`.env.local` 안전 교체·복원의 강제 종료(kill -9) 경로 (신규 v0.4.0)**: `design.md` §3.6의 백업·복원 메커니즘은 정상 종료·테스트 실패·`SIGINT`/`SIGTERM`·프로세스 `exit` 경로를 닫지만, **`SIGKILL`(`kill -9`)처럼 인-프로세스 시그널 핸들러 자체를 우회하는 강제 종료**는 이 설계로 닫을 수 없다 — 그 경로에서는 백업이 복원되지 못한 채 sentinel 내용이 `.env.local`에 남을 수 있다. 이는 의도적으로 남기는 잔여 위험이며, 닫힌 것처럼 서술하지 않는다(격리된 워크트리에서 실행하면 이 위험 자체가 발생하지 않는다 — `design.md` §3.6).
 - **로그인 시도 rate-limiting**: spec.md §5 잔여 위험으로 남으며 이 SPEC의 AC 대상이 아니다.
 - **Gemini API 실호출**: 파이프라인이 mock 구현을 유지하므로(REQ-RUNTIME-019) E2E 흐름에서 실제 Gemini 호출은 발생하지 않는다. **개정 v0.2.0에서 `GEMINI_API_KEY`는 `app` 스코프의 요구 항목에서도 제외**되었으므로(`design.md` §3.1 각주), 이 변수는 이번 SPEC에서 실호출 검증 대상도 부팅 검증 대상도 아니다 — AC-RUNTIME-020이 검증하는 것은 그 **부재가 앱 스코프 검증을 막지 않는다**는 사실뿐이다. 실호출을 활성화하는 후속 SPEC이 이 변수를 `app` 스코프 필수로 승격하고 그에 맞는 AC를 정의해야 한다.
 - **프로비저닝 인스턴스의 런타임 도달 불가능성**: AC-RUNTIME-017 (4)는 import·참조 관계에 대한 **정적** 검사다. 런타임에 동적 로딩으로 인스턴스에 도달하는 경로가 없음까지 실행으로 확인하지는 않는다 — 이 프로젝트에 동적 모듈 로딩 패턴이 없다는 관측에 근거한 판단이며, 그 전제가 바뀌면 재검토 대상이다.

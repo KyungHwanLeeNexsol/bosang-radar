@@ -295,6 +295,8 @@ Drizzle migrator는 적용 이력을 자체 추적 테이블(`__drizzle_migratio
 
 **E2E 진입점과의 관계**: `scripts/run-e2e.ts`도 같은 부트스트랩을 경유해도 안전하다. §0.2 결론 2의 소스 실측에 따라 **이미 `process.env`에 있는 키는 `.env.local`이 덮지 못하므로**, 진입점이 먼저 조립한 E2E 값(`file:./.tmp/e2e.db` 등)이 그대로 유지된다. 단 이 성질은 M5 실측으로 확정해야 하며(§6), 확정 전까지 설계는 이를 전제하지 않고 AC-RUNTIME-015가 sentinel로 검증한다.
 
+**`.env.local` 안전 교체·복원 (v0.4.0 신설)**: AC-RUNTIME-015·AC-RUNTIME-021 검증이 요구하는 sentinel/테스트 `.env.local` 상태는 개발자가 이미 보유할 수 있는 실제 `.env.local`을 덮어쓰는 형태로 만들어진다. 이 덮어쓰기가 검증 종료 후 원상복구되지 않으면 검증 절차 자체가 개발자의 작업 상태를 파괴하는 사고가 된다 — 설계는 `design.md` §3.6에 백업(트리 밖)·복원(모든 종료 경로) + 격리된 워크트리 우선 메커니즘으로 정의했다. `kill -9`처럼 인-프로세스 정리를 우회하는 강제 종료는 이 설계로 닫히지 않는 잔여 위험으로 §6에 명시한다.
+
 검증 메시지 설계 원칙:
 
 - **변수명 + 필요 이유 + 획득 경로**를 담는다. "환경변수가 없습니다" 같은 메시지는 요구사항 미달이다(REQ-RUNTIME-010).
@@ -317,6 +319,7 @@ verification-claim-integrity 원칙에 따라, 이 문서에서 **직접 확인�
 - **독립 스크립트의 TypeScript 실행 수단 미확정 (v0.3.0 신설)**: §0.2 실측상 `node_modules/.bin/tsx`가 없어 현재 `tsx scripts/*.ts` 실행이 불가하며, `node --experimental-strip-types`는 Node 22.6+ 기능이라 `tech.md`의 Node 20.x LTS 하한에서 성립하지 않는다. **이 셸에서 실제 Node 버전을 확인하지 못했다**(`node: command not found`). M1에서 `node --version`을 실측한 뒤 (a) 타입 스트리핑 직접 실행 또는 (b) `tsx` 직접 devDependency 선언 중 하나로 확정한다. 어느 쪽이든 부트스트랩 경유 구조(REQ-RUNTIME-021)는 영향받지 않는다.
 - **`NODE_ENV` 값에 따른 로드 대상 파일 집합 변동 미검증 (v0.3.0 신설)**: §0.2에서 `loadEnvConfig`가 `NODE_ENV==="test"`일 때 파일 목록에서 `.env.local`을 **제외**함을 소스로 확인했다(`d!=="test" && ".env.local"` 필터). E2E 진입점과 CLI 스크립트가 각각 어떤 `NODE_ENV`로 실행되는지에 따라 로드 대상이 달라지므로, M1/M5에서 각 실행 경로의 실제 `NODE_ENV` 값을 확인하고 의도한 파일이 로드되는지 실측해야 한다. AC-RUNTIME-021이 이 경로를 검증 대상으로 삼는다.
 - **Playwright의 `webServer` 환경 상속 동작 미검증** *(개정으로 의존 제거)*: 자식 프로세스가 부모 환경을 상속한다는 성질에 의존하도록 설계를 교체했으므로(§4), Playwright 내부의 `globalSetup`↔`webServer` 순서·환경 전파 동작은 **더 이상 이 SPEC의 검증 대상도 의존 대상도 아니다**. 다만 `webServer`가 부모 환경을 상속한다는 것 자체는 실행으로 관측하지 않았으며, AC-RUNTIME-015(단일 명령 재현성)가 실행 경로 전체로 이를 검증한다.
+- **`.env.local` 안전 교체·복원 메커니즘의 강제 종료(kill -9) 경로 (v0.4.0 신설)**: `design.md` §3.6이 정의한 백업·복원 메커니즘은 정상 종료·테스트 실패·`SIGINT`/`SIGTERM`·프로세스 `exit` 경로를 닫지만, **`SIGKILL`(`kill -9`)처럼 인-프로세스 시그널 핸들러 자체를 우회하는 강제 종료**는 설계로 닫을 수 없다 — 그 경로에서는 백업이 복원되지 못한 채 sentinel/테스트 내용이 개발자의 `.env.local`에 남을 수 있다. 이 Gap은 구현으로도 닫히지 않는 **의도적 잔여 위험**이며(`spec.md` §5, `acceptance.md` §D), 격리된 워크트리에서 실행하면 애초에 발생하지 않는다.
 - **Turso 무료 tier 실제 한도 미확인**: 대시보드 확인이 필요하다.
 - **`vitest.config.ts`의 현행 include/exclude 미확인**: `e2e/**` 수집 여부는 M5에서 확인·조정한다.
 
