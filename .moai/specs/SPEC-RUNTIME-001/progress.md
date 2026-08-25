@@ -228,6 +228,25 @@ justification: |
 - Gaps (미검증, M1 범위 밖): AC-RUNTIME-001/002/004~008/011~018/022는 M2~M6에서 검증한다. `@next/env`의 `.env.local` 우선순위 실제 관측(`processEnv`가 상속값을 덮지 않는지)은 여전히 M5 실측 범위다(`design.md` §6, `research.md` §6) — 이번 M1은 그 우선순위 메커니즘 자체를 관측하지 않았다(cli-bootstrap 단위 테스트는 `@next/env`를 목으로 대체했으므로 실제 `loadEnvConfig` 파일 로딩 동작은 검증 범위 밖 — B4가 명시한 대로 `NODE_ENV=test`에서 `.env.local`이 로드 목록에서 제외되므로 구조적으로 단위 테스트에서 검증 불가능하고, 이는 AC-RUNTIME-021의 통합 수준 검증(M5 또는 별도 통합 테스트)이 담당한다).
 - Residual-risk: (1) Node 20.x/21.x 하한 미검증(위 M1-a 항목). (2) Turbopack이 `instrumentation.ts`의 `process.exit` 호출을 Edge Runtime 미지원 API로 경고(빌드는 exit 0으로 통과, 경고만 존재) — 정적 분석기가 런타임 가드(`NEXT_RUNTIME !== "edge"`)를 인식하지 못하기 때문이며, 기능적으로는 Edge Runtime 경로에서 `process.exit`가 호출되지 않는다. (3) `pnpm start`의 "✓ Ready in Nms" 로그는 HTTP 리스너 바인딩 시점에 출력되며 `register()` 완료를 기다리지 않는다는 사실을 실측으로 확인했다 — Next.js 공식 문서("register()가 완료되어야 서버가 요청을 처리할 준비 상태가 된다")와 다른 실제 동작이었다. `process.exit(1)` 명시 호출로 이 간극을 메웠으나, 이는 Next.js 내부 구현에 대한 관측이지 문서화된 계약이 아니므로 향후 Next.js 버전에서 타이밍이 달라질 수 있다.
 
+### Hardening — env-local-safety.ts orphan 정리 + MX 태그 보강 (sync-phase 후속, 완료)
+
+**배경**: sync-phase 독립 보안 리뷰 + sync-auditor에서 발견된 2건의 sync-phase 하드닝 항목 — 정식 마일스톤이 아닌 외과적 후속 수정.
+
+**B1 — orphan-cleanup 방어선 추가**: `prepareSafeEnvLocal()` 본문(백업 생성 → sentinel 쓰기) 중 실패가 발생하면(예: 디스크 풀), 기존 코드는 이미 생성된 백업 디렉터리를 OS 임시 디렉터리에 orphan으로 남기고(개발자의 실 `.env.local` 내용이 담긴 평문 백업이 정리되지 않음) 원래 에러만 전파했다. `cleanupAfterPrepareFailure()` 헬퍼를 추가해: 백업이 온전히 쓰인 뒤 sentinel 쓰기가 실패하면 백업 내용을 `.env.local`에 되돌리고, 백업 디렉터리가 만들어졌다면(내용물 유무와 무관) 항상 제거한다. 정리 자체가 실패해도 원래 에러를 가리지 않고 로그만 남긴 뒤 그대로 재던진다. `withSafeEnvLocal()`이 등록하는 SIGINT/SIGTERM/exit 복원 핸들러는 `prepareSafeEnvLocal()`이 성공적으로 반환한 "이후"에만 존재하므로, 반환 전 실패는 별도 방어선이 필요했다.
+
+**B2 — MX 태그 보강(2건)**:
+1. `scripts/provision-tester.ts`의 기존 `@MX:ANCHOR`(`provisionTester`, 이미 존재했음 — CLI 1회 + run-e2e.ts 2회 fan-in) REASON을 보강해 셀프 가입 노출 불변식(AC-RUNTIME-017 — scripts/ 밖 export 금지, HTTP 라우트 미연결)을 명시적으로 재확인.
+2. `scripts/env-local-safety.ts`의 `withSafeEnvLocal()` 내 `process.on("exit"/"SIGINT"/"SIGTERM", ...)` 리스너 등록 지점에 신규 `@MX:WARN`+`@MX:REASON` 추가 — 프로세스 전역 상태를 통해 실 자격증명 파일 복원을 보장하는 마지막 방어선임을 명시.
+
+**§E items**:
+- Claim: 신규 RED→GREEN 테스트 2건(`scripts/env-local-safety.orphan-cleanup.test.ts`)이 수정 전 코드에서 실패하고 수정 후 통과한다.
+  Evidence: 수정 전 `corepack pnpm vitest run scripts/env-local-safety.orphan-cleanup.test.ts` → `Tests 2 failed (2)`(`existsSync(backupDir)` true — orphan 확인). 수정 후 동일 명령 → `Tests 2 passed (2)`.
+  Baseline-attribution: 이 하드닝 커밋 트리, 이 실행.
+- Claim: 기존 전체 테스트 스위트(137개) + 신규 2개 = 139개 전체 GREEN, lint/format/build 유지.
+  Evidence: `corepack pnpm test` → `Test Files 34 passed (34)`, `Tests 139 passed (139)`; `corepack pnpm lint`/`corepack pnpm format:check`/`corepack pnpm build` 모두 exit 0(§E 하단 커밋 로그 참고).
+- Gaps: 실제 디스크 풀(OS 레벨 partial write) 상황은 모킹으로 재현하지 않았다 — `writeFileSync` 호출 자체가 던지는 경로만 검증했다(orphan 정리 로직의 핵심 시나리오는 이 경로로 충분히 커버되지만, 바이트 단위 partial write로 인한 `.env.local` 손상 시나리오는 검증 범위 밖).
+- Residual-risk: `cleanupAfterPrepareFailure()` 내부의 `readFileSync(backupPath)` 또는 `rmSync(backupDir)` 자체가 실패하는 극단 케이스(예: 백업 디렉터리에 대한 OS 권한 문제)는 로그만 남기고 원래 에러를 그대로 던지도록 설계했으나, 이 이중 실패 경로 자체의 단위 테스트는 작성하지 않았다(설계상 best-effort로 명시된 범위).
+
 ### M3 — 마이그레이션 적용 절차 (완료)
 
 **대상**: REQ-RUNTIME-001, REQ-RUNTIME-002

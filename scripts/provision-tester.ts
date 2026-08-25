@@ -108,11 +108,16 @@ export function parseEmailArg(argv: readonly string[]): string {
   return value;
 }
 
-// @MX:ANCHOR: [AUTO] 테스터 프로비저닝 진입점 — CLI(provision-tester.ts) 및 향후
-// scripts/run-e2e.ts(M5)의 in-process 재사용 대상
+// @MX:ANCHOR: [AUTO] 테스터 프로비저닝 진입점 — CLI(runCli, 이 파일)와
+// scripts/run-e2e.ts가 테스터 A·B 프로비저닝을 위해 각각 in-process로 호출하는
+// fan-in >= 3 지점(CLI 1회 + run-e2e.ts 2회).
 // @MX:REASON: design.md §3.3에서 run-e2e.ts가 db-migrate/db-seed와 동일한 방식으로
 // 이 함수를 in-process 재사용할 것을 전제하므로(테스터 A·B 프로비저닝), 시그니처
-// 변경은 M5까지 파급된다.
+// 변경은 M5까지 파급된다. 또한 이 함수는 셀프 가입이 허용된
+// createProvisioningAuth() 인스턴스(위 @MX:WARN 참고, AC-RUNTIME-017)를 여는
+// 유일한 호출부다 — 이 함수 자체를 scripts/ 밖으로 export하거나 HTTP 라우트에
+// 연결하면 그 인스턴스의 셀프 가입 표면이 그대로 노출된다는 불변식을 여기서도
+// 유지해야 한다.
 export async function provisionTester(options: ProvisionTesterOptions): Promise<void> {
   const env = bootstrapCli("provision");
   const { client, db } = buildDb(env);
