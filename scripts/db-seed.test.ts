@@ -55,7 +55,9 @@ interface EvidenceRow {
 async function listEvidenceRows(dbFile: string): Promise<EvidenceRow[]> {
   const client = createClient({ url: `file:${dbFile}` });
   try {
-    const result = await client.execute("SELECT id, category, title, content FROM evidence ORDER BY id");
+    const result = await client.execute(
+      "SELECT id, category, title, content FROM evidence ORDER BY id"
+    );
     return result.rows.map((row) => ({
       id: String(row.id),
       category: String(row.category),
