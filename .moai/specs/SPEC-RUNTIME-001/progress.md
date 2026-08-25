@@ -4,7 +4,7 @@
 
 ```yaml
 plan_complete_at: 2026-08-24
-plan_status: revision-applied (pending re-audit)   # v0.4.0 개정 적용, 5차 감사 대기 — 4차 감사 PASS(0.97)는 v0.3.0 아티팩트에 대한 판정이며 v0.4.0의 통과 근거가 되지 못한다
+plan_status: audit-ready   # v0.4.0 개정 아티팩트에 대한 5차 감사 PASS(0.97) 확정 — Implementation Kickoff Approval 대기
 spec_version: "0.4.0"
 tier: L
 route: B (PR route — Tier L)
@@ -19,7 +19,7 @@ requirements: 21   # REQ-RUNTIME-001 ~ 021 (Tier L ceiling 25) — v0.3.0에서 
 acceptance_criteria: 22   # AC-RUNTIME-001 ~ 022 (Tier L ceiling 25) — v0.3.0에서 AC-021/022 신설
 spec_id_check: PASS   # Bash ERE regex, verbatim output "PASS" (v0.3.0 재실행 확인)
 frontmatter: 12/12 canonical fields present
-next_step: plan-auditor 5차 감사 재실행 (v0.4.0 아티팩트 대상) — PASS 확인 후 Implementation Kickoff Approval (plan→run human gate)
+next_step: Implementation Kickoff Approval (plan→run human gate) — 5차 감사 PASS(0.97) 확정, 추가 감사 불필요
 audit_iterations:
   - iteration: 1
     verdict: FAIL
@@ -41,6 +41,11 @@ audit_iterations:
     score: 0.97          # Tier L threshold 0.85; must-pass 7/7 PASS — v0.3.0 아티팩트에 대한 신규 전체 감사
     disposition: v0.3.0 개정 3건(REQ-RUNTIME-021 CLI env bootstrap / AC-RUNTIME-015 sentinel 교체 / AC-RUNTIME-022 신설-과잉주장 제거) 전건 완전 반영 확인. D1(REQ-021 3개 규범문 번들, non-blocking) / D2(phase 프론트매터 "v0.2.0 target" 드리프트, label drift·schema 위반 아님) 2건 non-blocking finding
     report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-4.md
+  - iteration: 5
+    verdict: PASS
+    score: 0.97          # Tier L threshold 0.85; must-pass 7/7 PASS — v0.4.0 아티팩트에 대한 신규 전체 감사
+    disposition: v0.4.0 개정 3건(AC-RUNTIME-022 검증 범위 조정 / .env.local 안전 교체-복원 설계 신설 / 잔존 문서 오류 3건 정리) 전건 검증 완료. AC-RUNTIME-022의 좁혀진 범위가 REQ-RUNTIME-016 커버리지 갭을 만들지 않음(AC-022 + AC-RUNTIME-015 (3)항이 함께 여전히 완전히 충족)을 확인했고, .env.local 안전장치(design.md §3.6)가 AC-RUNTIME-015·AC-RUNTIME-021 Given에 정확히 배선되었으며, kill-9 잔여 위험이 4곳 모두에서 일관되게 정직히 명시됨을 확인했다. 전체 6개 아티팩트에서 잔존 `e2e/global-setup.ts` 현재 시제 참조 0건(정당한 과거 시제·존재 확인 항목만 남음). D1(carried, REQ-021 3개 규범문 번들, non-actionable) / D3(carried, closed — REQ-010 GEARS 라벨, 재확인 종결) 유지. D4(신규, minor) — acceptance.md AC-022 역할 분담 서술의 "AC-022+AC-015 함께 완전히 충족한다" 요약이 러너→서버 구간의 값 수준 동일성(OS 상속 + 정적 검증에 근거한 추론이지 직접 관측이 아님)에 비해 아주 약간 강하게 읽힘 — non-blocking. D4 대응으로 acceptance.md AC-022 역할 분담 문단에 한 문장 qualifier 추가(오케스트레이터 반영, 재감사 불필요)
+    report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-5.md
 plan_revisions:
   - version: "0.4.0"
     date: 2026-08-25
@@ -51,7 +56,7 @@ plan_revisions:
     ac_bar_lowered: false  # AC-022는 관측 가능한 경계로 범위를 좁혔을 뿐 REQ-RUNTIME-016 커버리지는 AC-015와 합쳐 불변, 나머지는 순수 추가/정정
     req_delta: "21 → 21 (변경 없음)"
     ac_delta: "22 → 22 (변경 없음 — AC-RUNTIME-022 서술 범위만 조정)"
-    reaudit: pending
+    reaudit: complete (PASS 0.97, review-5)
   - version: "0.3.0"
     date: 2026-08-24
     origin: 사용자 설계 검토 3차 (구현 착수 승인 전)
@@ -133,7 +138,15 @@ plan_revisions:
 
 **개정 범위 불변 확인**: `spec.md` §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변, Tier L·Route B 불변, 아티팩트 집합 불변(5 + progress.md). REQ 21 / AC 22 **변경 없음**(개정 1은 AC-RUNTIME-022 서술 범위 조정일 뿐 AC 개수·다른 AC의 판정 기준을 낮추지 않는다). REQ-RUNTIME-016의 커버리지는 AC-RUNTIME-022(구조적, 좁혀진 범위) + AC-RUNTIME-015(기능적, 전체 흐름)가 여전히 함께 완전히 충족한다.
 
-**다음 단계**: v0.4.0 개정 적용 완료로 `plan_status`는 `revision-applied (pending re-audit)`다. 4차 감사 PASS(0.97)는 v0.3.0 아티팩트에 대한 판정이며 v0.4.0의 통과 근거가 되지 못한다(변경된 문서에 대해 얻은 적 없는 판정을 주장하지 않는다는 원칙). 다음은 **plan-auditor 5차 감사 재실행**이며, PASS 확인 후 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**으로 진행한다.
+**감사 5회차 — v0.4.0 개정 아티팩트 신규 전체 감사 (2026-08-25)**: 위 개정 3건(AC-RUNTIME-022 검증 범위 조정, `.env.local` 안전 교체·복원 설계 신설, 잔존 문서 오류 3건 정리) 반영 후 plan-auditor 재감사를 실시해 **PASS(0.97, Tier L 기준선 0.85)**를 받았다. 필수 통과 기준 7개 전항목 PASS. AC-RUNTIME-022의 좁혀진 범위가 REQ-RUNTIME-016 커버리지 갭을 만들지 않음(AC-022 + AC-RUNTIME-015 (3)항이 함께 여전히 완전히 충족)을 확인했고, `.env.local` 안전장치(`design.md` §3.6)가 AC-RUNTIME-015·AC-RUNTIME-021 Given에 정확히 배선되었으며, kill-9 잔여 위험이 4곳 모두에서 일관되게 정직히 명시됨을 확인했다. 전체 아티팩트에서 잔존 `e2e/global-setup.ts` 현재 시제 참조는 0건이었다(정당한 과거 시제·존재 확인 항목만 남음).
+
+- **D1(minor, non-blocking, carried)** — REQ-RUNTIME-021 하나에 규범문 3건이 묶여 있음(참고만, 원자성 위반 아님).
+- **D3(cosmetic, 기종결, carried)** — REQ-RUNTIME-010 GEARS 라벨 건, 재확인 후 종결 유지.
+- **D4(minor, non-blocking, 신규) → 적용** — `acceptance.md` AC-RUNTIME-022 역할 분담 서술의 "AC-022+AC-015 함께 완전히 충족한다" 요약이, 러너→서버 구간의 값 수준 동일성(OS 프로세스 상속 + 정적 검증에 근거한 추론이지 직접 관측이 아님, `research.md` §6에 이미 공개)에 비해 아주 약간 강하게 읽혔다. 오케스트레이터가 해당 문단에 이 뉘앙스를 명시하는 한 문장 qualifier를 추가했다(재감사 불필요 — non-blocking finding에 대한 표현 정정).
+
+보고서: `.moai/reports/plan-audit/SPEC-RUNTIME-001-review-5.md`.
+
+**다음 단계**: 5차 감사 PASS(0.97) 확정으로 `plan_status`는 `audit-ready`다. v0.4.0 아티팩트에 대한 감사가 완료되었으므로 추가 재감사는 불필요하다. 다음은 **구현 착수 승인(Implementation Kickoff Approval, plan→run 전환 승인 게이트)**이다.
 
 ## §E.2 Run-phase Evidence
 
