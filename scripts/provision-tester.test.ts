@@ -203,9 +203,7 @@ describe("scripts/provision-tester — runCli() in-process (TESTER_PASSWORD 비�
     // 사고를 방지). 이 경로는 실제 TTY 상호작용을 요구하지 않으므로 단위 테스트로
     // 직접 검증 가능하다.
     const { runCli } = await import("./provision-tester.ts");
-    await expect(runCli(["--email", "no-password@example.com"])).rejects.toThrow(
-      /TESTER_PASSWORD/
-    );
+    await expect(runCli(["--email", "no-password@example.com"])).rejects.toThrow(/TESTER_PASSWORD/);
   });
 });
 
