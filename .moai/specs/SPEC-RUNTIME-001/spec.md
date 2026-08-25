@@ -1,7 +1,7 @@
 ---
 id: SPEC-RUNTIME-001
 title: "보상레이더 MVP scaffold 실제 런타임 활성화 (DB 연결·시드·테스터 프로비저닝·E2E 검증)"
-version: "0.5.0"
+version: "0.5.1"
 status: in-progress
 created: 2026-08-24
 updated: 2026-08-25
@@ -17,6 +17,7 @@ depends_on: [SPEC-SCAFFOLD-001]
 
 ## HISTORY
 
+- 2026-08-25: 잔여 위험 보강 v0.5.1 (Nexsol 승인, sync-phase 품질 리뷰 중 보안 리뷰와 sync-auditor가 각각 독립적으로 발견한 LOW 등급 잔여 위험 2건 기록) — (1) `scripts/run-e2e.ts`의 동적 포트 탐색(`findFreePort()`, M5에서 하드코딩 포트 3000을 대체하며 도입)이 빈 포트를 찾은 시점과 실제 서버(`pnpm build && pnpm start`)가 그 포트를 바인딩하는 시점 사이의 TOCTOU, (2) `scripts/env-local-safety.ts`의 `.env.local` 백업 파일이 `{ mode: 0o600 }` 없이 `writeFileSync`로 작성되어 권한이 명시적으로 고정되지 않는 점. 두 항목 모두 두 리뷰어가 코드 변경이 필요 없는 문서화 전용(non-blocking) 잔여 위험으로 분류했다. `spec.md` §5(본 절)와 `design.md` §3.6에 이미 있는 `kill -9` 잔여 위험과 동일한 정직성 원칙에 따라 기록하며, `acceptance.md`의 AC 통과 기준이나 `spec.md` §2 REQ 21개 개수는 변경하지 않는다.
 - 2026-08-25: 플랜 개정 v0.5.0 (Nexsol 승인, run-phase M2 진행 중 발견된 선행 SPEC 결함 보정) — M2(테스터 프로비저닝) 실행 중 `lib/db/schema.ts`가 SPEC-SCAFFOLD-001에서 이미 선언한 `account.issuer` 컬럼(Better Auth 1.7.1 요구, 커밋 `5dbaff7`)이 `db/migrations/0000_broad_big_bertha.sql`에는 반영되지 않은 스키마/마이그레이션 드리프트가 발견되어 `auth.api.signUpEmail()` 호출이 `SQLITE_ERROR: table account has no column named issuer`로 실패했다. 이 결함을 동기화하는 보정 마이그레이션 1건만 추가하기로 하고, `acceptance.md` AC-RUNTIME-017 (3)항 및 §B DoD 대응 항목에 그 1건만을 좁게 허용하는 예외 문구를 추가했다. `spec.md` §4 제외 범위·WHY/WHAT은 변경하지 않으며 REQ 21 / AC 22 개수는 불변이다. 이 개정은 이번 SPEC 자신의 설계 결정이 아니라 SPEC-SCAFFOLD-001이 남긴 기존 결함을 보정하는 것이며, `lib/db/schema.ts` 자체는 변경되지 않는다(해당 컬럼은 이미 선언되어 있었다). 근거는 `plan.md` §A.6, `acceptance.md` AC-RUNTIME-017, `progress.md` §E.1에 기록.
 - 2026-08-24: 최초 작성 (Nexsol) — SPEC-SCAFFOLD-001(completed)이 구축한 scaffold를 실제 로컬 런타임에서 end-to-end 실행 가능한 상태로 만드는 런타임 활성화 SPEC. 현행 코드베이스 실측(`lib/db/client.ts`, `lib/auth/config.ts`, `db/migrations/`, `db/seed/evidence.json`, `package.json`) 기반으로 작성.
 - 2026-08-25: 플랜 개정 v0.4.0 (Nexsol 요청, 구현 착수 승인 전 최종 정합성 점검) — AC-RUNTIME-022의 검증 범위를 `run-e2e.ts`가 직접 spawn하는 Playwright 러너 구간으로 좁히고(앱 서버 프로세스에 전달된 env는 이 AC의 관측 대상이 아니며, 그 구간까지의 실제 전파는 AC-RUNTIME-015의 실제 Playwright 실행이 기능적으로 커버함을 명시), sentinel/테스트 `.env.local`을 쓰고 검증 종료 후 원상복구하는 안전 교체·복원 설계를 신설했으며(`design.md` §3.6 — 모든 정상/실패/시그널 종료 경로에서 복원, `kill -9`는 닫히지 않는 잔여 위험으로 정직하게 명시), 잔존 문서 오류 3건(REQ/AC 개수 표기, `e2e/global-setup.ts` 잔존 표현, `progress.md` §E.1 시제 모호성)을 정리했다. `spec.md` §4 제외 범위·WHY/WHAT은 변경하지 않으며 REQ 21 / AC 22 개수는 불변이다. 근거는 `research.md` §5, `design.md` §3.5/§3.6, `progress.md` §E.1에 기록.
@@ -127,6 +128,8 @@ REQ 개수: 21개 (Tier L 상한 25개 이내).
 - **sentinel 우선순위 시험의 잔여 위험 (개정 v0.3.0)**: AC-RUNTIME-015는 이제 sentinel 값으로만 우선순위를 시험하므로 실제 인스턴스 오염 위험은 제거됐다. 남는 위험은 **오진**이다 — 우선순위 가정이 틀렸을 경우 증상이 "sentinel 호스트에 대한 연결/DNS 실패"로 나타나는데, 이를 네트워크 일시 장애로 오해하면 근본 원인(우선순위 역전)을 놓친다. AC-RUNTIME-015 Then이 이 실패 양상을 **우선순위 역전의 진단 신호로 해석하라**고 명시해 완화한다.
 - **`GEMINI_API_KEY` 부재 상태로의 앱 기동 가능성**: 이번 SPEC의 파이프라인은 mock 구현을 유지하므로(§4 제외 범위) 앱 런타임 스코프는 `GEMINI_API_KEY`를 요구하지 않는다(`design.md` §3.1). 그 결과 실제 Gemini 호출을 활성화하는 후속 SPEC 이전까지는, 키가 없는 상태로 앱이 정상 기동한다 — 후속 SPEC이 실호출을 도입하는 시점에 이 변수를 앱 런타임 스코프의 필수 항목으로 승격해야 하며, 승격이 누락되면 실패 지점이 부팅에서 첫 호출 시점으로 밀린다.
 - **`.env.local` 안전 교체·복원의 강제 종료(kill -9) 경로 (개정 v0.4.0)**: AC-RUNTIME-015·AC-RUNTIME-021의 검증은 개발자가 이미 보유했을 수 있는 실제 `.env.local`을 sentinel/테스트 내용으로 임시 교체한다. `design.md` §3.6이 정상 종료·테스트 실패·`SIGINT`/`SIGTERM`·프로세스 `exit` 경로 모두에서 원본을 복원하는 설계를 두지만, **`SIGKILL`(`kill -9`)처럼 인-프로세스 정리 로직 자체를 우회하는 강제 종료**는 이 설계로 닫을 수 없다 — 그 경로에서는 백업이 복원되지 못한 채 sentinel 내용이 `.env.local`에 남을 수 있다. 이는 의도적으로 열어두는 잔여 위험이며, 격리된 워크트리에서 실행하면(`design.md` §3.6) 이 위험 자체가 발생하지 않는다.
+- **E2E 동적 포트 탐색과 서버 바인딩 사이의 TOCTOU (v0.5.1 추가 기록)**: `scripts/run-e2e.ts`의 `findFreePort()`(하드코딩된 포트 3000을 동적 탐색으로 교체하며 M5에서 도입 — `progress.md` §E.2/§E.3 M5 항목)는 빈 포트를 찾아 probe 소켓을 닫지만, 실제 서버(`pnpm build && pnpm start`)는 빌드 단계(10초 이상 소요 가능) 이후에야 그 포트를 바인딩한다. 그 사이 구간에 다른 프로세스가 동일 포트를 선점하면 이 SPEC의 코드 정합성과 무관한 `EADDRINUSE`로 플레이키하게 실패할 수 있다 — `get-port` 같은 통용 npm 패키지가 채택하는 것과 동일한 수용된 타이밍 위험이며 결함은 아니다. 침묵하지 않고 명시적으로 기록해 둔다.
+- **`.env.local` 백업 파일의 권한(mode) 미고정 (v0.5.1 추가 기록)**: `scripts/env-local-safety.ts`의 `prepareSafeEnvLocal()`(`design.md` §3.6의 백업·복원 메커니즘)은 개발자의 실제 `.env.local` 내용을 임시 디렉터리의 백업 파일에 `writeFileSync`로 쓰되 `{ mode: 0o600 }` 같은 명시적 옵션을 지정하지 않는다. 현재는 `mkdtempSync`가 만드는 디렉터리 자체의 기본 권한(POSIX에서 통상 0700)에 보호를 위임하며, 파일 자체의 mode는 별도로 고정하지 않는다. 개발자의 `.env.local`이 이미 디스크에 보호되지 않은 채 존재한다는 전제에 비해 새로 추가되는 위험은 아니지만, 암묵적으로 남겨두지 않고 운영상 수용 사항으로 명시한다.
 
 ## §6. 참고 문서
 

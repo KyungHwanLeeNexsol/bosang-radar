@@ -361,6 +361,11 @@ sentinel/테스트 `.env.local`을 쓰기 전에, 프로젝트 루트에 이미 
 
 AC-RUNTIME-015·AC-RUNTIME-021의 Given은 이 메커니즘을 전제로 참조한다 — "디스크에 sentinel/테스트 `.env.local`이 존재한다"는 상태가 이 절의 절차를 거쳐 안전하게 만들어지고 안전하게 되돌려짐을 전제한다.
 
+#### 추가 기록 — 잔여 위험 2건 (v0.5.1, sync-phase 리뷰에서 발견)
+
+- **동적 포트 탐색의 TOCTOU (§3.3 관련, M5)**: `run-e2e.ts`의 `findFreePort()`가 빈 포트를 찾아 probe 소켓을 닫는 시점과, `playwright.config.ts`의 `webServer`(`pnpm build && pnpm start`)가 실제로 그 포트를 바인딩하는 시점 사이에는 빌드 소요 시간만큼의 간극이 있다. 그 사이 다른 프로세스가 같은 포트를 선점하면 코드 결함이 아닌 `EADDRINUSE`로 플레이키하게 실패할 수 있다 — `get-port` 등 통용 도구와 동일한 수용된 타이밍 위험이며, `spec.md` §5에 명시적으로 기록한다.
+- **`.env.local` 백업 파일의 mode 미고정**: 위 기본 메커니즘이 쓰는 백업 파일은 `writeFileSync`로 작성되며 `{ mode: 0o600 }`을 명시하지 않는다 — `mkdtempSync` 디렉터리 자체의 기본 권한에 보호를 위임한다. 개발자의 `.env.local`이 이미 보호되지 않은 채 디스크에 있다는 전제에 비해 새 위험은 아니지만, `kill -9` 잔여 위험(위)과 같은 정직성 원칙에 따라 `spec.md` §5에 명시적으로 남긴다.
+
 ## §4. 데이터 흐름 — 검증 대상 시나리오
 
 ```
