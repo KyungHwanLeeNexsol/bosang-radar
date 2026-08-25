@@ -4,8 +4,8 @@
 
 ```yaml
 plan_complete_at: 2026-08-24
-plan_status: audit-ready   # iteration 3 PASS (0.92) + D1(유일 blocking-class) 해소 완료
-spec_version: "0.2.0"
+plan_status: audit-ready   # v0.3.0 아티팩트 대상 4차 감사 PASS(0.97) 완료
+spec_version: "0.3.0"
 tier: L
 route: B (PR route — Tier L)
 artifacts:
@@ -15,11 +15,11 @@ artifacts:
   - design.md
   - research.md
   - progress.md
-requirements: 20   # REQ-RUNTIME-001 ~ 020 (Tier L ceiling 25)
-acceptance_criteria: 20   # AC-RUNTIME-001 ~ 020 (Tier L ceiling 25) — v0.2.0에서 AC-020 신설
-spec_id_check: PASS   # Bash ERE regex, verbatim output "PASS"
+requirements: 21   # REQ-RUNTIME-001 ~ 021 (Tier L ceiling 25) — v0.3.0에서 REQ-021 신설
+acceptance_criteria: 22   # AC-RUNTIME-001 ~ 022 (Tier L ceiling 25) — v0.3.0에서 AC-021/022 신설
+spec_id_check: PASS   # Bash ERE regex, verbatim output "PASS" (v0.3.0 재실행 확인)
 frontmatter: 12/12 canonical fields present
-next_step: plan-auditor 재감사 → (PASS 시) Implementation Kickoff Approval (plan→run human gate)
+next_step: Implementation Kickoff Approval (plan→run human gate)
 audit_iterations:
   - iteration: 1
     verdict: FAIL
@@ -36,7 +36,23 @@ audit_iterations:
     score: 0.92          # Tier L threshold 0.85 — v0.2.0 개정 아티팩트에 대한 신규 전체 감사
     disposition: D1 (env-local-precedence-gap, major/blocking-class) FIXED; D2-D6 (minor, citation-precision) 전건 적용; D7 non-actionable 종결
     note: verdict는 이미 확정 — 아래 수정으로 뒤집히지 않음 (blocking-class 해소만 수행)
+  - iteration: 4
+    verdict: PASS
+    score: 0.97          # Tier L threshold 0.85; must-pass 7/7 PASS — v0.3.0 아티팩트에 대한 신규 전체 감사
+    disposition: v0.3.0 개정 3건(REQ-RUNTIME-021 CLI env bootstrap / AC-RUNTIME-015 sentinel 교체 / AC-RUNTIME-022 신설-과잉주장 제거) 전건 완전 반영 확인. D1(REQ-021 3개 규범문 번들, non-blocking) / D2(phase 프론트매터 "v0.2.0 target" 드리프트, label drift·schema 위반 아님) 2건 non-blocking finding
+    report: .moai/reports/plan-audit/SPEC-RUNTIME-001-review-4.md
 plan_revisions:
+  - version: "0.3.0"
+    date: 2026-08-24
+    origin: 사용자 설계 검토 3차 (구현 착수 승인 전)
+    kind: 구현 접근 방식 + 검증 설계 개정 — 상태 전이 amendment 아님 (status는 draft 유지)
+    changes: 3   # 독립 CLI 명시적 env 로드 / 우선순위 시험 sentinel 교체 / 시크릿 동일성 과잉주장 제거
+    scope_changed: false   # spec.md §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변
+    ac_bar_lowered: false  # 2건 강화(AC-021 신설, AC-015 Given 안전화) + 1건 과잉주장 제거(AC-022로 직접 관측 승격)
+    req_delta: "20 → 21 (REQ-021 신설)"
+    ac_delta: "20 → 22 (AC-021/022 신설)"
+    blocking_finding: "@next/env가 pnpm strict 레이아웃에서 import 불가 — M1-a 직접 devDependency 선언이 선행 조건 (research.md §0.2)"
+    reaudit: complete (PASS 0.97, review-4)
   - version: "0.2.0"
     date: 2026-08-24
     origin: 사용자 설계 검토 (구현 착수 승인 전)
@@ -47,7 +63,7 @@ plan_revisions:
     reaudit: pending
 ```
 
-플랜 단계 산출물이 모두 작성되었고, v0.2.0 개정 아티팩트에 대한 **신규 전체 감사(iteration 3)를 통과했다**(PASS 0.92, Tier L 기준선 0.85). 유일한 blocking-class 지적(D1)이 해소되어 `plan_status`를 `audit-ready`로 전환한다. 미검증 사항은 `research.md` §6에 Gap으로 명시했다.
+플랜 단계 산출물이 모두 작성되어 있으며, v0.2.0 아티팩트는 감사 3회차를 통과했다(PASS 0.92, Tier L 기준선 0.85). **그러나 그 이후 사용자 개정 v0.3.0(아래 4차 개정 노트)이 적용되었으므로, 현재 아티팩트 집합은 아직 감사받지 않은 상태다.** 따라서 `plan_status`는 `audit-ready`가 아니라 **`revision-applied (pending re-audit)`** 이다 — v0.2.0에 대한 PASS는 v0.3.0 아티팩트의 통과 근거가 되지 않는다(변경된 문서에 대해 얻은 적 없는 판정을 주장하지 않는다). 미검증 사항은 `research.md` §6에 Gap으로 명시했다.
 
 **감사 1회차 반영(2026-08-24)**: 아래 6건을 targeted fix로 반영했다. 아티팩트 집합·Tier·라우트는 변경되지 않았다.
 
@@ -80,6 +96,18 @@ plan_revisions:
 - **D7 — 의도적 종결(non-actionable), gap 아님**. REQ-RUNTIME-010의 GEARS 타입 라벨(`When(event-detected)`) 표기 건은 **3개 반복에 걸쳐 3회 지적됐고 매번 auditor 자신이 미적용을 권고**했다 — 요구사항 본문 산문이 이미 표준 Event-driven 형태이고 차이는 타입 라벨 문자열뿐이라 실질 영향이 없기 때문이다. 이번에도 미적용하며, `spec.md`는 손대지 않았다. 반복 재등재를 막기 위해 **종결(closed)** 로 기록한다.
 
 **개정 범위 불변 확인**: `spec.md` 무수정(WHY/WHAT/§4 Out of Scope 포함). REQ 20개 / AC 20개 유지. Tier L·Route B·아티팩트 집합 불변. 어떤 AC의 판정 기준도 낮추지 않았다 — D1은 AC-RUNTIME-015를 **강화**(현실적 Given 추가)했다.
+
+**사용자 요청 플랜 개정 v0.3.0 — 3차 설계 검토 (2026-08-24)**: 감사 3회차 PASS(0.92) 이후, 사용자가 설계를 다시 검토해 **구현 접근 방식·검증 설계 3건**의 변경을 요청했다. v0.2.0 개정과 마찬가지로 **사용자 주도 개정**이며 구현 착수 승인(Implementation Kickoff Approval) 이전에 적용했다. `status`는 `draft`로 유지되므로 상태 전이 amendment 절차(`amendment_of` 필드, HISTORY `## Amendments` 하위 절)는 해당하지 않는다.
+
+- **개정 1 — 독립 실행 CLI의 명시적 `.env.local` 로드 (REQ-RUNTIME-021 / AC-RUNTIME-021 신설)**: `db:migrate`·`db:seed`·`tester:add`는 Next.js 런타임이 아니라 `tsx`/`node`로 실행되는 **독립 프로세스**이므로, Next.js의 자동 `.env.local` 로딩(= `next build`/`start`/`dev` 경로의 동작)이 적용되지 않는다. v0.2.0까지의 설계는 이 점을 다루지 않아 "프레임워크가 해줄 것"이라는 **암묵적 가정**이 남아 있었다. `scripts/cli-bootstrap.ts` 공용 모듈을 신설해 `@next/env`의 `loadEnvConfig`로 **명시적 로드 → 스코프 검증** 순서를 고정하고, 4개 스크립트가 이 모듈 하나만 경유하도록 했다. 반영: `spec.md` REQ-021·§3·§5, `design.md` §1 원칙 5·§2·§3.2/§3.2.2·§6, `plan.md` §A.3·M1(a/b/c 분해)·M2/M3/M4·M6·§D·§E·§F·§G, `research.md` §0.2·§5, **AC-RUNTIME-021 신설**.
+- **개정 2 — 우선순위 시험의 sentinel 교체 (AC-RUNTIME-015)**: v0.2.0의 D1 수정은 AC-RUNTIME-015 Given에 "**실제 원격 Turso 자격증명**이 담긴 `.env.local`"을 요구했다. 사용자가 이 수정 자체를 위험으로 지적했다 — 이 시험이 검증하려는 명제가 "상속된 값이 `.env.local`을 이긴다"인데, **그 명제가 거짓이면 시험이 실제 프로덕션 인스턴스에 연결·기록한다**. 즉 검증 절차가 REQ-RUNTIME-017이 막으려는 사고를 스스로 유발하는 구조였다. `libsql://sentinel-nonexistent-host.invalid` + 더미 토큰으로 교체했다(`.invalid`는 RFC 2606 §2 예약 + RFC 6761 §6.4가 즉시 부정 응답을 규정 — 실패가 규격상 보장). **검증 대상 성질은 축소되지 않았다**: 우선순위는 그대로 시험되며, 달라진 것은 가정이 깨졌을 때 "실제 DB 오염" → "안전한 연결 실패(= 진단 신호)"라는 결과뿐이다. 반영: `spec.md` §3·§5, `design.md` §3.4(sentinel 절 신설)·§6, `plan.md` M5·§D·§E, `research.md` §0.2 결론 3, AC-RUNTIME-015 Given/Then + 양방향 판정.
+- **개정 3 — 시크릿 동일성 과잉주장 제거 (AC-RUNTIME-022 신설)**: v0.2.0 AC-RUNTIME-015 (3)항은 "로그인 시나리오가 통과한다는 사실 자체가 서버·테스트 프로세스의 시크릿 일치를 **입증한다**"고 기술했다. 이는 논리적 과잉이다 — 로그인 성공은 **인증 흐름이 동작한다**는 증거이지 특정 환경변수 **값의 동일성**에 대한 직접 증거가 아니고, "불일치했다면 실패했을 것"이라는 역추론은 로그인을 성공시킬 다른 경로(세션 쿠키 재사용, 캐시된 세션, 재시도)가 모두 배제되었을 때만 성립하는데 이 SPEC은 그 배제를 확보하지 않았다. 근본 문제는 **관측 지점과 주장 지점의 불일치**였다. 검증을 두 층으로 분리했다 — **구조적**(AC-RUNTIME-022: `run-e2e.ts`가 각 자식 프로세스 생성 호출에 전달한 env 객체를 단위 테스트에서 **직접 단언**, Playwright 불필요) + **기능적**(AC-RUNTIME-015 (3): 인증 흐름의 동작만 주장). 반영: `design.md` §1 원칙 6·§3.5 신설·§6, `plan.md` M5·§D·§G, `research.md` §0.2 결론 4, AC-RUNTIME-015 (3)항 재서술 + **AC-RUNTIME-022 신설**.
+
+**실측으로 확인한 blocking-class 발견 (개정 1의 전제)**: `@next/env@16.3.2`는 `loadEnvConfig`를 기대한 시그니처로 export하나(`dist/index.d.ts` 실측), **pnpm strict `node_modules` 레이아웃에서 프로젝트 코드가 import할 수 없는 상태**다 — 루트 `node_modules/@next/` **부재**, 루트/홈 `.npmrc`에 hoisting 설정 **부재**(`research.md` §0.2). 따라서 M1-a의 `pnpm add -D @next/env@16.3.2`(`next`와 동일 버전 고정)가 **M2/M3/M4 전체의 선행 조건**이며, 이를 건너뛰면 세 CLI가 모두 `MODULE_NOT_FOUND`로 기동 불가 상태로 "완성"된다. 부수 발견 2건: (a) `tsx`가 `node_modules/.bin/`에 없어 4개 독립 스크립트의 TS 실행 수단이 미확정(M1-a에서 `node --version` 실측 후 확정), (b) `@next/env`의 `processEnv` 소스를 직접 읽어 **상속된 `process.env`가 `.env.local`을 이김을 확인** — `research.md` §6의 D1 Gap 근거 등급이 **문서 → 소스**로 승격됐다(단 실행 관측은 아니므로 M5 실측 의무는 유지).
+
+**개정 범위 불변 확인**: `spec.md` §4 Out of Scope 6개 항목 불변, WHY/WHAT 불변, Tier L·Route B 불변, 아티팩트 집합 불변(5 + progress.md). REQ 20 → 21, AC 20 → 22 (Tier L 상한 25/25 이내). **어떤 AC의 판정 기준도 낮추지 않았다** — AC-RUNTIME-007의 "실제 로그인 성공" 기준 불변이며, 개정 3은 AC-015에서 **증명되지 않던 주장을 제거하고 그 성질을 직접 관측하는 AC로 승격**한 것이므로 검증 범위는 넓어졌다.
+
+**다음 단계**: plan-auditor 신규 전체 감사(v0.3.0 아티팩트 대상). v0.2.0에 대한 iteration 3 PASS는 **이 아티팩트 집합의 통과 근거가 아니다** — `plan_status`를 `audit-ready`로 올리는 것은 신규 감사 PASS 확인 이후다.
 
 ## §E.2 Run-phase Evidence
 

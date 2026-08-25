@@ -1,13 +1,13 @@
 ---
 id: SPEC-RUNTIME-001
 title: "보상레이더 MVP scaffold 실제 런타임 활성화 (DB 연결·시드·테스터 프로비저닝·E2E 검증)"
-version: "0.2.0"
+version: "0.3.0"
 status: draft
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-25
 author: Nexsol
 priority: P1
-phase: "v0.2.0 target"
+phase: "v0.3.0 target"
 module: "lib/, scripts/, e2e/, db/"
 lifecycle: spec-anchored
 tags: "runtime, turso, migration, seed, better-auth, provisioning, e2e, env-validation"
@@ -18,6 +18,7 @@ depends_on: [SPEC-SCAFFOLD-001]
 ## HISTORY
 
 - 2026-08-24: 최초 작성 (Nexsol) — SPEC-SCAFFOLD-001(completed)이 구축한 scaffold를 실제 로컬 런타임에서 end-to-end 실행 가능한 상태로 만드는 런타임 활성화 SPEC. 현행 코드베이스 실측(`lib/db/client.ts`, `lib/auth/config.ts`, `db/migrations/`, `db/seed/evidence.json`, `package.json`) 기반으로 작성.
+- 2026-08-24: 플랜 개정 v0.3.0 (Nexsol 요청, 3차 설계 검토) — 구현 착수 승인 전, **구현 접근 방식 3건**을 추가 개정했다. SPEC의 목표(WHY/WHAT)와 §4 제외 범위는 변경하지 않는다. (1) 독립 실행 CLI 스크립트(`db:migrate`/`db:seed`/`tester:add`)가 Next.js의 자동 `.env.local` 로딩에 무임승차한다는 암묵적 가정을 제거하고 **공용 CLI 부트스트랩의 명시적 로드 → 검증 순서**를 신설(REQ-RUNTIME-021), (2) AC-RUNTIME-015의 `.env.local` 우선순위 시험이 **실제 원격 Turso 자격증명**을 쓰던 것을 **비라우팅 sentinel 값**으로 교체(우선순위 가정이 틀렸을 때도 실제 DB에 도달·기록이 불가능하도록 blast radius 제거), (3) "로그인 성공이 `BETTER_AUTH_SECRET` 동일성을 입증한다"는 **논리적 과잉주장을 제거**하고 구조적 검증(AC-RUNTIME-022)과 기능적 검증(AC-RUNTIME-015)으로 분리. 근거 실측은 `research.md` §0.2에 기록.
 - 2026-08-24: 플랜 개정 v0.2.0 (Nexsol 요청) — 구현 착수 승인 전, 사용자 설계 검토 결과 **구현 접근 방식 3건**을 개정했다. SPEC의 목표(WHY/WHAT)와 §4 제외 범위는 변경하지 않는다. (1) E2E 시크릿 수명주기를 Playwright `globalSetup` 환경 상속 가정에서 **단일 진입점 스크립트 소유 방식**으로 교체, (2) 테스터 계정 생성을 Better Auth 내부 해시 API + 직접 INSERT에서 **프로비저닝 전용 인스턴스의 공식 `auth.api.signUpEmail` 호출**로 교체, (3) 환경변수 검증을 단일 평면 집합에서 **실행 목적별 스코프 검증**으로 교체. 근거 실측은 `research.md` §0에 추가 기록.
 
 ## §1. 개요 (Overview)
@@ -73,8 +74,9 @@ SPEC-SCAFFOLD-001은 Next.js/TypeScript/Drizzle/Turso/Better Auth/Gemini 스택 
 | REQ-RUNTIME-018 | Ubiquitous | 이 SPEC의 모든 변경 이후에도 `pnpm test`, `pnpm lint`, `pnpm build`, `pnpm format:check`는 계속 통과(exit 0)해야 한다. | 사용자 요구사항 MUST-7 |
 | REQ-RUNTIME-019 | Unwanted | 이 SPEC은 SPEC-SCAFFOLD-001이 확립한 아키텍처 경계(6단계 mock 파이프라인, `lib/ai/provider.ts` 인터페이스, Drizzle ORM 단일 DB 접근 경로, `lib/validation/` PII 차단 계층)를 리팩토링하거나 대체해서는 안 된다. | 사용자 지시: 기존 구조 유지, 불필요한 리팩토링 금지 |
 | REQ-RUNTIME-020 | Ubiquitous | 런북 문서는 연결 → 마이그레이션 → 시드 → 테스터 생성 → E2E 실행까지의 절차를, 실제 시크릿 값 없이 플레이스홀더만으로 재현 가능한 형태로 제공해야 한다. | 사용자 요구사항 MUST-3/MUST-4 운영 절차화 |
+| REQ-RUNTIME-021 | Event-driven | 운영자가 Next.js 런타임이 아닌 독립 실행 스크립트(`pnpm db:migrate`, `pnpm db:seed`, `pnpm tester:add`)를 실행하면, 각 스크립트는 **공용 부트스트랩 모듈을 통해 `.env.local`을 명시적으로 로드한 뒤** 자신의 스코프 환경변수 검증을 수행해야 한다. 어떤 독립 실행 스크립트도 프레임워크의 암묵적·자동 환경 로딩에 의존해서는 안 되며, 로딩 동작은 스크립트마다 재구현하지 않고 단일 모듈에 정의되어야 한다. | 개정 v0.3.0: Next.js 자동 `.env.local` 로딩은 `next build`/`start`/`dev`에만 적용되며 `tsx`/`node`로 실행되는 독립 스크립트에는 적용되지 않음 (`research.md` §0.2) |
 
-REQ 개수: 20개 (Tier L 상한 25개 이내).
+REQ 개수: 21개 (Tier L 상한 25개 이내).
 
 ## §3. 비기능 제약 (Constraints)
 
@@ -85,6 +87,8 @@ REQ 개수: 20개 (Tier L 상한 25개 이내).
 - **overengineering 금지**: 별도 vector DB, microservice, 외부 시크릿 관리 서비스를 도입하지 않는다(`product.md` §핵심 원칙 8).
 - **패키지 매니저**: pnpm으로 통일한다. Node.js 20.x LTS 이상(`tech.md` §개발 환경 요구사항).
 - **버전 고정 유지**: `drizzle-orm` 0.45.x stable, `@libsql/client` stable, `@google/genai` `<3.0.0`, `better-auth` 1.7.1 — 기존 고정을 변경하지 않는다.
+- **의존성 추가의 허용 범위 (개정 v0.3.0)**: 이번 SPEC이 추가할 수 있는 것은 **이미 의존성 트리에 존재하는 전이(transitive) 패키지를 직접 devDependency로 명시 선언**하는 경우에 한한다(pnpm strict `node_modules`에서는 전이 의존성이 프로젝트 코드에서 import되지 않으므로, 명시 선언이 없으면 해당 import는 `MODULE_NOT_FOUND`로 실패한다 — `research.md` §0.2 실측). 새로운 런타임 의존성이나 트리에 없던 패키지의 도입은 계속 금지한다. 명시 선언 시 버전은 트리에 이미 설치된 것과 **동일 버전으로 고정**한다.
+- **실제 원격 DB 무접근 (개정 v0.3.0)**: 이 SPEC의 어떤 자동 검증(AC)도 **실제로 동작하는 원격 Turso 자격증명**을 사용해서는 안 된다. 우선순위·격리 관련 시험은 비라우팅 sentinel 값으로만 수행한다 — 검증 대상 가정이 틀렸을 때 실제 인스턴스에 도달·기록하는 경로 자체를 제거하기 위함이다(REQ-RUNTIME-017이 막으려는 사고를 검증 절차가 스스로 유발하지 않도록).
 
 ## §4. 제외 범위 (Out of Scope)
 
@@ -116,6 +120,9 @@ REQ 개수: 20개 (Tier L 상한 25개 이내).
 - **로그인 시도 rate-limiting 미구현**: SPEC-SCAFFOLD-001 §5에서 이연된 잔여 위험이 이번 SPEC에서도 해소되지 않는다. 프로비저닝된 계정이 실제로 로그인 가능해지므로 노출 표면이 커진다 — 프로덕션 하드닝 SPEC에서 우선 검토 대상.
 - **E2E 셀렉터 취약성**: UI 고도화가 out of scope이므로 E2E는 현행 마크업에 의존한다. 후속 UI SPEC에서 마크업이 바뀌면 E2E가 깨질 수 있다 — 안정적 셀렉터(`data-testid`) 부착을 최소 범위로 허용한다.
 - **`file:` 스킴과 원격 Turso의 동작 차이**: E2E가 로컬 파일 DB에서 통과해도 원격 Turso에서의 네트워크 지연·인증 실패 경로는 검증되지 않는다. 원격 연결은 별도 수동 확인(런북 절차)으로 보완한다.
+- **`@next/env` 직접 의존성 선언 필요 (개정 v0.3.0, 착수 전 확정 필요)**: 실측 결과 `@next/env@16.3.2`는 pnpm 가상 스토어(`node_modules/.pnpm/@next+env@16.3.2/`)에만 존재하고 프로젝트 루트 `node_modules/@next/`는 **존재하지 않는다**. 루트/홈 `.npmrc`에 hoisting 설정도 없다(`research.md` §0.2). 따라서 `scripts/`에서의 `import { loadEnvConfig } from "@next/env"`는 현재 상태에서 실패하며, REQ-RUNTIME-021은 **`@next/env`를 `next`와 동일한 16.3.2로 고정해 직접 devDependency로 선언**하는 것을 전제로 한다. 이 선언은 §3의 "의존성 추가의 허용 범위" 안에 있다(트리에 이미 존재하는 전이 의존성의 명시화, 신규 패키지 도입 아님). 선언이 누락되면 세 CLI 스크립트가 모두 기동 불가다.
+- **독립 스크립트의 TypeScript 실행 수단 미확정 (개정 v0.3.0)**: `tsx@4.23.12`는 전이 의존성으로 스토어에 존재하나 `node_modules/.bin/tsx`로 링크되어 있지 않아 현재 `tsx scripts/*.ts`를 실행할 수 없다(`research.md` §0.2). 또한 `node --experimental-strip-types`는 Node 22.6+ 기능이라 `tech.md`가 요구하는 Node 20.x LTS 하한에서는 성립하지 않는다. M1에서 실제 Node 버전을 실측해 (a) 타입 스트리핑 직접 실행, (b) `tsx` 직접 devDependency 명시 중 하나로 확정한다 — 어느 쪽이든 REQ-RUNTIME-021의 부트스트랩 경유 구조는 변하지 않는다.
+- **sentinel 우선순위 시험의 잔여 위험 (개정 v0.3.0)**: AC-RUNTIME-015는 이제 sentinel 값으로만 우선순위를 시험하므로 실제 인스턴스 오염 위험은 제거됐다. 남는 위험은 **오진**이다 — 우선순위 가정이 틀렸을 경우 증상이 "sentinel 호스트에 대한 연결/DNS 실패"로 나타나는데, 이를 네트워크 일시 장애로 오해하면 근본 원인(우선순위 역전)을 놓친다. AC-RUNTIME-015 Then이 이 실패 양상을 **우선순위 역전의 진단 신호로 해석하라**고 명시해 완화한다.
 - **`GEMINI_API_KEY` 부재 상태로의 앱 기동 가능성**: 이번 SPEC의 파이프라인은 mock 구현을 유지하므로(§4 제외 범위) 앱 런타임 스코프는 `GEMINI_API_KEY`를 요구하지 않는다(`design.md` §3.1). 그 결과 실제 Gemini 호출을 활성화하는 후속 SPEC 이전까지는, 키가 없는 상태로 앱이 정상 기동한다 — 후속 SPEC이 실호출을 도입하는 시점에 이 변수를 앱 런타임 스코프의 필수 항목으로 승격해야 하며, 승격이 누락되면 실패 지점이 부팅에서 첫 호출 시점으로 밀린다.
 
 ## §6. 참고 문서

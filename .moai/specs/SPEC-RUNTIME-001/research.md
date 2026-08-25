@@ -33,6 +33,85 @@
 | 비밀번호 길이 제약 | `dist/api/routes/sign-up.mjs:154-159` + `dist/context/create-context.mjs:185` 읽기 | `sign-up.mjs`는 `ctx.context.password.config.minPasswordLength`/`maxPasswordLength`로 **검증만** 수행하고, 기본값 자체는 컨텍스트 생성부에 있다 — `minPasswordLength: options.emailAndPassword?.minPasswordLength \|\| 8`(`create-context.mjs:185`). 즉 기본 최소 8자의 귀속처는 `create-context.mjs:185`다. E2E가 생성하는 임시 비밀번호는 이 하한을 만족해야 한다 |
 | 현행 파일 부재 확인 | `ls instrumentation.ts scripts/ e2e/` | 세 경로 모두 부재 — 이번 SPEC이 신규 생성한다 |
 
+### §0.2 플랜 개정 v0.3.0 추가 실측 (2026-08-24)
+
+개정 3건 중 **Change 1(`@next/env`의 `loadEnvConfig` 경유 명시적 로드)** 의 기술적 성립 여부는 추정이 아니라 설치된 패키지 트리와 번들 소스를 직접 읽어 확인했다. §0.1이 `better-auth` 주장을 소스로 검증한 것과 동일한 방식이다.
+
+| 조사 항목 | 실행한 확인 | 관측 결과 |
+|-----------|-------------|-----------|
+| `@next/env` 패키지 존재 | `ls node_modules/.pnpm/ \| grep @next` | `@next+env@16.3.2` 디렉터리 존재 — `next@16.3.2`의 전이 의존성으로 설치됨 |
+| **프로젝트 루트에서의 해석 가능성** | `ls node_modules/@next/` | **`No such file or directory`** — 루트에 `@next/` 스코프 디렉터리가 **없다**. 루트 `node_modules/@*`에는 `@base-ui`, `@google`, `@libsql`, `@tailwindcss`, `@types`, `@vitejs`, `@vitest`(= 직접 의존성)만 존재 |
+| hoisting 설정 유무 | `cat .npmrc` / `cat ~/.npmrc` / `cat pnpm-workspace.yaml` | 루트 `.npmrc` **부재**. 홈 `.npmrc`는 GitHub 레지스트리 토큰 1줄뿐(`shamefully-hoist`/`node-linker`/`public-hoist-pattern` **없음**). `pnpm-workspace.yaml`은 `allowBuilds`만 정의 |
+| 가상 스토어 내 심볼릭 링크 | `ls -la node_modules/.pnpm/node_modules/@next/` | `env -> ../../@next+env@16.3.2/node_modules/@next/env` 존재 — 단 이 경로는 `.pnpm/<pkg>/node_modules/` 내부에서 올라오는 Node 해석 경로에서만 도달 가능하며, `<root>/scripts/`에서 시작하는 해석 경로(`<root>/scripts/node_modules` → `<root>/node_modules` → 상위)는 **이 디렉터리를 방문하지 않는다** |
+| `loadEnvConfig` export 시그니처 | `cat .pnpm/@next+env@16.3.2/node_modules/@next/env/dist/index.d.ts` | **존재 확인**: `loadEnvConfig(dir: string, dev?: boolean, log?: Log, forceReload?: boolean, onReload?): { combinedEnv, parsedEnv, loadedEnvFiles }`. 함께 export되는 것: `processEnv`, `resetEnv`, `updateInitialEnv`, `initialEnv` |
+| 패키지 진입점 | `cat .pnpm/@next+env@16.3.2/node_modules/@next/env/package.json` | `main: dist/index.js`, `types: dist/index.d.ts` — CommonJS 단일 번들(10,025 bytes), `exports` 필드 없음 |
+| **`process.env` ↔ `.env.local` 우선순위 (소스 실측)** | `dist/index.js`의 `processEnv`/`loadEnvConfig` 본문 추출(awk) | **상속된 `process.env`가 이긴다** — 아래 별도 항목에서 상술 |
+| `tsx` 실행 가능성 | `ls node_modules/tsx node_modules/.bin/tsx*` | 둘 다 **부재**. `node_modules/.pnpm/tsx@4.23.12`는 존재(전이 의존성, `drizzle-kit` 계열) — 즉 스토어에는 있으나 **직접 실행 경로가 없다** |
+| 현행 `package.json` 스크립트 | `cat package.json` | `db:generate`만 존재. `db:migrate`/`db:seed`/`tester:add`/`test:e2e` 전부 부재. `devDependencies`에 `tsx`·`@next/env` **없음** |
+| `.env.local` 현재 상태 | `ls -la .env.local` | **부재**(gitignore 대상, 아직 미생성). `.env.local.example`은 존재하며 `TURSO_DATABASE_URL="libsql://<database-name>-<org>.turso.io"` 원격 URL 플레이스홀더를 담고 있음 — §6 D1 Gap의 전제와 일치 |
+
+#### 결론 1 — `@next/env`는 "설치되어 있으나 import 불가" 상태다
+
+`loadEnvConfig`는 **존재하고 기대한 시그니처를 갖는다**. 그러나 pnpm의 strict `node_modules` 레이아웃에서 전이 의존성은 프로젝트 코드의 해석 경로에 노출되지 않는다. hoisting 설정도 없다. 따라서 `scripts/cli-bootstrap.ts`의 `import { loadEnvConfig } from "@next/env"`는 **현재 상태 그대로면 `MODULE_NOT_FOUND`로 실패한다**.
+
+성립시키는 최소 조치는 **`@next/env`를 `next`와 동일한 `16.3.2`로 고정해 직접 devDependency로 선언**하는 것이다. 이는 신규 패키지 도입이 아니라 **이미 트리에 있는 전이 의존성의 명시화**이며(설치 그래프에 새 패키지가 추가되지 않는다), `spec.md` §3 "의존성 추가의 허용 범위"가 허용하는 유일한 형태다. 버전을 `next`와 어긋나게 두면 `next`가 쓰는 로더와 스크립트가 쓰는 로더가 갈라지므로 **동일 버전 고정이 필수**다.
+
+> **대안을 채택하지 않은 이유**: `.env.local`을 직접 파싱하는 자체 구현은 dotenv 파싱(따옴표·이스케이프·`export` 접두·다중행·`dotenv-expand` 변수 치환)을 재구현하는 일이며, 프레임워크가 실제로 쓰는 로더와 **의미가 갈라질 수 있는 두 번째 파서**를 만든다. `spec.md` §3 overengineering 금지와 Simplicity ladder(이미 설치된 의존성 재사용) 모두 명시 선언 쪽을 가리킨다.
+
+#### 결론 2 — 우선순위는 이제 "문서 근거"가 아니라 "소스 근거"다 (§6 D1 Gap 승격)
+
+`dist/index.js`에서 추출한 `processEnv` 본문의 핵심부:
+
+```js
+function processEnv(e,t,n=console,o=false,i){
+  if(!a){a=Object.assign({},process.env)}          // a = 최초 호출 시점의 process.env 스냅샷
+  ...
+  const p=Object.assign({},a);                      // p = 그 스냅샷 사본
+  const u={};
+  for(const o of e){                                // e = 로드된 .env* 파일들
+    ...
+    for(const t of Object.keys(e.parsed||{})){
+      if(typeof u[t]==="undefined" && typeof p[t]==="undefined"){   // ← 핵심
+        u[t]= e.parsed[t]
+      }
+    }
+  }
+  return[Object.assign(process.env,u),u]            // u = "기존 process.env에 없던 키"만 담김
+}
+```
+
+판정: 파일에서 파싱된 키 `t`는 **`p[t]`(= 최초 `process.env` 스냅샷)에 이미 존재하면 `u`에 담기지 않는다**. 최종 반환은 `Object.assign(process.env, u)`이므로, **상속된 `process.env` 값은 `.env.local` 값으로 덮이지 않는다**.
+
+이는 §6에 "문서상의 주장이며 관측된 사실이 아니다"로 기록됐던 D1 Gap을 **문서 근거 → 소스 근거로 승격**시킨다. 다만 여전히 **실행 관측은 아니다**(이 셸에 `node`가 없다 — §6 첫 항목과 동일 사유). 따라서:
+
+- 승격된 것: "Next.js 문서가 그렇게 말한다" → "설치된 로더 소스가 그렇게 구현되어 있다".
+- 승격되지 않은 것: 이 프로젝트 구성에서 실제로 실행해 관측한 결과. **M5 실측 의무는 유지된다**.
+
+부수적으로 확인된 사항 2건:
+- `loadEnvConfig`는 `dev` 인자로 `.env.$(NODE_ENV).local` → `.env.local` → `.env.$(NODE_ENV)` → `.env` 순의 파일 목록을 만든다(`NODE_ENV==="test"`이면 `test` 모드이며 이때 `.env.local`은 목록에서 **제외**된다 — `d!=="test" && ".env.local"` 필터). E2E 진입점이 `NODE_ENV`를 어떻게 두느냐가 로드 대상 파일 집합을 바꾼다.
+- `a`(초기 스냅샷)는 **최초 호출 시점에 한 번만** 캡처되고 모듈 수준에 메모된다. 자식 프로세스는 spawn 시점의 상속 환경이 곧 초기 스냅샷이므로, 진입점이 조립한 값이 스냅샷에 포함된다.
+
+#### 결론 3 — sentinel 호스트 선택 근거 (Change 2)
+
+AC-RUNTIME-015의 `.env.local` 우선순위 시험에 쓸 sentinel 원격 URL로 **`libsql://sentinel-nonexistent-host.invalid`** 를 채택한다. 근거:
+
+- **RFC 2606 §2**가 `.invalid` TLD를 **예약**한다 — 명백히 유효하지 않은 도메인 이름 용도로 지정되어 있으며, 등록될 수 없다.
+- **RFC 6761 §6.4**는 `.invalid`를 특수 용도 도메인으로 규정하고, 이름 해석 API·라이브러리가 이를 특별 취급해 **즉시 부정 응답(negative response)을 반환해야 한다(SHOULD)** 고 명시한다. 즉 실패가 "아마 안 될 것"이 아니라 **규격상 보장된 즉시 실패**다.
+- 형태는 실제 원격 Turso URL과 **동일한 스킴(`libsql://`)** 을 유지하므로, `lib/env.ts`의 `file:` vs `libsql://` capability gate 판정(§5, `design.md` §3.1)이 실제 원격 케이스와 **같은 분기를 타며**, 우선순위 시험의 현실성이 보존된다.
+- 함께 두는 `TURSO_AUTH_TOKEN`은 형태만 갖춘 더미 플레이스홀더이며 어떤 실제 토큰과도 무관하다.
+
+**채택하지 않은 대안**: `example.com`/`example.net`(RFC 2606 §3)은 예약되어 있으나 **실제로 해석되고 응답한다** — 즉시 실패가 보장되지 않으므로 부적합. RFC 5737 문서화용 IP 대역(`192.0.2.0/24` 등)은 해석 자체가 없어 즉시 실패하지 않고 **연결 타임아웃**으로 늘어져 시험을 느리게 만든다. `.invalid`가 "즉시·규격 보장·형태 유지" 세 조건을 동시에 만족하는 유일한 선택지다.
+
+#### 결론 4 — 로그인 성공은 시크릿 동일성의 증거가 아니다 (Change 3)
+
+초판 AC-RUNTIME-015 (3)항은 "로그인 시나리오가 통과한다는 사실 자체가 서버 프로세스와 테스트 프로세스의 시크릿 일치를 **입증한다**"고 기술했다. 이는 논리적 과잉주장이다:
+
+- 로그인 성공은 **인증 흐름 전체가 동작한다**는 사실의 증거이지, 특정 환경변수 **값의 동일성**에 대한 직접 증거가 아니다. 두 명제는 검증 대상이 다르다(전자는 기능적 성질, 후자는 프로세스 간 상태 일치라는 구조적 성질).
+- "불일치했다면 실패했을 것이다"라는 형태의 역추론은 **다른 실패 원인이 전혀 없을 때만** 성립한다. 실제로는 세션 쿠키 재사용, 캐시된 세션, 재시도 로직, 검증 경로의 우회 등 로그인 성공을 만들어낼 수 있는 다른 경로가 배제되지 않았다.
+- 근본 문제는 **관측 대상과 주장 대상의 불일치**다. 주장하려는 것이 "두 프로세스가 같은 env 객체를 받았다"라면, 관측해야 하는 것은 **전달된 env 객체 자체**이지 그 하류 효과가 아니다.
+
+따라서 검증을 두 층으로 분리한다 — 구조적 검증은 `scripts/run-e2e.ts`가 각 자식 프로세스 생성 호출에 넘기는 env 객체를 **직접 단언**하고(AC-RUNTIME-022, Playwright 불필요), 기능적 검증은 Playwright 로그인 시험이 **실제 인증 흐름의 동작**만을 주장한다(AC-RUNTIME-015). 이 분리는 검증 범위를 **넓힌다** — 기존에는 간접 추론뿐이던 구조적 성질에 직접 관측이 추가된다.
+
 ## §1. 현행 런타임 간극 (5개)
 
 1. **마이그레이션 적용 경로 부재** — SQL 파일은 생성되어 있으나 적용 명령이 없다.
@@ -193,6 +272,29 @@ Drizzle migrator는 적용 이력을 자체 추적 테이블(`__drizzle_migratio
 
 **`GEMINI_API_KEY`에 대한 전방 설계 노트**: 이번 SPEC의 앱 런타임 스코프는 이 변수를 요구하지 않는다. 파이프라인 단계가 실제 Gemini 호출을 활성화하는 후속 SPEC이 도입되는 시점에, 그 SPEC이 이 변수를 앱 런타임 스코프의 필수 항목으로 **승격**해야 한다. 승격 없이 실호출만 도입되면 실패 지점이 부팅에서 첫 호출 시점으로 밀려 REQ-RUNTIME-010이 닫으려던 지연 실패가 재도입된다. 이는 후속 작업에 대한 설계 메모이며, 이번 SPEC이 그 후속 SPEC을 정의하거나 전제하지는 않는다.
 
+### 독립 실행 스크립트의 명시적 환경 로드 (개정 v0.3.0)
+
+> **개정 이력**: 초판·v0.2.0은 `lib/env.ts`의 **검증**만 설계하고 그 앞의 **로드**는 다루지 않았다. 사용자 검토에서 "Next.js가 `.env.local`을 자동 로드한다"는 사실이 독립 실행 스크립트에도 적용된다는 **암묵적 가정**으로 남아 있음이 지적되어, 명시적 로드 단계를 신설했다.
+
+문제의 성질은 적용 범위의 착오다. Next.js의 자동 `.env.local` 로딩은 **`next build` / `next start` / `next dev`** 가 부팅하면서 로더를 호출하기 때문에 일어난다. `tsx scripts/db-migrate.ts`나 `node scripts/db-seed.ts`는 **Next.js를 거치지 않는 별개의 프로세스**이므로 그 로딩이 일어날 이유가 없다.
+
+이 가정이 남아 있을 때의 증상은 진단하기 나쁘다. `.env.local`에 값을 정확히 채운 운영자가 `pnpm db:migrate`를 실행하면 `TURSO_DATABASE_URL` 미설정으로 거부당한다 — 운영자 입장에서는 **"파일에 분명히 적었는데 없다고 한다"** 는 모순이라, 원인을 검증 모듈의 버그로 오해하기 쉽다. 정작 결함은 검증이 아니라 **로드가 일어나지 않았다는 사실**에 있다.
+
+**채택 설계 — 공용 부트스트랩 모듈이 로드와 검증의 순서를 소유한다.**
+
+| 축 | 개정 전 (암묵적 가정) | 개정 후 (명시적 로드) |
+|----|----------------------|----------------------|
+| `.env.local` 로드 주체 | 불명확 — 프레임워크가 해줄 것으로 가정 | `scripts/cli-bootstrap.ts`가 `loadEnvConfig()`를 **명시 호출** |
+| 로드/검증 순서 | 정의되지 않음 | **로드 → 검증**으로 고정(검증은 로드 이후에만 의미가 있다) |
+| 스크립트별 재구현 | 각자 알아서 | 단일 모듈, 3개 스크립트가 공유 |
+| 실패 시 증상 | "파일에 적었는데 없다고 함" | 발생하지 않음 |
+
+순서가 고정되어야 하는 이유는 단순하다 — 검증은 **값이 존재하는지**를 보는데, 로드 전에는 볼 값 자체가 없다. 순서가 뒤바뀌면 검증은 언제나 "누락"을 보고하고, 그 뒤에 로드가 성공하더라도 프로세스는 이미 종료된 뒤다.
+
+**로드 대상 경로**: `loadEnvConfig(dir)`의 `dir`은 **프로젝트 루트**여야 한다(`.env.local`이 놓이는 위치). 스크립트의 실행 위치(cwd)에 의존하면 하위 디렉터리에서 실행했을 때 조용히 아무것도 로드하지 않는다 — 루트를 스크립트 파일 위치 기준으로 확정한다(`design.md` §3.2.2).
+
+**E2E 진입점과의 관계**: `scripts/run-e2e.ts`도 같은 부트스트랩을 경유해도 안전하다. §0.2 결론 2의 소스 실측에 따라 **이미 `process.env`에 있는 키는 `.env.local`이 덮지 못하므로**, 진입점이 먼저 조립한 E2E 값(`file:./.tmp/e2e.db` 등)이 그대로 유지된다. 단 이 성질은 M5 실측으로 확정해야 하며(§6), 확정 전까지 설계는 이를 전제하지 않고 AC-RUNTIME-015가 sentinel로 검증한다.
+
 검증 메시지 설계 원칙:
 
 - **변수명 + 필요 이유 + 획득 경로**를 담는다. "환경변수가 없습니다" 같은 메시지는 요구사항 미달이다(REQ-RUNTIME-010).
@@ -210,7 +312,10 @@ verification-claim-integrity 원칙에 따라, 이 문서에서 **직접 확인�
 - **`signUpEmail`의 어댑터 트랜잭션 동작 미검증**: 핸들러 전체가 `runWithTransaction(ctx.context.adapter, ...)`로 감싸여 있음은 소스에서 확인했으나(`sign-up.mjs:144`), 이 트랜잭션이 libSQL/Drizzle 어댑터 조합에서 실제로 어떻게 실행되는지는 **명령을 실행해 관측하지 않았다**. run-phase에서 최초로 관측된다 — AC-RUNTIME-007이 이 경로를 검증한다.
 - **`auth.api.signUpEmail`의 실호출 미관측**: 소스 읽기로 호출 형태와 옵션 판정 지점을 확인했을 뿐, 이 프로젝트의 스키마·어댑터 구성에서 실제로 호출해 성공하는지는 관측하지 않았다. 경로 D의 실현 가능성 판정(§3 폴백 트리거)은 이 관측을 근거로 삼아야 하며, 관측 없는 폴백 전환은 금지한다.
 - **`instrumentation.ts` 부팅 훅과 `pnpm build`의 상호작용 미확인**: `register()` 훅이 빌드 중 라우트 데이터 수집 단계에서 실행되는지 확인하지 않았다(§0.1 실측상 `instrumentation.ts`는 아직 부재하며 이번 SPEC이 신규 생성한다). `lib/auth/config.ts`의 @MX:ANCHOR 주석이 "모듈 최상위 즉시 생성은 `pnpm build`를 깨뜨린다"고 기록하고 있으므로 동일 위험이 있다 — plan.md §E 위험표에 등재했다.
-- **Next.js(`@next/env`)의 `process.env` ↔ `.env.local` 우선순위 — 문서 확인, 실행 미관측**: `webServer`가 기동하는 Next.js 서버 프로세스는 진입점 스크립트로부터 상속받은 `process.env` 외에 **`.env.local`을 디스크에서 독립적으로 로드**한다. 이 문서 §2의 런북이 `.env.local.example`을 `.env.local`로 복사해 **실제 원격 Turso 자격증명**을 기입하도록 지시하므로(`.env.local.example`은 `libsql://<database-name>-<org>.turso.io` 형태의 원격 URL 플레이스홀더를 담고 있음 — 실측 확인), 런북을 따른 개발자가 `pnpm test:e2e`를 실행하는 **현실적 상태**에서는 상속된 `file:./.tmp/e2e.db`와 디스크의 원격 URL이 **동시에 존재**한다. 어느 쪽이 이기는지가 REQ-RUNTIME-017(개발자의 실제 Turso 인스턴스 무접근)의 성립 여부를 좌우한다. **조사 결과 — 문서 근거는 확보, 소스·실행 근거는 미확보**: 설치된 패키지에 동봉된 Next.js 문서(`node_modules/next/dist/docs/01-app/02-guides/environment-variables.md` §Environment Variable Load Order, 266-276행)는 조회 순서를 `process.env` → `.env.$(NODE_ENV).local` → `.env.local` → `.env.$(NODE_ENV)` → `.env`로 명시하고 "*stopping once the variable is found*"이라고 기술한다 — 문서상으로는 상속된 `process.env` 값이 이긴다. 그러나 실제 로더 구현(`loadEnvConfig`)은 번들·미니파이된 `next/dist/compiled/next-server/server.runtime.prod.js` 안에 있어 **소스로 확인할 수 없었고**, 이 프로젝트 구성에서 명령을 실행해 관측하지도 않았다(§6 첫 항목의 `node` 부재와 동일 사유). 따라서 이 우선순위는 **문서상의 주장이며 관측된 사실이 아니다** — run-phase M5(E2E 구현) 시점에 실측으로 확정한 뒤 의존해야 한다. 검증 지점: AC-RUNTIME-015(`.env.local`에 원격 자격증명이 존재하는 상태에서 통과할 것). 설계상 대응: `design.md` §3.4 "세 번째 공급원" + §6.
+- **Next.js(`@next/env`)의 `process.env` ↔ `.env.local` 우선순위 — 문서 확인, 실행 미관측**: `webServer`가 기동하는 Next.js 서버 프로세스는 진입점 스크립트로부터 상속받은 `process.env` 외에 **`.env.local`을 디스크에서 독립적으로 로드**한다. 이 문서 §2의 런북이 `.env.local.example`을 `.env.local`로 복사해 **실제 원격 Turso 자격증명**을 기입하도록 지시하므로(`.env.local.example`은 `libsql://<database-name>-<org>.turso.io` 형태의 원격 URL 플레이스홀더를 담고 있음 — 실측 확인), 런북을 따른 개발자가 `pnpm test:e2e`를 실행하는 **현실적 상태**에서는 상속된 `file:./.tmp/e2e.db`와 디스크의 원격 URL이 **동시에 존재**한다. 어느 쪽이 이기는지가 REQ-RUNTIME-017(개발자의 실제 Turso 인스턴스 무접근)의 성립 여부를 좌우한다. **조사 결과 — 문서 근거 + 소스 근거 확보, 실행 근거는 여전히 미확보 (v0.3.0에서 승격)**: 설치된 패키지에 동봉된 Next.js 문서(`node_modules/next/dist/docs/01-app/02-guides/environment-variables.md` §Environment Variable Load Order, 266-276행)는 조회 순서를 `process.env` → `.env.$(NODE_ENV).local` → `.env.local` → `.env.$(NODE_ENV)` → `.env`로 명시하고 "*stopping once the variable is found*"이라고 기술한다. **v0.3.0 추가 실측**: 로더의 실제 구현을 `node_modules/.pnpm/@next+env@16.3.2/node_modules/@next/env/dist/index.js`(10,025 bytes, CommonJS 번들)에서 직접 읽어 확인했다 — `processEnv`가 파일 파싱 결과를 `if(typeof u[t]==="undefined" && typeof p[t]==="undefined")` 조건으로만 채택하며, `p`는 최초 `process.env` 스냅샷의 사본이다. 즉 **상속된 `process.env` 키는 `.env.local` 값으로 덮이지 않음이 소스로 확인**된다(§0.2 결론 2에 전문 인용). 이로써 근거 등급이 **문서 → 소스**로 승격됐다. **그러나 실행 관측은 여전히 없다** — 이 셸에 `node`가 없어(위 첫 항목과 동일 사유) 이 프로젝트 구성에서 실제로 실행해 확인하지 못했다. 소스는 근거이지 관측이 아니므로 **M5 실측 의무는 유지된다**. 검증 지점: AC-RUNTIME-015(sentinel 원격 URL이 담긴 `.env.local`이 존재하는 상태에서 통과할 것 — v0.3.0에서 실제 자격증명 → sentinel로 교체). 설계상 대응: `design.md` §3.4 "세 번째 공급원" + §6.
+- **`@next/env` 직접 의존성 선언 미수행 (v0.3.0 신설, 착수 전 확정 필요)**: §0.2가 `@next/env@16.3.2`의 존재와 `loadEnvConfig` 시그니처를 확인했고, 동시에 **프로젝트 루트에서 import 불가**함을 확인했다(`node_modules/@next/` 부재 + hoisting 설정 부재). REQ-RUNTIME-021은 이 패키지를 직접 devDependency로 선언하는 것을 전제하나, **선언 자체는 아직 수행되지 않았다**(`package.json` 미변경). M1에서 `pnpm add -D @next/env@16.3.2` 수행 후 실제 import 성공을 실측으로 확인해야 한다 — 선언 없이 스크립트를 작성하면 세 CLI 모두 `MODULE_NOT_FOUND`로 기동 실패한다.
+- **독립 스크립트의 TypeScript 실행 수단 미확정 (v0.3.0 신설)**: §0.2 실측상 `node_modules/.bin/tsx`가 없어 현재 `tsx scripts/*.ts` 실행이 불가하며, `node --experimental-strip-types`는 Node 22.6+ 기능이라 `tech.md`의 Node 20.x LTS 하한에서 성립하지 않는다. **이 셸에서 실제 Node 버전을 확인하지 못했다**(`node: command not found`). M1에서 `node --version`을 실측한 뒤 (a) 타입 스트리핑 직접 실행 또는 (b) `tsx` 직접 devDependency 선언 중 하나로 확정한다. 어느 쪽이든 부트스트랩 경유 구조(REQ-RUNTIME-021)는 영향받지 않는다.
+- **`NODE_ENV` 값에 따른 로드 대상 파일 집합 변동 미검증 (v0.3.0 신설)**: §0.2에서 `loadEnvConfig`가 `NODE_ENV==="test"`일 때 파일 목록에서 `.env.local`을 **제외**함을 소스로 확인했다(`d!=="test" && ".env.local"` 필터). E2E 진입점과 CLI 스크립트가 각각 어떤 `NODE_ENV`로 실행되는지에 따라 로드 대상이 달라지므로, M1/M5에서 각 실행 경로의 실제 `NODE_ENV` 값을 확인하고 의도한 파일이 로드되는지 실측해야 한다. AC-RUNTIME-021이 이 경로를 검증 대상으로 삼는다.
 - **Playwright의 `webServer` 환경 상속 동작 미검증** *(개정으로 의존 제거)*: 자식 프로세스가 부모 환경을 상속한다는 성질에 의존하도록 설계를 교체했으므로(§4), Playwright 내부의 `globalSetup`↔`webServer` 순서·환경 전파 동작은 **더 이상 이 SPEC의 검증 대상도 의존 대상도 아니다**. 다만 `webServer`가 부모 환경을 상속한다는 것 자체는 실행으로 관측하지 않았으며, AC-RUNTIME-015(단일 명령 재현성)가 실행 경로 전체로 이를 검증한다.
 - **Turso 무료 tier 실제 한도 미확인**: 대시보드 확인이 필요하다.
 - **`vitest.config.ts`의 현행 include/exclude 미확인**: `e2e/**` 수집 여부는 M5에서 확인·조정한다.
