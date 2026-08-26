@@ -126,7 +126,6 @@ logs/*
 .env
 .env.*
 !.env.example
-!.env.local.example
 
 # Certificate files
 *.pem
@@ -226,7 +225,6 @@ node_modules/
 .tscache/
 .next/
 out/
-next-env.d.ts
 
 # ===========================================
 # Build Tools & Frameworks
@@ -241,3 +239,15 @@ dist-ssr/
 .vercel/
 .netlify/
 .firebase/
+
+# User Custom Patterns (preserved by moai update)
+!.env.local.example
+next-env.d.ts
+
+# ===========================================
+# Playwright (SPEC-RUNTIME-001 M5)
+# ===========================================
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

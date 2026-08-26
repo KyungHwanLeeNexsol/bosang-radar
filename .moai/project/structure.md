@@ -2,7 +2,7 @@
 
 > 이 문서는 아직 코드가 존재하지 않는 상태에서 작성된 **제안 디렉터리 구조**다. 실제 코드베이스를 관찰한 결과가 아니라, `product.md`의 요구사항과 `tech.md`의 기술 스택을 바탕으로 앞으로 구현할 때 따를 계획이다. 구현이 진행되면서 세부 구조는 조정될 수 있다.
 >
-> 최종 수정: 2026-08-24 (D1/D2 후속 개정 — 접근 제어 및 PII 검증 계층 추가)
+> 최종 수정: 2026-08-25 (SPEC-RUNTIME-001 후속 — `scripts/`, `e2e/`, `instrumentation.ts` 추가)
 
 ## 전체 트리 (제안)
 
@@ -48,10 +48,25 @@ bosang-radar/
 │   ├── migrations/              # Drizzle Kit이 생성하는 마이그레이션 파일
 │   └── seed/                    # seed evidence 데이터 (초기에는 소규모)
 │
+├── scripts/                     # 런타임 활성화 CLI (SPEC-RUNTIME-001)
+│   ├── cli-bootstrap.ts         # .env.local 명시적 로드 부트스트랩 (셸 export 불필요)
+│   ├── db-migrate.ts            # pnpm db:migrate 진입점 (재실행 안전)
+│   ├── db-seed.ts               # pnpm db:seed 진입점 (재실행 안전)
+│   ├── provision-tester.ts      # pnpm tester:add 진입점 (Better Auth signUpEmail 호출)
+│   └── run-e2e.ts               # pnpm test:e2e 진입점 (동적 포트 탐색 + DB 초기화 + Playwright 실행)
+│
+├── e2e/                         # Playwright E2E 시나리오 (SPEC-RUNTIME-001)
+│   ├── auth.spec.ts             # 로그인 시나리오
+│   ├── case-flow.spec.ts        # 사건입력 + 피드백 시나리오
+│   ├── tenant-isolation.spec.ts # 테넌트(사용자 간) 데이터 격리 시나리오
+│   └── helpers.ts                # 시나리오 공용 헬퍼
+│
 ├── public/                      # 정적 자산
 │
 ├── .moai/                       # MoAI-ADK 프로젝트 메타 (SPEC, 설정, 문서)
 │
+├── instrumentation.ts            # Next.js 부팅 시점 환경변수 fail-fast 훅 (SPEC-RUNTIME-001)
+├── playwright.config.ts          # Playwright 설정 (SPEC-RUNTIME-001)
 ├── drizzle.config.ts             # Drizzle Kit 설정
 ├── next.config.ts
 ├── tailwind.config.ts
@@ -79,6 +94,9 @@ shadcn/ui로 생성한 기본 UI 컴포넌트를 둔다. 디자인 시스템을 
 
 ### `lib/db/` + `db/`
 데이터베이스 접근은 항상 Drizzle ORM을 통해서만 이루어진다. `lib/db/client.ts`가 Turso/libSQL 클라이언트를 초기화하고, `lib/db/schema.ts`가 스키마를 정의한다. 애플리케이션 코드는 Drizzle ORM API만 사용하고 libSQL 고유 문법에 직접 의존하지 않도록 하여, 향후 PostgreSQL로 이전할 때 스키마 정의와 쿼리 코드를 최대한 재사용할 수 있게 한다. `db/migrations/`는 Drizzle Kit이 생성하는 마이그레이션 파일을, `db/seed/`는 end-to-end 파이프라인 검증에 사용할 소규모 seed evidence 데이터를 보관한다.
+
+### `scripts/` + `e2e/` — 런타임 활성화 계층 (SPEC-RUNTIME-001)
+`scripts/`는 Next.js 서버 프로세스 바깥에서 독립적으로 실행되는 CLI 진입점을 모은다. `cli-bootstrap.ts`가 모든 CLI 스크립트의 공통 부트스트랩으로, `@next/env`를 사용해 `.env.local`을 직접 로드한다(셸 `export` 불필요). `db-migrate.ts`/`db-seed.ts`는 재실행 안전하게 설계되어 여러 번 실행해도 부작용이 없고, `provision-tester.ts`는 Better Auth의 공식 `signUpEmail()` API를 호출해 초대 전용 테스터 계정을 생성한다. `run-e2e.ts`는 `pnpm test:e2e`의 실제 진입점으로, 실행 시점에 빈 포트를 동적으로 탐색(`findFreePort()`)해 다른 프로세스와의 포트 충돌을 피하고, 로컬 파일 DB를 매 실행마다 초기화한 뒤 마이그레이션·시드·테스터 A/B 프로비저닝을 자동 수행한다. `e2e/`는 `run-e2e.ts`가 구동하는 Playwright 시나리오(`*.spec.ts`)와 공용 헬퍼(`helpers.ts`)를 담는다. `.moai/docs/runtime-runbook.md`가 이 계층 전체의 운영자용 절차 문서다.
 
 ### `lib/pipeline/`
 핵심 사용자 흐름(사건 입력 → CaseNormalizer → QueryPlanner → Evidence Retriever → Researcher → Skeptic → Verifier → Research Report)을 구성하는 각 단계를 독립된 모듈로 분리한다. 각 단계는 명확한 입출력 타입을 가지며, 서로 직접 결합하지 않고 파이프라인 오케스트레이터(추후 `lib/pipeline/index.ts` 등에서 조립 예정)를 통해 순차 실행된다. 이렇게 분리하면 특정 단계만 교체하거나 테스트하기 쉽다.
