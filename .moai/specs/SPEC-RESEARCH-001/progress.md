@@ -47,11 +47,32 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending — M1 시작 예정>_
+M1~M6 + 회귀 정합화, 총 8개 커밋으로 `feat/SPEC-RESEARCH-001` 브랜치(로컬, 아직 push 안 함)에 순차 구현:
+
+| 마일스톤 | 커밋 | 요지 |
+|---|---|---|
+| (진입) | `e2f9a4c` | feat 브랜치 생성 + Phase 1 게이트 기록 |
+| M1 | `0e2625d` | 타입 계약 확정(types.ts) + evidence 스키마 확장(schema.ts, 마이그레이션) — `status: draft → in-progress` |
+| M2 | `f0a5082` | `LLMProvider.generateStructured()` + Gemini/결정론적 provider + provider-factory + env.ts 게이트 |
+| M3 | `468d885` | `runPipeline()` provider 배선(queries 인자 포함) + QueryPlanner 규칙 기반 재작성 |
+| M4 | `a845a27` | EvidenceRetriever DB 필터/스코어링(도메인 AND 키워드) + seed 4→10건 확장(4건은 웹 검증된 실제 법령/판례, 2건은 검증 불가로 의도적 비인용) |
+| M5 | `cc5b484` | Researcher/Skeptic/Verifier evidence-first 재작성 — `findingId` 코드 부여, `verify()`의 `queries` 인자·`missingMaterials` 대조 로직, `mock-llm.ts` 폐지 |
+| M6 | `4bfb5d9` | UI(`page.tsx`) `verifiedClaims`/`reviewTargets`/`missingMaterials` 반영 + E2E `LLM_PROVIDER_MODE=deterministic` |
+| 회귀 정합화 | `60fe95f` | SPEC과 무관하게 낡아있던 기존 테스트 4건(env.test.ts/provision-tester.test.ts/create-case.test.ts×2) + 포맷 7건 정정 |
+
+각 마일스톤은 orchestrator가 커밋 직후 독립적으로 재검증(테스트 재실행, 코드 직접 열람)했다 — 서브에이전트 자기보고를 그대로 신뢰하지 않았다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- **최종 5종 게이트(AC-RESEARCH-023/024/025) 결과 — orchestrator 독립 재실행으로 확인**:
+  - `pnpm test`: exit 0, 35/35 파일·174/174 테스트 통과
+  - `pnpm lint`: exit 0
+  - `pnpm format:check`: exit 0
+  - `pnpm build`: exit 0
+  - `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow) — `generativelanguage.googleapis.com` 아웃바운드 호출 0건(M6 자체 확인, 이후 변경 없음)
+- run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태.
+- 미푸시 상태: `feat/SPEC-RESEARCH-001`에 8개 커밋이 로컬에만 존재(git-strategy `mode: manual`, `auto_push: false`에 따라 자동 푸시하지 않음) — 사용자 지시 시 푸시.
+- Next step: 사용자에게 sync-phase(`/moai sync`, 문서화+PR) 진행 여부 확인 대기.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
