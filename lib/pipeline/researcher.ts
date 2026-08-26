@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LLMProvider } from "../ai/provider";
+import { findSafetyViolations } from "./safety-validator";
 import type { DraftFinding, EvidenceCandidate, ResearchQuery } from "./types";
 
 // Researcher (4/6) — 리서치 쿼리 + evidence로부터 초안 소견을 생성한다
@@ -66,6 +67,16 @@ export async function research(
     // 구조화 검증 실패(위조 ID 포함 등)도 억지 finding 없이 건너뛴다 —
     // 동일하게 Verifier의 missingMaterials 경로로 흡수된다.
     if (!result.ok) {
+      continue;
+    }
+
+    // 코드 리뷰 지적(Fix-A) 방어선: buildResearchPrompt()는 LLM에게 프롬프트로만
+    // 지급 확정성 표현을 금지할 뿐, buildFindingSchema()는 summary 문자열의
+    // CONTENT를 검증하지 않는다. 실제/악의적 LLM 출력이 금지 표현을 그대로
+    // 담고 있으면 safety-validator가 이를 탐지하여 구조화 검증 실패와 동일하게
+    // 처리한다 — 억지 finding을 만들지 않고 건너뛴다(Verifier의
+    // missingMaterials 경로로 흡수됨).
+    if (findSafetyViolations(result.data.summary).length > 0) {
       continue;
     }
 

@@ -151,6 +151,62 @@ describe("lib/pipeline/researcher research (REQ-RESEARCH-016/017)", () => {
     expect(findings[0].queryId).toBe("q2");
   });
 
+  it("Fix-A: summary가 '보험금 지급 확률은 95%입니다.' 형태의 금지 표현이면 finding 없이 건너뛴다", async () => {
+    const query = makeQuery("q1");
+    const evidence = new Map<string, EvidenceCandidate[]>([[query.id, [makeEvidence("e1")]]]);
+
+    const forbiddenProbabilityProvider: LLMProvider = {
+      async generate(): Promise<GenerateResponse> {
+        return { text: "stub" };
+      },
+      async generateStructured<T>(
+        request: GenerateStructuredRequest<T>
+      ): Promise<StructuredResult<T>> {
+        const match = /\[([^\]]+)\]/.exec(request.prompt);
+        const candidate = {
+          summary: "보험금 지급 확률은 95%입니다.",
+          supportingEvidenceIds: match ? [match[1]] : [],
+        };
+        const result = request.schema.safeParse(candidate);
+        return result.success
+          ? { ok: true, data: result.data }
+          : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
+      },
+    };
+
+    const findings = await research([query], evidence, forbiddenProbabilityProvider);
+
+    expect(findings).toHaveLength(0);
+  });
+
+  it("Fix-A: summary가 '보험금 1,000만원을 반드시 지급합니다.' 형태의 금지 표현이면 finding 없이 건너뛴다", async () => {
+    const query = makeQuery("q1");
+    const evidence = new Map<string, EvidenceCandidate[]>([[query.id, [makeEvidence("e1")]]]);
+
+    const forbiddenAmountProvider: LLMProvider = {
+      async generate(): Promise<GenerateResponse> {
+        return { text: "stub" };
+      },
+      async generateStructured<T>(
+        request: GenerateStructuredRequest<T>
+      ): Promise<StructuredResult<T>> {
+        const match = /\[([^\]]+)\]/.exec(request.prompt);
+        const candidate = {
+          summary: "보험금 1,000만원을 반드시 지급합니다.",
+          supportingEvidenceIds: match ? [match[1]] : [],
+        };
+        const result = request.schema.safeParse(candidate);
+        return result.success
+          ? { ok: true, data: result.data }
+          : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
+      },
+    };
+
+    const findings = await research([query], evidence, forbiddenAmountProvider);
+
+    expect(findings).toHaveLength(0);
+  });
+
   it("evidence가 없는 query는 provider를 호출하지 않는다(억지 finding 생성 금지, design.md §7 4차 revision)", async () => {
     let callCount = 0;
     const countingProvider: LLMProvider = {
