@@ -1,5 +1,5 @@
 ---
-description: 하네스 학습 서브시스템 관리(status/apply/rollback/disable) 또는 자연어 분석으로 하네스 생성
+description: Manage harness learning subsystem (status/apply/rollback/disable) OR create a harness via natural-language analysis (Context-First Discovery + name derivation + approval gate)
 argument-hint: "{status|apply|rollback <YYYY-MM-DD>|disable|list|edit <name>|remove <name>|doctor|<natural-language request>}"
 allowed-tools: Skill
 ---

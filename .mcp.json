@@ -1,22 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/.mcp.schema.json",
   "mcpServers": {
-    "moai": {
-      "command": "moai",
-      "args": ["mcp-server"]
+    "chrome-devtools": {
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "command": "npx"
     },
     "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "command": "npx"
     },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
+    "moai": {
+      "args": [
+        "mcp-server"
+      ],
+      "command": "moai"
     }
   },
   "staggeredStartup": {
-    "enabled": true,
+    "connectionTimeout": 15000,
     "delayMs": 500,
-    "connectionTimeout": 15000
+    "enabled": true
   }
 }
