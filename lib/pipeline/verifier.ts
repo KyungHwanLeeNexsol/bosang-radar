@@ -1,39 +1,89 @@
 import type { LLMProvider } from "../ai/provider";
-import { createMockLLMProvider } from "./mock-llm";
-import type { Challenge, DraftFinding, VerifiedClaim } from "./types";
+import type {
+  Challenge,
+  DraftFinding,
+  EvidenceCandidate,
+  MissingMaterial,
+  ResearchQuery,
+  VerificationResult,
+  VerifiedClaim,
+  VerifiedCounterArgument,
+} from "./types";
 
-// Verifier (6/6) — 초안 소견과 반대 논리를 교차 검증해, 근거자료와 연결된
-// 최종 VerifiedClaim을 생성한다(REQ-SCAFFOLD-013, REQ-SCAFFOLD-014).
+// Verifier (6/6) — Researcher의 claim과 Skeptic의 evidence 양쪽을 evidence
+// 대비 재검증하는 2차 방어선(design.md §7 defense-in-depth)이자, 원본
+// queries와 findings를 대조해 missingMaterials를 산출한다(4차 revision).
 // product.md §핵심 원칙 — "AI 판단은 evidence와 연결" — 을 satisfy하기 위해
-// 각 claim은 supportingEvidenceIds를 유지한다. LLMProvider 인터페이스에만
-// 의존하며 gemini.ts를 직접 import하지 않는다(REQ-SCAFFOLD-018).
+// 각 claim은 재검증을 통과한 supportingEvidenceIds만 유지한다.
 //
-// @MX:TODO: [AUTO] 이번 마일스톤은 mock LLMProvider를 사용하는 trivial
-// 구현체다 — 실제 교차 검증 로직 고도화는 후속 SPEC에서 대체 예정
-// (spec.md §4 파이프라인 로직 고도화, plan.md §F).
+// provider는 design.md §3의 균일한 (evidence…, provider) 트레일링 패턴을
+// 맞추기 위한 필수 인자다 — 이번 마일스톤의 재검증 로직은 순수 구조적
+// 대조이므로 provider를 호출하지 않는다(추후 LLM 보조 검증으로 확장될 수
+// 있는 자리를 남겨 둔다).
 export async function verify(
+  queries: ResearchQuery[],
   findings: DraftFinding[],
   challenges: Challenge[],
-  provider: LLMProvider = createMockLLMProvider()
-): Promise<VerifiedClaim[]> {
-  const claims: VerifiedClaim[] = [];
+  evidence: Map<string, EvidenceCandidate[]>,
+  provider: LLMProvider
+): Promise<VerificationResult> {
+  void provider;
 
-  for (let index = 0; index < findings.length; index += 1) {
-    const finding = findings[index];
-    const counterArguments = challenges
-      .filter((item) => item.findingIndex === index)
-      .map((item) => item.counterArgument);
+  const verifiedClaims: VerifiedClaim[] = [];
+  const missingMaterials: MissingMaterial[] = [];
+  const uncertainty: string[] = [];
 
-    const verification = await provider.generate({
-      prompt: `${finding.summary}`,
-    });
+  for (const finding of findings) {
+    const validIds = new Set((evidence.get(finding.queryId) ?? []).map((item) => item.id));
 
-    claims.push({
-      summary: `${finding.summary} (검증: ${verification.text})`,
-      supportingEvidenceIds: finding.supportingEvidenceIds,
+    // (a) Researcher claim 재검증 — 위조 ID는 조용히 제거한다.
+    const supportingEvidenceIds = finding.supportingEvidenceIds.filter((id) => validIds.has(id));
+    const status: VerifiedClaim["status"] =
+      supportingEvidenceIds.length > 0 ? "VERIFIED" : "INSUFFICIENT";
+
+    if (status === "INSUFFICIENT") {
+      uncertainty.push(
+        `쿼리 ${finding.queryId}에 대한 소견을 뒷받침하는 유효한 근거자료가 없어 판단불충분으로 처리되었습니다.`
+      );
+    }
+
+    // (b) Skeptic evidence 재검증 — 재검증을 통과한 evidence ID는 구조화된
+    // 형태로 보존된다(design.md §7 3차 revision, §8 VerifiedCounterArgument).
+    const counterArguments: VerifiedCounterArgument[] = challenges
+      .filter((item) => item.findingId === finding.queryId)
+      .map((item) => ({
+        summary: item.counterArgument,
+        supportingEvidenceIds: (item.supportingEvidenceIds ?? []).filter((id) => validIds.has(id)),
+        counterEvidenceIds: (item.counterEvidenceIds ?? []).filter((id) => validIds.has(id)),
+      }));
+
+    verifiedClaims.push({
+      summary: finding.summary,
+      supportingEvidenceIds,
       counterArguments,
+      status,
     });
   }
 
-  return claims;
+  // query↔finding 대조 — 대응하는 finding이 없는 query는 evidence 부재 또는
+  // Researcher structured validation 실패로 인해 finding이 생성되지 못한
+  // 경우다(design.md §7 4차 revision). relatedIssueType은 항상 대조된
+  // ResearchQuery.issueType에서 직접 가져온다 — 추측하거나 기본값을 넣지
+  // 않는다.
+  for (const query of queries) {
+    const hasFinding = findings.some((finding) => finding.queryId === query.id);
+    if (hasFinding) {
+      continue;
+    }
+
+    missingMaterials.push({
+      description: `${query.topic}에 대한 근거자료가 부족하여 판단할 수 없습니다.`,
+      relatedIssueType: query.issueType,
+    });
+    uncertainty.push(
+      `쿼리 ${query.id}(${query.issueType})에 대해 검토할 소견을 생성하지 못해 추가 확인이 필요합니다.`
+    );
+  }
+
+  return { verifiedClaims, missingMaterials, uncertainty };
 }

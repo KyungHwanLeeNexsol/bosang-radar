@@ -37,6 +37,46 @@ function candidateStructuredFixtures(): readonly unknown[] {
   ];
 }
 
+// M5: researcher.ts/skeptic.ts는 프롬프트에 "- [id] title: content" 형태로
+// 실제 evidence ID를 임베딩한다(design.md §7). M2 시점에는 호출 시점에만
+// 알 수 있는 validEvidenceIds 집합을 이 파일에서 미리 알 수 없어 고정
+// 후보만 시도하는 폴백만 존재했다 — 이제 프롬프트에서 실제 ID를 추출해
+// 그 ID로 채운 픽스처를 먼저 시도한다. 이렇게 하면 buildFindingSchema/
+// buildChallengeSchema의 .refine() 검증(호출별 validEvidenceIds 집합)을
+// 실제로 satisfy하는 응답을 만들 수 있어, E2E가 결정론적 provider로도
+// 파이프라인 전 구간(구조화 검증 통과 경로)을 의미 있게 검증할 수 있다.
+function extractEvidenceIdsFromPrompt(prompt: string): string[] {
+  const matches = prompt.matchAll(/\[([^\]\s]+)\]/g);
+  return Array.from(matches, (match) => match[1]);
+}
+
+function structuredFixturesForPrompt(prompt: string): readonly unknown[] {
+  const evidenceIds = extractEvidenceIdsFromPrompt(prompt);
+  if (evidenceIds.length === 0) {
+    // 프롬프트에서 evidence ID를 추출하지 못한 경우(evidence-ID 기반이
+    // 아닌 다른 schema 형태 등) — 기존 고정 후보 폴백으로 견고성을 유지한다.
+    return candidateStructuredFixtures();
+  }
+
+  const [firstId] = evidenceIds;
+  return [
+    {
+      summary: "[deterministic] 결정론적 고정 소견입니다.",
+      supportingEvidenceIds: [firstId],
+    },
+    {
+      counterArgument: "[deterministic] 결정론적 고정 반론입니다.",
+      supportingEvidenceIds: [firstId],
+      counterEvidenceIds: [],
+    },
+    {
+      counterArgument: "[deterministic] 결정론적 고정 반론입니다.",
+      supportingEvidenceIds: [],
+      counterEvidenceIds: [],
+    },
+  ];
+}
+
 export function createDeterministicLLMProvider(): LLMProvider {
   return {
     async generate(request: GenerateRequest): Promise<GenerateResponse> {
@@ -46,7 +86,8 @@ export function createDeterministicLLMProvider(): LLMProvider {
     async generateStructured<T>(
       request: GenerateStructuredRequest<T>
     ): Promise<StructuredResult<T>> {
-      for (const candidate of candidateStructuredFixtures()) {
+      const candidates = structuredFixturesForPrompt(request.prompt);
+      for (const candidate of candidates) {
         const result = request.schema.safeParse(candidate);
         if (result.success) {
           return { ok: true, data: result.data };
@@ -55,7 +96,7 @@ export function createDeterministicLLMProvider(): LLMProvider {
       return {
         ok: false,
         reason: "schema_validation_failed",
-        raw: JSON.stringify(candidateStructuredFixtures()[0]),
+        raw: JSON.stringify(candidates[0]),
       };
     },
   };
