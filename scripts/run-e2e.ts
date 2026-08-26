@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -131,11 +131,87 @@ interface RunPlaywrightResult {
   exitCode: number;
 }
 
+// progress.md M7이 확정한 근본 원인(Windows): Playwright가 webServer로 띄운
+// `next start`가 테스트 종료 후에도 종료되지 않고 고아 프로세스로 남아,
+// pnpm test:e2e 전체가 무기한 hang한다 — 해당 PID만 수동으로 죽이면 즉시
+// exit 0으로 풀리는 것까지 실측 확인됐다(design.md §3.3/§3.4의 프로세스
+// 계보·시크릿 상속 구조는 그대로 두는 최소 개입). 이 함수는 그 PID를
+// 찾아 강제 종료하는 감시망의 마지막 조치다.
+//
+// [실측, 2026-08-26] 이 프로젝트를 실행하는 셸 환경의 PATH에
+// `C:\Windows\System32`가 빠져 있어(Git Bash 기본 PATH의 알려진 특성),
+// `execFileSync("netstat"/"taskkill"/"powershell.exe", …)`처럼 이름만으로
+// 찾는 호출이 전부 ENOENT로 조용히 실패했다 — try/catch가 그 실패를 삼켜
+// 겉으로는 "성공했지만 아무 효과가 없는" 상태로 보였다. 그래서 PowerShell
+// 실행 파일은 `%SystemRoot%` 기준 절대 경로로 지정하고, 포트 조회·프로세스
+// 종료는 외부 exe(`netstat`/`taskkill`) 대신 PowerShell 내장 명령
+// (`Get-NetTCPConnection`/`Stop-Process`)만으로 스크립트 하나에서 처리한다
+// — 부모 셸의 PATH 구성에 좌우되지 않는다. 포트 기반 탐색에 더해, 이미
+// 자식을 잃고 빈 채로 남는 부모 셸(`cmd.exe /c next start`)까지 잡기 위해
+// 명령줄 패턴 탐색도 같은 스크립트에서 함께 수행한다. 패턴은 "next" 바로
+// 뒤에 "start"/"build"가 오는 형태만 매칭한다(`next" start` 형태 —
+// Windows CommandLine 필드는 실행 파일 경로를 따옴표로 감싸므로 실제로는
+// 사이에 큰따옴표가 낀다) — 단순히 단어 경계로만 검사하면 이 세션과
+// 무관한 다른 프로젝트의 "next dev" 내부 파일명(`start-server.js`)까지
+// 걸려 그 프로세스를 잘못 죽일 뻔했다(실측, scope discipline 위반 방지).
+// "next" 바로 뒤에 오는 토큰만 보는 이 형태는 그 오탐을 만들지 않는다.
+function resolveWindowsPowerShellPath(): string {
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+  return path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+}
+
+function killOrphanedWebServer(port: number): void {
+  if (process.platform !== "win32") return;
+  // [실측, 2026-08-26] 배열 항목을 "; "로 이어붙이되 각 항목이 파이프(`|`)로
+  // 끝나면 "...| ; Select-Object..." 형태가 되어 PowerShell이 빈 파이프라인
+  // 요소로 파싱에 실패했다(EmptyPipeElement) — 그래서 이 킬 로직은 지금까지
+  // 한 번도 실제로 실행된 적이 없었다. 각 배열 항목을 파이프 없이 끝나는
+  // 완결된 한 문장으로 작성해 이 문제를 없앤다.
+  const script = [
+    `$byPort = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess`,
+    `$byCmd = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'next["'']?\\s+(start|build)\\b' } | Select-Object -ExpandProperty ProcessId`,
+    "$targets = @($byPort) + @($byCmd) | Where-Object { $_ } | Sort-Object -Unique",
+    "foreach ($procId in $targets) { try { Stop-Process -Id $procId -Force -ErrorAction Stop } catch {} }",
+  ].join("; ");
+  try {
+    execFileSync(resolveWindowsPowerShellPath(), [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      script,
+    ]);
+  } catch {
+    // best-effort — 정리 실패가 이미 관측된 테스트 결과를 가리면 안 된다.
+  }
+}
+
+// list 리포터의 "Running N tests using M workers" 줄에서 기대 테스트 수를,
+// 개별 결과 줄("✓ 1 [chromium] › ...", "✘ 2 ...")에서 완료 수를 센다.
+// [실측, M7 재확인] Playwright의 최종 요약 줄("N passed" 등)은 teardown이
+// hang하는 바로 그 상황에서는 아예 출력되지 않는다 — 결과 줄까지만 찍히고
+// 로그가 멈춘다. "새 출력이 없으면"(idle) 방식도 시도했으나, hang 중에도
+// Playwright가 화면 갱신용 제어 문자를 계속 흘려보내 idle 타이머가 끝없이
+// 재시작되는 것이 실측됐다(2026-08-26 재확인 — 이전 시도의 idle 방식은
+// 폐기). 그래서 "기대한 결과 수만큼 다 보였다"는 사실 자체를 신호로 삼고,
+// 그 뒤로는 재시작되지 않는 고정 타이머 하나만 건다.
+const PLAYWRIGHT_RUNNING_RE = /^Running (\d+) tests?/;
+const PLAYWRIGHT_RESULT_MARK_RE = /[✓✔✘✗]/;
+// 기대한 결과 수를 다 본 뒤 이만큼 기다렸다가 hang 여부를 판단한다(재시작 없음).
+const RESULTS_COMPLETE_GRACE_MS = 10_000;
+// "Running N tests" 파싱이 실패하는 경우를 위한 절대 안전판(spawn 시점부터).
+const ABSOLUTE_FALLBACK_MS = 5 * 60_000;
+// 포트를 점유한 고아 프로세스를 죽인 뒤에도 Playwright 자신의 정상 close
+// 이벤트가 이 시간 안에 오지 않으면 최후 수단으로 실패 처리한다(관측 없는
+// 성공 주장 금지 — verification-claim-integrity §1).
+const LAST_RESORT_MS = 90_000;
+
 // @MX:ANCHOR: [AUTO] Playwright 러너를 spawn하는 유일한 지점 — AC-RUNTIME-022의
 // 관측 대상(주입 가능한 spawn 경계)
 // @MX:REASON: 이 함수 시그니처(spawnFn 인자)를 바꾸면 단위 테스트의 기록용
 // 대역 주입 지점이 깨진다(design.md §3.5, acceptance.md AC-RUNTIME-022).
-function spawnPlaywrightRunner(spawnFn: SpawnFn): Promise<RunPlaywrightResult> {
+// port 인자는 M7 teardown-hang 감시망 전용이며 spawn 호출 자체(명령/인자/env)에는
+// 영향을 주지 않는다 — AC-RUNTIME-022가 관측하는 것은 그대로 유지된다.
+function spawnPlaywrightRunner(spawnFn: SpawnFn, port: number): Promise<RunPlaywrightResult> {
   return new Promise((resolve, reject) => {
     // shell: true — Windows에서 pnpm은 .cmd/.ps1 셸 래퍼이므로 셸 없이
     // spawn하면 ENOENT로 실패한다. 인자는 고정 리터럴이라 외부/신뢰되지 않은
@@ -147,12 +223,83 @@ function spawnPlaywrightRunner(spawnFn: SpawnFn): Promise<RunPlaywrightResult> {
     // shell:true는 회피 대상이 아니라 이 플랫폼에서 필수 옵션이다.
     const child = spawnFn("pnpm", ["exec", "playwright", "test"], {
       env: process.env,
-      stdio: "inherit",
+      stdio: ["inherit", "pipe", "inherit"],
       shell: true,
     }) as ChildProcess;
 
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ exitCode: code ?? 1 }));
+    let settled = false;
+    let orphanKillAttempted = false;
+    let stdoutBuffer = "";
+    let expectedResultCount: number | null = null;
+    let seenResultCount = 0;
+    let resultsCompleteTimerArmed = false;
+    const timers: NodeJS.Timeout[] = [];
+
+    function finish(result: RunPlaywrightResult): void {
+      if (settled) return;
+      settled = true;
+      for (const t of timers) clearTimeout(t);
+      resolve(result);
+    }
+
+    function onHangSuspected(): void {
+      if (settled || orphanKillAttempted) return;
+      orphanKillAttempted = true;
+      // 고아 webServer 프로세스만 죽인다 — 우리 자신의 child(Playwright 러너)는
+      // 건드리지 않는다. [실측, M7] 그 PID 하나만 죽이면 Playwright가 스스로
+      // teardown을 마치고 실제 결과가 담긴 정상 close 이벤트를 낸다 — 그
+      // 자연스러운 close가 여전히 최종 판정의 근거다(아래에서 계속 대기).
+      killOrphanedWebServer(port);
+      const lastResortTimer = setTimeout(() => {
+        // 고아 프로세스를 죽였는데도 close가 오지 않는 최후의 경우 — 통과
+        // 했다는 근거를 확보하지 못했으므로 실패로 처리한다(관측 없는 성공
+        // 주장 금지, verification-claim-integrity §1).
+        finish({ exitCode: 1 });
+      }, LAST_RESORT_MS);
+      lastResortTimer.unref?.();
+      timers.push(lastResortTimer);
+    }
+
+    // "Running N tests" 파싱이 실패해도 언젠가는 정리되도록 하는 절대 안전판.
+    // 재시작되지 않는 고정 타이머다.
+    const fallbackTimer = setTimeout(onHangSuspected, ABSOLUTE_FALLBACK_MS);
+    fallbackTimer.unref?.();
+    timers.push(fallbackTimer);
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      process.stdout.write(chunk);
+      stdoutBuffer += chunk.toString("utf-8");
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (expectedResultCount === null) {
+          const match = PLAYWRIGHT_RUNNING_RE.exec(line);
+          if (match) expectedResultCount = Number(match[1]);
+        }
+        if (PLAYWRIGHT_RESULT_MARK_RE.test(line)) seenResultCount += 1;
+      }
+      if (
+        !resultsCompleteTimerArmed &&
+        expectedResultCount !== null &&
+        seenResultCount >= expectedResultCount
+      ) {
+        // 기대한 결과 수를 다 봤다 — 이후 어떤 추가 출력이 와도 이 타이머는
+        // 다시 걸지 않는다(재시작 없음이 hang 상황에서도 반드시 도달하는 것을
+        // 보장하는 핵심 장치).
+        resultsCompleteTimerArmed = true;
+        const graceTimer = setTimeout(onHangSuspected, RESULTS_COMPLETE_GRACE_MS);
+        graceTimer.unref?.();
+        timers.push(graceTimer);
+      }
+    });
+
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      for (const t of timers) clearTimeout(t);
+      reject(err);
+    });
+    child.on("close", (code) => finish({ exitCode: code ?? 1 }));
   });
 }
 
@@ -168,7 +315,8 @@ export async function runE2E(spawnFn: SpawnFn = nodeSpawn): Promise<number> {
   // 상속된 값이 덮이지 않는다(research.md §0.2 결론 2).
   bootstrapCli("e2e");
   await prepareE2EDatabase(assembled);
-  const { exitCode } = await spawnPlaywrightRunner(spawnFn);
+  const port = Number(process.env.E2E_PORT);
+  const { exitCode } = await spawnPlaywrightRunner(spawnFn, port);
   return exitCode;
 }
 

@@ -414,6 +414,35 @@ justification: |
   - `pnpm test:e2e`는 이 환경에서 **여전히 사람의 수동 개입을 요구한다** — 4/4 통과 후 고아 `next start`를 직접 종료해야 터미널이 반환된다. 운영자 안내(M6 런북)의 teardown hang 항목은 그대로 유효하다.
   - 미검증 후보 수정안(전부 가설): (a) `webServer.command`에서 `&&` 복합을 제거하고 `pnpm build`를 `run-e2e.ts`가 선행 수행하도록 이동, (b) `pnpm start` 대신 `pnpm exec next start`로 래퍼 계층 축소, (c) Playwright `webServer.gracefulShutdown` 설정, (d) `run-e2e.ts`가 서버 라이프사이클을 직접 소유하고 PID 트리를 종료. Windows 프로세스 트리 종료는 중간 셸이 먼저 종료되며 재부모화가 일어나는 특성이 있어, 어느 안도 실측 없이는 효과를 단정할 수 없다.
 
+### M7 후속 — pnpm test:e2e teardown hang 실제 해소 (완료)
+
+**배경**: M7이 teardown 근본 원인을 확정만 하고 수정은 시도하지 않은 상태(`teardown_fix_attempted: false`)에서, 사용자가 P0-1~P1-2 재확인 + AC-RUNTIME-015 실제 exit 0 확인을 요청했다. design.md §3.3/§3.4(Playwright webServer로부터 앱 서버 라이프사이클을 분리하는 안 — SPEC 아티팩트 변경 필요)와 안전한 감시(watchdog) 방식 중 사용자가 `AskUserQuestion`으로 후자를 선택 — SPEC 아티팩트(design.md/acceptance.md)는 건드리지 않는다.
+
+**설계**: `scripts/run-e2e.ts`의 `spawnPlaywrightRunner()`가 Playwright 러너의 stdout을 파이프해 "Running N tests" 줄에서 기대 테스트 수를, 개별 결과 줄(✓/✘)에서 완료 수를 센다. 기대 수만큼 다 보이면(재시작 없는 고정 타이머) 10초 뒤 `killOrphanedWebServer(port)`를 1회 호출하고, 그래도 90초 안에 자연스러운 close 이벤트가 없으면 최후 수단으로 `exitCode: 1`(실패)로 처리한다 — 관측 없는 성공 주장을 하지 않는다(`verification-claim-integrity.md` §1). `killOrphanedWebServer`는 포트를 점유한 프로세스와, "next" 바로 뒤에 "start"/"build"가 오는 명령줄 패턴의 프로세스를 PowerShell 내장 명령(`Get-NetTCPConnection`/`Get-CimInstance`/`Stop-Process`)만으로 강제 종료한다.
+
+**디버깅 과정에서 실측으로 발견·수정한 버그 5건**(전부 이번 후속 작업 범위, 결과에 영향 없는 순서로 기록):
+1. 최초 설계는 Playwright 최종 요약 줄("N passed")을 감지 신호로 삼았으나, teardown이 실제로 hang하는 그 상황에서는 그 줄이 **아예 출력되지 않음**을 실측 확인 — "기대 테스트 수만큼 결과 줄을 다 봤다"는 사실 기반 감지로 교체.
+2. 뒤이어 시도한 "새 출력이 없으면"(idle) 방식도, hang 중에 Playwright가 화면 갱신용 제어 문자를 계속 흘려보내 idle 타이머가 끝없이 재시작되는 것이 실측됨 — 재시작되지 않는 고정 타이머로 교체.
+3. 이 프로젝트를 실행하는 셸 환경의 PATH에 `C:\Windows\System32`가 빠져 있어 `netstat`/`taskkill`/`powershell.exe`처럼 이름만으로 찾는 실행 호출이 전부 조용히 실패했다(ENOENT, try/catch가 삼킴 — "성공했지만 아무 효과 없는" 상태로 위장) — PowerShell 실행 파일을 `%SystemRoot%` 절대 경로로 지정하고, 외부 exe 대신 PowerShell 내장 명령만 쓰도록 교체.
+4. PowerShell 스크립트 문자열을 배열로 나눠 `"; "`로 이어붙였는데, 파이프(`|`)로 끝나는 줄과 이어붙이면 "빈 파이프라인 요소" 파싱 오류가 났다(`EmptyPipeElement`) — 이 킬 로직은 이 수정 전까지 한 번도 실제로 실행된 적이 없었다. 각 배열 항목을 파이프 없이 끝나는 완결된 한 문장으로 재작성.
+5. (부수 발견, dry-run 테스트로 사전 차단) 명령줄 패턴을 단어 경계(`\b(start|build)\b`)로만 검사하면, 이 세션과 무관한 다른 프로젝트(`D:\Workspace\frontend-Tpa-Mutual-Fund`)의 "next dev" 내부 파일명(`start-server.js`)까지 오탐되어 그 프로세스를 잘못 죽일 뻔했다 — "next" 바로 뒤에 오는 토큰만 보는 패턴(`next"?\s+(start|build)\b`)으로 좁혀 해소.
+
+**§E items**:
+
+- Claim: `pnpm test:e2e`가 4/4 시나리오 통과 후 **사람의 개입 없이** exit 0으로 자동 종료한다(AC-RUNTIME-015 (1)항, 최종 수정본 기준).
+  Evidence: 최종 수정본으로 **연속 2회 독립 실행**, 두 번 모두 오케스트레이터가 프로세스 트리에 전혀 개입하지 않고 백그라운드에서 자연 종료까지 관찰했다 — 1회차 verbatim `4 passed (28.7s)` → `EXITCODE=0` → `[exited with code 0]`, 2회차 verbatim `4 passed (27.4s)` → `EXITCODE=0` → `[exited with code 0]`.
+  Baseline-attribution: 이 M7 후속 커밋 트리(위 5건 버그를 순차로 고친 최종본), 이 2회 실행.
+- Claim: 감시망 도입이 기존 AC-RUNTIME-022 구조적 검증(주입 가능한 spawn 경계, spawnFn 호출 1회)을 깨지 않는다.
+  Evidence: `pnpm vitest run scripts/run-e2e.test.ts scripts/playwright-config-static.test.ts` → `Test Files 2 passed (2)`, `Tests 6 passed (6)`(수정 단계마다 재확인, 총 5회 재실행 모두 GREEN).
+- Claim: 기존 품질 게이트 4종 유지.
+  Evidence: `pnpm test` → `Test Files 33 passed (33)`, `Tests 139 passed (139)`, exit 0. `pnpm lint` → exit 0(무출력). `pnpm format:check` → 최초 `scripts/run-e2e.ts` 포맷 위반 1건 발견 → `prettier --write` 적용 후 재확인 exit 0(`All matched files use Prettier code style!`). `pnpm build` → exit 0(6개 라우트 정상 생성; Edge Runtime 경고는 M1부터 있던 기존 잔여 위험으로 이번 변경과 무관).
+  Baseline-attribution: 이 M7 후속 커밋 트리, 이 실행.
+- Gaps (정직하게 기록 — 디버깅 과정에서 오염된 시도들):
+  - 처음 두 차례 실행 시도는 감시망이 아직 작동하지 않는 상태(버그 1·2·3 수정 전)에서 "안 끝나니까"라고 판단한 오케스트레이터가 직접 프로세스 트리를 강제 종료한 것이었다 — 그 결과 관측된 "exit 0"/"exit 255"는 감시망의 결과가 아니라 수동 개입의 인공물이므로 증거로 채택하지 않았다. 그중 한 번은 강제 종료로 `.tmp/e2e.db`가 온전히 정리되지 못해, 다음 실행에서 이전 실행의 낡은 테스터 비밀번호가 남아 "Invalid password"로 3개 테스트가 실패하는 부수 사고가 발생했다 — `.tmp` 디렉터리를 수동 삭제해 복구했다.
+  - 세 번째 시도(버그 3·4 수정 전, 즉 킬 로직이 여전히 PowerShell 파싱 오류로 조용히 실패하던 상태)에서 우연히 `4 passed (1.3m)`로 자연 종료된 사례가 1건 있었다 — 로그상 감시망의 킬 시도는 파싱 오류로 실패가 확인되므로, 이는 감시망이 아니라 Playwright 자신의 내부 재시도/타임아웃이 약 80초 만에 스스로 풀린 것으로 추정된다. M7이 관측한 "11분" hang과는 다른 조건(예: 이 세션에 누적된 잔여 프로세스 유무, 시스템 부하)에서 나온 결과로 보이며, teardown 지연이 결정적으로 무한은 아닐 가능성을 시사하지만 그 경계 조건은 이번 조사로 규명되지 않았다 — 자연 종료에만 의존하면 M7의 11분 사례처럼 실패할 수 있으므로, 명시적 킬을 포함한 감시망의 필요성을 오히려 보강한다.
+  - CI(Linux 등 비Windows) 환경에서는 감시망 전체가 `process.platform !== "win32"`로 비활성화된다 — 그 환경에서 teardown hang이 애초에 재현되는지는 이 세션에서도 실측 기회가 없었다(M5/M7과 동일한 기존 Gap 유지).
+- Residual-risk: (1) 감시망의 타이밍 상수(결과 수집 유예 10초 / 최후 안전판 90초 / 절대 폴백 5분)는 이번 세션 2회 실행(27~29초 내 해소)을 근거로 한 값이며, 시스템 부하가 더 큰 환경에서는 재조정이 필요할 수 있다. (2) 명령줄 패턴 기반 강제 종료는 이 프로젝트 트리 밖의 무관한 프로세스를 잘못 죽일 위험을 구조적으로 완전히 배제하지는 못한다 — "next dev" 오탐 사례처럼, "next" 바로 뒤에 "start"/"build"가 오는 다른 무관한 프로젝트가 동시에 실행 중이면 여전히 오탐 가능성이 남는다(작업 디렉터리·프로젝트 경로까지 대조하는 정밀화는 이번 범위에서는 과설계로 보류). (3) `kill -9`류 강제 종료 시 `.env.local` 복원이 안 되는 기존 잔여 위험(design.md §3.6)은 이번 수정과 무관하게 그대로 남아있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 ```yaml
@@ -450,17 +479,23 @@ milestones:
   - id: M7
     title: 병합 차단 결함 4건 수정 (libSQL 누수 / 문서 정합 / .env.local 결합 / Node 20 실행 호환)
     commit: pending-backfill-M7
-    verified_by_orchestrator: false   # manager-develop 자체 검증만 완료, 오케스트레이터 독립 재실행 대기
-    ac_runtime_015: FAIL   # 4/4 시나리오는 통과하나 exit 0 자동 종료 미충족 — 고아 next start 수동 종료 필요
+    verified_by_orchestrator: true   # M7 후속에서 오케스트레이터 직접 재실행 확인(아래 M7-followup 참고)
+    ac_runtime_015: PASS   # M7 후속(watchdog 수정)으로 exit 0 자동 종료까지 충족 — 아래 M7-followup 참고
     teardown_root_cause: confirmed   # Playwright webServer(next start, PID 관측) 미종료. 해당 PID만 kill하면 사슬 전체가 즉시 풀리며 exit 0 — 인과 확정
-    teardown_fix_attempted: false    # design.md §3.3/§3.4 설계 결정 변경이 필요해 run-phase 단독 범위 밖 — 후보안은 §E.2 M7 Residual-risk에 기록(전부 미검증 가설)
+    teardown_fix_attempted: true     # M7-followup에서 수정 완료(안전한 감시망 방식, 사용자 승인) — design.md/acceptance.md 미변경
+  - id: M7-followup
+    title: pnpm test:e2e teardown hang 실제 해소 (watchdog 방식)
+    commit: pending-backfill-M7-followup
+    verified_by_orchestrator: true   # 오케스트레이터가 직접 2회 연속 hands-off 재실행, 둘 다 exit 0 확인(위 §E.2 M7 후속 참고)
+    ac_runtime_015: PASS   # (1)(2)(3)항 전부 충족 — exit 0 자동 종료 포함
+    design_artifacts_changed: false  # design.md/acceptance.md 미변경 — scripts/run-e2e.ts 내부 감시망만 추가
 final_gate:
-  pnpm_test: PASS   # M7 재실행: 33 test files, 139 tests, exit 0
-  pnpm_lint: PASS   # M7 재실행: 0 issues, exit 0
-  pnpm_format_check: PASS  # M7 재실행: All matched files use Prettier code style, exit 0
-  pnpm_build: PASS  # M7 재실행: exit 0
-  pnpm_test_e2e: FAIL   # 4/4 시나리오 통과하나 자동 종료 실패(teardown hang) — AC-RUNTIME-015 (1)항 미충족
-next_step: AC-RUNTIME-015 teardown 수정 범위에 대한 사용자 결정 대기(설계 변경 필요 여부)
+  pnpm_test: PASS   # M7-followup 재실행: 33 test files, 139 tests, exit 0
+  pnpm_lint: PASS   # M7-followup 재실행: 0 issues, exit 0
+  pnpm_format_check: PASS  # M7-followup 재실행: All matched files use Prettier code style, exit 0
+  pnpm_build: PASS  # M7-followup 재실행: exit 0
+  pnpm_test_e2e: PASS   # 4/4 시나리오 통과 + exit 0 자동 종료, 오케스트레이터가 2회 연속 hands-off 확인 — AC-RUNTIME-015 전항 충족
+next_step: sync 문서(README/CHANGELOG/sync-report) 재동기화 여부 사용자 확인
 ```
 
 이번 run-phase는 두 차례의 진짜 블로커를 만났다 — 둘 다 계획에서 예견하지 못했던 실측 발견이었고, 둘 다 `AskUserQuestion`으로 사용자 결정을 거쳐 해소했다. (1) M2에서 SPEC-SCAFFOLD-001이 남긴 스키마/마이그레이션 드리프트(`account.issuer` 컬럼 누락)를 발견 — 보정 마이그레이션 1건 + AC-RUNTIME-017 문구의 좁은 예외(plan revision v0.5.0)로 해소했다. (2) M5에서 포트 3000이 이 세션과 무관한 다른 프로젝트에 점유되어 있음을 발견 — E2E 포트를 실행 시점 동적 탐색으로 바꿔 근본적으로 같은 충돌 클래스를 제거했다. 두 사안 모두 SPEC 자신의 설계 결함이 아니라 외부 요인(선행 SPEC의 잔여 결함, 무관한 프로세스와의 우연한 충돌)이었다.
