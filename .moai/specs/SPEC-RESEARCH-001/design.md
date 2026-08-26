@@ -19,7 +19,7 @@ export function getLLMProvider(env: NodeJS.ProcessEnv = process.env): LLMProvide
   if (env.LLM_PROVIDER_MODE === "deterministic") {
     return createDeterministicLLMProvider();
   }
-  return new GeminiProvider();
+  return new GeminiProvider({ apiKey: env.GEMINI_API_KEY });
 }
 ```
 
@@ -30,6 +30,7 @@ export function getLLMProvider(env: NodeJS.ProcessEnv = process.env): LLMProvide
 - **기존 패턴과의 일관성**: `assembleE2EEnv()`는 이미 `BETTER_AUTH_SECRET`/`TESTER_PASSWORD`를 프로세스 시작 시점에 조립해 `process.env`에 쓰고, 이 값이 프로세스 계보(이 스크립트 → Playwright 러너 → Next.js 서버)를 따라 상속되는 것을 설계 원칙으로 삼는다(SPEC-RUNTIME-001 design.md §3.3 "e2e/global-setup.ts를 만들지 않기로 한 설계 결정"). `LLM_PROVIDER_MODE`도 정확히 같은 상속 경로를 탄다 — 새로운 전달 메커니즘을 발명하지 않는다.
 - **`GEMINI_API_KEY` 부재로부터의 추론이 아닌 명시적 신호**: "키가 없으면 mock을 쓴다"는 암묵적 추론은 개발자가 실수로 `.env.local`에 실제 키를 넣어둔 상태로 E2E를 돌리면 조용히 실제 Gemini를 호출하는 위험한 폴백이 된다. `LLM_PROVIDER_MODE=deterministic`은 E2E가 **명시적으로 선언**하는 것이므로, 로컬 개발자의 `.env.local` 상태와 무관하게 항상 결정론적으로 동작한다(REQ-RESEARCH-011).
 - **§2의 env 스코프 게이트와 자연스럽게 결합**: `LLM_PROVIDER_MODE` 하나의 신호로 (a) `lib/env.ts`의 app 스코프 GEMINI_API_KEY 요구를 면제하고, (b) `provider-factory.ts`의 provider 선택을 결정하는 두 가지 문제를 동시에 해결한다.
+- **provider 선택과 `GeminiProvider` 생성이 동일한 `env` 파라미터를 공유한다(3차 revision, 신규)**: `getLLMProvider(env)`가 받은 그 `env` 인자를 provider 선택 조건(`env.LLM_PROVIDER_MODE`)뿐 아니라 `GeminiProvider` 생성자의 `apiKey`(`env.GEMINI_API_KEY`)에도 그대로 사용한다(위 코드 `new GeminiProvider({ apiKey: env.GEMINI_API_KEY })`). `new GeminiProvider()`처럼 인자 없이 생성하면 `GeminiProvider`의 생성자 기본값(`options.apiKey ?? process.env.GEMINI_API_KEY` — research.md §2)이 전역 `process.env`를 직접 읽게 되어, 테스트가 `getLLMProvider(testEnv)`로 주입한 값이 실제 `GeminiProvider` 인스턴스 생성에는 반영되지 않는 env-source 불일치가 발생한다. 이 불일치를 구조적으로 차단하기 위해 provider 선택과 provider 생성이 항상 같은 `env` 파라미터에서 파생되도록 한다 — 테스트 주입 env가 전역 `process.env`와 조용히 섞이는 경로는 없다.
 
 ### `createDeterministicLLMProvider()` 고정 응답 설계
 
@@ -76,8 +77,9 @@ export async function runPipeline(
   const evidence = await retrieveEvidence(queries);
   const findings = await research(queries, evidence, provider);
   const challenges = await challenge(findings, evidence, provider);
-  const claims = await verify(findings, challenges, evidence, provider);
-  // ... ResearchReport 조립 (§8)
+  const verification = await verify(findings, challenges, evidence, provider);
+  // ResearchReport 조립(§8): verification(VerificationResult)의 verifiedClaims/
+  // missingMaterials/uncertainty 세 필드를 그대로 옮겨 담는다 — 3차 revision, 항목 1
 }
 ```
 
@@ -101,10 +103,24 @@ export async function verify(
   challenges: Challenge[],
   evidence: Map<string, EvidenceCandidate[]>,
   provider: LLMProvider // 필수 — 기본값 없음(1차 revision에서는 4번째 인자로 밀리며 기본값을 유지했으나, 2차 revision에서 기본값을 제거한다)
-): Promise<VerifiedClaim[]>;
+): Promise<VerificationResult>; // 3차 revision, 항목 1 — 1차/2차 revision까지의 Promise<VerifiedClaim[]>에서 변경
 ```
 
 세 함수 모두 **마지막 인자가 `provider: LLMProvider`(필수)**라는 동일한 패턴을 따른다 — evidence를 다루는 인자(들)가 provider 앞에 위치하고, provider가 항상 마지막 필수 인자다.
+
+### `verify()`의 반환 계약 — `VerificationResult`(3차 revision, 항목 1, 신규)
+
+plan.md M5와 §7(evidence-ID 무결성)이 이미 서술하는 대로, Verifier는 검증된 claim(`VerifiedClaim[]`)뿐 아니라 `missingMaterials`(REQ-RESEARCH-023 계열)와 `uncertainty`(REQ-RESEARCH-020/023)도 함께 산출한다. 그러나 2차 revision까지는 `verify()`의 반환 타입이 `Promise<VerifiedClaim[]>` 하나뿐이어서, 이 세 산출물을 오케스트레이터로 전달할 명시적 계약이 없었다 — `missingMaterials`/`uncertainty`가 어디서 어떻게 오케스트레이터에 도달하는지가 타입 수준에서 불명확했다. 3차 revision은 다음 인터페이스로 이 계약을 명시한다:
+
+```ts
+export interface VerificationResult {
+  verifiedClaims: VerifiedClaim[];
+  missingMaterials: MissingMaterial[];
+  uncertainty: string[];
+}
+```
+
+`runPipeline()`은 `verify()`가 반환한 이 `VerificationResult`에서 `verifiedClaims`/`missingMaterials`/`uncertainty` 세 필드를 그대로 가져와 `ResearchReport`를 조립한다(§8) — 오케스트레이터가 `missingMaterials`나 `uncertainty`를 별도로 재계산하거나 다른 경로에서 조합하지 않는다. `MissingMaterial`/`VerifiedClaim`/`VerifiedCounterArgument` 타입 정의는 §8에서 함께 다룬다.
 
 ### 근거
 
@@ -316,7 +332,8 @@ export async function retrieveEvidence(
 - **evidenceType**은 각 레코드의 실제 성격에 맞춰 5개 리터럴 중 하나를 명시한다 — placeholder로 `OTHER`를 일괄 적용하지 않는다(기존에 유지되는 레코드도 이번 확장에서 evidenceType을 재검토한다).
 - **sourceUrl**은 실제 공개 출처(법령 조문, 공개된 판례 요지 등)를 특정할 수 있는 레코드에 한해 포함하고, 그렇지 않은 레코드는 `null`로 유지한다 — 두 경로(있음/없음) 모두 실제 seed 데이터로 검증되도록 최소 1건 이상은 `null`을 유지한다(REQ-RESEARCH-024/AC-RESEARCH-022와 정합).
 - **범위 제한**: 상해후유장해·질병후유장해 핵심 issueType(부위/진단명/평가기준/인과관계/기왕증)과 universal 규칙 검증에 필요한 최소 범위만 포함하며, 그 이상의 대규모 수집·크롤링은 하지 않는다.
-- 이 결정은 run-phase(M4, `scripts/db-seed.ts` + `db/seed/evidence.json`)에서 구체 레코드 내용(문구, 실제 sourceUrl 값)을 작성하는 구현으로 이어진다 — 문구·URL 작성 자체는 run-phase 판단으로 남긴다.
+- **소싱 규율(3차 revision, 신규)**: `PRECEDENT`/`STATUTE`/`DISPUTE_CASE`/`POLICY` 레코드는 반드시 실제로 검증 가능한 출처(공개된 판례 요지, 실제 법령 조문, 공개 약관 문서 등)에서 가져온 내용만 프로덕션 seed(`db/seed/evidence.json`)에 포함한다 — 문구를 그럴듯하게 지어낸 합성(synthetic) 레코드는 프로덕션 seed에 절대 포함하지 않는다. 테스트 목적으로만 필요한 가상의 레코드(예: 관련성 필터 엣지 케이스를 재현하기 위한 픽스처)가 필요하면, `db/seed/` 범위 밖의 별도 테스트 전용 픽스처(예: `lib/pipeline/__fixtures__/evidence.test-fixture.json` 또는 동등한 테스트 전용 위치)로 분리하고 그 파일 상단에 "테스트 전용, 프로덕션 seed 아님"을 명시적으로 문서화한다.
+- 이 결정은 run-phase(M4, `scripts/db-seed.ts` + `db/seed/evidence.json`)에서 구체 레코드 내용(문구, 실제 sourceUrl 값)을 작성하는 구현으로 이어진다 — 문구·URL 작성 자체는 run-phase 판단으로 남기되, 위 소싱 규율(실제 출처 있음 또는 테스트 픽스처로 분리)은 반드시 준수한다.
 
 ## §7. evidence-ID 무결성 시행 지점 — structured validation(1차) + Verifier(2차 방어) + Skeptic evidence 연결(2차 revision, 항목 5)
 
@@ -371,6 +388,8 @@ function buildChallengeSchema(validEvidenceIds: readonly string[]) {
 
 **2차 방어선 = Verifier의 evidence 재검증(defense-in-depth) — Researcher claim과 Skeptic evidence 양쪽 모두.** §3에서 확장한 `verify(findings, challenges, evidence: Map<string, EvidenceCandidate[]>, provider)` 시그니처를 사용해, Verifier는 최종 `VerifiedClaim`을 조립하기 직전 (a) `finding.supportingEvidenceIds`와 (b) `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`를 **둘 다** 해당 쿼리의 실제 evidence 집합과 다시 한번 대조한다. 대조를 통과하지 못하는 ID는 조용히 제거하고, 결과적으로 `supportingEvidenceIds`가 빈 배열이 되는 claim은 `uncertainty`(REQ-RESEARCH-023)로 강등한다(제거하지 않고 "판단불충분" 사유로 리포트에 남긴다 — REQ-RESEARCH-020).
 
+**Skeptic evidence의 재검증 통과분은 구조화된 형태로 최종 리포트까지 보존된다(3차 revision, 항목 2).** 2차 revision까지는 `VerifiedClaim.counterArguments`가 `string[]`이었으므로, Verifier가 (b)를 재검증해 위조 ID를 걸러내더라도 그 검증을 통과한 evidence ID 자체는 최종 리포트에 담을 자리가 없어 — 문자열로 뭉개지며 — 소실됐다. 3차 revision은 `VerifiedClaim.counterArguments`를 `VerifiedCounterArgument[]`(`{ summary, supportingEvidenceIds, counterEvidenceIds }` — §8)로 구조화해, Verifier가 재검증을 통과시킨 `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`의 부분집합을 각 `VerifiedCounterArgument`에 그대로 옮겨 담는다. 즉 (b)의 재검증은 두 가지 결과를 낳는다 — 위조 ID는 제거되고, 위조되지 않은 유효 ID는 `VerifiedCounterArgument.supportingEvidenceIds`/`counterEvidenceIds`로 보존된다.
+
 ### 근거
 
 - **"생성 시점 차단"이 "생성 후 발견"보다 저렴하다**: 1차 방어선이 대부분의 위조를 스키마 검증 단계에서 즉시 잡아내므로, Verifier가 실제로 걸러내야 하는 사례는 드물게 남는다.
@@ -389,10 +408,16 @@ export interface ReviewTarget {
   description: string;
 }
 
+export interface VerifiedCounterArgument {
+  summary: string;
+  supportingEvidenceIds: string[];
+  counterEvidenceIds: string[];
+} // 3차 revision, 항목 2 — Skeptic evidence 연결을 최종 리포트까지 구조적으로 보존(§7)
+
 export interface VerifiedClaim {
   summary: string;
   supportingEvidenceIds: string[];
-  counterArguments: string[];
+  counterArguments: VerifiedCounterArgument[]; // 3차 revision — string[]에서 구조화(§7)
   status: "VERIFIED" | "INSUFFICIENT"; // REQ-RESEARCH-020
 }
 
@@ -411,7 +436,7 @@ export interface ResearchReport {
 }
 ```
 
-기존 `claims` 필드명은 `verifiedClaims`로 바뀌므로, `app/cases/[caseId]/page.tsx`의 `report.claims.map(...)` 참조를 `report.verifiedClaims.map(...)`로 갱신한다. 동시에 다음을 반영한다:
+기존 `claims` 필드명은 `verifiedClaims`로 바뀌므로, `app/cases/[caseId]/page.tsx`의 `report.claims.map(...)` 참조를 `report.verifiedClaims.map(...)`로 갱신한다. `runPipeline()`은 §3에서 정의한 `VerificationResult`(`verify()`의 반환값)의 `verifiedClaims`/`missingMaterials`/`uncertainty` 세 필드를 그대로 옮겨 `ResearchReport`를 조립한다(3차 revision, 항목 1) — `ResearchReport.verifiedClaims`는 `VerificationResult.verifiedClaims`와 동일한 배열이며, 오케스트레이터가 별도로 재구성하지 않는다. 동시에 다음을 반영한다:
 
 - `report.reviewTargets`를 렌더링해 "검토할 담보 목록" 카드를 채운다(기존에는 evidence만으로 이 정보를 유추해야 했다).
 - 각 evidence를 표시할 때 `title` 옆에 `sourceUrl`을 조건부로 렌더링한다(`sourceUrl`이 `null`이면 출처 표시를 생략) — 이를 위해 `evidenceById` Map을 `seedEvidence`(정적 JSON) 대신, 리포트에 포함된 evidence ID를 실제 Drizzle 조회 결과로 해석하도록 갱신한다(§6에서 도입한 DB 조회 경로를 UI 레이어에서도 재사용).
@@ -426,19 +451,19 @@ export interface ResearchReport {
 
 | 파일 | 변경 종류 | 요지 |
 |---|---|---|
-| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType, scope — 2차 revision), `Challenge`(supportingEvidenceIds/counterEvidenceIds — 2차 revision), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial` |
+| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType, scope — 2차 revision), `Challenge`(supportingEvidenceIds/counterEvidenceIds — 2차 revision), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial`/`VerificationResult`(3차 revision, §3)/`VerifiedCounterArgument`(3차 revision, §7·§8) |
 | `lib/ai/provider.ts` | 확장 | `generateStructured()` + `GenerateStructuredRequest`/`StructuredResult` 타입 추가 |
 | `lib/ai/providers/gemini.ts` | 확장 | `generateStructured()` 구현(zod→JSON Schema, `responseJsonSchema` 필드 사용 — 2차 revision, 429 재시도 공유) |
-| `lib/ai/providers/deterministic.ts` | 신규 | `mock-llm.ts` 대체 — `generate()`+`generateStructured()` 둘 다 구현 |
-| `lib/ai/provider-factory.ts` | 신규 | `getLLMProvider()` — env 기반 Gemini/결정론적 provider 선택 |
+| `lib/ai/providers/deterministic.ts` | 신규 | `mock-llm.ts` 대체 — `generate()`+`generateStructured()` 둘 다 구현. `researcher.ts`/`skeptic.ts`/`verifier.ts`는 이 파일을 직접 import하지 않는다(§3) |
+| `lib/ai/provider-factory.ts` | 신규 | `getLLMProvider()` — env 기반 Gemini/결정론적 provider 선택, `GeminiProvider` 생성에도 동일 `env` 전달(§1, 3차 revision) |
 | `lib/pipeline/mock-llm.ts` | 폐지 | `deterministic.ts`로 대체(§3 근거) |
 | `lib/pipeline/case-normalizer.ts` | **무변경(2차 revision)** | REQ-RESEARCH-001이 담보 스코프 검증 책임을 제거했으므로 이번 SPEC에서 수정하지 않는다(plan.md §A.5 PRESERVE 9) |
 | `lib/pipeline/query-planner.ts` | 재작성 | 규칙 기반 구조화 쟁점 도출(§5) |
 | `lib/pipeline/evidence-retriever.ts` | 재작성 | Drizzle 조회 + domain AND keyword 관련성 필터(scope 축 포함 — §6, 2차 revision), `Map` 반환 |
 | `lib/pipeline/researcher.ts` | 재작성 | evidence-first + `generateStructured()` + 1차 방어선(§7) + provider 필수 인자(§3, 2차 revision) |
 | `lib/pipeline/skeptic.ts` | 재작성 | `evidenceMap` 인자 추가 + 반론 evidence 연결(§7, 2차 revision), `generateStructured()`, provider 필수 인자(§3) |
-| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7, Researcher+Skeptic 양쪽 재검증 — 2차 revision) + provider 필수 인자(§3) |
-| `lib/pipeline/index.ts` | 확장 | `RunPipelineOptions`, provider 단일 주입(§3) |
+| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7, Researcher+Skeptic 양쪽 재검증 — 2차 revision) + provider 필수 인자(§3), `VerificationResult` 반환(§3, 3차 revision) |
+| `lib/pipeline/index.ts` | 확장 | `RunPipelineOptions`, provider 단일 주입(§3), `VerificationResult`로부터 `ResearchReport` 조립(§3·§8, 3차 revision) |
 | `lib/db/schema.ts` | 확장 | `evidence.evidenceType`/`evidence.scope` 컬럼(§6, 2차 revision) |
 | `db/migrations/` | 신규 | `evidenceType`/`scope` 컬럼 마이그레이션 파일 |
 | `db/seed/evidence.json` | 확장(2차 revision) | 4개 → 10개 curated 레코드(§6 seed 확장 결정, 항목 7) |

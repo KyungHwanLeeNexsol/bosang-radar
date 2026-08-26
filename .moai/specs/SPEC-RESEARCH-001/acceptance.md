@@ -92,18 +92,18 @@
 - Then: 반환된 `Challenge[]`의 `counterArgument` 문자열 중 최소 1건이 finding의 `summary`와 다른 텍스트이며(단순 재진술이 아님을 문자열 비교로 확인), 반론이 다루는 화제 키워드(기왕증/퇴행성/인과관계/약관/자료부족/사고이전 6종 중 하나)가 포함된다. 그리고 각 `Challenge`의 `supportingEvidenceIds`/`counterEvidenceIds`가 존재하는 경우(빈 배열이 아닌 경우) 그 안의 모든 evidence ID는 `evidenceMap`에 포함된 evidence ID 집합의 부분집합이다(전달되지 않은 임의 ID는 하나도 등장하지 않음; 빈 배열은 허용됨).
 
 **AC-RESEARCH-017** (REQ-RESEARCH-019)
-- Given: 하나는 evidence로 뒷받침되고 하나는 evidence 없이 생성된 두 개의 `DraftFinding`, 그리고 `evidenceMap`에 존재하지 않는 위조된 evidence ID를 `supportingEvidenceIds`에 포함한 `Challenge` 1건
+- Given: 하나는 evidence로 뒷받침되고 하나는 evidence 없이 생성된 두 개의 `DraftFinding`, 그리고 `evidenceMap`에 존재하는 유효한 evidence ID 하나와 `evidenceMap`에 존재하지 않는 위조된 evidence ID 하나를 함께 `supportingEvidenceIds`에 포함한 `Challenge` 1건
 - When: `verify(findings, challenges, evidenceMap, provider)`를 호출한다
-- Then: evidence로 뒷받침된 claim은 `status: "VERIFIED"`, 뒷받침되지 않는 claim은 `status: "INSUFFICIENT"`로 반환되며, 위조된 evidence ID를 포함했던 `Challenge`의 근거는 최종 결과 어디에도 그 위조 ID를 포함한 채로 노출되지 않는다(Skeptic이 제시한 evidence ID도 Verifier가 재검증함을 확인).
+- Then: 반환된 `VerificationResult.verifiedClaims`(3차 revision — `verify()`는 더 이상 배열을 직접 반환하지 않고 `VerificationResult`를 반환한다) 중 evidence로 뒷받침된 claim은 `status: "VERIFIED"`, 뒷받침되지 않는 claim은 `status: "INSUFFICIENT"`로 나타난다. 위조된 evidence ID를 포함했던 `Challenge`에 대응하는 `VerifiedClaim.counterArguments`(`VerifiedCounterArgument[]` — 3차 revision)에는 그 위조 ID가 `supportingEvidenceIds`/`counterEvidenceIds` 어디에도 나타나지 않고, 반대로 유효했던(위조되지 않은) evidence ID는 소실되지 않고 해당 `VerifiedCounterArgument.supportingEvidenceIds`에 그대로 보존된다(Skeptic이 제시한 evidence ID를 Verifier가 재검증하면서도, 검증을 통과한 ID는 구조화된 형태로 최종 결과까지 유지됨을 확인).
 
 **AC-RESEARCH-018** (REQ-RESEARCH-020)
 - Given: `finding.supportingEvidenceIds`에 존재하지 않는 evidence ID가 섞여 있는 입력
 - When: `verify()`를 호출한다
-- Then: 반환된 `VerifiedClaim.supportingEvidenceIds`에서 위조된 ID가 제거되어 있고, 제거 후 빈 배열이 되면 `status`가 `"INSUFFICIENT"`로 설정되며 해당 사유가 `uncertainty` 배열에 기록된다.
+- Then: 반환된 `VerificationResult.verifiedClaims`(3차 revision) 중 해당 claim의 `supportingEvidenceIds`에서 위조된 ID가 제거되어 있고, 제거 후 빈 배열이 되면 `status`가 `"INSUFFICIENT"`로 설정되며 해당 사유가 `VerificationResult.uncertainty` 배열에 기록된다.
 
 **AC-RESEARCH-019** (REQ-RESEARCH-021)
 - Given: 임의의 `finding`/`challenge` 입력 집합
-- When: `verify()`의 출력 전체(`VerifiedClaim[]` + `uncertainty`)를 검사한다
+- When: `verify()`가 반환하는 `VerificationResult`(`verifiedClaims`/`missingMaterials`/`uncertainty` 세 필드) 전체를 검사한다 — `verifiedClaims[].summary`, `verifiedClaims[].counterArguments[].summary`(구조화된 `VerifiedCounterArgument`, §7 재검증 결과), `missingMaterials[].description`을 포함해 도달 가능한 모든 문자열 필드를 스캔 대상으로 한다
 - Then: 숫자 뒤에 "%" 또는 "확률"이 붙는 패턴이 어떤 문자열 필드에도 등장하지 않는다(정규식 기반 단위 테스트).
 
 **AC-RESEARCH-020** (REQ-RESEARCH-022)
