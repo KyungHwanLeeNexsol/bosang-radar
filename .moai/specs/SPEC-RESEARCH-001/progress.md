@@ -36,11 +36,18 @@
     - 리포트 파일: `.moai/reports/plan-audit/SPEC-RESEARCH-001-review-5.md`.
 
 - Prepared by: manager-spec (plan-phase revision, 4차) + plan-auditor (4차·5차 독립 감사) + manager-git (커밋·푸시) + orchestrator (D1/D2/D4/D7 정정)
-- Next step: **Implementation Kickoff Approval 대기**. `/moai run SPEC-RESEARCH-001`의 Phase 1 게이트가 PASS 1.0을 반환했고, 변경 사항은 이미 `872b4dc`로 커밋·푸시됐다. 이제 오케스트레이터는 구현 착수 여부를 사용자에게 확인하는 Implementation Kickoff Approval 게이트를 진행한다 — 이 게이트는 점수와 무관하게 항상 필요하다.
+- Next step: **Implementation Kickoff Approval 승인 완료** — 사용자가 AskUserQuestion에서 "지금 시작"(TDD, 자동 진행, 새 feat 브랜치 생성)을 선택했다. `feat/SPEC-RESEARCH-001` 브랜치를 `plan/SPEC-RESEARCH-001`의 HEAD(`872b4dc`)에서 새로 만들고(커밋 `e2f9a4c`로 이 Phase 1 게이트 기록을 반영), M1부터 구현을 시작한다.
+
+## §F Phase 4 Mode Selection
+
+- **Input parameters**: tier=L, scope≈17개 파일(신규: deterministic.ts/provider-factory.ts/query-planner 테스트; 수정: types.ts, schema.ts, provider.ts, gemini.ts, env.ts, index.ts, evidence-retriever.ts, evidence.json, db-seed.ts, researcher.ts, skeptic.ts, verifier.ts, page.tsx, run-e2e.ts, e2e/*.spec.ts + 각 대응 테스트 파일), domain count=4(타입 계약/AI provider/DB·evidence/파이프라인 단계+UI+E2E), file language mix=100% TypeScript, concurrency benefit=LOW(코딩 중심 — Anthropic coding-task parallelism caveat).
+- **Mode evaluation**: Mode 1 trivial — 대상 아님(비자명한 다중 파일 변경). Mode 2 background — 대상 아님(순차적 상호 의존 마일스톤). Mode 3 agent-team — RETIRED, 선택 불가. Mode 4 parallel — 코딩 중심 작업이라 부적합(연구/리뷰용). Mode 6 workflow — 단일 규칙의 기계적 변환이 아니라 의미론적 구현이므로 부적합. **Mode 5 sub-agent(Full Pipeline envelope) — 선택**.
+- **Decision**: Scale-based mode: sub-agent (files: ~17, domains: 4) — plan.md의 M1~M6 마일스톤 순서를 그대로 따라 manager-develop을 마일스톤당 1회 순차 위임한다.
+- **Justification**: 이 SPEC은 타입 계약 확정(M1) → provider 인터페이스(M2) → 오케스트레이터 배선(M3) → evidence 검색(M4) → 3단계 LLM 로직(M5) → UI/E2E(M6)로 이어지는 강한 순차 의존성을 갖고, plan.md §A가 이미 "변경 가능성이 가장 높은 결정을 먼저 배치"하는 순서로 설계돼 있다. Anthropic의 코딩 작업 병렬성 경고("대부분의 코딩 작업은 리서치보다 진짜 병렬화 가능한 작업이 적다")에 따라 구현은 Mode 5 순차 sub-agent로 진행한다.
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+_<pending — M1 시작 예정>_
 
 ## §E.3 Run-phase Audit-Ready Signal
 

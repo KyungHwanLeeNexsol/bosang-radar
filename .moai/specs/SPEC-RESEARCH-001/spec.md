@@ -2,7 +2,7 @@
 id: SPEC-RESEARCH-001
 title: "보상레이더 6단계 리서치 파이프라인 evidence-first Gemini 전환"
 version: "0.3.0"
-status: draft
+status: in-progress
 created: 2026-08-26
 updated: 2026-08-26
 author: Nexsol
