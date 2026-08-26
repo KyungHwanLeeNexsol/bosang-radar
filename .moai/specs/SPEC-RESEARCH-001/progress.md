@@ -2,9 +2,13 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- plan_status: audit-ready (4차 revision, 4차 plan-audit — 전체 재감사 PASS 0.923)
+- plan_status: audit-ready (Phase 1 Plan Audit Gate — 5차 plan-audit PASS 1.0, `/moai run` 진입 완료)
 - plan_complete_at: 2026-08-26 (최초 작성)
 - last_revision_at: 2026-08-26 (4차 plan revision — 사용자 지시 3개 항목)
+- audit_verdict: PASS
+- audit_report: .moai/reports/plan-audit/SPEC-RESEARCH-001-review-5.md
+- audit_at: 2026-08-26
+- auditor_version: plan-auditor (5차 독립 재검토)
 - tier: L
 - artifacts: spec.md, plan.md, acceptance.md, design.md, research.md (5/5, Tier L set complete)
 - REQ count: 25 / 25 (Tier L ceiling — 4차 revision에서도 신규 REQ 추가 없음; 항목 1/2/3은 REQ-RESEARCH-018/019/023 Then-절 확장으로 흡수)
@@ -26,8 +30,13 @@
    - **주의**: 위 D1/D2/D4 정정은 0.923 검증 이후에 이루어진 추가 편집이므로, 이 검증이 참조한 plan-artifact 해시는 이 정정들을 포함하지 않는다 — 다음 `/moai run` 진입 시 Phase 1 Plan Audit Gate의 스킵 조건(아티팩트 해시 불변) 중 하나가 성립하지 않아 자동 스킵되지 않고 Phase 1이 실제로 재실행될 것으로 예상되며, 이는 정상적인 동작이다(게이트는 어떤 harness 레벨에서도 비활성화되지 않음).
    - 리포트 파일: `.moai/reports/plan-audit/SPEC-RESEARCH-001-review-4.md`, `.moai/reports/plan-audit/SPEC-RESEARCH-001-2026-08-26.md`.
 
-- Prepared by: manager-spec (plan-phase revision, 4차) + plan-auditor (4차 독립 전체 재감사) + orchestrator (D1/D2/D4 정정 + D3 정리)
-- Next step: **Implementation Kickoff Approval 대기**. 4차 plan-audit이 Tier L 기준을 만족하는 명시적 PASS(0.923)를 반환했고, 남은 결함(D1/D2/D4)은 즉시 정정, D3(우발적 캐시 디렉터리)는 제거했다. 이 세션에서는 아직 어떤 것도 커밋하지 않았다 — 커밋·푸시 및 `/moai run SPEC-RESEARCH-001`(구현 착수)은 사용자의 명시적 지시 전까지 시작하지 않는다.
+9. **4차 revision 커밋·푸시** (커밋 `872b4dc`) — 4차 plan revision 3개 항목 + 4차 plan-audit의 D1/D2/D4 후속 정정을 5개 문서(spec/plan/acceptance/design/progress.md)에 담아 `plan/SPEC-RESEARCH-001` 브랜치에 커밋 후 `origin`으로 푸시(fast-forward, force 아님). 사용자의 명시적 "커밋푸시해봐" 지시로 수행. PR 존재 여부는 이 환경에 `gh` CLI가 없어 확인하지 못함 — GitHub 웹에서 수동 확인 필요.
+10. **Phase 1 Plan Audit Gate — 5차 plan-audit (`/moai run SPEC-RESEARCH-001` 진입)** (커밋 `872b4dc` 상태 대상) — 9번 커밋으로 plan-artifact 해시가 4차 감사(0.923) 시점과 달라져 스킵 조건(해시 불변)이 성립하지 않았으므로, `/moai run` Phase 1 게이트가 캐시를 쓰지 않고 plan-auditor를 새로 실행. **결과: PASS, 점수 1.0**(Clarity/Completeness/Testability/Traceability 전부 1.0). Must-pass 5 PASS + 2 N/A, FAIL 0건. 4차 감사에서 나온 D1/D2/D3/D4 전부 해소 확인(회귀 없음). 신규 발견 4건 중 3건(D5/D6/D8)은 optional/cosmetic로 정정 불필요, D7(SPEC 폴더 안에 우발 생성된 빈 `.claude/agent-memory/plan-auditor/` 디렉터리)은 orchestrator가 즉시 삭제(추적된 적 없음, 손실 없음). D8이 지적한 progress.md "Next step" 문구의 오래된 서술(커밋 전이라던 부분)은 이 항목으로 갱신해 해소.
+    - **절차상 참고**: 이번은 이 SPEC에 대한 **5번째** plan-auditor 호출이며, plan-auditor 본인도 반복 상한 초과를 재차 지적했다. 다만 이 5번째 호출은 iter1~3의 자동 반복이 아니라 (a) 사용자의 명시적 4차 전체 재감사 지시, (b) `/moai run` 진입 시 매번 실행되는 필수 게이트(harness 레벨과 무관하게 스킵 불가) — 두 가지 별도의 정당한 트리거에 의한 것이므로, plan-phase 저작 단계의 3회 재시도 한도와는 다른 컨텍스트다. plan-auditor의 권고대로 이 PASS(1.0)를 최종으로 삼고 6번째 호출은 하지 않는다.
+    - 리포트 파일: `.moai/reports/plan-audit/SPEC-RESEARCH-001-review-5.md`.
+
+- Prepared by: manager-spec (plan-phase revision, 4차) + plan-auditor (4차·5차 독립 감사) + manager-git (커밋·푸시) + orchestrator (D1/D2/D4/D7 정정)
+- Next step: **Implementation Kickoff Approval 대기**. `/moai run SPEC-RESEARCH-001`의 Phase 1 게이트가 PASS 1.0을 반환했고, 변경 사항은 이미 `872b4dc`로 커밋·푸시됐다. 이제 오케스트레이터는 구현 착수 여부를 사용자에게 확인하는 Implementation Kickoff Approval 게이트를 진행한다 — 이 게이트는 점수와 무관하게 항상 필요하다.
 
 ## §E.2 Run-phase Evidence
 
