@@ -95,7 +95,7 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     // supported: true를 고정 반환하므로, 이 시나리오(모든 domain·issueType에
     // evidence가 존재하는 seed 데이터)에서는 INSUFFICIENT claim이 자연
     // 발생하지 않는다 — 따라서 "판단 불충분" 배지 자체의 렌더링은 이 E2E
-        // 경로에서 실제로 exercise되지 않는다. 아래는 실제 발생 시에만 통과하는
+    // 경로에서 실제로 exercise되지 않는다. 아래는 실제 발생 시에만 통과하는
     // 조건부 단언으로 남겨, 향후 시나리오가 바뀌어도 거짓 통과하지 않게 한다.
     if (reportContent.verifiedClaims.some((claim) => claim.status === "INSUFFICIENT")) {
       await expect(claimStatusLocator.filter({ hasText: "판단 불충분" }).first()).toBeVisible();
