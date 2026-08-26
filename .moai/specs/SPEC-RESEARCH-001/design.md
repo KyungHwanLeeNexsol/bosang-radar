@@ -77,7 +77,7 @@ export async function runPipeline(
   const evidence = await retrieveEvidence(queries);
   const findings = await research(queries, evidence, provider);
   const challenges = await challenge(findings, evidence, provider);
-  const verification = await verify(findings, challenges, evidence, provider);
+  const verification = await verify(queries, findings, challenges, evidence, provider);
   // ResearchReport 조립(§8): verification(VerificationResult)의 verifiedClaims/
   // missingMaterials/uncertainty 세 필드를 그대로 옮겨 담는다 — 3차 revision, 항목 1
 }
@@ -99,6 +99,7 @@ export async function challenge(
 ): Promise<Challenge[]>;
 
 export async function verify(
+  queries: ResearchQuery[], // 신규(4차 revision) — Verifier가 query↔finding 대조로 누락 query를 식별하기 위한 원본 목록, 항상 첫 번째 인자
   findings: DraftFinding[],
   challenges: Challenge[],
   evidence: Map<string, EvidenceCandidate[]>,
@@ -362,7 +363,7 @@ function buildFindingSchema(validEvidenceIds: readonly string[]) {
 
 ```ts
 export interface Challenge {
-  findingId: string;
+  findingId: string; // finding.queryId — challenge() 루프 내부에서 코드로 직접 부여, LLM 구조화 출력에는 포함되지 않음(4차 revision 정정)
   counterArgument: string;
   supportingEvidenceIds?: string[]; // 반론을 뒷받침하는 evidence — 신규(항목 5)
   counterEvidenceIds?: string[];    // 반론이 반박 근거로 지목하는 evidence — 신규(항목 5)
@@ -378,7 +379,6 @@ function buildChallengeSchema(validEvidenceIds: readonly string[]) {
     message: "존재하지 않는 evidence ID가 포함되었습니다.",
   });
   return z.object({
-    findingId: z.string(),
     counterArgument: z.string().min(1),
     supportingEvidenceIds: idArray.optional().default([]),
     counterEvidenceIds: idArray.optional().default([]),
@@ -386,7 +386,13 @@ function buildChallengeSchema(validEvidenceIds: readonly string[]) {
 }
 ```
 
-**2차 방어선 = Verifier의 evidence 재검증(defense-in-depth) — Researcher claim과 Skeptic evidence 양쪽 모두.** §3에서 확장한 `verify(findings, challenges, evidence: Map<string, EvidenceCandidate[]>, provider)` 시그니처를 사용해, Verifier는 최종 `VerifiedClaim`을 조립하기 직전 (a) `finding.supportingEvidenceIds`와 (b) `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`를 **둘 다** 해당 쿼리의 실제 evidence 집합과 다시 한번 대조한다. 대조를 통과하지 못하는 ID는 조용히 제거하고, 결과적으로 `supportingEvidenceIds`가 빈 배열이 되는 claim은 `uncertainty`(REQ-RESEARCH-023)로 강등한다(제거하지 않고 "판단불충분" 사유로 리포트에 남긴다 — REQ-RESEARCH-020).
+**`findingId`는 LLM 구조화 출력이 아니라 호출부 코드가 부여한다(4차 revision, 정정).** `challenge(findings, evidenceMap, provider)`의 구현은 `findings` 배열을 하나씩 순회하며, finding마다 `provider.generateStructured({ prompt, schema: buildChallengeSchema(validEvidenceIds) })`를 호출한다 — 이 순회 자체가 이미 "지금 어떤 finding에 대한 Challenge를 만드는 중인지"를 알고 있으므로, 그 연결 정보를 LLM에게 다시 생성해 달라고 요청할 이유가 없다. 최종 `Challenge` 객체는 이 구조화 응답에 `findingId: finding.queryId`를 코드에서 직접 붙여 조립한다. 즉 위 `buildChallengeSchema()`가 검증하는 필드는 `counterArgument`/`supportingEvidenceIds`/`counterEvidenceIds`뿐이며, LLM의 구조화 출력에는 `findingId` 필드가 전혀 포함되지 않는다 — LLM이 존재하지 않는 finding을 가리키는 `findingId`를 지어내고, 그 값이 그대로 Verifier의 finding↔challenge 연결에 쓰이는 경로는 구조적으로 없다.
+
+**2차 방어선 = Verifier의 evidence 재검증(defense-in-depth) — Researcher claim과 Skeptic evidence 양쪽 모두.** §3에서 확장한 `verify(queries, findings, challenges, evidence: Map<string, EvidenceCandidate[]>, provider)` 시그니처를 사용해, Verifier는 최종 `VerifiedClaim`을 조립하기 직전 (a) `finding.supportingEvidenceIds`와 (b) `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`를 **둘 다** 해당 쿼리의 실제 evidence 집합과 다시 한번 대조한다. 대조를 통과하지 못하는 ID는 조용히 제거하고, 결과적으로 `supportingEvidenceIds`가 빈 배열이 되는 claim은 `uncertainty`(REQ-RESEARCH-023)로 강등한다(제거하지 않고 "판단불충분" 사유로 리포트에 남긴다 — REQ-RESEARCH-020).
+
+**Researcher의 evidence 부재/구조화 검증 실패 시 처리(4차 revision, 신규).** 특정 쿼리의 evidence 집합이 비어 있거나(`evidence.get(query.id)`가 `[]`), 그 쿼리에 대한 `generateStructured()` 호출이 `{ ok: false, reason: "schema_validation_failed" }`를 반환하면(Researcher의 통상적인 처리를 거친 뒤에도), Researcher는 그 쿼리에 대해 placeholder `DraftFinding`을 억지로 만들어내지 않는다 — 해당 쿼리는 그냥 `research()`가 반환하는 `findings` 배열에서 빠진다(`DraftFinding.supportingEvidenceIds`의 `.min(1)` 제약상, evidence가 없으면 애초에 유효한 finding을 만들 수 없기 때문이다). 따라서 `findings.length`는 `queries.length`보다 작을 수 있다.
+
+**Verifier의 query↔finding 대조 및 missingMaterials 산출(4차 revision, 신규).** §3에서 `verify()`에 추가된 `queries: ResearchQuery[]` 인자를 사용해, Verifier는 `queries`의 각 원소마다 `finding.queryId === query.id`를 만족하는 finding이 `findings`에 존재하는지 대조한다. 대응하는 finding이 없으면, Verifier는 그 query의 `issueType`을 그대로 옮긴 `relatedIssueType`을 가진 `MissingMaterial` 항목 하나를 `VerificationResult.missingMaterials`에 추가하고, 그 사유를 `uncertainty`에 함께 기록한다 — `relatedIssueType`은 추측하거나 기본값을 넣지 않고 항상 대조된 `ResearchQuery.issueType`에서 직접 가져온다. 대응하는 finding이 있는 query는 위에 서술한 기존 evidence 재검증 로직을 그대로 거친다.
 
 **Skeptic evidence의 재검증 통과분은 구조화된 형태로 최종 리포트까지 보존된다(3차 revision, 항목 2).** 2차 revision까지는 `VerifiedClaim.counterArguments`가 `string[]`이었으므로, Verifier가 (b)를 재검증해 위조 ID를 걸러내더라도 그 검증을 통과한 evidence ID 자체는 최종 리포트에 담을 자리가 없어 — 문자열로 뭉개지며 — 소실됐다. 3차 revision은 `VerifiedClaim.counterArguments`를 `VerifiedCounterArgument[]`(`{ summary, supportingEvidenceIds, counterEvidenceIds }` — §8)로 구조화해, Verifier가 재검증을 통과시킨 `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`의 부분집합을 각 `VerifiedCounterArgument`에 그대로 옮겨 담는다. 즉 (b)의 재검증은 두 가지 결과를 낳는다 — 위조 ID는 제거되고, 위조되지 않은 유효 ID는 `VerifiedCounterArgument.supportingEvidenceIds`/`counterEvidenceIds`로 보존된다.
 
@@ -396,6 +402,8 @@ function buildChallengeSchema(validEvidenceIds: readonly string[]) {
 - **1차 revision까지는 Skeptic 경로에 evidence ID 필드 자체가 없어 1차 방어선이 적용될 수 없었다** — 항목 5는 `Challenge`에 evidence ID 필드를 추가함으로써 Researcher와 동일한 1차 방어선(`.refine()` 스키마 검증)을 Skeptic 경로에도 확장한다. Verifier(2차 방어선)는 두 경로 모두를 재검증하는 최종 관문으로 남는다.
 - **REQ-RESEARCH-022의 문언("structured output validation 또는 Verifier가... 차단")을 정확히 만족**: 어느 한쪽만 구현하는 대신 두 계층 모두를 "또는"의 양쪽 선택지로 실제 구현하되, 1차/2차 역할을 명확히 구분해 중복 검증의 이유를 설명한다.
 - **자동 테스트로 검증 가능**: 1차 방어선(Researcher/Skeptic 양쪽)은 `buildFindingSchema()`/`buildChallengeSchema()`에 고의로 존재하지 않는 evidence ID를 포함한 픽스처를 전달하는 단위 테스트로, 2차 방어선(Verifier)은 조작된 `finding.supportingEvidenceIds` **및** `challenge.supportingEvidenceIds`를 직접 주입하는 단위 테스트로 각각 독립적으로 검증한다(REQ-RESEARCH-025의 "이 조건은 자동 테스트로 검증한다" 요구를 모두 만족).
+- **LLM이 존재하지 않는 finding을 가리키는 findingId를 지어낼 위험을 원천 차단(4차 revision)**: `challenge()`가 `findings` 배열을 하나씩 순회하며 호출하므로 이미 어떤 finding에 대한 반론을 생성 중인지 알고 있다 — 이 정보를 LLM에게 다시 요청할 필요가 없다. `buildChallengeSchema()`에서 `findingId` 필드를 제거하고 `findingId: finding.queryId`를 호출부 코드에서 직접 부여함으로써, LLM이 임의의 문자열을 `findingId`로 반환해 실제로 존재하지 않는 finding과 잘못 연결되는 경로를 구조적으로 없앤다.
+- **evidence 부재/구조화 실패를 억지 finding 없이 명시적 INSUFFICIENT/MissingMaterial 경로로 흡수(4차 revision)**: Researcher가 evidence 0건이거나 구조화 검증에 실패한 쿼리에 대해 placeholder finding을 만들지 않고 그냥 건너뛰게 하면, Verifier가 원본 `queries` 목록과 대조해 그 공백을 정확히 식별할 수 있다 — `relatedIssueType`을 추측하지 않고 항상 원본 `ResearchQuery.issueType`에서 가져오므로, `missingMaterials`가 사건의 실제 검토 공백을 정확히 반영한다.
 
 ## §8. ResearchReport 스키마 확장 + UI 반영
 
@@ -451,7 +459,7 @@ export interface ResearchReport {
 
 | 파일 | 변경 종류 | 요지 |
 |---|---|---|
-| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType, scope — 2차 revision), `Challenge`(supportingEvidenceIds/counterEvidenceIds — 2차 revision), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial`/`VerificationResult`(3차 revision, §3)/`VerifiedCounterArgument`(3차 revision, §7·§8) |
+| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType, scope — 2차 revision), `Challenge`(supportingEvidenceIds/counterEvidenceIds — 2차 revision; `findingId`는 code-assigned, LLM 스키마 대상 아님 — 4차 revision), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial`/`VerificationResult`(3차 revision, §3)/`VerifiedCounterArgument`(3차 revision, §7·§8) |
 | `lib/ai/provider.ts` | 확장 | `generateStructured()` + `GenerateStructuredRequest`/`StructuredResult` 타입 추가 |
 | `lib/ai/providers/gemini.ts` | 확장 | `generateStructured()` 구현(zod→JSON Schema, `responseJsonSchema` 필드 사용 — 2차 revision, 429 재시도 공유) |
 | `lib/ai/providers/deterministic.ts` | 신규 | `mock-llm.ts` 대체 — `generate()`+`generateStructured()` 둘 다 구현. `researcher.ts`/`skeptic.ts`/`verifier.ts`는 이 파일을 직접 import하지 않는다(§3) |
@@ -462,7 +470,7 @@ export interface ResearchReport {
 | `lib/pipeline/evidence-retriever.ts` | 재작성 | Drizzle 조회 + domain AND keyword 관련성 필터(scope 축 포함 — §6, 2차 revision), `Map` 반환 |
 | `lib/pipeline/researcher.ts` | 재작성 | evidence-first + `generateStructured()` + 1차 방어선(§7) + provider 필수 인자(§3, 2차 revision) |
 | `lib/pipeline/skeptic.ts` | 재작성 | `evidenceMap` 인자 추가 + 반론 evidence 연결(§7, 2차 revision), `generateStructured()`, provider 필수 인자(§3) |
-| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7, Researcher+Skeptic 양쪽 재검증 — 2차 revision) + provider 필수 인자(§3), `VerificationResult` 반환(§3, 3차 revision) |
+| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7, Researcher+Skeptic 양쪽 재검증 — 2차 revision) + provider 필수 인자(§3), `VerificationResult` 반환(§3, 3차 revision), `queries` 인자 추가 + query↔finding 대조/`missingMaterials` 산출(§7, 4차 revision) |
 | `lib/pipeline/index.ts` | 확장 | `RunPipelineOptions`, provider 단일 주입(§3), `VerificationResult`로부터 `ResearchReport` 조립(§3·§8, 3차 revision) |
 | `lib/db/schema.ts` | 확장 | `evidence.evidenceType`/`evidence.scope` 컬럼(§6, 2차 revision) |
 | `db/migrations/` | 신규 | `evidenceType`/`scope` 컬럼 마이그레이션 파일 |

@@ -2,7 +2,7 @@
 
 ## §A. 개요
 
-각 AC는 정확히 1개의 `REQ-RESEARCH-XXX`를 검증한다(1:1 추적성 — §D 커버리지 매트릭스 참고). 모든 AC는 이진(binary) 판정 가능하도록 작성했으며, "판단형" 문구(예: "적절히", "충분히") 대신 관측 가능한 명령/출력/타입 조건으로 표현했다.
+각 AC는 원칙적으로 정확히 1개의 `REQ-RESEARCH-XXX`를 검증한다(1:1 추적성 — §D 커버리지 매트릭스 참고). 예외적으로 `AC-RESEARCH-009`(REQ-RESEARCH-009+015, 동일한 Gemini SDK confinement 경계를 import 금지/타입 노출 금지 두 각도에서 함께 검증)와 `AC-RESEARCH-024`(REQ-RESEARCH-011+024, 동일한 E2E 결정론적 provider 게이트를 하나의 실행으로 함께 검증)는 밀접하게 결합된 REQ 2개를 하나의 binary 테스트로 검증한다 — 두 예외 모두 §D 매트릭스에 근거가 명시되어 있다. 모든 AC는 이진(binary) 판정 가능하도록 작성했으며, "판단형" 문구(예: "적절히", "충분히") 대신 관측 가능한 명령/출력/타입 조건으로 표현했다.
 
 ## §B. AC 매트릭스 (Given-When-Then)
 
@@ -89,12 +89,22 @@
 **AC-RESEARCH-016** (REQ-RESEARCH-018)
 - Given: 특정 요양급여내역상 기왕증을 시사하는 `incidentDescription`을 가진 사건에 대해 생성된 `DraftFinding[]`와, 그 사건에 대해 `retrieveEvidence()`가 실제로 반환한 `evidenceMap`
 - When: `challenge(findings, evidenceMap, provider)`를 호출한다
-- Then: 반환된 `Challenge[]`의 `counterArgument` 문자열 중 최소 1건이 finding의 `summary`와 다른 텍스트이며(단순 재진술이 아님을 문자열 비교로 확인), 반론이 다루는 화제 키워드(기왕증/퇴행성/인과관계/약관/자료부족/사고이전 6종 중 하나)가 포함된다. 그리고 각 `Challenge`의 `supportingEvidenceIds`/`counterEvidenceIds`가 존재하는 경우(빈 배열이 아닌 경우) 그 안의 모든 evidence ID는 `evidenceMap`에 포함된 evidence ID 집합의 부분집합이다(전달되지 않은 임의 ID는 하나도 등장하지 않음; 빈 배열은 허용됨).
+- Then: 반환된 `Challenge[]`의 `counterArgument` 문자열 중 최소 1건이 finding의 `summary`와 다른 텍스트이며(단순 재진술이 아님을 문자열 비교로 확인), 반론이 다루는 화제 키워드(기왕증/퇴행성/인과관계/약관/자료부족/사고이전 6종 중 하나)가 포함된다. 그리고 각 `Challenge`의 `supportingEvidenceIds`/`counterEvidenceIds`가 존재하는 경우(빈 배열이 아닌 경우) 그 안의 모든 evidence ID는 `evidenceMap`에 포함된 evidence ID 집합의 부분집합이다(전달되지 않은 임의 ID는 하나도 등장하지 않음; 빈 배열은 허용됨). 또한 반환된 각 `Challenge.findingId`는 그것이 생성된 finding의 `queryId`와 정확히 일치해야 한다(`challenge()` 루프 내부에서 코드로 부여됨 — `buildChallengeSchema()`의 LLM 검증 대상 구조화 출력 스키마에는 `findingId` 필드가 없음을 확인하고, 테스트에서 `Challenge.findingId`와 `finding.queryId` 간 직접 동등성(equality) 단언으로 검증한다).
 
 **AC-RESEARCH-017** (REQ-RESEARCH-019)
 - Given: 하나는 evidence로 뒷받침되고 하나는 evidence 없이 생성된 두 개의 `DraftFinding`, 그리고 `evidenceMap`에 존재하는 유효한 evidence ID 하나와 `evidenceMap`에 존재하지 않는 위조된 evidence ID 하나를 함께 `supportingEvidenceIds`에 포함한 `Challenge` 1건
-- When: `verify(findings, challenges, evidenceMap, provider)`를 호출한다
+- When: `verify(queries, findings, challenges, evidenceMap, provider)`를 호출한다
 - Then: 반환된 `VerificationResult.verifiedClaims`(3차 revision — `verify()`는 더 이상 배열을 직접 반환하지 않고 `VerificationResult`를 반환한다) 중 evidence로 뒷받침된 claim은 `status: "VERIFIED"`, 뒷받침되지 않는 claim은 `status: "INSUFFICIENT"`로 나타난다. 위조된 evidence ID를 포함했던 `Challenge`에 대응하는 `VerifiedClaim.counterArguments`(`VerifiedCounterArgument[]` — 3차 revision)에는 그 위조 ID가 `supportingEvidenceIds`/`counterEvidenceIds` 어디에도 나타나지 않고, 반대로 유효했던(위조되지 않은) evidence ID는 소실되지 않고 해당 `VerifiedCounterArgument.supportingEvidenceIds`에 그대로 보존된다(Skeptic이 제시한 evidence ID를 Verifier가 재검증하면서도, 검증을 통과한 ID는 구조화된 형태로 최종 결과까지 유지됨을 확인).
+
+**AC-RESEARCH-019a** (REQ-RESEARCH-019, 확장 — evidence 0건)
+- Given: 사건의 모든 `ResearchQuery`에 대해 매칭되는 evidence가 0건인 상황(evidence map이 각 query.id에 대해 빈 배열을 반환)
+- When: `research(queries, emptyEvidenceMap, provider)`를 실행해(그 결과 `findings`가 비어 있거나 query 개수보다 적게 생성됨) 그 `findings`와 원본 `queries`를 함께 `verify(queries, findings, [], emptyEvidenceMap, provider)`에 전달한다
+- Then: 반환된 `VerificationResult.missingMaterials`에 원본 query 개수만큼의 항목이 존재하며, 각 항목의 `relatedIssueType`이 대응하는 `ResearchQuery.issueType`과 정확히 일치하고, `uncertainty`에 항목당 최소 1개의 사유가 기록된다.
+
+**AC-RESEARCH-019b** (REQ-RESEARCH-019, 확장 — structured validation 실패)
+- Given: 정확히 하나의 `ResearchQuery`에 대해서만 `generateStructured()`가 `{ ok: false, reason: "schema_validation_failed" }`를 반환하도록 설정된 fake provider(다른 query는 모두 정상 성공)
+- When: `research()`를 실행하고, 그 `findings`와 원본 `queries`를 `verify(queries, findings, challenges, evidenceMap, provider)`에 전달한다
+- Then: 실패한 query는 `findings`에 대응 항목이 없고, `verify()`는 query↔finding 대조를 통해 이를 감지해 그 query의 `issueType`을 담은 `missingMaterials` 항목 하나를 추가하며, 나머지(성공한) query들은 정상적인 VERIFIED/INSUFFICIENT 흐름을 그대로 거친다.
 
 **AC-RESEARCH-018** (REQ-RESEARCH-020)
 - Given: `finding.supportingEvidenceIds`에 존재하지 않는 evidence ID가 섞여 있는 입력
@@ -114,7 +124,7 @@
 **AC-RESEARCH-021** (REQ-RESEARCH-023)
 - Given: `runPipeline()`이 반환한 임의의 `ResearchReport`
 - When: 반환값의 타입과 키를 검사한다
-- Then: `caseSummary`/`reviewTargets`/`verifiedClaims`/`missingMaterials`/`uncertainty`/`generatedAt` 6개 키가 모두 존재하며, TypeScript 컴파일이 이 구조에 대해 오류 없이 통과한다.
+- Then: `caseSummary`/`reviewTargets`/`verifiedClaims`/`missingMaterials`/`uncertainty`/`generatedAt` 6개 키가 모두 존재하며, TypeScript 컴파일이 이 구조에 대해 오류 없이 통과한다. 또한 `verifiedClaims`의 각 원소가 `VerifiedCounterArgument[]` 형태의 `counterArguments` 필드를 가지며, 그 배열의 각 원소가 `summary: string`/`supportingEvidenceIds: string[]`/`counterEvidenceIds: string[]`를 모두 포함하는지 TypeScript 컴파일(design.md §8 타입 대비) 및 런타임 shape 검사(단위 테스트)로 확인한다.
 
 **AC-RESEARCH-022** (REQ-RESEARCH-024)
 - Given: `sourceUrl`이 존재하는 evidence를 근거로 갖는 `VerifiedClaim`을 포함한 리포트를 렌더링하는 사건 상세 화면
@@ -138,7 +148,7 @@
 
 ## §C. 엣지 케이스
 
-- 모든 `ResearchQuery`에 대해 매칭되는 evidence가 0건인 사건(빈 evidence DB) — Researcher가 예외 없이 전 쿼리를 `INSUFFICIENT`로 처리하고, `missingMaterials`가 채워지는지 확인.
+- 모든 `ResearchQuery`에 대해 매칭되는 evidence가 0건인 사건(빈 evidence DB) → AC-RESEARCH-019a로 승격되어 고정됨(§B 참고) — Researcher가 해당 query에 대한 finding을 생성하지 않고, `missingMaterials`가 원본 query 전부를 커버하는지는 AC-RESEARCH-019a가 검증한다.
 - `generateStructured()`가 JSON 파싱조차 실패하는 완전히 깨진 응답을 반환하는 경우 — `{ ok: false, reason: "invalid_json" }` 분기가 예외를 던지지 않고 안전하게 처리되는지 확인.
 - Gemini 429 응답이 `generateStructured()` 호출 중 발생하는 경우 — 기존 `generate()`의 지수 백오프 재시도가 동일하게 적용되는지 확인.
 - `NormalizedCase`가 상해/질병 두 도메인 중 한쪽 정보만 강하게 시사하는 사건(예: `diagnosisName`이 명확하지 않은 순수 외상 사건) — QueryPlanner가 두 도메인 모두에 대해 여전히 최소 쿼리를 생성하는지, 아니면 한쪽만 생성하는지가 REQ-RESEARCH-002 범위 내에서 명확히 테스트로 고정되어 있는지 확인.
@@ -162,10 +172,11 @@
 | REQ-RESEARCH-012 | AC-RESEARCH-011a, AC-RESEARCH-011b |
 | REQ-RESEARCH-013 | AC-RESEARCH-012 |
 | REQ-RESEARCH-014 | AC-RESEARCH-013 |
+| REQ-RESEARCH-015 | AC-RESEARCH-009 |
 | REQ-RESEARCH-016 | AC-RESEARCH-014 |
 | REQ-RESEARCH-017 | AC-RESEARCH-015 |
 | REQ-RESEARCH-018 | AC-RESEARCH-016 |
-| REQ-RESEARCH-019 | AC-RESEARCH-017 |
+| REQ-RESEARCH-019 | AC-RESEARCH-017, AC-RESEARCH-019a, AC-RESEARCH-019b |
 | REQ-RESEARCH-020 | AC-RESEARCH-018 |
 | REQ-RESEARCH-021 | AC-RESEARCH-019 |
 | REQ-RESEARCH-022 | AC-RESEARCH-020 |
