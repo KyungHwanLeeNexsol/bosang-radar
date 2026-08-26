@@ -158,8 +158,18 @@ describe("lib/pipeline/evidence-retriever retrieveEvidence (REQ-RESEARCH-004~007
 
   it("여러 쿼리를 전달하면 각 query.id별로 독립된 evidence 배열을 반환한다", async () => {
     const rows = [
-      makeRow({ id: "e-injury", category: "상해후유장해", title: "발목 장해", content: "발목 장해" }),
-      makeRow({ id: "e-disease", category: "질병후유장해", title: "진단 확정", content: "진단 확정" }),
+      makeRow({
+        id: "e-injury",
+        category: "상해후유장해",
+        title: "발목 장해",
+        content: "발목 장해",
+      }),
+      makeRow({
+        id: "e-disease",
+        category: "질병후유장해",
+        title: "진단 확정",
+        content: "진단 확정",
+      }),
     ];
     const injuryQuery = makeQuery({
       id: "q-injury",

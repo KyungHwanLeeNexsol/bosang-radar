@@ -40,7 +40,11 @@ describe("lib/pipeline/query-planner planQueries (REQ-RESEARCH-002/003/010)", ()
     const injuryQueries = queries.filter((query) => query.domain === "INJURY_DISABILITY");
     const diseaseQueries = queries.filter((query) => query.domain === "DISEASE_DISABILITY");
 
-    for (const issueType of ["DISABILITY_LOCATION", "DISABILITY_GRADE_CRITERIA", "CAUSATION"] as const) {
+    for (const issueType of [
+      "DISABILITY_LOCATION",
+      "DISABILITY_GRADE_CRITERIA",
+      "CAUSATION",
+    ] as const) {
       expect(injuryQueries.some((query) => query.issueType === issueType)).toBe(true);
     }
     for (const issueType of ["DIAGNOSIS", "DISABILITY_GRADE_CRITERIA", "CAUSATION"] as const) {
@@ -88,7 +92,9 @@ describe("lib/pipeline/query-planner planQueries (REQ-RESEARCH-002/003/010)", ()
     const baselineQueries = planQueries(normalizedCase);
 
     expect(queries.some((query) => query.issueType === "PRE_EXISTING_CONDITION")).toBe(true);
-    expect(baselineQueries.some((query) => query.issueType === "PRE_EXISTING_CONDITION")).toBe(false);
+    expect(baselineQueries.some((query) => query.issueType === "PRE_EXISTING_CONDITION")).toBe(
+      false
+    );
     expect(queries.length).toBeGreaterThan(baselineQueries.length);
   });
 });

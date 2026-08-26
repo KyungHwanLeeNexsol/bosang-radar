@@ -87,46 +87,58 @@ export function planQueries(normalizedCase: NormalizedCase): ResearchQuery[] {
         focus,
         "장해 평가 기준",
       ]),
-      buildQuery(domain, "CAUSATION", `${topicPrefix} 인과관계 쟁점 검토`, focus, [focus, "인과관계"])
+      buildQuery(domain, "CAUSATION", `${topicPrefix} 인과관계 쟁점 검토`, focus, [
+        focus,
+        "인과관계",
+      ])
     );
 
     // 이하 4개는 사건 텍스트의 키워드/길이 신호로 조건부 추가한다(design.md §5)
     if (includesAny(combinedText, PRE_EXISTING_CONDITION_KEYWORDS)) {
       queries.push(
-        buildQuery(domain, "PRE_EXISTING_CONDITION", `${topicPrefix} 기왕증·퇴행성 가능성 검토`, focus, [
+        buildQuery(
+          domain,
+          "PRE_EXISTING_CONDITION",
+          `${topicPrefix} 기왕증·퇴행성 가능성 검토`,
           focus,
-          "기왕증",
-          "퇴행성",
-        ])
+          [focus, "기왕증", "퇴행성"]
+        )
       );
     }
 
     if (includesAny(combinedText, INJURY_DISEASE_RELATION_KEYWORDS)) {
       queries.push(
-        buildQuery(domain, "INJURY_DISEASE_RELATION", `${topicPrefix} 상해·질병 관련성 검토`, focus, [
+        buildQuery(
+          domain,
+          "INJURY_DISEASE_RELATION",
+          `${topicPrefix} 상해·질병 관련성 검토`,
           focus,
-          "상해",
-          "질병",
-          "관련성",
-        ])
+          [focus, "상해", "질병", "관련성"]
+        )
       );
     }
 
     if (incidentDescription.length >= INCIDENT_CIRCUMSTANCE_MIN_LENGTH) {
       queries.push(
-        buildQuery(domain, "INCIDENT_CIRCUMSTANCE", `${topicPrefix} 사고 경위 검토`, incidentDescription, [
-          focus,
-          "사고 경위",
-        ])
+        buildQuery(
+          domain,
+          "INCIDENT_CIRCUMSTANCE",
+          `${topicPrefix} 사고 경위 검토`,
+          incidentDescription,
+          [focus, "사고 경위"]
+        )
       );
     }
 
     if (includesAny(combinedText, ADDITIONAL_CONFIRMATION_KEYWORDS)) {
       queries.push(
-        buildQuery(domain, "ADDITIONAL_CONFIRMATION_NEEDED", `${topicPrefix} 추가 확인 필요 조건 검토`, focus, [
+        buildQuery(
+          domain,
+          "ADDITIONAL_CONFIRMATION_NEEDED",
+          `${topicPrefix} 추가 확인 필요 조건 검토`,
           focus,
-          "추가 확인",
-        ])
+          [focus, "추가 확인"]
+        )
       );
     }
   }

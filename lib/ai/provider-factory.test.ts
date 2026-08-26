@@ -21,7 +21,9 @@ describe("lib/ai/provider-factory getLLMProvider (SPEC-RESEARCH-001 M2, design.m
   it("LLM_PROVIDER_MODE가 deterministic이면 결정론적 provider를 반환한다", async () => {
     const { getLLMProvider } = await import("./provider-factory");
 
-    const provider = getLLMProvider({ LLM_PROVIDER_MODE: "deterministic" } as unknown as NodeJS.ProcessEnv);
+    const provider = getLLMProvider({
+      LLM_PROVIDER_MODE: "deterministic",
+    } as unknown as NodeJS.ProcessEnv);
     const result = await provider.generate({ prompt: "질의" });
 
     expect(result.text).toBe("[deterministic] 질의");

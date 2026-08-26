@@ -46,7 +46,8 @@ const VAR_INFO: Record<string, VarInfo> = {
     howToObtain: "8자 이상의 값을 설정하세요.",
   },
   GEMINI_API_KEY: {
-    reason: "Researcher/Skeptic/Verifier가 실제 리서치 소견을 생성하는 데 필요한 Gemini API 키입니다.",
+    reason:
+      "Researcher/Skeptic/Verifier가 실제 리서치 소견을 생성하는 데 필요한 Gemini API 키입니다.",
     howToObtain: "Google AI Studio(aistudio.google.com)에서 발급받으세요.",
   },
 };
