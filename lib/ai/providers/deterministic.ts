@@ -77,6 +77,27 @@ function structuredFixturesForPrompt(prompt: string): readonly unknown[] {
   ];
 }
 
+// Verifier(Fix-B)의 의미 검증 스키마는 위 두 형태와 다르다 — DraftFinding/
+// Challenge 형태의 단일 object가 아니라 SemanticVerificationItem[] 배열이고,
+// 각 항목은 verifier.ts가 프롬프트에 "쿼리 ID: <id>" 형태로 고정 임베딩하는
+// candidate queryId 하나에 대응해야 한다(verifier.ts의 .refine() 1:1 대응
+// 요구사항). 이 함수는 그 줄들을 정규식으로 추출해, 추출된 candidate
+// queryId 각각에 대해 결정론적 "happy path"(supported: true) 항목 하나씩을
+// 만든다 — E2E가 결정론적 provider로도 최소 하나의 실제 VERIFIED claim을
+// 볼 수 있게 하기 위함이다(파이프라인의 의도된 데모 동작).
+function extractQueryIdsFromSemanticPrompt(prompt: string): string[] {
+  const matches = prompt.matchAll(/^쿼리 ID: (.+)$/gm);
+  return Array.from(matches, (match) => match[1].trim());
+}
+
+function semanticVerificationFixture(queryIds: readonly string[]): unknown {
+  return queryIds.map((queryId) => ({
+    queryId,
+    supported: true,
+    reason: "[deterministic] 결정론적 고정 판단(관련성 확인됨)입니다.",
+  }));
+}
+
 export function createDeterministicLLMProvider(): LLMProvider {
   return {
     async generate(request: GenerateRequest): Promise<GenerateResponse> {
@@ -86,6 +107,17 @@ export function createDeterministicLLMProvider(): LLMProvider {
     async generateStructured<T>(
       request: GenerateStructuredRequest<T>
     ): Promise<StructuredResult<T>> {
+      const semanticQueryIds = extractQueryIdsFromSemanticPrompt(request.prompt);
+      if (semanticQueryIds.length > 0) {
+        const fixture = semanticVerificationFixture(semanticQueryIds);
+        const result = request.schema.safeParse(fixture);
+        if (result.success) {
+          return { ok: true, data: result.data };
+        }
+        // 프롬프트 형식 가정이 어긋난 경우(예: 다른 schema 형태) — 아래
+        // 기존 small-candidate-set 폴백 동작으로 견고성을 유지한다.
+      }
+
       const candidates = structuredFixturesForPrompt(request.prompt);
       for (const candidate of candidates) {
         const result = request.schema.safeParse(candidate);
