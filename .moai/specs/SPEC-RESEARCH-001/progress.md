@@ -62,17 +62,30 @@ M1~M6 + 회귀 정합화, 총 8개 커밋으로 `feat/SPEC-RESEARCH-001` 브랜�
 
 각 마일스톤은 orchestrator가 커밋 직후 독립적으로 재검증(테스트 재실행, 코드 직접 열람)했다 — 서브에이전트 자기보고를 그대로 신뢰하지 않았다.
 
+### 코드 리뷰 발견 merge-blocking 결함 + post-run fix (M1~M6 이후, 별도 SPEC 없이 동일 SPEC에서 처리)
+
+M1~M6 구현이 push된 뒤 진행된 코드 리뷰에서 6건의 결함(P0 3건/P1 2건/조사 1건)이 발견되어, 사용자 지시에 따라 새 SPEC을 만들지 않고 이 SPEC의 post-run fix로 처리했다. `/moai sync`는 아직 실행하지 않는다(사용자 명시적 지시).
+
+| 항목 | 커밋 | 요지 |
+|---|---|---|
+| Fix-A (P0) | `d03a00d` | 신규 `lib/pipeline/safety-validator.ts` — 보험금 지급확정/반드시 지급/숫자%·확률/근거없는 액수 확정 표현을 정규식으로 차단하는 공용 validator. `researcher.ts`의 structured 결과에 적용해, 금지 표현이 감지된 finding은 억지로 만들지 않고 건너뛴다(기존 evidence-부재/구조검증실패 경로와 동일). adversarial fixture("보험금 지급 확률은 95%입니다." 등)로 직접 검증. |
+| Fix-B (P0, **가장 중요한 결함**) | `888f8e8` | `verifier.ts`가 `provider`를 인자로 받고도 `void provider`로 버린 채 evidence-ID **존재 여부만** 검사하던 결함 — 실존하지만 무관한 evidence 하나만 인용해도 VERIFIED가 되던 구조를 수정. 기존 구조적 evidence-ID 검증은 그대로 유지한 위에, 사건당 1회 배치 structured call로 LLM 기반 의미 검증(evidence 내용이 claim을 실제로 뒷받침하는지)을 추가. `queryId`는 candidate 집합과 정확히 1:1 대응하도록 `.refine()`으로 강제(LLM이 식별자를 지어낼 수 없음 — M5의 `findingId` 원칙과 동일). **구조화 호출 자체가 실패하면 fail-open하지 않고 해당 배치 전체를 INSUFFICIENT로 처리**(명시적 요구사항, 코드로 직접 확인). safety-validator를 최종 출력(claim summary + counterArguments summary)에도 defense-in-depth로 재적용. |
+| Fix-C (P0+P1) | `ffb9695`, `f60c2c6`(포맷) | `page.tsx`에서 `VerifiedClaim.status`가 전혀 표시되지 않아 VERIFIED/INSUFFICIENT가 화면상 구분 불가능했던 결함 수정 — "근거 확인"/"판단 불충분" 배지 추가(`data-testid="claim-status"`). `report.uncertainty`를 위한 별도 섹션("판단 불충분 사유", `data-testid="uncertainty"`) 신설. `VerifiedCounterArgument`의 `supportingEvidenceIds`/`counterEvidenceIds`가 UI에서 무시되던 것을 claim과 동일한 `evidenceById`로 표시("뒷받침 근거"/"반박 근거"). **잔여 위험**: 결정론적 E2E 픽스처는 항상 `supported: true`를 반환해 INSUFFICIENT 배지 경로가 E2E DOM에서는 실제로 노출되지 않음(unit 테스트에서는 verifier.ts 레벨로 이미 커버됨) — 정직하게 기록된 gap, 조작된 테스트 아님. |
+| Fix-D (P1) | `f773e39` | `db/seed/evidence.json`의 seed-evidence-006/009가 `evidenceType: DISPUTE_CASE`였으나 본문 자체가 "특정 분쟁조정 결정례를 인용한 것이 아니다"라고 명시하고 있어 실제 유형과 라벨이 불일치 — `OTHER`로 하향 정정(design.md §6 소싱 규율 재적용, 내용은 그대로 유지). |
+| 항목 6 (조사, 코드 변경 없음) | — | 레거시 report(`claims` 기반) 호환성 — `.env.local`이 이 프로젝트에 아예 존재하지 않고(`.env.local.example`만 존재), product.md/tech.md 상 배포(Vercel)도 아직 로드맵 단계로 확인되어, **보존해야 할 실제 프로덕션 DB 데이터가 없는 개발 단계**로 판단했다. 어댑터/마이그레이션을 추가하지 않고, 이 사실을 여기 명시하는 것으로 대체한다: **이 SPEC 이전에 생성된 `reports` row가 실제로 존재한다면, `page.tsx`가 그 row의 `content`에서 `reviewTargets`/`verifiedClaims`(신 shape)를 찾지 못해 런타임 오류가 날 수 있다 — 배포 전 DB reset(또는 해당 테이블 truncate)이 전제다.** |
+
+**최종 5종 게이트(AC-RESEARCH-023/024/025) 결과 — orchestrator가 위 fix 전부 반영 후 독립 재실행으로 확인**(M6 시점 결과를 대체):
+- `pnpm test`: exit 0, 36/36 파일·191/191 테스트 통과
+- `pnpm lint`: exit 0
+- `pnpm format:check`: exit 0 (1건 발견 즉시 정정 — `f60c2c6`)
+- `pnpm build`: exit 0
+- `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow) — `generativelanguage.googleapis.com` 아웃바운드 호출 0건
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-- **최종 5종 게이트(AC-RESEARCH-023/024/025) 결과 — orchestrator 독립 재실행으로 확인**:
-  - `pnpm test`: exit 0, 35/35 파일·174/174 테스트 통과
-  - `pnpm lint`: exit 0
-  - `pnpm format:check`: exit 0
-  - `pnpm build`: exit 0
-  - `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow) — `generativelanguage.googleapis.com` 아웃바운드 호출 0건(M6 자체 확인, 이후 변경 없음)
-- run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태.
-- 미푸시 상태: `feat/SPEC-RESEARCH-001`에 8개 커밋이 로컬에만 존재(git-strategy `mode: manual`, `auto_push: false`에 따라 자동 푸시하지 않음) — 사용자 지시 시 푸시.
-- Next step: 사용자에게 sync-phase(`/moai sync`, 문서화+PR) 진행 여부 확인 대기.
+- run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태이며, **M6 시점에 남아 있던 merge-blocking 결함(Fix-A~D)까지 이번 post-run fix로 전부 해소**되었다. 이전 버전의 "25/25 구현 완료" 기록은 이 갱신으로 대체한다 — M6 완료 시점에는 Verifier가 evidence 내용을 실제로 검증하지 않는 결함이 남아 있었으므로, 그 시점의 "완료" 표현은 부정확했다.
+- 미푸시 상태: `feat/SPEC-RESEARCH-001`에 13개 커밋이 로컬에만 존재(git-strategy `mode: manual`, `auto_push: false`에 따라 자동 푸시하지 않음) — 사용자 지시 시 푸시.
+- Next step: 사용자 지시에 따라 **여기서 정지**. `/moai sync`는 실행하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
