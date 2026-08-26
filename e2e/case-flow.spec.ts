@@ -39,6 +39,14 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     await page.waitForURL(`/cases/${caseId}`);
     await expect(page.getByTestId("case-report")).toBeVisible();
 
+    // 신규 리포트 필드 노출 확인(SPEC-RESEARCH-001 M6, design.md §8) —
+    // reviewTargets/verifiedClaims/missingMaterials 카드가 모두 렌더링된다.
+    // sourceUrl 유무에 따른 evidence 출처 표시 조건부 렌더링은 app/cases/[caseId]/page.tsx의
+    // 정적 로직으로 보장되며(AC-RESEARCH-022), 여기서는 필드 자체의 노출만 확인한다.
+    await expect(page.getByTestId("review-targets")).toBeVisible();
+    await expect(page.getByTestId("verified-claims")).toBeVisible();
+    await expect(page.getByTestId("missing-materials")).toBeVisible();
+
     const { db, close } = connectE2EDb();
     closeDb = close;
     const [tester] = await db
