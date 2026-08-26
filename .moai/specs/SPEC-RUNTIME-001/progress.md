@@ -441,7 +441,23 @@ justification: |
   - 처음 두 차례 실행 시도는 감시망이 아직 작동하지 않는 상태(버그 1·2·3 수정 전)에서 "안 끝나니까"라고 판단한 오케스트레이터가 직접 프로세스 트리를 강제 종료한 것이었다 — 그 결과 관측된 "exit 0"/"exit 255"는 감시망의 결과가 아니라 수동 개입의 인공물이므로 증거로 채택하지 않았다. 그중 한 번은 강제 종료로 `.tmp/e2e.db`가 온전히 정리되지 못해, 다음 실행에서 이전 실행의 낡은 테스터 비밀번호가 남아 "Invalid password"로 3개 테스트가 실패하는 부수 사고가 발생했다 — `.tmp` 디렉터리를 수동 삭제해 복구했다.
   - 세 번째 시도(버그 3·4 수정 전, 즉 킬 로직이 여전히 PowerShell 파싱 오류로 조용히 실패하던 상태)에서 우연히 `4 passed (1.3m)`로 자연 종료된 사례가 1건 있었다 — 로그상 감시망의 킬 시도는 파싱 오류로 실패가 확인되므로, 이는 감시망이 아니라 Playwright 자신의 내부 재시도/타임아웃이 약 80초 만에 스스로 풀린 것으로 추정된다. M7이 관측한 "11분" hang과는 다른 조건(예: 이 세션에 누적된 잔여 프로세스 유무, 시스템 부하)에서 나온 결과로 보이며, teardown 지연이 결정적으로 무한은 아닐 가능성을 시사하지만 그 경계 조건은 이번 조사로 규명되지 않았다 — 자연 종료에만 의존하면 M7의 11분 사례처럼 실패할 수 있으므로, 명시적 킬을 포함한 감시망의 필요성을 오히려 보강한다.
   - CI(Linux 등 비Windows) 환경에서는 감시망 전체가 `process.platform !== "win32"`로 비활성화된다 — 그 환경에서 teardown hang이 애초에 재현되는지는 이 세션에서도 실측 기회가 없었다(M5/M7과 동일한 기존 Gap 유지).
-- Residual-risk: (1) 감시망의 타이밍 상수(결과 수집 유예 10초 / 최후 안전판 90초 / 절대 폴백 5분)는 이번 세션 2회 실행(27~29초 내 해소)을 근거로 한 값이며, 시스템 부하가 더 큰 환경에서는 재조정이 필요할 수 있다. (2) 명령줄 패턴 기반 강제 종료는 이 프로젝트 트리 밖의 무관한 프로세스를 잘못 죽일 위험을 구조적으로 완전히 배제하지는 못한다 — "next dev" 오탐 사례처럼, "next" 바로 뒤에 "start"/"build"가 오는 다른 무관한 프로젝트가 동시에 실행 중이면 여전히 오탐 가능성이 남는다(작업 디렉터리·프로젝트 경로까지 대조하는 정밀화는 이번 범위에서는 과설계로 보류). (3) `kill -9`류 강제 종료 시 `.env.local` 복원이 안 되는 기존 잔여 위험(design.md §3.6)은 이번 수정과 무관하게 그대로 남아있다.
+- Residual-risk: (1) 감시망의 타이밍 상수(결과 수집 유예 10초 / 최후 안전판 90초 / 절대 폴백 5분)는 이번 세션 2회 실행(27~29초 내 해소)을 근거로 한 값이며, 시스템 부하가 더 큰 환경에서는 재조정이 필요할 수 있다. (2) **[아래 M7 후속 2차에서 해소]** 명령줄 패턴 기반 강제 종료는 이 프로젝트 트리 밖의 무관한 프로세스를 잘못 죽일 위험을 구조적으로 완전히 배제하지는 못한다 — "next dev" 오탐 사례처럼, "next" 바로 뒤에 "start"/"build"가 오는 다른 무관한 프로젝트가 동시에 실행 중이면 여전히 오탐 가능성이 남는다. (3) `kill -9`류 강제 종료 시 `.env.local` 복원이 안 되는 기존 잔여 위험(design.md §3.6)은 이번 수정과 무관하게 그대로 남아있다.
+
+### M7 후속 2차 — 최종 코드 리뷰 반영: 감시망 범위 축소 + 결과 감지 정밀화 (완료)
+
+**배경**: M7 후속이 남긴 residual-risk (2)에 대해, 최종 코드 리뷰에서 실제로 지적이 들어왔다 — `killOrphanedWebServer()`의 명령줄 패턴 탐색($byCmd)이 **PC 전체 프로세스**를 대상으로 하므로, 이 세션과 무관하게 동시에 실행 중인 다른 Next.js 프로젝트의 서버까지 죽일 수 있는 전역 부작용이라는 지적이었다(P0). 함께 지적된 P1은 `PLAYWRIGHT_RESULT_MARK_RE = /[✓✔✘✗]/`가 줄 안 어디든 마크 문자 하나만 있으면 매칭되어, 앱 자신의 로그에 섞인 체크마크를 테스트 결과로 오인할 수 있다는 정밀도 문제였다.
+
+**P0 수정**: `killOrphanedWebServer()`에서 명령줄 전역 검색 경로($byCmd)를 완전히 제거했다. 이제 `Get-NetTCPConnection -LocalPort <E2E_PORT> -State Listen`으로 **E2E_PORT를 점유한 프로세스만** 찾아 종료한다 — progress.md 최초 M7 실측(§E.2 M7, "해당 PID만 kill하면 사슬 전체가 즉시 풀리며 exit 0")이 이미 이 범위만으로 충분함을 보여줬으므로, 그 범위로 되돌렸다. 포트 PID 종료만으로 실제로 안 풀리는 경우가 재현되면(아직 재현된 적 없음), PC 전체가 아니라 `spawnPlaywrightRunner()`가 spawn한 Playwright 러너 child의 PID/자식 트리만 대상으로 하는 스코프된 cleanup으로 확장하기로 코드 주석에 명시해 두었다(YAGNI — 지금은 구현하지 않음).
+
+**P1 수정**: `PLAYWRIGHT_RESULT_MARK_RE`를 `/^\s*[✓✔✘✗]\s+\d+\s+\[/`로 좁혔다 — Playwright list 리포터의 실제 결과 줄 형태(줄 시작 공백 허용 + 마크 + 테스트 번호 + `[project]`)를 통째로 앵커링해, 그 모양이 아닌 줄(앱 로그의 체크마크 등)은 매칭하지 않는다. 또한 grace 타이머 시작 조건을 `seenResultCount >= expectedResultCount`(이상)에서 `seenResultCount === expectedResultCount`(정확히 일치)로 좁혔다 — 혹시라도 결과 줄이 중복 매칭되면 grace 타이머가 걸리지 않고 대신 `ABSOLUTE_FALLBACK_MS`(5분) 안전판이 처리하도록, 이른 오판보다 늦은 안전한 판정을 택했다.
+
+**§E items**:
+
+- Claim: 축소된 감시망(포트 PID 단독)으로도 `pnpm test:e2e`가 여전히 hands-off exit 0으로 자동 종료한다.
+  Evidence: 최종 수정본으로 **격리된(다른 명령과 동시 실행하지 않은) hands-off 실행 2회** — 1회차 verbatim `4 passed (46.0s)` → `EXITCODE=0` → `[exited with code 0]`, 2회차 verbatim `4 passed (37.5s)` → `EXITCODE=0` → `[exited with code 0]`.
+  Baseline-attribution: 이 M7 후속 2차 커밋 트리, 이 2회 실행.
+- Gaps (정직하게 기록 — 이번에도 오염된 시도가 있었다): 위 2회 격리 실행 사이에, 오케스트레이터가 실수로 `pnpm test:e2e`를 `pnpm test`(Vitest, `scripts/run-e2e.test.ts` 포함 — 이 파일도 같은 `.tmp/e2e.db` 경로를 씀)와 **동시에** 실행했다. 그 결과 두 프로세스가 같은 DB 파일을 서로 다른 시크릿으로 리셋·재시딩하면서 경합해, E2E 4개 시나리오 중 3개가 "Invalid password"/타임아웃으로 실패했다(exit 1) — 이는 감시망이나 P0/P1 수정의 결함이 아니라 오케스트레이터가 병렬 실행 시 `.tmp/e2e.db` 공유를 고려하지 않은 실행 실수였다. `.tmp` 디렉터리를 삭제하고 완전히 격리된 상태에서 재실행해 정상 결과를 확인했다.
+- Residual-risk: (신규) `scripts/run-e2e.test.ts`(Vitest)와 `scripts/run-e2e.ts`(`pnpm test:e2e`)가 `.tmp/e2e.db` 경로를 공유한다 — `pnpm test`와 `pnpm test:e2e`를 동시에 실행하면 위 Gaps에서 관측한 것과 같은 경합이 재현될 수 있다. 이번 SPEC 범위 밖(테스트 격리 설계 변경이 필요)이므로 수정하지 않았으나, 운영자/CI는 두 명령을 동시에 실행하지 않아야 한다는 사실을 기록해 둔다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -489,13 +505,20 @@ milestones:
     verified_by_orchestrator: true   # 오케스트레이터가 직접 2회 연속 hands-off 재실행, 둘 다 exit 0 확인(위 §E.2 M7 후속 참고)
     ac_runtime_015: PASS   # (1)(2)(3)항 전부 충족 — exit 0 자동 종료 포함
     design_artifacts_changed: false  # design.md/acceptance.md 미변경 — scripts/run-e2e.ts 내부 감시망만 추가
+  - id: M7-followup-2
+    title: 최종 코드 리뷰 반영 — 감시망 범위 축소(포트 PID 단독) + 결과 감지 정밀화
+    commit: pending-backfill-M7-followup-2
+    verified_by_orchestrator: true   # 오케스트레이터가 직접 격리된(동시 실행 없는) hands-off 재실행 2회, 둘 다 exit 0 확인(위 §E.2 M7 후속 2차 참고)
+    ac_runtime_015: PASS   # 축소된 감시망(포트 PID 단독)으로도 전항 충족 유지
+    design_artifacts_changed: false  # design.md/acceptance.md 미변경 — scripts/run-e2e.ts 내부 수정만
+    scope_reduced: true   # killOrphanedWebServer()의 전역 명령줄 검색($byCmd) 제거 — E2E_PORT 리스닝 PID만 대상
 final_gate:
-  pnpm_test: PASS   # M7-followup 재실행: 33 test files, 139 tests, exit 0
-  pnpm_lint: PASS   # M7-followup 재실행: 0 issues, exit 0
-  pnpm_format_check: PASS  # M7-followup 재실행: All matched files use Prettier code style, exit 0
-  pnpm_build: PASS  # M7-followup 재실행: exit 0
-  pnpm_test_e2e: PASS   # 4/4 시나리오 통과 + exit 0 자동 종료, 오케스트레이터가 2회 연속 hands-off 확인 — AC-RUNTIME-015 전항 충족
-next_step: sync 문서(README/CHANGELOG/sync-report) 재동기화 여부 사용자 확인
+  pnpm_test: PASS   # M7-followup-2 재실행: 33 test files, 139 tests, exit 0
+  pnpm_lint: PASS   # M7-followup-2 재실행: 0 issues, exit 0
+  pnpm_format_check: PASS  # M7-followup-2 재실행: All matched files use Prettier code style, exit 0
+  pnpm_build: PASS  # M7-followup-2 재실행: exit 0
+  pnpm_test_e2e: PASS   # 4/4 시나리오 통과 + exit 0 자동 종료(격리 실행 2회: 46.0s / 37.5s) — AC-RUNTIME-015 전항 충족, 축소된 포트-단독 감시망 기준
+next_step: PR #1(plan/SPEC-RUNTIME-001 → main) 제목/본문을 실제 구현 내용으로 갱신
 ```
 
 이번 run-phase는 두 차례의 진짜 블로커를 만났다 — 둘 다 계획에서 예견하지 못했던 실측 발견이었고, 둘 다 `AskUserQuestion`으로 사용자 결정을 거쳐 해소했다. (1) M2에서 SPEC-SCAFFOLD-001이 남긴 스키마/마이그레이션 드리프트(`account.issuer` 컬럼 누락)를 발견 — 보정 마이그레이션 1건 + AC-RUNTIME-017 문구의 좁은 예외(plan revision v0.5.0)로 해소했다. (2) M5에서 포트 3000이 이 세션과 무관한 다른 프로젝트에 점유되어 있음을 발견 — E2E 포트를 실행 시점 동적 탐색으로 바꿔 근본적으로 같은 충돌 클래스를 제거했다. 두 사안 모두 SPEC 자신의 설계 결함이 아니라 외부 요인(선행 SPEC의 잔여 결함, 무관한 프로세스와의 우연한 충돌)이었다.

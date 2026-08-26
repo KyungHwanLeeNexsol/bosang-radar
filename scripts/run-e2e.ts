@@ -133,10 +133,10 @@ interface RunPlaywrightResult {
 
 // progress.md M7이 확정한 근본 원인(Windows): Playwright가 webServer로 띄운
 // `next start`가 테스트 종료 후에도 종료되지 않고 고아 프로세스로 남아,
-// pnpm test:e2e 전체가 무기한 hang한다 — 해당 PID만 수동으로 죽이면 즉시
-// exit 0으로 풀리는 것까지 실측 확인됐다(design.md §3.3/§3.4의 프로세스
-// 계보·시크릿 상속 구조는 그대로 두는 최소 개입). 이 함수는 그 PID를
-// 찾아 강제 종료하는 감시망의 마지막 조치다.
+// pnpm test:e2e 전체가 무기한 hang한다 — E2E_PORT를 점유한 그 PID **하나만**
+// 수동으로 죽이면 즉시 exit 0으로 풀리는 것까지 실측 확인됐다(design.md
+// §3.3/§3.4의 프로세스 계보·시크릿 상속 구조는 그대로 두는 최소 개입).
+// 이 함수는 그 PID를 찾아 강제 종료하는 감시망의 마지막 조치다.
 //
 // [실측, 2026-08-26] 이 프로젝트를 실행하는 셸 환경의 PATH에
 // `C:\Windows\System32`가 빠져 있어(Git Bash 기본 PATH의 알려진 특성),
@@ -146,15 +146,22 @@ interface RunPlaywrightResult {
 // 실행 파일은 `%SystemRoot%` 기준 절대 경로로 지정하고, 포트 조회·프로세스
 // 종료는 외부 exe(`netstat`/`taskkill`) 대신 PowerShell 내장 명령
 // (`Get-NetTCPConnection`/`Stop-Process`)만으로 스크립트 하나에서 처리한다
-// — 부모 셸의 PATH 구성에 좌우되지 않는다. 포트 기반 탐색에 더해, 이미
-// 자식을 잃고 빈 채로 남는 부모 셸(`cmd.exe /c next start`)까지 잡기 위해
-// 명령줄 패턴 탐색도 같은 스크립트에서 함께 수행한다. 패턴은 "next" 바로
-// 뒤에 "start"/"build"가 오는 형태만 매칭한다(`next" start` 형태 —
-// Windows CommandLine 필드는 실행 파일 경로를 따옴표로 감싸므로 실제로는
-// 사이에 큰따옴표가 낀다) — 단순히 단어 경계로만 검사하면 이 세션과
-// 무관한 다른 프로젝트의 "next dev" 내부 파일명(`start-server.js`)까지
-// 걸려 그 프로세스를 잘못 죽일 뻔했다(실측, scope discipline 위반 방지).
-// "next" 바로 뒤에 오는 토큰만 보는 이 형태는 그 오탐을 만들지 않는다.
+// — 부모 셸의 PATH 구성에 좌우되지 않는다.
+//
+// [범위 제한, 최종 코드 리뷰 반영] 이전 버전은 포트 기반 탐색에 더해 PC
+// 전체 프로세스에서 "next start"/"next build" 명령줄을 검색해 함께
+// 종료했다(부모 셸이 자식을 잃고 빈 채로 남는 경우까지 잡기 위함). 하지만
+// 이는 이 세션과 무관하게 동시에 실행 중인 **다른** Next.js 프로젝트의
+// 서버까지 죽일 수 있는 전역 부작용이었다 — 실제로 다른 프로젝트("next
+// dev")를 오탐해 죽일 뻔한 사례가 조사 중 발견됐었다(단어 경계 정규식의
+// 오탐, 이전 커밋에서 패턴을 좁혀 그 특정 오탐은 막았지만, 전역 검색이라는
+// 위험 자체는 여전히 남아 있었다). progress.md의 최초 실측(M7)은 애초에
+// E2E_PORT를 점유한 PID 하나만 죽여도 충분했다는 사실이었으므로, 이제
+// 그 범위로 되돌린다 — 전역 명령줄 검색($byCmd) 경로는 제거한다.
+// 포트 PID 종료만으로 실제로 안 풀리는 경우가 재현되면, PC 전체가 아니라
+// spawnPlaywrightRunner()가 spawn한 Playwright 러너 child의 PID와 그
+// 자식/관련 프로세스 트리만 대상으로 하는 스코프된 cleanup으로 확장한다
+// — 아직 그 경우가 재현된 적이 없으므로 지금은 구현하지 않는다(YAGNI).
 function resolveWindowsPowerShellPath(): string {
   const systemRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
   return path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -163,14 +170,11 @@ function resolveWindowsPowerShellPath(): string {
 function killOrphanedWebServer(port: number): void {
   if (process.platform !== "win32") return;
   // [실측, 2026-08-26] 배열 항목을 "; "로 이어붙이되 각 항목이 파이프(`|`)로
-  // 끝나면 "...| ; Select-Object..." 형태가 되어 PowerShell이 빈 파이프라인
-  // 요소로 파싱에 실패했다(EmptyPipeElement) — 그래서 이 킬 로직은 지금까지
-  // 한 번도 실제로 실행된 적이 없었다. 각 배열 항목을 파이프 없이 끝나는
-  // 완결된 한 문장으로 작성해 이 문제를 없앤다.
+  // 끝나면 "...| ; foreach..." 형태가 되어 PowerShell이 빈 파이프라인
+  // 요소로 파싱에 실패한다(EmptyPipeElement) — 각 배열 항목은 파이프 없이
+  // 끝나는 완결된 한 문장으로 작성한다.
   const script = [
-    `$byPort = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess`,
-    `$byCmd = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'next["'']?\\s+(start|build)\\b' } | Select-Object -ExpandProperty ProcessId`,
-    "$targets = @($byPort) + @($byCmd) | Where-Object { $_ } | Sort-Object -Unique",
+    `$targets = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | Sort-Object -Unique`,
     "foreach ($procId in $targets) { try { Stop-Process -Id $procId -Force -ErrorAction Stop } catch {} }",
   ].join("; ");
   try {
@@ -195,7 +199,15 @@ function killOrphanedWebServer(port: number): void {
 // 폐기). 그래서 "기대한 결과 수만큼 다 보였다"는 사실 자체를 신호로 삼고,
 // 그 뒤로는 재시작되지 않는 고정 타이머 하나만 건다.
 const PLAYWRIGHT_RUNNING_RE = /^Running (\d+) tests?/;
-const PLAYWRIGHT_RESULT_MARK_RE = /[✓✔✘✗]/;
+// [정밀화, 최종 코드 리뷰 반영] 이전 정규식(`/[✓✔✘✗]/`)은 줄 안 어디든 마크
+// 문자 하나만 있으면 매칭됐다 — 앱 자신의 로그(예: 성공 메시지에 체크마크를
+// 쓰는 코드)가 섞여 나오면 실제 테스트 결과가 아닌데도 세어질 수 있었다.
+// Playwright list 리포터의 실제 결과 줄은 고정된 모양을 갖는다:
+// `  ✓  1 [chromium] › e2e\auth.spec.ts:10:7 › ... (1.0s)` — 줄 시작(공백
+// 허용) 바로 뒤에 마크, 그다음 테스트 번호, 그다음 `[<project>]`가 온다.
+// 이 구조 전체를 앵커링해서 그 모양이 아닌 줄(일반 앱 로그의 체크마크 등)은
+// 매칭하지 않는다.
+const PLAYWRIGHT_RESULT_MARK_RE = /^\s*[✓✔✘✗]\s+\d+\s+\[/;
 // 기대한 결과 수를 다 본 뒤 이만큼 기다렸다가 hang 여부를 판단한다(재시작 없음).
 const RESULTS_COMPLETE_GRACE_MS = 10_000;
 // "Running N tests" 파싱이 실패하는 경우를 위한 절대 안전판(spawn 시점부터).
@@ -281,11 +293,18 @@ function spawnPlaywrightRunner(spawnFn: SpawnFn, port: number): Promise<RunPlayw
       if (
         !resultsCompleteTimerArmed &&
         expectedResultCount !== null &&
-        seenResultCount >= expectedResultCount
+        seenResultCount === expectedResultCount
       ) {
-        // 기대한 결과 수를 다 봤다 — 이후 어떤 추가 출력이 와도 이 타이머는
-        // 다시 걸지 않는다(재시작 없음이 hang 상황에서도 반드시 도달하는 것을
-        // 보장하는 핵심 장치).
+        // 기대한 테스트 수와 실제로 관측된 결과 줄 수가 정확히 일치할 때만
+        // grace 타이머를 시작한다(단순 이상(>=)이 아니라 정확히 일치 —
+        // 최종 코드 리뷰 반영). 결과 줄 정규식이 이제 충분히 좁혀졌으므로
+        // (위 PLAYWRIGHT_RESULT_MARK_RE) seenResultCount가 expectedResultCount를
+        // 초과하는 일은 정상 상황에서 없어야 한다 — 그런데도 초과가 생기면
+        // (알 수 없는 원인으로 결과 줄이 중복 매칭되는 등) 이 조건은 더 이상
+        // 참이 될 수 없으므로 grace 타이머가 걸리지 않고, ABSOLUTE_FALLBACK_MS
+        // 안전판이 대신 처리한다 — 잘못된 이른 판정보다 늦은 안전한 판정을
+        // 택한다. 이후 어떤 추가 출력이 와도 이 타이머는 다시 걸지 않는다
+        // (재시작 없음이 hang 상황에서도 반드시 도달하는 것을 보장하는 핵심 장치).
         resultsCompleteTimerArmed = true;
         const graceTimer = setTimeout(onHangSuspected, RESULTS_COMPLETE_GRACE_MS);
         graceTimer.unref?.();
