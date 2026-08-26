@@ -9,12 +9,12 @@
 **AC-RESEARCH-001** (REQ-RESEARCH-001)
 - Given: `incidentDescription`/`diagnosisName`/`disabilityBodyPart`/`incidentDate`가 모두 채워진 `CaseInput`
 - When: `normalizeCase(input)`을 호출한다
-- Then: 반환된 `NormalizedCase`가 4개 필드를 모두 trim된 상태로 포함하고, 상해후유장해·질병후유장해 두 담보 영역 외의 값을 스코프 밖으로 표시하는 검증 로직이 단위 테스트로 존재한다(범위 밖 입력에 대한 명시적 케이스 최소 1건).
+- Then: 반환된 `NormalizedCase`가 4개 필드를 모두 trim된 상태로 포함한다. CaseNormalizer는 담보 영역 판별·검증 로직을 포함하지 않는다(MVP 담보 제한은 QueryPlanner의 `CoverageDomain` 타입 제약(AC-RESEARCH-002)이 구조적으로 보장하며, CaseNormalizer 계층에서는 별도로 검증하지 않는다 — [REF: design.md §5]).
 
 **AC-RESEARCH-002** (REQ-RESEARCH-002)
 - Given: `diagnosisName`과 `disabilityBodyPart`가 모두 채워진 `NormalizedCase`
 - When: `planQueries(normalizedCase)`를 호출한다
-- Then: 반환된 `ResearchQuery[]`가 최소 6개 이상이며, `issueType` 필드값이 `DISABILITY_LOCATION`/`DIAGNOSIS`/`DISABILITY_GRADE_CRITERIA`/`CAUSATION` 4종을 각 담보 도메인(`domain`)에 대해 최소 1개씩 포함한다.
+- Then: 반환된 `ResearchQuery[]`가 최소 6개이며, `domain: "INJURY_DISABILITY"`인 쿼리 중 `DISABILITY_LOCATION`/`DISABILITY_GRADE_CRITERIA`/`CAUSATION` 3종이 각 최소 1개씩, `domain: "DISEASE_DISABILITY"`인 쿼리 중 `DIAGNOSIS`/`DISABILITY_GRADE_CRITERIA`/`CAUSATION` 3종이 각 최소 1개씩 존재한다(두 도메인 합산 최소 6개 기준선, design.md §5와 정합). 그리고 `CoverageDomain` 타입이 `INJURY_DISABILITY`/`DISEASE_DISABILITY` 2개 리터럴만 허용하는 유니온으로 정의되어 있다(TypeScript 컴파일 통과로 검증).
 
 **AC-RESEARCH-003** (REQ-RESEARCH-003)
 - Given: 임의의 `NormalizedCase`
@@ -27,14 +27,14 @@
 - Then: `db/seed/evidence.json`을 직접 import하는 코드 경로 없이 Drizzle `db.select().from(evidenceTable)` 호출을 거쳐 결과가 반환된다(`lib/pipeline/evidence-retriever.ts`에 `evidence.json` import 문이 존재하지 않음을 grep으로 확인).
 
 **AC-RESEARCH-005** (REQ-RESEARCH-005)
-- Given: 서로 다른 `keywords`를 가진 두 개의 `ResearchQuery`(A, B)와 A/B 각각의 키워드에만 매칭되는 evidence 레코드가 섞인 DB
+- Given: 서로 다른 `keywords`를 가진 두 개의 `ResearchQuery`(A, B)와, A/B 각각의 키워드에만 매칭되는 evidence 레코드들, 그리고 A의 담보 도메인과 `category`는 일치하지만 A/B 어느 키워드와도 매칭되지 않는 `scope: "DOMAIN_SPECIFIC"` evidence 레코드 1건이 섞인 DB
 - When: `retrieveEvidence([A, B])`를 호출한다
-- Then: 반환된 `Map`에서 `result.get(A.id)`와 `result.get(B.id)`가 서로 다른 evidence 부분집합을 반환하며, 어느 쪽에도 매칭되지 않는 evidence는 두 결과 모두에 포함되지 않는다.
+- Then: 반환된 `Map`에서 `result.get(A.id)`와 `result.get(B.id)`가 서로 다른 evidence 부분집합을 반환하고, 어느 쪽 키워드에도 매칭되지 않는 evidence는 두 결과 모두에 포함되지 않으며, 담보 도메인만 일치하고 키워드가 매칭되지 않는 그 evidence 레코드도 두 결과 모두에서 제외된다(카테고리 일치만으로는 포함되지 않음을 확인).
 
 **AC-RESEARCH-006** (REQ-RESEARCH-006)
-- Given: `evidenceType`이 `"PRECEDENT"`로 설정된 evidence 레코드
+- Given: `evidenceType`이 `"PRECEDENT"`이고 `scope`가 `"UNIVERSAL"`로 설정된 evidence 레코드
 - When: 해당 레코드를 `retrieveEvidence()`로 조회한다
-- Then: 반환된 `EvidenceCandidate.evidenceType`이 타입 오류 없이 `"PRECEDENT"`로 유지되며, `EvidenceType` 타입이 `POLICY`/`PRECEDENT`/`DISPUTE_CASE`/`STATUTE`/`OTHER` 5개 리터럴을 모두 허용하는 유니온으로 정의되어 있다(TypeScript 컴파일 통과로 검증).
+- Then: 반환된 `EvidenceCandidate.evidenceType`이 타입 오류 없이 `"PRECEDENT"`로, `EvidenceCandidate.scope`가 `"UNIVERSAL"`로 유지되며, `EvidenceType` 타입이 `POLICY`/`PRECEDENT`/`DISPUTE_CASE`/`STATUTE`/`OTHER` 5개 리터럴을, `EvidenceScope` 타입이 `DOMAIN_SPECIFIC`/`UNIVERSAL` 2개 리터럴을 각각 모두 허용하는 유니온으로 정의되어 있다(TypeScript 컴파일 통과로 검증).
 
 **AC-RESEARCH-007** (REQ-RESEARCH-007)
 - Given: 이 SPEC이 완료된 시점의 `package.json`
@@ -87,14 +87,14 @@
 - Then: `buildFindingSchema()`의 `.refine()` 검증이 실패해 `generateStructured()`가 `{ ok: false, reason: "schema_validation_failed" }`를 반환하고, 해당 finding이 최종 결과에 위조된 ID를 포함한 채로 나타나지 않는다.
 
 **AC-RESEARCH-016** (REQ-RESEARCH-018)
-- Given: 특정 요양급여내역상 기왕증을 시사하는 `incidentDescription`을 가진 사건에 대해 생성된 `DraftFinding[]`
-- When: `challenge(findings, provider)`를 호출한다
-- Then: 반환된 `Challenge[]`의 `counterArgument` 문자열 중 최소 1건이 finding의 `summary`와 다른 텍스트이며(단순 재진술이 아님을 문자열 비교로 확인), 반론이 다루는 화제 키워드(기왕증/퇴행성/인과관계/약관/자료부족/사고이전 6종 중 하나)가 포함된다.
+- Given: 특정 요양급여내역상 기왕증을 시사하는 `incidentDescription`을 가진 사건에 대해 생성된 `DraftFinding[]`와, 그 사건에 대해 `retrieveEvidence()`가 실제로 반환한 `evidenceMap`
+- When: `challenge(findings, evidenceMap, provider)`를 호출한다
+- Then: 반환된 `Challenge[]`의 `counterArgument` 문자열 중 최소 1건이 finding의 `summary`와 다른 텍스트이며(단순 재진술이 아님을 문자열 비교로 확인), 반론이 다루는 화제 키워드(기왕증/퇴행성/인과관계/약관/자료부족/사고이전 6종 중 하나)가 포함된다. 그리고 각 `Challenge`의 `supportingEvidenceIds`/`counterEvidenceIds`가 존재하는 경우(빈 배열이 아닌 경우) 그 안의 모든 evidence ID는 `evidenceMap`에 포함된 evidence ID 집합의 부분집합이다(전달되지 않은 임의 ID는 하나도 등장하지 않음; 빈 배열은 허용됨).
 
 **AC-RESEARCH-017** (REQ-RESEARCH-019)
-- Given: 하나는 evidence로 뒷받침되고 하나는 evidence 없이 생성된 두 개의 `DraftFinding`
+- Given: 하나는 evidence로 뒷받침되고 하나는 evidence 없이 생성된 두 개의 `DraftFinding`, 그리고 `evidenceMap`에 존재하지 않는 위조된 evidence ID를 `supportingEvidenceIds`에 포함한 `Challenge` 1건
 - When: `verify(findings, challenges, evidenceMap, provider)`를 호출한다
-- Then: evidence로 뒷받침된 claim은 `status: "VERIFIED"`, 뒷받침되지 않는 claim은 `status: "INSUFFICIENT"`로 반환된다.
+- Then: evidence로 뒷받침된 claim은 `status: "VERIFIED"`, 뒷받침되지 않는 claim은 `status: "INSUFFICIENT"`로 반환되며, 위조된 evidence ID를 포함했던 `Challenge`의 근거는 최종 결과 어디에도 그 위조 ID를 포함한 채로 노출되지 않는다(Skeptic이 제시한 evidence ID도 Verifier가 재검증함을 확인).
 
 **AC-RESEARCH-018** (REQ-RESEARCH-020)
 - Given: `finding.supportingEvidenceIds`에 존재하지 않는 evidence ID가 섞여 있는 입력
@@ -142,6 +142,8 @@
 - `generateStructured()`가 JSON 파싱조차 실패하는 완전히 깨진 응답을 반환하는 경우 — `{ ok: false, reason: "invalid_json" }` 분기가 예외를 던지지 않고 안전하게 처리되는지 확인.
 - Gemini 429 응답이 `generateStructured()` 호출 중 발생하는 경우 — 기존 `generate()`의 지수 백오프 재시도가 동일하게 적용되는지 확인.
 - `NormalizedCase`가 상해/질병 두 도메인 중 한쪽 정보만 강하게 시사하는 사건(예: `diagnosisName`이 명확하지 않은 순수 외상 사건) — QueryPlanner가 두 도메인 모두에 대해 여전히 최소 쿼리를 생성하는지, 아니면 한쪽만 생성하는지가 REQ-RESEARCH-002 범위 내에서 명확히 테스트로 고정되어 있는지 확인.
+- `planQueries()`가 두 도메인 각각에 대해 도메인에 맞는 위치/진단 이슈타입만 생성하고(예: `INJURY_DISABILITY`에는 `DISABILITY_LOCATION`만 생성되고 `DIAGNOSIS`는 생성되지 않음), 합산 최소 6개 기준선을 만족하는지 — `AC-RESEARCH-002`가 이를 정확히 고정하는지 확인.
+- `evidence.scope`가 `"UNIVERSAL"`이지만 어떤 쿼리 키워드와도 매칭되지 않는 레코드 — 모든 쿼리 결과에서 제외되는지 확인(scope와 무관하게 키워드 관련성이 항상 요구됨을 재확인).
 
 ## §D. REQ ↔ AC 커버리지 매트릭스
 

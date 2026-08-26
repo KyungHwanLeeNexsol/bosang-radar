@@ -1,7 +1,7 @@
 ---
 id: SPEC-RESEARCH-001
 title: "보상레이더 6단계 리서치 파이프라인 evidence-first Gemini 전환"
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 created: 2026-08-26
 updated: 2026-08-26
@@ -18,6 +18,7 @@ depends_on: [SPEC-SCAFFOLD-001, SPEC-RUNTIME-001]
 ## HISTORY
 
 - 2026-08-26: 최초 작성 (Nexsol) — SPEC-SCAFFOLD-001(completed)이 구축한 6단계 mock 파이프라인 타입 계약과 SPEC-RUNTIME-001(completed)이 활성화한 실제 런타임(DB 연결·시드·env 검증·E2E 하네스) 위에서, 각 단계의 mock/trivial 로직을 실제 evidence-first Gemini 기반 리서치 로직으로 교체한다. 현행 코드베이스 실측(`lib/pipeline/*.ts`, `lib/ai/provider.ts`, `lib/ai/providers/gemini.ts`, `lib/env.ts`, `lib/db/schema.ts`, `lib/validation/case-input.ts`, `app/cases/[caseId]/page.tsx`, `scripts/run-e2e.ts`) 기반으로 작성. 근거: `research.md`.
+- 2026-08-26: 2차 plan revision (Nexsol 지시, 8개 항목) — ① Gemini 구조화 출력을 `responseSchema`가 아닌 `responseJsonSchema` 필드로 전달하도록 전환(응답은 여전히 Zod `safeParse`로 재검증, Gemini 세부사항은 adapter 내부에만 격리); ② `research()`/`challenge()`/`verify()` 세 함수 모두에서 provider를 선택적 기본값에서 필수(required) 인자로 전환 — deterministic provider는 `getLLMProvider()` 팩토리(정상 앱 경로)와 테스트/E2E의 명시적 주입에서만 사용되고, provider 생략은 컴파일 오류가 된다; ③ QueryPlanner의 최소 6-쿼리(2도메인×3issueType) 설계를 기준으로 AC-RESEARCH-002의 Then-절을 정합(4issueType×2도메인=8 요구와의 모순 해소); ④ CaseNormalizer의 담보 스코프 검증 책임을 제거하고, MVP 담보 제한을 QueryPlanner의 `CoverageDomain` 타입(2개 리터럴)이 구조적으로 보장하도록 REQ/AC-RESEARCH-001·002를 재작성; ⑤ Skeptic의 반론에 실제 Retriever evidence(evidenceMap)를 연결하고 `Challenge.supportingEvidenceIds`/`counterEvidenceIds`를 evidence 부분집합으로 강제, Verifier가 Skeptic evidence도 재검증하도록 REQ-RESEARCH-005/006/018/019 및 관련 AC를 확장; ⑥ EvidenceRetriever의 관련성 판정을 "담보 일치 AND 키워드 매칭"으로 강화하고 `scope`(DOMAIN_SPECIFIC|UNIVERSAL) 축을 신설; ⑦ seed 데이터를 4→10개 curated 레코드로 확장하기로 결정(design.md §6). 신규 REQ/AC 없이 기존 REQ/AC의 Then-절·scope 확장으로 8개 항목 전부를 흡수해 Tier L 상한(REQ 25/AC 25)을 유지. 근거: 사용자 지시(2차 plan revision, 8개 항목).
 
 ## §1. 개요 (Overview)
 
@@ -29,8 +30,7 @@ SPEC-SCAFFOLD-001은 6단계 리서치 파이프라인(CaseNormalizer → QueryP
 
 이번 SPEC은 **6단계 파이프라인의 구조와 순차 실행 원칙은 그대로 유지하면서, 각 단계 내부의 mock/trivial 로직만 실제 evidence-first 로직으로 교체**한다. 구체적으로:
 
-- CaseNormalizer의 대상 범위를 상해후유장해·질병후유장해 두 담보 영역으로 명시적으로 한정한다.
-- QueryPlanner를 고정 2개 쿼리에서, 장해 부위·진단명·사고 경위 등 8개 검토 쟁점 유형에 기반한 구조화된 쿼리 생성으로 교체한다.
+- QueryPlanner를 고정 2개 쿼리에서, 장해 부위·진단명·사고 경위 등 8개 검토 쟁점 유형에 기반한 구조화된 쿼리 생성으로 교체하고, `CoverageDomain` 타입(INJURY_DISABILITY|DISEASE_DISABILITY 2개 값만 허용)으로 상해후유장해·질병후유장해 두 담보 영역으로 MVP 범위를 구조적으로 한정한다(CaseNormalizer는 담보 스코프를 판별하지 않는다 — 2차 revision).
 - EvidenceRetriever를 `db/seed/evidence.json` 전체 반환에서 Drizzle 기반 DB 조회 + 쿼리별 필터링/스코어링으로 교체하고, evidence 자료 유형(POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER) 확장을 구조적으로 수용한다.
 - Researcher/Skeptic/Verifier가 `createMockLLMProvider()` 기본값 대신 실제 `GeminiProvider`를 애플리케이션 런타임 기본값으로 사용하도록 전환하되, `LLMProvider` 추상화 경계와 Gemini SDK confinement(`lib/ai/providers/gemini.ts` 밖에서 `@google/genai` import 금지)는 그대로 유지한다.
 - `LLMProvider`에 Zod 스키마 기반 구조화 출력 검증 메서드를 추가하고, evidence ID 위조를 구조적으로 차단한다.
@@ -43,12 +43,12 @@ SPEC-SCAFFOLD-001은 6단계 리서치 파이프라인(CaseNormalizer → QueryP
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-RESEARCH-001 | Ubiquitous | CaseNormalizer는 상해후유장해·질병후유장해 두 담보 영역에 한정된 입력만 표준화된 NormalizedCase로 변환해야 한다. | 사용자 지시 §핵심 구현 목표 1, product.md §MVP 범위 경계, [REF: research.md §1] |
-| REQ-RESEARCH-002 | Ubiquitous | QueryPlanner는 고정 2개 쿼리 대신, 장해 부위·진단명·사고 경위·상해질병 관련성·장해 평가 기준 검토·기왕증/퇴행성 가능성·인과관계 쟁점·추가 확인 필요 조건을 포함한 구조화된 검토 쟁점 집합으로부터 ResearchQuery 목록을 생성해야 한다. | 사용자 지시 §핵심 구현 목표 2 |
+| REQ-RESEARCH-001 | Ubiquitous | CaseNormalizer는 CaseInput의 incidentDescription·diagnosisName·disabilityBodyPart·incidentDate 4개 필드를 정규화(trim)하여 표준화된 NormalizedCase로 변환해야 한다. | 사용자 지시 §핵심 구현 목표 1, [REF: research.md §1] |
+| REQ-RESEARCH-002 | Ubiquitous | QueryPlanner는 고정 2개 쿼리 대신, 장해 부위·진단명·사고 경위·상해질병 관련성·장해 평가 기준 검토·기왕증/퇴행성 가능성·인과관계 쟁점·추가 확인 필요 조건을 포함한 구조화된 검토 쟁점 집합으로부터 ResearchQuery 목록을 생성해야 한다. ResearchQuery.domain(CoverageDomain 타입)은 INJURY_DISABILITY와 DISEASE_DISABILITY 두 값만 허용해야 하며, 이를 통해 이번 SPEC의 담보 영역을 두 도메인으로 구조적으로 제한한다. | 사용자 지시 §핵심 구현 목표 2, product.md §MVP 범위 경계 |
 | REQ-RESEARCH-003 | Unwanted | QueryPlanner는 보험금 지급 여부·확률을 확정하는 쿼리나 문구를 생성해서는 안 된다. | product.md §핵심 원칙 1, 사용자 지시 §핵심 구현 목표 2 |
 | REQ-RESEARCH-004 | Ubiquitous | EvidenceRetriever는 `db/seed/evidence.json` 전체를 무조건 반환하는 대신, Drizzle ORM을 통해 `evidence` 테이블을 조회해야 한다. | 사용자 지시 §핵심 구현 목표 3, tech.md §Turso/libSQL + Drizzle ORM |
-| REQ-RESEARCH-005 | Event-driven | 개별 ResearchQuery가 전달되면, EvidenceRetriever는 해당 쿼리의 담보 영역·키워드와 관련된 evidence만 선택해 반환해야 한다. | 사용자 지시 §핵심 구현 목표 3 |
-| REQ-RESEARCH-006 | Where(capability gate) | Where evidence 레코드가 자료 유형 분류값을 갖는 경우, EvidenceRetriever와 관련 타입은 POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER 중 하나로 분류된 값을 구조적으로 수용해야 한다. | 사용자 지시 §핵심 구현 목표 3 |
+| REQ-RESEARCH-005 | Event-driven | 개별 ResearchQuery가 전달되면, EvidenceRetriever는 해당 쿼리의 담보 영역·키워드와 관련된 evidence만 선택해 반환해야 한다. evidence.scope가 DOMAIN_SPECIFIC인 경우 담보 영역 일치와 키워드 관련성을 모두 만족해야 선택되며(담보 영역 일치만으로는 선택되지 않는다), evidence.scope가 UNIVERSAL인 경우 담보 영역과 무관하게 키워드 관련성만 만족하면 선택된다. | 사용자 지시 §핵심 구현 목표 3 |
+| REQ-RESEARCH-006 | Where(capability gate) | Where evidence 레코드가 자료 유형 분류값을 갖는 경우, EvidenceRetriever와 관련 타입은 POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER 중 하나로 분류된 값을 구조적으로 수용해야 한다. 또한 evidence 레코드는 scope 분류값(DOMAIN_SPECIFIC|UNIVERSAL)을 가져야 하며, EvidenceRetriever는 REQ-RESEARCH-005에 정의된 관련성 판정 규칙에 이 값을 반영해야 한다. | 사용자 지시 §핵심 구현 목표 3 |
 | REQ-RESEARCH-007 | Unwanted | 이번 SPEC은 vector DB, 임베딩 기반 검색, 대규모 판례/약관 크롤링·수집 시스템을 도입해서는 안 된다. | tech.md §Turso/libSQL + Drizzle ORM, product.md §핵심 원칙 8 |
 | REQ-RESEARCH-008 | Ubiquitous | Researcher, Skeptic, Verifier는 애플리케이션 런타임에서 기본적으로 GeminiProvider를 사용해야 하며, `createMockLLMProvider()`를 기본값으로 사용하는 구조를 제거해야 한다. | 사용자 지시 §핵심 구현 목표 4 |
 | REQ-RESEARCH-009 | Unwanted | `lib/pipeline/*.ts` 파이프라인 단계 모듈은 `lib/ai/providers/gemini.ts` 외부에서 `@google/genai`를 직접 import해서는 안 된다. | 사용자 지시 §핵심 구현 목표 4, structure.md §설계 메모, [REF: research.md §8] |
@@ -60,8 +60,8 @@ SPEC-SCAFFOLD-001은 6단계 리서치 파이프라인(CaseNormalizer → QueryP
 | REQ-RESEARCH-015 | Unwanted | 파이프라인 단계 모듈은 `@google/genai`의 JSON/schema 관련 타입이나 호출 세부사항을 `lib/ai/providers/gemini.ts` 밖에서 직접 다루어서는 안 된다. | 사용자 지시 §핵심 구현 목표 5 |
 | REQ-RESEARCH-016 | Ubiquitous | Researcher는 EvidenceRetriever가 반환한 evidence만을 근거로 검토 소견 후보를 생성해야 하며, 각 substantive finding은 supportingEvidenceIds로 최소 1개 이상의 evidence와 연결되어야 한다. | 사용자 지시 §핵심 구현 목표 6, product.md §핵심 원칙 2 |
 | REQ-RESEARCH-017 | Unwanted | Researcher는 전달받지 않은 판례·약관·규정이나 존재하지 않는 evidence ID를 새로 만들어내서는 안 되며, '보험금 지급 확정', '반드시 지급', 구체적 지급 확률, 근거 없는 구체적 보험금 액수를 표현해서는 안 된다. | 사용자 지시 §핵심 구현 목표 6 |
-| REQ-RESEARCH-018 | Ubiquitous | Skeptic은 Researcher의 소견에 대해 기왕증·퇴행성 변화·인과관계 부족·약관상 기준 미충족·자료 부족·사고 이전 증상 등 보험사 관점에서 실제로 제기될 수 있는 반론을 생성해야 하며, 가능한 경우 반론도 evidence와 연결해야 한다. | 사용자 지시 §핵심 구현 목표 7 |
-| REQ-RESEARCH-019 | Ubiquitous | Verifier는 Researcher와 Skeptic의 결과를 evidence 대비 재검증해, 최종 리포트에 포함되는 substantive claim이 실제로 존재하는 evidence ID를 근거로 갖도록 해야 한다. | 사용자 지시 §핵심 구현 목표 8, product.md §핵심 원칙 2 |
+| REQ-RESEARCH-018 | Ubiquitous | Skeptic은 Researcher의 소견에 대해 기왕증·퇴행성 변화·인과관계 부족·약관상 기준 미충족·자료 부족·사고 이전 증상 등 보험사 관점에서 실제로 제기될 수 있는 반론을 생성해야 하며, EvidenceRetriever가 반환한 evidence(evidenceMap)를 프롬프트에서 함께 참조해 가능한 경우 반론을 evidence와 연결해야 한다. 반론이 evidence ID를 인용하는 경우(supportingEvidenceIds 또는 counterEvidenceIds), 그 ID는 반드시 해당 쿼리에 대해 EvidenceRetriever가 실제로 반환한 evidence 집합의 부분집합이어야 하며, 빈 배열은 허용된다. | 사용자 지시 §핵심 구현 목표 7 |
+| REQ-RESEARCH-019 | Ubiquitous | Verifier는 Researcher의 claim과 Skeptic이 제시한 evidence ID(supportingEvidenceIds/counterEvidenceIds)를 모두 evidence 대비 재검증해, 최종 리포트에 포함되는 substantive claim과 반론 근거가 실제로 존재하는 evidence ID만을 근거로 갖도록 해야 한다. | 사용자 지시 §핵심 구현 목표 8, product.md §핵심 원칙 2 |
 | REQ-RESEARCH-020 | When(event-detected) | 근거 없는 claim이 감지되면, Verifier는 해당 claim을 제거하거나 판단불충분(INSUFFICIENT) 상태로 명확히 낮춰야 한다. | 사용자 지시 §핵심 구현 목표 8 |
 | REQ-RESEARCH-021 | Unwanted | Verifier는 새로운 사실이나 출처를 만들어내거나 숫자 기반 지급 확률을 생성해서는 안 된다. | 사용자 지시 §핵심 구현 목표 8 |
 | REQ-RESEARCH-022 | When(event-detected) | 최종 리포트에 포함되려는 evidence ID가 EvidenceRetriever가 실제로 반환한 evidence 집합에 존재하지 않는 것이 감지되면, structured output validation 또는 Verifier가 해당 claim을 리포트에서 차단해야 한다. | 사용자 지시 §핵심 구현 목표 10 |
@@ -76,7 +76,7 @@ REQ 개수: 25개 (Tier L 상한 25개 — 상한에 맞춰 의도적으로 타�
 - **기존 아키텍처 경계 보존**: 6단계 파이프라인 순차 실행 구조, 파이프라인 단계 모듈 간 형제-import 금지(`lib/pipeline/boundary.test.ts`), Gemini SDK confinement(`lib/pipeline-gemini-boundary.test.ts`)는 그대로 유지한다(SPEC-SCAFFOLD-001 REQ-SCAFFOLD-018, SPEC-RUNTIME-001 REQ-RUNTIME-019).
 - **DB 접근 경로**: 애플리케이션 코드는 Drizzle ORM API만 사용하고 libSQL 고유 문법에 직접 의존하지 않는다(structure.md §설계 메모).
 - **버전 고정 유지**: `drizzle-orm` 0.45.2, `@libsql/client` 0.17.4, `@google/genai` `2.18.0`(`<3.0.0` 고정), `better-auth` 1.7.1, `zod` 4.4.3, `@next/env`/`next` 16.3.2 — 기존 고정을 변경하지 않는다.
-- **신규 런타임 의존성 금지**: zod 4.4.3의 네이티브 `z.toJSONSchema()` 변환 기능으로 Gemini `responseSchema` 요구를 충족할 수 있으므로, 이번 SPEC은 새로운 npm 의존성을 추가하지 않는다.
+- **신규 런타임 의존성 금지**: zod 4.4.3의 네이티브 `z.toJSONSchema()` 변환 기능으로 Gemini `responseJsonSchema` 요구를 충족할 수 있으므로, 이번 SPEC은 새로운 npm 의존성을 추가하지 않는다.
 - **무료 tier 우선 / overengineering 금지**: microservice, Kubernetes, 별도 vector DB를 도입하지 않는다(product.md §핵심 원칙 8).
 - **실제 원격 Gemini API 무접근 (테스트)**: 이 SPEC의 어떤 자동 검증(Vitest 단위 테스트, E2E)도 실제 Gemini API를 호출해서는 안 된다 — 결정론적 fake/mock provider만 사용한다.
 - **PII 검증 계층 무변경**: `lib/validation/case-input.ts`의 Zod PII 차단 스키마는 이번 SPEC에서 수정하지 않는다.
@@ -88,7 +88,7 @@ REQ 개수: 25개 (Tier L 상한 25개 — 상한에 맞춰 의도적으로 타�
 이번 SPEC의 out of scope 항목은 다음과 같다 — 아래 항목들은 이번 파이프라인 고도화 SPEC에서 다루지 않으며, `product.md` §Roadmap 및 사용자 지시에 나열된 후속 검토 대상으로 이연한다.
 
 ### Out of Scope — 대규모 근거자료 데이터 수집
-- 실제 판례·약관 등 대규모 근거자료 크롤링·정제·수집 시스템은 이번 SPEC에서 다루지 않는다. `db/seed/evidence.json`의 기존 소규모 데이터셋(4개 레코드)을 대상으로 검색/필터링/스코어링 로직만 구현한다.
+- 실제 판례·약관 등 대규모 근거자료 크롤링·정제·수집 시스템은 이번 SPEC에서 다루지 않는다. `db/seed/evidence.json`을 이번 SPEC에서 4개 → 10개 curated 레코드로 소규모 확장(2차 revision, design.md §6 seed 확장 결정 참고)한 데이터셋을 대상으로 검색/필터링/스코어링 로직만 구현한다.
 
 ### Out of Scope — Vector DB / 임베딩 기반 검색
 - Vector DB, Elasticsearch, Pinecone 등 임베딩 기반 검색 인프라 도입은 이번 SPEC에서 다루지 않는다. evidence 검색은 Drizzle ORM 쿼리 + 키워드/카테고리 매칭 기반의 단순하고 테스트 가능한 방식으로 구현한다.
@@ -110,10 +110,10 @@ REQ 개수: 25개 (Tier L 상한 25개 — 상한에 맞춰 의도적으로 타�
 
 ## §5. 잔여 위험 (Residual Risks)
 
-- **EvidenceRetriever 필터링 임계값의 초기 정확도**: 4개 레코드뿐인 seed 데이터셋에서는 키워드/카테고리 기반 스코어링이 잘 동작하는지 실측하기 어렵다 — 실제 evidence 데이터가 늘어나면 스코어링 파라미터(가중치, top-N cutoff) 재조정이 필요할 수 있다.
+- **EvidenceRetriever 필터링 임계값의 초기 정확도**: 이번 SPEC에서 4→10개로 확장된(2차 revision, design.md §6) curated seed 데이터셋에서도, 담보 일치 AND 키워드 매칭을 모두 요구하는 강화된 관련성 술어가 실제로 의도한 대로 동작하는지는 소규모 데이터에서만 검증된다 — 실제 evidence 데이터가 더 늘어나면 스코어링 파라미터(가중치, top-N cutoff)와 키워드 사전 재조정이 필요할 수 있다.
 - **QueryPlanner의 결정론적(rule-based) 설계 결정**: 이번 SPEC은 QueryPlanner를 LLM 호출 없는 규칙 기반 구조화로 설계한다(design.md §5 참고) — 향후 사건 유형이 다양해지면 규칙 기반으로는 쟁점 도출 품질이 한계에 부딪힐 수 있으며, 그 시점에 LLM 기반 QueryPlanner로 전환하는 후속 SPEC이 필요할 수 있다.
 - **Gemini 무료 tier 요청 한도**: 사건 하나당 Researcher/Skeptic/Verifier가 쿼리 개수만큼 여러 번 Gemini를 호출하므로(구조화 쿼리 도입으로 쿼리 개수가 기존 2개에서 늘어날 수 있음), 무료 tier 한도 소진이 이전보다 빨라질 수 있다 — `GeminiProvider`의 기존 429 재시도 로직이 완화하지만, 실사용 중 한도 문제가 확인되면 추가 검토가 필요하다(SPEC-SCAFFOLD-001 §5에서 이미 인지된 위험의 연장).
-- **evidence 자료 유형(POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER) 필드의 미활용 상태**: 이번 SPEC은 이 필드를 스키마 수준에서 구조적으로 수용하도록만 설계하며(REQ-RESEARCH-006), 기존 4개 seed 레코드를 실제로 재분류하거나 이 필드를 검색/스코어링 로직에 활용하지는 않는다 — 후속 SPEC에서 자료 유형 기반 검색 고도화가 필요할 수 있다.
+- **evidence 자료 유형(POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER) 필드는 검색/스코어링에 여전히 미활용**: 이번 SPEC은 evidenceType 필드를 스키마 수준에서 구조적으로 수용하고 확장된 seed 레코드에 실제 유형을 명시하지만(REQ-RESEARCH-006, design.md §6 seed 확장 결정), 검색/스코어링 로직에는 활용하지 않는다 — 반면 2차 revision에서 신설한 scope(DOMAIN_SPECIFIC|UNIVERSAL) 필드는 관련성 판정에 실제로 사용된다(REQ-RESEARCH-005). evidenceType 기반 검색 고도화는 후속 SPEC 과제로 남는다.
 
 ## §6. 참고 문서
 

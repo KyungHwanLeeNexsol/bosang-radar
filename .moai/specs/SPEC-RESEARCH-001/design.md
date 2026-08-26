@@ -75,19 +75,46 @@ export async function runPipeline(
   const queries = planQueries(caseSummary);
   const evidence = await retrieveEvidence(queries);
   const findings = await research(queries, evidence, provider);
-  const challenges = await challenge(findings, provider);
+  const challenges = await challenge(findings, evidence, provider);
   const claims = await verify(findings, challenges, evidence, provider);
   // ... ResearchReport 조립 (§8)
 }
 ```
 
-`research()`/`challenge()`의 기존 시그니처(3번째·마지막 인자 `provider?: LLMProvider`)는 그대로 유지한다 — 다만 그 기본값이 가리키는 구현체를 `createMockLLMProvider()`(`mock-llm.ts`, 폐지)에서 `createDeterministicLLMProvider()`(`lib/ai/providers/deterministic.ts`, 신규)로 교체한다. `verify()`는 시그니처 자체가 바뀐다 — 현재 `verify(findings, challenges, provider?)`(3번째 인자가 provider)에서, evidence 재검증(§7)을 위해 `evidence: EvidenceCandidate[]`가 새 3번째 인자(필수)로 추가되고 `provider`는 4번째 인자로 밀려나 `verify(findings, challenges, evidence, provider?)`가 된다. `provider`는 여전히 마지막 인자로서 선택적 기본값(`createDeterministicLLMProvider()`)을 유지한다.
+`research()`/`challenge()`/`verify()` 세 함수 모두 **provider를 필수(required) 인자로 받는다 — 선택적 기본값(optional-with-default)을 갖지 않는다.** 이는 2차 revision(사용자 지시 항목 2)에서 확정한 설계 변경이며, 1차 revision까지 남아 있던 "함수가 자체적으로 mock/deterministic provider로 조용히 fallback하는" 구조를 전부 제거한다. 최종 시그니처:
+
+```ts
+export async function research(
+  queries: ResearchQuery[],
+  evidence: Map<string, EvidenceCandidate[]>,
+  provider: LLMProvider // 필수 — 기본값 없음
+): Promise<DraftFinding[]>;
+
+export async function challenge(
+  findings: DraftFinding[],
+  evidenceMap: Map<string, EvidenceCandidate[]>, // 신규(항목 5) — Skeptic도 실제 evidence를 본다
+  provider: LLMProvider // 필수 — 기본값 없음
+): Promise<Challenge[]>;
+
+export async function verify(
+  findings: DraftFinding[],
+  challenges: Challenge[],
+  evidence: Map<string, EvidenceCandidate[]>,
+  provider: LLMProvider // 필수 — 기본값 없음(1차 revision에서는 4번째 인자로 밀리며 기본값을 유지했으나, 2차 revision에서 기본값을 제거한다)
+): Promise<VerifiedClaim[]>;
+```
+
+세 함수 모두 **마지막 인자가 `provider: LLMProvider`(필수)**라는 동일한 패턴을 따른다 — evidence를 다루는 인자(들)가 provider 앞에 위치하고, provider가 항상 마지막 필수 인자다.
 
 ### 근거
 
-- **"replacing each stage's independent default-mock parameter" 요구를 충족하되 DI 시임을 부수지 않는다**: 오케스트레이터가 명시적으로 provider를 계산해 세 단계 모두에 전달하므로, `runPipeline()`을 통해 실행되는 정상 경로에서는 각 단계가 "독립적으로" 자신의 provider를 결정하는 구조가 사라진다(사용자 요구 그대로). 그러나 `researcher.test.ts` 등 기존 단위 테스트가 `research(queries, evidence, stubProvider)`를 **직접** 호출하는 패턴(오케스트레이터를 거치지 않음)은 함수 시그니처가 무변경이므로 그대로 통과한다 — DI 시임은 "함수가 여전히 provider를 3번째 인자로 받는다"는 계약이지, "누가 그 인자를 채우는가"가 아니다.
-- **단일 소스**: `mock-llm.ts`와 `provider-factory.ts`(§1) 두 곳에서 각기 다른 fallback provider를 만드는 대신, `createDeterministicLLMProvider()` 하나가 (a) 오케스트레이터의 명시적 기본값(`getLLMProvider()` 내부)과 (b) 각 단계 함수의 파라미터 기본값 양쪽에서 재사용된다 — provider 구현체가 두 벌로 갈라지는 것을 방지한다.
-- **evidence를 verify()에도 전달**: 기존 `verify(findings, challenges, provider?)` 시그니처는 evidence 집합을 받지 않아 evidence-ID 무결성을 자체 검증할 수 없었다(research.md §1). REQ-RESEARCH-019/022(Verifier의 evidence 재검증)를 만족시키기 위해 `verify()` 시그니처에 `evidence: EvidenceCandidate[]` 인자를 추가한다 — 이는 §7에서 상세히 다룬다.
+- **"provider 생략 시 조용히 mock/deterministic으로 동작"하는 구조를 컴파일 타임에 차단**: 1차 revision까지는 `research()`/`challenge()`가 `provider?: LLMProvider = createDeterministicLLMProvider()` 형태의 선택적 기본값을 유지했고, `verify()`도 4번째 인자로 밀리며 마찬가지로 기본값을 유지했다. 이 구조에서는 프로덕션 코드가 실수로 provider를 생략해도 TypeScript 컴파일이 통과하고, 파이프라인은 조용히 가짜 리서치 결과를 반환한다. 2차 revision(항목 2)은 세 함수 전부에서 이 기본값을 제거해, provider 누락을 컴파일 오류로 승격시킨다.
+- **정상 앱 경로는 오케스트레이터가 단일하게 책임진다**: `runPipeline()`이 `options.provider ?? getLLMProvider()`로 provider를 한 번 계산해 세 함수 모두에 명시적으로 전달한다. `getLLMProvider()`(§1)는 `LLM_PROVIDER_MODE` 환경변수를 읽어 Gemini/결정론적 provider를 선택하는 유일한 지점이며, `research()`/`challenge()`/`verify()` 자신은 이 선택 로직을 전혀 모른다.
+- **테스트는 명시적으로 fake/deterministic provider를 주입한다**: `researcher.test.ts`/`skeptic.test.ts`/`verifier.test.ts`는 `stubProvider` 객체를 직접 구성해 세 함수 모두에 명시적으로 전달한다 — 함수 시그니처가 provider를 필수로 요구하므로 이 패턴은 선택이 아니라 강제된다.
+- **E2E는 `LLM_PROVIDER_MODE=deterministic`을 통해 오케스트레이터의 provider factory가 결정론적 provider를 선택하도록 한다** — E2E는 `research()`/`challenge()`/`verify()`를 직접 호출하지 않고 `runPipeline()`을 거치므로, `getLLMProvider()`가 `LLM_PROVIDER_MODE`를 읽어 결정론적 provider를 반환하고 그 provider가 오케스트레이터에 의해 세 함수에 전달된다. 즉 deterministic provider는 (a) `getLLMProvider()`가 명시적으로 선택하거나 (b) 테스트/E2E가 명시적으로 주입하는 두 경로에서만 등장하며, 프로덕션 코드가 실수로 provider를 생략해 deterministic provider가 암묵적으로 쓰이는 경로는 구조적으로 존재하지 않는다.
+- **`evidenceMap`을 `challenge()`에도 전달**(항목 5): 기존 `challenge(findings, provider?)` 시그니처는 evidence를 받지 않아 Skeptic이 finding 텍스트만 보고 반론을 생성했다(research.md §1). Skeptic이 실제 Retriever evidence를 근거로 반론을 구성하고 `supportingEvidenceIds`/`counterEvidenceIds`를 채울 수 있도록 `evidenceMap: Map<string, EvidenceCandidate[]>`을 2번째 인자로 추가한다 — §7에서 evidence-ID 무결성 시행 지점과 함께 상세히 다룬다.
+- **단일 소스**: `mock-llm.ts`와 `provider-factory.ts`(§1) 두 곳에서 각기 다른 fallback provider를 만드는 대신, `createDeterministicLLMProvider()` 하나가 (a) 오케스트레이터의 명시적 기본값(`getLLMProvider()` 내부)과 (b) 테스트/E2E가 명시적으로 주입하는 provider 양쪽에서 재사용된다 — provider 구현체는 하나지만, 그것을 "누가·언제" 사용하는지는 항상 명시적 전달로만 결정된다(암묵적 기본값 경로 없음).
+- **evidence를 verify()에도 전달**: 기존 `verify(findings, challenges, provider?)` 시그니처는 evidence 집합을 받지 않아 evidence-ID 무결성을 자체 검증할 수 없었다(research.md §1). REQ-RESEARCH-019/022(Verifier의 evidence 재검증)를 만족시키기 위해 `verify()` 시그니처에 `evidence: Map<string, EvidenceCandidate[]>` 인자를 추가한다 — 이는 §7에서 상세히 다룬다.
 
 ## §4. `LLMProvider.generateStructured()` — Zod 스키마 기반 구조화 출력
 
@@ -124,7 +151,7 @@ async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<Stru
   const response = await this.client.models.generateContent({
     model: request.model ?? this.model,
     contents: request.prompt,
-    config: { responseMimeType: "application/json", responseSchema: jsonSchema },
+    config: { responseMimeType: "application/json", responseJsonSchema: jsonSchema },
   });
 
   let parsed: unknown;
@@ -146,8 +173,9 @@ async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<Stru
 
 ### 근거
 
-- **"Gemini SDK의 JSON/schema 세부사항은 provider adapter 내부에 격리"를 문자 그대로 만족**: `responseMimeType`/`responseSchema`는 `@google/genai`의 Gemini 전용 설정 필드이며, `generateContent()` 호출 내부에만 존재한다 — 호출부(Researcher 등)는 이 필드의 존재조차 알지 못한다.
+- **"Gemini SDK의 JSON/schema 세부사항은 provider adapter 내부에 격리"를 문자 그대로 만족**: `responseMimeType`/`responseJsonSchema`는 `@google/genai`의 Gemini 전용 설정 필드이며(2차 revision — `z.toJSONSchema()`가 생성하는 것은 JSON Schema이므로, Gemini SDK가 Zod 스키마 전용으로 제공하는 `responseSchema` 필드 대신 순수 JSON Schema를 받는 `responseJsonSchema` 필드를 사용한다; `responseMimeType: "application/json"`은 그대로 유지), `generateContent()` 호출 내부에만 존재한다 — 호출부(Researcher 등)는 이 필드의 존재조차 알지 못한다.
 - **zod v4 `z.toJSONSchema()` 채택으로 신규 의존성 회피**: Zod 스키마 → JSON Schema 변환은 통상 별도 라이브러리(`zod-to-json-schema` 등)가 필요하지만, 이미 고정된 `zod@4.4.3`이 이 변환을 네이티브로 제공하므로 §3(spec.md) 제약("신규 런타임 의존성 금지")을 위반하지 않는다.
+- **Gemini 응답은 항상 Zod `safeParse`를 다시 통과해야 한다**: `responseJsonSchema`로 구조화 출력을 요청해도 Gemini가 스키마를 100% 준수한다는 보장은 없으므로, `request.schema.safeParse(parsed)`가 최종 방어선이다(위 코드 그대로) — Gemini의 structured-output 제약(스키마 지정 방식, MIME 타입, 필드명)은 이 adapter 내부에만 위치하며, pipeline 단계 모듈에는 전혀 노출되지 않는다.
 - **결정론적 provider도 동일 인터페이스를 구현**: `createDeterministicLLMProvider()`(§1)의 `generateStructured()`는 Gemini를 호출하지 않고 스키마별 고정 픽스처를 `schema.parse()`(항상 성공하도록 사전 검증된 픽스처)로 감싸 반환한다 — 이 덕분에 Researcher/Skeptic/Verifier 코드는 어떤 provider가 주입됐는지 몰라도 항상 동일한 `StructuredResult<T>` 계약을 받는다.
 
 ## §5. QueryPlanner — 구조화 쟁점 도출은 규칙 기반(rule-based), LLM 호출 아님
@@ -186,6 +214,7 @@ export interface ResearchQuery {
 - **"AI가 보험금 지급 여부를 확정하지 않는다"는 사용자 지시는 QueryPlanner 자체가 LLM을 호출해야 한다는 요구가 아니다** — 오히려 QueryPlanner의 출력(쿼리 목록)이 지급 판단을 내포하지 않아야 한다는 제약으로 읽힌다. `CaseInput`이 4개 고정 텍스트 필드뿐인 좁은 구조화 입력이므로, 규칙 기반 이슈 도출로도 "사건 내용에 따라 실제 검토 쟁점을 구조화"하는 요구를 충분히 만족한다.
 - **비용/복잡도 절감**: QueryPlanner에 LLM 호출을 추가하면 Gemini 호출 지점이 하나 더 늘어(무료 tier 한도 소진 가속) 파이프라인 전체의 실패 지점도 늘어난다. 규칙 기반은 결정론적이라 단위 테스트가 쉽고, "AI가 쟁점 자체를 잘못 판단"하는 새로운 실패 모드를 만들지 않는다.
 - **후속 확장 여지를 남겨둠**: 이 설계 결정은 §5(spec.md 잔여 위험)에 명시적으로 기록했다 — 사건 유형이 다양해지면 후속 SPEC에서 LLM 기반 QueryPlanner로 교체할 수 있으며, `ResearchQuery`가 이미 구조화된 `issueType`/`domain`/`keywords` 필드를 갖고 있으므로 그 전환은 QueryPlanner 내부 구현 교체만으로 가능하다(다른 단계에 파급되지 않는다).
+- **acceptance.md와의 정합(2차 revision, 항목 3)**: 1차 revision의 `AC-RESEARCH-002`는 4개 issueType(DISABILITY_LOCATION/DIAGNOSIS/DISABILITY_GRADE_CRITERIA/CAUSATION)을 두 도메인 각각에 요구해 최소 8개를 요구했고, 이는 위 6-쿼리 최소 설계와 모순됐다. 2차 revision은 이 문서(design.md)의 6-쿼리 최소 구조를 기준선으로 유지하고, `acceptance.md`의 `AC-RESEARCH-002` Then-절을 이 구조(도메인마다 위치/진단 이슈타입 1 + DISABILITY_GRADE_CRITERIA + CAUSATION = 3개, 합산 6개)에 맞춰 정합시켰다 — design.md의 쿼리 개수를 8개로 늘리는 방향이 아니라, acceptance.md 쪽을 design.md에 맞춘다.
 
 ## §6. EvidenceRetriever — DB 조회 + 쿼리별 필터링/스코어링 설계
 
@@ -198,6 +227,7 @@ export const evidence = sqliteTable("evidence", {
   id: text("id").primaryKey(),
   category: text("category").notNull(),          // 기존 — 담보 도메인 축 (상해후유장해/질병후유장해)
   evidenceType: text("evidence_type").notNull().default("OTHER"), // 신규 — 자료 유형 축
+  scope: text("scope").notNull().default("DOMAIN_SPECIFIC"),      // 신규(2차 revision, 항목 6) — 담보-특정/담보-공통 축
   title: text("title").notNull(),
   content: text("content").notNull(),
   sourceUrl: text("source_url"),
@@ -209,20 +239,26 @@ export const evidence = sqliteTable("evidence", {
 
 ```ts
 export type EvidenceType = "POLICY" | "PRECEDENT" | "DISPUTE_CASE" | "STATUTE" | "OTHER";
+export type EvidenceScope = "DOMAIN_SPECIFIC" | "UNIVERSAL"; // 신규(2차 revision, 항목 6)
 
 export interface EvidenceCandidate {
   id: string;
   category: string;
   evidenceType: EvidenceType;
+  scope: EvidenceScope;
   title: string;
   content: string;
   sourceUrl: string | null;
 }
 ```
 
-`drizzle-kit generate`로 마이그레이션 파일을 신규 생성한다(기존 4개 seed 레코드는 `.default("OTHER")`로 자동 채워지며, 재분류는 이번 SPEC의 범위가 아니다 — §4 Out of Scope). `category`(담보 도메인, 기존 값 "상해후유장해"/"질병후유장해" 유지)와 `evidenceType`(자료 유형, 신규)은 **서로 다른 독립 축**이며 어느 쪽도 다른 쪽의 값을 함의하지 않는다.
+`drizzle-kit generate`로 마이그레이션 파일을 신규 생성한다(기존 레코드는 `.default("OTHER")`/`.default("DOMAIN_SPECIFIC")`로 자동 채워진다; 재분류·확장은 아래 "seed 데이터 확장 결정" 참고). `category`(담보 도메인)·`evidenceType`(자료 유형)·`scope`(담보-특정/담보-공통, 신규)는 **서로 독립적인 세 축**이며 어느 쪽도 다른 쪽의 값을 함의하지 않는다.
 
-### 결정 — 조회/필터링/스코어링 알고리즘
+### 결정 — 조회/필터링/스코어링 알고리즘 (2차 revision, 항목 6으로 재작성)
+
+**1차 설계의 결함**: 1차 revision의 스코어링은 `(category === domainCategory ? 2 : 0) + keywordScore`를 합산한 뒤 `score > 0`이면 통과시켰다 — 즉 **담보 도메인만 일치해도**(키워드가 하나도 매칭되지 않아도) evidence가 포함됐다. 이는 "동일 coverage category라는 이유만으로 해당 domain의 모든 evidence가 모든 query에 포함"되는 결함이며, 항목 6이 명시적으로 금지한 상태다.
+
+**2차 설계**: 관련성 판정을 스코어(정렬용)와 분리된 **필터 술어(predicate)**로 명시한다. `scope`가 `DOMAIN_SPECIFIC`인 evidence는 **담보 도메인 일치 AND 키워드 매칭 ≥1**을 모두 만족해야 하고, `scope`가 `UNIVERSAL`인 evidence는 **담보 도메인과 무관하게 키워드 매칭 ≥1**만 만족하면 된다(담보 전반에 적용되는 자료이므로 도메인 일치는 면제하되, 무관한 query에까지 무차별로 끼워 넣지 않도록 키워드 관련성은 그대로 요구한다).
 
 ```ts
 export async function retrieveEvidence(
@@ -235,13 +271,18 @@ export async function retrieveEvidence(
   for (const query of queries) {
     const domainCategory = domainToCategoryLabel(query.domain); // "INJURY_DISABILITY" → "상해후유장해"
     const scored = all
-      .map((item) => ({
-        item,
-        score:
-          (item.category === domainCategory ? 2 : 0) +
-          query.keywords.filter((kw) => item.title.includes(kw) || item.content.includes(kw)).length,
-      }))
-      .filter((entry) => entry.score > 0)
+      .map((item) => {
+        const keywordScore = query.keywords.filter(
+          (kw) => item.title.includes(kw) || item.content.includes(kw)
+        ).length;
+        const domainMatch = item.category === domainCategory;
+        const isUniversal = item.scope === "UNIVERSAL";
+        // 관련성 술어: DOMAIN_SPECIFIC은 domain AND keyword, UNIVERSAL은 keyword만
+        const relevant = isUniversal ? keywordScore > 0 : domainMatch && keywordScore > 0;
+        const score = (domainMatch ? 2 : 0) + (isUniversal ? 1 : 0) + keywordScore; // 정렬 전용 — 관련성 판정에는 미사용
+        return { item, score, relevant };
+      })
+      .filter((entry) => entry.relevant)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5); // top-N cutoff — §5(spec.md) 잔여 위험에 기록된 초기 파라미터
 
@@ -256,11 +297,28 @@ export async function retrieveEvidence(
 
 ### 근거
 
-- **단순하고 테스트 가능한 방식 우선**: product.md/tech.md가 명시한 "seed 데이터 규모에서는 Drizzle ORM 쿼리로 충분"이라는 판단을 그대로 따른다. 카테고리 일치(가중치 2) + 키워드 부분 문자열 매칭(항목당 가중치 1)이라는 단순 합산 스코어는 4개 레코드 규모에서 결정론적으로 검증 가능하고, evidence가 늘어나도 알고리즘 자체는 선형 스캔으로 충분히 버틴다(대규모가 되면 §5 잔여 위험에 기록된 대로 후속 SPEC에서 재조정).
+- **"category 일치만으로 포함되지 않는다"를 필터 술어 수준에서 강제**(2차 revision, 항목 6): 스코어(정렬용 가중합)와 관련성(필터 predicate)을 분리함으로써, "domain match만으로 score>0이 되어 포함되는" 1차 설계의 결함을 구조적으로 차단한다. `AC-RESEARCH-005`(2차 revision에서 확장)가 이를 직접 검증한다.
+- **universal evidence의 명시적 설계**: `scope: "UNIVERSAL"`은 두 담보 도메인 모두에 적용 가능한 evidence(예: 공통 청구 절차 안내)를 표현하는 명시적 축이다. universal이라고 해서 모든 쿼리에 무조건 포함되지는 않는다 — 키워드 관련성은 여전히 요구되며, 이는 "무차별 공통 자료 주입"을 방지한다.
+- **단순하고 테스트 가능한 방식 우선**: product.md/tech.md가 명시한 "seed 데이터 규모에서는 Drizzle ORM 쿼리로 충분"이라는 판단을 그대로 따른다. 관련성 필터 + 정렬용 가중합 스코어는 10개 레코드(2차 revision에서 확장, 아래 참고) 규모에서 결정론적으로 검증 가능하고, evidence가 늘어나도 알고리즘 자체는 선형 스캔으로 충분히 버틴다(대규모가 되면 §5 잔여 위험에 기록된 대로 후속 SPEC에서 재조정).
 - **evidence-DB-query 전환의 최소 침습**: `getDb()`(`lib/db/client.ts`)를 통한 Drizzle 조회만 추가하고, 트랜잭션이나 새 인덱스는 도입하지 않는다 — SPEC-RUNTIME-001이 이미 `evidence` 테이블에 seed 데이터를 적재해 두었으므로 이번 SPEC은 그 위에서 SELECT만 추가하면 된다.
 - **`Map<queryId, ...>` 반환으로 EvidenceRetriever ↔ Researcher 계약을 명확히 함**: `runPipeline()`의 `evidence` 변수는 이제 "쿼리마다 다른 근거자료 집합"을 표현하므로, Researcher는 `evidence.get(query.id) ?? []`로 자신의 쿼리에 해당하는 evidence만 받는다 — REQ-RESEARCH-016("EvidenceRetriever가 반환한 evidence만을 근거로")을 함수 시그니처 수준에서 강제한다.
 
-## §7. evidence-ID 무결성 시행 지점 — structured validation(1차) + Verifier(2차 방어)
+### seed 데이터 확장 결정 (2차 revision, 항목 7)
+
+기존 4개 레코드만으로는 위 관련성 술어(domain AND keyword, 또는 universal+keyword)를 의미 있게 검증하기 어렵다 — 이슈타입별로 실제 키워드가 매칭되는 레코드가 최소 1개씩 있어야, "관련 없는 evidence는 배제된다"는 계약(`AC-RESEARCH-005`)과 "이슈타입별로 근거가 존재한다"는 계약(REQ-RESEARCH-016 계열)을 동시에 검증할 수 있다. 대규모 수집·크롤링 시스템은 도입하지 않으며(spec.md §4 Out of Scope 유지), 이번 SPEC 범위에서 curated seed를 **4개 → 10개**로 확장한다:
+
+| 담보 도메인 | 레코드 수 | 커버하는 issueType 키워드 | evidenceType 분포 |
+|---|---|---|---|
+| INJURY_DISABILITY(상해후유장해) | 5 | DISABILITY_LOCATION 1, DISABILITY_GRADE_CRITERIA 1, CAUSATION 1, PRE_EXISTING_CONDITION 1, 기존 레코드(발목 인대 파열/상해 진단서 요건) 중 최소 1건 유지 | POLICY 1, PRECEDENT 1, DISPUTE_CASE 1, STATUTE 1, 기존 유지분 1(실제 성격에 맞춰 재검토) |
+| DISEASE_DISABILITY(질병후유장해) | 4 | DIAGNOSIS 1, DISABILITY_GRADE_CRITERIA 1(기존 약관 해설 레코드 재사용 가능), CAUSATION 1, 기존 레코드(감정 절차) 유지 1건 | POLICY 1, PRECEDENT 1, DISPUTE_CASE 1, 기존 유지분 1(OTHER) |
+| 공통(scope: UNIVERSAL) | 1 | 두 도메인 공통 청구 절차 안내 — 항목 6의 universal 관련성 규칙을 검증하기 위한 최소 1건 | STATUTE 1 |
+
+- **evidenceType**은 각 레코드의 실제 성격에 맞춰 5개 리터럴 중 하나를 명시한다 — placeholder로 `OTHER`를 일괄 적용하지 않는다(기존에 유지되는 레코드도 이번 확장에서 evidenceType을 재검토한다).
+- **sourceUrl**은 실제 공개 출처(법령 조문, 공개된 판례 요지 등)를 특정할 수 있는 레코드에 한해 포함하고, 그렇지 않은 레코드는 `null`로 유지한다 — 두 경로(있음/없음) 모두 실제 seed 데이터로 검증되도록 최소 1건 이상은 `null`을 유지한다(REQ-RESEARCH-024/AC-RESEARCH-022와 정합).
+- **범위 제한**: 상해후유장해·질병후유장해 핵심 issueType(부위/진단명/평가기준/인과관계/기왕증)과 universal 규칙 검증에 필요한 최소 범위만 포함하며, 그 이상의 대규모 수집·크롤링은 하지 않는다.
+- 이 결정은 run-phase(M4, `scripts/db-seed.ts` + `db/seed/evidence.json`)에서 구체 레코드 내용(문구, 실제 sourceUrl 값)을 작성하는 구현으로 이어진다 — 문구·URL 작성 자체는 run-phase 판단으로 남긴다.
+
+## §7. evidence-ID 무결성 시행 지점 — structured validation(1차) + Verifier(2차 방어) + Skeptic evidence 연결(2차 revision, 항목 5)
 
 ### 결정
 
@@ -283,13 +341,42 @@ function buildFindingSchema(validEvidenceIds: readonly string[]) {
 
 이 스키마가 `.refine()`에서 실패하면 `generateStructured()`는 `{ ok: false, reason: "schema_validation_failed" }`를 반환하고, Researcher는 해당 쿼리의 finding을 "판단불충분"으로 강등하거나 재시도한다(REQ-RESEARCH-014) — 즉 위조된 evidence ID는 Researcher 출력에서 애초에 통과하지 못한다.
 
-**2차 방어선 = Verifier의 evidence 재검증(defense-in-depth).** §3에서 확장한 `verify(findings, challenges, evidence: Map<string, EvidenceCandidate[]>, provider)` 시그니처를 사용해, Verifier는 최종 `VerifiedClaim`을 조립하기 직전 `finding.supportingEvidenceIds`를 해당 쿼리의 실제 evidence 집합과 다시 한번 대조한다. 대조를 통과하지 못하는 ID는 조용히 제거하고, 결과적으로 `supportingEvidenceIds`가 빈 배열이 되는 claim은 `uncertainty`(REQ-RESEARCH-023)로 강등한다(제거하지 않고 "판단불충분" 사유로 리포트에 남긴다 — REQ-RESEARCH-020).
+**Skeptic evidence 연결(항목 5, 2차 revision 신규).** `challenge(findings, evidenceMap, provider)`(§3)로 시그니처가 확장되어, Skeptic은 finding 텍스트뿐 아니라 실제 Retriever evidence(`evidenceMap`)를 프롬프트에서 함께 받는다. `Challenge` 타입에 `supportingEvidenceIds`/`counterEvidenceIds`(둘 다 optional, 기본 빈 배열)를 추가한다:
+
+```ts
+export interface Challenge {
+  findingId: string;
+  counterArgument: string;
+  supportingEvidenceIds?: string[]; // 반론을 뒷받침하는 evidence — 신규(항목 5)
+  counterEvidenceIds?: string[];    // 반론이 반박 근거로 지목하는 evidence — 신규(항목 5)
+}
+```
+
+반론에 evidence가 없는 경우 두 필드 모두 빈 배열(또는 생략)이 허용된다 — Skeptic이 항상 evidence를 인용할 수 있는 것은 아니다(REQ-RESEARCH-018의 "가능한 경우"). 그러나 evidence ID가 존재하는 경우, `buildChallengeSchema(validEvidenceIds)`가 Researcher의 `buildFindingSchema`와 동일한 패턴으로 이를 `.refine()` 검증한다 — 위조된 ID는 1차 방어선에서 차단된다:
+
+```ts
+function buildChallengeSchema(validEvidenceIds: readonly string[]) {
+  const validSet = new Set(validEvidenceIds);
+  const idArray = z.array(z.string()).refine((ids) => ids.every((id) => validSet.has(id)), {
+    message: "존재하지 않는 evidence ID가 포함되었습니다.",
+  });
+  return z.object({
+    findingId: z.string(),
+    counterArgument: z.string().min(1),
+    supportingEvidenceIds: idArray.optional().default([]),
+    counterEvidenceIds: idArray.optional().default([]),
+  });
+}
+```
+
+**2차 방어선 = Verifier의 evidence 재검증(defense-in-depth) — Researcher claim과 Skeptic evidence 양쪽 모두.** §3에서 확장한 `verify(findings, challenges, evidence: Map<string, EvidenceCandidate[]>, provider)` 시그니처를 사용해, Verifier는 최종 `VerifiedClaim`을 조립하기 직전 (a) `finding.supportingEvidenceIds`와 (b) `challenge.supportingEvidenceIds`/`challenge.counterEvidenceIds`를 **둘 다** 해당 쿼리의 실제 evidence 집합과 다시 한번 대조한다. 대조를 통과하지 못하는 ID는 조용히 제거하고, 결과적으로 `supportingEvidenceIds`가 빈 배열이 되는 claim은 `uncertainty`(REQ-RESEARCH-023)로 강등한다(제거하지 않고 "판단불충분" 사유로 리포트에 남긴다 — REQ-RESEARCH-020).
 
 ### 근거
 
-- **"생성 시점 차단"이 "생성 후 발견"보다 저렴하다**: 1차 방어선이 대부분의 위조를 스키마 검증 단계에서 즉시 잡아내므로, Verifier가 실제로 걸러내야 하는 사례는 드물게 남는다(Skeptic이 evidence 없이 생성한 반론이 finding에 잘못 섞여 들어오는 경우 등). 두 계층을 다 두는 이유는 Skeptic의 `Challenge`가 evidence ID 필드를 갖지 않으므로(REQ-RESEARCH-018 "가능한 경우" — 의무 아님) Researcher 단계의 스키마 검증만으로는 Skeptic 경로를 커버할 수 없기 때문이다 — Verifier가 최종 관문으로서 반드시 필요하다.
+- **"생성 시점 차단"이 "생성 후 발견"보다 저렴하다**: 1차 방어선이 대부분의 위조를 스키마 검증 단계에서 즉시 잡아내므로, Verifier가 실제로 걸러내야 하는 사례는 드물게 남는다.
+- **1차 revision까지는 Skeptic 경로에 evidence ID 필드 자체가 없어 1차 방어선이 적용될 수 없었다** — 항목 5는 `Challenge`에 evidence ID 필드를 추가함으로써 Researcher와 동일한 1차 방어선(`.refine()` 스키마 검증)을 Skeptic 경로에도 확장한다. Verifier(2차 방어선)는 두 경로 모두를 재검증하는 최종 관문으로 남는다.
 - **REQ-RESEARCH-022의 문언("structured output validation 또는 Verifier가... 차단")을 정확히 만족**: 어느 한쪽만 구현하는 대신 두 계층 모두를 "또는"의 양쪽 선택지로 실제 구현하되, 1차/2차 역할을 명확히 구분해 중복 검증의 이유를 설명한다.
-- **자동 테스트로 검증 가능**: 1차 방어선은 `buildFindingSchema()`에 고의로 존재하지 않는 evidence ID를 포함한 픽스처를 전달하는 단위 테스트로, 2차 방어선은 `verify()`에 조작된 `finding.supportingEvidenceIds`를 직접 주입하는 단위 테스트로 각각 독립적으로 검증한다(REQ-RESEARCH-025의 "이 조건은 자동 테스트로 검증한다" 요구를 양쪽 다 만족).
+- **자동 테스트로 검증 가능**: 1차 방어선(Researcher/Skeptic 양쪽)은 `buildFindingSchema()`/`buildChallengeSchema()`에 고의로 존재하지 않는 evidence ID를 포함한 픽스처를 전달하는 단위 테스트로, 2차 방어선(Verifier)은 조작된 `finding.supportingEvidenceIds` **및** `challenge.supportingEvidenceIds`를 직접 주입하는 단위 테스트로 각각 독립적으로 검증한다(REQ-RESEARCH-025의 "이 조건은 자동 테스트로 검증한다" 요구를 모두 만족).
 
 ## §8. ResearchReport 스키마 확장 + UI 반영
 
@@ -339,21 +426,22 @@ export interface ResearchReport {
 
 | 파일 | 변경 종류 | 요지 |
 |---|---|---|
-| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial` |
+| `lib/pipeline/types.ts` | 확장 | `ResearchQuery`(domain/issueType/keywords), `EvidenceCandidate`(evidenceType, scope — 2차 revision), `Challenge`(supportingEvidenceIds/counterEvidenceIds — 2차 revision), `ResearchReport`/`VerifiedClaim`/신규 `ReviewTarget`/`MissingMaterial` |
 | `lib/ai/provider.ts` | 확장 | `generateStructured()` + `GenerateStructuredRequest`/`StructuredResult` 타입 추가 |
-| `lib/ai/providers/gemini.ts` | 확장 | `generateStructured()` 구현(zod→JSON Schema, 429 재시도 공유) |
+| `lib/ai/providers/gemini.ts` | 확장 | `generateStructured()` 구현(zod→JSON Schema, `responseJsonSchema` 필드 사용 — 2차 revision, 429 재시도 공유) |
 | `lib/ai/providers/deterministic.ts` | 신규 | `mock-llm.ts` 대체 — `generate()`+`generateStructured()` 둘 다 구현 |
 | `lib/ai/provider-factory.ts` | 신규 | `getLLMProvider()` — env 기반 Gemini/결정론적 provider 선택 |
 | `lib/pipeline/mock-llm.ts` | 폐지 | `deterministic.ts`로 대체(§3 근거) |
-| `lib/pipeline/case-normalizer.ts` | 소폭 수정 | 담보 영역 스코프 검증 추가(REQ-RESEARCH-001) |
+| `lib/pipeline/case-normalizer.ts` | **무변경(2차 revision)** | REQ-RESEARCH-001이 담보 스코프 검증 책임을 제거했으므로 이번 SPEC에서 수정하지 않는다(plan.md §A.5 PRESERVE 9) |
 | `lib/pipeline/query-planner.ts` | 재작성 | 규칙 기반 구조화 쟁점 도출(§5) |
-| `lib/pipeline/evidence-retriever.ts` | 재작성 | Drizzle 조회 + 필터링/스코어링, `Map` 반환(§6) |
-| `lib/pipeline/researcher.ts` | 재작성 | evidence-first + `generateStructured()` + 1차 방어선(§7) |
-| `lib/pipeline/skeptic.ts` | 재작성 | 반론 생성 계약, `generateStructured()` |
-| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7) |
+| `lib/pipeline/evidence-retriever.ts` | 재작성 | Drizzle 조회 + domain AND keyword 관련성 필터(scope 축 포함 — §6, 2차 revision), `Map` 반환 |
+| `lib/pipeline/researcher.ts` | 재작성 | evidence-first + `generateStructured()` + 1차 방어선(§7) + provider 필수 인자(§3, 2차 revision) |
+| `lib/pipeline/skeptic.ts` | 재작성 | `evidenceMap` 인자 추가 + 반론 evidence 연결(§7, 2차 revision), `generateStructured()`, provider 필수 인자(§3) |
+| `lib/pipeline/verifier.ts` | 재작성 | evidence 인자 추가 + 2차 방어선(§7, Researcher+Skeptic 양쪽 재검증 — 2차 revision) + provider 필수 인자(§3) |
 | `lib/pipeline/index.ts` | 확장 | `RunPipelineOptions`, provider 단일 주입(§3) |
-| `lib/db/schema.ts` | 확장 | `evidence.evidenceType` 컬럼(§6) |
-| `db/migrations/` | 신규 | `evidenceType` 컬럼 마이그레이션 파일 |
+| `lib/db/schema.ts` | 확장 | `evidence.evidenceType`/`evidence.scope` 컬럼(§6, 2차 revision) |
+| `db/migrations/` | 신규 | `evidenceType`/`scope` 컬럼 마이그레이션 파일 |
+| `db/seed/evidence.json` | 확장(2차 revision) | 4개 → 10개 curated 레코드(§6 seed 확장 결정, 항목 7) |
 | `lib/env.ts` | 확장 | app 스코프 `GEMINI_API_KEY` 조건부 게이트(§2) |
 | `scripts/run-e2e.ts` | 소폭 수정 | `assembleE2EEnv()`에 `LLM_PROVIDER_MODE=deterministic` 한 줄 추가(§1) |
 | `app/cases/[caseId]/page.tsx` | 수정 | `verifiedClaims`/`reviewTargets`/`missingMaterials`/evidence source 렌더링(§8) |

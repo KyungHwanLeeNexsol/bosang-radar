@@ -38,7 +38,7 @@
 ## §5. Zod 사용 실측 (구조화 출력 검증의 선례 부재)
 
 - `lib/validation/case-input.ts`가 프로젝트의 **유일한** Zod 사용처다: `caseInputSchema`는 4개 텍스트 필드에 `.strict()` + PII 정규식 `.refine()`을 적용해 사건 입력 폼/API 경계에서 주민등록번호·전화번호 형식을 구조적으로 거부한다. `zod: "4.4.3"`가 이미 `dependencies`에 고정되어 있다(product.md/tech.md의 "Zod — 입력 검증" 절과 정확히 일치).
-- **LLM 응답을 Zod로 검증하는 선례는 프로젝트 전체에 전혀 없다** — 이번 SPEC의 구조화 출력 검증 계층은 완전한 신규(greenfield) 작업이다. 다만 zod 4.4.3은 네이티브 `z.toJSONSchema()` 변환기를 제공하므로(zod v4 신규 기능), Gemini의 `responseSchema` 설정에 필요한 JSON Schema를 **신규 의존성 추가 없이** zod 스키마로부터 직접 생성할 수 있다(design.md §3에서 이 경로를 채택한다).
+- **LLM 응답을 Zod로 검증하는 선례는 프로젝트 전체에 전혀 없다** — 이번 SPEC의 구조화 출력 검증 계층은 완전한 신규(greenfield) 작업이다. 다만 zod 4.4.3은 네이티브 `z.toJSONSchema()` 변환기를 제공하므로(zod v4 신규 기능), Gemini의 구조화 출력 설정(`responseJsonSchema` 필드 — 2차 revision, JSON Schema를 직접 받는 필드를 사용)에 필요한 JSON Schema를 **신규 의존성 추가 없이** zod 스키마로부터 직접 생성할 수 있다(design.md §4에서 이 경로를 채택한다). Gemini 응답은 그렇게 생성된 값이라도 항상 `safeParse()`로 재검증된다 — Gemini의 structured-output 세부사항은 adapter 내부(`gemini.ts`)에만 위치하고 pipeline 단계 모듈에는 노출되지 않는다.
 
 ## §6. UI 소비 실측 (`app/cases/[caseId]/page.tsx`)
 
@@ -49,7 +49,7 @@
 
 ## §7. 테스트 하네스 실측 — DI 시임과 E2E 갭
 
-- 모든 파이프라인 단계 테스트(`researcher.test.ts`, `evidence-retriever.test.ts` 등 확인됨)가 이미 **"주입 가능한 provider/source 3번째·2번째 인자" 패턴**을 사용한다 — `researcher.test.ts`는 `stubProvider: LLMProvider = { async generate(request) { return { text: `stub:${request.prompt}` } } }`를 3번째 인자로 넘기고, "주입된 provider가 없으면 기본 mock provider로 동작한다"는 두 번째 테스트 케이스로 기본값 폴백까지 검증한다. **이 DI 시임은 이번 SPEC이 반드시 보존해야 할 기존 계약**이다 — 각 단계 함수 시그니처(`research(queries, evidence, provider?)` 등)를 바꾸지 않고, 기본값이 가리키는 provider 구현체만 교체하면 이 테스트들은 무수정으로 통과한다(다만 `generateStructured`를 추가로 요구하게 되면 `stubProvider`가 그 메서드도 구현해야 하므로 각 테스트 파일의 stub 객체는 확장이 필요하다 — 이는 새 인터페이스 멤버 추가에 따른 자연스러운 파급이며 DI 시임 자체의 파괴는 아니다).
+- 모든 파이프라인 단계 테스트(`researcher.test.ts`, `evidence-retriever.test.ts` 등 확인됨)가 이미 **"주입 가능한 provider/source 3번째·2번째 인자" 패턴**을 사용한다 — `researcher.test.ts`는 `stubProvider: LLMProvider = { async generate(request) { return { text: `stub:${request.prompt}` } } }`를 3번째 인자로 넘기고, 조사 시점에는 "주입된 provider가 없으면 기본 mock provider로 동작한다"는 두 번째 테스트 케이스로 기본값 폴백까지 검증하고 있었다. **함수가 provider를 인자로 받는다는 DI 시임 자체는 이번 SPEC이 보존한다** — 다만 design.md §3(2차 revision, 항목 2)에서 "provider 생략 시 기본값으로 폴백"하는 하위 동작은 명시적으로 제거되므로, 위 "기본값 폴백" 테스트 케이스는 그대로 통과할 수 없다(provider가 필수 인자가 되어 컴파일 오류가 나기 때문) — 해당 테스트 케이스는 run-phase에서 삭제되거나 "provider 생략 시 컴파일 오류"를 검증하는 형태로 대체되어야 한다. `generateStructured`를 추가로 요구하게 되면 `stubProvider`가 그 메서드도 구현해야 하므로 각 테스트 파일의 stub 객체는 확장이 필요하다 — 이는 새 인터페이스 멤버 추가에 따른 자연스러운 파급이다.
 - `gemini.test.ts`(직접 열람하지 않았으나 Explore 보고에서 확인)는 `@google/genai`를 `vi.mock`으로 완전히 모킹해 재시도/백오프/에러 전파를 테스트한다 — 이 패턴이 `generateStructured`의 Gemini 구현체 테스트에도 재사용 가능한 선례다.
 - **E2E 갭 (Explore가 명시적으로 미해결로 남긴 지점)**: `scripts/run-e2e.ts`의 `assembleE2EEnv()`는 결정론적 LLM provider를 주입하는 메커니즘을 전혀 갖고 있지 않다 — LLM provider 선택은 지금까지 전적으로 각 파이프라인 단계 함수의 기본 파라미터(`= createMockLLMProvider()`)에만 의존해왔고, 오케스트레이터(`runPipeline`) 수준에서 provider를 주입하는 지점 자체가 없다. `package.json`의 `test:e2e` 스크립트가 `pnpm build && pnpm start`로 실제 프로덕션 빌드를 띄우므로, "앱이 mock을 쓰는지 실제 Gemini를 쓰는지"는 오직 코드가 무엇을 기본값으로 삼느냐에 달려 있다 — 이번 SPEC에서 mock 기본값을 제거하고 나면, E2E가 실제 Gemini를 호출하게 되는 회귀가 설계적으로 발생할 수 있다. design.md §1이 이를 명시적으로 해결한다.
 
