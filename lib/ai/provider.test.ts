@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { LLMProvider } from "./provider";
+import type { GenerateStructuredRequest, LLMProvider, StructuredResult } from "./provider";
 
 class FakeProvider implements LLMProvider {
   async generate(request: { prompt: string }) {
     return { text: `echo: ${request.prompt}` };
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<StructuredResult<T>> {
+    const result = request.schema.safeParse({});
+    if (!result.success) {
+      return { ok: false, reason: "schema_validation_failed", raw: "{}" };
+    }
+    return { ok: true, data: result.data };
   }
 }
 

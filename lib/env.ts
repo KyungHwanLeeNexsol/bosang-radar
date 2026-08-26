@@ -13,8 +13,9 @@ interface VarInfo {
 }
 
 // design.md §3.1 스코프 × 변수 매트릭스 (SSOT). TURSO_AUTH_TOKEN은 file: capability
-// gate로 별도 처리하므로 이 표에는 포함하지 않는다. GEMINI_API_KEY는 어떤 스코프에서도
-// 요구하지 않는다(파이프라인이 mock 구현을 유지하는 동안 — 각주는 design.md §3.1 참고).
+// gate로 별도 처리하므로 이 표에는 포함하지 않는다. GEMINI_API_KEY도 app 스코프
+// 조건부 게이트(LLM_PROVIDER_MODE !== "deterministic"일 때만 요구, SPEC-RESEARCH-001
+// design.md §2)로 별도 처리하므로 이 표에는 포함하지 않는다.
 const REQUIRED_BY_SCOPE: Record<EnvScope, readonly string[]> = {
   db: ["TURSO_DATABASE_URL"],
   provision: ["TURSO_DATABASE_URL", "BETTER_AUTH_SECRET"],
@@ -43,6 +44,10 @@ const VAR_INFO: Record<string, VarInfo> = {
   TESTER_PASSWORD: {
     reason: "비대화형 테스터 프로비저닝 비밀번호입니다 (대화형 프롬프트를 쓰지 않을 때 필요).",
     howToObtain: "8자 이상의 값을 설정하세요.",
+  },
+  GEMINI_API_KEY: {
+    reason: "Researcher/Skeptic/Verifier가 실제 리서치 소견을 생성하는 데 필요한 Gemini API 키입니다.",
+    howToObtain: "Google AI Studio(aistudio.google.com)에서 발급받으세요.",
   },
 };
 
@@ -108,6 +113,14 @@ export function validateEnv(
     !source.TURSO_AUTH_TOKEN
   ) {
     missing.push("TURSO_AUTH_TOKEN");
+  }
+
+  // app 스코프 GEMINI_API_KEY 조건부 게이트 — LLM_PROVIDER_MODE가 deterministic으로
+  // 설정되지 않은 정상 앱 부팅 경로에서만 요구한다(SPEC-RESEARCH-001 design.md §2,
+  // REQ-RESEARCH-012). E2E는 LLM_PROVIDER_MODE=deterministic을 상속받으므로
+  // 이 게이트에서 면제된다.
+  if (scope === "app" && source.LLM_PROVIDER_MODE !== "deterministic" && !source.GEMINI_API_KEY) {
+    missing.push("GEMINI_API_KEY");
   }
 
   if (missing.length > 0) {
