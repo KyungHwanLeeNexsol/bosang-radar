@@ -3,6 +3,8 @@
 원시 증거(코드 실측 + 공식 문서 fetch 결과)는 `research.md`에 있다. 이 문서는 그 증거로부터 내린 **설계 결정**만 다룬다.
 
 > **개정 이력**: 이 버전은 외부 독립 리뷰가 지적한 6개 blocking 결함(D1~D5, D5가 데이터 사용 정책 재검증까지 포함) 반영판이다 — spec.md HISTORY 참고. §1(D1/D3 반영 전면 재작성), §3(D2 참조 추가), §4(D4 관련 상호참조 추가), §5(D2 반영 — 스케줄러가 매 재시도 시도에도 적용), §6(D5 반영 — 개인정보 과잉주장 정정 + 파일럿 데이터 계약 + Google 무료 tier 데이터 사용 정책)이 바뀌었다. §2/§7/§8은 이전 버전과 실질적으로 동일하다(사소한 상호참조만 추가).
+>
+> **개정 이력(5차)**: §2에 외부 독립 리뷰가 지적한 그라운딩 계약 회귀 결함(D-NEW2)을 반영 — 사후-파싱 업무 규칙 검증 순서에 Researcher 항목 한정 `supportingEvidenceIds.length >= 1` 단계를 명시적으로 추가했다. spec.md HISTORY 5차 개정 참고.
 
 ## §0. 이 SPEC의 핵심 프레이밍
 
@@ -128,7 +130,9 @@ Verifier의 기존 배치 검증은 **배열 전체에 대한 `.refine()`**을 �
 
 **기술적으로 확인된 함정**: "`z.array(itemSchema)`의 item 스키마 안에 `.refine()`을 넣어 항목별로 스코프하면 부분 수용이 가능하다"는 아이디어는 **작동하지 않는다**. Zod의 `safeParse()`는 원자적(atomic)이다 — 배열 원소 하나라도 `.refine()`을 통과하지 못하면 Zod는 그 원소만 실패로 표시하는 게 아니라 **`result.success` 전체를 `false`**로 만든다. `.refine()`을 배열 레벨에 두든 item 레벨에 두든 최종 결과(`generateStructured()`의 `ok: false`)는 동일하다 — item-레벨 refine은 Verifier의 배열-레벨 refine과 똑같은 all-or-nothing 실패로 귀결된다.
 
-**채택한 방식(옵션 2, 올바르게 구현) — "구조는 스키마로, 업무 규칙은 파싱 후 코드로"**: `generateStructured()`에 넘기는 Zod 스키마를 **구조(shape/타입)만** 검증하도록 좁히고("candidate 소속 확인"·"evidence 부분집합"·"1:1 대응"과 같은 업무 규칙은 스키마의 `.refine()`으로 넣지 않는다), `ok: true`가 반환된 뒤 Researcher/Skeptic 자신의 코드가 각 응답 항목에 대해 **그 항목에 귀속된** 검사(candidate 소속 → 부분집합 → safety-validator 순)를 개별 적용해, 실패한 항목만 "그 query/finding에 대한 결과 없음"으로 폐기한다(오늘의 per-query `continue`와 동일한 효과). 배치 응답 자체가 최상위에서 파싱 불가능한 경우(진짜 구조적 실패)만 그 호출 전체를 fail-closed 처리한다.
+**채택한 방식(옵션 2, 올바르게 구현) — "구조는 스키마로, 업무 규칙은 파싱 후 코드로"**: `generateStructured()`에 넘기는 Zod 스키마를 **구조(shape/타입)만** 검증하도록 좁히고("candidate 소속 확인"·"evidence 부분집합"·"1:1 대응"과 같은 업무 규칙은 스키마의 `.refine()`으로 넣지 않는다), `ok: true`가 반환된 뒤 Researcher/Skeptic 자신의 코드가 각 응답 항목에 대해 **그 항목에 귀속된** 검사를 개별 적용해, 실패한 항목만 "그 query/finding에 대한 결과 없음"으로 폐기한다(오늘의 per-query `continue`와 동일한 효과). 검사 순서는 (1) candidate 소속 확인 → (2) 중복 응답 처리(첫 응답만 채택) → (3) **Researcher 항목에 한해** `supportingEvidenceIds.length >= 1` 검증 → (4) evidence 부분집합 검증 → (5) safety-validator이다(D-NEW2, 아래 상세). 배치 응답 자체가 최상위에서 파싱 불가능한 경우(진짜 구조적 실패)만 그 호출 전체를 fail-closed 처리한다.
+
+**D-NEW2 — Researcher 그라운딩 계약이 스키마에서 빠지면서 사후-검증 순서에 재배치되지 않았던 결함(외부 독립 리뷰 5차 지적)**: 현행 `lib/pipeline/researcher.ts`의 per-query `buildFindingSchema(validEvidenceIds)`는 `supportingEvidenceIds: z.array(z.string()).min(1).refine(...)`로 각 finding이 최소 1개의 실제 evidence ID를 인용하도록 스키마 레벨에서 이미 보증하고 있다. 이 SPEC의 배치 설계(위 옵션 2)가 이 `.refine()`을 배열 스키마에서 제거하면서, 그 그라운딩 보증이 사후-파싱 검사 순서 어디에 재배치되는지가 이전 버전에서 명시적으로 서술되지 않았다 — `findingItemSchema`가 "구조만 검증 — refine 없음"이라고만 적혀 있어, 구현 시 이 검사를 그냥 누락시킬 위험이 있었다. 정정: 사후-검증 순서의 (3)단계로 **Researcher 항목에 한해** `supportingEvidenceIds.length >= 1`을 명시적으로 추가한다 — 위반한 항목(빈 배열)만 그 query에 대한 결과 없음으로 폐기되고, 같은 배치의 다른 정상 항목은 영향받지 않는다(부분 배치 실패 설계, 위 옵션 2와 정합). **Skeptic은 이 단계를 건너뛴다** — Skeptic의 `supportingEvidenceIds`/`counterEvidenceIds`는 기존 계약대로 빈 배열을 허용한다(아래 "Skeptic 배치의 추가 규칙" 참고, `counterEvidenceIds`가 빈 배열이라는 사실 자체가 corpus 부족의 자동 증거로 취급되지 않는다는 REQ-GEMINI-RUNTIME-010과 정합). 이 비대칭은 Researcher(evidence를 요약해 finding을 만드는 역할 — finding 자체가 근거 없이는 존재할 이유가 없음)와 Skeptic(반론을 제기하되 반박 근거가 없을 수도 있는 역할)의 서로 다른 의미론에서 비롯된다.
 
 ```ts
 // lib/pipeline/researcher.ts (개념 — 정확한 필드명은 run-phase 확정)
@@ -136,14 +140,20 @@ const findingItemSchema = z.object({
   queryId: z.string(),
   summary: z.string().min(1),
   supportingEvidenceIds: z.array(z.string()),
-}); // 구조만 검증 — refine 없음
+}); // 구조만 검증 — refine 없음(그라운딩 길이 검사는 파싱 후 코드에서 수행, 아래 참고)
 const findingBatchSchema = z.object({ findings: z.array(findingItemSchema) });
 
-// ok:true 이후, 각 candidate 자신의 validEvidenceIds Set을 조회해 개별 필터링
-// (Verifier의 claimEvidenceById/caSupportingById와 동일한 per-candidate Map 조회 기법 재사용)
+// ok:true 이후, 각 응답 항목에 대해 순서대로 적용(D-NEW2):
+//   1. candidate(queryId) 소속 확인
+//   2. 중복 응답 처리 — 같은 queryId가 두 번 이상 나오면 첫 항목만 채택
+//   3. supportingEvidenceIds.length >= 1 — 위반 시 그 항목만 폐기(Researcher 그라운딩 계약)
+//   4. 그 query 자신의 validEvidenceIds Set을 조회해 부분집합 검증
+//      (Verifier의 claimEvidenceById/caSupportingById와 동일한 per-candidate Map 조회 기법 재사용)
+//   5. findSafetyViolations() 안전 검사
+// 5단계 중 어느 하나라도 실패하면 그 항목만 결과 없음으로 폐기하고, 나머지 정상 항목은 그대로 유지한다.
 ```
 
-**두 가지가 이 결정으로 약화되지 않음을 확인**: (a) 위조 ID 방어 — 스키마 refine이든 코드 필터든 검사의 엄격함은 정확히 동일한 Set 멤버십 검사다. 차이는 실패 시 "무엇이 폐기되는가"(배열 전체 vs 그 항목 하나)뿐이다. (b) query별 evidence 격리(REQ-GEMINI-RUNTIME-008) — per-candidate Map 조회는 오히려 오늘 검증되지 않던 "같은 배치 내 다른 query/finding 소속 evidence 교차 인용"까지 정확히 같은 엄격함으로 새로 검증한다.
+**세 가지가 이 결정으로 약화되지 않음을 확인**: (a) 위조 ID 방어 — 스키마 refine이든 코드 필터든 검사의 엄격함은 정확히 동일한 Set 멤버십 검사다. 차이는 실패 시 "무엇이 폐기되는가"(배열 전체 vs 그 항목 하나)뿐이다. (b) query별 evidence 격리(REQ-GEMINI-RUNTIME-008) — per-candidate Map 조회는 오히려 오늘 검증되지 않던 "같은 배치 내 다른 query/finding 소속 evidence 교차 인용"까지 정확히 같은 엄격함으로 새로 검증한다. (c) Researcher 그라운딩 계약(D-NEW2) — 현행 per-query 스키마의 `.min(1)`이 보증하던 "finding은 최소 1개의 실제 evidence ID를 인용해야 한다"는 요구는, 사후-검증 순서 (3)단계로 정확히 동일한 엄격함(길이 ≥ 1)으로 이어진다. 차이는 실패 시 배열 전체가 아니라 그 항목 하나만 폐기된다는 점뿐이며, 이는 오히려 오늘의 per-query 동작(evidence가 없으면 애초에 그 query가 candidate로 전달되지 않음, REQ-GEMINI-RUNTIME-004)과 더 가까운 결과를 낸다.
 
 **Verifier와의 의도적 차이**: 이번 배치는 Verifier의 "정확히 1:1 대응(누락·중복 금지)" 요구를 채택하지 않는다 — 오늘의 per-query 독립 루프도 이미 "LLM이 특정 query에 응답하지 못하면 그냥 건너뛴다"는 관대한 계약이었기 때문이다. 누락된 query/finding은 결과 없음(오늘과 동일, Verifier의 기존 query↔finding 대조 로직이 `missingMaterials`로 흡수), 중복 응답은 첫 번째만 채택한다.
 
@@ -155,6 +165,8 @@ const findingBatchSchema = z.object({ findings: z.array(findingItemSchema) });
 - `counterEvidenceIds` — **피보험자/청구인 측**이 그 반론에 대해 반박 근거로 제시할 수 있는 근거.
 
 두 배열 모두 여전히 "그 finding에 대해 EvidenceRetriever가 실제로 반환한 evidence 집합"의 부분집합이어야 한다. **`counterEvidenceIds`가 빈 배열이라는 사실 자체를 corpus 부족의 자동 증거로 취급하지 않는다** — 코드 주석이나 문서 어디에도 "0건 = corpus 부족"이라는 단정을 남기지 않는다(§7의 스모크 리포트 정정과 정합).
+
+**Researcher와의 비대칭(D-NEW2, 명시)**: Researcher의 `supportingEvidenceIds`는 사후-검증에서 `length >= 1`을 강제받지만(위 옵션 2), Skeptic의 `supportingEvidenceIds`/`counterEvidenceIds` 두 배열 모두 이 길이 강제를 받지 않는다 — 둘 다 빈 배열이 허용되는 기존 계약이 그대로 유지된다. 이 비대칭의 근거는 두 역할의 의미론이 다르기 때문이다: Researcher의 finding은 evidence를 요약해 만든 결과물이므로 evidence 없이 존재할 이유가 없지만(finding 자체가 근거의 산물), Skeptic의 반론은 근거가 빈약하더라도 "반론을 제기했다"는 사실 자체가 유의미한 신호일 수 있고, 특히 `counterEvidenceIds`가 빈 배열인 것은 (위 문단이 명시하듯) corpus 부족을 포함한 여러 가설 중 하나일 뿐 반론 자체가 무효라는 뜻이 아니다.
 
 ### Verifier — 변경 없음, model만 교체
 

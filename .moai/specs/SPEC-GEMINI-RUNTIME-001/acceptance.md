@@ -53,6 +53,11 @@
 - When: `research()`를 실행한다
 - Then: query B의 결과는 폐기되어(finding 없음) query B에 위조 ID가 남지 않으며, 위조 ID의 출처가 된 query A 자신의 정상 결과와 무관한 제3자 query C의 정상 결과 둘 다 영향받지 않고 그대로 `DraftFinding[]`에 남는다 — 즉 evidence를 도용당한 쪽(A)과 도용과 무관한 쪽(C) 모두 부분 배치 실패의 영향을 받지 않음을 함께 확인한다(부분 배치 실패가 전체 배치를 실패시키지 않음을 직접 확인).
 
+**AC-GEMINI-RUNTIME-009a** (REQ-GEMINI-RUNTIME-007, REQ-GEMINI-RUNTIME-004 — Researcher 그라운딩 계약, D-NEW2)
+- Given: 같은 Researcher 배치 응답 안에서 query A는 유효한 evidence ID를 1개 이상 인용하고, query B는 `supportingEvidenceIds: []`(빈 배열)를 반환하며, query C도 유효한 evidence ID를 1개 이상 인용하는 fake provider 응답
+- When: `research()`를 실행한다
+- Then: query B의 결과만 폐기되어(finding 없음) 반환된 `DraftFinding[]`에 나타나지 않으며, query A와 query C의 finding은 둘 다 그대로 보존된다 — 배치 전체는 실패하지 않는다. query B의 근거 없는(ungrounded) finding이 `DraftFinding[]`에 등장하는 경우는 없다(외부 독립 리뷰 5차 지적 — 배치 전환 이후에도 "Researcher finding은 최소 1개의 실제 evidence ID를 인용해야 한다"는 그라운딩 계약이 항목 단위로 정확히 강제됨을 직접 확인).
+
 **AC-GEMINI-RUNTIME-010** (REQ-GEMINI-RUNTIME-007, REQ-GEMINI-RUNTIME-008 — Skeptic)
 - Given: finding A의 evidence ID를 finding B의 반론 항목이 인용하도록 조작된 fake provider 응답(다른 finding C는 정상)
 - When: `challenge()`를 실행한다
@@ -215,7 +220,7 @@ PASS 조건(전부 만족해야 함):
 | REQ-GEMINI-RUNTIME-004 | AC-GEMINI-RUNTIME-005, AC-GEMINI-RUNTIME-006 |
 | REQ-GEMINI-RUNTIME-005 | AC-GEMINI-RUNTIME-007 |
 | REQ-GEMINI-RUNTIME-006 | AC-GEMINI-RUNTIME-008 |
-| REQ-GEMINI-RUNTIME-007 | AC-GEMINI-RUNTIME-009, AC-GEMINI-RUNTIME-010, AC-GEMINI-RUNTIME-011 |
+| REQ-GEMINI-RUNTIME-007 | AC-GEMINI-RUNTIME-009, AC-GEMINI-RUNTIME-009a, AC-GEMINI-RUNTIME-010, AC-GEMINI-RUNTIME-011 |
 | REQ-GEMINI-RUNTIME-008 | AC-GEMINI-RUNTIME-009, AC-GEMINI-RUNTIME-010 |
 | REQ-GEMINI-RUNTIME-009 | AC-GEMINI-RUNTIME-012 |
 | REQ-GEMINI-RUNTIME-010 | AC-GEMINI-RUNTIME-012 |
@@ -237,4 +242,4 @@ PASS 조건(전부 만족해야 함):
 | (전체 SPEC 정적 게이트) | AC-GEMINI-RUNTIME-025 |
 | (전체 SPEC, 자동화 아님) | §C 수동 실 Gemini 스모크 |
 
-25개 최상위 자동화 AC(AC-GEMINI-RUNTIME-001~025) + 9개 서브레터 AC(022a/022b/022c/014a/016a/016b/018a/021a/021b) + 1개 수동 스모크 절차. 서브레터 AC는 인접한 최상위 AC(각각 022/014/016/018/021)와 밀접하게 결합된 논리적 검증을 페어링하는 관례(manager-spec AC 서브-ID 컨벤션 — spec.md/plan.md/acceptance.md 어디에도 이 관례가 SPEC ID 자체에는 적용되지 않음을 재확인)이므로, Tier L의 REQ/AC 상한(25개)은 최상위 AC 번호 기준(001~025)으로 계산하며 정확히 25개로 상한과 일치한다. 25개 REQ(REQ-GEMINI-RUNTIME-001~025, Tier L 상한 25개와 정확히 일치) 전부가 최소 1개의 최상위 또는 서브레터 AC에 매핑된다(위 매트릭스로 확인). REQ-GEMINI-RUNTIME-025는 정상 경로 재사용(016a)과 테스트 경로 격리(016b) 두 절반이 각각 별도 AC로 검증된다.
+25개 최상위 자동화 AC(AC-GEMINI-RUNTIME-001~025) + 10개 서브레터 AC(009a/022a/022b/022c/014a/016a/016b/018a/021a/021b) + 1개 수동 스모크 절차. 서브레터 AC는 인접한 최상위 AC(각각 009/022/014/016/018/021)와 밀접하게 결합된 논리적 검증을 페어링하는 관례(manager-spec AC 서브-ID 컨벤션 — spec.md/plan.md/acceptance.md 어디에도 이 관례가 SPEC ID 자체에는 적용되지 않음을 재확인)이므로, Tier L의 REQ/AC 상한(25개)은 최상위 AC 번호 기준(001~025)으로 계산하며 정확히 25개로 상한과 일치한다. 25개 REQ(REQ-GEMINI-RUNTIME-001~025, Tier L 상한 25개와 정확히 일치) 전부가 최소 1개의 최상위 또는 서브레터 AC에 매핑된다(위 매트릭스로 확인). REQ-GEMINI-RUNTIME-025는 정상 경로 재사용(016a)과 테스트 경로 격리(016b) 두 절반이 각각 별도 AC로 검증된다. REQ-GEMINI-RUNTIME-007은 부분 배치 실패(009/010/011)에 더해 Researcher 그라운딩 계약(009a, D-NEW2)까지 서브레터 AC로 별도 검증된다.
