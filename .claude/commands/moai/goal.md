@@ -1,5 +1,5 @@
 ---
-description: 완료 조건을 등록하고 자율 진행 루프를 arm
+description: Register a completion condition and arm the autonomous continuation loop
 argument-hint: "{\"<condition>\"|status [--all]|clear}"
 allowed-tools: Skill
 ---

@@ -1,297 +1,48 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "🗿 MoAI",
+    "pr": "🗿 MoAI",
+    "sessionUrl": false
+  },
+  "cleanupPeriodDays": 30,
+  "env": {
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+    "ENABLE_TOOL_SEARCH": "1",
+    "MOAI_CONFIG_SOURCE": "sections",
+    "PATH": "C:\\Users\\Nexsol\\.local\\bin;C:\\Users\\Nexsol\\go\\bin;/usr/local/bin;/usr/local/sbin;/usr/bin;/bin;/usr/sbin;/sbin"
+  },
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|compact|fork",
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-session-start.sh"],
-            "timeout": 30,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-compact.sh"],
-            "timeout": 30,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-session-end.sh"],
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-pre-tool.sh"],
-            "timeout": 10,
-            "type": "command"
-          }
-        ],
-        "matcher": "Write|Edit|Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-pre-tool.sh"],
-            "timeout": 10,
-            "type": "command"
-          }
-        ],
-        "matcher": "Agent|Task"
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-tool.sh"],
-            "timeout": 10,
-            "type": "command",
-            "async": true
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"],
-            "if": "Write(**/.moai/specs/**)",
-            "timeout": 5,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"],
-            "if": "Edit(**/.moai/specs/**)",
-            "timeout": 5,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"],
-            "if": "MultiEdit(**/.moai/specs/**)",
-            "timeout": 5,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-scan.sh"],
-            "timeout": 5,
-            "type": "command",
-            "async": true
-          }
-        ],
-        "matcher": "Write|Edit|MultiEdit"
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop.sh"],
-            "timeout": 5,
-            "type": "command",
-            "async": true
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/sync-phase-quality-gate.sh"],
-            "timeout": 60,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop-goal.sh"],
-            "timeout": 120,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-turn.sh"],
-            "timeout": 5,
-            "type": "command",
-            "async": true
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-commit.sh"],
-            "timeout": 5,
-            "type": "command",
-            "async": true
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-codex-review-gate.sh"],
-            "timeout": 900,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-multi-review-gate.sh"],
-            "timeout": 900,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-subagent-stop.sh"],
-            "timeout": 5,
-            "type": "command"
-          },
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/chain-event.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-tool-failure.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-subagent-start.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-user-prompt-submit.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "TeammateIdle": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-teammate-idle.sh"],
-            "timeout": 60,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-task-completed.sh"],
-            "timeout": 60,
-            "type": "command"
-          }
-        ]
-      }
-    ],
     "ConfigChange": [
       {
-        "matcher": "project_settings|local_settings|skills",
         "hooks": [
           {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-config-change.sh"
+            ],
             "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-config-change.sh"],
             "timeout": 5,
             "type": "command"
           }
-        ]
-      }
-    ],
-    "StopFailure": [
-      {
-        "matcher": "rate_limit|authentication_failed|billing_error|max_output_tokens",
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop-failure.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PostCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-compact.sh"],
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "InstructionsLoaded": [
-      {
-        "hooks": [
-          {
-            "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-instructions-loaded.sh"],
-            "timeout": 5,
-            "type": "command",
-            "async": true
-          }
-        ]
+        ],
+        "matcher": "project_settings|local_settings|skills"
       }
     ],
     "CwdChanged": [
       {
         "hooks": [
           {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-cwd-changed.sh"
+            ],
             "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-cwd-changed.sh"],
             "timeout": 5,
             "type": "command"
           }
@@ -302,8 +53,12 @@
       {
         "hooks": [
           {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-file-changed.sh"
+            ],
             "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-file-changed.sh"],
             "timeout": 5,
             "type": "command"
           }
@@ -311,12 +66,33 @@
         "matcher": ".env|.envrc|.gitignore"
       }
     ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-instructions-loaded.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "PermissionDenied": [
       {
         "hooks": [
           {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-permission-denied.sh"
+            ],
             "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-permission-denied.sh"],
             "timeout": 5,
             "type": "command"
           }
@@ -327,8 +103,375 @@
       {
         "hooks": [
           {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-permission-request.sh"
+            ],
             "command": "bash",
-            "args": ["-c", "[ -f \"$0\" ] && exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2>/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" >> \"$d/.moai/logs/hook-missing.log\" 2>/dev/null; exit 0", "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-permission-request.sh"],
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-compact.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "manual|auto"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-tool.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 10,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"
+            ],
+            "command": "bash",
+            "if": "Write(**/.moai/specs/**)",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"
+            ],
+            "command": "bash",
+            "if": "Edit(**/.moai/specs/**)",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/status-transition-ownership.sh"
+            ],
+            "command": "bash",
+            "if": "MultiEdit(**/.moai/specs/**)",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-scan.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-tool-failure.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-compact.sh"
+            ],
+            "command": "bash",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "manual|auto"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-pre-tool.sh"
+            ],
+            "command": "bash",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|Bash"
+      },
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-pre-tool.sh"
+            ],
+            "command": "bash",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Agent|Task"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-session-end.sh"
+            ],
+            "command": "bash",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-session-start.sh"
+            ],
+            "command": "bash",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear|compact|fork"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/sync-phase-quality-gate.sh"
+            ],
+            "command": "bash",
+            "timeout": 60,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop-goal.sh"
+            ],
+            "command": "bash",
+            "timeout": 120,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-turn.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-security-commit.sh"
+            ],
+            "async": true,
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-codex-review-gate.sh"
+            ],
+            "command": "bash",
+            "timeout": 900,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-multi-review-gate.sh"
+            ],
+            "command": "bash",
+            "timeout": 900,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop-failure.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "rate_limit|authentication_failed|billing_error|max_output_tokens"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-subagent-start.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-subagent-stop.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/chain-event.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-task-completed.sh"
+            ],
+            "command": "bash",
+            "timeout": 60,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-teammate-idle.sh"
+            ],
+            "command": "bash",
+            "timeout": 60,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-user-prompt-submit.sh"
+            ],
+            "command": "bash",
             "timeout": 5,
             "type": "command"
           }
@@ -336,24 +479,9 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "bash \"$CLAUDE_PROJECT_DIR/.moai/status_line.sh\"",
-    "refreshInterval": 10
-  },
-  "skillListingBudgetFraction": 0.02,
-  "showThinkingSummaries": false,
-  "cleanupPeriodDays": 30,
+  "includeGitInstructions": true,
   "model": "sonnet",
   "outputStyle": "MoAI-Easy",
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "ENABLE_TOOL_SEARCH": "1",
-    "MOAI_CONFIG_SOURCE": "sections",
-    "CLAUDE_CODE_NO_FLICKER": "1",
-    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
-    "PATH": "C:\\Users\\Nexsol\\.local\\bin;C:\\Users\\Nexsol\\go\\bin;/usr/local/bin;/usr/local/sbin;/usr/bin;/bin;/usr/sbin;/sbin"
-  },
   "permissions": {
     "allow": [
       "AskUserQuestion",
@@ -527,12 +655,13 @@
       "Bash(mysql -e DROP:*)"
     ]
   },
-  "attribution": {
-    "commit": "🗿 MoAI",
-    "pr": "🗿 MoAI",
-    "sessionUrl": false
-  },
+  "plansDirectory": ".moai/plans",
   "respectGitignore": true,
-  "includeGitInstructions": true,
-  "plansDirectory": ".moai/plans"
+  "showThinkingSummaries": false,
+  "skillListingBudgetFraction": 0.02,
+  "statusLine": {
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.moai/status_line.sh\"",
+    "refreshInterval": 10,
+    "type": "command"
+  }
 }
