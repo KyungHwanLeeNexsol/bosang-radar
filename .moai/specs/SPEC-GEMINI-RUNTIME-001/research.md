@@ -61,6 +61,29 @@ fetch 결과(원문 인용): "If you receive an error indicating that you should
 
 **결론(design.md §4/§5로 이어짐)**: 503을 429와 같은 재시도 경로에 포함시키는 것은 Google 공식 문서의 명시적 권고와 정합한다 — "일반적인 API 클라이언트 관행"이라는 추정이 아니라 1차 문서 인용이다.
 
+### §3.4 재확인(2차 세션) — 모델 ID·rate limit·429/503 재시도 권고, 변경 없음
+
+외부 독립 리뷰 지적사항 반영 세션(3차 개정)에서 §3.1/§3.3의 세 URL을 **다시** WebFetch해 재확인했다. 세 항목 모두 이전 세션과 동일한 내용이었다:
+
+- `https://ai.google.dev/gemini-api/docs/models`: `gemini-3.6-flash`, `gemini-3.5-flash-lite` 둘 다 여전히 **Stable**.
+- `https://ai.google.dev/gemini-api/docs/rate-limits`: 프로젝트 단위·tier 기반 RPM/TPM/RPD 구조, "AI Studio 대시보드에서 실제 한도 확인" 권고 동일.
+- `https://ai.google.dev/gemini-api/docs/troubleshooting`: "429 RESOURCE_EXHAUSTED 또는 503 UNAVAILABLE"을 함께 재시도 대상으로 명시하는 문구, "Only retry on transient errors (like 429, 408, or 5xx)" 문구 모두 동일.
+
+### §3.5 신규 조사 — Google 무료(Unpaid) tier의 데이터 사용 정책 (D5-b, 이번 개정에서 처음 조사)
+
+이번 개정 세션에서 다음 두 URL을 직접 WebFetch했다(이전 세션에서는 조사하지 않았던 신규 항목):
+
+**`https://ai.google.dev/gemini-api/docs/pricing`** — Free tier 행에 "Used to improve our products[*]"가 명시돼 있고, 각주(`[*]`)는 `/gemini-api/terms`로 연결된다. Paid tier 행은 동일 항목이 "No"로 표시된다(전체 pricing 표에 걸쳐 일관됨).
+
+**`https://ai.google.dev/gemini-api/terms`** (Unpaid Services 섹션, 원문 인용):
+
+- Human Review: "To help with quality and improve our products, human reviewers may read, annotate, and process your API input and output." Google은 검토자에게 보여주기 전에 이 데이터를 계정/API 키와 분리(disconnect)한다고 밝히지만, 동시에 명시적으로 경고한다: "Do not submit sensitive, confidential, or personal information to the Unpaid Services."
+- Training/Improvement: "Google uses the content you submit to the Services and any generated responses to provide, improve, and develop Google products and services and machine learning technologies."
+
+**Paid Services 섹션과의 대조**: "Google doesn't use your prompts...or responses to improve our products"라고 명시하며, 별도의 Data Processor 계약에 따라 처리한다고 서술한다. 무료 tier와 유료 tier의 데이터 취급 정책이 명확히 다르다.
+
+**결론(design.md §6 D5-b로 이어짐)**: 이번 SPEC이 사용하는 것은 Gemini API의 **무료(Unpaid) tier**이며, 이 tier로 제출되는 프롬프트/응답은 사람 검토자에 의해 읽히고 주석이 달릴 수 있으며 Google 제품·ML 기술 개선에 사용될 수 있다는 것이 Google 자신의 공식 약관에 명시된 사실이다. 이는 이번 SPEC이 새로 만드는 위험이 아니라 SPEC-RESEARCH-001부터 이미 존재해 온 기존 위험이며, 이번 개정은 그동안 문서화되지 않았던 이 위험을 명시적으로 드러낸다.
+
 ## §4. 이번 조사가 답하지 못한 것 (design.md에서 보수적으로 처리)
 
 - Retry-After HTTP 헤더 자체(응답 헤더, JSON 본문이 아닌)가 Gemini API 응답에 실제로 포함되는지는 이번 조사에서 직접 확인하지 못했다 — SDK 소스 코드에는 이를 읽는 경로가 보이지 않았고(§2), troubleshooting 문서도 헤더를 언급하지 않았다. 따라서 이번 설계는 **JSON 본문의 `RetryInfo.retryDelay`**(스모크에서 실제로 관측된 필드)만 파싱 대상으로 삼고, HTTP 헤더 파싱은 범위에 넣지 않는다.
