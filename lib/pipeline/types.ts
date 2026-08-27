@@ -68,14 +68,17 @@ export interface DraftFinding {
 
 // --- Skeptic / evidence-ID 무결성 (design.md §7) ----------------------------
 //
-// findingId는 LLM 구조화 출력에 포함되지 않는다 — challenge()가 findings 배열을
-// 순회하는 과정에서 finding.queryId를 코드에서 직접 부여한다(4차 revision).
+// findingId는 LLM 구조화 출력에 포함되지 않는다 — 배치 응답의 queryId를
+// code가 candidate finding.queryId와 매칭시켜 findingId로 직접 부여한다
+// (SPEC-GEMINI-RUNTIME-001 M2 배치 재설계, design.md §2/§6 마커 규칙).
 
 export interface Challenge {
   findingId: string; // finding.queryId — code-assigned, not part of the LLM schema
   counterArgument: string;
-  supportingEvidenceIds?: string[]; // 반론을 뒷받침하는 evidence
-  counterEvidenceIds?: string[]; // 반론이 반박 근거로 지목하는 evidence
+  /** 보험사 관점에서 이 반론(counterArgument) 자체를 뒷받침하는 근거 ID */
+  supportingEvidenceIds?: string[];
+  /** 피보험자·청구인 관점에서 이 반론에 대해 반박 근거로 제시할 수 있는 근거 ID */
+  counterEvidenceIds?: string[];
 }
 
 // --- Verifier 반환 계약 (design.md §3, §7, §8) ------------------------------
