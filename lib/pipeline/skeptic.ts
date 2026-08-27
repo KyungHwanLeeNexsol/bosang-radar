@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LLMProvider } from "../ai/provider";
+import { findSafetyViolations } from "./safety-validator";
 import type { Challenge, DraftFinding, EvidenceCandidate } from "./types";
 
 // Skeptic (5/6) — 초안 소견마다 보험사 관점의 반대 논리를 생성한다
@@ -50,6 +51,15 @@ export async function challenge(
     // Skeptic의 반론은 finding마다 필수가 아니다(REQ-RESEARCH-018) — 구조화
     // 검증 실패 시 해당 finding에 대한 challenge를 그냥 생략한다.
     if (!result.ok) {
+      continue;
+    }
+
+    // 코드 리뷰 지적(item 2): Researcher(safety-validator 1차 방어선)와 달리
+    // Skeptic 생성 결과에는 safety-validator가 적용되지 않아, 금지 표현이
+    // 담긴 반론이 그대로 Challenge로 만들어질 수 있었다. Researcher와 동일한
+    // no-forced-finding 패턴을 적용한다 — 안전하지 않으면 억지로 Challenge를
+    // 만들지 않고 건너뛴다.
+    if (findSafetyViolations(result.data.counterArgument).length > 0) {
       continue;
     }
 

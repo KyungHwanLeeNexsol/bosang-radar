@@ -77,25 +77,86 @@ function structuredFixturesForPrompt(prompt: string): readonly unknown[] {
   ];
 }
 
-// Verifier(Fix-B)의 의미 검증 스키마는 위 두 형태와 다르다 — DraftFinding/
-// Challenge 형태의 단일 object가 아니라 SemanticVerificationItem[] 배열이고,
-// 각 항목은 verifier.ts가 프롬프트에 "쿼리 ID: <id>" 형태로 고정 임베딩하는
-// candidate queryId 하나에 대응해야 한다(verifier.ts의 .refine() 1:1 대응
-// 요구사항). 이 함수는 그 줄들을 정규식으로 추출해, 추출된 candidate
-// queryId 각각에 대해 결정론적 "happy path"(supported: true) 항목 하나씩을
-// 만든다 — E2E가 결정론적 provider로도 최소 하나의 실제 VERIFIED claim을
-// 볼 수 있게 하기 위함이다(파이프라인의 의도된 데모 동작).
-function extractQueryIdsFromSemanticPrompt(prompt: string): string[] {
-  const matches = prompt.matchAll(/^쿼리 ID: (.+)$/gm);
-  return Array.from(matches, (match) => match[1].trim());
+// Verifier(Fix-B + item 1)의 의미 검증 스키마는 위 두 형태와 다르다 —
+// DraftFinding/Challenge 형태의 단일 object가 아니라
+// { claims: [...], counterArguments: [...] } 형태이고, 각 claim 항목은
+// verifier.ts가 프롬프트에 "쿼리 ID: <id>" 형태로, 각 counterArgument
+// 항목은 "반론 쿼리 ID: <id>" + "반론 번호: <n>" 형태로 고정 임베딩하는
+// candidate에 대응해야 한다(verifier.ts의 .refine() 1:1 대응 + evidence
+// ID 부분집합 요구사항). 아래 파서는 프롬프트를 블록 단위로 나눠 각
+// candidate의 식별자와 실제로 전달된 evidence ID를 추출한다 — 이렇게
+// 얻은 ID로 채운 결정론적 "happy path"(모든 인용 evidence가 관련성
+// 확인됨) 응답을 만들어, E2E가 결정론적 provider로도 최소 하나의 실제
+// VERIFIED claim을 볼 수 있게 한다(파이프라인의 의도된 데모 동작).
+interface ParsedSemanticPrompt {
+  claims: { queryId: string; evidenceIds: string[] }[];
+  counterArguments: {
+    queryId: string;
+    counterArgumentIndex: number;
+    supportingIds: string[];
+    counterIds: string[];
+  }[];
 }
 
-function semanticVerificationFixture(queryIds: readonly string[]): unknown {
-  return queryIds.map((queryId) => ({
-    queryId,
-    supported: true,
-    reason: "[deterministic] 결정론적 고정 판단(관련성 확인됨)입니다.",
-  }));
+function parseSemanticPrompt(prompt: string): ParsedSemanticPrompt {
+  const claims: ParsedSemanticPrompt["claims"] = [];
+  const counterArguments: ParsedSemanticPrompt["counterArguments"] = [];
+
+  const blockStarts: { index: number; kind: "claim" | "ca" }[] = [
+    ...Array.from(prompt.matchAll(/^쿼리 ID: .+$/gm), (m) => ({
+      index: m.index ?? 0,
+      kind: "claim" as const,
+    })),
+    ...Array.from(prompt.matchAll(/^반론 쿼리 ID: .+$/gm), (m) => ({
+      index: m.index ?? 0,
+      kind: "ca" as const,
+    })),
+  ].sort((a, b) => a.index - b.index);
+
+  blockStarts.forEach((start, i) => {
+    const end = i + 1 < blockStarts.length ? blockStarts[i + 1].index : prompt.length;
+    const blockText = prompt.slice(start.index, end);
+
+    if (start.kind === "claim") {
+      const queryIdMatch = /^쿼리 ID: (.+)$/m.exec(blockText);
+      const queryId = queryIdMatch ? queryIdMatch[1].trim() : "";
+      const evidenceIds = Array.from(blockText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+      claims.push({ queryId, evidenceIds });
+      return;
+    }
+
+    const queryIdMatch = /^반론 쿼리 ID: (.+)$/m.exec(blockText);
+    const indexMatch = /^반론 번호: (\d+)$/m.exec(blockText);
+    const queryId = queryIdMatch ? queryIdMatch[1].trim() : "";
+    const counterArgumentIndex = indexMatch ? Number(indexMatch[1]) : 0;
+    const counterMarkerIndex = blockText.indexOf("반박 근거자료");
+    const supportingText =
+      counterMarkerIndex >= 0 ? blockText.slice(0, counterMarkerIndex) : blockText;
+    const counterText = counterMarkerIndex >= 0 ? blockText.slice(counterMarkerIndex) : "";
+    const supportingIds = Array.from(supportingText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+    const counterIds = Array.from(counterText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+    counterArguments.push({ queryId, counterArgumentIndex, supportingIds, counterIds });
+  });
+
+  return { claims, counterArguments };
+}
+
+function semanticVerificationFixture(prompt: string): unknown {
+  const parsed = parseSemanticPrompt(prompt);
+  return {
+    claims: parsed.claims.map((candidate) => ({
+      queryId: candidate.queryId,
+      supportedEvidenceIds: candidate.evidenceIds,
+      reason: "[deterministic] 결정론적 고정 판단(관련성 확인됨)입니다.",
+    })),
+    counterArguments: parsed.counterArguments.map((candidate) => ({
+      queryId: candidate.queryId,
+      counterArgumentIndex: candidate.counterArgumentIndex,
+      supportedEvidenceIds: candidate.supportingIds,
+      counterEvidenceIds: candidate.counterIds,
+      reason: "[deterministic] 결정론적 고정 판단(관련성 확인됨)입니다.",
+    })),
+  };
 }
 
 export function createDeterministicLLMProvider(): LLMProvider {
@@ -107,9 +168,10 @@ export function createDeterministicLLMProvider(): LLMProvider {
     async generateStructured<T>(
       request: GenerateStructuredRequest<T>
     ): Promise<StructuredResult<T>> {
-      const semanticQueryIds = extractQueryIdsFromSemanticPrompt(request.prompt);
-      if (semanticQueryIds.length > 0) {
-        const fixture = semanticVerificationFixture(semanticQueryIds);
+      const isSemanticPrompt =
+        /^쿼리 ID: /m.test(request.prompt) || /^반론 쿼리 ID: /m.test(request.prompt);
+      if (isSemanticPrompt) {
+        const fixture = semanticVerificationFixture(request.prompt);
         const result = request.schema.safeParse(fixture);
         if (result.success) {
           return { ok: true, data: result.data };

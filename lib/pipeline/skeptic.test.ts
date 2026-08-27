@@ -120,4 +120,42 @@ describe("lib/pipeline/skeptic challenge (REQ-RESEARCH-018)", () => {
     expect(challenges).toHaveLength(1);
     expect(challenges[0].supportingEvidenceIds).toEqual(["e1"]);
   });
+
+  // --- item 2: Skeptic 생성 결과에도 safety-validator를 적용한다 ------------
+
+  it("counterArgument에 금지된 확정성 표현이 있으면 Challenge가 생성되지 않는다", async () => {
+    const findings = [makeFinding("q1")];
+    const evidenceMap = new Map<string, EvidenceCandidate[]>([["q1", [makeEvidence("e1")]]]);
+    const unsafeProvider: LLMProvider = {
+      async generate(): Promise<GenerateResponse> {
+        return { text: "stub" };
+      },
+      async generateStructured<T>(
+        request: GenerateStructuredRequest<T>
+      ): Promise<StructuredResult<T>> {
+        const candidate = {
+          counterArgument: "보험금을 반드시 지급합니다.",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        };
+        const result = request.schema.safeParse(candidate);
+        return result.success
+          ? { ok: true, data: result.data }
+          : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
+      },
+    };
+
+    const challenges = await challenge(findings, evidenceMap, unsafeProvider);
+
+    expect(challenges).toHaveLength(0);
+  });
+
+  it("counterArgument가 안전하면 Challenge가 정상적으로 생성된다(회귀 확인)", async () => {
+    const findings = [makeFinding("q1")];
+    const evidenceMap = new Map<string, EvidenceCandidate[]>([["q1", [makeEvidence("e1")]]]);
+
+    const challenges = await challenge(findings, evidenceMap, stubProviderCiting(null));
+
+    expect(challenges).toHaveLength(1);
+  });
 });

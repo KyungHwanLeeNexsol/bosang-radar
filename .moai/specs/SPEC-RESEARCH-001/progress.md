@@ -81,6 +81,23 @@ M1~M6 구현이 push된 뒤 진행된 코드 리뷰에서 6건의 결함(P0 3건
 - `pnpm build`: exit 0
 - `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow) — `generativelanguage.googleapis.com` 아웃바운드 호출 0건
 
+### 2차 코드 리뷰 발견 merge-blocking 결함 + post-run fix (Fix-A~D 이후, 동일 SPEC에서 처리)
+
+Fix-A~D 완료·커밋(`4345c74`) 이후 진행된 2차 코드 리뷰에서 3건의 결함이 추가로 발견되어, 사용자 지시에 따라 새 SPEC을 만들지 않고 이 SPEC의 post-run fix로 처리했다. `/moai sync`는 아직 실행하지 않는다(사용자 명시적 지시).
+
+| 항목 | 파일 | 요지 |
+|---|---|---|
+| item 1 | `verifier.ts`, `verifier.test.ts`, `deterministic.ts` | Fix-B의 의미 검증이 `DraftFinding.summary`+`supportingEvidenceIds`만 대상으로 하고 `VerifiedCounterArgument`(Skeptic 반론)는 evidence-ID 존재 여부만 구조적으로 검사하던 결함 수정. 사건당 Verifier structured call 1회 원칙을 유지한 채, claim과 counterArgument를 하나의 호출(`{claims, counterArguments}`)로 함께 검증하도록 확장. 반환 계약도 `supported:boolean`에서 `supportedEvidenceIds`/`counterEvidenceIds`(실제로 의미 검증을 통과한 evidence ID의 부분집합)로 변경 — LLM이 반환하는 evidence ID는 `.refine()`으로 해당 candidate가 실제로 받은 evidence ID 집합의 부분집합임을 강제한다. 의미검증 전체 실패 시 claim은 기존처럼 INSUFFICIENT로, counterArgument는 evidence 연결을 전부 비우는 fail-closed를 대칭 적용. |
+| item 2 | `skeptic.ts`, `verifier.ts` | Skeptic `challenge()`가 `generateStructured()` 성공 후에도 safety-validator를 적용하지 않아 금지 표현이 담긴 반론이 그대로 Challenge로 만들어질 수 있던 결함 — Researcher와 동일한 no-forced-finding 패턴 적용(안전하지 않으면 Challenge 생략). Verifier의 defense-in-depth도 기존에는 `status === "VERIFIED"`인 item만 검사해 이미 INSUFFICIENT인 item의 unsafe counterArgument가 최종 report에 남을 수 있던 결함 — 최종 safety 스캔을 status와 무관하게 모든 item에 대해 수행하도록 수정하고, 금지 표현이 있는 counterArgument는 부모 claim status만 바꾸는 대신 최종 `counterArguments` 배열에서 직접 제거한다. |
+| item 3 | `safety-validator.ts` | 기존 `/\d+%/` 전면 차단 규칙이 장해지급률/ROM 제한율/기왕증 기여도 같은 정상 수치까지 차단하던 결함 — "지급/성공/승인/수령/받을 확률·가능성 + 구체적 수치"로 좁혀, "확률"/"가능성" 단어가 실제로 붙은 경우(보험금 지급 확률 95%, 성공 확률 80%, 보험금 받을 확률 90%, 승인 가능성 80%)만 차단하고 장해지급률 10%/관절가동범위 50% 제한/기왕증 기여도 30%는 허용하도록 정정. 지급액 확정 표현 규칙도 억/만원 단위 + "입니다"/"확정"/"수령 가능" 등 다양한 확정 어미를 포괄하도록 넓혀, 예상 보험금 1,000만원입니다/보험금 500만원 수령 가능합니다/1억원 보상이 확정됩니다 형태를 모두 차단(MVP는 사건별 예상 보험금 자동 산정이 Out of Scope이므로 claim-specific 확정액 표현은 차단). |
+
+**최종 5종 게이트 결과 — orchestrator가 위 3건 반영 후 독립 재실행으로 확인**:
+- `pnpm test`: exit 0, 36/36 파일·207/207 테스트 통과
+- `pnpm lint`: exit 0
+- `pnpm format:check`: exit 0 (4건 발견 즉시 `prettier --write`로 정정)
+- `pnpm build`: exit 0
+- `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow)
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태이며, **M6 시점에 남아 있던 merge-blocking 결함(Fix-A~D)까지 이번 post-run fix로 전부 해소**되었다. 이전 버전의 "25/25 구현 완료" 기록은 이 갱신으로 대체한다 — M6 완료 시점에는 Verifier가 evidence 내용을 실제로 검증하지 않는 결함이 남아 있었으므로, 그 시점의 "완료" 표현은 부정확했다.

@@ -52,4 +52,32 @@ describe("lib/pipeline/safety-validator findSafetyViolations (Fix-A)", () => {
       expect(violation.matchedText.length).toBeGreaterThan(0);
     }
   });
+
+  // --- item 3: 퍼센트 규칙을 보험 도메인에 맞게 좁힌다 -----------------------
+
+  describe("퍼센트 규칙 — 보험금 지급/성공 확률만 차단, 정상 수치는 허용", () => {
+    it.each([["보험금 지급 확률 95%"], ["성공 확률 80%"], ["보험금 받을 확률 90%"]])(
+      "차단: '%s'",
+      (text) => {
+        expect(findSafetyViolations(text).length).toBeGreaterThan(0);
+      }
+    );
+
+    it.each([["장해지급률 10%"], ["관절가동범위 50% 제한"], ["기왕증 기여도 30%"]])(
+      "허용: '%s'",
+      (text) => {
+        expect(isSafe(text)).toBe(true);
+      }
+    );
+  });
+
+  describe("보험금 액수 확정 표현 — claim-specific 확정액은 차단(MVP Out of Scope)", () => {
+    it.each([
+      ["예상 보험금은 1,000만원입니다"],
+      ["보험금 500만원 수령 가능합니다"],
+      ["1억원 보상이 확정됩니다"],
+    ])("차단: '%s'", (text) => {
+      expect(findSafetyViolations(text).length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -100,30 +100,51 @@ describe("lib/ai/providers/deterministic createDeterministicLLMProvider (SPEC-RE
     expect(result.ok).toBe(true);
   });
 
-  // Fix-B: verifier.ts의 의미 검증 스키마(SemanticVerificationItem[])는
-  // DraftFinding/Challenge 형태와 다르다 — 프롬프트에 임베딩된
-  // "쿼리 ID: <id>" 줄에서 candidate queryId를 추출해, 각 후보에 대해
-  // supported: true인 happy-path 항목 하나씩을 만든 배열을 반환해야 한다.
-  it("프롬프트에 임베딩된 '쿼리 ID: <id>' 줄에서 candidate를 추출해 SemanticVerificationItem[] 스키마를 satisfy하는 happy-path 배열을 반환한다", async () => {
+  // Fix-B + item 1: verifier.ts의 의미 검증 스키마는 DraftFinding/Challenge
+  // 형태와 다르다 — { claims: [...], counterArguments: [...] } 형태이고,
+  // 프롬프트에 임베딩된 "쿼리 ID: <id>" 줄에서 claim candidate를,
+  // "반론 쿼리 ID: <id>" + "반론 번호: <n>" 줄에서 counterArgument
+  // candidate를 각각 추출해, 실제로 전달된 evidence ID로 채운 happy-path
+  // 항목을 만들어야 한다(item 1: supportedEvidenceIds가 실제 후보 evidence
+  // ID의 부분집합이어야 한다는 .refine() 요구사항 만족).
+  it("프롬프트에 임베딩된 claim/counterArgument candidate를 추출해 { claims, counterArguments } 스키마를 satisfy하는 happy-path를 반환한다", async () => {
     const provider = createDeterministicLLMProvider();
-    const candidateIds = new Set(["q1", "q2"]);
-    const semanticSchema = z
-      .array(
-        z.object({
-          queryId: z.string(),
-          supported: z.boolean(),
-          reason: z.string().min(1),
+    const claimQueryIds = new Set(["q1", "q2"]);
+    const caKeys = new Set(["q1::0"]);
+    const semanticSchema = z.object({
+      claims: z
+        .array(
+          z.object({
+            queryId: z.string(),
+            supportedEvidenceIds: z.array(z.string()),
+            reason: z.string().min(1),
+          })
+        )
+        .refine((items) => items.every((item) => claimQueryIds.has(item.queryId)), {
+          message: "후보 목록에 없는 queryId가 포함되었습니다.",
         })
-      )
-      .refine((items) => items.every((item) => candidateIds.has(item.queryId)), {
-        message: "후보 목록에 없는 queryId가 포함되었습니다.",
-      })
-      .refine(
-        (items) =>
-          items.length === candidateIds.size &&
-          new Set(items.map((item) => item.queryId)).size === candidateIds.size,
-        { message: "candidate 개수와 정확히 1:1로 대응해야 합니다." }
-      );
+        .refine(
+          (items) =>
+            items.length === claimQueryIds.size &&
+            new Set(items.map((item) => item.queryId)).size === claimQueryIds.size,
+          { message: "candidate 개수와 정확히 1:1로 대응해야 합니다." }
+        ),
+      counterArguments: z
+        .array(
+          z.object({
+            queryId: z.string(),
+            counterArgumentIndex: z.number().int().nonnegative(),
+            supportedEvidenceIds: z.array(z.string()),
+            counterEvidenceIds: z.array(z.string()),
+            reason: z.string().min(1),
+          })
+        )
+        .refine(
+          (items) =>
+            items.every((item) => caKeys.has(`${item.queryId}::${item.counterArgumentIndex}`)),
+          { message: "후보 목록에 없는 반론이 포함되었습니다." }
+        ),
+    });
     const prompt = [
       "쿼리 ID: q1",
       "소견: s1",
@@ -134,16 +155,30 @@ describe("lib/ai/providers/deterministic createDeterministicLLMProvider (SPEC-RE
       "소견: s2",
       "근거자료:",
       "  - [e2] title-e2: content-e2",
+      "",
+      "반론 쿼리 ID: q1",
+      "반론 번호: 0",
+      "반론 내용: 반론입니다",
+      "뒷받침 근거자료(supportingEvidence):",
+      "  - [e1] title-e1: content-e1",
+      "반박 근거자료(counterEvidence):",
+      "  (없음)",
     ].join("\n");
 
     const result = await provider.generateStructured({ prompt, schema: semanticSchema });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data).toHaveLength(2);
-      expect(result.data.map((item) => item.queryId).sort()).toEqual(["q1", "q2"]);
-      expect(result.data.every((item) => item.supported === true)).toBe(true);
-      expect(result.data.every((item) => item.reason.length > 0)).toBe(true);
+      expect(result.data.claims).toHaveLength(2);
+      expect(result.data.claims.map((item) => item.queryId).sort()).toEqual(["q1", "q2"]);
+      expect(result.data.claims.every((item) => item.reason.length > 0)).toBe(true);
+      const q1Claim = result.data.claims.find((item) => item.queryId === "q1");
+      expect(q1Claim?.supportedEvidenceIds).toEqual(["e1"]);
+
+      expect(result.data.counterArguments).toHaveLength(1);
+      expect(result.data.counterArguments[0].queryId).toBe("q1");
+      expect(result.data.counterArguments[0].supportedEvidenceIds).toEqual(["e1"]);
+      expect(result.data.counterArguments[0].counterEvidenceIds).toEqual([]);
     }
   });
 
@@ -153,11 +188,20 @@ describe("lib/ai/providers/deterministic createDeterministicLLMProvider (SPEC-RE
     // queryId("q1")가 불일치하도록 구성 — happy-path 픽스처가 .refine()을
     // 통과하지 못하는 경우, 기존 small-candidate-set 폴백으로 진행해도
     // 정상적으로 schema_validation_failed를 반환해야 한다(크래시 없음).
-    const mismatchedSchema = z
-      .array(z.object({ queryId: z.string(), supported: z.boolean(), reason: z.string().min(1) }))
-      .refine((items) => items.every((item) => item.queryId === "q-other"), {
-        message: "불일치",
-      });
+    const mismatchedSchema = z.object({
+      claims: z
+        .array(
+          z.object({
+            queryId: z.string(),
+            supportedEvidenceIds: z.array(z.string()),
+            reason: z.string().min(1),
+          })
+        )
+        .refine((items) => items.every((item) => item.queryId === "q-other"), {
+          message: "불일치",
+        }),
+      counterArguments: z.array(z.unknown()),
+    });
     const prompt = "쿼리 ID: q1\n소견: s1\n근거자료:\n  - [e1] title-e1: content-e1";
 
     const result = await provider.generateStructured({ prompt, schema: mismatchedSchema });
