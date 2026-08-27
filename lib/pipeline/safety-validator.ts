@@ -65,6 +65,12 @@ const BLOCKED_PATTERNS: NamedPattern[] = [
  * 텍스트에서 보험금 지급 확정성 관련 금지 표현을 탐지한다.
  * 위반이 없으면 빈 배열을 반환한다.
  */
+// @MX:ANCHOR: [AUTO] researcher.ts/skeptic.ts/verifier.ts 3곳에서 호출되는
+// 공용 안전장치 진입점(fan_in>=3) — 보험금 확정성 관련 금지 표현 검증의
+// 유일한 판정 함수다.
+// @MX:REASON: 이 함수의 시그니처나 판정 로직을 바꾸면 Researcher(1차 방어선),
+// Skeptic(반론 생성), Verifier(최종 defense-in-depth) 세 단계 모두의 안전
+// 검증 동작이 동시에 바뀐다.
 export function findSafetyViolations(text: string): SafetyViolation[] {
   const violations: SafetyViolation[] = [];
 
