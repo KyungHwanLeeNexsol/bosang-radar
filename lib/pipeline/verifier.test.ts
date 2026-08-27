@@ -55,10 +55,16 @@ function parsePrompt(prompt: string): {
     const end = i + 1 < blockStarts.length ? blockStarts[i + 1].index : prompt.length;
     const blockText = prompt.slice(start.index, end);
 
+    // evidence ID는 "  - [id] title: content" 형태의 근거자료 불릿 줄에서만
+    // 추출한다 — bare `/\[([^\]\s]+)\]/g`는 소견/반론 내용 텍스트 안에 우연히
+    // 등장하는 대괄호까지 evidence ID로 오인할 수 있다(deterministic.ts와
+    // 동일한 결함 방지 패턴).
+    const bulletIdPattern = /^\s*-\s*\[([^\]\s]+)\]/gm;
+
     if (start.kind === "claim") {
       const queryIdMatch = /^쿼리 ID: (.+)$/m.exec(blockText);
       const queryId = queryIdMatch ? queryIdMatch[1].trim() : "";
-      const evidenceIds = Array.from(blockText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+      const evidenceIds = Array.from(blockText.matchAll(bulletIdPattern), (m) => m[1]);
       claims.push({ queryId, evidenceIds });
       return;
     }
@@ -71,8 +77,8 @@ function parsePrompt(prompt: string): {
     const supportingText =
       counterMarkerIndex >= 0 ? blockText.slice(0, counterMarkerIndex) : blockText;
     const counterText = counterMarkerIndex >= 0 ? blockText.slice(counterMarkerIndex) : "";
-    const supportingIds = Array.from(supportingText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
-    const counterIds = Array.from(counterText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+    const supportingIds = Array.from(supportingText.matchAll(bulletIdPattern), (m) => m[1]);
+    const counterIds = Array.from(counterText.matchAll(bulletIdPattern), (m) => m[1]);
     counterArguments.push({ queryId, counterArgumentIndex, supportingIds, counterIds });
   });
 
@@ -409,6 +415,10 @@ describe("lib/pipeline/verifier verify (REQ-RESEARCH-019/020/021/022)", () => {
 
     expect(result.verifiedClaims).toHaveLength(2);
     expect(result.verifiedClaims.every((c) => c.status === "INSUFFICIENT")).toBe(true);
+    // 후속 코드 리뷰 지적(item 1): status만 바뀌고 evidence ID가 그대로 남는
+    // 비대칭을 막기 위해, fail-closed 시 supportingEvidenceIds도 반드시
+    // 빈 배열이 되어야 한다(counterArgument의 fail-closed 처리와 대칭).
+    expect(result.verifiedClaims.every((c) => c.supportingEvidenceIds.length === 0)).toBe(true);
     expect(result.uncertainty.filter((u) => u.includes("의미 검증")).length).toBe(2);
   });
 
@@ -611,5 +621,33 @@ describe("lib/pipeline/verifier verify (REQ-RESEARCH-019/020/021/022)", () => {
     expect(result.verifiedClaims[0].counterArguments).toHaveLength(1);
     expect(result.verifiedClaims[0].counterArguments[0].supportingEvidenceIds).toEqual([]);
     expect(result.verifiedClaims[0].counterArguments[0].counterEvidenceIds).toEqual([]);
+  });
+
+  // --- item 2 (2차 코드 리뷰): 최종 safety scan을 claim status와 무관하게 수행 ---
+
+  it("item 2: 이미 다른 이유로 INSUFFICIENT가 된 claim의 summary에 금지 표현이 있어도 최종 safety scan이 실제 실행된다", async () => {
+    const queries = [makeQuery("q1")];
+    // supportingEvidenceIds가 evidence 맵에 없는 위조 ID뿐이므로 구조적 필터링
+    // 단계에서 이미 INSUFFICIENT가 된다 — 이 claim은 semantic verification의
+    // candidate에도 포함되지 않는다(claimCandidates는 status === "VERIFIED"만
+    // 대상으로 함). summary 자체에는 금지 표현("95%")이 담겨 있다.
+    const findings: DraftFinding[] = [
+      {
+        queryId: "q1",
+        summary: "보험금 지급 확률은 95%입니다.",
+        supportingEvidenceIds: ["forged-only"],
+      },
+    ];
+    const evidence = new Map<string, EvidenceCandidate[]>([["q1", [makeEvidence("e1")]]]);
+
+    const result = await verify(queries, findings, [], evidence, stubProvider);
+
+    // 구조적 필터링만으로도 이미 INSUFFICIENT + 빈 evidence였던 항목이지만,
+    // status 게이팅 없이 최종 safety scan이 실제로 이 claim의 summary를 검사해
+    // "금지된" 사유가 uncertainty에 별도로 기록되어야 한다(고친 전에는
+    // item.status === "VERIFIED" 조건 때문에 이 스캔이 건너뛰어졌다).
+    expect(result.verifiedClaims[0].status).toBe("INSUFFICIENT");
+    expect(result.verifiedClaims[0].supportingEvidenceIds).toEqual([]);
+    expect(result.uncertainty.some((u) => u.includes("q1") && u.includes("금지된"))).toBe(true);
   });
 });

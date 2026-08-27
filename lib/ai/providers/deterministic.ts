@@ -117,10 +117,18 @@ function parseSemanticPrompt(prompt: string): ParsedSemanticPrompt {
     const end = i + 1 < blockStarts.length ? blockStarts[i + 1].index : prompt.length;
     const blockText = prompt.slice(start.index, end);
 
+    // evidence ID는 "  - [id] title: content" 형태의 근거자료 불릿 줄에서만
+    // 추출한다 — bare `/\[([^\]\s]+)\]/g`는 "소견: [deterministic] ..."처럼
+    // summary/반론 내용 텍스트 안에 우연히 등장하는 대괄호까지 evidence ID로
+    // 오인해, 실제로 전달되지 않은 ID가 fixture에 섞여 evidence 부분집합
+    // .refine() 검증에 실패하는 결함이 있었다 — 줄 시작 앵커로 불릿 줄만
+    // 매칭해 이를 막는다.
+    const bulletIdPattern = /^\s*-\s*\[([^\]\s]+)\]/gm;
+
     if (start.kind === "claim") {
       const queryIdMatch = /^쿼리 ID: (.+)$/m.exec(blockText);
       const queryId = queryIdMatch ? queryIdMatch[1].trim() : "";
-      const evidenceIds = Array.from(blockText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+      const evidenceIds = Array.from(blockText.matchAll(bulletIdPattern), (m) => m[1]);
       claims.push({ queryId, evidenceIds });
       return;
     }
@@ -133,8 +141,8 @@ function parseSemanticPrompt(prompt: string): ParsedSemanticPrompt {
     const supportingText =
       counterMarkerIndex >= 0 ? blockText.slice(0, counterMarkerIndex) : blockText;
     const counterText = counterMarkerIndex >= 0 ? blockText.slice(counterMarkerIndex) : "";
-    const supportingIds = Array.from(supportingText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
-    const counterIds = Array.from(counterText.matchAll(/\[([^\]\s]+)\]/g), (m) => m[1]);
+    const supportingIds = Array.from(supportingText.matchAll(bulletIdPattern), (m) => m[1]);
+    const counterIds = Array.from(counterText.matchAll(bulletIdPattern), (m) => m[1]);
     counterArguments.push({ queryId, counterArgumentIndex, supportingIds, counterIds });
   });
 

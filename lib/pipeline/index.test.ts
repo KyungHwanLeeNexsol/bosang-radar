@@ -52,9 +52,18 @@ describe("lib/pipeline/index runPipeline end-to-end (AC-SCAFFOLD-013, REQ-SCAFFO
 
     expect(report.caseSummary.incidentDescription).toBe(validInput.incidentDescription);
     expect(report.verifiedClaims.length).toBeGreaterThan(0);
+    // VERIFIED claim은 반드시 evidence를 갖고, INSUFFICIENT claim은 반드시
+    // 비어 있어야 한다(2차 코드 리뷰 item 1 — semantic verification fail-closed
+    // 시 claim.status와 supportingEvidenceIds가 항상 함께 비워지도록 정합화됨).
+    // 최소 하나는 VERIFIED로 evidence-backed claim이 실제로 존재함을 확인한다.
     for (const claim of report.verifiedClaims) {
-      expect(claim.supportingEvidenceIds.length).toBeGreaterThan(0);
+      if (claim.status === "VERIFIED") {
+        expect(claim.supportingEvidenceIds.length).toBeGreaterThan(0);
+      } else {
+        expect(claim.supportingEvidenceIds.length).toBe(0);
+      }
     }
+    expect(report.verifiedClaims.some((claim) => claim.status === "VERIFIED")).toBe(true);
     expect(() => new Date(report.generatedAt).toISOString()).not.toThrow();
   });
 });

@@ -351,11 +351,15 @@ export async function verify(
 
     if (!result.ok) {
       // Fail-closed(명시적 코드 리뷰 요구사항) — 호출 실패 시 fail-open(구조적
-      // 검증만으로 유지)하지 않는다. claim candidate는 전부 INSUFFICIENT로
-      // 처리하고, counterArgument candidate는 evidence 연결을 전부 비워
-      // "의미상 뒷받침 확인 안 됨" 상태로 처리한다.
+      // 검증만으로 유지)하지 않는다. claim candidate는 status를 INSUFFICIENT로
+      // 바꾸는 것과 함께 supportingEvidenceIds도 전부 비운다(후속 코드 리뷰
+      // 지적: 기존에는 status만 바뀌고 evidence ID가 그대로 남아 counterArgument의
+      // fail-closed 처리와 비대칭이었고, "의미 검증을 실제로 통과한 evidence ID만
+      // 최종 report에 남긴다" 원칙에도 어긋났다). counterArgument candidate도
+      // 동일하게 evidence 연결을 전부 비운다.
       for (const candidate of claimCandidates) {
         working[candidate.workingIndex].status = "INSUFFICIENT";
+        working[candidate.workingIndex].supportingEvidenceIds = [];
         uncertainty.push(
           `쿼리 ${candidate.queryId}에 대한 의미 검증을 완료하지 못해(${result.reason}) 판단불충분으로 처리되었습니다.`
         );
@@ -439,8 +443,14 @@ export async function verify(
   // 부모 claim status만 바꾸는 방식이 아니라 최종 counterArguments 배열에서
   // 직접 제거한다.
   for (const item of working) {
-    if (item.status === "VERIFIED" && findSafetyViolations(item.finding.summary).length > 0) {
+    // status 조건 없이 모든 item의 summary를 검사한다(후속 코드 리뷰 지적: 이전
+    // 코드는 status === "VERIFIED"로 게이팅되어 있어, 이미 의미 검증 단계에서
+    // INSUFFICIENT로 강등된 claim의 summary에 금지 표현이 남아 있어도 이 스캔이
+    // 실행되지 않았다 — 주석/progress.md의 "status와 무관한 최종 safety scan"
+    // 서술과 실제 동작이 어긋나 있었다).
+    if (findSafetyViolations(item.finding.summary).length > 0) {
       item.status = "INSUFFICIENT";
+      item.supportingEvidenceIds = [];
       uncertainty.push(
         `쿼리 ${item.finding.queryId}: 금지된 확정성 표현이 감지되어 판단불충분으로 처리되었습니다.`
       );

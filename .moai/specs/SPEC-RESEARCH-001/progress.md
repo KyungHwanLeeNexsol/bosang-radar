@@ -98,10 +98,27 @@ Fix-A~D 완료·커밋(`4345c74`) 이후 진행된 2차 코드 리뷰에서 3건
 - `pnpm build`: exit 0
 - `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow)
 
+### 3차(최종) 코드 리뷰 발견 정합성 결함 2건 + post-run fix
+
+2차 코드 리뷰 fix(item 1~3, 커밋 `0b5b3ae`) 이후 진행된 최종 코드 리뷰에서 `verifier.ts`에 작은 정합성 결함 2건이 발견되어, 동일 SPEC의 post-run fix로 처리했다. `/moai sync`는 아직 실행하지 않는다(사용자 명시적 지시).
+
+| 항목 | 파일 | 요지 |
+|---|---|---|
+| item 1 | `verifier.ts`, `verifier.test.ts` | semantic verification 전체 실패(`ok:false`) 시 claim candidate의 `status`만 INSUFFICIENT로 바뀌고 기존 `supportingEvidenceIds`는 그대로 남아, 같은 실패에서 evidence 연결을 전부 비우는 counterArgument와 동작이 비대칭이었던 결함 수정. fail-closed 시 claim candidate에도 `supportingEvidenceIds = []`를 함께 적용해 "의미 검증을 실제로 통과한 evidence ID만 최종 report에 남긴다" 원칙과 정합시킴. |
+| item 2 | `verifier.ts`, `verifier.test.ts` | 최종 safety scan의 claim summary 검사가 `item.status === "VERIFIED" && findSafetyViolations(...)` 조건으로 게이팅되어 있어, 주석/progress.md에 적힌 "status와 무관한 최종 safety scan"과 실제 동작이 어긋나 있던 결함 수정. status 조건을 제거해 VERIFIED/INSUFFICIENT와 무관하게 모든 claim.summary를 검사하고, 위반 시 status/supportingEvidenceIds/uncertainty를 함께 갱신하도록 정정. |
+| (부수 발견, 회귀 없음 확인 후 수정) | `lib/ai/providers/deterministic.ts`, `verifier.test.ts` | item 1 수정 후 `pnpm test` 전체 재실행 중 `index.test.ts`(파이프라인 end-to-end)가 실패해 조사한 결과, semantic verification fixture의 evidence-ID 추출 정규식(`/\[([^\]\s]+)\]/g`)이 "소견: [deterministic] ..." 같은 summary/반론 텍스트 안의 대괄호까지 evidence ID로 오인해 evidence 부분집합 `.refine()` 검증에 실패시키는 결함을 발견 — 이번 2건과 별개의, 지난 세션(item 1 최초 구현)에서 생긴 잠재 결함이었다. `- [id] title: content` 근거자료 불릿 줄만 매칭하도록 줄-앵커 정규식(`/^\s*-\s*\[([^\]\s]+)\]/gm`)으로 정정. `index.test.ts`의 기존 단언("모든 claim이 evidence를 가짐")도 status별 조건(VERIFIED는 evidence 필수, INSUFFICIENT는 빈 배열)으로 정정 — 기존 단언은 이번에 고친 비대칭 버그(evidence leftover) 덕에 우연히 통과하고 있었다. |
+
+**최종 5종 게이트 결과 — orchestrator가 위 2건 + 부수 결함 반영 후 독립 재실행으로 확인**:
+- `pnpm test`: exit 0, 36/36 파일·208/208 테스트 통과
+- `pnpm lint`: exit 0
+- `pnpm format:check`: exit 0
+- `pnpm build`: exit 0
+- `pnpm test:e2e`: exit 0, 4/4(auth/tenant-isolation/case-flow)
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-- run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태이며, **M6 시점에 남아 있던 merge-blocking 결함(Fix-A~D)까지 이번 post-run fix로 전부 해소**되었다. 이전 버전의 "25/25 구현 완료" 기록은 이 갱신으로 대체한다 — M6 완료 시점에는 Verifier가 evidence 내용을 실제로 검증하지 않는 결함이 남아 있었으므로, 그 시점의 "완료" 표현은 부정확했다.
-- 미푸시 상태: `feat/SPEC-RESEARCH-001`에 13개 커밋이 로컬에만 존재(git-strategy `mode: manual`, `auto_push: false`에 따라 자동 푸시하지 않음) — 사용자 지시 시 푸시.
+- run_status: implemented — 25개 REQ 전부 구현 완료, 25개 AC(+011a/b, 019a/b 서브레터) 전부 코드 레벨로 만족 가능한 상태이며, **M6 시점에 남아 있던 merge-blocking 결함(Fix-A~D) 및 2차·3차 코드 리뷰 결함까지 전부 해소**되었다. 이전 버전의 "25/25 구현 완료" 기록은 이 갱신으로 대체한다 — M6 완료 시점에는 Verifier가 evidence 내용을 실제로 검증하지 않는 결함이 남아 있었으므로, 그 시점의 "완료" 표현은 부정확했다.
+- 미푸시 상태: `feat/SPEC-RESEARCH-001`에 로컬 전용 커밋이 존재(git-strategy `mode: manual`, `auto_push: false`에 따라 자동 푸시하지 않음) — 사용자 지시 시 푸시.
 - Next step: 사용자 지시에 따라 **여기서 정지**. `/moai sync`는 실행하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
