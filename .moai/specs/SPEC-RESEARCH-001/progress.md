@@ -124,7 +124,7 @@ Fix-A~D 완료·커밋(`4345c74`) 이후 진행된 2차 코드 리뷰에서 3건
 ## §E.4 Sync-phase Audit-Ready Signal
 
 - sync_status: completed
-- sync_commit_sha: pending-backfill-sync (커밋 전 — 오케스트레이터가 이 sync 작업을 커밋한 뒤 실제 SHA로 백필 예정. 자기참조 해시 물리적 제약에 따른 표준 placeholder — spec-frontmatter-schema.md § SHA placeholder backfill exemption 참고)
+- sync_commit_sha: 5ac0371 (실제 SHA로 백필 완료 — 자기참조 해시 물리적 제약에 따른 표준 placeholder 교체. spec-frontmatter-schema.md § SHA placeholder backfill exemption 참고)
 - sync_at: 2026-08-27
 - 요지: `/moai sync SPEC-RESEARCH-001`를 (§E.2에 기록된 post-run 코드 리뷰 3라운드 완료 이후) **사용자가 명시적으로 호출**해 수행했다 — plan→run 파이프라인의 자동 체이닝이 아니라, 3차(최종) fix가 끝난 뒤 별도로 지시된 sync-phase 진입이다. 수행 내용: (1) `CHANGELOG.md` `[Unreleased]`에 SPEC-RESEARCH-001 신규 섹션 추가(SPEC-RUNTIME-001 항목 위, 최신순), (2) `spec.md` 프론트매터 `status: in-progress → completed` + `updated: 2026-08-27` 전환(이 SPEC의 유일한 프론트매터 보유 산출물 — plan.md/acceptance.md/design.md/research.md는 SPEC-RUNTIME-001/SPEC-SCAFFOLD-001과 동일하게 프론트매터가 없는 본문 전용 문서이므로 전환 대상이 아님, spec-frontmatter-schema.md와 정합), (3) 이 §E.4 섹션 작성.
 - README.md: 이번 SPEC 범위에서는 수정하지 않음(오케스트레이터 사전 판단 — 사용자 대면 신규 기능/CLI 플래그/셋업 단계 없음). 다만 manager-docs가 사후 확인한 결과 README.md에 이 SPEC으로 사실이 아니게 된 서술(예: "AI 파이프라인은 mock 구현 유지", "실제 LLM 기반 소견 생성 로직 ... 아직 구현되지 않았습니다", 테스트 카운트 "33 files, 139 tests")이 다수 남아 있음을 발견 — orchestrator에게 별도 보고, 이 SPEC에서 직접 수정하지는 않았다.
