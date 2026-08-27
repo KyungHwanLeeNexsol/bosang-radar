@@ -44,10 +44,11 @@ describe("lib/pipeline/index runPipeline end-to-end (AC-SCAFFOLD-013, REQ-SCAFFO
 
     // 결정론적 provider를 명시 주입한다 — Gemini API 키가 없는 테스트 환경에서도
     // 실제 네트워크 호출 없이 파이프라인 전 구간을 검증한다(design.md §1, §3,
-    // AC-RESEARCH-025). options.provider가 있으면 getLLMProvider()(env 기반
-    // 선택)는 호출되지 않는다(lib/pipeline/index.ts).
+    // AC-RESEARCH-025). options.providers가 있으면 getDefaultLLMProviders()
+    // (env 기반 선택 싱글턴)는 호출되지 않는다(lib/pipeline/index.ts).
+    const deterministicProvider = createDeterministicLLMProvider();
     const report = await runPipeline(validInput, {
-      provider: createDeterministicLLMProvider(),
+      providers: { research: deterministicProvider, fast: deterministicProvider },
     });
 
     expect(report.caseSummary.incidentDescription).toBe(validInput.incidentDescription);

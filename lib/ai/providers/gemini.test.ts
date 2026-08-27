@@ -89,6 +89,32 @@ describe("lib/ai/providers/gemini GeminiProvider", () => {
     }
   });
 
+  describe("model 옵션 (SPEC-GEMINI-RUNTIME-001 M1, design.md §1 D1)", () => {
+    it("model 옵션 없이 생성하면 DEFAULT_MODEL(gemini-3.5-flash-lite)이 SDK 호출에 전달된다 (AC-GEMINI-RUNTIME-001)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock.mockResolvedValueOnce({ text: "ok" });
+
+      const provider = new GeminiProvider({ apiKey: "test-key" });
+      await provider.generate({ prompt: "질의" });
+
+      expect(generateContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "gemini-3.5-flash-lite" })
+      );
+    });
+
+    it("model 옵션을 명시하면 그 값이 그대로 SDK 호출에 전달된다 (AC-GEMINI-RUNTIME-001)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock.mockResolvedValueOnce({ text: "ok" });
+
+      const provider = new GeminiProvider({ apiKey: "test-key", model: "gemini-3.6-flash" });
+      await provider.generate({ prompt: "질의" });
+
+      expect(generateContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "gemini-3.6-flash" })
+      );
+    });
+  });
+
   describe("generateStructured() (SPEC-RESEARCH-001 M2, design.md §4)", () => {
     const schema = z.object({ summary: z.string().min(1) });
 

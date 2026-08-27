@@ -2,9 +2,9 @@
 id: SPEC-GEMINI-RUNTIME-001
 title: "무료 티어 파일럿 안정화 — 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력"
 version: "0.4.2"
-status: draft
+status: in-progress
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-08-28
 author: Nexsol
 priority: P1
 phase: "v0.7.0 target"

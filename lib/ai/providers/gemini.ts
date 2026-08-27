@@ -7,13 +7,29 @@ import type {
   LLMProvider,
   StructuredResult,
 } from "../provider";
+import type { RateScheduler } from "../rate-scheduler";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// SPEC-GEMINI-RUNTIME-001 M1 (design.md §1 D1): 정상 앱 경로(provider-factory.ts)는
+// model 옵션을 항상 명시적으로 채워 넘기므로, 이 폴백은 정상 경로에서 구조적으로
+// 도달할 수 없다 — 단위 테스트가 model을 생략하고 직접 생성하는 경우 등에만
+// 실제로 쓰인다. Fast 역할 기본값과 동일한 검증된 Stable 값으로 맞춘다
+// (provider-factory.ts의 상수를 import하지 않는다 — 순환 의존 방지, 값은
+// 우연히 일치하도록 독립적으로 유지).
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_INITIAL_DELAY_MS = 1000;
 
 export interface GeminiProviderOptions {
   apiKey?: string;
+  model?: string;
+  // 이미 구성된 RateScheduler 인스턴스를 주입받는다(design.md §1 D3) — 더 이상
+  // rpmBudget 숫자를 직접 받아 스스로 생성하지 않는다. 이렇게 해야
+  // provider-factory.ts가 model ID가 같은 두 역할에 동일 인스턴스를 공유시킬
+  // 수 있다. M1 시점에는 옵션만 수용하며, 실제 waitForSlot() 통합은 M3에서
+  // withRetry() 루프 안으로 배선된다(design.md §5 D2).
+  scheduler?: RateScheduler;
+  // 재시도 sleep 구간의 총 누적 대기 시간 상한(M3에서 withRetry()가 소비).
+  maxTotalWaitMs?: number;
   maxRetries?: number;
   initialDelayMs?: number;
   sleepFn?: (ms: number) => Promise<void>;
@@ -39,6 +55,8 @@ function defaultSleep(ms: number): Promise<void> {
 export class GeminiProvider implements LLMProvider {
   private readonly client: GoogleGenAI;
   private readonly model: string;
+  private readonly scheduler?: RateScheduler;
+  private readonly maxTotalWaitMs?: number;
   private readonly maxRetries: number;
   private readonly initialDelayMs: number;
   private readonly sleepFn: (ms: number) => Promise<void>;
@@ -50,7 +68,9 @@ export class GeminiProvider implements LLMProvider {
     }
 
     this.client = new GoogleGenAI({ apiKey });
-    this.model = DEFAULT_MODEL;
+    this.model = options.model ?? DEFAULT_MODEL;
+    this.scheduler = options.scheduler;
+    this.maxTotalWaitMs = options.maxTotalWaitMs;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
     this.sleepFn = options.sleepFn ?? defaultSleep;
