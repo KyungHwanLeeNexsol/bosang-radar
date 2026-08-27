@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 const { generateContentMock, GoogleGenAIMock } = vi.hoisted(() => {
   const generateContentMock = vi.fn();
@@ -86,5 +87,73 @@ describe("lib/ai/providers/gemini GeminiProvider", () => {
     if (originalKey !== undefined) {
       process.env.GEMINI_API_KEY = originalKey;
     }
+  });
+
+  describe("generateStructured() (SPEC-RESEARCH-001 M2, design.md §4)", () => {
+    const schema = z.object({ summary: z.string().min(1) });
+
+    it("responseJsonSchema/responseMimeType 설정으로 generateContent를 호출하고 safeParse를 통과하는 데이터를 반환한다 (REQ-RESEARCH-013)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock.mockResolvedValueOnce({ text: '{"summary":"결과"}' });
+
+      const provider = new GeminiProvider({ apiKey: "test-key" });
+      const result = await provider.generateStructured({ prompt: "질의", schema });
+
+      expect(result).toEqual({ ok: true, data: { summary: "결과" } });
+      expect(generateContentMock).toHaveBeenCalledTimes(1);
+      const call = generateContentMock.mock.calls[0][0];
+      expect(call.config).toMatchObject({ responseMimeType: "application/json" });
+      expect(call.config.responseJsonSchema).toBeDefined();
+    });
+
+    it("잘못된 JSON이 반환되면 invalid_json으로 실패를 보고한다 (REQ-RESEARCH-014)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock.mockResolvedValueOnce({ text: "이것은 JSON이 아닙니다" });
+
+      const provider = new GeminiProvider({ apiKey: "test-key" });
+      const result = await provider.generateStructured({ prompt: "질의", schema });
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "invalid_json",
+        raw: "이것은 JSON이 아닙니다",
+      });
+    });
+
+    it("JSON은 유효하지만 스키마 검증에 실패하면 schema_validation_failed로 보고한다 (REQ-RESEARCH-014)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock.mockResolvedValueOnce({ text: '{"summary":""}' });
+
+      const provider = new GeminiProvider({ apiKey: "test-key" });
+      const result = await provider.generateStructured({ prompt: "질의", schema });
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "schema_validation_failed",
+        raw: '{"summary":""}',
+      });
+    });
+
+    it("429 응답을 generate()와 동일한 지수 백오프로 재시도한다 (429 재시도 공유, design.md §4)", async () => {
+      const { GeminiProvider } = await import("./gemini");
+      generateContentMock
+        .mockRejectedValueOnce(new RateLimitError("rate limited"))
+        .mockResolvedValueOnce({ text: '{"summary":"재시도 후 성공"}' });
+
+      const sleepCalls: number[] = [];
+      const provider = new GeminiProvider({
+        apiKey: "test-key",
+        initialDelayMs: 5,
+        sleepFn: async (ms: number) => {
+          sleepCalls.push(ms);
+        },
+      });
+
+      const result = await provider.generateStructured({ prompt: "질의", schema });
+
+      expect(result).toEqual({ ok: true, data: { summary: "재시도 후 성공" } });
+      expect(generateContentMock).toHaveBeenCalledTimes(2);
+      expect(sleepCalls).toEqual([5]);
+    });
   });
 });

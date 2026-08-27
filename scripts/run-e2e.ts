@@ -90,6 +90,11 @@ export async function assembleE2EEnv(): Promise<AssembledE2EEnv> {
   process.env.BETTER_AUTH_URL = assembled.BETTER_AUTH_URL;
   process.env.BETTER_AUTH_SECRET = assembled.BETTER_AUTH_SECRET;
   process.env.TESTER_PASSWORD = assembled.TESTER_PASSWORD;
+  // LLM_PROVIDER_MODE=deterministic — E2E는 실제 Gemini API를 호출하지 않고
+  // 결정론적 provider를 사용한다(SPEC-RESEARCH-001 design.md §1, AC-RESEARCH-024).
+  // 시크릿이 아닌 고정 리터럴이므로 AssembledE2EEnv/webServer.env 4개 키 재선언
+  // 금지 제약(design.md §3.4)과 무관하게 여기서 직접 설정한다.
+  process.env.LLM_PROVIDER_MODE = "deterministic";
   // playwright.config.ts는 별도 프로세스(상속 경계 너머)에서 로드되므로
   // BETTER_AUTH_URL 문자열을 파싱하지 않고 포트 값을 직접 상속받는다.
   process.env.E2E_PORT = String(port);

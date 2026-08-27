@@ -39,6 +39,14 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     await page.waitForURL(`/cases/${caseId}`);
     await expect(page.getByTestId("case-report")).toBeVisible();
 
+    // 신규 리포트 필드 노출 확인(SPEC-RESEARCH-001 M6, design.md §8) —
+    // reviewTargets/verifiedClaims/missingMaterials 카드가 모두 렌더링된다.
+    // sourceUrl 유무에 따른 evidence 출처 표시 조건부 렌더링은 app/cases/[caseId]/page.tsx의
+    // 정적 로직으로 보장되며(AC-RESEARCH-022), 여기서는 필드 자체의 노출만 확인한다.
+    await expect(page.getByTestId("review-targets")).toBeVisible();
+    await expect(page.getByTestId("verified-claims")).toBeVisible();
+    await expect(page.getByTestId("missing-materials")).toBeVisible();
+
     const { db, close } = connectE2EDb();
     closeDb = close;
     const [tester] = await db
@@ -61,6 +69,55 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
       .from(schema.reports)
       .where(eq(schema.reports.caseId, caseId));
     expect(reportRows.length).toBeGreaterThan(0);
+
+    // Fix-C 검증 — claim.status 배지, uncertainty 섹션, skeptic evidence
+    // provenance(SPEC-RESEARCH-001 post-run 리뷰 P0/P1). DB에 저장된
+    // report.content(JSON)를 ground truth로 삼아, 결정론적 파이프라인이 실제로
+    // 만들어낸 shape에 맞춰 단언한다 — 존재하지 않는 INSUFFICIENT 케이스를
+    // 조작해 단언하지 않는다.
+    const reportContent = reportRows[0]?.content as {
+      verifiedClaims: {
+        status: "VERIFIED" | "INSUFFICIENT";
+        counterArguments: { supportingEvidenceIds: string[]; counterEvidenceIds: string[] }[];
+      }[];
+      uncertainty: string[];
+    };
+    expect(reportContent).toBeDefined();
+
+    const claimStatusLocator = page.getByTestId("claim-status");
+    await expect(claimStatusLocator).toHaveCount(reportContent.verifiedClaims.length);
+
+    if (reportContent.verifiedClaims.some((claim) => claim.status === "VERIFIED")) {
+      await expect(claimStatusLocator.filter({ hasText: "근거 확인" }).first()).toBeVisible();
+    }
+    // NOTE(검증 갭 — 명시적 기록): 결정론적 provider(lib/ai/providers/
+    // deterministic.ts의 semanticVerificationFixture)는 모든 candidate에 대해
+    // supported: true를 고정 반환하므로, 이 시나리오(모든 domain·issueType에
+    // evidence가 존재하는 seed 데이터)에서는 INSUFFICIENT claim이 자연
+    // 발생하지 않는다 — 따라서 "판단 불충분" 배지 자체의 렌더링은 이 E2E
+    // 경로에서 실제로 exercise되지 않는다. 아래는 실제 발생 시에만 통과하는
+    // 조건부 단언으로 남겨, 향후 시나리오가 바뀌어도 거짓 통과하지 않게 한다.
+    if (reportContent.verifiedClaims.some((claim) => claim.status === "INSUFFICIENT")) {
+      await expect(claimStatusLocator.filter({ hasText: "판단 불충분" }).first()).toBeVisible();
+    }
+
+    await expect(page.getByTestId("uncertainty")).toBeVisible();
+    if (reportContent.uncertainty.length > 0) {
+      await expect(page.getByTestId("uncertainty")).toContainText(reportContent.uncertainty[0]);
+    } else {
+      await expect(page.getByTestId("uncertainty")).toContainText(
+        "판단 불충분으로 처리된 사유가 없습니다."
+      );
+    }
+
+    const counterArgumentWithEvidence = reportContent.verifiedClaims
+      .flatMap((claim) => claim.counterArguments)
+      .find((ca) => ca.supportingEvidenceIds.length > 0 || ca.counterEvidenceIds.length > 0);
+    if (counterArgumentWithEvidence) {
+      const label =
+        counterArgumentWithEvidence.supportingEvidenceIds.length > 0 ? "뒷받침 근거" : "반박 근거";
+      await expect(page.getByText(label).first()).toBeVisible();
+    }
 
     const feedbackText = "추가로 CT 촬영 기록도 확인이 필요합니다.";
     await page.getByTestId("feedback-content").fill(feedbackText);

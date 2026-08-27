@@ -15,6 +15,13 @@
       "when": 1787629483978,
       "tag": "0001_bitter_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787733676675,
+      "tag": "0002_outstanding_khan",
+      "breakpoints": true
     }
   ]
 }

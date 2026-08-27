@@ -7,10 +7,19 @@ const validInput = {
   incidentDate: "2024-03-15",
 };
 
+// createCase() 내부에서 runPipeline()을 호출하므로(REQ-SCAFFOLD-016), getDb()
+// mock은 EvidenceRetriever(M4)의 select().from() 조회 경로와 cases/reports
+// insert() 저장 경로를 모두 만족해야 한다 — lib/pipeline/index.test.ts의
+// "../db/client" 목업 패턴과 동일하다. 실제 GEMINI_API_KEY 없이도
+// getLLMProvider()가 결정론적 provider로 해석되도록 LLM_PROVIDER_MODE도
+// 함께 설정한다(REQ-RESEARCH-012, lib/ai/provider-factory.ts).
 const { insertMock, valuesMock, getDbMock } = vi.hoisted(() => {
   const valuesMock = vi.fn().mockResolvedValue(undefined);
   const insertMock = vi.fn(() => ({ values: valuesMock }));
-  const getDbMock = vi.fn(() => ({ insert: insertMock }));
+  const getDbMock = vi.fn(() => ({
+    insert: insertMock,
+    select: () => ({ from: async () => [] }),
+  }));
   return { insertMock, valuesMock, getDbMock };
 });
 
@@ -23,6 +32,7 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
     insertMock.mockClear();
     valuesMock.mockClear();
     getDbMock.mockClear();
+    process.env.LLM_PROVIDER_MODE = "deterministic";
   });
 
   it("유효한 입력이면 파이프라인을 실행하고 case+report를 저장한 뒤 caseId를 반환한다", async () => {

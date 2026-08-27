@@ -16,25 +16,25 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 완료)
+## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 완료)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되어 있습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다.
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
-- AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도 포함, 이번 SPEC 범위에서는 mock 구현 유지)
+- AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
 - Better Auth 초대 전용 인증 + `proxy.ts` 라우트 가드(`cases/*`, `api/cases/*` 보호) + 실제 계정 생성 CLI(`pnpm tester:add`)
 - 사건 입력 PII 차단 Zod 검증 스키마(`lib/validation/case-input.ts`)
-- 6단계 리서치 파이프라인(CaseNormalizer → QueryPlanner → Evidence Retriever → Researcher → Skeptic → Verifier) 타입 계약 스텁 — 목업 구현으로 end-to-end 배선 검증 완료
-- 파이프라인을 수동으로 시연할 수 있는 최소 UI(사건 입력 폼 `app/cases/new/`, 리포트 뷰 `app/cases/[caseId]/`)
+- 6단계 evidence-first 리서치 파이프라인(CaseNormalizer → QueryPlanner(담보 영역별 규칙 기반 쿼리 생성) → EvidenceRetriever(Drizzle DB 관련성 필터링) → Researcher/Skeptic(실제 Gemini 구조화 출력, 근거자료 없이는 소견을 만들지 않음) → Verifier(evidence 내용이 claim/반론을 실제로 뒷받침하는지까지 의미 검증, 불충분 시 INSUFFICIENT 처리)
+- 파이프라인 결과를 확인할 수 있는 최소 UI(사건 입력 폼 `app/cases/new/`, VERIFIED/INSUFFICIENT 배지가 붙은 리포트 뷰 `app/cases/[caseId]/`)
 - **목적별 환경변수 검증**(`lib/env.ts`) + 부팅 시점 fail-fast(`instrumentation.ts`) — `db`/`provision`/`app`/`e2e` 각 실행 목적이 필요로 하는 변수만 검증
 - **DB 마이그레이션·시드 CLI**(`pnpm db:migrate`, `pnpm db:seed`) — 재실행 안전
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
 - **실제 Playwright E2E 스위트**(`pnpm test:e2e`) — 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 실제 Chromium으로 검증
-- `pnpm build` / `pnpm lint` / `pnpm test` / `pnpm format:check` 전체 통과(33 files, 139 tests)
+- `pnpm build` / `pnpm lint` / `pnpm test` / `pnpm format:check` / `pnpm test:e2e` 전체 통과(36 files, 208 tests; E2E 4/4)
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
-파이프라인 각 단계의 실제 LLM 기반 소견 생성 로직, 폴리시된 UI, 대규모 근거자료 수집, 프로덕션 배포는 아직 구현되지 않았습니다 — 아래 "다음 단계" 참고.
+폴리시된 UI, 대규모 근거자료 수집, 프로덕션 배포는 아직 구현되지 않았습니다 — 아래 "다음 단계" 참고.
 
 ## 개발 환경 설정
 
@@ -53,7 +53,7 @@ cp .env.local.example .env.local
 `.env.local`에 아래 값을 채워 넣으세요. 각 변수가 어떤 실행 목적(`db`/`provision`/`app`/`e2e`)에 실제로 필요한지는 `.env.local.example`의 스코프 주석과 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md) §2를 참고하세요 — 로컬 파일 DB(`file:` 스킴)로 시작하면 별도 발급 없이 바로 진행할 수 있습니다.
 
 - `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` — Turso/libSQL 연결 정보
-- `GEMINI_API_KEY` — Gemini API 키 (이번 SPEC 범위의 앱 기동에는 필요하지 않음 — AI 파이프라인은 mock 구현 유지)
+- `GEMINI_API_KEY` — Gemini API 키 (`LLM_PROVIDER_MODE`가 `deterministic`이 아닌 정상 앱 기동 시 필수 — 테스트/E2E처럼 결정론적 provider로 돌릴 때는 필요 없음)
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` — 인증 세션 서명 키 및 base URL
 
 ### DB 마이그레이션·시드·테스터 계정 생성
@@ -114,7 +114,7 @@ bosang-radar/
 │   ├── db/               # Drizzle ORM 클라이언트 + 스키마
 │   ├── cases/            # 사건 생성/조회 (owner_user_id 필터링)
 │   ├── env.ts             # 목적별(db/provision/app/e2e) 환경변수 검증 계약
-│   └── pipeline/          # 6단계 리서치 파이프라인 (타입 계약 스텁)
+│   └── pipeline/          # 6단계 evidence-first 리서치 파이프라인
 ├── scripts/               # 런타임 활성화 CLI (마이그레이션·시드·테스터 프로비저닝·E2E 하네스)
 ├── e2e/                   # Playwright E2E 시나리오 (로그인·사건입력·피드백·테넌트 격리)
 ├── db/
@@ -127,13 +127,13 @@ bosang-radar/
 
 ## 다음 단계 (이번 SPEC까지가 다루지 않은 것)
 
-SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처)과 SPEC-RUNTIME-001(런타임 활성화)은 전체 서비스 완성이 아니라, 로컬에서 실제로 실행·검증 가능한 상태를 만드는 데 집중했습니다. 다음 항목은 후속 SPEC 후보로 이연되었습니다.
+SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처), SPEC-RUNTIME-001(런타임 활성화), SPEC-RESEARCH-001(evidence-first 파이프라인 전환)은 전체 서비스 완성이 아니라, 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중했습니다. 다음 항목은 후속 SPEC 후보로 이연되었습니다.
 
-- **파이프라인 로직 고도화**: Researcher/Skeptic/Verifier 단계의 실제 LLM 프롬프트 엔지니어링, 근거자료 품질 튜닝, 반대 논리 생성 정교화
+- **근거자료 corpus 확장**: 현재는 `db/seed/`의 소규모 seed 데이터셋만 존재 — 실제 판례·법령·분쟁사례를 대량 수집
+- **feedback·Gold Dataset 구축**: 실무자 피드백(`feedback` 테이블)을 축적해 파이프라인 판단 품질을 정량 평가할 골드 데이터셋 마련
 - **UI/UX 고도화**: 사건 입력 폼과 리포트 뷰의 폴리시된 디자인
-- **대규모 근거자료 데이터 수집**: 현재는 `db/seed/`의 소규모 seed 데이터셋만 존재
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행
 - **담보 영역 확장**: 상해후유장해·질병후유장해 외 담보 영역(질병사망, 실손의료비 등)
-- **인증 하드닝**: 로그인 시도 rate-limiting 등 프로덕션 수준의 하드닝
+- **파일럿 배포 준비**: 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝, 실무자 대상 파일럿 배포
 
 자세한 배경과 로드맵은 [`.moai/project/product.md`](.moai/project/product.md) §Roadmap과 [`.moai/specs/SPEC-SCAFFOLD-001/spec.md`](.moai/specs/SPEC-SCAFFOLD-001/spec.md) §4를 참고하세요.

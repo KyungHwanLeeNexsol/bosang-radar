@@ -100,14 +100,27 @@ describe("lib/env — validateEnv (AC-RUNTIME-003, AC-RUNTIME-010, AC-RUNTIME-01
       expect(result.TURSO_DATABASE_URL).toBe("file:./.tmp/x.db");
     });
 
-    it("(음성 2) app 스코프는 GEMINI_API_KEY가 없어도 통과한다", () => {
+    it("(음성 2) app 스코프는 LLM_PROVIDER_MODE=deterministic이면 GEMINI_API_KEY가 없어도 통과한다 (AC-RESEARCH-011b, REQ-RESEARCH-012 면제 경로)", () => {
       const result = validateEnv("app", {
         TURSO_DATABASE_URL: "file:./.tmp/x.db",
         BETTER_AUTH_SECRET: "secret",
         BETTER_AUTH_URL: "http://localhost:3000",
+        LLM_PROVIDER_MODE: "deterministic",
       });
 
       expect(result.scope).toBe("app");
+    });
+
+    // AC-RESEARCH-011a (REQ-RESEARCH-012, 필수 경로): LLM_PROVIDER_MODE가 없고
+    // GEMINI_API_KEY도 없으면 app 스코프는 반드시 실패해야 한다.
+    it("(음성 2-보완) app 스코프는 LLM_PROVIDER_MODE=deterministic이 없으면 GEMINI_API_KEY가 필수다", () => {
+      expect(() =>
+        validateEnv("app", {
+          TURSO_DATABASE_URL: "file:./.tmp/x.db",
+          BETTER_AUTH_SECRET: "secret",
+          BETTER_AUTH_URL: "http://localhost:3000",
+        })
+      ).toThrow();
     });
 
     it("(음성 3) provision 스코프는 BETTER_AUTH_URL이 없어도 통과한다", () => {

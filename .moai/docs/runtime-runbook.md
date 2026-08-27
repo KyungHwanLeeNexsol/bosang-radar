@@ -16,7 +16,7 @@
     바로 진행 가능 — 아래 1단계의 `file:` 예시를 그대로 쓴다.
   - **원격 Turso 인스턴스를 쓰는 경우**: Turso 대시보드(https://turso.tech)에서
     데이터베이스를 만들고 `TURSO_DATABASE_URL`·`TURSO_AUTH_TOKEN`을 발급받는다.
-  - Gemini API 키는 **이 SPEC의 범위에서는 필요하지 않다** — 3단계 참고.
+  - Gemini API 키는 **실제 Gemini를 호출하는 정상 앱 기동에서만 필요하다** — 테스트/E2E처럼 결정론적 provider로 돌릴 때는 필요 없다(3단계 참고).
 
 ## 1. 환경변수 설정 (연결)
 
@@ -43,8 +43,9 @@ TURSO_DATABASE_URL="file:./.tmp/local-dev.db"
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-`GEMINI_API_KEY`는 **이번 SPEC의 앱 기동에는 요구되지 않는다** — 3단계에서
-자세히 설명한다.
+`GEMINI_API_KEY`는 **실제 Gemini 호출로 앱을 기동할 때만 필요하다** —
+`LLM_PROVIDER_MODE=deterministic`으로 돌리는 테스트/E2E에서는 필요 없다.
+자세한 조건은 3단계에서 설명한다.
 
 **중요 — 셸에 export할 필요가 없다**: 아래 마이그레이션·시드·테스터 생성
 세 단계는 셸 환경변수를 전혀 읽지 않는다. `scripts/cli-bootstrap.ts`가 각
@@ -67,7 +68,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | `BETTER_AUTH_SECRET` | — | 필수 | 필수 | 필수(자동 생성) |
 | `BETTER_AUTH_URL` | — | — | 필수 | 필수(자동 조립) |
 | `TESTER_PASSWORD` | — | 조건부** | — | 필수(자동 생성) |
-| `GEMINI_API_KEY` | — | — | 요구하지 않음*** | — |
+| `GEMINI_API_KEY` | — | — | 조건부*** | 요구하지 않음(자동 면제) |
 
 \* `TURSO_DATABASE_URL`이 `libsql://` 또는 `https://`로 시작하는 원격
 인스턴스를 가리킬 때만 필요하다. `file:` 로컬 파일을 쓰면 필요 없다.
@@ -75,11 +76,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 \*\* `pnpm tester:add`를 대화형 프롬프트 없이 비대화형으로 실행할 때만
 필요하다(4단계 참고).
 
-\*\*\* **`GEMINI_API_KEY`는 이번 SPEC의 앱 기동을 막지 않는다.** 이번
-SPEC에서는 AI 파이프라인이 mock 구현을 유지하며 이 값을 소비하는 실행
-경로가 하나도 없다(`design.md` §3.1 각주). 실제 Gemini 호출을 켜는 후속
-SPEC이 도입되면 그때 `app` 스코프 필수 항목으로 승격될 예정이다 — 지금은
-값이 없어도 앱이 정상 기동한다.
+\*\*\* **`GEMINI_API_KEY`는 `app` 스코프에서 조건부 필수다.**
+`LLM_PROVIDER_MODE` 환경변수가 `deterministic`으로 설정되지 않은 정상 앱
+부팅 경로에서만 요구된다(`lib/env.ts`, SPEC-RESEARCH-001 design.md §2).
+`e2e`는 `scripts/run-e2e.ts`가 내부적으로 `LLM_PROVIDER_MODE=deterministic`을
+자동 주입해 이 검증에서 면제되므로, 이 값이 없어도 `pnpm test:e2e`는 정상
+동작한다.
 
 `e2e` 열의 "자동 생성/자동 조립" 항목은 5단계에서 설명한다.
 
@@ -189,6 +191,7 @@ pnpm test:e2e                         # 7단계
   — 전부 플레이스홀더다.
 - 발급처만 안내한다: DB 자격증명은 Turso 대시보드(https://turso.tech),
   Gemini API 키는 Google AI Studio(https://aistudio.google.com)에서 받는다
-  (다만 앞서 설명했듯 Gemini 키는 이번 SPEC의 앱 기동에는 필요 없다).
+  (다만 앞서 설명했듯 `LLM_PROVIDER_MODE=deterministic`으로 돌리는 테스트/E2E에는
+  필요 없고, `LLM_PROVIDER_MODE`를 설정하지 않는 정상 앱 기동에는 필요하다).
 - 값이 디스크에 남는 곳은 gitignore된 `.env.local`뿐이다. 로그·오류
   메시지·커밋 파일에는 값이 나타나지 않는다.

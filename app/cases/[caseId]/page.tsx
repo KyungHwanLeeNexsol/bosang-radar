@@ -2,8 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
-import seedEvidence from "@/db/seed/evidence.json";
-import type { EvidenceCandidate } from "@/lib/pipeline/types";
+import { getDb } from "@/lib/db/client";
+import { evidence as evidenceTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -18,11 +18,12 @@ interface CaseDetailPageProps {
   params: Promise<{ caseId: string }>;
 }
 
-const evidenceById = new Map<string, EvidenceCandidate>(
-  (seedEvidence as EvidenceCandidate[]).map((evidence) => [evidence.id, evidence])
-);
+interface EvidenceDisplay {
+  title: string;
+  sourceUrl: string | null;
+}
 
-// bare UI — 사건 상세 + 리서치 리포트 뷰(M5, design.md §3). owner_user_id
+// bare UI — 사건 상세 + 리서치 리포트 뷰(M5/M6, design.md §3·§8). owner_user_id
 // 스코핑은 getCaseForOwner()가 담당하며, 소유하지 않은 사건이면 null을
 // 반환해 notFound()로 이어진다(REQ-SCAFFOLD-011, AC-SCAFFOLD-010).
 export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
@@ -39,6 +40,24 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   }
 
   const { report, id: ownerCaseId } = caseWithReport;
+
+  // evidenceById — 정적 seed JSON(db/seed/evidence.json) 대신 실제 Drizzle
+  // 조회 결과로 구성한다(design.md §8 — §6 EvidenceRetriever가 도입한 DB
+  // 조회 경로를 UI 레이어에서도 재사용).
+  const evidenceById = new Map<string, EvidenceDisplay>();
+  if (report) {
+    const db = getDb();
+    const rows = await db
+      .select({
+        id: evidenceTable.id,
+        title: evidenceTable.title,
+        sourceUrl: evidenceTable.sourceUrl,
+      })
+      .from(evidenceTable);
+    for (const row of rows) {
+      evidenceById.set(row.id, { title: row.title, sourceUrl: row.sourceUrl });
+    }
+  }
 
   async function handleFeedbackSubmit(formData: FormData) {
     "use server";
@@ -65,31 +84,120 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
           <Card>
             <CardHeader>
+              <CardTitle>검토할 담보 목록</CardTitle>
+            </CardHeader>
+            <CardContent data-testid="review-targets">
+              {report.reviewTargets.length > 0 ? (
+                <ul className="list-inside list-disc text-sm">
+                  {report.reviewTargets.map((reviewTarget, index) => (
+                    <li key={index}>{reviewTarget.description}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">검토할 담보가 식별되지 않았습니다.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>추가로 검토할 담보 · 근거자료 · 반대 논리</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {report.claims.map((claim, index) => (
+            <CardContent className="flex flex-col gap-4" data-testid="verified-claims">
+              {report.verifiedClaims.map((claim, index) => (
                 <div
                   key={index}
                   className="flex flex-col gap-1 rounded-lg border border-input p-3 text-sm"
                 >
-                  <p className="font-medium">{claim.summary}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium">{claim.summary}</p>
+                    {/* Fix-C(P0): claim.status를 시각적으로 구분되게 노출한다 —
+                        INSUFFICIENT가 VERIFIED와 동일하게 보이던 결함(코드 리뷰
+                        지적)의 수정. Button 컴포넌트가 이미 사용 중인
+                        secondary/destructive 토큰 조합을 그대로 재사용한다. */}
+                    <span
+                      data-testid="claim-status"
+                      data-status={claim.status}
+                      className={
+                        claim.status === "VERIFIED"
+                          ? "shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground"
+                          : "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-destructive"
+                      }
+                    >
+                      {claim.status === "VERIFIED" ? "근거 확인" : "판단 불충분"}
+                    </span>
+                  </div>
                   <div>
                     <p className="text-muted-foreground">관련 근거자료</p>
                     <ul className="list-inside list-disc">
-                      {claim.supportingEvidenceIds.map((evidenceId) => (
-                        <li key={evidenceId}>
-                          {evidenceById.get(evidenceId)?.title ?? evidenceId}
-                        </li>
-                      ))}
+                      {claim.supportingEvidenceIds.map((evidenceId) => {
+                        const item = evidenceById.get(evidenceId);
+                        return (
+                          <li key={evidenceId}>
+                            {item?.title ?? evidenceId}
+                            {item?.sourceUrl ? (
+                              <span className="text-muted-foreground"> ({item.sourceUrl})</span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                   {claim.counterArguments.length > 0 ? (
                     <div>
                       <p className="text-muted-foreground">예상 반대 논리</p>
-                      <ul className="list-inside list-disc">
-                        {claim.counterArguments.map((counterArgument) => (
-                          <li key={counterArgument}>{counterArgument}</li>
+                      <ul className="flex flex-col gap-2">
+                        {claim.counterArguments.map((counterArgument, counterIndex) => (
+                          <li key={counterIndex} className="list-inside list-disc">
+                            {counterArgument.summary}
+                            {/* Fix-C(P1): counterArgument의 supportingEvidenceIds/
+                                counterEvidenceIds도 claim 자신의 근거자료 목록과
+                                동일한 evidenceById 조회 + sourceUrl 조건부 렌더링
+                                idiom을 재사용해 노출한다(코드 리뷰 지적 — 그동안
+                                summary만 보이고 근거 출처가 UI에서 사라졌었다). */}
+                            {counterArgument.supportingEvidenceIds.length > 0 ? (
+                              <div className="pl-4">
+                                <p className="text-muted-foreground">뒷받침 근거</p>
+                                <ul className="list-inside list-disc">
+                                  {counterArgument.supportingEvidenceIds.map((evidenceId) => {
+                                    const item = evidenceById.get(evidenceId);
+                                    return (
+                                      <li key={evidenceId}>
+                                        {item?.title ?? evidenceId}
+                                        {item?.sourceUrl ? (
+                                          <span className="text-muted-foreground">
+                                            {" "}
+                                            ({item.sourceUrl})
+                                          </span>
+                                        ) : null}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
+                            ) : null}
+                            {counterArgument.counterEvidenceIds.length > 0 ? (
+                              <div className="pl-4">
+                                <p className="text-muted-foreground">반박 근거</p>
+                                <ul className="list-inside list-disc">
+                                  {counterArgument.counterEvidenceIds.map((evidenceId) => {
+                                    const item = evidenceById.get(evidenceId);
+                                    return (
+                                      <li key={evidenceId}>
+                                        {item?.title ?? evidenceId}
+                                        {item?.sourceUrl ? (
+                                          <span className="text-muted-foreground">
+                                            {" "}
+                                            ({item.sourceUrl})
+                                          </span>
+                                        ) : null}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
+                            ) : null}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -103,10 +211,40 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             <CardHeader>
               <CardTitle>추가 필요 자료</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                추가 확보 자료 식별은 파이프라인 고도화 이후 후속 SPEC에서 지원할 예정입니다.
-              </p>
+            <CardContent data-testid="missing-materials">
+              {report.missingMaterials.length > 0 ? (
+                <ul className="list-inside list-disc text-sm">
+                  {report.missingMaterials.map((missingMaterial, index) => (
+                    <li key={index}>{missingMaterial.description}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  추가로 확보가 필요한 자료가 식별되지 않았습니다.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Fix-C(P0): report.uncertainty(판단 불충분 사유)가 그동안 어디에도
+              렌더링되지 않던 결함(코드 리뷰 지적)의 수정 — 기존 카드 패턴을
+              그대로 따른다. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>판단 불충분 사유</CardTitle>
+            </CardHeader>
+            <CardContent data-testid="uncertainty">
+              {report.uncertainty.length > 0 ? (
+                <ul className="list-inside list-disc text-sm">
+                  {report.uncertainty.map((reason, index) => (
+                    <li key={index}>{reason}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  판단 불충분으로 처리된 사유가 없습니다.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

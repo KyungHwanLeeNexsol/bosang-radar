@@ -244,27 +244,29 @@ describe("scripts/provision-tester — AC-RUNTIME-017 비노출 정적 확인 (�
   });
 });
 
-describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마이그레이션 예외 (개정 v0.5.0)", () => {
+describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마이그레이션 예외 (개정 v0.5.1)", () => {
   const migrationsDir = path.join(projectRoot, "db", "migrations");
   const BASELINE_MIGRATION = "0000_broad_big_bertha.sql";
+  // SPEC-RUNTIME-001 보정 마이그레이션 (account.issuer 컬럼 추가).
+  const ACCOUNT_ISSUER_MIGRATION = "0001_bitter_talon.sql";
+  // SPEC-RESEARCH-001 M1 (REQ-RESEARCH-XXX)에서 추가된 evidence 스키마 확장 마이그레이션
+  // (evidence_type/scope 컬럼 추가). account.issuer 보정 마이그레이션과는 별개의,
+  // 정상적인 신규 스키마 변경 마이그레이션이다.
+  const EVIDENCE_SCHEMA_MIGRATION = "0002_outstanding_khan.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + 보정 마이그레이션 정확히 1개, 총 2개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개, 총 3개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
 
     expect(sqlFiles).toContain(BASELINE_MIGRATION);
-    expect(sqlFiles).toHaveLength(2);
+    expect(sqlFiles).toContain(ACCOUNT_ISSUER_MIGRATION);
+    expect(sqlFiles).toContain(EVIDENCE_SCHEMA_MIGRATION);
+    expect(sqlFiles).toHaveLength(3);
   });
 
-  it("보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
-    const sqlFiles = readdirSync(migrationsDir)
-      .filter((name) => name.endsWith(".sql"))
-      .sort();
-    const correctiveFile = sqlFiles.find((name) => name !== BASELINE_MIGRATION);
-    expect(correctiveFile).toBeDefined();
-
-    const content = readFileSync(path.join(migrationsDir, correctiveFile as string), "utf-8");
+  it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
+    const content = readFileSync(path.join(migrationsDir, ACCOUNT_ISSUER_MIGRATION), "utf-8");
     const statements = content
       .split("--> statement-breakpoint")
       .map((s) => s.trim())
@@ -273,6 +275,24 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(statements).toHaveLength(1);
     expect(statements[0]).toMatch(
       /^ALTER TABLE\s+`account`\s+ADD\s+`issuer`\s+text\s+NOT NULL;?$/i
+    );
+    // CREATE/DROP TABLE 등 다른 DDL이 섞여 있지 않음을 재확인한다.
+    expect(content).not.toMatch(/CREATE TABLE|DROP TABLE|CREATE INDEX|DROP INDEX/i);
+  });
+
+  it("evidence 스키마 확장 마이그레이션의 내용은 evidence_type/scope 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
+    const content = readFileSync(path.join(migrationsDir, EVIDENCE_SCHEMA_MIGRATION), "utf-8");
+    const statements = content
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toMatch(
+      /^ALTER TABLE\s+`evidence`\s+ADD\s+`evidence_type`\s+text\s+DEFAULT\s+'OTHER'\s+NOT NULL;?$/i
+    );
+    expect(statements[1]).toMatch(
+      /^ALTER TABLE\s+`evidence`\s+ADD\s+`scope`\s+text\s+DEFAULT\s+'DOMAIN_SPECIFIC'\s+NOT NULL;?$/i
     );
     // CREATE/DROP TABLE 등 다른 DDL이 섞여 있지 않음을 재확인한다.
     expect(content).not.toMatch(/CREATE TABLE|DROP TABLE|CREATE INDEX|DROP INDEX/i);

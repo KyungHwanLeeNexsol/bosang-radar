@@ -29,7 +29,14 @@ const sampleCaseRow = {
 const sampleReportRow = {
   id: "report-1",
   caseId: "case-1",
-  content: { caseSummary: {}, claims: [], generatedAt: "2024-03-15T00:00:00.000Z" },
+  content: {
+    caseSummary: {},
+    reviewTargets: [],
+    verifiedClaims: [],
+    missingMaterials: [],
+    uncertainty: [],
+    generatedAt: "2024-03-15T00:00:00.000Z",
+  },
   createdAt: new Date("2024-03-15T00:00:00.000Z"),
 };
 
@@ -49,7 +56,7 @@ describe("lib/cases/get-case-for-owner getCaseForOwner (REQ-SCAFFOLD-011, AC-SCA
 
     expect(result).not.toBeNull();
     expect(result?.id).toBe("case-1");
-    expect(result?.report?.claims).toEqual([]);
+    expect(result?.report?.verifiedClaims).toEqual([]);
   });
 
   it("사용자 A 소유의 사건을 사용자 B가 조회하면 owner_user_id 필터링에 의해 null을 반환한다 (cross-user access blocked)", async () => {

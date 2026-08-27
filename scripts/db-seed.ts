@@ -9,6 +9,12 @@ import { bootstrapCli } from "./cli-bootstrap.ts";
 interface EvidenceSeedRecord {
   id: string;
   category: string;
+  // evidenceType/scope — SPEC-RESEARCH-001 design.md §6에서 추가된 자료
+  // 유형/담보-공통 축. DB 컬럼은 .default("OTHER")/.default("DOMAIN_SPECIFIC")를
+  // 가지므로 값을 생략해도 안전하지만, seed 레코드는 실제 성격에 맞춘
+  // 값을 명시적으로 채워 넣는다(M4).
+  evidenceType: string;
+  scope: string;
   title: string;
   content: string;
   sourceUrl: string | null;
@@ -36,6 +42,8 @@ export async function runSeed(): Promise<void> {
         .values({
           id: record.id,
           category: record.category,
+          evidenceType: record.evidenceType,
+          scope: record.scope,
           title: record.title,
           content: record.content,
           sourceUrl: record.sourceUrl,
@@ -45,6 +53,8 @@ export async function runSeed(): Promise<void> {
           target: evidence.id,
           set: {
             category: record.category,
+            evidenceType: record.evidenceType,
+            scope: record.scope,
             title: record.title,
             content: record.content,
             sourceUrl: record.sourceUrl,

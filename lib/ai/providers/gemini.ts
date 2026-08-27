@@ -1,5 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
-import type { GenerateRequest, GenerateResponse, LLMProvider } from "../provider";
+import { z } from "zod";
+import type {
+  GenerateRequest,
+  GenerateResponse,
+  GenerateStructuredRequest,
+  LLMProvider,
+  StructuredResult,
+} from "../provider";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const DEFAULT_MAX_RETRIES = 3;
@@ -49,16 +56,14 @@ export class GeminiProvider implements LLMProvider {
     this.sleepFn = options.sleepFn ?? defaultSleep;
   }
 
-  async generate(request: GenerateRequest): Promise<GenerateResponse> {
+  // SPEC-RESEARCH-001 M2: generate()/generateStructured() 공유 재시도 헬퍼
+  // (design.md §4 — 순수 내부 리팩토링, 외부 계약 무변경).
+  private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
     let attempt = 0;
 
     while (true) {
       try {
-        const response = await this.client.models.generateContent({
-          model: request.model ?? this.model,
-          contents: request.prompt,
-        });
-        return { text: response.text ?? "" };
+        return await operation();
       } catch (error) {
         const isLastAttempt = attempt >= this.maxRetries;
         if (!isRateLimitError(error) || isLastAttempt) {
@@ -72,5 +77,43 @@ export class GeminiProvider implements LLMProvider {
         attempt += 1;
       }
     }
+  }
+
+  async generate(request: GenerateRequest): Promise<GenerateResponse> {
+    return this.withRetry(async () => {
+      const response = await this.client.models.generateContent({
+        model: request.model ?? this.model,
+        contents: request.prompt,
+      });
+      return { text: response.text ?? "" };
+    });
+  }
+
+  // SPEC-RESEARCH-001 M2: Zod 스키마 기반 구조화 출력(design.md §4).
+  // Gemini의 responseJsonSchema/responseMimeType 등 SDK 세부사항은 이 메서드
+  // 내부에만 존재하며, 호출부(Researcher 등)는 이를 전혀 알지 못한다
+  // (REQ-RESEARCH-009/015).
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<StructuredResult<T>> {
+    const jsonSchema = z.toJSONSchema(request.schema); // zod 4.4.3 네이티브 변환 — 신규 의존성 불필요
+    const response = await this.withRetry(() =>
+      this.client.models.generateContent({
+        model: request.model ?? this.model,
+        contents: request.prompt,
+        config: { responseMimeType: "application/json", responseJsonSchema: jsonSchema },
+      })
+    );
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(response.text ?? "");
+    } catch {
+      return { ok: false, reason: "invalid_json", raw: response.text ?? "" };
+    }
+
+    const result = request.schema.safeParse(parsed);
+    if (!result.success) {
+      return { ok: false, reason: "schema_validation_failed", raw: response.text ?? "" };
+    }
+    return { ok: true, data: result.data };
   }
 }

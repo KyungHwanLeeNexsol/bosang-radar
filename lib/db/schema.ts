@@ -81,6 +81,10 @@ export const evidence = sqliteTable("evidence", {
   id: text("id").primaryKey(),
   // 담보(coverage) 카테고리 — 예: 상해후유장해, 질병후유장해 (AC-SCAFFOLD-014).
   category: text("category").notNull(),
+  // 자료 유형 축 — POLICY/PRECEDENT/DISPUTE_CASE/STATUTE/OTHER (SPEC-RESEARCH-001 design.md §6).
+  evidenceType: text("evidence_type").notNull().default("OTHER"),
+  // 담보-특정/담보-공통 축 — DOMAIN_SPECIFIC/UNIVERSAL (SPEC-RESEARCH-001 design.md §6).
+  scope: text("scope").notNull().default("DOMAIN_SPECIFIC"),
   title: text("title").notNull(),
   content: text("content").notNull(),
   sourceUrl: text("source_url"),
