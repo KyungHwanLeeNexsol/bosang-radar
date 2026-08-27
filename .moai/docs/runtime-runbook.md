@@ -191,6 +191,7 @@ pnpm test:e2e                         # 7단계
   — 전부 플레이스홀더다.
 - 발급처만 안내한다: DB 자격증명은 Turso 대시보드(https://turso.tech),
   Gemini API 키는 Google AI Studio(https://aistudio.google.com)에서 받는다
-  (다만 앞서 설명했듯 Gemini 키는 이번 SPEC의 앱 기동에는 필요 없다).
+  (다만 앞서 설명했듯 `LLM_PROVIDER_MODE=deterministic`으로 돌리는 테스트/E2E에는
+  필요 없고, `LLM_PROVIDER_MODE`를 설정하지 않는 정상 앱 기동에는 필요하다).
 - 값이 디스크에 남는 곳은 gitignore된 `.env.local`뿐이다. 로그·오류
   메시지·커밋 파일에는 값이 나타나지 않는다.
