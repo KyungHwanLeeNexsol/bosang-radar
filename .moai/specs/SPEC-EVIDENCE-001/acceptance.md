@@ -2,9 +2,11 @@
 
 ## §A. 개요
 
-각 AC는 원칙적으로 정확히 1개의 `REQ-EVIDENCE-XXX`를 검증한다. REQ-EVIDENCE-016(A/B/C 진단)만
-세 단계 각각에 대응하는 3개의 서브레터 AC로 나눈다(design.md §4.1의 "무엇을 자동화하고 무엇을
-하지 않는가" 경계를 AC 단위로도 그대로 반영하기 위함). 실제 Gemini API를 호출하는 자동화 테스트는
+각 AC는 원칙적으로 정확히 1개의 `REQ-EVIDENCE-XXX`를 검증한다. REQ-EVIDENCE-016(A/B/C 진단 +
+over-claim 방지)만 네 개의 서브레터 AC(016a/b/c/d)로 나눈다(design.md §4.1/§4.3/§4.4의 "무엇을
+자동화하고 무엇을 하지 않는가" 경계를 AC 단위로도 그대로 반영하기 위함). 밀접하게 연관된 신규
+REQ(REQ-EVIDENCE-029→AC-008, REQ-EVIDENCE-030→AC-014)는 기존 AC에 Given/Then 절을 추가하는
+방식으로 통합해 Tier L AC 상한(25개)을 지킨다. 실제 Gemini API를 호출하는 자동화 테스트는
 없다 — 결정론적 fake/mock provider만 사용한다. `db/seed/evidence.json`의 실제 출처 검증(원문
 대조)은 자동화 불가능한 수작업 절차(design.md §5)이므로, 해당 AC는 "구조적으로 검증 가능한
 부분"(예: `sourceUrl`/`sourceIdentifier` 존재 여부)만 이진 판정한다 — 이는 verification-claim-integrity
@@ -16,15 +18,19 @@
 - Given: `.moai/specs/SPEC-EVIDENCE-001/`(또는 `.moai/docs/`) 내 coverage matrix 문서
 - When: 문서를 검토한다
 - Then: 두 담보(`INJURY_DISABILITY`/`DISEASE_DISABILITY`) × 8개 `QueryIssueType` 전체 16개 셀이
-  표에 존재하고, 각 셀에 현재 건수와 목표 건수가 명시되어 있으며, evidenceType별 목표 건수가
-  이 matrix에서 도출된 값임을 문서 내에서 설명한다(임의 균등배분 문구가 없음).
+  표에 존재하고(`N/A`로 명시된 셀 포함, 셀 자체를 삭제하지 않음), `N/A`가 아닌 각 셀에 현재
+  건수와 목표 건수가 명시되어 있으며, evidenceType별 목표 건수가 이 matrix에서 도출된 값임을
+  문서 내에서 설명한다(임의 균등배분 문구가 없음). `N/A` 셀에는 `query-planner.ts`의 실제 조건부
+  트리거 로직을 근거로 든 설명이 있다(design.md §7).
 
-**AC-EVIDENCE-002** (REQ-EVIDENCE-002)
+**AC-EVIDENCE-002** (REQ-EVIDENCE-002, REQ-EVIDENCE-026)
 - Given: `db/seed/evidence.json`의 `evidenceType`이 `PRECEDENT`/`STATUTE`/`DISPUTE_CASE`/`POLICY`인
-  모든 레코드
+  **모든** 레코드(기존 10건 중 재감사를 통과한 레코드 + 신규 레코드 전부 — 신규 레코드만이 아님)
 - When: 각 레코드의 `sourceUrl` 또는 `sourceIdentifier` 필드를 검사한다
-- Then: 전부 `null`이 아닌 값을 가진다(구조적 최소 검증 — 원문 내용 대조는 M4 수작업 절차의 몫이며
-  이 AC의 범위 밖임을 명시).
+- Then: 전부 `null`이 아닌 값을 가진다. **이 AC는 authenticity PASS를 주장하지 않는다** — 필드
+  존재라는 구조적 최소 검증일 뿐이며, 원문 내용 대조·실제 authenticity 판정은
+  `.moai/reports/evidence-source-audit-manifest.md`(AC-EVIDENCE-026)가 별도로 기록한다(구조
+  검증과 수동 검증의 경계는 §A/§C에 명시).
 
 **AC-EVIDENCE-003** (REQ-EVIDENCE-003)
 - Given: `db/seed/evidence.json`(production seed)과 신규 benchmark/diagnostic fixture 파일
@@ -40,11 +46,14 @@
 
 **AC-EVIDENCE-005** (REQ-EVIDENCE-005)
 - Given: `lib/db/schema.ts`에 추가된 신규 컬럼 목록과 `lib/pipeline/evidence-retriever.ts`/benchmark
-  채점 코드
+  채점 코드/dedup 코드(design.md §6)
 - When: 각 신규 컬럼을 실제로 읽는 코드 경로를 grep으로 확인한다
-- Then: `issueTypes`는 `evidence-retriever.ts`의 score 함수에서 소비되고, `keywords`는 이번
-  milestone에서 스키마에 추가되지 않았음을 확인한다(research.md §4 "보류" 결정과 일치) — 소비
-  코드 경로가 없는 컬럼이 존재하지 않는다.
+- Then: M1 시점 신규 컬럼은 `issueTypes` 1개뿐이며(`sourceIdentifier`/`sourceDate`가 이 시점
+  스키마에 없음을 확인), `issueTypes`는 `evidence-retriever.ts`의 candidate eligibility(전략 B)와
+  score 함수 양쪽에서 소비된다. 이후 `sourceIdentifier`가 추가된 경우, 그 컬럼을 실제로 읽는
+  source-integrity 검증 또는 dedup(design.md §6 `isDuplicate()`) 코드 경로가 존재함을 확인한다 —
+  존재 여부 구조 검증만 하는 코드는 이 AC를 만족시키지 않는다. `keywords`는 이번 milestone에서
+  스키마에 추가되지 않았음을 확인한다(research.md §4 "보류" 결정과 일치).
 
 **AC-EVIDENCE-006** (REQ-EVIDENCE-006)
 - Given: `EvidenceCandidate.issueTypes` 타입 정의
@@ -57,11 +66,17 @@
 - When: `claimant`/`insurer`/`stance`/`argumentRole` 등 관점 라벨 관련 필드명을 grep한다
 - Then: 매치가 0건이다.
 
-**AC-EVIDENCE-008** (REQ-EVIDENCE-008)
-- Given: `issueTypes`에 query와 동일한 issueType을 가진 evidence A와, 키워드만 우연히 1개 겹치고
-  `issueTypes`는 다른(또는 빈) evidence B
-- When: 동일 query로 `retrieveEvidence()`를 호출한다
-- Then: A의 score가 B의 score보다 높고, 정렬된 후보 목록에서 A가 B보다 앞에 온다.
+**AC-EVIDENCE-008** (REQ-EVIDENCE-008, REQ-EVIDENCE-029)
+- Given: (1) `issueTypes`에 query와 동일한 issueType을 가진 evidence A와, 키워드만 우연히 1개
+  겹치고 `issueTypes`는 다른(또는 빈) evidence B — 둘 다 title/content에 query keyword가 있는
+  상황. (2) **별도로**, `issueTypes`에 query와 동일한 issueType을 갖지만 title/content 어디에도
+  query keyword 문자열이 전혀 없는 evidence C(known-relevant로 지정, REQ-EVIDENCE-029 케이스)
+- When: 전략 A와 전략 B(design.md §2.1) 각각으로 동일 query에 `retrieveEvidence()`를 호출한다
+- Then: (a) 두 전략 모두에서 A의 score가 B의 score보다 높고 정렬된 후보 목록에서 A가 B보다 앞에
+  온다(ranking 확인). (b) **전략 A에서는 evidence C가 candidate 목록에 아예 나타나지 않고(진입
+  실패 — 이전 결함 재현 확인), 전략 B에서는 evidence C가 candidate 목록에 나타난다**(§D 벤치마크가
+  측정하는 "known-relevant, exact issueType, no keyword" 복구 케이스가 실제로 복구됨을 단위
+  테스트 수준에서도 확인).
 
 **AC-EVIDENCE-009** (REQ-EVIDENCE-009)
 - Given: design.md §3의 curated benchmark 케이스 최소 1건에 "무관하지만 키워드 하나가 우연히
@@ -90,17 +105,21 @@
   존재한다(총 7건 이상).
 
 **AC-EVIDENCE-013** (REQ-EVIDENCE-013)
-- Given: 모든 벤치마크 케이스의 `knownRelevantEvidenceIds`
-- When: 그 ID 집합을 `db/seed/evidence.json`의 실제 `id` 집합과 대조한다
-- Then: 전부 실제 production evidence corpus에 존재하는 `id`이며, 벤치마크 전용으로 새로 만든
-  가상의 `id`가 하나도 없다.
+- Given: 모든 벤치마크 케이스의 `knownRelevantEvidenceIds`와 `.moai/reports/evidence-source-audit-manifest.md`
+- When: 그 ID 집합을 (a) `db/seed/evidence.json`의 실제 `id` 집합과, (b) manifest에서 "유지"로
+  결정된 `id` 집합과 대조한다
+- Then: 전부 (a)를 만족하고, 전부 (b)도 만족한다 — 벤치마크 전용으로 새로 만든 가상의 `id`가
+  없을 뿐 아니라, manifest에서 `OTHER` downgrade되거나 제외된 evidence를 ground truth로 참조하는
+  케이스도 없다.
 
-**AC-EVIDENCE-014** (REQ-EVIDENCE-014)
-- Given: M2에서 측정한 baseline(issueType 가중치 적용 전) Recall@5/Hit@5와 개선 후 수치
+**AC-EVIDENCE-014** (REQ-EVIDENCE-014, REQ-EVIDENCE-030)
+- Given: M2에서 측정한 exploratory 단계 수치(전략 A/B, 10건 corpus)와 M4d에서 측정한 frozen 최종
+  비교 수치(baselineRetriever/newRetriever, freeze된 최종 corpus)
 - When: `.moai/reports/`의 측정 기록 문서를 확인한다
-- Then: baseline 수치가 개선 후 수치보다 먼저 기록되어 있고, acceptance threshold(예: "평균
-  Recall@5가 baseline 대비 X%p 이상 개선")가 이 두 실측값 이후에 문서 내 별도 절에서 도출됨을
-  확인한다(수치가 baseline 측정 이전에 미리 박혀 있지 않다).
+- Then: 두 단계가 **서로 다른 절**로 명확히 라벨링되어 있다("exploratory"/"frozen" 또는 동등한
+  표현) — exploratory 수치가 최종 acceptance threshold의 직접 근거로 인용되지 않으며, threshold는
+  frozen 최종 비교 수치 이후에 별도 절에서 도출됨을 확인한다("Ranking 알고리즘 효과"와 "Corpus
+  확장 효과"가 design.md §3.4 형식대로 분리 기록되어 있다).
 
 **AC-EVIDENCE-015** (REQ-EVIDENCE-015)
 - Given: 이 SPEC의 acceptance.md 전체와 `evidence-diagnostic.test.ts`
@@ -129,6 +148,16 @@
   전달되었음을 확인 — 모델이 그것을 `counterEvidenceIds`로 선택했는지는 이 AC의 범위 밖이며
   design.md §4.3 해석표와 실 Gemini smoke 리포트가 그 이후를 다룬다).
 
+**AC-EVIDENCE-016d** (REQ-EVIDENCE-016, REQ-EVIDENCE-031, over-claim 방지 + replay 조건부 서술)
+- Given: M3 산출물(design.md §4.3 해석표를 채운 진단 노트, `.moai/reports/`) 전체
+- When: "배제"/"excluded"/"제외됨" 등의 표현과 "counterEvidenceIds"/"A/B/C"가 같은 문장·인접
+  문장에 등장하는 부분을 grep·육안으로 검토한다
+- Then: (a) "fixture에서 A/B가 확인됐으므로 실제 smoke의 A/B가 배제된다"는 취지의 문장이
+  존재하지 않는다. (b) design.md §4.4의 replay 전제조건(실제 smoke의 case/query snapshot 보존·
+  재현 가능 여부)이 충족되지 않았다면, 문서에 "corpus/Retriever/prompt/model behavior 미확정"이
+  그대로 유지되어 있다 — 충족됐다면 실제 replay 결과(§4.4)가 별도로 기록되어 있고 그 결과만
+  실제 smoke의 원인 서술 근거로 쓰인다.
+
 **AC-EVIDENCE-017** (REQ-EVIDENCE-017)
 - Given: `evidenceType`이 `PRECEDENT`인 모든 production evidence의 `content` 필드
 - When: "지급 확정"/"지급 확률"/"확정 보험금"/"무조건 지급" 등 SPEC-GEMINI-RUNTIME-001의 금지
@@ -136,10 +165,12 @@
 - Then: 매치가 0건이다.
 
 **AC-EVIDENCE-018** (REQ-EVIDENCE-018)
-- Given: `db/seed/evidence.json`의 모든 레코드
-- When: 동일 `sourceUrl`(또는 동일 `sourceIdentifier`)을 가진 레코드 그룹을 집계한다
-- Then: 같은 그룹 내 레코드들의 `issueTypes` 교집합이 비어 있다(같은 source에서 나온 레코드는
-  서로 다른 issueType을 다뤄야 하며, 완전히 동일한 issueType 조합의 중복 레코드가 없다).
+- Given: `db/seed/evidence.json`의 모든 레코드와 design.md §6 `isDuplicate()` 판정 함수
+- When: 동일 `sourceIdentifier`(또는 동일 `sourceUrl`)를 가진 레코드 쌍마다 `isDuplicate()`를
+  실행한다
+- Then: `isDuplicate() === true`인 쌍이 0건이다(정규화된 `content`가 실질적으로 동일한 진짜
+  중복이 없다는 뜻). **동일 source의 레코드가 같은 `issueTypes`를 공유하는 것 자체는 이 AC에서
+  실패 조건이 아니다** — content가 다르면 중복이 아니다(design.md §6, 외부 독립 리뷰 이슈 6).
 
 **AC-EVIDENCE-019** (REQ-EVIDENCE-019)
 - Given: M1~M5 반영 이후의 전체 파이프라인과, 확장된 evidence corpus를 반환하는 결정론적 provider
@@ -157,20 +188,34 @@
   safety-validator, 프로세스 로컬 동시성, Gemini env 계약을 검증하는 기존 케이스가 전부 그린이다.
 
 **AC-EVIDENCE-021** (REQ-EVIDENCE-021)
-- Given: 신규 Drizzle migration 파일과 마이그레이션 적용 전/후의 `evidence` 테이블 스키마
+- Given: M1 신규 Drizzle migration 파일과 마이그레이션 적용 전/후의 `evidence` 테이블 스키마
 - When: `pnpm db:migrate`를 빈 DB와 기존 10건이 있는 DB 양쪽에 실행한다
 - Then: 두 경우 모두 오류 없이 완료되고, 기존 8개 컬럼과 기존 10건의 데이터가 변경되지 않으며,
-  신규 3개 컬럼이 추가되어 있다(신규 컬럼 값은 기존 행에 대해 스키마 기본값 또는 `null`).
+  `issueTypes` 컬럼(M1이 확정하는 유일한 신규 컬럼, design.md §1.1)이 추가되어 있다(기존 행은
+  `.default("[]")`에 의해 빈 배열). `sourceIdentifier`/`sourceDate`가 이 시점 스키마에 없음을
+  함께 확인한다(design.md §1.2).
+
+**AC-EVIDENCE-026** (REQ-EVIDENCE-026)
+- Given: `db/seed/evidence.json`의 기존 10건(`seed-evidence-001`~`seed-evidence-010`)과
+  `.moai/reports/evidence-source-audit-manifest.md`
+- When: manifest에서 이 10개 `id`를 조회한다
+- Then: 10건 전부에 대해 manifest에 (evidenceType, sourceUrl 접근 확인일, 원문 대조 결과,
+  결정(유지/OTHER downgrade/제외), 검토자) 행이 존재한다 — 예외로 누락된 레코드가 없으며,
+  `POLICY`로 분류된 `seed-evidence-001`/`seed-evidence-003`도 포함되어 있다.
 
 ## §C. 수동 검증 (자동화 불가 영역, 명시적 범위 밖)
 
-이 SPEC은 corpus 큐레이션(M4)에서 개별 레코드의 원문-요약 정합성을 사람(또는 run-phase
-에이전트의 개별 WebFetch)이 확인하는 수작업 절차에 의존한다(design.md §5). 이 수작업 절차
-자체는 자동화된 AC로 강제하지 않는다 — AC-EVIDENCE-002/017/018은 구조적으로 검증 가능한
-부분(필드 존재, 금지 표현 부재, 중복 없음)만 이진 판정하며, "이 판례가 실제로 이렇게 판시했다"는
-사실 자체의 진위는 자동화 테스트의 범위 밖이다.
+이 SPEC은 corpus 큐레이션(M4, 신규 record + 기존 10건 재감사 모두)에서 개별 레코드의 원문-요약
+정합성을 사람(또는 run-phase 에이전트의 개별 WebFetch)이 확인하는 수작업 절차에 의존한다
+(design.md §5). 이 수작업 절차 자체는 자동화된 AC로 강제하지 않는다 — AC-EVIDENCE-002/017/018은
+구조적으로 검증 가능한 부분(필드 존재, 금지 표현 부재, content 정규화 동일성)만 이진 판정하며,
+"이 판례가 실제로 이렇게 판시했다"는 사실 자체의 진위는 자동화 테스트의 범위 밖이다.
+AC-EVIDENCE-026은 그 수작업 검증의 **결과가 manifest에 기록되어 있는지**(검증 자체의 진위가
+아니라 기록의 존재)만 확인한다 — 자동 테스트가 원문 대조 자체를 대신 수행한다고 주장하지 않는다.
 
 ## §D. 커버리지 매트릭스
 
-21개 REQ(REQ-EVIDENCE-001~021) 중 REQ-EVIDENCE-016만 3개 AC(016a/b/c)에 대응하고 나머지는
-1:1 대응 — 총 23개 AC. Tier L REQ/AC 상한(각 25개) 이내.
+25개 REQ(REQ-EVIDENCE-001~021, 026, 029, 030, 031) 중 REQ-EVIDENCE-016만 4개 AC(016a/b/c/d)에
+대응하고, REQ-EVIDENCE-029는 AC-008에, REQ-EVIDENCE-030은 AC-014에 통합 대응하며, 나머지는
+1:1 대응 — 총 25개 AC(AC-001~021, 026). REQ 25개 / AC 25개, Tier L 상한(각 25개)에 정확히
+도달.

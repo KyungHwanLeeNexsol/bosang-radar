@@ -105,17 +105,27 @@ run-phase M1이 실제 검색 도구로 이 카탈로그를 근거로 조사를 
 | 금융감독원 금융소비자보호처 분쟁조정사례 | DISPUTE_CASE | 이번 세션에서 접근 시도 안 함(run-phase 조사 대상) |
 | 생명보험협회/손해보험협회 표준약관·장해분류표 | POLICY | 이번 세션에서 접근 시도 안 함(run-phase 조사 대상) |
 
-## §4. metadata 필요성 분석 (REQ-EVIDENCE-005/006/007 근거)
+## §4. metadata 필요성 분석 (REQ-EVIDENCE-005/006/007/027 근거, 외부 독립 리뷰 이슈 4 반영)
 
 | 후보 필드 | 채택 여부 | 근거 |
 |-----------|-----------|------|
-| `issueTypes: QueryIssueType[]` | **채택** | `evidence-retriever.ts`의 score 함수가 `query.issueType`과 직접 비교할 대상이 evidence 쪽에 없다는 것이 §1.4에서 확인된 실제 공백 — ranking 개선(REQ-EVIDENCE-008)에 직접 소비됨 |
+| `issueTypes: QueryIssueType[]` | **채택(M1 확정)** | `evidence-retriever.ts`의 candidate eligibility(전략 B)와 score 함수가 `query.issueType`과 직접 비교할 대상이 evidence 쪽에 없다는 것이 §1.4에서 확인된 실제 공백 — REQ-EVIDENCE-008에 직접 소비됨. 이 SPEC이 plan-phase 시점에 확정하는 **유일한 필수 migration 대상**이다 |
 | `keywords: string[]` | **보류(run-phase 재검토)** | 현재도 `title`/`content` substring 매칭이 동작하며, 명시적 keyword 필드가 substring 매칭보다 나은 recall/precision을 내는지 벤치마크(§D) 없이는 불명 — 신설 여부는 benchmark baseline 측정 후 결정 |
 | `sourceUrl` | 이미 존재 | 스키마 변경 불필요 |
-| `sourceDate` | **채택 후보(경량)** | 판례 선고일 등 — production evidence 품질 규율(REQ-EVIDENCE-017)에 쓰이나, ranking에는 직접 소비되지 않으므로 REQ-EVIDENCE-005(소비 코드 경로 필수) 기준으로 run-phase에서 실제 채점 로직 여부 확정 후 추가 |
-| `sourceIdentifier`(사건번호/조문번호) | **채택 후보** | `PRECEDENT`/`STATUTE`/`DISPUTE_CASE` 위조 방지 검증(spec.md REQ-EVIDENCE-002)에 직접 쓰일 수 있음 — title 파싱으로 대체 가능한지 run-phase에서 확인 |
+| `sourceDate` | **기각(M1)** | 판례 선고일 등 — 외부 독립 리뷰 지적대로, 이 SPEC의 어떤 코드 경로(ranking/benchmark/authenticity/dedup)도 `sourceDate`를 실제로 소비하지 않는다. "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다(REQ-EVIDENCE-005/027) — ranking/authenticity 어느 쪽이든 실제 소비처가 후속 SPEC에서 입증되면 그때 재검토 |
+| `sourceIdentifier`(사건번호/조문번호) | **조건부 채택(M1에는 미포함)** | design.md §6의 dedup 판정(`isDuplicate()`)이 실제 소비처로 확정됐다 — 이 컬럼을 추가하려면 그 dedup 코드와 함께 추가해야 하며(REQ-EVIDENCE-005), M1 스키마 migration에는 포함하지 않고 그 코드가 설계·구현되는 시점(M5)에 별도 migration으로 추가한다(design.md §1.2) |
 | `claimant`/`insurer` stance | **기각** | 사용자 지시 §2가 명시적으로 배제, spec.md REQ-EVIDENCE-007 |
 | argument-role(proposition 단위) | **기각(이번 SPEC)** | 근거 없이 스키마 확장 금지 원칙 적용 — 필요성이 입증되지 않음 |
+
+### §4.1 기존 10건의 authenticity 재감사 필요성 (외부 독립 리뷰 이슈 5)
+
+§1.1에서 이미 관찰했듯, `seed-evidence-001`(sourceUrl: `insclaim.co.kr`)과 `seed-evidence-003`
+(sourceUrl: `insu-fit.com`)은 개인/중개 블로그성 도메인으로 보이며, REQ-EVIDENCE-002가 요구하는
+"신뢰 가능한 공공기관 자료" 기준을 만족하는지 이번 plan-phase 세션에서 재검증하지 못했다(§0의
+발견-제한과 별개로, 이 두 URL은 애초에 재확인 시도조차 하지 않았다 — §1.1은 `seed-evidence-005`/
+`seed-evidence-008`(casenote.kr, 대법원)만 재검증했다). 이는 spec.md REQ-EVIDENCE-026(기존
+10건 재감사)이 신설된 직접적 근거 중 하나다 — `POLICY` evidenceType이라는 이유로 이 두 레코드를
+재감사 대상에서 제외해서는 안 된다.
 
 ## §5. Retrieval 지표 후보 (REQ-EVIDENCE-014 근거)
 

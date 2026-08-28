@@ -1,7 +1,7 @@
 ---
 id: SPEC-EVIDENCE-001
 title: "근거자료(evidence) corpus 확장 + Retriever 쟁점 중심 ranking + counterEvidenceIds=[] 원인 진단"
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 created: 2026-08-28
 updated: 2026-08-28
@@ -18,6 +18,7 @@ depends_on: [SPEC-RESEARCH-001, SPEC-GEMINI-RUNTIME-001]
 ## HISTORY
 
 - 2026-08-28: 최초 작성 (Nexsol) — 실 Gemini smoke 2회(`.moai/reports/gemini-smoke-20260827.md`, `.moai/reports/gemini-smoke-20260828.md` 상당의 `gemini-runtime-smoke-20260828.md`)에서 `Skeptic.counterEvidenceIds`가 두 번 모두 전부 빈 배열(`[0,0,0]`)로 관측된 사실을 계기로 착수. `.moai/specs/SPEC-GEMINI-RUNTIME-001/spec.md`가 `SPEC-EVIDENCE-001`을 forward-reference했던 미해결 참조(plan-auditor Cycle 4 non-blocking 관찰 D7-5)를 이 SPEC이 실체화한다. 근거: 현행 코드베이스 실측(`db/seed/evidence.json`, `lib/db/schema.ts`, `scripts/db-seed.ts`, `lib/pipeline/{query-planner,evidence-retriever,researcher,skeptic,verifier,types}.ts`) + 두 smoke 리포트의 실측 관찰.
+- 2026-08-28: 외부 독립 리뷰 지적사항 반영(v0.1.0 → v0.2.0, plan-auditor 실행 전 개정 — 5개 설계 blocker + 1개 acceptance 정합성 문제) — **이슈 1**(REQ-EVIDENCE-008): issueType이 ranking에만 쓰이고 candidate eligibility에는 영향을 주지 못해 exact-issueType evidence도 keyword 부재 시 후보 진입 자체가 불가능했던 결함 — 현행 predicate 사전 보존을 철회하고, 전략 A(현행)/B(최소 확장안: `domainMatch && (keyword || issueTypeExactMatch)`)를 §D 벤치마크로 비교해 확정하도록 재설계, hard exclusion filter 사전 도입 금지, 핵심 acceptance(REQ-EVIDENCE-029: exact-issueType-but-no-keyword case 복구 가능성 측정)를 신설. **이슈 2**(REQ-EVIDENCE-014/030): M2(10건 baseline)와 M4(50~100건 확장) 측정이 ranking 효과와 corpus 확장 효과를 혼합하던 결함 — 최종 acceptance threshold는 반드시 하나의 freeze된 최종 corpus 스냅샷 + freeze된 benchmark에서 baseline/new 알고리즘을 비교하도록 재설계, 중간 측정값은 exploratory로만 기록, 두 효과를 별도 항목으로 보고하도록 REQ-EVIDENCE-030 신설. **이슈 3**(REQ-EVIDENCE-016/031): synthetic diagnostic fixture의 A/B/C-전제조건 결과로 실제 smoke의 A/B 원인을 배제한다고 서술하던 과잉주장 — fixture는 진단 harness 자체의 정상 동작 검증 목적임을 명시하고, 실제 smoke 원인을 좁히려면 실제 사용된 snapshot을 안전하게 재현 가능할 때만 replay하도록 REQ-EVIDENCE-031 신설(재현 불가 시 미확정 유지). **이슈 4**(REQ-EVIDENCE-005/027 병합): `issueTypes`/`sourceIdentifier`/`sourceDate` 3개 컬럼을 사전 확정하던 것을 철회 — `issueTypes`만 필수 migration 대상으로 확정하고, `sourceIdentifier`/`sourceDate`는 실제 소비 코드(authenticity/dedup)가 입증될 때만 추가하도록 REQ-EVIDENCE-005에 통합. **이슈 5**(REQ-EVIDENCE-002/026): 신규 record만이 아니라 기존 production evidence 10건 전체를 예외 없이 재감사하도록 REQ-EVIDENCE-026 신설(POLICY/STATUTE/PRECEDENT도 예외 아님, 근거 미확보 시 OTHER downgrade 또는 제외를 명시적으로 결정). **이슈 6**(REQ-EVIDENCE-018): "동일 source는 issueTypes 교집합이 비어야 한다"는 과도한 중복 판정 기준을 "동일 sourceIdentifier/sourceUrl + 정규화된 proposition 동일성" 기준으로 교체(동일 source가 같은 issueType의 서로 다른 proposition을 다루는 것은 정상). **이슈 7**(REQ-EVIDENCE-001): coverage matrix 16칸에 `N/A` 허용(QueryPlanner/도메인 의미상 발생하지 않는 조합에 목표 건수 강제 배정 금지). REQ 개수 27→25(Tier L 상한 재확인, REQ-EVIDENCE-028을 008에, REQ-EVIDENCE-027을 005에 통합). design.md/plan.md/acceptance.md/research.md/progress.md 동시 개정(§8 Route 재검토는 plan.md에서 반영, 제품 로직 blocker 아님).
 
 ## §0. 이 SPEC이 다루지 않는 것 — 먼저 밝힘
 
@@ -51,16 +52,17 @@ DB 스키마 변경(Drizzle migration) + Retriever 알고리즘 재설계 + 신�
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-EVIDENCE-001 | Ubiquitous | run-phase 착수 전, 두 담보(`INJURY_DISABILITY`/`DISEASE_DISABILITY`) × 8개 `QueryIssueType`(`lib/pipeline/types.ts`)를 축으로 하는 evidence coverage matrix를 문서화해야 하며, corpus 확장 개수는 이 matrix가 식별한 공백을 근거로 배분해야 한다 — evidenceType(PRECEDENT/STATUTE/DISPUTE_CASE/POLICY/OTHER)별 목표 건수를 임의 균등배분해서는 안 된다. | 사용자 지시 §1, §11 |
-| REQ-EVIDENCE-002 | Ubiquitous + Unwanted | `evidenceType`이 `PRECEDENT`/`STATUTE`/`DISPUTE_CASE`/`POLICY`로 분류되는 production evidence record는 실제로 검증 가능한 공개 출처(대법원/법원 판례, 국가법령정보센터, 금융감독원 분쟁조정·공개자료, 표준약관·장해분류표, 기타 신뢰 가능한 공공기관 자료)만 허용하며, 사건번호·결정번호·법령 조문·`sourceUrl`을 지어내서는 안 된다. 검증 가능한 특정 자료로 뒷받침할 수 없는 일반적 설명은 `evidenceType: "OTHER"`로만 분류하거나 production corpus에 포함하지 않아야 한다. | 사용자 지시 §1 |
+| REQ-EVIDENCE-001 | Ubiquitous | run-phase 착수 전, 두 담보(`INJURY_DISABILITY`/`DISEASE_DISABILITY`) × 8개 `QueryIssueType`(`lib/pipeline/types.ts`)를 축으로 하는 evidence coverage matrix(16칸 전부 표에 유지)를 문서화해야 하며, corpus 확장 개수는 이 matrix가 식별한 공백을 근거로 배분해야 한다 — evidenceType(PRECEDENT/STATUTE/DISPUTE_CASE/POLICY/OTHER)별 목표 건수를 임의 균등배분해서는 안 된다. `QueryPlanner`/도메인 의미상 실제로 발생하지 않는 조합(예: 특정 조건부 issueType이 해당 도메인에서 트리거되지 않는 경우)은 `N/A`로 명시할 수 있으며, `N/A` 셀에 억지로 목표 건수를 배정해서는 안 된다 — coverage 목표는 `QueryPlanner`가 실제로 생성할 수 있고 제품적으로 의미 있는 조합을 우선한다(외부 독립 리뷰 반영, 이슈 7). | 사용자 지시 §1, §11, §7(리뷰) |
+| REQ-EVIDENCE-002 | Ubiquitous + Unwanted | `evidenceType`이 `PRECEDENT`/`STATUTE`/`DISPUTE_CASE`/`POLICY`로 분류되는 production evidence record(기존 10건 포함 — §5(리뷰) 참고, 신규 record만이 아니다)는 실제로 검증 가능한 공개 출처(대법원/법원 판례, 국가법령정보센터, 금융감독원 분쟁조정·공개자료, 표준약관·장해분류표, 기타 신뢰 가능한 공공기관 자료)만 허용하며, 사건번호·결정번호·법령 조문·`sourceUrl`을 지어내서는 안 된다. 검증 가능한 특정 자료로 뒷받침할 수 없는 일반적 설명은 `evidenceType: "OTHER"`로만 분류하거나 production corpus에 포함하지 않아야 한다. | 사용자 지시 §1, §5(리뷰) |
 | REQ-EVIDENCE-003 | Ubiquitous + Unwanted | 합성(synthetic) 또는 사실관계를 각색한 evidence record는 `db/seed/evidence.json`(production seed)에 추가해서는 안 된다 — 합성 데이터는 §D의 benchmark/diagnostic fixture 전용이며 물리적으로 다른 파일(§3 참고)에 있어야 한다. | 사용자 지시 §1, §5 |
 | REQ-EVIDENCE-004 | Ubiquitous | production evidence corpus 확장 이후에도 `pnpm db:seed`는 기존 10건을 포함해 모든 레코드에 대해 멱등(idempotent)해야 한다 — 재실행 시 행 수가 변하지 않고 `id` 기준 upsert가 유지되어야 한다(`scripts/db-seed.ts`의 기존 `onConflictDoUpdate` 계약 보존). | 사용자 지시 §9, 기존 REQ-RUNTIME-005 계약 |
+| REQ-EVIDENCE-026 | Ubiquitous | 기존 production evidence 10건 전체를 REQ-EVIDENCE-002와 동일한 authenticity 규칙으로 예외 없이 재감사해야 한다(POLICY/STATUTE/PRECEDENT도 예외 아님) — 각 레코드에 대해 (a) `evidenceType`, (b) `sourceUrl` 실재 여부, (c) 실제 출처 접근 가능 여부, (d) `sourceIdentifier` 필요 여부, (e) `content`가 원문 취지를 과장하지 않는지를 검토하고, 공식/검증 가능한 근거를 확보하지 못한 레코드는 `evidenceType: "OTHER"`로 downgrade하거나 production corpus에서 제외하는 것 중 하나를 각 레코드마다 명시적으로 결정해야 한다. 이 재감사 결과는 §D 벤치마크의 ground truth 후보 자격의 전제조건이다(REQ-EVIDENCE-013 개정판 참고). | 외부 독립 리뷰 이슈 5 |
 
 ### B. Evidence Metadata 최소 확장
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-EVIDENCE-005 | Ubiquitous | evidence 스키마(`lib/db/schema.ts` `evidence` 테이블)에 추가하는 모든 신규 컬럼은 Retriever ranking(§C) 또는 benchmark 채점(§D)에 실제로 소비되어야 한다 — 소비하는 코드 경로가 없는 컬럼을 "향후를 위해" 추가해서는 안 된다. | 사용자 지시 §2 |
+| REQ-EVIDENCE-005 | Ubiquitous | evidence 스키마(`lib/db/schema.ts` `evidence` 테이블)에 추가하는 모든 신규 컬럼은 Retriever candidate eligibility/ranking(§C) 또는 benchmark 채점(§D) 또는 authenticity/dedup 검증(§A, §F)에 실제로 소비되어야 한다 — 소비하는 코드 경로가 없는 컬럼을 "향후를 위해" 추가해서는 안 된다. `sourceIdentifier`처럼 authenticity 목적으로 추가하는 컬럼은, 그 컬럼을 실제로 읽어 source-integrity 검증 또는 중복(dedup) 판정을 수행하는 코드 경로가 함께 있어야 한다(단순 존재 여부 구조 검증만으로는 이 REQ를 충족하지 않는다). 이번 SPEC이 plan-phase 시점에 확정하는 필수 migration 대상 컬럼은 `issueTypes` 1개뿐이다 — `sourceIdentifier`/`sourceDate`는 M1 스키마 migration에 사전 포함하지 않으며, run-phase 중 §A(REQ-EVIDENCE-002/026 authenticity 재감사) 또는 §F(REQ-EVIDENCE-018 dedup) 코드에서 실제로 소비할 필요가 입증된 시점에만 별도 migration으로 추가한다(단순히 "있으면 좋은 metadata"라는 이유만으로 `sourceDate`를 추가하지 않는다 — 외부 독립 리뷰 이슈 4). | 사용자 지시 §2, §4(리뷰) |
 | REQ-EVIDENCE-006 | Where(capability gate) | 신규 컬럼이 issueType 관련성을 표현해야 하는 경우, `QueryIssueType`(`lib/pipeline/types.ts`)과 동일한 8개 값의 부분집합을 갖는 배열 필드(예: `issueTypes: QueryIssueType[]`)로 표현해야 하며, evidence 자신의 담보-쟁점 분류이지 특정 사건에 대한 판정이 아니어야 한다. | 사용자 지시 §2, §3 |
 | REQ-EVIDENCE-007 | Unwanted | 이번 SPEC은 evidence record에 `claimant`/`insurer` 관점(stance) 라벨이나, 판례·법령 전체를 보험사측/청구인측으로 분류하는 필드를 도입해서는 안 된다. "이 evidence record가 표현하는 proposition" 수준의 argument-role 표현이 필요한지는 research.md에서만 검토하고, 근거 없이 스키마를 확장하지 않는다. | 사용자 지시 §2 |
 
@@ -68,32 +70,35 @@ DB 스키마 변경(Drizzle migration) + Retriever 알고리즘 재설계 + 신�
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-EVIDENCE-008 | Ubiquitous | `retrieveEvidence()`(`lib/pipeline/evidence-retriever.ts`)의 관련성 판정 술어(relevant predicate)는 현행 "DOMAIN_SPECIFIC=domain 일치 AND keyword>=1 / UNIVERSAL=keyword>=1" 구조를 보존하되, 정렬용 score 계산에 issueType 일치(exact 또는 호환 가능한 관계)를 키워드 우연 일치보다 우선하는 signal로 추가해야 한다. | 사용자 지시 §3 |
-| REQ-EVIDENCE-009 | Ubiquitous + Unwanted | ranking 변경 이후에도, 무관한 evidence가 단 하나의 우연한 키워드 일치만으로 실제 관련 있는 evidence보다 상위에 오르는 회귀가 없어야 한다(§D 벤치마크로 검증). | 사용자 지시 §10 |
+| REQ-EVIDENCE-008 | Ubiquitous | `retrieveEvidence()`(`lib/pipeline/evidence-retriever.ts`)의 관련성 판정 술어(relevant predicate/candidate eligibility)를 현행 구조로 사전에 고정하지 않는다. run-phase는 최소 두 후보 전략을 동일 corpus·동일 벤치마크로 비교해야 한다: **(A) 현행** `DOMAIN_SPECIFIC=domainMatch && keywordScore>0 / UNIVERSAL=keywordScore>0`, **(B) 최소 확장안** `DOMAIN_SPECIFIC=domainMatch && (keywordScore>0 || issueTypeExactMatch) / UNIVERSAL=keywordScore>0 || issueTypeExactMatch`. 정확한 최종 식은 §D 벤치마크 결과를 근거로 확정하며, design.md 시점에 하나로 못박지 않는다. issueType 불일치를 이유로 evidence를 candidate 집합에서 무조건 배제하는 hard filter는 사전에 도입하지 않는다 — §D 벤치마크가 그런 필터가 실제로 필요하다고 뒷받침하지 않는 한, issueType은 배제(exclusion) 신호가 아니라 진입(inclusion-OR) 또는 정렬 신호로만 쓰인다(외부 독립 리뷰 이슈 1 — issueType이 ranking에만 쓰이고 eligibility에는 영향을 주지 못해, exact-issueType evidence라도 keyword가 없으면 애초에 후보 집합에 진입하지 못하는 결함 시정). | 사용자 지시 §3, §1(리뷰) |
+| REQ-EVIDENCE-009 | Ubiquitous + Unwanted | 채택된 전략(§D 벤치마크로 확정) 적용 이후에도, 무관한 evidence가 단 하나의 우연한 키워드 일치만으로 실제 관련 있는 evidence보다 상위에 오르는 회귀가 없어야 한다(§D 벤치마크로 검증). | 사용자 지시 §10 |
 | REQ-EVIDENCE-010 | Ubiquitous + Unwanted | query당 반환 개수(top-K, 현재 5)를 이번 SPEC에서 근거 없이 늘려서는 안 된다 — 조정하려면 §D 벤치마크의 baseline 대비 개선 측정 결과를 근거로 명시해야 한다. | 사용자 지시 §3 |
 | REQ-EVIDENCE-011 | Ubiquitous | 동일 입력(evidence corpus 스냅샷 + query 집합)에 대해 `retrieveEvidence()`의 결과는 결정론적(같은 순서)이어야 한다 — score 동점 시 tie-break 규칙(예: `id` 오름차순)을 명시해야 한다. | 사용자 지시 §10 |
+| REQ-EVIDENCE-029 | Ubiquitous | §D 벤치마크는 "known-relevant evidence가 정확한 issueType metadata를 갖고 있으나 우연히 query keyword 문자열을 포함하지 않는" 케이스를 최소 1건 포함해야 하며, 새 Retriever(전략 B 또는 그 변형)가 그 evidence를 candidate/top-K로 복구할 수 있는지 측정 가능해야 한다 — 이것이 이번 SPEC의 핵심 acceptance다. | 외부 독립 리뷰 이슈 1 |
 
 ### D. Curated Retrieval Benchmark
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
 | REQ-EVIDENCE-012 | Ubiquitous | 저장소에 두 담보의 대표 issueType(최소 CAUSATION/DISABILITY_GRADE_CRITERIA/DIAGNOSIS/DISABILITY_LOCATION + 기왕증·퇴행성 관련 1건)을 포괄하는 고정 retrieval benchmark 케이스 집합을 두어야 하며, 각 케이스는 "이 query에서 검색돼야 하는 known-relevant evidence ID 집합"을 수작업으로 정의한 ground truth를 가져야 한다. | 사용자 지시 §4 |
-| REQ-EVIDENCE-013 | Ubiquitous + Unwanted | benchmark의 ground truth가 참조하는 evidence ID는 §A 요건을 만족하는 실제 production evidence corpus의 부분집합이어야 하며, benchmark 전용으로 새로 지어낸 evidence를 참조해서는 안 된다. | 사용자 지시 §4 |
-| REQ-EVIDENCE-014 | Ubiquitous | run-phase는 이 benchmark에서 baseline(현행 Retriever) 지표를 먼저 측정·기록한 뒤, ranking 개선(§C) 적용 후 지표를 재측정해 비교해야 한다 — 임의의 숫자 목표를 먼저 정하지 않고, 측정된 baseline을 근거로 현실적인 acceptance threshold를 정의해야 한다. 지표는 이 규모(수십~백여 건)의 curated corpus에 의미 있는 것(예: Recall@5 또는 Hit@5)을 연구해 결정해야 한다. | 사용자 지시 §4 |
+| REQ-EVIDENCE-013 | Ubiquitous + Unwanted | benchmark의 ground truth가 참조하는 evidence ID는 §A 요건(REQ-EVIDENCE-002)을 만족하고 **REQ-EVIDENCE-026 재감사를 통과한**(OTHER로 downgrade되거나 제외되지 않은) 실제 production evidence corpus의 부분집합이어야 하며, benchmark 전용으로 새로 지어낸 evidence를 참조해서는 안 된다. | 사용자 지시 §4, §5(리뷰) |
+| REQ-EVIDENCE-014 | Ubiquitous | 최종 acceptance threshold 비교는 **하나의 freeze된 최종 corpus 스냅샷 + 하나의 freeze된 `BenchmarkCase`/`knownRelevantEvidenceIds`**에서 `baselineRetriever`(현행 알고리즘)와 `newRetriever`(§C에서 확정된 candidate/ranking 알고리즘)를 같은 입력으로 실행해 비교해야 한다. corpus가 아직 확장 중인 중간 시점(M2, 10건 corpus)의 측정값은 **exploratory baseline**으로만 기록하며, 최종 acceptance threshold의 직접 비교값으로 사용하지 않는다 — corpus 확장 효과와 ranking 알고리즘 효과를 혼합해서는 안 된다(외부 독립 리뷰 이슈 2). 지표는 이 규모(수십~백여 건)의 curated corpus에 의미 있는 것(예: Recall@5 또는 Hit@5)을 연구해 결정한다. | 사용자 지시 §4, §2(리뷰) |
+| REQ-EVIDENCE-030 | Ubiquitous | M4(corpus 확장)가 새 relevant evidence를 추가하면, 그 evidence를 참조하도록 benchmark ground truth를 사람이 검토(human review)해 갱신한 뒤 **freeze**해야 하며, 이후 §D의 최종 비교(REQ-EVIDENCE-014)는 그 freeze된 benchmark에서만 수행한다. ranking 개선 효과(M2, 10건 corpus에서 measured)와 corpus 확장 효과(freeze된 최종 corpus에서 measured)는 `.moai/reports/`에 **서로 다른 항목**으로 기록해야 하며, 하나의 수치로 합쳐 보고하지 않는다. | 외부 독립 리뷰 이슈 2 |
 
 ### E. counterEvidenceIds=[] 원인 진단
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
 | REQ-EVIDENCE-015 | Unwanted | 어떤 코드·테스트·문서도 "모든 사건에서 `counterEvidenceIds`가 최소 1개 나와야 한다"를 acceptance로 강제해서는 안 된다 — 반박 근거가 실제로 없는 사건에서는 빈 배열이 정상일 수 있다. | 사용자 지시 §5 |
-| REQ-EVIDENCE-016 | Ubiquitous | 최소 1개의 고정 diagnostic fixture 사건에서, `ResearchQuery` → `EvidenceRetriever`가 제공한 evidence ID → Skeptic에게 실제 전달된 evidence ID → `Challenge.supportingEvidenceIds` → `Challenge.counterEvidenceIds`의 각 단계 값을 테스트에서 관측 가능해야 하며, known counter-relevant evidence가 corpus에 존재하고 benchmark query에 relevant로 정의된 fixture에서는 Retriever가 그 evidence를 candidate로 제공하는지를 최소한 (A) corpus 자체에 없음 / (B) corpus에는 있으나 top-K 탈락 / (C) Skeptic에 전달됐지만 미선택, 세 경우를 구분 가능한 방식으로 검증해야 한다. | 사용자 지시 §5 |
+| REQ-EVIDENCE-016 | Ubiquitous | 최소 1개의 고정 diagnostic fixture 사건에서, `ResearchQuery` → `EvidenceRetriever`가 제공한 evidence ID → Skeptic에게 실제 전달된 evidence ID → `Challenge.supportingEvidenceIds` → `Challenge.counterEvidenceIds`의 각 단계 값을 테스트에서 관측 가능해야 하며, known counter-relevant evidence가 corpus에 존재하고 benchmark query에 relevant로 정의된 fixture에서는 Retriever가 그 evidence를 candidate로 제공하는지를 최소한 (A) corpus 자체에 없음 / (B) corpus에는 있으나 top-K 탈락 / (C-전제조건) Skeptic 프롬프트에 전달됨, 세 단계를 구분 가능한 방식으로 검증해야 한다. **이 fixture는 진단 harness 자체가 정상 동작하는지를 검증하는 것이지, 2026-08-27/2026-08-28 실제 Gemini smoke의 원인을 판정하는 것이 아니다** — fixture에서 A=true/B=true/C-전제조건=true가 나왔다는 사실이 실제 smoke의 A/B 후보를 배제한다고 서술해서는 안 된다(외부 독립 리뷰 이슈 3). | 사용자 지시 §5, §3(리뷰) |
+| REQ-EVIDENCE-031 | Ubiquitous + Unwanted | 실제 smoke(2026-08-27/2026-08-28)의 원인 후보(corpus 부족/Retriever 후보 부족/Skeptic prompt semantics/model behavior)를 좁히려면, 그 smoke가 사용한 de-identified case/query snapshot을 안전하게 재현 가능한 경우에만 `동일 production corpus → planQueries() → retrieveEvidence() → Skeptic 프롬프트 candidate`를 실제로 replay해 관측해야 한다. 그 snapshot이 없거나 안전하게 재현할 수 없는 경우, 실제 smoke의 원인은 계속 "corpus/Retriever/prompt/model behavior 미확정"으로 남겨야 하며, synthetic fixture(REQ-EVIDENCE-016) 결과만으로 그 미확정 상태를 해소했다고 서술해서는 안 된다. | 외부 독립 리뷰 이슈 3 |
 
 ### F. Evidence 품질 규율
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
 | REQ-EVIDENCE-017 | Ubiquitous | production evidence record는 가능한 경우 출처 URL, source identifier(사건번호/결정번호/법령 조문 번호 등), evidenceType, 과장하지 않은 요약(content)을 보유해야 하며, 판례의 결론을 보험금 지급 확정처럼 서술하거나 판례의 사실관계·법리를 현재 사건에 자동 적용된다고 서술해서는 안 된다. | 사용자 지시 §6 |
-| REQ-EVIDENCE-018 | Ubiquitous + Unwanted | 하나의 source에서 여러 proposition을 별도 record로 나누는 것은 각 proposition이 서로 다른 issueType/쟁점에 대응할 때만 허용하며, 동일 proposition의 중복 record를 만들어서는 안 된다. | 사용자 지시 §6 |
+| REQ-EVIDENCE-018 | Ubiquitous + Unwanted | 하나의 source에서 여러 proposition을 별도 record로 나누는 것은 허용하되, 동일 proposition의 중복 record를 만들어서는 안 된다. 중복 판정은 **issueType 교집합이 아니라** (a) 동일 `sourceIdentifier` 또는 동일 `sourceUrl`, AND (b) 동일하거나 실질적으로 동일한 정규화된(normalized) proposition/content를 기준으로 한다 — 동일 source가 서로 다른 proposition을 다루면서 같은 issueType을 공유하는 것은 정상이며 중복이 아니다(외부 독립 리뷰 이슈 6). LLM 기반 semantic equivalence 자동 판정 시스템은 이번 SPEC에서 만들지 않는다 — 정규화(공백/구두점 정리 등) 수준의 최소 규칙만 사용한다. | 사용자 지시 §6, §6(리뷰) |
 
 ### G. 기존 pipeline 계약 보존 (회귀 방지)
 
@@ -146,3 +151,5 @@ crawler·자동 웹 스크래핑 시스템, LLM 기반 ingestion pipeline을 만
 - **corpus 확장 규모의 실현 가능성**: plan-phase는 coverage matrix 프레임워크를 정의하지만, 실제 50~100건의 검증 가능한 공개 출처 수집은 run-phase 실행 시점의 웹 접근 도구 가용성에 의존한다 — plan-phase 시점에는 이 SPEC 저자가 WebSearch/WebFetch에 접근하지 못했다(research.md §0 명시). run-phase 착수 전 이 가용성을 재확인해야 한다.
 - **counterEvidenceIds=[] 원인이 여전히 미확정으로 남을 가능성**: §E의 진단 장치는 A/B/C 세 경우를 "구분 가능하게" 만들 뿐, 반드시 하나의 원인으로 확정짓는다고 보장하지 않는다 — model behavior(D)가 실제 원인이라면 이 SPEC의 corpus/Retriever 개선만으로는 여전히 빈 배열이 재현될 수 있다.
 - **issueType ranking의 부작용**: score 함수에 issueType 가중치를 추가하면 기존 키워드-only 벤치마크(있다면)의 순위가 바뀔 수 있다 — REQ-EVIDENCE-009의 회귀 벤치마크로 완화한다.
+- **기존 10건 재감사(REQ-EVIDENCE-026)가 corpus를 줄일 수 있다**: 재감사 결과 일부 기존 record가 OTHER로 downgrade되거나 제외되면, 확장 이전보다 오히려 PRECEDENT/STATUTE/DISPUTE_CASE/POLICY 유효 corpus가 줄어들 수 있다 — 이는 이번 SPEC의 authenticity 원칙(REQ-EVIDENCE-002)이 의도한 결과이며 결함이 아니지만, M4의 50~100건 목표 달성을 더 어렵게 만들 수 있다는 점을 인지해야 한다.
+- **frozen benchmark 재실행 비용**: REQ-EVIDENCE-030의 freeze 절차는 M4에서 corpus가 바뀔 때마다 ground truth 사람 검토 + 두 알고리즘 재실행을 요구한다 — corpus 확장이 여러 차례 반복되면 이 절차도 여러 차례 반복돼야 하므로, M4를 소수의 큰 배치로 묶어 freeze 횟수를 줄이는 것이 바람직하다(plan.md M4 참고).
