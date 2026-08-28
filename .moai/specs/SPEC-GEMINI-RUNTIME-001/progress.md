@@ -26,12 +26,52 @@ spec_version: "0.4.2"
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+manager-develop이 Tier L Section A-E 델리게이션 템플릿에 따라 6개 마일스톤을 순차 실행했다 — 모두 `feat/SPEC-GEMINI-RUNTIME-001` 브랜치에 직접 커밋 + 푸시(Route B, PR은 sync 이후 manager-git이 생성).
+
+| 마일스톤 | 커밋 SHA | 요약 |
+|----------|----------|------|
+| M1 | `ee657ef` | `RateScheduler` 클래스 신설 + 역할별(Research/Fast) provider 아키텍처 확정 — `provider-factory.ts`가 `GeminiProvider` 생성 이전에 model 문자열을 확정하고, 동일 model ID면 `RateScheduler` 인스턴스를 공유(min-budget) |
+| M2 | `5f98605` | Researcher/Skeptic 배치 스키마 재설계 — 쿼리/finding 개수만큼(N회) 호출하던 것을 사건당 1회 배치 호출로 축소, `supportingEvidenceIds.length >= 1` 그라운딩 계약을 파싱 후 항목별 업무 규칙 검증으로 재배치 |
+| M3 | `7b06f46` | 429/503 재시도 + 스케줄러 통합 루프 재설계 — `RetryInfo.retryDelay` 힌트 우선 사용, `waitForSlot()`을 최초 시도 + 모든 재시도 시도 직전에 각각 호출하도록 재배선 |
+| M4 | `82db59f` | 동시 사건 제한(`pipelineChain` Promise 체인 뮤텍스, 프로세스 로컬) + D-NEW1 사건 경계를 넘는 스케줄러 연속성(process 생애주기 싱글턴 `getDefaultLLMProviders()`) 통합 테스트 |
+| M5 | `5a004ee` | 결정론적 provider 배치 픽스처 정비 + `.env.local.example`/`.moai/docs/runtime-runbook.md` env·데이터 취급 계약 문서화(REQ-023/024) |
+| M6 | `d9645bc` | 전체 리그레션 통과 확인 + `gemini-smoke-20260827.md` 과잉주장 정정(design.md §7 문구 적용, AC-024) + `skeptic.test.ts` prettier 포맷 정리 |
+
+**최종 리그레션 증거** (M6 완료 시점, `d9645bc`):
+
+```
+$ pnpm test        → 247/247 tests, exit 0
+$ pnpm lint        → exit 0
+$ pnpm format:check → exit 0
+$ pnpm build       → exit 0
+$ pnpm test:e2e    → exit 0 (실제 Gemini API 호출 없음 — 결정론적 provider)
+```
+
+**변경 파일 요약** (M1~M6 누적, `git diff --stat ee657ef^..d9645bc`): 20개 파일, +1956/-354 — 운영 코드(`lib/ai/{provider-factory,rate-scheduler}.ts`, `lib/ai/providers/{gemini,deterministic}.ts`, `lib/pipeline/{index,researcher,skeptic}.ts`, `lib/pipeline/types.ts`, `lib/env.ts`) + 대응 테스트 + `.env.local.example` + `.moai/docs/runtime-runbook.md` + `spec.md`(HISTORY 갱신) + `gemini-smoke-20260827.md`(정정).
+
+**신규 런타임 의존성**: 없음 — `git diff ef92556..d9645bc -- package.json`가 빈 diff임을 확인(순수 인메모리 로직으로 `RateScheduler`/동시성 락 구현, 신규 npm 패키지 추가 없음, 확인 SPEC-GEMINI-RUNTIME-001 §3 제약과 일치).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+run_status: audit-ready
+run_complete_at: 2026-08-28
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+sync_status: audit-ready
+sync_complete_at: 2026-08-28
+sync_commit_sha: pending-backfill-sync-docs-commit
+
+## §F Phase 4 Mode Selection
+
+Input parameters: tier=L, scope≈18-20 files (lib/ai/, lib/pipeline/, config/docs, tests), domain count≈1 (AI provider + pipeline orchestration layer, single Next.js app subsystem), file language mix=100% TypeScript + a few docs/env files, concurrency benefit=LOW (coding-heavy per Anthropic's coding-task parallelism caveat; milestones M1→M6 are explicitly sequential/dependent per plan.md §A — each milestone builds on the prior architectural decision), Agent Teams prereqs=not requested by user.
+
+Mode evaluation:
+- direct: not selected — non-trivial, multi-file architectural change
+- fanout: not selected — single coherent subsystem, not multi-domain research; coding-heavy work per Anthropic's caveat
+- sweep: not selected — semantic/new-code work with inter-milestone dependency, not a uniform mechanical transform
+- serial: **selected** — default fallback; matches coding-heavy + sequentially-dependent milestone shape
+
+Decision: serial
+
+Justification: SPEC-GEMINI-RUNTIME-001 is a single-subsystem TypeScript refactor (rate scheduler + provider factory + pipeline batching + retry) executed as 6 explicitly sequential milestones where each builds on the prior's architectural decision (plan.md §A). Per Anthropic's coding-task parallelism caveat, coding-heavy work has few truly parallelizable tasks; a single `manager-develop` sub-agent per milestone (serial) is the correct mode. Route: B (PR route, Tier L) — user selected feature branch + PR at Implementation Kickoff Approval; branch `feat/SPEC-GEMINI-RUNTIME-001` created from `main`.

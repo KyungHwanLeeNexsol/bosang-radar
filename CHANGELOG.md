@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+### Added — SPEC-GEMINI-RUNTIME-001 무료 티어 파일럿 안정화 (역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력)
+
+실 Gemini 프로덕션 스모크 테스트(`.moai/reports/gemini-smoke-20260827.md`)에서 드러난 4가지 근본 원인(모델 가용성 실패, 무료 tier RPM 쿼터 소진으로 인한 429, Skeptic 반박 근거 공백, 편협한 재시도)에 대응해 무료 티어 소수 파일럿 단계의 **안정성**을 높였습니다. 새 기능이 아니라 기존 6단계 파이프라인의 Gemini 호출 방식과 복원력을 재설계하는 작업입니다.
+
+- **역할별 모델 분리**: Researcher는 `GEMINI_RESEARCH_MODEL`(기본값 `gemini-3.6-flash`), Skeptic·Verifier는 `GEMINI_FAST_MODEL`(기본값 `gemini-3.5-flash-lite`)을 사용 — `provider-factory.ts`가 `GeminiProvider` 생성 이전에 model 문자열을 확정하고, 정상 앱 경로는 `GeminiProvider` 자신의 내부 폴백에 의존하지 않음
+- **Gemini 호출 배치**: Researcher·Skeptic이 쿼리/finding 개수만큼(N회) 호출하던 것을 사건당 1회 배치 호출로 축소 — 정상 사건 1건당 핵심 논리적 Gemini 호출이 쿼리/finding 개수와 무관하게 약 3회(Researcher×1 + Skeptic×1 + Verifier×1)로 고정. 배치 전환 이후에도 Researcher finding의 evidence 그라운딩 계약(`supportingEvidenceIds.length >= 1`, 위반 항목만 개별 폐기)은 파싱 후 항목별 업무 규칙 검증으로 그대로 유지
+- **Free-tier self-imposed rate scheduler** (`lib/ai/rate-scheduler.ts` 신규): 확정된 model ID 단위로 독립적인 자체 요청 예산(RPM budget)으로 요청 시작 간격을 페이싱하며, 두 역할이 같은 model ID를 가리키면 하나의 스케줄러를 공유하고 `min(researchBudget, fastBudget)`을 적용. `waitForSlot()`은 최초 시도뿐 아니라 429/503 재시도로 인한 모든 후속 실제 호출 시도 직전에도 호출됨. 정상 앱 경로는 프로세스 생애주기 싱글턴(`getDefaultLLMProviders()`)을 통해 이 페이싱 상태를 사건과 사건 사이에도 계속 이어감
+- **동시 사건 제한(프로세스 로컬)**: 순수 인메모리 Promise 체인 뮤텍스로 활성 Gemini 파이프라인을 1개로 직렬화(`pipelineChain`, `lib/pipeline/index.ts`) — 여러 서버리스 인스턴스를 아우르는 분산 락이 아님을 명시
+- **429/503 재시도 복원력**: Gemini 오류 응답의 `RetryInfo.retryDelay` 힌트를 실제로 읽어 반영하고, 503도 429와 동일한 재시도 경로에 포함하되 총 재시도 횟수와 총 대기 시간 모두에 상한을 둠
+- **데이터 취급 계약 재확인**: `caseInputSchema`가 "비식별을 보증"하지는 않는다는 사실을 정정 문서화하고, Google 무료 tier 데이터가 사람 검토·제품 개선에 사용될 수 있음을 명시하며, 파일럿 단계 데이터 취급 운영 계약(합성/사전 비식별화 사건만 사용, 실 PII·원본 문서 금지)을 `.moai/docs/runtime-runbook.md`에 신설
+- **스모크 리포트 과잉주장 정정**: `.moai/reports/gemini-smoke-20260827.md`의 관측 범위를 넘어서는 두 문구(모델 플랫폼 전체 단종 단정, corpus 부족 확정 원인 서술)를 hedge된 정정문으로 교체
+
+**검증**: 25개 요구사항(REQ-GEMINI-RUNTIME-001~025) 전부 구현, 35개 인수 기준(25개 최상위 AC-GEMINI-RUNTIME-001~025 + 10개 서브레터 AC 009a/014a/016a/016b/018a/021a/021b/022a/022b/022c) 전부 코드 레벨로 만족. `pnpm test`(247/247 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e` 전체 exit 0 통과. 신규 런타임 의존성 없음(`package.json` diff 없음).
+
+**참고**: `.moai/specs/SPEC-GEMINI-RUNTIME-001/`, `.moai/docs/runtime-runbook.md`
+
 ### Added — SPEC-RESEARCH-001 6단계 리서치 파이프라인 evidence-first Gemini 전환
 
 SPEC-SCAFFOLD-001이 구축한 6단계 파이프라인(CaseNormalizer → QueryPlanner → EvidenceRetriever → Researcher → Skeptic → Verifier)의 mock/trivial 로직을 실제 evidence-first Gemini 구조화 출력 기반 로직으로 교체했습니다. 새 기능 추가가 아니라, "타입 계약은 있지만 실제로 근거자료를 검증하지 않는" 파이프라인을 "근거자료 없이는 소견을 만들지 않는" 파이프라인으로 바꾸는 대체(replacement) 작업입니다.
