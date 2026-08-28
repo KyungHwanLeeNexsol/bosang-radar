@@ -52,7 +52,11 @@ id, category, evidenceType(default "OTHER"), scope(default "DOMAIN_SPECIFIC"),
 title, content, sourceUrl(nullable), createdAt
 ```
 
-`issueTypes`/`keywords`/`sourceDate`/`sourceIdentifier` 컬럼 없음 — 전부 신규 추가 대상.
+`issueTypes`/`keywords`/`sourceDate`/`sourceIdentifier` 컬럼은 현재 모두 존재하지 않으며, 이번
+SPEC에서 `issueTypes`만 필수 migration 대상으로 확정한다. `keywords`/`sourceDate`/
+`sourceIdentifier`는 §4 결정에 따른다(§4: `keywords`는 보류, `sourceDate`/`sourceIdentifier`는
+design.md §1.2/§1.5 기준 기본적으로 추가하지 않음 — §6 `isDuplicate()`가 `sourceUrl`만으로 이미
+동작하므로).
 
 ### 1.3 `lib/pipeline/query-planner.ts` — `ResearchQuery` 생성 규칙 (실측)
 
@@ -113,7 +117,7 @@ run-phase M1이 실제 검색 도구로 이 카탈로그를 근거로 조사를 
 | `keywords: string[]` | **보류(run-phase 재검토)** | 현재도 `title`/`content` substring 매칭이 동작하며, 명시적 keyword 필드가 substring 매칭보다 나은 recall/precision을 내는지 벤치마크(§D) 없이는 불명 — 신설 여부는 benchmark baseline 측정 후 결정 |
 | `sourceUrl` | 이미 존재 | 스키마 변경 불필요 |
 | `sourceDate` | **기각(M1)** | 판례 선고일 등 — 외부 독립 리뷰 지적대로, 이 SPEC의 어떤 코드 경로(ranking/benchmark/authenticity/dedup)도 `sourceDate`를 실제로 소비하지 않는다. "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다(REQ-EVIDENCE-005/027) — ranking/authenticity 어느 쪽이든 실제 소비처가 후속 SPEC에서 입증되면 그때 재검토 |
-| `sourceIdentifier`(사건번호/조문번호) | **조건부 채택(M1에는 미포함)** | design.md §6의 dedup 판정(`isDuplicate()`)이 실제 소비처로 확정됐다 — 이 컬럼을 추가하려면 그 dedup 코드와 함께 추가해야 하며(REQ-EVIDENCE-005), M1 스키마 migration에는 포함하지 않고 그 코드가 설계·구현되는 시점(M5)에 별도 migration으로 추가한다(design.md §1.2) |
+| `sourceIdentifier`(사건번호/조문번호) | **기본적으로 추가하지 않는다(M1에는 미포함, 외부 독립 리뷰 v0.3.0 이슈 7 재단순화)** | design.md §6의 dedup 판정(`isDuplicate()`)이 `sourceIdentifier` 없이 `sourceUrl` + 정규화된 content 동일성만으로 이미 동작하도록 설계돼 있어, 유일한 실제 소비처 후보가 이미 충족된다. run-phase 중 `sourceUrl`만으로 실제 gap이 발견되면(예: 동일 판례가 여러 URL로 미러링되는 경우) 그 시점에 별도 migration으로 추가한다(design.md §1.2) |
 | `claimant`/`insurer` stance | **기각** | 사용자 지시 §2가 명시적으로 배제, spec.md REQ-EVIDENCE-007 |
 | argument-role(proposition 단위) | **기각(이번 SPEC)** | 근거 없이 스키마 확장 금지 원칙 적용 — 필요성이 입증되지 않음 |
 

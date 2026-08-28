@@ -28,18 +28,28 @@ export const evidence = sqliteTable("evidence", {
   benchmark baseline을 측정한 뒤 실제로 substring 매칭 대비 이득이 있는지 확인하고서야 추가 여부를
   결정한다.
 
-### 1.2 `sourceIdentifier`/`sourceDate` — 조건부 추가(M1에 포함하지 않음)
+### 1.2 `sourceIdentifier`/`sourceDate` — 기본값은 "추가하지 않는다" (외부 독립 리뷰 v0.3.0 이슈 7 재단순화)
 
-REQ-EVIDENCE-005/027 통합 조항에 따라, 이 두 컬럼은 M1 migration에 **사전 포함하지 않는다**.
-run-phase 중 다음 조건을 만족하는 시점에만 별도 migration으로 추가한다:
+REQ-EVIDENCE-005/027 통합 조항에 따라, 이 두 컬럼은 M1 migration에 **사전 포함하지 않는다**. 이번
+개정(v0.3.0)은 여기서 한 걸음 더 나아가, `sourceIdentifier`의 기본 입장 자체를 **"불필요하면
+아예 추가하지 않는다"**로 재단순화한다 — v0.2.0은 "조건 충족 시 추가"로만 서술해 마치 추가가
+거의 확정적인 것처럼 읽혔지만, §6의 `isDuplicate()`가 이미 `sourceUrl` 단독으로도 동작하도록
+설계돼 있다(§6 원문: "`sourceIdentifier`가 아직 스키마에 없는 경우, 이 판정은 `sourceUrl` 동일성만으로
+동작한다"). 즉 dedup이라는 유일한 실제 소비처 후보가 **이미 `sourceIdentifier` 없이도 충족**되므로,
+불필요한 두 번째 migration을 미리 예고할 이유가 없다.
 
-- `sourceIdentifier`: §6(dedup 판정) 또는 §5.2(authenticity 재감사)의 실제 소비 코드가 설계·구현된
-  이후에만 추가한다 — 추가 시점에 그 코드가 실제로 `sourceIdentifier`를 읽어 source-integrity
-  검증 또는 dedup 판정을 수행함을 acceptance.md AC로 검증해야 한다(단순 존재 여부 구조 검증만으로는
-  REQ-EVIDENCE-005를 충족하지 못한다).
+- `sourceIdentifier`: **기본적으로 추가하지 않는다.** run-phase 중 `sourceUrl` + 정규화된
+  `content` 동일성(§6)만으로 dedup 요구를 실제로 충족하는지 M5에서 먼저 검증하고, 그것으로
+  충분하면 이 컬럼은 이 SPEC에서 끝까지 추가되지 않는다. 오직 §6 또는 §5.2(authenticity 재감사)에서
+  `sourceUrl`만으로는 해결할 수 없는 실제 필요(예: 동일 판례가 여러 `sourceUrl`로 미러링돼
+  `sourceUrl` 동일성 판정이 무력화되는 사례가 실측으로 발견되는 경우)가 명확히 입증된 경우에만
+  별도 migration으로 추가하며, 추가 시점에 그 코드가 실제로 `sourceIdentifier`를 읽어
+  source-integrity 검증 또는 dedup 판정을 수행함을 acceptance.md AC로 검증해야 한다(단순 존재
+  여부 구조 검증만으로는 REQ-EVIDENCE-005를 충족하지 못한다).
 - `sourceDate`: "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다 — ranking/benchmark/authenticity
   어느 코드 경로도 이 SPEC 범위에서 `sourceDate`를 소비하지 않으므로, 현재 계획으로는 이번 SPEC에서
-  전혀 추가되지 않을 수 있다(§C 소비처가 실제로 필요하다고 판명되면 별도 migration).
+  전혀 추가되지 않는다(§C 소비처가 실제로 필요하다고 판명되면 별도 migration, 후속 SPEC 범위일
+  가능성이 높다).
 
 ### 1.3 Migration 절차
 
@@ -56,6 +66,68 @@ TABLE ADD COLUMN만 사용하며(SQLite 제약상 컬럼 삭제/타입 변경은
 `EvidenceSeedRecord` interface와 upsert `values`/`set` 양쪽에 `issueTypes` 1개 신규 필드를
 추가한다 — 기존 `onConflictDoUpdate` 패턴을 그대로 확장(REQ-EVIDENCE-004). `sourceIdentifier`/
 `sourceDate`가 §1.2 조건에 따라 추가될 경우 그 시점에 동일한 패턴으로 확장한다.
+
+### 1.5 production seed loading 시 runtime validation (REQ-EVIDENCE-006 보강, 외부 독립 리뷰 v0.3.0 이슈 2)
+
+**왜 TypeScript 타입만으로 부족한가**: `issueTypes`는 전략 B(§2.1)에서 keyword가 전혀 없어도
+candidate eligibility를 성립시킬 수 있는 **강한** retrieval signal이다 — 값이 잘못되면(예:
+`QueryIssueType`에 없는 임의 문자열, 또는 오분류된 issueType) 조용히 잘못된 evidence를 후보로
+끌어올린다. 그런데 현재 `scripts/db-seed.ts`(`loadSeedRecords()`)는 `JSON.parse(readFileSync(...))
+as EvidenceSeedRecord[]`로 **타입 단언(assertion)만** 수행한다 — TypeScript 타입은 컴파일 타임
+구조일 뿐 런타임에는 아무 검사도 하지 않으므로, `db/seed/evidence.json`에 실수로 잘못된 값이
+들어가도 `as` 단언은 그것을 조용히 통과시키고 DB에 그대로 insert된다.
+
+**설계 — 기존 `lib/validation/case-input.ts` 패턴을 재사용한 최소 zod 스키마** (신규 라이브러리
+도입 없음, `zod`는 이미 프로젝트 의존성):
+
+```typescript
+// db/seed/evidence-seed-schema.ts (신규, 최소)
+import { z } from "zod";
+
+const EVIDENCE_TYPES = ["POLICY", "PRECEDENT", "DISPUTE_CASE", "STATUTE", "OTHER"] as const;
+const SCOPES = ["DOMAIN_SPECIFIC", "UNIVERSAL"] as const;
+const CATEGORIES = ["상해후유장해", "질병후유장해", "공통"] as const;
+const ISSUE_TYPES = [
+  "DISABILITY_LOCATION", "DIAGNOSIS", "INCIDENT_CIRCUMSTANCE", "INJURY_DISEASE_RELATION",
+  "DISABILITY_GRADE_CRITERIA", "PRE_EXISTING_CONDITION", "CAUSATION",
+  "ADDITIONAL_CONFIRMATION_NEEDED",
+] as const; // lib/pipeline/types.ts QueryIssueType과 반드시 동기화 유지
+
+export const evidenceSeedRecordSchema = z
+  .object({
+    id: z.string().min(1),
+    category: z.enum(CATEGORIES),
+    evidenceType: z.enum(EVIDENCE_TYPES),
+    scope: z.enum(SCOPES),
+    title: z.string().min(1),
+    content: z.string().min(1),
+    sourceUrl: z.union([z.null(), z.string().url()]),
+    issueTypes: z.array(z.enum(ISSUE_TYPES)),
+  })
+  .refine((r) => new Set(r.issueTypes).size === r.issueTypes.length, {
+    message: "issueTypes에 중복 값이 있습니다",
+  })
+  .refine((r) => !(r.scope === "UNIVERSAL" && r.category !== "공통"), {
+    message: "scope=UNIVERSAL이면 category는 '공통'이어야 합니다(명백한 불일치)",
+  })
+  .refine((r) => !(r.scope === "DOMAIN_SPECIFIC" && r.category === "공통"), {
+    message: "scope=DOMAIN_SPECIFIC이면 category는 특정 담보여야 합니다(명백한 불일치)",
+  });
+
+export const evidenceSeedFileSchema = z.array(evidenceSeedRecordSchema);
+```
+
+- `sourceUrl`은 `null` 또는 `z.string().url()`만 허용 — 빈 문자열이나 형식이 아닌 문자열은
+  거부한다.
+- `scope`/`category` 불일치 검증은 "명백한" 경우만 다룬다(UNIVERSAL인데 특정 담보 category이거나,
+  DOMAIN_SPECIFIC인데 공통 category인 경우) — 이 이상의 정교한 상호 검증은 이번 SPEC 범위 밖이다
+  (overengineering 회피).
+- `scripts/db-seed.ts`의 `loadSeedRecords()`가 `JSON.parse(...) as EvidenceSeedRecord[]` 대신
+  `evidenceSeedFileSchema.parse(JSON.parse(...))`를 쓰도록 변경한다 — 검증 실패 시 zod가
+  `ZodError`를 던지고, `runSeed()`는 **이 예외를 잡아 DB insert를 전혀 시도하지 않고 fail-fast**한다
+  (부분 insert 없음 — 파일 전체가 유효해야 seed가 진행된다).
+- 이 스키마는 `db/seed/evidence.json`(production)에만 적용한다 — benchmark/diagnostic fixture는
+  이 검증 대상이 아니다(REQ-EVIDENCE-003이 이미 물리적으로 분리를 보장).
 
 ## §2. Requirement C — Retriever 쟁점 중심 Ranking
 
@@ -159,7 +231,12 @@ interface BenchmarkCase {
 DISABILITY_GRADE_CRITERIA, DIAGNOSIS 또는 DISABILITY_LOCATION} 조합에서 각 담보당 3개, 총
 6개 — 여기에 기왕증/퇴행성(`PRE_EXISTING_CONDITION`) 케이스 1개를 추가해 총 7개 이상.
 
-### 3.3 지표 계산
+### 3.3a 지표 계산 — Recall@5 / Hit@5 / Precision@5 (외부 독립 리뷰 v0.3.0 이슈 4 반영)
+
+**Recall@5만으로는 부족한 이유**: 이번 SPEC의 전략 B(§2.1)는 candidate eligibility 자체를
+넓힌다(keyword가 없어도 issueType exact match만으로 candidate에 진입 가능) — eligibility를
+넓히면 recall이 오르는 대신 관련 없는 evidence가 섞여 들어와 precision이 떨어질 위험이 구조적으로
+존재한다. Recall@5만 보고 전략 A/B를 선택하면 이 위험을 놓친다.
 
 ```typescript
 function recallAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
@@ -167,41 +244,105 @@ function recallAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]):
   const hits = knownRelevantIds.filter((id) => returned.has(id)).length;
   return knownRelevantIds.length === 0 ? 1 : hits / knownRelevantIds.length;
 }
+
+function hitAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): 0 | 1 {
+  const returned = new Set(candidates.map((c) => c.id));
+  return knownRelevantIds.some((id) => returned.has(id)) ? 1 : 0;
+}
+
+function precisionAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
+  if (candidates.length === 0) return 1; // 반환 후보가 없으면 "틀린 후보"도 없다
+  const knownRelevant = new Set(knownRelevantIds);
+  const relevantReturned = candidates.filter((c) => knownRelevant.has(c.id)).length;
+  return relevantReturned / candidates.length;
+}
 ```
 
-### 3.4 측정 절차 — exploratory baseline과 frozen 최종 비교의 분리 (외부 독립 리뷰 이슈 2 반영)
+세 지표 모두 §3.4A의 frozen 최종 비교에서 **함께** 측정·기록한다 — Recall@5만 보고하고 Precision@5를
+누락하지 않는다.
 
-**이전 설계의 결함**: M2(10건 corpus)에서 baseline/개선 측정 → M4(50~100건 corpus 확장) → 재측정
-순서는, "ranking 알고리즘이 개선했다"는 효과와 "corpus가 커져서 개선됐다"는 효과를 하나의 최종
-수치에 섞어버린다. 두 효과는 서로 다른 원인이며 분리해서 보고해야 한다.
+### 3.3b Non-regression 계약 — 결과에 맞춘 사후 retrofit 금지 (외부 독립 리뷰 v0.3.0 이슈 4 반영)
 
-**설계 — 2단계 측정**:
-
-1. **exploratory 단계(M2, 10건 corpus)**: §2.1의 전략 A/B, §2.2의 score 함수 적용/미적용 조합을
-   현재 10건 corpus + §3.2 벤치마크로 측정한다. 이 수치는 알고리즘 방향을 결정하는 데만 쓰며,
-   `.moai/reports/`에 **"exploratory"로 명시적으로 라벨링**해 기록한다 — 최종 acceptance threshold의
-   근거로 직접 인용하지 않는다.
-2. **frozen 최종 비교(M4 이후)**: M4가 corpus 확장을 마치면, 새로 추가된 relevant evidence를
-   반영해 벤치마크 `knownRelevantEvidenceIds`를 사람이 검토(human review)해 갱신한다. 갱신이
-   끝나면 그 시점의 corpus 스냅샷 + 벤치마크를 **freeze**한다(더 이상 수정하지 않는 고정 버전으로
-   커밋). freeze된 corpus/벤치마크 위에서 `baselineRetriever`(전략 A + issueType 가중치 없음,
-   현재 `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score 함수)를 **동일 입력**으로
-   실행해 비교한다. 이 frozen 비교 수치만이 acceptance threshold(REQ-EVIDENCE-014)의 근거다.
-
-**보고 형식(REQ-EVIDENCE-030)** — `.moai/reports/`에 최소 다음 두 항목을 분리해 기록한다:
+design.md 시점(baseline 측정 전)에는 임의의 절대 숫자(예: "Recall@5 ≥ 0.8")를 정하지 않는다.
+대신 **상대적 non-regression 계약**을 plan 단계에서 미리 정해 둔다 — 권고 기본값:
 
 ```
-## Ranking 알고리즘 효과 (10건 corpus, exploratory)
-baseline(전략A) Recall@5: ...
-newRetriever(전략B+score) Recall@5: ...
-
-## Corpus 확장 효과 (frozen 최종 corpus, N건)
-baselineRetriever(frozen corpus) Recall@5: ...
-newRetriever(frozen corpus) Recall@5: ...
+new(전략B) Recall@5    >= baseline(전략A) Recall@5
+new(전략B) Hit@5       >= baseline(전략A) Hit@5
+new(전략B) Precision@5 >= baseline(전략A) Precision@5
 ```
 
-acceptance threshold(예: "frozen corpus에서 평균 Recall@5 ≥ X")는 두 번째 표의 실측값을 본 뒤
-acceptance.md 개정으로 확정한다 — design.md 시점에는 임의 숫자를 박아넣지 않는다.
+그리고 REQ-EVIDENCE-029가 지정한 타깃 케이스("exact issueType이지만 query keyword가 없는
+known-relevant evidence")에서는, baseline이 miss(recall 실패)하고 new가 hit(recall 성공)하는
+것이 **실제로 관측**되어야 한다 — 이것이 §2.1 candidate eligibility 재설계의 존재 이유이므로,
+관측되지 않으면 전략 B 채택 근거 자체가 무너진다.
+
+**결과가 이 계약을 만족하지 못하면(예: new Precision@5 < baseline Precision@5인 recall/precision
+trade-off가 실제로 관측되면), 그 결과에 맞춰 threshold를 낮추거나 계약을 조용히 수정해 PASS로
+만들지 않는다.** 대신 다음 중 하나를 사람이 명시적으로 판단해 acceptance.md/progress.md에
+기록한다: (a) `issueTypeWeight`(§2.2, 현재 10) 등 score 함수 파라미터를 재조정해 trade-off를
+줄인다, (b) trade-off를 감수할 가치가 있다는 근거(예: "recall 개선폭이 precision 하락폭보다
+제품적으로 더 중요하다")를 명시적으로 문서화하고 계약을 의도적으로 완화한다. 두 경우 모두
+"측정 후 자동 조정"이 아니라 "측정 결과를 보고 사람이 내린 결정"임을 기록에 남긴다.
+
+**M2 exploratory(10건 corpus)는 방향 탐색용이며 acceptance 근거가 아니다 — M4 frozen benchmark만이
+최종 acceptance다.** 이 구분은 §3.4에서 이어진다.
+
+### 3.4 측정 절차 — Algorithm effect와 Corpus expansion effect의 정확한 분리 (외부 독립 리뷰 v0.3.0 이슈 1 반영)
+
+**v0.2.0의 남은 개념 오류**: v0.2.0은 "M2(10건) exploratory"와 "M4 이후 frozen 최종 비교"를
+분리했지만, 그 frozen 비교(**동일한** frozen corpus 위에서 `baselineRetriever` vs `newRetriever`를
+비교)를 "Corpus 확장 효과"라고 잘못 명명했다 — corpus는 두 실행 모두 **동일**(frozen 최종
+corpus)하고 바뀐 것은 **알고리즘**뿐이므로, 이 비교가 실제로 측정하는 것은 "최종 corpus에서의
+algorithm effect"다. "corpus 확장 효과"라는 이름은 이 비교가 corpus 크기 변화의 효과를 측정하는
+것처럼 오독하게 만든다.
+
+**설계 — 두 효과를 서로 다른 측정 방법으로 분리**:
+
+#### A. Algorithm effect (frozen 최종 corpus, 동일 corpus 위에서 알고리즘만 교체)
+
+M4가 corpus 확장 + 재감사를 마치면, 새로 추가/재감사된 relevant evidence를 반영해 벤치마크
+`knownRelevantEvidenceIds`를 사람이 검토(human review)해 갱신하고, 그 시점의 corpus 스냅샷 +
+벤치마크를 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋). **동일한** freeze된 corpus +
+**동일한** freeze된 `BenchmarkCase` + **동일한** `knownRelevantEvidenceIds` 위에서
+`baselineRetriever`(전략 A, issueType 가중치 없음, 현재 `main`의 알고리즘)와 `newRetriever`(M2가
+채택한 전략 + score 함수)를 실행해 Recall@5 / Hit@5 / Precision@5(§3.3a)를 비교한다. **이것이
+"algorithm effect"이며, acceptance threshold(REQ-EVIDENCE-014)의 유일한 근거다.**
+
+#### B. Corpus expansion effect (초기 vs 최종 corpus의 coverage delta — cross-corpus Recall 비교 아님)
+
+**cross-corpus Recall@5 직접 비교로 "corpus 확장 효과"를 주장하지 않는다** — corpus가 확장되면
+ground truth(`knownRelevantEvidenceIds`) 자체가 달라지므로(새로 추가된 relevant evidence가
+반영됨), 서로 다른 ground truth에 대한 Recall@5 수치를 직접 비교하는 것은 방법론적으로 무효다
+(같은 잣대로 잰 것이 아니다). 대신 M1 시점(초기, 10건)과 M4 freeze 시점(최종, N건) 두 corpus
+스냅샷 사이의 **coverage delta**를 기록한다:
+
+```
+## Corpus expansion effect (초기 10건 → 최종 N건, coverage delta)
+domain × issueType authenticated coverage matrix:
+  (N/A 아닌 셀별 authenticated evidence 건수, 초기 → 최종)
+
+evidence 0건인 coverage cell 수: 초기 X개 → 최종 Y개 (N/A 아닌 16-k칸 중)
+
+benchmark query 중 authenticated known-relevant evidence가 최소 1개 존재하는
+query 수/비율: 초기 X/M (P%) → 최종 Y/M (Q%)
+```
+
+"authenticated"는 design.md §5.3의 source 진위 재감사(manifest에서 "유지"로 결정)와 issueTypes
+검토(같은 §5.3, 외부 독립 리뷰 v0.3.0 이슈 3)를 모두 통과한 evidence만 이 delta 집계에 포함됨을
+뜻한다 — 재감사에서 downgrade/제외된 evidence나 issueTypes 검토를 통과하지 못한 evidence는 이
+집계에서 제외한다.
+
+**ranking algorithm 효과(A)와 corpus coverage 효과(B)를 하나의 수치로 합치지 않는다** — 두 절은
+서로 다른 측정 방법(A는 IR 지표 비교, B는 coverage delta)을 쓰며, `.moai/reports/`에도 별도
+섹션으로 기록한다(REQ-EVIDENCE-030).
+
+acceptance threshold(예: "frozen corpus에서 평균 Recall@5 ≥ X")는 A의 실측값을 본 뒤
+acceptance.md 개정으로 확정한다 — design.md 시점에는 임의 숫자를 박아넣지 않는다. 실측 결과
+recall/precision trade-off(예: Recall@5는 개선되지만 Precision@5가 하락)가 관측되면, 그 결과에
+맞춰 threshold를 자동으로 낮춰 PASS시키지 않는다 — 전략/가중치(§2.2의 `issueTypeWeight` 등)를
+재검토하거나, trade-off를 감수할 근거를 명시적으로 문서화하는 것 중 하나를 사람이 판단한다
+(§3.3b).
 
 ## §4. Requirement E — counterEvidenceIds=[] 진단 장치
 
@@ -299,6 +440,24 @@ const replayCandidates = await retrieveEvidence(replayQueries, prodDb); // 그 �
 4. 검증 불가능한 후보는 `evidenceType: "OTHER"`로 낮추거나 아예 제외한다 — "그럴듯하지만
    확인 안 됨"을 PRECEDENT/STATUTE/DISPUTE_CASE로 분류하지 않는다.
 
+### 5.1a Source 우선순위 (외부 독립 리뷰 v0.3.0 이슈 6)
+
+production evidence의 `sourceUrl`은 다음 우선순위로 선택한다:
+
+1. **공식 원문** — 대법원 종합법률정보, 국가법령정보센터(`law.go.kr`), 금융감독원 공식
+   결정문/공개자료, 생명보험협회·손해보험협회 공식 표준약관/장해분류표 등.
+2. **공식기관 공개 요약** — 위 기관이 직접 발행한 요약·보도자료(원문 링크가 없는 경우).
+3. **신뢰 가능한 2차 출처/미러** — `casenote.kr` 등 판례 검색 서비스. 원문을 그대로 미러링하고
+   출처를 명시하는 서비스에 한한다.
+
+`casenote.kr` 같은 2차 DB는 **discovery(후보 발견)와 cross-check(교차 검증)에는 자유롭게
+사용**할 수 있다 — research.md §0/§4.1이 이미 이 방식으로 기존 `seed-evidence-005`/
+`seed-evidence-008`을 재검증했다. 다만 **production `sourceUrl`로 채택할 때는**, 공식 원문
+URL을 실제로 확보할 수 있는 경우 그것을 우선한다 — 2차 출처를 그대로 `sourceUrl`로 쓰지 않는다.
+공식 source를 현실적으로 확보할 수 없는 경우(예: 법원 공식 사이트가 특정 판례의 개별 URL을
+제공하지 않는 구조인 경우)에만 검증 가능한 2차 source를 `sourceUrl`로 사용하고, manifest(§5.3)에
+"공식 source 미확보, 사유: ..."를 명시적으로 기록한다.
+
 ### 5.2 기존 production evidence 10건 재감사 (REQ-EVIDENCE-026, 외부 독립 리뷰 이슈 5)
 
 **신규 record만 감사하는 것으로는 REQ-EVIDENCE-002의 authenticity 원칙이 반쪽짜리가 된다** —
@@ -317,6 +476,8 @@ const replayCandidates = await retrieveEvidence(replayQueries, prodDb); // 그 �
 5. 위 검토를 통과하지 못하면, 그 레코드를 (a) `evidenceType: "OTHER"`로 downgrade하거나 (b)
    production corpus에서 제외하는 것 중 **하나를 명시적으로 결정**해 기록한다 — 판단을 유보한 채
    방치하지 않는다.
+6. issueTypes 검토(§5.3 참고): source 진위 검토와 별개로, 이 레코드의 `issueTypes` 배열이
+   실제 담보-쟁점 분류를 올바르게 반영하는지 사람이 재검토하고 그 결과를 manifest에 기록한다.
 
 ### 5.3 curated source-audit manifest (자동 테스트가 대신할 수 없는 부분의 기록 장치)
 
@@ -327,11 +488,26 @@ const replayCandidates = await retrieveEvidence(replayQueries, prodDb); // 그 �
 동등한 구조화 문서)를 두고, production evidence 각 레코드마다 다음을 기록한다:
 
 ```
-| id | evidenceType | sourceUrl 접근 확인일 | 원문 대조 결과 | 결정(유지/OTHER downgrade/제외) | 검토자 |
+| id | evidenceType | sourceUrl 접근 확인일 | 원문 대조 결과 | issueTypes | issueTypes 검토 결과/tagging rationale | 결정(유지/OTHER downgrade/제외) | 검토자 |
 ```
 
-§D의 benchmark ground truth(`knownRelevantEvidenceIds`)는 이 manifest에서 "유지"로 결정된 evidence
-id만 참조할 수 있다(REQ-EVIDENCE-013 개정판).
+**§D의 benchmark ground truth(`knownRelevantEvidenceIds`)는 이 manifest에서 "유지"로 결정된
+evidence id 중, source 진위 검토와 issueTypes 검토를 모두 통과한 evidence만 참조할 수 있다**
+(REQ-EVIDENCE-013 개정판 — 외부 독립 리뷰 v0.3.0 이슈 3). 두 검토 중 하나라도 미완료이면 해당
+evidence는 "authenticated"로 간주하지 않는다(§3.4 정의 참고).
+
+**issueTypes 검토 규칙 (과도한 tagging 방지)**:
+
+- 모든 production evidence에 무조건 모든 issueType을 붙이는 식의 과도한 tagging을 허용하지
+  않는다. 각 issueType은 그 evidence가 실제로 해당 쟁점에 대한 담보-쟁점 분류를 진술하는 경우에만
+  부여한다(§1의 "evidence 자신의 담보-쟁점 분류이지 특정 사건에 대한 판정이 아니어야 한다" 원칙
+  참고).
+- `issueTypes`가 빈 배열(`[]`)인 것은 허용되지만, manifest의 "issueTypes 검토 결과" 컬럼에
+  왜 이 evidence가 현재 8개 `QueryIssueType` 값 중 어느 것에도 안전하게 매핑되지 않는지 사유를
+  기록해야 한다 — 빈 배열을 사유 없이 방치하지 않는다.
+- 새 LLM 기반 tagging 시스템은 만들지 않는다. 수동 curated metadata 검토만 한다 — §6의
+  duplicate 판정과 마찬가지로, semantic 분류 자동화는 이번 SPEC의 범위 밖이다(spec.md §4 Out
+  of Scope 정신 계승).
 
 ## §6. Requirement F — 중복(duplicate) 판정 규칙 (REQ-EVIDENCE-018 개정, 외부 독립 리뷰 이슈 6)
 

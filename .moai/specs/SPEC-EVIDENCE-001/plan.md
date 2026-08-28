@@ -72,28 +72,39 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   "fixture harness는 정상 동작 확인(self-test), 실제 smoke 원인은 corpus/Retriever/prompt/model
   behavior 미확정으로 유지"라고 정직하게 기록하고 M3를 종료한다.
 
-### M4 — Corpus 큐레이션: 기존 10건 재감사 + 신규 확장 + frozen 최종 비교
+### M4 — Corpus 큐레이션: 기존 10건 재감사 + 신규 확장 + frozen algorithm/corpus effect 측정
 
-- **4a. 기존 10건 재감사(design.md §5.2, REQ-EVIDENCE-026, 외부 독립 리뷰 이슈 5)** — 신규 확장에
-  **앞서** 먼저 수행한다: 10건 전부에 대해 sourceUrl 접근성/원문 대조/content 과장 여부를 검토하고,
-  통과하지 못한 레코드는 `OTHER` downgrade 또는 제외를 명시적으로 결정한다. 이 결과를
-  `.moai/reports/evidence-source-audit-manifest.md`(design.md §5.3)에 기록한다 — POLICY/STATUTE/
-  PRECEDENT 레코드도 예외 없이 포함.
-- **4b. 신규 record 확장(design.md §5.1)** — coverage matrix 공백(N/A 아닌 셀)을 실제 검증 가능한
-  출처로 채운다 — 목표 50~100건(4a에서 줄어든 유효 corpus 기준으로 재산정 가능), 검증 가능한
-  출처가 그에 못 미치면 미달 상태로 정직하게 보고하고 억지로 채우지 않는다(REQ-EVIDENCE-002가
-  우선). 각 신규 레코드도 4a와 동일하게 manifest에 기록한다. `DISPUTE_CASE` evidenceType을 최소
-  1건 이상 실제로 도입(현재 0건).
-- **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4 2단계, REQ-EVIDENCE-030)** — 4a/4b가
-  끝나 corpus가 안정되면, 새로 추가된 relevant evidence를 반영해 `knownRelevantEvidenceIds`를
-  사람이 검토(human review)해 갱신하고 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋).
-  ground truth는 manifest(4a)에서 "유지"로 결정된 evidence id만 참조할 수 있다.
-- **4d. frozen 최종 비교** — freeze된 corpus/벤치마크 위에서 `baselineRetriever`(전략 A, 원래
-  `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score 함수)를 동일 입력으로 실행해
-  비교한다. 결과를 "Ranking 알고리즘 효과"(M2 exploratory)와 "Corpus 확장 효과"(이 4d 결과)로
-  분리해 `.moai/reports/`에 기록(design.md §3.4 보고 형식). 이 4d 결과만이 acceptance.md의
+- **4a. 기존 10건 재감사(design.md §5.2/§5.3, REQ-EVIDENCE-026, 외부 독립 리뷰 이슈 5/3)** — 신규
+  확장에 **앞서** 먼저 수행한다: 10건 전부에 대해 (i) sourceUrl 접근성/원문 대조/content 과장
+  여부와 (ii) `issueTypes` 배열이 실제 담보-쟁점 분류를 올바르게 반영하는지를 함께 검토하고,
+  (i)을 통과하지 못한 레코드는 `OTHER` downgrade 또는 제외를 명시적으로 결정한다. 이 결과(source
+  검토 + issueTypes 검토)를 `.moai/reports/evidence-source-audit-manifest.md`(design.md §5.3의
+  확장된 6-컬럼 형식)에 기록한다 — POLICY/STATUTE/PRECEDENT 레코드도 예외 없이 포함. 모든
+  issueType을 무조건 부여하는 과도한 tagging은 금지하며, 빈 `issueTypes`는 사유를 manifest에
+  기록한다(design.md §5.3).
+- **4b. 신규 record 확장(design.md §5.1/§5.1a)** — coverage matrix 공백(N/A 아닌 셀)을 실제 검증
+  가능한 출처로 채운다 — 공식 원문 > 공식기관 공개 요약 > 신뢰 가능한 2차 출처 순으로 우선하며,
+  2차 출처를 쓸 수밖에 없는 경우 manifest에 사유를 기록한다(design.md §5.1a). 목표 50~100건
+  (4a에서 줄어든 유효 corpus 기준으로 재산정 가능), 검증 가능한 출처가 그에 못 미치면 미달 상태로
+  정직하게 보고하고 억지로 채우지 않는다(REQ-EVIDENCE-002가 우선). 각 신규 레코드도 4a와 동일하게
+  source 검토 + issueTypes 검토를 manifest에 기록한다. `DISPUTE_CASE` evidenceType을 최소 1건
+  이상 실제로 도입(현재 0건).
+- **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4A, REQ-EVIDENCE-030)** — 4a/4b가 끝나
+  corpus가 안정되면, 새로 추가/재감사된 relevant evidence — source 검토와 issueTypes 검토를 모두
+  통과한(authenticated) evidence만 — 를 반영해 `knownRelevantEvidenceIds`를 사람이 검토(human
+  review)해 갱신하고 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋). ground truth는
+  manifest(4a)에서 "유지"로 결정된 evidence id만 참조할 수 있다.
+- **4d. Algorithm effect 측정(design.md §3.4A)** — freeze된 **동일** corpus/벤치마크 위에서
+  `baselineRetriever`(전략 A, 원래 `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score
+  함수)를 동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
+  두 실행 모두 동일하고 알고리즘만 바뀌므로 이것은 "algorithm effect"이며, acceptance.md의
   threshold AC 확정 근거다(REQ-EVIDENCE-014) — M2 exploratory 수치를 threshold 근거로 재사용하지
   않는다.
+- **4e. Corpus expansion effect 측정(design.md §3.4B)** — M1 시점(초기, 10건) corpus 스냅샷과 4c의
+  freeze 시점(최종, N건) corpus 사이의 coverage delta(domain × issueType authenticated coverage
+  matrix, 빈 cell 수, ground truth 존재 query 비율)를 기록한다 — cross-corpus Recall@5 직접
+  비교로 corpus 확장 효과를 주장하지 않는다(design.md §3.4B). 4d(algorithm effect)와 4e(corpus
+  expansion effect)는 `.moai/reports/`에 서로 다른 항목으로 기록한다(REQ-EVIDENCE-030).
 
 ### M5 — 회귀 검증
 
@@ -111,9 +122,9 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
 
 ### M6 — 문서/마무리
 
-- coverage matrix 최종본 + M2 exploratory 결과 + M4d frozen 최종 비교 결과 + M3 진단 노트를
-  하나의 요약 문서로 `.moai/docs/` 또는 `.moai/reports/`에 정리 — ranking 효과와 corpus 효과를
-  분리해 서술.
+- coverage matrix 최종본 + M2 exploratory 결과 + M4d algorithm effect 결과 + M4e corpus expansion
+  effect 결과 + M3 진단 노트를 하나의 요약 문서로 `.moai/docs/` 또는 `.moai/reports/`에 정리 —
+  algorithm effect와 corpus expansion effect를 분리해 서술한다(design.md §3.4).
 - CHANGELOG 갱신(manager-docs 영역 — 이 SPEC의 sync-phase에서 수행, plan-phase 범위 아님).
 - `pnpm test`/`lint`/`format:check`/`build`/`test:e2e` 전체 통과 확인.
 

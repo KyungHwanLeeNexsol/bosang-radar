@@ -60,6 +60,13 @@ REQ(REQ-EVIDENCE-029→AC-008, REQ-EVIDENCE-030→AC-014)는 기존 AC에 Given/
 - When: TypeScript 컴파일러로 타입을 확인한다
 - Then: `issueTypes`의 타입이 `QueryIssueType[]`(8개 리터럴 유니온의 배열)이며, 사건별 판정이
   아니라 evidence 레코드 자신의 정적 분류임이 타입 주석에 명시되어 있다.
+- Given(runtime, 외부 독립 리뷰 v0.3.0 이슈 2): `db/seed/evidence.json`을 복제해 한 레코드의
+  `issueTypes`에 `QueryIssueType` 8개 값에 속하지 않는 문자열(예: `"INVALID_TYPE"`)을 주입한
+  fixture 파일
+- When: `scripts/db-seed.ts`의 `loadSeedRecords()`(또는 동등한 로딩 함수)로 이 fixture를 로드한다
+- Then: zod 스키마 검증이 `ZodError`를 던지고, 로딩 함수가 이를 잡아 명확한 에러 메시지와 함께
+  fail-fast하며, 잘못된 레코드만 건너뛰고 나머지를 부분 삽입(partial insert)하지 않는다 — 이
+  검사는 TypeScript 컴파일 타임 타입 체크가 아니라 실제 JSON 데이터에 대한 runtime 검증이다.
 
 **AC-EVIDENCE-007** (REQ-EVIDENCE-007)
 - Given: `lib/db/schema.ts`, `lib/pipeline/types.ts` 전체
@@ -113,13 +120,24 @@ REQ(REQ-EVIDENCE-029→AC-008, REQ-EVIDENCE-030→AC-014)는 기존 AC에 Given/
   케이스도 없다.
 
 **AC-EVIDENCE-014** (REQ-EVIDENCE-014, REQ-EVIDENCE-030)
-- Given: M2에서 측정한 exploratory 단계 수치(전략 A/B, 10건 corpus)와 M4d에서 측정한 frozen 최종
-  비교 수치(baselineRetriever/newRetriever, freeze된 최종 corpus)
+- Given: M2에서 측정한 exploratory 단계 수치(전략 A/B, 10건 corpus)와 M4d에서 측정한 algorithm
+  effect 수치(baselineRetriever/newRetriever, 동일한 freeze된 최종 corpus)와 M4e에서 측정한
+  corpus expansion effect 수치(coverage delta, 초기 corpus → freeze된 최종 corpus)
 - When: `.moai/reports/`의 측정 기록 문서를 확인한다
-- Then: 두 단계가 **서로 다른 절**로 명확히 라벨링되어 있다("exploratory"/"frozen" 또는 동등한
-  표현) — exploratory 수치가 최종 acceptance threshold의 직접 근거로 인용되지 않으며, threshold는
-  frozen 최종 비교 수치 이후에 별도 절에서 도출됨을 확인한다("Ranking 알고리즘 효과"와 "Corpus
-  확장 효과"가 design.md §3.4 형식대로 분리 기록되어 있다).
+- Then(exploratory/frozen 분리): exploratory 수치와 M4d 수치가 **서로 다른 절**로 명확히
+  라벨링되어 있다("exploratory"/"frozen" 또는 동등한 표현) — exploratory 수치가 최종 acceptance
+  threshold의 직접 근거로 인용되지 않으며, threshold는 M4d(algorithm effect) 수치 이후에 별도
+  절에서 도출됨을 확인한다.
+- Then(algorithm effect vs corpus expansion effect 분리, 외부 독립 리뷰 v0.3.0 이슈 1): M4d
+  절은 "algorithm effect"(또는 동등한 표현)로 라벨링되어 있고, "corpus 확장 효과"라는 이름으로
+  잘못 라벨링되어 있지 않다. M4e 절은 "corpus expansion effect"(또는 동등한 표현)로 별도
+  라벨링되어 있으며, 두 절의 수치가 하나로 합쳐져 보고되지 않는다.
+- Then(3-지표 기록): M4d 절에 Recall@5, Hit@5, Precision@5 세 지표가 모두 baseline/new 값과 함께
+  기록되어 있다 — Recall@5만 보고하고 Precision@5(또는 Hit@5)가 누락되어 있지 않다.
+- Then(coverage-delta 검증): M4e 절이 domain × issueType coverage matrix(초기 → 최종 건수), 빈
+  coverage cell 수(초기 → 최종), ground truth 존재 query 비율(초기 → 최종) 중 최소 coverage
+  matrix와 query 비율을 포함하며, cross-corpus Recall@5 수치를 직접 비교해 "효과"라고 주장하는
+  문장이 없다(grep으로 "corpus 확장" 인근에 "Recall@5" 직접비교 문구가 없는지 확인).
 
 **AC-EVIDENCE-015** (REQ-EVIDENCE-015)
 - Given: 이 SPEC의 acceptance.md 전체와 `evidence-diagnostic.test.ts`

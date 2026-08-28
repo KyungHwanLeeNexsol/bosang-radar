@@ -6,40 +6,45 @@ plan_status: draft-awaiting-audit
 plan_complete_at: (미기록 — plan-auditor 실행 전, 아래 §G.1 참고)
 tier: L
 artifact_set: spec.md, plan.md, acceptance.md, design.md, research.md (5개, Tier L)
-spec_version: "0.2.0"
+spec_version: "0.3.0"
 
 ### 자체 점검 결과 (plan-auditor 실행이 아님 — §G.1 참고)
 
 이 세션은 `Agent` 도구가 없어 `plan-auditor` subagent를 직접 실행할 수 없었다. 아래는
 plan-auditor가 통상 확인하는 항목들을 grep/카운트로 직접 재현한 **자체 점검**이며,
 `plan-auditor` 자신의 판정을 대체하지 않는다(verification-claim-integrity 원칙 — 관측하지
-않은 검증을 관측했다고 기록하지 않는다). v0.2.0(외부 독립 리뷰 반영) 기준으로 재실행했다.
+않은 검증을 관측했다고 기록하지 않는다). v0.3.0(외부 독립 리뷰 최종 revision 반영) 기준으로
+재실행했다.
 
 | 점검 항목 | 방법 | 결과 |
 |-----------|------|------|
-| frontmatter 12필드 | `sed -n '1,17p' spec.md` 육안 대조 | 12개 canonical 필드 전부 존재, snake_case alias 없음 |
-| REQ 개수 (Tier L 상한 25) | `grep -c "^\| REQ-EVIDENCE-" spec.md` | 25개 — 상한에 정확히 도달(초안 27개에서 2개를 기존 REQ에 통합해 조정) |
-| AC 개수 (Tier L 상한 25) | `grep -c "^\*\*AC-EVIDENCE-" acceptance.md` | 25개(REQ-016만 4개 서브레터 016a/b/c/d; REQ-029→AC-008, REQ-030→AC-014 통합) — 상한에 정확히 도달 |
+| frontmatter 12필드 | `sed -n '1,17p' spec.md` 육안 대조 | 12개 canonical 필드 전부 존재, snake_case alias 없음, `version: "0.3.0"` |
+| REQ 개수 (Tier L 상한 25) | `grep -oE '^\| REQ-EVIDENCE-[0-9]+ \|' spec.md \| sort -u \| wc -l` | 25개 — 상한 유지, v0.3.0에서 새 top-level REQ 추가 없음(이슈 1/2는 기존 REQ-EVIDENCE-014/030/006 wording 수정으로 반영) |
+| AC 개수 (Tier L 상한 25) | `grep -oE '^\*\*AC-EVIDENCE-[0-9]+[a-z]?\*\*' acceptance.md \| sort -u \| wc -l` | 25개(REQ-016만 4개 서브레터 016a/b/c/d) — 상한 유지, v0.3.0에서 새 AC 추가 없음(AC-006/014 본문 확장만) |
 | `[NEEDS CLARIFICATION]` 잔존 | `grep -c "NEEDS CLARIFICATION"` (spec/research/design/plan/acceptance 5개 파일) | 0건 |
-| REQ→AC traceability | REQ-EVIDENCE-001~021/026/029/030/031(25개) 각각을 `acceptance.md`에서 `\b` 경계 grep | 25개 전부 ≥1건 참조, 0건 참조인 REQ 없음(슬래시 병기 표기 `REQ-A/B`가 두 번째 ID를 grep에서 숨기는 버그를 발견해 `REQ-A, REQ-B` 명시 표기로 수정 — 아래 §G.3 기록) |
-| `## Out of Scope` h2-alone 함정 | `grep -n "^## \|^### " spec.md` | §4는 `## §4. 제외 범위 (Out of Scope)`(h2) + 5개 `### Out of Scope — <항목>`(h3) 서브섹션 — SPEC-GEMINI-RUNTIME-001 관례와 일치, v0.2.0에서도 유지 |
+| REQ→AC traceability | REQ-EVIDENCE-001~021/026/029/030/031(25개) 각각을 `acceptance.md`에서 `\b` 경계 grep | 25개 전부 ≥1건 참조, 0건 참조인 REQ 없음(v0.2.0에서 발견·수정한 슬래시 병기 버그 재발 없음 확인) |
+| `## Out of Scope` h2-alone 함정 | `grep -n "^## \|^### " spec.md` | §4는 `## §4. 제외 범위 (Out of Scope)`(h2) + 5개 `### Out of Scope — <항목>`(h3) 서브섹션 — v0.3.0에서도 유지 |
 | `phase:` 금지값(plan/run/sync/mx) | frontmatter `phase:` 값 확인 | `"v0.8.0 target"` — 금지값 아님 |
+| "corpus 확장 효과" 잔존 mislabeling | `grep -rn "corpus 확장 효과\|Corpus 확장 효과" *.md` (6개 아티팩트) | 남은 매치는 전부 (a) HISTORY의 과거형 서술("~로 잘못 명명했다") 또는 (b) 명시적 부정문("~이 아니다"/"~를 주장하지 않는다") — 실제 설계 본문에 오분류 잔존 없음 |
 | 이전 결함 문구 잔존 확인 | `grep -rn "정렬.*전용\|현행 구조를 보존\|3개 컬럼\|A와 B는 fixture"` (전체 아티팩트) | HISTORY 항목(과거형 서술) 외 매치 없음 — 실제 설계 본문에 구결함 문구 잔존 없음 |
 
 이 표는 **기계적으로 확인 가능한 항목만** 다룬다. plan-auditor 고유의 정성적 판단(Clarity/
 Completeness/Testability/Traceability 4축 가중 점수, must-pass 7개 기준 종합 판정, PASS
 threshold 0.85 도달 여부)은 이 세션이 재현할 수 없다 — 아래 §G.1에서 이 gap을 명시한다.
 
-## §G.1 plan-auditor 실행 gap (정직하게 기록, v0.2.0에도 유효)
+## §G.1 plan-auditor 실행 gap (정직하게 기록, v0.3.0에도 유효)
 
-**이 SPEC은 아직 plan-auditor를 실행하지 않았다.** 사용자 지시는(v0.1.0 최초 작성 시점과 v0.2.0
-외부 독립 리뷰 반영 시점 모두) "plan-auditor를 실행한다... PASS 후 멈춘다"였으나, 이 세션(작성
-주체)은 `Agent` 도구가 없어 `plan-auditor` subagent를 직접 spawn할 수 없다 — 이는 이 세션 도구
-구성의 제약이지, 작업을 건너뛰어도 된다는 판단이 아니다.
+**이 SPEC은 아직 plan-auditor를 실행하지 않았다.** 사용자 지시는(v0.1.0 최초 작성, v0.2.0
+외부 독립 리뷰 반영, v0.3.0 외부 독립 리뷰 최종 revision 반영 — 세 시점 모두) "plan-auditor를
+실행한다... PASS 후 멈춘다"였으나, 이 세션(작성 주체)은 `Agent` 도구가 없어 `plan-auditor`
+subagent를 직접 spawn할 수 없다 — 이는 이 세션 도구 구성의 제약이지, 작업을 건너뛰어도 된다는
+판단이 아니다. v0.3.0 개정 완료 시점에도 이 제약은 그대로 유지된다 — plan-auditor PASS를
+관측하지 못한 채로 이 결과를 PASS로 기록하는 것은 verification-claim-integrity 원칙 위반이므로,
+이 세션은 PASS를 기재하지 않고 정직하게 gap으로 남긴다.
 
 **남은 절차**: `Agent` 도구에 접근 가능한 세션(main orchestrator 세션, 또는 그런 접근권을 가진
 teammate)이 `plan-auditor` subagent를 이 5개 아티팩트(`spec.md`/`research.md`/`design.md`/
-`plan.md`/`acceptance.md`, 전부 v0.2.0)에 대해 실행해야 한다. PASS(overall ≥ 0.85, Tier L 기준)
+`plan.md`/`acceptance.md`, 전부 v0.3.0)에 대해 실행해야 한다. PASS(overall ≥ 0.85, Tier L 기준)
 시 이 섹션에 verdict·overall score·근거를 실제 실행 결과로 채워 넣고 `plan_status`를
 `audit-ready`로 갱신한다. FAIL 시 지적사항을 반영해 재개정 후 재실행한다(plan-auditor Retry Loop
 Contract, 최대 3회).
@@ -75,3 +80,27 @@ WebSearch/WebFetch 또는 등록된 `law.go.kr` OC 키 등 실제 웹 조사 도
   됐으나 Tier L 상한(25)을 초과 — REQ-028을 REQ-008에, REQ-027을 REQ-005에 각각 통합해 25개로
   조정했다(spec.md HISTORY 참고). AC도 같은 원리로 REQ-029→AC-008, REQ-030→AC-014에 통합해
   25개를 유지했다.
+
+## §G.4 외부 독립 리뷰 최종 revision 반영 기록 (v0.2.0 → v0.3.0)
+
+사용자가 전달한 외부 독립 리뷰 최종 revision에서 9개 항목(algorithm/corpus effect 재분리, zod
+runtime validation, issueTypes 태깅 품질 검토, Precision@5 guardrail, research.md stale text,
+source 우선순위, sourceIdentifier 재단순화, 6-아티팩트 일관성 재검증, plan-auditor 실행 시도)을
+지적받아, plan-auditor를 실행하지 않은 상태(§G.1)에서 소규모로 개정했다 — **새 SPEC을 만들지
+않고 scope를 확대하지 않는다**는 사용자 지시를 지켰다. 상세 변경 내역은 spec.md HISTORY(v0.3.0
+항목)에 기록했다.
+
+- **새 REQ/AC 미추가 확인**: 이번 라운드는 REQ-EVIDENCE-014/030/006의 wording만 수정했고
+  AC-EVIDENCE-014/006의 본문만 확장했다 — 새 top-level REQ ID나 새 AC ID를 만들지 않았다(item
+  2에서 사용자가 명시적으로 요구한 제약). REQ/AC 개수는 v0.2.0과 동일하게 25/25로 유지된다(위
+  자체 점검 표에서 재확인).
+- **algorithm effect vs corpus expansion effect 재분리**: v0.2.0 자체 점검(§G.3)에서는 발견하지
+  못했던 잔존 개념 오류(같은 corpus 위 알고리즘 비교를 "corpus 확장 효과"로 잘못 명명)를 이번
+  라운드에서 사용자가 직접 지적 — design.md §3.4를 A(algorithm effect)/B(corpus expansion
+  effect) 두 절로 재구성하고, plan.md M4d/M4e로 milestone을 분리했다. **교훈**: "동일 조건에서
+  하나의 변수만 바꾼 비교"와 "그 변수가 아닌 다른 조건의 변화 효과"를 이름으로 구분할 때는, 실제로
+  무엇이 고정되고 무엇이 변했는지 재확인해야 한다 — 이름이 그럴듯해도 측정 대상과 불일치할 수
+  있다.
+- **plan-auditor 실행 gap 재확인**: 이번 라운드에서도 `Agent` 도구는 여전히 이 세션에 제공되지
+  않았다 — v0.1.0/v0.2.0과 동일한 제약이 v0.3.0에도 유효하며, PASS를 기재하지 않고 §G.1에
+  정직하게 gap으로 기록했다(item 9의 명시적 요구사항).
