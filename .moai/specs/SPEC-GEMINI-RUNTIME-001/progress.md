@@ -60,7 +60,7 @@ run_complete_at: 2026-08-28
 
 sync_status: audit-ready
 sync_complete_at: 2026-08-28
-sync_commit_sha: pending-backfill-sync-docs-commit
+sync_commit_sha: a2d813b
 
 ## §F Phase 4 Mode Selection
 
