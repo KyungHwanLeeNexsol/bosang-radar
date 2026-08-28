@@ -183,8 +183,18 @@ describe("lib/pipeline/skeptic challenge — batch schema (REQ-GEMINI-RUNTIME-00
 
     const { provider } = makeBatchProvider(() => ({
       challenges: [
-        { queryId: "q1", counterArgument: "반론1", supportingEvidenceIds: ["e2"], counterEvidenceIds: [] },
-        { queryId: "q2", counterArgument: "반론2", supportingEvidenceIds: ["e2"], counterEvidenceIds: [] },
+        {
+          queryId: "q1",
+          counterArgument: "반론1",
+          supportingEvidenceIds: ["e2"],
+          counterEvidenceIds: [],
+        },
+        {
+          queryId: "q2",
+          counterArgument: "반론2",
+          supportingEvidenceIds: ["e2"],
+          counterEvidenceIds: [],
+        },
       ],
     }));
 
@@ -220,8 +230,18 @@ describe("lib/pipeline/skeptic challenge — batch schema (REQ-GEMINI-RUNTIME-00
 
     const { provider } = makeBatchProvider(() => ({
       challenges: [
-        { queryId: "q1", counterArgument: "첫번째", supportingEvidenceIds: [], counterEvidenceIds: [] },
-        { queryId: "q1", counterArgument: "두번째", supportingEvidenceIds: [], counterEvidenceIds: [] },
+        {
+          queryId: "q1",
+          counterArgument: "첫번째",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        },
+        {
+          queryId: "q1",
+          counterArgument: "두번째",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        },
       ],
     }));
 
@@ -237,7 +257,12 @@ describe("lib/pipeline/skeptic challenge — batch schema (REQ-GEMINI-RUNTIME-00
 
     const { provider } = makeBatchProvider(() => ({
       challenges: [
-        { queryId: "q1", counterArgument: "반론", supportingEvidenceIds: ["e1"], counterEvidenceIds: [] },
+        {
+          queryId: "q1",
+          counterArgument: "반론",
+          supportingEvidenceIds: ["e1"],
+          counterEvidenceIds: [],
+        },
       ],
     }));
 
@@ -253,7 +278,12 @@ describe("lib/pipeline/skeptic challenge — batch schema (REQ-GEMINI-RUNTIME-00
 
     const { provider } = makeBatchProvider(() => ({
       challenges: [
-        { queryId: "q1", counterArgument: "반론", supportingEvidenceIds: [], counterEvidenceIds: [] },
+        {
+          queryId: "q1",
+          counterArgument: "반론",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        },
       ],
     }));
 
