@@ -17,7 +17,7 @@
 - **데이터 취급 계약 재확인**: `caseInputSchema`가 "비식별을 보증"하지는 않는다는 사실을 정정 문서화하고, Google 무료 tier 데이터가 사람 검토·제품 개선에 사용될 수 있음을 명시하며, 파일럿 단계 데이터 취급 운영 계약(합성/사전 비식별화 사건만 사용, 실 PII·원본 문서 금지)을 `.moai/docs/runtime-runbook.md`에 신설
 - **스모크 리포트 과잉주장 정정**: `.moai/reports/gemini-smoke-20260827.md`의 관측 범위를 넘어서는 두 문구(모델 플랫폼 전체 단종 단정, corpus 부족 확정 원인 서술)를 hedge된 정정문으로 교체
 
-**검증**: 25개 요구사항(REQ-GEMINI-RUNTIME-001~025) 전부 구현, 35개 인수 기준(25개 최상위 AC-GEMINI-RUNTIME-001~025 + 10개 서브레터 AC 009a/014a/016a/016b/018a/021a/021b/022a/022b/022c) 전부 코드 레벨로 만족. `pnpm test`(247/247 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e` 전체 exit 0 통과. 신규 런타임 의존성 없음(`package.json` diff 없음).
+**검증**: 25개 요구사항(REQ-GEMINI-RUNTIME-001\~025) 전부 구현, 35개 인수 기준(25개 최상위 AC-GEMINI-RUNTIME-001\~025 + 10개 서브레터 AC 009a/014a/016a/016b/018a/021a/021b/022a/022b/022c) 전부 코드 레벨로 만족. `pnpm test`(250/250 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e` 전체 exit 0 통과. 신규 런타임 의존성 없음(`package.json` diff 없음).
 
 **참고**: `.moai/specs/SPEC-GEMINI-RUNTIME-001/`, `.moai/docs/runtime-runbook.md`
 

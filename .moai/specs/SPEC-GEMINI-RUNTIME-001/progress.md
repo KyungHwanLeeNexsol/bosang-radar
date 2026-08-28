@@ -177,3 +177,98 @@ CHANGELOG.md의 기존 SPEC-GEMINI-RUNTIME-001 항목(`### Added — SPEC-GEMINI
 - 테스트 수(`247/247`)는 이번 fix로 `250/250`(신규 3개 테스트 추가)이 되었으나, 이는 커버리지 확장에 따른 자연스러운 숫자 증가이지 기존 주장이 틀렸다는 뜻이 아니다 — CHANGELOG는 특정 시점의 스냅샷이며, 새 테스트 추가마다 매번 갱신하는 관례가 이 프로젝트에 없다.
 - CHANGELOG 어디에도 "Researcher/Skeptic 빈 텍스트 필드가 개별 폐기된다"는 취지의 구체적 주장은 없다 — 배치 재설계를 상위 수준으로 서술했을 뿐, 필드별 세부 검증 로직을 열거하지 않았으므로 이번 fix가 반박하는 기존 CHANGELOG 문장이 존재하지 않는다.
 - 따라서 CHANGELOG.md는 수정하지 않는다(팀 리드 지시 범위 밖이기도 함 — touch 목록에 없음).
+
+> **후속 갱신 참고(merge 전 정합성 cleanup, 이 문단 이후 섹션)**: 위 G.4 판단은 그 시점(post-run fix, 커밋 `93fa63b`)의 팀 리드 지시 범위 기준으로는 맞는 결정이었다. 이후 별도의 merge-전 정합성 cleanup 작업에서 팀 리드가 명시적으로 CHANGELOG.md의 수치 최신화를 지시했고, 그에 따라 CHANGELOG.md 20행의 `247/247`을 `250/250`(이번 cleanup 완료 시점 `pnpm test` 실측치)으로 갱신했다 — 위 인용문("25개 요구사항 전부 구현" 등)은 그 시점 CHANGELOG 원문을 그대로 인용한 역사적 기록이므로 수정하지 않는다. 상세 근거는 `### G.5 merge 전 정합성 cleanup` 절 참고.
+
+### G.5 merge 전 정합성 cleanup (팀 리드 지시 사항)
+
+PR #4(브랜치 `feat/SPEC-GEMINI-RUNTIME-001`) merge 전 정합성 정리 작업. 이번 SPEC의 런타임 로직(`researcher.ts`/`skeptic.ts`/`gemini.ts`/`rate-scheduler.ts`/`provider-factory.ts`/`pipeline/index.ts` 애플리케이션 로직)은 손대지 않았다 — CHANGELOG.md 포맷/수치 최신화, progress.md 수치 최신화, `lib/pipeline/index.test.ts` 테스트 전용 보강만 수행했다.
+
+**1) CHANGELOG.md 포맷 수정**
+
+`npx prettier --check CHANGELOG.md`가 exit 1로 실패하던 원인을 확인한 결과, `npx prettier --write`를 그대로 적용하면 20행의 "REQ-GEMINI-RUNTIME-001~025"와 "AC-GEMINI-RUNTIME-001~025" 두 곳의 단일 물결표(`~`)가 같은 줄에 한 쌍으로 존재해, prettier의 마크다운 포매터(remark 기반)가 이를 GFM 취소선(strikethrough) 열기/닫기 구분자 쌍으로 오인해 `~~`(이중 물결표)로 정규화하는 부작용이 있었다 — 이는 **의미를 바꾸는 변경**(범위 표기 `001~025`가 취소선 마크업으로 오염됨)이므로 그대로 적용하지 않았다. 대신 두 `~` 모두 백슬래시로 이스케이프(`\~`)해 마크다운 파서가 취소선 쌍으로 재해석하지 못하도록 고정한 뒤 재실행했다 — 렌더링 결과는 원문과 동일(이스케이프된 `\~`는 리터럴 `~`로 렌더링됨)하되 `prettier --check`가 clean하게 통과한다.
+
+```
+$ npx prettier --check CHANGELOG.md
+Checking formatting...
+All matched files use Prettier code style!
+```
+(exit=0, 물결표 이스케이프 적용 후 재확인)
+
+**2) 수치 최신화 (before → after)**
+
+| 파일 | 위치 | before | after | 분류 |
+|------|------|--------|-------|------|
+| `CHANGELOG.md` | 20행(SPEC-GEMINI-RUNTIME-001 검증 문구) | `pnpm test`(247/247 tests) | `pnpm test`(250/250 tests) | forward-looking 현재 상태 요약 — 갱신 |
+| `progress.md` | §E.2 43행("M6 완료 시점, `d9645bc`" 표제 아래 리그레션 증거 블록) | `247/247 tests, exit 0` | (변경 없음, `247/247` 유지) | M6 자신의 시점을 명시한 역사적 스냅샷 — 유지 |
+| `progress.md` | §G.4 175행/177행(팀 리드 지시에 따른 CHANGELOG 대조 판단, post-run fix 시점) | `247/247` (당시 CHANGELOG 원문 인용 + 대조 서술) | (변경 없음, 원문 유지) | 그 시점 CHANGELOG 원문을 그대로 인용한 역사적 기록 — 유지, 대신 §G.4 말미에 후속 갱신 참고 각주 추가 |
+
+`250/250`은 이번 cleanup의 실제 `pnpm test` 실행 결과(아래 5) 참고)이며, CHANGELOG.md·progress.md·본 절 전체에서 동일한 값을 사용한다.
+
+**3) AC-GEMINI-RUNTIME-023 계측 보강 — per-stage 호출 횟수 분리**
+
+`lib/pipeline/index.test.ts`의 `makeInstrumentedBatchProvider()`가 기존에는 총 호출 횟수(`calls`) 하나만 계측했다. 이번 보강으로 Researcher/Skeptic/Verifier 분기 각각에 독립 카운터(`researchCalls`/`skepticCalls`/`verifierCalls`)를 추가하고, `stageCallCounts()` 접근자로 노출했다 — 기존 `callCount()`(총합) 접근자는 그대로 유지(리팩터링이 아니라 보강).
+
+```typescript
+// stageCallCounts() 반환 형태
+{ research: number; skeptic: number; verifier: number }
+```
+
+3개 시나리오(evidence 있는 8개 쿼리 / evidence-bearing candidate 3개로 축소 / 5+3 혼합 구성) 각각에 다음 한 줄씩 추가:
+
+```typescript
+expect(eightQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
+expect(threeQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
+expect(mixedQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
+```
+
+기존 `expect(...callCount()).toBe(3)` 단언은 그대로 유지 — 총합 단언과 단계별 단언을 함께 검증한다.
+
+**4) 5-게이트 전체 재실행 verbatim**
+
+```
+$ pnpm test
+ Test Files  37 passed (37)
+      Tests  250 passed (250)
+   Duration  13.67s
+exit=0
+```
+
+```
+$ pnpm lint
+$ eslint .
+exit=0
+```
+
+```
+$ pnpm format:check
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+exit=0
+```
+
+```
+$ pnpm build
+$ next build
+✓ Compiled successfully in 2.4s
+✓ Generating static pages using 10 workers (6/6) in 1222ms
+exit=0
+```
+(Turbopack이 `instrumentation.ts:33:7`의 `process.exit(1)` Edge Runtime 미지원 경고 1건을 출력하나, 이번 cleanup 이전부터 존재하던 사전 경고이며 빌드는 exit 0 — 이번 변경으로 새로 발생한 경고 아님)
+
+```
+$ pnpm test:e2e
+  ✓  1 [chromium] auth.spec.ts:10:7 › 인증 — AC-RUNTIME-011 › 등록된 테스터 A는 로그인에 성공해 보호 경로로 진입한다
+  ✓  2 [chromium] case-flow.spec.ts:21:7 › 사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013 › 사건 입력이 저장되고 리포트가 렌더링되며, 피드백이 저장된다
+  ✓  3 [chromium] tenant-isolation.spec.ts:24:7 › Tenant Isolation — AC-RUNTIME-014 › 테스터 B는 테스터 A가 소유한 사건 상세에 접근할 수 없다
+  ✓  4 [chromium] auth.spec.ts:17:7 › 인증 — AC-RUNTIME-011 › allowed_testers에 없는 이메일은 로그인이 거부되어 세션이 생성되지 않는다
+  4 passed (31.2s)
+exit=0
+```
+
+**5) Baseline-attribution**: 이 run, 이 tree(브랜치 `feat/SPEC-GEMINI-RUNTIME-001`, HEAD `ab963c4` 이후 워킹 트리) 기준. 5개 게이트 모두 이번 cleanup 커밋 직전에 실측했다.
+
+**6) Gaps**: 없음 — 지시받은 4개 작업(CHANGELOG 포맷/수치/AC-023 계측/5-게이트) 전부 실행하고 실측 결과로 검증했다.
+
+**7) Residual-risk**: `CHANGELOG.md`의 물결표 이스케이프(`\~`)는 향후 이 줄을 다시 편집할 때(예: REQ/AC 범위가 바뀌는 경우) 이스케이프를 유지해야 prettier가 재차 취소선으로 오인하지 않는다 — 다음 편집자가 이 사실을 모르고 이스케이프를 제거하면 동일한 문제가 재발할 수 있다.

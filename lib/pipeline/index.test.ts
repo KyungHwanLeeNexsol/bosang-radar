@@ -443,8 +443,18 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
   // 센다. 프롬프트를 "[RESEARCH]"/"[SKEPTIC]" 마커로 식별하고, 둘 다 아니면
   // Verifier의 의미 검증 요청으로 간주해 실제로 전달된 candidate 집합과 정확히
   // 1:1 대응하는 응답을 구성한다(verifier.ts의 .refine() 1:1 대응 제약 충족).
-  function makeInstrumentedBatchProvider(): { provider: LLMProvider; callCount: () => number } {
+  // per-stage 계측: 총 호출 횟수(calls)뿐 아니라 Researcher/Skeptic/Verifier
+  // 각 단계가 정확히 1회씩만 호출됐음을 개별적으로 검증하기 위한 3개의 독립
+  // 카운터(post-run cleanup: AC-GEMINI-RUNTIME-023 stage별 계측 보강).
+  function makeInstrumentedBatchProvider(): {
+    provider: LLMProvider;
+    callCount: () => number;
+    stageCallCounts: () => { research: number; skeptic: number; verifier: number };
+  } {
     let calls = 0;
+    let researchCalls = 0;
+    let skepticCalls = 0;
+    let verifierCalls = 0;
     const provider: LLMProvider = {
       async generate(): Promise<GenerateResponse> {
         return { text: "stub" };
@@ -455,6 +465,7 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
         calls += 1;
         let candidate: unknown;
         if (request.prompt.includes("[RESEARCH] 쿼리 ID: ")) {
+          researchCalls += 1;
           const blocks = extractMarkedBlocks(request.prompt, "[RESEARCH]");
           candidate = {
             findings: blocks.map((block) => ({
@@ -464,6 +475,7 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
             })),
           };
         } else if (request.prompt.includes("[SKEPTIC] 쿼리 ID: ")) {
+          skepticCalls += 1;
           const blocks = extractMarkedBlocks(request.prompt, "[SKEPTIC]");
           candidate = {
             challenges: blocks.map((block) => ({
@@ -474,6 +486,7 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
             })),
           };
         } else {
+          verifierCalls += 1;
           const claimIds = extractVerifierClaimIds(request.prompt);
           const caBlocks = extractVerifierCounterArgumentBlocks(request.prompt);
           candidate = {
@@ -497,7 +510,15 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
           : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
       },
     };
-    return { provider, callCount: () => calls };
+    return {
+      provider,
+      callCount: () => calls,
+      stageCallCounts: () => ({
+        research: researchCalls,
+        skeptic: skepticCalls,
+        verifier: verifierCalls,
+      }),
+    };
   }
 
   function makeEvidenceRow(id: string, category: string, content: string) {
@@ -553,6 +574,7 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
       providers: { research: eightQuery.provider, fast: eightQuery.provider },
     });
     expect(eightQuery.callCount()).toBe(3);
+    expect(eightQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
 
     // (2) 쿼리 개수를 8개에서 3개로 줄여 재실행해도 여전히 3회 — QueryPlanner는
     // 사건당 최소 6개(도메인 2개 × 기본 3개, query-planner.ts)를 항상 생성하므로
@@ -570,6 +592,7 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
       providers: { research: threeQuery.provider, fast: threeQuery.provider },
     });
     expect(threeQuery.callCount()).toBe(3);
+    expect(threeQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
 
     // (3) 8개 쿼리 중 5개만 evidence가 있고 3개는 evidence가 0건인 혼합 구성 —
     // evidence 0건인 3개 쿼리가 Researcher 배치 candidate에서 제외됨
@@ -587,5 +610,6 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
       providers: { research: mixedQuery.provider, fast: mixedQuery.provider },
     });
     expect(mixedQuery.callCount()).toBe(3);
+    expect(mixedQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
   });
 });
