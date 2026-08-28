@@ -167,6 +167,76 @@ function semanticVerificationFixture(prompt: string): unknown {
   };
 }
 
+// M5: researcher.ts/skeptic.ts는 각각 "[RESEARCH] 쿼리 ID: <id>"/
+// "[SKEPTIC] 쿼리 ID: <id>" 마커로 쿼리/finding 블록을 구분하는 M2 배치
+// 프롬프트를 만든다(design.md §6). findFindingBatchSchema/
+// buildChallengeBatchSchema(researcher.ts/skeptic.ts)의 { findings: [...] }/
+// { challenges: [...] } envelope을 satisfy하려면 블록마다 정확히 하나의
+// 항목이 필요하다 — parseSemanticPrompt와 동일한 블록 분리 기법(마커 줄로
+// 블록 경계를 나누고, 그 블록 안의 evidence 불릿에서만 ID를 추출)을
+// 재사용해 블록마다 대응하는 항목을 생성한다.
+function isResearchBatchPrompt(prompt: string): boolean {
+  return /^\[RESEARCH\] 쿼리 ID: /m.test(prompt);
+}
+
+function isSkepticBatchPrompt(prompt: string): boolean {
+  return /^\[SKEPTIC\] 쿼리 ID: /m.test(prompt);
+}
+
+interface ParsedBatchBlock {
+  queryId: string;
+  evidenceIds: string[];
+}
+
+function parseBatchBlocks(
+  prompt: string,
+  blockStartPattern: RegExp,
+  queryIdPattern: RegExp
+): ParsedBatchBlock[] {
+  const blockStarts = Array.from(prompt.matchAll(blockStartPattern), (m) => m.index ?? 0);
+
+  return blockStarts.map((start, i) => {
+    const end = i + 1 < blockStarts.length ? blockStarts[i + 1] : prompt.length;
+    const blockText = prompt.slice(start, end);
+    const queryIdMatch = queryIdPattern.exec(blockText);
+    const queryId = queryIdMatch ? queryIdMatch[1].trim() : "";
+    const bulletIdPattern = /^-\s*\[([^\]\s]+)\]/gm;
+    const evidenceIds = Array.from(blockText.matchAll(bulletIdPattern), (m) => m[1]);
+    return { queryId, evidenceIds };
+  });
+}
+
+function researchBatchFixture(prompt: string): unknown {
+  const blocks = parseBatchBlocks(
+    prompt,
+    /^\[RESEARCH\] 쿼리 ID: .+$/gm,
+    /^\[RESEARCH\] 쿼리 ID: (.+)$/m
+  );
+  return {
+    findings: blocks.map((block) => ({
+      queryId: block.queryId,
+      summary: "[deterministic] 결정론적 고정 소견입니다.",
+      supportingEvidenceIds: block.evidenceIds,
+    })),
+  };
+}
+
+function skepticBatchFixture(prompt: string): unknown {
+  const blocks = parseBatchBlocks(
+    prompt,
+    /^\[SKEPTIC\] 쿼리 ID: .+$/gm,
+    /^\[SKEPTIC\] 쿼리 ID: (.+)$/m
+  );
+  return {
+    challenges: blocks.map((block) => ({
+      queryId: block.queryId,
+      counterArgument: "[deterministic] 결정론적 고정 반론입니다.",
+      supportingEvidenceIds: block.evidenceIds,
+      counterEvidenceIds: [],
+    })),
+  };
+}
+
 export function createDeterministicLLMProvider(): LLMProvider {
   return {
     async generate(request: GenerateRequest): Promise<GenerateResponse> {
@@ -176,6 +246,19 @@ export function createDeterministicLLMProvider(): LLMProvider {
     async generateStructured<T>(
       request: GenerateStructuredRequest<T>
     ): Promise<StructuredResult<T>> {
+      if (isResearchBatchPrompt(request.prompt)) {
+        const result = request.schema.safeParse(researchBatchFixture(request.prompt));
+        if (result.success) {
+          return { ok: true, data: result.data };
+        }
+        // 배치 envelope 스키마 가정이 어긋난 경우 — 아래 기존 폴백 경로로 견고성을 유지한다.
+      } else if (isSkepticBatchPrompt(request.prompt)) {
+        const result = request.schema.safeParse(skepticBatchFixture(request.prompt));
+        if (result.success) {
+          return { ok: true, data: result.data };
+        }
+      }
+
       const isSemanticPrompt =
         /^쿼리 ID: /m.test(request.prompt) || /^반론 쿼리 ID: /m.test(request.prompt);
       if (isSemanticPrompt) {

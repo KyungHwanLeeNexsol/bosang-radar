@@ -16,8 +16,9 @@ Researcher → Skeptic → Verifier 3단계 파이프라인이 사건 생성부�
 
 ### 1차 — `gemini-2.5-flash`, 신규 발급 키 기준 (계정: 신규 유저)
 
-`404 NOT_FOUND` — `models/gemini-2.5-flash`가 신규 유저 계정에서는 더 이상 제공되지
-않음 (Google 안내: `models/gemini-3.6-flash` 사용 권장). `lib/ai/providers/gemini.ts:11`의
+이번 smoke에 사용한 신규 API key/project에서 `gemini-2.5-flash` 호출 시
+`404 NOT_FOUND`를 관측함. 전체 Gemini 사용자에 대한 서비스 종료로 단정하지 않는다
+(Google 안내: `models/gemini-3.6-flash` 사용 권장). `lib/ai/providers/gemini.ts:11`의
 `DEFAULT_MODEL`이 하드코딩돼 있어 env로 우회 불가 — 사용자 승인 하에 이번 smoke 1회에
 한해 `gemini-3.6-flash`로 임시 전환(코드 원복 완료, 커밋 없음).
 
@@ -46,7 +47,7 @@ INSUFFICIENT(근거 부족, missingMaterials): 5개
 엉뚱한 근거: 0개
 근거자료 title/sourceUrl: DB에 정상 존재 (5건 중 4건 URL 있음, 1건은 evidence_type=OTHER라 URL 없음 — 스키마상 정상)
 counterArguments: 3건 모두 존재, supportingEvidenceIds 채워짐
-counterEvidenceIds: 3건 모두 빈 배열 — 반박 근거를 하나도 못 찾음 (아래 핵심 발견 참고)
+counterEvidenceIds: 3건 모두 빈 배열 — 실제 출력에서 반박 evidence ID가 하나도 선택되지 않음, 원인 미확정 (아래 핵심 발견 참고)
 missingMaterials(판단 불충분 사유): 5건, 별도 섹션에 정상 표시
 금지 문구("보험금 지급 확률 95%" 등): 0건 — 확인 없음
 ```
@@ -54,10 +55,12 @@ missingMaterials(판단 불충분 사유): 5건, 별도 섹션에 정상 표시
 ## 핵심 발견
 
 **Skeptic이 만든 모든 반론(counterArgument)에서 `counterEvidenceIds`가 항상 빈 배열이었다.**
-반론 논리 자체는 탄탄하게 생성되지만, 그 반론을 뒷받침할 반박 근거를 현재 seed corpus
-(10건)에서 하나도 찾지 못했다는 뜻이다. 파이프라인 구조 문제가 아니라 **근거자료 corpus의
-양과 다양성 부족**이 원인으로 보인다 — 다음 작업으로 논의 중인 `SPEC-EVIDENCE-001`의 구체적
-근거가 되는 실측 데이터.
+반론 논리 자체는 탄탄하게 생성됐다. `counterEvidenceIds`가 모두 빈 배열이었다는 것은
+"실제 출력에서 반박 evidence ID가 선택되지 않았다"는 실측 사실이며, 그 이상의 인과관계
+(예: seed corpus에 반박 근거가 아예 존재하지 않는다는 단정)를 함의하지 않는다. 원인은
+아직 확정되지 않았으며, 다음이 후보다: corpus 부족, Retriever 후보 부족, Skeptic prompt
+semantics, model behavior. 이 실측 데이터는 다음 작업으로 논의 중인
+`SPEC-EVIDENCE-001`의 구체적 근거로 활용할 수 있다.
 
 ## 부가 관찰 (수정하지 않음, 참고용)
 
@@ -70,4 +73,4 @@ missingMaterials(판단 불충분 사유): 5건, 별도 섹션에 정상 표시
 
 실제 Gemini 프로덕션 경로(로그인 → 사건 생성 → Researcher/Skeptic/Verifier 실호출 →
 report DB 저장 → 사건 상세 데이터)가 끝까지 정상 동작함을 확인했다. `SPEC-EVIDENCE-001`
-(근거자료 corpus 확장) 착수 근거로 이번 smoke의 "반박 근거 0건" 발견을 활용할 수 있다.
+(근거자료 corpus 확장) 착수 근거로 이번 smoke의 "counterEvidenceIds 0건(반박 evidence 미선택)" 발견을 활용할 수 있다.

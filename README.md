@@ -55,6 +55,7 @@ cp .env.local.example .env.local
 - `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` — Turso/libSQL 연결 정보
 - `GEMINI_API_KEY` — Gemini API 키 (`LLM_PROVIDER_MODE`가 `deterministic`이 아닌 정상 앱 기동 시 필수 — 테스트/E2E처럼 결정론적 provider로 돌릴 때는 필요 없음)
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` — 인증 세션 서명 키 및 base URL
+- `GEMINI_RESEARCH_MODEL`, `GEMINI_FAST_MODEL`, `GEMINI_RESEARCH_RPM_BUDGET`, `GEMINI_FAST_RPM_BUDGET` — 전부 선택 사항(코드 기본값 존재). Researcher/Skeptic·Verifier 역할별 모델과 자체 부과 RPM 페이싱 예산을 각각 오버라이드할 때만 설정 — 자세한 기본값과 근거는 `.env.local.example` 주석 참고
 
 ### DB 마이그레이션·시드·테스터 계정 생성
 

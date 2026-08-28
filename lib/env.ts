@@ -16,6 +16,11 @@ interface VarInfo {
 // gate로 별도 처리하므로 이 표에는 포함하지 않는다. GEMINI_API_KEY도 app 스코프
 // 조건부 게이트(LLM_PROVIDER_MODE !== "deterministic"일 때만 요구, SPEC-RESEARCH-001
 // design.md §2)로 별도 처리하므로 이 표에는 포함하지 않는다.
+//
+// SPEC-GEMINI-RUNTIME-001 M5(design.md §1 Requirement A): GEMINI_RESEARCH_MODEL/
+// GEMINI_FAST_MODEL/GEMINI_RESEARCH_RPM_BUDGET/GEMINI_FAST_RPM_BUDGET 4개
+// 변수는 전부 코드 기본값(lib/ai/provider-factory.ts)을 가진 선택적 변수이며,
+// 어떤 스코프에서도 필수가 될 수 없다 — 의도적으로 이 검증 대상에서 제외한다.
 const REQUIRED_BY_SCOPE: Record<EnvScope, readonly string[]> = {
   db: ["TURSO_DATABASE_URL"],
   provision: ["TURSO_DATABASE_URL", "BETTER_AUTH_SECRET"],

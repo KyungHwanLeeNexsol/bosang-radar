@@ -195,3 +195,34 @@ pnpm test:e2e                         # 7단계
   필요 없고, `LLM_PROVIDER_MODE`를 설정하지 않는 정상 앱 기동에는 필요하다).
 - 값이 디스크에 남는 곳은 gitignore된 `.env.local`뿐이다. 로그·오류
   메시지·커밋 파일에는 값이 나타나지 않는다.
+
+## 10. Gemini 모델 선택 · 레이트 예산 · 데이터 취급 (SPEC-GEMINI-RUNTIME-001)
+
+`GEMINI_RESEARCH_MODEL`/`GEMINI_FAST_MODEL`/`GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`
+4개 변수는 전부 **선택**이며, 설정하지 않으면 코드 기본값(Research는
+`gemini-3.6-flash`, Fast는 `gemini-3.5-flash-lite`, 두 역할 모두 RPM 예산
+기본값은 4)이 그대로 적용된다. 이 RPM 예산은 Google이 보장하는 한도가
+아니라 우리가 안전하다고 판단해 자체적으로 부과하는 상한이다 — 실제
+한도는 AI Studio의 Rate Limit 대시보드(https://aistudio.google.com)에서
+확인하고, `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`을 그 값의
+약 70~80% 이하로 설정하는 것을 권장한다.
+
+`caseInputSchema`(`lib/validation/case-input.ts`)는 **비식별을 보증하지
+않는다**. 실제로 하는 일은 두 가지뿐이다 — (1) `.strict()`로 스키마에
+정의되지 않은 필드(상세주소, 진료기록 원문 등)를 구조적으로 거부하고,
+(2) `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 세 필드에서
+주민등록번호·전화번호 형식만 정규식으로 차단한다. `incidentDescription`
+같은 자유 형식 텍스트 필드에 청구인이 실명·소속 회사명·상세 주소·병원명
+같은 재식별 정보를 직접 타이핑해 넣는 것을 이 스키마는 막지 못한다.
+
+이번 파일럿 단계에서는 **합성(synthetic) 사건 또는 운영자가 사전에
+비식별화한 사건만** 입력해야 한다 — 실명·주민등록번호·전화번호·상세
+주소가 포함된 실 고객 사건, 원본 진료기록, 원본 보험증권 문서는 입력을
+금지한다. 실 고객 사건을 사용하는 외부 파일럿으로 확장하려면 별도의
+데이터 처리/정책 적합성 검토가 먼저 필요하다. 또한 이 SPEC이 사용하는
+Gemini API는 **무료(Unpaid) tier**이며, Google 공식 약관
+(https://ai.google.dev/gemini-api/docs/pricing,
+https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
+프롬프트/응답은 사람 검토자에 의해 읽히고 주석이 달릴 수 있으며 Google
+제품·ML 기술 개선에 사용될 수 있다(유료 tier는 그렇지 않다) — 이 사실을
+알고 있는 채로 입력 데이터를 다뤄야 한다.

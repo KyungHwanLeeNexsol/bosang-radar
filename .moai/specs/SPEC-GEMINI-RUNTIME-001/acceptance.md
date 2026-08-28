@@ -171,7 +171,7 @@
 **AC-GEMINI-RUNTIME-023** (REQ-GEMINI-RUNTIME-019)
 - Given: evidence가 있는 8개 쿼리를 생성하는 완전한 `CaseInput` 하나(계측 가능한 fake/deterministic provider로 실행, 429/503 재시도 없는 정상 경로)
 - When: `runPipeline(input)`을 실행하고 `generateStructured()` **논리적 호출** 횟수(Researcher/Skeptic/Verifier가 provider에 요청한 횟수 — 재시도로 인한 실제 HTTP 시도 횟수가 아님)를 센다
-- Then: 논리적 호출 횟수가 정확히 3회(Researcher 1 + Skeptic 1 + Verifier 1)이며, 쿼리 개수를 8개에서 3개로 줄여 재실행해도 여전히 3회로 동일하다(호출 수가 쿼리 개수에 비례하지 않음을 직접 확인). 추가로, 8개 쿼리 중 5개만 evidence가 있고 3개는 evidence가 0건인 혼합 구성으로 동일하게 계측하면, evidence 0건인 3개 쿼리가 Researcher 배치 candidate에서 제외됨(AC-GEMINI-RUNTIME-006)에도 불구하고 논리적 호출 횟수는 여전히 정확히 3회로 동일하다(evidence 유무 혼합 구성에서도 호출 수가 3회로 고정됨을 하나의 AC로 직접 확인).
+- Then: 논리적 호출 횟수가 정확히 3회(Researcher 1 + Skeptic 1 + Verifier 1)이며, evidence가 있는 Researcher 후보 쿼리 개수를 8개에서 3개로 줄여 재실행해도(원시 쿼리 집합 자체는 `query-planner.ts` 구조상 도메인 2개 × 필수 이슈타입 3개로 항상 최소 6개 이상 생성되므로, 여기서 8개→3개로 줄어드는 것은 evidence가 있는 후보 쿼리 수뿐이다) 여전히 3회로 동일하다(호출 수가 evidence가 있는 후보 쿼리 개수에 비례하지 않음을 직접 확인). 추가로, 8개 쿼리 중 5개만 evidence가 있고 3개는 evidence가 0건인 혼합 구성으로 동일하게 계측하면, evidence 0건인 3개 쿼리가 Researcher 배치 candidate에서 제외됨(AC-GEMINI-RUNTIME-006)에도 불구하고 논리적 호출 횟수는 여전히 정확히 3회로 동일하다(evidence 유무 혼합 구성에서도 호출 수가 3회로 고정됨을 하나의 AC로 직접 확인).
 
 **AC-GEMINI-RUNTIME-024** (REQ-GEMINI-RUNTIME-020)
 - Given: 이번 SPEC 완료 시점의 `.moai/reports/gemini-smoke-20260827.md`
