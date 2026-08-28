@@ -128,6 +128,44 @@ describe("lib/ai/provider-factory getLLMProviders (SPEC-GEMINI-RUNTIME-001 M1, d
     expect(fastArgs.scheduler?.rpmBudget).toBe(4);
   });
 
+  // post-run fix: GeminiProvider 생성자(gemini.ts)의 `options.apiKey ??
+  // process.env.GEMINI_API_KEY` 폴백 때문에, 주입된 env에 GEMINI_API_KEY가
+  // 없으면 조용히 전역 process.env 값과 섞일 수 있었다 — "env 주입과
+  // process.env 격리" 계약(provider-factory.ts 상단 @MX:NOTE)에 대한 회귀.
+  // deterministic 모드는 이 검사 이전에 조기 반환하므로 영향받지 않는다.
+  it("process.env.GEMINI_API_KEY가 설정돼 있어도 주입된 env에 GEMINI_API_KEY가 없으면 전역 process.env로 폴백하지 않고 명시적으로 throw한다 (env 격리 회귀 방지)", async () => {
+    const { getLLMProviders } = await import("./provider-factory");
+    const originalApiKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "global-process-env-secret";
+
+    try {
+      const customEnv = {
+        GEMINI_RESEARCH_MODEL: "gemini-test-research",
+        GEMINI_FAST_MODEL: "gemini-test-fast",
+        // GEMINI_API_KEY 의도적으로 생략 — 주입된 env 자체에는 apiKey가 없다.
+      } as unknown as NodeJS.ProcessEnv;
+
+      let thrown: unknown;
+      try {
+        getLLMProviders(customEnv);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      // 실 secret 값이 오류 메시지에 노출되지 않아야 한다.
+      expect((thrown as Error).message).not.toContain("global-process-env-secret");
+      // 전역 process.env 값으로 폴백해 GeminiProvider가 생성되는 일이 없어야 한다.
+      expect(GeminiProviderMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalApiKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = originalApiKey;
+      }
+    }
+  });
+
   describe("getDefaultLLMProviders() — 프로세스 생애주기 싱글턴 (D-NEW1, REQ-GEMINI-RUNTIME-025)", () => {
     it("최초 호출 시 getLLMProviders(process.env) 결과를 캐시하고, 이후 호출은 동일한 참조를 반환한다", async () => {
       vi.resetModules();

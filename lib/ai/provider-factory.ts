@@ -33,6 +33,17 @@ export function getLLMProviders(env: NodeJS.ProcessEnv = process.env): RoleProvi
   }
 
   const apiKey = env.GEMINI_API_KEY;
+  // post-run fix: GeminiProvider 생성자는 apiKey가 undefined이면
+  // process.env.GEMINI_API_KEY로 폴백한다(gemini.ts) — 여기서 apiKey 부재를
+  // 명시적으로 실패시키지 않으면, 주입한 env에 GEMINI_API_KEY가 없어도
+  // GeminiProvider 생성자 내부에서 조용히 전역 process.env 값과 섞여
+  // "env 주입과 process.env 격리" 계약(위 @MX:NOTE)이 이 지점에서 깨진다.
+  // 실제 secret 값은 아래 오류 메시지에 노출하지 않는다.
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY가 주입된 env에 설정되어 있지 않습니다 — provider-factory.ts는 process.env로 폴백하지 않습니다."
+    );
+  }
 
   const researchModel = env.GEMINI_RESEARCH_MODEL ?? DEFAULT_RESEARCH_MODEL;
   const fastModel = env.GEMINI_FAST_MODEL ?? DEFAULT_FAST_MODEL;

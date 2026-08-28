@@ -272,3 +272,87 @@ exit=0
 **6) Gaps**: 없음 — 지시받은 4개 작업(CHANGELOG 포맷/수치/AC-023 계측/5-게이트) 전부 실행하고 실측 결과로 검증했다.
 
 **7) Residual-risk**: `CHANGELOG.md`의 물결표 이스케이프(`\~`)는 향후 이 줄을 다시 편집할 때(예: REQ/AC 범위가 바뀌는 경우) 이스케이프를 유지해야 prettier가 재차 취소선으로 오인하지 않는다 — 다음 편집자가 이 사실을 모르고 이스케이프를 제거하면 동일한 문제가 재발할 수 있다.
+
+### G.6 PR #4 merge 전 마지막 독립 코드 리뷰 반영 (post-run fix, 새 SPEC/milestone 없음)
+
+PR #4(`feat/SPEC-GEMINI-RUNTIME-001`) merge 전 마지막 독립 코드 리뷰에서 지적된 4개 항목을 이 브랜치의 post-run fix로만 처리했다 — 새 SPEC이나 새 milestone을 만들지 않았다. PR #4는 아직 merge하지 않는다(지시 사항).
+
+**1) provider-factory env isolation 회귀 수정**
+
+`lib/ai/providers/gemini.ts` 생성자가 `options.apiKey ?? process.env.GEMINI_API_KEY`로 폴백하는 구조이기 때문에, `provider-factory.ts`의 `getLLMProviders(env)`가 `env.GEMINI_API_KEY`를 그대로 `GeminiProvider`에 넘길 때 값이 `undefined`이면 `GeminiProvider` 생성자 내부에서 전역 `process.env.GEMINI_API_KEY`로 조용히 폴백할 수 있었다 — `provider-factory.ts` 상단 `@MX:NOTE`가 문서화한 "env 주입과 process.env 격리" 계약과 모순되는 회귀였다.
+
+수정: `getLLMProviders(env)`의 non-deterministic 경로에서 `apiKey`(= `env.GEMINI_API_KEY`)가 falsy면 `GeminiProvider`를 생성하기 전에 명시적으로 `throw`한다(`lib/ai/provider-factory.ts`). 오류 메시지에는 실제 secret 값을 넣지 않는다(애초에 apiKey가 없는 상태이므로 노출할 값 자체가 없다). 아래 두 경로는 이 검사의 영향을 받지 않음을 코드로 확인:
+- deterministic mode는 이 검사보다 앞선 `if (env.LLM_PROVIDER_MODE === "deterministic")` 분기에서 조기 반환 — `GEMINI_API_KEY` 없이도 계속 정상 동작.
+- `getDefaultLLMProviders()`는 `getLLMProviders(process.env)`를 호출하므로, 정상 production 환경(process.env에 `GEMINI_API_KEY`가 설정된 상태)에서는 이 throw 경로에 도달하지 않는다.
+
+회귀 테스트(`lib/ai/provider-factory.test.ts` 신규): `process.env.GEMINI_API_KEY`에 값을 설정한 채로, `GEMINI_API_KEY`를 생략한 custom env로 `getLLMProviders(customEnv)`를 호출하면 (a) throw하고, (b) throw된 Error의 `.message`에 전역 process.env의 secret 값이 포함되지 않으며, (c) `GeminiProvider`(mock)가 한 번도 생성되지 않았음을 확인한다.
+
+```
+$ npx vitest run lib/ai/provider-factory.test.ts
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+```
+(exit=0, 신규 회귀 테스트 1건 포함 총 8건 — 기존 7건 전부 그대로 통과, `GEMINI_API_KEY: "test-key"`를 이미 env에 포함하고 있던 기존 테스트들은 이번 변경으로 깨지지 않음)
+
+**2) PR #4 설명 정정 (commit `93fa63b`)**
+
+기존 PR 본문은 커밋 `93fa63b`을 "두 경로 모두 폴백 문자열 처리 추가"로 서술했으나, 실제 구현(`lib/pipeline/researcher.ts` L127-133, `lib/pipeline/skeptic.ts` 동일 패턴)은 폴백 문자열을 채워 넣지 않고 `if (item.summary.length < 1) { continue; }`로 해당 항목만 개별 폐기(discard)한다 — 같은 배치의 다른 정상 항목은 보존된다. 실제 코드를 `Read`로 직접 확인한 뒤, PR 본문을 "Researcher/Skeptic 각각 빈 summary/counterArgument 항목을 개별 폐기(discard)하는 필터 추가(폴백 문자열 방식이 아님)" 취지로 정정했다(`gh pr edit 4`, 아래 5) 참고).
+
+**3) `gemini-smoke-20260827.md` 인과관계 표현 정정**
+
+수정 전 문장("그 반론을 뒷받침할 반박 근거를 현재 seed corpus(10건)에서 하나도 찾지 못했다는 뜻이다")은 `counterEvidenceIds`가 빈 배열이라는 실측 사실을, "corpus에 반박 근거가 존재하지 않는다"는 미확정 인과관계로 단정하는 것처럼 읽혔다 — 바로 다음 문장에서 corpus 부족을 "확정된 원인이 아닌 가설 중 하나"로 이미 hedge하고 있었음에도, 앞 문장이 그 hedge와 모순되는 단정적 어조였다.
+
+정정: "counterEvidenceIds가 모두 빈 배열이었다는 것은 '실제 출력에서 반박 evidence ID가 선택되지 않았다'는 실측 사실이며, 그 이상의 인과관계(예: corpus에 반박 근거가 아예 존재하지 않는다는 단정)를 함의하지 않는다"로 재작성하고, 원인 후보 목록(corpus 부족 / Retriever 후보 부족 / Skeptic prompt semantics / model behavior — 전부 미확정)은 기존 결론을 그대로 유지했다. 요약 라인(L50)과 결론 섹션(L76)의 동일 계열 표현도 같은 원칙으로 정정.
+
+**4) 5-게이트 재실행 verbatim (로컬 실측 — GitHub Actions CI는 별도로 트리거하지 않음)**
+
+아래는 이번 post-run fix 커밋 이전, 이 워킹 트리에서 로컬로 직접 실행한 결과다. GitHub Actions CI는 이번 작업 중 별도로 트리거하지 않았다 — CI가 실행됐다고 서술하지 않는다(지시 사항).
+
+```
+$ pnpm test
+ Test Files  37 passed (37)
+      Tests  251 passed (251)
+   Duration  12.72s
+exit=0
+```
+
+```
+$ pnpm lint
+$ eslint .
+exit=0
+```
+
+```
+$ pnpm format:check
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+exit=0
+```
+
+```
+$ pnpm build
+$ next build
+✓ Compiled successfully
+✓ Generating static pages using 10 workers (6/6)
+exit=0
+```
+(Turbopack `instrumentation.ts:33:7` process.exit Edge Runtime 경고 1건 — 이번 변경 이전부터 존재하던 사전 경고, 새로 발생한 경고 아님)
+
+```
+$ pnpm test:e2e
+  ✓  1 [chromium] tenant-isolation.spec.ts:24:7 › Tenant Isolation — AC-RUNTIME-014
+  ✓  2 [chromium] case-flow.spec.ts:21:7 › 사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013
+  ✓  3 [chromium] auth.spec.ts:10:7 › 인증 — AC-RUNTIME-011
+  ✓  4 [chromium] auth.spec.ts:17:7 › 인증 — AC-RUNTIME-011
+  4 passed (51.8s)
+exit=0
+```
+
+**5) PR #4 본문 갱신**: `gh pr edit 4`로 (a) 위 2)의 커밋 `93fa63b` 설명 정정, (b) 이번 post-run fix 커밋을 "Post-run 리뷰 반영" 표에 새 행으로 추가(테스트 수 250/250 → **251/251**), (c) Test plan 체크리스트의 테스트 수를 251/251로 갱신했다. PR은 merge하지 않았다 — 실 Gemini smoke를 수행하기 전 상태로 유지.
+
+**Baseline-attribution**: 이 run, 이 tree(브랜치 `feat/SPEC-GEMINI-RUNTIME-001`, 이번 post-run fix 커밋 직전 HEAD `e907afb`) 기준.
+
+**Gaps**: 없음 — 지시받은 4개 항목(env isolation 회귀 수정 + 회귀 테스트, PR 본문 정정, smoke 리포트 인과관계 정정, 5-게이트 재실행) 전부 실행하고 실측 결과로 검증했다. 실 Gemini API를 호출하는 수동 스모크는 지시 사항대로 수행하지 않았다.
+
+**Residual-risk**: 이 fix는 non-deterministic 경로에서 `GEMINI_API_KEY`가 없는 환경(예: CI에 시크릿 미설정)이 있다면 그 환경에서 `getLLMProviders(process.env)` 호출 시 새로 throw가 발생한다 — 기존에는 (원치 않게) 폴백되어 넘어갔을 수 있는 케이스가 이제는 명시적으로 실패한다. 이는 의도된 동작 변경(원치 않는 암묵적 폴백을 막는 것이 이번 fix의 목적)이지만, `GEMINI_API_KEY`를 아직 설정하지 않은 배포 환경이 있다면 그 환경은 이 fix 이후 명시적 오류를 보게 된다는 점을 배포 전 인지해야 한다.
