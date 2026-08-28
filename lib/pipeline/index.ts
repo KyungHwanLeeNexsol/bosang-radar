@@ -37,6 +37,26 @@ export interface RunPipelineOptions {
   providers?: RoleProviders;
 }
 
+// @MX:NOTE: [AUTO] 동시 사건 제한(design.md §4, REQ-GEMINI-RUNTIME-013/014) —
+// 순수 인메모리 Promise 체인 뮤텍스다(신규 의존성 없음, Redis 없음, 큐
+// 프레임워크 없음). 프로세스 로컬 보호일 뿐이며 분산 락이 아니다 — Node.js
+// 모듈 스코프 변수이므로 Vercel의 서로 다른 serverless 인스턴스(별도
+// 프로세스) 사이에서는 전혀 공유되지 않는다. 대기 시간에 참된 상한은
+// 없다(design.md §4 D4) — 락 보유자의 Gemini 네트워크 지연, RateScheduler
+// 페이싱 대기, GeminiProvider.withRetry() 재시도 대기가 모두 이 대기
+// 시간에 합산되며, 이 중 어느 것도 maxTotalWaitMs(재시도 sleep 구간에만
+// 적용되는 상한)로 유계화되지 않는다.
+let pipelineChain: Promise<unknown> = Promise.resolve();
+
+function withPipelineLock<T>(task: () => Promise<T>): Promise<T> {
+  const settled = pipelineChain.then(task, task); // 앞선 작업의 성공/실패와 무관하게 항상 실행
+  pipelineChain = settled.then(
+    () => undefined,
+    () => undefined // 체인이 한번 끊기면 이후 모든 호출이 즉시 실행돼버리므로, 실패도 반드시 삼켜 체인을 이어간다
+  );
+  return settled;
+}
+
 export async function runPipeline(
   input: CaseInput,
   options: RunPipelineOptions = {}
@@ -46,9 +66,11 @@ export async function runPipeline(
   const caseSummary = normalizeCase(input);
   const queries = planQueries(caseSummary);
   const evidence = await retrieveEvidence(queries);
-  const findings = await research(queries, evidence, researchProvider);
-  const challenges = await challenge(findings, evidence, fastProvider);
-  const verification = await verify(queries, findings, challenges, evidence, fastProvider);
+  const verification = await withPipelineLock(async () => {
+    const findings = await research(queries, evidence, researchProvider);
+    const challenges = await challenge(findings, evidence, fastProvider);
+    return verify(queries, findings, challenges, evidence, fastProvider);
+  });
 
   // reviewTargets 도출 — planQueries()가 이미 (domain, issueType) 쌍마다
   // 유일한 ResearchQuery를 생성하므로(design.md §5), 쿼리 하나당 하나의
