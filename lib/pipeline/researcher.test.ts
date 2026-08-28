@@ -194,6 +194,28 @@ describe("lib/pipeline/researcher research — batch schema (REQ-GEMINI-RUNTIME-
     expect(findings[0].summary).toBe("normal");
   });
 
+  it("post-run fix: 빈 summary('')를 가진 항목은 그 항목만 개별 폐기시키고 같은 배치의 다른 정상 항목은 보존한다", async () => {
+    const q1 = makeQuery("q1");
+    const q2 = makeQuery("q2");
+    const evidence = new Map<string, EvidenceCandidate[]>([
+      [q1.id, [makeEvidence("e1")]],
+      [q2.id, [makeEvidence("e2")]],
+    ]);
+
+    const { provider } = makeBatchProvider(() => ({
+      findings: [
+        { queryId: "q1", summary: "", supportingEvidenceIds: ["e1"] },
+        { queryId: "q2", summary: "normal", supportingEvidenceIds: ["e2"] },
+      ],
+    }));
+
+    const findings = await research([q1, q2], evidence, provider);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].queryId).toBe("q2");
+    expect(findings[0].summary).toBe("normal");
+  });
+
   it("Fix-A: summary가 '보험금 지급 확률은 95%입니다.' 형태의 금지 표현이면 그 항목만 폐기되고 나머지는 보존된다", async () => {
     const q1 = makeQuery("q1");
     const q2 = makeQuery("q2");

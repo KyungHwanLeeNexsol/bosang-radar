@@ -124,6 +124,15 @@ export async function research(
       continue;
     }
 
+    // (4.5) post-run fix: summary가 빈 문자열이면 그 항목만 개별 폐기한다 —
+    // Zod 스키마는 summary: z.string()으로만 검증하고 .min(1)을 두지 않으므로
+    // (배치 부분 실패 설계 유지, 상단 주석 참고), 파싱 성공 이후 항목별
+    // 업무 규칙으로 비어있지 않음을 재확인한다(배치 전환 이전 summary:
+    // z.string().min(1) 계약의 의미적 회귀를 원복).
+    if (item.summary.length < 1) {
+      continue;
+    }
+
     // (5) safety-validator — 보험금 지급 확정성 금지 표현 방어선(Fix-A).
     if (findSafetyViolations(item.summary).length > 0) {
       continue;

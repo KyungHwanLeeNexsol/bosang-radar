@@ -75,3 +75,105 @@ Mode evaluation:
 Decision: serial
 
 Justification: SPEC-GEMINI-RUNTIME-001 is a single-subsystem TypeScript refactor (rate scheduler + provider factory + pipeline batching + retry) executed as 6 explicitly sequential milestones where each builds on the prior's architectural decision (plan.md §A). Per Anthropic's coding-task parallelism caveat, coding-heavy work has few truly parallelizable tasks; a single `manager-develop` sub-agent per milestone (serial) is the correct mode. Route: B (PR route, Tier L) — user selected feature branch + PR at Implementation Kickoff Approval; branch `feat/SPEC-GEMINI-RUNTIME-001` created from `main`.
+
+## §G Post-run Fix — 독립 코드 리뷰 반영 (M1-M6/sync 완료 이후, PR #4 머지 전)
+
+이 섹션은 M1-M6 §E.2/§E.3/§E.4 위 기록을 재작성하지 않는다 — SPEC 자체는 sync 완료(`sync_status: audit-ready`, `sync_commit_sha: a2d813b`) 상태를 유지하며, 이하는 같은 `feat/SPEC-GEMINI-RUNTIME-001` 브랜치(PR #4)에 머지 전 추가로 반영된 post-run fix 기록이다. cycle_type=tdd(RED-GREEN-REFACTOR).
+
+### G.1 배경
+
+팀 리드가 독립 코드 리뷰로 실 코드를 직접 확인해 3건의 갭을 발견했다(이미 완료된 M1-M6 §E.2와는 별개 — 새 마일스톤 번호를 부여하지 않는다):
+
+1. **Researcher 빈 summary 회귀**: `findingItemSchema.summary: z.string()`(min(1) 없음, 배치 부분 실패 설계상 의도적)이지만, 파싱 후 항목별 업무 규칙 필터(researcher.ts (1)~(5))에 `summary.length>=1` 검사가 누락되어 있었다 — 배치 전환 이전 `summary: z.string().min(1)`이 보증하던 것이 사라진 것.
+2. **Skeptic 빈 counterArgument 회귀**: 동일 패턴(`counterArgument: z.string()`, min(1) 없음)이지만 파싱 후 필터에 `counterArgument.length>=1` 검사가 누락 — Skeptic의 빈 evidence 배열 허용 계약(의도적)과는 별개의 결함.
+3. **AC-GEMINI-RUNTIME-023 계측 공백**: `generateStructured()` 논리적 호출 횟수(Researcher 1 + Skeptic 1 + Verifier 1 = 3회, 쿼리/evidence 개수와 무관)를 실제 6단계 파이프라인(`runPipeline()`)을 통해 end-to-end로 계측하는 테스트가 없었다.
+
+### G.2 수정 내역
+
+- `lib/pipeline/researcher.ts`: evidence 부분집합 검사(기존 (4))와 safety-validator(기존 (5)) 사이에 `(4.5)` 신설 — `item.summary.length < 1`이면 그 항목만 개별 폐기(배치 부분 실패 설계 보존, 다른 정상 항목에 영향 없음).
+- `lib/pipeline/skeptic.ts`: evidence 부분집합 검사(기존 (3))와 safety-validator(기존 (4)) 사이에 `(3.5)` 신설 — `item.counterArgument.length < 1`이면 그 항목만 개별 폐기. 빈 evidence 배열(`[]`/`[]`) 허용 계약은 그대로 유지(별개 검사).
+- `lib/pipeline/index.test.ts`: `evidenceOverride`(재할당 가능한 evidence 행 홀더, `vi.hoisted`) 신설 + AC-GEMINI-RUNTIME-023 통합 테스트 추가 — Researcher/Skeptic/Verifier 세 단계를 하나의 계측 provider(`makeInstrumentedBatchProvider`)로 감싸 실제 `runPipeline()` 경로에서 논리적 호출 총합을 직접 카운트한다. 3개 시나리오: (1) evidence 있는 8개 쿼리 → 3회, (2) evidence-bearing candidate를 3개로 낮춰도 → 3회(QueryPlanner의 최소 6쿼리 구조상 "쿼리 개수" 자체를 3으로 낮출 수는 없어 evidence-bearing candidate 개수로 통제 — 코드 주석에 근거 명시), (3) 8개 쿼리 중 5개만 evidence(4 injury + 1 disease DISABILITY_GRADE_CRITERIA) → 3회.
+
+### G.3 §E 자기검증 (verification-claim-integrity §3 5-section 형식)
+
+**E1 — RED/GREEN 테스트 결과**
+
+| 테스트 | RED(수정 전) | GREEN(수정 후) |
+|---|---|---|
+| researcher.test.ts "post-run fix: 빈 summary" | FAIL — `expected length 1, got 2` | PASS |
+| skeptic.test.ts "post-run fix: 빈 counterArgument" | FAIL — `expected length 1, got 2` | PASS |
+| index.test.ts AC-GEMINI-RUNTIME-023 (8-query/evidence-3/mixed-5+3, 3개 assertion) | 신규 테스트 — 최초 실행부터 PASS(호출 수 불변량은 M2 배치 재설계에서 이미 정확히 구현되어 있었고, 이번 발견은 소스 결함이 아니라 **테스트 커버리지 공백**이었음. Researcher/Skeptic 텍스트 필드가 항상 non-empty였으므로 이 테스트는 (4.5)/(3.5) 신설 여부와 무관하게 동일하게 통과함 — 재확인: 두 신설 필터를 되돌려도 이 테스트의 결과는 변하지 않는다) | PASS |
+
+**E2 — Evidence(증거) — verbatim**
+
+```
+$ pnpm test
+ Test Files  37 passed (37)
+      Tests  250 passed (250)
+exit=0
+
+$ pnpm lint
+$ eslint .
+exit=0
+
+$ pnpm format:check
+(수정 대상 5개 파일 — lib/pipeline/{index.test,researcher,researcher.test,skeptic,skeptic.test}.ts — 전부 prettier 통과: `npx prettier --check <5 files>` → "All matched files use Prettier code style!" exit=0.
+전체 `pnpm format:check`는 exit=1이지만 유일한 위반은 CHANGELOG.md 1개 파일이며, 이는 이번 fix가 손대지 않은 파일이다 — G.4 참고.)
+
+$ pnpm build
+✓ Compiled successfully in 6.7s
+✓ Generating static pages using 10 workers (6/6)
+exit=0 (경고 1건 — instrumentation.ts:33 Edge Runtime process.exit 경고, 이번 변경과 무관한 기존 경고)
+
+$ pnpm test:e2e
+4 passed (29.3s)
+exit=0
+$ grep -i "generativelanguage.googleapis.com" <e2e 로그>  → 매치 없음(exit=1, grep no-match) — 실 Gemini 엔드포인트 호출 흔적 없음 확인
+```
+
+**E3 — Baseline-attribution(baseline 귀속)**
+
+이 run, 이 tree(브랜치 `feat/SPEC-GEMINI-RUNTIME-001`, sync 커밋 `a2d813b` 이후 워킹 트리) 기준. `pnpm format:check`의 CHANGELOG.md 실패가 이번 fix 이전부터 존재했음을 `git stash` 후 동일 명령 재실행으로 직접 확인(EXIT=1, 동일한 CHANGELOG.md 경고) — baseline 회귀 여부 판정을 위한 명시적 대조.
+
+**E4 — Gaps(미검증)**
+
+- acceptance.md §C 수동 실 Gemini 스모크 테스트는 팀 리드 지시에 따라 명시적으로 범위 밖(시도하지 않음).
+- AC-GEMINI-RUNTIME-023 "3개 쿼리로 줄여도" 시나리오는 QueryPlanner가 사건당 항상 최소 6개 쿼리를 생성하는 구조(query-planner.ts, 도메인 2개 × 기본 3개)이므로, 문자 그대로 "쿼리 개수 3"이 아니라 "evidence-bearing candidate 개수 3"으로 재해석해 검증했다 — index.test.ts 코드 주석에 이 재해석의 근거를 명시. AC-023 원문의 "쿼리 개수를 8개에서 3개로 줄여"라는 표현과 완전히 문자 그대로 일치하지는 않으나, AC가 실제로 검증하려는 핵심 불변량(호출 수가 evidence-bearing 쿼리 개수에 비례하지 않는다)은 그대로 충족한다.
+- Researcher/Skeptic 신설 필터가 실제 프로덕션 Gemini 응답에서 얼마나 자주 발동할지는 관측되지 않았다(결정론적/계측 provider로만 검증).
+
+**E5 — Residual-risk(잔여 위험)**
+
+- 신설된 (4.5)/(3.5) 필터는 순수 텍스트 길이 검사로 로직이 단순하나, 향후 Zod 스키마가 다시 변경될 경우(예: 배치 스키마 재설계) 동일한 종류의 회귀가 재발할 수 있다 — 배치 스키마를 수정할 때는 이 두 필터가 여전히 필요한지 재검토가 필요하다.
+- AC-GEMINI-RUNTIME-023 계측 테스트의 verifier 프롬프트 파서(`extractVerifierClaimIds`/`extractVerifierCounterArgumentBlocks`)는 verifier.ts의 프롬프트 마커 문자열("쿼리 ID: "/"반론 쿼리 ID: ")에 정규식으로 결합돼 있다 — verifier.ts의 마커 규약이 바뀌면 이 테스트도 함께 갱신해야 한다(researcher.test.ts/skeptic.test.ts의 기존 `extractQueryBlocks` 패턴과 동일한 결합 성격).
+
+**E6 — 커밋 SHA + push**
+
+아래 실제 커밋 이후 기록 예정(이 progress.md 업데이트는 커밋 전 작성 — 커밋 SHA는 커밋 직후 별도 라인으로 backfill).
+
+**E7 — Blocker report**: 없음.
+
+**E8 — RED 실패 verbatim(수정 전 GREEN 실패)**
+
+```
+FAIL  lib/pipeline/researcher.test.ts > ... > post-run fix: 빈 summary('')를 가진 항목은 그 항목만 개별 폐기시키고 같은 배치의 다른 정상 항목은 보존한다
+AssertionError: expected [ { queryId: 'q1', …(2) }, …(1) ] to have a length of 1 but got 2
+ ❯ lib/pipeline/researcher.test.ts:214:22
+    212|     const findings = await research([q1, q2], evidence, provider);
+    213|
+    214|     expect(findings).toHaveLength(1);
+
+FAIL  lib/pipeline/skeptic.test.ts > ... > post-run fix: 빈 counterArgument('')를 가진 항목은 그 항목만 개별 폐기시키고 같은 배치의 다른 정상 항목은 보존한다(빈 evidence 배열 허용 계약과는 별개)
+AssertionError: expected [ { findingId: 'q1', …(3) }, …(1) ] to have a length of 1 but got 2
+ ❯ lib/pipeline/skeptic.test.ts:323:24
+    321|     const challenges = await challenge(findings, evidenceMap, provider…
+    322|
+    323|     expect(challenges).toHaveLength(1);
+```
+
+### G.4 CHANGELOG.md 대조 (팀 리드 지시 사항)
+
+CHANGELOG.md의 기존 SPEC-GEMINI-RUNTIME-001 항목(`### Added — SPEC-GEMINI-RUNTIME-001 ...`)의 핵심 주장 — "25개 요구사항 전부 구현", "35개 인수 기준 전부 만족"(AC-GEMINI-RUNTIME-009a 포함), "`pnpm test`(247/247 tests) 등 전체 exit 0" — 은 이번 fix와 모순되지 않는다: **CHANGELOG를 수정하지 않는 케이스**가 적용된다.
+
+- 테스트 수(`247/247`)는 이번 fix로 `250/250`(신규 3개 테스트 추가)이 되었으나, 이는 커버리지 확장에 따른 자연스러운 숫자 증가이지 기존 주장이 틀렸다는 뜻이 아니다 — CHANGELOG는 특정 시점의 스냅샷이며, 새 테스트 추가마다 매번 갱신하는 관례가 이 프로젝트에 없다.
+- CHANGELOG 어디에도 "Researcher/Skeptic 빈 텍스트 필드가 개별 폐기된다"는 취지의 구체적 주장은 없다 — 배치 재설계를 상위 수준으로 서술했을 뿐, 필드별 세부 검증 로직을 열거하지 않았으므로 이번 fix가 반박하는 기존 CHANGELOG 문장이 존재하지 않는다.
+- 따라서 CHANGELOG.md는 수정하지 않는다(팀 리드 지시 범위 밖이기도 함 — touch 목록에 없음).

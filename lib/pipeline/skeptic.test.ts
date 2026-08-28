@@ -294,6 +294,37 @@ describe("lib/pipeline/skeptic challenge — batch schema (REQ-GEMINI-RUNTIME-00
     expect(challenges[0].counterEvidenceIds).toEqual([]);
   });
 
+  it("post-run fix: 빈 counterArgument('')를 가진 항목은 그 항목만 개별 폐기시키고 같은 배치의 다른 정상 항목은 보존한다(빈 evidence 배열 허용 계약과는 별개)", async () => {
+    const findings = [makeFinding("q1"), makeFinding("q2")];
+    const evidenceMap = new Map<string, EvidenceCandidate[]>([
+      ["q1", [makeEvidence("e1")]],
+      ["q2", [makeEvidence("e2")]],
+    ]);
+
+    const { provider } = makeBatchProvider(() => ({
+      challenges: [
+        {
+          queryId: "q1",
+          counterArgument: "",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        },
+        {
+          queryId: "q2",
+          counterArgument: "정상 반론입니다.",
+          supportingEvidenceIds: [],
+          counterEvidenceIds: [],
+        },
+      ],
+    }));
+
+    const challenges = await challenge(findings, evidenceMap, provider);
+
+    expect(challenges).toHaveLength(1);
+    expect(challenges[0].findingId).toBe("q2");
+    expect(challenges[0].counterArgument).toBe("정상 반론입니다.");
+  });
+
   // --- item 2: Skeptic 생성 결과에도 safety-validator를 적용한다 ------------
 
   it("counterArgument에 금지된 확정성 표현이 있으면 그 항목만 폐기되고 같은 배치의 다른 정상 항목은 보존된다", async () => {

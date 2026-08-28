@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { LLMProvider } from "../ai/provider";
+import type {
+  GenerateResponse,
+  GenerateStructuredRequest,
+  LLMProvider,
+  StructuredResult,
+} from "../ai/provider";
 import { createDeterministicLLMProvider } from "../ai/providers/deterministic";
 import { RateScheduler } from "../ai/rate-scheduler";
 
@@ -11,7 +16,10 @@ import { RateScheduler } from "../ai/rate-scheduler";
 // evidence-retriever.test.ts가 db를 직접 주입받는 것과 동일한 효과를 이
 // 통합 테스트에서는 "../db/client" 모듈 목업으로 재현한다(get-case-for-owner.test.ts와
 // 동일한 vi.mock 패턴).
-const { fakeEvidenceRows } = vi.hoisted(() => ({
+// evidenceOverride: AC-GEMINI-RUNTIME-023 계측 테스트가 시나리오별로 evidence
+// 행 구성을 직접 통제하기 위한 재할당 가능한 홀더다 — null이면 기존
+// fakeEvidenceRows로 폴백해 다른 테스트의 동작을 바꾸지 않는다.
+const { fakeEvidenceRows, evidenceOverride } = vi.hoisted(() => ({
   fakeEvidenceRows: [
     {
       id: "vitest-index-evidence-1",
@@ -23,12 +31,13 @@ const { fakeEvidenceRows } = vi.hoisted(() => ({
       sourceUrl: null,
     },
   ],
+  evidenceOverride: { rows: null as unknown[] | null },
 }));
 
 vi.mock("../db/client", () => ({
   getDb: vi.fn(() => ({
     select: () => ({
-      from: async () => fakeEvidenceRows,
+      from: async () => evidenceOverride.rows ?? fakeEvidenceRows,
     }),
   })),
 }));
@@ -377,5 +386,206 @@ describe("D-NEW1 — 테스트 주입 경로(options.providers) 격리: 프로�
     // (1) 명시 주입 경로는 getDefaultLLMProviders() 프로세스 싱글턴을 단 한 번도
     // 거치지 않는다.
     expect(getDefaultLLMProvidersSpy).not.toHaveBeenCalled();
+  });
+});
+
+// post-run fix: AC-GEMINI-RUNTIME-023 (REQ-GEMINI-RUNTIME-019) — generateStructured()
+// 논리적 호출 횟수(Researcher/Skeptic/Verifier가 provider에 요청한 횟수, 재시도로
+// 인한 실제 HTTP 시도 횟수와는 별개)가 쿼리/evidence 개수와 무관하게 정확히 3회로
+// 고정됨을 실제 6단계 파이프라인을 통해 계측한다(researcher.ts/skeptic.ts 단위
+// 목업이 아니라 runPipeline() end-to-end 경로).
+describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수는 쿼리/evidence 구성과 무관하게 정확히 3회(Researcher 1 + Skeptic 1 + Verifier 1)로 고정된다", () => {
+  afterEach(() => {
+    evidenceOverride.rows = null;
+  });
+
+  interface MarkedBlock {
+    queryId: string;
+    evidenceIds: string[];
+  }
+
+  // researcher.ts/skeptic.ts가 방출하는 "[RESEARCH]"/"[SKEPTIC] 쿼리 ID: <id>"
+  // 마커로 구분된 각 블록을 파싱한다(researcher.test.ts/skeptic.test.ts와 동일한
+  // extractQueryBlocks 패턴 재사용, plan.md §D 제약 1 — 이번 milestone에서 세
+  // 단계 모듈의 마커 규약 자체는 변경하지 않는다).
+  function extractMarkedBlocks(prompt: string, marker: string): MarkedBlock[] {
+    const sections = prompt.split(`${marker} 쿼리 ID: `).slice(1);
+    return sections.map((section) => {
+      const [idLine, ...rest] = section.split("\n");
+      const body = rest.join("\n");
+      const evidenceIds = [...body.matchAll(/^- \[([^\]]+)\]/gm)].map((match) => match[1]);
+      return { queryId: idLine.trim(), evidenceIds };
+    });
+  }
+
+  // verifier.ts의 claim 블록 헤더는 "쿼리 ID: <id>"로 시작한다 — "반론 쿼리 ID: "로
+  // 시작하는 counterArgument 블록과는 줄 시작 앵커(^)로 구분된다(반론 블록은
+  // "반론"으로 시작하므로 이 정규식과 매칭되지 않는다).
+  function extractVerifierClaimIds(prompt: string): string[] {
+    return [...prompt.matchAll(/^쿼리 ID: (\S+)$/gm)].map((match) => match[1]);
+  }
+
+  function extractVerifierCounterArgumentBlocks(
+    prompt: string
+  ): { queryId: string; index: number }[] {
+    const blocks = prompt.split("반론 쿼리 ID: ").slice(1);
+    return blocks.map((block) => {
+      const lines = block.split("\n");
+      const queryId = lines[0].trim();
+      const indexLine = lines.find((line) => line.startsWith("반론 번호: "));
+      const index = indexLine ? Number(indexLine.replace("반론 번호: ", "").trim()) : 0;
+      return { queryId, index };
+    });
+  }
+
+  // Researcher/Skeptic/Verifier 세 단계 모두를 하나의 provider 인스턴스로
+  // 계측한다 — 사건 전체의 논리적 배치 호출 총 횟수를 하나의 카운터로 직접
+  // 센다. 프롬프트를 "[RESEARCH]"/"[SKEPTIC]" 마커로 식별하고, 둘 다 아니면
+  // Verifier의 의미 검증 요청으로 간주해 실제로 전달된 candidate 집합과 정확히
+  // 1:1 대응하는 응답을 구성한다(verifier.ts의 .refine() 1:1 대응 제약 충족).
+  function makeInstrumentedBatchProvider(): { provider: LLMProvider; callCount: () => number } {
+    let calls = 0;
+    const provider: LLMProvider = {
+      async generate(): Promise<GenerateResponse> {
+        return { text: "stub" };
+      },
+      async generateStructured<T>(
+        request: GenerateStructuredRequest<T>
+      ): Promise<StructuredResult<T>> {
+        calls += 1;
+        let candidate: unknown;
+        if (request.prompt.includes("[RESEARCH] 쿼리 ID: ")) {
+          const blocks = extractMarkedBlocks(request.prompt, "[RESEARCH]");
+          candidate = {
+            findings: blocks.map((block) => ({
+              queryId: block.queryId,
+              summary: "정상 소견입니다.",
+              supportingEvidenceIds: block.evidenceIds.slice(0, 1),
+            })),
+          };
+        } else if (request.prompt.includes("[SKEPTIC] 쿼리 ID: ")) {
+          const blocks = extractMarkedBlocks(request.prompt, "[SKEPTIC]");
+          candidate = {
+            challenges: blocks.map((block) => ({
+              queryId: block.queryId,
+              counterArgument: "기왕증 가능성이 있어 추가 확인이 필요합니다.",
+              supportingEvidenceIds: [],
+              counterEvidenceIds: [],
+            })),
+          };
+        } else {
+          const claimIds = extractVerifierClaimIds(request.prompt);
+          const caBlocks = extractVerifierCounterArgumentBlocks(request.prompt);
+          candidate = {
+            claims: claimIds.map((queryId) => ({
+              queryId,
+              supportedEvidenceIds: [],
+              reason: "의미 검증 결과(테스트 스텁)",
+            })),
+            counterArguments: caBlocks.map(({ queryId, index }) => ({
+              queryId,
+              counterArgumentIndex: index,
+              supportedEvidenceIds: [],
+              counterEvidenceIds: [],
+              reason: "의미 검증 결과(테스트 스텁)",
+            })),
+          };
+        }
+        const result = request.schema.safeParse(candidate);
+        return result.success
+          ? { ok: true, data: result.data }
+          : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
+      },
+    };
+    return { provider, callCount: () => calls };
+  }
+
+  function makeEvidenceRow(id: string, category: string, content: string) {
+    return {
+      id,
+      category,
+      evidenceType: "PRECEDENT",
+      scope: "DOMAIN_SPECIFIC",
+      title: `제목-${id}`,
+      content,
+      sourceUrl: null,
+    };
+  }
+
+  // incidentDescription 길이 >= 30이면 두 도메인 모두에 INCIDENT_CIRCUMSTANCE가
+  // 추가되어(query-planner.ts) 기본 6개(도메인당 3개) + 2개 = 8개 쿼리가 된다.
+  // 다른 조건부 트리거 키워드("이전"/"질병"/"불명확" 등)는 포함하지 않는다.
+  const eightQueryInput = {
+    incidentDescription:
+      "2024년 5월 10일 사무실 계단에서 발을 헛디뎌 넘어지면서 우측 무릎을 심하게 부딪혔습니다.",
+    diagnosisName: "우측 무릎 전방십자인대 파열",
+    disabilityBodyPart: "우측 무릎",
+    incidentDate: "2024-05-10",
+  };
+
+  // incidentDescription 길이가 짧아(< 30) INCIDENT_CIRCUMSTANCE가 트리거되지
+  // 않으므로 기본 6개 쿼리(도메인당 3개)만 생성된다.
+  const sixQueryInput = {
+    incidentDescription: "계단에서 넘어져 다쳤습니다.",
+    diagnosisName: "우측 무릎 인대파열",
+    disabilityBodyPart: "우측 무릎",
+    incidentDate: "2024-05-10",
+  };
+
+  it("evidence가 있는 8개 쿼리 → 3회, evidence-bearing 후보를 3개로 줄여도 3회, 5+3 혼합 구성에서도 3회로 논리적 호출 횟수가 고정된다", async () => {
+    const { runPipeline } = await import("./index");
+
+    // (1) evidence가 있는 8개 쿼리 — 두 도메인 각 4개 쿼리 전체에 evidence를
+    // 부여한다(REQ-GEMINI-RUNTIME-019 Given). "우측 무릎"(disabilityBodyPart)이
+    // 상해후유장해 도메인 4개 쿼리 전부의 keywords에 공통 포함되고, 진단명
+    // 전체 문자열이 질병후유장해 도메인 4개 쿼리 전부의 keywords에 공통
+    // 포함되므로, evidence 행 2개만으로 8개 쿼리 전체를 커버한다.
+    evidenceOverride.rows = [
+      makeEvidenceRow("ev-injury-1", "상해후유장해", "우측 무릎 상해 관련 근거자료입니다."),
+      makeEvidenceRow(
+        "ev-disease-1",
+        "질병후유장해",
+        "우측 무릎 전방십자인대 파열 관련 근거자료입니다."
+      ),
+    ];
+    const eightQuery = makeInstrumentedBatchProvider();
+    await runPipeline(eightQueryInput, {
+      providers: { research: eightQuery.provider, fast: eightQuery.provider },
+    });
+    expect(eightQuery.callCount()).toBe(3);
+
+    // (2) 쿼리 개수를 8개에서 3개로 줄여 재실행해도 여전히 3회 — QueryPlanner는
+    // 사건당 최소 6개(도메인 2개 × 기본 3개, query-planner.ts)를 항상 생성하므로
+    // "쿼리 개수" 자체를 3까지 낮출 수는 없다. Researcher 배치 candidate 개수를
+    // 실제로 결정하는 것은 "evidence가 있는 쿼리 개수"이므로(REQ-GEMINI-RUNTIME-004
+    // evidence-필터 candidate 집합), INCIDENT_CIRCUMSTANCE 트리거를 끄고(기본 6개)
+    // 상해후유장해 도메인(3개)에만 evidence를 부여해 evidence-bearing candidate를
+    // 정확히 3개로 통제한다 — AC가 검증하는 핵심 불변량(호출 수가 evidence-bearing
+    // 쿼리 개수에 비례하지 않는다)은 그대로 유지된다.
+    evidenceOverride.rows = [
+      makeEvidenceRow("ev-injury-2", "상해후유장해", "우측 무릎 상해 관련 근거자료입니다."),
+    ];
+    const threeQuery = makeInstrumentedBatchProvider();
+    await runPipeline(sixQueryInput, {
+      providers: { research: threeQuery.provider, fast: threeQuery.provider },
+    });
+    expect(threeQuery.callCount()).toBe(3);
+
+    // (3) 8개 쿼리 중 5개만 evidence가 있고 3개는 evidence가 0건인 혼합 구성 —
+    // evidence 0건인 3개 쿼리가 Researcher 배치 candidate에서 제외됨
+    // (AC-GEMINI-RUNTIME-006)에도 불구하고 논리적 호출 횟수는 여전히 정확히
+    // 3회다. 상해후유장해 도메인 4개 전부 + 질병후유장해 도메인의
+    // DISABILITY_GRADE_CRITERIA 1개(오직 "장해 평가 기준" 키워드로만 매칭,
+    // 진단명 문자열은 포함하지 않아 나머지 3개 질병후유장해 쿼리는 매칭되지
+    // 않는다)만 evidence를 갖도록 구성한다.
+    evidenceOverride.rows = [
+      makeEvidenceRow("ev-injury-3", "상해후유장해", "우측 무릎 상해 관련 근거자료입니다."),
+      makeEvidenceRow("ev-disease-grade", "질병후유장해", "장해 평가 기준 관련 근거자료입니다."),
+    ];
+    const mixedQuery = makeInstrumentedBatchProvider();
+    await runPipeline(eightQueryInput, {
+      providers: { research: mixedQuery.provider, fast: mixedQuery.provider },
+    });
+    expect(mixedQuery.callCount()).toBe(3);
   });
 });
