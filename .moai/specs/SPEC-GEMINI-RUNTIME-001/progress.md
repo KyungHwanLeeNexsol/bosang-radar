@@ -148,7 +148,7 @@ $ grep -i "generativelanguage.googleapis.com" <e2e 로그>  → 매치 없음(ex
 
 **E6 — 커밋 SHA + push**
 
-아래 실제 커밋 이후 기록 예정(이 progress.md 업데이트는 커밋 전 작성 — 커밋 SHA는 커밋 직후 별도 라인으로 backfill).
+commit `93fa63b` — `feat/SPEC-GEMINI-RUNTIME-001` 브랜치에 직접 커밋(같은 브랜치, 새 브랜치 생성 없음). `git push origin feat/SPEC-GEMINI-RUNTIME-001` 결과는 이 backfill 라인 자체가 포함된 후속 커밋으로 함께 push된다.
 
 **E7 — Blocker report**: 없음.
 
