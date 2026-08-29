@@ -120,6 +120,106 @@ frozen 최종 비교(다른 corpus, 다른 절)와 이 수치를 혼동하지 �
 
 M2 스코프 밖(M3~M6)의 AC는 이 milestone에서 다루지 않는다.
 
+### M3 — counterEvidenceIds=[] 진단 fixture (harness self-test — 실제 smoke 원인 판정 아님)
+
+manager-develop(cycle_type=tdd)이 M3를 완료했다. 산출물: `lib/pipeline/evidence-diagnostic.test.ts`
+(신규, design.md §4.2 구조 그대로 3개 테스트: A/B/C-전제조건).
+
+**RED 확인**: `fixtureEvidence`를 의도적으로 빈 배열(`[]`)로 두고 먼저 실행 — 3개 테스트 전부
+실패함을 확인(아래 §E.3(M3) verbatim 참고). 이후 `known-counter-relevant-id` evidence 1건을
+fixture에 추가해 GREEN 전환(추가 프로덕션 코드 변경 없음 — `retrieveEvidence()`/`challenge()`는
+M1/M2에서 이미 완성된 기존 구현이며, 이 milestone은 그 기존 구현을 검증하는 진단 harness를
+신설하는 것이 REQ-EVIDENCE-019의 scope다. "test-after"가 아니다: harness 자체(3개 assertion)를
+먼저 작성해 실패를 관측한 뒤 fixture 데이터를 채워 통과시켰다 — 대상 프로덕션 코드는 이번
+milestone에서 신규 작성/수정되지 않았다).
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|-----------------------|----------------|
+| AC-EVIDENCE-016a | PASS | `pnpm test lib/pipeline/evidence-diagnostic.test.ts -t "A:"` | fixture corpus(1건, `known-counter-relevant-id`, issueTypes=["PRE_EXISTING_CONDITION"])에 그 id가 실제로 존재함을 확인 |
+| AC-EVIDENCE-016b | PASS | `pnpm test lib/pipeline/evidence-diagnostic.test.ts -t "B:"` | fixture 사건("이전에 진단받은 기존 퇴행성 변화가 있는 상태에서... 발목을... 다쳤다")에 `planQueries()`를 실행해 `q-injury_disability-pre_existing_condition` 쿼리를 확보, `retrieveEvidence()`(기본 전략 B)가 그 evidence를 candidate 목록에 반환함을 확인 — evidence의 title/content는 query keyword("좌측 발목"/"기왕증"/"퇴행성")를 전혀 포함하지 않도록 설계해, 순수 issueType exact match 경로(전략 B)만으로 candidate에 진입함을 검증 |
+| AC-EVIDENCE-016c | PASS | `pnpm test lib/pipeline/evidence-diagnostic.test.ts -t "C-전제조건:"` | 위 candidate 목록을 `DraftFinding`으로 감싸 `challenge()`(결정론적 캡처 fake provider)에 전달, 캡처된 프롬프트 텍스트에 `known-counter-relevant-id` 리터럴이 포함됨을 확인 — 이 지점 이후(모델이 실제로 counterEvidenceIds로 선택했는지)는 이 unit test의 범위 밖으로 명시 |
+
+**design.md §4.3 해석표 실측 결과 (harness self-test 전용 — 아래 문구를 그대로 인용해 REQ-EVIDENCE-019
+프레이밍 제약을 지켰는지 확인 가능하게 함)**:
+
+> 이 fixture 사건에서 harness의 A/B/C-전제 3단계가 정상 동작함을 확인했다 — **fixture 진단
+> harness 자체의 self-test 결과다.** 이 결과는 fixture 자신이 정상 동작하는지 확인하는
+> self-test이지, 2026-08-27/2026-08-28 실제 Gemini smoke의 원인 판정이 아니다. "fixture에서
+> A✅/B✅/C-전제✅가 나왔으므로 실제 smoke의 A/B는 배제되고 C 또는 model behavior만 남는다"는
+> 서술은 이 progress.md를 포함해 어디에도 남기지 않는다(REQ-EVIDENCE-019, design.md §4.3).
+
+**REQ-EVIDENCE-020 production snapshot replay 전제조건 조사 결과 — plan-phase 예상과 달리 조건이
+충족되어 실제 replay를 수행함**:
+
+plan.md M1/M3는 "이 plan-phase 시점에는 그런 snapshot이 별도로 보존되어 있다는 근거가 없다"고
+기록했다(§G.2). 이 run-phase 세션이 `.moai/reports/gemini-smoke-20260827.md`,
+`.moai/reports/gemini-runtime-smoke-20260828.md` 두 파일을 직접 재검토한 결과:
+
+- **2026-08-27 smoke**: 실제 사용한 case 입력 텍스트가 리포트 어디에도 verbatim으로 보존돼 있지
+  않다(결과 통계만 기록) — design.md §4.4 전제조건 (a) 미충족. 이 smoke에 대한 replay는 수행하지
+  않았다.
+- **2026-08-28 smoke**: 두 전제조건 모두 실제로 충족됨을 확인했다.
+  - (a) case/query 보존: 리포트 §"사용한 synthetic 사건 입력"에 `caseInputSchema`가 요구하는
+    4개 필드(`incidentDescription`/`diagnosisName`/`disabilityBodyPart`/`incidentDate`)가
+    실명·주민번호·전화번호 없이 verbatim JSON으로 기록돼 있다.
+  - (b) corpus 재현: 리포트가 HEAD를 `feat/SPEC-GEMINI-RUNTIME-001` @ `fb2355397e547b1f77d938812e8d6af6678862ea`로
+    명시하고 있고, 이 commit이 현재 저장소 히스토리에서 실제로 조회 가능함을
+    `git cat-file -e fb2355397e547b1f77d938812e8d6af6678862ea`로 확인했다. 그 commit의
+    `db/seed/evidence.json`과 현재 HEAD의 `db/seed/evidence.json`을 `git diff`로 대조한 결과,
+    차이는 M1이 추가한 `issueTypes` 필드뿐이고 title/content/sourceUrl/evidenceType/category/scope는
+    전부 동일함을 확인했다(diff verbatim은 이 세션의 `.tmp/` 임시 작업물로만 존재, 검증 직후
+    삭제 — M1 관례와 동일). 같은 방식으로 `lib/pipeline/query-planner.ts`도 그 commit과 현재
+    HEAD 사이에 `git diff`가 0-byte임을 확인했다(QueryPlanner 규칙 불변).
+
+**실제 수행한 replay와 관측 결과**: 위 case 입력을 `normalizeCase()` → `planQueries()`에 통과시켜
+8개 `ResearchQuery`를 얻었다 — 이 개수는 2026-08-28 리포트의 "생성 query 수(reviewTargets): 8개"와
+정확히 일치해, replay가 실제 smoke와 동일한 QueryPlanner 산출물을 재현하고 있음을 교차 확인했다.
+그 commit의 `evidence.json`(issueTypes 필드는 그 시점 스키마에 아예 없었으므로 전부 `[]`로 채움)에
+대해 `retrieveEvidence(queries, db, "A")`(strategy A — 그 commit 시점에는 전략 B가 아직 존재하지
+않았고, `git show`로 대조한 그 시점 `evidence-retriever.ts`의 관련성 술어가 현재 `relevantA()`와
+문자 그대로 동일함을 확인)를 실행한 verbatim 결과:
+
+```
+q-injury_disability-disability_location: 0건 -> []
+q-injury_disability-disability_grade_criteria: 1건 -> [seed-evidence-001]
+q-injury_disability-causation: 1건 -> [seed-evidence-005]
+q-injury_disability-incident_circumstance: 0건 -> []
+q-disease_disability-diagnosis: 0건 -> []
+q-disease_disability-disability_grade_criteria: 0건 -> []
+q-disease_disability-causation: 3건 -> [seed-evidence-003, seed-evidence-008, seed-evidence-009]
+q-disease_disability-incident_circumstance: 0건 -> []
+```
+
+**관측 사실만 정직하게 기록한다(design.md §4.4 지시대로 — candidate 유무만 직접 관측)**:
+
+- 8개 쿼리 중 5개(`disability_location`, `injury_disability-incident_circumstance`,
+  `disease_disability-diagnosis`, `disease_disability-disability_grade_criteria`,
+  `disease_disability-incident_circumstance`)는 candidate가 0건이었다 — 이 쿼리들에 대해 만약
+  Skeptic이 반론을 생성했다면, Retriever가 애초에 어떤 evidence도 전달하지 않았으므로
+  counterEvidenceIds가 비어 있는 것이 구조적으로 불가피하다(A 또는 B와 정합).
+- 반면 `q-injury_disability-causation`은 `seed-evidence-005`("상해와 기왕증이 경합한 후유장해의
+  인과관계 및 감액 판단")를, `q-disease_disability-causation`은 `seed-evidence-008`("진단명이
+  같아도 발병 부위가 다르면 별개 질병") 등을 candidate로 반환했다 — 이들은 보험사 관점의 반론
+  근거(기왕증 감액, 별개 질병 주장)로 실제 활용 가능해 보이는 evidence다. **이 특정 쿼리들에
+  대해서는, 만약 Skeptic이 그 쿼리의 finding에 반론을 생성했다면 Retriever/corpus가 counterEvidence
+  후보를 전달하지 못한 것이 원인은 아니다 — C(모델이 전달받았지만 선택하지 않음) 또는 model
+  behavior가 이 특정 쿼리들에 대해서는 A/B보다 관측과 더 정합적이다.**
+- **명시적으로 밝힌다 — 이 replay가 확정하지 않는 것**: 실제 2026-08-28 smoke의 8개 쿼리 중
+  정확히 어느 것이 Researcher가 만든 3개 VERIFIED finding(→ Skeptic이 실제 반론을 생성한 대상)에
+  해당하는지는 Researcher의 LLM 판단(그 시점 실 Gemini 호출 결과)에 의존하며, 이 replay는 그
+  판단을 재현하지 않았다(재현하려면 실 Gemini API 호출이 필요하므로 REQ-EVIDENCE-023/024의
+  "실 Gemini 호출 없음" 제약과 상충한다). 따라서 이 replay는 "실제 smoke의 원인이 확정적으로
+  C/model behavior다"라고 결론 내리지 않는다 — 8개 쿼리 중 어떤 부분집합이 실제로 문제가 됐는지에
+  따라 A/B(0건 쿼리에 해당하는 경우)와 C/model behavior(비어있지 않은 쿼리에 해당하는 경우)가
+  공존할 수 있다는, 이전보다 더 세분화됐지만 여전히 완전히 닫히지 않은 결론으로 기록한다.
+- 원인은 여전히 **"corpus/Retriever/prompt/model behavior 미확정"**으로 유지하되, 이번 replay로
+  다음 사실이 실측 근거로 추가된다: (1) 8개 쿼리 중 5개는 corpus/Retriever 단계에서 candidate가
+  0건이었다(그 쿼리들에 한해 A/B가 실측으로 뒷받침됨), (2) 나머지 3개 쿼리는 candidate가 비어있지
+  않았고 그중 최소 2건(seed-evidence-005/008)은 도메인 지식상 counter-relevant로 보인다(그
+  쿼리들에 한해 C/model behavior가 A/B보다 관측과 더 정합적임). 이 두 문장 모두 "corpus/Retriever/
+  prompt/model behavior 미확정"이라는 전체 결론을 뒤집지 않는다 — 8개 쿼리 중 3개 finding으로
+  좁혀지는 매핑을 재현하지 못했기 때문이다.
+
 ## §E.3 Run-phase Audit-Ready Signal (M1)
 
 ```yaml
@@ -198,6 +298,24 @@ row count after 2nd seed run: 10
 ```
 
 행 수는 재실행 전후 모두 정확히 10 — M2의 `issueTypes` 백필이 upsert 멱등성을 깨지 않았다.
+
+## §E.3 Run-phase Audit-Ready Signal (M3)
+
+```yaml
+run_status: m3-complete
+m3_complete_at: 2026-08-29
+run_commit_sha: pending-backfill-m3  # 커밋 이후 별도 커밋으로 backfill(spec-frontmatter-schema.md SHA placeholder 예외)
+ac_pass_count_m3: 3   # AC-EVIDENCE-016a/016b/016c (M3 범위)
+ac_fail_count_m3: 0
+ac_deferred_m3: 1     # AC-EVIDENCE-016d — REQ-EVIDENCE-020 replay 결과는 위 본문에 기록했으나, "실제 smoke 원인 서술에 replay 결과만 사용"이라는 AC-016d의 문서 전반 조건은 M6 최종 요약 문서 작성 시점에 재확인 필요(design.md §4.4/§4.3 문구가 모든 아티팩트에 일관되게 반영됐는지는 M6 범위)
+l44_pre_commit_fetch: "git fetch origin main; git rev-list --count --left-right origin/main...HEAD → 확인 필요(커밋 직전 재확인)"
+l44_post_push_fetch: "커밋만 수행, push는 이 세션 범위 밖(worktree 격리 세션 — 아래 최종 보고 참고)"
+new_warnings_or_lints_introduced: false  # 아래 최종 검증 배치 결과 참고
+cross_platform_build:
+  status: not_applicable  # TypeScript/Next.js 프로젝트 — Go의 GOOS/GOARCH 교차 빌드 개념 없음
+total_run_phase_files_m3: 2  # 신규 1(lib/pipeline/evidence-diagnostic.test.ts) + progress.md 수정 1 — 프로덕션 코드 변경 0건
+m1_to_mN_commit_strategy: per-milestone-commit  # M1/M2와 동일 정책 유지
+```
 
 ## §G.1 plan-auditor 실행 결과 — iteration 1, FAIL (v0.4.0 아티팩트 대상)
 
