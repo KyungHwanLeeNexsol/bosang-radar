@@ -43,7 +43,7 @@
 관찰: `DISPUTE_CASE`(금융감독원 분쟁조정 등) evidenceType은 현재 0건이다. `category`는 자유
 문자열("상해후유장해"/"질병후유장해"/"공통")이며 `CoverageDomain` enum과 `evidence-retriever.ts`의
 `DOMAIN_CATEGORY_LABEL` 상수를 통해서만 매핑된다. `issueType`에 대응하는 필드는 evidence 쪽에
-전혀 없다 — 이것이 spec.md REQ-EVIDENCE-006이 다루는 공백이다.
+전혀 없다 — 이것이 spec.md REQ-EVIDENCE-007이 다루는 공백이다.
 
 ### 1.2 `lib/db/schema.ts` — `evidence` 테이블 (실측)
 
@@ -77,7 +77,7 @@ score = (domainMatch ? 2 : 0) + (isUniversal ? 1 : 0) + keywordScore
 `keywordScore`는 `title`/`content`에 대한 단순 substring `.includes()` 카운트다. `TOP_N = 5`
 (코드 주석이 이미 "seed 데이터 규모(10개)를 전제로 한 초기 파라미터"라고 자인, `@MX:WARN`).
 동점 시 정렬 안정성(tie-break)이 명시적으로 정의되어 있지 않다 — Array.prototype.sort의 구현
-의존적 안정성에 암묵적으로 기대고 있다(REQ-EVIDENCE-011이 이를 명시 규칙으로 만든다).
+의존적 안정성에 암묵적으로 기대고 있다(REQ-EVIDENCE-012이 이를 명시 규칙으로 만든다).
 
 ### 1.5 `lib/pipeline/researcher.ts` / `skeptic.ts` / `verifier.ts` — evidence-ID 계약 (실측, SPEC-GEMINI-RUNTIME-001에서 확정)
 
@@ -87,7 +87,7 @@ score = (domainMatch ? 2 : 0) + (isUniversal ? 1 : 0) + keywordScore
 - Verifier: 위조 evidence ID를 조용히 제거(`lib/pipeline/verifier.ts:278` 부근), semantic
   fail-closed.
 
-이 세 계약은 이번 SPEC이 절대 건드리지 않는 회귀 방지 대상이다(spec.md REQ-EVIDENCE-019/020).
+이 세 계약은 이번 SPEC이 절대 건드리지 않는 회귀 방지 대상이다(spec.md REQ-EVIDENCE-023, REQ-EVIDENCE-024).
 
 ## §2. 두 번의 실 Gemini smoke 관측 재확인
 
@@ -109,16 +109,16 @@ run-phase M1이 실제 검색 도구로 이 카탈로그를 근거로 조사를 
 | 금융감독원 금융소비자보호처 분쟁조정사례 | DISPUTE_CASE | 이번 세션에서 접근 시도 안 함(run-phase 조사 대상) |
 | 생명보험협회/손해보험협회 표준약관·장해분류표 | POLICY | 이번 세션에서 접근 시도 안 함(run-phase 조사 대상) |
 
-## §4. metadata 필요성 분석 (REQ-EVIDENCE-005/006/007/027 근거, 외부 독립 리뷰 이슈 4 반영)
+## §4. metadata 필요성 분석 (REQ-EVIDENCE-006, REQ-EVIDENCE-007, REQ-EVIDENCE-008 근거, 외부 독립 리뷰 이슈 4 반영 — REQ-EVIDENCE-027은 v0.2.0 당시 병합되어 폐기된 구 번호)
 
 | 후보 필드 | 채택 여부 | 근거 |
 |-----------|-----------|------|
-| `issueTypes: QueryIssueType[]` | **채택(M1 확정)** | `evidence-retriever.ts`의 candidate eligibility(전략 B)와 score 함수가 `query.issueType`과 직접 비교할 대상이 evidence 쪽에 없다는 것이 §1.4에서 확인된 실제 공백 — REQ-EVIDENCE-008에 직접 소비됨. 이 SPEC이 plan-phase 시점에 확정하는 **유일한 필수 migration 대상**이다 |
+| `issueTypes: QueryIssueType[]` | **채택(M1 확정)** | `evidence-retriever.ts`의 candidate eligibility(전략 B)와 score 함수가 `query.issueType`과 직접 비교할 대상이 evidence 쪽에 없다는 것이 §1.4에서 확인된 실제 공백 — REQ-EVIDENCE-009에 직접 소비됨. 이 SPEC이 plan-phase 시점에 확정하는 **유일한 필수 migration 대상**이다 |
 | `keywords: string[]` | **보류(run-phase 재검토)** | 현재도 `title`/`content` substring 매칭이 동작하며, 명시적 keyword 필드가 substring 매칭보다 나은 recall/precision을 내는지 벤치마크(§D) 없이는 불명 — 신설 여부는 benchmark baseline 측정 후 결정 |
 | `sourceUrl` | 이미 존재 | 스키마 변경 불필요 |
-| `sourceDate` | **기각(M1)** | 판례 선고일 등 — 외부 독립 리뷰 지적대로, 이 SPEC의 어떤 코드 경로(ranking/benchmark/authenticity/dedup)도 `sourceDate`를 실제로 소비하지 않는다. "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다(REQ-EVIDENCE-005/027) — ranking/authenticity 어느 쪽이든 실제 소비처가 후속 SPEC에서 입증되면 그때 재검토 |
+| `sourceDate` | **기각(M1)** | 판례 선고일 등 — 외부 독립 리뷰 지적대로, 이 SPEC의 어떤 코드 경로(ranking/benchmark/authenticity/dedup)도 `sourceDate`를 실제로 소비하지 않는다. "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다(REQ-EVIDENCE-006/027(027은 v0.2.0 당시 병합되어 폐기된 구 번호)) — ranking/authenticity 어느 쪽이든 실제 소비처가 후속 SPEC에서 입증되면 그때 재검토 |
 | `sourceIdentifier`(사건번호/조문번호) | **기본적으로 추가하지 않는다(M1에는 미포함, 외부 독립 리뷰 v0.3.0 이슈 7 재단순화)** | design.md §6의 dedup 판정(`isDuplicate()`)이 `sourceIdentifier` 없이 `sourceUrl` + 정규화된 content 동일성만으로 이미 동작하도록 설계돼 있어, 유일한 실제 소비처 후보가 이미 충족된다. run-phase 중 `sourceUrl`만으로 실제 gap이 발견되면(예: 동일 판례가 여러 URL로 미러링되는 경우) 그 시점에 별도 migration으로 추가한다(design.md §1.2) |
-| `claimant`/`insurer` stance | **기각** | 사용자 지시 §2가 명시적으로 배제, spec.md REQ-EVIDENCE-007 |
+| `claimant`/`insurer` stance | **기각** | 사용자 지시 §2가 명시적으로 배제, spec.md REQ-EVIDENCE-008 |
 | argument-role(proposition 단위) | **기각(이번 SPEC)** | 근거 없이 스키마 확장 금지 원칙 적용 — 필요성이 입증되지 않음 |
 
 ### §4.1 기존 10건의 authenticity 재감사 필요성 (외부 독립 리뷰 이슈 5)
@@ -127,11 +127,11 @@ run-phase M1이 실제 검색 도구로 이 카탈로그를 근거로 조사를 
 (sourceUrl: `insu-fit.com`)은 개인/중개 블로그성 도메인으로 보이며, REQ-EVIDENCE-002가 요구하는
 "신뢰 가능한 공공기관 자료" 기준을 만족하는지 이번 plan-phase 세션에서 재검증하지 못했다(§0의
 발견-제한과 별개로, 이 두 URL은 애초에 재확인 시도조차 하지 않았다 — §1.1은 `seed-evidence-005`/
-`seed-evidence-008`(casenote.kr, 대법원)만 재검증했다). 이는 spec.md REQ-EVIDENCE-026(기존
+`seed-evidence-008`(casenote.kr, 대법원)만 재검증했다). 이는 spec.md REQ-EVIDENCE-005(기존
 10건 재감사)이 신설된 직접적 근거 중 하나다 — `POLICY` evidenceType이라는 이유로 이 두 레코드를
 재감사 대상에서 제외해서는 안 된다.
 
-## §5. Retrieval 지표 후보 (REQ-EVIDENCE-014 근거)
+## §5. Retrieval 지표 후보 (REQ-EVIDENCE-016 근거)
 
 이 규모(수십~백여 건)의 curated corpus에서:
 
@@ -146,4 +146,4 @@ run-phase M1이 실제 검색 도구로 이 카탈로그를 근거로 조사를 
 방향을 우선 검토한다 — corpus가 작을수록 "관련 있는 걸 다 찾아오는가"가 "무관한 걸 걸러내는가"보다
 운영상 더 치명적이기 때문이다(무관한 evidence가 섞여도 Skeptic/Verifier가 이후 단계에서 걸러낼
 여지가 있지만, 애초에 검색되지 않은 relevant evidence는 어떤 후속 단계도 복구할 수 없다). 최종
-채택은 §D 벤치마크의 baseline 측정 결과를 본 뒤 확정한다(REQ-EVIDENCE-014, 임의 목표 선정 금지).
+채택은 §D 벤치마크의 baseline 측정 결과를 본 뒤 확정한다(REQ-EVIDENCE-016, 임의 목표 선정 금지).

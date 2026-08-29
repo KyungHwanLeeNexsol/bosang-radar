@@ -30,12 +30,12 @@ export const evidence = sqliteTable("evidence", {
 
 ### 1.2 `sourceIdentifier`/`sourceDate` — 기본값은 "추가하지 않는다" (외부 독립 리뷰 v0.3.0 이슈 7 재단순화)
 
-REQ-EVIDENCE-005/027 통합 조항에 따라, 이 두 컬럼은 M1 migration에 **사전 포함하지 않는다**. 이번
+REQ-EVIDENCE-006/027(027은 v0.2.0 당시 병합되어 현재 사용되지 않는 구 번호) 통합 조항에 따라, 이 두 컬럼은 M1 migration에 **사전 포함하지 않는다**. 이번
 개정(v0.3.0)은 여기서 한 걸음 더 나아가, `sourceIdentifier`의 기본 입장 자체를 **"불필요하면
 아예 추가하지 않는다"**로 재단순화한다 — v0.2.0은 "조건 충족 시 추가"로만 서술해 마치 추가가
 거의 확정적인 것처럼 읽혔지만, §6의 `isDuplicate()`가 이미 `sourceUrl` 단독으로도 동작하도록
-설계돼 있다(§6 원문: "`sourceIdentifier`가 아직 스키마에 없는 경우, 이 판정은 `sourceUrl` 동일성만으로
-동작한다"). 즉 dedup이라는 유일한 실제 소비처 후보가 **이미 `sourceIdentifier` 없이도 충족**되므로,
+설계돼 있다(§6 원문: "이 SPEC의 기본 구현은 `sourceIdentifier` 컬럼을 도입하지 않으므로,
+`isDuplicate()`는 `sourceUrl` 동일성만으로 동작한다"). 즉 dedup이라는 유일한 실제 소비처 후보가 **이미 `sourceIdentifier` 없이도 충족**되므로,
 불필요한 두 번째 migration을 미리 예고할 이유가 없다.
 
 - `sourceIdentifier`: **기본적으로 추가하지 않는다.** run-phase 중 `sourceUrl` + 정규화된
@@ -45,7 +45,7 @@ REQ-EVIDENCE-005/027 통합 조항에 따라, 이 두 컬럼은 M1 migration에 
   `sourceUrl` 동일성 판정이 무력화되는 사례가 실측으로 발견되는 경우)가 명확히 입증된 경우에만
   별도 migration으로 추가하며, 추가 시점에 그 코드가 실제로 `sourceIdentifier`를 읽어
   source-integrity 검증 또는 dedup 판정을 수행함을 acceptance.md AC로 검증해야 한다(단순 존재
-  여부 구조 검증만으로는 REQ-EVIDENCE-005를 충족하지 못한다).
+  여부 구조 검증만으로는 REQ-EVIDENCE-006를 충족하지 못한다).
 - `sourceDate`: "있으면 좋은 metadata"라는 이유만으로 추가하지 않는다 — ranking/benchmark/authenticity
   어느 코드 경로도 이 SPEC 범위에서 `sourceDate`를 소비하지 않으므로, 현재 계획으로는 이번 SPEC에서
   전혀 추가되지 않는다(§C 소비처가 실제로 필요하다고 판명되면 별도 migration, 후속 SPEC 범위일
@@ -67,7 +67,36 @@ TABLE ADD COLUMN만 사용하며(SQLite 제약상 컬럼 삭제/타입 변경은
 추가한다 — 기존 `onConflictDoUpdate` 패턴을 그대로 확장(REQ-EVIDENCE-004). `sourceIdentifier`/
 `sourceDate`가 §1.2 조건에 따라 추가될 경우 그 시점에 동일한 패턴으로 확장한다.
 
-### 1.5 production seed loading 시 runtime validation (REQ-EVIDENCE-006 보강, 외부 독립 리뷰 v0.3.0 이슈 2)
+### 1.4a `QueryIssueType` 8개 값의 단일 SSOT (optional 일관성 검토, 외부 독립 리뷰 잔여 정합성 이슈 4)
+
+현재 `QueryIssueType`은 `lib/pipeline/types.ts`에 8개 리터럴 유니온으로 직접 선언돼 있고,
+§1.5의 zod 스키마는 동일한 8개 값을 별도 리터럴 배열로 다시 선언한다 — 두 선언이 물리적으로
+분리돼 있어 한쪽만 수정되면 drift가 발생할 수 있다. 이 SPEC은 `lib/pipeline/types.ts`를
+아래처럼 const-first로 바꿔 이 위험을 없앤다(신규 파일 없음, 순수 타입 리팩터 — 과설계 아님):
+
+```typescript
+// lib/pipeline/types.ts
+export const QUERY_ISSUE_TYPES = [
+  "DISABILITY_LOCATION", // 장해 부위
+  "DIAGNOSIS", // 진단명
+  "INCIDENT_CIRCUMSTANCE", // 사고 경위
+  "INJURY_DISEASE_RELATION", // 상해·질병 관련성
+  "DISABILITY_GRADE_CRITERIA", // 장해 평가 기준 검토
+  "PRE_EXISTING_CONDITION", // 기왕증·퇴행성 가능성
+  "CAUSATION", // 인과관계 쟁점
+  "ADDITIONAL_CONFIRMATION_NEEDED", // 추가 확인 필요 조건
+] as const;
+
+export type QueryIssueType = (typeof QUERY_ISSUE_TYPES)[number];
+```
+
+`db/seed/evidence-seed-schema.ts`(§1.5)는 이 `QUERY_ISSUE_TYPES`를 import해서 zod enum에
+그대로 쓰며, 8개 값을 별도로 하드코딩하지 않는다. 이 변경은 기존 subagent boundary나 기존
+파일 경계를 깨지 않으며(`lib/pipeline/types.ts`는 이미 M1이 편집 대상으로 계획한 파일), 타입
+사용처(`ResearchQuery.issueType`, `EvidenceCandidate.issueTypes` 등)는 `QueryIssueType`
+타입 이름을 그대로 참조하므로 다른 코드는 변경할 필요가 없다.
+
+### 1.5 production seed loading 시 runtime validation (REQ-EVIDENCE-007 보강, 외부 독립 리뷰 v0.3.0 이슈 2)
 
 **왜 TypeScript 타입만으로 부족한가**: `issueTypes`는 전략 B(§2.1)에서 keyword가 전혀 없어도
 candidate eligibility를 성립시킬 수 있는 **강한** retrieval signal이다 — 값이 잘못되면(예:
@@ -83,15 +112,11 @@ as EvidenceSeedRecord[]`로 **타입 단언(assertion)만** 수행한다 — Typ
 ```typescript
 // db/seed/evidence-seed-schema.ts (신규, 최소)
 import { z } from "zod";
+import { QUERY_ISSUE_TYPES } from "../../lib/pipeline/types.ts"; // 8개 값의 단일 SSOT(§1.4a) — 별도 리터럴 배열을 여기 두지 않는다
 
 const EVIDENCE_TYPES = ["POLICY", "PRECEDENT", "DISPUTE_CASE", "STATUTE", "OTHER"] as const;
 const SCOPES = ["DOMAIN_SPECIFIC", "UNIVERSAL"] as const;
 const CATEGORIES = ["상해후유장해", "질병후유장해", "공통"] as const;
-const ISSUE_TYPES = [
-  "DISABILITY_LOCATION", "DIAGNOSIS", "INCIDENT_CIRCUMSTANCE", "INJURY_DISEASE_RELATION",
-  "DISABILITY_GRADE_CRITERIA", "PRE_EXISTING_CONDITION", "CAUSATION",
-  "ADDITIONAL_CONFIRMATION_NEEDED",
-] as const; // lib/pipeline/types.ts QueryIssueType과 반드시 동기화 유지
 
 export const evidenceSeedRecordSchema = z
   .object({
@@ -102,7 +127,7 @@ export const evidenceSeedRecordSchema = z
     title: z.string().min(1),
     content: z.string().min(1),
     sourceUrl: z.union([z.null(), z.string().url()]),
-    issueTypes: z.array(z.enum(ISSUE_TYPES)),
+    issueTypes: z.array(z.enum(QUERY_ISSUE_TYPES)),
   })
   .refine((r) => new Set(r.issueTypes).size === r.issueTypes.length, {
     message: "issueTypes에 중복 값이 있습니다",
@@ -140,7 +165,7 @@ score를 아무리 잘 설계해도 애초에 candidate 목록에 없는 evidenc
 목표가 쟁점 중심 retrieval이므로, 이 결함은 사전에 고칠 대상이지 감수할 trade-off가 아니다.
 
 **설계**: run-phase M2는 동일 corpus·동일 벤치마크(§3)로 최소 두 전략을 비교해야 한다 —
-design.md 시점에는 어느 쪽도 확정하지 않는다(REQ-EVIDENCE-008):
+design.md 시점에는 어느 쪽도 확정하지 않는다(REQ-EVIDENCE-009):
 
 ```typescript
 // 전략 A — 현행 (baseline)
@@ -164,7 +189,7 @@ function relevantB(
 - 두 전략 모두 `domainMatch`(UNIVERSAL이 아닌 한) 요건은 유지한다 — 담보가 아예 다른 evidence까지
   끌어오지는 않는다.
 - 전략 B는 keyword 매칭을 issueType exact match로 **OR 대체**할 수 있게 한다 — issueType 불일치를
-  이유로 무조건 배제하는 hard filter(AND 방향의 강한 조건)는 도입하지 않는다(REQ-EVIDENCE-008 통합
+  이유로 무조건 배제하는 hard filter(AND 방향의 강한 조건)는 도입하지 않는다(REQ-EVIDENCE-009 통합
   조항). `issueTypes`가 비어 있는 레코드(마이그레이션 직후 기존 10건 포함)는 `issueTypeExactMatch =
   false`로 자연 폴백하므로, 전략 B에서도 전략 A와 동일하게 동작한다(REQ-EVIDENCE-004 idempotency
   이후 회귀 없음과 정합).
@@ -190,7 +215,7 @@ function computeScore(
 
 - `issueTypeWeight = 10`은 의도적으로 `domainWeight(2)`와 일반적인 `keywordScore`(관측상 1~3
   범위)를 합친 것보다 크게 잡아, "쟁점이 정확히 일치하는 evidence"가 "우연히 키워드 하나만 겹치는
-  evidence"보다 항상 위에 오도록 한다(REQ-EVIDENCE-009 회귀 방지의 설계 근거). 정확한 값(10)은
+  evidence"보다 항상 위에 오도록 한다(REQ-EVIDENCE-010 회귀 방지의 설계 근거). 정확한 값(10)은
   run-phase M2에서 §3 벤치마크로 검증하며, 벤치마크가 이 값을 정당화하지 못하면 조정한다 — 이
   design.md는 "출발점"을 제시하는 것이지 확정값을 강제하지 않는다.
 - `issueTypes`가 비어 있는 레코드(마이그레이션 직후 기존 10건, 또는 아직 분류 안 된 신규 레코드)는
@@ -206,8 +231,8 @@ function computeScore(
 .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
 ```
 
-동점일 때 `id` 오름차순으로 고정한다(REQ-EVIDENCE-011). `TOP_N = 5`는 변경하지 않는다
-(REQ-EVIDENCE-010) — run-phase M2가 벤치마크로 조정 필요성을 판단한 뒤에만 바꾼다.
+동점일 때 `id` 오름차순으로 고정한다(REQ-EVIDENCE-012). `TOP_N = 5`는 변경하지 않는다
+(REQ-EVIDENCE-011) — run-phase M2가 벤치마크로 조정 필요성을 판단한 뒤에만 바꾼다.
 
 ## §3. Requirement D — Curated Retrieval Benchmark
 
@@ -220,12 +245,12 @@ function computeScore(
 ```typescript
 interface BenchmarkCase {
   id: string;                    // "bm-injury-causation-01" 형태
-  query: ResearchQuery;          // 고정 쟁점 쿼리(합성이지만 REQ-EVIDENCE-013 대상 아님 — query 자체는 evidence가 아님)
-  knownRelevantEvidenceIds: string[]; // production evidence corpus의 실제 id 부분집합(REQ-EVIDENCE-013)
+  query: ResearchQuery;          // 고정 쟁점 쿼리(합성이지만 REQ-EVIDENCE-015 대상 아님 — query 자체는 evidence가 아님)
+  knownRelevantEvidenceIds: string[]; // production evidence corpus의 실제 id 부분집합(REQ-EVIDENCE-015)
 }
 ```
 
-### 3.2 커버리지 (REQ-EVIDENCE-012)
+### 3.2 커버리지 (REQ-EVIDENCE-014)
 
 최소 6개 케이스: 두 담보(INJURY_DISABILITY/DISEASE_DISABILITY) × {CAUSATION,
 DISABILITY_GRADE_CRITERIA, DIAGNOSIS 또는 DISABILITY_LOCATION} 조합에서 각 담보당 3개, 총
@@ -251,15 +276,17 @@ function hitAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): 0 
 }
 
 function precisionAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
-  if (candidates.length === 0) return 1; // 반환 후보가 없으면 "틀린 후보"도 없다
   const knownRelevant = new Set(knownRelevantIds);
-  const relevantReturned = candidates.filter((c) => knownRelevant.has(c.id)).length;
-  return relevantReturned / candidates.length;
+  const relevantReturned = candidates.slice(0, 5).filter((c) => knownRelevant.has(c.id)).length;
+  return relevantReturned / 5; // 표준 정의로 통일 — top-5 슬롯 중 relevant 수 / 5(외부 독립 리뷰 잔여 정합성 이슈 2). 실제 반환 개수를 분모로 쓰는 대안(Precision@Returned)은 채택하지 않는다.
 }
 ```
 
 세 지표 모두 §3.4A의 frozen 최종 비교에서 **함께** 측정·기록한다 — Recall@5만 보고하고 Precision@5를
-누락하지 않는다.
+누락하지 않는다. **이 지표가 유효하려면 `knownRelevantEvidenceIds`가 해당 query에 대한 complete
+human-reviewed relevance set이어야 한다(REQ-EVIDENCE-015, REQ-EVIDENCE-017 completeness 조건, §3.4A)** —
+completeness가 확보되지 않은 benchmark case의 Precision@5는 exploratory 참고용으로만 쓰고 최종
+acceptance 근거로 사용하지 않는다.
 
 ### 3.3b Non-regression 계약 — 결과에 맞춘 사후 retrofit 금지 (외부 독립 리뷰 v0.3.0 이슈 4 반영)
 
@@ -272,7 +299,7 @@ new(전략B) Hit@5       >= baseline(전략A) Hit@5
 new(전략B) Precision@5 >= baseline(전략A) Precision@5
 ```
 
-그리고 REQ-EVIDENCE-029가 지정한 타깃 케이스("exact issueType이지만 query keyword가 없는
+그리고 REQ-EVIDENCE-013가 지정한 타깃 케이스("exact issueType이지만 query keyword가 없는
 known-relevant evidence")에서는, baseline이 miss(recall 실패)하고 new가 hit(recall 성공)하는
 것이 **실제로 관측**되어야 한다 — 이것이 §2.1 candidate eligibility 재설계의 존재 이유이므로,
 관측되지 않으면 전략 B 채택 근거 자체가 무너진다.
@@ -283,7 +310,7 @@ trade-off가 실제로 관측되면), 그 결과에 맞춰 threshold를 낮추�
 기록한다: (a) `issueTypeWeight`(§2.2, 현재 10) 등 score 함수 파라미터를 재조정해 trade-off를
 줄인다, (b) trade-off를 감수할 가치가 있다는 근거(예: "recall 개선폭이 precision 하락폭보다
 제품적으로 더 중요하다")를 명시적으로 문서화하고 계약을 의도적으로 완화한다. 두 경우 모두
-"측정 후 자동 조정"이 아니라 "측정 결과를 보고 사람이 내린 결정"임을 기록에 남긴다.
+"측정 후 자동 조정"이 아니라 "측정 결과를 보고 사람이 내린 결정"임을 기록에 남긴다. **(b)로 계약을 완화하기로 결정한 경우, 그렇게 변경된 acceptance 계약(REQ-EVIDENCE-016/AC-EVIDENCE-014)은 plan-auditor 재검토 대상이다** — trade-off 수용 판단 자체가 SPEC의 acceptance 기준을 바꾸는 결정이므로, 독립 감사 없이 조용히 확정하지 않는다(외부 독립 리뷰 잔여 정합성 이슈 1).
 
 **M2 exploratory(10건 corpus)는 방향 탐색용이며 acceptance 근거가 아니다 — M4 frozen benchmark만이
 최종 acceptance다.** 이 구분은 §3.4에서 이어진다.
@@ -301,13 +328,15 @@ algorithm effect"다. "corpus 확장 효과"라는 이름은 이 비교가 corpu
 
 #### A. Algorithm effect (frozen 최종 corpus, 동일 corpus 위에서 알고리즘만 교체)
 
-M4가 corpus 확장 + 재감사를 마치면, 새로 추가/재감사된 relevant evidence를 반영해 벤치마크
-`knownRelevantEvidenceIds`를 사람이 검토(human review)해 갱신하고, 그 시점의 corpus 스냅샷 +
-벤치마크를 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋). **동일한** freeze된 corpus +
+M4가 corpus 확장 + 재감사를 마치면, 각 `BenchmarkCase`의 query에 대해 **freeze 대상 production
+corpus 전체를 검토하여** relevant로 판정된 evidence의 **complete human-reviewed set**으로
+`knownRelevantEvidenceIds`를 확정하고(일부 예시적 evidence만 반영한 부분 집합이어서는 안 됨 —
+REQ-EVIDENCE-015, REQ-EVIDENCE-017 completeness 조건, 외부 독립 리뷰 잔여 정합성 이슈 2), 그 시점의 corpus
+스냅샷 + 벤치마크를 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋). **동일한** freeze된 corpus +
 **동일한** freeze된 `BenchmarkCase` + **동일한** `knownRelevantEvidenceIds` 위에서
 `baselineRetriever`(전략 A, issueType 가중치 없음, 현재 `main`의 알고리즘)와 `newRetriever`(M2가
 채택한 전략 + score 함수)를 실행해 Recall@5 / Hit@5 / Precision@5(§3.3a)를 비교한다. **이것이
-"algorithm effect"이며, acceptance threshold(REQ-EVIDENCE-014)의 유일한 근거다.**
+"algorithm effect"이며, acceptance threshold(REQ-EVIDENCE-016)의 유일한 근거다.** 이 completeness 검토가 이루어지지 않았다면, 그 BenchmarkCase의 Precision@5는 최종 acceptance 판단에 사용하지 않는다(§3.3a).
 
 #### B. Corpus expansion effect (초기 vs 최종 corpus의 coverage delta — cross-corpus Recall 비교 아님)
 
@@ -335,7 +364,7 @@ query 수/비율: 초기 X/M (P%) → 최종 Y/M (Q%)
 
 **ranking algorithm 효과(A)와 corpus coverage 효과(B)를 하나의 수치로 합치지 않는다** — 두 절은
 서로 다른 측정 방법(A는 IR 지표 비교, B는 coverage delta)을 쓰며, `.moai/reports/`에도 별도
-섹션으로 기록한다(REQ-EVIDENCE-030).
+섹션으로 기록한다(REQ-EVIDENCE-017).
 
 acceptance threshold(예: "frozen corpus에서 평균 Recall@5 ≥ X")는 A의 실측값을 본 뒤
 acceptance.md 개정으로 확정한다 — design.md 시점에는 임의 숫자를 박아넣지 않는다. 실측 결과
@@ -353,7 +382,7 @@ TypeScript 함수(`retrieveEvidence()`)의 입출력이기 때문이다. C(Skept
 않음)는 실제 Gemini 모델의 판단이므로 **unit test로 강제할 수 없다** — 대신 진단 장치는 C의
 **전제 조건**(Skeptic 프롬프트에 counter-relevant evidence ID가 실제로 포함되어 전달되었는가)까지만
 결정론적으로 검증하고, 그 이후 "모델이 실제로 그것을 counterEvidenceIds로 골랐는가"는 실 Gemini
-smoke(이미 2회 수행)의 몫으로 명시적으로 남긴다. 이 경계를 흐리지 않는 것이 REQ-EVIDENCE-015("모든
+smoke(이미 2회 수행)의 몫으로 명시적으로 남긴다. 이 경계를 흐리지 않는 것이 REQ-EVIDENCE-018("모든
 사건에서 counterEvidenceIds ≥ 1을 강제하지 않는다")의 설계적 귀결이다.
 
 ### 4.2 diagnostic fixture 구조
@@ -365,7 +394,7 @@ smoke(이미 2회 수행)의 몫으로 명시적으로 남긴다. 이 경계를 
 const fixtureCase: NormalizedCase = { /* ... */ };
 
 // 2) 고정 evidence corpus 스냅샷 — production corpus의 부분집합 또는 동형 fixture.
-//    최소 1건은 "counter-relevant"로 의도적으로 배치한 evidence여야 한다(REQ-EVIDENCE-016).
+//    최소 1건은 "counter-relevant"로 의도적으로 배치한 evidence여야 한다(REQ-EVIDENCE-019).
 const fixtureEvidence: EvidenceCandidate[] = [ /* ... */ ];
 
 it("A: corpus에 counter-relevant evidence가 존재하는지 확인", () => {
@@ -387,7 +416,7 @@ it("C-전제조건: Skeptic 프롬프트에 그 evidence ID가 실제로 포함�
 });
 ```
 
-세 단계 모두 결정론적 fake/mock만 사용한다(REQ-EVIDENCE-019/020 — 실제 Gemini 호출 없음, 논리적
+세 단계 모두 결정론적 fake/mock만 사용한다(REQ-EVIDENCE-023, REQ-EVIDENCE-024 — 실제 Gemini 호출 없음, 논리적
 호출 수 불변). 세 번째 테스트("C-전제조건")가 실패하면 C가 아니라 B의 변형(evidence가 top-K에는
 들었지만 Skeptic 프롬프트 조립 단계에서 누락)이라는 신호이므로, 실패 지점 자체가 진단 정보다.
 
@@ -401,12 +430,12 @@ it("C-전제조건: Skeptic 프롬프트에 그 evidence ID가 실제로 포함�
 
 **이 표는 fixture 자신이 정상 동작하는지 확인하는 self-test 결과이지, 2026-08-27/2026-08-28 실제
 Gemini smoke의 원인 판정이 아니다.** "fixture에서 A✅/B✅/C-전제✅가 나왔으므로 실제 smoke의 A/B는
-배제되고 C 또는 model behavior만 남는다"는 서술은 이 SPEC에서 금지한다(REQ-EVIDENCE-016) — fixture
+배제되고 C 또는 model behavior만 남는다"는 서술은 이 SPEC에서 금지한다(REQ-EVIDENCE-019) — fixture
 evidence corpus는 실제 smoke가 쓴 production corpus의 그 시점 상태와 다를 수 있고, fixture query도
 실제 smoke의 query와 다르기 때문에, fixture의 성공이 실제 smoke의 A/B 배제를 논리적으로 함의하지
 않는다.
 
-### 4.4 실제 smoke의 A/B를 좁히는 유일한 방법 — production snapshot replay (REQ-EVIDENCE-031)
+### 4.4 실제 smoke의 A/B를 좁히는 유일한 방법 — production snapshot replay (REQ-EVIDENCE-020)
 
 실제 smoke의 원인 후보(corpus 부족/Retriever 후보 부족/Skeptic prompt semantics/model behavior)를
 좁히려면, **fixture가 아니라 그 smoke가 실제로 사용한 입력을 재현**해야 한다:
@@ -434,7 +463,7 @@ const replayCandidates = await retrieveEvidence(replayQueries, prodDb); // 그 �
 2. research.md §3 후보 출처 카탈로그를 이번 SPEC의 run-phase 세션(WebSearch 또는 실제 등록된
    `law.go.kr` OC 키가 있는 세션)에서 실제로 조사 — 각 후보 레코드마다 (a) 원문 URL 접근 확인,
    (b) 사건번호/조문 번호가 원문과 일치하는지 확인, (c) content 요약이 과장 없이 원문 취지를
-   반영하는지 확인(REQ-EVIDENCE-017) 후에만 `db/seed/evidence.json`에 추가.
+   반영하는지 확인(REQ-EVIDENCE-021) 후에만 `db/seed/evidence.json`에 추가.
 3. `DISPUTE_CASE`(금융감독원 분쟁조정) 후보는 결정문 원문 또는 금융감독원 공식 공개 요약만
    허용 — 3자 블로그/카페의 재구성 요약은 원 출처로 인정하지 않는다(REQ-EVIDENCE-002).
 4. 검증 불가능한 후보는 `evidenceType: "OTHER"`로 낮추거나 아예 제외한다 — "그럴듯하지만
@@ -458,7 +487,7 @@ URL을 실제로 확보할 수 있는 경우 그것을 우선한다 — 2차 출
 제공하지 않는 구조인 경우)에만 검증 가능한 2차 source를 `sourceUrl`로 사용하고, manifest(§5.3)에
 "공식 source 미확보, 사유: ..."를 명시적으로 기록한다.
 
-### 5.2 기존 production evidence 10건 재감사 (REQ-EVIDENCE-026, 외부 독립 리뷰 이슈 5)
+### 5.2 기존 production evidence 10건 재감사 (REQ-EVIDENCE-005, 외부 독립 리뷰 이슈 5)
 
 **신규 record만 감사하는 것으로는 REQ-EVIDENCE-002의 authenticity 원칙이 반쪽짜리가 된다** —
 `db/seed/evidence.json`의 기존 10건(research.md §1.1)도 동일 규칙으로, 예외 없이 재검토한다.
@@ -472,7 +501,7 @@ URL을 실제로 확보할 수 있는 경우 그것을 우선한다 — 2차 출
    예외 없이 포함 — 현재 `insclaim.co.kr`/`insu-fit.com` 같은 3자 블로그성 출처는 REQ-EVIDENCE-002의
    "신뢰 가능한 공공기관 자료" 기준을 만족하는지 재검토 대상이다.
 3. `sourceIdentifier`가 필요한지(§1.2 조건) 이 레코드에 한해 개별 판단.
-4. `content`가 원문 취지를 과장하지 않는지 재검토(REQ-EVIDENCE-017).
+4. `content`가 원문 취지를 과장하지 않는지 재검토(REQ-EVIDENCE-021).
 5. 위 검토를 통과하지 못하면, 그 레코드를 (a) `evidenceType: "OTHER"`로 downgrade하거나 (b)
    production corpus에서 제외하는 것 중 **하나를 명시적으로 결정**해 기록한다 — 판단을 유보한 채
    방치하지 않는다.
@@ -493,7 +522,7 @@ URL을 실제로 확보할 수 있는 경우 그것을 우선한다 — 2차 출
 
 **§D의 benchmark ground truth(`knownRelevantEvidenceIds`)는 이 manifest에서 "유지"로 결정된
 evidence id 중, source 진위 검토와 issueTypes 검토를 모두 통과한 evidence만 참조할 수 있다**
-(REQ-EVIDENCE-013 개정판 — 외부 독립 리뷰 v0.3.0 이슈 3). 두 검토 중 하나라도 미완료이면 해당
+(REQ-EVIDENCE-015 개정판 — 외부 독립 리뷰 v0.3.0 이슈 3). 두 검토 중 하나라도 미완료이면 해당
 evidence는 "authenticated"로 간주하지 않는다(§3.4 정의 참고).
 
 **issueTypes 검토 규칙 (과도한 tagging 방지)**:
@@ -509,14 +538,15 @@ evidence는 "authenticated"로 간주하지 않는다(§3.4 정의 참고).
   duplicate 판정과 마찬가지로, semantic 분류 자동화는 이번 SPEC의 범위 밖이다(spec.md §4 Out
   of Scope 정신 계승).
 
-## §6. Requirement F — 중복(duplicate) 판정 규칙 (REQ-EVIDENCE-018 개정, 외부 독립 리뷰 이슈 6)
+## §6. Requirement F — 중복(duplicate) 판정 규칙 (REQ-EVIDENCE-022 개정, 외부 독립 리뷰 이슈 6)
 
 **이전 설계의 결함**: "동일 source의 record들은 issueTypes 교집합이 비어야 한다"는 규칙은 너무
 강하다 — 하나의 판례가 인과관계(`CAUSATION`)와 장해 평가 기준(`DISABILITY_GRADE_CRITERIA`) 두
 쟁점을 동시에 다루면서도 서로 다른 proposition을 진술하는 것은 정상이며, 이런 경우를 issueType
 겹침만으로 "중복"이라 판정하면 정당한 레코드를 강제로 병합/삭제하게 된다.
 
-**설계 — sourceIdentifier/sourceUrl + 정규화된 content 비교**:
+**설계 — 기본 구현은 sourceUrl + 정규화된 content 비교만 사용(외부 독립 리뷰 잔여 정합성 이슈
+3, sourceIdentifier 미도입 기본안(§1.2)과 일치시킴)**:
 
 ```typescript
 function normalizeForDuplicateCheck(content: string): string {
@@ -524,9 +554,7 @@ function normalizeForDuplicateCheck(content: string): string {
 }
 
 function isDuplicate(a: EvidenceCandidate, b: EvidenceCandidate): boolean {
-  const sameSource =
-    (a.sourceIdentifier && a.sourceIdentifier === b.sourceIdentifier) ||
-    (a.sourceUrl && a.sourceUrl === b.sourceUrl);
+  const sameSource = Boolean(a.sourceUrl) && a.sourceUrl === b.sourceUrl;
   if (!sameSource) return false;
   return normalizeForDuplicateCheck(a.content) === normalizeForDuplicateCheck(b.content);
 }
@@ -538,8 +566,12 @@ function isDuplicate(a: EvidenceCandidate, b: EvidenceCandidate): boolean {
   확장) — 공백/개행 정규화 수준의 최소 문자열 비교만 사용한다. 문자열은 다르지만 의미가 같은
   진짜 중복(paraphrase)은 이 규칙으로 잡히지 않을 수 있으며, 이는 §5.3 manifest의 사람 검토
   단계에서 보완한다(자동화 범위 밖임을 명시).
-- `sourceIdentifier`가 아직 스키마에 없는 경우(§1.2), 이 판정은 `sourceUrl` 동일성만으로 동작한다
-  — `sourceIdentifier` 도입 이전에도 최소 형태로 유효하다.
+- **이 SPEC의 기본 구현은 `sourceIdentifier` 컬럼을 도입하지 않으므로(§1.2), `isDuplicate()`는
+  `EvidenceCandidate.sourceIdentifier` 필드를 전혀 참조하지 않는다.** `sourceIdentifier`가
+  §1.2 조건을 만족해 실제로 별도 migration으로 추가되는 시점에는, `EvidenceCandidate` 타입에
+  그 필드를 추가하는 것과 **함께** 이 함수에 `(a.sourceIdentifier && a.sourceIdentifier ===
+  b.sourceIdentifier) ||` 조건을 추가한다 — 그 전까지는 존재하지 않는 필드를 참조하는 코드를
+  두지 않는다.
 
 ## §7. Coverage Matrix — `N/A` 셀 허용 (REQ-EVIDENCE-001 개정, 외부 독립 리뷰 이슈 7)
 

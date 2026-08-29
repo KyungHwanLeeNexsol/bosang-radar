@@ -20,11 +20,11 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
 ## §A.5 PRESERVE 목록 (변경 금지 대상)
 
 - `lib/pipeline/{researcher,skeptic,verifier}.ts`의 evidence-ID 계약(격리, `supportingEvidenceIds>=1`,
-  위조 ID 차단, fail-closed) — REQ-EVIDENCE-020
+  위조 ID 차단, fail-closed) — REQ-EVIDENCE-024
 - `lib/ai/{provider-factory,rate-scheduler}.ts`, `lib/ai/providers/{gemini,deterministic}.ts` —
   SPEC-GEMINI-RUNTIME-001 계약 전체(모델/RPM budget/동시성) 무변경
-- `lib/pipeline/index.ts`의 논리적 호출 수(3회) — REQ-EVIDENCE-019
-- `evidence` 테이블의 기존 8개 컬럼과 `id` 기준 upsert idempotency — REQ-EVIDENCE-004/021
+- `lib/pipeline/index.ts`의 논리적 호출 수(3회) — REQ-EVIDENCE-023
+- `evidence` 테이블의 기존 8개 컬럼과 `id` 기준 upsert idempotency — REQ-EVIDENCE-004, REQ-EVIDENCE-025
 - `lib/pipeline/boundary.test.ts`(형제 단계 모듈 간 직접 import 금지 경계)
 
 ## §B. 마일스톤
@@ -38,10 +38,13 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   큐레이션)를 별도 세션으로 미루고 M1~M3/M5는 그대로 진행한다(corpus 큐레이션이 다른 milestone을
   막지 않도록 설계, design.md §0).
 - `lib/db/schema.ts`에 `issueTypes` 컬럼 1개만 추가(design.md §1.1) — `sourceIdentifier`/
-  `sourceDate`는 M1에 포함하지 않는다(design.md §1.2, REQ-EVIDENCE-005/027 통합 조항). `drizzle-kit
+  `sourceDate`는 M1에 포함하지 않는다(design.md §1.2, REQ-EVIDENCE-006/027(027은 v0.2.0 당시 병합되어 폐기된 구 번호) 통합 조항). `drizzle-kit
   generate`로 migration 파일 생성.
 - `lib/pipeline/types.ts` `EvidenceCandidate`에 `issueTypes` 추가, `scripts/db-seed.ts`
-  `EvidenceSeedRecord`/upsert 확장(`issueTypes` 1개 필드만).
+  `EvidenceSeedRecord`/upsert 확장(`issueTypes` 1개 필드만). 이때 `QueryIssueType` 8개 값을
+  `QUERY_ISSUE_TYPES` const로부터 파생시키고(design.md §1.4a), `db/seed/evidence-seed-schema.ts`의
+  zod enum이 이 const를 import해서 쓰도록 해 8개 값의 이중 하드코딩을 없앤다(optional, 외부
+  독립 리뷰 잔여 정합성 이슈 4).
 - 기존 10건 seed에 `issueTypes: []`(또는 명백히 판별 가능한 경우 실제 값)를 채워 재실행 —
   `pnpm db:seed` idempotency 회귀 테스트(REQ-EVIDENCE-004).
 
@@ -51,7 +54,7 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   score 함수에 issueType 가중치(design.md §2.2) + tie-break(§2.3) 추가.
 - `evidence-retriever.benchmark.test.ts` 신설, 최소 7개 벤치마크 케이스(design.md §3.2) 정의 —
   이 시점 corpus(10건, M1에서 issueTypes 채워진 상태)만으로도 실행 가능해야 하며, "known-relevant
-  evidence가 exact issueType이지만 keyword가 없는" 케이스를 최소 1건 포함(REQ-EVIDENCE-029).
+  evidence가 exact issueType이지만 keyword가 없는" 케이스를 최소 1건 포함(REQ-EVIDENCE-013).
 - 전략 A vs 전략 B(+ score 함수 적용) Recall@5/Hit@5를 **exploratory baseline**으로 측정·기록
   (design.md §3.4 1단계) — 이 수치는 알고리즘 방향(어느 전략을 채택할지)만 결정하며, 최종
   acceptance threshold의 근거로 직접 쓰지 않는다.
@@ -64,17 +67,17 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   C-전제조건/Skeptic 프롬프트 포함 3개 테스트.
 - design.md §4.3 해석표를 실제 fixture 실행 결과로 채워 progress.md에 기록하되, **이 결과는
   fixture 진단 harness 자체의 self-test 결과로만 서술한다** — "A/B는 fixture로 배제됨 → 남은
-  후보는 C/D"라는 문구는 어떤 문서에도 남기지 않는다(외부 독립 리뷰 이슈 3, REQ-EVIDENCE-016).
+  후보는 C/D"라는 문구는 어떤 문서에도 남기지 않는다(외부 독립 리뷰 이슈 3, REQ-EVIDENCE-019).
 - design.md §4.4의 production snapshot replay 전제조건(실제 smoke가 쓴 de-identified case/query가
   안전하게 보존·재현 가능한지)을 확인한다. 조건을 만족하면 replay를 수행해 실제 smoke의 A/B를
-  직접 관측하고 그 결과를 기록한다(REQ-EVIDENCE-031). 조건을 만족하지 못하면(가장 유력한 경우 —
+  직접 관측하고 그 결과를 기록한다(REQ-EVIDENCE-020). 조건을 만족하지 못하면(가장 유력한 경우 —
   이번 plan-phase 시점에는 그런 snapshot이 별도로 보존되어 있다는 근거가 없다), `.moai/reports/`에
   "fixture harness는 정상 동작 확인(self-test), 실제 smoke 원인은 corpus/Retriever/prompt/model
   behavior 미확정으로 유지"라고 정직하게 기록하고 M3를 종료한다.
 
 ### M4 — Corpus 큐레이션: 기존 10건 재감사 + 신규 확장 + frozen algorithm/corpus effect 측정
 
-- **4a. 기존 10건 재감사(design.md §5.2/§5.3, REQ-EVIDENCE-026, 외부 독립 리뷰 이슈 5/3)** — 신규
+- **4a. 기존 10건 재감사(design.md §5.2/§5.3, REQ-EVIDENCE-005, 외부 독립 리뷰 이슈 5/3)** — 신규
   확장에 **앞서** 먼저 수행한다: 10건 전부에 대해 (i) sourceUrl 접근성/원문 대조/content 과장
   여부와 (ii) `issueTypes` 배열이 실제 담보-쟁점 분류를 올바르게 반영하는지를 함께 검토하고,
   (i)을 통과하지 못한 레코드는 `OTHER` downgrade 또는 제외를 명시적으로 결정한다. 이 결과(source
@@ -89,26 +92,33 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   정직하게 보고하고 억지로 채우지 않는다(REQ-EVIDENCE-002가 우선). 각 신규 레코드도 4a와 동일하게
   source 검토 + issueTypes 검토를 manifest에 기록한다. `DISPUTE_CASE` evidenceType을 최소 1건
   이상 실제로 도입(현재 0건).
-- **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4A, REQ-EVIDENCE-030)** — 4a/4b가 끝나
-  corpus가 안정되면, 새로 추가/재감사된 relevant evidence — source 검토와 issueTypes 검토를 모두
-  통과한(authenticated) evidence만 — 를 반영해 `knownRelevantEvidenceIds`를 사람이 검토(human
-  review)해 갱신하고 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋). ground truth는
+- **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4A, REQ-EVIDENCE-015, REQ-EVIDENCE-017)** — 4a/4b가
+  끝나 corpus가 안정되면, 각 `BenchmarkCase`의 query에 대해 freeze 대상 production corpus
+  **전체**를 검토하여 relevant로 판정된 evidence — source 검토와 issueTypes 검토를 모두
+  통과한(authenticated) evidence만 — 의 **complete** 집합으로 `knownRelevantEvidenceIds`를
+  사람이 검토(human review)해 확정하고 **freeze**한다(더 이상 수정하지 않는 고정 버전으로 커밋).
+  일부 예시적 evidence만 반영해서는 안 되며(외부 독립 리뷰 잔여 정합성 이슈 2), 이 completeness
+  검토가 없는 BenchmarkCase는 Precision@5를 최종 acceptance 근거로 쓰지 않는다. ground truth는
   manifest(4a)에서 "유지"로 결정된 evidence id만 참조할 수 있다.
 - **4d. Algorithm effect 측정(design.md §3.4A)** — freeze된 **동일** corpus/벤치마크 위에서
   `baselineRetriever`(전략 A, 원래 `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score
   함수)를 동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
   두 실행 모두 동일하고 알고리즘만 바뀌므로 이것은 "algorithm effect"이며, acceptance.md의
-  threshold AC 확정 근거다(REQ-EVIDENCE-014) — M2 exploratory 수치를 threshold 근거로 재사용하지
-  않는다.
+  threshold AC 확정 근거다(REQ-EVIDENCE-016) — M2 exploratory 수치를 threshold 근거로 재사용하지
+  않는다. 실측 결과가 REQ-EVIDENCE-016의 기본 PASS 조건(new Recall/Hit/Precision ≥ baseline +
+  REQ-029 target case hit)을 만족하지 못하면, threshold를 결과에 맞춰 자동으로 낮추지 않는다 —
+  score 파라미터 재조정 또는 trade-off 수용 근거를 design exception으로 `.moai/reports/`와
+  progress.md에 기록하고, 그렇게 완화된 acceptance 계약은 다시 plan-auditor 재검토를 거친다
+  (design.md §3.3b, 외부 독립 리뷰 잔여 정합성 이슈 1).
 - **4e. Corpus expansion effect 측정(design.md §3.4B)** — M1 시점(초기, 10건) corpus 스냅샷과 4c의
   freeze 시점(최종, N건) corpus 사이의 coverage delta(domain × issueType authenticated coverage
   matrix, 빈 cell 수, ground truth 존재 query 비율)를 기록한다 — cross-corpus Recall@5 직접
   비교로 corpus 확장 효과를 주장하지 않는다(design.md §3.4B). 4d(algorithm effect)와 4e(corpus
-  expansion effect)는 `.moai/reports/`에 서로 다른 항목으로 기록한다(REQ-EVIDENCE-030).
+  expansion effect)는 `.moai/reports/`에 서로 다른 항목으로 기록한다(REQ-EVIDENCE-017).
 
 ### M5 — 회귀 검증
 
-- REQ-EVIDENCE-019/020 전체(Researcher/Skeptic/Verifier 1/1/1 호출, query 격리, 위조 ID 차단,
+- REQ-EVIDENCE-023, REQ-EVIDENCE-024 전체(Researcher/Skeptic/Verifier 1/1/1 호출, query 격리, 위조 ID 차단,
   fail-closed, safety-validator, deterministic E2E, 프로세스 로컬 동시성, Gemini env 계약) —
   기존 SPEC-GEMINI-RUNTIME-001 테스트 스위트가 그대로 통과하는지 확인.
 - 신규 fabrication guard 테스트(REQ-EVIDENCE-002/003) — production evidence.json에 대해 (a)
@@ -116,9 +126,12 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   `sourceIdentifier` 중 하나 이상을 가져야 한다는 최소 구조 검증(실제 원문 대조는 자동화 불가 —
   M4a/4b의 수작업 절차 + manifest가 이미 담당, 이 테스트는 "출처 미상 채로 PRECEDENT로 분류되는
   것"만 기계적으로 차단하며 authenticity PASS를 주장하지 않는다 — 외부 독립 리뷰 이슈 5).
-- 신규 dedup 테스트(REQ-EVIDENCE-018 개정, design.md §6) — 동일 `sourceIdentifier`/`sourceUrl` +
-  정규화된 content 동일성 기준으로 중복을 탐지하는지 검증.
-- REQ-EVIDENCE-009(무관 evidence가 키워드 하나로 상위 회귀) 벤치마크 케이스 신설.
+- 신규 dedup 테스트(REQ-EVIDENCE-022 개정, design.md §6) — 동일 `sourceUrl`(이 SPEC의 기본 구현,
+  §1.2) + 정규화된 content 동일성 기준으로 중복을 탐지하는지 검증한다. `sourceIdentifier`는 이
+  SPEC의 기본안에 포함되지 않으므로 이 테스트의 기본 판정 기준이 아니다(외부 독립 리뷰 잔여
+  정합성 이슈 3) — §1.2 조건을 만족해 추후 추가되는 경우, 그 시점에 동일 `sourceIdentifier`
+  기준도 함께 검증하도록 테스트를 확장한다.
+- REQ-EVIDENCE-010(무관 evidence가 키워드 하나로 상위 회귀) 벤치마크 케이스 신설.
 
 ### M6 — 문서/마무리
 
@@ -145,5 +158,5 @@ spec.md §5와 동일 — (1) corpus 확장 규모가 웹 조사 도구 가용�
 벤치마크(있다면) 순위를 바꿀 부작용, (4) M4a 재감사로 기존 corpus가 오히려 줄어들 수 있음(spec.md
 §5), (5) frozen benchmark 재실행 비용 — M4를 여러 번 나누어 하면 freeze도 여러 번 반복돼야 하므로
 큰 배치로 묶는 것이 바람직. 추가: (6) M2의 threshold AC는 M4d(frozen 최종 비교)가 끝나야 확정되므로,
-acceptance.md는 "측정 후 확정" 상태로 plan-auditor에 제출된다 — 이는 REQ-EVIDENCE-014의 명시적
+acceptance.md는 "측정 후 확정" 상태로 plan-auditor에 제출된다 — 이는 REQ-EVIDENCE-016의 명시적
 설계(임의 목표 선정 금지, exploratory와 frozen 분리)이며 결함이 아니다.
