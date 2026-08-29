@@ -85,9 +85,10 @@ verdict를 아래에 있는 그대로(축소·상향 없이) 기록한다 — ve
 - **D2 (minor, optional)**: spec.md §4의 5개 `### Out of Scope — <항목>` H3 서브섹션이 산문
   단락으로만 되어 있고 `OutOfScopeRule` lint 컨벤션의 Score-1.0 밴드가 요구하는 리터럴 `-`
   bullet 라인이 없다.
-- **D3 (minor, optional)**: acceptance.md §A/§D의 REQ→AC 병합 요약이 2건(REQ-029→AC-008,
-  REQ-030→AC-014)만 명시하고, AC-EVIDENCE-016d 자신의 헤더에 보이는 3번째 병합
-  (REQ-031→AC-016d)을 누락했다 — 실제 기계적 링크가 끊긴 것이 아니라 자기서술(self-description)
+- **D3 (minor, optional)**: acceptance.md §A/§D의 REQ→AC 병합 요약이 2건(당시 번호 REQ-029→AC-008, REQ-030→AC-014 —
+  현재 번호로는 REQ-EVIDENCE-013→AC-008, REQ-EVIDENCE-017→AC-014)만 명시하고, AC-EVIDENCE-016d
+  자신의 헤더에 보이는 3번째 병합(당시 번호 REQ-031→AC-016d, 현재 REQ-EVIDENCE-020→AC-016d)을
+  누락했다 — 실제 기계적 링크가 끊긴 것이 아니라 자기서술(self-description)
   누락이다.
 - **D4 (minor, optional)**: REQ-EVIDENCE-009(spec.md)이 WHAT/WHY 산문이 아니라 boolean-formula
   의사코드를 문자 그대로 요구사항 본문에 삽입하고 있다 — design.md §2.1의 canonical formula와
@@ -173,6 +174,81 @@ D1(critical, blocking) + D2-D5(minor, optional) 수정을 반영한 v0.5.0 아�
   유발한 슬래시 표기 결함 발견·수정 포함), (6) plan-auditor를 실제로 2회 실행(iteration 1 FAIL,
   iteration 2 PASS)하고 그 전 과정을 정직하게 기록 — 어느 시점에도 조작된 PASS 없음.
 
+### plan-auditor 실행 결과 — iteration 3, PASS (최종 iteration, plan-auditor Retry Loop Contract 상한)
+
+v0.5.0 아티팩트 5종(`spec.md`/`research.md`/`design.md`/`plan.md`/`acceptance.md`)에 대해 `plan-auditor`
+subagent를 **iteration 3/3**(plan-auditor Retry Loop Contract가 허용하는 최종 iteration)으로
+재실행했다. orchestrator가 이 실행을 직접 관측했으며, plan-auditor 자신의 리포트에서 관측한 결과를
+그대로(축소·과장 없이) 기록한다(verification-claim-integrity 원칙 준수).
+
+- **Verdict**: **PASS** (iteration 3/3 — plan-auditor Retry Loop Contract가 허용하는 최종 iteration)
+- **Overall score**: 0.923 (4축 조화평균) — Tier L PASS threshold(0.85) 상회
+- **Must-pass 7항목 결과**: 전부 PASS 또는 N/A —
+  - MP-1 REQ 번호 일관성 = **PASS**(독립적으로 재검증) — 001-025 연속 시퀀스를 다시 확인했을 뿐 아니라,
+    5개 아티팩트 전체에서 존재하지 않는 REQ 번호를 가리키는 **살아있는(LIVE)** 참조가 어떤 표기
+    형태로도(`REQ-EVIDENCE-` 접두어 있는/없는 bare `REQ-NNN` 포함) 0건임을 별도로 확인했다.
+  - MP-2 EARS/GEARS 형식 = PASS
+  - MP-3 YAML frontmatter 유효성 = PASS(`version: "0.5.0"`)
+  - MP-4 언어 중립성 = N/A(자동 PASS)
+  - MP-5 D7 cross-SPEC 정합성 = PASS — 이번 iteration에서 auditor가 design.md에서 `SPEC-RUNTIME-001`
+    참조를 추가로 발견해 검증했으며, 해당 SPEC도 `status: completed`임을 확인했다.
+  - MP-6 D8 cross-platform discipline = N/A(자동 PASS)
+  - MP-7 clarification gate = PASS(`[NEEDS CLARIFICATION]` 매치 0건)
+- **4축 카테고리 점수**: Clarity 0.75, Completeness 1.0, Testability 1.0, Traceability 1.0.
+- **회귀 확인(iteration 1/2 → 3)**: D1-D7 전부 독립적인 fresh 재검증으로 RESOLVED 확인(신뢰가 아니라
+  실제 재확인) — 이전 결함 중 재발한 항목은 없다.
+- **이번 iteration에서 새로 발견된 결함(D8, 이 SPEC의 결함 번호 시퀀스를 이어감 — 앞서 D1-D7과
+  충돌하지 않도록)**: REQ-EVIDENCE-016과 그로부터 파생된 AC-EVIDENCE-014 사이의 acceptance-scope
+  모호성. REQ-EVIDENCE-016은 "기본 PASS 조건"을 4개 부분으로 구성된 복합 조건(3개 지표 부등식 +
+  REQ-EVIDENCE-013 target-case-hit 조건)으로 정의하고, trade-off/예외 경로가 "이 조건 중 하나라도"
+  (즉 4개 부분 전체를 아우르는 것으로 읽히는) 충족되지 않을 때 적용된다고 서술한다. 그런데
+  `acceptance.md`의 AC-EVIDENCE-014는 이를 **두 개의 별도 Then 절**로 나눠 놓았다 — "기본 PASS 조건"
+  Then 절(3개 지표만)에는 Path A/Path B 예외 + plan-auditor 재검토 메커니즘 전체가 딸려 있는 반면,
+  별도의 "REQ-EVIDENCE-013 target case 복구" Then 절에는 예외 경로가 전혀 없다 — 무조건적으로 읽힌다.
+  따라서 target-case-hit 실패가 구체적으로 (a) AC-EVIDENCE-014를 구제 불가능하게 무조건 FAIL시키는지
+  (REQ-EVIDENCE-016이 명시한 "이 조건 중 하나라도"의 scope와 모순), 아니면 (b) sibling Then 절로부터
+  명시되지 않은 어떤 상속을 통해 예외 경로 대상이 되는지 불분명하다. design.md §3.3b는 target-case
+  조건이 협상 불가능하다는 쪽으로 기운다(설계 근거: 이것 없이는 "전략 B 채택 근거 자체가 무너진다") —
+  이는 정당한 입장이지만, SPEC이 현재 작성된 형태로는 3개 아티팩트(spec.md REQ 문구 vs acceptance.md
+  AC 구조 vs design.md 근거) 전체에 걸쳐 이를 명시적으로 해소하지 않는다. auditor는 결함 항목 자체를
+  "Severity: major, Class: blocking"으로 분류했지만, **전체 VERDICT는 여전히 PASS**다(must-pass 기준
+  중 실패한 항목이 없음 — 이것은 Clarity 축의 감점이지 must-pass 위반이 아니다) — auditor 자신의
+  Recommendation 섹션은 이를 명시적으로 "PASS + 권장(비필수) run-phase 이전 정리"로 규정했으며, 4번째
+  audit iteration을 요구하는 blocker로 규정하지 않았다(어차피 Retry Loop Contract의 max-3 상한이
+  4회차를 허용하지 않는다).
+- **D8 수정 완료 기록(같은 세션, 이 항목 기록 직후 사용자 결정에 따라 수정됨)**: 위 D8을 수정했다 —
+  spec.md REQ-EVIDENCE-016에 target-case 조건이 trade-off 예외 경로 대상이 **아님**을 명시적으로
+  추가했고, acceptance.md AC-EVIDENCE-014의 target-case Then 절에도 예외 경로(Path B) 적용 대상이
+  아님을 명시적으로 추가했다(design.md §3.3b의 기존 근거와 일치). 이 수정은 orchestrator가
+  grep으로 기계적으로 자체 검증했다(두 신규 절 존재 확인, REQ 개수 25 유지, AC 개수 25 유지) —
+  4차 plan-auditor iteration을 거치지 않았다. 이는 (a) Retry Loop Contract가 plan-phase 사이클당
+  max-3로 상한을 두고 있고 3차 iteration이 이미 자체 근거로 진짜 PASS를 달성했으며(D8은 auditor
+  자신의 판정으로도 non-blocking·courtesy-level 결함이었다), (b) 이번 수정이 제약을 완화하지 않고
+  명확화만 추가할 뿐(REQ/AC 개수 불변, 다른 내용 무변경) 회귀 위험이 매우 낮다는 판단에 근거한
+  **판단(judgment call)**이며, "감사를 거친 것과 동등하다"는 주장이 아니다. `plan_status`는
+  `audit-ready`를 그대로 유지한다 — D8은 애초에 must-pass 기준이 아니었으므로 이 수정이 3차 PASS
+  판정을 재개방하거나 무효화하지 않는다. `/moai run`은 여전히 시작되지 않았다.
+- **별도로 기록(5개 감사 대상 아티팩트의 결함은 아니지만, auditor가 지나가며 지적한 self-consistency
+  gap)**: auditor는 이 progress.md **자신의** §G.6 서술(iteration 2의 D7 수정을 기록한 항목)이 구
+  REQ-027 병합 대상을 "005/008"로 기재하고 있는데, spec.md/design.md/research.md의 **실제 현재
+  텍스트**는 올바르게 "006/009"로 되어 있음을 발견했다 — 즉 §G.6 자신의 "무엇을 고쳤는지"에 대한
+  서술이 지금은 stale/부정확한 상태이며, 감사 대상 아티팩트 안의 실제 수정 내용 자체는 올바르다.
+  이 문제는 같은 편집 안에서 §G.6을 수정해 바로잡는다(아래 §G.6 참고).
+- 명시적으로 밝힌다: 이 PASS는 실제로 관측된 것이며 조작되지 않았다(verification-claim-integrity
+  §1.1 surface 1 준수). `plan_status`는 `audit-ready`로 **유지**한다 — iteration 2에서 이미 올바르게
+  설정되어 있었으며, 이번 3차 PASS는 그 상태를 재확인/보강할 뿐 변경하지 않는다.
+- 명시적으로 밝힌다: `/moai run`은 아직 시작되지 않았다. D8은 이 기록과 같은 턴에서 사용자에게
+  결정 지점(지금 수정할지, 문서화된 debt로 남기고 진행할지)으로 제시되는 중이다 — 이 progress.md
+  기록 세션은 그 결정을 선점하지 않으며, D8의 발견 사실과 그 판정(major/blocking severity이지만
+  overall verdict는 PASS)만 정직하게 기록한다.
+- **plan-auditor 리포트 영속화 gap도 함께 기록한다(auditor 자신의 리포트에서 지적)**: 이 SPEC에
+  대해 `.moai/reports/plan-audit/SPEC-EVIDENCE-001-review-{1,2,3}.md` 경로에 plan-phase 리뷰
+  스트림 파일이 디스크에 **하나도 존재하지 않는다** — auditor가 이를 프로세스 gap으로 플래그했다.
+  이번 세션의 3회 iteration(§G.1의 iteration 1/2/3) 모두, 이전 orchestrator 호출에서 plan-auditor에게
+  리뷰-스트림 파일을 영속화하도록 요청하지 않았기 때문에, `spec-workflow.md` § Report Persistence가
+  요구하는 plan-phase 리뷰 스트림 영속화 의무가 이행되지 않은 것으로 보인다. 이를 은폐하지 않고
+  known gap으로 정직하게 기록한다.
+
 ## §G.2 corpus 큐레이션(M4) 착수 조건 재확인 필요
 
 plan.md M1이 명시한 대로, run-phase 착수 세션은 M4(기존 10건 재감사 + 신규 확장) 이전에
@@ -197,8 +273,8 @@ WebSearch/WebFetch 또는 등록된 `law.go.kr` OC 키 등 실제 웹 조사 도
   `REQ-A, REQ-B` 형태(부분문자열로 서로를 가리지 않는 형태)를 쓴다.
 - **REQ/AC 개수 재조정**: 리뷰 반영으로 신규 REQ 6개(026/027/028/029/030/031)가 생겨 총 27개가
   됐으나 Tier L 상한(25)을 초과 — REQ-028을 REQ-008에, REQ-027을 REQ-005에 각각 통합해 25개로
-  조정했다(spec.md HISTORY 참고). AC도 같은 원리로 REQ-029→AC-008, REQ-030→AC-014에 통합해
-  25개를 유지했다.
+  조정했다(spec.md HISTORY 참고). AC도 같은 원리로 REQ-029→AC-008, REQ-030→AC-014(v0.2.0 당시 번호 — 현재는 각각
+  REQ-EVIDENCE-013→AC-008, REQ-EVIDENCE-017→AC-014)에 통합해 25개를 유지했다.
 
 ## §G.4 외부 독립 리뷰 최종 revision 반영 기록 (v0.2.0 → v0.3.0)
 
@@ -278,10 +354,10 @@ source 우선순위, sourceIdentifier 재단순화, 6-아티팩트 일관성 재
 기존 관례가 이미 HISTORY 항목에서 "그 항목을 작성한 시점의 현재 번호"를 쓰는 방식이었으므로(예:
 v0.2.0/v0.3.0/v0.4.0 HISTORY 항목이 모두 작성 당시 최신 번호를 인용), 이번 재번호화도 그 관례를
 그대로 따랐다. 단, v0.2.0 HISTORY 항목이 언급하는 "REQ-EVIDENCE-027", "REQ-EVIDENCE-028"은
-이번 매핑 대상이 **아니다** — 이 두 번호는 v0.2.0 개정 당시 이미 005/008로 병합되어 사라진
+이번 매핑 대상이 **아니다** — 이 두 번호는 v0.2.0 개정 당시 이미 006/009로 병합되어 사라진
 과거 한 시점의 역사적 라벨이며, plan-auditor가 iteration 1에서 판정한 "현재 25개 REQ 집합"
 (001-021, 026, 029, 030, 031)에 포함되지 않았다 — 따라서 spec.md HISTORY의 "REQ-EVIDENCE-028을
-008에, REQ-EVIDENCE-027을 005에 통합" 문구는 그 역사적 사실을 그대로 서술한 것으로 남겨두었다.
+009에, REQ-EVIDENCE-027을 006에 통합" 문구는 그 역사적 사실을 그대로 서술한 것으로 남겨두었다.
 
 - **2차 결함 발견 — 재번호화 스크립트 자신이 §G.3의 "REQ 병기 표기 버그"에 다시 걸렸다**: 이 D1
   재번호화에 쓰인 sed 기반 2단계 스크립트는 `REQ-EVIDENCE-NNN` 리터럴 패턴만 매칭했다 — §G.3이 이미

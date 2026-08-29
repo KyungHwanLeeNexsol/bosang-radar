@@ -106,7 +106,7 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   두 실행 모두 동일하고 알고리즘만 바뀌므로 이것은 "algorithm effect"이며, acceptance.md의
   threshold AC 확정 근거다(REQ-EVIDENCE-016) — M2 exploratory 수치를 threshold 근거로 재사용하지
   않는다. 실측 결과가 REQ-EVIDENCE-016의 기본 PASS 조건(new Recall/Hit/Precision ≥ baseline +
-  REQ-029 target case hit)을 만족하지 못하면, threshold를 결과에 맞춰 자동으로 낮추지 않는다 —
+  REQ-EVIDENCE-013 target case hit)을 만족하지 못하면, threshold를 결과에 맞춰 자동으로 낮추지 않는다 —
   score 파라미터 재조정 또는 trade-off 수용 근거를 design exception으로 `.moai/reports/`와
   progress.md에 기록하고, 그렇게 완화된 acceptance 계약은 다시 plan-auditor 재검토를 거친다
   (design.md §3.3b, 외부 독립 리뷰 잔여 정합성 이슈 1).

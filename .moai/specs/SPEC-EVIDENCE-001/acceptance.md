@@ -146,14 +146,14 @@ REQ(REQ-EVIDENCE-013→AC-008, REQ-EVIDENCE-017→AC-014, REQ-EVIDENCE-020→AC-
   coverage cell 수(초기 → 최종), ground truth 존재 query 비율(초기 → 최종) 중 최소 coverage
   matrix와 query 비율을 포함하며, cross-corpus Recall@5 수치를 직접 비교해 "효과"라고 주장하는
   문장이 없다(grep으로 "corpus 확장" 인근에 "Recall@5" 직접비교 문구가 없는지 확인).
-- Then(기본 PASS 조건, 외부 독립 리뷰 잔여 정합성 이슈 1): M4d의 실측값이 new Recall@5 ≥
-  baseline Recall@5 AND new Hit@5 ≥ baseline Hit@5 AND new Precision@5 ≥ baseline Precision@5를
-  모두 만족하거나, 만족하지 못한 metric마다 (a) 악화 폭, (b) 이를 수용하는 제품적 사유, (c) 검토한
-  대체 전략/weight 조정 결과를 명시한 design exception이 acceptance.md 또는 progress.md에 별도로
-  기록되어 있다 — threshold 문구가 실측값에 맞춰 사후에 조용히 수정된 diff가 아니다.
+- Then(기본 PASS 조건 — 외부 독립 리뷰 잔여 정합성 이슈 1, 구현 전 최종 정합성 수정으로 보강): 다음 두 경로 중 하나를 만족해야 이 Then이 PASS다. **(경로 A, 정상 PASS)** M4d의 실측값이 new Recall@5 ≥ baseline Recall@5 AND new Hit@5 ≥ baseline Hit@5 AND new Precision@5 ≥ baseline Precision@5를 모두 만족한다. **(경로 B, trade-off exception)** 경로 A를 만족하지 못한 metric마다 (a) 악화 폭, (b) 이를 수용하는 제품적 사유, (c) 검토한 대체 전략/weight 조정 결과, (d) acceptance 계약이 이 결과에 맞춰 의도적으로 변경됐음을 명시한 design exception이 acceptance.md 또는 progress.md에 기록되어 있고, **그 변경된 계약에 대해 plan-auditor가 실제로 재검토를 실행해 PASS했다는 기록(iteration 번호 · verdict · overall score · 근거)**이 progress.md에 존재해야 경로 B도 PASS로 인정된다 — design exception 문서만 작성하고 plan-auditor 재검토 없이(또는 재검토가 FAIL이거나 아직 실행되지 않은 채로) 이 Then을 PASS로 처리해서는 안 된다. threshold 문구가 실측값에 맞춰 사후에 조용히 수정된 diff가 아니다.
 - Then(REQ-EVIDENCE-013 target case 복구, 외부 독립 리뷰 잔여 정합성 이슈 1): M4d 절에
   REQ-EVIDENCE-013가 지정한 target case(exact issueType, no keyword)에서 baseline이 miss하고
   new가 hit했음이 그 케이스 단위로 명시적으로 기록되어 있다 — 집계 지표만으로 대체되지 않는다.
+  **이 Then은 위 '기본 PASS 조건' Then의 trade-off exception 경로(경로 B)의 대상이 아니다** —
+  target case 복구가 관측되지 않으면 3개 지표가 전부 정상 PASS(경로 A)를 만족해도 AC-EVIDENCE-014
+  전체는 미충족이며, design exception으로 이 Then을 대체할 수 없다(REQ-EVIDENCE-016, 외부 독립
+  리뷰 잔여 정합성 이슈 D8).
 
 **AC-EVIDENCE-015** (REQ-EVIDENCE-018)
 - Given: 이 SPEC의 acceptance.md 전체와 `evidence-diagnostic.test.ts`
