@@ -25,7 +25,7 @@
     "evidenceType": "PRECEDENT",
     "scope": "DOMAIN_SPECIFIC",
     "title": "상해와 기왕증이 경합한 후유장해의 인과관계 및 감액 판단 — 대법원 2008다44689, 44696",
-    "content": "대법원 2009. 11. 26. 선고 2008다44689, 44696 판결은, 상해보험에서 사고로 인한 상해와 후유장해 사이에 인과관계가 인정되면 보험금 지급의무가 발생하되, 약관에 계약체결 전 이미 존재한 신체장해나 질병의 영향으로 상해가 중하게 된 때에는 그 영향이 없었을 경우에 상당하는 금액을 결정해 지급하도록 정한 규정이 있으면 그 약관에 따라 기왕증 감액을 할 수 있다고 판시했다. 다만 이 사건에서는 원심이 기왕증 감액 주장에 대한 심리를 충분히 하지 않았다는 이유로 파기환송되었다 — 기왕증 감액은 가능하지만 그 인과관계·기여도에 대한 구체적 심리가 반드시 필요하다는 취지다.",
+    "content": "대법원 2009. 11. 26. 선고 2008다44689, 44696 판결은, 상해보험에서 사고로 인한 상해와 후유장해 사이에 인과관계가 인정되면 보험금 지급의무가 발생하되, 약관에 계약체결 전 이미 존재한 신체장해나 질병의 영향으로 상해가 중하게 된 때에는 그 영향이 없었을 경우에 상당하는 금액을 결정해 지급하도록 정한 규정이 있으면 그 약관에 따라 기왕증 감액을 할 수 있다고 판시했다. 이 판결은 기왕증 감액의 법적 근거(그러한 취지의 약관 규정 존재)를 확인한 것이며, 실제 감액 여부·정도는 기왕증이 상해 결과에 기여한 정도에 대한 심리를 전제로 한다는 취지다.",
     "sourceUrl": "https://casenote.kr/대법원/2008다44689",
     "issueTypes": ["CAUSATION", "PRE_EXISTING_CONDITION"]
   },
@@ -98,5 +98,95 @@
     "content": "상법 제658조(보험금액의 지급)는 \"보험자는 보험금액의 지급에 관하여 약정기간이 있는 경우에는 그 기간내에, 약정기간이 없는 경우에는 제657조제1항의 통지를 받은 후 지체없이 지급할 보험금액을 정하고 그 정하여진 날부터 10일내에 피보험자 또는 보험수익자에게 보험금액을 지급하여야 한다\"고 정한다. 이는 상해후유장해·질병후유장해를 불문하고 모든 보험금 청구 절차에 공통으로 적용되는 지급 기한 규정이다.",
     "sourceUrl": "https://casenote.kr/법령/상법/제658조",
     "issueTypes": []
+  },
+  {
+    "id": "seed-evidence-011",
+    "category": "상해후유장해",
+    "evidenceType": "POLICY",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "척추(등뼈) 장해 판정 기준 — 장해분류표",
+    "content": "생명보험 표준약관 장해분류표(후유장해판정기준)는 척추(등뼈) 장해를 경추 이하 동일 부위로 취급하며, 운동장해는 척추체 3개 이상 유합 시 뚜렷한 장해(지급률 30%), 2개 유합 시 약간의 장해(지급률 10%)로 구분한다. 기형은 척추후만증 35도 이상 또는 측만증 20도 이상인 경우 심한 기형(지급률 50%)으로 판정하며, 추간판탈출증은 수술 여부와 신경증상 정도에 따라 지급률 10~20%를 적용한다.",
+    "sourceUrl": "https://www.insclaim.co.kr/44/11597260",
+    "issueTypes": ["DISABILITY_LOCATION", "DISABILITY_GRADE_CRITERIA"]
+  },
+  {
+    "id": "seed-evidence-012",
+    "category": "상해후유장해",
+    "evidenceType": "POLICY",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "손가락 장해 판정 기준 — 장해분류표",
+    "content": "생명보험 표준약관 장해분류표는 손가락 장해를 상실 개수·부위별로 세분해 지급률을 정한다. 한 손의 손가락 5개 모두 상실 시 지급률 55%, 엄지손가락 상실 시 15%, 그 외 손가락 상실 시 각 10%를 지급률로 정하며, 손가락뼈 일부 상실이나 관절 운동범위 제한에 그치는 뚜렷한 장해는 이보다 낮은 지급률이 적용된다.",
+    "sourceUrl": "https://www.insclaim.co.kr/44/11597260",
+    "issueTypes": ["DISABILITY_LOCATION", "DISABILITY_GRADE_CRITERIA"]
+  },
+  {
+    "id": "seed-evidence-013",
+    "category": "상해후유장해",
+    "evidenceType": "POLICY",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "발가락 장해 판정 기준 — 장해분류표",
+    "content": "생명보험 표준약관 장해분류표는 발가락 장해를 상실 범위별로 구분한다. 리스프랑관절 이상 부위에서 상실한 경우 지급률 40%, 한 발의 발가락 5개 모두 상실 시 30%, 엄지발가락 상실 시 10%를 지급률로 정한다.",
+    "sourceUrl": "https://www.insclaim.co.kr/44/11597260",
+    "issueTypes": ["DISABILITY_LOCATION", "DISABILITY_GRADE_CRITERIA"]
+  },
+  {
+    "id": "seed-evidence-014",
+    "category": "상해후유장해",
+    "evidenceType": "PRECEDENT",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "'급격하고도 우연한 외래의 사고' 요건 중 외래성의 의미 — 대법원 98다28114",
+    "content": "대법원 1998. 10. 13. 선고 98다28114 판결은, 상해보험 약관이 정하는 '외래의 사고'란 상해 또는 사망의 원인이 피보험자의 신체적 결함 즉 질병이나 체질적 요인 등에 기인한 것이 아니라 외부적 요인에 의해 초래된 모든 것을 의미한다고 판시했다. 이 사건에서는 피보험자가 술에 취해 잠을 자다가 구토물로 기도가 막혀 질식사한 경우, 음주라는 외부 행위를 원인으로 본 사고 발생 경위가 외래성 요건을 충족한다고 인정해 보험금 지급의무를 긍정했다.",
+    "sourceUrl": "https://casenote.kr/대법원/98다28114",
+    "issueTypes": ["INCIDENT_CIRCUMSTANCE"]
+  },
+  {
+    "id": "seed-evidence-015",
+    "category": "상해후유장해",
+    "evidenceType": "PRECEDENT",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "최초 상해 치료 중 의료사고로 증상이 악화된 경우의 상당인과관계 — 대법원 99다48245",
+    "content": "대법원 2000. 9. 8. 선고 99다48245 판결은, 사고로 상해를 입은 피해자가 치료를 받던 중 의료상의 과실로 증상이 악화되거나 새로운 증상이 발생해 손해가 확대된 경우, 그 의료상 과실이 중대하지 않다면 확대된 손해와 최초 사고 사이에도 상당인과관계가 인정된다고 판시했다. 다만 의사에게 중대한 과실 등 특별한 사정이 있었음을 이유로 인과관계를 부정하려면 그 특별한 사정에 대한 증명책임은 최초 사고를 야기한 쪽에 있다는 취지다.",
+    "sourceUrl": "https://casenote.kr/대법원/99다48245",
+    "issueTypes": ["INJURY_DISEASE_RELATION", "CAUSATION"]
+  },
+  {
+    "id": "seed-evidence-016",
+    "category": "공통",
+    "evidenceType": "PRECEDENT",
+    "scope": "UNIVERSAL",
+    "title": "기왕증 경합 시 보험금 감액의 법적 근거와 인과관계의 성격 — 대법원 2002다564",
+    "content": "대법원 2002. 10. 11. 선고 2002다564 판결은, 피보험자에게 약관 소정의 상해가 발생했는데 이미 존재하던 기왕증(예: 심관상동맥경화)의 영향으로 상해가 중해져 사망 등 결과를 촉진한 경우, 약관에 기왕증의 영향이 없었을 때에 상당하는 금액만을 지급하도록 정한 규정이 있으면 보험자는 그 약관에 따라 보험금을 감액해 지급할 의무만을 부담한다고 판시했다. 이 판결은 아울러 보험사고에서의 인과관계는 의학적·자연과학적 인과관계가 아니라 사회적·법적 인과관계이며, 반드시 의학적·자연과학적으로 명백히 입증되어야 하는 것은 아니라는 법리도 함께 확인했다.",
+    "sourceUrl": "https://casenote.kr/대법원/2002다564",
+    "issueTypes": ["CAUSATION", "PRE_EXISTING_CONDITION"]
+  },
+  {
+    "id": "seed-evidence-017",
+    "category": "질병후유장해",
+    "evidenceType": "OTHER",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "질병후유장해 지급률 확정 시기 — 진단확정일부터 180일 기준",
+    "content": "질병후유장해 특별약관은, 장해지급률이 질병의 진단확정일부터 180일 이내에 확정되지 않는 경우 그 180일이 되는 날의 의사 진단에 기초해 고정될 것으로 인정되는 상태를 장해지급률로 결정하도록 정한다. 다만 장해분류표에 장해판정시기를 별도로 정한 경우에는 그에 따른다. 이 레코드는 보험 실무 커뮤니티(다음 카페)에 게재된 약관 발췌를 근거로 하며, 생명보험협회·손해보험협회의 공식 표준약관 원문 URL을 이번 세션에서 확보하지 못해 evidenceType을 OTHER로 분류했다.",
+    "sourceUrl": "https://m.cafe.daum.net/insuranceprofit/Bo3H/1963",
+    "issueTypes": ["DISABILITY_GRADE_CRITERIA"]
+  },
+  {
+    "id": "seed-evidence-018",
+    "category": "공통",
+    "evidenceType": "OTHER",
+    "scope": "UNIVERSAL",
+    "title": "장해지급률 확정 후 장해상태가 악화된 경우의 재산정",
+    "content": "후유장해 특별약관은, 일단 장해지급률이 결정된 이후에도 일정 보장기간(계약의 효력이 없어진 경우 보험기간 10년 이상 계약은 진단확정일부터 2년 이내, 10년 미만 계약은 1년 이내) 중 장해상태가 더 악화된 때에는 그 악화된 장해상태를 기준으로 장해지급률을 다시 결정하도록 정한다. 이 조항은 상해후유장해·질병후유장해를 불문하고 생명보험·손해보험 표준약관에 공통으로 쓰인다. 이 레코드는 보험 실무 커뮤니티(다음 카페)에 게재된 약관 발췌를 근거로 하며, 공식 협회 원문 URL을 확보하지 못해 evidenceType을 OTHER로 분류했다.",
+    "sourceUrl": "https://m.cafe.daum.net/insuranceprofit/Bo3H/1963",
+    "issueTypes": ["DISABILITY_GRADE_CRITERIA"]
+  },
+  {
+    "id": "seed-evidence-019",
+    "category": "질병후유장해",
+    "evidenceType": "POLICY",
+    "scope": "DOMAIN_SPECIFIC",
+    "title": "암 등 질병 진단확정의 방법 — 병리조직검사 결과보고일 기준",
+    "content": "암 진단비 등 특별약관에서 '진단확정'은 해부병리 또는 임상병리 전문의의 병리조직검사 현미경 소견을 근거로 이루어지며, 진단서 발급일이 아니라 조직검사 결과가 보고된 날을 진단확정 시점으로 본다.",
+    "sourceUrl": "https://www.cardif.co.kr/life-stage/understanding-cancer-diagnosis.do",
+    "issueTypes": ["DIAGNOSIS"]
   }
 ]

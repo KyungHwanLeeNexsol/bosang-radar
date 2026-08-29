@@ -82,3 +82,39 @@ const domainPlans: DomainPlan[] = [
   issueTypes로 분류되지 않음)와 목표 건수가 명시되어 있다.
 - 목표 건수는 evidenceType별 임의 균등배분이 아니라, `planQueries()`의 실제
   생성 빈도(항상 생성 vs 조건부)에 비례해 배분되었음을 위 절에서 설명한다.
+
+## M4 pilot 이후 현재 건수 (2026-08-29, `.moai/reports/evidence-source-audit-manifest.md` 기준)
+
+**PILOT SCOPE 고지**: 이 절은 M4a(기존 10건 재감사) + M4b(pilot 신규 9건 확장)만 반영한다.
+M4c(benchmark freeze)/M4d(algorithm effect)/M4e(corpus expansion effect)는 이번 세션에서
+수행하지 않았다 — 아래 "현재 건수"는 여전히 **exploratory** 스냅샷이며, frozen 최종 corpus가
+아니다. `evidence.json` 총 레코드 수: 10 → **19**(재감사로 인한 downgrade/제외 0건, 신규 9건).
+
+**집계 규칙**: `category="공통"`/`scope="UNIVERSAL"` 레코드(seed-evidence-010/016/018)는
+`retrieveEvidence()`의 `isUniversal` 분기가 domainMatch 요건을 면제하므로, 두 도메인 셀
+모두의 "현재 건수"에 함께 집계한다(design.md §2.1).
+
+| issueType | INJURY_DISABILITY (상해후유장해) | DISEASE_DISABILITY (질병후유장해) |
+|---|---|---|
+| `DISABILITY_LOCATION` | 현재 **4**건(001/011/012/013) / 목표 5건 | **N/A** |
+| `DIAGNOSIS` | **N/A** | 현재 **3**건(003/008/019) / 목표 5건 |
+| `DISABILITY_GRADE_CRITERIA` | 현재 **5**건(001/011/012/013 + universal 018) / 목표 6건 | 현재 **3**건(004/017 + universal 018) / 목표 6건 |
+| `CAUSATION` | 현재 **3**건(005/015 + universal 016) / 목표 6건 | 현재 **4**건(003/008/009 + universal 016) / 목표 6건 |
+| `PRE_EXISTING_CONDITION` | 현재 **3**건(005/006 + universal 016) / 목표 4건 | 현재 **1**건(universal 016만) / 목표 4건 |
+| `INJURY_DISEASE_RELATION` | 현재 **1**건(015) / 목표 3건 | 현재 **0**건 / 목표 3건 |
+| `INCIDENT_CIRCUMSTANCE` | 현재 **1**건(014) / 목표 3건 | 현재 **0**건 / 목표 3건 |
+| `ADDITIONAL_CONFIRMATION_NEEDED` | 현재 **0**건 / 목표 2건 | 현재 **0**건 / 목표 2건 |
+
+### 잔여 공백 (M4b pilot 이후에도 목표 미달, 정직 고지)
+
+- `INJURY_DISEASE_RELATION`(질병), `INCIDENT_CIRCUMSTANCE`(질병), `ADDITIONAL_CONFIRMATION_NEEDED`(양 도메인)는 이번 pilot에서 신규 레코드를 전혀 확보하지 못했다.
+- 그 외 셀도 대부분 목표에 못 미친다 — pilot은 "15~20건 SMALL 확장" 범위였고 전체 50~100건
+  목표(spec.md §1)에는 크게 못 미친다. 이는 설계된 결과다(task 지시: pilot scope, 4c/4d/4e 및
+  전체 목표 달성은 후속 세션).
+- `DISPUTE_CASE` evidenceType: 이번 pilot에서도 **0건** — manifest §C에 시도 경위와 실패 사유를
+  정직하게 기록했다(FSS 분쟁조정 사례집 PDF 텍스트 추출 실패, 개별 결정 URL 부재).
+
+### evidenceType 분포 (19건)
+
+POLICY 6건(001/003/011/012/013/019), PRECEDENT 5건(005/008/014/015/016), STATUTE 2건
+(007/010), OTHER 6건(002/004/006/009/017/018), DISPUTE_CASE 0건.
