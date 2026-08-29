@@ -312,6 +312,38 @@ subagent를 **iteration 3/3**(plan-auditor Retry Loop Contract가 허용하는 �
   요구하는 plan-phase 리뷰 스트림 영속화 의무가 이행되지 않은 것으로 보인다. 이를 은폐하지 않고
   known gap으로 정직하게 기록한다.
 
+## §F Phase 4 Mode Selection
+
+- **Input parameters**: tier=L, scope≈15+ files (schema/types/seed/retriever/benchmark/diagnostic/report), domain count=4+ (DB migration, retrieval algorithm, benchmark infra, corpus curation/authenticity review), concurrency benefit=LOW(coding-heavy, strictly sequential milestone dependency chain per plan.md §A — M2 depends on M1's issueTypes column, M3 depends on M2's retriever, M4 depends on M1-M3 being stable, M5 depends on M4, M6 depends on all).
+- **Mode evaluation**: direct — not selected (non-trivial, multi-file semantic change). fanout — not selected (work is sequential-dependent, not independent-parallel; Anthropic coding-task parallelism caveat applies). sweep — not selected (not a uniform mechanical transform; each milestone is distinct semantic work). agent-team/manager-lead — not selected despite meeting the raw ≥3-milestone/≥10-file numeric threshold, because the milestones are NOT independently fan-outable (strict M1→M2→M3→M4→M5→M6 dependency chain per plan.md §A) — manager-lead's fan-out value requires parallelizable leaf work, which this SPEC does not have. **serial — SELECTED** (single manager-develop spawn per milestone, sequential).
+- **Decision**: serial
+- **Justification**: Per Anthropic's coding-task parallelism caveat ("most coding tasks involve fewer truly parallelizable tasks than research"), and per plan.md §A's explicit statement that the 6 milestones execute sequentially by design (M2's exploratory measurement must not mix with M4's frozen comparison), a single sequential manager-develop delegation per milestone is the correct mode. cycle_type=tdd per quality.yaml constitution.development_mode.
+- Implementation Kickoff Approval: user-approved via AskUserQuestion (autonomous progression — proceed through milestones without per-milestone confirmation unless blocked; direct commit to feat/SPEC-EVIDENCE-001, no new branch/PR).
+
+## §G.7 `/moai run` 진입 시 Plan Audit Gate 재실행 결과 — PASS (iteration 4, D8 수정 반영본)
+
+`/moai run SPEC-EVIDENCE-001` 진입 시 자동 실행되는 Phase 1 Plan Audit Gate에서, 스킵 조건 3개
+(PASS verdict / Tier L 임계값 0.85 이상 / 아티팩트 해시 불변) 중 세 번째가 성립하지 않았다 —
+§G.1 iteration 3 PASS(0.923) 이후 D8을 수정하면서 spec.md/acceptance.md 내용이 바뀌었기 때문이다.
+따라서 스킵이 불가능해 plan-auditor를 다시 실행했다(이 SPEC의 4번째 실제 실행, plan-phase
+Retry Loop Contract의 max-3와는 별개의 run-phase 게이트 호출).
+
+- **Verdict**: **PASS**
+- **Overall score**: 0.973 (4축 조화평균) — Tier L PASS threshold(0.85) 상회, iteration 3(0.923)보다도 상승
+- **Must-pass 7항목**: 전부 PASS 또는 N/A(MP-1~MP-7, iteration 3와 동일 결과 유지 — 회귀 없음)
+- **D8 수정 확인**: spec.md REQ-EVIDENCE-016과 acceptance.md AC-EVIDENCE-014의 target-case Then절이
+  design.md §3.3b 근거와 정합하게 "Path B 예외 대상이 아님"을 명시적으로 서술하고 있음을 auditor가
+  독립적으로 재확인했다.
+- **알려진 gap 해소**: `.moai/reports/plan-audit/SPEC-EVIDENCE-001-review-{1,2,3}.md`가 디스크에
+  없다는 이전 gap(§G.1 마지막 항목)은 여전히 사실이지만(과거 3회는 영속화되지 않음), 이번 4번째
+  실행 결과는 `.moai/reports/plan-audit/SPEC-EVIDENCE-001-review-4.md`에 영속화해 이 gap이 향후
+  더 이상 반복되지 않도록 했다.
+- **잔여 non-blocking 발견**: 일부 REQ에 `zod`/`retrieveEvidence()`/`drizzle-kit` 같은 HOW 수준
+  세부사항이 남아있고, 3개 REQ에서 GEARS 타입 라벨이 다소 부정확 — must-pass 기준에는 영향 없음,
+  run-phase 진행을 막지 않는다.
+- 이 PASS는 실제로 관측된 것이며 조작되지 않았다(verification-claim-integrity §1.1 surface 1 준수).
+  `plan_status: audit-ready`를 유지한다. run-phase(Implementation Kickoff Approval 이후)로 진행 가능하다.
+
 ## §G.2 corpus 큐레이션(M4) 착수 조건 재확인 필요
 
 plan.md M1이 명시한 대로, run-phase 착수 세션은 M4(기존 10건 재감사 + 신규 확장) 이전에
