@@ -168,7 +168,10 @@ score를 아무리 잘 설계해도 애초에 candidate 목록에 없는 evidenc
 design.md 시점에는 어느 쪽도 확정하지 않는다(REQ-EVIDENCE-009):
 
 ```typescript
-// 전략 A — 현행 (baseline)
+// 전략 A — 현행 (eligibility는 M4d baseline과 동일 — design.md §3.4A `trueBaselineEligible()` 참고.
+// **score 함수는 별개다** — §2.2 참고. 전략 A의 candidate eligibility 자체는 M4d baseline
+// eligibility와 같지만, "전략 A"라는 이름이 M4d의 baseline **score** 함수까지 가리킨다고
+// 오해해서는 안 된다(외부 독립 리뷰 측정방법론 이슈 1).
 function relevantA(domainMatch: boolean, isUniversal: boolean, keywordScore: number): boolean {
   return isUniversal ? keywordScore > 0 : domainMatch && keywordScore > 0;
 }
@@ -195,6 +198,13 @@ function relevantB(
   이후 회귀 없음과 정합).
 - run-phase M2는 §3의 exploratory baseline 측정에서 전략 A/B 둘 다의 Recall@5를 측정해 채택 여부를
   결정한다 — design.md는 두 후보 구현을 제시할 뿐, 최종 채택은 §3.4의 실측 결과가 정한다.
+- **M2 vs M4d의 "baseline" 용어 구분(외부 독립 리뷰 측정방법론 이슈 1)**: 위 `relevantA()`는 §3.4A가
+  정의하는 M4d의 `trueBaselineEligible()`과 **동일한 식**이다(eligibility는 변경되지 않는다). 다만
+  M2의 탐색적 전략 A/B 비교는 §2.2의 `computeScore()`(issueTypeWeight 포함)를 전략 A/B **양쪽에
+  동일하게** 적용해 eligibility 효과만 격리한다 — 이는 M2 단계에서만 유효한 의도적 단순화다. 반면
+  M4d의 baseline은 issueTypeWeight를 전혀 참조하지 않는 별도의 `trueBaselineScore()`(§3.4A)를
+  사용해야 한다. "전략 A = baseline"이라는 이름은 eligibility에만 해당하며, score 함수까지 두
+  맥락에서 같다고 가정해서는 안 된다.
 
 ### 2.2 score 함수 — issueType 가중치 (정렬, 채택된 전략 위에 적용)
 
@@ -224,6 +234,19 @@ function computeScore(
 - 이 score 함수는 §2.1이 채택한 전략(A 또는 B)이 반환한 candidate 집합 **위에서만** 정렬에
   적용된다 — eligibility(§2.1)와 ranking(§2.2)은 별개 단계이며, 전략 B를 채택해도 score 함수
   자체는 바뀌지 않는다(같은 정렬 로직을 candidate 진입 조건만 넓힌 집합에 적용).
+- **M2 exploratory scoring — NOT the M4d baseline function(외부 독립 리뷰 측정방법론 이슈 1 —
+  §2.2/§3.4 내적 모순 수정)**: 위 `computeScore()`는 M2의 탐색적 전략 A/B 비교에서 **두 전략
+  모두에 동일하게 적용**되는 M2 exploratory scoring function이다 — eligibility(§2.1)만 다르게
+  하고 score 함수는 고정해, "eligibility 변경의 효과"만 격리해서 관측하기 위한 의도적 설계다(원래
+  design 의도, 변경 없음). **이 `computeScore()`는 §3.4A의 M4d(algorithm effect) 최종 비교에서
+  `baselineRetriever`가 사용하는 함수가 아니다** — M4d의 baseline은 `evidence.issueTypes`를 전혀
+  참조하지 않는(구조적으로 참조할 수 없는) 별도 함수 `trueBaselineScore()`(§3.4A)를 사용해야 한다.
+  이 두 함수(`computeScore()` vs `trueBaselineScore()`)를 혼동하는 것은 §2.2가 M4d의 baseline
+  정의(§3.4가 명시하는 "issueType 가중치 없음")와 내적으로 모순되게 읽히던 결함의 원인이었다 —
+  이 절이 그 모순을 해소한다. Production `retrieveEvidence()`(실제 파이프라인이 호출하는 경로)는
+  항상 채택된 전략(§2.1) + 이 `computeScore()`를 사용하며, `trueBaselineScore()`/
+  `trueBaselineEligible()`은 §3.4A의 M4d 벤치마크 비교 **전용**이고 production 코드 경로에는
+  존재하지 않는다.
 
 ### 2.3 결정론적 정렬 (tie-break)
 
@@ -249,6 +272,38 @@ interface BenchmarkCase {
   knownRelevantEvidenceIds: string[]; // production evidence corpus의 실제 id 부분집합(REQ-EVIDENCE-015)
 }
 ```
+
+### 3.1a M2 exploratory benchmark corpus 불변성 (외부 독립 리뷰 측정방법론 이슈 2, REQ-EVIDENCE-014 범위)
+
+**결함**: M2의 탐색적 벤치마크(§3.2)는 `db/seed/evidence.json`을 **라이브(live)로 import**해서 구현될
+위험이 있다 — 실제로 M2 milestone이 `evidence-retriever.benchmark.test.ts`에서
+`import evidenceSeed from "../../db/seed/evidence.json"`로 구현됐다(progress.md §E.2 M2). 그런데
+M4(§5)가 이 파일을 계속 확장하므로(M1 시점 10건 → M4 파일럿 시점 19건 → M4 전체 확장 목표
+50~100건), 이 벤치마크 테스트를 재실행할 때마다 "M2 exploratory 10건 baseline"이라고 progress.md에
+기록된 수치가 실제로는 그 시점의 현재 corpus 크기를 측정하는 것으로 **조용히 바뀐다** — 과거에
+기록된 측정값이 재현 불가능해진다.
+
+**설계 — 물리적으로 별도인 불변(immutable) fixture 스냅샷을 사용한다**: `evidence-retriever.benchmark.test.ts`
+(§3.1)는 M1 완료 시점의 10건 corpus를 그대로 얼린(freeze) 별도 파일 또는 인라인 배열을 사용해야
+하며, `db/seed/evidence.json`에 대한 라이브 `import`를 포함해서는 안 된다. 허용되는 형태:
+
+- 신규 파일 `lib/pipeline/__fixtures__/evidence-m2-baseline-snapshot.json`(M1 완료 시점
+  `db/seed/evidence.json` 10건을 그대로 복사한 정적 스냅샷), 또는
+- 벤치마크 테스트 파일 안에 하드코딩된 인라인 `EvidenceCandidate[]` 배열(fixture 데이터를 코드에
+  직접 선언).
+
+어느 형태든 이 스냅샷은 M4 이후 production seed가 계속 확장돼도 **절대 갱신되지 않는다** — M2
+exploratory 측정의 재현성을 보장하는 것이 유일한 목적이다.
+
+**M4d의 frozen 최종 비교(§3.4A)와 혼동 금지**: M4d는 이와 **반대로** M4c에서 freeze된 **최종**
+production corpus(50~100건 목표)를 사용해야 한다 — 이것은 의도적으로 다른 종류의 불변성(최종
+시점 고정)이며, M2의 불변성(M1 시점 10건 고정)과 목적이 다르다. 둘 다 "불변"이지만 서로 다른
+corpus 스냅샷을 가리키며, 하나로 대체할 수 없다.
+
+**기존 위반에 대한 조치**: 이 요건을 위반한 채(라이브 import로) 이미 기록된 과거 M2 측정값(progress.md
+§E.2 M2의 "전략 A/B 채택 결정" 수치)은, run-phase가 위 불변 스냅샷을 도입한 뒤 "이후 corpus 확장의
+영향을 받음 — 불변 스냅샷 기준 재측정 필요"로 재라벨링해야 한다 — 이 재측정 자체는 코드 변경을
+수반하는 run-phase/orchestrator 작업이며, 이 design.md 개정은 그 재측정이 따라야 할 요건만 명시한다.
 
 ### 3.2 커버리지 (REQ-EVIDENCE-014)
 
@@ -337,6 +392,43 @@ REQ-EVIDENCE-015, REQ-EVIDENCE-017 completeness 조건, 외부 독립 리뷰 잔
 `baselineRetriever`(전략 A, issueType 가중치 없음, 현재 `main`의 알고리즘)와 `newRetriever`(M2가
 채택한 전략 + score 함수)를 실행해 Recall@5 / Hit@5 / Precision@5(§3.3a)를 비교한다. **이것이
 "algorithm effect"이며, acceptance threshold(REQ-EVIDENCE-016)의 유일한 근거다.** 이 completeness 검토가 이루어지지 않았다면, 그 BenchmarkCase의 Precision@5는 최종 acceptance 판단에 사용하지 않는다(§3.3a).
+
+**`baselineRetriever`/`newRetriever`의 정확한 정의 (외부 독립 리뷰 측정방법론 이슈 1 — §2.2와
+분리된 별도 함수, `computeScore()`/`relevantB()`와 이름을 다르게 두어 혼동을 원천 차단한다)**:
+
+```typescript
+// M4d baseline 전용 — §2.2의 computeScore()/§2.1의 relevantB()와 절대 혼동하지 않는다.
+// production retrieveEvidence()의 코드 경로에는 존재하지 않는다(M4d 벤치마크 비교 전용).
+function trueBaselineEligible(
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number
+): boolean {
+  return isUniversal ? keywordScore > 0 : domainMatch && keywordScore > 0;
+  // ↑ §2.1의 relevantA()와 문자 그대로 동일한 식 — eligibility는 이 SPEC 착수 이전과 변경되지 않는다.
+}
+
+function trueBaselineScore(
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number
+): number {
+  const domainWeight = domainMatch ? 2 : 0;
+  const universalWeight = isUniversal ? 1 : 0;
+  return domainWeight + universalWeight + keywordScore;
+  // ↑ issueTypeWeight 항이 아예 없다 — 이 함수는 evidence.issueTypes를 참조하는 코드 경로를
+  //   구조적으로 갖지 않는다(파라미터 목록에 issueTypes/query.issueType이 없음).
+}
+```
+
+`baselineRetriever` = `trueBaselineEligible()`(candidate 진입) + `trueBaselineScore()`(정렬) 조합이며,
+`newRetriever` = §2.1이 채택한 전략(`relevantB()`, 전략 B — M2가 실측으로 확정) + §2.2의
+`computeScore()`(issueTypeWeight 포함) 조합이다. **`baselineRetriever`는 `computeScore()`를 절대
+호출하지 않는다** — M2 exploratory 비교(§2.2)에서 전략 A/B 둘 다에 `computeScore()`를 적용한 것은
+M2 단계에서만 유효한 의도적 단순화이며, 그 값을 M4d의 baseline에 재사용하는 것은 이 SPEC의 측정
+방법론 결함이다. Production 코드 경로(실제 파이프라인이 호출하는 `retrieveEvidence()`)는 항상
+`relevantB()` + `computeScore()`만 사용하며, `trueBaselineEligible()`/`trueBaselineScore()`는
+M4d 벤치마크 비교 목적의 테스트 전용 함수로 production에 존재하지 않는다.
 
 #### B. Corpus expansion effect (초기 vs 최종 corpus의 coverage delta — cross-corpus Recall 비교 아님)
 
