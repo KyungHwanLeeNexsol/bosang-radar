@@ -725,3 +725,54 @@ prefix) 잔존 0건을 재확인했다.
 같은 D1 수정 라운드에 이어 즉시 수정했다 — spec.md(REQ 개수 조정 문구의 재번호화 누락 2건),
 design.md §1.2, plan.md M1, research.md §4(각 1건씩 `REQ-EVIDENCE-006/027`의 "027" 역사적 구
 번호에 대한 설명 병기) 총 4개 파일.
+
+## §J Run-phase 세션 중간 정리 (M1~M3, M5 완료 / M4 파일럷 부분완료 / M6 및 M4 전체 확장은 후속 세션)
+
+이번 `/moai run SPEC-EVIDENCE-001` 세션에서 완료한 것과 남은 것을 정직하게 정리한다
+(verification-claim-integrity 원칙 — 완료하지 않은 것을 완료했다고 기재하지 않는다).
+
+### 완료 (orchestrator가 각 milestone 종료 시점에 `pnpm test` 등을 직접 재실행해 독립 검증함)
+
+- **M1**(커밋 `f7cc93c`): coverage matrix + `issueTypes` 컬럼 migration. 10건 seed 전부 정상.
+- **M2**(커밋 `08f5c9d`): 전략 B(issueType inclusion-OR) 채택, 벤치마크 인프라(7 케이스) 신설,
+  탐색적 측정에서 전략 B가 3개 지표 전부 우세(exploratory, 최종 판정 아님).
+- **M3**(커밋 `63daf14`): 진단 fixture 3종(A/B/C-전제조건) 통과. REQ-EVIDENCE-020 재확인 —
+  2026-08-28 스모크는 실제로 replay 가능했고(선례와 달리 snapshot이 보존돼 있었음), 8개 쿼리 중
+  5개는 corpus 자체에 후보가 없었고 3개는 후보가 있었으나 Skeptic 최종 선택 여부는 LLM 호출
+  없이는 확인 불가 — "corpus/Retriever/prompt/model behavior 미확정" 결론 유지(과장 없음).
+- **M4 — 파일럷만**(커밋 `e68ba2b`, 사용자가 AskUserQuestion에서 "소규모 파일럷부터"를 선택):
+  기존 10건 전체 재감사(1건 문구 수정, 0건 downgrade/제외), 신규 9건 확장(목표 15~20건 중
+  9건 — 나머지는 검증 가능한 출처를 찾지 못해 정직하게 미달로 보고, 특히 DISPUTE_CASE는
+  0건). corpus는 10건 → 19건.
+- **M5**(커밋 `1c87aa3`): fabrication-guard 구조 검증 테스트, dedup 테스트(`isDuplicate()`
+  design.md §6 그대로 신규 구현 — M1~M4에는 없었음, scope 확장이 아니라 M5가 원래 맡은 몫),
+  REQ-EVIDENCE-010 anti-regression 벤치마크 케이스, 기존 SPEC-GEMINI-RUNTIME-001 회귀
+  스위트(13개 파일, 128개 테스트) 전부 재확인.
+- 최종 상태(이 세션 종료 시점, HEAD `1c87aa3`): `pnpm test` **281/281 통과**(orchestrator가
+  병합 직후 직접 재실행해 확인), lint/format clean. `npx tsc --noEmit`은 `app/layout.tsx`의
+  `LayoutProps` 에러가 M4 이후 사라졌다가 M5 시점에 다시 나타남 — Next.js route/layout 타입이
+  `.next/types` 캐시 존재 여부에 따라 간헐적으로 달라지는 것으로 보이며(SPEC-EVIDENCE-001이
+  건드리는 파일이 아님), 이 SPEC의 회귀가 아니다.
+
+### 완료하지 않음 (다음 세션으로 명시적으로 이월)
+
+- **M4 전체 확장**: plan.md가 명시한 50~100건 목표에 아직 도달하지 못했다(19건). 특히
+  DISPUTE_CASE(분쟁조정 사례) evidenceType이 0건으로, plan.md 4b가 "최소 1건 이상 실제 도입"을
+  요구한 항목이 미충족 상태다.
+- **M4c(벤치마크 freeze)**: 사용자 선택에 따라 의도적으로 건너뛰었다 — corpus가 목표 규모에
+  도달한 뒤 한 번에 freeze하는 것이 여러 번 반복하는 것보다 낫다는 plan.md 자신의 잔여 위험
+  판단을 따랐다.
+- **M4d(algorithm effect, frozen 최종 비교)**: freeze가 없으므로 수행 불가 — REQ-EVIDENCE-016의
+  acceptance threshold는 아직 확정되지 않았다. M2의 탐색적 수치를 이 근거로 대신 쓰지 않는다.
+- **M4e(corpus expansion effect)**: 동일한 이유로 미수행.
+- **M6(문서 최종 정리)**: coverage matrix 최종본 + M4d/M4e 결과가 없으므로 plan.md가 의도한
+  형태의 M6 요약 문서를 작성할 수 없다 — 이번 세션은 이 §J 중간 요약으로 대신한다. CHANGELOG
+  갱신은 애초에 sync-phase(manager-docs) 몫이며 이 세션 범위가 아니다.
+- `pnpm test:e2e`, `pnpm build`는 이번 세션에서 실행하지 않았다(M6 scope로 보류).
+
+### SPEC 상태
+
+`spec.md` frontmatter `status: in-progress`를 유지한다(M1이 이미 draft→in-progress 전환을
+수행함) — `completed`로 전환하지 않는다. acceptance.md의 M4/M4c/M4d/M4e 관련 AC가 아직
+충족되지 않았으므로 `/moai sync`로 넘어갈 조건이 아니다. 다음 run-phase 세션은 M4 전체 확장
+(웹 조사 다수 필요, DISPUTE_CASE 출처 특히)부터 재개하면 된다.
