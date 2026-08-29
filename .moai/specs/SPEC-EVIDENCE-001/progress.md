@@ -776,3 +776,47 @@ design.md §1.2, plan.md M1, research.md §4(각 1건씩 `REQ-EVIDENCE-006/027`�
 수행함) — `completed`로 전환하지 않는다. acceptance.md의 M4/M4c/M4d/M4e 관련 AC가 아직
 충족되지 않았으므로 `/moai sync`로 넘어갈 조건이 아니다. 다음 run-phase 세션은 M4 전체 확장
 (웹 조사 다수 필요, DISPUTE_CASE 출처 특히)부터 재개하면 된다.
+
+## §K 외부 독립 코드리뷰 반영 — baseline/fixture 모순 수정 (v0.5.0 → v0.6.0) + plan-auditor iteration 5, PASS
+
+사용자가 전달한 외부 독립 코드리뷰에서 M4 전체 확장 착수 전 반드시 먼저 고쳐야 할 2개 측정
+방법론 blocker를 지적받았다.
+
+- **Blocker 1**: design.md 자기 자신이 모순됐다 — §2.2(score 함수)는 전략 A/B 모두 같은
+  `computeScore()`(issueType 가중치 포함)를 쓴다고 서술하는 반면, §3.4(M4d 측정 절차)는 이미
+  "baselineRetriever(전략 A, **issueType 가중치 없음**, 현재 main의 알고리즘)"라고 명시하고
+  있었다 — 즉 M2 구현(`retrieveEvidence(strategy="A")`도 issueTypeWeight를 쓰는 현재 코드)은
+  §2.2를 따랐지만 §3.4가 요구하는 "진짜 baseline"과는 다르다. 3번의 plan-auditor 감사(iteration
+  1/2/3) 모두 이 formula 간 내부 모순까지는 잡지 못했다(REQ/AC 개수·traceability·must-pass
+  기준 중심 감사였기 때문).
+- **Blocker 2**: M2의 벤치마크(`evidence-retriever.benchmark.test.ts`)가 mutable
+  `db/seed/evidence.json`을 직접 import해서, M4가 corpus를 10건→19건→(향후 더 확장)으로 늘릴
+  때마다 "M2 10건 exploratory baseline" 수치 자체가 재실행 시 달라질 수 있다 — 이미 기록된 M2
+  exploratory 수치(§E.3 M2 항목)는 이 문제의 영향을 받은 상태로 남아있다.
+
+**수정(manager-spec, 코드 미변경, orchestrator가 run-phase 중 직접 재위임 — Status Transition
+Ownership Matrix의 "run-phase가 SPEC body 수정을 발견하면 manager-spec에 재위임" 절차)**:
+design.md §2.1/§2.2/새 §3.1a/§3.4에 `trueBaselineEligible()`/`trueBaselineScore()`(issueType
+전혀 미참조)를 M2 exploratory용 `computeScore()`와 명시적으로 분리해 정의, M2 벤치마크의
+immutable fixture snapshot 요구사항 신설. spec.md REQ-EVIDENCE-016/009 문구도 "baseline"이
+가리키는 대상을 명확화. REQ/AC 개수는 25/25 그대로(신규 ID 없음, 기존 REQ 문구 수정만).
+`version: "0.5.0" → "0.6.0"`. 커밋 `1b2a2b5`.
+
+**plan-auditor 재감사 결과 — iteration 5, PASS**:
+
+- **Verdict**: **PASS**, **Overall score**: 0.923 (Tier L threshold 0.85 상회)
+- must-pass 7항목: MP-1/2/3/5/7 PASS, MP-4/6 N/A 자동PASS, FAIL 없음
+- design.md §2.1/§2.2/§3.4 모순 해소를 auditor가 실제 함수 본문까지 읽고 독립 재확인
+  (`trueBaselineScore()`에 issueTypeWeight 항 자체가 구조적으로 없음을 확인)
+- D1-D8(v0.5.0까지의 결함) 회귀 없음(4건 표본 재확인)
+- **새로 발견된 D1/D2(minor, non-blocking, PASS에 영향 없음)**: plan.md M2/M4 milestone이
+  §3.1a의 fixture 교정 작업을 명시적으로 담고 있지 않음, acceptance.md AC-EVIDENCE-014가
+  §3.1a의 "live-import 금지"를 검증하는 Then절이 없어 회귀가 기계적으로 감지되지 않음. **D3**
+  (minor, optional): §3.1a 헤더의 REQ 교차참조 라벨 오기.
+  Auditor는 이 3건을 "PASS이지만 run-phase 재개 전 정리 권장"으로 명시했다.
+- **판단(judgment call)**: D1-D3은 auditor 자신이 non-blocking으로 분류했고, 이미 v0.5.0
+  D8에서 쓴 것과 같은 선례(4차 감사를 거치지 않고 진행)를 따라 이번에도 즉시 재감사 없이
+  진행한다 — 대신 아래 §K 후속 코드 작업(task #9)에서 §3.1a의 실제 fixture 분리 작업을 할 때
+  plan.md/acceptance.md의 D1/D2 정리도 필요하면 함께 반영하도록 지시했다(코드+문서 동시 반영,
+  4차 fixture 관련 문서 편집이 남아있는 상태이므로 별도 라운드로 나누지 않음).
+  보고서: `.moai/reports/plan-audit/SPEC-EVIDENCE-001-review-5.md`.
