@@ -62,6 +62,64 @@ manager-develop(cycle_type=tdd)이 M1을 완료했다. 산출물: `.moai/specs/S
 M1 스코프 밖(M2~M6)의 AC(AC-EVIDENCE-002/003/007~020/022~026)는 이 milestone에서 다루지
 않는다 — REQ-EVIDENCE-006/007만 M1 대상이다(plan.md §B M1).
 
+### M2 — Candidate Eligibility A/B 비교 + Ranking + Benchmark 인프라 (exploratory, 10건 corpus)
+
+manager-develop(cycle_type=tdd)이 M2를 완료했다. 산출물: `lib/pipeline/evidence-retriever.ts`
+(전략 A/B 두 candidate eligibility 함수 + score 함수 + id 오름차순 tie-break + `strategy` 파라미터
+추가), `lib/pipeline/evidence-retriever.test.ts`(전략 A/B 비교·hard-filter 미도입·결정론적
+정렬·TOP_N 불변 unit test 5건 신규), `lib/pipeline/evidence-retriever.benchmark.test.ts`(신규,
+7개 벤치마크 케이스 + exploratory Recall@5/Hit@5/Precision@5 측정), `db/seed/evidence.json`
+(10건 중 7건 issueTypes 백필 — REQ-EVIDENCE-013 target case 구성을 위한 데이터 갭 해소, 아래 참고).
+
+**REQ-EVIDENCE-013 데이터 갭 해소(M1이 issueTypes를 전부 `[]`로 남겨 M2 착수 시점에 target case를
+구성할 근거 evidence가 없었음)**: `db/seed/evidence.json`의 기존 10건 중 title/content에서 담보-쟁점
+분류가 명백히 판별 가능한 7건에 실제 `issueTypes` 값을 채웠다(plan.md M1이 허용한 "명백히 판별
+가능한 경우 실제 값" 옵션 행사, M2 벤치마크-구성 스코프 — M1이 컬럼/타입 배선만 담당하고 실제 분류
+소비는 M2 범위였으므로 M1의 범위 밖 작업이 아니다). source(`sourceUrl`)/`content`/`evidenceType`은
+변경하지 않았다 — `issueTypes` 필드만 수정했다.
+
+| id | 이전 → 변경 후 issueTypes | 근거(title/content에서 명백히 판별 가능한 부분) |
+|----|---------------------------|--------------------------------------------------|
+| seed-evidence-001 | `[]` → `["DISABILITY_LOCATION","DISABILITY_GRADE_CRITERIA"]` | 발목 관절 후유장해, 관절가동범위(ROM) 기준 장해지급률 판정 |
+| seed-evidence-002 | `[]` → `[]`(불변) | 후유장해 진단서 발급 요건(행정적 실무 기준) — 8개 issueType 중 안전하게 매핑되는 항목 없음 |
+| seed-evidence-003 | `[]` → `["DIAGNOSIS","CAUSATION"]` | 질병후유장해 담보 인정 요건 중 "질병과 장해 사이의 의학적 인과관계"(인과성) + 진단확정 시점 |
+| seed-evidence-004 | `[]` → `["DISABILITY_GRADE_CRITERIA"]` | 질병후유장해 등급 판정 시 제3의료기관 감정 절차 |
+| seed-evidence-005 | `[]` → `["CAUSATION","PRE_EXISTING_CONDITION"]` | 대법원 2008다44689 — 상해·기왕증 경합 시 인과관계·기여도 판단(기왕증 감액) |
+| seed-evidence-006 | `[]` → `["PRE_EXISTING_CONDITION"]` | 상해 후유장해 심사에서 기왕증 기여도를 다투는 일반적 쟁점 |
+| seed-evidence-007 | `[]` → `[]`(불변) | 상법 제737조 일반 책임 조항 — 특정 쟁점 분류 아님 |
+| seed-evidence-008 | `[]` → `["DIAGNOSIS","CAUSATION"]` | 대법원 2015다218730 — "진단명이 같아도 발병 부위가 다르면 별개 질병"(진단명 + 인과관계) |
+| seed-evidence-009 | `[]` → `["CAUSATION"]` | 질병 간 인과관계·동일성 판단 시 일반적 고려 요소 |
+| seed-evidence-010 | `[]` → `[]`(불변) | 상법 제658조 보험금 지급 절차(공통, 특정 쟁점 아님) |
+
+**전략 A/B 채택 결정(exploratory, node 사전 검증 + benchmark test로 재확인)**: `bm-injury-preexisting-01`
+케이스(query.keywords=`["연골 손상"]` — corpus 10건 어디에도 등장하지 않는 키워드로 설계, 사전에
+`node -e`로 corpus 전체 grep해 확인)에서 known-relevant(seed-evidence-005/006, 둘 다
+`PRE_EXISTING_CONDITION` exact match)를 전략 A는 후보 목록에서 완전히 누락(recall=0, hit=0)하고
+전략 B는 issueType exact match만으로 복구(recall=1, hit=1)함을 실측으로 확인 — REQ-EVIDENCE-013가
+지정한 target case가 실제로 관측됐다. 7개 벤치마크 케이스 전체 평균: 전략 A meanRecall=0.857/
+meanHit=0.857/meanPrecision=0.229, 전략 B meanRecall=1.0/meanHit=1.0/meanPrecision=0.286 — 세
+지표 모두 전략 B가 전략 A 이상(design.md §3.3b non-regression 계약 만족). **채택: 전략 B**
+(`evidence-retriever.ts`의 `ADOPTED_STRATEGY = "B"`로 구현 완료). TOP_N(5)은 변경하지 않았다 —
+벤치마크가 조정 필요성을 정당화하지 않았다.
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|----------------------|----------------|
+| AC-EVIDENCE-008 (REQ-EVIDENCE-009, REQ-EVIDENCE-013) | PASS | `pnpm test lib/pipeline/evidence-retriever.test.ts lib/pipeline/evidence-retriever.benchmark.test.ts` | 16/16 tests passed — "전략 A/B 둘 다에서 issueType 정확 일치 evidence A가 키워드 우연 일치 evidence B보다 높은 순위" 확인, "전략 A는 keyword 없는 known-relevant를 누락, 전략 B는 복구" 확인(단위 테스트 + 벤치마크 양쪽에서), "issueType 불일치가 전략 B에서도 hard filter로 작용하지 않음"(키워드만으로도 여전히 후보) 확인 |
+| AC-EVIDENCE-010 (REQ-EVIDENCE-011) | PASS | `grep -n "const TOP_N" lib/pipeline/evidence-retriever.ts` + 벤치마크 측정 기록(위 표) | `const TOP_N = 5;` 불변 — 변경하지 않았고, 변경 불필요를 벤치마크 측정 결과로 근거 문서화(design.md §3.3b) |
+| AC-EVIDENCE-011 (REQ-EVIDENCE-012) | PASS | `pnpm test lib/pipeline/evidence-retriever.test.ts -t "id 오름차순"` | score 동점 시 `["e-a","e-m","e-z"]` id 오름차순 정렬, 동일 입력 3회 연속 호출 결과 100% 동일 확인 |
+| AC-EVIDENCE-012 (REQ-EVIDENCE-014) | PASS | `pnpm test lib/pipeline/evidence-retriever.benchmark.test.ts -t "최소 7개"` | 7개 벤치마크 케이스, 두 담보(INJURY_DISABILITY/DISEASE_DISABILITY) 각각에서 CAUSATION/DISABILITY_GRADE_CRITERIA/{DIAGNOSIS 또는 DISABILITY_LOCATION} 최소 1건씩 + PRE_EXISTING_CONDITION 1건 확인 |
+| AC-EVIDENCE-009 (REQ-EVIDENCE-010) | Deferred to M5 | — | plan.md M5가 명시적으로 "REQ-EVIDENCE-010(무관 evidence가 키워드 하나로 상위 회귀) 벤치마크 케이스 신설"을 M5 스코프로 배정했다(plan.md §B M5) — M2는 이 AC를 다루지 않는다. task 지시문의 "REQ-EVIDENCE-009 through REQ-EVIDENCE-013" 범위 안내와 별개로, plan.md의 milestone 배정이 우선한다(scope discipline) |
+| AC-EVIDENCE-013 (REQ-EVIDENCE-015) | Deferred to M4 | — | `.moai/reports/evidence-source-audit-manifest.md`(M4 산출물)가 아직 존재하지 않아 "(b) manifest에서 '유지'로 결정된 id 집합과 대조" 조건을 검증할 수 없다 — (a) 부분(benchmark id ⊆ evidence.json 실제 id)만 M2 벤치마크 테스트에 unit test로 포함해 선제 확인했다(위 benchmark.test.ts 두 번째 테스트) |
+| AC-EVIDENCE-014 (REQ-EVIDENCE-016/017) | Deferred to M4d/M4e | — | design.md §3.4의 algorithm effect(M4d)/corpus expansion effect(M4e) 측정은 corpus 재감사·확장·freeze(M4a-c)를 전제하며, M2는 10건 exploratory corpus 위에서만 동작한다 — 이 AC는 M2 완료 시점에 PASS/FAIL 판정 대상이 아니다 |
+
+**exploratory/frozen 분리 준수**: 위 전략 A/B 측정치는 `evidence-retriever.benchmark.test.ts`
+전체에서 `[EXPLORATORY]` 라벨을 테스트 이름과 console.log 출력 양쪽에 명시적으로 붙였다 — M4d의
+frozen 최종 비교(다른 corpus, 다른 절)와 이 수치를 혼동하지 않도록 design.md §3.4의 구분을
+코드/문서 양쪽에서 지켰다(REQ-EVIDENCE-016/017, AC-EVIDENCE-014의 exploratory/frozen 분리 요건 —
+다만 AC-EVIDENCE-014 자체의 PASS/FAIL 판정은 위 표대로 M4d/M4e 완료 후로 유예한다).
+
+M2 스코프 밖(M3~M6)의 AC는 이 milestone에서 다루지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal (M1)
 
 ```yaml
@@ -104,6 +162,42 @@ seed-evidence-001 상해후유장해 []
 기존 `scripts/db-seed.test.ts`의 `[AC-RUNTIME-005]` 케이스(실제 CLI 프로세스 실행 +
 행 수 비교)가 이미 담당하며, 이번 M1 변경으로 그 테스트가 여전히 그린임을
 `pnpm test` 전체 실행(38 test files, 258 tests passed)으로 확인했다.
+
+## §E.3 Run-phase Audit-Ready Signal (M2)
+
+```yaml
+run_status: m2-complete
+m2_complete_at: 2026-08-29
+run_commit_sha: pending-backfill-m2  # 커밋 이후 별도 커밋으로 backfill(spec-frontmatter-schema.md SHA placeholder 예외)
+ac_pass_count_m2: 4   # AC-EVIDENCE-008/010/011/012 (M2 범위)
+ac_fail_count_m2: 0
+ac_deferred_m2: 3     # AC-EVIDENCE-009(M5) / AC-EVIDENCE-013(M4) / AC-EVIDENCE-014(M4d/M4e) — plan.md milestone 배정에 따라 M2 판정 대상 아님
+l44_pre_commit_fetch: "git fetch origin main; git rev-list --count --left-right origin/main...HEAD → 확인 필요(커밋 직전 재확인)"
+l44_post_push_fetch: "커밋만 수행, push는 이 세션 범위 밖(worktree 격리 세션 — 아래 §최종 보고 참고)"
+new_warnings_or_lints_introduced: false  # pnpm lint 0 warning/error(신규 파일 초기 2건 unused eslint-disable directive 경고는 직접 제거해 0건으로 확인), pnpm format:check clean(prettier --write 적용 후), npx tsc --noEmit은 app/layout.tsx의 기존 baseline 에러(LayoutProps, M1과 동일 — git stash로 M2 변경분 제외 시에도 동일 에러 재확인) 1건만
+cross_platform_build:
+  status: not_applicable  # TypeScript/Next.js 프로젝트 — Go의 GOOS/GOARCH 교차 빌드 개념 없음
+total_run_phase_files_m2: 4  # 수정 3(evidence.json, evidence-retriever.ts, evidence-retriever.test.ts) + 신규 1(evidence-retriever.benchmark.test.ts) — progress.md 제외
+m1_to_mN_commit_strategy: per-milestone-commit  # M1과 동일 정책 유지
+```
+
+### M2 idempotency 재확인 verbatim (M1이 채운 seed 데이터에 issueTypes 값만 추가했으므로, 행 수 불변 재확인 — AC-EVIDENCE-004 회귀 없음 확인)
+
+```
+$ mkdir -p .tmp
+$ pnpm db:migrate
+✅ 마이그레이션 완료
+$ pnpm db:seed
+✅ 시드 완료
+$ node -e '...SELECT count(*) FROM evidence...'
+row count: 10
+$ pnpm db:seed   # 2회차 재실행
+✅ 시드 완료
+$ node -e '...SELECT count(*) FROM evidence...'
+row count after 2nd seed run: 10
+```
+
+행 수는 재실행 전후 모두 정확히 10 — M2의 `issueTypes` 백필이 upsert 멱등성을 깨지 않았다.
 
 ## §G.1 plan-auditor 실행 결과 — iteration 1, FAIL (v0.4.0 아티팩트 대상)
 

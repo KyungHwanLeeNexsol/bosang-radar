@@ -44,9 +44,59 @@ function toCandidate(row: EvidenceRow): EvidenceCandidate {
 
 const TOP_N = 5;
 
+// SPEC-EVIDENCE-001 M2(design.md §2.1) — candidate eligibility 전략 A/B.
+// 전략 A(현행): DOMAIN_SPECIFIC은 domain AND keyword, UNIVERSAL은 keyword만.
+// 전략 B(issueType 반영): keyword 매칭을 issueType exact match로 OR
+// 대체할 수 있게 한다 — issueType 불일치를 이유로 무조건 배제하는 hard
+// filter는 도입하지 않는다(REQ-EVIDENCE-009 통합 조항).
+export type EligibilityStrategy = "A" | "B";
+
+// M2 exploratory 측정(§3.4) 결과 채택된 전략. 전략 B만이 REQ-EVIDENCE-013
+// target case("exact issueType, no keyword" known-relevant evidence)를
+// 실제로 복구하므로(evidence-retriever.benchmark.test.ts 참고) 전략 B를
+// 채택한다 — 전략 A는 이 케이스에서 항상 recall 0으로 측정된다.
+const ADOPTED_STRATEGY: EligibilityStrategy = "B";
+
+export function relevantA(
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number
+): boolean {
+  return isUniversal ? keywordScore > 0 : domainMatch && keywordScore > 0;
+}
+
+export function relevantB(
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number,
+  issueTypeExactMatch: boolean
+): boolean {
+  return isUniversal
+    ? keywordScore > 0 || issueTypeExactMatch
+    : domainMatch && (keywordScore > 0 || issueTypeExactMatch);
+}
+
+// design.md §2.2 — score 함수(정렬 전용, eligibility와 별개 단계).
+// issueTypeWeight(10)은 domainWeight(2)+keywordScore(관측상 1~3)를 합친
+// 것보다 크게 잡아 "쟁점이 정확히 일치하는 evidence"가 항상 위에 오도록
+// 한다(REQ-EVIDENCE-010 회귀 방지의 설계 근거).
+export function computeScore(
+  evidence: EvidenceCandidate,
+  query: ResearchQuery,
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number
+): number {
+  const issueTypeWeight = evidence.issueTypes.includes(query.issueType) ? 10 : 0;
+  const domainWeight = domainMatch ? 2 : 0;
+  const universalWeight = isUniversal ? 1 : 0;
+  return issueTypeWeight + domainWeight + universalWeight + keywordScore;
+}
+
 export async function retrieveEvidence(
   queries: ResearchQuery[],
-  db: DrizzleDb = getDb()
+  db: DrizzleDb = getDb(),
+  strategy: EligibilityStrategy = ADOPTED_STRATEGY
 ): Promise<Map<string, EvidenceCandidate[]>> {
   const rows = await db.select().from(evidenceTable);
   const all = rows.map(toCandidate);
@@ -62,14 +112,20 @@ export async function retrieveEvidence(
         ).length;
         const domainMatch = item.category === domainCategory;
         const isUniversal = item.scope === "UNIVERSAL";
-        // 관련성 술어: DOMAIN_SPECIFIC은 domain AND keyword, UNIVERSAL은 keyword만
-        const relevant = isUniversal ? keywordScore > 0 : domainMatch && keywordScore > 0;
-        // 정렬 전용 — 관련성 판정에는 미사용
-        const score = (domainMatch ? 2 : 0) + (isUniversal ? 1 : 0) + keywordScore;
+        const issueTypeExactMatch = item.issueTypes.includes(query.issueType);
+        // 관련성 술어: 전략 A는 keyword 필수, 전략 B는 issueType exact
+        // match로 keyword 요건을 OR 대체 가능(design.md §2.1)
+        const relevant =
+          strategy === "A"
+            ? relevantA(domainMatch, isUniversal, keywordScore)
+            : relevantB(domainMatch, isUniversal, keywordScore, issueTypeExactMatch);
+        const score = computeScore(item, query, domainMatch, isUniversal, keywordScore);
         return { item, score, relevant };
       })
       .filter((entry) => entry.relevant)
-      .sort((a, b) => b.score - a.score)
+      // 결정론적 정렬 — score 동점 시 id 오름차순 고정(design.md §2.3,
+      // REQ-EVIDENCE-012)
+      .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
       .slice(0, TOP_N);
 
     // 매칭되는 evidence가 없는 쿼리는 빈 배열을 값으로 갖는다 — 전체

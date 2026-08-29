@@ -189,3 +189,126 @@ describe("lib/pipeline/evidence-retriever retrieveEvidence (REQ-RESEARCH-004~007
     expect(result.get("q-disease")?.map((e) => e.id)).toEqual(["e-disease"]);
   });
 });
+
+// SPEC-EVIDENCE-001 M2 — candidate eligibility 전략 A(현행)/B(issueType 반영)
+// 비교(design.md §2.1, AC-EVIDENCE-008) + 결정론적 정렬(design.md §2.3,
+// AC-EVIDENCE-011) + TOP_N 불변 확인(AC-EVIDENCE-010).
+describe("retrieveEvidence 전략 A/B 비교 (REQ-EVIDENCE-009/013, AC-EVIDENCE-008)", () => {
+  it("전략 A/B 둘 다에서 issueType 정확 일치 evidence A가 키워드 우연 일치 evidence B보다 높은 순위로 온다", async () => {
+    const rows = [
+      makeRow({
+        id: "e-issuetype-and-keyword",
+        category: "상해후유장해",
+        title: "발목 관절 장해 평가 기준",
+        content: "장해 평가 기준 검토",
+        issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+      }),
+      makeRow({
+        id: "e-keyword-only",
+        category: "상해후유장해",
+        title: "장해 평가 기준과 무관한 다른 쟁점",
+        content: "우연히 장해 평가 기준이라는 단어만 겹친다",
+        issueTypes: [],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-ab",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["장해 평가 기준"],
+    });
+
+    for (const strategy of ["A", "B"] as const) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows), strategy);
+      const ids = result.get("q-ab")?.map((e) => e.id) ?? [];
+      expect(ids.indexOf("e-issuetype-and-keyword")).toBeLessThan(ids.indexOf("e-keyword-only"));
+    }
+  });
+
+  it("전략 A는 issueType이 정확히 일치해도 키워드가 전혀 없는 known-relevant evidence C를 후보에서 누락하고, 전략 B는 복구한다 (REQ-EVIDENCE-013)", async () => {
+    const rows = [
+      makeRow({
+        id: "e-c-no-keyword",
+        category: "상해후유장해",
+        title: "기왕증 감액 판단 판례",
+        content: "인과관계·기여도에 대한 구체적 심리가 필요하다",
+        issueTypes: ["PRE_EXISTING_CONDITION"],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-c",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["연골 손상"], // evidence 어디에도 등장하지 않는 키워드
+    });
+
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    expect(resultA.get("q-c")?.map((e) => e.id)).toEqual([]);
+
+    const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+    expect(resultB.get("q-c")?.map((e) => e.id)).toEqual(["e-c-no-keyword"]);
+  });
+
+  it("전략 B에서도 issueType 불일치만으로 evidence를 하드 배제하지 않는다 — 키워드 매칭만으로도 여전히 후보가 된다 (REQ-EVIDENCE-009)", async () => {
+    const rows = [
+      makeRow({
+        id: "e-keyword-only-2",
+        category: "상해후유장해",
+        title: "장해 평가 기준",
+        content: "장해 평가 기준",
+        issueTypes: ["DIAGNOSIS"], // query.issueType과 불일치
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-noexclude",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["장해 평가 기준"],
+    });
+
+    const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+    expect(resultB.get("q-noexclude")?.map((e) => e.id)).toEqual(["e-keyword-only-2"]);
+  });
+});
+
+describe("retrieveEvidence 결정론적 정렬 tie-break (REQ-EVIDENCE-012, AC-EVIDENCE-011)", () => {
+  it("score가 동점인 evidence는 id 오름차순으로 정렬되고, 동일 입력을 3회 호출해도 순서가 항상 같다", async () => {
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows));
+      expect(result.get("q-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
+  });
+});
+
+describe("retrieveEvidence TOP_N 불변 확인 (REQ-EVIDENCE-011, AC-EVIDENCE-010)", () => {
+  it("동일 쿼리에 매칭되는 evidence가 5건을 초과해도 상위 5건만 반환한다", async () => {
+    const rows = Array.from({ length: 7 }, (_, i) =>
+      makeRow({
+        id: `e-${i}`,
+        category: "상해후유장해",
+        title: "장해 평가 기준",
+        content: "장해 평가 기준",
+      })
+    );
+    const query = makeQuery({
+      id: "q-topn",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해 평가 기준"],
+    });
+
+    const result = await retrieveEvidence([query], makeFakeDb(rows));
+
+    expect(result.get("q-topn")?.length).toBe(5);
+  });
+});

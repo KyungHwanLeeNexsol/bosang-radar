@@ -1,0 +1,241 @@
+import { describe, expect, it } from "vitest";
+import evidenceSeed from "../../db/seed/evidence.json";
+import { retrieveEvidence, type EligibilityStrategy } from "./evidence-retriever";
+import type { EvidenceCandidate, ResearchQuery } from "./types";
+
+// SPEC-EVIDENCE-001 M2 — Curated Retrieval Benchmark (design.md §3, plan.md M2).
+//
+// EXPLORATORY(탐색적) 측정 — 이 파일의 Recall@5/Hit@5/Precision@5 수치는
+// 10건짜리 초기 corpus(db/seed/evidence.json) 위에서 전략 A/B 중 어느
+// 쪽을 채택할지 "방향"만 결정한다. M4d의 frozen 최종 corpus 위에서의
+// algorithm effect 측정만이 acceptance.md AC-EVIDENCE-014의 최종 acceptance
+// 근거이며, 이 파일의 수치는 그 근거로 재사용되지 않는다(design.md §3.4,
+// 외부 독립 리뷰 v0.3.0 이슈 1/4).
+//
+// production evidence.json을 fake db row로 그대로 사용한다 — 이 corpus는
+// 실제 production seed와 동일한 데이터이며(REQ-EVIDENCE-015 대상 id 집합),
+// EvidenceCandidate 구조와 완전히 동형이므로 retrieveEvidence()의 db
+// 인자에 별도 변환 없이 주입할 수 있다.
+
+type SeedRow = EvidenceCandidate & { createdAt: Date };
+
+const seedRows: SeedRow[] = (evidenceSeed as EvidenceCandidate[]).map((r) => ({
+  ...r,
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+}));
+
+function makeFakeDb(rows: SeedRow[]): Parameters<typeof retrieveEvidence>[1] {
+  return {
+    select: () => ({
+      from: async () => rows,
+    }),
+  } as unknown as Parameters<typeof retrieveEvidence>[1];
+}
+
+interface BenchmarkCase {
+  id: string;
+  query: ResearchQuery;
+  knownRelevantEvidenceIds: string[];
+}
+
+// design.md §3.2 커버리지 — 두 담보(INJURY_DISABILITY/DISEASE_DISABILITY) ×
+// {CAUSATION, DISABILITY_GRADE_CRITERIA, DIAGNOSIS 또는 DISABILITY_LOCATION}
+// 각 3건 + PRE_EXISTING_CONDITION 1건 = 최소 7건(AC-EVIDENCE-012).
+//
+// bm-injury-preexisting-01은 REQ-EVIDENCE-013가 지정한 target case다 —
+// query.keywords(["연골 손상"])는 db/seed/evidence.json 전체 corpus 어디에도
+// 등장하지 않으므로(node로 사전 검증) keywordScore는 항상 0이고, 전략
+// A(키워드 필수)는 반드시 miss한다. 전략 B는 issueType exact match
+// (PRE_EXISTING_CONDITION)만으로 candidate에 진입시켜 hit한다.
+const BENCHMARK_CASES: BenchmarkCase[] = [
+  {
+    id: "bm-injury-preexisting-01",
+    query: {
+      id: "q-injury-preexisting",
+      topic: "발목 상해후유장해 기왕증·퇴행성 가능성 검토",
+      focus: "발목",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["연골 손상"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-005", "seed-evidence-006"],
+  },
+  {
+    id: "bm-injury-causation-01",
+    query: {
+      id: "q-injury-causation",
+      topic: "발목 상해후유장해 인과관계 쟁점 검토",
+      focus: "발목",
+      domain: "INJURY_DISABILITY",
+      issueType: "CAUSATION",
+      keywords: ["인과관계"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-005"],
+  },
+  {
+    id: "bm-injury-grade-01",
+    query: {
+      id: "q-injury-grade",
+      topic: "발목 상해후유장해 장해 평가 기준 검토",
+      focus: "발목",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["관절가동범위"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-001"],
+  },
+  {
+    id: "bm-injury-location-01",
+    query: {
+      id: "q-injury-location",
+      topic: "발목 상해후유장해 담보 검토",
+      focus: "발목",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_LOCATION",
+      keywords: ["발목 인대"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-001"],
+  },
+  {
+    id: "bm-disease-causation-01",
+    query: {
+      id: "q-disease-causation",
+      topic: "질병후유장해 인과관계 쟁점 검토",
+      focus: "진단명",
+      domain: "DISEASE_DISABILITY",
+      issueType: "CAUSATION",
+      keywords: ["인과관계"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-003", "seed-evidence-008", "seed-evidence-009"],
+  },
+  {
+    id: "bm-disease-grade-01",
+    query: {
+      id: "q-disease-grade",
+      topic: "질병후유장해 장해 평가 기준 검토",
+      focus: "질병후유장해 등급",
+      domain: "DISEASE_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["감정"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-004"],
+  },
+  {
+    id: "bm-disease-diagnosis-01",
+    query: {
+      id: "q-disease-diagnosis",
+      topic: "질병후유장해 진단명 검토",
+      focus: "진단명",
+      domain: "DISEASE_DISABILITY",
+      issueType: "DIAGNOSIS",
+      keywords: ["진단명"],
+    },
+    knownRelevantEvidenceIds: ["seed-evidence-008"],
+  },
+];
+
+function recallAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
+  const returned = new Set(candidates.map((c) => c.id));
+  const hits = knownRelevantIds.filter((id) => returned.has(id)).length;
+  return knownRelevantIds.length === 0 ? 1 : hits / knownRelevantIds.length;
+}
+
+function hitAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): 0 | 1 {
+  const returned = new Set(candidates.map((c) => c.id));
+  return knownRelevantIds.some((id) => returned.has(id)) ? 1 : 0;
+}
+
+function precisionAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
+  const knownRelevant = new Set(knownRelevantIds);
+  const relevantReturned = candidates.slice(0, 5).filter((c) => knownRelevant.has(c.id)).length;
+  return relevantReturned / 5;
+}
+
+interface StrategyMetrics {
+  strategy: EligibilityStrategy;
+  perCase: Array<{ id: string; recall: number; hit: 0 | 1; precision: number }>;
+  meanRecall: number;
+  meanHit: number;
+  meanPrecision: number;
+}
+
+async function measureStrategy(strategy: EligibilityStrategy): Promise<StrategyMetrics> {
+  const db = makeFakeDb(seedRows);
+  const perCase: StrategyMetrics["perCase"] = [];
+
+  for (const bc of BENCHMARK_CASES) {
+    const result = await retrieveEvidence([bc.query], db, strategy);
+    const candidates = result.get(bc.query.id) ?? [];
+    perCase.push({
+      id: bc.id,
+      recall: recallAt5(candidates, bc.knownRelevantEvidenceIds),
+      hit: hitAt5(candidates, bc.knownRelevantEvidenceIds),
+      precision: precisionAt5(candidates, bc.knownRelevantEvidenceIds),
+    });
+  }
+
+  const meanRecall = perCase.reduce((s, c) => s + c.recall, 0) / perCase.length;
+  const meanHit = perCase.reduce((s, c) => s + c.hit, 0) / perCase.length;
+  const meanPrecision = perCase.reduce((s, c) => s + c.precision, 0) / perCase.length;
+
+  return { strategy, perCase, meanRecall, meanHit, meanPrecision };
+}
+
+describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () => {
+  it("최소 7개 벤치마크 케이스가 두 담보 × 3개 issueType 조합 + PRE_EXISTING_CONDITION 1건을 커버한다", () => {
+    expect(BENCHMARK_CASES.length).toBeGreaterThanOrEqual(7);
+
+    const byDomain = (domain: "INJURY_DISABILITY" | "DISEASE_DISABILITY") =>
+      BENCHMARK_CASES.filter((c) => c.query.domain === domain).map((c) => c.query.issueType);
+
+    for (const domain of ["INJURY_DISABILITY", "DISEASE_DISABILITY"] as const) {
+      const issueTypes = byDomain(domain);
+      expect(issueTypes).toContain("CAUSATION");
+      expect(issueTypes).toContain("DISABILITY_GRADE_CRITERIA");
+      expect(issueTypes.includes("DIAGNOSIS") || issueTypes.includes("DISABILITY_LOCATION")).toBe(
+        true
+      );
+    }
+
+    expect(BENCHMARK_CASES.some((c) => c.query.issueType === "PRE_EXISTING_CONDITION")).toBe(true);
+  });
+
+  it("모든 knownRelevantEvidenceIds가 db/seed/evidence.json의 실제 id 집합에 존재한다 (AC-EVIDENCE-013 (a) 부분)", () => {
+    const actualIds = new Set((evidenceSeed as EvidenceCandidate[]).map((r) => r.id));
+    for (const bc of BENCHMARK_CASES) {
+      for (const id of bc.knownRelevantEvidenceIds) {
+        expect(actualIds.has(id)).toBe(true);
+      }
+    }
+  });
+
+  it("[EXPLORATORY] REQ-EVIDENCE-013 target case: 전략 A는 miss, 전략 B는 hit한다 — 이 관측이 전략 B 채택의 근거다", async () => {
+    const db = makeFakeDb(seedRows);
+    const targetCase = BENCHMARK_CASES.find((c) => c.id === "bm-injury-preexisting-01");
+    if (!targetCase) throw new Error("target case not found");
+
+    const resultA = await retrieveEvidence([targetCase.query], db, "A");
+    const candidatesA = resultA.get(targetCase.query.id) ?? [];
+    expect(hitAt5(candidatesA, targetCase.knownRelevantEvidenceIds)).toBe(0);
+
+    const resultB = await retrieveEvidence([targetCase.query], db, "B");
+    const candidatesB = resultB.get(targetCase.query.id) ?? [];
+    expect(hitAt5(candidatesB, targetCase.knownRelevantEvidenceIds)).toBe(1);
+  });
+
+  it("[EXPLORATORY] 전략 A/B의 Recall@5/Hit@5/Precision@5를 측정·기록한다 — non-regression 계약(design.md §3.3b) 확인", async () => {
+    const metricsA = await measureStrategy("A");
+    const metricsB = await measureStrategy("B");
+
+    // EXPLORATORY 라벨: 이 console.log 출력은 progress.md에 그대로 옮겨
+    // 기록되며, M4d의 frozen 최종 비교와는 별개 절로 분리 서술된다
+    // (design.md §3.4, AC-EVIDENCE-014).
+    console.log("[EXPLORATORY] strategy A:", JSON.stringify(metricsA, null, 2));
+    console.log("[EXPLORATORY] strategy B:", JSON.stringify(metricsB, null, 2));
+
+    // design.md §3.3b 권고 기본값 — new(B) >= baseline(A) on all 3 metrics
+    expect(metricsB.meanRecall).toBeGreaterThanOrEqual(metricsA.meanRecall);
+    expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);
+    expect(metricsB.meanPrecision).toBeGreaterThanOrEqual(metricsA.meanPrecision);
+  });
+});
