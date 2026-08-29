@@ -93,6 +93,29 @@ export function computeScore(
   return issueTypeWeight + domainWeight + universalWeight + keywordScore;
 }
 
+// SPEC-EVIDENCE-001 M5(design.md §6) — 중복(duplicate) 판정 규칙(REQ-EVIDENCE-022
+// 개정). 공백/개행 정규화만 수행한다 — 의미(semantic) 판정이 아니다.
+export function normalizeForDuplicateCheck(content: string): string {
+  return content.replace(/\s+/g, " ").trim();
+}
+
+// 동일 sourceUrl + 정규화된 content 동일성 기준으로만 중복을 판정한다.
+// issueTypes 겹침 여부는 이 판정에 전혀 관여하지 않는다 — 하나의 판례가
+// 서로 다른 두 쟁점을 동시에 다루면서도 서로 다른 proposition을 진술하는
+// 것은 정상이다(외부 독립 리뷰 이슈 6).
+//
+// 이 SPEC의 기본 구현은 sourceIdentifier 컬럼을 도입하지 않으므로
+// (design.md §1.2), 이 함수는 EvidenceCandidate.sourceIdentifier 필드를
+// 전혀 참조하지 않는다. sourceIdentifier가 §1.2 조건을 만족해 추후
+// 별도 migration으로 추가되는 시점에, 이 함수에
+// `(a.sourceIdentifier && a.sourceIdentifier === b.sourceIdentifier) ||`
+// 조건을 함께 추가한다 — 그 전까지는 존재하지 않는 필드를 참조하지 않는다.
+export function isDuplicate(a: EvidenceCandidate, b: EvidenceCandidate): boolean {
+  const sameSource = Boolean(a.sourceUrl) && a.sourceUrl === b.sourceUrl;
+  if (!sameSource) return false;
+  return normalizeForDuplicateCheck(a.content) === normalizeForDuplicateCheck(b.content);
+}
+
 export async function retrieveEvidence(
   queries: ResearchQuery[],
   db: DrizzleDb = getDb(),

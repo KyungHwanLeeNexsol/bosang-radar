@@ -238,4 +238,53 @@ describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () 
     expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);
     expect(metricsB.meanPrecision).toBeGreaterThanOrEqual(metricsA.meanPrecision);
   });
+
+  // SPEC-EVIDENCE-001 M5 — REQ-EVIDENCE-010 회귀 방지 벤치마크 케이스
+  // (AC-EVIDENCE-009, design.md §2.2 issueTypeWeight 설계 근거).
+  //
+  // seed-evidence-004/seed-evidence-017은 issueType이 DISABILITY_GRADE_CRITERIA
+  // 이지만 content에 query keyword "진단"이 우연히 등장한다("진단서 소견"/
+  // "진단확정일") — 전략 B(issueType exact match를 OR 조건으로 채택)에서
+  // 이 두 레코드는 키워드 우연 일치만으로 candidate에 진입한다. 이 케이스는
+  // score 함수의 issueTypeWeight(10)이 실제로 "쟁점이 정확히 일치하는
+  // known-relevant evidence"를 "키워드 하나만 우연히 겹치는 무관 evidence"
+  // 보다 항상 위에 배치하는지 real seed corpus로 회귀 방지한다.
+  it("[REQ-EVIDENCE-010] 무관 evidence가 키워드 하나로 우연히 매칭돼도 known-relevant evidence보다 상위로 회귀하지 않는다 (AC-EVIDENCE-009)", async () => {
+    const db = makeFakeDb(seedRows);
+    const query: ResearchQuery = {
+      id: "q-disease-diagnosis-irrelevant-regression",
+      topic: "질병후유장해 진단명 검토 — 무관 evidence 키워드 우연 매칭 회귀 확인",
+      focus: "진단명",
+      domain: "DISEASE_DISABILITY",
+      issueType: "DIAGNOSIS",
+      keywords: ["진단"],
+    };
+    const knownRelevantIds = ["seed-evidence-003", "seed-evidence-008", "seed-evidence-019"];
+    // seed-evidence-004/017: issueTypes=["DISABILITY_GRADE_CRITERIA"]이며
+    // DIAGNOSIS와 무관하지만, content에 query keyword "진단"이 우연히
+    // 등장해(각각 "진단서 소견", "진단확정일") 전략 B에서 candidate에
+    // 진입한다 — 의도적으로 배치한 "무관하지만 키워드 하나가 우연히
+    // 겹치는 evidence"(design.md §3의 정의).
+    const irrelevantButKeywordMatched = ["seed-evidence-004", "seed-evidence-017"];
+
+    const result = await retrieveEvidence([query], db, "B");
+    const candidates = result.get(query.id) ?? [];
+    const ids = candidates.map((c) => c.id);
+
+    // 사전 조건: 이 회귀 방지 케이스가 실제로 두 evidence 클래스를 함께
+    // 반환함을 확인한다(공허한 검증이 아님).
+    expect(ids.some((id) => knownRelevantIds.includes(id))).toBe(true);
+    expect(ids.some((id) => irrelevantButKeywordMatched.includes(id))).toBe(true);
+
+    const lastKnownRelevantRank = Math.max(
+      ...knownRelevantIds.map((id) => ids.indexOf(id)).filter((idx) => idx >= 0)
+    );
+    const firstIrrelevantRank = Math.min(
+      ...irrelevantButKeywordMatched.map((id) => ids.indexOf(id)).filter((idx) => idx >= 0)
+    );
+
+    // 무관 evidence는 known-relevant evidence 중 어느 것보다도 앞선
+    // 순위로 들어오지 않는다(acceptance.md AC-EVIDENCE-009).
+    expect(firstIrrelevantRank).toBeGreaterThan(lastKnownRelevantRank);
+  });
 });
