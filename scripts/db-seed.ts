@@ -3,22 +3,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import type { EvidenceSeedRecord } from "../db/seed/evidence-seed-schema.ts";
+import { evidenceSeedFileSchema } from "../db/seed/evidence-seed-schema.ts";
 import { evidence } from "../lib/db/schema.ts";
 import { bootstrapCli } from "./cli-bootstrap.ts";
 
-interface EvidenceSeedRecord {
-  id: string;
-  category: string;
-  // evidenceType/scope — SPEC-RESEARCH-001 design.md §6에서 추가된 자료
-  // 유형/담보-공통 축. DB 컬럼은 .default("OTHER")/.default("DOMAIN_SPECIFIC")를
-  // 가지므로 값을 생략해도 안전하지만, seed 레코드는 실제 성격에 맞춘
-  // 값을 명시적으로 채워 넣는다(M4).
-  evidenceType: string;
-  scope: string;
-  title: string;
-  content: string;
-  sourceUrl: string | null;
-}
+export type { EvidenceSeedRecord };
 
 // @MX:ANCHOR: [AUTO] db 스코프 시드 진입점 — pnpm db:seed 및 향후
 // scripts/run-e2e.ts(M5)의 in-process 재사용 대상
@@ -47,6 +37,7 @@ export async function runSeed(): Promise<void> {
           title: record.title,
           content: record.content,
           sourceUrl: record.sourceUrl,
+          issueTypes: record.issueTypes,
           createdAt: now,
         })
         .onConflictDoUpdate({
@@ -58,6 +49,7 @@ export async function runSeed(): Promise<void> {
             title: record.title,
             content: record.content,
             sourceUrl: record.sourceUrl,
+            issueTypes: record.issueTypes,
           },
         });
     }
@@ -68,10 +60,17 @@ export async function runSeed(): Promise<void> {
 
 // 실행 시점 cwd가 아니라 이 스크립트 파일의 위치를 기준으로 시드 JSON 경로를
 // 확정한다 — cli-bootstrap.ts의 resolveProjectRoot()와 같은 이유(design.md §3.2.2).
+//
+// SPEC-EVIDENCE-001 M1(design.md §1.5, REQ-EVIDENCE-007) — 이전에는
+// `JSON.parse(...) as EvidenceSeedRecord[]`로 타입 단언만 해서, JSON 파일에
+// 잘못된 값이 들어가도 조용히 통과시켰다. evidenceSeedFileSchema.parse()로
+// 대체해, 검증 실패 시 ZodError를 던져 파일 전체 로딩을 fail-fast한다 —
+// 잘못된 레코드만 건너뛰고 나머지를 부분 삽입(partial insert)하지 않는다.
 function loadSeedRecords(): EvidenceSeedRecord[] {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const seedPath = path.resolve(currentDir, "..", "db", "seed", "evidence.json");
-  return JSON.parse(readFileSync(seedPath, "utf-8")) as EvidenceSeedRecord[];
+  const raw: unknown = JSON.parse(readFileSync(seedPath, "utf-8"));
+  return evidenceSeedFileSchema.parse(raw);
 }
 
 // CLI 결과 처리를 별도 함수로 분리 — runSeed() 자체는 in-process 재사용

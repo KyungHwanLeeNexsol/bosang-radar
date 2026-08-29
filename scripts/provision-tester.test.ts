@@ -253,8 +253,13 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // (evidence_type/scope 컬럼 추가). account.issuer 보정 마이그레이션과는 별개의,
   // 정상적인 신규 스키마 변경 마이그레이션이다.
   const EVIDENCE_SCHEMA_MIGRATION = "0002_outstanding_khan.sql";
+  // SPEC-EVIDENCE-001 M1(design.md §1.1, REQ-EVIDENCE-006)에서 추가된
+  // evidence.issueTypes 컬럼 마이그레이션. 위 두 마이그레이션과 마찬가지로
+  // 정상적인 신규 스키마 변경 마이그레이션이다(sourceIdentifier/sourceDate는
+  // 이 마이그레이션에 포함하지 않는다 — design.md §1.2).
+  const EVIDENCE_ISSUE_TYPES_MIGRATION = "0003_sad_hitman.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개, 총 3개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개, 총 4개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -262,7 +267,8 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(BASELINE_MIGRATION);
     expect(sqlFiles).toContain(ACCOUNT_ISSUER_MIGRATION);
     expect(sqlFiles).toContain(EVIDENCE_SCHEMA_MIGRATION);
-    expect(sqlFiles).toHaveLength(3);
+    expect(sqlFiles).toContain(EVIDENCE_ISSUE_TYPES_MIGRATION);
+    expect(sqlFiles).toHaveLength(4);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
@@ -294,6 +300,23 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(statements[1]).toMatch(
       /^ALTER TABLE\s+`evidence`\s+ADD\s+`scope`\s+text\s+DEFAULT\s+'DOMAIN_SPECIFIC'\s+NOT NULL;?$/i
     );
+    // CREATE/DROP TABLE 등 다른 DDL이 섞여 있지 않음을 재확인한다.
+    expect(content).not.toMatch(/CREATE TABLE|DROP TABLE|CREATE INDEX|DROP INDEX/i);
+  });
+
+  it("evidence.issueTypes 마이그레이션의 내용은 issue_types 컬럼 추가뿐이다(sourceIdentifier/sourceDate 미포함, 다른 스키마 변경 없음)", () => {
+    const content = readFileSync(path.join(migrationsDir, EVIDENCE_ISSUE_TYPES_MIGRATION), "utf-8");
+    const statements = content
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toMatch(
+      /^ALTER TABLE\s+`evidence`\s+ADD\s+`issue_types`\s+text\s+DEFAULT\s+'\[\]'\s+NOT NULL;?$/i
+    );
+    // sourceIdentifier/sourceDate는 이 마이그레이션에 포함되지 않는다(design.md §1.2).
+    expect(content).not.toMatch(/source_identifier|source_date/i);
     // CREATE/DROP TABLE 등 다른 DDL이 섞여 있지 않음을 재확인한다.
     expect(content).not.toMatch(/CREATE TABLE|DROP TABLE|CREATE INDEX|DROP INDEX/i);
   });

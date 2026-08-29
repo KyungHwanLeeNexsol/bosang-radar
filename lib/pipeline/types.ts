@@ -24,15 +24,24 @@ export interface NormalizedCase {
 
 // --- QueryPlanner (design.md §5) --------------------------------------------
 
-export type QueryIssueType =
-  | "DISABILITY_LOCATION" // 장해 부위
-  | "DIAGNOSIS" // 진단명
-  | "INCIDENT_CIRCUMSTANCE" // 사고 경위
-  | "INJURY_DISEASE_RELATION" // 상해·질병 관련성
-  | "DISABILITY_GRADE_CRITERIA" // 장해 평가 기준 검토
-  | "PRE_EXISTING_CONDITION" // 기왕증·퇴행성 가능성
-  | "CAUSATION" // 인과관계 쟁점
-  | "ADDITIONAL_CONFIRMATION_NEEDED"; // 추가 확인 필요 조건
+// SPEC-EVIDENCE-001 M1(design.md §1.4a) — 8개 값의 단일 SSOT. 이전에는
+// QueryIssueType이 리터럴 유니온으로 직접 선언되어 있었고,
+// db/seed/evidence-seed-schema.ts의 zod enum이 동일한 8개 값을 별도
+// 리터럴 배열로 다시 선언해야 했다 — 두 선언이 물리적으로 분리돼 있어
+// 한쪽만 수정되면 drift가 발생할 수 있었다(외부 독립 리뷰 잔여 정합성
+// 이슈 4). const-first로 바꿔 zod 쪽이 이 const를 import해서 쓰도록 한다.
+export const QUERY_ISSUE_TYPES = [
+  "DISABILITY_LOCATION", // 장해 부위
+  "DIAGNOSIS", // 진단명
+  "INCIDENT_CIRCUMSTANCE", // 사고 경위
+  "INJURY_DISEASE_RELATION", // 상해·질병 관련성
+  "DISABILITY_GRADE_CRITERIA", // 장해 평가 기준 검토
+  "PRE_EXISTING_CONDITION", // 기왕증·퇴행성 가능성
+  "CAUSATION", // 인과관계 쟁점
+  "ADDITIONAL_CONFIRMATION_NEEDED", // 추가 확인 필요 조건
+] as const;
+
+export type QueryIssueType = (typeof QUERY_ISSUE_TYPES)[number];
 
 export type CoverageDomain = "INJURY_DISABILITY" | "DISEASE_DISABILITY";
 
@@ -58,6 +67,11 @@ export interface EvidenceCandidate {
   title: string;
   content: string;
   sourceUrl: string | null;
+  // SPEC-EVIDENCE-001 M1(design.md §1.4) — evidence 자신의 담보-쟁점
+  // 정적 분류(8개 QueryIssueType 값의 부분집합)이지, 특정 사건에 대한
+  // 판정이 아니다. DB `.default("[]")`가 항상 배열을 보장하므로 nullable
+  // 아님(REQ-EVIDENCE-007).
+  issueTypes: QueryIssueType[];
 }
 
 export interface DraftFinding {

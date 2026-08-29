@@ -34,6 +34,11 @@ function toCandidate(row: EvidenceRow): EvidenceCandidate {
     title: row.title,
     content: row.content,
     sourceUrl: row.sourceUrl,
+    // SPEC-EVIDENCE-001 M1(design.md §1.4) — issueTypes는 JSON 컬럼이라
+    // 정적 타입이 없다(다른 필드와 동일한 캐스팅 관례). M1은 스키마/타입
+    // 배선만 담당하며, candidate eligibility/score에서의 실제 소비는
+    // M2(§C) 범위다.
+    issueTypes: (row.issueTypes ?? []) as EvidenceCandidate["issueTypes"],
   };
 }
 

@@ -42,6 +42,69 @@ threshold 0.85 도달 여부)은 이 세션이 재현할 수 없다 — 아래 �
 | design.md `precisionAt5()`에 `candidates.length` 잔존 여부 | `grep -n "candidates\.length" design.md` | 0건 — `precisionAt5()`가 `candidates.slice(0, 5).filter(...).length / 5`로 표준 정의(top-5/5)를 사용함을 확인 |
 | design.md 하드코딩 `ISSUE_TYPES = [` 리터럴 배열 잔존 여부 | `grep -n "ISSUE_TYPES = \[" design.md` | 매치 1건이지만 `QUERY_ISSUE_TYPES = [`(SSOT const 선언, §1.4a)의 부분 문자열일 뿐 — 별도 `const ISSUE_TYPES = [...]` 선언은 존재하지 않음(§1.5 zod 스키마가 `import { QUERY_ISSUE_TYPES } from "../../lib/pipeline/types.ts"`로 이를 소비) |
 
+## §E.2 Run-phase Evidence
+
+### M1 — Coverage matrix 정의 + Evidence 스키마 마이그레이션 (`issueTypes`만)
+
+manager-develop(cycle_type=tdd)이 M1을 완료했다. 산출물: `.moai/specs/SPEC-EVIDENCE-001/coverage-matrix.md`,
+`db/migrations/0003_sad_hitman.sql`, `lib/pipeline/types.ts`(`QUERY_ISSUE_TYPES` SSOT const),
+`lib/db/schema.ts`(`issueTypes` 컬럼), `db/seed/evidence-seed-schema.ts`(신규 zod 스키마 + test),
+`scripts/db-seed.ts`(runtime validation 배선), `db/seed/evidence.json`(10건 전부 `issueTypes: []`).
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|----------------------|----------------|
+| AC-EVIDENCE-001 | PASS | `.moai/specs/SPEC-EVIDENCE-001/coverage-matrix.md` 육안 검토 | 담보(2)×issueType(8)=16칸 전부 표에 존재(N/A 2칸 포함), N/A 근거는 `query-planner.ts`의 고정 `domainPlans` 매핑을 인용, 나머지 14칸에 현재/목표 건수 명시, 목표는 `planQueries()`의 항상-생성 vs 조건부 발생 빈도에 비례 배분(임의 균등배분 아님) |
+| AC-EVIDENCE-004 | PASS | `TURSO_DATABASE_URL="file:.tmp/m1-idempotency-check.db" npx tsx scripts/db-migrate.ts && npx tsx scripts/db-seed.ts` 를 연속 2회, 매회 후 `SELECT id, category, issue_types FROM evidence ORDER BY id` | 1회차·2회차 모두 정확히 10행, 각 id의 다른 컬럼 값도 재실행 후 1회차와 동일(`issue_types` 전부 `[]`) — §E.3 하단 verbatim 참고 |
+| AC-EVIDENCE-005 | PASS | `lib/pipeline/types.ts`/`db/seed/evidence-seed-schema.ts`/`scripts/db-seed.ts` grep + TS 컴파일 확인 | M1 시점 신규 컬럼은 `issueTypes` 1개뿐(`sourceIdentifier`/`sourceDate`는 이 시점 스키마에 없음 — `grep -c "sourceIdentifier\|sourceDate" lib/db/schema.ts` → 0), `issueTypes`는 `evidence-seed-schema.ts`의 zod 스키마(REQ-EVIDENCE-007 candidate eligibility 소비 전제)와 `db-seed.ts`의 insert/onConflictDoUpdate 양쪽에서 소비됨. `keywords` 필드는 스키마에 추가되지 않았음(research.md §4 "보류"와 일치) |
+| AC-EVIDENCE-006 | PASS | `pnpm test db/seed/evidence-seed-schema.test.ts` | 6 tests passed — RED(모듈 부재로 import 실패) 확인 후 GREEN 전환. issueTypes 8개 값 외 문자열(`"INVALID_TYPE"`) 주입 시 `evidenceSeedFileSchema.parse()`가 예외를 던짐(ZodError, runtime validation — TS 컴파일 타임 체크가 아님), 전체 배열 파싱이 실패해 fail-fast(부분 insert 없음). SSOT: `db/seed/evidence-seed-schema.ts`가 `QUERY_ISSUE_TYPES`를 `lib/pipeline/types.ts`에서 import(`grep -n "QUERY_ISSUE_TYPES" db/seed/evidence-seed-schema.ts` → import 1건, 별도 리터럴 배열 선언 0건) |
+| AC-EVIDENCE-021 | PASS | `db/migrations/0003_sad_hitman.sql` 내용 확인 + `scripts/provision-tester.test.ts` 마이그레이션 drift-guard 테스트 | `ALTER TABLE \`evidence\` ADD \`issue_types\` text DEFAULT '[]' NOT NULL;` 1개 statement뿐(다른 DDL 없음), `sourceIdentifier`/`sourceDate` 컬럼 미포함 확인 |
+
+M1 스코프 밖(M2~M6)의 AC(AC-EVIDENCE-002/003/007~020/022~026)는 이 milestone에서 다루지
+않는다 — REQ-EVIDENCE-006/007만 M1 대상이다(plan.md §B M1).
+
+## §E.3 Run-phase Audit-Ready Signal (M1)
+
+```yaml
+run_status: m1-complete
+m1_complete_at: 2026-08-29
+run_commit_sha: pending-backfill-m1  # 커밋 이후 별도 커밋으로 backfill(spec-frontmatter-schema.md SHA placeholder 예외)
+ac_pass_count_m1: 5   # AC-EVIDENCE-001/004/005/006/021 (M1 범위)
+ac_fail_count_m1: 0
+l44_pre_commit_fetch: "git fetch origin main; git rev-list --count --left-right origin/main...HEAD → 0 0 (동기화됨)"
+new_warnings_or_lints_introduced: false  # pnpm lint 0 warning/error, pnpm format:check clean, npx tsc --noEmit은 app/layout.tsx의 기존 baseline 에러(LayoutProps, 이번 변경 무관) 1건만 — git stash로 baseline에서도 동일 에러 확인
+cross_platform_build:
+  status: not_applicable  # TypeScript/Next.js 프로젝트 — Go의 GOOS/GOARCH 교차 빌드 개념 없음
+total_run_phase_files_m1: 12  # 수정 8 + 신규 4(evidence-seed-schema.ts/.test.ts, 0003_sad_hitman.sql, meta/0003_snapshot.json) — coverage-matrix.md/progress.md/spec.md 제외
+m1_to_mN_commit_strategy: per-milestone-commit  # M1은 단일 커밋, M2~M6는 각 milestone 완료 시 별도 커밋
+```
+
+### M1 멱등성(idempotency) 검증 verbatim (AC-EVIDENCE-004)
+
+```
+$ mkdir -p .tmp && rm -f .tmp/m1-idempotency-check.db*
+$ TURSO_DATABASE_URL="file:.tmp/m1-idempotency-check.db" TURSO_AUTH_TOKEN="" NODE_ENV=test npx tsx scripts/db-migrate.ts
+✅ 마이그레이션 완료
+$ TURSO_DATABASE_URL="file:.tmp/m1-idempotency-check.db" TURSO_AUTH_TOKEN="" NODE_ENV=test npx tsx scripts/db-seed.ts
+✅ 시드 완료
+$ node .tmp/check-rows.mjs   # SELECT id, category, issue_types FROM evidence ORDER BY id
+count=10
+seed-evidence-001 상해후유장해 []
+... (10건, issue_types 전부 [])
+$ TURSO_DATABASE_URL="file:.tmp/m1-idempotency-check.db" TURSO_AUTH_TOKEN="" NODE_ENV=test npx tsx scripts/db-seed.ts
+✅ 시드 완료
+$ node .tmp/check-rows.mjs
+count=10
+seed-evidence-001 상해후유장해 []
+... (재실행 후에도 동일 10건, 동일 issue_types)
+```
+
+이 임시 검증 파일(`.tmp/m1-idempotency-check.db*`, `.tmp/check-rows.mjs`)은 검증 직후
+삭제했다 — `.tmp/`는 gitignore 대상이며 이 저장소의 기존 db-seed/db-migrate 테스트
+스위트가 만드는 임시 db 파일들과 동일한 성격이다. 자동화된 idempotency 회귀 테스트는
+기존 `scripts/db-seed.test.ts`의 `[AC-RUNTIME-005]` 케이스(실제 CLI 프로세스 실행 +
+행 수 비교)가 이미 담당하며, 이번 M1 변경으로 그 테스트가 여전히 그린임을
+`pnpm test` 전체 실행(38 test files, 258 tests passed)으로 확인했다.
+
 ## §G.1 plan-auditor 실행 결과 — iteration 1, FAIL (v0.4.0 아티팩트 대상)
 
 **이 SPEC에 대해 실제 `plan-auditor` subagent가 처음으로 실행됐다(iteration 1/3, plan-auditor
