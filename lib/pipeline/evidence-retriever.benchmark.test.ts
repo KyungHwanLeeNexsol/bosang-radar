@@ -361,22 +361,44 @@ describe("evidence-retriever [M5 REGRESSION] (REQ-EVIDENCE-010, AC-EVIDENCE-009)
 // Section D — [M4d FINAL] benchmark placeholder (M4c freeze 후 채워짐)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus)", () => {
-  // M4c ground truth freeze 완료 후 이 섹션을 채운다.
-  // 각 BenchmarkCase에 대해 baseline(A) vs new(B)를 frozen corpus로 측정한다.
+describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus 21건)", () => {
+  // M4c ground truth freeze 완료 후 채운 최종 측정 섹션.
+  // Corpus: db/seed/evidence.json (21건, M4 full 확장 후 frozen).
+  // Baseline: strategy A (computeBaselineScore — issueTypeWeight=0, Blocker1 수정)
+  // New:      strategy B (computeScore — issueTypeWeight=10 포함)
   // 모든 테스트는 [FROZEN] 라벨을 사용한다.
-  // AC-EVIDENCE-014: REQ-013 target case(bm-injury-preexisting-01)는
-  //   - strategy A: Hit@5 = 0 (키워드 없으면 miss)
-  //   - strategy B: Hit@5 = 1 (issueType exact match로 복구)
-  // 위 두 조건이 동시에 만족되어야 한다.
-  // non-regression 계약: B >= A on meanRecall, meanHit, meanPrecision
 
-  it.todo("[FROZEN] bm-injury-preexisting-01: baseline(A) miss, new(B) hit — REQ-013 target case");
-  it.todo("[FROZEN] bm-injury-causation-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] bm-injury-grade-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] bm-injury-location-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] bm-disease-causation-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] bm-disease-grade-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] bm-disease-diagnosis-01: baseline vs new Recall@5/Hit@5/Precision@5");
-  it.todo("[FROZEN] overall: B >= A non-regression 계약 (meanRecall, meanHit, meanPrecision)");
+  it("[FROZEN] REQ-013 target case: strategy A miss, strategy B hit — bm-injury-preexisting-01", async () => {
+    // REQ-EVIDENCE-013: keywords=["연골 손상"]은 21건 corpus 어디에도 없어 keywordScore=0.
+    // strategy A(computeBaselineScore) = keyword 필수 → miss.
+    // strategy B = issueType exact match(PRE_EXISTING_CONDITION)로 seed-005/016/020 복구 → hit.
+    const db = makeFakeDb(seedRows);
+    const targetCase = BENCHMARK_CASES.find((c) => c.id === "bm-injury-preexisting-01");
+    if (!targetCase) throw new Error("target case not found");
+
+    const resultA = await retrieveEvidence([targetCase.query], db, "A");
+    const candidatesA = resultA.get(targetCase.query.id) ?? [];
+    // REQ-013 invariant i: baseline(A)는 반드시 miss
+    expect(hitAt5(candidatesA, targetCase.knownRelevantEvidenceIds)).toBe(0);
+
+    const resultB = await retrieveEvidence([targetCase.query], db, "B");
+    const candidatesB = resultB.get(targetCase.query.id) ?? [];
+    // REQ-013 invariant ii: new(B)는 반드시 hit
+    expect(hitAt5(candidatesB, targetCase.knownRelevantEvidenceIds)).toBe(1);
+  });
+
+  it("[FROZEN] B >= A non-regression 계약 및 전체 케이스 metric 측정 (meanRecall/Hit/Precision)", async () => {
+    const metricsA = await measureStrategy("A", seedRows);
+    const metricsB = await measureStrategy("B", seedRows);
+
+    // [FROZEN] 21건 corpus 위의 최종 측정 기록
+    console.log("[M4d FROZEN] strategy A (true baseline, issueTypeWeight=0):", JSON.stringify(metricsA, null, 2));
+    console.log("[M4d FROZEN] strategy B (new, issueTypeWeight=10):", JSON.stringify(metricsB, null, 2));
+
+    // design.md §3.3b: B >= A on all 3 metrics (non-regression contract)
+    // 이 assertion이 실패하면 임의 조정 금지 — blocker report로 반환한다.
+    expect(metricsB.meanRecall).toBeGreaterThanOrEqual(metricsA.meanRecall);
+    expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);
+    expect(metricsB.meanPrecision).toBeGreaterThanOrEqual(metricsA.meanPrecision);
+  });
 });
