@@ -843,3 +843,94 @@ new_warnings_or_lints_introduced: false
 total_run_phase_files_this_session: 8  # evidence-retriever.ts/test.ts/benchmark.test.ts + evidence-m2-snapshot.json + evidence.json + coverage-matrix.md + coverage-delta-m4e.md + evidence-source-audit-manifest.md
 m1_to_mN_commit_strategy: per-milestone-commit
 ```
+
+---
+
+## §L Run-phase 세션 3 정리 (post-run correction — Fix1~Fix5 + Fix7/8)
+
+이번 세션(2026-08-30)에서 수행한 post-run correction 7개를 정직하게 기록한다.
+
+### Fix1: Strategy A sort = score desc only (기존 main baseline)
+
+`evidence-retriever.ts`의 `.sort()` 호출을 전략 분기로 수정.
+- 수정 전: `(a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id)` (단일 정렬, 전략 무관)
+- 수정 후: `strategy === "A"` → score desc only (tie-break 없음) / `strategy === "B"` → score desc + id 오름차순
+- 근거: 전략 A의 true baseline은 SPEC 착수 전 main과 동일한 단순 score desc여야 한다. id tie-break는 M2에서 전략 B를 위해 도입된 NEW 기능이므로 전략 A의 baseline에 포함되지 않는다.
+- 테스트 추가: `evidence-retriever.test.ts`에 "전략 A: DB 행 순서 유지", "전략 B: id 오름차순 tie-break" 2개 테스트 신규 추가.
+
+### Fix2: M2_BENCHMARK_CASES 분리 + measureStrategy() cases 파라미터화
+
+`evidence-retriever.benchmark.test.ts`에서:
+- `M2_BENCHMARK_CASES` const 신규 추가 (M2 당시 10건 corpus 기준 ground truth, FROZEN)
+- `BENCHMARK_CASES` → FINAL benchmark (M4c freeze 기준, 21건 corpus)로 역할 명확화
+- `measureStrategy()` 시그니처 변경: `(strategy, rows)` → `(strategy, rows, cases: BenchmarkCase[])`
+- `[M2 EXPLORATORY]` 섹션의 모든 테스트가 `M2_BENCHMARK_CASES`를 사용하도록 업데이트
+
+### Fix3: bm-disease-grade-01 ground truth 수정
+
+`BENCHMARK_CASES`의 `bm-disease-grade-01.knownRelevantEvidenceIds`:
+- 수정 전: `[]` (빈 배열 — AC-EVIDENCE-013 잘못된 적용)
+- 수정 후: `["seed-evidence-004", "seed-evidence-017", "seed-evidence-018"]`
+- 근거: AC-EVIDENCE-013의 "OTHER downgrade 항목 제외" 조항은 manifest에서 의도적으로 downgrade된 항목(seed-003 POLICY→OTHER)에만 해당. seed-004/017/018은 처음부터 OTHER였고 downgrade된 적 없음 → 포함 가능.
+
+### Fix4: seed-021 DIAGNOSIS 태깅 제거 + manifest §C 모순 수정
+
+A. `db/seed/evidence.json`의 seed-evidence-021 issueTypes 변경:
+   - 수정 전: `["CAUSATION", "DIAGNOSIS"]`
+   - 수정 후: `["CAUSATION"]`
+   - 근거: 고지의무/계약해지 판례는 QueryPlanner DIAGNOSIS issueType("질병후유장해의 diagnosisName 확인 쟁점")이 아님.
+
+B. `BENCHMARK_CASES`의 `bm-disease-diagnosis-01.knownRelevantEvidenceIds`:
+   - 수정 전: `["seed-evidence-008", "seed-evidence-019", "seed-evidence-021"]`
+   - 수정 후: `["seed-evidence-008", "seed-evidence-019"]`
+
+C. `evidence-source-audit-manifest.md` §B2 seed-021 행: issueTypes를 `["CAUSATION"]`으로 업데이트, DIAGNOSIS 제거 rationale 기록.
+
+D. `evidence-source-audit-manifest.md` §C: "의도적으로 배제한 후보" → "최종 채택(seed-021)으로 반전, DIAGNOSIS 태깅 제거" 기록. §C의 seed-021 기록과 §B2의 채택 기록 간 모순 해소.
+
+### Fix5: recallAt5/hitAt5 빈 ground-truth → null + mean 제외 처리
+
+`evidence-retriever.benchmark.test.ts`에서:
+- `recallAt5()` / `hitAt5()` / `precisionAt5()`: `knownRelevantIds.length === 0` → `null` 반환
+- `StrategyMetrics.perCase`: `recall/hit/precision` 타입을 `number | null`로 변경, `skipped: boolean` 필드 추가
+- `StrategyMetrics`: `skippedCases: string[]` 필드 추가
+- `measureStrategy()`: null 케이스(skipped) 제외하고 mean 계산
+- 참고: Fix3 적용 후 bm-disease-grade-01은 non-empty ground truth가 되어 null path가 발동하지 않음. 그러나 미래 빈 케이스를 위한 방어적 처리로 정확함.
+
+### Fix7: DISPUTE_CASE 시도 — 미충족 정직 기록
+
+이번 세션에서 DISPUTE_CASE 확보를 재시도했다:
+- (a) `https://www.fss.or.kr` — curl 접근 불가 (Bash 환경에서 HTTP 응답 없음, 타임아웃)
+- (b) `https://www.knia.or.kr` — 동일하게 네트워크 접근 불가
+- (c) FSS/KNIA/FCSC 웹사이트 — Bash 환경에서 outbound HTTP 연결이 차단된 것으로 판단
+
+**결론**: HTML URL 개별 단위 DISPUTE_CASE 확보 불가 — Bash 환경의 네트워크 제약.
+M4b DISPUTE_CASE 요구 미충족: 2026-08-30, 시도한 경로: FSS/KNIA/FCSC 웹사이트, curl 타임아웃, 결론: 환경 제약으로 HTML URL 개별 단위 확보 불가.
+
+### Fix8: gate 실행 시도 — 환경 제약으로 미실행
+
+pnpm이 Bash PATH에서 접근 불가능 확인:
+- `which pnpm` → 미발견
+- `/c/Users/zuge3/AppData/Roaming/npm/` 확인 → yarn만 존재, pnpm 없음
+- `/c/Users/zuge3/AppData/Local/pnpm/` → store 디렉토리만 존재 (binary 없음)
+
+**gate 결과**: 환경 제약: pnpm not found in Bash PATH. Gate 미실행. 사용자가 직접 실행 필요.
+- `pnpm test` — 미실행(환경 제약)
+- `pnpm lint` — 미실행(환경 제약)
+- `pnpm format:check` — 미실행(환경 제약)
+- `pnpm build` — 미실행(환경 제약)
+- `pnpm test:e2e` — 미실행(환경 제약)
+
+### §E.2 M4d post-correction 섹션
+
+| AC | Status | 비고 |
+|----|--------|------|
+| AC-EVIDENCE-008 | PASS (유지) | 전략 A/B eligibility 동작 변경 없음 |
+| AC-EVIDENCE-014 | 재측정 필요 | Fix1/3/4/5 보정 후 [M4d FROZEN post-correction] 테스트로 재측정 |
+| AC-EVIDENCE-013 | PASS (개선) | bm-disease-grade-01 non-empty, seed-021 DIAGNOSIS 제거로 ground truth 정합 |
+
+M4d 재측정은 `pnpm test lib/pipeline/evidence-retriever.benchmark.test.ts` 실행 시 `[M4d FROZEN post-correction]` console.log 출력으로 확인 가능. 환경 제약으로 이 세션에서 직접 실행하지 못함.
+
+### SPEC 상태
+
+`status: in-progress` 유지. DISPUTE_CASE(M4b) 미충족으로 모든 AC가 충족되지 않음. 다음 세션은 pnpm 환경에서 gate 실행 후 결과를 §E.3에 기록해야 한다.
