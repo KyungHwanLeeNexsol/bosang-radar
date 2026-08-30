@@ -52,7 +52,7 @@ design.md §5.3 확장 6-컬럼 형식. REQ-EVIDENCE-005(기존 10건 재감사)
 | id | evidenceType | sourceUrl 접근 확인일 | 원문 대조 결과 | issueTypes | issueTypes 검토 결과/tagging rationale | 결정 | 검토자 |
 |----|--------------|------------------------|----------------|------------|------------------------------------------|------|--------|
 | seed-evidence-020 | PRECEDENT | 2026-08-30 (casenote.kr WebFetch) | 대법원 2005. 10. 27. 선고 2004다52033 판결(보험금) 실재 확인. 기왕증 경합 시 후유장해지급률 합계로 지급의무 발생 여부 판단하고, 기왕증 감액은 보험금액 산정 단계에서 반영한다는 판시 확인. 내용이 판결문과 정합, 과장 없음. | CAUSATION + PRE_EXISTING_CONDITION + DISABILITY_GRADE_CRITERIA — 기왕증 기여도와 후유장해지급률 산정 법리 모두 다룸. | **채택(신규)** | run-phase agent (M4 full) |
-| seed-evidence-021 | PRECEDENT | 2026-08-30 (casenote.kr WebFetch) | 대법원 2010. 7. 22. 선고 2010다25353 판결(보험계약해지무효확인) 실재 확인. 고지의무 위반과 보험사고 발생 간 인과관계 불문 해지 가능 + 인과관계 없으면 보험금 지급책임 존속이라는 판시 확인. 기존 §C에서 "쟁점이 계약 해지 요건"으로 배제했으나, CAUSATION(인과관계 법리)·DIAGNOSIS(진단된 질병 고지) 쟁점과의 연관성을 재검토해 채택. | CAUSATION + DIAGNOSIS — 인과관계 법리(고지의무 위반과 보험사고 간 인과관계) + 질병 진단 관련 고지. | **채택(신규)** | run-phase agent (M4 full) |
+| seed-evidence-021 | PRECEDENT | 2026-08-30 (casenote.kr WebFetch) | 대법원 2010. 7. 22. 선고 2010다25353 판결(보험계약해지무효확인) 실재 확인. 고지의무 위반과 보험사고 발생 간 인과관계 불문 해지 가능 + 인과관계 없으면 보험금 지급책임 존속이라는 판시 확인. 기존 §C에서 "쟁점이 계약 해지 요건"으로 배제했으나, CAUSATION(인과관계 법리) 쟁점과의 연관성을 재검토해 채택. **post-correction(Fix4, 2026-08-30)**: DIAGNOSIS 태깅 제거 — 이 판례는 고지의무/계약해지 쟁점이며 "질병후유장해의 diagnosisName 확인" QueryPlanner DIAGNOSIS issueType과 다르다. CAUSATION만 유지. | CAUSATION — 인과관계 법리(고지의무 위반과 보험사고 간 인과관계). DIAGNOSIS 제거(과도 태깅). | **채택(신규), DIAGNOSIS 태깅 제거됨** | run-phase agent (M4 full), Fix4 보정 2026-08-30 |
 
 ## §C. Pilot 목표 대비 shortfall — 정직 고지 (REQ-EVIDENCE-002 우선)
 
@@ -73,10 +73,7 @@ design.md §5.3 확장 6-컬럼 형식. REQ-EVIDENCE-005(기존 10건 재감사)
    장해 준용" 조항) 확인된 근거가 사설보험이 아닌 산업재해보상보험법 시행령 제53조제3항(별개 법
    영역)에 귀속되는 것으로 드러나, 이 SPEC의 도메인(민간 상해·질병 보험)에 그대로 적용된다고
    단정할 근거가 부족해 채택하지 않았다(도메인 혼동 방지).
-3. **의도적으로 배제한 후보**: 대법원 2010. 7. 22. 선고 2010다25353(고지의무 위반과 질병 발병 간
-   인과관계 부존재에도 계약해지 가능) — 사건 자체는 실재 확인했으나, 쟁점이 "계약 해지 요건"이지
-   이 SPEC의 8개 QueryIssueType(담보-쟁점 분류)이 다루는 "장해 판정 시 인과관계"와 성격이 달라
-   무리하게 끼워맞추지 않고 배제했다(§B의 issueTypes 과도 태깅 방지 원칙과 동일한 판단 기준).
+3. ~~**의도적으로 배제한 후보**: 대법원 2010. 7. 22. 선고 2010다25353(고지의무 위반과 질병 발병 간 인과관계 부존재에도 계약해지 가능) — [M4 pilot §C에서 배제 결정 후 M4 full에서 재검토 반전]~~ **→ seed-evidence-021로 최종 채택(M4 full)**. 재검토 결과: CAUSATION 쟁점(인과관계 불요 원칙)은 QueryPlanner CAUSATION issueType과 접점이 있다고 재판단. 단 DIAGNOSIS 태깅은 제거(Fix4, 2026-08-30): 고지의무/계약해지 판례는 QueryPlanner DIAGNOSIS issueType("질병후유장해의 diagnosisName 확인 쟁점")이 아니다.
 
 **"honest 9건이 20건보다 낫다"는 원칙(task 지시)에 따라, 이 shortfall은 M4b의 잔여 작업으로
 남긴다 — 이후 세션에서 (a) 금융감독원 분쟁조정 사례집 PDF의 텍스트 추출 도구를 별도로 확보하거나
