@@ -1,24 +1,34 @@
 import { describe, expect, it } from "vitest";
+import evidenceM2Snapshot from "../../db/seed/evidence-m2-snapshot.json";
 import evidenceSeed from "../../db/seed/evidence.json";
 import { retrieveEvidence, type EligibilityStrategy } from "./evidence-retriever";
 import type { EvidenceCandidate, ResearchQuery } from "./types";
 
 // SPEC-EVIDENCE-001 M2 — Curated Retrieval Benchmark (design.md §3, plan.md M2).
 //
-// EXPLORATORY(탐색적) 측정 — 이 파일의 Recall@5/Hit@5/Precision@5 수치는
-// 10건짜리 초기 corpus(db/seed/evidence.json) 위에서 전략 A/B 중 어느
-// 쪽을 채택할지 "방향"만 결정한다. M4d의 frozen 최종 corpus 위에서의
-// algorithm effect 측정만이 acceptance.md AC-EVIDENCE-014의 최종 acceptance
-// 근거이며, 이 파일의 수치는 그 근거로 재사용되지 않는다(design.md §3.4,
-// 외부 독립 리뷰 v0.3.0 이슈 1/4).
+// [M2 EXPLORATORY] 섹션: 10건짜리 초기 corpus(evidence-m2-snapshot.json)를
+// 기반으로 전략 A/B "방향"을 결정하는 탐색적 측정.
+// [M5 REGRESSION] 섹션: production evidence.json(19건+)을 사용한 회귀 방지.
+// [M4d FINAL] 섹션: M4 frozen corpus 위에서 true baseline vs new algorithm
+// 최종 측정 (Blocker1 수정 후 computeBaselineScore 사용).
 //
-// production evidence.json을 fake db row로 그대로 사용한다 — 이 corpus는
-// 실제 production seed와 동일한 데이터이며(REQ-EVIDENCE-015 대상 id 집합),
-// EvidenceCandidate 구조와 완전히 동형이므로 retrieveEvidence()의 db
-// 인자에 별도 변환 없이 주입할 수 있다.
+// Blocker2(SPEC-EVIDENCE-001): 벤치마크가 mutable production evidence.json을
+// 직접 import하면 M4+에서 항목이 추가될 때마다 M2 탐색적 수치가 달라진다.
+// evidence-m2-snapshot.json(10건 고정)을 분리해 M2 결과를 immutable하게 유지한다.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section A — Imports, shared helpers, row builders
+// ─────────────────────────────────────────────────────────────────────────────
 
 type SeedRow = EvidenceCandidate & { createdAt: Date };
 
+// M2 snapshot rows (10건 고정 — 절대로 수정하지 말 것)
+const m2SnapshotRows: SeedRow[] = (evidenceM2Snapshot as EvidenceCandidate[]).map((r) => ({
+  ...r,
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+}));
+
+// Production seed rows (M5 회귀 방지 + M4d FINAL 용)
 const seedRows: SeedRow[] = (evidenceSeed as EvidenceCandidate[]).map((r) => ({
   ...r,
   createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -43,9 +53,9 @@ interface BenchmarkCase {
 // 각 3건 + PRE_EXISTING_CONDITION 1건 = 최소 7건(AC-EVIDENCE-012).
 //
 // bm-injury-preexisting-01은 REQ-EVIDENCE-013가 지정한 target case다 —
-// query.keywords(["연골 손상"])는 db/seed/evidence.json 전체 corpus 어디에도
-// 등장하지 않으므로(node로 사전 검증) keywordScore는 항상 0이고, 전략
-// A(키워드 필수)는 반드시 miss한다. 전략 B는 issueType exact match
+// query.keywords(["연골 손상"])는 db/seed/evidence-m2-snapshot.json 전체 corpus
+// 어디에도 등장하지 않으므로(node로 사전 검증) keywordScore는 항상 0이고,
+// 전략 A(키워드 필수)는 반드시 miss한다. 전략 B는 issueType exact match
 // (PRE_EXISTING_CONDITION)만으로 candidate에 진입시켜 hit한다.
 const BENCHMARK_CASES: BenchmarkCase[] = [
   {
@@ -106,6 +116,8 @@ const BENCHMARK_CASES: BenchmarkCase[] = [
       issueType: "CAUSATION",
       keywords: ["인과관계"],
     },
+    // Blocker2 주의: seed-evidence-003은 M4에서 OTHER로 downgrade될 수 있음.
+    // M4c ground truth freeze 단계에서 evidence.json 상태 확인 후 갱신 필요.
     knownRelevantEvidenceIds: ["seed-evidence-003", "seed-evidence-008", "seed-evidence-009"],
   },
   {
@@ -159,8 +171,11 @@ interface StrategyMetrics {
   meanPrecision: number;
 }
 
-async function measureStrategy(strategy: EligibilityStrategy): Promise<StrategyMetrics> {
-  const db = makeFakeDb(seedRows);
+async function measureStrategy(
+  strategy: EligibilityStrategy,
+  rows: SeedRow[]
+): Promise<StrategyMetrics> {
+  const db = makeFakeDb(rows);
   const perCase: StrategyMetrics["perCase"] = [];
 
   for (const bc of BENCHMARK_CASES) {
@@ -181,8 +196,12 @@ async function measureStrategy(strategy: EligibilityStrategy): Promise<StrategyM
   return { strategy, perCase, meanRecall, meanHit, meanPrecision };
 }
 
-describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () => {
-  it("최소 7개 벤치마크 케이스가 두 담보 × 3개 issueType 조합 + PRE_EXISTING_CONDITION 1건을 커버한다", () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// Section B — [M2 EXPLORATORY] benchmark (10건 고정 corpus)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("evidence-retriever [M2 EXPLORATORY] benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () => {
+  it("[M2 EXPLORATORY] 최소 7개 벤치마크 케이스가 두 담보 × 3개 issueType 조합 + PRE_EXISTING_CONDITION 1건을 커버한다", () => {
     expect(BENCHMARK_CASES.length).toBeGreaterThanOrEqual(7);
 
     const byDomain = (domain: "INJURY_DISABILITY" | "DISEASE_DISABILITY") =>
@@ -200,8 +219,8 @@ describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () 
     expect(BENCHMARK_CASES.some((c) => c.query.issueType === "PRE_EXISTING_CONDITION")).toBe(true);
   });
 
-  it("모든 knownRelevantEvidenceIds가 db/seed/evidence.json의 실제 id 집합에 존재한다 (AC-EVIDENCE-013 (a) 부분)", () => {
-    const actualIds = new Set((evidenceSeed as EvidenceCandidate[]).map((r) => r.id));
+  it("[M2 EXPLORATORY] 모든 knownRelevantEvidenceIds가 M2 snapshot(10건)의 실제 id 집합에 존재한다 (AC-EVIDENCE-013 (a) 부분)", () => {
+    const actualIds = new Set((evidenceM2Snapshot as EvidenceCandidate[]).map((r) => r.id));
     for (const bc of BENCHMARK_CASES) {
       for (const id of bc.knownRelevantEvidenceIds) {
         expect(actualIds.has(id)).toBe(true);
@@ -209,8 +228,8 @@ describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () 
     }
   });
 
-  it("[EXPLORATORY] REQ-EVIDENCE-013 target case: 전략 A는 miss, 전략 B는 hit한다 — 이 관측이 전략 B 채택의 근거다", async () => {
-    const db = makeFakeDb(seedRows);
+  it("[M2 EXPLORATORY] REQ-EVIDENCE-013 target case: 전략 A는 miss, 전략 B는 hit한다 — 이 관측이 전략 B 채택의 근거다", async () => {
+    const db = makeFakeDb(m2SnapshotRows);
     const targetCase = BENCHMARK_CASES.find((c) => c.id === "bm-injury-preexisting-01");
     if (!targetCase) throw new Error("target case not found");
 
@@ -223,22 +242,30 @@ describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () 
     expect(hitAt5(candidatesB, targetCase.knownRelevantEvidenceIds)).toBe(1);
   });
 
-  it("[EXPLORATORY] 전략 A/B의 Recall@5/Hit@5/Precision@5를 측정·기록한다 — non-regression 계약(design.md §3.3b) 확인", async () => {
-    const metricsA = await measureStrategy("A");
-    const metricsB = await measureStrategy("B");
+  it("[M2 EXPLORATORY] 전략 A/B의 Recall@5/Hit@5/Precision@5를 측정·기록한다 — non-regression 계약(design.md §3.3b) 확인 (Blocker1 수정 후 corrected baseline)", async () => {
+    const metricsA = await measureStrategy("A", m2SnapshotRows);
+    const metricsB = await measureStrategy("B", m2SnapshotRows);
 
-    // EXPLORATORY 라벨: 이 console.log 출력은 progress.md에 그대로 옮겨
-    // 기록되며, M4d의 frozen 최종 비교와는 별개 절로 분리 서술된다
-    // (design.md §3.4, AC-EVIDENCE-014).
-    console.log("[EXPLORATORY] strategy A:", JSON.stringify(metricsA, null, 2));
-    console.log("[EXPLORATORY] strategy B:", JSON.stringify(metricsB, null, 2));
+    // [M2 EXPLORATORY] 라벨: 이 console.log 출력은 progress.md에 그대로 옮겨
+    // 기록되며, M4d의 frozen 최종 비교와는 별개 절로 분리 서술된다.
+    // Blocker1 수정 후 재측정: strategy A는 computeBaselineScore(issueTypeWeight=0) 적용.
+    console.log("[M2 EXPLORATORY] strategy A (corrected baseline):", JSON.stringify(metricsA, null, 2));
+    console.log("[M2 EXPLORATORY] strategy B:", JSON.stringify(metricsB, null, 2));
 
     // design.md §3.3b 권고 기본값 — new(B) >= baseline(A) on all 3 metrics
+    // Blocker1 수정 후에도 B >= A 계약이 유지되어야 한다.
+    // 만약 이 assertion이 실패하면 Blocker report를 반환한다(임의 조정 금지).
     expect(metricsB.meanRecall).toBeGreaterThanOrEqual(metricsA.meanRecall);
     expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);
     expect(metricsB.meanPrecision).toBeGreaterThanOrEqual(metricsA.meanPrecision);
   });
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Section C — [M5 REGRESSION] (production evidence.json 사용)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("evidence-retriever [M5 REGRESSION] (REQ-EVIDENCE-010, AC-EVIDENCE-009)", () => {
   // SPEC-EVIDENCE-001 M5 — REQ-EVIDENCE-010 회귀 방지 벤치마크 케이스
   // (AC-EVIDENCE-009, design.md §2.2 issueTypeWeight 설계 근거).
   //
@@ -287,4 +314,28 @@ describe("evidence-retriever.benchmark (REQ-EVIDENCE-014, AC-EVIDENCE-012)", () 
     // 순위로 들어오지 않는다(acceptance.md AC-EVIDENCE-009).
     expect(firstIrrelevantRank).toBeGreaterThan(lastKnownRelevantRank);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section D — [M4d FINAL] benchmark placeholder (M4c freeze 후 채워짐)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus)", () => {
+  // M4c ground truth freeze 완료 후 이 섹션을 채운다.
+  // 각 BenchmarkCase에 대해 baseline(A) vs new(B)를 frozen corpus로 측정한다.
+  // 모든 테스트는 [FROZEN] 라벨을 사용한다.
+  // AC-EVIDENCE-014: REQ-013 target case(bm-injury-preexisting-01)는
+  //   - strategy A: Hit@5 = 0 (키워드 없으면 miss)
+  //   - strategy B: Hit@5 = 1 (issueType exact match로 복구)
+  // 위 두 조건이 동시에 만족되어야 한다.
+  // non-regression 계약: B >= A on meanRecall, meanHit, meanPrecision
+
+  it.todo("[FROZEN] bm-injury-preexisting-01: baseline(A) miss, new(B) hit — REQ-013 target case");
+  it.todo("[FROZEN] bm-injury-causation-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] bm-injury-grade-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] bm-injury-location-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] bm-disease-causation-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] bm-disease-grade-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] bm-disease-diagnosis-01: baseline vs new Recall@5/Hit@5/Precision@5");
+  it.todo("[FROZEN] overall: B >= A non-regression 계약 (meanRecall, meanHit, meanPrecision)");
 });
