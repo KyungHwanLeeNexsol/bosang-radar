@@ -13,8 +13,9 @@ import type { CoverageDomain, EvidenceCandidate, ResearchQuery } from "./types";
 // 0건이어도) 포함"되던 1차 설계의 결함을 필터 술어 수준에서 구조적으로
 // 차단한다(design.md §6, AC-RESEARCH-005).
 //
-// @MX:WARN: [AUTO] top-N(5) cutoff은 seed 데이터 규모(10개)를 전제로 한
-// 초기 파라미터다.
+// @MX:WARN: [AUTO] top-N(5) cutoff은 seed 데이터 규모(10개→M4 확장 후)를 전제로 한
+// 초기 파라미터다. Blocker1(SPEC-EVIDENCE-001) 이후 전략 A는 computeBaselineScore,
+// 전략 B는 computeScore로 분리되었다 — score 함수 선택 로직은 아래 분기 참조.
 // @MX:REASON: spec.md §5 잔여 위험에 기록된 대로, evidence가 대규모로
 // 늘어나면 cutoff/스코어링 방식을 후속 SPEC에서 재조정해야 한다.
 const DOMAIN_CATEGORY_LABEL: Record<CoverageDomain, string> = {
@@ -74,6 +75,24 @@ export function relevantB(
   return isUniversal
     ? keywordScore > 0 || issueTypeExactMatch
     : domainMatch && (keywordScore > 0 || issueTypeExactMatch);
+}
+
+// SPEC-EVIDENCE-001 Blocker1(design.md §3.4A) — 전략 A(baselineRetriever)용
+// true baseline score 함수. issueTypeWeight를 포함하지 않는다.
+// 전략 A는 "SPEC 착수 전 main Retriever와 의미적으로 동일한 baseline"이므로
+// issueTypeWeight 없이 domainWeight + universalWeight + keywordScore만 계산한다.
+// REQ-EVIDENCE-016: 동일 frozen corpus 위에서 baseline(A)과 new(B)를 비교하는
+// 목적상, 전략 A가 issueTypeWeight를 포함하면 true baseline이 되지 않는다.
+export function computeBaselineScore(
+  _evidence: EvidenceCandidate,
+  _query: ResearchQuery,
+  domainMatch: boolean,
+  isUniversal: boolean,
+  keywordScore: number
+): number {
+  const domainWeight = domainMatch ? 2 : 0;
+  const universalWeight = isUniversal ? 1 : 0;
+  return domainWeight + universalWeight + keywordScore;
 }
 
 // design.md §2.2 — score 함수(정렬 전용, eligibility와 별개 단계).
@@ -142,7 +161,12 @@ export async function retrieveEvidence(
           strategy === "A"
             ? relevantA(domainMatch, isUniversal, keywordScore)
             : relevantB(domainMatch, isUniversal, keywordScore, issueTypeExactMatch);
-        const score = computeScore(item, query, domainMatch, isUniversal, keywordScore);
+        // Blocker1(design.md §3.4A): 전략 A는 computeBaselineScore(issueTypeWeight=0),
+        // 전략 B는 computeScore(issueTypeWeight 포함) — true baseline 분리
+        const score =
+          strategy === "A"
+            ? computeBaselineScore(item, query, domainMatch, isUniversal, keywordScore)
+            : computeScore(item, query, domainMatch, isUniversal, keywordScore);
         return { item, score, relevant };
       })
       .filter((entry) => entry.relevant)
