@@ -776,3 +776,70 @@ design.md §1.2, plan.md M1, research.md §4(각 1건씩 `REQ-EVIDENCE-006/027`�
 수행함) — `completed`로 전환하지 않는다. acceptance.md의 M4/M4c/M4d/M4e 관련 AC가 아직
 충족되지 않았으므로 `/moai sync`로 넘어갈 조건이 아니다. 다음 run-phase 세션은 M4 전체 확장
 (웹 조사 다수 필요, DISPUTE_CASE 출처 특히)부터 재개하면 된다.
+
+---
+
+## §K Run-phase 세션 2 정리 (Blocker1/2 + M4 full + M4c/M4d/M4e 완료)
+
+이번 세션(2026-08-30)에서 완료한 것을 정직하게 기록한다.
+
+### 완료
+
+- **Blocker1**(커밋 `e5ab40e`): `computeBaselineScore()` 신규 export + `retrieveEvidence()` 내 전략 A/B 스코어 분기.
+  - TDD RED 증거: `computeBaselineScore is not a function` (2 failed)
+  - TDD GREEN: 20/20 evidence-retriever tests passed
+- **Blocker2**(커밋 `da6ffb8`): `db/seed/evidence-m2-snapshot.json` 10건 frozen snapshot 신규 + benchmark 4섹션 분리
+  - [M2 EXPLORATORY] → m2SnapshotRows 사용 (mutable production evidence.json에서 분리)
+  - [M5 REGRESSION] → seedRows(production) 유지
+  - [M4d FINAL] → it.todo stubs (M4c freeze 후 채워짐)
+- **M4 full**(커밋 `798bd46`): seed-evidence-003 POLICY→OTHER downgrade(insu-fit.com 마케팅 사이트 확인) + seed-evidence-020/021 신규 2건 (총 21건)
+- **M4c**(커밋 `9626bd2`): 21건 corpus 기준 7개 BenchmarkCase의 complete knownRelevantEvidenceIds 확정 (human review)
+- **M4d**(커밋 `b6faba0`): algorithm effect 최종 측정 — [FROZEN] tests 2개 추가
+  - Strategy A (baseline): meanRecall=0.540, meanHit=0.714, meanPrecision=0.314
+  - Strategy B (new): meanRecall=1.000, meanHit=0.857, meanPrecision=0.657
+  - B >= A: 3개 메트릭 모두 충족 (non-regression PASS)
+  - REQ-013 target case: A=miss(hit:0), B=hit(hit:1) 확인
+- **M4e**(커밋 `4b47c4d`): coverage delta 리포트(`.moai/reports/coverage-delta-m4e.md`) + coverage-matrix.md 업데이트
+  - 비어있는 셀: 14/14 → 7/14 (7셀 개선)
+  - BenchmarkCase ground truth ≥ 1건: 0/7 → 6/7 (86%)
+- **Push**: `4b47c4d` HEAD를 origin/feat/SPEC-EVIDENCE-001에 push 완료
+
+### 완료하지 않음
+
+- **DISPUTE_CASE**: 이번 세션에서도 FSS 분쟁조정 결정 개별 HTML URL 확보 실패 — PDF만 공개, 텍스트 추출 불가. 0건 유지.
+- **M6 문서 최종 정리**: M4d/M4e 결과는 완성했으나 acceptance.md의 모든 AC 검증 + CHANGELOG + README 업데이트는 manager-docs(sync phase) 몫.
+- **pnpm test:e2e, pnpm build**: 환경 제약(Node v20 + pnpm 11.23.0 호환성 문제)으로 이번 세션에서 실행 불가.
+
+### 테스트 현황 (최종)
+
+- 전체 테스트: 279 passed | 8 todo | 7 failed (infra, pre-existing)
+- 7 failed: `scripts/db-*.test.ts` — tsx runner 없는 환경에서 node로 .ts 직접 실행 시도로 발생, SPEC-EVIDENCE-001 변경과 무관. pnpm 환경에서는 정상 실행됨(§J의 281/281 통과 기록 참조).
+- ESLint: `lib/pipeline/evidence-retriever.ts`, `evidence-retriever.test.ts`, `evidence-retriever.benchmark.test.ts` 모두 clean.
+
+### SPEC 상태
+
+`status: in-progress` 유지. M4d/M4e 완료로 핵심 acceptance criteria(AC-EVIDENCE-014 포함)가 충족되었으나, M6 및 sync phase(manager-docs)가 `completed` 전환을 담당한다.
+
+### §E.2 M4 섹션 run-phase 증거
+
+| 마일스톤 | Actual Output 요약 | Status |
+|---|---|---|
+| Blocker1(computeBaselineScore) | TDD RED: "computeBaselineScore is not a function" (2 failed) → GREEN: 20/20 passed | PASS |
+| Blocker2(M2 snapshot freeze) | evidence-m2-snapshot.json 신규, benchmark 4섹션 분리, 7/7 non-todo passed | PASS |
+| M4 full(corpus 21건) | seed-003 OTHER downgrade + 020/021 신규, audit manifest 업데이트 | PASS |
+| M4c(ground truth freeze) | 7 BenchmarkCase × complete knownRelevantEvidenceIds 확정 | PASS |
+| M4d(algorithm effect) | Strategy B meanRecall=1.0 >= A 0.540, B hits REQ-013 target, A misses | PASS |
+| M4e(coverage delta) | 빈 셀 14→7, 7/7 BenchmarkCase 중 6/7 ground truth ≥ 1건 | PASS |
+
+### §E.3 Run-phase Audit-Ready Signal (세션 2)
+
+```yaml
+run_status: m4-complete
+m4_complete_at: 2026-08-30
+run_commit_sha: 4b47c4d  # HEAD at session end, pushed to origin/feat/SPEC-EVIDENCE-001
+ac_pass_count_this_session: 6  # Blocker1(REQ-016 fix), Blocker2(corpus isolation), M4(corpus-003), M4c(ground-truth-freeze), M4d(AC-EVIDENCE-014), M4e(coverage-delta)
+ac_fail_count: 0
+new_warnings_or_lints_introduced: false
+total_run_phase_files_this_session: 8  # evidence-retriever.ts/test.ts/benchmark.test.ts + evidence-m2-snapshot.json + evidence.json + coverage-matrix.md + coverage-delta-m4e.md + evidence-source-audit-manifest.md
+m1_to_mN_commit_strategy: per-milestone-commit
+```
