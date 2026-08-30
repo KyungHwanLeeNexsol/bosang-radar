@@ -407,3 +407,50 @@ describe("computeBaselineScore (Blocker1 — REQ-EVIDENCE-016 수정)", () => {
     expect(resultA.get("q-baseline-eligibility")).toEqual([]);
   });
 });
+
+// SPEC-EVIDENCE-001 Fix1 — 전략별 정렬 분기 검증:
+// 전략 A(baseline): score desc only — tie-break 없음, DB 행 순서 유지
+// 전략 B(new):      score desc + id 오름차순 tie-break(결정론적)
+describe("retrieveEvidence 전략별 정렬 분기 (Fix1 — strategy-dispatched sort)", () => {
+  it("전략 A: computeBaselineScore 동점 시 result order는 DB 행 순서(입력 배열 순서)에 의존한다 — id 알파벳 순이 아님", async () => {
+    // 입력 배열이 e-z, e-a, e-m 순이고 모든 score가 동일하면
+    // 전략 A(tie-break 없음)는 입력 순서대로 e-z, e-a, e-m을 반환해야 한다.
+    // (전략 B라면 e-a, e-m, e-z로 id 오름차순 정렬됨)
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-a-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    const idsA = resultA.get("q-strategy-a-tie")?.map((e) => e.id) ?? [];
+    // 전략 A는 tie-break 없음 → 입력 배열 순서 그대로 [e-z, e-a, e-m]
+    expect(idsA).toEqual(["e-z", "e-a", "e-m"]);
+    // id 알파벳 오름차순이 아님을 명시적으로 확인
+    expect(idsA).not.toEqual(["e-a", "e-m", "e-z"]);
+  });
+
+  it("전략 B: computeScore 동점 시 id 오름차순 tie-break가 적용되어 항상 결정론적 정렬된다", async () => {
+    // 동일 rows를 전략 B로 실행하면 e-a, e-m, e-z (id 오름차순)
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-b-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+      expect(resultB.get("q-strategy-b-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
+  });
+});

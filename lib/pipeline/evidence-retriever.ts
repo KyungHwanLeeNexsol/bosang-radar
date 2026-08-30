@@ -170,9 +170,21 @@ export async function retrieveEvidence(
         return { item, score, relevant };
       })
       .filter((entry) => entry.relevant)
-      // 결정론적 정렬 — score 동점 시 id 오름차순 고정(design.md §2.3,
-      // REQ-EVIDENCE-012)
-      .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
+      // 전략별 정렬 분기(design.md §2.3, REQ-EVIDENCE-012):
+      // 전략 A(baseline): 기존 main과 동일한 단순 score desc — tie-break 없음.
+      //   issueTypeWeight가 0이므로 동점 케이스가 자주 발생할 수 있지만,
+      //   결과 순서는 DB 행 순서(rows 배열 순서)에 의존한다 — 이것이 SPEC 착수 전
+      //   main의 동작이었다(true baseline).
+      // 전략 B(new): score desc + id 오름차순 tie-break — 결정론적 정렬
+      //   (REQ-EVIDENCE-012). issueTypeWeight(10)가 더해지면 동점이 매우
+      //   드물지만, 발생 시 id로 고정 순서를 보장한다.
+      .sort(
+        strategy === "A"
+          ? // 기존 main과 동일한 단순 score desc — tie-break 없음(baseline)
+            (a, b) => b.score - a.score
+          : // 전략 B(new): score desc + id 오름차순 tie-break(결정론적)
+            (a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id)
+      )
       .slice(0, TOP_N);
 
     // 매칭되는 evidence가 없는 쿼리는 빈 배열을 값으로 갖는다 — 전체
