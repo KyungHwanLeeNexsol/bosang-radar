@@ -16,18 +16,16 @@ design.md §5.3 확장 6-컬럼 형식. REQ-EVIDENCE-005(기존 10건 재감사)
 | seed-evidence-005 | PRECEDENT | 2026-08-29 (WebFetch + WebSearch 교차확인) | 사건 실재 확인(대법원 2009.11.26. 선고 2008다44689,44696, 채무부존재확인·보험금). **원문 대조 결과 content 일부 과장 발견** — 기존 content는 "원심이 기왕증 감액 주장에 대한 심리를 충분히 하지 않았다는 이유로 파기환송되었다"고 서술했으나, WebFetch·WebSearch 양쪽 모두 실제 파기환송 사유는 "피해일" 해석·자립지원자금 지급시기 쟁점이었고 기왕증 심리부족이 파기환송 사유였다는 근거는 확인되지 않음. **REQ-EVIDENCE-021(과장하지 않은 요약) 위반 소지로 판단해 이 세션에서 해당 문장을 삭제·수정**(기왕증 감액의 법적 근거 확인 판시만 남기고, 미확인 파기환송 사유 주장은 제거). | 재검토 결과 CAUSATION, PRE_EXISTING_CONDITION 태깅은 여전히 정확(기왕증 감액 법리 + 인과관계 법리를 함께 판시). 변경 없음. | **유지 (content 수정)** — evidenceType 변경 없음, content만 정정 | run-phase agent |
 | seed-evidence-006 | OTHER | N/A (sourceUrl null) | "구체적 사건번호·결정일자를 특정할 수 있는 개별 사례는 확인되지 않았다"고 스스로 한정 — 과장 없음, 재검증 시에도 이 자기한정이 정확함을 재확인(개별 결정례 지어내지 않음). | issueTypes=[PRE_EXISTING_CONDITION] — content(기왕증 기여도 판단 요소)와 정합. 변경 없음. | **유지** | run-phase agent |
 | seed-evidence-007 | STATUTE | 2026-08-29 (WebFetch) | 상법 제737조 조문 원문과 정확히 일치 확인("상해보험계약의 보험자는 신체의 상해에 관한 보험사고가 생길 경우에 보험금액 기타의 급여를 할 책임이 있다"). | issueTypes=[] — 총칙성 책임조항으로 특정 쟁점 분류 아님, 변경 없음. | **유지** | run-phase agent |
-| seed-evidence-003 | POLICY | 2026-08-29 (WebFetch) | URL 생존 확인(질병후유장해보험마켓). 지속성·객관성·인과성 3요건 문구가 원문과 정확히 일치. **동일하게 민간 보험비교사이트 출처**(design.md §5.1a "insu-fit.com 재검토 대상" 지적) — 공식 협회 원문을 이번 세션에서 확보하지 못해 §5.1a 2차 출처 예외로 유지. | issueTypes=[DIAGNOSIS, CAUSATION] — 지속성·객관성·인과성 요건(특히 인과성) + 진단확정시점 언급과 정합. 변경 없음. | **유지** (POLICY, 2차 출처 사유 기록) | run-phase agent |
+| seed-evidence-003 | **OTHER** (POLICY→OTHER **downgrade**) | 2026-08-30 (WebFetch M4 full) | URL 재접근 확인. **insu-fit.com은 마케팅·보험비교 설명글 사이트**임을 확인 — 페이지 title "질병후유장해보험 기준 완벽정리: 장해율 인정범위·청구서류·면책기간 한눈에", keywords에 "보험 비교" 포함, 공식 약관 원문이 아닌 블로그성 설명글. design.md §5.1a "POLICY는 공식 약관 원문이어야 함" 조건을 충족하지 못함. 따라서 POLICY→**OTHER downgrade** 결정. content 서술 자체는 정확하므로 corpus에서 제거하지는 않음 — evidenceType만 OTHER로 변경. | issueTypes=[DIAGNOSIS, CAUSATION] — 내용 적합성은 유지이나 OTHER type으로 ground truth 제외(AC-EVIDENCE-013 준수). | **OTHER downgrade** (사유: 마케팅/정보사이트, 공식 약관 원문 아님) | run-phase agent (M4 full, 2026-08-30) |
 | seed-evidence-004 | OTHER | N/A (sourceUrl null) | 제3의료기관 감정 절차 활용 가능성이라는 일반 서술 — 특정 사례를 지어내지 않음. | issueTypes=[DISABILITY_GRADE_CRITERIA] — 감정 절차는 등급판정 기준의 일부, 정합. 변경 없음. | **유지** | run-phase agent |
 | seed-evidence-008 | PRECEDENT | 2026-08-29 (WebFetch + WebSearch 교차확인) | 사건 실재 확인(대법원 2015.8.31. 선고 2015다218730,218747). WebFetch는 "후유장해지급률(30%) 합산 불가"를, WebSearch(로톡 칼럼 "같은 병명 다른 부위, 법원은 '별개 질병'으로 봤다")는 "진단명이 같더라도 발병 부위가 다르고 인과관계가 없으면 별개 질병"이라는 취지를 각각 독립적으로 확인 — 기존 content의 판시 요지 서술이 두 출처 모두와 정합, 과장 없음. | issueTypes=[DIAGNOSIS, CAUSATION] — "동일 질병 여부" 판단(진단명) + "인과관계" 요건과 정합. 변경 없음. | **유지** | run-phase agent |
 | seed-evidence-009 | OTHER | N/A (sourceUrl null) | "구체적 사건번호·결정일자를 특정할 수 있는 개별 사례는 확인되지 않았다"는 자기한정 재확인, 과장 없음. | issueTypes=[CAUSATION] — 질병 간 인과관계·동일성 판단 일반 구조, 정합. 변경 없음. | **유지** | run-phase agent |
 | seed-evidence-010 | STATUTE | 2026-08-29 (WebFetch) | 상법 제658조 조문 원문과 정확히 일치 확인(약정기간/10일 이내 지급 규정). | issueTypes=[] — 지급 절차·기한 조항으로 특정 쟁점 분류 아님, 변경 없음. | **유지** | run-phase agent |
 
-**§A 요약**: 10건 중 9건은 최초 판정 그대로 통과(source 진위·issueTypes 모두 정확). 1건
-(seed-evidence-005)은 content가 검증되지 않은 파기환송 사유를 서술해 REQ-EVIDENCE-021 위반
-소지가 있음을 확인, content를 수정해 유지(evidenceType/issueTypes 변경 없음). **OTHER downgrade
-또는 제외로 결정된 레코드는 0건이다** — 다만 seed-evidence-001/003(POLICY, 민간 출처)은
-design.md §5.1a의 "공식 source 미확보 시 2차 출처 유지 + 사유 기록" 예외 조항에 해당함을 명시적으로
-기록한다(완전한 공식 출처는 아님을 인지한 채 유지).
+**§A 요약**: 10건 중 1건(seed-evidence-005)은 content 수정, 1건(seed-evidence-003)은 M4 full 단계에서 OTHER downgrade. 나머지 8건은 최초 판정 그대로 통과. 
+- seed-evidence-005: content에서 미검증 파기환송 사유 서술 제거(REQ-EVIDENCE-021)
+- seed-evidence-003: insu-fit.com이 마케팅/보험비교 설명글 사이트임을 M4 full 재확인 → POLICY→OTHER downgrade, 기존 §C에 "배제했다"고 기록한 2010다25353은 결국 M4 full 단계에서 seed-evidence-021로 채택(고지의무·보험사고 인과관계 법리가 CAUSATION issueType과 연관성 있음을 재판단).
+- seed-evidence-001(POLICY, insclaim.co.kr): 재게시본 2차 출처 예외로 유지(공식 협회 원문 미확보).
 
 ## §B. 신규 레코드 확장 (REQ-EVIDENCE-002, design.md §5.1/§5.1a) — pilot 9건
 
@@ -48,6 +46,13 @@ design.md §5.1a의 "공식 source 미확보 시 2차 출처 유지 + 사유 기
 사건번호(98다28114/99다48245/2002다564/2015다218730 등)·조문 번호·sourceUrl 어느 것도 지어내지
 않았으며, 검증 불가능한 세부(예: 019의 "전문의 자격증" 구체 요건)는 WebFetch가 실제로 확인한
 범위로 content를 보수적으로 축소했다.
+
+## §B2. M4 full 추가 레코드 (2026-08-30)
+
+| id | evidenceType | sourceUrl 접근 확인일 | 원문 대조 결과 | issueTypes | issueTypes 검토 결과/tagging rationale | 결정 | 검토자 |
+|----|--------------|------------------------|----------------|------------|------------------------------------------|------|--------|
+| seed-evidence-020 | PRECEDENT | 2026-08-30 (casenote.kr WebFetch) | 대법원 2005. 10. 27. 선고 2004다52033 판결(보험금) 실재 확인. 기왕증 경합 시 후유장해지급률 합계로 지급의무 발생 여부 판단하고, 기왕증 감액은 보험금액 산정 단계에서 반영한다는 판시 확인. 내용이 판결문과 정합, 과장 없음. | CAUSATION + PRE_EXISTING_CONDITION + DISABILITY_GRADE_CRITERIA — 기왕증 기여도와 후유장해지급률 산정 법리 모두 다룸. | **채택(신규)** | run-phase agent (M4 full) |
+| seed-evidence-021 | PRECEDENT | 2026-08-30 (casenote.kr WebFetch) | 대법원 2010. 7. 22. 선고 2010다25353 판결(보험계약해지무효확인) 실재 확인. 고지의무 위반과 보험사고 발생 간 인과관계 불문 해지 가능 + 인과관계 없으면 보험금 지급책임 존속이라는 판시 확인. 기존 §C에서 "쟁점이 계약 해지 요건"으로 배제했으나, CAUSATION(인과관계 법리)·DIAGNOSIS(진단된 질병 고지) 쟁점과의 연관성을 재검토해 채택. | CAUSATION + DIAGNOSIS — 인과관계 법리(고지의무 위반과 보험사고 간 인과관계) + 질병 진단 관련 고지. | **채택(신규)** | run-phase agent (M4 full) |
 
 ## §C. Pilot 목표 대비 shortfall — 정직 고지 (REQ-EVIDENCE-002 우선)
 
