@@ -41,14 +41,17 @@ const domainPlans: DomainPlan[] = [
 
 | issueType | INJURY_DISABILITY (상해후유장해) | DISEASE_DISABILITY (질병후유장해) |
 |---|---|---|
-| `DISABILITY_LOCATION` | 현재 0건 / 목표 5건 (domainPlans 고정 매핑 — 상해 도메인의 항상-생성 쟁점) | **N/A** — `domainPlans`가 `DISEASE_DISABILITY`에 이 issueType을 매핑하지 않음(query-planner.ts) |
-| `DIAGNOSIS` | **N/A** — `domainPlans`가 `INJURY_DISABILITY`에 이 issueType을 매핑하지 않음(query-planner.ts) | 현재 0건 / 목표 5건 (domainPlans 고정 매핑 — 질병 도메인의 항상-생성 쟁점) |
-| `DISABILITY_GRADE_CRITERIA` | 현재 0건 / 목표 6건 (모든 사건에서 항상 생성 — 최우선순위) | 현재 0건 / 목표 6건 (모든 사건에서 항상 생성 — 최우선순위) |
-| `CAUSATION` | 현재 0건 / 목표 6건 (모든 사건에서 항상 생성 — REQ-EVIDENCE-013 target case 후보) | 현재 0건 / 목표 6건 (모든 사건에서 항상 생성 — REQ-EVIDENCE-013 target case 후보) |
-| `PRE_EXISTING_CONDITION` | 현재 0건 / 목표 4건 (조건부 — "이전"/"기존"/"과거"/"재발"/"퇴행성" 키워드 트리거) | 현재 0건 / 목표 4건 (조건부 — 동일 키워드 트리거) |
-| `INJURY_DISEASE_RELATION` | 현재 0건 / 목표 3건 (조건부 — "질병"/"지병"/"합병증"/"악화"/"기저질환" 키워드 트리거) | 현재 0건 / 목표 3건 (조건부 — 동일 키워드 트리거) |
-| `INCIDENT_CIRCUMSTANCE` | 현재 0건 / 목표 3건 (조건부 — `incidentDescription.length >= 30`) | 현재 0건 / 목표 3건 (조건부 — 동일 길이 트리거) |
-| `ADDITIONAL_CONFIRMATION_NEEDED` | 현재 0건 / 목표 2건 (조건부 — "불명확"/"확인 필요"/"미상"/"추정" 키워드 트리거) | 현재 0건 / 목표 2건 (조건부 — 동일 키워드 트리거) |
+| `DISABILITY_LOCATION` | M1: 0건 → **M4: 4건** (001/011/012/013, non-OTHER) | **N/A** |
+| `DIAGNOSIS` | **N/A** | M1: 0건 → **M4: 3건** (008/019/021, non-OTHER) |
+| `DISABILITY_GRADE_CRITERIA` | M1: 0건 → **M4: 5건** (001/011/012/013/020, non-OTHER) | M1: 0건 → **M4: 0건** (non-OTHER 없음 — 004/017/018 모두 OTHER) |
+| `CAUSATION` | M1: 0건 → **M4: 4건** (005/015/016/020, non-OTHER) | M1: 0건 → **M4: 4건** (008/009/016/021, non-OTHER) |
+| `PRE_EXISTING_CONDITION` | M1: 0건 → **M4: 3건** (005/016/020, non-OTHER) | M1: 0건 → **M4: 0건** |
+| `INJURY_DISEASE_RELATION` | M1: 0건 → **M4: 1건** (015, non-OTHER) | M1: 0건 → **M4: 0건** |
+| `INCIDENT_CIRCUMSTANCE` | M1: 0건 → **M4: 1건** (014, non-OTHER) | M1: 0건 → **M4: 0건** |
+| `ADDITIONAL_CONFIRMATION_NEEDED` | M1: 0건 → M4: 0건 | M1: 0건 → M4: 0건 |
+
+**M4 현황**: non-N/A 14셀 중 7셀 개선(0건→1건+). 빈 셀 14→7. BenchmarkCase 7/7 중 6/7에서 ground truth ≥ 1건 (bm-disease-grade-01만 0건).  
+**최종 corpus**: 21건 (POLICY 5건, PRECEDENT 7건, STATUTE 2건, OTHER 7건)
 
 ## 목표 건수 배분 근거 (임의 균등배분 아님)
 
