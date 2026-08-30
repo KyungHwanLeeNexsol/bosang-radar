@@ -907,30 +907,84 @@ D. `evidence-source-audit-manifest.md` §C: "의도적으로 배제한 후보" �
 **결론**: HTML URL 개별 단위 DISPUTE_CASE 확보 불가 — Bash 환경의 네트워크 제약.
 M4b DISPUTE_CASE 요구 미충족: 2026-08-30, 시도한 경로: FSS/KNIA/FCSC 웹사이트, curl 타임아웃, 결론: 환경 제약으로 HTML URL 개별 단위 확보 불가.
 
-### Fix8: gate 실행 시도 — 환경 제약으로 미실행
+### Fix6: M4d 재측정 (수행완료 — vitest Node.js v20으로 직접 실행)
 
-pnpm이 Bash PATH에서 접근 불가능 확인:
-- `which pnpm` → 미발견
-- `/c/Users/zuge3/AppData/Roaming/npm/` 확인 → yarn만 존재, pnpm 없음
-- `/c/Users/zuge3/AppData/Local/pnpm/` → store 디렉토리만 존재 (binary 없음)
+pnpm PATH 문제 우회: nvm v20.19.6 + vitest.mjs 직접 실행.
 
-**gate 결과**: 환경 제약: pnpm not found in Bash PATH. Gate 미실행. 사용자가 직접 실행 필요.
-- `pnpm test` — 미실행(환경 제약)
-- `pnpm lint` — 미실행(환경 제약)
-- `pnpm format:check` — 미실행(환경 제약)
-- `pnpm build` — 미실행(환경 제약)
-- `pnpm test:e2e` — 미실행(환경 제약)
+**[M4d FROZEN post-correction] — Strategy A (true baseline, issueTypeWeight=0, score-desc-only sort)**:
 
-### §E.2 M4d post-correction 섹션
+| case | recall | hit | precision |
+|------|--------|-----|-----------|
+| bm-injury-preexisting-01 | 0.000 | 0 | 0.000 |
+| bm-injury-causation-01 | 1.000 | 1 | 0.800 |
+| bm-injury-grade-01 | 0.200 | 1 | 0.200 |
+| bm-injury-location-01 | 0.250 | 1 | 0.200 |
+| bm-disease-causation-01 | 1.000 | 1 | 0.800 |
+| bm-disease-grade-01 | 0.333 | 1 | 0.200 |
+| bm-disease-diagnosis-01 | 0.500 | 1 | 0.200 |
+| **mean** | **0.469** | **0.857** | **0.343** |
 
-| AC | Status | 비고 |
-|----|--------|------|
-| AC-EVIDENCE-008 | PASS (유지) | 전략 A/B eligibility 동작 변경 없음 |
-| AC-EVIDENCE-014 | 재측정 필요 | Fix1/3/4/5 보정 후 [M4d FROZEN post-correction] 테스트로 재측정 |
-| AC-EVIDENCE-013 | PASS (개선) | bm-disease-grade-01 non-empty, seed-021 DIAGNOSIS 제거로 ground truth 정합 |
+**[M4d FROZEN post-correction] — Strategy B (new, issueTypeWeight=10, score-desc + id tie-break)**:
 
-M4d 재측정은 `pnpm test lib/pipeline/evidence-retriever.benchmark.test.ts` 실행 시 `[M4d FROZEN post-correction]` console.log 출력으로 확인 가능. 환경 제약으로 이 세션에서 직접 실행하지 못함.
+| case | recall | hit | precision |
+|------|--------|-----|-----------|
+| bm-injury-preexisting-01 | 1.000 | 1 | 0.600 |
+| bm-injury-causation-01 | 1.000 | 1 | 0.800 |
+| bm-injury-grade-01 | 1.000 | 1 | 1.000 |
+| bm-injury-location-01 | 1.000 | 1 | 0.800 |
+| bm-disease-causation-01 | 1.000 | 1 | 0.800 |
+| bm-disease-grade-01 | 1.000 | 1 | 0.600 |
+| bm-disease-diagnosis-01 | 1.000 | 1 | 0.400 |
+| **mean** | **1.000** | **1.000** | **0.714** |
+
+**비교 결과 (REQ-EVIDENCE-016 기본 PASS 조건)**:
+- Recall: B 1.000 >= A 0.469 ✓
+- Hit: B 1.000 >= A 0.857 ✓
+- Precision: B 0.714 >= A 0.343 ✓
+- REQ-013 target case(bm-injury-preexisting-01): A=miss(hit:0) → B=hit(hit:1) ✓
+- **AC-EVIDENCE-014 기본 PASS 조건: 충족**
+
+### Fix8: gate 실행 — vitest/eslint/prettier 직접 실행 (2026-08-30)
+
+pnpm 11.23.0은 Node.js v22+ 필요로 실행 불가. vitest/eslint/prettier를 Node.js v20으로 직접 실행.
+
+**vitest run (pnpm test 대체)**:
+```
+Test Files  3 failed | 39 passed (42)
+     Tests  7 failed | 281 passed (288)
+  Duration  4.52s
+```
+- 281 PASS ✓
+- 7 FAIL: scripts/db-migrate.test.ts, scripts/db-seed.test.ts, scripts/provision-tester.test.ts
+  - 원인: 이 테스트들이 `.ts` 스크립트를 bare node로 직접 실행(tsx 없음) — SPEC-EVIDENCE-001 변경과 무관한 환경 제약. §J에서 pnpm 환경 281/281 통과 확인됨.
+
+**ESLint (SPEC-EVIDENCE-001 변경 파일)**:
+```
+lib/pipeline/evidence-retriever.ts → 0 errors, 0 warnings ✓
+lib/pipeline/evidence-retriever.test.ts → 0 errors, 0 warnings ✓
+lib/pipeline/evidence-retriever.benchmark.test.ts → 0 errors, 0 warnings ✓
+```
+
+**Prettier format:check (SPEC-EVIDENCE-001 변경 파일)**:
+```
+All matched files use Prettier code style! ✓
+```
+
+**미실행 (환경 제약)**:
+- `pnpm build` — pnpm 11.23.0 + Node.js v22+ 필요, v20만 가용
+- `pnpm test:e2e` — pnpm 환경에서만 실행 가능
+
+### §E.2 M4d post-correction 섹션 (최종)
+
+| AC | Status | Evidence |
+|----|--------|---------|
+| AC-EVIDENCE-008 | PASS | 전략 A/B eligibility 동작 변경 없음 (benchmark 7/7 PASS) |
+| AC-EVIDENCE-014 | **PASS** | M4d 재측정: B Recall/Hit/Precision >= A, REQ-013 A=miss/B=hit ✓ |
+| AC-EVIDENCE-013 | **PASS** | bm-disease-grade-01 non-empty(004/017/018), seed-021 DIAGNOSIS 제거 |
 
 ### SPEC 상태
 
-`status: in-progress` 유지. DISPUTE_CASE(M4b) 미충족으로 모든 AC가 충족되지 않음. 다음 세션은 pnpm 환경에서 gate 실행 후 결과를 §E.3에 기록해야 한다.
+`status: in-progress` 유지.
+- **DISPUTE_CASE 0건(M4b)**: 검증 가능한 FSS 분쟁조정 사례 개별 HTML URL 확보 불가. plan.md M4b 요구 미충족 — 숨기지 않음.
+- **pnpm build / pnpm test:e2e**: Node.js v22 + pnpm 11.23.0 필요로 현재 환경에서 미실행 — pnpm 환경에서 확인 필요.
+- pnpm build / test:e2e PASS 및 DISPUTE_CASE 1건 확보 시 AC 전체 충족 → sync 가능.
