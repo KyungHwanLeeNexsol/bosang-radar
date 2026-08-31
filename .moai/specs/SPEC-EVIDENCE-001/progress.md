@@ -1209,3 +1209,57 @@ in-progress로 전이됐다 — 이번 세션은 그 이후의 run-phase 정정�
 - **잔존 미충족(차단 아님, 정직 고지 유지)**: DISPUTE_CASE(M4b) 0건 — 위 조사 기록 참고,
   plan.md M4b가 지정한 최소 1건 목표는 여전히 미달이나 이는 §M부터 이어진 기존 잔여 위험이며
   이번 세션이 새로 발생시킨 것이 아니다. sync 판단은 manager-docs/orchestrator의 몫이다.
+
+---
+
+## §P Run-phase 세션 5 정리 (v0.7.0 → v0.8.0 후속 3개 지시 처리 + plan-audit iteration 6/7)
+
+이번 세션(2026-08-31)에서 사용자가 지시한 3개 항목을 처리했다.
+
+### 1. coverage-delta-m4e.md 캐노니컬 재작성
+
+`.moai/reports/coverage-delta-m4e.md`를 append-correction 방식(§1-§6 원본 + §7 정정 패치)에서
+단일 최종본으로 재작성했다(commit `d3e5317`). `db/seed/evidence.json`(21건)과 현재
+`BENCHMARK_CASES`를 직접 재조회해 UNIVERSAL 레코드 양 도메인 집계를 정확히 반영했고,
+"빈 ground truth → Recall=1" stale 문구를 제거했다(현재 구현은 null 반환 + 평균 제외,
+design.md §3.3a와 일치). `bm-disease-grade-01`의 ground truth가 이미 Fix3로 3건
+(004/017/018)임을 재확인 — 옛 "0건" 전제 자체가 stale이었다.
+
+### 2. plan.md M4d 용어 정정 + M4b DISPUTE_CASE best-effort downgrade (commit `cc15e0e`)
+
+`baselineRetriever`/`newRetriever` 표현을 design.md §3.4A 어휘(`trueBaselineRetrieveEvidence()`,
+production `retrieveEvidence(strategy="B")`)로 통일. DISPUTE_CASE(M4b)는 사용자 승인을 받아
+"최소 1건 필수"에서 "best-effort — 공식 소스가 텍스트 추출 가능한 형식으로 공개되지 않는 한
+0건도 AC 충족"으로 정식 하향했다. orchestrator가 이번 세션에도 LBOX/KDI/FSC 등 추가 경로를
+조사했으나 여전히 실제 읽을 수 있는 공식 결정문을 확보하지 못해(§M/§N에 이어 세 번째 시도),
+사용자가 두 가지 선택지(실제 확보 vs 요구사항 공식 완화) 중 후자를 선택했다. spec.md REQ-EVIDENCE-002/003에는
+원래 최소 건수 강제가 없었고 acceptance.md에도 해당 AC가 없었음을 확인 — plan.md 수정만으로 충분.
+
+### 3. DISPUTE_CASE 처리 — 위 2번과 동일 건으로 통합 처리됨
+
+### plan-audit 재실행 — iteration 6 FAIL → D1/D2 수정 → iteration 7 PASS(1.0)
+
+REQ/AC 인접 문구 변경으로 plan-audit 캐시가 무효화되어 재감사(iteration 6)를 실행했다 —
+이번 세션 변경 자체는 문제없었으나, iteration 5부터 미해결이던 D1(plan.md M2/M4에 §3.1a
+픽스처 분리 task 누락)/D2(acceptance.md AC-EVIDENCE-014에 live-import 금지 Then절 누락)가
+"이전 iteration 미해결 결함은 자동 FAIL" 규칙에 의해 재차 FAIL을 유발했다(이번 세션 지시와
+무관한 기존 결함). 사용자에게 보고 후 승인받아 manager-spec에게 D1/D2 수정을 위임했다
+(commit `4dbe8cb`) — plan.md M2에 `evidence-m2-snapshot.json` 불변성 요구 task 추가,
+acceptance.md AC-EVIDENCE-014에 `[M2 EXPLORATORY]` 섹션이 `seedRows`를 참조하지 않는다는
+기계적 검증 Then절 추가. iteration 7 재감사 결과 **PASS, score 1.0**(D1/D2/D4 전부 해소,
+새 결함 없음. D3(design.md REQ 오기재)는 3회 연속 stagnant로 flag됐으나 non-blocking이라
+FAIL을 유발하지 않음 — 후속 세션 권고 사항으로 남김).
+
+### 커밋 이력 (이번 세션, feat/SPEC-EVIDENCE-001)
+
+| SHA | 내용 |
+|---|---|
+| `4590caf` | design.md/spec.md Strategy A/B 의미 충돌 수정 (전전 지시, v0.6.0→v0.7.0) |
+| `cc15e0e` | M4d 용어 정정 + M4b best-effort downgrade (v0.7.0→v0.8.0) |
+| `4dbe8cb` | plan-audit D1/D2 결함 해소 |
+| `d3e5317` | coverage-delta-m4e.md 캐노니컬 재작성 |
+
+### SPEC 상태
+
+`status: in-progress` 유지(사용자 명시 지시: "그 전에는 status: in-progress 유지"). `/moai sync`
+미실행, PR merge 미실행 — 지시대로 commit+push까지만 수행했다.
