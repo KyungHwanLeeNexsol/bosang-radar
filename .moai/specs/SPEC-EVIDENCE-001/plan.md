@@ -55,6 +55,13 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
 - `evidence-retriever.benchmark.test.ts` 신설, 최소 7개 벤치마크 케이스(design.md §3.2) 정의 —
   이 시점 corpus(10건, M1에서 issueTypes 채워진 상태)만으로도 실행 가능해야 하며, "known-relevant
   evidence가 exact issueType이지만 keyword가 없는" 케이스를 최소 1건 포함(REQ-EVIDENCE-013).
+- **M2 corpus 불변성(design.md §3.1a, 외부 독립 리뷰 측정방법론 이슈 2)** — 이 milestone은 `[M2
+  EXPLORATORY]` 섹션의 corpus 소스로 `db/seed/evidence-m2-snapshot.json`(M2 당시 10건 고정
+  스냅샷, 이후 절대 수정 금지)을 별도로 생성해 사용할 것을 요구한다. `evidence-retriever.benchmark.test.ts`의
+  `[M2 EXPLORATORY]` 섹션은 mutable production `db/seed/evidence.json`을 직접 import해서는 안
+  된다 — M4 이후 production corpus가 확장되어도 이 섹션의 exploratory 측정 수치가 조용히 바뀌지
+  않도록 하기 위함이다. production `evidence.json`은 `[M5 REGRESSION]`/`[M4d FINAL]` 섹션
+  전용으로 남긴다(acceptance.md AC-EVIDENCE-014 참고).
 - 전략 A vs 전략 B(+ score 함수 적용) Recall@5/Hit@5를 **exploratory baseline**으로 측정·기록
   (design.md §3.4 1단계) — 이 수치는 알고리즘 방향(어느 전략을 채택할지)만 결정하며, 최종
   acceptance threshold의 근거로 직접 쓰지 않는다.
@@ -90,8 +97,14 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   2차 출처를 쓸 수밖에 없는 경우 manifest에 사유를 기록한다(design.md §5.1a). 목표 50~100건
   (4a에서 줄어든 유효 corpus 기준으로 재산정 가능), 검증 가능한 출처가 그에 못 미치면 미달 상태로
   정직하게 보고하고 억지로 채우지 않는다(REQ-EVIDENCE-002가 우선). 각 신규 레코드도 4a와 동일하게
-  source 검토 + issueTypes 검토를 manifest에 기록한다. `DISPUTE_CASE` evidenceType을 최소 1건
-  이상 실제로 도입(현재 0건).
+  source 검토 + issueTypes 검토를 manifest에 기록한다. **`DISPUTE_CASE` evidenceType 도입은
+  best-effort 목표다(v0.7.0 → v0.8.0, 사용자 승인 downgrade)** — 텍스트 추출 가능한 공식 출처를
+  확보할 수 있으면 최소 1건 이상 도입을 시도하되, 선의의 조사 끝에도(확보 시도 및 결론은
+  progress.md §M Fix7/§O 참고) 텍스트 추출 가능한 형식의 공식 출처를 확보하지 못하면 **0건도 이
+  목표를 만족하는 종료 상태로 인정한다**. 사건번호·결정번호를 지어내거나 텍스트 추출 불가능한
+  바이너리를 근거 없이 "확보"로 간주해서는 안 된다(REQ-EVIDENCE-002 위반 금지는 무변경). 도구가
+  개선되면(예: HWP 텍스트 추출 유틸리티, 유료 판례 DB 접근) 후속 세션에서 이 목표를 다시 시도할
+  수 있다 — 이 downgrade는 blocking 상태만 해제할 뿐 목표 자체를 삭제하지 않는다.
 - **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4A, REQ-EVIDENCE-015, REQ-EVIDENCE-017)** — 4a/4b가
   끝나 corpus가 안정되면, 각 `BenchmarkCase`의 query에 대해 freeze 대상 production corpus
   **전체**를 검토하여 relevant로 판정된 evidence — source 검토와 issueTypes 검토를 모두
@@ -101,8 +114,10 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   검토가 없는 BenchmarkCase는 Precision@5를 최종 acceptance 근거로 쓰지 않는다. ground truth는
   manifest(4a)에서 "유지"로 결정된 evidence id만 참조할 수 있다.
 - **4d. Algorithm effect 측정(design.md §3.4A)** — freeze된 **동일** corpus/벤치마크 위에서
-  `baselineRetriever`(전략 A, 원래 `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score
-  함수)를 동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
+  benchmark-only true old-main baseline(예: `trueBaselineRetrieveEvidence()` — design.md §3.4A가
+  예시로 드는 benchmark 전용 순수 헬퍼, production 코드 경로에는 존재하지 않음)와 production
+  `retrieveEvidence(strategy="B")`(M2가 채택한 전략 B + `computeScore()`, design.md §2.1/§2.2)를
+  동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
   두 실행 모두 동일하고 알고리즘만 바뀌므로 이것은 "algorithm effect"이며, acceptance.md의
   threshold AC 확정 근거다(REQ-EVIDENCE-016) — M2 exploratory 수치를 threshold 근거로 재사용하지
   않는다. 실측 결과가 REQ-EVIDENCE-016의 기본 PASS 조건(new Recall/Hit/Precision ≥ baseline +

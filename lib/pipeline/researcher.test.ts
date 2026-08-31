@@ -35,6 +35,7 @@ function makeEvidence(id: string): EvidenceCandidate {
     title: `title-${id}`,
     content: `content-${id}`,
     sourceUrl: null,
+    issueTypes: [],
   };
 }
 

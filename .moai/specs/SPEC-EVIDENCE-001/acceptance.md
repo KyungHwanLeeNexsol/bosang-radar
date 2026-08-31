@@ -154,6 +154,13 @@ REQ(REQ-EVIDENCE-013→AC-008, REQ-EVIDENCE-017→AC-014, REQ-EVIDENCE-020→AC-
   target case 복구가 관측되지 않으면 3개 지표가 전부 정상 PASS(경로 A)를 만족해도 AC-EVIDENCE-014
   전체는 미충족이며, design exception으로 이 Then을 대체할 수 없다(REQ-EVIDENCE-016, 외부 독립
   리뷰 잔여 정합성 이슈 D8).
+- Then(M2 corpus 불변성, design.md §3.1a, 외부 독립 리뷰 측정방법론 이슈 2):
+  `evidence-retriever.benchmark.test.ts`의 `[M2 EXPLORATORY]` 섹션(Section B)이 corpus 구성에
+  `m2SnapshotRows`(고정 스냅샷, `evidence-m2-snapshot.json` 기반)만 사용하고, mutable production
+  `db/seed/evidence.json` 기반의 `seedRows`를 Section B 범위 내에서 전혀 참조하지 않는다 —
+  `[M2 EXPLORATORY]` describe 블록부터 다음 섹션 주석(`Section C`) 이전까지의 범위에서 `seedRows`
+  문자열이 등장하지 않음을 확인한다. 이 검증이 실패하면 M4+ corpus 확장이 M2 exploratory 수치를
+  조용히 바꾸는 회귀(Blocker2, 이 SPEC의 v0.5.0→v0.6.0 개정 사유)가 재발한 것이다.
 
 **AC-EVIDENCE-015** (REQ-EVIDENCE-018)
 - Given: 이 SPEC의 acceptance.md 전체와 `evidence-diagnostic.test.ts`

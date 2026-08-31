@@ -88,6 +88,12 @@ export const evidence = sqliteTable("evidence", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   sourceUrl: text("source_url"),
+  // SPEC-EVIDENCE-001 M1(design.md §1.1) — evidence 자신의 담보-쟁점 정적
+  // 분류(QueryIssueType 8개 값의 부분집합). 기존 행은 .default("[]")로
+  // 마이그레이션 직후 빈 배열을 가지며, candidate eligibility/score
+  // 계산에서 issueType 가중치 0으로 안전하게 폴백한다(REQ-EVIDENCE-004
+  // idempotency/하위 호환 유지, REQ-EVIDENCE-006).
+  issueTypes: text("issue_types", { mode: "json" }).notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

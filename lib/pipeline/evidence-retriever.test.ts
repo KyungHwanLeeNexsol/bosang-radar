@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { retrieveEvidence } from "./evidence-retriever";
+import { computeBaselineScore, computeScore, retrieveEvidence } from "./evidence-retriever";
 import type { EvidenceCandidate, ResearchQuery } from "./types";
 
 // SPEC-RESEARCH-001 M4 — EvidenceRetriever DB 조회 + 쿼리별 필터링/스코어링
@@ -18,6 +18,7 @@ function makeRow(overrides: Partial<FakeRow> & Pick<FakeRow, "id">): FakeRow {
     title: "",
     content: "",
     sourceUrl: null,
+    issueTypes: [],
     createdAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   };
@@ -186,5 +187,299 @@ describe("lib/pipeline/evidence-retriever retrieveEvidence (REQ-RESEARCH-004~007
 
     expect(result.get("q-injury")?.map((e) => e.id)).toEqual(["e-injury"]);
     expect(result.get("q-disease")?.map((e) => e.id)).toEqual(["e-disease"]);
+  });
+});
+
+// SPEC-EVIDENCE-001 M2 — candidate eligibility 전략 A(현행)/B(issueType 반영)
+// 비교(design.md §2.1, AC-EVIDENCE-008) + 결정론적 정렬(design.md §2.3,
+// AC-EVIDENCE-011) + TOP_N 불변 확인(AC-EVIDENCE-010).
+describe("retrieveEvidence 전략 A/B 비교 (REQ-EVIDENCE-009/013, AC-EVIDENCE-008)", () => {
+  it("전략 A/B 둘 다에서 issueType 정확 일치 evidence A가 키워드 우연 일치 evidence B보다 높은 순위로 온다", async () => {
+    const rows = [
+      makeRow({
+        id: "e-issuetype-and-keyword",
+        category: "상해후유장해",
+        title: "발목 관절 장해 평가 기준",
+        content: "장해 평가 기준 검토",
+        issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+      }),
+      makeRow({
+        id: "e-keyword-only",
+        category: "상해후유장해",
+        title: "장해 평가 기준과 무관한 다른 쟁점",
+        content: "우연히 장해 평가 기준이라는 단어만 겹친다",
+        issueTypes: [],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-ab",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["장해 평가 기준"],
+    });
+
+    for (const strategy of ["A", "B"] as const) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows), strategy);
+      const ids = result.get("q-ab")?.map((e) => e.id) ?? [];
+      expect(ids.indexOf("e-issuetype-and-keyword")).toBeLessThan(ids.indexOf("e-keyword-only"));
+    }
+  });
+
+  it("전략 A는 issueType이 정확히 일치해도 키워드가 전혀 없는 known-relevant evidence C를 후보에서 누락하고, 전략 B는 복구한다 (REQ-EVIDENCE-013)", async () => {
+    const rows = [
+      makeRow({
+        id: "e-c-no-keyword",
+        category: "상해후유장해",
+        title: "기왕증 감액 판단 판례",
+        content: "인과관계·기여도에 대한 구체적 심리가 필요하다",
+        issueTypes: ["PRE_EXISTING_CONDITION"],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-c",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["연골 손상"], // evidence 어디에도 등장하지 않는 키워드
+    });
+
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    expect(resultA.get("q-c")?.map((e) => e.id)).toEqual([]);
+
+    const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+    expect(resultB.get("q-c")?.map((e) => e.id)).toEqual(["e-c-no-keyword"]);
+  });
+
+  it("전략 B에서도 issueType 불일치만으로 evidence를 하드 배제하지 않는다 — 키워드 매칭만으로도 여전히 후보가 된다 (REQ-EVIDENCE-009)", async () => {
+    const rows = [
+      makeRow({
+        id: "e-keyword-only-2",
+        category: "상해후유장해",
+        title: "장해 평가 기준",
+        content: "장해 평가 기준",
+        issueTypes: ["DIAGNOSIS"], // query.issueType과 불일치
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-noexclude",
+      domain: "INJURY_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: ["장해 평가 기준"],
+    });
+
+    const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+    expect(resultB.get("q-noexclude")?.map((e) => e.id)).toEqual(["e-keyword-only-2"]);
+  });
+});
+
+describe("retrieveEvidence 결정론적 정렬 tie-break (REQ-EVIDENCE-012, AC-EVIDENCE-011)", () => {
+  it("score가 동점인 evidence는 id 오름차순으로 정렬되고, 동일 입력을 3회 호출해도 순서가 항상 같다", async () => {
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows));
+      expect(result.get("q-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
+  });
+
+  // v0.7.0 재발 방지 수정 — production retrieveEvidence()는 strategy 값과
+  // 무관하게 항상 computeScore() + id 오름차순 tie-break를 적용한다
+  // (design.md §2.1 "명시적 확인" 문단). 이 결정론성이 strategy="B"뿐
+  // 아니라 strategy="A"에도 실제로 적용됨을 직접 검증한다 — 과거 세션에서
+  // strategy="A" 경로가 tie-break 없는 정렬로 잘못 배선되어 REQ-EVIDENCE-012를
+  // 위반한 사례가 있었기 때문에, strategy="A"만 별도로 재확인한다.
+  it("strategy='A'도 score 동점 시 id 오름차순으로 정렬되고, 동일 입력을 3회 호출해도 순서가 항상 같다", async () => {
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-tie-a",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows), "A");
+      expect(result.get("q-tie-a")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
+  });
+});
+
+describe("retrieveEvidence TOP_N 불변 확인 (REQ-EVIDENCE-011, AC-EVIDENCE-010)", () => {
+  it("동일 쿼리에 매칭되는 evidence가 5건을 초과해도 상위 5건만 반환한다", async () => {
+    const rows = Array.from({ length: 7 }, (_, i) =>
+      makeRow({
+        id: `e-${i}`,
+        category: "상해후유장해",
+        title: "장해 평가 기준",
+        content: "장해 평가 기준",
+      })
+    );
+    const query = makeQuery({
+      id: "q-topn",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해 평가 기준"],
+    });
+
+    const result = await retrieveEvidence([query], makeFakeDb(rows));
+
+    expect(result.get("q-topn")?.length).toBe(5);
+  });
+});
+
+// SPEC-EVIDENCE-001 Blocker1 — computeBaselineScore: 전략 A(baseline)용 점수 계산
+// issueTypeWeight를 포함하지 않아야 true baseline이 된다(design.md §3.4A).
+// Blocker1: computeScore는 issueTypeWeight(10)를 포함하므로 전략 A/B 스코어가
+// 동일해지는 버그가 있었음 — computeBaselineScore로 분리하여 수정한다.
+describe("computeBaselineScore (Blocker1 — REQ-EVIDENCE-016 수정)", () => {
+  it("전략 A: issueType 정확 일치해도 issueTypeWeight가 추가되지 않는다 — computeBaselineScore는 domainWeight + universalWeight + keywordScore만 반환한다", () => {
+    // evidence는 issueType이 정확히 일치하지만 keyword는 0건인 케이스
+    const fakeEvidence = makeRow({
+      id: "e-baseline-test",
+      category: "상해후유장해",
+      issueTypes: ["PRE_EXISTING_CONDITION"],
+    });
+    const fakeQuery = makeQuery({
+      id: "q-baseline-test",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["존재하지않는키워드"],
+    });
+
+    const domainMatch = true; // 상해후유장해 == INJURY_DISABILITY
+    const isUniversal = false;
+    const keywordScore = 0; // 키워드 매칭 없음
+
+    // computeBaselineScore: issueTypeWeight 없음 → domainWeight(2) + 0 + 0 = 2
+    const baselineScore = computeBaselineScore(
+      fakeEvidence,
+      fakeQuery,
+      domainMatch,
+      isUniversal,
+      keywordScore
+    );
+    expect(baselineScore).toBe(2); // domainWeight만
+
+    // computeScore: issueTypeWeight(10) 포함 → 10 + 2 + 0 + 0 = 12
+    const newScore = computeScore(fakeEvidence, fakeQuery, domainMatch, isUniversal, keywordScore);
+    expect(newScore).toBe(12); // issueTypeWeight + domainWeight
+  });
+
+  it("전략 B: 동일 evidence에 대해 computeScore > computeBaselineScore (issueType 일치 시)", () => {
+    const fakeEvidence = makeRow({
+      id: "e-score-diff",
+      category: "질병후유장해",
+      issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+    });
+    const fakeQuery = makeQuery({
+      id: "q-score-diff",
+      domain: "DISEASE_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: [],
+    });
+
+    const domainMatch = true;
+    const isUniversal = false;
+    const keywordScore = 0;
+
+    const baseline = computeBaselineScore(
+      fakeEvidence,
+      fakeQuery,
+      domainMatch,
+      isUniversal,
+      keywordScore
+    );
+    const newScore = computeScore(fakeEvidence, fakeQuery, domainMatch, isUniversal, keywordScore);
+
+    // 전략 B는 issueTypeWeight(10)를 더하므로 항상 baseline보다 크다
+    expect(newScore).toBeGreaterThan(baseline);
+    expect(newScore - baseline).toBe(10); // issueTypeWeight 정확히 10 차이
+  });
+
+  it("전략 A에서 retrieveEvidence는 issueType 정확 일치 evidence를 keyword 없이도 반환하지 않는다 (전략 A 한계: REQ-013 motivation)", async () => {
+    // strategy A를 명시적으로 사용할 때, computeBaselineScore를 통한 스코어가
+    // relevantA() 술어를 바꾸지 않음을 확인한다
+    // (relevantA = keyword 필수; 스코어만 변경, eligibility 술어는 동일)
+    const rows = [
+      makeRow({
+        id: "e-issuetype-only",
+        category: "상해후유장해",
+        title: "완전 무관한 제목",
+        content: "완전 무관한 본문",
+        issueTypes: ["PRE_EXISTING_CONDITION"],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-baseline-eligibility",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["존재하지않는키워드"],
+    });
+
+    // 전략 A: keyword 없으면 candidate 자체가 없어야 함
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    expect(resultA.get("q-baseline-eligibility")).toEqual([]);
+  });
+});
+
+// SPEC-EVIDENCE-001 [재발 방지 — v0.7.0 수정, design.md §2.1] 전략별 정렬
+// 분기 검증:
+// 두 전략 모두 이제 score desc + id 오름차순 tie-break(결정론적)를
+// 사용한다 — strategy가 바꾸는 것은 candidate eligibility 술어뿐이며,
+// score 함수/정렬 분기는 두지 않는다. 이 describe 블록은 과거(Fix1
+// 세션) 전략 A만 tie-break 없는 정렬을 쓰던 버그를 검증하던 자리였다 —
+// 그 버그 자체가 이번 세션의 수정 대상이었으므로(REQ-EVIDENCE-012 위반),
+// 아래 테스트는 "두 전략 모두 동일한 결정론적 정렬을 쓴다"는 정정된
+// 계약을 검증하도록 재작성됐다.
+describe("retrieveEvidence 전략별 정렬 분기 — 두 전략 공통 결정론적 tie-break (재발 방지 — v0.7.0)", () => {
+  it("전략 A: computeScore 동점 시에도 id 오름차순 tie-break가 적용된다 — 더 이상 DB 행 순서에 의존하지 않는다", async () => {
+    // 입력 배열이 e-z, e-a, e-m 순이고 모든 score가 동일해도, 전략 A는
+    // 더 이상 tie-break 없는 정렬을 쓰지 않는다 — id 오름차순 [e-a, e-m, e-z].
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-a-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    const idsA = resultA.get("q-strategy-a-tie")?.map((e) => e.id) ?? [];
+    // 전략 A도 id 오름차순 tie-break를 적용한다(전략 B와 동일한 정렬)
+    expect(idsA).toEqual(["e-a", "e-m", "e-z"]);
+    // 입력 배열 순서(과거 버그의 동작)가 아님을 명시적으로 확인
+    expect(idsA).not.toEqual(["e-z", "e-a", "e-m"]);
+  });
+
+  it("전략 B: computeScore 동점 시 id 오름차순 tie-break가 적용되어 항상 결정론적 정렬된다", async () => {
+    // 동일 rows를 전략 B로 실행하면 e-a, e-m, e-z (id 오름차순)
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-b-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+      expect(resultB.get("q-strategy-b-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
   });
 });
