@@ -90,8 +90,14 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   2차 출처를 쓸 수밖에 없는 경우 manifest에 사유를 기록한다(design.md §5.1a). 목표 50~100건
   (4a에서 줄어든 유효 corpus 기준으로 재산정 가능), 검증 가능한 출처가 그에 못 미치면 미달 상태로
   정직하게 보고하고 억지로 채우지 않는다(REQ-EVIDENCE-002가 우선). 각 신규 레코드도 4a와 동일하게
-  source 검토 + issueTypes 검토를 manifest에 기록한다. `DISPUTE_CASE` evidenceType을 최소 1건
-  이상 실제로 도입(현재 0건).
+  source 검토 + issueTypes 검토를 manifest에 기록한다. **`DISPUTE_CASE` evidenceType 도입은
+  best-effort 목표다(v0.7.0 → v0.8.0, 사용자 승인 downgrade)** — 텍스트 추출 가능한 공식 출처를
+  확보할 수 있으면 최소 1건 이상 도입을 시도하되, 선의의 조사 끝에도(확보 시도 및 결론은
+  progress.md §M Fix7/§O 참고) 텍스트 추출 가능한 형식의 공식 출처를 확보하지 못하면 **0건도 이
+  목표를 만족하는 종료 상태로 인정한다**. 사건번호·결정번호를 지어내거나 텍스트 추출 불가능한
+  바이너리를 근거 없이 "확보"로 간주해서는 안 된다(REQ-EVIDENCE-002 위반 금지는 무변경). 도구가
+  개선되면(예: HWP 텍스트 추출 유틸리티, 유료 판례 DB 접근) 후속 세션에서 이 목표를 다시 시도할
+  수 있다 — 이 downgrade는 blocking 상태만 해제할 뿐 목표 자체를 삭제하지 않는다.
 - **4c. Benchmark ground truth 갱신 + freeze(design.md §3.4A, REQ-EVIDENCE-015, REQ-EVIDENCE-017)** — 4a/4b가
   끝나 corpus가 안정되면, 각 `BenchmarkCase`의 query에 대해 freeze 대상 production corpus
   **전체**를 검토하여 relevant로 판정된 evidence — source 검토와 issueTypes 검토를 모두
@@ -101,8 +107,10 @@ corpus 확장)를 혼합하지 않기 위한 의도적 순서다. corpus 큐레�
   검토가 없는 BenchmarkCase는 Precision@5를 최종 acceptance 근거로 쓰지 않는다. ground truth는
   manifest(4a)에서 "유지"로 결정된 evidence id만 참조할 수 있다.
 - **4d. Algorithm effect 측정(design.md §3.4A)** — freeze된 **동일** corpus/벤치마크 위에서
-  `baselineRetriever`(전략 A, 원래 `main`의 알고리즘)와 `newRetriever`(M2가 채택한 전략 + score
-  함수)를 동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
+  benchmark-only true old-main baseline(`trueBaselineRetrieveEvidence()` — design.md §3.4A,
+  production 코드 경로에는 존재하지 않는 benchmark 전용 순수 헬퍼)와 production
+  `retrieveEvidence(strategy="B")`(M2가 채택한 전략 B + `computeScore()`, design.md §2.1/§2.2)를
+  동일 입력으로 실행해 Recall@5/Hit@5/Precision@5(design.md §3.3a)를 비교한다. corpus는
   두 실행 모두 동일하고 알고리즘만 바뀌므로 이것은 "algorithm effect"이며, acceptance.md의
   threshold AC 확정 근거다(REQ-EVIDENCE-016) — M2 exploratory 수치를 threshold 근거로 재사용하지
   않는다. 실측 결과가 REQ-EVIDENCE-016의 기본 PASS 조건(new Recall/Hit/Precision ≥ baseline +
