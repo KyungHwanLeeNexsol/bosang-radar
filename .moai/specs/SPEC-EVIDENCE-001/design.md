@@ -189,6 +189,17 @@ function relevantB(
 }
 ```
 
+**[재발 방지 — 명시적 확인, v0.7.0]** production `retrieveEvidence()`의 `strategy` 파라미터(값
+`"A"`/`"B"` 둘 다)는 **항상** §2.2의 `computeScore()`(issueTypeWeight 포함)로 스코어링하고, §2.3의
+결정론적 tie-break 정렬(score desc + `id` 오름차순)을 적용한다 — `strategy` 파라미터가 바꾸는 것은
+오직 candidate eligibility 술어(`relevantA()`/`relevantB()`)뿐이며, score 함수도 정렬 방식도 절대
+바뀌지 않는다. 전략 A의 eligibility 식이 M4d baseline(§3.4A `trueBaselineEligible()`)과 우연히
+동일하다는 사실은, production `retrieveEvidence()`의 전략 A 경로에 M4d 전용 `trueBaselineScore()`
+(§3.4A, issueTypeWeight 없음)나 tie-break 없는 정렬을 함께 배선해도 된다는 뜻이 **아니다**. 실제로
+한 run-phase 세션이 이 오해를 코드에 반영해(`retrieveEvidence()` 내부에서 `strategy === "A"`일 때
+baseline score 함수 + tie-break 없는 정렬을 사용) REQ-EVIDENCE-012(production `retrieveEvidence()`의
+결정론적 정렬)를 위반한 사례가 있었다 — 이 문단과 §3.4A의 대응 문단이 그 재발을 방지한다.
+
 - 두 전략 모두 `domainMatch`(UNIVERSAL이 아닌 한) 요건은 유지한다 — 담보가 아예 다른 evidence까지
   끌어오지는 않는다.
 - 전략 B는 keyword 매칭을 issueType exact match로 **OR 대체**할 수 있게 한다 — issueType 불일치를
@@ -319,23 +330,36 @@ DISABILITY_GRADE_CRITERIA, DIAGNOSIS 또는 DISABILITY_LOCATION} 조합에서 �
 존재한다. Recall@5만 보고 전략 A/B를 선택하면 이 위험을 놓친다.
 
 ```typescript
-function recallAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
+function recallAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number | null {
+  if (knownRelevantIds.length === 0) return null; // empty ground truth — 평균 계산에서 제외, M4e coverage gap으로 별도 보고(외부 독립 리뷰, v0.7.0)
   const returned = new Set(candidates.map((c) => c.id));
   const hits = knownRelevantIds.filter((id) => returned.has(id)).length;
-  return knownRelevantIds.length === 0 ? 1 : hits / knownRelevantIds.length;
+  return hits / knownRelevantIds.length;
 }
 
-function hitAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): 0 | 1 {
+function hitAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number | null {
+  if (knownRelevantIds.length === 0) return null; // empty ground truth — 평균 계산에서 제외, M4e coverage gap으로 별도 보고
   const returned = new Set(candidates.map((c) => c.id));
   return knownRelevantIds.some((id) => returned.has(id)) ? 1 : 0;
 }
 
-function precisionAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number {
+function precisionAt5(candidates: EvidenceCandidate[], knownRelevantIds: string[]): number | null {
+  if (knownRelevantIds.length === 0) return null; // empty ground truth — 평균 계산에서 제외, M4e coverage gap으로 별도 보고
   const knownRelevant = new Set(knownRelevantIds);
   const relevantReturned = candidates.slice(0, 5).filter((c) => knownRelevant.has(c.id)).length;
   return relevantReturned / 5; // 표준 정의로 통일 — top-5 슬롯 중 relevant 수 / 5(외부 독립 리뷰 잔여 정합성 이슈 2). 실제 반환 개수를 분모로 쓰는 대안(Precision@Returned)은 채택하지 않는다.
 }
 ```
+
+**Empty ground truth 처리 (v0.7.0 정정 — 실제 구현과의 정합)**: `knownRelevantEvidenceIds`가 빈
+배열인 benchmark case는 세 지표 모두 `null`을 반환한다. 이전 버전의 pseudocode는
+`knownRelevantIds.length === 0 ? 1 : ...`로 `recallAt5()`를 정의해, ground truth가 아예 없는
+케이스를 "완벽한 재현(Recall=1)"으로 잘못 채점했다 — vacuous truth를 최고 점수로 취급하는 이
+결함을 이 절이 수정한다. `null`을 반환한 케이스는 §3.4A의 `meanRecall`/`meanHit`/`meanPrecision`
+집계(non-null 케이스만 평균)에서 제외하며, 그 case 수는 §3.4B(M4e)의 coverage delta 절에 "빈
+ground truth benchmark case 수"로 별도 보고한다 — vacuous-truth로 지표를 부풀리지 않는다. 이
+방식은 이미 `evidence-retriever.benchmark.test.ts`에 구현되어 있다(progress.md §M Fix5) — 이 절은
+그 구현과 design.md pseudocode의 정합을 맞추는 것이며, 새로운 동작을 도입하지 않는다.
 
 세 지표 모두 §3.4A의 frozen 최종 비교에서 **함께** 측정·기록한다 — Recall@5만 보고하고 Precision@5를
 누락하지 않는다. **이 지표가 유효하려면 `knownRelevantEvidenceIds`가 해당 query에 대한 complete
@@ -429,6 +453,23 @@ M2 단계에서만 유효한 의도적 단순화이며, 그 값을 M4d의 baseli
 방법론 결함이다. Production 코드 경로(실제 파이프라인이 호출하는 `retrieveEvidence()`)는 항상
 `relevantB()` + `computeScore()`만 사용하며, `trueBaselineEligible()`/`trueBaselineScore()`는
 M4d 벤치마크 비교 목적의 테스트 전용 함수로 production에 존재하지 않는다.
+
+**benchmark-only 전용 wiring — 신규 헬퍼 함수로 격리 (재발 방지, §2.1 참고, v0.7.0)**: 위
+`trueBaselineEligible()`/`trueBaselineScore()`(그리고 tie-break 없는 위 정렬)는 production 코드
+어디에도 직접 배선돼서는 안 되며, `evidence-retriever.benchmark.test.ts`(또는 그 인접 모듈)에만
+존재하는 별도의 benchmark 전용 순수 함수 — 예: `trueBaselineRetrieveEvidence(queries, candidates)`
+— 안에서만 조합해 사용해야 한다. 이 헬퍼 함수는 이 §3.4A의 M4d algorithm effect 비교 절차에서만
+호출되며, production `retrieveEvidence()`의 `strategy` 파라미터 분기(§2.1)에는 절대 연결하지 않는다.
+**금지하는 구체적 실수(재발 방지)**: production `retrieveEvidence()` 내부에서 `strategy === "A"`일
+때 이 `trueBaselineScore()`에 해당하는 baseline score 함수(현재 코드베이스 구현명:
+`computeBaselineScore()`)나 tie-break 없는 정렬을 호출하는 것 — 이는 실제로 한 run-phase 세션이
+저지른 결함으로, REQ-EVIDENCE-012(production `retrieveEvidence()`의 결정론적 정렬)를 위반하고
+§2.1이 명시하는 M2/M4d 역할 분리를 코드 수준에서 무너뜨린다. 수정 방향은 production
+`retrieveEvidence()`가 `strategy` 값과 무관하게 §2.2 `computeScore()` + §2.3 tie-break 정렬만
+사용하도록 배선하고, `trueBaselineScore()`/`trueBaselineEligible()`에 해당하는 로직(및 그것을
+호출하는 tie-break 없는 정렬)은 위 benchmark 전용 헬퍼로 이관하는 것이다 — production
+`retrieveEvidence()`에서 이 두 함수 또는 그 동등 로직에 대한 직접 호출을 제거하는 것이 이 수정의
+완료 기준이다.
 
 #### B. Corpus expansion effect (초기 vs 최종 corpus의 coverage delta — cross-corpus Recall 비교 아님)
 

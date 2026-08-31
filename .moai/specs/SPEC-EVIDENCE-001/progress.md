@@ -1032,3 +1032,17 @@ All matched files use Prettier code style! ✓
 - **DISPUTE_CASE 0건(M4b)**: 검증 가능한 FSS 분쟁조정 사례 개별 HTML URL 확보 불가. plan.md M4b 요구 미충족 — 숨기지 않음.
 - **pnpm build / pnpm test:e2e**: Node.js v22 + pnpm 11.23.0 필요로 현재 환경에서 미실행 — pnpm 환경에서 확인 필요.
 - pnpm build / test:e2e PASS 및 DISPUTE_CASE 1건 확보 시 AC 전체 충족 → sync 가능.
+
+## §N Post-merge Coherence Correction — Phase 1 Gate 재확인 + Mode Selection (2026-08-31)
+
+### Phase 1 Plan Audit Gate — skip-eligibility 판정
+
+- 최근 verdict: iteration 5, PASS, score 0.923 (Tier L threshold 0.85 이상)
+- Artifact hash: `git log --oneline 1b2a2b5..HEAD -- spec.md design.md acceptance.md` → 매치 없음(변경 없음)
+- 3개 조건(PASS / score>=threshold / hash unchanged) 모두 충족 → **Phase 1 재실행 SKIP**
+- 단, 이번 세션 작업 자체가 design.md를 다시 수정하므로, 수정 이후 hash는 당연히 바뀐다 — 이는 plan-audit 재실행 조건이 아니라 run-phase 중 SPEC body 수정(Status Transition Ownership Matrix의 "run-phase가 SPEC body 수정을 발견하면 manager-spec에 재위임" 절차)에 해당한다.
+
+### §F 추가 — Mode Selection 재확인
+
+- 이번 세션도 기존 §F 판단(직렬/serial, tdd)을 그대로 따른다: coherence correction은 관련 milestone(M2/M4d)에 의존성이 있는 순차 작업이며, 새 병렬화 대상이 아니다.
+- Decision: serial (변경 없음)
