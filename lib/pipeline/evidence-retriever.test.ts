@@ -289,6 +289,30 @@ describe("retrieveEvidence 결정론적 정렬 tie-break (REQ-EVIDENCE-012, AC-E
       expect(result.get("q-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
     }
   });
+
+  // v0.7.0 재발 방지 수정 — production retrieveEvidence()는 strategy 값과
+  // 무관하게 항상 computeScore() + id 오름차순 tie-break를 적용한다
+  // (design.md §2.1 "명시적 확인" 문단). 이 결정론성이 strategy="B"뿐
+  // 아니라 strategy="A"에도 실제로 적용됨을 직접 검증한다 — 과거 세션에서
+  // strategy="A" 경로가 tie-break 없는 정렬로 잘못 배선되어 REQ-EVIDENCE-012를
+  // 위반한 사례가 있었기 때문에, strategy="A"만 별도로 재확인한다.
+  it("strategy='A'도 score 동점 시 id 오름차순으로 정렬되고, 동일 입력을 3회 호출해도 순서가 항상 같다", async () => {
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-tie-a",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const result = await retrieveEvidence([query], makeFakeDb(rows), "A");
+      expect(result.get("q-tie-a")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
+  });
 });
 
 describe("retrieveEvidence TOP_N 불변 확인 (REQ-EVIDENCE-011, AC-EVIDENCE-010)", () => {
@@ -408,14 +432,19 @@ describe("computeBaselineScore (Blocker1 — REQ-EVIDENCE-016 수정)", () => {
   });
 });
 
-// SPEC-EVIDENCE-001 Fix1 — 전략별 정렬 분기 검증:
-// 전략 A(baseline): score desc only — tie-break 없음, DB 행 순서 유지
-// 전략 B(new):      score desc + id 오름차순 tie-break(결정론적)
-describe("retrieveEvidence 전략별 정렬 분기 (Fix1 — strategy-dispatched sort)", () => {
-  it("전략 A: computeBaselineScore 동점 시 result order는 DB 행 순서(입력 배열 순서)에 의존한다 — id 알파벳 순이 아님", async () => {
-    // 입력 배열이 e-z, e-a, e-m 순이고 모든 score가 동일하면
-    // 전략 A(tie-break 없음)는 입력 순서대로 e-z, e-a, e-m을 반환해야 한다.
-    // (전략 B라면 e-a, e-m, e-z로 id 오름차순 정렬됨)
+// SPEC-EVIDENCE-001 [재발 방지 — v0.7.0 수정, design.md §2.1] 전략별 정렬
+// 분기 검증:
+// 두 전략 모두 이제 score desc + id 오름차순 tie-break(결정론적)를
+// 사용한다 — strategy가 바꾸는 것은 candidate eligibility 술어뿐이며,
+// score 함수/정렬 분기는 두지 않는다. 이 describe 블록은 과거(Fix1
+// 세션) 전략 A만 tie-break 없는 정렬을 쓰던 버그를 검증하던 자리였다 —
+// 그 버그 자체가 이번 세션의 수정 대상이었으므로(REQ-EVIDENCE-012 위반),
+// 아래 테스트는 "두 전략 모두 동일한 결정론적 정렬을 쓴다"는 정정된
+// 계약을 검증하도록 재작성됐다.
+describe("retrieveEvidence 전략별 정렬 분기 — 두 전략 공통 결정론적 tie-break (재발 방지 — v0.7.0)", () => {
+  it("전략 A: computeScore 동점 시에도 id 오름차순 tie-break가 적용된다 — 더 이상 DB 행 순서에 의존하지 않는다", async () => {
+    // 입력 배열이 e-z, e-a, e-m 순이고 모든 score가 동일해도, 전략 A는
+    // 더 이상 tie-break 없는 정렬을 쓰지 않는다 — id 오름차순 [e-a, e-m, e-z].
     const rows = [
       makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
       makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
@@ -429,10 +458,10 @@ describe("retrieveEvidence 전략별 정렬 분기 (Fix1 — strategy-dispatched
 
     const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
     const idsA = resultA.get("q-strategy-a-tie")?.map((e) => e.id) ?? [];
-    // 전략 A는 tie-break 없음 → 입력 배열 순서 그대로 [e-z, e-a, e-m]
-    expect(idsA).toEqual(["e-z", "e-a", "e-m"]);
-    // id 알파벳 오름차순이 아님을 명시적으로 확인
-    expect(idsA).not.toEqual(["e-a", "e-m", "e-z"]);
+    // 전략 A도 id 오름차순 tie-break를 적용한다(전략 B와 동일한 정렬)
+    expect(idsA).toEqual(["e-a", "e-m", "e-z"]);
+    // 입력 배열 순서(과거 버그의 동작)가 아님을 명시적으로 확인
+    expect(idsA).not.toEqual(["e-z", "e-a", "e-m"]);
   });
 
   it("전략 B: computeScore 동점 시 id 오름차순 tie-break가 적용되어 항상 결정론적 정렬된다", async () => {

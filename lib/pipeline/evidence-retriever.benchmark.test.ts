@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
 import evidenceM2Snapshot from "../../db/seed/evidence-m2-snapshot.json";
 import evidenceSeed from "../../db/seed/evidence.json";
-import { retrieveEvidence, type EligibilityStrategy } from "./evidence-retriever";
+import {
+  retrieveEvidence,
+  trueBaselineRetrieveEvidence,
+  type EligibilityStrategy,
+} from "./evidence-retriever";
 import type { EvidenceCandidate, ResearchQuery } from "./types";
 
 // SPEC-EVIDENCE-001 M2 — Curated Retrieval Benchmark (design.md §3, plan.md M2).
 //
 // [M2 EXPLORATORY] 섹션: 10건짜리 초기 corpus(evidence-m2-snapshot.json)를
-// 기반으로 전략 A/B "방향"을 결정하는 탐색적 측정.
+// 기반으로 전략 A/B "방향"을 결정하는 탐색적 측정. 두 전략 모두
+// production retrieveEvidence()의 computeScore()를 사용해 eligibility
+// 효과만 격리한다(design.md §2.2 M2 exploratory scoring — 의도적 단순화).
 // [M5 REGRESSION] 섹션: production evidence.json(19건+)을 사용한 회귀 방지.
-// [M4d FINAL] 섹션: M4 frozen corpus 위에서 true baseline vs new algorithm
-// 최종 측정 (Blocker1 수정 후 computeBaselineScore 사용).
+// [M4d FINAL] 섹션: M4 frozen corpus 위에서 "algorithm effect"(true
+// baseline vs new algorithm) 최종 측정. production 전략 B(retrieveEvidence(...,
+// "B") — relevantB() + computeScore() + tie-break)를 M4d 전용
+// trueBaselineRetrieveEvidence()(relevantA() + computeBaselineScore(),
+// tie-break 없음, design.md §3.4A `baselineRetriever` 정의)와 비교한다
+// — production retrieveEvidence(..., "A")가 아니다(v0.7.0 재발 방지
+// 수정 — production 전략 A는 이제 항상 computeScore()+tie-break를
+// 쓰며 M4d true baseline과 다른 함수를 쓴다).
 //
 // Blocker2(SPEC-EVIDENCE-001): 벤치마크가 mutable production evidence.json을
 // 직접 import하면 M4+에서 항목이 추가될 때마다 M2 탐색적 수치가 달라진다.
@@ -363,6 +375,51 @@ async function measureStrategy(
   return { strategy, perCase, meanRecall, meanHit, meanPrecision, skippedCases };
 }
 
+// v0.7.0 재발 방지 수정 — M4d "algorithm effect"의 baseline 측은
+// production retrieveEvidence(..., "A")가 아니라 trueBaselineRetrieveEvidence()
+// (design.md §3.4A `baselineRetriever` 정의: relevantA() + computeBaselineScore(),
+// tie-break 없음)를 사용해야 한다. measureStrategy()와 동일한
+// recall/hit/precision/null-제외 로직을 재사용하되, retrieveEvidence() 대신
+// trueBaselineRetrieveEvidence()를 호출한다.
+async function measureTrueBaseline(
+  rows: SeedRow[],
+  cases: BenchmarkCase[]
+): Promise<Omit<StrategyMetrics, "strategy">> {
+  const perCase: StrategyMetrics["perCase"] = [];
+
+  for (const bc of cases) {
+    const result = trueBaselineRetrieveEvidence([bc.query], rows);
+    const candidates = result.get(bc.query.id) ?? [];
+    const recall = recallAt5(candidates, bc.knownRelevantEvidenceIds);
+    const hit = hitAt5(candidates, bc.knownRelevantEvidenceIds);
+    const precision = precisionAt5(candidates, bc.knownRelevantEvidenceIds);
+    perCase.push({
+      id: bc.id,
+      recall,
+      hit,
+      precision,
+      skipped: bc.knownRelevantEvidenceIds.length === 0,
+    });
+  }
+
+  const validCases = perCase.filter((c) => !c.skipped);
+  const meanRecall =
+    validCases.length > 0
+      ? validCases.reduce((s, c) => s + (c.recall ?? 0), 0) / validCases.length
+      : 0;
+  const meanHit =
+    validCases.length > 0
+      ? validCases.reduce((s, c) => s + (c.hit ?? 0), 0) / validCases.length
+      : 0;
+  const meanPrecision =
+    validCases.length > 0
+      ? validCases.reduce((s, c) => s + (c.precision ?? 0), 0) / validCases.length
+      : 0;
+  const skippedCases = perCase.filter((c) => c.skipped).map((c) => c.id);
+
+  return { perCase, meanRecall, meanHit, meanPrecision, skippedCases };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Section B — [M2 EXPLORATORY] benchmark (10건 고정 corpus)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -415,22 +472,23 @@ describe("evidence-retriever [M2 EXPLORATORY] benchmark (REQ-EVIDENCE-014, AC-EV
     expect(hitAt5(candidatesB, targetCase.knownRelevantEvidenceIds)).toBe(1);
   });
 
-  it("[M2 EXPLORATORY] 전략 A/B의 Recall@5/Hit@5/Precision@5를 측정·기록한다 — non-regression 계약(design.md §3.3b) 확인 (Blocker1 수정 후 corrected baseline)", async () => {
+  it("[M2 EXPLORATORY] 전략 A/B의 Recall@5/Hit@5/Precision@5를 측정·기록한다 — non-regression 계약(design.md §3.3b) 확인 (v0.7.0 재측정 — eligibility-only 격리)", async () => {
     // Fix2: measureStrategy에 M2_BENCHMARK_CASES 전달
     const metricsA = await measureStrategy("A", m2SnapshotRows, M2_BENCHMARK_CASES);
     const metricsB = await measureStrategy("B", m2SnapshotRows, M2_BENCHMARK_CASES);
 
     // [M2 EXPLORATORY] 라벨: 이 console.log 출력은 progress.md에 그대로 옮겨
     // 기록되며, M4d의 frozen 최종 비교와는 별개 절로 분리 서술된다.
-    // Blocker1 수정 후 재측정: strategy A는 computeBaselineScore(issueTypeWeight=0) 적용.
+    // v0.7.0: 전략 A/B 둘 다 computeScore()를 사용한다(design.md §2.2 M2
+    // exploratory scoring — eligibility 효과만 격리하는 의도적 단순화).
     console.log(
-      "[M2 EXPLORATORY] strategy A (corrected baseline):",
+      "[M2 EXPLORATORY] strategy A (computeScore, relevantA eligibility):",
       JSON.stringify(metricsA, null, 2)
     );
     console.log("[M2 EXPLORATORY] strategy B:", JSON.stringify(metricsB, null, 2));
 
     // design.md §3.3b 권고 기본값 — new(B) >= baseline(A) on all 3 metrics
-    // Blocker1 수정 후에도 B >= A 계약이 유지되어야 한다.
+    // v0.7.0 재발 방지 수정 후에도 B >= A 계약이 유지되어야 한다.
     // 만약 이 assertion이 실패하면 Blocker report를 반환한다(임의 조정 금지).
     expect(metricsB.meanRecall).toBeGreaterThanOrEqual(metricsA.meanRecall);
     expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);
@@ -500,11 +558,24 @@ describe("evidence-retriever [M5 REGRESSION] (REQ-EVIDENCE-010, AC-EVIDENCE-009)
 describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus 21건)", () => {
   // M4c ground truth freeze 완료 후 채운 최종 측정 섹션.
   // Corpus: db/seed/evidence.json (21건, M4 full 확장 후 frozen).
-  // Baseline: strategy A (computeBaselineScore — issueTypeWeight=0, Blocker1 수정)
-  // New:      strategy B (computeScore — issueTypeWeight=10 포함)
   //
-  // Fix1/3/4/5 post-correction 재측정:
-  // - Fix1: 전략 A sort = score desc only (기존 main baseline)
+  // [v0.7.0 재발 방지 수정] production retrieveEvidence()는 전략 A/B 모두
+  // computeScore() + 결정론적 tie-break를 사용한다(design.md §2.1 "명시적
+  // 확인" 문단) — strategy가 바꾸는 것은 eligibility 술어뿐이다. 따라서
+  // "algorithm effect"의 baseline 측(§3.4A `baselineRetriever`)은
+  // production retrieveEvidence(..., "A")로 측정할 수 없다 — 그것은
+  // production 전략 A(computeScore() 사용)를 측정할 뿐, M4d가 요구하는
+  // "SPEC 착수 전 main의 실제 baseline"(issueTypeWeight 없음, tie-break
+  // 없음)이 아니다. 이 섹션은 대신 M4d 전용 순수 함수
+  // trueBaselineRetrieveEvidence()(evidence-retriever.ts, relevantA() +
+  // computeBaselineScore()를 조합)를 baseline으로 사용한다.
+  // New: production retrieveEvidence(..., "B") (relevantB() + computeScore()
+  //   + tie-break)
+  //
+  // Fix1/3/4/5 post-correction 재측정 이력 (이전 세션):
+  // - Fix1: 전략 A sort = score desc only (기존 main baseline) — v0.7.0에서
+  //   이 분기 자체가 production 코드에서 제거되었고, true baseline은 이제
+  //   trueBaselineRetrieveEvidence()가 전담한다.
   // - Fix3: bm-disease-grade-01 ground truth 수정 (004/017/018 포함)
   // - Fix4: seed-021 DIAGNOSIS 제거 → bm-disease-diagnosis-01에서 제외
   // - Fix5: 빈 ground-truth → null + mean 제외 (now no empty cases)
@@ -512,7 +583,10 @@ describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus 21�
 
   it("[FROZEN] REQ-013 target case: strategy A miss, strategy B hit — bm-injury-preexisting-01", async () => {
     // REQ-EVIDENCE-013: keywords=["연골 손상"]은 21건 corpus 어디에도 없어 keywordScore=0.
-    // strategy A(computeBaselineScore) = keyword 필수 → miss.
+    // strategy A eligibility(relevantA())는 keywordScore>0을 항상 요구하므로
+    // (score 함수와 무관 — v0.7.0 이후 production 전략 A도 computeScore()를
+    // 쓰지만 eligibility가 여전히 relevantA()이므로 이 케이스의 miss/hit
+    // 결과는 변하지 않는다) → miss.
     // strategy B = issueType exact match(PRE_EXISTING_CONDITION)로 seed-005/016/020 복구 → hit.
     const db = makeFakeDb(seedRows);
     const targetCase = BENCHMARK_CASES.find((c) => c.id === "bm-injury-preexisting-01");
@@ -529,22 +603,24 @@ describe("evidence-retriever [M4d FINAL] (algorithm effect — frozen corpus 21�
     expect(hitAt5(candidatesB, targetCase.knownRelevantEvidenceIds)).toBe(1);
   });
 
-  it("[FROZEN] B >= A non-regression 계약 및 전체 케이스 metric 측정 (post-correction re-measurement)", async () => {
-    // Fix2: measureStrategy에 BENCHMARK_CASES(FINAL) 전달
-    const metricsA = await measureStrategy("A", seedRows, BENCHMARK_CASES);
+  it("[FROZEN] B >= A non-regression 계약 및 전체 케이스 metric 측정 (v0.7.0 post-correction re-measurement — true baseline)", async () => {
+    // v0.7.0 재발 방지 수정: baseline 측은 measureStrategy("A", ...)가 아니라
+    // measureTrueBaseline()(trueBaselineRetrieveEvidence() 호출)을 사용한다
+    // — production 전략 A는 더 이상 true baseline과 동일하지 않다.
+    const metricsA = await measureTrueBaseline(seedRows, BENCHMARK_CASES);
     const metricsB = await measureStrategy("B", seedRows, BENCHMARK_CASES);
 
-    // [FROZEN] post-correction 재측정 기록 (Fix1/3/4/5 적용 후)
+    // [FROZEN] v0.7.0 post-correction 재측정 기록 (true baseline)
     console.log(
-      "[M4d FROZEN post-correction] strategy A (true baseline, issueTypeWeight=0):",
+      "[M4d FROZEN v0.7.0] true baseline (trueBaselineRetrieveEvidence, issueTypeWeight 없음, tie-break 없음):",
       JSON.stringify(metricsA, null, 2)
     );
     console.log(
-      "[M4d FROZEN post-correction] strategy B (new, issueTypeWeight=10):",
+      "[M4d FROZEN v0.7.0] strategy B (production retrieveEvidence, computeScore, issueTypeWeight=10):",
       JSON.stringify(metricsB, null, 2)
     );
 
-    // design.md §3.3b: B >= A on all 3 metrics (non-regression contract)
+    // design.md §3.3b: B >= A on all 3 metrics (non-regression contract).
     // 이 assertion이 실패하면 임의 조정 금지 — blocker report로 반환한다.
     expect(metricsB.meanRecall).toBeGreaterThanOrEqual(metricsA.meanRecall);
     expect(metricsB.meanHit).toBeGreaterThanOrEqual(metricsA.meanHit);

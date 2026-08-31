@@ -1046,3 +1046,166 @@ All matched files use Prettier code style! ✓
 
 - 이번 세션도 기존 §F 판단(직렬/serial, tdd)을 그대로 따른다: coherence correction은 관련 milestone(M2/M4d)에 의존성이 있는 순차 작업이며, 새 병렬화 대상이 아니다.
 - Decision: serial (변경 없음)
+
+---
+
+## §O Run-phase 세션 4 정리 (post-merge coherence correction — §M Fix1 배선 결함 재수정, v0.7.0)
+
+이번 세션(2026-08-31)은 §M Fix1이 실제로 도입한 REQ-EVIDENCE-012 위반을 design.md
+§2.1의 "명시적 확인, v0.7.0" 문단(manager-spec이 이전 턴에서 design.md/spec.md를
+정정)에 따라 재수정했다. Node 22 + pnpm 환경에서 전체 gate를 실제로 실행해 §M Fix8이
+Node 20 우회 실행으로 남긴 7건 FAIL 잔여 의문도 함께 해소했다.
+
+### 결함 재확인 (§M Fix1이 도입한 문제)
+
+`evidence-retriever.ts`의 `retrieveEvidence()`가 `strategy === "A"`일 때 `computeScore()`
+대신 M4d 전용 `computeBaselineScore()`를, 그리고 tie-break 없는 정렬을 사용하도록 배선돼
+있었다 — 이것은 §M Fix1이 "전략 A의 true baseline은 SPEC 착수 전 main과 동일해야 한다"는
+근거로 도입한 것이지만, design.md §2.1이 명시하는 계약(production `retrieveEvidence()`는
+strategy 값과 무관하게 항상 `computeScore()` + 결정론적 tie-break를 쓰고, strategy는
+eligibility 술어만 바꾼다)과 정면으로 충돌한다 — REQ-EVIDENCE-012(production
+`retrieveEvidence()`의 결정론적 정렬)를 위반한 사례였다.
+
+### 수정 내역
+
+1. **`lib/pipeline/evidence-retriever.ts`**:
+   - `retrieveEvidence()`의 score/정렬 전략 분기를 제거 — 이제 strategy "A"/"B" 둘 다
+     `computeScore()` + `score desc || id asc` tie-break를 사용한다. strategy가 바꾸는
+     것은 `relevantA()`/`relevantB()` eligibility 술어뿐이다.
+   - `trueBaselineRetrieveEvidence()` 신규 pure 함수 추가(benchmark 전용, production
+     코드 경로에서 호출하지 않음) — `relevantA()` + `computeBaselineScore()` 조합,
+     tie-break 없음(입력 배열 순서 유지, `Array.prototype.sort`의 stable sort 특성에
+     의존). "과설계 금지" 지시에 따라 별도 class/service 없이 작은 pure 함수로 유지,
+     `computeBaselineScore()`/`relevantA()`와 co-located(diff 최소화).
+   - 파일 헤더 및 인라인 주석을 새 배선("전략 무관 공통 computeScore + tie-break")에
+     맞춰 정정.
+
+2. **`lib/pipeline/evidence-retriever.benchmark.test.ts`**:
+   - `[M4d FINAL]` describe 블록의 "B >= A non-regression" 테스트: baseline 측을
+     `measureStrategy("A", ...)`(이제 production 전략 A를 측정 — true baseline이 아님)
+     대신 신규 `measureTrueBaseline()`(`trueBaselineRetrieveEvidence()` 호출)으로 교체.
+   - `[FROZEN] REQ-013 target case` 테스트의 인라인 주석 정정("strategy A(computeBaselineScore)"
+     → "strategy A eligibility(relevantA())"로 — miss/hit 결과 자체는 eligibility가 동일하게
+     유지되므로 변경 없음, 실제 재실행으로 확인).
+   - `[M2 EXPLORATORY]` describe 블록: 코드 변경 없음(M2는 애초에 두 전략 모두
+     `computeScore()`를 쓰는 의도적 단순화 — design.md §2.2). 주석/라벨만 v0.7.0
+     맥락에 맞춰 정정, 재실행해 fresh 수치 기록(아래).
+   - 파일 헤더 + `[M4d FINAL]` 블록 헤더 주석을 새 아키텍처(전략 A/B 공통 computeScore,
+     `trueBaselineRetrieveEvidence()`가 M4d 전용 true baseline)에 맞춰 재작성.
+
+3. **`lib/pipeline/evidence-retriever.test.ts`**:
+   - **§M이 도입한 버그를 직접 검증하던 기존 테스트 정정**: "전략 A: computeBaselineScore
+     동점 시 result order는 DB 행 순서에 의존한다"는 테스트가 정확히 이번에 제거한 버그
+     동작을 assert하고 있었다 — 이 테스트는 삭제하지 않고, "전략 A도 이제 id 오름차순
+     tie-break를 쓴다"는 정정된 계약을 검증하도록 재작성했다(assertion을 완화한 것이
+     아니라, 잘못된 계약을 assert하던 테스트를 올바른 계약을 assert하도록 수정 — 테스트가
+     선행 세션의 결함 자체를 봉인하고 있었다).
+   - **REQ-EVIDENCE-012 determinism proof — strategy="A" 신규 추가**: 기존 tie-break
+     테스트는 strategy 인자를 생략(기본값 "B")해 strategy="A" 경로의 결정론성을 직접
+     검증하지 않았다. `retrieveEvidence([query], db, "A")`를 3회 호출해 동일 입력에
+     동일 순서(`id` 오름차순)를 반환함을 신규 테스트로 직접 확인했다.
+
+### 재실행 fresh 수치 (Node 22 + pnpm, 이번 세션 실측 — 이전 수치 재사용 없음)
+
+**M2 EXPLORATORY (10건 snapshot corpus, `pnpm test lib/pipeline/evidence-retriever.benchmark.test.ts --reporter=verbose` 실행 결과 그대로)**:
+
+| 지표 | 전략 A (computeScore, relevantA eligibility) | 전략 B |
+|---|---|---|
+| meanRecall | 0.857 | 1.000 |
+| meanHit | 0.857 | 1.000 |
+| meanPrecision | 0.229 | 0.286 |
+
+B >= A 계약 충족(3개 지표 전부). (§M 당시 수치는 전략 A가 `computeBaselineScore`를
+썼으므로 이번 수치와 직접 비교 대상이 아니다 — 배선이 바뀌었으니 재측정이 필요했다.)
+
+**M4d FINAL — algorithm effect (frozen corpus 21건, true baseline vs production 전략 B)**:
+
+| case | true baseline recall/hit/precision | 전략 B recall/hit/precision |
+|---|---|---|
+| bm-injury-preexisting-01 | 0 / 0 / 0.000 | 1.000 / 1 / 0.600 |
+| bm-injury-causation-01 | 1.000 / 1 / 0.800 | 1.000 / 1 / 0.800 |
+| bm-injury-grade-01 | 0.200 / 1 / 0.200 | 1.000 / 1 / 1.000 |
+| bm-injury-location-01 | 0.250 / 1 / 0.200 | 1.000 / 1 / 0.800 |
+| bm-disease-causation-01 | 1.000 / 1 / 0.800 | 1.000 / 1 / 0.800 |
+| bm-disease-grade-01 | 0.333 / 1 / 0.200 | 1.000 / 1 / 0.600 |
+| bm-disease-diagnosis-01 | 0.500 / 1 / 0.200 | 1.000 / 1 / 0.400 |
+| **mean** | **0.469 / 0.857 / 0.343** | **1.000 / 1.000 / 0.714** |
+
+- Recall: B 1.000 >= true baseline 0.469 ✓
+- Hit: B 1.000 >= true baseline 0.857 ✓
+- Precision: B 0.714 >= true baseline 0.343 ✓
+- REQ-013 target case(bm-injury-preexisting-01): true baseline miss(hit:0) → B hit(hit:1) ✓
+- 이 수치는 §M Fix6이 기록한 수치와 **표면적으로 동일하다** — 우연이 아니라,
+  `trueBaselineRetrieveEvidence()`가 §M Fix1이 잘못 배선하기 전 프로덕션 코드의 "전략 A"
+  경로와 동일한 함수 조합(`relevantA` + `computeBaselineScore`, tie-break 없음)을
+  재현하도록 설계됐기 때문이다 — 다만 이번에는 그 조합이 production `retrieveEvidence()`
+  내부가 아니라 별도 benchmark 전용 함수에서 실행된다는 점이 유일한 차이다.
+
+### DISPUTE_CASE(M4b) — 계속 미충족, 이번 세션 추가 조사 정직 기록
+
+이번 세션 orchestrator가 FSS(금융감독원) 공식 사례집 페이지(`fss.or.kr/fss/job/fncCnflCase/list.do?menuNo=201195`)를
+직접 조회했다 — 이 페이지가 유일하게 공개된 개별 사례 목록이다. 조사 결과:
+- 이 페이지가 배포하는 사례 자료는 전부 `.hwp`(한글 워드프로세서) 형식이며 PDF가 아니다.
+- `.hwp` 및 표본 조회한 `kiri.or.kr` PDF 모두 사용 가능한 도구로 텍스트 추출 실패
+  (binary/font-only 콘텐츠 — §M Fix7이 기록한 FSS/KNIA curl 접근 불가와는 다른, 별개의
+  진짜 접근 장벽. 이번에는 페이지 자체는 접근됐으나 콘텐츠 형식이 파싱 불가였다).
+- 전체 201건 중 1-2페이지(20건)를 표본 조사했으나 상해후유장해/질병후유장해/기왕증
+  관련으로 보이는 사례 제목을 찾지 못했다("말하는 기능 장해" 사례 1건이 느슨하게
+  관련되어 보였으나 다른 주제이고 역시 `.hwp`).
+
+**결론**: DISPUTE_CASE(M4b)는 이번 세션에도 **미충족**으로 유지한다. 사례 번호나 내용을
+지어내지 않았고, DB에 어떤 신규 seed 행도 추가하지 않았다. 이는 지어낼 자료가 없어서가
+아니라 도구가 파싱할 수 없는 형식으로만 공개돼 있다는 정직한 접근 장벽이다 — 후속 세션에서
+`.hwp` 텍스트 추출 도구(예: 별도 변환 유틸리티)를 확보하거나 유료 판례 DB 접근이 가능해지면
+재시도를 권고한다(§M Fix7의 권고와 동일 방향).
+
+### 보고서 3종 재검증 (post-correction — 옛 프로즈 신뢰 금지 지시에 따른 실측 재확인)
+
+`.moai/reports/coverage-delta-m4e.md` §7, `.moai/specs/SPEC-EVIDENCE-001/coverage-matrix.md`의
+"M4c/M4d/M4e 이후 post-correction 재검증" 절, `.moai/reports/evidence-source-audit-manifest.md`
+§D를 이번 세션에 신규 추가했다(기존 절 삭제 없음). `db/seed/evidence.json`을 직접 재조회해
+coverage matrix 4개 셀(DIAGNOSIS×DISEASE, CAUSATION×INJURY, CAUSATION×DISEASE,
+PRE_EXISTING_CONDITION×DISEASE)에서 기존 문서가 실제 21건 데이터와 불일치함을 발견해
+정정 기록을 남겼다(원인: seed-021의 Fix4 DIAGNOSIS 태깅 제거가 coverage matrix 절에
+반영되지 않았던 점, UNIVERSAL 레코드의 양 도메인 집계가 CAUSATION/PRE_EXISTING_CONDITION
+셀 일부에서 누락됐던 점). manifest 헤더의 "이번 세션은 pilot 범위만 수행"이라는 scope
+고지도 이제 사실과 다르므로(§B2가 이미 M4 full을 기록) "cumulative: pilot → M4 full →
+post-correction"으로 정정했다 — §A/§B/§B2/§C의 실질 curation 내용 자체는 변경하지 않았다.
+
+### Full gate — Node 22 + pnpm 실제 실행 (§M Fix8의 Node 20 우회 대체)
+
+| 명령 | exit | 결과 |
+|---|---|---|
+| `pnpm test` | 0 | 42 test files, 289 tests **전부 PASS** — §M Fix8이 Node 20 bare 실행으로 남긴 7건 FAIL(scripts/db-migrate.test.ts 등, tsx 부재)은 pnpm 환경(Node 24.19.0)에서는 재현되지 않는다 |
+| `pnpm lint` | 0 | 0 errors, 0 warnings |
+| `pnpm format:check` | 0 | 전부 Prettier 스타일 준수 |
+| `pnpm build` | 0 | 정상 빌드(`instrumentation.ts`의 Edge Runtime `process.exit` 경고 1건 — SPEC-EVIDENCE-001 변경과 무관한 기존 경고, 신규 아님) |
+| `pnpm test:e2e` | 0 | 4 tests 전부 PASS |
+
+**§M Fix8이 "환경 제약으로 미실행"이라 기록한 `pnpm build`/`pnpm test:e2e`가 이번 세션에서
+실제로 PASS로 확인됐다** — Node.js v24.19.0 + pnpm 11.23.0 환경이 이번 세션에서 정상
+동작했다(Node 22+ 요구사항 충족).
+
+### §E.2 §O 섹션 AC 재확인 (최종)
+
+| AC | Status | Evidence |
+|----|--------|---------|
+| AC-EVIDENCE-008 | PASS | eligibility 동작(relevantA/relevantB) 변경 없음 — 전체 벤치마크/단위 테스트 PASS 유지 |
+| AC-EVIDENCE-009 | PASS | `pnpm test`(REQ-EVIDENCE-010 회귀 테스트, 전략 B) PASS |
+| AC-EVIDENCE-011 | **PASS** | `retrieveEvidence()` 3회 반복 호출 결정론성 테스트 — strategy "B"(기존) + strategy "A"(이번 세션 신규 추가) 둘 다 PASS |
+| AC-EVIDENCE-012 | PASS | BENCHMARK_CASES 7건 구성 변경 없음 — 커버리지 테스트 PASS |
+| AC-EVIDENCE-013 | PASS | ground truth id 대조 테스트 PASS, manifest 대조 변경 없음 |
+| AC-EVIDENCE-014 | **PASS** | true baseline(trueBaselineRetrieveEvidence) 대비 B: Recall/Hit/Precision 전부 우위, REQ-013 target case miss→hit 확인(위 표) |
+
+### SPEC 상태 (§O 최종)
+
+`status: in-progress` 유지 — **frontmatter 변경 없음**. 이 에이전트(manager-develop, cycle_type=tdd)의
+상태 전이 권한은 "draft → in-progress"(M1 커밋) 하나뿐이며, 이 SPEC은 이미 이전 세션에서
+in-progress로 전이됐다 — 이번 세션은 그 이후의 run-phase 정정이므로 추가로 전이할 권한이 없다.
+`in-progress → implemented → completed`는 manager-docs가 단일 sync 커밋에서 수행한다
+(spec-frontmatter-schema.md § Status Transition Ownership Matrix).
+
+- **차단 요인 없음**: 전체 gate(test/lint/format/build/e2e) PASS, 모든 재확인 대상 AC PASS.
+- **잔존 미충족(차단 아님, 정직 고지 유지)**: DISPUTE_CASE(M4b) 0건 — 위 조사 기록 참고,
+  plan.md M4b가 지정한 최소 1건 목표는 여전히 미달이나 이는 §M부터 이어진 기존 잔여 위험이며
+  이번 세션이 새로 발생시킨 것이 아니다. sync 판단은 manager-docs/orchestrator의 몫이다.

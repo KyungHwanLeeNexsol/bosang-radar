@@ -1,11 +1,19 @@
-# SPEC-EVIDENCE-001 — Evidence Source Audit Manifest (M4)
+# SPEC-EVIDENCE-001 — Evidence Source Audit Manifest (M4, cumulative: pilot → M4 full → post-correction)
 
 design.md §5.3 확장 6-컬럼 형식. REQ-EVIDENCE-005(기존 10건 재감사) + REQ-EVIDENCE-002/021(신규 9건 curation)
 결과를 함께 기록한다. 검토자는 이 run-phase 세션(WebFetch/WebSearch 실사용)이다.
 
-**중요 — 이 세션의 scope 한계(정직 고지)**: 이번 세션은 SPEC-EVIDENCE-001 M4의 **pilot 범위**만
-수행한다(plan.md M4c/4d/4e — benchmark freeze, algorithm effect, corpus expansion effect 측정 —
-는 이번 세션에서 수행하지 않았다). 아래 표는 4a(재감사) + 4b(pilot 신규 확장)만을 다룬다.
+**Scope 프레이밍 정정(post-correction 세션, evidence-retriever.ts 재발 방지 수정 세션)**:
+이 manifest는 최초 작성 시점에 "이번 세션은 pilot 범위만 수행한다(M4c/4d/4e는 수행하지
+않았다)"고 고지했으나, 그 고지는 §A/§B(pilot, 2026-08-29) 작성 당시 기준이었고
+**이후 세션(들)에서 이미 §B2(M4 full 추가 레코드, 2026-08-30)까지 진행되어 사실과
+다르게 되었다** — §B2가 seed-evidence-020/021을 이미 기록하고 있는 것 자체가
+pilot 범위를 넘어섰다는 증거다. 이 manifest는 이제 **누적(cumulative) 문서**로
+읽어야 한다: §A/§B = pilot(2026-08-29), §B2 = M4 full(2026-08-30), §C = pilot 당시
+shortfall 고지(이후 §B2에서 일부 반전 기록됨). 이번 post-correction 세션(현재)은
+`db/seed/evidence.json` 데이터 자체를 변경하지 않았으며(코드 버그 수정만 수행 —
+아래 세션 히스토리 참고), §A/§B/§B2/§C의 실질 내용은 그대로 유효하다. 정정 대상은
+이 header의 scope 프레이밍 문구뿐이다.
 
 ## §A. 기존 10건 재감사 (REQ-EVIDENCE-005)
 
@@ -85,3 +93,14 @@ design.md §5.3 확장 6-컬럼 형식. REQ-EVIDENCE-005(기존 10건 재감사)
 작성: run-phase agent (WebFetch/WebSearch 실사용), 2026-08-29. 이 manifest는
 design.md §5.3의 6-컬럼 형식(id/evidenceType/sourceUrl 접근확인일/원문대조결과/issueTypes/
 issueTypes검토결과/결정/검토자)을 그대로 따른다.
+
+## §D. Post-correction 세션 재확인 (evidence-retriever.ts 재발 방지 수정 세션)
+
+이 세션은 `retrieveEvidence()`의 score/정렬 배선 결함(design.md §2.1 "명시적 확인" 문단
+위반 — 전략 A 경로가 M4d 전용 baseline score/tie-break-없는 정렬로 잘못 배선된 문제)만
+수정했다. `db/seed/evidence.json`은 이 세션에서 전혀 수정하지 않았다 — 아래는 §A/§B/§B2가
+기록한 21건 corpus가 이 세션 시작 시점에도 그대로 유지되고 있음을 확인한 결과다
+(`node -e "require('./db/seed/evidence.json').length"` → `21`, evidenceType 분포
+POLICY 5 / PRECEDENT 7 / STATUTE 2 / OTHER 7 — §A/§B/§B2가 기록한 최종 상태와 일치).
+따라서 이 §D는 §A~§C의 curation 실질 내용을 변경하지 않으며, 순수 header 프레이밍
+정정(위)에 대한 근거 기록이다.
