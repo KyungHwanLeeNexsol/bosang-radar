@@ -121,3 +121,56 @@ M4c(benchmark freeze)/M4d(algorithm effect)/M4e(corpus expansion effect)는 이�
 
 POLICY 6건(001/003/011/012/013/019), PRECEDENT 5건(005/008/014/015/016), STATUTE 2건
 (007/010), OTHER 6건(002/004/006/009/017/018), DISPUTE_CASE 0건.
+
+## M4c/M4d/M4e 이후 post-correction 재검증 (evidence-retriever.ts 재발 방지 수정 세션, 21건 실측)
+
+**Scope**: 이 절은 evidence-retriever.ts의 score/정렬 배선 결함(design.md §2.1 "명시적
+확인" 문단 위반) 수정 세션에서, `db/seed/evidence.json`(21건, 위 §"M1 상태 요약" 이후
+불변)을 이번 세션이 직접 재조회해 위 "Coverage Matrix" 절(21건 기준)의 셀 값을 재검증한
+결과다. `db/seed/evidence.json`은 이 세션에서 전혀 수정하지 않았다 — 검증만 수행했다.
+
+**검증 방법**: 위 "Coverage Matrix" 절과 동일한 방법론(non-OTHER 항목만 집계,
+`scope="UNIVERSAL"` 레코드는 `retrieveEvidence()`의 `isUniversal` 분기가 domainMatch를
+면제하므로 두 도메인 셀 모두에 집계 — design.md §2.1)을 그대로 적용해, `db/seed/evidence.json`을
+직접 파싱한 스크립트로 각 셀을 재계산했다.
+
+| issueType | INJURY_DISABILITY (상해후유장해) | DISEASE_DISABILITY (질병후유장해) |
+|---|---|---|
+| `DISABILITY_LOCATION` | **4건** (001/011/012/013) | **N/A** |
+| `DIAGNOSIS` | **N/A** | **2건** (008/019) |
+| `DISABILITY_GRADE_CRITERIA` | **5건** (001/011/012/013/020) | **0건** (004/017/018 모두 OTHER) |
+| `CAUSATION` | **5건** (005/015/016/020/021 — 021은 UNIVERSAL) | **3건** (008/016/021 — 016/021은 UNIVERSAL) |
+| `PRE_EXISTING_CONDITION` | **3건** (005/016/020) | **1건** (016 — UNIVERSAL) |
+| `INJURY_DISEASE_RELATION` | **1건** (015) | **0건** |
+| `INCIDENT_CIRCUMSTANCE` | **1건** (014) | **0건** |
+| `ADDITIONAL_CONFIRMATION_NEEDED` | **0건** | **0건** |
+
+**위 "Coverage Matrix" 절(21건 기준)과의 차이 — 정정 사항(honest disclosure)**:
+
+이번 재검증에서 위 기존 "Coverage Matrix" 절의 4개 셀이 현재 `evidence.json` 실측치와
+불일치함을 확인했다. 옛 프로즈를 신뢰하지 않고 실제 데이터로 재계산한 결과이며, 기존 절은
+삭제하지 않고 이 절에서 정정 사항만 기록한다:
+
+1. **`DIAGNOSIS` × DISEASE_DISABILITY**: 기존 절은 "3건 (008/019/021)"이라 기록했으나,
+   `seed-evidence-021`은 evidence-source-audit-manifest.md §B2의 Fix4(2026-08-30)에서
+   `DIAGNOSIS` 태깅이 제거되었다(현재 `issueTypes: ["CAUSATION"]`만 보유) — 실측 **2건
+   (008/019)**이 정확하다.
+2. **`CAUSATION` × INJURY_DISABILITY**: 기존 절은 "4건 (005/015/016/020)"이라 기록했으나,
+   `seed-evidence-021`(UNIVERSAL, `issueTypes: ["CAUSATION"]`)이 `isUniversal` 면제로
+   INJURY_DISABILITY 셀에도 집계되어야 한다 — 실측 **5건 (005/015/016/020/021)**이 정확하다.
+3. **`CAUSATION` × DISEASE_DISABILITY**: 기존 절은 "4건 (008/009/016/021)"이라 기록했으나,
+   `seed-evidence-009`는 evidenceType이 `OTHER`이며 evidence-source-audit-manifest.md
+   §A에서도 처음부터 OTHER로 재확인됐다 — 이 절의 non-OTHER 집계 규칙상 제외 대상이다.
+   실측 **3건 (008/016/021)**이 정확하다.
+4. **`PRE_EXISTING_CONDITION` × DISEASE_DISABILITY**: 기존 절은 "0건"이라 기록했으나,
+   `seed-evidence-016`(UNIVERSAL, `issueTypes: ["CAUSATION", "PRE_EXISTING_CONDITION"]`)이
+   `isUniversal` 면제로 DISEASE_DISABILITY 셀에도 집계되어야 한다 — 실측 **1건 (016)**이
+   정확하다.
+
+나머지 10개 셀(N/A 2칸 포함)은 기존 절의 값과 일치함을 확인했다.
+
+**참고**: 위 4개 정정 사항은 coverage 커버리지 재검토 결과이며, `evidence-retriever.benchmark.test.ts`의
+`BENCHMARK_CASES`(개별 벤치마크 쿼리별 큐레이션된 ground truth)와는 별개 지표다 — 이
+coverage matrix는 "domain×issueType 조합별 non-OTHER 레코드 존재 여부"를 집계하고,
+`BENCHMARK_CASES`는 "특정 쿼리에 실제로 관련 있다고 사람이 판단한 evidence 집합"을
+기록한다. 두 지표가 항상 1:1로 일치할 필요는 없다.

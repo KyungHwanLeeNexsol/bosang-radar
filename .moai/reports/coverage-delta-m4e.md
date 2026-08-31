@@ -78,3 +78,46 @@ AC-EVIDENCE-013 준수: ground truth 기준은 non-OTHER 항목만 포함.
 REQ-EVIDENCE-017 명시: M4e는 M1→M4의 coverage matrix 개선 현황만 기록한다.
 M4d FINAL 섹션에서 동일 frozen corpus(21건) 위의 strategy A/B 비교를 수행했으며,
 다른 corpus 규모 간 Recall@5 비교는 이 단계에서 수행하지 않는다.
+
+## 7. Post-correction 재검증 (evidence-retriever.ts 재발 방지 수정 세션, 21건 실측)
+
+**Scope**: 이 절은 evidence-retriever.ts의 score/정렬 배선 결함(design.md §2.1 "명시적
+확인" 문단 위반) 수정 세션에서, `db/seed/evidence.json`(21건 — 이 세션에서 전혀 수정하지
+않았다)을 직접 재조회해 위 §2 표의 셀 값을 재검증한 결과다. 방법론은 §2와 동일(non-OTHER
+항목만 집계, `scope="UNIVERSAL"` 레코드는 두 도메인 셀 모두에 집계 — design.md §2.1
+`isUniversal` 면제).
+
+| issueType | INJURY_DISABILITY (상해후유장해) | DISEASE_DISABILITY (질병후유장해) |
+|---|---|---|
+| `DISABILITY_LOCATION` | **4건** (001/011/012/013) | N/A |
+| `DIAGNOSIS` | N/A | **2건** (008/019) |
+| `DISABILITY_GRADE_CRITERIA` | **5건** (001/011/012/013/020) | **0건** |
+| `CAUSATION` | **5건** (005/015/016/020/021) | **3건** (008/016/021) |
+| `PRE_EXISTING_CONDITION` | **3건** (005/016/020) | **1건** (016) |
+| `INJURY_DISEASE_RELATION` | **1건** (015) | **0건** |
+| `INCIDENT_CIRCUMSTANCE` | **1건** (014) | **0건** |
+| `ADDITIONAL_CONFIRMATION_NEEDED` | **0건** | **0건** |
+
+**§2와의 차이 — 정정 사항(honest disclosure, 옛 프로즈를 신뢰하지 않고 실측 재계산)**:
+
+1. `DIAGNOSIS` × DISEASE_DISABILITY: §2는 "3건(008/019/021)"이라 기록했으나,
+   `seed-evidence-021`은 Fix4(2026-08-30, evidence-source-audit-manifest.md §B2)에서
+   `DIAGNOSIS` 태깅이 제거되어 현재 `issueTypes: ["CAUSATION"]`만 보유한다 — 실측
+   **2건(008/019)**이 정확하다.
+2. `CAUSATION` × INJURY_DISABILITY: §2는 "4건(005/015/016/020)"이라 기록했으나,
+   `seed-evidence-021`(UNIVERSAL, CAUSATION)이 두 도메인 모두에 집계되어야 한다 — 실측
+   **5건(005/015/016/020/021)**이 정확하다.
+3. `CAUSATION` × DISEASE_DISABILITY: §2는 "4건(008/009/016/021)"이라 기록했으나,
+   `seed-evidence-009`는 evidenceType이 처음부터 `OTHER`(evidence-source-audit-manifest.md
+   §A에서 재확인)이므로 non-OTHER 집계에서 제외된다 — 실측 **3건(008/016/021)**이 정확하다.
+4. `PRE_EXISTING_CONDITION` × DISEASE_DISABILITY: §2는 "0건"이라 기록했으나,
+   `seed-evidence-016`(UNIVERSAL, PRE_EXISTING_CONDITION 포함)이 두 도메인 모두에
+   집계되어야 한다 — 실측 **1건(016)**이 정확하다.
+
+나머지 셀은 §2의 값과 일치함을 확인했다. §3(빈 셀 수)/§4(잔여 shortfall)/§5(BenchmarkCase
+hit rate)의 결론(개선 방향, 잔여 공백 목록)은 위 4개 셀 정정으로 바뀌지 않는다 — 정정된
+셀 4개 모두 "0건 → N건" 방향 개선이 아니라 기존에 이미 "1건 이상"으로 기록됐던 셀의 정확한
+건수 조정이며, §3의 "빈 셀 7→N" 집계에 영향을 주는 셀(0건이었던 셀이 정정으로 1건 이상이 된
+경우)은 `PRE_EXISTING_CONDITION`×DISEASE_DISABILITY 1건뿐이다 — 이 정정을 반영하면
+§3의 "빈 셀 수"는 7이 아니라 6이 된다(개선 방향과 일치, §4의 해당 셀 권고 항목은 참고용으로
+유지).
