@@ -1263,3 +1263,52 @@ FAIL을 유발하지 않음 — 후속 세션 권고 사항으로 남김).
 
 `status: in-progress` 유지(사용자 명시 지시: "그 전에는 status: in-progress 유지"). `/moai sync`
 미실행, PR merge 미실행 — 지시대로 commit+push까지만 수행했다.
+
+## §E.4 Sync-phase Audit-Ready Signal
+
+이번 세션(manager-docs 역할, sync-phase)에서 수행한 작업을 정직하게 기록한다
+(verification-claim-integrity 원칙 — 관측하지 않은 것을 관측했다고 기재하지 않는다).
+
+### 수행 내역
+
+1. **CHANGELOG.md**: `[Unreleased]` 절 상단에 `### Added — SPEC-EVIDENCE-001 ...` 항목을
+   신규 추가했다. B12 자체 점검(사전 검증) 3항목: (a) `grep -c 'SPEC-EVIDENCE-001' CHANGELOG.md`
+   사전 실행 결과 0건 확인(중복 없음, 신규 추가 이전 시점), (b) `acceptance.md`의 AC ID
+   distinct count(`grep -oE 'AC-EVIDENCE-[0-9]+[a-z]?' acceptance.md | sort -u | wc -l`)
+   → 25개, CHANGELOG 항목의 "25개 인수 기준" 서술과 일치, (c) CHANGELOG에서 참조한
+   파일 경로(`.moai/specs/SPEC-EVIDENCE-001/`, `.moai/reports/coverage-delta-m4e.md`,
+   `.moai/reports/evidence-source-audit-manifest.md`)를 `ls`로 실제 존재 확인.
+2. **spec.md frontmatter 상태 전환**: `status: in-progress` → `status: completed`,
+   `updated: 2026-08-31`(변경 없음, 이미 오늘 날짜) — Status Transition Ownership Matrix의
+   "in-progress → implemented → completed"가 단일 sync 커밋에서 병합 수행됨을 따라
+   중간 `implemented` 단계를 별도 커밋 없이 `completed`로 직행했다. spec.md 본문(HISTORY 포함)은
+   수정하지 않았다.
+3. **plan.md/acceptance.md**: 이 저장소의 SPEC 관례상 두 파일에는 YAML frontmatter 자체가
+   없다(확인: `grep -n "^status:" plan.md acceptance.md` → 매치 없음) — 따라서 frontmatter
+   상태 전환 대상이 아니다. 본문도 수정하지 않았다.
+4. **README.md**: 직전 SPEC(SPEC-GEMINI-RUNTIME-001) sync 커밋(`a2d813b`)의 실제 관례를
+   확인한 결과, README는 새 환경변수를 도입한 SPEC에서만 그 환경변수 문서 절을 갱신했고
+   "현재 구현 상태" 제목 줄은 그 시점에도 갱신되지 않았다(SPEC-GEMINI-RUNTIME-001이 아직
+   미반영 상태로 남아 있음, 이는 이 sync 세션이 새로 만든 gap이 아니라 기존 관례의 결과다).
+   이 SPEC은 신규 런타임 의존성이나 신규 환경변수를 도입하지 않았으므로(§O/§P 확인),
+   기존 관례를 따라 README를 수정하지 않았다.
+
+### 잔여 gap (숨기지 않고 기록)
+
+- **DISPUTE_CASE(M4b) 0건**: §M/§N/§P에서 이미 사용자 승인으로 best-effort(0건도 AC 충족)로
+  정식 하향됐다 — CHANGELOG 항목에도 이 사실을 과장·은폐 없이 명시했다. sync-phase가 새로
+  이 항목을 충족시키지 않았다(충족시킬 스코프가 아니다).
+- **README 미갱신**: 위 3번 판단(judgment call)에 따라 의도적으로 건드리지 않았다 — 향후 이
+  SPEC이 다루는 evidence retriever 개선이 사용자 대면 문서에 반영되어야 한다고 판단되면 별도
+  후속 작업으로 처리한다.
+- **plan-audit 리뷰 스트림 영속화**: §G.1 마지막 항목이 지적한 iteration 1~3 리뷰 파일 미영속화
+  gap은 sync-phase 스코프 밖이며(plan-phase 산출물), 이번 세션에서 추가로 손대지 않았다.
+
+### 커밋
+
+이 sync 세션의 단일 커밋(`docs(SPEC-EVIDENCE-001): sync — CHANGELOG 갱신 + SPEC 상태 전환`)이
+CHANGELOG.md + spec.md frontmatter + 이 progress.md §E.4 절을 함께 담는다. SHA는 커밋 완료 후
+별도로 확인 가능하다(커밋이 자기 자신의 SHA를 알 수 없는 self-referential 제약 —
+spec-frontmatter-schema.md의 SHA placeholder backfill 예외와 동일한 성격이나, 이 sync 커밋
+자체는 §E.3처럼 SHA 필드를 progress.md 안에 미리 기재하지 않으므로 별도 backfill 커밋이
+필요하지 않다).

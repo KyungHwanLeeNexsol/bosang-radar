@@ -2,7 +2,7 @@
 id: SPEC-EVIDENCE-001
 title: "근거자료(evidence) corpus 확장 + Retriever 쟁점 중심 ranking + counterEvidenceIds=[] 원인 진단"
 version: "0.8.0"
-status: in-progress
+status: completed
 created: 2026-08-28
 updated: 2026-08-31
 author: Nexsol

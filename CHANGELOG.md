@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+### Added — SPEC-EVIDENCE-001 근거자료(evidence) corpus 확장 + Retriever 쟁점 중심 ranking + counterEvidenceIds=[] 원인 진단
+
+실 Gemini smoke 2회(`gemini-smoke-20260827.md`, `gemini-runtime-smoke-20260828.md`)에서 `Skeptic.counterEvidenceIds`가 매번 빈 배열로 관측된 현상에 대응해, (축1) evidence corpus를 담보×쟁점 기준으로 검증 가능하게 확장하고 (축2) counterEvidenceIds=[] 원인을 corpus/Retriever/prompt/model behavior 네 갈래로 분해해 관측 가능하게 만들었습니다. vector DB를 도입하지 않고 현재 DB + TypeScript 규칙 기반 구조 위에서 설계했습니다.
+
+- **Evidence 스키마 확장**: `evidence` 테이블에 `issueTypes`(8개 `QueryIssueType`의 부분집합, JSON 배열) 컬럼 1개만 추가(`db/migrations/0003_sad_hitman.sql`) — `sourceIdentifier`/`sourceDate`/`keywords`는 이 SPEC에서 도입하지 않음(dedup은 `sourceUrl` 동일성만으로 충족). 담보(INJURY_DISABILITY/DISEASE_DISABILITY)×issueType(8개) 16칸 coverage matrix(`coverage-matrix.md`)를 신설
+- **Candidate Eligibility + issueType 중심 ranking (Retriever 전략 B 채택)**: `lib/pipeline/evidence-retriever.ts`에 issueType exact match를 포함한 candidate eligibility 전략(전략 B)을 신설해 프로덕션 채택 — hard filter는 도입하지 않고 inclusion-OR/정렬 신호로만 사용. 7개 벤치마크 케이스에서 전략 B가 전략 A 대비 Recall/Hit/Precision 3개 지표 전부 우세함을 실측(비 non-regression 계약 충족)으로 확인, `retrieveEvidence()`는 strategy 값과 무관하게 항상 결정론적 `computeScore()` + `score desc || id asc` tie-break 사용(REQ-EVIDENCE-012)
+- **true baseline 측정 인프라 분리**: M4d 최종 비교 전용 `trueBaselineRetrieveEvidence()`/`computeBaselineScore()` pure 함수를 신설(production 경로에서 호출하지 않음)해, "동일 corpus 위 알고리즘 개선 효과(algorithm effect)"와 "corpus 확장 효과(corpus expansion effect)"를 혼동하지 않도록 M2(exploratory, mutable evidence.json)와 M4d(frozen, `evidence-m2-snapshot.json`)를 코드/문서 양쪽에서 명확히 분리
+- **counterEvidenceIds=[] 진단 harness**: `lib/pipeline/evidence-diagnostic.test.ts` — A(corpus에 counter-relevant evidence 존재)/B(Retriever가 candidate로 반환)/C-전제조건(challenge() 프롬프트에 해당 evidence 포함) 3단계 fixture self-test 신설. 2026-08-28 smoke의 실제 case 입력을 replay해 8개 쿼리 중 5개는 corpus/Retriever 단계에서 candidate가 0건(A/B와 정합), 3개는 candidate가 있었으나 Skeptic의 실제 선택 여부는 LLM 재호출 없이 확인 불가 — "corpus/Retriever/prompt/model behavior 미확정"이라는 결론을 과장 없이 유지
+- **Evidence corpus 확장 + 재감사**: 기존 10건 전체 재감사(1건 문구 수정, POLICY→OTHER downgrade 1건 포함) + 신규 확장으로 corpus를 21건으로 확대(`evidence-source-audit-manifest.md`), 7개 BenchmarkCase의 ground truth를 human review로 확정(M4c freeze)
+- **정직한 미충족 항목 명시 (best-effort로 공식 하향)**: DISPUTE_CASE(분쟁조정 사례) evidenceType은 FSS/KNIA/FCSC 공식 소스가 텍스트 추출 가능한 형식(HTML)으로 공개되어 있지 않아 3회 세션에 걸친 조사에도 0건 — 사용자 승인을 받아 plan.md M4b 요구를 "최소 1건 필수"에서 "best-effort(0건도 AC 충족)"로 정식 하향. 지어낸 데이터나 사례는 어디에도 추가하지 않았습니다
+- **post-run 정합성 보정**: 벤치마크 baseline 배선 결함(전략 A가 일시적으로 `computeBaselineScore`/tie-break-없음 정렬을 잘못 사용해 REQ-EVIDENCE-012를 위반했던 버그)을 발견 즉시 재수정, coverage-delta 리포트를 append-correction 방식에서 단일 최종본으로 재작성
+
+**검증**: 25개 요구사항(REQ-EVIDENCE-001~025) 전부 구현, 25개 인수 기준(AC-EVIDENCE-001~021/026 + AC-EVIDENCE-016 서브레터 a/b/c/d) 전부 코드 레벨로 만족. plan-auditor 감사 7회 실행(iteration 1 FAIL → iteration 2/3 PASS(0.923) → 배선 결함 발견 후 iteration 5 PASS(0.923) → iteration 6 FAIL(기존 미해결 결함) → D1/D2 수정 후 iteration 7 PASS(1.0)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(42 test files, 289 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(Node 22 + pnpm 환경 실측, 이번 세션 재확인). 신규 런타임 의존성 없음.
+
+**참고**: `.moai/specs/SPEC-EVIDENCE-001/`, `.moai/reports/coverage-delta-m4e.md`, `.moai/reports/evidence-source-audit-manifest.md`
+
 ### Added — SPEC-GEMINI-RUNTIME-001 무료 티어 파일럿 안정화 (역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력)
 
 실 Gemini 프로덕션 스모크 테스트(`.moai/reports/gemini-smoke-20260827.md`)에서 드러난 4가지 근본 원인(모델 가용성 실패, 무료 tier RPM 쿼터 소진으로 인한 429, Skeptic 반박 근거 공백, 편협한 재시도)에 대응해 무료 티어 소수 파일럿 단계의 **안정성**을 높였습니다. 새 기능이 아니라 기존 6단계 파이프라인의 Gemini 호출 방식과 복원력을 재설계하는 작업입니다.
