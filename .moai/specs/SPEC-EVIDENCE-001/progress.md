@@ -820,3 +820,215 @@ immutable fixture snapshot 요구사항 신설. spec.md REQ-EVIDENCE-016/009 문
   plan.md/acceptance.md의 D1/D2 정리도 필요하면 함께 반영하도록 지시했다(코드+문서 동시 반영,
   4차 fixture 관련 문서 편집이 남아있는 상태이므로 별도 라운드로 나누지 않음).
   보고서: `.moai/reports/plan-audit/SPEC-EVIDENCE-001-review-5.md`.
+
+---
+
+## §L Run-phase 세션 2 정리 (Blocker1/2 + M4 full + M4c/M4d/M4e 완료)
+
+이번 세션(2026-08-30)에서 완료한 것을 정직하게 기록한다.
+
+### 완료
+
+- **Blocker1**(커밋 `e5ab40e`): `computeBaselineScore()` 신규 export + `retrieveEvidence()` 내 전략 A/B 스코어 분기.
+  - TDD RED 증거: `computeBaselineScore is not a function` (2 failed)
+  - TDD GREEN: 20/20 evidence-retriever tests passed
+- **Blocker2**(커밋 `da6ffb8`): `db/seed/evidence-m2-snapshot.json` 10건 frozen snapshot 신규 + benchmark 4섹션 분리
+  - [M2 EXPLORATORY] → m2SnapshotRows 사용 (mutable production evidence.json에서 분리)
+  - [M5 REGRESSION] → seedRows(production) 유지
+  - [M4d FINAL] → it.todo stubs (M4c freeze 후 채워짐)
+- **M4 full**(커밋 `798bd46`): seed-evidence-003 POLICY→OTHER downgrade(insu-fit.com 마케팅 사이트 확인) + seed-evidence-020/021 신규 2건 (총 21건)
+- **M4c**(커밋 `9626bd2`): 21건 corpus 기준 7개 BenchmarkCase의 complete knownRelevantEvidenceIds 확정 (human review)
+- **M4d**(커밋 `b6faba0`): algorithm effect 최종 측정 — [FROZEN] tests 2개 추가
+  - Strategy A (baseline): meanRecall=0.540, meanHit=0.714, meanPrecision=0.314
+  - Strategy B (new): meanRecall=1.000, meanHit=0.857, meanPrecision=0.657
+  - B >= A: 3개 메트릭 모두 충족 (non-regression PASS)
+  - REQ-013 target case: A=miss(hit:0), B=hit(hit:1) 확인
+- **M4e**(커밋 `4b47c4d`): coverage delta 리포트(`.moai/reports/coverage-delta-m4e.md`) + coverage-matrix.md 업데이트
+  - 비어있는 셀: 14/14 → 7/14 (7셀 개선)
+  - BenchmarkCase ground truth ≥ 1건: 0/7 → 6/7 (86%)
+- **Push**: `4b47c4d` HEAD를 origin/feat/SPEC-EVIDENCE-001에 push 완료
+
+### 완료하지 않음
+
+- **DISPUTE_CASE**: 이번 세션에서도 FSS 분쟁조정 결정 개별 HTML URL 확보 실패 — PDF만 공개, 텍스트 추출 불가. 0건 유지.
+- **M6 문서 최종 정리**: M4d/M4e 결과는 완성했으나 acceptance.md의 모든 AC 검증 + CHANGELOG + README 업데이트는 manager-docs(sync phase) 몫.
+- **pnpm test:e2e, pnpm build**: 환경 제약(Node v20 + pnpm 11.23.0 호환성 문제)으로 이번 세션에서 실행 불가.
+
+### 테스트 현황 (최종)
+
+- 전체 테스트: 279 passed | 8 todo | 7 failed (infra, pre-existing)
+- 7 failed: `scripts/db-*.test.ts` — tsx runner 없는 환경에서 node로 .ts 직접 실행 시도로 발생, SPEC-EVIDENCE-001 변경과 무관. pnpm 환경에서는 정상 실행됨(§J의 281/281 통과 기록 참조).
+- ESLint: `lib/pipeline/evidence-retriever.ts`, `evidence-retriever.test.ts`, `evidence-retriever.benchmark.test.ts` 모두 clean.
+
+### SPEC 상태
+
+`status: in-progress` 유지. M4d/M4e 완료로 핵심 acceptance criteria(AC-EVIDENCE-014 포함)가 충족되었으나, M6 및 sync phase(manager-docs)가 `completed` 전환을 담당한다.
+
+### §E.2 M4 섹션 run-phase 증거
+
+| 마일스톤 | Actual Output 요약 | Status |
+|---|---|---|
+| Blocker1(computeBaselineScore) | TDD RED: "computeBaselineScore is not a function" (2 failed) → GREEN: 20/20 passed | PASS |
+| Blocker2(M2 snapshot freeze) | evidence-m2-snapshot.json 신규, benchmark 4섹션 분리, 7/7 non-todo passed | PASS |
+| M4 full(corpus 21건) | seed-003 OTHER downgrade + 020/021 신규, audit manifest 업데이트 | PASS |
+| M4c(ground truth freeze) | 7 BenchmarkCase × complete knownRelevantEvidenceIds 확정 | PASS |
+| M4d(algorithm effect) | Strategy B meanRecall=1.0 >= A 0.540, B hits REQ-013 target, A misses | PASS |
+| M4e(coverage delta) | 빈 셀 14→7, 7/7 BenchmarkCase 중 6/7 ground truth ≥ 1건 | PASS |
+
+### §E.3 Run-phase Audit-Ready Signal (세션 2)
+
+```yaml
+run_status: m4-complete
+m4_complete_at: 2026-08-30
+run_commit_sha: 4b47c4d  # HEAD at session end, pushed to origin/feat/SPEC-EVIDENCE-001
+ac_pass_count_this_session: 6  # Blocker1(REQ-016 fix), Blocker2(corpus isolation), M4(corpus-003), M4c(ground-truth-freeze), M4d(AC-EVIDENCE-014), M4e(coverage-delta)
+ac_fail_count: 0
+new_warnings_or_lints_introduced: false
+total_run_phase_files_this_session: 8  # evidence-retriever.ts/test.ts/benchmark.test.ts + evidence-m2-snapshot.json + evidence.json + coverage-matrix.md + coverage-delta-m4e.md + evidence-source-audit-manifest.md
+m1_to_mN_commit_strategy: per-milestone-commit
+```
+
+---
+
+## §M Run-phase 세션 3 정리 (post-run correction — Fix1~Fix5 + Fix7/8)
+
+이번 세션(2026-08-30)에서 수행한 post-run correction 7개를 정직하게 기록한다.
+
+### Fix1: Strategy A sort = score desc only (기존 main baseline)
+
+`evidence-retriever.ts`의 `.sort()` 호출을 전략 분기로 수정.
+- 수정 전: `(a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id)` (단일 정렬, 전략 무관)
+- 수정 후: `strategy === "A"` → score desc only (tie-break 없음) / `strategy === "B"` → score desc + id 오름차순
+- 근거: 전략 A의 true baseline은 SPEC 착수 전 main과 동일한 단순 score desc여야 한다. id tie-break는 M2에서 전략 B를 위해 도입된 NEW 기능이므로 전략 A의 baseline에 포함되지 않는다.
+- 테스트 추가: `evidence-retriever.test.ts`에 "전략 A: DB 행 순서 유지", "전략 B: id 오름차순 tie-break" 2개 테스트 신규 추가.
+
+### Fix2: M2_BENCHMARK_CASES 분리 + measureStrategy() cases 파라미터화
+
+`evidence-retriever.benchmark.test.ts`에서:
+- `M2_BENCHMARK_CASES` const 신규 추가 (M2 당시 10건 corpus 기준 ground truth, FROZEN)
+- `BENCHMARK_CASES` → FINAL benchmark (M4c freeze 기준, 21건 corpus)로 역할 명확화
+- `measureStrategy()` 시그니처 변경: `(strategy, rows)` → `(strategy, rows, cases: BenchmarkCase[])`
+- `[M2 EXPLORATORY]` 섹션의 모든 테스트가 `M2_BENCHMARK_CASES`를 사용하도록 업데이트
+
+### Fix3: bm-disease-grade-01 ground truth 수정
+
+`BENCHMARK_CASES`의 `bm-disease-grade-01.knownRelevantEvidenceIds`:
+- 수정 전: `[]` (빈 배열 — AC-EVIDENCE-013 잘못된 적용)
+- 수정 후: `["seed-evidence-004", "seed-evidence-017", "seed-evidence-018"]`
+- 근거: AC-EVIDENCE-013의 "OTHER downgrade 항목 제외" 조항은 manifest에서 의도적으로 downgrade된 항목(seed-003 POLICY→OTHER)에만 해당. seed-004/017/018은 처음부터 OTHER였고 downgrade된 적 없음 → 포함 가능.
+
+### Fix4: seed-021 DIAGNOSIS 태깅 제거 + manifest §C 모순 수정
+
+A. `db/seed/evidence.json`의 seed-evidence-021 issueTypes 변경:
+   - 수정 전: `["CAUSATION", "DIAGNOSIS"]`
+   - 수정 후: `["CAUSATION"]`
+   - 근거: 고지의무/계약해지 판례는 QueryPlanner DIAGNOSIS issueType("질병후유장해의 diagnosisName 확인 쟁점")이 아님.
+
+B. `BENCHMARK_CASES`의 `bm-disease-diagnosis-01.knownRelevantEvidenceIds`:
+   - 수정 전: `["seed-evidence-008", "seed-evidence-019", "seed-evidence-021"]`
+   - 수정 후: `["seed-evidence-008", "seed-evidence-019"]`
+
+C. `evidence-source-audit-manifest.md` §B2 seed-021 행: issueTypes를 `["CAUSATION"]`으로 업데이트, DIAGNOSIS 제거 rationale 기록.
+
+D. `evidence-source-audit-manifest.md` §C: "의도적으로 배제한 후보" → "최종 채택(seed-021)으로 반전, DIAGNOSIS 태깅 제거" 기록. §C의 seed-021 기록과 §B2의 채택 기록 간 모순 해소.
+
+### Fix5: recallAt5/hitAt5 빈 ground-truth → null + mean 제외 처리
+
+`evidence-retriever.benchmark.test.ts`에서:
+- `recallAt5()` / `hitAt5()` / `precisionAt5()`: `knownRelevantIds.length === 0` → `null` 반환
+- `StrategyMetrics.perCase`: `recall/hit/precision` 타입을 `number | null`로 변경, `skipped: boolean` 필드 추가
+- `StrategyMetrics`: `skippedCases: string[]` 필드 추가
+- `measureStrategy()`: null 케이스(skipped) 제외하고 mean 계산
+- 참고: Fix3 적용 후 bm-disease-grade-01은 non-empty ground truth가 되어 null path가 발동하지 않음. 그러나 미래 빈 케이스를 위한 방어적 처리로 정확함.
+
+### Fix7: DISPUTE_CASE 시도 — 미충족 정직 기록
+
+이번 세션에서 DISPUTE_CASE 확보를 재시도했다:
+- (a) `https://www.fss.or.kr` — curl 접근 불가 (Bash 환경에서 HTTP 응답 없음, 타임아웃)
+- (b) `https://www.knia.or.kr` — 동일하게 네트워크 접근 불가
+- (c) FSS/KNIA/FCSC 웹사이트 — Bash 환경에서 outbound HTTP 연결이 차단된 것으로 판단
+
+**결론**: HTML URL 개별 단위 DISPUTE_CASE 확보 불가 — Bash 환경의 네트워크 제약.
+M4b DISPUTE_CASE 요구 미충족: 2026-08-30, 시도한 경로: FSS/KNIA/FCSC 웹사이트, curl 타임아웃, 결론: 환경 제약으로 HTML URL 개별 단위 확보 불가.
+
+### Fix6: M4d 재측정 (수행완료 — vitest Node.js v20으로 직접 실행)
+
+pnpm PATH 문제 우회: nvm v20.19.6 + vitest.mjs 직접 실행.
+
+**[M4d FROZEN post-correction] — Strategy A (true baseline, issueTypeWeight=0, score-desc-only sort)**:
+
+| case | recall | hit | precision |
+|------|--------|-----|-----------|
+| bm-injury-preexisting-01 | 0.000 | 0 | 0.000 |
+| bm-injury-causation-01 | 1.000 | 1 | 0.800 |
+| bm-injury-grade-01 | 0.200 | 1 | 0.200 |
+| bm-injury-location-01 | 0.250 | 1 | 0.200 |
+| bm-disease-causation-01 | 1.000 | 1 | 0.800 |
+| bm-disease-grade-01 | 0.333 | 1 | 0.200 |
+| bm-disease-diagnosis-01 | 0.500 | 1 | 0.200 |
+| **mean** | **0.469** | **0.857** | **0.343** |
+
+**[M4d FROZEN post-correction] — Strategy B (new, issueTypeWeight=10, score-desc + id tie-break)**:
+
+| case | recall | hit | precision |
+|------|--------|-----|-----------|
+| bm-injury-preexisting-01 | 1.000 | 1 | 0.600 |
+| bm-injury-causation-01 | 1.000 | 1 | 0.800 |
+| bm-injury-grade-01 | 1.000 | 1 | 1.000 |
+| bm-injury-location-01 | 1.000 | 1 | 0.800 |
+| bm-disease-causation-01 | 1.000 | 1 | 0.800 |
+| bm-disease-grade-01 | 1.000 | 1 | 0.600 |
+| bm-disease-diagnosis-01 | 1.000 | 1 | 0.400 |
+| **mean** | **1.000** | **1.000** | **0.714** |
+
+**비교 결과 (REQ-EVIDENCE-016 기본 PASS 조건)**:
+- Recall: B 1.000 >= A 0.469 ✓
+- Hit: B 1.000 >= A 0.857 ✓
+- Precision: B 0.714 >= A 0.343 ✓
+- REQ-013 target case(bm-injury-preexisting-01): A=miss(hit:0) → B=hit(hit:1) ✓
+- **AC-EVIDENCE-014 기본 PASS 조건: 충족**
+
+### Fix8: gate 실행 — vitest/eslint/prettier 직접 실행 (2026-08-30)
+
+pnpm 11.23.0은 Node.js v22+ 필요로 실행 불가. vitest/eslint/prettier를 Node.js v20으로 직접 실행.
+
+**vitest run (pnpm test 대체)**:
+```
+Test Files  3 failed | 39 passed (42)
+     Tests  7 failed | 281 passed (288)
+  Duration  4.52s
+```
+- 281 PASS ✓
+- 7 FAIL: scripts/db-migrate.test.ts, scripts/db-seed.test.ts, scripts/provision-tester.test.ts
+  - 원인: 이 테스트들이 `.ts` 스크립트를 bare node로 직접 실행(tsx 없음) — SPEC-EVIDENCE-001 변경과 무관한 환경 제약. §J에서 pnpm 환경 281/281 통과 확인됨.
+
+**ESLint (SPEC-EVIDENCE-001 변경 파일)**:
+```
+lib/pipeline/evidence-retriever.ts → 0 errors, 0 warnings ✓
+lib/pipeline/evidence-retriever.test.ts → 0 errors, 0 warnings ✓
+lib/pipeline/evidence-retriever.benchmark.test.ts → 0 errors, 0 warnings ✓
+```
+
+**Prettier format:check (SPEC-EVIDENCE-001 변경 파일)**:
+```
+All matched files use Prettier code style! ✓
+```
+
+**미실행 (환경 제약)**:
+- `pnpm build` — pnpm 11.23.0 + Node.js v22+ 필요, v20만 가용
+- `pnpm test:e2e` — pnpm 환경에서만 실행 가능
+
+### §E.2 M4d post-correction 섹션 (최종)
+
+| AC | Status | Evidence |
+|----|--------|---------|
+| AC-EVIDENCE-008 | PASS | 전략 A/B eligibility 동작 변경 없음 (benchmark 7/7 PASS) |
+| AC-EVIDENCE-014 | **PASS** | M4d 재측정: B Recall/Hit/Precision >= A, REQ-013 A=miss/B=hit ✓ |
+| AC-EVIDENCE-013 | **PASS** | bm-disease-grade-01 non-empty(004/017/018), seed-021 DIAGNOSIS 제거 |
+
+### SPEC 상태
+
+`status: in-progress` 유지.
+- **DISPUTE_CASE 0건(M4b)**: 검증 가능한 FSS 분쟁조정 사례 개별 HTML URL 확보 불가. plan.md M4b 요구 미충족 — 숨기지 않음.
+- **pnpm build / pnpm test:e2e**: Node.js v22 + pnpm 11.23.0 필요로 현재 환경에서 미실행 — pnpm 환경에서 확인 필요.
+- pnpm build / test:e2e PASS 및 DISPUTE_CASE 1건 확보 시 AC 전체 충족 → sync 가능.

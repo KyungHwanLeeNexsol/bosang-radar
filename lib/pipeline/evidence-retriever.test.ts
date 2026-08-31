@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { retrieveEvidence } from "./evidence-retriever";
+import { computeBaselineScore, computeScore, retrieveEvidence } from "./evidence-retriever";
 import type { EvidenceCandidate, ResearchQuery } from "./types";
 
 // SPEC-RESEARCH-001 M4 — EvidenceRetriever DB 조회 + 쿼리별 필터링/스코어링
@@ -310,5 +310,147 @@ describe("retrieveEvidence TOP_N 불변 확인 (REQ-EVIDENCE-011, AC-EVIDENCE-01
     const result = await retrieveEvidence([query], makeFakeDb(rows));
 
     expect(result.get("q-topn")?.length).toBe(5);
+  });
+});
+
+// SPEC-EVIDENCE-001 Blocker1 — computeBaselineScore: 전략 A(baseline)용 점수 계산
+// issueTypeWeight를 포함하지 않아야 true baseline이 된다(design.md §3.4A).
+// Blocker1: computeScore는 issueTypeWeight(10)를 포함하므로 전략 A/B 스코어가
+// 동일해지는 버그가 있었음 — computeBaselineScore로 분리하여 수정한다.
+describe("computeBaselineScore (Blocker1 — REQ-EVIDENCE-016 수정)", () => {
+  it("전략 A: issueType 정확 일치해도 issueTypeWeight가 추가되지 않는다 — computeBaselineScore는 domainWeight + universalWeight + keywordScore만 반환한다", () => {
+    // evidence는 issueType이 정확히 일치하지만 keyword는 0건인 케이스
+    const fakeEvidence = makeRow({
+      id: "e-baseline-test",
+      category: "상해후유장해",
+      issueTypes: ["PRE_EXISTING_CONDITION"],
+    });
+    const fakeQuery = makeQuery({
+      id: "q-baseline-test",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["존재하지않는키워드"],
+    });
+
+    const domainMatch = true; // 상해후유장해 == INJURY_DISABILITY
+    const isUniversal = false;
+    const keywordScore = 0; // 키워드 매칭 없음
+
+    // computeBaselineScore: issueTypeWeight 없음 → domainWeight(2) + 0 + 0 = 2
+    const baselineScore = computeBaselineScore(
+      fakeEvidence,
+      fakeQuery,
+      domainMatch,
+      isUniversal,
+      keywordScore
+    );
+    expect(baselineScore).toBe(2); // domainWeight만
+
+    // computeScore: issueTypeWeight(10) 포함 → 10 + 2 + 0 + 0 = 12
+    const newScore = computeScore(fakeEvidence, fakeQuery, domainMatch, isUniversal, keywordScore);
+    expect(newScore).toBe(12); // issueTypeWeight + domainWeight
+  });
+
+  it("전략 B: 동일 evidence에 대해 computeScore > computeBaselineScore (issueType 일치 시)", () => {
+    const fakeEvidence = makeRow({
+      id: "e-score-diff",
+      category: "질병후유장해",
+      issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+    });
+    const fakeQuery = makeQuery({
+      id: "q-score-diff",
+      domain: "DISEASE_DISABILITY",
+      issueType: "DISABILITY_GRADE_CRITERIA",
+      keywords: [],
+    });
+
+    const domainMatch = true;
+    const isUniversal = false;
+    const keywordScore = 0;
+
+    const baseline = computeBaselineScore(
+      fakeEvidence,
+      fakeQuery,
+      domainMatch,
+      isUniversal,
+      keywordScore
+    );
+    const newScore = computeScore(fakeEvidence, fakeQuery, domainMatch, isUniversal, keywordScore);
+
+    // 전략 B는 issueTypeWeight(10)를 더하므로 항상 baseline보다 크다
+    expect(newScore).toBeGreaterThan(baseline);
+    expect(newScore - baseline).toBe(10); // issueTypeWeight 정확히 10 차이
+  });
+
+  it("전략 A에서 retrieveEvidence는 issueType 정확 일치 evidence를 keyword 없이도 반환하지 않는다 (전략 A 한계: REQ-013 motivation)", async () => {
+    // strategy A를 명시적으로 사용할 때, computeBaselineScore를 통한 스코어가
+    // relevantA() 술어를 바꾸지 않음을 확인한다
+    // (relevantA = keyword 필수; 스코어만 변경, eligibility 술어는 동일)
+    const rows = [
+      makeRow({
+        id: "e-issuetype-only",
+        category: "상해후유장해",
+        title: "완전 무관한 제목",
+        content: "완전 무관한 본문",
+        issueTypes: ["PRE_EXISTING_CONDITION"],
+      }),
+    ];
+    const query = makeQuery({
+      id: "q-baseline-eligibility",
+      domain: "INJURY_DISABILITY",
+      issueType: "PRE_EXISTING_CONDITION",
+      keywords: ["존재하지않는키워드"],
+    });
+
+    // 전략 A: keyword 없으면 candidate 자체가 없어야 함
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    expect(resultA.get("q-baseline-eligibility")).toEqual([]);
+  });
+});
+
+// SPEC-EVIDENCE-001 Fix1 — 전략별 정렬 분기 검증:
+// 전략 A(baseline): score desc only — tie-break 없음, DB 행 순서 유지
+// 전략 B(new):      score desc + id 오름차순 tie-break(결정론적)
+describe("retrieveEvidence 전략별 정렬 분기 (Fix1 — strategy-dispatched sort)", () => {
+  it("전략 A: computeBaselineScore 동점 시 result order는 DB 행 순서(입력 배열 순서)에 의존한다 — id 알파벳 순이 아님", async () => {
+    // 입력 배열이 e-z, e-a, e-m 순이고 모든 score가 동일하면
+    // 전략 A(tie-break 없음)는 입력 순서대로 e-z, e-a, e-m을 반환해야 한다.
+    // (전략 B라면 e-a, e-m, e-z로 id 오름차순 정렬됨)
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-a-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    const resultA = await retrieveEvidence([query], makeFakeDb(rows), "A");
+    const idsA = resultA.get("q-strategy-a-tie")?.map((e) => e.id) ?? [];
+    // 전략 A는 tie-break 없음 → 입력 배열 순서 그대로 [e-z, e-a, e-m]
+    expect(idsA).toEqual(["e-z", "e-a", "e-m"]);
+    // id 알파벳 오름차순이 아님을 명시적으로 확인
+    expect(idsA).not.toEqual(["e-a", "e-m", "e-z"]);
+  });
+
+  it("전략 B: computeScore 동점 시 id 오름차순 tie-break가 적용되어 항상 결정론적 정렬된다", async () => {
+    // 동일 rows를 전략 B로 실행하면 e-a, e-m, e-z (id 오름차순)
+    const rows = [
+      makeRow({ id: "e-z", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-a", category: "상해후유장해", title: "장해", content: "장해" }),
+      makeRow({ id: "e-m", category: "상해후유장해", title: "장해", content: "장해" }),
+    ];
+    const query = makeQuery({
+      id: "q-strategy-b-tie",
+      domain: "INJURY_DISABILITY",
+      keywords: ["장해"],
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const resultB = await retrieveEvidence([query], makeFakeDb(rows), "B");
+      expect(resultB.get("q-strategy-b-tie")?.map((e) => e.id)).toEqual(["e-a", "e-m", "e-z"]);
+    }
   });
 });
