@@ -28,6 +28,8 @@ Given-When-Then scenarios, grouped by deliverable. Each criterion is binary-test
 - Given a minimal payload object containing only `{ overallRating: "ACCURATE" }`
 - When `reportFeedbackPayloadSchema.safeParse(payload)` runs
 - Then `result.success === true` and `result.data.missedIssues`, `result.data.claimAssessments`, `result.data.evidenceAssessments` are each `[]`.
+- And (empty-string normalization, REQ-FEEDBACK-003) given instead a payload `{ overallRating: "ACCURATE", overallComment: "   " }` (whitespace-only), when `reportFeedbackPayloadSchema.safeParse(payload)` runs, then `result.success === true` and `result.data.overallComment === undefined` (not `""` or whitespace).
+- And (partial-outcome rejection, REQ-FEEDBACK-007 all-or-nothing) given instead a payload with `outcome: { description: "합의 완료" }` (only `description` filled, `confirmedAt` absent/empty), when `reportFeedbackPayloadSchema.safeParse(payload)` runs, then `result.success === false`.
 
 **AC-FEEDBACK-005**
 - Given a payload whose `overallComment` field contains a resident-registration-number-shaped string (matching `\d{6}-?\d{7}`)
@@ -78,8 +80,9 @@ Given-When-Then scenarios, grouped by deliverable. Each criterion is binary-test
 **AC-FEEDBACK-013**
 - Given a valid `reportId`, a valid `ownerUserId`, and a valid payload
 - When `submitReportFeedback(reportId, ownerUserId, payload)` is called twice in succession with the same three arguments
-- Then both calls return `{ success: true, feedbackId: <distinct id> }`, and two distinct rows exist in `feedback` for that `(reportId, userId)` pair (append-only, no unique-constraint rejection)
+- Then both calls return `{ success: true, feedbackId: <distinct id>, caseId: <id> }` (the same server-derived `caseId`, per REQ-FEEDBACK-010/013 — not just `{success:true, feedbackId}`), and two distinct rows exist in `feedback` for that `(reportId, userId)` pair (append-only, no unique-constraint rejection)
 - And (REQ-FEEDBACK-002, negative half) `lib/feedback/submit-feedback.ts` exports no function whose name or behavior updates or deletes an existing `feedback` row, `app/cases/[caseId]/actions.ts` exports no `"use server"` action that updates or deletes a `feedback` row, and no `app/api/**/route.ts` handler exposes an update or delete capability for `feedback` rows — verified by inspecting the exported symbols of `lib/feedback/submit-feedback.ts` and `app/cases/[caseId]/actions.ts`, and by confirming no route handler under `app/api/` references the `feedback` table with an `update`/`delete`/`set` Drizzle call.
+- And (minimal-payload insert-success, REQ-FEEDBACK-013) given instead a payload of ONLY `{ overallRating: "ACCURATE" }` (all arrays absent/defaulting to `[]`), when `submitReportFeedback(reportId, ownerUserId, payload)` is called, then the result is `{ success: true, feedbackId: <id>, caseId: <id> }` and exactly one row is inserted into `feedback` — the write-path MUST NOT issue an empty `IN ()` existence-check query for the empty `claimAssessments`/`evidenceAssessments` arrays.
 
 ## AC Group 4 — UI (REQ-FEEDBACK-014, REQ-FEEDBACK-015)
 
@@ -106,4 +109,4 @@ Given-When-Then scenarios, grouped by deliverable. Each criterion is binary-test
 
 - All 16 acceptance criteria above PASS with cited command output or DB-row evidence (per `verification-claim-integrity.md` — no unobserved-verification claims).
 - `pnpm lint`, `pnpm format:check`, and `tsc --noEmit` (or `pnpm build`) all exit 0 with no new warnings attributable to this SPEC's files.
-- No file outside the plan.md §B milestone list and §E PRESERVE-exempt scope is modified.
+- No file outside the plan.md §B milestone list and §E PRESERVE-exempt scope is modified — this explicitly includes `scripts/provision-tester.test.ts` and `lib/cases/get-case-for-owner.test.ts` as recognized in-scope edits per plan.md §B M5 (not accidental/out-of-scope touches).
