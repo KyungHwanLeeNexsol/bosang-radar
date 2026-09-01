@@ -40,6 +40,10 @@ function formError(message: string): SubmitFeedbackValidationFailure {
   return { success: false, fieldErrors: { _form: [message] } };
 }
 
+// @MX:ANCHOR: [AUTO] 리포트 구조화 피드백 영속화의 유일한 write-path 진입점
+// @MX:REASON: 이 함수를 우회해 feedback 테이블에 직접 insert하는 코드가 생기면
+// 소유권 검사(REQ-FEEDBACK-009)·claimIndex/evidenceId 참조 무결성 검사
+// (REQ-FEEDBACK-011~012)·서버 도출 caseId(REQ-FEEDBACK-010)가 모두 우회된다.
 export async function submitReportFeedback(
   reportId: string,
   ownerUserId: string,

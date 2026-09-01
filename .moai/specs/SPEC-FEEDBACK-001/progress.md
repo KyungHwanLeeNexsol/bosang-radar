@@ -127,7 +127,18 @@ m1_to_mN_commit_strategy: per-milestone separate commits (M1-M5), no push
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+```yaml
+sync_complete_at: 2026-09-01
+sync_commit_sha: pending-backfill-sync-phase  # this commit cannot know its own SHA; backfilled in a follow-up commit per the SHA placeholder backfill exemption
+sync_status: PASS
+b12_self_test_a: PASS  # grep -c 'SPEC-FEEDBACK-001' CHANGELOG.md -> 0 (pre-emission), no duplicate entry risk
+b12_self_test_b: PASS  # grep -oE 'AC-([A-Z0-9]+-)*[0-9]+' acceptance.md | sort -u | wc -l -> 16, CHANGELOG entry cites the same 16
+b12_self_test_c: PASS  # ls verified: db/migrations/0004_calm_paladin.sql, lib/feedback/schema.ts, lib/feedback/submit-feedback.ts, lib/cases/get-case-for-owner.ts, app/cases/[caseId]/feedback-form.tsx
+changelog_entry_position: "top of [Unreleased], immediately before the SPEC-EVIDENCE-001 entry"
+frontmatter_status_transitions:
+  spec_md: "in-progress -> completed"
+canary_compliance_check: not-applicable  # this SPEC does not define a forward-looking policy that its own sync tests
+```
 
 ## §F Phase 4 Mode Selection
 
