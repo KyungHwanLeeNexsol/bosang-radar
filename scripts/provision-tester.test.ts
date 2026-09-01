@@ -258,8 +258,13 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // 정상적인 신규 스키마 변경 마이그레이션이다(sourceIdentifier/sourceDate는
   // 이 마이그레이션에 포함하지 않는다 — design.md §1.2).
   const EVIDENCE_ISSUE_TYPES_MIGRATION = "0003_sad_hitman.sql";
+  // SPEC-FEEDBACK-001 M1 — feedback 테이블을 리포트 단위 구조화 스키마로
+  // 확장하는 파괴적 마이그레이션(content 컬럼 제거, reportId/payload 추가).
+  // 레거시 feedback 행은 의도적으로 폐기되므로 DROP TABLE + CREATE TABLE
+  // 전략을 사용한다(plan.md M1 기술적 비상 대책, REQ-FEEDBACK-001).
+  const FEEDBACK_MIGRATION = "0004_calm_paladin.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개, 총 4개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개 + feedback 구조화 마이그레이션 1개, 총 5개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -268,7 +273,8 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(ACCOUNT_ISSUER_MIGRATION);
     expect(sqlFiles).toContain(EVIDENCE_SCHEMA_MIGRATION);
     expect(sqlFiles).toContain(EVIDENCE_ISSUE_TYPES_MIGRATION);
-    expect(sqlFiles).toHaveLength(4);
+    expect(sqlFiles).toContain(FEEDBACK_MIGRATION);
+    expect(sqlFiles).toHaveLength(5);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
@@ -319,6 +325,22 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(content).not.toMatch(/source_identifier|source_date/i);
     // CREATE/DROP TABLE 등 다른 DDL이 섞여 있지 않음을 재확인한다.
     expect(content).not.toMatch(/CREATE TABLE|DROP TABLE|CREATE INDEX|DROP INDEX/i);
+  });
+
+  it("feedback 구조화 마이그레이션은 feedback 테이블만 대상으로 한다(다른 테이블 CREATE/DROP/ALTER 없음)", () => {
+    const content = readFileSync(path.join(migrationsDir, FEEDBACK_MIGRATION), "utf-8");
+    const statements = content
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toMatch(/^DROP TABLE\s+`feedback`;?$/i);
+    expect(statements[1]).toMatch(/^CREATE TABLE\s+`feedback`/i);
+
+    // drift-guard: FOREIGN KEY REFERENCES는 허용되지만, feedback 외의 다른
+    // 테이블을 CREATE/DROP/ALTER의 대상으로 삼는 문장은 없어야 한다.
+    expect(content).not.toMatch(/(CREATE|DROP|ALTER)\s+TABLE\s+`(?!feedback`)/i);
   });
 });
 

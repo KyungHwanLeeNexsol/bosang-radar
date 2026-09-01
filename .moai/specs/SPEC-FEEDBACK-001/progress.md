@@ -68,12 +68,88 @@ One-line summary per fix applied:
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+TDD cycle (RED-GREEN-REFACTOR), Milestones M1-M5, all committed on `plan/SPEC-FEEDBACK-001` (per orchestrator instruction — no push performed by this agent).
+
+### AC PASS/FAIL Matrix
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|----------------------|----------------|
+| AC-FEEDBACK-001 | PASS | Read `lib/db/schema.ts` `feedback` table definition | Columns are exactly `id`, `caseId` (FK `cases.id` cascade), `reportId` (FK `reports.id` cascade), `userId` (FK `user.id` cascade), `payload` (json), `createdAt` — no `content` column |
+| AC-FEEDBACK-002 | PASS | `pnpm vitest run scripts/db-migrate.test.ts` | `Test Files 1 passed (1)` / `Tests 5 passed (5)` — clean-DB migration exits 0, `EXPECTED_TABLES` (9 tables) unchanged. Legacy-row scenario verified separately (see Baseline-attribution below): migration exits 0, `SELECT COUNT(*) FROM feedback` = 0 after migration, `cases`/`reports`/`user` rows preserved unchanged, `feedback` columns after migration = `['id','case_id','report_id','user_id','payload','created_at']` |
+| AC-FEEDBACK-003 | PASS | `pnpm vitest run lib/feedback/schema.test.ts` | 3 tests covering this AC pass — full valid payload parses; `confirmedAt: "abc"` rejected with issue path including `outcome`; `confirmedAt: "2026-99-99"` rejected with issue path including `outcome` |
+| AC-FEEDBACK-004 | PASS | same file | 3 tests pass — minimal `{overallRating}` payload parses with `[]` array defaults; whitespace-only `overallComment` normalizes to `undefined`; partial `outcome` (`description` only) rejected |
+| AC-FEEDBACK-005 | PASS | same file | 1 test passes — resident-registration-number-shaped `overallComment` rejected, issue path includes `overallComment` |
+| AC-FEEDBACK-006 | PASS | same file | 3 tests pass — phone-number-shaped `correctedReasoning` rejected (path includes `claimAssessments`); duplicate `claimIndex` rejected; duplicate `evidenceId` rejected |
+| AC-FEEDBACK-007 | PASS | same file | 1 test passes — `issueType: "UNRELATED_TYPE"` (not in the 8 `QUERY_ISSUE_TYPES`) rejected |
+| AC-FEEDBACK-008 | PASS | same file | 1 test passes — extra top-level key `caseId: "spoofed-case-id"` rejected by `.strict()` |
+| AC-FEEDBACK-009 | PASS | `pnpm vitest run lib/feedback/submit-feedback.test.ts` + `pnpm vitest run lib/cases/get-case-for-owner.test.ts` | submit-feedback: non-owner submission returns `{success:false}`, `insertMock` not called. get-case-for-owner: `.orderBy(desc(reports.createdAt), desc(reports.id))` called with correct column references + direction (verified via `queryChunks` reference-equality) |
+| AC-FEEDBACK-010 | PASS | same two files | submit-feedback: valid submission inserts `caseId` derived from report→case join, returns `{success:true, feedbackId, caseId}` with matching `caseId`. get-case-for-owner: newer-`createdAt` report row selected → `reportId`/`report` both derived from that same row; equal-`createdAt` tie-break by `id DESC` → `reportId`/`report` both derived from the tie-broken row |
+| AC-FEEDBACK-011 | PASS | `pnpm vitest run lib/feedback/submit-feedback.test.ts` | out-of-bounds `claimIndex: 5` against a 2-length `verifiedClaims` array rejected, no insert |
+| AC-FEEDBACK-012 | PASS | same file | non-existent `evidenceId` rejected, no insert; existing-but-uncited `evidenceId` accepted (existence-only policy), insert called once |
+| AC-FEEDBACK-013 | PASS | same file + `grep` scan | two submissions with the same `(reportId, userId)` both succeed with distinct `feedbackId`s (append-only); minimal `{overallRating}`-only payload succeeds with no evidence-existence query issued (empty-array skip verified); `grep -rn "feedback" lib/ app/ | grep -iE "\.update\(|\.delete\("` → 0 matches; `grep -rln "feedback" app/api/` → 0 matches (no update/delete capability exists) |
+| AC-FEEDBACK-014 | PASS | `pnpm test:e2e` (`e2e/case-flow.spec.ts`) + code review of `feedback-form.tsx` | e2e run green (see AC-FEEDBACK-016); `feedback-claim-verdict` rendered once per `verifiedClaims` entry (0 when empty, conditional render), `feedback-evidence-verdict` once per distinct cited evidence ID (0 when empty); privacy notice text present verbatim; `grep -rn "feedback-content"` → 0 matches in non-comment code (old free-text field removed) |
+| AC-FEEDBACK-015 | PASS | `grep -rn "export.*submitFeedback\b" app/ lib/"` | 0 matches — old free-text `submitFeedback` export removed; `actions.ts` exports only `submitReportFeedback` |
+| AC-FEEDBACK-016 | PASS | `pnpm test` + `pnpm test:e2e` | `pnpm test`: `Test Files 44 passed (44)` / `Tests 313 passed (313)`. `pnpm test:e2e`: `4 passed (30.7s)` including the updated structured-feedback `case-flow.spec.ts` scenario and unmodified `tenant-isolation.spec.ts` |
+
+### Baseline-attribution (legacy-data migration safety, AC-FEEDBACK-002 extended scenario)
+
+Verified via an ad-hoc Node script (not a permanent test file, per the closed file-scope in acceptance.md Definition of Done): built a fixture SQLite DB by applying migrations 0000-0003 only (legacy 5-column `feedback` shape), inserted representative `user`/`cases`/`reports`/`feedback` rows (including one legacy-shape feedback row), then ran the full `db/migrations` folder (0000-0004) against the same file via `drizzle-orm/libsql/migrator`'s `migrate()`. Observed output: `0004 migration applied — exit 0`; `feedback count after migration: 0`; `cases preserved: true`; `reports preserved: true`; `user preserved: true`; `feedback columns: [ 'id', 'case_id', 'report_id', 'user_id', 'payload', 'created_at' ]`.
+
+### Commits (this run, `plan/SPEC-FEEDBACK-001`, no push performed)
+
+- M1: `lib/db/schema.ts` (feedback table), `db/migrations/0004_calm_paladin.sql`, `db/migrations/meta/_journal.json`, `db/migrations/meta/0004_snapshot.json`, `spec.md` frontmatter (`draft` → `in-progress`)
+- M2: `lib/validation/case-input.ts` (export `piiFreeText`), `lib/feedback/schema.ts`, `lib/feedback/schema.test.ts`
+- M3: `lib/cases/get-case-for-owner.ts`, `lib/cases/get-case-for-owner.test.ts`, `lib/feedback/submit-feedback.ts`, `lib/feedback/submit-feedback.test.ts`, `app/cases/[caseId]/actions.ts`, `app/cases/[caseId]/actions.test.ts`
+- M4: `app/cases/[caseId]/feedback-form.tsx`, `app/cases/[caseId]/page.tsx`
+- M5: `e2e/case-flow.spec.ts`, `scripts/provision-tester.test.ts`
+
+### Gaps
+
+- No dedicated permanent unit test exercises the AC-FEEDBACK-002 legacy-row scenario (verified ad-hoc per Baseline-attribution above) — the plan.md §B M5 file-scope enumeration does not list a home for it, and `scripts/db-migrate.test.ts` was left untouched to respect the closed file-scope in acceptance.md's Definition of Done.
+- `pnpm build` succeeded with one pre-existing, unrelated warning (`instrumentation.ts:33` Edge Runtime `process.exit` usage) — not attributable to this SPEC's files.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+```yaml
+run_complete_at: 2026-09-01
+run_commit_sha: pending-backfill-run-phase
+run_status: PASS
+ac_pass_count: 16
+ac_fail_count: 0
+preserve_list_post_run_count: 0  # plan.md §E PRESERVE list — no violation detected
+l44_pre_commit_fetch: not-applicable  # Route A Hybrid Trunk, single-session, no push performed by this agent
+l44_post_push_fetch: not-applicable  # no push performed by this agent (orchestrator instruction)
+new_warnings_or_lints_introduced: 0
+cross_platform_build: not-applicable  # TypeScript/Next.js project, no GOOS/GOARCH cross-compilation axis
+total_run_phase_files: 16  # 4 new (schema.ts, submit-feedback.ts, feedback-form.tsx, 0004 migration) + 12 edited/test files
+m1_to_mN_commit_strategy: per-milestone separate commits (M1-M5), no push
+```
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_
+
+## §F Phase 4 Mode Selection
+
+**Plan Audit Gate**: SKIPPED (skip-eligible per `spec-workflow.md` § Phase Transitions skip contract) — verdict PASS, score 0.97 >= Tier M threshold 0.80, plan-artifact hash unchanged since the 2026-09-01 final post-commit gate (`git status` clean at run-phase entry, no plan-artifact edit since commit `924d329`).
+
+**Input parameters**
+- tier: M
+- scope (file count): ~14-15 files across M1-M5 (2 new: `lib/feedback/schema.ts`, `lib/feedback/submit-feedback.ts`; 1 new UI: `app/cases/[caseId]/feedback-form.tsx`; edits: `lib/db/schema.ts`, `lib/validation/case-input.ts`, `lib/cases/get-case-for-owner.ts`, `app/cases/[caseId]/actions.ts`, `app/cases/[caseId]/page.tsx`; tests: `lib/feedback/schema.test.ts`, `lib/feedback/submit-feedback.test.ts`, `lib/cases/get-case-for-owner.test.ts`, `app/cases/[caseId]/actions.test.ts`, `e2e/case-flow.spec.ts`, `scripts/provision-tester.test.ts`; plus one generated Drizzle migration file)
+- domain count: 1 (single feedback subsystem — schema, validation, write-path, UI, tests all within one coherent feature)
+- file language mix: 100% TypeScript (Next.js / Drizzle / Zod / Vitest)
+- concurrency benefit: LOW — coding-heavy, strict sequential milestone dependency (M1 schema -> M2 validation -> M3 write-path -> M4 UI -> M5 tests)
+
+**Mode evaluation table**
+
+| Mode | Selected? | Rationale |
+|------|-----------|-----------|
+| direct | No | Non-trivial: destructive schema migration + new validation/write-path logic + UI |
+| serial | **Selected** | Coding-heavy, single-domain, strict sequential milestone dependency (Anthropic coding-task parallelism caveat) |
+| fanout | No | Not multi-domain research-heavy work |
+| sweep | No | Not >= ~30 files / not a single uniform mechanical transform |
+| agent-team | No | Not explicitly requested by the user |
+
+**Decision:** serial
+
+**Justification:** This SPEC is a coherent single-subsystem implementation (DB schema -> Zod validation -> write-path -> UI -> tests) with strict sequential dependencies between milestones (M2 depends on M1's schema shape; M3 depends on M2's validator; M4 depends on M3's write-path signature; M5 tests everything above). Per Anthropic's coding-task parallelism caveat, coding-heavy work is best handled by a single sequential agent rather than parallel fan-out. This is Tier M, not Tier L, so `manager-lead` multi-milestone fan-out does not apply (its entry threshold is >= 3 milestones AND >= 10 files AND cross-domain fan-out; this SPEC has no cross-domain fan-out — it is one subsystem).
