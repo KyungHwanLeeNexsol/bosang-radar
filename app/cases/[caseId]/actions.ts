@@ -1,32 +1,28 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentSession } from "@/lib/auth/session";
-import { getDb } from "@/lib/db/client";
-import { feedback } from "@/lib/db/schema";
+import { submitReportFeedback as submitReportFeedbackWritePath } from "@/lib/feedback/submit-feedback";
+import type { SubmitFeedbackResult } from "@/lib/feedback/submit-feedback";
 
-// 사건 상세 뷰의 전문가 피드백 저장 — 데이터 모델(feedback 테이블)까지만
-// 이번 SPEC 범위이며, 피드백 UI 자체의 고도화는 후속 SPEC이다(design.md §3).
-export async function submitFeedback(caseId: string, content: string): Promise<void> {
+// 사건 상세 뷰의 구조화 리포트 피드백 제출 Server Action(REQ-FEEDBACK-014,
+// REQ-FEEDBACK-015 — 옛 자유 텍스트 submitFeedback()을 완전히 대체한다).
+// caseId는 write-path가 reportId로부터 도출한 서버 값만 사용한다
+// (result.caseId) — 이 액션의 시그니처에도 caseId 파라미터는 없다.
+export async function submitReportFeedback(
+  reportId: string,
+  rawPayload: unknown
+): Promise<SubmitFeedbackResult> {
   const session = await getCurrentSession();
   if (!session?.user) {
     throw new Error("로그인이 필요합니다.");
   }
 
-  const trimmed = content.trim();
-  if (trimmed.length === 0) {
-    return;
+  const result = await submitReportFeedbackWritePath(reportId, session.user.id, rawPayload);
+
+  if (result.success) {
+    revalidatePath(`/cases/${result.caseId}`);
   }
 
-  const db = getDb();
-  await db.insert(feedback).values({
-    id: randomUUID(),
-    caseId,
-    userId: session.user.id,
-    content: trimmed,
-    createdAt: new Date(),
-  });
-
-  revalidatePath(`/cases/${caseId}`);
+  return result;
 }
