@@ -2,7 +2,7 @@
 id: SPEC-FEEDBACK-001
 title: "리포트 단위 전문가 구조화 피드백 (Gold Dataset 축적 기반)"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-09-01
 updated: 2026-09-01
 author: Nexsol

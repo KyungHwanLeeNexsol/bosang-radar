@@ -111,10 +111,20 @@ export const feedback = sqliteTable("feedback", {
   caseId: text("case_id")
     .notNull()
     .references(() => cases.id, { onDelete: "cascade" }),
+  // SPEC-FEEDBACK-001 M1 — 리포트 단위 구조화 피드백으로 확장. reportId는
+  // write-path(lib/feedback/submit-feedback.ts)가 caseId를 도출하는
+  // 유일한 출처이며, 클라이언트가 제시하는 caseId는 절대 신뢰하지 않는다
+  // (REQ-FEEDBACK-010).
+  reportId: text("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
+  // 구조화 피드백 payload(ReportFeedbackPayload, lib/feedback/schema.ts).
+  // 기존 자유 텍스트 content 컬럼은 REQ-FEEDBACK-015에 따라 완전히
+  // 대체되어 제거되었다.
+  payload: text("payload", { mode: "json" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
