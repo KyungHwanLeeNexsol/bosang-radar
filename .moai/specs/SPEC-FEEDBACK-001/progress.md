@@ -153,3 +153,47 @@ _<pending sync-phase>_
 **Decision:** serial
 
 **Justification:** This SPEC is a coherent single-subsystem implementation (DB schema -> Zod validation -> write-path -> UI -> tests) with strict sequential dependencies between milestones (M2 depends on M1's schema shape; M3 depends on M2's validator; M4 depends on M3's write-path signature; M5 tests everything above). Per Anthropic's coding-task parallelism caveat, coding-heavy work is best handled by a single sequential agent rather than parallel fan-out. This is Tier M, not Tier L, so `manager-lead` multi-milestone fan-out does not apply (its entry threshold is >= 3 milestones AND >= 10 files AND cross-domain fan-out; this SPEC has no cross-domain fan-out — it is one subsystem).
+
+## §G Run-phase Correction Log
+
+### Correction 1 — outcomeSchema whitespace/invalid-type normalization bug (REQ-FEEDBACK-007)
+
+**Reported by**: external independent review of the run-phase implementation (post-M1-M5, pre-sync). **Scope**: bug fix only — no new REQ/AC/feature, no scope change, `/moai sync` deliberately NOT run.
+
+**Claim (defect)**: `lib/feedback/schema.ts`'s `outcomeSchema` preprocess classified a field as "empty" whenever it was either a whitespace-only string OR any non-string type (`typeof v.description !== "string"`). This conflated two different cases the spec treats differently: (a) a genuinely blank/absent field (should normalize toward omission) and (b) an invalid type such as `number`/`null`/`object` (must FAIL validation, never be silently normalized away). Two concrete failure modes followed:
+1. `{ description: 123, confirmedAt: 456 }` — both non-string, so both counted as "empty" under the old (wrong) definition → the whole `outcome` was silently normalized to `undefined` and the payload PASSED validation with no `outcome` at all, instead of failing.
+2. `{ description: "   ", confirmedAt: "2026-09-01" }` — a partial/one-sided outcome per REQ-FEEDBACK-007's all-or-nothing contract. `descriptionEmpty=true, confirmedAtEmpty=false` meant the object was NOT normalized to `undefined`, so it passed through unchanged into the inner schema; `piiFreeText(...).min(1)` checks string **length**, not trimmed length, so the 3-space string satisfied `min(1)` and the payload PASSED with `description: "   "` persisted — violating the "exactly one filled, other blank → FAIL" requirement.
+
+**Evidence — RED (bug reproduced against the pre-fix code)**: `git stash push -- lib/feedback/schema.ts` (reverting only the fix, keeping the new tests) then `npx vitest run lib/feedback/schema.test.ts -t "REQ-FEEDBACK-007 회귀"`:
+```
+❯ lib/feedback/schema.test.ts (15 tests | 2 failed | 12 skipped)
+  × [REQ-FEEDBACK-007 회귀] description이 공백이고 confirmedAt만 유효하면 실패한다 (부분 outcome)
+    AssertionError: expected true to be false
+  × [REQ-FEEDBACK-007 회귀] description/confirmedAt이 문자열이 아니면(잘못된 타입) 조용히 생략되지 않고 실패한다
+    AssertionError: expected true to be false
+Test Files  1 failed (1)
+     Tests  2 failed | 1 passed | 12 skipped (15)
+```
+(The third new test — both fields whitespace → omit — already passed on the pre-fix code; it was the two FAIL-path cases that were broken.)
+
+**Fix**: `git stash pop` restored the fix. Introduced `isBlankString` / `isAbsentOrBlank` / `isInvalidOutcomeFieldType` helpers in `lib/feedback/schema.ts`. Invalid-type fields (non-string, non-undefined) are now left UNCHANGED by the preprocess so the inner `z.object()`'s own type checks reject them naturally (Zod's `z.string()` rejects a non-string at the type level before any `.refine()` runs). Only `description`/`confirmedAt` being `undefined` or a whitespace-only **string** counts toward the "omit the whole outcome" decision. Added a scoped `.refine((s) => s.trim() !== "")` onto the `description` field (in addition to the existing `piiFreeText(...)` call) since `piiFreeText`'s `.min(1)` checks length only, not trimmed length — `confirmedAt`'s `z.iso.date()` already rejects a whitespace string by format, so it needed no equivalent addition. No other logic in the file was touched.
+
+**Tests added** (`lib/feedback/schema.test.ts`, 3 new, no new AC ID assigned per the fix-scope constraint):
+1. `outcome: { description: "   ", confirmedAt: "   " }` → success, `outcome` undefined
+2. `outcome: { description: "   ", confirmedAt: "2026-09-01" }` → failure
+3. `outcome: { description: 123, confirmedAt: 456 }` → failure
+
+**Evidence — GREEN (post-fix)**:
+- `npx vitest run lib/feedback/schema.test.ts` → `Test Files 1 passed (1)`, `Tests 15 passed (15)`.
+- `pnpm test` → `Test Files 44 passed (44)`, `Tests 316 passed (316)` (313 prior + 3 new).
+- `pnpm test:e2e` → `4 passed (29.5s)` (all 4 scenarios, including the structured-feedback case-flow test).
+- `pnpm build` → exit 0. Same single pre-existing unrelated warning (`instrumentation.ts:33`, Edge Runtime `process.exit`) as before this SPEC — not attributable to this fix.
+- `npx tsc --noEmit` → exit 0.
+- `pnpm lint` → clean (`eslint .`, no output).
+- `pnpm format:check` → one remaining warning (`CHANGELOG.md`) — pre-existing baseline debt, untouched by this fix; `lib/feedback/schema.ts` itself is Prettier-clean after `npx prettier --write` was applied once during this correction.
+
+**Files touched** (exactly 2, both within the pre-existing M2 scope — no new files, no scope expansion): `lib/feedback/schema.ts`, `lib/feedback/schema.test.ts`.
+
+**Gaps**: none identified for this specific defect class. **Residual risk**: this correction did not re-audit the rest of `lib/feedback/schema.ts` or `submit-feedback.ts` beyond the reported blocker — a fresh independent review pass (at sync-phase or via `/moai review`) may surface unrelated findings not covered here.
+
+**Commit**: see the correction commit immediately following this entry in `git log`. **Push**: pushed to `origin/plan/SPEC-FEEDBACK-001` immediately after the commit. **`/moai sync` was NOT run** per the request — SPEC status remains `in-progress`.

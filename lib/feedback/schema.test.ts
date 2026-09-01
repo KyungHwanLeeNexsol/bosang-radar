@@ -76,6 +76,33 @@ describe("lib/feedback/schema reportFeedbackPayloadSchema (REQ-FEEDBACK-003~008)
     expect(result.success).toBe(false);
   });
 
+  it("[REQ-FEEDBACK-007 회귀] description/confirmedAt이 둘 다 공백이면 outcome 전체가 생략된다", () => {
+    const result = reportFeedbackPayloadSchema.safeParse({
+      overallRating: "ACCURATE",
+      outcome: { description: "   ", confirmedAt: "   " },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.outcome).toBeUndefined();
+    }
+  });
+
+  it("[REQ-FEEDBACK-007 회귀] description이 공백이고 confirmedAt만 유효하면 실패한다 (부분 outcome)", () => {
+    const result = reportFeedbackPayloadSchema.safeParse({
+      overallRating: "ACCURATE",
+      outcome: { description: "   ", confirmedAt: "2026-09-01" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("[REQ-FEEDBACK-007 회귀] description/confirmedAt이 문자열이 아니면(잘못된 타입) 조용히 생략되지 않고 실패한다", () => {
+    const result = reportFeedbackPayloadSchema.safeParse({
+      overallRating: "ACCURATE",
+      outcome: { description: 123, confirmedAt: 456 },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("[AC-FEEDBACK-005] overallComment에 주민등록번호 형식 문자열이 있으면 거부된다", () => {
     const result = reportFeedbackPayloadSchema.safeParse({
       overallRating: "ACCURATE",

@@ -41,22 +41,43 @@ const evidenceAssessmentSchema = z.object({
 });
 
 // REQ-FEEDBACK-007 — outcome. description/confirmedAt은 all-or-nothing이며, 둘 다
-// 비어 있으면 outcome 전체가 생략(undefined)된 것으로 정규화된다.
-// confirmedAt은 z.iso.date()(Zod 4 전용, YYYY-MM-DD)로 검증한다 — z.string().min(1)은
-// "abc" 같은 비-날짜 문자열을 통과시켜 REQ-FEEDBACK-007 계약을 위반한다.
+// 공백(whitespace)이거나 부재(absent)이면 outcome 전체가 생략(undefined)된 것으로
+// 정규화된다. 정확히 하나만 채워진 경우(부분 outcome)는 검증 실패로 처리해야 하므로,
+// "공백 문자열"만 생략 대상으로 취급하고 number/null/object 같은 잘못된 타입은 여기서
+// undefined로 바꾸지 않는다 — 원본 값을 그대로 통과시켜 아래 z.object() 스키마 자체의
+// 타입 검사(z.string() 계열)가 실패하도록 둔다. description은 piiFreeText의 min(1)이
+// trim 없이 길이만 검사해 공백 문자열을 통과시키므로, trim 후 비어있지 않음을 별도로
+// 확인하는 refine을 추가한다. confirmedAt은 z.iso.date()(Zod 4 전용, YYYY-MM-DD)로
+// 검증한다 — z.string().min(1)은 "abc" 같은 비-날짜 문자열을 통과시켜 계약을 위반한다.
+const isBlankString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim() === "";
+const isAbsentOrBlank = (value: unknown) => value === undefined || isBlankString(value);
+const isInvalidOutcomeFieldType = (value: unknown) =>
+  value !== undefined && typeof value !== "string";
+
 const outcomeSchema = z.preprocess(
   (value) => {
     if (typeof value === "object" && value !== null) {
       const v = value as { description?: unknown; confirmedAt?: unknown };
-      const descriptionEmpty = typeof v.description !== "string" || v.description.trim() === "";
-      const confirmedAtEmpty = typeof v.confirmedAt !== "string" || v.confirmedAt.trim() === "";
-      if (descriptionEmpty && confirmedAtEmpty) {
+      // number/null/object 같은 잘못된 타입은 정규화하지 않는다 — 아래 스키마의
+      // 타입 검사에서 실패시킨다(REQ-FEEDBACK-007, "invalid type → FAIL").
+      if (isInvalidOutcomeFieldType(v.description) || isInvalidOutcomeFieldType(v.confirmedAt)) {
+        return value;
+      }
+      if (isAbsentOrBlank(v.description) && isAbsentOrBlank(v.confirmedAt)) {
         return undefined;
       }
     }
     return value;
   },
-  z.object({ description: piiFreeText("결과 설명"), confirmedAt: z.iso.date() }).optional()
+  z
+    .object({
+      description: piiFreeText("결과 설명").refine((s) => s.trim() !== "", {
+        message: "결과 설명은(는) 공백일 수 없습니다.",
+      }),
+      confirmedAt: z.iso.date(),
+    })
+    .optional()
 );
 
 export const reportFeedbackPayloadSchema = z
