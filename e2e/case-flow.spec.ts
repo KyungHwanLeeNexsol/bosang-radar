@@ -119,8 +119,15 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
       await expect(page.getByText(label).first()).toBeVisible();
     }
 
-    const feedbackText = "추가로 CT 촬영 기록도 확인이 필요합니다.";
-    await page.getByTestId("feedback-content").fill(feedbackText);
+    // SPEC-FEEDBACK-001 — 구조화 피드백 제출(REQ-FEEDBACK-014/015). 옛
+    // 자유 텍스트 feedback-content/feedback-submit 경로는 완전히 대체되었다.
+    await page.getByTestId("feedback-overall-rating").selectOption("ACCURATE");
+    const claimVerdictRows = page.getByTestId("feedback-claim-verdict");
+    const claimVerdictCount = await claimVerdictRows.count();
+    if (claimVerdictCount > 0) {
+      await claimVerdictRows.first().locator("select").selectOption("CORRECT");
+    }
+
     await Promise.all([
       page.waitForLoadState("networkidle"),
       page.getByTestId("feedback-submit").click(),
@@ -131,7 +138,19 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
       .from(schema.feedback)
       .where(eq(schema.feedback.caseId, caseId));
     expect(feedbackRows).toHaveLength(1);
-    expect(feedbackRows[0]?.content).toBe(feedbackText);
     expect(feedbackRows[0]?.userId).toBe(tester?.id);
+    expect(feedbackRows[0]?.reportId).toBe(reportRows[0]?.id);
+    expect(feedbackRows[0]?.caseId).toBe(caseId);
+
+    const feedbackPayload = feedbackRows[0]?.payload as {
+      overallRating: string;
+      claimAssessments: { claimIndex: number; verdict: string }[];
+    };
+    expect(feedbackPayload.overallRating).toBe("ACCURATE");
+    if (claimVerdictCount > 0) {
+      expect(feedbackPayload.claimAssessments).toContainEqual(
+        expect.objectContaining({ claimIndex: 0, verdict: "CORRECT" })
+      );
+    }
   });
 });

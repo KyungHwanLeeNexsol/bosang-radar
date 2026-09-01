@@ -19,7 +19,7 @@ const RESIDENT_REGISTRATION_NUMBER_PATTERN = /\d{6}-?\d{7}/;
 // 전화번호 형식: 01[0/1/6/7/8/9]로 시작, 하이픈 선택.
 const PHONE_NUMBER_PATTERN = /01[016789]-?\d{3,4}-?\d{4}/;
 
-function piiFreeText(fieldLabel: string) {
+export function piiFreeText(fieldLabel: string) {
   return z
     .string()
     .min(1, `${fieldLabel}은(는) 비어 있을 수 없습니다.`)

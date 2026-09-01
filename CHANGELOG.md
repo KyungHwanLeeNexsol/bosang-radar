@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+### Added — SPEC-FEEDBACK-001 리포트 단위 전문가 구조화 피드백 (Gold Dataset 축적 기반)
+
+손해사정사/보험 전문가가 특정 사건의 AI 리서치 리포트(`reports` 테이블)에 구조화된 피드백을 남길 수 있도록, 기존 `feedback` 테이블(전체 사건 대상 자유 텍스트 1개 필드)을 리포트 단위 구조화 스키마로 확장했습니다. `case → report → expert feedback` 흐름의 마지막 단계만 다루며, Gold Dataset 자체의 추출·집계는 후속 SPEC으로 명시적으로 미룹니다.
+
+- **⚠️ 파괴적 스키마 변경**: `feedback` 테이블의 기존 자유 텍스트 `content` 컬럼을 제거하고 `reportId`(NOT NULL, `reports.id` FK)·`payload`(JSON, 구조화 스키마) 중심으로 교체(`db/migrations/0004_calm_paladin.sql`) — 기존 `feedback` 행은 마이그레이션 과정에서 폐기됩니다. 레거시 5-컬럼 형태 데이터가 있는 DB에 대해서도 마이그레이션이 exit 0으로 성공하고 `cases`/`reports`/`user` 등 무관한 테이블은 손상 없이 보존됨을 별도 fixture로 검증
+- **구조화 피드백 payload Zod 검증**(`lib/feedback/schema.ts`, `reportFeedbackPayloadSchema`): 전체 평가(`overallRating`, 필수 3값 enum) + 선택적 누락 쟁점(`missedIssues[]`, `issueType`은 `lib/pipeline/types.ts`의 `QUERY_ISSUE_TYPES`를 SSOT로 재사용) + 개별 주장(claim) verdict(`claimAssessments[]`, `claimIndex` 유일성 검사) + 개별 근거자료(evidence) verdict(`evidenceAssessments[]`, `evidenceId` 유일성 검사) + 선택적 실제 결과 기록(`outcome`, all-or-nothing 계약 — 한쪽만 채워지면 검증 실패, 둘 다 공백이면 전체 생략) — 모든 자유 텍스트 필드는 `lib/validation/case-input.ts`의 `piiFreeText`를 재사용해 주민등록번호·전화번호 형식을 구조적으로 차단하고, 스키마에 없는 최상위 키는 `.strict()`로 거부
+- **write-path 동적 검증**(`lib/feedback/submit-feedback.ts`, `submitReportFeedback()`): `reportId`가 속한 사건의 `ownerUserId`와 호출자가 일치하는지 검사(`getCaseForOwner()`와 동일한 소유권 앵커 원칙) + `claimIndex`가 저장된 리포트의 `verifiedClaims` 길이 범위를 벗어나면 거부 + `evidenceId`가 `evidence` 테이블에 실존하는지 검사(existence-only — 실제 인용 여부는 교차검증하지 않는 사용자 명시적 단순화 결정). `caseId`는 오직 `reportId → reports.caseId`로 서버가 도출하며 함수 시그니처에 파라미터로 받지 않음(cross-case spoofing 방지) — 성공 결과(`{success, feedbackId, caseId}`)의 `caseId`도 이 서버 도출 값
+- **한 사건에 리포트가 2개 이상 있는 경우의 결정론적 선택**(`lib/cases/get-case-for-owner.ts`): `createdAt DESC`(동일 시각이면 `id DESC`) 정렬로 항상 최근 리포트 하나만 선택하고, 화면 표시(`report`)와 피드백 제출 대상(`reportId`)을 동일한 단일 쿼리 행에서 함께 도출해 표시-제출 값 불일치를 구조적으로 방지
+- **UI 완전 대체**: 사건 상세 화면(`app/cases/[caseId]/`)의 옛 자유 텍스트 피드백 폼을 전체 평가·누락 쟁점 추가·주장별/근거자료별 verdict 선택·실제 결과 입력을 지원하는 구조화 폼(`feedback-form.tsx`)으로 완전히 교체 — 주장/근거자료가 0개인 리포트에서는 해당 verdict 컨트롤이 0개 렌더링되는 것이 정상 동작이며, "실명·상세 주소·주민등록번호·전화번호·의료·보험 원본 문서 내용은 입력하지 마세요" 안내 문구를 화면에 표시
+- **append-only 정책**: `(reportId, userId)` 조합에 유일성 제약을 두지 않아 동일 사용자가 동일 리포트에 여러 번(최초 리뷰 + 이후 실제 결과 확인 등) 제출 가능하며, 기존 피드백 행을 수정·삭제하는 API/Server Action은 제공하지 않음
+- **post-run 버그 수정**: 외부 독립 리뷰에서 `outcomeSchema`의 preprocess가 "공백 문자열"과 "잘못된 타입(number/null/object)"을 동일하게 취급해, (a) 잘못된 타입 입력이 조용히 `outcome` 생략으로 정규화되어 검증을 통과하거나 (b) 부분 outcome(`description`만 공백, `confirmedAt`만 유효)이 `piiFreeText`의 `min(1)`이 trim 없이 길이만 검사하는 특성 때문에 통과하는 결함 2건을 발견 — RED(결함 재현 테스트 2건 실패 확인) → GREEN(타입 검사와 공백 판정을 분리하는 헬퍼 3개 추가 + `description`에 trim 기반 `.refine()` 추가) 순서로 수정하고 회귀 테스트 3건 추가
+
+**검증**: 15개 요구사항(REQ-FEEDBACK-001~015) 전부 구현, 16개 인수 기준(AC-FEEDBACK-001~016) 전부 코드 레벨로 만족. plan-auditor 감사 4회 실행(iteration 1 PASS(0.92) → 외부 리뷰 11건 반영 후 iteration 2/3 PASS(0.97) → 3차 정합성 보정 후 iteration 3 FAIL(0.90, progress.md 시제 오류 1건) → 수정 후 최종 게이트 PASS(0.97)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(44 test files, 316 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(post-run 버그 수정 반영 후 재확인). 신규 런타임 의존성 없음.
+
+**참고**: `.moai/specs/SPEC-FEEDBACK-001/`
+
 ### Added — SPEC-EVIDENCE-001 근거자료(evidence) corpus 확장 + Retriever 쟁점 중심 ranking + counterEvidenceIds=[] 원인 진단
 
 실 Gemini smoke 2회(`gemini-smoke-20260827.md`, `gemini-runtime-smoke-20260828.md`)에서 `Skeptic.counterEvidenceIds`가 매번 빈 배열로 관측된 현상에 대응해, (축1) evidence corpus를 담보×쟁점 기준으로 검증 가능하게 확장하고 (축2) counterEvidenceIds=[] 원인을 corpus/Retriever/prompt/model behavior 네 갈래로 분해해 관측 가능하게 만들었습니다. vector DB를 도입하지 않고 현재 DB + TypeScript 규칙 기반 구조 위에서 설계했습니다.
