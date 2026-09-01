@@ -16,9 +16,9 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 완료)
+## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 + SPEC-EVIDENCE-001 + SPEC-FEEDBACK-001 완료)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001까지 완료되었습니다.
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
@@ -30,7 +30,7 @@
 - **DB 마이그레이션·시드 CLI**(`pnpm db:migrate`, `pnpm db:seed`) — 재실행 안전
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
 - **실제 Playwright E2E 스위트**(`pnpm test:e2e`) — 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 실제 Chromium으로 검증
-- `pnpm build` / `pnpm lint` / `pnpm test` / `pnpm format:check` / `pnpm test:e2e` 전체 통과(36 files, 208 tests; E2E 4/4)
+- `pnpm build` / `pnpm lint` / `pnpm test` / `pnpm format:check` / `pnpm test:e2e` 전체 통과(44 files, 316 tests; E2E 4/4)
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
@@ -130,7 +130,7 @@ bosang-radar/
 
 SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처), SPEC-RUNTIME-001(런타임 활성화), SPEC-RESEARCH-001(evidence-first 파이프라인 전환)은 전체 서비스 완성이 아니라, 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중했습니다. 다음 항목은 후속 SPEC 후보로 이연되었습니다.
 
-- **근거자료 corpus 확장**: 현재는 `db/seed/`의 소규모 seed 데이터셋만 존재 — 실제 판례·법령·분쟁사례를 대량 수집
+- **근거자료 corpus 대량 확장**: SPEC-EVIDENCE-001로 담보×쟁점 기준 검증 가능한 21건까지 확장했으나 여전히 프로덕션 규모 대비 소규모 — 실제 판례·법령·분쟁사례를 대량 수집
 - **Gold Dataset 추출·집계**: SPEC-FEEDBACK-001로 리포트 단위 구조화 피드백(`feedback` 테이블 — 전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과) 축적 경로는 마련되었으나, 축적된 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰는 아직 없음
 - **UI/UX 고도화**: 사건 입력 폼과 리포트 뷰의 폴리시된 디자인
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행

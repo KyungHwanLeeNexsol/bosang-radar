@@ -129,7 +129,7 @@ m1_to_mN_commit_strategy: per-milestone separate commits (M1-M5), no push
 
 ```yaml
 sync_complete_at: 2026-09-01
-sync_commit_sha: pending-backfill-sync-phase  # this commit cannot know its own SHA; backfilled in a follow-up commit per the SHA placeholder backfill exemption
+sync_commit_sha: d9966650fada34d0226b03640909247a07f16864  # backfilled per the SHA placeholder backfill exemption (SPEC-FEEDBACK-001 § SPEC Frontmatter Schema)
 sync_status: PASS
 b12_self_test_a: PASS  # grep -c 'SPEC-FEEDBACK-001' CHANGELOG.md -> 0 (pre-emission), no duplicate entry risk
 b12_self_test_b: PASS  # grep -oE 'AC-([A-Z0-9]+-)*[0-9]+' acceptance.md | sort -u | wc -l -> 16, CHANGELOG entry cites the same 16
