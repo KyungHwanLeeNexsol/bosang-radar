@@ -4,11 +4,9 @@ import { getCurrentSession } from "@/lib/auth/session";
 import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
 import { evidence as evidenceTable } from "@/lib/db/schema";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { submitFeedback } from "./actions";
+import { submitReportFeedback } from "./actions";
+import { FeedbackForm } from "./feedback-form";
 
 export const metadata: Metadata = {
   title: "사건 상세",
@@ -39,7 +37,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     notFound();
   }
 
-  const { report, id: ownerCaseId } = caseWithReport;
+  const { report, reportId } = caseWithReport;
 
   // evidenceById — 정적 seed JSON(db/seed/evidence.json) 대신 실제 Drizzle
   // 조회 결과로 구성한다(design.md §8 — §6 EvidenceRetriever가 도입한 DB
@@ -59,11 +57,22 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     }
   }
 
-  async function handleFeedbackSubmit(formData: FormData) {
-    "use server";
-    const content = String(formData.get("content") ?? "");
-    await submitFeedback(ownerCaseId, content);
-  }
+  // SPEC-FEEDBACK-001 REQ-FEEDBACK-014 — 근거자료 verdict 컨트롤은 evidence
+  // 테이블 전체가 아니라, 리포트의 주장들이 실제로 인용한 distinct evidence
+  // ID에 대해서만 렌더링한다(plan.md §D Risk 3).
+  const citedEvidenceIds = report
+    ? [
+        ...new Set(
+          report.verifiedClaims.flatMap((claim) => [
+            ...claim.supportingEvidenceIds,
+            ...claim.counterArguments.flatMap((counterArgument) => [
+              ...counterArgument.supportingEvidenceIds,
+              ...counterArgument.counterEvidenceIds,
+            ]),
+          ])
+        ),
+      ]
+    : [];
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-16">
@@ -252,29 +261,22 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
         <p className="text-sm text-muted-foreground">아직 생성된 리서치 리포트가 없습니다.</p>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>전문가 피드백</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            action={handleFeedbackSubmit}
-            className="flex flex-col gap-3"
-            data-testid="feedback-form"
-          >
-            <Label htmlFor="feedback-content">의견</Label>
-            <Textarea
-              id="feedback-content"
-              name="content"
-              required
-              data-testid="feedback-content"
+      {report && reportId ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>전문가 피드백</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FeedbackForm
+              reportId={reportId}
+              verifiedClaims={report.verifiedClaims}
+              citedEvidenceIds={citedEvidenceIds}
+              evidenceById={evidenceById}
+              action={submitReportFeedback}
             />
-            <Button type="submit" className="self-start" data-testid="feedback-submit">
-              제출
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
