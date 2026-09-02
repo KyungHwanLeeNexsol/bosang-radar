@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+### Added — SPEC-PILOT-UX-001 파일럿 사용성 개선 — 사건 입력→분석 대기→리포트 검토→피드백 제출 흐름
+
+이미 기능적으로 완성되어 있던 `사건 입력 → Gemini 분석 대기 → ResearchReport 검토 → 구조화 피드백 제출` 흐름(SPEC-RESEARCH-001/SPEC-GEMINI-RUNTIME-001/SPEC-EVIDENCE-001/SPEC-FEEDBACK-001의 산출물)을, 신규 비즈니스 기능 없이 UI/UX 계층에서만 다듬어 소수 전문 손해사정사가 비공개 파일럿에서 일상적으로 실사용 가능하게 만들었습니다.
+
+- **사건 입력 대기 상태 강화**(`case-input-form.tsx`): 제출 버튼 텍스트 변경뿐 아니라 별도의 시각적 진행 표시(`role="status" aria-live="polite"`)를 렌더링하고, 4개 입력 필드 전부를 제출 버튼과 함께 비활성화
+- **클라이언트 단일 흐름(single-flight) 제출 가드**(`case-input-form.tsx`/`feedback-form.tsx`): `useRef` 기반으로 더블클릭·빠른 재클릭 시 중복 요청을 차단 — 서버측 DB 기반 idempotency(nonce+unique index)가 `createCase`의 `validate → runPipeline → insert` 실행 순서상 동시 요청 경합을 실제로 막지 못한다는 외부 독립 리뷰 지적에 따라 범위에서 제외하고 순수 클라이언트측 가드로 재정의(사건/피드백 모두 서버측 write-path·요청 스키마 변경 없음)
+- **리포트 요약 배너**(`page.tsx`): 기존 5개 카드보다 먼저 렌더링되는 요약 배너를 추가해 진단명·장해 부위와 `verifiedClaims` 집계 검증 상태("N건 중 M건 근거 확인, K건 판단 불충분")를 스크롤 없이 노출 — 기존 개별 주장별 `claim-status` pill은 그대로 유지
+- **근거자료 표시 개선**(`page.tsx`/`feedback-form.tsx`): `evidence` SELECT 프로젝션을 확장해 기존 `title`/`sourceUrl`뿐 아니라 `evidenceType`/`issueTypes`도 함께 조회·렌더링(두 컬럼 모두 SPEC-EVIDENCE-001에서 이미 존재 — 신규 마이그레이션 없음)하고, `sourceUrl`을 원시 텍스트 대신 클릭 가능한 `<a target="_blank" rel="noopener noreferrer">` 링크로 렌더링
+- **피드백 폼 사용성 개선**(`feedback-form.tsx`): 성공 시 시각적 확인 메시지를 표시하고 해당 마운트 인스턴스에서 제출 버튼을 계속 비활성 유지(새 인스턴스 마운트 시에는 재허용 — SPEC-FEEDBACK-001의 append-only 정책과 일치); 검증 실패 시 `Object.values(...).flat().join(" ")`로 뭉쳐 표시하던 필드 오류를 `toFieldErrors`의 실제 최상위 키(`overallRating`/`overallComment`/`missedIssues`/`claimAssessments`/`evidenceAssessments`/`outcome`/`_form`) 기준 필드별 개별 표시로 교체하고, 이 경우 가드를 리셋해 재제출을 허용; `action` 호출 예외/reject 시에도 가드를 리셋하고 폼-레벨 오류를 표시(unhandled promise rejection 없음); 다섯 콘텐츠 영역(전체 평가/누락 쟁점/개별 주장 평가/개별 근거자료 평가/실제 결과)을 구획선으로 시각적으로 구분
+- **명시적 UI 상태**: 사건 상세 화면의 `verifiedClaims`/인용 근거자료 빈 배열에 대한 명시적 빈 상태 문구 추가(기존 `reviewTargets`/`missingMaterials`/`uncertainty` 패턴과 동일); 사건 입력 폼의 `fetch` 호출에 `.catch()`를 추가해 네트워크 수준 실패를 사람이 읽을 수 있는 오류 메시지로 처리(unhandled promise rejection 없음); 저장소 전체에 하나도 없던 Next.js App Router `error.tsx` 오류 경계를 `app/cases/[caseId]/`에 신설(재시도 버튼이 `reset()` 호출)
+- **안전 문구·개인정보 보존**: 이번 SPEC이 도입·수정한 UI 문구 어디에도 보험금 지급 가능성 확정 서술이 없으며, 신규 개인정보 수집 필드나 기존 PII 차단 검증(`piiFreeText`) 약화 없음 — 어떤 스키마도 수정하지 않음
+
+**검증**: 16개 요구사항(REQ-PILOT-UX-001~016) 전부 구현, 16개 인수 기준(AC-PILOT-UX-001~016) 전부 코드 레벨 및 1건(성공 후 제출 버튼 비활성 유지)의 사용자 수행 수동 스모크로 만족. plan-auditor 감사 7회 실행(iteration 3 FAIL(0.82, GEARS 단일 트리거 형식 위반) → iteration 4 FAIL(0.875, 잔존 위반) → iteration 5 PASS(0.98) → pre-run 정합성 보정 후 iteration 6 FAIL(0.74, REQ-010 응답 분기 위반 + M4 커버리지 갭) → iteration 7 PASS(0.92)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(48 test files, 335 tests)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build` 전체 exit 0 통과. `case-input-form.tsx`(79.5%)/`feedback-form.tsx`(61.6%)/`page.tsx`(72.7%) 3개 파일의 statement coverage가 프로젝트 목표(85%)에 미달 — 이 SPEC의 인수 기준에 요구되지 않는 기존 상호작용 분기(쟁점 추가/제거, 개별 평가 select, 실제 결과 필드)로 사용자 승인 하에 갭으로 남깁니다. 신규 런타임 의존성 없음, 서버 write-path(`lib/cases/create-case.ts`/`lib/feedback/submit-feedback.ts`)·스키마(`lib/db/schema.ts`) 변경 없음.
+
+**참고**: `.moai/specs/SPEC-PILOT-UX-001/`
+
 ### Added — SPEC-FEEDBACK-001 리포트 단위 전문가 구조화 피드백 (Gold Dataset 축적 기반)
 
 손해사정사/보험 전문가가 특정 사건의 AI 리서치 리포트(`reports` 테이블)에 구조화된 피드백을 남길 수 있도록, 기존 `feedback` 테이블(전체 사건 대상 자유 텍스트 1개 필드)을 리포트 단위 구조화 스키마로 확장했습니다. `case → report → expert feedback` 흐름의 마지막 단계만 다루며, Gold Dataset 자체의 추출·집계는 후속 SPEC으로 명시적으로 미룹니다.
