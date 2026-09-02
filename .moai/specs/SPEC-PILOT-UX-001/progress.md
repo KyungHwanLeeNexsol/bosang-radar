@@ -1,0 +1,153 @@
+# SPEC-PILOT-UX-001 — Progress
+
+## §E.1 Plan-phase Audit-Ready Signal
+
+plan_status: audit-ready
+plan_complete_at: 2026-09-01
+tier: M
+artifact_set: spec.md, plan.md, acceptance.md (3 files, Tier M) + progress.md (not counted in Tier total)
+spec_id_check: PASS (`SPEC-PILOT-UX-001` matches `^SPEC(-[A-Z][A-Z0-9]*)+-[0-9]{3}$`, verified via Bash regex per manager-spec pre-write protocol)
+depends_on_status: SPEC-RESEARCH-001 (completed), SPEC-GEMINI-RUNTIME-001 (completed), SPEC-EVIDENCE-001 (completed), SPEC-FEEDBACK-001 (completed) — all four dependencies fulfilled at plan-phase authoring time
+open_clarifications: 0 — the plan.md §A decision 1 NULL-handling clarification question (nonce unique-index behavior under Drizzle Kit) was originally resolved in the iteration-2 fix-up (see `iteration_2_fixups` below for that historical resolution). **That resolution — and the DB-backed `submissionNonce`/unique-index idempotency design it applied to — was fully superseded in iteration 3** (see `iteration_3_amendment` below and spec.md HISTORY): server/DB idempotency is explicitly Out of Scope for this SPEC (an external independent review found it did not actually prevent the concurrent-request race it was meant to prevent). **Current final design**: duplicate-submission prevention is implemented exclusively as a client-only `useRef`-based single-flight guard (REQ-PILOT-UX-002/003 for the case-input form, REQ-PILOT-UX-007/010/011 for the feedback form). There is no `submissionNonce` column, no unique index, and no Drizzle migration anywhere in this SPEC's final scope.
+iteration_2_fixups: plan-auditor 1st-pass FAIL response (score 0.875) — D1/MP-7 (NEEDS CLARIFICATION marker) resolved as above; D2 (original REQ-PILOT-UX-014 multi-obligation bundling) resolved by splitting into a fetch-failure requirement (When) + a new error.tsx-boundary requirement (Ubiquitous), then merging the original REQ-PILOT-UX-004 (nonce reuse/regeneration scope) into the original REQ-PILOT-UX-003 via an And sub-clause to net the count back to 16; the whole REQ set was then renumbered contiguously 001-016 to avoid a numbering gap (mapping: 001,002,003(merged) unchanged; former 005-016 shift down by one to 004-015; the new error-boundary requirement lands at 014; Group G — former 015/016 — coincidentally lands back on 015/016). D3 (Type-column mislabeling) resolved by relabeling the (post-renumbering) REQ-PILOT-UX-001/004/007 from Ubiquitous to While to match their actual conditional wording. spec.md/plan.md/acceptance.md updated consistently with the new numbering; REQ count verified at 16, contiguous 001-016, no duplicates/orphans.
+
+iteration_3_amendment: 2026-09-02 — 외부 독립 리뷰 반영. iteration-2까지 승인되어 있던 DB 기반 서버측 idempotency(REQ-PILOT-UX-003/008의 `submissionNonce` 컬럼 + unique index, `create-case.ts`/`submit-feedback.ts`의 DB-nonce dedup 로직, 신규 Drizzle 마이그레이션, plan.md 구 M1/M2 마일스톤)를 SPEC 범위에서 전면 제거했다. 근거: `createCase`의 실제 실행 순서(`validate → runPipeline → cases insert → reports insert`)상, `runPipeline` 실행 전 SELECT + 실행 후 unique index 접근으로는 동일 nonce를 가진 두 동시 요청이 모두 파이프라인(고비용 Gemini 호출)을 실행하는 경합을 막지 못한다 — 이는 이 SPEC의 범위를 넘어서는 진정한 분산 idempotency(예약/대기/완료 상태 전이 + 크래시 복구) 없이는 해결 불가능하며, 후속 SPEC 후보로 명시적으로 미뤘다(spec.md §Out of Scope 신규 항목).
+
+변경 내용: (1) 사건/피드백 중복 제출 방지를 `case-input-form.tsx`/`feedback-form.tsx`의 순수 클라이언트측 `useRef` 단일 흐름(single-flight) 가드로 재정의(REQ-PILOT-UX-003/008 전문 재작성). (2) REQ-PILOT-UX-009(성공 확인)를 확장해 성공 후 해당 마운트 인스턴스에서 제출 버튼이 계속 비활성 상태로 유지되도록 함 — 새 폼 인스턴스(새로고침/재진입)에서는 새 논리적 제출이 다시 허용되어 SPEC-FEEDBACK-001의 append-only 정책과 완전히 일치, 서버측 write-path는 전혀 수정하지 않음. (3) REQ-PILOT-UX-010의 필드 오류 키 계약을 `submit-feedback.ts`의 실제 `toFieldErrors` 동작(Zod issue의 `path[0]`만 사용, 최상위 키만 존재)에 맞춰 정정 — 존재하지 않던 중첩 경로(`missedIssues.0.description`) 예시를 제거. (4) `reportFeedbackPayloadSchema`에 `submissionNonce` optional 필드를 추가하지 않기로 결정(REQ-PILOT-UX-016에서 관련 문구 제거) — Gold Dataset 시맨틱 페이로드에 transport metadata를 섞지 않는다는 원칙 유지. (5) AC-PILOT-UX-007의 잘못된 `QueryIssueType` fixture(`DISABILITY_GRADE`)를 실제 SSOT 값(`DISABILITY_GRADE_CRITERIA`, `lib/pipeline/types.ts:38`)으로 수정. (6) `app/cases/new/loading.tsx`(신규) 계획 항목을 영향 파일 목록·마일스톤에서 모두 제거 — 이를 생성하는 마일스톤이 애초에 없었고 REQ-PILOT-UX-001의 폼 내부 대기 표시만으로 충분. (7) REQ-PILOT-UX-006에 `evidenceType`/`issueTypes`에 대한 선택적(비필수) 한글 표시 레이블 매핑 문구를 추가. (8) acceptance.md Definition of Done의 포맷 검사 명령을 `package.json`의 실제 스크립트명(`pnpm format:check`, 기존에는 `pnpm format --check`로 오기재)에 맞춰 정정.
+
+영향받은 파일: spec.md(프론트매터 version 0.1.1→0.2.0·updated·module·tags, HISTORY, §1 WHY 일부 문구·WHAT·Tier 근거, §2 REQ-003/006/008/009/010/016 본문, §Out of Scope 신규 서브섹션), plan.md(§A decision 1 전면 재작성·decision 2 유지, §B 구 M1/M2 삭제·M3~M6을 M1~M4로 재넘버링 및 본문 수정, §C 재작성, §D Risk 1/2 재구성, §E PRESERVE 목록에 `create-case.ts`/`submit-feedback.ts`/`lib/feedback/schema.ts`/`lib/validation/case-input.ts` 추가), acceptance.md(AC Group B/E 시나리오 전면 재작성, AC-007 fixture 수정, AC-016 재작성, Definition of Done 명령 정정). REQ 총량은 16개로 변동 없음(내용 재작성만, ID 추가/삭제 없음) — `grep -c "^| REQ-PILOT-UX-" spec.md`로 재확인 필요.
+
+plan_audit_verdict (iteration 3): FAIL — 종합 점수 0.82, must-pass MP-2(GEARS 단일 트리거 형식) 위반으로 차단됨. 오케스트레이터가 재위임한 fix round(iteration 4)로 대응했다(아래).
+
+iteration_4_amendment: 2026-09-02 — plan-auditor iteration-3 FAIL(0.82, MP-2 GEARS 단일 트리거 형식 위반) 대응. 구 REQ-PILOT-UX-003(가드 반환+실패 시 리셋+성공 시 유지, 3개 절을 하나의 ID에 묶음)을 원자적 단일-트리거 REQ 2개(신 002/003)로 분리하고, `useRef` 구현 세부사항(HOW) 서술을 제거했다(plan.md §B M2/M3에 이미 명시됨). 구 REQ-PILOT-UX-008에서 동일한 `useRef` preamble을 제거했다(분리하지 않음, 원래 단일 트리거). 구 REQ-PILOT-UX-009(성공 확인+비활성 유지+재진입 재허용 — 2개의 독립적 트리거를 하나의 ID에 묶음)를 원자적 단일-트리거 REQ 2개(신 008/009)로 분리했다. REQ 총량이 16→18로 늘어난 것을 상쇄하기 위해, plan-auditor가 지목한 대로 구 REQ-001(대기 표시)+구 REQ-002(필드 비활성화)를 하나의 While 요구사항(신 001)으로, 구 REQ-004(배너 렌더링)+구 REQ-005(집계 검증 상태)를 하나의 While 요구사항(신 004)으로 병합했다. 순 변화 0, REQ 총량 16 유지. 전체 REQ ID를 001~016으로 재넘버링(매핑: 구 001/002 병합→신 001, 구 003 분리→신 002/003, 구 004/005 병합→신 004, 구 006/007→신 005/006, 구 008→신 007, 구 009 분리→신 008/009, 구 010~016→신 010~016 동일값 — 병합/분리가 상쇄되어 Group F 진입 전 항목 총량 11개로 변동 없음). spec.md 요구사항 표·§4 교차 참조, acceptance.md의 AC Group 헤더 REQ-ID 참조(AC 본문 자체는 재작성하지 않음 — plan-auditor 관찰대로 이미 원자적으로 분해되어 있었음), plan.md §A/§B/§D의 REQ-ID 참조를 모두 새 번호 체계로 갱신했다. `grep -c "^| REQ-PILOT-UX-" spec.md` = 16으로 확인.
+
+plan_audit_verdict (iteration 4): FAIL — 종합 점수 0.875(informational)에도 불구하고 must-pass MP-2(GEARS 단일 트리거 형식)가 여전히 위반됨. 신 REQ-PILOT-UX-002가 "재호출됨"(When)과 "성공적으로 제출된 이후"(별개 이벤트)라는 두 트리거를 여전히 하나의 When 요구사항에 묶고 있다는 지적. 오케스트레이터가 재위임한 targeted fix round(iteration 5)로 대응했다(아래).
+
+iteration_5_amendment: 2026-09-02 — plan-auditor iteration-4 FAIL(0.875 informational, MP-2 잔존 위반) 대응. REQ-PILOT-UX-002를 When 패턴에서 단일 While-패턴("While 제출 가드가 활성 상태이면 ... 즉시 반환해야 한다")으로 재작성 — 가드 활성 상태라는 하나의 트리거가 in-flight(요청 진행 중)와 post-success(성공 후 미해제, REQ-003에 따라 실패 시에만 해제)를 모두 포괄하므로 트리거 결합이 아니다. REQ 개수·ID 변화 없음(단일 REQ 재작성만). 누락되어 있던 post-success 재호출 검증 AC를 acceptance.md AC-PILOT-UX-003에 And 하위 시나리오로 추가했다(REQ-008/009 쌍의 AC-010과 동일한 패턴 — in-flight/post-success 두 상태를 모두 독립적으로 Given/When/Then 검증 가능). 이번 fix round는 spec.md §2 REQ-002 본문·Type·근거 열과 acceptance.md AC-PILOT-UX-003만 수정했으며 그 외 파일(plan.md 등)은 건드리지 않았다 — REQ-002의 참조 대상(가드 메커니즘)이 plan.md에서 이미 REQ-002/003으로 정확히 인용되어 있었으므로 plan.md 갱신이 불필요했다.
+
+plan_audit_verdict (iteration 5): PASS
+score: 0.98
+iteration: 5 (DB-idempotency-removal amendment로 열린 fix cycle의 3번째 감사: iter3 FAIL 0.82 → iter4 FAIL 0.875-informational → iter5 PASS 0.98)
+non_blocking_findings (2건, 결함 아님):
+  1. REQ-PILOT-UX-006(근거자료 클릭 가능 링크) — Type-label 스타일 관련 사소한 지적(nit). 타입 자체는 올바르게 While로 분류되어 있으나 요구사항 본문이 "While"로 문자 그대로 시작하지는 않음(서술형 어순). 형식 위반은 아님.
+  2. plan.md 일관성 확인 완료 — REQ-002가 iteration-5에서 While-패턴으로 재작성된 뒤에도 plan.md의 기존 참조(§B M3 (c), §B M4 e2e 어서션, §D)가 여전히 의미상 정확함을 확인. 갭 아님(gap 아님, 확인 완료 상태).
+plan-audit 리포트(`.moai/reports/plan-audit/`)는 이 프로젝트 정책상 gitignore된 로컬 아티팩트이므로, 커밋된 리포트 파일의 존재를 주장하지 않으며 검증 결과(verdict/score/finding 2건)만 이 progress.md에 기록한다. 이 PASS 판정은 plan-auditor가 내렸으며, 이 항목을 기록한 에이전트가 자체적으로 내린 판정이 아니다.
+
+pre_run_coherence_correction_cycle: 2026-09-02 — iteration-5 PASS(0.98) 커밋·푸시(SHA `7b584a1`) 이후, `/moai run` 진입 전 마지막 정합성 보정으로 진행된 별도 감사 사이클. 새 SPEC 없음, DB/서버 write-path/스키마 변경 없음, client-only single-flight 결정 유지, REQ 16개 유지라는 제약 하에 3개 항목(피드백 single-flight 실패 복구 계약 추가, M4 자동 검증 범위를 AC와 정합화, AC-PILOT-UX-016 문구 정정)을 적용했다.
+
+plan_audit_verdict (iteration 6): FAIL — 종합 점수 0.74. D1: 구 REQ-PILOT-UX-010이 검증실패/예외·reject 두 트리거를 하나의 When에 묶었을 뿐 아니라, 두 트리거의 **응답 자체가 실제로 분기**함(공유되는 것은 가드 리셋뿐 — REQ-002(단일 응답)와 다름)을 지적. D2: plan.md M4 테스트 계획에 AC-001(대기 인디케이터)/AC-002(필드 비활성화)/AC-012(섹션 그룹핑)에 대응하는 테스트 계획 항목이 전혀 없음을 지적.
+
+iteration_6_fixup: 2026-09-02 — D1: 구 REQ-PILOT-UX-010을 REQ-002가 REQ-003을 참조하는 것과 동일한 방식으로 공유 가드-리셋(REQ-007)을 교차 참조하며 원자적 단일-When 요구사항 2개로 분리 — 신 REQ-PILOT-UX-010(검증실패 분기: 가드 리셋 + fieldErrors 표시)과 신 REQ-PILOT-UX-011(예외/reject 분기: 가드 리셋 + 폼-레벨 오류 + unhandled-rejection 금지). REQ 총량이 16→17로 늘어난 것을 상쇄하기 위해, 트리거 없이 전역 적용되는 두 Unwanted 제약(구 REQ-015 안전 문구, 구 REQ-016 개인정보)을 REQ-014(사건 폼 네트워크 예외)가 이미 쓰던 단일-트리거(없음)/복합-응답("shall not A and shall not B") 병합 패턴으로 신 REQ-016 하나로 통합했다. 순 변화 0(+1-1), REQ 총량 16 유지. 전체 REQ ID를 001~016으로 재넘버링(매핑: 구 001~009 불변, 구 010 분리→신 010/011, 구 011(섹션 그룹핑)→신 012, 구 012(빈 상태)→신 013, 구 013(네트워크 예외)→신 014, 구 014(error.tsx)→신 015, 구 015+016 병합→신 016). D2: plan.md M4에 AC-001/002를 `case-input-form.test.tsx` 불릿에, AC-012를 `feedback-form.test.tsx` 불릿에 추가해 AC-001~014의 M4 커버리지 갭을 해소했다 — AC-015/016은 render 테스트가 아닌 문구·diff 검토형 기준(AC 본문 자체가 "When each string is reviewed..."/"When the diff...is inspected" 형태)이라 M1-M4 대상에서 의도적으로 제외했다. spec.md 요구사항 표(Group E/F/G)·§4 교차 참조, plan.md §B M2/M3/M4의 REQ-ID 참조, acceptance.md AC Group E/F/G 헤더·AC-011/013/014 본문의 REQ-ID 참조를 모두 새 번호 체계로 갱신했다 — AC 본문 시나리오 내용 자체는 재작성하지 않고 REQ-ID 레이블 및 M4 커버리지 갭만 보완했다. `grep -c "^| REQ-PILOT-UX-" spec.md` = 16으로 확인.
+
+plan_audit_verdict (iteration 7): PASS
+score: 0.92 (Tier M 임계값 0.80 상회)
+recommendation: "PASS stands." — 재감사 불필요
+iteration: 7 (DB-idempotency-removal amendment 이후 pre-run coherence correction 사이클의 2번째 감사: iter6 FAIL 0.74 → iter7 PASS 0.92)
+trivial_citation_typo_fixes (4건, must-pass 기준 무관·REQ/AC 내용 및 개수 무변경): (1) plan.md M1 empty-state 불릿의 "REQ-PILOT-UX-012" 오기재를 "REQ-PILOT-UX-013"으로 정정. (2) plan.md M2 첫 불릿의 "REQ-PILOT-UX-010's action-rejection branch" 오기재를 "REQ-PILOT-UX-011's action-rejection branch"로 정정(다음 두 불릿이 이미 정확히 쓰던 것과 일치). (3) spec.md REQ-016 근거 열의 "REQ-013(사건 폼 네트워크 예외)" 오기재를 "REQ-014(사건 폼 네트워크 예외)"로 정정(현재 REQ-013은 빈 상태 요구사항, 네트워크 예외는 REQ-014). (4) spec.md iteration-6 HISTORY 엔트리의 "AC-001~016 전체가... 정합화" 과장 서술을 "AC-001~014의 M4 커버리지 갭을 해소했으며, AC-015/016은 render 테스트가 아닌 문구·diff 검토형 기준이라 M1-M4 대상에서 의도적으로 제외함"으로 완화.
+plan-audit 리포트(`.moai/reports/plan-audit/`)는 이 프로젝트 정책상 gitignore된 로컬 아티팩트이므로, 커밋된 리포트 파일의 존재를 주장하지 않으며 검증 결과(verdict/score/recommendation/trivial-fix 4건)만 이 progress.md에 기록한다. 이 PASS 판정은 plan-auditor가 내렸으며, 이 항목을 기록한 에이전트가 자체적으로 내린 판정이 아니다.
+
+## §F Phase 4 Mode Selection
+
+phase_1_skip_decision: SKIPPED re-execution of plan-auditor (all 3 conditions satisfied per spec-workflow.md § Plan to Run skip contract):
+  1. Verdict PASS — iteration 7 (2026-09-02)
+  2. Score 0.92 >= Tier M threshold 0.80
+  3. Artifact hash unchanged — last commit touching spec.md/plan.md/acceptance.md is `2304050` (the same commit that produced the iteration-7 PASS verdict); the only later commit `c5d41a8` touched progress.md only.
+
+input_parameters: tier=M, scope=~10 files (page.tsx/feedback-form.tsx/case-input-form.tsx edit + error.tsx new + 4 test files new/extended + e2e/case-flow.spec.ts edit), domain_count=1 (frontend React/Next.js), file_language_mix=100% TypeScript/TSX, concurrency_benefit=LOW (coding-heavy, milestone dependencies)
+
+mode_evaluation:
+  - direct: not selected — non-trivial, multi-file semantic change
+  - agent-team: not selected — not explicitly requested by user
+  - fanout: not selected — single-domain coding-heavy work, not multi-domain research
+  - sweep: not selected — scope well under ~30-file mechanical threshold; work is semantic (new UI logic/guards/tests), not a uniform mechanical transform
+  - serial: SELECTED — default fallback; coding-heavy TDD implementation via manager-develop, per Anthropic's coding-task parallelism caveat
+
+Decision: serial
+
+justification: Single-domain frontend coding work with milestone dependencies (M1-M4 share components/patterns) and no genuinely parallel structure. manager-develop (cycle_type=tdd) executes M1-M4 sequentially in one delegation.
+
+## §E.2 Run-phase Evidence
+
+Implementation completed via manager-develop (cycle_type=tdd) across 4 local commits: `ac126c7`(M1) → `015834e`(M2) → `97fc198`(M3) → `a2d58de`(M4).
+
+**Provenance correction (2026-09-02, post-run final verification pass)**: the "No push" statement below and in §E.3 was accurate as a **verification-time snapshot** at the moment it was written (orchestrator confirmed `origin/plan/SPEC-PILOT-UX-001` was unchanged then). It does NOT describe the current state — the branch has since been pushed to origin (confirmed by re-fetch: `origin/plan/SPEC-PILOT-UX-001` HEAD is `8427f4a`, 0/0 divergence from local, same commit as the docs commit that recorded this evidence section). Do not read "no push" below as a claim about the present; it is dated evidence of the state at the time it was captured.
+
+manager-develop's §E1 self-report: all 16 REQ-mapped ACs (AC-PILOT-UX-001~016) PASS; AC-015 is a manual text-review criterion (acceptance.md specifies it as review-type, not render-test-type).
+
+Orchestrator independent re-verification (this run, this tree, HEAD `a2d58de`):
+- `pnpm build` → exit 0 (Turbopack build succeeded; 1 pre-existing unrelated warning in `instrumentation.ts`)
+- `pnpm lint` → exit 0 (clean)
+- `npx vitest run "app/cases" "e2e" --reporter=dot` → 6 test files, 25 tests, all passed
+- `grep -rn 'AskUserQuestion' app/cases | grep -v "_test.tsx" | grep -v "// "` → exit 1, no matches (subagent boundary respected)
+- `git diff --stat origin/main -- lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts` → no output (server write-path untouched, confirms AC-016)
+- `git log origin/plan/SPEC-PILOT-UX-001` → unchanged since `c5d41a8` at verification time (confirmed no push had occurred AS OF that moment — see provenance correction note above for current state)
+
+Coverage gap (accepted by user, 2026-09-02): `case-input-form.tsx` 79.5%, `feedback-form.tsx` 61.6%, `page.tsx` 72.7% statement coverage — below quality.yaml `test_coverage_target: 85`. manager-develop's justification: uncovered lines are pre-existing interaction branches (issue add/remove, per-item assessment selects, outcome field) not required by this SPEC's ACs, per plan.md M4 scope note. User explicitly chose to proceed to sync with this gap recorded rather than requesting additional coverage tests (AskUserQuestion round, orchestrator session).
+
+### Post-run Final Verification (acceptance.md Definition of Done — full gates)
+
+Re-run on current HEAD `8427f4a` (2026-09-02, orchestrator, this run/this tree), per user request for a post-run final verification pass before sync. All 5 Definition-of-Done gates:
+
+| # | Command | Exit | Result |
+|---|---------|------|--------|
+| 1 | `npx vitest run` (full unit suite, all 48 test files, not only this SPEC's) | 0 | 335/335 tests passed. (One test's stdout intentionally exercises `provision-tester.ts`'s missing-`--email` error path — the `❌ 테스터 프로비저닝 실패` line in the captured log is expected assertion-path console output from that test, not a real failure.) |
+| 2 | `pnpm test:e2e` | 0 | 4/4 Playwright tests passed, incl. `case-flow.spec.ts` (case input → report → feedback, single-flight guard) |
+| 3 | `pnpm lint` | 0 | clean, no findings |
+| 4 | `pnpm format:check` | 1 | 1 file flagged: `CHANGELOG.md` only. **Baseline, not a new violation** — confirmed via `git log -1 -- CHANGELOG.md` → last touched by `de5c10e` (a prior SPEC, before this SPEC's branch point) and `git diff --stat de5c10e..8427f4a -- CHANGELOG.md` → empty (this SPEC's 4 commits never touched the file). |
+| 5 | `pnpm build` | 0 | Turbopack build succeeded, 1 pre-existing unrelated warning (`instrumentation.ts` Edge Runtime notice, present before this SPEC) |
+
+Definition of Done items 1-4 (test/e2e/lint/format:check with no new violations) are satisfied. Item 5 (manual browser smoke) is recorded separately below.
+
+### Manual Browser Smoke (Definition of Done item 5)
+
+Performed by the user (2026-09-02), since `claude-in-chrome` browser automation was unavailable in this session (extension not connected). The orchestrator provisioned an isolated verification environment for this purpose — `next start` on `localhost:3211`, `LLM_PROVIDER_MODE=deterministic` (no real Gemini API calls), isolated temp SQLite DB (`.tmp/manual-smoke.db`), one provisioned tester account — and handed the URL + credentials to the user.
+
+Steps confirmed by the user, in order:
+1. Case input submitted (진단명 "우측 슬관절 십자인대 파열" / 장해 부위 "우측 하지" / 경위 test text) → routed to the report page.
+2. Report page rendered the summary banner ("전체 검증 상태: 6건 중 6건 근거 확인, 0건 판단 불충분") and per-evidence `evidenceType`/`issueTypes` bracketed tags (e.g. `[POLICY, DISABILITY_LOCATION, DISABILITY_GRADE_CRITERIA]`) — confirmed via a pasted copy of the rendered page text.
+3. Feedback form rendered fully section-grouped (누락된 쟁점 / 개별 주장 평가 / 개별 근거자료 평가), all fields defaulted to "평가 안 함".
+4. Feedback submitted (overall rating: one arbitrary valid enum value; rest left at defaults) → user-reported result: "피드백이 제출되었습니다. 감사합니다." success message appeared, and the browser console showed nothing (no errors).
+
+Not independently re-confirmed by the user: the submit button remaining disabled after success. This behavior is the same state transition (`submissionSucceeded`) that both renders the confirmation message AND disables the button (`feedback-form.tsx`, per plan.md §B M2), and is already covered by an automated assertion in both `feedback-form.test.tsx` (AC-010) and `case-flow.spec.ts`'s e2e run (both re-verified GREEN in this same session, see § Post-run Final Verification above) — treated as sufficiently covered rather than a live gap.
+
+**Result: Definition of Done item 5 — PASS**, evidence per above (user-performed, deterministic-mode isolated environment).
+
+The smoke-test server and its temp DB were torn down after this check.
+
+### Optional Low-Risk Cleanup (post-run final verification, 3 items)
+
+All 3 requested, applied and re-verified in this session:
+
+1. `app/cases/[caseId]/page.test.tsx` — added `afterEach(() => { act(() => root.unmount()); container.remove(); })` (previously only `beforeEach` created the root/container per test, with no explicit teardown between tests).
+2. `e2e/case-flow.spec.ts` — replaced `page.waitForLoadState("networkidle")` with `page.getByTestId("feedback-success").waitFor({ state: "visible" })` as the feedback-completion wait condition (a more precise, behavior-anchored wait than the generic network-idle heuristic).
+3. `app/cases/[caseId]/page.tsx` — corrected the `renderEvidenceReference` helper's comment citation from `REQ-PILOT-UX-006/010` to `REQ-PILOT-UX-005/006` (verified against spec.md: REQ-005 = evidenceType/issueTypes SELECT projection, REQ-006 = sourceUrl clickable link; REQ-010 is an unrelated feedback-form field-error requirement).
+
+Re-verification after cleanup (this run, this tree):
+- `npx vitest run "app/cases/[caseId]/page.test.tsx"` → exit 0, 5/5 passed
+- `pnpm test:e2e` → exit 0, 4/4 passed (incl. the modified `case-flow.spec.ts` wait condition)
+- `pnpm lint` → exit 0, clean
+- `npx prettier --write` on all 3 touched files → no changes needed (already correctly formatted)
+
+## §E.3 Run-phase Audit-Ready Signal
+
+run_status: audit-ready
+run_complete_at: 2026-09-02
+run_commits: ac126c7, 015834e, 97fc198, a2d58de (verification-time snapshot: local-only, no push — since superseded, see §E.2 provenance correction; current remote `origin/plan/SPEC-PILOT-UX-001` HEAD is `8427f4a`, which includes these commits) + a post-run final-verification commit (this session: progress.md evidence, provenance correction, and 3 optional low-risk cleanups)
+known_gap: coverage below 85% target for 3 files (see §E.2 for detail) — user-accepted, non-blocking for sync
+definition_of_done: all 5 acceptance.md DoD items PASS (see § Post-run Final Verification + § Manual Browser Smoke above)
+
+## §E.4 Sync-phase Audit-Ready Signal
+
+```yaml
+sync_complete_at: 2026-09-02
+sync_commit_sha: 85a819f  # backfilled after commit, per the SHA placeholder backfill exemption (spec-frontmatter-schema.md § SHA placeholder backfill exemption)
+sync_status: PASS
+sync_audit_verdict: "PASS (harmonic mean 0.88) — Functionality 95, Security 94, Craft 72 (disclosed coverage-gap debt, non-blocking), Consistency 94. Independently re-verified by sync-auditor (own command runs, not drafting-agent self-report)."
+b12_self_test_a: PASS  # grep -c 'SPEC-PILOT-UX-001' CHANGELOG.md -> 0 (pre-emission), no duplicate entry risk
+b12_self_test_b: PASS  # grep -oE 'AC-PILOT-UX-[0-9]+' acceptance.md | sort -u | wc -l -> 16, CHANGELOG entry cites the same 16
+b12_self_test_c: PASS  # ls verified: app/cases/[caseId]/page.tsx, app/cases/[caseId]/feedback-form.tsx, app/cases/new/case-input-form.tsx, app/cases/[caseId]/error.tsx
+changelog_entry_position: "top of [Unreleased], immediately before the SPEC-FEEDBACK-001 entry"
+frontmatter_status_transitions:
+  spec_md: "in-progress -> completed"
+canary_compliance_check: not-applicable  # this SPEC does not define a forward-looking policy that its own sync tests
+```
