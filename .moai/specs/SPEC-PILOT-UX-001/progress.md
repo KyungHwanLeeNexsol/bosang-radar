@@ -68,11 +68,26 @@ justification: Single-domain frontend coding work with milestone dependencies (M
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+Implementation completed via manager-develop (cycle_type=tdd) across 4 local commits: `ac126c7`(M1) → `015834e`(M2) → `97fc198`(M3) → `a2d58de`(M4). No push (git_strategy.mode=manual, push_to_remote=false).
+
+manager-develop's §E1 self-report: all 16 REQ-mapped ACs (AC-PILOT-UX-001~016) PASS; AC-015 is a manual text-review criterion (acceptance.md specifies it as review-type, not render-test-type).
+
+Orchestrator independent re-verification (this run, this tree, HEAD `a2d58de`):
+- `pnpm build` → exit 0 (Turbopack build succeeded; 1 pre-existing unrelated warning in `instrumentation.ts`)
+- `pnpm lint` → exit 0 (clean)
+- `npx vitest run "app/cases" "e2e" --reporter=dot` → 6 test files, 25 tests, all passed
+- `grep -rn 'AskUserQuestion' app/cases | grep -v "_test.tsx" | grep -v "// "` → exit 1, no matches (subagent boundary respected)
+- `git diff --stat origin/main -- lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts` → no output (server write-path untouched, confirms AC-016)
+- `git log origin/plan/SPEC-PILOT-UX-001` → unchanged since `c5d41a8` (confirms no push occurred)
+
+Coverage gap (accepted by user, 2026-09-02): `case-input-form.tsx` 79.5%, `feedback-form.tsx` 61.6%, `page.tsx` 72.7% statement coverage — below quality.yaml `test_coverage_target: 85`. manager-develop's justification: uncovered lines are pre-existing interaction branches (issue add/remove, per-item assessment selects, outcome field) not required by this SPEC's ACs, per plan.md M4 scope note. User explicitly chose to proceed to sync with this gap recorded rather than requesting additional coverage tests (AskUserQuestion round, orchestrator session).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+run_status: audit-ready
+run_complete_at: 2026-09-02
+run_commits: ac126c7, 015834e, 97fc198, a2d58de (all local on plan/SPEC-PILOT-UX-001, no push)
+known_gap: coverage below 85% target for 3 files (see §E.2 for detail) — user-accepted, non-blocking for sync
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
