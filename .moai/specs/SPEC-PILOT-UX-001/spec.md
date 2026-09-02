@@ -2,7 +2,7 @@
 id: SPEC-PILOT-UX-001
 title: "파일럿 사용성 개선 — 사건 입력→분석 대기→리포트 검토→피드백 제출 흐름"
 version: "0.3.3"
-status: draft
+status: in-progress
 created: 2026-09-01
 updated: 2026-09-02
 author: Nexsol

@@ -5,6 +5,7 @@ import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
 import { evidence as evidenceTable } from "@/lib/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { EvidenceType, QueryIssueType } from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
 
@@ -19,6 +20,38 @@ interface CaseDetailPageProps {
 interface EvidenceDisplay {
   title: string;
   sourceUrl: string | null;
+  evidenceType: EvidenceType;
+  issueTypes: QueryIssueType[];
+}
+
+// SPEC-PILOT-UX-001 REQ-PILOT-UX-006/010 — evidenceType/issueTypes 근거자료
+// 참조 렌더링을 세 곳(claim 자신, counterArgument 뒷받침/반박)에서 공통으로
+// 사용하기 위한 헬퍼(plan.md §D Risk 1의 중복 방지). sourceUrl은 클릭 가능한
+// 링크로 렌더링한다(REQ-PILOT-UX-006).
+function renderEvidenceReference(evidenceId: string, evidenceById: Map<string, EvidenceDisplay>) {
+  const item = evidenceById.get(evidenceId);
+  return (
+    <li key={evidenceId}>
+      {item?.title ?? evidenceId}
+      {item ? (
+        <span className="text-muted-foreground">
+          {" "}
+          [{item.evidenceType}
+          {item.issueTypes.length > 0 ? `, ${item.issueTypes.join(", ")}` : ""}]
+        </span>
+      ) : null}
+      {item?.sourceUrl ? (
+        <span className="text-muted-foreground">
+          {" "}
+          (
+          <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">
+            {item.sourceUrl}
+          </a>
+          )
+        </span>
+      ) : null}
+    </li>
+  );
 }
 
 // bare UI — 사건 상세 + 리서치 리포트 뷰(M5/M6, design.md §3·§8). owner_user_id
@@ -50,10 +83,17 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
         id: evidenceTable.id,
         title: evidenceTable.title,
         sourceUrl: evidenceTable.sourceUrl,
+        evidenceType: evidenceTable.evidenceType,
+        issueTypes: evidenceTable.issueTypes,
       })
       .from(evidenceTable);
     for (const row of rows) {
-      evidenceById.set(row.id, { title: row.title, sourceUrl: row.sourceUrl });
+      evidenceById.set(row.id, {
+        title: row.title,
+        sourceUrl: row.sourceUrl,
+        evidenceType: row.evidenceType as EvidenceType,
+        issueTypes: row.issueTypes as QueryIssueType[],
+      });
     }
   }
 
@@ -74,12 +114,35 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       ]
     : [];
 
+  // SPEC-PILOT-UX-001 REQ-PILOT-UX-004(§A decision 2) — 요약 배너 집계는
+  // 이미 조회된 report.verifiedClaims를 inline reduce/filter로 계산한다.
+  // ResearchReport 타입 계약(SPEC-RESEARCH-001)은 건드리지 않는다.
+  const verifiedCount = report
+    ? report.verifiedClaims.filter((claim) => claim.status === "VERIFIED").length
+    : 0;
+  const totalClaimCount = report?.verifiedClaims.length ?? 0;
+  const insufficientCount = totalClaimCount - verifiedCount;
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-16">
       <h1 className="text-xl font-semibold">사건 상세</h1>
 
       {report ? (
         <div data-testid="case-report">
+          <Card data-testid="summary-banner">
+            <CardHeader>
+              <CardTitle>요약</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1 text-sm">
+              <p>진단명: {report.caseSummary.diagnosisName}</p>
+              <p>장해 부위: {report.caseSummary.disabilityBodyPart}</p>
+              <p>
+                전체 검증 상태: {totalClaimCount}건 중 {verifiedCount}건 근거 확인,{" "}
+                {insufficientCount}건 판단 불충분
+              </p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>사건 요약</CardTitle>
@@ -113,6 +176,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               <CardTitle>추가로 검토할 담보 · 근거자료 · 반대 논리</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4" data-testid="verified-claims">
+              {report.verifiedClaims.length === 0 ? (
+                <p className="text-sm text-muted-foreground">확인된 주장이 없습니다.</p>
+              ) : null}
               {report.verifiedClaims.map((claim, index) => (
                 <div
                   key={index}
@@ -139,17 +205,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                   <div>
                     <p className="text-muted-foreground">관련 근거자료</p>
                     <ul className="list-inside list-disc">
-                      {claim.supportingEvidenceIds.map((evidenceId) => {
-                        const item = evidenceById.get(evidenceId);
-                        return (
-                          <li key={evidenceId}>
-                            {item?.title ?? evidenceId}
-                            {item?.sourceUrl ? (
-                              <span className="text-muted-foreground"> ({item.sourceUrl})</span>
-                            ) : null}
-                          </li>
-                        );
-                      })}
+                      {claim.supportingEvidenceIds.map((evidenceId) =>
+                        renderEvidenceReference(evidenceId, evidenceById)
+                      )}
                     </ul>
                   </div>
                   {claim.counterArguments.length > 0 ? (
@@ -168,20 +226,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                               <div className="pl-4">
                                 <p className="text-muted-foreground">뒷받침 근거</p>
                                 <ul className="list-inside list-disc">
-                                  {counterArgument.supportingEvidenceIds.map((evidenceId) => {
-                                    const item = evidenceById.get(evidenceId);
-                                    return (
-                                      <li key={evidenceId}>
-                                        {item?.title ?? evidenceId}
-                                        {item?.sourceUrl ? (
-                                          <span className="text-muted-foreground">
-                                            {" "}
-                                            ({item.sourceUrl})
-                                          </span>
-                                        ) : null}
-                                      </li>
-                                    );
-                                  })}
+                                  {counterArgument.supportingEvidenceIds.map((evidenceId) =>
+                                    renderEvidenceReference(evidenceId, evidenceById)
+                                  )}
                                 </ul>
                               </div>
                             ) : null}
@@ -189,20 +236,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                               <div className="pl-4">
                                 <p className="text-muted-foreground">반박 근거</p>
                                 <ul className="list-inside list-disc">
-                                  {counterArgument.counterEvidenceIds.map((evidenceId) => {
-                                    const item = evidenceById.get(evidenceId);
-                                    return (
-                                      <li key={evidenceId}>
-                                        {item?.title ?? evidenceId}
-                                        {item?.sourceUrl ? (
-                                          <span className="text-muted-foreground">
-                                            {" "}
-                                            ({item.sourceUrl})
-                                          </span>
-                                        ) : null}
-                                      </li>
-                                    );
-                                  })}
+                                  {counterArgument.counterEvidenceIds.map((evidenceId) =>
+                                    renderEvidenceReference(evidenceId, evidenceById)
+                                  )}
                                 </ul>
                               </div>
                             ) : null}
@@ -213,6 +249,11 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                   ) : null}
                 </div>
               ))}
+              {citedEvidenceIds.length === 0 ? (
+                <p data-testid="cited-evidence-empty" className="text-sm text-muted-foreground">
+                  인용된 근거자료가 없습니다.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 
