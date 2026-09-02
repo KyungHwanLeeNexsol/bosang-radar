@@ -33,6 +33,19 @@ non_blocking_findings (2건, 결함 아님):
   2. plan.md 일관성 확인 완료 — REQ-002가 iteration-5에서 While-패턴으로 재작성된 뒤에도 plan.md의 기존 참조(§B M3 (c), §B M4 e2e 어서션, §D)가 여전히 의미상 정확함을 확인. 갭 아님(gap 아님, 확인 완료 상태).
 plan-audit 리포트(`.moai/reports/plan-audit/`)는 이 프로젝트 정책상 gitignore된 로컬 아티팩트이므로, 커밋된 리포트 파일의 존재를 주장하지 않으며 검증 결과(verdict/score/finding 2건)만 이 progress.md에 기록한다. 이 PASS 판정은 plan-auditor가 내렸으며, 이 항목을 기록한 에이전트가 자체적으로 내린 판정이 아니다.
 
+pre_run_coherence_correction_cycle: 2026-09-02 — iteration-5 PASS(0.98) 커밋·푸시(SHA `7b584a1`) 이후, `/moai run` 진입 전 마지막 정합성 보정으로 진행된 별도 감사 사이클. 새 SPEC 없음, DB/서버 write-path/스키마 변경 없음, client-only single-flight 결정 유지, REQ 16개 유지라는 제약 하에 3개 항목(피드백 single-flight 실패 복구 계약 추가, M4 자동 검증 범위를 AC와 정합화, AC-PILOT-UX-016 문구 정정)을 적용했다.
+
+plan_audit_verdict (iteration 6): FAIL — 종합 점수 0.74. D1: 구 REQ-PILOT-UX-010이 검증실패/예외·reject 두 트리거를 하나의 When에 묶었을 뿐 아니라, 두 트리거의 **응답 자체가 실제로 분기**함(공유되는 것은 가드 리셋뿐 — REQ-002(단일 응답)와 다름)을 지적. D2: plan.md M4 테스트 계획에 AC-001(대기 인디케이터)/AC-002(필드 비활성화)/AC-012(섹션 그룹핑)에 대응하는 테스트 계획 항목이 전혀 없음을 지적.
+
+iteration_6_fixup: 2026-09-02 — D1: 구 REQ-PILOT-UX-010을 REQ-002가 REQ-003을 참조하는 것과 동일한 방식으로 공유 가드-리셋(REQ-007)을 교차 참조하며 원자적 단일-When 요구사항 2개로 분리 — 신 REQ-PILOT-UX-010(검증실패 분기: 가드 리셋 + fieldErrors 표시)과 신 REQ-PILOT-UX-011(예외/reject 분기: 가드 리셋 + 폼-레벨 오류 + unhandled-rejection 금지). REQ 총량이 16→17로 늘어난 것을 상쇄하기 위해, 트리거 없이 전역 적용되는 두 Unwanted 제약(구 REQ-015 안전 문구, 구 REQ-016 개인정보)을 REQ-014(사건 폼 네트워크 예외)가 이미 쓰던 단일-트리거(없음)/복합-응답("shall not A and shall not B") 병합 패턴으로 신 REQ-016 하나로 통합했다. 순 변화 0(+1-1), REQ 총량 16 유지. 전체 REQ ID를 001~016으로 재넘버링(매핑: 구 001~009 불변, 구 010 분리→신 010/011, 구 011(섹션 그룹핑)→신 012, 구 012(빈 상태)→신 013, 구 013(네트워크 예외)→신 014, 구 014(error.tsx)→신 015, 구 015+016 병합→신 016). D2: plan.md M4에 AC-001/002를 `case-input-form.test.tsx` 불릿에, AC-012를 `feedback-form.test.tsx` 불릿에 추가해 AC-001~014의 M4 커버리지 갭을 해소했다 — AC-015/016은 render 테스트가 아닌 문구·diff 검토형 기준(AC 본문 자체가 "When each string is reviewed..."/"When the diff...is inspected" 형태)이라 M1-M4 대상에서 의도적으로 제외했다. spec.md 요구사항 표(Group E/F/G)·§4 교차 참조, plan.md §B M2/M3/M4의 REQ-ID 참조, acceptance.md AC Group E/F/G 헤더·AC-011/013/014 본문의 REQ-ID 참조를 모두 새 번호 체계로 갱신했다 — AC 본문 시나리오 내용 자체는 재작성하지 않고 REQ-ID 레이블 및 M4 커버리지 갭만 보완했다. `grep -c "^| REQ-PILOT-UX-" spec.md` = 16으로 확인.
+
+plan_audit_verdict (iteration 7): PASS
+score: 0.92 (Tier M 임계값 0.80 상회)
+recommendation: "PASS stands." — 재감사 불필요
+iteration: 7 (DB-idempotency-removal amendment 이후 pre-run coherence correction 사이클의 2번째 감사: iter6 FAIL 0.74 → iter7 PASS 0.92)
+trivial_citation_typo_fixes (4건, must-pass 기준 무관·REQ/AC 내용 및 개수 무변경): (1) plan.md M1 empty-state 불릿의 "REQ-PILOT-UX-012" 오기재를 "REQ-PILOT-UX-013"으로 정정. (2) plan.md M2 첫 불릿의 "REQ-PILOT-UX-010's action-rejection branch" 오기재를 "REQ-PILOT-UX-011's action-rejection branch"로 정정(다음 두 불릿이 이미 정확히 쓰던 것과 일치). (3) spec.md REQ-016 근거 열의 "REQ-013(사건 폼 네트워크 예외)" 오기재를 "REQ-014(사건 폼 네트워크 예외)"로 정정(현재 REQ-013은 빈 상태 요구사항, 네트워크 예외는 REQ-014). (4) spec.md iteration-6 HISTORY 엔트리의 "AC-001~016 전체가... 정합화" 과장 서술을 "AC-001~014의 M4 커버리지 갭을 해소했으며, AC-015/016은 render 테스트가 아닌 문구·diff 검토형 기준이라 M1-M4 대상에서 의도적으로 제외함"으로 완화.
+plan-audit 리포트(`.moai/reports/plan-audit/`)는 이 프로젝트 정책상 gitignore된 로컬 아티팩트이므로, 커밋된 리포트 파일의 존재를 주장하지 않으며 검증 결과(verdict/score/recommendation/trivial-fix 4건)만 이 progress.md에 기록한다. 이 PASS 판정은 plan-auditor가 내렸으며, 이 항목을 기록한 에이전트가 자체적으로 내린 판정이 아니다.
+
 ## §E.2 Run-phase Evidence
 
 _<pending run-phase>_

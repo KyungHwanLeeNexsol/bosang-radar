@@ -52,7 +52,7 @@ Given-When-Then scenarios, grouped by REQ family. Each criterion is binary-testa
 - When the case detail page renders that evidence's reference
 - Then the rendered `sourceUrl` is inside an `<a>` element with `href="https://example.com/case"`, `target="_blank"`, and `rel="noopener noreferrer"` — not a plain text node.
 
-## AC Group E — 피드백 폼 사용성 (REQ-PILOT-UX-007 ~ REQ-PILOT-UX-011 — iteration-4에서 구 REQ-009를 원자적으로 분리)
+## AC Group E — 피드백 폼 사용성 (REQ-PILOT-UX-007 ~ REQ-PILOT-UX-012 — iteration-4에서 구 REQ-009를, iteration-6에서 구 REQ-010을 각각 원자적으로 분리)
 
 **AC-PILOT-UX-009**
 - Given the feedback form (`feedback-form.tsx`) rendered with a valid overall rating selected, with the `action` prop mocked to NOT resolve immediately (a pending Promise)
@@ -69,27 +69,29 @@ Given-When-Then scenarios, grouped by REQ family. Each criterion is binary-testa
 - Given the feedback form with a mocked `action` prop that resolves to `{ success: false, fieldErrors: { overallRating: ["필수 항목입니다."], missedIssues: ["개인정보 형식이 감지되었습니다."] } }`
 - When the user submits the form
 - Then BOTH error messages are rendered as SEPARATE, individually-attributable DOM elements under their respective top-level sections (전체 평가 / 누락 쟁점) — no single joined-string element containing both messages concatenated by a space is rendered.
+- And (guard-reset regression after validation failure, REQ-PILOT-UX-010) given the same failed submission above, when the user corrects the input (e.g. selects a valid `overallRating`) and submits the form again, then `action` is invoked a second time — the submit guard was reset on the validation failure, not permanently blocked on that mounted instance.
+- And (guard-reset + form-level error after action rejection, REQ-PILOT-UX-011) given the feedback form with `action` mocked to throw or return a rejected promise (a network/server-level failure, distinct from a `{ success: false }` response), when the user submits the form, then a human-readable form-level error message is displayed AND no unhandled promise rejection is recorded in the test run's console/error output, AND when the user resubmits afterward, `action` is invoked again — the submit guard was also reset on this failure mode.
 
 **AC-PILOT-UX-012**
 - Given the feedback form rendered with at least one entry in each of `missedIssues`, `verifiedClaims`, and cited evidence
 - When the DOM is inspected
 - Then the five content areas (overall rating+comment, missed issues, claim verdicts, evidence verdicts, outcome) are each wrapped in a distinct, visually-separated container element (distinguishable by a section boundary — border, heading, or card — not merely sequential `<div>`s with no visual grouping).
 
-## AC Group F — 명시적 UI 상태 (REQ-PILOT-UX-012, REQ-PILOT-UX-013, REQ-PILOT-UX-014)
+## AC Group F — 명시적 UI 상태 (REQ-PILOT-UX-013, REQ-PILOT-UX-014, REQ-PILOT-UX-015)
 
 **AC-PILOT-UX-013**
 - Given a report whose `verifiedClaims` array is empty (`[]`)
 - When the case detail page renders
 - Then an explicit empty-state text element is present in the claims section (not a blank/absent block), consistent with the existing pattern for `reviewTargets`/`missingMaterials`/`uncertainty`.
-- And (evidence empty state, REQ-PILOT-UX-012) given a report whose claims cite zero distinct evidence IDs, when the case detail page renders, then an explicit empty-state text element is present in the evidence section.
+- And (evidence empty state, REQ-PILOT-UX-013) given a report whose claims cite zero distinct evidence IDs, when the case detail page renders, then an explicit empty-state text element is present in the evidence section.
 
 **AC-PILOT-UX-014**
 - Given the case-input form, with the `/api/cases` fetch mocked to reject (simulating a network-level failure, not an HTTP error response)
 - When the user submits the form
 - Then a human-readable error message is displayed to the user (via the existing `formError` state or equivalent), AND no unhandled promise rejection is recorded in the test run's console/error output.
-- And (error boundary, REQ-PILOT-UX-014) given `app/cases/[caseId]/error.tsx` exists, when a rendering/data-fetch exception is thrown within the `app/cases/[caseId]/` route segment, then Next.js renders `error.tsx`'s recovery UI (containing a retry action wired to `reset()`) instead of an unhandled blank page.
+- And (error boundary, REQ-PILOT-UX-015) given `app/cases/[caseId]/error.tsx` exists, when a rendering/data-fetch exception is thrown within the `app/cases/[caseId]/` route segment, then Next.js renders `error.tsx`'s recovery UI (containing a retry action wired to `reset()`) instead of an unhandled blank page.
 
-## AC Group G — 비기능 제약 (REQ-PILOT-UX-015, REQ-PILOT-UX-016)
+## AC Group G — 비기능 제약 (REQ-PILOT-UX-016 — iteration-6에서 구 REQ-015+016 병합)
 
 **AC-PILOT-UX-015**
 - Given every new or modified UI string introduced by this SPEC (summary banner, success confirmation, error messages, empty-state text)
@@ -97,9 +99,9 @@ Given-When-Then scenarios, grouped by REQ family. Each criterion is binary-testa
 - Then none contains a definitive/certain claim about insurance payout likelihood (e.g. no phrasing equivalent to "지급됩니다"/"보상 확정" without a qualifying "검토 필요"/"전문가 확인 필요"-class hedge), and the existing safety-phrase family used elsewhere in the app remains textually unchanged.
 
 **AC-PILOT-UX-016**
-- Given the final `lib/db/schema.ts`, `lib/validation/case-input.ts`, and `lib/feedback/schema.ts` after this SPEC's implementation
-- When the diff introduced by this SPEC is inspected
-- Then NONE of these three files contain any change — no new column, no new field, no field resembling 주민등록번호/전화번호/상세주소/의료기록·보험증권 원본 업로드 is added anywhere, and no existing `piiFreeText`/format-validation call site is removed or weakened. This SPEC's diff touches only `app/cases/new/case-input-form.tsx`, `app/cases/[caseId]/{page.tsx,feedback-form.tsx,error.tsx}`, and their test files.
+- Given the final `lib/db/schema.ts`, `lib/validation/case-input.ts`, `lib/feedback/schema.ts`, `lib/cases/create-case.ts`, and `lib/feedback/submit-feedback.ts` after this SPEC's implementation
+- When the **application/runtime implementation diff** introduced by this SPEC is inspected — i.e. excluding `.moai/specs/SPEC-PILOT-UX-001/` plan/sync artifacts (spec.md/plan.md/acceptance.md/progress.md) and documentation-only changes (README, CHANGELOG) that a normal sync phase may add
+- Then ALL FIVE of those runtime files are unchanged — no new column, no new field, no field resembling 주민등록번호/전화번호/상세주소/의료기록·보험증권 원본 업로드 is added anywhere, and no existing `piiFreeText`/format-validation call site is removed or weakened. This SPEC's application/runtime diff touches only `app/cases/new/case-input-form.tsx`, `app/cases/[caseId]/{page.tsx,feedback-form.tsx,error.tsx}`, and their test files.
 
 ## Definition of Done
 
