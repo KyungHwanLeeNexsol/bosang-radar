@@ -30,7 +30,7 @@
 - **DB 마이그레이션·시드 CLI**(`pnpm db:migrate`, `pnpm db:seed`) — 재실행 안전
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
 - **실제 Playwright E2E 스위트**(`pnpm test:e2e`) — 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 실제 Chromium으로 검증
-- `pnpm build` / `pnpm lint` / `pnpm test` / `pnpm format:check` / `pnpm test:e2e` 전체 통과(48 files, 335 tests; E2E 4/4)
+- `pnpm test`(48 files, 335 tests)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build` PASS — `pnpm format:check`는 `CHANGELOG.md`의 기존 baseline 경고 1건으로 exit 1(이번 SPEC의 신규 위반 없음)
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
