@@ -30,7 +30,7 @@
               "id": "C8PTtY",
               "name": "Eyebrow",
               "fill": "$ink-4",
-              "content": "보상레이더 · CLAIMRADAR — DESIGN SYSTEM v1",
+              "content": "BORA · 보상레이더 — DESIGN SYSTEM v1",
               "fontFamily": "$font",
               "fontSize": 11,
               "fontWeight": "500",
@@ -57,7 +57,8 @@
               "content": "데스크톱 1440px 기준. Pretendard 단일 서체로 본문부터 상태 라벨까지 통일. 중립 회색 팔레트 + 단일 액센트, 높은 정보 밀도, 근거 중심 타이포그래피 위계.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
-              "fontSize": 14
+              "fontSize": 14,
+              "fontWeight": "normal"
             }
           ]
         },
@@ -1082,7 +1083,8 @@
                   "content": "현재 제출된 자료만으로는 노동능력상실률 산정 근거가 충분하지 않아 추가 확인이 필요합니다.",
                   "lineHeight": 1.7,
                   "fontFamily": "$font",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "text",
@@ -1091,7 +1093,8 @@
                   "fill": "$ink-4",
                   "content": "Body · 14 / 400 · 1.7 · 본문",
                   "fontFamily": "$font",
-                  "fontSize": 11
+                  "fontSize": 11,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -1122,7 +1125,8 @@
                   "content": "대법원 2019다245631 판결 · 후유장해 평가 기준",
                   "lineHeight": 1.65,
                   "fontFamily": "$font",
-                  "fontSize": 13
+                  "fontSize": 13,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "text",
@@ -1131,7 +1135,8 @@
                   "fill": "$ink-4",
                   "content": "Body S · 13 / 400 · 보조 본문",
                   "fontFamily": "$font",
-                  "fontSize": 11
+                  "fontSize": 11,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -1162,7 +1167,8 @@
                   "content": "출처: 대법원 종합법률정보",
                   "lineHeight": 1.55,
                   "fontFamily": "$font",
-                  "fontSize": 12
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "text",
@@ -1171,7 +1177,8 @@
                   "fill": "$ink-4",
                   "content": "Meta · 12 / 400 · 메타 정보",
                   "fontFamily": "$font",
-                  "fontSize": 11
+                  "fontSize": 11,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -1212,7 +1219,8 @@
                   "fill": "$ink-4",
                   "content": "Label S · 11 / 500 · 상태 · 식별자",
                   "fontFamily": "$font",
-                  "fontSize": 11
+                  "fontSize": 11,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -1267,7 +1275,8 @@
                       "width": "fill_container",
                       "content": "font-family: Pretendard, \"Pretendard Variable\", \"Noto Sans KR\", system-ui, sans-serif;",
                       "fontFamily": "$font",
-                      "fontSize": 11.5
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "text",
@@ -1279,7 +1288,8 @@
                       "content": "모든 텍스트가 이 스택 하나만 사용합니다. Pretendard(SIL OFL 1.1)는 Google Fonts에 없어 이 캔버스에서는 렌더링되지 않으므로, 시안은 대체 가능한 Noto Sans KR로 표시됩니다. 구현 시 위 스택을 그대로 적용하면 Pretendard가 적용됩니다.",
                       "lineHeight": 1.55,
                       "fontFamily": "$font",
-                      "fontSize": 11.5
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -1605,7 +1615,8 @@
                           "content": "경추 추간판탈출증 (M50.2)",
                           "lineHeight": 1.6,
                           "fontFamily": "$font",
-                          "fontSize": 14
+                          "fontSize": 14,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -1619,7 +1630,8 @@
                       "content": "상병코드를 함께 입력하면 검색 정확도가 올라갑니다.",
                       "lineHeight": 1.55,
                       "fontFamily": "$font",
-                      "fontSize": 11.5
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -1860,7 +1872,8 @@
                           "content": "피보험자 성명·주민등록번호·연락처 등 식별정보는 입력하지 마세요. 입력된 내용은 리서치 목적에 한해 처리됩니다.",
                           "lineHeight": 1.55,
                           "fontFamily": "$font",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -1988,7 +2001,8 @@
                       "content": "기왕증 기여도 관련 쟁점",
                       "lineHeight": 1.5,
                       "fontFamily": "$font",
-                      "fontSize": 13
+                      "fontSize": 13,
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -2050,20 +2064,21 @@
                               "width": 28,
                               "height": 28,
                               "fill": "$accent",
-                              "cornerRadius": 7,
+                              "cornerRadius": 7.5,
                               "justifyContent": "center",
                               "alignItems": "center",
                               "children": [
                                 {
                                   "type": "text",
                                   "id": "E284u",
-                                  "name": "보",
+                                  "name": "B",
                                   "fill": "#FFFFFF",
-                                  "content": "보",
+                                  "content": "B",
                                   "lineHeight": 1,
-                                  "fontFamily": "$font",
-                                  "fontSize": 17.4,
-                                  "fontWeight": "900"
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 14.6,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.31
                                 }
                               ]
                             },
@@ -2076,24 +2091,13 @@
                                 {
                                   "type": "text",
                                   "id": "EAAx1",
-                                  "name": "보상",
-                                  "fill": "#EDF1F6",
-                                  "content": "보상",
-                                  "fontFamily": "$font",
+                                  "name": "BORA",
+                                  "fill": "#FFFFFF",
+                                  "content": "BORA",
+                                  "fontFamily": "$font-mark",
                                   "fontSize": 17,
-                                  "fontWeight": "900",
-                                  "letterSpacing": -1
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "s6g5SK",
-                                  "name": "레이더",
-                                  "fill": "#6FA0EA",
-                                  "content": "레이더",
-                                  "fontFamily": "$font",
-                                  "fontSize": 17,
-                                  "fontWeight": "900",
-                                  "letterSpacing": -1
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.37
                                 }
                               ]
                             }
@@ -2124,7 +2128,7 @@
                                   "id": "K8F3RG",
                                   "name": "Text",
                                   "fill": "#5D6875",
-                                  "content": "WORKSPACE",
+                                  "content": "작업 공간",
                                   "fontFamily": "$font",
                                   "fontSize": 10,
                                   "fontWeight": "500",
@@ -2221,7 +2225,7 @@
                                   "fill": "$sidebar-ink"
                                 },
                                 "LDFck": {
-                                  "content": "판례 · 약관 DB",
+                                  "content": "판례 · 약관 자료실",
                                   "fill": "$sidebar-ink",
                                   "fontWeight": "500"
                                 }
@@ -2277,7 +2281,7 @@
                                   "id": "LHMqN",
                                   "name": "Initials",
                                   "fill": "#A7B2BF",
-                                  "content": "JH",
+                                  "content": "정",
                                   "fontFamily": "$font",
                                   "fontSize": 11,
                                   "fontWeight": "500"
@@ -2432,7 +2436,7 @@
               "width": "fill_container",
               "descendants": {
                 "hdwlm": {
-                  "content": "WORKSPACE / 사건 입력"
+                  "content": "작업 공간 / 사건 입력"
                 },
                 "Q3goI": {
                   "content": "신규 사건 리서치 요청"
@@ -2518,7 +2522,8 @@
                                   "content": "진단서 · 소견서에 기재된 표현을 그대로 입력할수록 쟁점 추출 정확도가 높아집니다.",
                                   "lineHeight": 1.55,
                                   "fontFamily": "$font",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -2527,7 +2532,7 @@
                               "id": "L1WVH",
                               "name": "Step",
                               "fill": "$ink-4",
-                              "content": "STEP 1 / 2",
+                              "content": "1 / 2 단계",
                               "fontFamily": "$font",
                               "fontSize": 11,
                               "fontWeight": "500"
@@ -2741,7 +2746,8 @@
                                           "content": "청구권 소멸시효 경과 여부, 사고 시점에 적용되는 약관 버전, 장해 평가 기준(맥브라이드 · AMA)을 함께 대조합니다.",
                                           "lineHeight": 1.55,
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -2829,7 +2835,8 @@
                                   "content": "전송된 사건 정보는 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다.",
                                   "lineHeight": 1.55,
                                   "fontFamily": "$font",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -2927,7 +2934,7 @@
                                   "fill": "$accent"
                                 },
                                 "mVjrD": {
-                                  "content": "PENDING",
+                                  "content": "대기 중",
                                   "fill": "$accent"
                                 }
                               }
@@ -2963,7 +2970,8 @@
                               "content": "필수 항목 입력 후 리서치를 시작할 수 있습니다. 평균 소요 시간 3~5분이며, 완료 시 리포트로 이동합니다.",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 12.5
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "frame",
@@ -3026,7 +3034,8 @@
                                       "content": "쟁점 자동 추출",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -3072,7 +3081,8 @@
                                       "content": "판례 · 결정례 검색",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -3118,7 +3128,8 @@
                                       "content": "약관 · 법령 대조",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -3164,7 +3175,8 @@
                                       "content": "근거 검증 및 반대 논리 생성",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -3267,7 +3279,7 @@
                                   "id": "mgXGk",
                                   "name": "Id",
                                   "fill": "$ink-4",
-                                  "content": "CASE-2024-0866",
+                                  "content": "사건 2024-0866",
                                   "fontFamily": "$font",
                                   "fontSize": 10.5,
                                   "fontWeight": "500"
@@ -3330,7 +3342,7 @@
                                   "id": "B6jlJK",
                                   "name": "Id",
                                   "fill": "$ink-4",
-                                  "content": "CASE-2024-0859",
+                                  "content": "사건 2024-0859",
                                   "fontFamily": "$font",
                                   "fontSize": 10.5,
                                   "fontWeight": "500"
@@ -3390,7 +3402,7 @@
                                   "id": "acf93",
                                   "name": "Id",
                                   "fill": "$ink-4",
-                                  "content": "CASE-2024-0851",
+                                  "content": "사건 2024-0851",
                                   "fontFamily": "$font",
                                   "fontSize": 10.5,
                                   "fontWeight": "500"
@@ -3488,7 +3500,7 @@
               "width": "fill_container",
               "descendants": {
                 "hdwlm": {
-                  "content": "WORKSPACE / 리서치 리포트 / CASE-2024-0871"
+                  "content": "작업 공간 / 리서치 리포트 / 사건 2024-0871"
                 },
                 "Q3goI": {
                   "content": "경추 추간판탈출증 후유장해 청구 — 리서치 리포트"
@@ -3597,7 +3609,7 @@
                               "id": "VMvai",
                               "name": "Eyebrow",
                               "fill": "$ink-4",
-                              "content": "사건 요약 · CASE-2024-0871",
+                              "content": "사건 요약 · 2024-0871",
                               "fontFamily": "$font",
                               "fontSize": 11,
                               "fontWeight": "500",
@@ -3636,7 +3648,7 @@
                                   "fill": "$ok"
                                 },
                                 "mVjrD": {
-                                  "content": "ANALYSIS COMPLETE",
+                                  "content": "분석 완료",
                                   "fill": "$ok"
                                 }
                               }
@@ -3648,7 +3660,8 @@
                               "fill": "$ink-4",
                               "content": "2024-03-18 14:22 생성 · 소요 4분 12초",
                               "fontFamily": "$font",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3846,7 +3859,8 @@
                           "content": "2024년 3월 11일 08시 40분경 편도 2차선 도로에서 신호대기 중 후방 차량에 추돌당함. 사고 직후 목·허리 통증으로 정형외과 내원, X-ray 및 MRI 촬영 후 경추 추간판탈출증 진단. 6개월간 보존적 치료를 받았으나 경부 통증과 좌측 상지 방사통이 지속되어 후유장해 진단서를 발급받음.",
                           "lineHeight": 1.7,
                           "fontFamily": "$font",
-                          "fontSize": 13.5
+                          "fontSize": 13.5,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -4092,7 +4106,8 @@
                           "content": "본 리포트는 공개된 판례 · 약관 · 법령을 기반으로 한 참고용 리서치 결과이며, 보험금 지급 여부나 지급액을 보장하지 않습니다. 최종 판단은 담당 손해사정사의 검토가 필요합니다.",
                           "lineHeight": 1.55,
                           "fontFamily": "$font",
-                          "fontSize": 11.5
+                          "fontSize": 11.5,
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -4153,7 +4168,8 @@
                                   "content": "각 항목은 결론 → 이유 → 반대 논리 → 근거자료 순으로 정리되어 있습니다.",
                                   "lineHeight": 1.55,
                                   "fontFamily": "$font",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -4383,7 +4399,7 @@
                                               "fill": "$ok"
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fill": "$ok"
                                             }
                                           }
@@ -4519,7 +4535,8 @@
                                           "content": "사고 직후 촬영된 MRI에서 C5-6 추간판 탈출 소견이 확인되고, 6개월간의 보존적 치료 이후에도 경부 통증 및 좌측 상지 방사통이 지속되는 점은 영구장해 판단의 일반적 기준에 부합합니다. 사고 시점과 증상 발현 사이의 시간적 근접성 역시 인과관계를 뒷받침하는 요소로 검토됩니다.",
                                           "lineHeight": 1.7,
                                           "fontFamily": "$font",
-                                          "fontSize": 13.5
+                                          "fontSize": 13.5,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -4565,7 +4582,7 @@
                                           "id": "hTo7a",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "COUNTER",
+                                          "content": "반대 근거",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -4613,7 +4630,8 @@
                                               "content": "보험자 측은 연령에 따른 퇴행성 변화를 주장할 수 있습니다. 영상의학 판독지에 퇴행성 소견이 함께 기재된 경우 사고 기여도가 감액될 수 있으므로, 판독 소견 원문과 사고 이전 진료 기록의 확인이 필요합니다.",
                                               "lineHeight": 1.7,
                                               "fontFamily": "$font",
-                                              "fontSize": 13.5
+                                              "fontSize": 13.5,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -4658,7 +4676,7 @@
                                           "id": "Y22Ktm",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "TOTAL 4",
+                                          "content": "총 4건",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -5020,7 +5038,7 @@
                                               "fill": "$ok"
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fill": "$ok"
                                             }
                                           }
@@ -5156,7 +5174,8 @@
                                           "content": "국내 법원은 맥브라이드표를 노동능력상실률 산정의 주요 자료로 활용해 왔으며, 척추 신경학적 장해 항목에 대한 적용 사례가 다수 확인됩니다. 본 건의 진단명과 장해 부위는 해당 항목의 적용 범위에 포함되는 것으로 검토됩니다.",
                                           "lineHeight": 1.7,
                                           "fontFamily": "$font",
-                                          "fontSize": 13.5
+                                          "fontSize": 13.5,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -5202,7 +5221,7 @@
                                           "id": "tketH",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "COUNTER",
+                                          "content": "반대 근거",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -5250,7 +5269,8 @@
                                               "content": "보험자 측은 맥브라이드표의 직업계수가 피보험자의 실제 직무 내용과 부합하지 않는다고 다툴 수 있습니다. 직무 강도와 상지 사용 빈도에 대한 객관적 자료가 없으면 상실률이 하향 조정될 수 있습니다.",
                                               "lineHeight": 1.7,
                                               "fontFamily": "$font",
-                                              "fontSize": 13.5
+                                              "fontSize": 13.5,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -5298,7 +5318,7 @@
                                           "id": "u2JZ6",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "TOTAL 3",
+                                          "content": "총 3건",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -5520,7 +5540,8 @@
                                       "content": "전문가 확인 필요 — 피보험자의 실제 직무 내용과 근무 형태를 확인한 뒤 직업계수 적용 근거를 별도로 보완하세요.",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -5673,7 +5694,7 @@
                                               "fill": "$warn"
                                             },
                                             "mVjrD": {
-                                              "content": "INSUFFICIENT",
+                                              "content": "근거 부족",
                                               "fill": "$warn"
                                             }
                                           }
@@ -5809,7 +5830,8 @@
                                           "content": "직종, 소득 형태, 사고 당시 연령, 실제 근무 지속 가능성에 관한 자료가 입력되지 않아 가동연한 판단의 전제 사실을 확정할 수 없습니다. 판례는 가동연한을 개별 사정에 따라 달리 인정하고 있어 일반화된 결론을 도출하기 어렵습니다.",
                                           "lineHeight": 1.7,
                                           "fontFamily": "$font",
-                                          "fontSize": 13.5
+                                          "fontSize": 13.5,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -5855,7 +5877,7 @@
                                           "id": "Vw1wL",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "COUNTER",
+                                          "content": "반대 근거",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -5903,7 +5925,8 @@
                                               "content": "보험자 측은 통상의 가동연한을 기준으로 산정할 것을 주장할 수 있습니다. 연장 주장을 유지하려면 직종별 실제 종사 실태에 관한 통계나 사업자등록·소득자료 등 개별 입증자료가 필요합니다.",
                                               "lineHeight": 1.7,
                                               "fontFamily": "$font",
-                                              "fontSize": 13.5
+                                              "fontSize": 13.5,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -5951,7 +5974,7 @@
                                           "id": "e0TqO",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "NO RESULT",
+                                          "content": "결과 없음",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -6021,7 +6044,8 @@
                                                   "content": "입력된 정보 범위에서 관련성이 높은 판례·약관·법령이 검색되지 않았습니다. 직종, 소득 자료, 사고 당시 연령을 보완하면 재검색할 수 있습니다.",
                                                   "lineHeight": 1.55,
                                                   "fontFamily": "$font",
-                                                  "fontSize": 12
+                                                  "fontSize": 12,
+                                                  "fontWeight": "normal"
                                                 }
                                               ]
                                             }
@@ -6074,7 +6098,8 @@
                                       "content": "추가 확인 필요 — 소득 증빙자료와 직종 정보를 보완한 뒤 재분석을 요청하세요. 현재 상태에서는 결론을 제시하지 않습니다.",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -6227,7 +6252,7 @@
                                               "fill": "$ok"
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fill": "$ok"
                                             }
                                           }
@@ -6363,7 +6388,8 @@
                                           "content": "진단명과 치료 시점, 치료 내용의 연속성이 확인되며, 보존적 치료 과정에서 시행된 물리·도수치료를 사고와 상당인과관계 있는 치료로 본 사례가 다수 확인됩니다.",
                                           "lineHeight": 1.7,
                                           "fontFamily": "$font",
-                                          "fontSize": 13.5
+                                          "fontSize": 13.5,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -6409,7 +6435,7 @@
                                           "id": "z1ABVj",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "COUNTER",
+                                          "content": "반대 근거",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -6457,7 +6483,8 @@
                                               "content": "보험자 측은 치료 횟수의 과다 또는 의학적 필요성 부족을 주장할 수 있습니다. 장기간 반복 시행된 부분은 감액 대상이 될 수 있어 진료기록상 필요성 기재 여부를 확인해야 합니다.",
                                               "lineHeight": 1.7,
                                               "fontFamily": "$font",
-                                              "fontSize": 13.5
+                                              "fontSize": 13.5,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -6502,7 +6529,7 @@
                                           "id": "iUjx7",
                                           "name": "Sub",
                                           "fill": "$ink-4",
-                                          "content": "TOTAL 2",
+                                          "content": "총 2건",
                                           "fontFamily": "$font",
                                           "fontSize": 10,
                                           "fontWeight": "500"
@@ -6731,7 +6758,8 @@
                                           "fill": "$ink-4",
                                           "content": "05",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "frame",
@@ -6812,7 +6840,7 @@
                                           "name": "Badge",
                                           "descendants": {
                                             "mVjrD": {
-                                              "content": "VERIFIED"
+                                              "content": "검증됨"
                                             }
                                           }
                                         },
@@ -6860,7 +6888,8 @@
                                           "fill": "$ink-4",
                                           "content": "06",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "frame",
@@ -6941,7 +6970,7 @@
                                           "name": "Badge",
                                           "descendants": {
                                             "mVjrD": {
-                                              "content": "VERIFIED"
+                                              "content": "검증됨"
                                             }
                                           }
                                         },
@@ -7122,7 +7151,8 @@
                                   "content": "맥브라이드 기준 적용 타당성",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
-                                  "fontSize": 12.5
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -7172,7 +7202,8 @@
                                   "content": "일실수입 가동연한 연장",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
-                                  "fontSize": 12.5
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -7222,7 +7253,8 @@
                                   "content": "비급여 치료비 상당인과관계",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
-                                  "fontSize": 12.5
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -7272,7 +7304,8 @@
                                   "content": "위자료 산정 기준",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
-                                  "fontSize": 12.5
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -7319,7 +7352,8 @@
                                   "content": "향후치료비 인정 범위",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
-                                  "fontSize": 12.5
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -7410,7 +7444,8 @@
                                           "content": "판례",
                                           "lineHeight": 1.65,
                                           "fontFamily": "$font",
-                                          "fontSize": 12.5
+                                          "fontSize": 12.5,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
@@ -7471,7 +7506,8 @@
                                           "content": "약관",
                                           "lineHeight": 1.65,
                                           "fontFamily": "$font",
-                                          "fontSize": 12.5
+                                          "fontSize": 12.5,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
@@ -7532,7 +7568,8 @@
                                           "content": "기타",
                                           "lineHeight": 1.65,
                                           "fontFamily": "$font",
-                                          "fontSize": 12.5
+                                          "fontSize": 12.5,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
@@ -7593,7 +7630,8 @@
                                           "content": "법령",
                                           "lineHeight": 1.65,
                                           "fontFamily": "$font",
-                                          "fontSize": 12.5
+                                          "fontSize": 12.5,
+                                          "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
@@ -7722,7 +7760,7 @@
               "width": "fill_container",
               "descendants": {
                 "hdwlm": {
-                  "content": "WORKSPACE / 전문가 피드백 / CASE-2024-0871"
+                  "content": "작업 공간 / 전문가 피드백 / 사건 2024-0871"
                 },
                 "Q3goI": {
                   "content": "리서치 리포트 전문가 피드백"
@@ -7838,7 +7876,7 @@
                               "id": "guDx9",
                               "name": "Id",
                               "fill": "$ink-4",
-                              "content": "CASE-2024-0871",
+                              "content": "사건 2024-0871",
                               "fontFamily": "$font",
                               "fontSize": 11.5,
                               "fontWeight": "500"
@@ -7877,7 +7915,8 @@
                               "content": "리서치 결과 6건 중 5건 근거 확인",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -7977,7 +8016,8 @@
                                       "content": "리서치 리포트 전체의 정확도를 평가해 주세요.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 12
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -8305,7 +8345,8 @@
                                       "content": "리서치에서 다루지 않았으나 실무상 검토가 필요한 쟁점을 표시해 주세요.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 12
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -8356,7 +8397,8 @@
                               "content": "해당하는 항목을 모두 선택하고, 목록에 없는 쟁점은 직접 입력란에 작성해 주세요.",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 12.5
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "frame",
@@ -8649,7 +8691,8 @@
                                       "content": "리포트의 각 주장에 대한 판정을 선택해 주세요. 필요 시 코멘트를 남길 수 있습니다.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 12
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -8761,7 +8804,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fontSize": 10,
                                               "fill": "$ok"
                                             }
@@ -8837,7 +8880,8 @@
                                               "fill": "$ink-3",
                                               "content": "부정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -8864,7 +8908,8 @@
                                               "fill": "$ink-3",
                                               "content": "추가 근거 필요",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -8977,7 +9022,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fontSize": 10,
                                               "fill": "$ok"
                                             }
@@ -9015,7 +9060,8 @@
                                               "fill": "$ink-3",
                                               "content": "정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9042,7 +9088,8 @@
                                               "fill": "$ink-3",
                                               "content": "부정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9193,7 +9240,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "INSUFFICIENT",
+                                              "content": "근거 부족",
                                               "fontSize": 10,
                                               "fill": "$warn"
                                             }
@@ -9231,7 +9278,8 @@
                                               "fill": "$ink-3",
                                               "content": "정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9258,7 +9306,8 @@
                                               "fill": "$ink-3",
                                               "content": "부정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9348,7 +9397,8 @@
                                           "content": "가동연한 판단은 직종별 실태 자료가 필요하다는 설명이 정확합니다. 다만 사고 당시 연령과 소득 형태만 보완되면 판단 가능한 사안이므로, 재분석 안내 문구를 함께 제시하는 편이 실무에 도움이 됩니다.",
                                           "lineHeight": 1.7,
                                           "fontFamily": "$font",
-                                          "fontSize": 13
+                                          "fontSize": 13,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -9429,7 +9479,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fontSize": 10,
                                               "fill": "$ok"
                                             }
@@ -9505,7 +9555,8 @@
                                               "fill": "$ink-3",
                                               "content": "부정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9532,7 +9583,8 @@
                                               "fill": "$ink-3",
                                               "content": "추가 근거 필요",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -9645,7 +9697,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fontSize": 10,
                                               "fill": "$ok"
                                             }
@@ -9721,7 +9773,8 @@
                                               "fill": "$ink-3",
                                               "content": "부정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9748,7 +9801,8 @@
                                               "fill": "$ink-3",
                                               "content": "추가 근거 필요",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -9858,7 +9912,7 @@
                                               "enabled": false
                                             },
                                             "mVjrD": {
-                                              "content": "VERIFIED",
+                                              "content": "검증됨",
                                               "fontSize": 10,
                                               "fill": "$ok"
                                             }
@@ -9896,7 +9950,8 @@
                                               "fill": "$ink-3",
                                               "content": "정확",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         },
@@ -9961,7 +10016,8 @@
                                               "fill": "$ink-3",
                                               "content": "추가 근거 필요",
                                               "fontFamily": "$font",
-                                              "fontSize": 12
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
                                             }
                                           ]
                                         }
@@ -10080,7 +10136,8 @@
                                       "content": "리서치가 수집한 근거자료의 실무 활용도를 평가해 주세요.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 12
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -10314,7 +10371,8 @@
                                           "fill": "$ink-3",
                                           "content": "약함",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -10341,7 +10399,8 @@
                                           "fill": "$ink-3",
                                           "content": "무관",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -10429,7 +10488,8 @@
                                       "fill": "$ink-4",
                                       "content": "출처 · 금융감독원 표준약관 (2023.07 개정)",
                                       "fontFamily": "$font",
-                                      "fontSize": 11
+                                      "fontSize": 11,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 },
@@ -10501,7 +10561,8 @@
                                           "fill": "$ink-3",
                                           "content": "약함",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -10528,7 +10589,8 @@
                                           "fill": "$ink-3",
                                           "content": "무관",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -10651,7 +10713,8 @@
                                           "fill": "$ink-3",
                                           "content": "유용",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -10716,7 +10779,8 @@
                                           "fill": "$ink-3",
                                           "content": "무관",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -10877,7 +10941,8 @@
                                           "fill": "$ink-3",
                                           "content": "약함",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -10904,7 +10969,8 @@
                                           "fill": "$ink-3",
                                           "content": "무관",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -11024,7 +11090,8 @@
                                           "fill": "$ink-3",
                                           "content": "유용",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -11051,7 +11118,8 @@
                                           "fill": "$ink-3",
                                           "content": "약함",
                                           "fontFamily": "$font",
-                                          "fontSize": 12
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     },
@@ -11176,7 +11244,8 @@
                                       "content": "보험금 처리 결과를 입력하면 이후 리서치 정확도 개선에 활용됩니다.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 12
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
                                     }
                                   ]
                                 }
@@ -11360,7 +11429,7 @@
                                       "enabled": false
                                     },
                                     "TJIAg": {
-                                      "content": "YYYY-MM-DD"
+                                      "content": "연-월-일"
                                     },
                                     "X47GB": {
                                       "content": "2024-09-02"
@@ -11408,7 +11477,8 @@
                               "content": "입력된 실제 결과는 개별 사건과 분리된 통계 형태로만 활용되며, 제3자에게 제공되지 않습니다.",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 11.5
+                              "fontSize": 11.5,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -11460,7 +11530,8 @@
                               "content": "피드백 내용에도 피보험자 개인 식별정보를 포함하지 마세요. 제출된 내용은 리서치 품질 개선 목적으로만 사용됩니다.",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -11650,7 +11721,8 @@
                                       "content": "전체 평가",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -11743,7 +11815,8 @@
                                       "content": "개별 주장 평가",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -11789,7 +11862,8 @@
                                       "content": "개별 근거자료 평가",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -11835,7 +11909,8 @@
                                       "content": "실제 결과",
                                       "lineHeight": 1.65,
                                       "fontFamily": "$font",
-                                      "fontSize": 12.5
+                                      "fontSize": 12.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -11900,7 +11975,7 @@
                               "id": "LhUMS",
                               "name": "Tag",
                               "fill": "$ink-4",
-                              "content": "STATE EXAMPLES",
+                              "content": "상태 예시",
                               "fontFamily": "$font",
                               "fontSize": 10,
                               "fontWeight": "500",
@@ -11972,7 +12047,8 @@
                                       "content": "입력 내용을 검증하고 있습니다. 창을 닫지 마세요.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 11.5
+                                      "fontSize": 11.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "frame",
@@ -12000,7 +12076,7 @@
                                       "id": "Vvxn5",
                                       "name": "Meta",
                                       "fill": "$ink-4",
-                                      "content": "PENDING",
+                                      "content": "대기 중",
                                       "fontFamily": "$font",
                                       "fontSize": 10,
                                       "fontWeight": "500",
@@ -12065,14 +12141,15 @@
                                       "content": "02 누락된 쟁점 — 쟁점명은 4자 이상 입력해 주세요.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 11.5
+                                      "fontSize": 11.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
                                       "id": "Tgay2",
                                       "name": "Meta",
                                       "fill": "$ink-4",
-                                      "content": "VALIDATION ERROR",
+                                      "content": "입력 오류",
                                       "fontFamily": "$font",
                                       "fontSize": 10,
                                       "fontWeight": "500",
@@ -12137,7 +12214,8 @@
                                       "content": "검토 의견은 리서치 품질 개선에 반영됩니다.",
                                       "lineHeight": 1.55,
                                       "fontFamily": "$font",
-                                      "fontSize": 11.5
+                                      "fontSize": 11.5,
+                                      "fontWeight": "normal"
                                     },
                                     {
                                       "type": "text",
@@ -12164,7 +12242,8 @@
                               "content": "실제 화면에서는 한 번에 하나의 상태만 표시됩니다.",
                               "lineHeight": 1.55,
                               "fontFamily": "$font",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -12180,19 +12259,19 @@
     },
     {
       "type": "frame",
-      "id": "y4Uv92",
-      "x": 0,
+      "id": "PTsGI",
+      "x": 10200,
       "y": -1060,
-      "name": "04 · Brand · 보상레이더",
+      "name": "08 · Brand · BORA (Final)",
       "width": 1160,
       "fill": "$bg",
       "layout": "vertical",
-      "gap": 32,
+      "gap": 28,
       "padding": 48,
       "children": [
         {
           "type": "frame",
-          "id": "z8y0f3",
+          "id": "TLCS4",
           "name": "Header",
           "width": "fill_container",
           "layout": "vertical",
@@ -12200,10 +12279,10 @@
           "children": [
             {
               "type": "text",
-              "id": "gPkMZ",
+              "id": "lcGWO",
               "name": "Eyebrow",
-              "fill": "$ink-4",
-              "content": "BRAND IDENTITY · 보상레이더",
+              "fill": "$accent",
+              "content": "BRAND IDENTITY · BORA · FINAL",
               "fontFamily": "$font",
               "fontSize": 11,
               "fontWeight": "500",
@@ -12211,10 +12290,10 @@
             },
             {
               "type": "text",
-              "id": "cDHvS",
+              "id": "T3qZc9",
               "name": "Title",
               "fill": "$ink",
-              "content": "보상레이더 — 로고",
+              "content": "BORA — 워드마크",
               "lineHeight": 1.45,
               "fontFamily": "$font",
               "fontSize": 19,
@@ -12222,74 +12301,106 @@
             },
             {
               "type": "text",
-              "id": "WAGVV",
+              "id": "Te5o4",
               "name": "Sub",
               "fill": "$ink-3",
               "textGrowth": "fixed-width",
-              "width": 760,
-              "content": "국문 서비스명의 첫 음절 '보'를 앱 마크로 사용합니다. 별도의 픽토그램을 만들지 않고 이름 자체를 마크로 쓰는 방식으로, 손해사정 실무자에게 즉시 이름이 각인되고 16px 파비콘까지 판독됩니다.",
+              "width": 800,
+              "content": "BosangRadar를 줄인 BORA를 글자 그대로 씁니다. 심볼·픽토그램을 따로 만들지 않고 첫 글자 B를 아이콘으로 떼어 쓰기 때문에 관리할 자산이 워드마크 하나입니다. 예외 규칙이 없어 파비콘·앱스토어·인쇄·자수 어디에도 그대로 들어갑니다.",
               "lineHeight": 1.55,
               "fontFamily": "$font",
-              "fontSize": 12.5
+              "fontSize": 12.5,
+              "fontWeight": "normal"
             }
           ]
         },
         {
           "type": "frame",
-          "id": "mJZOv",
-          "name": "Primary Mark",
+          "id": "AzBUy",
+          "name": "Primary",
           "width": "fill_container",
           "fill": "$surface",
           "cornerRadius": 6,
           "stroke": "$line",
           "strokeWidth": 1,
           "strokeAlignment": "inner",
-          "gap": 40,
+          "gap": 44,
           "padding": [
-            30,
-            28
+            38,
+            32
           ],
           "alignItems": "center",
           "children": [
             {
               "type": "frame",
-              "id": "Wx46L",
+              "id": "j5LkbS",
               "name": "App Icon",
-              "clip": true,
-              "width": 128,
-              "height": 128,
+              "width": 148,
+              "height": 148,
               "fill": "$accent",
-              "cornerRadius": 32,
+              "cornerRadius": 40,
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
                 {
                   "type": "text",
-                  "id": "D5vIrg",
-                  "name": "보",
+                  "id": "G3rF0",
+                  "name": "B",
                   "fill": "#FFFFFF",
-                  "content": "보",
-                  "lineHeight": 1,
-                  "fontFamily": "$font",
-                  "fontSize": 79.36,
-                  "fontWeight": "900"
+                  "content": "B",
+                  "fontFamily": "$font-mark",
+                  "fontSize": 76,
+                  "fontWeight": "800",
+                  "letterSpacing": -1.6
                 }
               ]
             },
             {
               "type": "frame",
-              "id": "Q7zok8",
-              "name": "Info",
-              "width": "fill_container",
+              "id": "l2y6Pd",
+              "name": "Mark",
               "layout": "vertical",
               "gap": 14,
+              "justifyContent": "center",
               "children": [
                 {
                   "type": "text",
-                  "id": "qjXEE",
-                  "name": "Label",
+                  "id": "E9NKi",
+                  "name": "Wordmark",
+                  "fill": "$ink",
+                  "content": "BORA",
+                  "fontFamily": "$font-mark",
+                  "fontSize": 64,
+                  "fontWeight": "800",
+                  "letterSpacing": -1.4
+                },
+                {
+                  "type": "text",
+                  "id": "Q45txG",
+                  "name": "Sub",
+                  "fill": "$ink-3",
+                  "content": "보상레이더",
+                  "fontFamily": "$font",
+                  "fontSize": 13,
+                  "fontWeight": "500",
+                  "letterSpacing": 6.2
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zjD0T",
+              "name": "Info",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y8PNT",
+                  "name": "L",
                   "fill": "$ink-4",
-                  "content": "PRIMARY MARK",
+                  "content": "PRIMARY",
                   "fontFamily": "$font",
                   "fontSize": 11,
                   "fontWeight": "500",
@@ -12297,146 +12408,16 @@
                 },
                 {
                   "type": "text",
-                  "id": "RwSnK",
-                  "name": "Title",
-                  "fill": "$ink",
-                  "content": "보 — 음절 마크",
-                  "lineHeight": 1.45,
-                  "fontFamily": "$font",
-                  "fontSize": 19,
-                  "fontWeight": "600"
-                },
-                {
-                  "type": "text",
-                  "id": "e5KrQC",
-                  "name": "Desc",
+                  "id": "HAip5",
+                  "name": "D",
                   "fill": "$ink-2",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "글자 크기를 타일 한 변의 62%로 고정해 어느 크기에서도 같은 여백 비율을 유지합니다. 서체는 본문과 동일한 Pretendard(캔버스 렌더 Noto Sans KR) 900을 사용해 UI와 로고가 같은 골격을 공유합니다.",
-                  "lineHeight": 1.7,
+                  "content": "워드마크가 기본형이고, 앱 아이콘은 같은 서체의 B를 보라 스퀘어클에 얹은 것입니다. 국문 '보상레이더'는 자간을 크게 벌려 워드마크 아래를 받치는 보조 요소로만 씁니다.",
+                  "lineHeight": 1.6,
                   "fontFamily": "$font",
-                  "fontSize": 13
-                },
-                {
-                  "type": "frame",
-                  "id": "UY2XN",
-                  "name": "Sizes",
-                  "gap": 14,
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "G2dsm",
-                      "name": "Mark 48",
-                      "clip": true,
-                      "width": 48,
-                      "height": 48,
-                      "fill": "$accent",
-                      "cornerRadius": 12,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "fcwNs",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 29.759999999999998,
-                          "fontWeight": "900"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "TTWc0",
-                      "name": "Mark 32",
-                      "clip": true,
-                      "width": 32,
-                      "height": 32,
-                      "fill": "$accent",
-                      "cornerRadius": 8,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "T4OKu",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 19.84,
-                          "fontWeight": "900"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "f1Qz6",
-                      "name": "Mark 24",
-                      "clip": true,
-                      "width": 24,
-                      "height": 24,
-                      "fill": "$accent",
-                      "cornerRadius": 6,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "XZnrK",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 14.879999999999999,
-                          "fontWeight": "900"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "paUt1",
-                      "name": "Mark 16",
-                      "clip": true,
-                      "width": 16,
-                      "height": 16,
-                      "fill": "$accent",
-                      "cornerRadius": 4,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "kRamS",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 9.92,
-                          "fontWeight": "900"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "mFCdB",
-                      "name": "Note",
-                      "fill": "$ink-4",
-                      "content": "48 / 32 / 24 / 16",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 10.5,
-                      "fontWeight": "500"
-                    }
-                  ]
+                  "fontSize": 12.5,
+                  "fontWeight": "normal"
                 }
               ]
             }
@@ -12444,15 +12425,15 @@
         },
         {
           "type": "frame",
-          "id": "tg4SB",
+          "id": "Y8ksy",
           "name": "Lockup",
           "width": "fill_container",
           "gap": 16,
           "children": [
             {
               "type": "frame",
-              "id": "CTEnH",
-              "name": "라이트 · 기본 락업",
+              "id": "sJXKL",
+              "name": "라이트 · 기본",
               "width": "fill_container",
               "fill": "$surface",
               "cornerRadius": 6,
@@ -12460,112 +12441,110 @@
               "strokeWidth": 1,
               "strokeAlignment": "inner",
               "layout": "vertical",
-              "gap": 16,
-              "padding": 22,
+              "gap": 18,
+              "padding": 24,
               "children": [
                 {
                   "type": "frame",
-                  "id": "ydtbS",
+                  "id": "surDg",
                   "name": "Lockup",
                   "gap": 11,
                   "alignItems": "center",
                   "children": [
                     {
                       "type": "frame",
-                      "id": "e1X82T",
-                      "name": "Mark",
-                      "clip": true,
-                      "width": 32,
-                      "height": 32,
+                      "id": "rlicv",
+                      "name": "Icon40",
+                      "width": 40,
+                      "height": 40,
                       "fill": "$accent",
-                      "cornerRadius": 8,
+                      "cornerRadius": 11,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "NPLac",
-                          "name": "보",
+                          "id": "PJ3w2",
+                          "name": "B",
                           "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 19.84,
-                          "fontWeight": "900"
+                          "content": "B",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 21,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.43999999999999995
                         }
                       ]
                     },
                     {
                       "type": "frame",
-                      "id": "Vx2Py",
-                      "name": "Wordmark",
-                      "alignItems": "center",
+                      "id": "Ygepn",
+                      "name": "Type",
+                      "layout": "vertical",
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
-                          "id": "pupuV",
-                          "name": "보상",
+                          "id": "PM2s9",
+                          "name": "Wordmark",
                           "fill": "$ink",
-                          "content": "보상",
-                          "lineHeight": 1.3,
-                          "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.572
                         },
                         {
                           "type": "text",
-                          "id": "oRkes",
-                          "name": "레이더",
-                          "fill": "$accent",
-                          "content": "레이더",
-                          "lineHeight": 1.3,
+                          "id": "PabJS",
+                          "name": "Sub",
+                          "fill": "$ink-3",
+                          "content": "보상레이더",
                           "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "fontSize": 9.5,
+                          "fontWeight": "500",
+                          "letterSpacing": 2.8
                         }
                       ]
                     }
                   ]
                 },
                 {
-                  "type": "rectangle",
-                  "id": "OenL4",
-                  "name": "Divider",
-                  "fill": "$line",
+                  "type": "frame",
+                  "id": "jnRLp",
+                  "name": "Div",
                   "width": "fill_container",
-                  "height": 1
+                  "height": 1,
+                  "fill": "$line"
                 },
                 {
                   "type": "text",
-                  "id": "jXKNU",
+                  "id": "Y495n",
                   "name": "Name",
                   "fill": "$ink",
-                  "content": "라이트 · 기본 락업",
-                  "lineHeight": 1.5,
+                  "content": "라이트 · 기본",
                   "fontFamily": "$font",
-                  "fontSize": 12.5,
+                  "fontSize": 12,
                   "fontWeight": "600"
                 },
                 {
                   "type": "text",
-                  "id": "CSgju",
+                  "id": "uwkmZ",
                   "name": "Note",
                   "fill": "$ink-3",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "흰 배경 기본형. '보상'은 잉크, '레이더'는 액센트로 이름의 두 부분을 구분합니다.",
+                  "content": "흰 배경 기본형. 아이콘과 워드마크 사이 간격은 아이콘 크기 × 27%로 고정합니다.",
                   "lineHeight": 1.55,
                   "fontFamily": "$font",
-                  "fontSize": 11.5
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
                 }
               ]
             },
             {
               "type": "frame",
-              "id": "q9TxK",
-              "name": "다크 · 사이드바 적용",
+              "id": "yhdyD",
+              "name": "다크 · 사이드바",
               "width": "fill_container",
               "fill": "$sidebar",
               "cornerRadius": 6,
@@ -12573,218 +12552,214 @@
               "strokeWidth": 1,
               "strokeAlignment": "inner",
               "layout": "vertical",
-              "gap": 16,
-              "padding": 22,
+              "gap": 18,
+              "padding": 24,
               "children": [
                 {
                   "type": "frame",
-                  "id": "JqFQx",
+                  "id": "VhaRk",
                   "name": "Lockup",
                   "gap": 11,
                   "alignItems": "center",
                   "children": [
                     {
                       "type": "frame",
-                      "id": "UI25V",
-                      "name": "Mark",
-                      "clip": true,
-                      "width": 32,
-                      "height": 32,
+                      "id": "OI1Tz",
+                      "name": "Icon40",
+                      "width": 40,
+                      "height": 40,
                       "fill": "$accent",
-                      "cornerRadius": 8,
+                      "cornerRadius": 11,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "rYqqK",
-                          "name": "보",
+                          "id": "M9nBGe",
+                          "name": "B",
                           "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 19.84,
-                          "fontWeight": "900"
+                          "content": "B",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 21,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.43999999999999995
                         }
                       ]
                     },
                     {
                       "type": "frame",
-                      "id": "GUl3C",
-                      "name": "Wordmark",
-                      "alignItems": "center",
+                      "id": "P4zYo",
+                      "name": "Type",
+                      "layout": "vertical",
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
-                          "id": "XLxr0",
-                          "name": "보상",
-                          "fill": "#EDF1F6",
-                          "content": "보상",
-                          "lineHeight": 1.3,
-                          "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "id": "JZvP4",
+                          "name": "Wordmark",
+                          "fill": "#FFFFFF",
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.572
                         },
                         {
                           "type": "text",
-                          "id": "KLSuo",
-                          "name": "레이더",
-                          "fill": "#6FA0EA",
-                          "content": "레이더",
-                          "lineHeight": 1.3,
+                          "id": "YvMHA",
+                          "name": "Sub",
+                          "fill": "$sidebar-ink",
+                          "content": "보상레이더",
                           "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "fontSize": 9.5,
+                          "fontWeight": "500",
+                          "letterSpacing": 2.8
                         }
                       ]
                     }
                   ]
                 },
                 {
-                  "type": "rectangle",
-                  "id": "lmvZC",
-                  "name": "Divider",
-                  "fill": "$sidebar-line",
+                  "type": "frame",
+                  "id": "K6tHR",
+                  "name": "Div",
                   "width": "fill_container",
-                  "height": 1
+                  "height": 1,
+                  "fill": "$sidebar-line"
                 },
                 {
                   "type": "text",
-                  "id": "v0srh",
+                  "id": "Y0yr7",
                   "name": "Name",
                   "fill": "#FFFFFF",
-                  "content": "다크 · 사이드바 적용",
-                  "lineHeight": 1.5,
+                  "content": "다크 · 사이드바",
                   "fontFamily": "$font",
-                  "fontSize": 12.5,
+                  "fontSize": 12,
                   "fontWeight": "600"
                 },
                 {
                   "type": "text",
-                  "id": "n7MeU4",
+                  "id": "O2xqg",
                   "name": "Note",
-                  "fill": "#FFFFFFB8",
+                  "fill": "$sidebar-ink",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "실제 사이드바 배경. 액센트를 밝게 조정해 대비를 확보했습니다.",
+                  "content": "어두운 배경에서도 아이콘은 보라를 유지하고 워드마크만 흰색으로 반전합니다.",
                   "lineHeight": 1.55,
                   "fontFamily": "$font",
-                  "fontSize": 11.5
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
                 }
               ]
             },
             {
               "type": "frame",
-              "id": "n1TUHf",
-              "name": "액센트 배경 · 반전",
+              "id": "veQ6W",
+              "name": "퍼플 · 반전",
               "width": "fill_container",
               "fill": "$accent",
               "cornerRadius": 6,
-              "stroke": "$accent",
+              "stroke": "#FFFFFF33",
               "strokeWidth": 1,
               "strokeAlignment": "inner",
               "layout": "vertical",
-              "gap": 16,
-              "padding": 22,
+              "gap": 18,
+              "padding": 24,
               "children": [
                 {
                   "type": "frame",
-                  "id": "jeFri",
+                  "id": "qrnsN",
                   "name": "Lockup",
                   "gap": 11,
                   "alignItems": "center",
                   "children": [
                     {
                       "type": "frame",
-                      "id": "fL5Fd",
-                      "name": "Mark",
-                      "clip": true,
-                      "width": 32,
-                      "height": 32,
+                      "id": "ANb13",
+                      "name": "Icon40",
+                      "width": 40,
+                      "height": 40,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 8,
+                      "cornerRadius": 11,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "G80xV",
-                          "name": "보",
+                          "id": "rKb9L",
+                          "name": "B",
                           "fill": "$accent",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 19.84,
-                          "fontWeight": "900"
+                          "content": "B",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 21,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.43999999999999995
                         }
                       ]
                     },
                     {
                       "type": "frame",
-                      "id": "GqA8Q",
-                      "name": "Wordmark",
-                      "alignItems": "center",
+                      "id": "n96y4q",
+                      "name": "Type",
+                      "layout": "vertical",
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
-                          "id": "rqHy3",
-                          "name": "보상",
+                          "id": "j1Mo3L",
+                          "name": "Wordmark",
                           "fill": "#FFFFFF",
-                          "content": "보상",
-                          "lineHeight": 1.3,
-                          "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.572
                         },
                         {
                           "type": "text",
-                          "id": "fDYZs",
-                          "name": "레이더",
-                          "fill": "#BFD5FA",
-                          "content": "레이더",
-                          "lineHeight": 1.3,
+                          "id": "pfjs8",
+                          "name": "Sub",
+                          "fill": "#EDE7FF",
+                          "content": "보상레이더",
                           "fontFamily": "$font",
-                          "fontSize": 22,
-                          "fontWeight": "900",
-                          "letterSpacing": -1.276
+                          "fontSize": 9.5,
+                          "fontWeight": "500",
+                          "letterSpacing": 2.8
                         }
                       ]
                     }
                   ]
                 },
                 {
-                  "type": "rectangle",
-                  "id": "LJnXD",
-                  "name": "Divider",
-                  "fill": "#FFFFFF33",
+                  "type": "frame",
+                  "id": "lOfqx",
+                  "name": "Div",
                   "width": "fill_container",
-                  "height": 1
+                  "height": 1,
+                  "fill": "#FFFFFF33"
                 },
                 {
                   "type": "text",
-                  "id": "uExgt",
+                  "id": "dITt8",
                   "name": "Name",
                   "fill": "#FFFFFF",
-                  "content": "액센트 배경 · 반전",
-                  "lineHeight": 1.5,
+                  "content": "퍼플 · 반전",
                   "fontFamily": "$font",
-                  "fontSize": 12.5,
+                  "fontSize": 12,
                   "fontWeight": "600"
                 },
                 {
                   "type": "text",
-                  "id": "LBrTi",
+                  "id": "IsrbP",
                   "name": "Note",
-                  "fill": "#FFFFFFB8",
+                  "fill": "#EDE7FF",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "브랜드 컬러 위 반전형. 커버·배너용.",
+                  "content": "보라 배경에서는 아이콘을 흰색으로 반전합니다. 단색 두 장이라 대비가 항상 유지됩니다.",
                   "lineHeight": 1.55,
                   "fontFamily": "$font",
-                  "fontSize": 11.5
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
                 }
               ]
             }
@@ -12792,8 +12767,606 @@
         },
         {
           "type": "frame",
-          "id": "k7gHw",
-          "name": "Color",
+          "id": "yzs1g",
+          "name": "Scale & Spec",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "blILJ",
+              "name": "Scale",
+              "width": "fill_container",
+              "fill": "$surface",
+              "cornerRadius": 6,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vk7GL",
+                  "name": "L",
+                  "fill": "$ink-4",
+                  "content": "SCALE TEST · 16 / 24 / 32 / 48 / 64",
+                  "fontFamily": "$font",
+                  "fontSize": 11,
+                  "fontWeight": "500",
+                  "letterSpacing": 0.9
+                },
+                {
+                  "type": "frame",
+                  "id": "H7L0CE",
+                  "name": "Row",
+                  "gap": 20,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "SfmZK",
+                      "name": "S16",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "yty3L",
+                          "name": "Hold",
+                          "width": 64,
+                          "height": 64,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "jqXGl",
+                              "name": "Icon16",
+                              "width": 16,
+                              "height": 16,
+                              "fill": "$accent",
+                              "cornerRadius": 4.5,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "d66Tfb",
+                                  "name": "B",
+                                  "fill": "#FFFFFF",
+                                  "content": "B",
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 8,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.176
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "RoIbD",
+                          "name": "Cap",
+                          "fill": "$ink-4",
+                          "content": "16px",
+                          "fontFamily": "$font",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "z9HTXa",
+                      "name": "S24",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "gTLQE",
+                          "name": "Hold",
+                          "width": 64,
+                          "height": 64,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "jn0d0",
+                              "name": "Icon24",
+                              "width": 24,
+                              "height": 24,
+                              "fill": "$accent",
+                              "cornerRadius": 6.5,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "Nd3Fc",
+                                  "name": "B",
+                                  "fill": "#FFFFFF",
+                                  "content": "B",
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 12,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.264
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "nDgz1",
+                          "name": "Cap",
+                          "fill": "$ink-4",
+                          "content": "24px",
+                          "fontFamily": "$font",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "S4IMpF",
+                      "name": "S32",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "JZT5x",
+                          "name": "Hold",
+                          "width": 64,
+                          "height": 64,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "ujW9U",
+                              "name": "Icon32",
+                              "width": 32,
+                              "height": 32,
+                              "fill": "$accent",
+                              "cornerRadius": 9,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "selc4",
+                                  "name": "B",
+                                  "fill": "#FFFFFF",
+                                  "content": "B",
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 17,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.352
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "iOa8h",
+                          "name": "Cap",
+                          "fill": "$ink-4",
+                          "content": "32px",
+                          "fontFamily": "$font",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wp74W",
+                      "name": "S48",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "iQ2Xq",
+                          "name": "Hold",
+                          "width": 64,
+                          "height": 64,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "zX4oC",
+                              "name": "Icon48",
+                              "width": 48,
+                              "height": 48,
+                              "fill": "$accent",
+                              "cornerRadius": 13,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "I80Y5",
+                                  "name": "B",
+                                  "fill": "#FFFFFF",
+                                  "content": "B",
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 25,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.528
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "vAPNA",
+                          "name": "Cap",
+                          "fill": "$ink-4",
+                          "content": "48px",
+                          "fontFamily": "$font",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wBT87",
+                      "name": "S64",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "N744u",
+                          "name": "Hold",
+                          "width": 64,
+                          "height": 64,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "fvYtc",
+                              "name": "Icon64",
+                              "width": 64,
+                              "height": 64,
+                              "fill": "$accent",
+                              "cornerRadius": 17,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "l37jN",
+                                  "name": "B",
+                                  "fill": "#FFFFFF",
+                                  "content": "B",
+                                  "fontFamily": "$font-mark",
+                                  "fontSize": 33,
+                                  "fontWeight": "800",
+                                  "letterSpacing": -0.704
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "DpPFm",
+                          "name": "Cap",
+                          "fill": "$ink-4",
+                          "content": "64px",
+                          "fontFamily": "$font",
+                          "fontSize": 10,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "QPIGb",
+                  "name": "N",
+                  "fill": "$ink-3",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "모든 크기에서 같은 파일을 그대로 축소합니다. 획 하나짜리 장치가 없어 16px에서도 별도 버전이 필요하지 않습니다.",
+                  "lineHeight": 1.55,
+                  "fontFamily": "$font",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "W00Hl",
+              "name": "Spec",
+              "width": "fill_container",
+              "fill": "$surface",
+              "cornerRadius": 6,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BVnm6",
+                  "name": "L",
+                  "fill": "$ink-4",
+                  "content": "CONSTRUCTION",
+                  "fontFamily": "$font",
+                  "fontSize": 11,
+                  "fontWeight": "500",
+                  "letterSpacing": 0.9
+                },
+                {
+                  "type": "frame",
+                  "id": "ODMIh",
+                  "name": "서체",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "e5VTy",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "서체",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YQjIg",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Manrope ExtraBold (800)",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "W4HtLZ",
+                  "name": "자간",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "x3uf4",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "자간",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "G09yVP",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "글자 크기 × -2.2%",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "PFA2H",
+                  "name": "아이콘 글자",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xZs2r",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "아이콘 글자",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BMNAd",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "칩 크기 × 52%",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hE7BO",
+                  "name": "칩 라운드",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "g0aYUs",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "칩 라운드",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jLQm2",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "칩 크기 × 27%",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GYOxc",
+                  "name": "락업 간격",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IDHiN",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "락업 간격",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "u1xSoh",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "아이콘 크기 × 27%",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NCguh",
+                  "name": "최소 여백",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EI5Ii",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "최소 여백",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "IhSQq",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "아이콘 크기 × 50%",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ZUtDe",
+                  "name": "최소 크기",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jXcVq",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 78,
+                      "content": "최소 크기",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "D0IKTL",
+                      "name": "V",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "아이콘 16px · 워드마크 60px",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "I2YBM",
+          "name": "Don'ts",
           "width": "fill_container",
           "fill": "$surface",
           "cornerRadius": 6,
@@ -12801,320 +13374,321 @@
           "strokeWidth": 1,
           "strokeAlignment": "inner",
           "layout": "vertical",
-          "gap": 14,
-          "padding": 22,
+          "gap": 18,
+          "padding": 24,
           "children": [
             {
               "type": "text",
-              "id": "Nw1dz",
-              "name": "Label",
+              "id": "Ul3bj",
+              "name": "L",
               "fill": "$ink-4",
-              "content": "BRAND COLOR · 적용됨 #0F5FDC",
+              "content": "금지 · 이렇게 쓰지 않습니다",
               "fontFamily": "$font",
               "fontSize": 11,
               "fontWeight": "500",
               "letterSpacing": 0.9
             },
             {
-              "type": "text",
-              "id": "qZEte",
-              "name": "Note",
-              "fill": "$ink-3",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "액센트를 비비드 블루로 적용해 세 화면 전체에 반영했습니다. 아래 대안을 고르시면 accent 변수 하나만 바꿔 로고와 UI가 함께 전환됩니다.",
-              "lineHeight": 1.55,
-              "fontFamily": "$font",
-              "fontSize": 11.5
-            },
-            {
               "type": "frame",
-              "id": "WGPPw",
+              "id": "IsYMH",
               "name": "Row",
               "width": "fill_container",
-              "gap": 18,
+              "gap": 14,
               "children": [
                 {
                   "type": "frame",
-                  "id": "H0ptr",
-                  "name": "C 비비드 블루 · 적용",
+                  "id": "h3AWf",
+                  "name": "기울이거나 세로로 늘이지 않습니다",
                   "width": "fill_container",
                   "layout": "vertical",
-                  "gap": 9,
-                  "alignItems": "center",
+                  "gap": 10,
                   "children": [
                     {
                       "type": "frame",
-                      "id": "DlOgH",
-                      "name": "Swatch",
+                      "id": "h4H9Si",
+                      "name": "Stage",
                       "clip": true,
-                      "width": 64,
-                      "height": 64,
-                      "fill": "#0F5FDC",
-                      "cornerRadius": 16,
+                      "width": "fill_container",
+                      "height": 74,
+                      "fill": "$danger-soft",
+                      "cornerRadius": 5,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "ghcix",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 39.68,
-                          "fontWeight": "900"
+                          "id": "yuSlk",
+                          "name": "M",
+                          "rotation": 9,
+                          "fill": "$ink",
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.6
                         }
                       ]
                     },
                     {
-                      "type": "text",
-                      "id": "gmoNe",
-                      "name": "N",
-                      "fill": "$ink",
-                      "content": "비비드 블루 · 적용",
-                      "lineHeight": 1.5,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "600"
-                    },
-                    {
-                      "type": "text",
-                      "id": "vCceQ",
-                      "name": "H",
-                      "fill": "$ink-4",
-                      "content": "#0F5FDC",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 10.5,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "uj89T",
-                      "name": "D",
-                      "fill": "$ink-3",
-                      "textGrowth": "fixed-width",
+                      "type": "frame",
+                      "id": "kmn7m",
+                      "name": "T",
                       "width": "fill_container",
-                      "content": "선명하고 최근 국내 앱 트렌드에 가장 가까움.",
-                      "lineHeight": 1.55,
-                      "textAlign": "center",
-                      "fontFamily": "$font",
-                      "fontSize": 11
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "SjSva",
+                          "name": "X",
+                          "fill": "$danger",
+                          "content": "✕",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "LzXSk",
+                          "name": "L",
+                          "fill": "$ink-3",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "기울이거나 세로로 늘이지 않습니다",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
                     }
                   ]
                 },
                 {
                   "type": "frame",
-                  "id": "N8QDrN",
-                  "name": "C 틸",
+                  "id": "UYtOp",
+                  "name": "자간을 임의로 벌리지 않습니다",
                   "width": "fill_container",
                   "layout": "vertical",
-                  "gap": 9,
-                  "alignItems": "center",
+                  "gap": 10,
                   "children": [
                     {
                       "type": "frame",
-                      "id": "gRSCg",
-                      "name": "Swatch",
+                      "id": "DfO5d",
+                      "name": "Stage",
                       "clip": true,
-                      "width": 64,
-                      "height": 64,
-                      "fill": "#0C7C86",
-                      "cornerRadius": 16,
+                      "width": "fill_container",
+                      "height": 74,
+                      "fill": "$danger-soft",
+                      "cornerRadius": 5,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "rZlIO",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 39.68,
-                          "fontWeight": "900"
+                          "id": "WprsO",
+                          "name": "M",
+                          "fill": "$ink",
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": 7
                         }
                       ]
                     },
                     {
-                      "type": "text",
-                      "id": "yPoGf",
-                      "name": "N",
-                      "fill": "$ink",
-                      "content": "틸",
-                      "lineHeight": 1.5,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "600"
-                    },
-                    {
-                      "type": "text",
-                      "id": "RyvB0",
-                      "name": "H",
-                      "fill": "$ink-4",
-                      "content": "#0C7C86",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 10.5,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "bVwG7",
-                      "name": "D",
-                      "fill": "$ink-3",
-                      "textGrowth": "fixed-width",
+                      "type": "frame",
+                      "id": "P6nsX",
+                      "name": "T",
                       "width": "fill_container",
-                      "content": "핀테크 블루와 겹치지 않아 차별성이 큼.",
-                      "lineHeight": 1.55,
-                      "textAlign": "center",
-                      "fontFamily": "$font",
-                      "fontSize": 11
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IfMvn",
+                          "name": "X",
+                          "fill": "$danger",
+                          "content": "✕",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "rauA7",
+                          "name": "L",
+                          "fill": "$ink-3",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "자간을 임의로 벌리지 않습니다",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
                     }
                   ]
                 },
                 {
                   "type": "frame",
-                  "id": "D8dbPt",
-                  "name": "C 기존 네이비",
+                  "id": "S52uT",
+                  "name": "그라디언트·그림자를 넣지 않습니다",
                   "width": "fill_container",
                   "layout": "vertical",
-                  "gap": 9,
-                  "alignItems": "center",
+                  "gap": 10,
                   "children": [
                     {
                       "type": "frame",
-                      "id": "HVHGO",
-                      "name": "Swatch",
+                      "id": "f6zDRq",
+                      "name": "Stage",
                       "clip": true,
-                      "width": 64,
-                      "height": 64,
-                      "fill": "#1B4C9B",
-                      "cornerRadius": 16,
+                      "width": "fill_container",
+                      "height": 74,
+                      "fill": "$danger-soft",
+                      "cornerRadius": 5,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "mTkUG",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 39.68,
-                          "fontWeight": "900"
+                          "id": "VS2mt",
+                          "name": "M",
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 200,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "#B7A1FF",
+                                "position": 0
+                              },
+                              {
+                                "color": "#3B1E9E",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#00000059",
+                            "offset": {
+                              "x": 0,
+                              "y": 3
+                            },
+                            "blur": 6
+                          },
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.6
                         }
                       ]
                     },
                     {
-                      "type": "text",
-                      "id": "DWWRf",
-                      "name": "N",
-                      "fill": "$ink",
-                      "content": "기존 네이비",
-                      "lineHeight": 1.5,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "600"
-                    },
-                    {
-                      "type": "text",
-                      "id": "PPMve",
-                      "name": "H",
-                      "fill": "$ink-4",
-                      "content": "#1B4C9B",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 10.5,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "xQTk7",
-                      "name": "D",
-                      "fill": "$ink-3",
-                      "textGrowth": "fixed-width",
+                      "type": "frame",
+                      "id": "IHuAR",
+                      "name": "T",
                       "width": "fill_container",
-                      "content": "보수적이고 차분함. 되돌릴 경우.",
-                      "lineHeight": 1.55,
-                      "textAlign": "center",
-                      "fontFamily": "$font",
-                      "fontSize": 11
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "s4ycy",
+                          "name": "X",
+                          "fill": "$danger",
+                          "content": "✕",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Cam2J",
+                          "name": "L",
+                          "fill": "$ink-3",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "그라디언트·그림자를 넣지 않습니다",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
                     }
                   ]
                 },
                 {
                   "type": "frame",
-                  "id": "aCDK6",
-                  "name": "C 잉크",
+                  "id": "u4eIz",
+                  "name": "지정 색 외의 색을 쓰지 않습니다",
                   "width": "fill_container",
                   "layout": "vertical",
-                  "gap": 9,
-                  "alignItems": "center",
+                  "gap": 10,
                   "children": [
                     {
                       "type": "frame",
-                      "id": "a7Byi2",
-                      "name": "Swatch",
+                      "id": "Q4iYf1",
+                      "name": "Stage",
                       "clip": true,
-                      "width": 64,
-                      "height": 64,
-                      "fill": "#151B24",
-                      "cornerRadius": 16,
+                      "width": "fill_container",
+                      "height": 74,
+                      "fill": "$danger-soft",
+                      "cornerRadius": 5,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "oS3j7",
-                          "name": "보",
-                          "fill": "#FFFFFF",
-                          "content": "보",
-                          "lineHeight": 1,
-                          "fontFamily": "$font",
-                          "fontSize": 39.68,
-                          "fontWeight": "900"
+                          "id": "bBZkG",
+                          "name": "M",
+                          "fill": "#E06A1F",
+                          "content": "BORA",
+                          "fontFamily": "$font-mark",
+                          "fontSize": 26,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.6
                         }
                       ]
                     },
                     {
-                      "type": "text",
-                      "id": "ojbbn",
-                      "name": "N",
-                      "fill": "$ink",
-                      "content": "잉크",
-                      "lineHeight": 1.5,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "600"
-                    },
-                    {
-                      "type": "text",
-                      "id": "djo7X",
-                      "name": "H",
-                      "fill": "$ink-4",
-                      "content": "#151B24",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 10.5,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "exG8V",
-                      "name": "D",
-                      "fill": "$ink-3",
-                      "textGrowth": "fixed-width",
+                      "type": "frame",
+                      "id": "pDK1B",
+                      "name": "T",
                       "width": "fill_container",
-                      "content": "무채색. 가장 절제된 인상.",
-                      "lineHeight": 1.55,
-                      "textAlign": "center",
-                      "fontFamily": "$font",
-                      "fontSize": 11
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "PqpVN",
+                          "name": "X",
+                          "fill": "$danger",
+                          "content": "✕",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "m44DkD",
+                          "name": "L",
+                          "fill": "$ink-3",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "지정 색 외의 색을 쓰지 않습니다",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -13172,19 +13746,19 @@
     },
     "accent": {
       "type": "color",
-      "value": "#0F5FDC"
+      "value": "#6C47FF"
     },
     "accent-deep": {
       "type": "color",
-      "value": "#0B47A8"
+      "value": "#5227D6"
     },
     "accent-soft": {
       "type": "color",
-      "value": "#EBF2FE"
+      "value": "#EDE7FF"
     },
     "accent-line": {
       "type": "color",
-      "value": "#BFD5FA"
+      "value": "#B7A1FF"
     },
     "ok": {
       "type": "color",
@@ -13233,6 +13807,42 @@
     "sidebar-ink": {
       "type": "color",
       "value": "#9AA5B2"
+    },
+    "bora-700": {
+      "type": "color",
+      "value": "#3B1E9E"
+    },
+    "bora-600": {
+      "type": "color",
+      "value": "#5227D6"
+    },
+    "bora-500": {
+      "type": "color",
+      "value": "#6C47FF"
+    },
+    "bora-400": {
+      "type": "color",
+      "value": "#8B6BFF"
+    },
+    "bora-300": {
+      "type": "color",
+      "value": "#B7A1FF"
+    },
+    "bora-100": {
+      "type": "color",
+      "value": "#EDE7FF"
+    },
+    "bora-050": {
+      "type": "color",
+      "value": "#F7F4FF"
+    },
+    "font-brand": {
+      "type": "string",
+      "value": "Poppins"
+    },
+    "font-mark": {
+      "type": "string",
+      "value": "Manrope"
     }
   },
   "fileToken": "3e385be9-afa8-45f4-8e24-c9e1d9d74d8e"
