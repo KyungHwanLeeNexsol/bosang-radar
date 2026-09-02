@@ -27,14 +27,25 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     await page.getByTestId("case-disability-body-part").fill("발목");
     await page.getByTestId("case-incident-date").fill("2026-01-15");
 
+    // SPEC-PILOT-UX-001 REQ-PILOT-UX-002/003 — 클라이언트 단일 흐름 가드
+    // 종단간 검증: 더블클릭(빠른 재클릭)해도 /api/cases POST 요청은 정확히
+    // 한 번만 발생해야 한다(즉 cases 행도 정확히 하나만 생성돼야 한다).
+    let caseCreatePostCount = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/cases") && request.method() === "POST") {
+        caseCreatePostCount += 1;
+      }
+    });
+
     const [response] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().includes("/api/cases") && res.request().method() === "POST"
       ),
-      page.getByTestId("case-submit").click(),
+      page.getByTestId("case-submit").click({ clickCount: 2 }),
     ]);
     expect(response.status()).toBe(201);
     const { caseId } = (await response.json()) as { caseId: string };
+    expect(caseCreatePostCount).toBe(1);
 
     await page.waitForURL(`/cases/${caseId}`);
     await expect(page.getByTestId("case-report")).toBeVisible();
@@ -63,6 +74,18 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
       .limit(1);
     expect(caseRow).toBeDefined();
     expect(caseRow?.ownerUserId).toBe(tester?.id);
+
+    // 더블클릭으로 cases 행이 중복 생성되지 않았는지 DB 레벨에서도 확인한다
+    // (REQ-PILOT-UX-002/003 — 네트워크 요청 카운트만이 아니라 실제 영속화 결과로 검증).
+    const allTesterCaseRows = await db
+      .select()
+      .from(schema.cases)
+      .where(eq(schema.cases.ownerUserId, tester!.id));
+    const matchingCaseRows = allTesterCaseRows.filter((row) => {
+      const input = row.input as { incidentDescription?: string };
+      return input.incidentDescription === "계단에서 넘어져 발목을 다쳤습니다.";
+    });
+    expect(matchingCaseRows).toHaveLength(1);
 
     const reportRows = await db
       .select()
