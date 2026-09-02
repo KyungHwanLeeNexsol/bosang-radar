@@ -68,7 +68,9 @@ justification: Single-domain frontend coding work with milestone dependencies (M
 
 ## §E.2 Run-phase Evidence
 
-Implementation completed via manager-develop (cycle_type=tdd) across 4 local commits: `ac126c7`(M1) → `015834e`(M2) → `97fc198`(M3) → `a2d58de`(M4). No push (git_strategy.mode=manual, push_to_remote=false).
+Implementation completed via manager-develop (cycle_type=tdd) across 4 local commits: `ac126c7`(M1) → `015834e`(M2) → `97fc198`(M3) → `a2d58de`(M4).
+
+**Provenance correction (2026-09-02, post-run final verification pass)**: the "No push" statement below and in §E.3 was accurate as a **verification-time snapshot** at the moment it was written (orchestrator confirmed `origin/plan/SPEC-PILOT-UX-001` was unchanged then). It does NOT describe the current state — the branch has since been pushed to origin (confirmed by re-fetch: `origin/plan/SPEC-PILOT-UX-001` HEAD is `8427f4a`, 0/0 divergence from local, same commit as the docs commit that recorded this evidence section). Do not read "no push" below as a claim about the present; it is dated evidence of the state at the time it was captured.
 
 manager-develop's §E1 self-report: all 16 REQ-mapped ACs (AC-PILOT-UX-001~016) PASS; AC-015 is a manual text-review criterion (acceptance.md specifies it as review-type, not render-test-type).
 
@@ -78,16 +80,61 @@ Orchestrator independent re-verification (this run, this tree, HEAD `a2d58de`):
 - `npx vitest run "app/cases" "e2e" --reporter=dot` → 6 test files, 25 tests, all passed
 - `grep -rn 'AskUserQuestion' app/cases | grep -v "_test.tsx" | grep -v "// "` → exit 1, no matches (subagent boundary respected)
 - `git diff --stat origin/main -- lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts` → no output (server write-path untouched, confirms AC-016)
-- `git log origin/plan/SPEC-PILOT-UX-001` → unchanged since `c5d41a8` (confirms no push occurred)
+- `git log origin/plan/SPEC-PILOT-UX-001` → unchanged since `c5d41a8` at verification time (confirmed no push had occurred AS OF that moment — see provenance correction note above for current state)
 
 Coverage gap (accepted by user, 2026-09-02): `case-input-form.tsx` 79.5%, `feedback-form.tsx` 61.6%, `page.tsx` 72.7% statement coverage — below quality.yaml `test_coverage_target: 85`. manager-develop's justification: uncovered lines are pre-existing interaction branches (issue add/remove, per-item assessment selects, outcome field) not required by this SPEC's ACs, per plan.md M4 scope note. User explicitly chose to proceed to sync with this gap recorded rather than requesting additional coverage tests (AskUserQuestion round, orchestrator session).
+
+### Post-run Final Verification (acceptance.md Definition of Done — full gates)
+
+Re-run on current HEAD `8427f4a` (2026-09-02, orchestrator, this run/this tree), per user request for a post-run final verification pass before sync. All 5 Definition-of-Done gates:
+
+| # | Command | Exit | Result |
+|---|---------|------|--------|
+| 1 | `npx vitest run` (full unit suite, all 48 test files, not only this SPEC's) | 0 | 335/335 tests passed. (One test's stdout intentionally exercises `provision-tester.ts`'s missing-`--email` error path — the `❌ 테스터 프로비저닝 실패` line in the captured log is expected assertion-path console output from that test, not a real failure.) |
+| 2 | `pnpm test:e2e` | 0 | 4/4 Playwright tests passed, incl. `case-flow.spec.ts` (case input → report → feedback, single-flight guard) |
+| 3 | `pnpm lint` | 0 | clean, no findings |
+| 4 | `pnpm format:check` | 1 | 1 file flagged: `CHANGELOG.md` only. **Baseline, not a new violation** — confirmed via `git log -1 -- CHANGELOG.md` → last touched by `de5c10e` (a prior SPEC, before this SPEC's branch point) and `git diff --stat de5c10e..8427f4a -- CHANGELOG.md` → empty (this SPEC's 4 commits never touched the file). |
+| 5 | `pnpm build` | 0 | Turbopack build succeeded, 1 pre-existing unrelated warning (`instrumentation.ts` Edge Runtime notice, present before this SPEC) |
+
+Definition of Done items 1-4 (test/e2e/lint/format:check with no new violations) are satisfied. Item 5 (manual browser smoke) is recorded separately below.
+
+### Manual Browser Smoke (Definition of Done item 5)
+
+Performed by the user (2026-09-02), since `claude-in-chrome` browser automation was unavailable in this session (extension not connected). The orchestrator provisioned an isolated verification environment for this purpose — `next start` on `localhost:3211`, `LLM_PROVIDER_MODE=deterministic` (no real Gemini API calls), isolated temp SQLite DB (`.tmp/manual-smoke.db`), one provisioned tester account — and handed the URL + credentials to the user.
+
+Steps confirmed by the user, in order:
+1. Case input submitted (진단명 "우측 슬관절 십자인대 파열" / 장해 부위 "우측 하지" / 경위 test text) → routed to the report page.
+2. Report page rendered the summary banner ("전체 검증 상태: 6건 중 6건 근거 확인, 0건 판단 불충분") and per-evidence `evidenceType`/`issueTypes` bracketed tags (e.g. `[POLICY, DISABILITY_LOCATION, DISABILITY_GRADE_CRITERIA]`) — confirmed via a pasted copy of the rendered page text.
+3. Feedback form rendered fully section-grouped (누락된 쟁점 / 개별 주장 평가 / 개별 근거자료 평가), all fields defaulted to "평가 안 함".
+4. Feedback submitted (overall rating: one arbitrary valid enum value; rest left at defaults) → user-reported result: "피드백이 제출되었습니다. 감사합니다." success message appeared, and the browser console showed nothing (no errors).
+
+Not independently re-confirmed by the user: the submit button remaining disabled after success. This behavior is the same state transition (`submissionSucceeded`) that both renders the confirmation message AND disables the button (`feedback-form.tsx`, per plan.md §B M2), and is already covered by an automated assertion in both `feedback-form.test.tsx` (AC-010) and `case-flow.spec.ts`'s e2e run (both re-verified GREEN in this same session, see § Post-run Final Verification above) — treated as sufficiently covered rather than a live gap.
+
+**Result: Definition of Done item 5 — PASS**, evidence per above (user-performed, deterministic-mode isolated environment).
+
+The smoke-test server and its temp DB were torn down after this check.
+
+### Optional Low-Risk Cleanup (post-run final verification, 3 items)
+
+All 3 requested, applied and re-verified in this session:
+
+1. `app/cases/[caseId]/page.test.tsx` — added `afterEach(() => { act(() => root.unmount()); container.remove(); })` (previously only `beforeEach` created the root/container per test, with no explicit teardown between tests).
+2. `e2e/case-flow.spec.ts` — replaced `page.waitForLoadState("networkidle")` with `page.getByTestId("feedback-success").waitFor({ state: "visible" })` as the feedback-completion wait condition (a more precise, behavior-anchored wait than the generic network-idle heuristic).
+3. `app/cases/[caseId]/page.tsx` — corrected the `renderEvidenceReference` helper's comment citation from `REQ-PILOT-UX-006/010` to `REQ-PILOT-UX-005/006` (verified against spec.md: REQ-005 = evidenceType/issueTypes SELECT projection, REQ-006 = sourceUrl clickable link; REQ-010 is an unrelated feedback-form field-error requirement).
+
+Re-verification after cleanup (this run, this tree):
+- `npx vitest run "app/cases/[caseId]/page.test.tsx"` → exit 0, 5/5 passed
+- `pnpm test:e2e` → exit 0, 4/4 passed (incl. the modified `case-flow.spec.ts` wait condition)
+- `pnpm lint` → exit 0, clean
+- `npx prettier --write` on all 3 touched files → no changes needed (already correctly formatted)
 
 ## §E.3 Run-phase Audit-Ready Signal
 
 run_status: audit-ready
 run_complete_at: 2026-09-02
-run_commits: ac126c7, 015834e, 97fc198, a2d58de (all local on plan/SPEC-PILOT-UX-001, no push)
+run_commits: ac126c7, 015834e, 97fc198, a2d58de (verification-time snapshot: local-only, no push — since superseded, see §E.2 provenance correction; current remote `origin/plan/SPEC-PILOT-UX-001` HEAD is `8427f4a`, which includes these commits) + a post-run final-verification commit (this session: progress.md evidence, provenance correction, and 3 optional low-risk cleanups)
 known_gap: coverage below 85% target for 3 files (see §E.2 for detail) — user-accepted, non-blocking for sync
+definition_of_done: all 5 acceptance.md DoD items PASS (see § Post-run Final Verification + § Manual Browser Smoke above)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

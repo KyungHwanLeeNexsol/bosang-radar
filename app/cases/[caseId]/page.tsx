@@ -24,7 +24,7 @@ interface EvidenceDisplay {
   issueTypes: QueryIssueType[];
 }
 
-// SPEC-PILOT-UX-001 REQ-PILOT-UX-006/010 — evidenceType/issueTypes 근거자료
+// SPEC-PILOT-UX-001 REQ-PILOT-UX-005/006 — evidenceType/issueTypes 근거자료
 // 참조 렌더링을 세 곳(claim 자신, counterArgument 뒷받침/반박)에서 공통으로
 // 사용하기 위한 헬퍼(plan.md §D Risk 1의 중복 방지). sourceUrl은 클릭 가능한
 // 링크로 렌더링한다(REQ-PILOT-UX-006).

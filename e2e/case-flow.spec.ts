@@ -152,7 +152,7 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     }
 
     await Promise.all([
-      page.waitForLoadState("networkidle"),
+      page.getByTestId("feedback-success").waitFor({ state: "visible" }),
       page.getByTestId("feedback-submit").click(),
     ]);
 

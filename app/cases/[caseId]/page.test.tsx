@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResearchReport } from "@/lib/pipeline/types";
 
 // SPEC-PILOT-UX-001 M1/M4 — 사건 상세 페이지(app/cases/[caseId]/page.tsx)는
@@ -85,6 +85,13 @@ describe("app/cases/[caseId]/page — 리포트 정보 위계 + 근거자료 표
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
   });
 
   it("AC-005: 요약 배너가 '사건 요약' 카드보다 먼저 렌더링되고 진단명/장해 부위를 포함한다", async () => {
