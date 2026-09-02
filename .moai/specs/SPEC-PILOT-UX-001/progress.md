@@ -46,6 +46,26 @@ iteration: 7 (DB-idempotency-removal amendment 이후 pre-run coherence correcti
 trivial_citation_typo_fixes (4건, must-pass 기준 무관·REQ/AC 내용 및 개수 무변경): (1) plan.md M1 empty-state 불릿의 "REQ-PILOT-UX-012" 오기재를 "REQ-PILOT-UX-013"으로 정정. (2) plan.md M2 첫 불릿의 "REQ-PILOT-UX-010's action-rejection branch" 오기재를 "REQ-PILOT-UX-011's action-rejection branch"로 정정(다음 두 불릿이 이미 정확히 쓰던 것과 일치). (3) spec.md REQ-016 근거 열의 "REQ-013(사건 폼 네트워크 예외)" 오기재를 "REQ-014(사건 폼 네트워크 예외)"로 정정(현재 REQ-013은 빈 상태 요구사항, 네트워크 예외는 REQ-014). (4) spec.md iteration-6 HISTORY 엔트리의 "AC-001~016 전체가... 정합화" 과장 서술을 "AC-001~014의 M4 커버리지 갭을 해소했으며, AC-015/016은 render 테스트가 아닌 문구·diff 검토형 기준이라 M1-M4 대상에서 의도적으로 제외함"으로 완화.
 plan-audit 리포트(`.moai/reports/plan-audit/`)는 이 프로젝트 정책상 gitignore된 로컬 아티팩트이므로, 커밋된 리포트 파일의 존재를 주장하지 않으며 검증 결과(verdict/score/recommendation/trivial-fix 4건)만 이 progress.md에 기록한다. 이 PASS 판정은 plan-auditor가 내렸으며, 이 항목을 기록한 에이전트가 자체적으로 내린 판정이 아니다.
 
+## §F Phase 4 Mode Selection
+
+phase_1_skip_decision: SKIPPED re-execution of plan-auditor (all 3 conditions satisfied per spec-workflow.md § Plan to Run skip contract):
+  1. Verdict PASS — iteration 7 (2026-09-02)
+  2. Score 0.92 >= Tier M threshold 0.80
+  3. Artifact hash unchanged — last commit touching spec.md/plan.md/acceptance.md is `2304050` (the same commit that produced the iteration-7 PASS verdict); the only later commit `c5d41a8` touched progress.md only.
+
+input_parameters: tier=M, scope=~10 files (page.tsx/feedback-form.tsx/case-input-form.tsx edit + error.tsx new + 4 test files new/extended + e2e/case-flow.spec.ts edit), domain_count=1 (frontend React/Next.js), file_language_mix=100% TypeScript/TSX, concurrency_benefit=LOW (coding-heavy, milestone dependencies)
+
+mode_evaluation:
+  - direct: not selected — non-trivial, multi-file semantic change
+  - agent-team: not selected — not explicitly requested by user
+  - fanout: not selected — single-domain coding-heavy work, not multi-domain research
+  - sweep: not selected — scope well under ~30-file mechanical threshold; work is semantic (new UI logic/guards/tests), not a uniform mechanical transform
+  - serial: SELECTED — default fallback; coding-heavy TDD implementation via manager-develop, per Anthropic's coding-task parallelism caveat
+
+Decision: serial
+
+justification: Single-domain frontend coding work with milestone dependencies (M1-M4 share components/patterns) and no genuinely parallel structure. manager-develop (cycle_type=tdd) executes M1-M4 sequentially in one delegation.
+
 ## §E.2 Run-phase Evidence
 
 _<pending run-phase>_
