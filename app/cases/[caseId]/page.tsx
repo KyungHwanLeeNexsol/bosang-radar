@@ -5,6 +5,8 @@ import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
 import { evidence as evidenceTable } from "@/lib/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EvidenceItem } from "@/components/evidence-item";
 import type { EvidenceType, QueryIssueType } from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
@@ -28,29 +30,28 @@ interface EvidenceDisplay {
 // 참조 렌더링을 세 곳(claim 자신, counterArgument 뒷받침/반박)에서 공통으로
 // 사용하기 위한 헬퍼(plan.md §D Risk 1의 중복 방지). sourceUrl은 클릭 가능한
 // 링크로 렌더링한다(REQ-PILOT-UX-006).
+// SPEC-PILOT-VISUAL-001 M3 (REQ-013) — 출력 마크업을 EvidenceItem
+// 프레젠테이션 컴포넌트로 교체했다. sourceUrl 링크의
+// target="_blank" rel="noopener noreferrer" 속성(AC-008)은 EvidenceItem
+// 내부에 그대로 보존된다. evidenceById에 없는 evidenceId는 기존과 동일하게
+// 원시 ID 텍스트로 폴백한다.
 function renderEvidenceReference(evidenceId: string, evidenceById: Map<string, EvidenceDisplay>) {
   const item = evidenceById.get(evidenceId);
+  if (!item) {
+    return (
+      <li key={evidenceId} className="py-[13px] pl-4 text-body text-bora-ink-3">
+        {evidenceId}
+      </li>
+    );
+  }
   return (
-    <li key={evidenceId}>
-      {item?.title ?? evidenceId}
-      {item ? (
-        <span className="text-muted-foreground">
-          {" "}
-          [{item.evidenceType}
-          {item.issueTypes.length > 0 ? `, ${item.issueTypes.join(", ")}` : ""}]
-        </span>
-      ) : null}
-      {item?.sourceUrl ? (
-        <span className="text-muted-foreground">
-          {" "}
-          (
-          <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">
-            {item.sourceUrl}
-          </a>
-          )
-        </span>
-      ) : null}
-    </li>
+    <EvidenceItem
+      key={evidenceId}
+      title={item.title}
+      sourceUrl={item.sourceUrl}
+      evidenceType={item.evidenceType}
+      issueTypes={item.issueTypes}
+    />
   );
 }
 
@@ -188,19 +189,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                     <p className="font-medium">{claim.summary}</p>
                     {/* Fix-C(P0): claim.status를 시각적으로 구분되게 노출한다 —
                         INSUFFICIENT가 VERIFIED와 동일하게 보이던 결함(코드 리뷰
-                        지적)의 수정. Button 컴포넌트가 이미 사용 중인
-                        secondary/destructive 토큰 조합을 그대로 재사용한다. */}
-                    <span
-                      data-testid="claim-status"
-                      data-status={claim.status}
-                      className={
-                        claim.status === "VERIFIED"
-                          ? "shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground"
-                          : "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-destructive"
-                      }
-                    >
+                        지적)의 수정. SPEC-PILOT-VISUAL-001 M3(REQ-007)로 공유
+                        StatusBadge 컴포넌트로 교체 — data-testid/data-status는
+                        그대로 보존한다. */}
+                    <StatusBadge status={claim.status} data-testid="claim-status" data-status={claim.status}>
                       {claim.status === "VERIFIED" ? "근거 확인" : "판단 불충분"}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div>
                     <p className="text-muted-foreground">관련 근거자료</p>

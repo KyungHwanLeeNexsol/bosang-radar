@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
 import {
   QUERY_ISSUE_TYPES,
@@ -160,10 +161,12 @@ export function FeedbackForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" data-testid="feedback-form">
-      <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+      {/* SPEC-PILOT-VISUAL-001 M3(REQ-008) — 공유 Notice 컴포넌트로 시각적
+          래핑만 적용. 기존 카피는 문구 한 글자도 변경하지 않는다. */}
+      <Notice title="개인정보 비식별 안내">
         비식별 요약만 입력하세요. 실명, 상세 주소, 주민등록번호, 전화번호, 의료·보험 원본 문서
         내용은 입력하지 마세요.
-      </p>
+      </Notice>
 
       <div className="flex flex-col gap-4 border-t pt-4" data-testid="feedback-section">
         <div className="flex flex-col gap-1.5">
