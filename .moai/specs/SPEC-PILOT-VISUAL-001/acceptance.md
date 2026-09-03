@@ -2,7 +2,9 @@
 
 Verification layer. Every entry is `AC-XXX` (or a lowercase-suffixed sub-ID pairing sub-criteria within one logical AC, e.g. `AC-006b`), Given-When-Then, binary-testable. Cross-referenced against spec.md §2 REQ-001~024.
 
-> plan-auditor iteration-1 감사(FAIL, 0.63) 대응: AC-002/AC-004는 각각 REQ-003(Manrope)/REQ-006(D7 링크 규칙)을 추가 검증하도록 확장되었고, AC-006b/AC-020b/AC-021b가 REQ-009/REQ-020/REQ-022의 누락된 추적성을 보완하기 위해 신설되었으며, 옛 AC-013은 AC-012로 통합되었다(번호 013은 의도적 결번). 총 25개 라벨 — Tier L 상한(25) 이내.
+> plan-auditor iteration-1 감사(FAIL, 0.63) 대응: AC-002/AC-004는 각각 REQ-003(Manrope)/REQ-006(nav 링크 규칙)을 추가 검증하도록 확장되었고, AC-006b/AC-020b/AC-021b가 REQ-009/REQ-020/REQ-022의 누락된 추적성을 보완하기 위해 신설되었으며, 옛 AC-013은 AC-012로 통합되었다(번호 013은 의도적 결번). 총 25개 라벨 — Tier L 상한(25) 이내.
+>
+> iteration-2 PASS(0.92) 이후 사전-run 외부 독립 리뷰 6개 블로커 대응(iteration 3): AC-004는 DB 조회 기반 규칙을 완전히 폐기하고 pathname 전용 + 비활성(disabled) 상태 검증으로 재작성했다(블로커 1). AC-005는 "폰트 import 라인 제외" 허용을 제거하고 완전한 zero-diff 요구로 강화했다(블로커 2). AC-021b는 가로 스크롤 허용 문구를 제거해 REQ-022와의 모순을 해소했다(블로커 3). AC-012의 "클라이언트 집계만 허용" 문구를 "신규 I/O 없이 기존 데이터에서만 파생"으로 완화했다(블로커 4). AC 총 라벨 개수는 25개로 무변경(모든 수정이 기존 AC의 제자리 재작성).
 
 ## §1. AC Matrix
 
@@ -16,9 +18,9 @@ Verification layer. Every entry is `AC-XXX` (or a lowercase-suffixed sub-ID pair
 
 **AC-003**: Given `/cases/new` 또는 `/cases/[caseId]` 페이지를 렌더링한 상태, When DOM을 검사하면, Then 다크 배경(`fill: sidebar` 토큰)의 사이드바와 상단 탑바가 존재해야 한다.
 
-**AC-004**: Given 렌더링된 사이드바, When nav 항목을 세면, Then 정확히 3개이며(사건 입력/리서치 리포트/전문가 피드백), "리포트 보관함"이나 "판례·약관 DB" 같은 비활성 placeholder 링크가 존재하지 않아야 한다. And "리서치 리포트" 항목의 `href`를 확인하면, Then 항상 존재하는 실제 라우트를 가리키는 활성 링크여야 하며(비활성 `<span>`이나 `aria-disabled` 링크가 아니어야 함), 다음 결정론적 규칙을 따라야 한다 — Given 현재 인증된 사용자에게 사건이 1건 이상 존재하면 When 링크를 확인하면 Then `href`가 그 사용자의 가장 최근에 생성된 사건의 `/cases/[caseId]`를 가리켜야 하고, Given 사용자에게 사건이 0건이면 When 링크를 확인하면 Then `href`가 `/cases/new`를 가리켜야 한다(REQ-006, plan-auditor D7 대응).
+**AC-004**: Given 렌더링된 사이드바, When nav 항목을 세면, Then 정확히 3개이며(사건 입력/리서치 리포트/전문가 피드백), "리포트 보관함"이나 "판례·약관 DB" 같은 존재하지 않는 화면에 대한 가짜 링크가 존재하지 않아야 한다. And "사건 입력" 항목의 `href`를 확인하면, Then 항상 `/cases/new`를 가리켜야 한다. And Given 현재 pathname이 `/cases/[caseId]` 패턴과 일치하는 상태(사건 리포트/피드백 화면을 보고 있음), When "리서치 리포트"와 "전문가 피드백" 링크를 확인하면, Then 각각 현재 URL과 현재 URL+`#expert-feedback`을 가리켜야 하며, 이 계산 과정에서 어떤 네트워크 요청(DB 조회 또는 API 호출)도 관찰되지 않아야 한다(현재 pathname만 사용). And Given 현재 pathname이 `/cases/[caseId]` 패턴과 일치하지 않는 상태(예: `/cases/new`, 현재 사건 없음), When "리서치 리포트"와 "전문가 피드백" 링크를 확인하면, Then 두 항목 모두 `href` 속성이 없고 `aria-disabled="true"`이며 시각적으로 dimmed 처리된 비활성 상태여야 한다 — 이는 첫 문장이 금지하는 "존재하지 않는 화면에 대한 가짜 링크"와는 다르다: 실재하는 라우트(`/cases/[caseId]`)를 현재 컨텍스트가 없을 때 pathname 기반으로 조건부 비활성화하는 것이지, 애초에 없는 화면으로 링크를 위장하는 것이 아니다(REQ-006, plan-auditor 블로커 1 대응 — 이전 iteration의 DB SELECT 기반 규칙은 완전히 폐기됨).
 
-**AC-005**: Given `git diff`로 이 SPEC의 전체 변경 파일 목록을 확인한 상태, When `app/layout.tsx`, `app/page.tsx`, `app/login/**`의 diff를 개별 확인하면, Then `app/layout.tsx`는 폰트 import 관련 라인 외 변경이 없어야 하고, `app/page.tsx`와 `app/login/**`는 변경이 전혀 없어야 한다.
+**AC-005**: Given `git diff`로 이 SPEC의 전체 변경 파일 목록을 확인한 상태, When `app/layout.tsx`, `app/page.tsx`, `app/login/**`의 diff를 개별 확인하면, Then 세 대상 모두 diff가 완전히 비어 있어야 한다 — 폰트 관련 변경을 포함해 단 한 줄도 변경되지 않아야 한다. Pretendard/Manrope 폰트 로딩은 `app/cases/layout.tsx` 내부로 전량 이동했으므로 `app/layout.tsx`는 이 SPEC 범위에서 완전한 PRESERVE 대상이다(REQ-005, plan-auditor 블로커 2 대응 — "폰트 import 라인 제외" 허용은 폐기됨).
 
 ### Group C — 공유 컴포넌트 (REQ-007~009)
 
@@ -40,7 +42,7 @@ Verification layer. Every entry is `AC-XXX` (or a lowercase-suffixed sub-ID pair
 
 **AC-011**: Given claim에 대응 근거자료가 없는 상태, When 근거자료 섹션을 확인하면, Then `data-testid="cited-evidence-empty"` 빈 상태가 렌더링되어야 한다.
 
-**AC-012**: Given 사건 상세 페이지의 우측 레일에 "검토 항목" 또는 "수집 근거 유형" 패널이 존재하는 경우, When 페이지 로드 시 네트워크 요청을 관찰하면, Then 해당 패널을 위한 신규 API 호출이 발생하지 않아야 한다(이미 서버에서 전달된 props의 클라이언트 집계만 허용, REQ-014). And When `evidence` 테이블에 대한 SELECT 쿼리(서버 컴포넌트 코드)를 확인하면, Then SPEC-PILOT-UX-001 이후 확장된 프로젝션(`evidenceType`, `issueTypes` 포함)과 동일하며 추가 컬럼이 SELECT되지 않아야 한다(REQ-015). — 옛 AC-013을 통합했다(REQ-014/REQ-015가 "새 서버 조회를 추가하지 않는다"는 동일한 불변식을 서로 다른 관측 지점에서 검증하므로 하나의 AC로 병합; 번호 013은 의도적 결번).
+**AC-012**: Given 사건 상세 페이지의 우측 레일에 "검토 항목" 또는 "수집 근거 유형" 패널이 존재하는 경우, When 페이지 로드 시 네트워크/쿼리 요청을 관찰하면, Then 해당 패널을 위한 신규 API 호출이나 신규 DB 조회가 발생하지 않아야 한다 — 패널 내용은 기존 렌더링 경로에서 이미 확보된 데이터에서만 파생되어야 하며, 이 파생이 서버 컴포넌트 코드에서 일어나는지 클라이언트 컴포넌트에서 일어나는지는 검증 대상이 아니다(REQ-014, plan-auditor 블로커 4 대응 — "클라이언트 집계"라는 구현-위치 강제는 제거됨). And When `evidence` 테이블에 대한 SELECT 쿼리(서버 컴포넌트 코드)를 확인하면, Then SPEC-PILOT-UX-001 이후 확장된 프로젝션(`evidenceType`, `issueTypes` 포함)과 동일하며 추가 컬럼이 SELECT되지 않아야 한다(REQ-015). — 옛 AC-013을 통합했다(REQ-014/REQ-015가 "새 서버 조회를 추가하지 않는다"는 동일한 불변식을 서로 다른 관측 지점에서 검증하므로 하나의 AC로 병합; 번호 013은 의도적 결번).
 
 ### Group F — 화면 03 전문가 피드백 (REQ-016~018)
 
@@ -64,7 +66,7 @@ Verification layer. Every entry is `AC-XXX` (or a lowercase-suffixed sub-ID pair
 
 **AC-021**: Given 재스타일된 임의의 인터랙티브 요소(버튼, 링크, 입력 필드), When 접근성 속성을 확인하면, Then label 연관, `role="status"`/`aria-live`(대기 인디케이터), focus 가능 여부가 SPEC-PILOT-UX-001 이전과 동일하게 유지되어야 한다(REQ-023).
 
-**AC-021b**: Given 브라우저 뷰포트 너비를 1280px로 설정한 상태에서 3개 화면(사건 입력/리포트/피드백) 각각을 렌더링하면, When 레이아웃을 수동 검사하면, Then 사이드바와 콘텐츠 영역이 서로 겹치지 않아야 하고, 텍스트가 잘리거나 버튼이 클릭 불가능한 상태로 겹쳐지지 않아야 한다 — 가로 스크롤 발생은 허용되나 콘텐츠 겹침은 허용되지 않는다. 이 AC는 수동 검증이지만(자동화된 render 테스트가 아님), Definition of Done의 필수 항목으로 정식 승격되었다(REQ-022, plan-auditor D3 대응).
+**AC-021b**: Given 브라우저 뷰포트 너비를 1280px로 설정한 상태에서 3개 화면(사건 입력/리포트/피드백) 각각을 렌더링하면, When 레이아웃을 수동 검사하면, Then 다음 네 가지가 모두 성립해야 한다 — (1) 레이아웃으로 인한 페이지 수준 가로 오버플로(가로 스크롤바 유발)가 없어야 한다, (2) 사이드바와 콘텐츠 영역이 서로 겹치지 않아야 한다, (3) 텍스트나 컨트롤이 잘리지 않아야 한다, (4) 인터랙티브 요소의 클릭 대상을 가리는 겹침(클릭 불가능한 상태)이 없어야 한다. 모바일 완전 최적화는 이 SPEC의 범위가 아니며, 이 기준은 어디까지나 노트북 너비 비붕괴에 관한 것이다. 이 AC는 수동 검증이지만(자동화된 render 테스트가 아님), Definition of Done의 필수 항목이다(REQ-022, plan-auditor D3 대응 + 블로커 3 대응 — 이전 "가로 스크롤 허용" 문구는 REQ-022와 모순되어 제거됨).
 
 ### Group H — 품질 게이트 (REQ-024)
 
@@ -76,7 +78,7 @@ Verification layer. Every entry is `AC-XXX` (or a lowercase-suffixed sub-ID pair
 
 - 우측 레일이 Notice 하나만 남아 2컬럼 비율이 시각적으로 불균형해지는 경우 — 컬럼 폭 조정은 허용되나 신규 데이터/기능 추가는 금지(plan.md §F2 참고).
 - Pretendard variable font 로딩 실패(네트워크/빌드 환경 문제) 시 시스템 폰트로 자연스럽게 fallback되어야 하며, 레이아웃이 깨지지 않아야 한다.
-- 사용자에게 사건이 0건인 신규 계정에서 사이드바 "리서치 리포트" 링크가 `/cases/new`로 정확히 폴백해야 한다(AC-004의 두 번째 Given/When/Then 분기).
+- 현재 pathname이 `/cases/[caseId]` 패턴과 일치하지 않는 경우(예: `/cases/new`) 사이드바 "리서치 리포트"/"전문가 피드백" 링크가 정확히 비활성(disabled, `aria-disabled="true"`, `href` 없음) 상태로 렌더링되어야 한다(AC-004의 세 번째 Given/When/Then 분기 — plan-auditor 블로커 1 대응 이후, DB 조회 기반 폴백이 아닌 pathname 기반 비활성화).
 - 피드백 폼에서 claim 또는 cited evidence가 0건인 경우 §1 Group F의 관련 섹션(개별 주장 평가/개별 근거자료 평가)이 조건부로 생략되는 기존 동작이 재스타일 이후에도 유지되어야 한다.
 
 > 노트북 너비(1280px) 비붕괴 검증은 더 이상 Edge Case 서술이 아니라 AC-021b(Group G)로 정식 승격되었다(plan-auditor D3 대응).

@@ -3,6 +3,8 @@
 Tier L design artifact. Source of truth for the confirmed Pencil design (`design/claimradar-ui.pen`), reproduced here so implementation and review do not need Pencil MCP access. Read alongside spec.md §2 (REQ table references this file by section) and research.md (current-implementation baseline).
 
 > plan-auditor iteration-1 감사(FAIL, 0.63) 대응: §1의 신규 커스텀 속성 이름을 `--color-bora-*`/`--color-app-*` 네임스페이스로 변경했다(D8 — 기존 shadcn 커스텀 속성 `--color-accent`/`--color-sidebar` 등과의 충돌을 회피; 헥스값 자체는 변경 없음). 이 문서 전반의 REQ-ID 참조는 spec.md의 신 번호 체계(001~024)로 갱신되었다.
+>
+> iteration-2 PASS(0.92) 이후 사전-run 외부 독립 리뷰 6개 블로커 대응(iteration 3): §2 폰트 결정 — Pretendard/Manrope 로딩 위치를 `app/layout.tsx`에서 `app/cases/layout.tsx`로 전면 이동(블로커 2). §3 Nav Item — pathname 전용 링크 규칙 + disabled 상태 시각 스펙 추가(블로커 1). §4 화면 02 — "클라이언트 파생" 표현을 "신규 I/O 없이 기존 데이터에서만 파생"으로 완화(블로커 4). §4 화면 03 — `id="expert-feedback"` 앵커 스펙 추가(블로커 1). §5 결정 표 — nav 링크·폰트·우 레일 행 갱신.
 
 ## §1. 디자인 토큰 (Design Tokens)
 
@@ -65,7 +67,7 @@ Tailwind v4 mapping approach: add the right-column custom properties inside the 
 
 ### 폰트 결정 (사용자 확정)
 
-Pencil 원시 변수는 "Noto Sans KR"이나, 실제 적용은 **Pretendard**를 본문 폰트로 사용한다(Design System 캡션 텍스트와 시각적으로 일치). Pretendard는 Google Fonts에 없으므로 `pretendard` npm 패키지(static/variable woff2 포함) + `next/font/local`로 로드하며, `app/layout.tsx`의 기존 Geist Sans/Mono 설정을 대체한다. BORA 브랜드 워드마크가 텍스트로 렌더링될 경우(이미지가 아닌 경우) Manrope ExtraBold 800을 `next/font/google`로 로드해 그 텍스트에만 적용한다(REQ-002, REQ-003).
+Pencil 원시 변수는 "Noto Sans KR"이나, 실제 적용은 **Pretendard**를 본문 폰트로 사용한다(Design System 캡션 텍스트와 시각적으로 일치). Pretendard는 Google Fonts에 없으므로 `pretendard` npm 패키지(static/variable woff2 포함) + `next/font/local`로 로드한다. **로딩 위치(plan-auditor 블로커 2 대응)**: 이 로딩은 `app/layout.tsx`(루트 레이아웃)가 아니라 신규 `app/cases/layout.tsx` 내부에서 직접 호출되며, 결과 폰트-변수 클래스는 그 레이아웃의 래퍼 엘리먼트에만 적용된다 — `app/layout.tsx`의 기존 Geist Sans/Mono 설정은 이 SPEC 범위에서 전혀 수정되지 않는다(이전 iteration의 "루트에서 Geist를 Pretendard로 교체" 접근은 `/`·`/login`의 계산된 폰트까지 바꾸는 것이어서 완전히 폐기됐다). BORA 브랜드 워드마크가 텍스트로 렌더링될 경우(이미지가 아닌 경우) Manrope ExtraBold 800을 `next/font/google`로 동일하게 `app/cases/layout.tsx` 내부에서 로드해 그 텍스트에만 적용한다(REQ-002, REQ-003).
 
 ## §3. 재사용 프레젠테이션 컴포넌트
 
@@ -83,7 +85,7 @@ Pencil 원시 변수는 "Noto Sans KR"이나, 실제 적용은 **Pretendard**를
 | Notice | `padding [13,14]`, `radius 4`, `fill: warn-soft`, 아이콘 + 타이틀(12.5/600 `warn`) + 본문(12/400 `ink-2`) | PII/주의 문구 배너(기존 카피 재사용). 기존 프리미티브로 표현 불가 → 신규 컴포넌트 필요(REQ-008) |
 | Radio Option | `padding [10,14]`, `radius 4`, `fill: surface`, 원형 마크(반경 8, 선택 시 내부 dot) + label(13/500 `ink-2`) | 전체 평가/실제 결과 선택지 스타일 참고(단, native `<select>` 유지 결정과 충돌하지 않는 범위 — §5 참고) |
 | Check Row | `gap 10`, 16×16 box(radius 3) + checkmark + label(13/400 `ink-2`) | 개인정보 확인 체크박스(사건 입력) |
-| Nav Item(사이드바) | `padding [10,12]`, `radius 4`, 기본 투명, 아이콘 + label(13/500 `sidebar-ink`) | REQ-006 3개 항목(D7 결정론적 링크 규칙 포함) |
+| Nav Item(사이드바) | `padding [10,12]`, `radius 4`, 기본 투명, 아이콘 + label(13/500 `sidebar-ink`); 비활성(disabled) 상태는 `aria-disabled="true"` + 텍스트/아이콘 opacity 저하로 시각적 dimming, `href` 없음 | REQ-006 3개 항목(pathname 전용 결정론적 링크 규칙, DB/API 조회 없음 — plan-auditor 블로커 1 대응) |
 | App Sidebar | 다크(`fill: sidebar`), 폭 232, `padding [22,14,18,14]` — 브랜드 마크(28×28, radius 7.5, `fill: accent`, 흰 "B" 14.6/800) + "BORA" 워드마크(17/800) + nav 그룹 라벨("작업 공간", 10/500, `#5D6875`) + nav 항목들; 하단: divider + 사용자 블록(아바타 30×30, radius 4, `fill:#242D38` + 이니셜, 이름 12.5/600, 소속 11/500) | REQ-004 |
 | App Topbar | `fill: surface`, height 62, `padding [0,32]` — 좌: 브레드크럼(11/500 `ink-4`) + 타이틀(15/600 `ink`); 우: 컨텍스트 메타 텍스트(예: 사건 ID) | REQ-004 |
 
@@ -102,7 +104,7 @@ Sidebar + Topbar. 콘텐츠 세로, `padding [24,32,40,32]`, `gap 20`:
 
 - **Panel 사건 요약**(`fill: surface`, w1144): Header(eyebrow "사건 요약 · <id>" + 타이틀 22/600 + 우측 status Badge + 생성 시각). Meta Strip(4개 Meta Item, 1px 세로 구분선). 사고 경위 행. Aggregate Status 블록(`fill: surface-sub`, `padding [18,24]`): 세그먼트 진행률 바 + 3개 stat 블록(근거 확인/판단 불충분/수집 근거) + 비확정성 문구(11.5/400 `ink-3` — 기존 안전 문구 재사용, REQ-012).
 - **좌 컬럼(w824)**: Section Header("개별 주장 및 근거 검토" + 선택적 필터 칩 — 신규 상호작용, 이미 렌더링된 데이터에 대한 클라이언트 필터로만 구현 가능할 때만 추가, 아니면 생략). Claims list(`gap 16`), 각 claim 카드: 헤더(인덱스 배지 + 타이틀 + issue 칩 + status Badge + 카운트 텍스트), 결론/이유/반대 논리/근거자료 행(REQ-013). INSUFFICIENT 상태는 warn-soft 헤더 배경 + Footer Note. "그 외 검토 항목" 패널 — 기존 "검토할 담보 목록"/"추가 필요 자료" 섹션과 형태가 맞으면 매핑, 아니면 독립 리스트 섹션 유지.
-- **우 레일(w300, gap 16)**: "검토 항목"(claim 제목 앵커 목록, 클라이언트 파생 — REQ-014), "수집 근거 유형"(evidenceType 카운트 막대 차트, 클라이언트 파생 — REQ-014), Notice "활용 유의"(기존 리포트 비확정 문구 재사용). 이 우 레일 두 패널을 위해서든, 그 어떤 목적을 위해서든 신규 DB/API 호출은 금지된다(REQ-015).
+- **우 레일(w300, gap 16)**: "검토 항목"(claim 제목 앵커 목록, 기존 렌더링 경로에서 이미 확보된 데이터에서만 파생 — REQ-014), "수집 근거 유형"(evidenceType 카운트 막대 차트, 동일 원칙 — REQ-014), Notice "활용 유의"(기존 리포트 비확정 문구 재사용). 이 우 레일 두 패널을 위해서든, 그 어떤 목적을 위해서든 신규 DB/API 호출은 금지된다(REQ-015). 파생을 서버 컴포넌트에서 할지 작은 클라이언트 컴포넌트에서 할지는 run-phase 구현 재량이다(plan-auditor 블로커 4 대응 — "클라이언트 사이드" 구현-위치 강제는 제거됨).
 
 ### 화면 03 · 전문가 피드백 (REQ-016~018)
 
@@ -115,7 +117,9 @@ Sidebar + Topbar. 콘텐츠 수평(`padding [24,32,40,32]`, `gap 20`):
   4. 개별 근거자료 평가 — 테이블 형태(Table Head 2컬럼), verdict는 native `<select>` 유지
   5. 실제 결과 — Radio Option 스타일 참고(기존 필드 구조 유지, 신규 enum 필드 추가 금지), 비확정 문구 재사용
   - Form Footer: 좌측 PII notice, 우측 Actions — "임시 저장"은 **REQ-018에 따라 생략**, "제출" 버튼 유지.
-- **우 레일(w320, gap 16)**: Notice "개인정보"(재사용), "작성 진행률"(현재 폼 상태로부터 클라이언트 파생 — REQ-014와 동일한 원칙, 신규 데이터 불필요), "제출 상태"(기존 `isSubmitting`/필드 오류/`feedback-success` 조건부 UI의 재스타일 — 신규 상태 아님).
+- **우 레일(w320, gap 16)**: Notice "개인정보"(재사용), "작성 진행률"(현재 폼 상태로부터 파생 — REQ-014와 동일한 원칙, 신규 데이터 불필요), "제출 상태"(기존 `isSubmitting`/필드 오류/`feedback-success` 조건부 UI의 재스타일 — 신규 상태 아님).
+
+**"전문가 피드백" 사이드바 링크 앵커(REQ-006)**: 사이드바에서 이 화면으로의 페이지 내 점프(`#expert-feedback`)를 지원하기 위해, 이 화면의 최상위 컨테이너(또는 Context Bar 직후 첫 섹션)에 순수 프레젠테이션 목적의 `id="expert-feedback"`을 부여한다 — 서버 write-path·API·스키마에는 어떤 영향도 없다(plan-auditor 블로커 1 대응).
 
 ## §5. 결정 사항 요약 (Locked Decisions)
 
@@ -123,14 +127,14 @@ Sidebar + Topbar. 콘텐츠 수평(`padding [24,32,40,32]`, `gap 20`):
 
 | 결정 | 확정 내용 | 근거 REQ |
 |------|-----------|----------|
-| 사이드바 nav 범위 및 링크 규칙 | 3개 실제 링크만(사건 입력/리서치 리포트/전문가 피드백), 비활성 placeholder 없음; "리서치 리포트"는 최근 사건 존재 시 그 리포트로, 없으면 `/cases/new`로 연결하는 결정론적 규칙(D7) | REQ-006 |
-| 폰트 | 본문 Pretendard(`next/font/local`), 워드마크 텍스트일 경우만 Manrope | REQ-002, REQ-003 |
+| 사이드바 nav 범위 및 링크 규칙 | 3개 실제 링크만(사건 입력/리서치 리포트/전문가 피드백), 존재하지 않는 화면에 대한 가짜 링크 없음; target은 DB/API 조회 없이 현재 pathname만으로 결정(`/cases/[caseId]` 일치 시 현재 URL[+`#expert-feedback`], 불일치 시 두 항목 disabled) — plan-auditor 블로커 1 대응, D7의 DB SELECT 접근을 대체 | REQ-006 |
+| 폰트 로딩 위치 | 본문 Pretendard/워드마크 Manrope 모두 `app/cases/layout.tsx` 내부에서만 로드, `app/layout.tsx`는 완전 PRESERVE(zero-diff) — plan-auditor 블로커 2 대응 | REQ-002, REQ-003, REQ-005 |
 | 우 레일 축소(사건 입력) | 분석 상태/최근 리서치 패널 생략(신규 인프라 없음) | REQ-011 |
-| 우 레일 확장(리포트) | 검토 항목/근거 유형 차트는 클라이언트 파생으로 반드시 구현(신규 API 없음) | REQ-014 |
+| 우 레일 확장(리포트) | 검토 항목/근거 유형 차트는 신규 I/O 없이 기존 데이터에서만 파생(서버/클라이언트 구현 위치는 재량) — plan-auditor 블로커 4 대응 | REQ-014 |
 | 피드백 동적 배열 UI | `missedIssues` 배열 유지, 정적 체크리스트로 대체 금지 | REQ-017 |
 | 피드백 select 컴포넌트 | native `<select>` 유지, 커스텀 리스트박스로 교체 금지 | 기존 테스트 상호작용 패턴 보존(사용자 확정) |
 | 임시 저장 버튼 | 생략(신규 초안 저장 기능 없음) | REQ-018 |
-| Sidebar 다크 셸 | `app/cases/layout.tsx` 신규, `app/layout.tsx`/`/`/`login` 미변경 | REQ-004, REQ-005 |
+| Sidebar 다크 셸 | `app/cases/layout.tsx` 신규, `app/layout.tsx`/`/`/`login` 미변경(zero-diff) | REQ-004, REQ-005 |
 | 디자인 토큰 네임스페이스 | 신규 커스텀 속성은 `--color-bora-*`/`--color-app-*`(기존 shadcn `--color-accent`/`--color-sidebar` 등과 충돌 회피, plan-auditor D8) | REQ-001 |
 
 ## §6. Cross-references
