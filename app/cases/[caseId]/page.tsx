@@ -6,8 +6,10 @@ import { getDb } from "@/lib/db/client";
 import { evidence as evidenceTable } from "@/lib/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Chip } from "@/components/ui/chip";
+import { Notice } from "@/components/ui/notice";
 import { EvidenceItem } from "@/components/evidence-item";
-import type { EvidenceType, QueryIssueType } from "@/lib/pipeline/types";
+import type { EvidenceType, QueryIssueType, VerifiedClaim } from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
 
@@ -52,6 +54,57 @@ function renderEvidenceReference(evidenceId: string, evidenceById: Map<string, E
       evidenceType={item.evidenceType}
       issueTypes={item.issueTypes}
     />
+  );
+}
+
+// SPEC-PILOT-VISUAL-001 M5 (REQ-013 — claim-card 헤더 issue 칩) — claim의
+// supportingEvidenceIds가 가리키는 evidence들의 issueTypes를 evidenceById에서
+// 조회해 중복 제거한 목록으로 파생한다. 신규 DB/API 호출 없이 이미 이 파일
+// 상단에서 구성한 evidenceById Map만 사용한다(REQ-014와 동일 원칙).
+function getClaimIssueTypes(
+  claim: VerifiedClaim,
+  evidenceById: Map<string, EvidenceDisplay>
+): QueryIssueType[] {
+  const seen = new Set<QueryIssueType>();
+  for (const evidenceId of claim.supportingEvidenceIds) {
+    evidenceById.get(evidenceId)?.issueTypes.forEach((issueType) => seen.add(issueType));
+  }
+  return Array.from(seen);
+}
+
+// SPEC-PILOT-VISUAL-001 M5 (REQ-014 — 우 레일 "수집 근거 유형") — 인용된
+// evidence의 evidenceType별 카운트를 파생한다. citedEvidenceIds/evidenceById
+// 모두 이미 이 파일이 확보한 데이터이며, 신규 API 호출이나 신규 DB 조회,
+// evidence SELECT 프로젝션 확장이 전혀 없다(REQ-015).
+function computeEvidenceTypeCounts(
+  citedEvidenceIds: string[],
+  evidenceById: Map<string, EvidenceDisplay>
+): { type: EvidenceType; count: number }[] {
+  const counts = new Map<EvidenceType, number>();
+  for (const evidenceId of citedEvidenceIds) {
+    const item = evidenceById.get(evidenceId);
+    if (!item) continue;
+    counts.set(item.evidenceType, (counts.get(item.evidenceType) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function formatGeneratedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return date.toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-label-s font-medium text-bora-ink-4">{label}</p>
+      <p className="text-h3 font-semibold text-bora-ink">{value}</p>
+    </div>
   );
 }
 
@@ -115,6 +168,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       ]
     : [];
 
+  // SPEC-PILOT-VISUAL-001 M5 (REQ-014) — 우 레일 "수집 근거 유형"이 소비하는
+  // 파생 데이터. citedEvidenceIds가 빈 배열이면 evidenceTypeCounts도 자연히
+  // 빈 배열이 되므로 report 존재 여부를 별도로 분기할 필요가 없다.
+  const evidenceTypeCounts = computeEvidenceTypeCounts(citedEvidenceIds, evidenceById);
+  const maxEvidenceTypeCount = evidenceTypeCounts[0]?.count ?? 0;
+
   // SPEC-PILOT-UX-001 REQ-PILOT-UX-004(§A decision 2) — 요약 배너 집계는
   // 이미 조회된 report.verifiedClaims를 inline reduce/filter로 계산한다.
   // ResearchReport 타입 계약(SPEC-RESEARCH-001)은 건드리지 않는다.
@@ -124,176 +183,350 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const totalClaimCount = report?.verifiedClaims.length ?? 0;
   const insufficientCount = totalClaimCount - verifiedCount;
 
+  // SPEC-PILOT-VISUAL-001 M5 — 요약 패널 하단 "비확정성 문구"(design.md
+  // REQ-012) 및 우 레일 Notice "활용 유의"가 공통으로 재사용하는 문자열.
+  // 새 문구를 만들지 않고 기존 집계 문장을 그대로 재사용한다(§E 잔여
+  // 위험 참고 — research.md §9가 언급한 "보험금 지급 비확정" 문구는
+  // 코드베이스 전체를 검색해도 UI 텍스트로 존재하지 않아 대신 이 기존
+  // 집계 문장을 재사용했다).
+  const aggregateStatusCaption = `전체 검증 상태: ${totalClaimCount}건 중 ${verifiedCount}건 근거 확인, ${insufficientCount}건 판단 불충분`;
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-16">
-      <h1 className="text-xl font-semibold">사건 상세</h1>
-
+    <div className="flex flex-1 flex-col gap-5 px-8 pt-6 pb-10">
       {report ? (
-        <div data-testid="case-report">
-          <Card data-testid="summary-banner">
-            <CardHeader>
-              <CardTitle>요약</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1 text-sm">
-              <p>진단명: {report.caseSummary.diagnosisName}</p>
-              <p>장해 부위: {report.caseSummary.disabilityBodyPart}</p>
-              <p>
-                전체 검증 상태: {totalClaimCount}건 중 {verifiedCount}건 근거 확인,{" "}
-                {insufficientCount}건 판단 불충분
+        <div data-testid="case-report" className="flex flex-col gap-5">
+          {/* SPEC-PILOT-VISUAL-001 M5 (REQ-012) — "사건 요약" 패널.
+              summary-banner testid는 패널 전체 래퍼에 부여한다: 내부의
+              leaf 텍스트 노드 "사건 요약"(h1)은 이 래퍼의 자손(descendant)
+              이므로 DOM 순서상 항상 "following"으로 판정되어 AC-005의
+              compareDocumentPosition 검증을 그대로 만족한다. */}
+          <div
+            data-testid="summary-banner"
+            className="max-w-[1144px] overflow-hidden rounded-[4px] bg-app-surface"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-line px-6 py-4">
+              <div>
+                <p className="text-label-s font-medium text-bora-ink-4">사건 요약 · {caseId}</p>
+                <h1 className="text-h2 font-semibold text-bora-ink">사건 요약</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                {totalClaimCount > 0 ? (
+                  <StatusBadge status={insufficientCount > 0 ? "INSUFFICIENT" : "VERIFIED"}>
+                    {insufficientCount > 0 ? "판단 불충분 포함" : "근거 확인"}
+                  </StatusBadge>
+                ) : null}
+                <span className="text-meta font-normal text-bora-ink-4">
+                  {formatGeneratedAt(report.generatedAt)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-y-4 divide-app-line px-6 py-5 sm:grid-cols-4 sm:divide-x">
+              <MetaItem label="진단명" value={report.caseSummary.diagnosisName} />
+              <div className="sm:pl-6">
+                <MetaItem label="장해 부위" value={report.caseSummary.disabilityBodyPart} />
+              </div>
+              <div className="sm:pl-6">
+                <MetaItem label="사고일" value={report.caseSummary.incidentDate} />
+              </div>
+              <div className="sm:pl-6">
+                <MetaItem label="담당" value="담당 손해사정사" />
+              </div>
+            </div>
+
+            <div className="border-t border-app-line px-6 py-4">
+              <p className="text-label-s font-medium text-bora-ink-4">사고 경위</p>
+              <p className="mt-1 text-body font-normal text-bora-ink-2">
+                {report.caseSummary.incidentDescription}
               </p>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>사건 요약</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1 text-sm">
-              <p>진단명: {report.caseSummary.diagnosisName}</p>
-              <p>장해 부위: {report.caseSummary.disabilityBodyPart}</p>
-              <p>경위: {report.caseSummary.incidentDescription}</p>
-            </CardContent>
-          </Card>
+            <div className="mx-6 mb-6 flex flex-col gap-4 rounded-[4px] bg-app-surface-sub px-6 py-[18px]">
+              <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-app-line">
+                {totalClaimCount > 0 ? (
+                  <>
+                    <div
+                      className="h-full bg-bora-ok"
+                      style={{ width: `${(verifiedCount / totalClaimCount) * 100}%` }}
+                    />
+                    <div
+                      className="h-full bg-bora-warn"
+                      style={{ width: `${(insufficientCount / totalClaimCount) * 100}%` }}
+                    />
+                  </>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-label-s font-medium text-bora-ink-4">근거 확인</p>
+                  <p className="text-h3 font-semibold text-bora-ok">{verifiedCount}건</p>
+                </div>
+                <div>
+                  <p className="text-label-s font-medium text-bora-ink-4">판단 불충분</p>
+                  <p className="text-h3 font-semibold text-bora-warn">{insufficientCount}건</p>
+                </div>
+                <div>
+                  <p className="text-label-s font-medium text-bora-ink-4">수집 근거</p>
+                  <p className="text-h3 font-semibold text-bora-ink">{citedEvidenceIds.length}건</p>
+                </div>
+              </div>
+              <p className="text-[11.5px] font-normal text-bora-ink-3">{aggregateStatusCaption}</p>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>검토할 담보 목록</CardTitle>
-            </CardHeader>
-            <CardContent data-testid="review-targets">
-              {report.reviewTargets.length > 0 ? (
-                <ul className="list-inside list-disc text-sm">
-                  {report.reviewTargets.map((reviewTarget, index) => (
-                    <li key={index}>{reviewTarget.description}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">검토할 담보가 식별되지 않았습니다.</p>
-              )}
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-5 lg:flex-row">
+            {/* 좌 컬럼 — 개별 주장 및 근거 검토 + 그 외 검토 항목 패널들 */}
+            <div className="flex min-w-0 flex-1 flex-col gap-5 lg:max-w-[824px]">
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-6 py-4">
+                  <h2 className="text-h2 font-semibold text-bora-ink">개별 주장 및 근거 검토</h2>
+                </div>
+                <div className="flex flex-col gap-4 px-6 py-5" data-testid="verified-claims">
+                  {report.verifiedClaims.length === 0 ? (
+                    <p className="text-body text-bora-ink-3">확인된 주장이 없습니다.</p>
+                  ) : null}
+                  {report.verifiedClaims.map((claim, index) => {
+                    const issueTypes = getClaimIssueTypes(claim, evidenceById);
+                    return (
+                      <div
+                        key={index}
+                        id={`claim-${index}`}
+                        className={
+                          claim.status === "INSUFFICIENT"
+                            ? "flex flex-col gap-3 overflow-hidden rounded-[4px] border border-app-line bg-bora-warn-soft"
+                            : "flex flex-col gap-3 overflow-hidden rounded-[4px] border border-app-line"
+                        }
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2 px-4 pt-4">
+                          <div className="flex items-start gap-2.5">
+                            <span
+                              aria-hidden="true"
+                              className="flex size-5 shrink-0 items-center justify-center rounded-[3px] bg-app-surface-inset text-label-s font-semibold text-bora-ink-3"
+                            >
+                              {index + 1}
+                            </span>
+                            <div className="flex flex-col gap-1.5">
+                              <p className="text-body font-semibold text-bora-ink">{claim.summary}</p>
+                              {issueTypes.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {issueTypes.map((issueType) => (
+                                    <Chip key={issueType}>{issueType}</Chip>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {/* Fix-C(P0): claim.status를 시각적으로 구분되게 노출한다 —
+                                INSUFFICIENT가 VERIFIED와 동일하게 보이던 결함(코드 리뷰
+                                지적)의 수정. SPEC-PILOT-VISUAL-001 M3(REQ-007)로 공유
+                                StatusBadge 컴포넌트로 교체 — data-testid/data-status는
+                                그대로 보존한다. */}
+                            <StatusBadge
+                              status={claim.status}
+                              data-testid="claim-status"
+                              data-status={claim.status}
+                            >
+                              {claim.status === "VERIFIED" ? "근거 확인" : "판단 불충분"}
+                            </StatusBadge>
+                            <span className="text-label-s font-medium whitespace-nowrap text-bora-ink-4">
+                              근거 {claim.supportingEvidenceIds.length}건
+                            </span>
+                          </div>
+                        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>추가로 검토할 담보 · 근거자료 · 반대 논리</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4" data-testid="verified-claims">
-              {report.verifiedClaims.length === 0 ? (
-                <p className="text-sm text-muted-foreground">확인된 주장이 없습니다.</p>
-              ) : null}
-              {report.verifiedClaims.map((claim, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-1 rounded-lg border border-input p-3 text-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium">{claim.summary}</p>
-                    {/* Fix-C(P0): claim.status를 시각적으로 구분되게 노출한다 —
-                        INSUFFICIENT가 VERIFIED와 동일하게 보이던 결함(코드 리뷰
-                        지적)의 수정. SPEC-PILOT-VISUAL-001 M3(REQ-007)로 공유
-                        StatusBadge 컴포넌트로 교체 — data-testid/data-status는
-                        그대로 보존한다. */}
-                    <StatusBadge status={claim.status} data-testid="claim-status" data-status={claim.status}>
-                      {claim.status === "VERIFIED" ? "근거 확인" : "판단 불충분"}
-                    </StatusBadge>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">관련 근거자료</p>
-                    <ul className="list-inside list-disc">
-                      {claim.supportingEvidenceIds.map((evidenceId) =>
-                        renderEvidenceReference(evidenceId, evidenceById)
-                      )}
-                    </ul>
-                  </div>
-                  {claim.counterArguments.length > 0 ? (
-                    <div>
-                      <p className="text-muted-foreground">예상 반대 논리</p>
-                      <ul className="flex flex-col gap-2">
-                        {claim.counterArguments.map((counterArgument, counterIndex) => (
-                          <li key={counterIndex} className="list-inside list-disc">
-                            {counterArgument.summary}
-                            {/* Fix-C(P1): counterArgument의 supportingEvidenceIds/
-                                counterEvidenceIds도 claim 자신의 근거자료 목록과
-                                동일한 evidenceById 조회 + sourceUrl 조건부 렌더링
-                                idiom을 재사용해 노출한다(코드 리뷰 지적 — 그동안
-                                summary만 보이고 근거 출처가 UI에서 사라졌었다). */}
-                            {counterArgument.supportingEvidenceIds.length > 0 ? (
-                              <div className="pl-4">
-                                <p className="text-muted-foreground">뒷받침 근거</p>
-                                <ul className="list-inside list-disc">
-                                  {counterArgument.supportingEvidenceIds.map((evidenceId) =>
-                                    renderEvidenceReference(evidenceId, evidenceById)
-                                  )}
-                                </ul>
-                              </div>
-                            ) : null}
-                            {counterArgument.counterEvidenceIds.length > 0 ? (
-                              <div className="pl-4">
-                                <p className="text-muted-foreground">반박 근거</p>
-                                <ul className="list-inside list-disc">
-                                  {counterArgument.counterEvidenceIds.map((evidenceId) =>
-                                    renderEvidenceReference(evidenceId, evidenceById)
-                                  )}
-                                </ul>
-                              </div>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                        <div className="px-4">
+                          <p className="text-label-s font-medium text-bora-ink-4">관련 근거자료</p>
+                          <ul className="flex flex-col">
+                            {claim.supportingEvidenceIds.map((evidenceId) =>
+                              renderEvidenceReference(evidenceId, evidenceById)
+                            )}
+                          </ul>
+                        </div>
+
+                        {claim.counterArguments.length > 0 ? (
+                          <div className="border-t border-app-line px-4 py-3">
+                            <p className="text-label-s font-medium text-bora-ink-4">예상 반대 논리</p>
+                            <ul className="flex flex-col gap-2">
+                              {claim.counterArguments.map((counterArgument, counterIndex) => (
+                                <li key={counterIndex} className="text-body text-bora-ink-2">
+                                  {counterArgument.summary}
+                                  {/* Fix-C(P1): counterArgument의 supportingEvidenceIds/
+                                      counterEvidenceIds도 claim 자신의 근거자료 목록과
+                                      동일한 evidenceById 조회 + sourceUrl 조건부 렌더링
+                                      idiom을 재사용해 노출한다(코드 리뷰 지적 — 그동안
+                                      summary만 보이고 근거 출처가 UI에서 사라졌었다). */}
+                                  {counterArgument.supportingEvidenceIds.length > 0 ? (
+                                    <div className="pl-4">
+                                      <p className="text-label-s font-medium text-bora-ink-4">
+                                        뒷받침 근거
+                                      </p>
+                                      <ul className="flex flex-col">
+                                        {counterArgument.supportingEvidenceIds.map((evidenceId) =>
+                                          renderEvidenceReference(evidenceId, evidenceById)
+                                        )}
+                                      </ul>
+                                    </div>
+                                  ) : null}
+                                  {counterArgument.counterEvidenceIds.length > 0 ? (
+                                    <div className="pl-4">
+                                      <p className="text-label-s font-medium text-bora-ink-4">반박 근거</p>
+                                      <ul className="flex flex-col">
+                                        {counterArgument.counterEvidenceIds.map((evidenceId) =>
+                                          renderEvidenceReference(evidenceId, evidenceById)
+                                        )}
+                                      </ul>
+                                    </div>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  {citedEvidenceIds.length === 0 ? (
+                    <p data-testid="cited-evidence-empty" className="text-body text-bora-ink-3">
+                      인용된 근거자료가 없습니다.
+                    </p>
                   ) : null}
                 </div>
-              ))}
-              {citedEvidenceIds.length === 0 ? (
-                <p data-testid="cited-evidence-empty" className="text-sm text-muted-foreground">
-                  인용된 근거자료가 없습니다.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+              </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>추가 필요 자료</CardTitle>
-            </CardHeader>
-            <CardContent data-testid="missing-materials">
-              {report.missingMaterials.length > 0 ? (
-                <ul className="list-inside list-disc text-sm">
-                  {report.missingMaterials.map((missingMaterial, index) => (
-                    <li key={index}>{missingMaterial.description}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  추가로 확보가 필요한 자료가 식별되지 않았습니다.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-6 py-4">
+                  <h2 className="text-h2 font-semibold text-bora-ink">검토할 담보 목록</h2>
+                </div>
+                <div className="px-6 py-5" data-testid="review-targets">
+                  {report.reviewTargets.length > 0 ? (
+                    <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
+                      {report.reviewTargets.map((reviewTarget, index) => (
+                        <li key={index} className="list-inside list-disc">
+                          {reviewTarget.description}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-body-s text-bora-ink-3">검토할 담보가 식별되지 않았습니다.</p>
+                  )}
+                </div>
+              </div>
 
-          {/* Fix-C(P0): report.uncertainty(판단 불충분 사유)가 그동안 어디에도
-              렌더링되지 않던 결함(코드 리뷰 지적)의 수정 — 기존 카드 패턴을
-              그대로 따른다. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>판단 불충분 사유</CardTitle>
-            </CardHeader>
-            <CardContent data-testid="uncertainty">
-              {report.uncertainty.length > 0 ? (
-                <ul className="list-inside list-disc text-sm">
-                  {report.uncertainty.map((reason, index) => (
-                    <li key={index}>{reason}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  판단 불충분으로 처리된 사유가 없습니다.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-6 py-4">
+                  <h2 className="text-h2 font-semibold text-bora-ink">추가 필요 자료</h2>
+                </div>
+                <div className="px-6 py-5" data-testid="missing-materials">
+                  {report.missingMaterials.length > 0 ? (
+                    <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
+                      {report.missingMaterials.map((missingMaterial, index) => (
+                        <li key={index} className="list-inside list-disc">
+                          {missingMaterial.description}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-body-s text-bora-ink-3">
+                      추가로 확보가 필요한 자료가 식별되지 않았습니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Fix-C(P0): report.uncertainty(판단 불충분 사유)가 그동안 어디에도
+                  렌더링되지 않던 결함(코드 리뷰 지적)의 수정 — 기존 카드 패턴을
+                  그대로 따른다. */}
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-6 py-4">
+                  <h2 className="text-h2 font-semibold text-bora-ink">판단 불충분 사유</h2>
+                </div>
+                <div className="px-6 py-5" data-testid="uncertainty">
+                  {report.uncertainty.length > 0 ? (
+                    <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
+                      {report.uncertainty.map((reason, index) => (
+                        <li key={index} className="list-inside list-disc">
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-body-s text-bora-ink-3">
+                      판단 불충분으로 처리된 사유가 없습니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 우 레일 — 검토 항목 / 수집 근거 유형 / Notice 활용 유의
+                (design.md §4 화면 02, REQ-014 — 신규 I/O 없이 기존 데이터에서만
+                파생, plan-auditor 블로커 4 대응으로 구현 위치는 재량) */}
+            <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[300px]">
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-4 py-3">
+                  <h3 className="text-h3 font-semibold text-bora-ink">검토 항목</h3>
+                </div>
+                <div className="px-4 py-3">
+                  {report.verifiedClaims.length > 0 ? (
+                    <ul className="flex flex-col gap-2">
+                      {report.verifiedClaims.map((claim, index) => (
+                        <li key={index}>
+                          <a
+                            href={`#claim-${index}`}
+                            className="block truncate text-body-s font-medium text-bora-ink-2 hover:text-bora-accent"
+                          >
+                            {index + 1}. {claim.summary}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-body-s text-bora-ink-3">검토할 주장이 없습니다.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[4px] bg-app-surface">
+                <div className="border-b border-app-line px-4 py-3">
+                  <h3 className="text-h3 font-semibold text-bora-ink">수집 근거 유형</h3>
+                </div>
+                <div className="flex flex-col gap-2.5 px-4 py-3">
+                  {evidenceTypeCounts.length > 0 ? (
+                    evidenceTypeCounts.map(({ type, count }) => (
+                      <div key={type} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-body-s text-bora-ink-3">
+                          <span>{type}</span>
+                          <span>{count}건</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-app-line">
+                          <div
+                            className="h-full bg-bora-accent"
+                            style={{
+                              width:
+                                maxEvidenceTypeCount > 0
+                                  ? `${(count / maxEvidenceTypeCount) * 100}%`
+                                  : "0%",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-body-s text-bora-ink-3">수집된 근거자료가 없습니다.</p>
+                  )}
+                </div>
+              </div>
+
+              <Notice title="활용 유의">{aggregateStatusCaption}</Notice>
+            </aside>
+          </div>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">아직 생성된 리서치 리포트가 없습니다.</p>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-h2 font-semibold text-bora-ink">사건 요약</h1>
+          <p className="text-body text-bora-ink-3">아직 생성된 리서치 리포트가 없습니다.</p>
+        </div>
       )}
 
       {report && reportId ? (
