@@ -16,16 +16,16 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 + SPEC-EVIDENCE-001 + SPEC-FEEDBACK-001 + SPEC-PILOT-UX-001 완료)
+## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 + SPEC-EVIDENCE-001 + SPEC-FEEDBACK-001 + SPEC-PILOT-UX-001 + SPEC-PILOT-VISUAL-001 완료)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 그리고 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001까지 완료되었습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 그리고 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001까지 완료되었습니다.
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
 - Better Auth 초대 전용 인증 + `proxy.ts` 라우트 가드(`cases/*`, `api/cases/*` 보호) + 실제 계정 생성 CLI(`pnpm tester:add`)
 - 사건 입력 PII 차단 Zod 검증 스키마(`lib/validation/case-input.ts`)
 - 6단계 evidence-first 리서치 파이프라인(CaseNormalizer → QueryPlanner(담보 영역별 규칙 기반 쿼리 생성) → EvidenceRetriever(Drizzle DB 관련성 필터링) → Researcher/Skeptic(실제 Gemini 구조화 출력, 근거자료 없이는 소견을 만들지 않음) → Verifier(evidence 내용이 claim/반론을 실제로 뒷받침하는지까지 의미 검증, 불충분 시 INSUFFICIENT 처리)
-- 파이프라인 결과를 확인할 수 있는 최소 UI(사건 입력 폼 `app/cases/new/`, VERIFIED/INSUFFICIENT 배지가 붙은 리포트 뷰 `app/cases/[caseId]/`)
+- 파이프라인 결과를 확인할 수 있는 UI(사건 입력 폼 `app/cases/new/`, VERIFIED/INSUFFICIENT 배지가 붙은 리포트 뷰 `app/cases/[caseId]/`) — 다크 사이드바+탑바 앱 셸과 브랜드 토큰(Pretendard/Manrope, `app/cases/` 라우트 그룹 한정)으로 재스타일됨
 - **목적별 환경변수 검증**(`lib/env.ts`) + 부팅 시점 fail-fast(`instrumentation.ts`) — `db`/`provision`/`app`/`e2e` 각 실행 목적이 필요로 하는 변수만 검증
 - **DB 마이그레이션·시드 CLI**(`pnpm db:migrate`, `pnpm db:seed`) — 재실행 안전
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
@@ -34,7 +34,7 @@
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
-폴리시된 UI, 대규모 근거자료 수집, 프로덕션 배포는 아직 구현되지 않았습니다 — 아래 "다음 단계" 참고.
+대규모 근거자료 수집, 프로덕션 배포는 아직 구현되지 않았습니다 — 아래 "다음 단계" 참고.
 
 ## 개발 환경 설정
 
@@ -132,7 +132,6 @@ SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처), SPEC-RUNTIME-001(런타임 �
 
 - **근거자료 corpus 대량 확장**: SPEC-EVIDENCE-001로 담보×쟁점 기준 검증 가능한 21건까지 확장했으나 여전히 프로덕션 규모 대비 소규모 — 실제 판례·법령·분쟁사례를 대량 수집
 - **Gold Dataset 추출·집계**: SPEC-FEEDBACK-001로 리포트 단위 구조화 피드백(`feedback` 테이블 — 전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과) 축적 경로는 마련되었으나, 축적된 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰는 아직 없음
-- **UI/UX 고도화**: 사건 입력 폼과 리포트 뷰의 폴리시된 디자인
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행
 - **담보 영역 확장**: 상해후유장해·질병후유장해 외 담보 영역(질병사망, 실손의료비 등)
 - **파일럿 배포 준비**: 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝, 실무자 대상 파일럿 배포

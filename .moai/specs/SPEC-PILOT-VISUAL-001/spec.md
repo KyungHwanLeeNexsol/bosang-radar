@@ -2,7 +2,7 @@
 id: SPEC-PILOT-VISUAL-001
 title: "파일럿 비주얼 리스킨 — Pencil 디자인(claimradar-ui.pen) 재현, 기능/데이터 무변경"
 version: "0.1.2"
-status: in-progress
+status: completed
 created: 2026-09-03
 updated: 2026-09-03
 author: Nexsol
