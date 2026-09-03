@@ -1,6 +1,6 @@
 # SPEC-UI-MIGRATION-001 — acceptance.md
 
-Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. Cross-referenced against spec.md §2 REQ-001~024.
+Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. Cross-referenced against spec.md §2 REQ-001~024. Letter-suffixed sub-entries (`AC-XXXa`, `AC-XXXb`, ...) pair sub-criteria within one logical AC per the AC sub-ID convention.
 
 ## §1. AC Matrix
 
@@ -12,6 +12,14 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-002**: Given `/login` 페이지를 렌더링한 상태, When DOM을 검사하면, Then 이메일 필드(`login-email`)·비밀번호 필드(`login-password`)·제출 버튼(`login-submit`)·오류 영역(`login-error`)·폼 컨테이너(`login-form`)가 모두 존재하고, `authClient.signIn.email` 호출 로직이 SPEC-PILOT-UX-001/PILOT-VISUAL-001 이전과 동일하게 동작해야 한다(잘못된 자격증명 시 `login-error`에 오류 메시지 표시).
 
+**AC-002a**: Given 로그인 폼의 비밀번호 필드, When 표시/숨김 토글 버튼(`login-password-toggle`)을 클릭하면, Then 입력의 `type` 속성이 `"password"`↔`"text"`로 전환되어야 한다.
+
+**AC-002b**: Given 로그인 폼의 비밀번호 표시/숨김 토글 버튼, When 접근성 속성을 확인하면, Then 접근 가능한 이름(`aria-label` 등)이 존재하고, Tab 키로 포커스 이동 및 Enter/Space 키로 활성화가 가능해야 한다(마우스 전용 아님).
+
+**AC-002c**: Given 비밀번호 토글을 여러 번 클릭한 상태, When 폼을 제출하면, Then 제출되는 비밀번호 값은 토글 클릭 여부와 무관하게 사용자가 입력한 원본 값과 동일해야 한다.
+
+**AC-002d**: Given `/login` 페이지, When 푸터 링크 영역을 확인하면, Then 이용약관/개인정보처리방침/고객지원 3개 링크는 `href` 속성이 없는 비활성 텍스트(`aria-disabled="true"`)로 렌더링되어야 하고, "랜딩으로 돌아가기" 링크만 `/`를 가리키는 실제 활성 링크(`<a href="/">` 또는 Next `Link`)여야 한다.
+
 **AC-003**: Given `git diff`로 이 SPEC의 전체 변경 파일 목록을 확인한 상태, When `app/layout.tsx`, `app/page.tsx`의 diff를 개별 확인하면, Then 두 대상 모두 diff가 완전히 비어 있어야 한다. And When `app/login/**` 트리를 렌더링한 상태에서 본문 텍스트의 계산된 `font-family`를 확인하면, Then Pretendard(또는 그 fallback 체인)가 적용되어야 하며, 이 폰트 로딩이 `app/login/layout.tsx` 내부에서만 이루어졌음을 소스 확인으로 검증한다.
 
 ### Group C — App Shell 확장 (REQ-004~006)
@@ -19,6 +27,10 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 **AC-004**: Given `/cases/new` 또는 `/cases/[caseId]`를 렌더링한 상태, When 사이드바 nav 항목을 세면, Then 정확히 5개이며(사건 입력/리서치 리포트/전문가 피드백 + 리포트 보관함/판례·약관 자료실), 신규 2개 항목(`sidebar-nav-archive`, `sidebar-nav-precedent-db`)은 `href` 속성이 없고 `aria-disabled="true"`이며 "준비 중" Chip을 시각적으로 포함해야 한다. And 기존 3개 항목의 pathname 전용 링크 규칙(SPEC-PILOT-VISUAL-001 AC-004)이 회귀 없이 동일하게 동작해야 한다.
 
 **AC-005**: Given 로그인한 세션으로 App Shell을 렌더링한 상태, When 사이드바 하단 사용자 블록을 확인하면, Then "담당 손해사정사"/"BORA 리서치" 같은 하드코딩 문자열이 아니라 현재 세션 `user.name` 값이 표시되어야 하며, DB에 존재하지 않는 소속/직함 필드가 새로 렌더링되지 않아야 한다.
+
+**AC-005a**: Given 사용자 블록을 렌더링하는 컴포넌트, When 그 컴포넌트가 세션을 조회하는 방식을 소스로 확인하면, Then `app/cases/layout.tsx`(서버 컴포넌트) 자신은 `getCurrentSession()` 등 동적 API를 직접 호출하지 않아야 하며, 조회는 별도의 클라이언트 컴포넌트로 분리되어 있어야 한다. And When `pnpm build`를 실행하면, Then `/cases/new`가 정적 생성되고(빌드 로그에서 동적 렌더링으로 전환되지 않았음을 확인), 빌드 시점에 DB 연결이 시도되지 않아야 한다.
+
+**AC-005b**: Given 세션이 아직 로딩 중이거나 로그아웃 상태인 경우, When 사이드바 사용자 블록을 렌더링하면, Then 크래시하지 않고 정의된 중립 폴백(예: 이니셜 아이콘 + "사용자")이 표시되어야 하며, 하드코딩된 가짜 이름이나 이전 사용자의 잔존 값이 표시되어서는 안 된다.
 
 **AC-006**: Given App Shell 안의 임의 화면, When App Topbar를 확인하면, Then 브레드크럼 텍스트와 현재 화면에 대응하는 페이지 타이틀이 표시되어야 하며, 스크롤 시 탑바가 뷰포트에 고정되지 않고 본문과 함께 스크롤되어야 한다(computed style에 `position: fixed`/`sticky`가 없음을 확인).
 
@@ -36,27 +48,59 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 ### Group F — Claim 카드 정합성 (REQ-011)
 
-**AC-011**: Given `status: "INSUFFICIENT"`인 claim이 1개 이상 존재하는 리포트, When 해당 claim 카드를 확인하면, Then "추가 확인 필요" 시각 섹션이 존재하고, 그 내용은 리포트 레벨 `missingMaterials`/`uncertainty`(기존 `missing-materials`/`uncertainty` testid) 데이터에서 파생되거나 그 두 섹션으로의 명확한 시각적 연결(앵커/근접 배치)로 구현되어야 한다. And `lib/pipeline/types.ts`의 `VerifiedClaim` 인터페이스에 이 SPEC이 신규 필드를 추가하지 않았음을 `git diff lib/pipeline/types.ts`로 확인하면, Then diff가 완전히 비어 있어야 한다.
+**AC-011**: Given `status: "INSUFFICIENT"`인 claim이 1개 이상 존재하는 리포트, When 해당 claim 카드를 확인하면, Then "추가 확인 필요" 안내가 존재하고, 리포트 레벨 `missingMaterials`/`uncertainty` 섹션(기존 `missing-materials`/`uncertainty` testid)으로 이동하는 앵커 링크를 항상 포함해야 한다.
+
+**AC-011a**: Given 어떤 `missingMaterial.relatedIssueType`이 특정 INSUFFICIENT claim의 기존 `getClaimIssueTypes()` 파생 결과 집합에 포함되는 경우, When 그 claim 카드를 확인하면, Then 해당 `missingMaterial` 항목이 카드 내부에 직접 나열되어야 한다.
+
+**AC-011b**: Given 어떤 `missingMaterial.relatedIssueType`도 특정 INSUFFICIENT claim의 `getClaimIssueTypes()` 결과와 일치하지 않는 경우, When 그 claim 카드를 확인하면, Then 카드는 앵커 링크만 표시해야 하며 리포트 레벨의 무관한 `missingMaterial` 항목을 임의로 나열해서는 안 된다.
+
+**AC-011c**: Given `git diff lib/pipeline/types.ts`를 실행한 상태, When `VerifiedClaim`/`MissingMaterial` 인터페이스 부분을 확인하면, Then diff가 완전히 비어 있어야 한다(REQ-011이 명시하는 신규 필드 미도입 확인).
 
 ### Group G — 사건 입력 우측 레일 확장 (REQ-012~014)
 
 **AC-012**: Given `/cases/new`의 우측 레일, When "분석 상태" 패널을 확인하면, Then 4단계 텍스트(쟁점 자동 추출/판례·결정례 검색/약관·법령 대조/근거 검증 및 반대 논리 생성)가 정적으로 존재하고, 각 단계에 대해 개별 완료/진행 상태 표시(체크마크, 진행률 바 등 단계별 동적 UI)가 존재하지 않아야 한다.
 
-**AC-013**: Given 로그인 사용자가 3건 이상의 기존 사건을 소유한 상태, When `/cases/new`의 "최근 리서치" 패널(`case-recent-research`)을 확인하면, Then 최대 3건(`case-recent-research-item`)이 최근 순으로 표시되며, 각 항목은 사건 번호·상태·타이틀을 포함해야 한다. And 이 조회에서 발생하는 쿼리가 현재 세션 사용자가 소유하지 않은 사건을 포함하지 않아야 한다(다른 owner의 사건으로 로그인해 재확인).
+**AC-013**: Given 로그인 사용자가 3건 이상의 기존 사건을 소유한 상태, When `/cases/new`의 "최근 리서치" 패널(`case-recent-research`)을 확인하면, Then 최대 3건(`case-recent-research-item`)이 `createdAt` 내림차순으로 표시되어야 한다.
+
+**AC-013a**: Given "최근 리서치" 패널의 개별 항목, When 표시되는 필드를 확인하면, Then 사건 번호는 `cases.id`, 제목은 `input.diagnosisName`, 보조 정보는 `input.disabilityBodyPart`, 상태는 `cases.status`의 한글 번역 라벨과 정확히 일치해야 한다.
+
+**AC-013b**: Given 이 조회에서 발생하는 쿼리, When 다른 owner의 사건으로 로그인해 재확인하면, Then 현재 세션 사용자가 소유하지 않은 사건이 결과에 포함되지 않아야 한다(owner-scope 단위 테스트 필수).
+
+**AC-013c**: Given `input` JSON에 `diagnosisName` 또는 `disabilityBodyPart` 필드가 누락된 사건 행이 존재하는 상태, When "최근 리서치" 패널을 렌더링하면, Then 해당 항목은 정의된 폴백 텍스트로 표시되어야 하며 예외가 발생하거나 패널 전체가 렌더링되지 않는 일이 없어야 한다.
 
 **AC-014**: Given 사건 입력 폼 Footer, When 버튼 목록을 확인하면, Then "임시 저장" 버튼(`case-input-draft-save`)이 `disabled` 속성과 "준비 중" 시각 Chip을 가진 채로 존재해야 하며, 클릭해도 어떤 네트워크 요청도 발생하지 않아야 한다.
 
-### Group H — 공통 예외 화면 (REQ-015)
+### Group H — 실재하는 예외 화면 (REQ-015)
 
-**AC-015**: Given 6개 예외 상황(404/권한없음/세션만료/일시오류/네트워크불가/준비중)을 각각 트리거한 상태, When 각 화면을 확인하면, Then App Shell(사이드바+탑바) 안에서 중앙 정렬 아이콘/타이틀/설명과 `{컨텍스트} · {ERROR_CODE}` 패턴이 렌더링되고, 각 화면에 `common-error-<variant>` testid가 부여되어 있어야 한다. And 기존 404/사건 없음 변형에서 `case-error-retry` 버튼과 `reset()` 호출 동작이 회귀 없이 유지되어야 한다.
+**AC-015**: Given 존재하지 않는 임의 URL(예: `/foobar`)로 접근한 상태, When 렌더링된 화면을 확인하면, Then `app/not-found.tsx`가 렌더링되고 `global-not-found` testid가 존재해야 하며, App Shell(사이드바/Topbar)이 렌더링되지 않아야 한다(루트 레이아웃만 적용).
+
+**AC-015a**: Given (a) 존재하지 않는 `caseId`로 `/cases/[caseId]`에 접근한 경우와 (b) 다른 사용자가 소유한 실제 존재하는 `caseId`로 접근한 경우 각각, When 렌더링된 화면을 확인하면, Then 두 경우 모두 동일하게 `app/cases/[caseId]/not-found.tsx`가 렌더링되고 `case-not-found` testid가 존재해야 하며, App Shell(사이드바/Topbar)이 렌더링되어야 한다(레이아웃 자동 중첩). And 두 경우의 화면 텍스트/구조는 완전히 동일해야 하며, 사용자가 (a)와 (b)를 구분할 수 있는 어떤 단서(예: "권한 없음"이라는 별도 문구)도 존재해서는 안 된다(정보 은닉).
+
+**AC-015b**: Given `app/cases/[caseId]/error.tsx`(런타임 오류 경계), When 강제로 예외를 발생시킨 뒤 `case-error-retry` 버튼을 클릭하면, Then `reset()`이 호출되어야 하며, 이 화면과 동작은 SPEC-PILOT-VISUAL-001 이전과 회귀 없이 동일해야 한다(REQ-015 범위에서 이 파일은 최소 검증만 수행하며 리팩터링되지 않았음을 `git diff`로 함께 확인한다).
 
 ### Group I — 반응형 (REQ-016~018)
 
 **AC-016**: Given 브라우저 뷰포트 너비를 1024px로 설정한 상태에서 App Shell을 사용하는 화면을 렌더링하면, When 레이아웃을 확인하면, Then 사이드바는 고정 폭을 유지하고, 우측 레일이 존재하는 화면에서는 우측 레일이 본문 아래로 이동한 세로 배치로 렌더링되어야 한다.
 
-**AC-017**: Given 브라우저 뷰포트 너비를 390px로 설정한 상태, When 초기 렌더링을 확인하면, Then 사이드바가 기본적으로 숨겨져 있고 탑바에 햄버거 아이콘이 존재해야 한다. When 햄버거 아이콘을 클릭하면, Then 사이드바가 어두운 스크림 오버레이와 함께 슬라이드인으로 나타나야 한다.
+**AC-017**: Given 브라우저 뷰포트 너비를 390px로 설정한 상태, When 초기 렌더링을 확인하면, Then 사이드바가 기본적으로 숨겨져 있고 탑바에 햄버거 버튼(`mobile-nav-toggle`)이 존재해야 한다.
 
-**AC-018**: Given 브라우저 뷰포트 너비를 1280px로 설정한 상태에서 5개 화면(로그인/사건 입력/리포트/피드백/공통 예외 화면 중 1개)을 각각 렌더링하면, When 레이아웃을 수동 검사하면, Then 가로 오버플로, 사이드바-콘텐츠 겹침, 텍스트/컨트롤 잘림, 클릭 불가 겹침이 어느 화면에서도 발생하지 않아야 한다.
+**AC-017a**: Given 390px 뷰포트, When 햄버거 버튼(`mobile-nav-toggle`)을 클릭하면, Then 드로어(`mobile-nav-drawer`)가 어두운 스크림(`mobile-nav-scrim`)과 함께 슬라이드인으로 나타나야 한다.
+
+**AC-017b**: Given 드로어가 열린 상태, When 드로어 내부의 닫기 버튼을 클릭하면, Then 드로어와 스크림이 모두 사라져야 한다.
+
+**AC-017c**: Given 드로어가 열린 상태, When ESC 키를 누르면, Then 드로어가 닫혀야 한다.
+
+**AC-017d**: Given 드로어가 열린 상태, When 스크림(`mobile-nav-scrim`)을 클릭하면, Then 드로어가 닫혀야 한다.
+
+**AC-017e**: Given 드로어를 여는 시점과 닫는 시점, When 포커스 위치를 확인하면, Then 열릴 때 포커스가 드로어 내부(첫 포커스 가능 요소 또는 드로어 컨테이너)로 이동하고, 닫힐 때 포커스가 햄버거 버튼으로 복귀해야 한다.
+
+**AC-017f**: Given 드로어가 열려 있는 동안, When 배경 콘텐츠를 스크롤 시도하면, Then 스크롤이 발생하지 않아야 한다(스크롤 잠금).
+
+**AC-017g**: Given 드로어가 닫혀 있는 상태, When Tab 키로 포커스를 순회하면, Then 드로어 내부의 링크/버튼이 tab 순서에 포함되지 않아야 한다.
+
+**AC-017h**: Given 390px에서 드로어가 열린 상태, When 뷰포트를 1024px 이상으로 리사이즈하면, Then 드로어/스크림이 자동으로 닫히고 데스크톱 사이드바 레이아웃으로 정상 전환되어야 한다(고정 열림 상태로 남지 않음).
+
+**AC-018**: Given 브라우저 뷰포트 너비를 1280px로 설정한 상태에서 5개 화면(로그인/사건 입력/리포트/피드백/이 SPEC이 다루는 실재하는 예외 화면 중 택1)을 각각 렌더링하면, When 레이아웃을 수동 검사하면, Then 가로 오버플로, 사이드바-콘텐츠 겹침, 텍스트/컨트롤 잘림, 클릭 불가 겹침이 어느 화면에서도 발생하지 않아야 한다.
 
 ### Group J — 기능·데이터 보존 및 품질 게이트 (REQ-019~024)
 
@@ -68,37 +112,38 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-022**: Given 사건 입력 폼 제출 중(pending) 상태 및 피드백 폼 제출 중 상태, When 동일 폼을 다시 제출 시도하면(더블클릭 시뮬레이션), Then 두 번째 요청이 발생하지 않아야 한다(단일 흐름 가드 유지, REQ-022).
 
-**AC-023**: Given 재스타일되었거나 신규 추가된 임의의 인터랙티브 요소, When 접근성 속성을 확인하면, Then label 연관, `role="status"`/`aria-live`(대기 인디케이터), focus 가능 여부가 기존과 동일하게 유지되고, 신규 비활성 nav 항목에는 `aria-disabled="true"`가 존재해야 한다(REQ-023).
+**AC-023**: Given 재스타일되었거나 신규 추가된 임의의 인터랙티브 요소, When 접근성 속성을 확인하면, Then label 연관, `role="status"`/`aria-live`(대기 인디케이터), focus 가능 여부가 기존과 동일하게 유지되고, 신규 비활성 nav/링크 항목에는 `aria-disabled="true"`가 존재해야 하며, 모바일 드로어는 AC-017a~AC-017h를 모두 만족해야 한다(REQ-023).
 
 **AC-024**: Given 이 SPEC의 구현이 완료된 상태, When `pnpm test`, `pnpm test:e2e`, `pnpm lint`, `pnpm build`을 각각 실행하면, Then 모두 종료 코드 0을 반환해야 한다. And `pnpm format:check` 실행 결과를 기존 베이스라인 경고와 대조하면, Then 이 SPEC이 신규로 도입한 포맷 위반이 0건이어야 한다(REQ-024).
 
 ## §2. Edge Cases
 
 - 로그인 사용자가 소유한 사건이 0건인 경우, "최근 리서치" 패널(`case-recent-research`)은 빈 상태(빈 리스트 또는 안내 텍스트)를 렌더링해야 하며, 오류를 던지거나 패널 자체가 비정상적으로 사라져서는 안 된다.
-- claim에 대응하는 `missingMaterials`/`uncertainty`가 모두 0건인 INSUFFICIENT claim의 경우, "추가 확인 필요" 섹션은 빈 상태를 우아하게 처리해야 한다(빈 배열 렌더링으로 인한 레이아웃 깨짐 없음).
-- 모바일(390px) 드로어가 열린 상태에서 뷰포트를 1024px 이상으로 리사이즈하면, 드로어/스크림이 자동으로 해제되고 데스크톱 사이드바 레이아웃으로 정상 전환되어야 한다.
-- 공통 예외 화면 중 "네트워크에 연결할 수 없습니다" 변형은 실제 네트워크 재시도 로직 없이 순수 프레젠테이션으로 구현되어도 무방하다(REQ-015는 시각 재현만 요구, 네트워크 감지 인프라 신규 구축은 범위 외).
+- claim에 대응하는 `missingMaterials`/`uncertainty`가 모두 0건인 INSUFFICIENT claim의 경우, "추가 확인 필요" 안내는 앵커 링크만 표시하는 빈 상태를 우아하게 처리해야 한다(빈 배열 렌더링으로 인한 레이아웃 깨짐 없음).
+- 모바일(390px) 드로어가 열린 상태에서 뷰포트를 1024px 이상으로 리사이즈하면, 드로어/스크림이 자동으로 해제되고 데스크톱 사이드바 레이아웃으로 정상 전환되어야 한다(AC-017h와 동일 시나리오).
+- 존재하지 않는 사건 ID로 접근한 경우와 다른 사용자가 소유한 사건 ID로 접근한 경우 모두, 렌더링되는 화면(`case-not-found`)과 그 텍스트/구조가 완전히 동일해야 하며, 사용자가 이 두 경우를 시각적으로 구분할 수 있는 어떤 단서도 제공되어서는 안 된다(AC-015a와 동일 원칙 — 정보 은닉).
+- "최근 리서치" 패널의 항목 중 `input` JSON 필드가 부분적으로 누락된 사건이 섞여 있는 경우, 정상 항목과 폴백 텍스트 항목이 같은 목록 안에서 함께 렌더링되어야 하며 목록 전체가 실패해서는 안 된다.
 
 ## §3. 시각 스모크 체크리스트 (수동, 각 화면 1회 — Pencil 라이브 파일 대조)
 
-- [ ] 로그인 화면: design.md §4(로그인) 구조와 브랜드 패널·필드·푸터 링크가 육안으로 대응하는가
-- [ ] App Shell 사이드바: 5개 nav 항목(3개 실제 + 2개 비활성)과 사용자 블록이 Pencil 스펙과 육안으로 대응하는가
+- [ ] 로그인 화면: design.md §4(로그인) 구조와 브랜드 패널·필드·비밀번호 토글·비활성 푸터 링크가 육안으로 대응하는가
+- [ ] App Shell 사이드바: 5개 nav 항목(3개 실제 + 2개 비활성)과 사용자 블록(로그인 상태/로딩 상태 각각)이 Pencil 스펙과 육안으로 대응하는가
 - [ ] App Topbar: 브레드크럼 + 동적 타이틀이 3개 기존 화면 각각에서 올바르게 렌더링되는가
-- [ ] 공통 예외 화면 6종: 각 변형의 아이콘·문구·에러코드 패턴이 Pencil 프레임 `11`과 육안으로 대응하는가
-- [ ] 태블릿(1024px)/모바일(390px): 사이드바 유지+우측 레일 이동, 오프캔버스 드로어+스크림이 각각 육안으로 확인되는가
-- [ ] 6개 화면(로그인/사건 입력/리포트/피드백/공통 예외/App Shell 전반) 모두 전문 손해사정사에게 보여줄 때 "미완성"으로 보이지 않는 B2B 완성도 수준인가
+- [ ] 실재하는 예외 화면 3종(전역 404 / 사건-없음·미소유 통합 / 기존 일시 런타임 오류): 각각의 아이콘·문구·에러코드 패턴이 Pencil 프레임 `11`의 대응 변형과 육안으로 정합하며, App Shell 유무(전역 404만 미적용)가 의도대로 렌더링되는가
+- [ ] 태블릿(1024px)/모바일(390px): 사이드바 유지+우측 레일 이동, 오프캔버스 드로어+스크림(열기/닫기/ESC/스크림클릭 각각)이 육안으로 확인되는가
+- [ ] 6개 화면(로그인/사건 입력/리포트/피드백/예외 화면/App Shell 전반) 모두 전문 손해사정사에게 보여줄 때 "미완성"으로 보이지 않는 B2B 완성도 수준인가
 
 ## §4. Definition of Done
 
-- [ ] §1에 나열된 모든 AC(AC-001~AC-024, 총 24개 라벨) 전부 PASS
+- [ ] §1에 나열된 모든 최상위 AC(AC-001~AC-024, 24개 라벨) 및 모든 letter-suffixed sub-AC 전부 PASS
 - [ ] §2 Edge Cases 전부 확인
 - [ ] §3 시각 스모크 체크리스트 전부 확인
 - [ ] `git diff`로 §D(plan.md) PRESERVE 목록의 파일들이 완전히 미변경임을 확인(AC-019와 중복 확인)
 - [ ] spec.md §3(보존 대상 목록)의 모든 testid가 grep으로 코드베이스에 여전히 존재함을 확인(AC-020과 중복 확인)
-- [ ] spec.md §3(신규 도입 testid 목록)의 모든 신규 testid가 정확한 이름으로 존재함을 확인
+- [ ] spec.md §3(신규 도입 testid 목록)의 모든 신규 testid가 정확한 이름으로 존재함을 확인(`error.tsx`는 신규 testid를 도입하지 않고 기존 `case-error-retry`만 재검증함에 유의)
 
 ## §5. Cross-references
 
 - spec.md §2 REQ-001~024 — 각 AC가 검증하는 요구사항
 - design.md §1~5 — AC-001~AC-006, AC-015~AC-018이 참조하는 정확한 시각 스펙
-- research.md §2~§8 — AC-007~AC-014, AC-019~AC-023이 재검증하는 기존 구현 기준선 및 스코프 축소 근거
+- research.md §2~§11 — AC-007~AC-014, AC-015~AC-015b, AC-019~AC-023이 재검증하는 기존 구현 기준선 및 스코프·결정 근거(§5b 세션 조회 안전성, §7 정정된 예외 화면 baseline, §9 최근 리서치 파생 규칙, §10 드로어 접근성 자원)
