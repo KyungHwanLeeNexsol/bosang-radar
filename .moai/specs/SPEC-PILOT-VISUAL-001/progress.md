@@ -12,6 +12,33 @@
 - plan_audit_iteration_3_verdict: PASS
 - plan_audit_iteration_3_score: 0.92 (Tier L threshold 0.85; no regression vs iteration 2's 0.92; all 6 externally-raised blockers independently re-verified resolved against live artifacts + codebase, not summary-trusted; this is the final iteration under the 3-iteration Retry Loop Contract cap)
 
+## §F Phase 4 Mode Selection
+
+**Plan Audit Gate note:** iteration-3 PASS (score 0.92) was produced before a subsequent 1-line documentation-consistency edit to plan.md (commit `b4ac995`, correcting a stale cross-reference to already-audited content — no requirement/AC/decision substance changed). Strict skip-eligibility condition 3 (artifact-hash unchanged since verdict) technically fails due to this edit. User was informed of this mechanical gate mismatch via AskUserQuestion and explicitly chose to accept iteration-3 PASS (0.92) as final and proceed without re-running plan-auditor, given the edit's substance was already covered by the audited content (blocker 2 verification). This override + rationale is recorded here per the skip-eligibility auditability requirement.
+
+**Input parameters:**
+- tier: L
+- scope: >15 files (new app shell + shared components + 3 screen restyles + test selector updates)
+- domain count: 1 (frontend/React/Next.js/CSS) — but spans many files/milestones
+- file language mix: TypeScript/TSX + CSS
+- concurrency benefit: LOW (coding-heavy, per Anthropic's coding-task parallelism caveat)
+- CLAUDE.md §4 Selection Decision Tree item 7 threshold check: ≥3 milestones (6: M1-M6) AND ≥10 files (>15) → both satisfied
+
+**Mode evaluation:**
+| Mode | Selected? | Rationale |
+|------|-----------|-----------|
+| direct | No | Far exceeds trivial/single-line scope |
+| serial | **Yes** | Default for coding-heavy work; delegation target is `manager-lead` per the Tier L multi-milestone coordination threshold (≥3 milestones AND ≥10 files) — manager-lead is a serial-shaped delegation target (§G.2), not a new catalog mode |
+| fanout | No | Coding-heavy, not research-heavy (Anthropic parallelism caveat) |
+| sweep | No | Semantic UI redesign work, not a uniform mechanical transform |
+| agent-team | No | Not explicitly requested by user |
+
+**Decision (superseded): serial via manager-lead** — SUPERSEDED. manager-lead was spawned and self-checked its own Role A entry chart, which requires ALL THREE of (1) ≥3 milestones, (2) ≥10 files, (3) cross-domain (≥3 distinct domains). This SPEC satisfies (1) and (2) but NOT (3) — domain count is 1 (frontend/React/Next.js/CSS only; no backend/devops/other domain in run-phase scope, per this very log's own "domain count: 1" line above). manager-lead correctly declined and returned a blocker report recommending direct sequential `manager-develop` delegation instead. CLAUDE.md §4's Selection Decision Tree item 7 is a two-predicate quick-reference; manager-lead's own agent definition is the fuller, binding threshold with the third cross-domain predicate — the quick-reference undercounted the actual gate. No override is warranted (this SPEC is genuinely single-domain); accepting manager-lead's self-correction rather than forcing the spawn.
+
+**Corrected Decision: serial** (delegation target: direct sequential `manager-develop` spawns, one per milestone M1→M6, `cycle_type=tdd`, Tier L Section A-E delegation template per `manager-develop-prompt-template.md`)
+
+**Justification:** Milestones M1-M6 are strictly ordered/dependent (tokens/fonts → app shell → shared components → screen-by-screen → test-selector updates + quality gate) — a single-actor sequential shape, not a fan-out shape, reinforcing that per-milestone `manager-develop` spawns (with context fold between milestones) is the fitting delegation rather than manager-lead leaf-worker fan-out. `fanout` remains ruled out (coding-heavy); `sweep` remains ruled out (not a uniform mechanical transform). Implementation Kickoff Approval was obtained via AskUserQuestion before run-phase entry and remains valid — this correction is purely a delegation-target mechanics adjustment, not a re-opening of scope or approval.
+
 ## §E.2 Run-phase Evidence
 
 ### M1 — 디자인 토큰 및 폰트 패키지 준비 (REQ-001~003)
