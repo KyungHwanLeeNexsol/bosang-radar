@@ -4,7 +4,6 @@ import { getCurrentSession } from "@/lib/auth/session";
 import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
 import { evidence as evidenceTable } from "@/lib/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Chip } from "@/components/ui/chip";
 import { Notice } from "@/components/ui/notice";
@@ -306,7 +305,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                               {index + 1}
                             </span>
                             <div className="flex flex-col gap-1.5">
-                              <p className="text-body font-semibold text-bora-ink">{claim.summary}</p>
+                              <p className="text-body font-semibold text-bora-ink">
+                                {claim.summary}
+                              </p>
                               {issueTypes.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
                                   {issueTypes.map((issueType) => (
@@ -346,7 +347,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
                         {claim.counterArguments.length > 0 ? (
                           <div className="border-t border-app-line px-4 py-3">
-                            <p className="text-label-s font-medium text-bora-ink-4">예상 반대 논리</p>
+                            <p className="text-label-s font-medium text-bora-ink-4">
+                              예상 반대 논리
+                            </p>
                             <ul className="flex flex-col gap-2">
                               {claim.counterArguments.map((counterArgument, counterIndex) => (
                                 <li key={counterIndex} className="text-body text-bora-ink-2">
@@ -370,7 +373,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                                   ) : null}
                                   {counterArgument.counterEvidenceIds.length > 0 ? (
                                     <div className="pl-4">
-                                      <p className="text-label-s font-medium text-bora-ink-4">반박 근거</p>
+                                      <p className="text-label-s font-medium text-bora-ink-4">
+                                        반박 근거
+                                      </p>
                                       <ul className="flex flex-col">
                                         {counterArgument.counterEvidenceIds.map((evidenceId) =>
                                           renderEvidenceReference(evidenceId, evidenceById)
@@ -408,7 +413,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-body-s text-bora-ink-3">검토할 담보가 식별되지 않았습니다.</p>
+                    <p className="text-body-s text-bora-ink-3">
+                      검토할 담보가 식별되지 않았습니다.
+                    </p>
                   )}
                 </div>
               </div>
@@ -533,20 +540,20 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
         // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 "전문가 피드백" nav
         // 링크의 페이지 내 앵커 대상. 순수 프레젠테이션 목적이며 서버
         // write-path·API·스키마에는 어떤 영향도 주지 않는다.
-        <Card id="expert-feedback">
-          <CardHeader>
-            <CardTitle>전문가 피드백</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FeedbackForm
-              reportId={reportId}
-              verifiedClaims={report.verifiedClaims}
-              citedEvidenceIds={citedEvidenceIds}
-              evidenceById={evidenceById}
-              action={submitReportFeedback}
-            />
-          </CardContent>
-        </Card>
+        // SPEC-PILOT-VISUAL-001 M6 — design.md §4 화면 03 "최상위 컨테이너"에
+        // id="expert-feedback"를 부여한다(REQ-006). FeedbackForm이 자체
+        // 폼 컬럼/우 레일 2컬럼 표면 스타일을 제공하므로, 여기서는 shadcn
+        // Card로 이중 박싱하지 않고 얇은 섹션 타이틀 + 래퍼만 둔다.
+        <div id="expert-feedback" className="flex flex-col gap-4">
+          <h1 className="text-h2 font-semibold text-bora-ink">전문가 피드백</h1>
+          <FeedbackForm
+            reportId={reportId}
+            verifiedClaims={report.verifiedClaims}
+            citedEvidenceIds={citedEvidenceIds}
+            evidenceById={evidenceById}
+            action={submitReportFeedback}
+          />
+        </div>
       ) : null}
     </div>
   );
