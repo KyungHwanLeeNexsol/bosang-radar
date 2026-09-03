@@ -303,7 +303,10 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       )}
 
       {report && reportId ? (
-        <Card>
+        // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 "전문가 피드백" nav
+        // 링크의 페이지 내 앵커 대상. 순수 프레젠테이션 목적이며 서버
+        // write-path·API·스키마에는 어떤 영향도 주지 않는다.
+        <Card id="expert-feedback">
           <CardHeader>
             <CardTitle>전문가 피드백</CardTitle>
           </CardHeader>
