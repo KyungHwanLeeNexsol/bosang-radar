@@ -3,6 +3,8 @@
 Tier L design artifact. Source of truth for the confirmed Pencil design (`design/claimradar-ui.pen`) deltas beyond SPEC-PILOT-VISUAL-001's already-implemented 3-screen scope. Read alongside spec.md §2 (REQ table references this file by section) and research.md (current-implementation baseline).
 
 > **개정 안내**: §4의 "공통 예외 화면" 절이 research.md §7의 정정된 baseline(외부 독립 리뷰 대응, 2026-09-03)에 맞춰 6종 카탈로그 나열에서 3개 실재 화면으로 전면 재작성되었다. §5의 로그인/세션 결정 요약도 갱신되었다.
+>
+> **개정 안내(2차, 2026-09-03)**: 제2차 외부 독립 리뷰 대응으로 §4의 App Shell 확장 절에 정확한 Topbar 라우트→브레드크럼/타이틀 매핑 표와 `#expert-feedback` 인페이지 앵커 명시를 추가했고, §5의 "최근 리서치"·"모바일 드로어 접근성" 행을 갱신했으며 "App Topbar 매핑" 행을 신설했다.
 
 ## §1. 디자인 토큰 감사 (delta only)
 
@@ -47,9 +49,17 @@ Pencil "03 · 테스터 로그인" 프레임: 좌측 폼 컬럼(업무용 이메
 
 ### App Shell 확장 (REQ-004~006)
 
-`03b 로그인 상태` 프레임과 별개로, App Sidebar 컴포넌트(SPEC-PILOT-VISUAL-001 §3)에 2개 nav 항목을 추가: "리포트 보관함"(아이콘: 문서함류), "판례·약관 자료실"(아이콘: 서재/북류) — 둘 다 disabled variant, "준비 중" Chip 부착. App Topbar 좌측에 브레드크럼 슬롯("WORKSPACE / <현재 화면명>") 추가.
+`03b 로그인 상태` 프레임과 별개로, App Sidebar 컴포넌트(SPEC-PILOT-VISUAL-001 §3)에 2개 nav 항목을 추가: "리포트 보관함"(아이콘: 문서함류), "판례·약관 자료실"(아이콘: 서재/북류) — 둘 다 disabled variant, "준비 중" Chip 부착. App Topbar 좌측에 브레드크럼 슬롯("WORKSPACE / <현재 화면명>") 추가하며, 정확한 라우트→매핑은 다음과 같다(REQ-006, 모호한 "3개 화면 각각 동적 타이틀" 서술을 대체):
 
-사이드바 하단 사용자 블록은 `app/cases/layout.tsx`(서버 컴포넌트)가 직접 렌더링하지 않고, 신규 클라이언트 컴포넌트(`sidebar-user-block.tsx`, 파일명/위치는 run-phase 재량)로 분리한다(REQ-005, research.md §5b 근거). 이 컴포넌트는 Better Auth 클라이언트의 세션 훅을 사용해 `user.name`을 표시하며, 로딩 중이거나 세션이 없는 순간에는 중립적인 폴백(예: 이니셜 원형 + "사용자" 텍스트, 하드코딩된 가짜 이름 아님)을 렌더링한다.
+| 라우트 | 브레드크럼 | 타이틀 |
+|---|---|---|
+| `/cases/new` | "WORKSPACE / 사건 입력" | "사건 입력" |
+| `/cases/[caseId]` | "WORKSPACE / 리서치 리포트" | "리서치 리포트" |
+| `/cases/[caseId]#expert-feedback` | (위와 동일 — 변경 없음) | (위와 동일 — 변경 없음) |
+
+`#expert-feedback`은 `/cases/[caseId]` 페이지 내부의 인페이지 앵커일 뿐 별도 라우트/화면이 아니다 — 사이드바 "전문가 피드백" nav 항목은 이 페이지 내부 섹션(`id="expert-feedback"`)으로의 앵커-스크롤일 뿐이며, Topbar 브레드크럼/타이틀은 URL 프래그먼트 존재 여부와 무관하게 "리서치 리포트"로 고정된다.
+
+사이드바 하단 사용자 블록은 `app/cases/layout.tsx`(서버 컴포넌트)가 직접 렌더링하지 않고, 신규 클라이언트 컴포넌트(`sidebar-user-block.tsx`, 파일명/위치는 run-phase 재량)로 분리한다(REQ-005, research.md §5b 근거). 이 컴포넌트는 Better Auth 클라이언트의 세션 훅을 사용해 `user.name`을 표시하며, 로딩 중이거나 세션이 없는 순간에는 중립적인 폴백(예: 이니셜 원형 + "사용자" 텍스트, 하드코딩된 가짜 이름 아님)을 렌더링한다. 이와는 별개로 `/cases/new`의 "최근 리서치" 패널(REQ-013)이 필요로 하는 `ownerUserId`는 `NewCasePage`(서버 페이지 컴포넌트) 자신의 서버측 세션 확인에서 조달되며, 그 결과로 `/cases/new`는 동적 렌더링으로 전환된다(research.md §5c) — 사이드바 사용자 블록의 클라이언트 분리 결정과는 별개의 결정이다.
 
 ### 실재하는 예외 화면 3종 (REQ-015 — research.md §7 정정 반영)
 
@@ -98,16 +108,17 @@ Pencil 프레임 `12`(1024px, "RULE · 사이드바 유지 · 우측 레일은 �
 | 사이드바 실사용자명 | 서버 컴포넌트(`app/cases/layout.tsx`)는 세션 조회 없음 — 클라이언트 컴포넌트로 분리해 Better Auth 클라이언트 훅 사용, 로딩/미로그인 폴백 정의 | REQ-005 |
 | Claim 카드 "추가 확인 필요" 데이터 소스 | 신규 AI 필드 없음, `MissingMaterial.relatedIssueType`이 해당 claim의 `getClaimIssueTypes()` 결과와 일치할 때만 카드 내부 직접 표시, 그 외에는 앵커 링크만 | REQ-011 |
 | 사이드바 신규 2항목 | 영구 비활성, href 없음, 실제 페이지 미구현 | REQ-004, REQ-021 |
-| "최근 리서치" | 신규 read-only 조회 함수, `getCaseForOwner` 동일 신뢰 경계, 제목/보조정보는 `cases.input` JSON에서 파생 | REQ-013 |
+| "최근 리서치" | 신규 read-only 조회 함수, `getCaseForOwner` 동일 신뢰 경계, 제목/보조정보는 `cases.input` JSON에서 파생. `ownerUserId`는 `NewCasePage`(`/cases/new` 서버 페이지 컴포넌트) 자신의 서버측 `getCurrentSession()` 확인에서 조달(신규 API 없음) — 그 결과 `/cases/new`는 정적 생성에서 동적 렌더링으로 전환되며, 이는 의도된 결과다("반드시 정적 생성 유지"는 폐기됨, 대신 빌드-안전성 요구사항으로 대체) | REQ-013 |
 | 예외 화면 범위 | **실재하는 3개**(전역 404 / 사건-없음·미소유 통합 / 기존 일시오류)만 구현 — Pencil 6종 카탈로그를 그대로 복제하지 않음 | REQ-015 |
-| 모바일 드로어 접근성 | ESC/스크림클릭/포커스이동·복귀/스크롤잠금/tab순서제외/브레이크포인트 리셋 — 네이티브 구현, 신규 라이브러리 없음 | REQ-017 |
+| App Topbar 매핑 | `/cases/new`→"사건 입력", `/cases/[caseId]`→"리서치 리포트"(`#expert-feedback` 프래그먼트 유무와 무관하게 고정 — 별도 화면 아닌 인페이지 앵커) | REQ-006 |
+| 모바일 드로어 접근성 | ESC/스크림클릭/포커스이동·복귀/스크롤잠금/tab순서제외/브레이크포인트 리셋 + 포커스 트랩(Tab/Shift+Tab 닫힌 루프)/배경 `inert` 비활성화(신규) — 네이티브 구현, 신규 라이브러리 없음; 프리미티브 재사용 시에도 실제 동작을 자동화 테스트로 검증 | REQ-017 |
 | 반응형 구현 방식 | Tailwind CSS 유틸리티만, 별도 라이브러리 없음 | REQ-016, REQ-017 |
 | 디자인 토큰 | 기존 `--color-bora-*`/`--color-app-*` 네임스페이스 재사용, 신규 추가는 최소 | REQ-001 |
 
 ## §6. Cross-references
 
 - spec.md §2 REQ-001~024 — 이 문서가 뒷받침하는 요구사항 전체
-- research.md §현재 구현 사실 — 이 문서의 매핑 대상이 되는 기존 코드 구조(§5b/§7/§9/§10이 REQ-005/REQ-011/REQ-013/REQ-015/REQ-017 결정의 직접 근거)
+- research.md §현재 구현 사실 — 이 문서의 매핑 대상이 되는 기존 코드 구조(§5b/§5c/§7/§9/§10이 REQ-005/REQ-011/REQ-013/REQ-015/REQ-017 결정의 직접 근거)
 - plan.md §마일스톤 — 이 문서의 §2(로그인)→§3(신규 컴포넌트)→§4(화면별) 순서를 실행 계획으로 전환
 - acceptance.md §시각 스모크 체크리스트 — 이 문서의 화면별 구조를 검증 기준으로 전환
 - SPEC-PILOT-VISUAL-001/design.md — §1(토큰 전체 목록)·§3(App Shell/공유 컴포넌트 원 스펙)의 상위 참조 문서, 이 SPEC은 그 내용을 수정하지 않고 확장만 한다

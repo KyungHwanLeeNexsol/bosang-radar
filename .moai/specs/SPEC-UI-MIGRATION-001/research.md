@@ -2,7 +2,9 @@
 
 Tier L research artifact. Deep codebase analysis (read-only) performed before spec.md/plan.md authoring, establishing the exact baseline that REQ-019~022 (기능·데이터 보존) must not regress, and the direct-code-verification basis for the scope decisions in REQ-005/REQ-011/REQ-013/REQ-015.
 
-> **개정 이력**: 외부 독립 리뷰(2026-09-03)가 이 문서 초판의 §7(공통 예외 화면)이 실제 코드와 일치하지 않음을 지적했다 — `app/cases/[caseId]/error.tsx`에 "K02Nyo 사건을 찾을 수 없습니다"류 404/사건 없음 변형이 이미 존재한다는 서술은 **직접 재조사 결과 사실이 아니었다**(초판 작성 시 조사 오류). 이 개정판은 `error.tsx` 전체 소스, `app/`/`app/cases/` 전체에 대한 `not-found.tsx` glob 검색, `app/cases/layout.tsx`, `lib/cases/get-case-for-owner.ts`, `lib/auth/client.ts`/`lib/auth/session.ts`, `next.config.ts`, `app/login/login-form.tsx`, `app/login/page.tsx`를 다시 직접 읽어 확정한 사실로 §5·§6·§7을 전면 재작성했다. §9b/§9c는 신규 조사다.
+> **개정 이력(1차)**: 외부 독립 리뷰(2026-09-03)가 이 문서 초판의 §7(공통 예외 화면)이 실제 코드와 일치하지 않음을 지적했다 — `app/cases/[caseId]/error.tsx`에 "K02Nyo 사건을 찾을 수 없습니다"류 404/사건 없음 변형이 이미 존재한다는 서술은 **직접 재조사 결과 사실이 아니었다**(초판 작성 시 조사 오류). 이 개정판은 `error.tsx` 전체 소스, `app/`/`app/cases/` 전체에 대한 `not-found.tsx` glob 검색, `app/cases/layout.tsx`, `lib/cases/get-case-for-owner.ts`, `lib/auth/client.ts`/`lib/auth/session.ts`, `next.config.ts`, `app/login/login-form.tsx`, `app/login/page.tsx`를 다시 직접 읽어 확정한 사실로 §5·§6·§7을 전면 재작성했다. §9b/§9c는 신규 조사다.
+>
+> **개정 이력(2차, 2026-09-03)**: 제2차 외부 독립 리뷰가 §5b의 결론("`/cases/new`를 포함한 `app/cases/**`의 정적 생성 특성은 완전히 보존된다")이 §9(REQ-013 최근 리서치)의 owner-scoped DB 조회 요구와 정면으로 모순됨을 지적했다 — DB 조회는 인증된 `ownerUserId`를 필요로 하며 빌드 시점에는 실행될 수 없다. §5b에 이 모순을 명시적으로 인정하는 후기를 추가하고, Next.js 16.3.2에서 이 프로젝트가 실제로 어떤 렌더링 모델을 사용하는지, 그리고 그 모델에서 `/cases/new`를 동적 렌더링으로 정확히 어떻게 전환시킬지를 확정하는 신규 §5c를 추가했다. §9에 `ownerUserId` 조달 경로를 명시하는 문단을 추가했다.
 
 ## §1. 파일 인벤토리 (SPEC-PILOT-VISUAL-001 대비 신규/확장 대상)
 
@@ -12,6 +14,7 @@ Tier L research artifact. Deep codebase analysis (read-only) performed before sp
 | `app/login/layout.tsx` | **신규** | 로그인 전용 폰트 격리 레이아웃(REQ-003) |
 | `app/cases/layout.tsx`, `app/cases/case-shell-nav.tsx` | 기존(SPEC-PILOT-VISUAL-001이 구현) | 확장 대상(REQ-004~006) |
 | `app/cases/[caseId]/page.tsx` | 기존(SPEC-PILOT-VISUAL-001이 재스타일) | 콘텐츠 정합성 확장(REQ-007, 009, 010, 011) |
+| `app/cases/new/page.tsx` | 기존, 현재 비-async·세션 미조회 static shell(§5c 확인) | **REQ-013으로 async Server Component 전환** — `getCurrentSession()` 호출 추가, 정적→동적 렌더링 전환(§5c) |
 | `app/cases/new/case-input-form.tsx` | 기존(SPEC-PILOT-VISUAL-001이 재스타일) | 우측 레일 확장(REQ-012~014) |
 | `app/cases/[caseId]/feedback-form.tsx` | 기존(SPEC-PILOT-VISUAL-001이 재스타일) | Enum 라벨 확장(REQ-007, 008) |
 | `app/cases/[caseId]/error.tsx` | 기존, **일반 런타임 오류 경계만 보유**(§7 정정 참고) | REQ-015 범위에서는 재검증만, 변경 최소화 |
@@ -79,7 +82,23 @@ SPEC-PILOT-VISUAL-001이 구현한 `case-shell-nav.tsx`는 정확히 3개 항목
 2. **`lib/auth/session.ts` 확인** — `getCurrentSession()`은 `next/headers`의 `headers()`를 호출한다. `headers()`는 Next.js의 동적 API이며, 서버 컴포넌트(레이아웃 포함)에서 호출되면 그 라우트를 무조건 동적 렌더링으로 전환한다. `app/cases/layout.tsx`(서버 컴포넌트)가 직접 `getCurrentSession()`을 호출하면 `/cases/new`를 포함한 `app/cases/**` 전체가 매 요청 DB 조회를 수반하게 된다.
 3. **`lib/auth/client.ts` 확인** — `authClient = createAuthClient()`(`better-auth/react`)가 이미 `app/login/login-form.tsx`에서 클라이언트 컴포넌트 내부 `authClient.signIn.email(...)` 호출로 사용 중이다. Better Auth의 React 클라이언트는 세션 상태를 구독하는 클라이언트 훅을 제공한다(설치된 `better-auth@1.7.1`의 React 클라이언트 API — 정확한 훅 이름은 run-phase에서 설치된 패키지의 타입 정의로 확정). 클라이언트 컴포넌트 내부의 세션 조회는 `next build`의 정적 HTML 생성 단계(서버 렌더링)와 무관하게 브라우저 하이드레이션 이후에만 실행되므로, **어떤 라우트도 빌드 시점 DB 연결을 시도하지 않는다** — 이것이 유일하게 직접 조사로 안전성이 확인된 경로다.
 
-**결론(REQ-005 결정)**: 사이드바 사용자 블록을 별도의 작은 **클라이언트 컴포넌트**(예: `sidebar-user-block.tsx`)로 분리하고, 그 내부에서만 Better Auth 클라이언트의 세션 훅을 호출한다. `app/cases/layout.tsx`(서버 컴포넌트) 자신은 어떤 세션 조회도 하지 않으며, 이 클라이언트 컴포넌트를 렌더링만 한다. `/cases/new`를 포함한 `app/cases/**`의 정적 생성 특성은 완전히 보존된다. 로딩/비로그인 상태의 폴백은 §9 결론 및 spec.md REQ-005에서 확정한다.
+**결론(REQ-005 결정)**: 사이드바 사용자 블록을 별도의 작은 **클라이언트 컴포넌트**(예: `sidebar-user-block.tsx`)로 분리하고, 그 내부에서만 Better Auth 클라이언트의 세션 훅을 호출한다. `app/cases/layout.tsx`(서버 컴포넌트) 자신은 어떤 세션 조회도 하지 않으며, 이 클라이언트 컴포넌트를 렌더링만 한다. 로딩/비로그인 상태의 폴백은 §9 결론 및 spec.md REQ-005에서 확정한다.
+
+> **2차 개정 후기 — `/cases/new`의 정적 생성 특성은 더 이상 완전히 보존되지 않는다**: 이 §5b의 초판 결론은 "`/cases/new`를 포함한 `app/cases/**`의 정적 생성 특성은 완전히 보존된다"고 서술했다. 이는 **§9(REQ-013 "최근 리서치")가 확정하는 owner-scoped DB 조회 요구와 직접 모순된다** — 그 조회는 인증된 `ownerUserId`를 필요로 하며, `ownerUserId`는 세션에서만 얻을 수 있고, 세션 조회는 빌드 시점에 실행될 수 없다(빌드 시점에는 요청도 쿠키도 없다). 따라서 REQ-013을 구현하려면 `/cases/new` 자신이 어떤 지점에서든 서버측 세션을 확인해야 하며, 그 순간 이 라우트는 더 이상 완전히 정적일 수 없다. 위 결론(사이드바를 클라이언트 컴포넌트로 분리)은 **여전히 유효**하다 — 사이드바 사용자명 표시 자체는 세션을 필요로 하지 않는 방식(클라이언트 훅)으로 구현 가능하기 때문이다. 그러나 "그 결과 `/cases/new`의 정적 생성이 보존된다"는 결론은 REQ-013이 별도로 `/cases/new`의 서버 페이지 컴포넌트 자신에 세션 조회를 도입하는 순간 무효화된다. 정확한 전환 메커니즘과 그 안전성 판단은 아래 §5c에서 신규로 확정한다.
+
+## §5c. `/cases/new`의 정적→동적 전환 메커니즘 확정 — Next.js 16.3.2 (REQ-013 근거, 2차 개정 신규)
+
+이 프로젝트가 사용하는 Next.js 버전(`package.json`에서 확인: `"next": "16.3.2"`)과 렌더링 모델을 직접 조사해 `/cases/new`가 동적 렌더링으로 전환되는 정확한 메커니즘을 확정한다.
+
+**1. 이 프로젝트는 Cache Components(신규 모델)가 아니라 "이전 모델"을 사용한다.** Next.js 16은 `cacheComponents: true`(과거 `experimental.ppr`의 후속) 플래그로 활성화하는 새로운 렌더링 모델("Cache Components")을 도입했다 — 이 모델에서는 `cookies()`/`headers()` 호출이 `<Suspense>`로 감싸여 있으면 **그 라우트 전체를 동적 렌더링으로 전환시키지 않고** 해당 서브트리만 스트리밍된다(Next.js 공식 문서, `nextjs.org/docs/app/getting-started/caching` — "Reading `cookies()` here doesn't opt-in the whole route into dynamic rendering, the way the previous rendering model did."). 그러나 `next.config.ts`를 직접 확인한 결과(§5b-1, 본 SPEC 재확인) 이 프로젝트는 `cacheComponents`를 설정하지 않은 빈 `NextConfig` 객체를 사용한다 — 즉 Cache Components가 아니라 **"이전 모델"**(Next.js 공식 문서, `nextjs.org/docs/app/guides/caching-without-cache-components` — "This guide assumes you are **not** using Cache Components")을 그대로 사용 중이다.
+
+**2. "이전 모델"에서는 Route Segment Config `dynamic`의 기본값 `"auto"`가 적용되며, Request-time API 호출이 라우트 전체를 동적으로 전환시킨다.** 공식 문서(`nextjs.org/docs/app/guides/caching-without-cache-components` § Route segment config § `dynamic`)의 정의: `'auto'`(기본값) — "The default option to cache as much as possible without preventing any components from opting into dynamic behavior." 이는 라우트 트리 안 어디에서든 Request-time API(`cookies()`, `headers()`, `searchParams` 등)가 호출되면, 그 호출을 발견한 시점부터 해당 라우트가 자동으로 동적 렌더링으로 전환됨을 의미한다 — 이것이 §5b가 이미 직접 조사로 확인한 "PPR 없이는 Suspense 경계가 정적/동적 경계가 아니다"라는 현재 baseline과 정확히 일치한다.
+
+**3. 결론 — 명시적 `export const dynamic = "force-dynamic"` 선언은 불필요하다.** `NewCasePage`(`app/cases/new/page.tsx`)가 `getCurrentSession()`(내부적으로 `headers()`를 호출)을 호출하는 async Server Component로 전환되면, 이 Request-time API 호출 자체가 `dynamic: "auto"`의 기본 동작에 따라 `/cases/new` 전체를 자동으로 동적(요청 시점) 렌더링으로 전환시킨다. `export const dynamic = "force-dynamic"`을 명시적으로 선언할 필요는 없다 — 그러나 의도를 코드 레벨에서 명확히 하고 향후 실수로 세션 호출이 제거되었을 때도 동적 렌더링을 강제 유지하고 싶다면, `export const dynamic = "force-dynamic"`을 `NewCasePage`에 추가로 선언하는 것은 run-phase 구현 재량이다(선택 사항, 필수 아님) — 두 경우 모두 빌드 안전성 결론은 동일하다.
+
+**4. 이는 이미 이 코드베이스에서 안전이 입증된 패턴이다.** `app/cases/[caseId]/page.tsx`는 이미 정확히 동일한 방식(async Server Component + `getCurrentSession()` 호출)으로 구현되어 있으며 이미 동적 렌더링되고 있다(§5a/§5b) — `/cases/new`에 같은 패턴을 적용하는 것은 신규 메커니즘 도입이 아니라 검증된 기존 메커니즘의 확장이다.
+
+**5. 빌드 안전성 재확인.** 동적 전환 자체는 "빌드 시점 DB 연결"과 동일하지 않다 — Next.js는 동적 세그먼트를 빌드 시점에 **실행하지 않고** 요청 시점까지 지연시킨다(정적 세그먼트만 빌드 시점에 사전 렌더링됨). 따라서 `/cases/new`가 동적으로 전환되어도 `next build` 자체는 DB에 연결을 시도하지 않는다 — 이 SPEC이 원래 회피하려던 위험("빌드 시점 DB 연결 실패")은 라우트가 정적이냐 동적이냐가 아니라 **정적 세그먼트가 빌드 시점에 DB 조회를 실행하려 드는지**에 있었으며, 동적 전환은 오히려 그 위험을 원천적으로 없앤다(동적 세그먼트는 빌드 시점에 아무것도 실행하지 않는다).
 
 ## §6. 로그인 화면 현재 구조 — 확장 재조사 (REQ-002~003 근거)
 
@@ -154,9 +173,11 @@ Pencil 디자인(`design/claimradar-ui.pen`)의 프레임 `11`은 6개 변형(40
 
 `input` 컬럼은 Drizzle `mode: "json"`으로 선언되어 있어 직렬화/역직렬화 자체는 Drizzle이 담당한다(수동 `JSON.parse` 불필요) — 그러나 컬럼 타입은 `unknown`이므로, 스키마가 보장하지 않는 필드 누락(예: 과거 스키마 버전의 잔존 행)에 대비한 방어적 타입 가드와 폴백 문자열이 필요하다.
 
+**`ownerUserId` 조달 경로(2차 개정 신규 확정)**: 이 조회 함수 자신은 세션을 조회하지 않는다(순수 owner-scoped read 함수) — 호출자인 `NewCasePage`(`app/cases/new/page.tsx`)가 §5c가 확정한 방식으로 자신을 async Server Component로 전환해 `getCurrentSession()`을 호출하고, 그 결과(`session.user.id`)를 이 함수에 인자로 전달한다. 인증되지 않은 세션인 경우 `NewCasePage`는 `app/cases/[caseId]/page.tsx`와 동일한 `if (!session?.user) redirect("/login")` 패턴을 따라야 하며, 이 조회를 위한 별도의 인증 처리 로직을 새로 만들어서는 안 된다. 조회 자체가 실패(예외)하는 경우 그 실패는 "최근 리서치" 패널 범위로만 격리되어야 하며, 페이지 전체(좌측 폼 컬럼 포함)의 렌더링을 실패시켜서는 안 된다.
+
 ## §10. 모바일 드로어 접근성 구현 자원 조사 (REQ-017 근거)
 
-`package.json`의 `dependencies`를 직접 확인했다. 포커스 트랩 전용 라이브러리(예: `focus-trap-react`)는 설치되어 있지 않다. 이미 설치된 `@base-ui/react`(`components/ui/input.tsx`가 `@base-ui/react/input`을 사용 중 — 서브패스 임포트 구조 확인)는 Base UI 프로젝트로, 포커스 관리가 내장된 언스타일 Dialog/Popover 프리미티브를 제공하는 것으로 알려져 있으나, 이 워크트리에는 `node_modules`가 설치되어 있지 않아 해당 서브패스(`@base-ui/react/dialog` 등)의 실제 존재 여부를 타입 정의로 직접 확인하지 못했다 — run-phase에서 `pnpm install` 이후 확인이 필요한 **잔여 위험**이다. `lucide-react`(아이콘)는 이미 설치되어 있다. 신규 대형 의존성 없이 네이티브 React state(`useState`/`useRef`) + 표준 DOM 이벤트(keydown, focus/blur) + 기존 설치된 프리미티브 조합만으로 REQ-017의 접근성 계약(포커스 이동/복귀, ESC, 스크림 클릭, 스크롤 잠금, tab order)을 구현하는 것이 가능하다고 판단하되, run-phase에서 `@base-ui/react`의 Dialog 계열 서브패스가 실제로 존재하면 그것을 우선 재사용해 직접 구현량을 줄인다(plan.md §B 결정 6 참고).
+`package.json`의 `dependencies`를 직접 확인했다. 포커스 트랩 전용 라이브러리(예: `focus-trap-react`)는 설치되어 있지 않다. 이미 설치된 `@base-ui/react`(`components/ui/input.tsx`가 `@base-ui/react/input`을 사용 중 — 서브패스 임포트 구조 확인)는 Base UI 프로젝트로, 포커스 관리가 내장된 언스타일 Dialog/Popover 프리미티브를 제공하는 것으로 알려져 있으나, 이 워크트리에는 `node_modules`가 설치되어 있지 않아 해당 서브패스(`@base-ui/react/dialog` 등)의 실제 존재 여부를 타입 정의로 직접 확인하지 못했다 — run-phase에서 `pnpm install` 이후 확인이 필요한 **잔여 위험**이다. `lucide-react`(아이콘)는 이미 설치되어 있다. 신규 대형 의존성 없이 네이티브 React state(`useState`/`useRef`) + 표준 DOM 이벤트(keydown, focus/blur) + 기존 설치된 프리미티브 조합만으로 REQ-017의 접근성 계약(포커스 이동/복귀, ESC, 스크림 클릭, 스크롤 잠금, tab order, 포커스 트랩·배경 `inert`)을 구현하는 것이 가능하다고 판단하되, run-phase에서 `@base-ui/react`의 Dialog 계열 서브패스가 실제로 존재하면 그것을 우선 재사용해 직접 구현량을 줄인다(plan.md §B 결정 7 참고 — 이전 판에서 "결정 6"으로 잘못 인용되었던 것을 정정함).
 
 ## §11. 결론 — 이 SPEC이 반드시 보존해야 할 기준선
 
@@ -178,6 +199,8 @@ REQ-019~022(spec.md §2 Group J)가 참조하는 정확한 기준선은 위 §1~
 ## §12. Cross-references
 
 - spec.md §3(보존·신규 테스트 계약) — 이 문서 §8의 testid 목록을 REQ-020 검증 근거로 인용
+- spec.md REQ-013 — 이 문서 §5c(동적 렌더링 메커니즘)·§9(ownerUserId 조달 경로)가 확정하는 정확한 근거
 - design.md §2~§4(화면별 구조 매핑) — 이 문서의 현재 구조를 신규 시각 구조로 매핑하는 대상
 - acceptance.md §기능·데이터 보존 그룹(Group J) — 이 문서 §11의 보존 항목을 검증 가능한 AC로 전환
+- acceptance.md AC-005a — 이 문서 §5c가 확정하는 빌드-안전성 메커니즘의 검증 기준
 - SPEC-PILOT-VISUAL-001/research.md — 3개 화면의 상위 기준선 조사 문서(이 SPEC이 계승·재확인)

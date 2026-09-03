@@ -28,11 +28,13 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-005**: Given 로그인한 세션으로 App Shell을 렌더링한 상태, When 사이드바 하단 사용자 블록을 확인하면, Then "담당 손해사정사"/"BORA 리서치" 같은 하드코딩 문자열이 아니라 현재 세션 `user.name` 값이 표시되어야 하며, DB에 존재하지 않는 소속/직함 필드가 새로 렌더링되지 않아야 한다.
 
-**AC-005a**: Given 사용자 블록을 렌더링하는 컴포넌트, When 그 컴포넌트가 세션을 조회하는 방식을 소스로 확인하면, Then `app/cases/layout.tsx`(서버 컴포넌트) 자신은 `getCurrentSession()` 등 동적 API를 직접 호출하지 않아야 하며, 조회는 별도의 클라이언트 컴포넌트로 분리되어 있어야 한다. And When `pnpm build`를 실행하면, Then `/cases/new`가 정적 생성되고(빌드 로그에서 동적 렌더링으로 전환되지 않았음을 확인), 빌드 시점에 DB 연결이 시도되지 않아야 한다.
+**AC-005a**: Given 사이드바 사용자 블록을 렌더링하는 컴포넌트, When 그 컴포넌트가 세션을 조회하는 방식을 소스로 확인하면, Then `app/cases/layout.tsx`(서버 컴포넌트) 자신은 `getCurrentSession()` 등 동적 API를 직접 호출하지 않아야 하며, 조회는 별도의 클라이언트 컴포넌트로 분리되어 있어야 한다. And Given `/cases/new`의 서버 페이지 컴포넌트(`NewCasePage`)가 세션을 조회하는 방식을 소스로 확인한 상태, When 그 컴포넌트의 세션 조회 지점을 확인하면, Then 세션 확인은 `NewCasePage` 자신(페이지 최상위, `getCurrentSession()` 호출)에서 수행되어야 한다(신규 API 라우트 없음). And When `pnpm build`를 실행하면, Then 빌드가 종료 코드 0으로 성공해야 하고, 빌드 로그가 `/cases/new`를 Dynamic(요청 시점 렌더링) 세그먼트로 표시해야 하며(REQ-013의 서버측 세션 확인으로 인한 의도된 전환 — "정적 생성 유지"는 더 이상 이 SPEC의 요구사항이 아니다), 빌드 프로세스 자체는 실제 DB 연결을 시도하지 않아야 한다(사용자별 데이터가 빌드 시점에 평가되거나 정적 HTML에 구워지지 않음).
 
 **AC-005b**: Given 세션이 아직 로딩 중이거나 로그아웃 상태인 경우, When 사이드바 사용자 블록을 렌더링하면, Then 크래시하지 않고 정의된 중립 폴백(예: 이니셜 아이콘 + "사용자")이 표시되어야 하며, 하드코딩된 가짜 이름이나 이전 사용자의 잔존 값이 표시되어서는 안 된다.
 
 **AC-006**: Given App Shell 안의 임의 화면, When App Topbar를 확인하면, Then 브레드크럼 텍스트와 현재 화면에 대응하는 페이지 타이틀이 표시되어야 하며, 스크롤 시 탑바가 뷰포트에 고정되지 않고 본문과 함께 스크롤되어야 한다(computed style에 `position: fixed`/`sticky`가 없음을 확인).
+
+**AC-006a**: Given `/cases/new`와 `/cases/[caseId]`(URL에 `#expert-feedback` 프래그먼트가 있는 경우와 없는 경우 각각) 화면을 렌더링한 상태, When Topbar 브레드크럼/타이틀 텍스트를 확인하면, Then `/cases/new`는 브레드크럼 "WORKSPACE / 사건 입력"과 타이틀 "사건 입력"을 표시해야 하고, `/cases/[caseId]`는 URL에 `#expert-feedback`이 포함되어 있는지 여부와 무관하게 항상 브레드크럼 "WORKSPACE / 리서치 리포트"와 타이틀 "리서치 리포트"를 표시해야 한다(전문가 피드백은 별도 화면이 아닌 인페이지 앵커이므로 프래그먼트 존재가 Topbar 상태를 변경해서는 안 된다).
 
 ### Group D — Enum 한글 라벨 (REQ-007~008)
 
@@ -68,6 +70,10 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-013c**: Given `input` JSON에 `diagnosisName` 또는 `disabilityBodyPart` 필드가 누락된 사건 행이 존재하는 상태, When "최근 리서치" 패널을 렌더링하면, Then 해당 항목은 정의된 폴백 텍스트로 표시되어야 하며 예외가 발생하거나 패널 전체가 렌더링되지 않는 일이 없어야 한다.
 
+**AC-013d**: Given 인증된 세션이 없는 상태, When `/cases/new`에 접근하면, Then 이 화면은 다른 App Shell 보호 라우트(예: `/cases/[caseId]`)와 동일한 기존 인증-리다이렉트 흐름(`redirect("/login")`)을 따라야 하며, 이 SPEC이 신규로 도입하는 별개의 인증 처리 패턴이 존재해서는 안 된다.
+
+**AC-013e**: Given "최근 리서치" 조회 함수가 예외를 던지거나 실패하는 상태, When `/cases/new`를 렌더링하면, Then "최근 리서치" 패널(`case-recent-research`)만 안전한 빈/오류 상태로 대체되어야 하며, 사건 입력 폼의 좌측 컬럼(필드/제출 버튼)을 포함한 페이지의 나머지 부분은 정상적으로 렌더링되고 상호작용 가능해야 한다(페이지 전체 크래시 금지).
+
 **AC-014**: Given 사건 입력 폼 Footer, When 버튼 목록을 확인하면, Then "임시 저장" 버튼(`case-input-draft-save`)이 `disabled` 속성과 "준비 중" 시각 Chip을 가진 채로 존재해야 하며, 클릭해도 어떤 네트워크 요청도 발생하지 않아야 한다.
 
 ### Group H — 실재하는 예외 화면 (REQ-015)
@@ -100,6 +106,14 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-017h**: Given 390px에서 드로어가 열린 상태, When 뷰포트를 1024px 이상으로 리사이즈하면, Then 드로어/스크림이 자동으로 닫히고 데스크톱 사이드바 레이아웃으로 정상 전환되어야 한다(고정 열림 상태로 남지 않음).
 
+**AC-017i**: Given 드로어가 열린 상태, When 드로어 내부의 마지막 포커스 가능 요소에서 Tab 키를 누르면, Then 포커스가 드로어 내부의 첫 번째 포커스 가능 요소로 순환해야 한다(닫힌 루프) — 드로어 밖 배경 콘텐츠의 요소로 포커스가 이동해서는 안 된다.
+
+**AC-017j**: Given 드로어가 열린 상태, When 드로어 내부의 첫 번째 포커스 가능 요소에서 Shift+Tab 키를 누르면, Then 포커스가 드로어 내부의 마지막 포커스 가능 요소로 순환해야 한다(역방향 닫힌 루프).
+
+**AC-017k**: Given 드로어가 열린 상태, When 배경 콘텐츠(드로어 외부의 페이지 본문) 요소에 포커스를 프로그래밍적으로 이동시키거나 클릭/키보드 상호작용을 시도하면, Then 그 요소는 포커스를 받지 않거나 상호작용이 무시되어야 한다(예: `inert` 속성 또는 동등한 메커니즘으로 배경이 비활성화됨을 확인).
+
+**AC-017l**: Given 드로어 접근성 계약을 검증하는 자동화 테스트, When 구현이 기존 Dialog 프리미티브(`@base-ui/react` 등)를 재사용하는 경우, Then 테스트는 그 프리미티브의 존재 여부만으로 통과 처리해서는 안 되며 AC-017i~AC-017k가 기술하는 실제 동작(포커스 순환, 배경 비활성화)을 직접 관찰해 검증해야 한다.
+
 **AC-018**: Given 브라우저 뷰포트 너비를 1280px로 설정한 상태에서 5개 화면(로그인/사건 입력/리포트/피드백/이 SPEC이 다루는 실재하는 예외 화면 중 택1)을 각각 렌더링하면, When 레이아웃을 수동 검사하면, Then 가로 오버플로, 사이드바-콘텐츠 겹침, 텍스트/컨트롤 잘림, 클릭 불가 겹침이 어느 화면에서도 발생하지 않아야 한다.
 
 ### Group J — 기능·데이터 보존 및 품질 게이트 (REQ-019~024)
@@ -112,7 +126,7 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-022**: Given 사건 입력 폼 제출 중(pending) 상태 및 피드백 폼 제출 중 상태, When 동일 폼을 다시 제출 시도하면(더블클릭 시뮬레이션), Then 두 번째 요청이 발생하지 않아야 한다(단일 흐름 가드 유지, REQ-022).
 
-**AC-023**: Given 재스타일되었거나 신규 추가된 임의의 인터랙티브 요소, When 접근성 속성을 확인하면, Then label 연관, `role="status"`/`aria-live`(대기 인디케이터), focus 가능 여부가 기존과 동일하게 유지되고, 신규 비활성 nav/링크 항목에는 `aria-disabled="true"`가 존재해야 하며, 모바일 드로어는 AC-017a~AC-017h를 모두 만족해야 한다(REQ-023).
+**AC-023**: Given 재스타일되었거나 신규 추가된 임의의 인터랙티브 요소, When 접근성 속성을 확인하면, Then label 연관, `role="status"`/`aria-live`(대기 인디케이터), focus 가능 여부가 기존과 동일하게 유지되고, 신규 비활성 nav/링크 항목에는 `aria-disabled="true"`가 존재해야 하며, 모바일 드로어는 AC-017a~AC-017l(포커스 트랩/배경 비활성화 포함)을 모두 만족해야 한다(REQ-023).
 
 **AC-024**: Given 이 SPEC의 구현이 완료된 상태, When `pnpm test`, `pnpm test:e2e`, `pnpm lint`, `pnpm build`을 각각 실행하면, Then 모두 종료 코드 0을 반환해야 한다. And `pnpm format:check` 실행 결과를 기존 베이스라인 경고와 대조하면, Then 이 SPEC이 신규로 도입한 포맷 위반이 0건이어야 한다(REQ-024).
 
@@ -128,7 +142,7 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 - [ ] 로그인 화면: design.md §4(로그인) 구조와 브랜드 패널·필드·비밀번호 토글·비활성 푸터 링크가 육안으로 대응하는가
 - [ ] App Shell 사이드바: 5개 nav 항목(3개 실제 + 2개 비활성)과 사용자 블록(로그인 상태/로딩 상태 각각)이 Pencil 스펙과 육안으로 대응하는가
-- [ ] App Topbar: 브레드크럼 + 동적 타이틀이 3개 기존 화면 각각에서 올바르게 렌더링되는가
+- [ ] App Topbar: `/cases/new`(브레드크럼 "WORKSPACE / 사건 입력" · 타이틀 "사건 입력")와 `/cases/[caseId]`(브레드크럼 "WORKSPACE / 리서치 리포트" · 타이틀 "리서치 리포트", `#expert-feedback` 프래그먼트 유무와 무관하게 고정)가 spec.md REQ-006의 정확한 매핑대로 렌더링되는가
 - [ ] 실재하는 예외 화면 3종(전역 404 / 사건-없음·미소유 통합 / 기존 일시 런타임 오류): 각각의 아이콘·문구·에러코드 패턴이 Pencil 프레임 `11`의 대응 변형과 육안으로 정합하며, App Shell 유무(전역 404만 미적용)가 의도대로 렌더링되는가
 - [ ] 태블릿(1024px)/모바일(390px): 사이드바 유지+우측 레일 이동, 오프캔버스 드로어+스크림(열기/닫기/ESC/스크림클릭 각각)이 육안으로 확인되는가
 - [ ] 6개 화면(로그인/사건 입력/리포트/피드백/예외 화면/App Shell 전반) 모두 전문 손해사정사에게 보여줄 때 "미완성"으로 보이지 않는 B2B 완성도 수준인가
@@ -146,4 +160,4 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 - spec.md §2 REQ-001~024 — 각 AC가 검증하는 요구사항
 - design.md §1~5 — AC-001~AC-006, AC-015~AC-018이 참조하는 정확한 시각 스펙
-- research.md §2~§11 — AC-007~AC-014, AC-015~AC-015b, AC-019~AC-023이 재검증하는 기존 구현 기준선 및 스코프·결정 근거(§5b 세션 조회 안전성, §7 정정된 예외 화면 baseline, §9 최근 리서치 파생 규칙, §10 드로어 접근성 자원)
+- research.md §2~§12 — AC-005a·AC-006a·AC-007~AC-014·AC-015~AC-015b·AC-017i~AC-017l·AC-019~AC-023이 재검증하는 기존 구현 기준선 및 스코프·결정 근거(§5b 세션 조회 안전성, §5c `/cases/new` 동적 렌더링 메커니즘, §7 정정된 예외 화면 baseline, §9 최근 리서치 파생 규칙, §10 드로어 접근성 자원)
