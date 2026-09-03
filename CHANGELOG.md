@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+### Added — SPEC-PILOT-VISUAL-001 파일럿 비주얼 리스킨 — Pencil 디자인(claimradar-ui.pen) 재현, 기능/데이터 무변경
+
+확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 `사건 입력`/`Research Report`/`전문가 피드백` 3개 화면에 순수 시각 계층에서만 재현했습니다. 신규 기능·API·DB·AI 파이프라인 변경 없음 — SPEC-PILOT-UX-001로 사용성이 완성된 흐름의 룩앤필만 교체합니다.
+
+- **디자인 토큰 + 타이포그래피**(`app/globals.css`): 기존 `@theme inline` 블록에 33개 색상 토큰(`--color-bora-*`/`--color-app-*` 네임스페이스, 기존 shadcn 토큰과 충돌 없음) + 타이포그래피 스케일(H1/H2/H3/Body/Body S/Meta/Label S) 추가. `pretendard` npm 패키지 도입
+- **신규 앱 셸**(`app/cases/layout.tsx`, `app/cases/case-shell-nav.tsx`): 다크 사이드바 + 탑바를 `app/cases/` 라우트 그룹에만 적용 — `app/layout.tsx`/`app/page.tsx`/`app/login/**`은 폰트 import를 포함해 완전한 zero-diff PRESERVE. Pretendard(`next/font/local`)와 BORA 워드마크 전용 Manrope(`next/font/google`)를 이 레이아웃 내부에서만 로드. 사이드바 nav 3항목("사건 입력"/"리서치 리포트"/"전문가 피드백")은 DB/API 조회 없이 현재 pathname만으로 결정론적으로 활성/비활성 렌더링
+- **공유 프레젠테이션 컴포넌트**(`components/ui/status-badge.tsx`, `chip.tsx`, `notice.tsx`, `components/evidence-item.tsx`): 기존 shadcn 프리미티브로 표현 불가능한 시각 패턴만 신규 도입해 `claim-status` pill과 evidence 참조 렌더링에 재사용 — 기존 testid/`data-status` 속성 전부 보존
+- **3개 화면 재스타일**: 사건 입력(2컬럼 레이아웃), Research Report(사건 요약 패널 + claim 카드 + 우측 레일), 전문가 피드백(번호 매김 섹션 패턴, native `<select>`·동적 `missedIssues` 배열 UI 그대로 유지) — 각 화면의 기존 데이터 계약·테스트 셀렉터·접근성 속성(label 연관, `role="status"`, `aria-live`, focus 동작) 완전 보존
+
+**검증**: 24개 요구사항(REQ-PILOT-VISUAL-001~024) 전부 구현, 25개 인수 기준(AC-PILOT-VISUAL-001~024 + 서브레터 006b/020b/021b, AC-013 의도적 결번) 전부 코드 레벨로 만족. plan-auditor 감사 3회 실행(iteration 1 FAIL(0.63, GEARS 모달리티 위반) → iteration 2 PASS(0.92) → 외부 독립 리뷰 6개 블로커 대응 후 iteration 3 PASS(0.92, 회귀 없음)). M1~M6 전 마일스톤에서 `pnpm test`(335/335)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build`/`pnpm format:check` exit 0 통과를 오케스트레이터가 매 마일스톤 최종 커밋에 대해 독립 재실행으로 재확인했으며, `app/layout.tsx`/`app/page.tsx`/`app/login/**`의 zero-diff를 전체 M1~M6 범위(`git diff --stat`)로 재검증했습니다. 오케스트레이터가 Playwright로 실제 `pnpm dev` 인스턴스에 대해 1440px/1280px 두 뷰포트에서 3개 화면 전체를 수동 시각 확인(가로 오버플로/사이드바-콘텐츠 겹침 없음). 신규 런타임 의존성 없음(pretendard 패키지 추가 제외), 서버 write-path·DB 스키마·API 계약 변경 없음.
+
+**참고**: `.moai/specs/SPEC-PILOT-VISUAL-001/`
+
 ### Added — SPEC-PILOT-UX-001 파일럿 사용성 개선 — 사건 입력→분석 대기→리포트 검토→피드백 제출 흐름
 
 이미 기능적으로 완성되어 있던 `사건 입력 → Gemini 분석 대기 → ResearchReport 검토 → 구조화 피드백 제출` 흐름(SPEC-RESEARCH-001/SPEC-GEMINI-RUNTIME-001/SPEC-EVIDENCE-001/SPEC-FEEDBACK-001의 산출물)을, 신규 비즈니스 기능 없이 UI/UX 계층에서만 다듬어 소수 전문 손해사정사가 비공개 파일럿에서 일상적으로 실사용 가능하게 만들었습니다.

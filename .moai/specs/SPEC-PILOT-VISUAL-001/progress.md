@@ -232,4 +232,10 @@ Since `manager-develop` has no browser/screenshot tool, the orchestrator perform
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_status: audit-ready
+- sync_complete_at: 2026-09-03
+- sync_commit_sha: pending-backfill-pilot-visual-retroactive-sync
+- sync_note: retroactive sync-phase close — implementation was direct-merged to `main` (df571a7) at user request before formal sync-phase artifacts (CHANGELOG entry, README delta, this section, frontmatter `completed` transition) were produced. This commit performs those deliverables after the fact; per Route A (Hybrid Trunk main-direct, Tier L exception granted by explicit user instruction) the sync commit carries the `implemented → completed` transition. SHA backfill is not strictly required for a retroactive close but the placeholder format is kept for schema consistency with `.claude/rules/moai/development/spec-frontmatter-schema.md` § SHA placeholder backfill exemption.
+- changelog_entry_position: `[Unreleased]` section, first entry (above SPEC-PILOT-UX-001)
+- readme_updated: yes — §현재 구현 상태 header/paragraph, UI 설명 line, "다음 단계" UI/UX 고도화 항목 제거
+- frontmatter_status_transition: in-progress → completed (spec.md only; plan.md/acceptance.md/design.md/research.md untouched)
