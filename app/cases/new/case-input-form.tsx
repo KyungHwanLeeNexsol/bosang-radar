@@ -3,14 +3,18 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-// bare UI — 사건 입력 폼(M5, design.md §2). 필드는
-// lib/validation/case-input.ts의 caseInputSchema와 그대로 매핑된다
+// bare UI — 사건 입력 폼(SPEC-PILOT-VISUAL-001 M4, design.md §4 화면 01).
+// 필드는 lib/validation/case-input.ts의 caseInputSchema와 그대로 매핑된다
 // (주민등록번호/전화번호/상세주소/의료기록 원본 필드는 애초에 존재하지 않음).
+// design.md §4의 "사건 개요" 패널(Header + Form Body + Footer) 구조를
+// 재현하되, 4개 필드/검증/제출 가드/대기 상태 로직은 전혀 변경하지 않는다
+// (design.md의 "비식별 확인 Check Row"는 현재 데이터 모델에 대응 상태가
+// 없는 신규 필드라 REQ-011과 동일한 원칙으로 추가하지 않는다 — 우 레일
+// Notice가 동일한 비식별 안내 역할을 대신한다).
 export function CaseInputForm() {
   const router = useRouter();
   const [incidentDescription, setIncidentDescription] = useState("");
@@ -72,14 +76,21 @@ export function CaseInputForm() {
   }
 
   return (
-    <Card className="w-full max-w-xl">
-      <CardHeader>
-        <CardTitle>사건 입력</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4" data-testid="case-input-form">
+    <div className="overflow-hidden rounded-[4px] bg-app-surface">
+      <div className="border-b border-app-line px-6 py-4">
+        <p className="text-label-s font-medium text-bora-ink-4">신규 사건 등록</p>
+        <h1 className="text-h2 font-semibold text-bora-ink">사건 개요</h1>
+      </div>
+
+      <form onSubmit={handleSubmit} data-testid="case-input-form">
+        <div className="flex flex-col gap-6 px-6 py-6">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="incidentDescription">상해/질병 경위</Label>
+            <Label
+              htmlFor="incidentDescription"
+              className="text-body-s font-semibold text-bora-ink-2"
+            >
+              상해/질병 경위
+            </Label>
             <Textarea
               id="incidentDescription"
               name="incidentDescription"
@@ -88,52 +99,66 @@ export function CaseInputForm() {
               onChange={(event) => setIncidentDescription(event.target.value)}
               disabled={isSubmitting}
               data-testid="case-incident-description"
+              className="min-h-24 rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
             />
             {fieldErrors.incidentDescription?.map((message) => (
-              <p key={message} className="text-sm text-destructive">
+              <p key={message} className="text-sm text-bora-danger">
                 {message}
               </p>
             ))}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="diagnosisName">진단명</Label>
-            <Input
-              id="diagnosisName"
-              name="diagnosisName"
-              required
-              value={diagnosisName}
-              onChange={(event) => setDiagnosisName(event.target.value)}
-              disabled={isSubmitting}
-              data-testid="case-diagnosis-name"
-            />
-            {fieldErrors.diagnosisName?.map((message) => (
-              <p key={message} className="text-sm text-destructive">
-                {message}
-              </p>
-            ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="diagnosisName" className="text-body-s font-semibold text-bora-ink-2">
+                진단명
+              </Label>
+              <Input
+                id="diagnosisName"
+                name="diagnosisName"
+                required
+                value={diagnosisName}
+                onChange={(event) => setDiagnosisName(event.target.value)}
+                disabled={isSubmitting}
+                data-testid="case-diagnosis-name"
+                className="rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+              />
+              {fieldErrors.diagnosisName?.map((message) => (
+                <p key={message} className="text-sm text-bora-danger">
+                  {message}
+                </p>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="disabilityBodyPart"
+                className="text-body-s font-semibold text-bora-ink-2"
+              >
+                장해 부위
+              </Label>
+              <Input
+                id="disabilityBodyPart"
+                name="disabilityBodyPart"
+                required
+                value={disabilityBodyPart}
+                onChange={(event) => setDisabilityBodyPart(event.target.value)}
+                disabled={isSubmitting}
+                data-testid="case-disability-body-part"
+                className="rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+              />
+              {fieldErrors.disabilityBodyPart?.map((message) => (
+                <p key={message} className="text-sm text-bora-danger">
+                  {message}
+                </p>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="disabilityBodyPart">장해 부위</Label>
-            <Input
-              id="disabilityBodyPart"
-              name="disabilityBodyPart"
-              required
-              value={disabilityBodyPart}
-              onChange={(event) => setDisabilityBodyPart(event.target.value)}
-              disabled={isSubmitting}
-              data-testid="case-disability-body-part"
-            />
-            {fieldErrors.disabilityBodyPart?.map((message) => (
-              <p key={message} className="text-sm text-destructive">
-                {message}
-              </p>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="incidentDate">사고/발병 일자</Label>
+            <Label htmlFor="incidentDate" className="text-body-s font-semibold text-bora-ink-2">
+              사고/발병 일자
+            </Label>
             <Input
               id="incidentDate"
               name="incidentDate"
@@ -143,32 +168,44 @@ export function CaseInputForm() {
               onChange={(event) => setIncidentDate(event.target.value)}
               disabled={isSubmitting}
               data-testid="case-incident-date"
+              className="w-fit rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
             />
             {fieldErrors.incidentDate?.map((message) => (
-              <p key={message} className="text-sm text-destructive">
+              <p key={message} className="text-sm text-bora-danger">
                 {message}
               </p>
             ))}
           </div>
 
-          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+          {formError ? <p className="text-sm text-bora-danger">{formError}</p> : null}
 
+          <div className="border-t border-app-line" />
+        </div>
+
+        <div className="flex items-center justify-between bg-app-surface-sub px-6 py-4">
           {isSubmitting ? (
             <span
               data-testid="case-pending-indicator"
               role="status"
               aria-live="polite"
-              className="text-sm text-muted-foreground"
+              className="text-body-s text-bora-ink-3"
             >
               처리 중입니다. 잠시만 기다려 주세요...
             </span>
-          ) : null}
+          ) : (
+            <span className="text-body-s text-bora-ink-3">모든 필드를 입력한 뒤 제출해 주세요.</span>
+          )}
 
-          <Button type="submit" disabled={isSubmitting} data-testid="case-submit">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            data-testid="case-submit"
+            className="rounded-[4px] bg-bora-accent px-5 text-white hover:bg-bora-accent-deep"
+          >
             {isSubmitting ? "제출 중..." : "제출"}
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </form>
+    </div>
   );
 }
