@@ -55,7 +55,7 @@ New CSS custom properties added to `@theme inline` (verbatim names, 33 color tok
 ```
 (font-weight uses existing Tailwind utilities font-semibold/font-medium/font-normal — no new tokens, per design.md §2 "H1/H2/H3→600, Body/Body S/Meta→400, Label S→500")
 
-Commit: `<pending — recorded after commit lands>` on branch `plan/SPEC-PILOT-VISUAL-001` (pushed via worktree `worktree-agent-a63b93f48ed5136a9`, fast-forwarded to `b4ac995` before this milestone).
+Commit: `ef0822b` on branch `plan/SPEC-PILOT-VISUAL-001`, pushed to origin (`b4ac995..ef0822b`) — pushed via worktree `worktree-agent-a63b93f48ed5136a9`, fast-forwarded to `b4ac995` before this milestone.
 
 **Baseline-attribution**: this run, this tree — worktree HEAD `b4ac995` (fast-forwarded from the isolated worktree's initial `1da37a9` to match `origin/plan/SPEC-PILOT-VISUAL-001` before any M1 edits; `git merge --ff-only` used, no divergent history).
 
