@@ -38,7 +38,7 @@ const BRAND_FEATURES: BrandFeature[] = [
 export default function LoginPage() {
   return (
     <div className="flex flex-1">
-      <div className="hidden w-[420px] shrink-0 flex-col justify-between bg-app-sidebar px-10 py-12 lg:flex">
+      <div className="hidden shrink-0 flex-col justify-between bg-app-sidebar px-10 py-12 lg:flex lg:w-[42%]">
         <div>
           <span className="text-[19px] font-extrabold text-white [font-family:var(--font-manrope)]">
             BORA
@@ -67,8 +67,7 @@ export default function LoginPage() {
         </div>
         <p className="flex items-start gap-2 text-meta text-app-sidebar-ink">
           <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-          손해사정 실무자 전용 서비스입니다. 접속 및 조회 기록이 저장되며 감사 목적으로
-          보관됩니다.
+          손해사정 실무자 전용 서비스입니다. 접속 및 조회 기록이 저장되며 감사 목적으로 보관됩니다.
         </p>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">

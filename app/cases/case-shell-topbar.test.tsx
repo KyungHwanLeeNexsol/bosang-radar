@@ -35,10 +35,11 @@ describe("app/cases/case-shell-topbar — 라우트별 브레드크럼/타이틀
     container.remove();
   });
 
-  it("AC-006a: /cases/new → '작업 공간 / 사건 입력' + '사건 입력'", () => {
+  it("AC-006a: /cases/new → 브레드크럼 '작업 공간 / 사건 입력' + H2 타이틀 '신규 사건 리서치 요청'", () => {
     ({ container, root } = render("/cases/new"));
     expect(container.textContent).toContain("작업 공간 / 사건 입력");
-    expect(container.textContent).toContain("사건 입력");
+    const title = container.querySelector("h2");
+    expect(title?.textContent).toBe("신규 사건 리서치 요청");
   });
 
   it("AC-006a: /cases/[caseId] → '작업 공간 / 리서치 리포트' + '리서치 리포트' (프래그먼트 무관)", () => {

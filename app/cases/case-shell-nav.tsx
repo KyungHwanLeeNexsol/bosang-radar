@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Archive, Library } from "lucide-react";
+import { Archive, CircleHelp, FileText, Library, MessageSquare } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 nav 3개 항목의 target을
@@ -43,11 +43,21 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
   const pathname = usePathname();
   const currentCaseId = resolveCurrentCaseId(pathname);
 
+  // SPEC-UI-MIGRATION-001 Post-M8 Round2 (D1) — Pencil design/exports/04-App-Shell.png는
+  // 5개 항목 모두 아이콘을 갖는다. ComingSoonNavLink는 이미 아이콘을 렌더링하지만
+  // NavLink(실재 3항목)는 아이콘이 없던 결함을 수정한다.
+  const navIcon = {
+    input: <CircleHelp aria-hidden="true" className="size-4" />,
+    report: <FileText aria-hidden="true" className="size-4" />,
+    feedback: <MessageSquare aria-hidden="true" className="size-4" />,
+  };
+
   return (
     <>
       <NavLink
         href="/cases/new"
         label={NAV_LABELS.input}
+        icon={navIcon.input}
         active={pathname === "/cases/new"}
         onNavigate={onNavigate}
       />
@@ -55,20 +65,22 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
         <NavLink
           href={`/cases/${currentCaseId}`}
           label={NAV_LABELS.report}
+          icon={navIcon.report}
           active={pathname === `/cases/${currentCaseId}`}
           onNavigate={onNavigate}
         />
       ) : (
-        <NavLink label={NAV_LABELS.report} disabled />
+        <NavLink label={NAV_LABELS.report} icon={navIcon.report} disabled />
       )}
       {currentCaseId ? (
         <NavLink
           href={`/cases/${currentCaseId}#expert-feedback`}
           label={NAV_LABELS.feedback}
+          icon={navIcon.feedback}
           onNavigate={onNavigate}
         />
       ) : (
-        <NavLink label={NAV_LABELS.feedback} disabled />
+        <NavLink label={NAV_LABELS.feedback} icon={navIcon.feedback} disabled />
       )}
       {/* SPEC-UI-MIGRATION-001 M2 (REQ-004) — 영구 비활성 nav 2항목. href 없음,
           DB/API 조회 없음, "준비 중" Chip만 부착한다. 실제 페이지는 만들지
@@ -112,13 +124,15 @@ function ComingSoonNavLink({
 interface NavLinkProps {
   href?: string;
   label: string;
+  icon?: ReactNode;
   active?: boolean;
   disabled?: boolean;
   onNavigate?: () => void;
 }
 
-function NavLink({ href, label, active, disabled, onNavigate }: NavLinkProps) {
-  const base = "flex items-center rounded px-3 py-2.5 text-[13px] font-medium transition-colors";
+function NavLink({ href, label, icon, active, disabled, onNavigate }: NavLinkProps) {
+  const base =
+    "flex items-center gap-2 rounded px-3 py-2.5 text-[13px] font-medium transition-colors";
 
   if (disabled || !href) {
     return (
@@ -126,6 +140,7 @@ function NavLink({ href, label, active, disabled, onNavigate }: NavLinkProps) {
         aria-disabled="true"
         className={`${base} cursor-not-allowed text-app-sidebar-ink opacity-40`}
       >
+        {icon}
         {label}
       </span>
     );
@@ -141,6 +156,7 @@ function NavLink({ href, label, active, disabled, onNavigate }: NavLinkProps) {
           : "text-app-sidebar-ink hover:bg-app-sidebar-line hover:text-white"
       }`}
     >
+      {icon}
       {label}
     </Link>
   );

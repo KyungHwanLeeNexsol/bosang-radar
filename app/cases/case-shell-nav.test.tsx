@@ -72,4 +72,23 @@ describe("app/cases/case-shell-nav — 사이드바 nav 5항목", () => {
       "전문가 피드백"
     );
   });
+
+  // SPEC-UI-MIGRATION-001 Post-M8 Round2 (D1) — design/exports/04-App-Shell.png는
+  // 사이드바 5항목 모두 아이콘을 갖는다. 기존 3개 실재 nav 항목(NavLink)에는
+  // 아이콘이 전혀 렌더링되지 않던 결함(ComingSoonNavLink만 아이콘 보유)의 회귀 방지.
+  it("D1: 실재 3항목(NavLink) 각각이 svg 아이콘을 포함한다", () => {
+    ({ container, root } = render("/cases/new"));
+    const inputLink = container.querySelector('a[href="/cases/new"]');
+    expect(inputLink?.querySelector("svg")).not.toBeNull();
+
+    const disabledReport = Array.from(
+      container.querySelectorAll('span[aria-disabled="true"]')
+    ).find((el) => el.textContent?.includes("리서치 리포트"));
+    expect(disabledReport?.querySelector("svg")).not.toBeNull();
+
+    const disabledFeedback = Array.from(
+      container.querySelectorAll('span[aria-disabled="true"]')
+    ).find((el) => el.textContent?.includes("전문가 피드백"));
+    expect(disabledFeedback?.querySelector("svg")).not.toBeNull();
+  });
 });

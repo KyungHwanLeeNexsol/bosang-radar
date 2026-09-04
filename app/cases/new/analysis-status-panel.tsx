@@ -12,8 +12,30 @@ const ANALYSIS_STAGES = [
 export function AnalysisStatusPanel() {
   return (
     <div className="overflow-hidden rounded-[4px] bg-app-surface">
-      <div className="border-b border-app-line px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-app-line px-4 py-3">
         <h3 className="text-h3 font-semibold text-bora-ink">분석 상태</h3>
+        <span className="flex items-center gap-1.5 text-label-s font-medium text-bora-ink-3">
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-violet-500" />
+          대기 중
+        </span>
+      </div>
+      {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.6) — "대기" 상태 안내 +
+          장식용 정적 진행 바. 실제 진행률 데이터가 없으므로 항상 동일한
+          고정 너비(~15%)만 표시하며, role="progressbar"는 절대 부여하지
+          않는다(가짜 진행률 금지 — AC-012 회귀 방지). */}
+      <div className="flex flex-col gap-1 px-4 pt-3">
+        <p className="text-body-s font-semibold text-bora-ink">AI 리서치 대기 중</p>
+        <p className="text-label-s text-bora-ink-4">
+          필수 4개 항목 입력 후 시작할 수 있습니다. 평균 소요 시간 3~5분이며, 완료되면 리포트로
+          이동합니다.
+        </p>
+        <div
+          aria-hidden="true"
+          data-testid="analysis-status-static-bar"
+          className="mt-1 h-1 w-full overflow-hidden rounded-full bg-app-line"
+        >
+          <div className="h-full w-[15%] rounded-full bg-bora-accent" />
+        </div>
       </div>
       <ol className="flex flex-col gap-2.5 px-4 py-3">
         {ANALYSIS_STAGES.map((stage, index) => (

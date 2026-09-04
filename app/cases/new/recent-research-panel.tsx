@@ -21,8 +21,17 @@ export function RecentResearchPanel({ cases }: { cases: RecentCaseSummary[] }) {
       className="overflow-hidden rounded-[4px] bg-app-surface"
       data-testid="case-recent-research"
     >
-      <div className="border-b border-app-line px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-app-line px-4 py-3">
         <h3 className="text-h3 font-semibold text-bora-ink">최근 리서치</h3>
+        {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.7) — 목적지(리포트
+            보관함)가 아직 "준비 중"인 미구현 기능이므로 비활성/불활성
+            요소로만 렌더링한다(존재하지 않는 라우트로 링크하지 않음). */}
+        <span
+          aria-disabled="true"
+          className="shrink-0 cursor-not-allowed text-label-s font-medium text-bora-ink-4 opacity-40"
+        >
+          전체 보기
+        </span>
       </div>
       {cases.length > 0 ? (
         <ul className="flex flex-col">
@@ -41,7 +50,10 @@ export function RecentResearchPanel({ cases }: { cases: RecentCaseSummary[] }) {
                   </span>
                 </div>
                 <span className="truncate text-label-s text-bora-ink-4">
-                  {item.id} · {item.subtitle}
+                  {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.8) — 표시용
+                      truncation만 적용한다. 실제 라우트/DB 조회의 caseId는
+                      무변경이다(위 href는 item.id 원본을 그대로 사용). */}
+                  {item.id.slice(0, 8)} · {item.subtitle}
                 </span>
               </Link>
             </li>

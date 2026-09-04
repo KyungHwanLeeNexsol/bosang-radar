@@ -226,7 +226,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-line px-6 py-4">
               <div>
-                <p className="text-label-s font-medium text-bora-ink-4">사건 요약 · {caseId}</p>
+                {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.8) — 표시용
+                    truncation만 적용한다. 라우트 caseId 파라미터/DB 조회는
+                    무변경이다. */}
+                <p className="text-label-s font-medium text-bora-ink-4">
+                  사건 요약 · {caseId.slice(0, 8)}
+                </p>
                 <h1 className="text-h2 font-semibold text-bora-ink">사건 요약</h1>
               </div>
               <div className="flex items-center gap-3">
@@ -250,7 +255,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <MetaItem label="사고일" value={report.caseSummary.incidentDate} />
               </div>
               <div className="sm:pl-6">
-                <MetaItem label="담당" value="담당 손해사정사" />
+                {/* SPEC-UI-MIGRATION-001 D4 — 하드코딩된 "담당 손해사정사"
+                    문자열 대신 현재 로그인 세션의 이메일을 표시한다. 이
+                    페이지는 이미 유효한 세션 없이는 렌더링되지 않으므로
+                    session.user.email은 항상 존재하지만, 방어적으로
+                    기존 문자열을 폴백으로 유지한다. */}
+                <MetaItem label="담당" value={session.user.email ?? "담당 손해사정사"} />
               </div>
             </div>
 
