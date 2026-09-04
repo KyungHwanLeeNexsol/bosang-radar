@@ -47,6 +47,17 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 품질: `npx eslint app/login/` → 0 findings. `npx prettier --check app/login/` → 전부 통과(1건 자동 포맷 후).
 - 잔여 위험/발견 사항: 이 코드베이스의 기존 `fillField` 테스트 헬퍼 패턴(`el.value = x` 직접 대입 + `dispatchEvent(new Event("input"))`)은 React 19의 값-트래킹 래핑 때문에 `onChange`를 전혀 트리거하지 못한다 — React가 계측한 setter를 그대로 통과시켜 "값이 실제로 바뀌었다"는 신호를 만들지 못하기 때문이다. 기존 `case-input-form.test.tsx`는 제출된 필드 *값*을 검증하지 않아(오직 disabled/pending 상태만 검증) 이 결함이 드러나지 않았을 뿐이다. 이 SPEC의 신규 테스트는 네이티브 프로퍼티 디스크립터 setter(`@testing-library/react`의 `fireEvent.change`와 동일한 기법)를 사용하도록 자체 `fillField`를 수정해 우회했다. 기존 테스트 파일은 이 SPEC의 PRESERVE 범위 밖이라 수정하지 않았다.
 
+### M2 — App Shell 확장: Sidebar 2항목 + 사용자 블록 클라이언트 분리 + Topbar 브레드크럼 (REQ-004~006)
+
+- 신규: `app/cases/sidebar-user-block.tsx`(클라이언트, `authClient.useSession()`), `app/cases/case-shell-topbar.tsx`(클라이언트, pathname 기반 브레드크럼/타이틀), 대응 테스트 3종.
+- 수정: `app/cases/case-shell-nav.tsx`(비활성 2항목 추가), `app/cases/layout.tsx`(하드코딩 사용자 블록/헤더를 두 신규 클라이언트 컴포넌트 렌더링으로 교체).
+- RED 증거(`npx vitest run app/cases/case-shell-nav.test.tsx app/cases/sidebar-user-block.test.tsx app/cases/case-shell-topbar.test.tsx`, 수정 전): case-shell-topbar/sidebar-user-block 스위트 2개는 `Failed to resolve import` — 파일 미존재; case-shell-nav 스위트는 4개 중 2개 FAIL(`expected … to have a length of 5 but got 3`, `Cannot read properties of null (reading 'getAttribute')` — 신규 nav 항목 미구현), 2개는 기존 3항목 pathname 규칙만 검증해 이미 PASS.
+- GREEN 증거: 동일 명령 → `Test Files 3 passed (3)`, `Tests 10 passed (10)`.
+- AC-005a 확인: `grep -n "getCurrentSession" app/cases/layout.tsx` → 주석 1건만 매치(실제 호출 없음).
+- 회귀 확인: `pnpm test` 전체 → `Test Files 52 passed (52)`, `Tests 351 passed (351)`.
+- 빌드: `pnpm build` → `/cases/new`가 여전히 `○ (Static)` 유지(사이드바 사용자 블록은 클라이언트 컴포넌트라 빌드 시점 렌더링에 영향 없음 — REQ-005/REQ-013 결정이 서로 독립적임을 재확인. `/cases/new`의 Dynamic 전환은 M6에서만 발생 예정).
+- 품질: `npx eslint app/cases/` → 0 findings(수정 후). `npx prettier --write` 적용, 이후 통과.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

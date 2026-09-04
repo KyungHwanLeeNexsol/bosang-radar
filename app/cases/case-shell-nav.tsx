@@ -1,7 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Archive, Library } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 nav 3개 항목의 target을
 // 현재 pathname만으로 결정론적으로 계산한다(DB/API 조회 없음). "사건 입력"은
@@ -48,7 +51,42 @@ export function SidebarNavItems() {
       ) : (
         <NavLink label={NAV_LABELS.feedback} disabled />
       )}
+      {/* SPEC-UI-MIGRATION-001 M2 (REQ-004) — 영구 비활성 nav 2항목. href 없음,
+          DB/API 조회 없음, "준비 중" Chip만 부착한다. 실제 페이지는 만들지
+          않는다(REQ-021). */}
+      <ComingSoonNavLink
+        testId="sidebar-nav-archive"
+        icon={<Archive aria-hidden="true" className="size-4" />}
+        label="리포트 보관함"
+      />
+      <ComingSoonNavLink
+        testId="sidebar-nav-precedent-db"
+        icon={<Library aria-hidden="true" className="size-4" />}
+        label="판례·약관 자료실"
+      />
     </>
+  );
+}
+
+function ComingSoonNavLink({
+  testId,
+  icon,
+  label,
+}: {
+  testId: string;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <span
+      data-testid={testId}
+      aria-disabled="true"
+      className="flex cursor-not-allowed items-center gap-2 rounded px-3 py-2.5 text-[13px] font-medium text-app-sidebar-ink opacity-40"
+    >
+      {icon}
+      <span className="flex-1">{label}</span>
+      <Chip className="bg-transparent px-1.5 py-0.5 text-[10px] text-app-sidebar-ink">준비 중</Chip>
+    </span>
   );
 }
 
@@ -64,7 +102,10 @@ function NavLink({ href, label, active, disabled }: NavLinkProps) {
 
   if (disabled || !href) {
     return (
-      <span aria-disabled="true" className={`${base} cursor-not-allowed text-app-sidebar-ink opacity-40`}>
+      <span
+        aria-disabled="true"
+        className={`${base} cursor-not-allowed text-app-sidebar-ink opacity-40`}
+      >
         {label}
       </span>
     );

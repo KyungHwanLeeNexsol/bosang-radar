@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import localFont from "next/font/local";
 import { Manrope } from "next/font/google";
 import { SidebarNavItems } from "./case-shell-nav";
+import { SidebarUserBlock } from "./sidebar-user-block";
+import { CaseShellTopbar } from "./case-shell-topbar";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-002/003/005) — Pretendard/Manrope 폰트 로딩은
 // 전량 이 파일 내부에서만 이루어진다. app/layout.tsx(루트)는 폰트 목적으로
@@ -24,9 +26,12 @@ const manrope = Manrope({
 // bare UI — 신규 앱 셸(다크 Sidebar + Topbar), app/cases/new와
 // app/cases/[caseId]에만 적용된다(REQ-004/005). 사이드바 nav 링크 로직은
 // pathname 전용이며 신규 DB/API 호출이 없다(REQ-006, case-shell-nav.tsx).
-// 하단 사용자 블록은 정적 라벨을 사용한다 — 이 레이아웃에서 세션 조회를
-// 도입하면 이전까지 정적으로 생성되던 /cases/new가 빌드 시점 DB 연결을
-// 시도하다 실패한다(REQ-014 "신규 I/O 없음" 원칙과도 부합).
+// SPEC-UI-MIGRATION-001 M2(REQ-005) — 하단 사용자 블록은 별도 클라이언트
+// 컴포넌트(sidebar-user-block.tsx)로 분리했다. 이 레이아웃(서버 컴포넌트)
+// 자신은 getCurrentSession() 등 어떤 세션 동적 API도 직접 호출하지 않는다
+// — 그렇게 하면 이 레이아웃이 감싸는 모든 라우트의 렌더링 모드가 레이아웃
+// 자신의 선택이 되어버려, 개별 페이지(예: /cases/new)가 자신의 렌더링
+// 모드를 스스로 결정할 수 없게 된다.
 export default function CasesLayout({ children }: { children: ReactNode }) {
   return (
     <div
@@ -49,22 +54,11 @@ export default function CasesLayout({ children }: { children: ReactNode }) {
             </nav>
           </div>
         </div>
-        <div className="flex items-center gap-2.5 border-t border-app-sidebar-line pt-4">
-          <div className="flex size-7.5 shrink-0 items-center justify-center rounded bg-[#242D38] text-sm font-semibold text-white">
-            손
-          </div>
-          <div className="flex min-w-0 flex-col">
-            <p className="truncate text-[12.5px] font-semibold text-white">담당 손해사정사</p>
-            <p className="truncate text-[11px] font-medium text-app-sidebar-ink">BORA 리서치</p>
-          </div>
-        </div>
+        <SidebarUserBlock />
       </aside>
       <div className="flex flex-1 flex-col">
         <header className="flex h-15.5 shrink-0 items-center justify-between border-b border-app-line bg-app-surface px-8">
-          <div className="flex flex-col justify-center">
-            <p className="text-meta font-normal text-bora-ink-4">BORA</p>
-            <h2 className="text-h3 font-semibold text-bora-ink">사건 관리</h2>
-          </div>
+          <CaseShellTopbar />
         </header>
         <main className="flex flex-1 flex-col bg-app-bg">{children}</main>
       </div>
