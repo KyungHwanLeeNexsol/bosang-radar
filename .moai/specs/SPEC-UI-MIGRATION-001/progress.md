@@ -98,6 +98,17 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - **빌드 — AC-005a 핵심 검증**: 최초 `pnpm build`는 `.env.local` 부재로 `EnvValidationError`(TURSO_DATABASE_URL 등 4개 누락)로 실패 — 이 저장소에 로컬 개발용 `.env.local`이 없었기 때문(`.env.local.example`만 존재, `.gitignore`가 `.env.*`를 무시). 이 세션이 로컬 빌드 검증 전용 `.env.local`(file: 스킴 로컬 DB, `LLM_PROVIDER_MODE=deterministic`)을 생성한 뒤 재실행한 `pnpm build`는 정상 통과했고, 라우트 표에 `/cases/new`가 `ƒ (Dynamic)`으로 표시됨을 확인했다(REQ-013의 의도된 결과, "정적 생성 유지"는 더 이상 요구사항 아님) — 빌드 자체는 실제 DB 연결 없이(로컬 sqlite 파일 경로만 존재하면 됨) 성공했다. `.env.local`은 `git check-ignore -v`로 무시됨을 확인했고 커밋하지 않았다.
 - 품질: `npx eslint lib/cases/ app/cases/new/` → 0 findings. prettier 적용 후 통과.
 
+### M7 — 실재하는 예외 화면 3종 (REQ-015)
+
+- 신규: `components/exception-panel.tsx`(공유 프레젠테이션 컴포넌트, §F1 재량 — 두 화면이 공유), `app/not-found.tsx`(전역 404, `global-not-found`), `app/cases/[caseId]/not-found.tsx`(사건-없음/미소유 통합, `case-not-found`), 대응 테스트 2건.
+- `app/cases/[caseId]/error.tsx`는 전혀 수정하지 않음(최소 검증만) — `git diff --stat -- "app/cases/[caseId]/error.tsx"` 빈 출력으로 확인(AC-015b), 기존 `error.test.tsx` 재실행 통과(회귀 없음).
+- RED 증거: 두 not-found 테스트 모두 `Failed to resolve import "./not-found"`(파일 미존재).
+- GREEN 증거: `Test Files 3 passed (3)`, `Tests 3 passed (3)`(global-not-found + case-not-found + 기존 error.test.tsx 재확인 포함).
+- 정보 은닉 확인: `case-not-found` 컴포넌트가 파라미터를 받지 않아 항상 동일한 콘텐츠를 렌더링 — 존재-없음/미소유 두 시나리오를 구분하는 텍스트가 구조적으로 존재할 수 없음(AC-015a). 텍스트에 "권한"/"소유" 등 단서 부재를 테스트로 확인.
+- 회귀 확인: `pnpm test` 전체 → `Test Files 58 passed (58)`, `Tests 372 passed (372)`.
+- 빌드: `pnpm build` 통과, `/_not-found`가 `○ (Static)`로 표시됨.
+- 품질: eslint 0 findings, prettier 통과.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
