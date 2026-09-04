@@ -2,9 +2,9 @@
 id: SPEC-UI-MIGRATION-001
 title: "UI 마이그레이션 — Pencil 디자인(claimradar-ui.pen) 전체 화면 확장 재현 (로그인·공통 예외·반응형 포함)"
 version: "0.3.0"
-status: draft
+status: in-progress
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-04
 author: Nexsol
 priority: P2
 phase: "v0.3.0 target"

@@ -33,7 +33,19 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### M1 — 로그인 화면 폰트 격리 셸 + 재스타일 + 비밀번호 토글/링크 (REQ-002~003)
+
+- 신규: `app/login/layout.tsx`(Pretendard/Manrope 격리 로딩), `app/login/login-form.test.tsx`
+- 수정: `app/login/login-form.tsx`(비밀번호 토글 + 푸터 링크 추가, 기존 5개 testid/authClient 로직 보존), `app/login/page.tsx`(2컬럼 + 브랜드 패널)
+- RED 증거(수정 전 캡처, `npx vitest run app/login/login-form.test.tsx`): 6개 중 4개 FAIL —
+  `AC-002a`/`AC-002b`/`AC-002c`: `TypeError: Cannot read properties of null (reading 'dispatchEvent'/'tagName')`(토글 미구현),
+  `AC-002d`: `AssertionError: expected [] to deeply equal ArrayContaining […]`(푸터 링크 미구현). 2개 PASS는 기존 testid만 확인하는 케이스.
+- GREEN 증거: `npx vitest run app/login/login-form.test.tsx` → `Test Files 1 passed (1)`, `Tests 6 passed (6)`.
+- 회귀 확인: `pnpm test` 전체 → `Test Files 49 passed (49)`, `Tests 341 passed (341)`.
+- PRESERVE 확인: `git diff --stat -- app/layout.tsx app/page.tsx` → 빈 출력(AC-003, 완전 zero-diff).
+- 빌드: `pnpm build` → TypeScript 통과, `/login`이 `○ (Static)`로 표시됨(세션 조회 없음, REQ-005 사이드바 결정과 무관).
+- 품질: `npx eslint app/login/` → 0 findings. `npx prettier --check app/login/` → 전부 통과(1건 자동 포맷 후).
+- 잔여 위험/발견 사항: 이 코드베이스의 기존 `fillField` 테스트 헬퍼 패턴(`el.value = x` 직접 대입 + `dispatchEvent(new Event("input"))`)은 React 19의 값-트래킹 래핑 때문에 `onChange`를 전혀 트리거하지 못한다 — React가 계측한 setter를 그대로 통과시켜 "값이 실제로 바뀌었다"는 신호를 만들지 못하기 때문이다. 기존 `case-input-form.test.tsx`는 제출된 필드 *값*을 검증하지 않아(오직 disabled/pending 상태만 검증) 이 결함이 드러나지 않았을 뿐이다. 이 SPEC의 신규 테스트는 네이티브 프로퍼티 디스크립터 setter(`@testing-library/react`의 `fireEvent.change`와 동일한 기법)를 사용하도록 자체 `fillField`를 수정해 우회했다. 기존 테스트 파일은 이 SPEC의 PRESERVE 범위 밖이라 수정하지 않았다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
