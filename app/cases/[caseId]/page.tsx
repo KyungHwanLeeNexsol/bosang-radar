@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Chip } from "@/components/ui/chip";
 import { Notice } from "@/components/ui/notice";
 import { EvidenceItem } from "@/components/evidence-item";
+import { evidenceTypeLabel, queryIssueTypeLabel } from "@/lib/pipeline/labels";
 import type { EvidenceType, QueryIssueType, VerifiedClaim } from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
@@ -311,7 +312,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                               {issueTypes.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
                                   {issueTypes.map((issueType) => (
-                                    <Chip key={issueType}>{issueType}</Chip>
+                                    <Chip key={issueType}>{queryIssueTypeLabel(issueType)}</Chip>
                                   ))}
                                 </div>
                               ) : null}
@@ -503,7 +504,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                     evidenceTypeCounts.map(({ type, count }) => (
                       <div key={type} className="flex flex-col gap-1">
                         <div className="flex items-center justify-between text-body-s text-bora-ink-3">
-                          <span>{type}</span>
+                          <span>{evidenceTypeLabel(type)}</span>
                           <span>{count}건</span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-app-line">

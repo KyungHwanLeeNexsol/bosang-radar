@@ -270,8 +270,12 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
     ]);
     renderForm(action, { citedEvidenceIds: ["evidence-1"], evidenceById });
 
-    expect(container.textContent).toContain("PRECEDENT");
-    expect(container.textContent).toContain("DISABILITY_GRADE_CRITERIA");
+    // SPEC-UI-MIGRATION-001 M3 (REQ-007/008) — 영문 raw 값 대신 한글 라벨로
+    // 표시된다("판례"/"장해 평가 기준"). 내부 데이터 값은 무변경.
+    expect(container.textContent).toContain("판례");
+    expect(container.textContent).toContain("장해 평가 기준");
+    expect(container.textContent).not.toContain("PRECEDENT");
+    expect(container.textContent).not.toContain("DISABILITY_GRADE_CRITERIA");
   });
 
   it("AC-012: 5개 콘텐츠 영역이 각각 시각적으로 구분된 컨테이너로 그룹핑된다", () => {

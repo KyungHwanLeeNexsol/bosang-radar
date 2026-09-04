@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
+import { evidenceTypeLabel, queryIssueTypeLabel } from "@/lib/pipeline/labels";
 import {
   QUERY_ISSUE_TYPES,
   type EvidenceType,
@@ -312,7 +313,7 @@ export function FeedbackForm({
                 >
                   {QUERY_ISSUE_TYPES.map((issueType) => (
                     <option key={issueType} value={issueType}>
-                      {issueType}
+                      {queryIssueTypeLabel(issueType)}
                     </option>
                   ))}
                 </select>
@@ -430,8 +431,11 @@ export function FeedbackForm({
                           {item ? (
                             <span className="text-bora-ink-4">
                               {" "}
-                              [{item.evidenceType}
-                              {item.issueTypes.length > 0 ? `, ${item.issueTypes.join(", ")}` : ""}]
+                              [{evidenceTypeLabel(item.evidenceType)}
+                              {item.issueTypes.length > 0
+                                ? `, ${item.issueTypes.map(queryIssueTypeLabel).join(", ")}`
+                                : ""}
+                              ]
                             </span>
                           ) : null}
                         </td>

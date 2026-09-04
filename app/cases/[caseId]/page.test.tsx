@@ -182,9 +182,15 @@ describe("app/cases/[caseId]/page — 리포트 정보 위계 + 근거자료 표
 
     await renderPage(container, root);
 
+    // SPEC-UI-MIGRATION-001 M3 (REQ-007/008) — 화면 텍스트는 영문 raw 값이
+    // 아닌 한글 라벨로 렌더링된다("판례"/"장해 평가 기준"). 내부 데이터 값
+    // 자체(EvidenceType/QueryIssueType)는 무변경이며, data-* 속성이 아닌
+    // 화면 텍스트만 이 SPEC의 범위에서 바뀐다.
     const claimsSection = container.querySelector('[data-testid="verified-claims"]');
-    expect(claimsSection?.textContent).toContain("PRECEDENT");
-    expect(claimsSection?.textContent).toContain("DISABILITY_GRADE_CRITERIA");
+    expect(claimsSection?.textContent).toContain("판례");
+    expect(claimsSection?.textContent).toContain("장해 평가 기준");
+    expect(claimsSection?.textContent).not.toContain("PRECEDENT");
+    expect(claimsSection?.textContent).not.toContain("DISABILITY_GRADE_CRITERIA");
   });
 
   it("AC-008: sourceUrl이 target=_blank, rel=noopener noreferrer인 <a>로 렌더링된다", async () => {

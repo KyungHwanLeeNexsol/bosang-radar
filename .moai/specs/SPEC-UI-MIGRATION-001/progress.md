@@ -58,6 +58,18 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 빌드: `pnpm build` → `/cases/new`가 여전히 `○ (Static)` 유지(사이드바 사용자 블록은 클라이언트 컴포넌트라 빌드 시점 렌더링에 영향 없음 — REQ-005/REQ-013 결정이 서로 독립적임을 재확인. `/cases/new`의 Dynamic 전환은 M6에서만 발생 예정).
 - 품질: `npx eslint app/cases/` → 0 findings(수정 후). `npx prettier --write` 적용, 이후 통과.
 
+### M3 — Enum 한글 라벨 매핑 (REQ-007~008)
+
+- 신규: `lib/pipeline/labels.ts`(EVIDENCE_TYPE_LABELS 5종 + QUERY_ISSUE_TYPE_LABELS 8종 단일 SSOT, §B 결정 8 — 공유 모듈로 추출), `lib/pipeline/labels.test.ts`, `components/evidence-item.test.tsx`(신규).
+- 수정: `components/evidence-item.tsx`, `app/cases/[caseId]/page.tsx`(claim 카드 issue Chip + 우 레일 "수집 근거 유형"), `app/cases/[caseId]/feedback-form.tsx`(누락 쟁점 select + 근거자료 평가 테이블 표시).
+- RED 증거: `lib/pipeline/labels.test.ts` → `Cannot find module './labels'`; `components/evidence-item.test.tsx` → `expected … to contain '장해 평가 기준'` (raw "PRECEDENT"/"DISABILITY_GRADE_CRITERIA"만 렌더링됨, 라벨 매핑 미구현).
+- GREEN 증거: 4개 파일 전부 `Test Files 4 passed (4)`, `Tests 15 passed (15)`.
+- 기존 테스트 갱신(REQ-020 testid/의미 보존 원칙 준수, 화면 텍스트만 변경): `app/cases/[caseId]/page.test.tsx` AC-007과 `app/cases/[caseId]/feedback-form.test.tsx` AC-007(parity)의 raw 값(`"PRECEDENT"`/`"DISABILITY_GRADE_CRITERIA"`) 검증을 한글 라벨(`"판례"`/`"장해 평가 기준"`) + not.toContain(raw) 검증으로 교체 — 두 파일 모두 `data-testid`/`data-status` 등 testid 자체는 무변경.
+- data-* 속성 보존 확인: `grep -rn 'data-status' "app/cases/[caseId]/"` 확인 결과 무변경(별도 커밋 diff로 확인 가능).
+- 회귀 확인: `pnpm test` 전체 → `Test Files 54 passed (54)`, `Tests 354 passed (354)`.
+- 빌드: `pnpm build` → 통과, 라우트 세그먼트 표 무변경.
+- 품질: `npx eslint lib/pipeline/ components/ "app/cases/[caseId]/"` → 0 findings. prettier 적용 후 통과.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
