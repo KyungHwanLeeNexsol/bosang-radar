@@ -222,12 +222,12 @@ export function FeedbackForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-5 lg:flex-row"
+      className="flex flex-col gap-5 xl:flex-row"
       data-testid="feedback-form"
     >
       {/* 폼 컬럼 — design.md §4 화면 03 "폼 컬럼(w804)": Context Bar + 5개
           번호 매김 섹션 + Form Footer(제출 버튼만, 임시 저장 생략 — REQ-018) */}
-      <div className="flex min-w-0 flex-1 flex-col gap-4 lg:max-w-[804px]">
+      <div className="flex min-w-0 flex-1 flex-col gap-4 xl:max-w-[804px]">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-[4px] bg-app-surface-sub px-4 py-2.5 text-body-s text-bora-ink-3">
           <span>리포트 ID: {reportId}</span>
           <span>
@@ -514,7 +514,7 @@ export function FeedbackForm({
           재사용, 문구 무변경) + 작성 진행률(신규 데이터 없이 현재 폼 상태에서만
           파생) + 제출 상태(기존 isSubmitting/필드 오류/feedback-success 조건부
           UI의 재스타일 — 신규 상태 아님, 한 번에 해당하는 하나만 렌더링) */}
-      <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[320px]">
+      <aside className="flex w-full shrink-0 flex-col gap-4 xl:w-[320px]">
         <Notice title="개인정보 비식별 안내">
           비식별 요약만 입력하세요. 실명, 상세 주소, 주민등록번호, 전화번호, 의료·보험 원본 문서
           내용은 입력하지 마세요.

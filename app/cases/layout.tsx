@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 import localFont from "next/font/local";
 import { Manrope } from "next/font/google";
-import { SidebarNavItems } from "./case-shell-nav";
-import { SidebarUserBlock } from "./sidebar-user-block";
-import { CaseShellTopbar } from "./case-shell-topbar";
+import { AppShellChrome } from "./app-shell-chrome";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-002/003/005) — Pretendard/Manrope 폰트 로딩은
 // 전량 이 파일 내부에서만 이루어진다. app/layout.tsx(루트)는 폰트 목적으로
@@ -32,36 +30,14 @@ const manrope = Manrope({
 // — 그렇게 하면 이 레이아웃이 감싸는 모든 라우트의 렌더링 모드가 레이아웃
 // 자신의 선택이 되어버려, 개별 페이지(예: /cases/new)가 자신의 렌더링
 // 모드를 스스로 결정할 수 없게 된다.
+// SPEC-UI-MIGRATION-001 M8(REQ-016/017) — 반응형 셸(고정 사이드바 ↔
+// 오프캔버스 드로어)은 클라이언트 컴포넌트(app-shell-chrome.tsx)로
+// 분리했다. 이 레이아웃은 폰트 변수만 제공하고 그 컴포넌트를 렌더링만
+// 한다 — 세션 조회 경계는 무변경이다.
 export default function CasesLayout({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={`${pretendard.variable} ${manrope.variable} flex min-h-full [font-family:var(--font-pretendard)]`}
-    >
-      <aside className="flex w-58 shrink-0 flex-col justify-between bg-app-sidebar px-3.5 pt-5.5 pb-4.5">
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-2 px-1">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-[7.5px] bg-bora-accent">
-              <span className="text-[14.6px] font-extrabold text-white">B</span>
-            </div>
-            <span className="text-[17px] font-extrabold text-white [font-family:var(--font-manrope)]">
-              BORA
-            </span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="px-3 text-[10px] font-medium text-[#5D6875]">작업 공간</p>
-            <nav aria-label="사건 관리 내비게이션" className="flex flex-col gap-1">
-              <SidebarNavItems />
-            </nav>
-          </div>
-        </div>
-        <SidebarUserBlock />
-      </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-15.5 shrink-0 items-center justify-between border-b border-app-line bg-app-surface px-8">
-          <CaseShellTopbar />
-        </header>
-        <main className="flex flex-1 flex-col bg-app-bg">{children}</main>
-      </div>
+    <div className={`${pretendard.variable} ${manrope.variable} contents`}>
+      <AppShellChrome>{children}</AppShellChrome>
     </div>
   );
 }

@@ -306,9 +306,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-5 lg:flex-row">
+          <div className="flex flex-col gap-5 xl:flex-row">
             {/* 좌 컬럼 — 개별 주장 및 근거 검토 + 그 외 검토 항목 패널들 */}
-            <div className="flex min-w-0 flex-1 flex-col gap-5 lg:max-w-[824px]">
+            <div className="flex min-w-0 flex-1 flex-col gap-5 xl:max-w-[824px]">
               <div className="overflow-hidden rounded-[4px] bg-app-surface">
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">개별 주장 및 근거 검토</h2>
@@ -554,7 +554,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             {/* 우 레일 — 검토 항목 / 수집 근거 유형 / Notice 활용 유의
                 (design.md §4 화면 02, REQ-014 — 신규 I/O 없이 기존 데이터에서만
                 파생, plan-auditor 블로커 4 대응으로 구현 위치는 재량) */}
-            <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[300px]">
+            <aside className="flex w-full shrink-0 flex-col gap-4 xl:w-[300px]">
               <div className="overflow-hidden rounded-[4px] bg-app-surface">
                 <div className="border-b border-app-line px-4 py-3">
                   <h3 className="text-h3 font-semibold text-bora-ink">검토 항목</h3>

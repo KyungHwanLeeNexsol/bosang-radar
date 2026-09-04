@@ -45,11 +45,11 @@ export default async function NewCasePage() {
   }
 
   return (
-    <div className="flex flex-1 gap-6 px-8 pt-7 pb-9">
-      <div className="min-w-0 max-w-[780px] flex-1">
+    <div className="flex flex-col gap-6 px-4 pt-5 pb-7 sm:px-6 xl:flex-row xl:px-8 xl:pt-7 xl:pb-9">
+      <div className="min-w-0 xl:max-w-[780px] xl:flex-1">
         <CaseInputForm />
       </div>
-      <aside className="flex w-[340px] shrink-0 flex-col gap-4">
+      <aside className="flex w-full flex-col gap-4 xl:w-[340px] xl:shrink-0">
         <AnalysisStatusPanel />
         <RecentResearchPanel cases={recentCases} />
         <Notice title="개인정보 비식별 안내">

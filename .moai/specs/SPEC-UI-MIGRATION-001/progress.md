@@ -109,9 +109,45 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 빌드: `pnpm build` 통과, `/_not-found`가 `○ (Static)`로 표시됨.
 - 품질: eslint 0 findings, prettier 통과.
 
+### M8 — 반응형 + 드로어 접근성 + 테스트 셀렉터 갱신 + 품질 게이트 (REQ-016~017)
+
+- 발견 및 수정: 기존 코드가 사이드바 고정폭 유지 임계값(1024px, `lg:`)과 우측 레일 2컬럼 분할 임계값(1280px, `xl:`)에 동일한 `lg:` 브레이크포인트를 사용하고 있었다 — REQ-016은 정확히 1024px에서 우측 레일이 여전히 세로로 쌓여야 함을 요구하므로 이는 실제 버그였다. `app/cases/[caseId]/page.tsx`, `app/cases/[caseId]/feedback-form.tsx`의 2컬럼 분할 클래스를 `lg:`→`xl:`로 수정(flex-row/max-w/w 3곳씩). `app/cases/new/page.tsx`는 반응형 스택 자체가 없어(항상 가로 배치) `xl:flex-row` 기반 반응형을 신규 추가.
+- 신규: `app/cases/app-shell-chrome.tsx`(클라이언트, 모바일 드로어 상태 관리 + 데스크톱 고정 사이드바 전환) — plan.md §B 결정 7/§F4에 따라 이미 설치된 `@base-ui/react` Dialog 프리미티브를 평가했으나 채택하지 않음: jsdom이 실제 CSS 트랜지션/애니메이션 이벤트를 발생시키지 않아 Base UI의 마운트/언마운트 수명주기(트랜지션 완료 감지 의존)가 12개 결정론적 AC(AC-017a~l)를 안정적으로 자동 검증하기 어렵다고 판단 — 네이티브 React state + 표준 DOM 이벤트(§B 결정 7의 명시적 대안)를 선택, 신규 의존성 없음.
+- 수정: `app/cases/layout.tsx`를 세션 미조회 서버 래퍼로 단순화(REQ-005 무변경 — 여전히 `getCurrentSession()` 등 동적 API를 직접 호출하지 않음).
+- GREEN 증거: `app/cases/app-shell-chrome.test.tsx` 신규 12개 테스트(AC-017, AC-017a~k) 모두 실제 jsdom 관찰 동작으로 통과 — 토글 클릭 시 드로어/스크림 등장(AC-017a), 내부 닫기 버튼(AC-017b), ESC(AC-017c), 스크림 클릭(AC-017d), 열림 시 포커스 이동 + 닫힘 시 햄버거 버튼 복귀(AC-017e), 스크롤 잠금(AC-017f), 닫힘 상태 `inert`(AC-017g), 1024px 이상 리사이즈 시 자동 닫힘 + 데스크톱 전환(AC-017h), Tab/Shift+Tab 닫힌 루프 포커스 트랩(AC-017i/j), 배경 콘텐츠 `inert`(AC-017k).
+- 잔여 위험/발견 사항(ESLint): `react-hooks/set-state-in-effect` 2건 발견 및 수정 — (1) 데스크톱 여부를 effect 본문에서 동기 `setState`하던 것을 `useSyncExternalStore`(고정 `getServerSnapshot=false`로 hydration mismatch 방지)로 교체, (2) 리사이즈 시 드로어 자동 닫힘의 `setState`를 effect 본문 직접 호출에서 `matchMedia` `change` 이벤트 리스너 콜백 내부 호출로 이동(ESLint 규칙이 명시적으로 허용하는 "외부 이벤트에 반응해 콜백에서 setState" 패턴). `npx eslint app/cases/app-shell-chrome.tsx` 및 `npx eslint .`(전체 프로젝트) 모두 0 findings로 확인.
+- 회귀 확인: `pnpm test` 전체 → `Test Files 59 passed (59)`, `Tests 384 passed (384)`.
+- 빌드: `pnpm build` → TypeScript/컴파일 통과, 라우트 테이블 확인:
+  ```
+  ┌ ƒ /
+  ├ ○ /_not-found
+  ├ ƒ /api/auth/[...all]
+  ├ ƒ /api/cases
+  ├ ƒ /cases/[caseId]
+  ├ ƒ /cases/new
+  └ ○ /login
+  ```
+  `/cases/new`는 여전히 `ƒ (Dynamic)`(M6의 의도된 결과, AC-005a). 사전 존재하던 `instrumentation.ts:33`의 Edge Runtime `process.exit` 경고는 이 SPEC의 PRESERVE 범위 밖 기존 코드로 무관.
+- E2E: `pnpm test:e2e`(Playwright, 이번 세션 최초 실행) → `4 passed (34.3s)` — 인증(AC-RUNTIME-011) 2건, 테넌트 격리(AC-RUNTIME-014) 1건, 사건 흐름(AC-RUNTIME-012/013) 1건.
+- 품질: `npx prettier --check .`(전체 프로젝트) → `All matched files use Prettier code style!`. `npx eslint .`(전체 프로젝트) → 0 findings.
+- AC-020(기존 testid 전부 보존) 확인: `app/`, `components/` 전체에 대해 plan-phase 이전 testid 목록과 현재 목록을 비교 — 누락 0건(신규 testid만 추가됨: `app-shell-content`, `case-input-draft-save`, `case-not-found`, `case-recent-research*` 등).
+- AC-021(archive/precedent-db 실제 라우트 부재) 확인: `find app -iname "*archive*" -o -iname "*precedent*"` → 빈 출력.
+- AC-018(1280px 5개 화면 비붕괴)은 acceptance.md §3에 명시된 대로 수동 시각 스모크 체크리스트 항목이며 jsdom DOM 단정으로 자동화할 수 없음 — 이 SPEC의 M8 자동 테스트 스위트로는 검증되지 않음(잔여 위험으로 명시).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- `run_status: complete`
+- `run_complete_at: 2026-09-04`
+- 8개 마일스톤(M1~M8) 전부 커밋됨: `e523ae8`(M1), `af21647`(M2), `ba399df`(M3), `35f17a4`(M4), `add3fee`(M5), `80bfa5a`(M6), `fe9b026`(M7), M8(이 커밋 — SHA는 커밋 직후 §E.4에서 백필).
+- PRESERVE 목록 검증: `git diff --stat origin/main -- app/layout.tsx app/page.tsx lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db "app/cases/[caseId]/error.tsx"` → `lib/pipeline/labels.ts`, `lib/pipeline/labels.test.ts` 2개 신규 파일만 추가(M3, REQ-007/008의 SSOT 라벨 매핑 — 기존 pipeline 파일은 전부 0-diff, 신규 파일 추가만 발생). 그 외 모든 PRESERVE 대상 파일은 완전 0-diff.
+- 최종 전체 검증(이 세션에서 직접 관찰):
+  - `pnpm test` → `Test Files 59 passed (59)`, `Tests 384 passed (384)`
+  - `pnpm test:e2e` → `4 passed (34.3s)`
+  - `pnpm build` → 통과, 라우트 테이블 위 M8 섹션 참조
+  - `npx eslint .` → 0 findings
+  - `npx prettier --check .` → 전부 통과
+- Gaps(미검증): AC-018(1280px 5개 화면 비붕괴)은 acceptance.md 명시대로 수동 시각 확인 항목이며 이 세션에서 수행되지 않음 — 사용자 확인 필요.
+- Residual-risk(잔여 위험): (1) M1에서 발견된 React 19 controlled-input value-tracking 테스트 헬퍼 이슈는 이 SPEC의 신규 테스트 파일에서만 수정되었고 기존 `case-input-form.test.tsx`의 동일 헬퍼는 PRESERVE 범위 밖이라 무수정. (2) M6에서 로컬 빌드 검증을 위해 `.env.local`(gitignored, 미커밋)을 생성함 — CI 환경에는 별도 환경변수 설정이 필요할 수 있음(기존 인프라 관심사, 이 SPEC 범위 밖).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
