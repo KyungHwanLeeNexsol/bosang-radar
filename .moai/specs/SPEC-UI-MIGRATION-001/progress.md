@@ -197,10 +197,26 @@ M8 완료 후 외부 코드 리뷰에서 발견된 결함 3건(P0 1건, P1 2건)
 - **AC-018 판정**: 위 관찰 범위 내에서 **PASS**(레이아웃 붕괴 없음). 픽셀 단위 Pencil 대조 및 1440px 확인은 잔여 위험으로 남긴다.
 - **스크린샷 저장 위치**: 세션 스크래치패드(로컬 전용, 프로젝트 저장소 밖 임시 디렉토리) — Git에 커밋되는 파일이 아니며 이 세션 종료 후 정리 대상이다.
 
+### AC-018 판정 정정 (2026-09-04, 사용자 직접 확인 이후) — 위 PASS 판정을 "Pencil 디자인 충실도" 증거로 인정하지 않음
+
+**사용자가 실제 화면을 직접 확인한 결과, `design/claimradar-ui.pen`과 구현 화면이 상당히 다르게 보인다는 문제 제기가 있었다.** 이를 계기로 위 AC-018 PASS 판정을 재검토한다.
+
+- **실제로 확인한 것**: 반응형 비붕괴(오버플로/겹침/잘림/클릭 방해 없음), breakpoint별 컬럼 전환(1280↔1024), App Shell 적용 여부의 REQ-015 설계 부합. 이것은 여전히 유효한 검증이며 아래 AC-018A로 재명명해 보존한다.
+- **실제로 확인하지 못한 것**: Pencil 원본 파일(`design/claimradar-ui.pen`)을 직접 열어 프레임의 실제 치수·색상·타이포그래피·컴포넌트 variant를 구현과 대조하는 작업. 대신 `design.md`에 요약된 설명과 스크린샷을 비교했을 뿐이다.
+- **왜 기존 PASS가 디자인 충실도 증거가 될 수 없는가**: "화면이 깨지지 않는다"(responsive non-breakage)와 "Pencil 디자인을 충실히 재현했다"(visual fidelity)는 서로 다른 검증이다. `design.md`는 Pencil 원본의 **요약·해석**이지 원본 자체가 아니므로, `design.md`와 구현을 비교하는 것은 "문서가 스스로와 일치하는지"를 확인하는 순환 검증에 가깝다 — Pencil 원본에만 존재하고 `design.md`에 요약되지 않은 치수·색상·간격 차이는 이 방법으로는 원천적으로 발견할 수 없다.
+- **정정**: 위 "AC-018 판정: PASS"는 **AC-018A(반응형 비붕괴)에 대해서만 유효**하다. **AC-018B(Pencil 시각 충실도)는 미검증 상태로 되돌린다** — 아래 "AC-018B — Pencil 원본 조사" 항목 참조.
+
+### AC-018B — Pencil 원본 조사 (2026-09-04) — **BLOCKED**
+
+- **시도한 도구**: `mcp__pencil__get_app_state`, `mcp__pencil__get_screenshot`(filePath=`design/claimradar-ui.pen`, nodeId=`document`), `mcp__pencil__execute`(filePath=`design/claimradar-ui.pen`) — 3개 도구 모두 동일한 오류로 실패: `"Failed to access file ... A file needs to be open in the editor to perform this action."`
+- **원인**: Pencil MCP 서버는 파일을 직접 파싱하는 독립 도구가 아니라, 로컬에서 실행 중인 Pencil 에디터 앱(데스크톱/웹)에 이미 열려 있는 파일에 연결하는 브리지다. 이 세션 환경에는 Pencil 에디터 앱이 `design/claimradar-ui.pen`을 열고 있는 상태로 실행 중이지 않다.
+- **판정**: 사용자의 명시적 지침("Pencil을 실제로 열거나 렌더링할 수 없다면 작업을 중단하고 차단 상태를 보고해라")에 따라, `design.md` 요약만으로 "정합" 판정을 내리는 우회를 하지 않고 **여기서 작업을 중단**한다. AC-018B는 **BLOCKED**(미검증) 상태로 기록하며, Gap Matrix 작성·수정 작업(§4~§10)은 Pencil 에디터 접근이 확보된 뒤 재개한다.
+- **재개 조건**: 사용자가 로컬에서 Pencil 앱을 실행하고 `design/claimradar-ui.pen`을 열어 둔 상태에서 재시도.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: complete`
-- `run_complete_at: 2026-09-04`
+- `run_status: blocked` (2026-09-04 정정 — 이전 기록: `complete`. M1~M8 기능 구현 및 반응형 비붕괴 검증은 완료 상태를 유지하지만, Pencil 원본 대비 시각 충실도 검증(AC-018B)이 미완료·BLOCKED 상태로 남아 있어 전체 run-phase 완료 판정을 보류한다. sync-phase 진입 및 main 병합은 AC-018B 재검증 전까지 진행하지 않는다. 상세: 위 "AC-018 판정 정정" 및 "AC-018B — Pencil 원본 조사" 항목 참조.)
+- `run_complete_at: 2026-09-04` (M1~M8 기능 구현 완료 시점 — 전체 run-phase 완료 시점이 아님, 위 `run_status` 참조)
 - 8개 마일스톤(M1~M8) 전부 커밋됨: `e523ae8`(M1), `af21647`(M2), `ba399df`(M3), `35f17a4`(M4), `add3fee`(M5), `80bfa5a`(M6), `fe9b026`(M7), `12f830f`(M8).
 - PRESERVE 목록 검증: `git diff --stat origin/main -- app/layout.tsx app/page.tsx lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db "app/cases/[caseId]/error.tsx"` → `lib/pipeline/labels.ts`, `lib/pipeline/labels.test.ts` 2개 신규 파일만 추가(M3, REQ-007/008의 SSOT 라벨 매핑 — 기존 pipeline 파일은 전부 0-diff, 신규 파일 추가만 발생). 그 외 모든 PRESERVE 대상 파일은 완전 0-diff.
 - 최종 전체 검증(이 세션에서 직접 관찰):
@@ -209,7 +225,7 @@ M8 완료 후 외부 코드 리뷰에서 발견된 결함 3건(P0 1건, P1 2건)
   - `pnpm build` → 통과, 라우트 테이블 위 M8 섹션 참조
   - `npx eslint .` → 0 findings
   - `npx prettier --check .` → 전부 통과
-- Gaps(미검증, 2026-09-04 갱신): AC-018(1280px 5개 화면 비붕괴)은 2026-09-04 오케스트레이터의 실브라우저(Playwright Chromium) 스크린샷 확인으로 PASS — 상세 내역은 위 "AC-018 — 실브라우저 시각 확인" 항목 참조. 단 Pencil 디자인 파일과의 픽셀 단위 대조 및 1440px 확인은 잔여 위험으로 남아 있음.
+- Gaps(미검증, 2026-09-04 재정정): AC-018A(반응형 비붕괴, 1280/1024/390px)는 오케스트레이터의 실브라우저(Playwright Chromium) 스크린샷 확인으로 PASS 유지. **AC-018B(Pencil 원본 대비 시각 충실도)는 PASS 판정을 철회하고 BLOCKED로 재분류** — Pencil MCP 도구 3종(get_app_state/get_screenshot/execute) 전부 "파일이 에디터에 열려 있어야 함" 오류로 접근 불가했다(상세: 위 "AC-018B — Pencil 원본 조사" 항목). 사용자가 Pencil 앱에서 해당 파일을 열어야 재개 가능.
 - Residual-risk(잔여 위험): (1) M1에서 발견된 React 19 controlled-input value-tracking 테스트 헬퍼 이슈는 이 SPEC의 신규 테스트 파일에서만 수정되었고 기존 `case-input-form.test.tsx`의 동일 헬퍼는 PRESERVE 범위 밖이라 무수정. (2) M6에서 로컬 빌드 검증을 위해 `.env.local`(gitignored, 미커밋)을 생성함 — CI 환경에는 별도 환경변수 설정이 필요할 수 있음(기존 인프라 관심사, 이 SPEC 범위 밖).
 
 ## §E.4 Sync-phase Audit-Ready Signal
