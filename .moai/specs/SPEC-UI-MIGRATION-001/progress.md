@@ -88,6 +88,16 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 회귀 확인: `pnpm test` 전체 → `Test Files 54 passed (54)`, `Tests 359 passed (359)`.
 - 빌드: `pnpm build` 통과. 품질: eslint 0 findings, prettier 적용 후 통과.
 
+### M6 — 사건 입력 우측 레일 확장 (REQ-012~014)
+
+- 신규: `lib/cases/get-recent-cases-for-owner.ts`(read-only 조회 함수, `getCaseForOwner`와 동일한 owner-scope 신뢰 경계 재사용) + `.test.ts`; `app/cases/new/analysis-status-panel.tsx`(정적 4단계); `app/cases/new/recent-research-panel.tsx`(상태 한글 라벨 표시); `app/cases/new/page.test.tsx`(신규).
+- 수정: `app/cases/new/page.tsx`(async Server Component 전환, `getCurrentSession()` 자체 확인 → `ownerUserId` 조달, `getRecentCasesForOwner` 호출을 try/catch로 격리), `app/cases/new/case-input-form.tsx`("임시 저장" 비활성 버튼 + "준비 중" Chip 추가), `app/cases/new/case-input-form.test.tsx`(AC-014 신규).
+- RED 증거: `lib/cases/get-recent-cases-for-owner.test.ts` → `Cannot find module`(5/5 FAIL); `app/cases/new/page.test.tsx` → AC-013d(NewCasePage가 아직 동기 함수라 `.rejects`가 타입 오류), AC-012/AC-013/AC-013e/빈결과(패널·문구 전부 미구현, 4/5 FAIL); `app/cases/new/case-input-form.test.tsx` → AC-014 `expected null not to be null`(버튼 미구현).
+- GREEN 증거: 세 스위트 전부 `Test Files 2 passed (2)` + `Test Files 1 passed (1)` → 합계 `Tests 17 passed (17)`(5+5+7 재검산: get-recent-cases 5 + page 5 + case-input-form 7).
+- 회귀 확인: `pnpm test` 전체 → `Test Files 56 passed (56)`, `Tests 370 passed (370)`.
+- **빌드 — AC-005a 핵심 검증**: 최초 `pnpm build`는 `.env.local` 부재로 `EnvValidationError`(TURSO_DATABASE_URL 등 4개 누락)로 실패 — 이 저장소에 로컬 개발용 `.env.local`이 없었기 때문(`.env.local.example`만 존재, `.gitignore`가 `.env.*`를 무시). 이 세션이 로컬 빌드 검증 전용 `.env.local`(file: 스킴 로컬 DB, `LLM_PROVIDER_MODE=deterministic`)을 생성한 뒤 재실행한 `pnpm build`는 정상 통과했고, 라우트 표에 `/cases/new`가 `ƒ (Dynamic)`으로 표시됨을 확인했다(REQ-013의 의도된 결과, "정적 생성 유지"는 더 이상 요구사항 아님) — 빌드 자체는 실제 DB 연결 없이(로컬 sqlite 파일 경로만 존재하면 됨) 성공했다. `.env.local`은 `git check-ignore -v`로 무시됨을 확인했고 커밋하지 않았다.
+- 품질: `npx eslint lib/cases/ app/cases/new/` → 0 findings. prettier 적용 후 통과.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -193,17 +194,33 @@ export function CaseInputForm() {
               처리 중입니다. 잠시만 기다려 주세요...
             </span>
           ) : (
-            <span className="text-body-s text-bora-ink-3">모든 필드를 입력한 뒤 제출해 주세요.</span>
+            <span className="text-body-s text-bora-ink-3">
+              모든 필드를 입력한 뒤 제출해 주세요.
+            </span>
           )}
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            data-testid="case-submit"
-            className="rounded-[4px] bg-bora-accent px-5 text-white hover:bg-bora-accent-deep"
-          >
-            {isSubmitting ? "제출 중..." : "제출"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* SPEC-UI-MIGRATION-001 M6 (REQ-014) — 초안 저장 백엔드 로직
+                없음. 비활성 렌더링 + "준비 중" Chip만 표시한다. */}
+            <Button
+              type="button"
+              variant="outline"
+              disabled
+              data-testid="case-input-draft-save"
+              className="rounded-[4px]"
+            >
+              임시 저장
+              <Chip className="ml-1.5">준비 중</Chip>
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              data-testid="case-submit"
+              className="rounded-[4px] bg-bora-accent px-5 text-white hover:bg-bora-accent-deep"
+            >
+              {isSubmitting ? "제출 중..." : "제출"}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
