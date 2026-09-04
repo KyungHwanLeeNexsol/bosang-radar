@@ -225,6 +225,36 @@ describe("app/cases/[caseId]/page — 리포트 정보 위계 + 근거자료 표
     expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
+  it("AC-009: Aggregate Status 패널에 보험금 지급 비확정성 안내 문구가 정확히 존재한다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport(),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([]);
+
+    await renderPage(container, root);
+
+    const banner = container.querySelector('[data-testid="summary-banner"]');
+    expect(banner?.textContent).toContain(
+      "본 리포트는 공개된 판례·약관·법령을 기반으로 한 참고용 AI 리서치 결과입니다. 보험금 지급 여부나 지급액을 확정하지 않으며, 최종 판단은 담당 손해사정사의 검토가 필요합니다."
+    );
+  });
+
+  it("AC-010: '검토할 담보' 패널에 담보 검토 비확정성 부제 문구가 정확히 존재한다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport(),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([]);
+
+    await renderPage(container, root);
+
+    const reviewTargets = container.querySelector('[data-testid="review-targets"]');
+    expect(reviewTargets?.textContent).toContain(
+      "추가 검토가 필요한 담보 항목입니다. 지급 가능 담보를 확정한 목록이 아닙니다."
+    );
+  });
+
   it("AC-013: verifiedClaims/인용 근거자료가 0건이면 명시적 빈 상태 문구를 표시한다", async () => {
     getCaseForOwnerMock.mockResolvedValue({
       report: buildReport({ verifiedClaims: [] }),

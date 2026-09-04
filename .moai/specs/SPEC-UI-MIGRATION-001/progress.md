@@ -70,6 +70,15 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 빌드: `pnpm build` → 통과, 라우트 세그먼트 표 무변경.
 - 품질: `npx eslint lib/pipeline/ components/ "app/cases/[caseId]/"` → 0 findings. prettier 적용 후 통과.
 
+### M4 — 비확정성 안내 문구 추가 (REQ-009~010)
+
+- 수정: `app/cases/[caseId]/page.tsx`(summary-banner 내 REQ-009 문구 신규 블록, review-targets 내 REQ-010 부제 신규), `app/cases/[caseId]/page.test.tsx`(AC-009/AC-010 신규 테스트 2건).
+- RED 증거: `expected '사건 요약 · case-1…' to contain '본 리포트는…'`(REQ-009 미구현), `expected '검토할 담보가 식별되지 않았습니다.' to contain '추가 검토가 필요한…'`(REQ-010 미구현).
+- GREEN 증거: `Test Files 1 passed (1)`, `Tests 7 passed (7)`.
+- 회귀 확인: `pnpm test` 전체 → `Test Files 54 passed (54)`, `Tests 356 passed (356)`.
+- 빌드: `pnpm build` 통과, 라우트 세그먼트 표 무변경.
+- 품질: `npx eslint "app/cases/[caseId]/"` → 0 findings.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

@@ -272,6 +272,18 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               </div>
               <p className="text-[11.5px] font-normal text-bora-ink-3">{aggregateStatusCaption}</p>
             </div>
+
+            {/* SPEC-UI-MIGRATION-001 M4 (REQ-009) — 보험금 지급 비확정성 안내
+                문구. 정확한 문구를 그대로 노출해야 하므로 신규 문자열을
+                만들지 않고 spec.md REQ-009가 명시하는 텍스트를 그대로
+                렌더링한다. */}
+            <div className="mx-6 mb-6 rounded-[4px] bg-app-surface-inset px-4 py-3">
+              <p className="text-meta font-normal text-bora-ink-3">
+                본 리포트는 공개된 판례·약관·법령을 기반으로 한 참고용 AI 리서치 결과입니다. 보험금
+                지급 여부나 지급액을 확정하지 않으며, 최종 판단은 담당 손해사정사의 검토가
+                필요합니다.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-5 lg:flex-row">
@@ -405,6 +417,11 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                   <h2 className="text-h2 font-semibold text-bora-ink">검토할 담보 목록</h2>
                 </div>
                 <div className="px-6 py-5" data-testid="review-targets">
+                  {/* SPEC-UI-MIGRATION-001 M4 (REQ-010) — 담보 검토 비확정성
+                      부제. 정확한 문구를 그대로 노출한다. */}
+                  <p className="mb-3 text-body-s text-bora-ink-3">
+                    추가 검토가 필요한 담보 항목입니다. 지급 가능 담보를 확정한 목록이 아닙니다.
+                  </p>
                   {report.reviewTargets.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.reviewTargets.map((reviewTarget, index) => (
