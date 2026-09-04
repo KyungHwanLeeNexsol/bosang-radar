@@ -509,7 +509,10 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">추가 필요 자료</h2>
                 </div>
-                <div className="px-6 py-5" data-testid="missing-materials">
+                {/* Fix-B1(P0, 외부 리뷰): data-testid는 URL 프래그먼트 스크롤
+                    타깃이 될 수 없다(id만 가능) — #missing-materials 앵커
+                    링크가 실제로 이 요소로 스크롤되도록 id를 함께 부여한다. */}
+                <div className="px-6 py-5" id="missing-materials" data-testid="missing-materials">
                   {report.missingMaterials.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.missingMaterials.map((missingMaterial, index) => (
@@ -533,7 +536,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">판단 불충분 사유</h2>
                 </div>
-                <div className="px-6 py-5" data-testid="uncertainty">
+                <div className="px-6 py-5" id="uncertainty" data-testid="uncertainty">
                   {report.uncertainty.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.uncertainty.map((reason, index) => (

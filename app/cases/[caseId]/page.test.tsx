@@ -281,6 +281,52 @@ describe("app/cases/[caseId]/page — 리포트 정보 위계 + 근거자료 표
     expect(missingLink ?? uncertaintyLink).not.toBeNull();
   });
 
+  it("B1(외부 리뷰): missing-materials 앵커 링크의 href가 실제 id로 정확히 스크롤된다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport({
+        verifiedClaims: [
+          {
+            summary: "claim-1",
+            supportingEvidenceIds: [],
+            counterArguments: [],
+            status: "INSUFFICIENT",
+          },
+        ],
+        missingMaterials: [],
+      }),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([]);
+
+    await renderPage(container, root);
+
+    const missingLink = container.querySelector<HTMLAnchorElement>('a[href="#missing-materials"]');
+    expect(missingLink).not.toBeNull();
+
+    const targetId = missingLink!.getAttribute("href")!.slice(1);
+    const target = container.querySelector(`#${targetId}`);
+    expect(target).not.toBeNull();
+
+    // data-testid는 URL 프래그먼트 스크롤 타깃이 아니므로 id 부여가
+    // 별도로 필요하다 — 기존 data-testid는 그대로 유지되어야 한다.
+    expect(container.querySelector('[data-testid="missing-materials"]')).not.toBeNull();
+  });
+
+  it("B1(외부 리뷰): 문서 내 missing-materials/uncertainty id가 중복되지 않는다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport(),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([]);
+
+    await renderPage(container, root);
+
+    expect(container.querySelectorAll("#missing-materials").length).toBe(1);
+    expect(container.querySelectorAll("#uncertainty").length).toBe(1);
+    expect(container.querySelector('[data-testid="missing-materials"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="uncertainty"]')).not.toBeNull();
+  });
+
   it("AC-011a: relatedIssueType이 claim의 issueType과 일치하면 카드 내부에 직접 나열된다", async () => {
     getCaseForOwnerMock.mockResolvedValue({
       report: buildReport({

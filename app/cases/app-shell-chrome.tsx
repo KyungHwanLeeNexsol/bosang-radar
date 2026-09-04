@@ -60,6 +60,9 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
   const drawerRef = useRef<HTMLElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  // Fix-B3(P1, 외부 리뷰): 드로어가 실제로 열린 적이 있는지 추적한다 —
+  // 최초 마운트 시(드로어가 닫힌 초기 상태)의 오포커스를 막기 위함이다.
+  const hasOpenedOnceRef = useRef(false);
 
   // 뷰포트가 1024px 이상으로 바뀌면 드로어/스크림 상태를 자동으로
   // 초기화한다(AC-017h). setState는 effect 본문이 아니라 change 콜백
@@ -77,7 +80,20 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
     return () => mediaQueryList.removeEventListener("change", handleChange);
   }, []);
 
-  // 스크롤 잠금(AC-017f) + 열릴 때 포커스를 드로어 내부로 이동(AC-017e).
+  // 스크롤 잠금(AC-017f) + 열릴 때 포커스를 드로어 내부로 이동(AC-017e) +
+  // 닫힐 때 포커스를 햄버거 버튼으로 복귀(AC-017e).
+  //
+  // Fix-B3(P1, 외부 리뷰): 닫힘 시 포커스 복귀를 setIsDrawerOpen(false) 직후
+  // 동기적으로 호출하면(구 closeDrawer 구현), 그 시점엔 아직 React가 배경
+  // 콘텐츠(app-shell-content, 햄버거 버튼을 포함)의 inert를 제거하기 전이라
+  // 실브라우저는 inert 서브트리 내부 focus() 호출을 무시한다(jsdom은 이를
+  // 구현하지 않아 단위 테스트만으로는 이 결함이 드러나지 않았다). effect는
+  // React가 DOM 커밋(및 inert 해제)을 마친 뒤에 실행되므로, 포커스 복귀를
+  // 여기로 옮겨 모든 닫힘 경로(닫기 버튼/ESC/스크림 클릭/nav 링크)에
+  // 일관되게 적용한다. hasOpenedOnceRef로 드로어가 열린 적 없는 최초
+  // 마운트 시(닫힌 초기 상태) 및 ≥1024px 자동 닫힘(AC-017h, 이 경우
+  // isDesktop이 true가 되어 아래 조기 반환으로 이미 걸러진다)의 오포커스를
+  // 막는다.
   useEffect(() => {
     if (isDesktop) {
       return;
@@ -85,8 +101,12 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
     if (isDrawerOpen) {
       document.body.style.overflow = "hidden";
       closeButtonRef.current?.focus();
+      hasOpenedOnceRef.current = true;
     } else {
       document.body.style.overflow = "";
+      if (hasOpenedOnceRef.current) {
+        toggleButtonRef.current?.focus();
+      }
     }
     return () => {
       document.body.style.overflow = "";
@@ -95,8 +115,6 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
 
   function closeDrawer() {
     setIsDrawerOpen(false);
-    // 닫힐 때 포커스가 햄버거 버튼으로 복귀한다(AC-017e).
-    toggleButtonRef.current?.focus();
   }
 
   // ESC로 닫기(AC-017c) + Tab/Shift+Tab 닫힌 루프 포커스 트랩(AC-017i/j).
@@ -176,7 +194,9 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-1">
             <p className="px-3 text-[10px] font-medium text-[#5D6875]">작업 공간</p>
             <nav aria-label="사건 관리 내비게이션" className="flex flex-col gap-1">
-              <SidebarNavItems />
+              {/* Fix-B2(P1, 외부 리뷰): nav 링크 클릭 시 모바일 드로어가
+                  닫히지 않던 결함 — closeDrawer를 주입한다. */}
+              <SidebarNavItems onNavigate={closeDrawer} />
             </nav>
           </div>
         </div>

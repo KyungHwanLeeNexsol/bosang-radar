@@ -30,24 +30,43 @@ function resolveCurrentCaseId(pathname: string): string | null {
   return match[1] === "new" ? null : match[1];
 }
 
-export function SidebarNavItems() {
+interface SidebarNavItemsProps {
+  // Fix-B2(P1, 외부 리뷰): 모바일 드로어에서 활성 nav 링크를 클릭하면
+  // 드로어가 닫히도록, AppShellChrome이 closeDrawer를 주입한다. 데스크톱
+  // 사이드바는 같은 컴포넌트 인스턴스를 공유하므로(별도 렌더 없음) 이 콜백은
+  // 항상 연결되지만, 데스크톱에서는 closeDrawer 호출이 이미 닫힌 상태를
+  // 유지하는 무해한 no-op이다.
+  onNavigate?: () => void;
+}
+
+export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
   const pathname = usePathname();
   const currentCaseId = resolveCurrentCaseId(pathname);
 
   return (
     <>
-      <NavLink href="/cases/new" label={NAV_LABELS.input} active={pathname === "/cases/new"} />
+      <NavLink
+        href="/cases/new"
+        label={NAV_LABELS.input}
+        active={pathname === "/cases/new"}
+        onNavigate={onNavigate}
+      />
       {currentCaseId ? (
         <NavLink
           href={`/cases/${currentCaseId}`}
           label={NAV_LABELS.report}
           active={pathname === `/cases/${currentCaseId}`}
+          onNavigate={onNavigate}
         />
       ) : (
         <NavLink label={NAV_LABELS.report} disabled />
       )}
       {currentCaseId ? (
-        <NavLink href={`/cases/${currentCaseId}#expert-feedback`} label={NAV_LABELS.feedback} />
+        <NavLink
+          href={`/cases/${currentCaseId}#expert-feedback`}
+          label={NAV_LABELS.feedback}
+          onNavigate={onNavigate}
+        />
       ) : (
         <NavLink label={NAV_LABELS.feedback} disabled />
       )}
@@ -95,9 +114,10 @@ interface NavLinkProps {
   label: string;
   active?: boolean;
   disabled?: boolean;
+  onNavigate?: () => void;
 }
 
-function NavLink({ href, label, active, disabled }: NavLinkProps) {
+function NavLink({ href, label, active, disabled, onNavigate }: NavLinkProps) {
   const base = "flex items-center rounded px-3 py-2.5 text-[13px] font-medium transition-colors";
 
   if (disabled || !href) {
@@ -114,6 +134,7 @@ function NavLink({ href, label, active, disabled }: NavLinkProps) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={`${base} ${
         active
           ? "bg-app-sidebar-line text-white"

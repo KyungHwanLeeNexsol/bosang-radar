@@ -134,6 +134,50 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - AC-021(archive/precedent-db 실제 라우트 부재) 확인: `find app -iname "*archive*" -o -iname "*precedent*"` → 빈 출력.
 - AC-018(1280px 5개 화면 비붕괴)은 acceptance.md §3에 명시된 대로 수동 시각 스모크 체크리스트 항목이며 jsdom DOM 단정으로 자동화할 수 없음 — 이 SPEC의 M8 자동 테스트 스위트로는 검증되지 않음(잔여 위험으로 명시).
 
+### Post-M8 — 외부 코드 리뷰 결함 3건 수정 (2026-09-04)
+
+M8 완료 후 외부 코드 리뷰에서 발견된 결함 3건(P0 1건, P1 2건)을 수정한다. run-phase 범위 내 교정 TDD 사이클이며, 새 SPEC이 아니다. AC-018(1280px 5개 화면 수동 시각 확인)은 이번 사이클의 범위가 아니며 여전히 미검증 상태로 남는다.
+
+**B1(P0) — INSUFFICIENT 카드 앵커 링크가 실제로 스크롤되지 않음**
+- 원인: `#missing-materials`/`#uncertainty`로 향하는 앵커 링크는 있었지만, 대상 요소에는 `data-testid`만 있고 `id`가 없었다 — URL 프래그먼트 스크롤은 `id`만 인식하므로 링크가 아무 곳에도 이동하지 않았다.
+- 수정: `app/cases/[caseId]/page.tsx` — 기존 `data-testid="missing-materials"`/`"uncertainty"` div에 각각 `id="missing-materials"`/`id="uncertainty"`를 병기(기존 testid 삭제/변경 없음).
+- RED 증거: `expected null not to be null`(href의 fragment로 querySelector한 대상 요소가 존재하지 않음), `expected +0 to be 1`(id 중복 없음 검증에서 0개 발견).
+- GREEN 증거: `Test Files 1 passed (1)`, `Tests 12 passed (12)`(신규 2건 포함).
+- 회귀 확인: 문서 내 `id="expert-feedback"`(기존, M2)와 충돌 없음 — `grep -n 'id="'` 결과 3개 id 전부 고유.
+
+**B2(P1) — 모바일 드로어 nav 링크 클릭 시 드로어가 닫히지 않음**
+- 원인: `AppShellChrome`이 `isDrawerOpen` 상태를 소유하지만, `SidebarNavItems`의 활성 링크 클릭이 `closeDrawer()`에 연결되어 있지 않았다.
+- 수정: `app/cases/case-shell-nav.tsx` — `SidebarNavItems`/`NavLink`에 `onNavigate?: () => void` prop 추가, 활성 `<Link>`에 `onClick={onNavigate}` 연결(비활성 "준비 중" 항목은 `<span>`이라 영향 없음). `app/cases/app-shell-chrome.tsx` — `<SidebarNavItems onNavigate={closeDrawer} />`로 연결(모바일/데스크톱이 동일 인스턴스를 공유하므로 데스크톱에서는 무해한 no-op).
+- RED 증거: 사건 입력/리서치 리포트/전문가 피드백(#expert-feedback 앵커) 3개 링크 클릭 테스트 전부 `expected 'fixed inset-y-0 ...' to match /-translate-x-full/` 형태로 실패(드로어가 열린 채 유지됨).
+- GREEN 증거: `Test Files 2 passed (2)`(app-shell-chrome.test.tsx 17개 + case-shell-nav.test.tsx 4개), `Tests 21 passed (21)`.
+- 회귀 확인: 비활성 항목 클릭 시 상태 변화 없음, 데스크톱 사이드바 렌더링 무변경 — 신규 테스트로 확인.
+
+**B3(P1) — 드로어 닫힘 후 포커스가 실제로 햄버거 버튼에 복귀하지 않음(실브라우저 한정 결함)**
+- 원인: 기존 `closeDrawer()`가 `setIsDrawerOpen(false)` 직후 동기적으로 `toggleButtonRef.current?.focus()`를 호출했다. 이 시점은 React가 아직 배경 콘텐츠(`app-shell-content`, 햄버거 버튼 포함)의 `inert`를 제거하기 전이며, 실브라우저는 inert 서브트리 내부 `focus()` 호출을 무시한다. jsdom은 이 inert-blocks-focus 동작을 구현하지 않아 기존 단위 테스트만으로는 결함이 드러나지 않았다.
+- 수정: `app/cases/app-shell-chrome.tsx` — 포커스 복귀를 `closeDrawer()`의 동기 호출에서, 기존 스크롤 잠금 `useEffect`(React가 DOM 커밋·inert 해제를 마친 뒤 실행됨) 내부로 이동. `hasOpenedOnceRef`로 드로어가 열린 적 없는 최초 마운트 시(닫힌 초기 상태)의 오포커스를 방지하고, `isDesktop` 조기 반환으로 ≥1024px 자동 닫힘(AC-017h) 시에도 포커스를 이동시키지 않는다. 닫기 버튼/ESC/스크림 클릭/nav 링크(B2) 모든 닫힘 경로가 이 단일 effect를 공유하므로 일관되게 적용된다.
+- RED 증거(jsdom, `HTMLElement.prototype.focus`를 `closest('[inert]')` 검사로 monkey-patch해 실브라우저의 inert-blocks-focus를 재현): `expected null not to be <button ...>`(닫힘 직후 여전히 이전 요소에 포커스가 남아 있음).
+- GREEN 증거(jsdom): `Test Files 1 passed (1)`, `Tests 18 passed (18)`(app-shell-chrome.test.tsx, 기존 17개 + 신규 1개 전부 회귀 없이 통과).
+- **실브라우저 Playwright 검증(신규 `e2e/mobile-drawer-focus.spec.ts`, 390×844 모바일 뷰포트)** — jsdom은 이 결함을 증명할 수 없으므로 필수 증거로 요구됨:
+  1. 햄버거 버튼 클릭 → 닫기 버튼으로 포커스 이동 + 배경 `app-shell-content`에 `inert` 부여 확인.
+  2. 닫기 버튼으로 닫기 → 햄버거 버튼 포커스 복귀 + `inert` 해제 확인.
+  3. 재오픈 → ESC로 닫기 → 포커스 복귀 확인.
+  4. 재오픈 → 스크림 클릭으로 닫기 → 포커스 복귀 확인.
+  5. 재오픈 → nav 링크(사건 입력) 클릭으로 닫기 → 드로어/스크림 닫힘 확인(B2 회귀 겸용).
+  - 최초 작성한 assertion에 버그 2건 발견 및 수정: (a) 열림/닫힘 판정에 쓴 `/translate-x-0/` 정규식이 `lg:translate-x-0`(항상 존재하는 정적 클래스) 부분 일치로 오탐 — 닫힘 전용 토큰 `-translate-x-full`로 교체. (b) inert assertion 방향이 반대(열렸을 때 `not.toHaveAttribute`로 잘못 작성) — 수정.
+  - `pnpm exec playwright test e2e/mobile-drawer-focus.spec.ts`(격리 실행) → `1 passed (1.6s)`. 이후 `pnpm test:e2e` 전체 스위트(4-worker 병렬) 재확인 → `mobile-drawer-focus.spec.ts` PASS(2.6s).
+
+**전체 회귀 확인(이 사이클에서 직접 관찰)**:
+- `pnpm test` → `Test Files 59 passed (59)`, `Tests 392 passed (392)`(M8 종료 시점 384건 + 신규 8건: B1 2 + B2 5 + B3 1).
+- `pnpm build` → 통과. 라우트 테이블 재확인: `/cases/new`는 여전히 `ƒ (Dynamic)`.
+- `npx eslint .` → 0 findings.
+- `npx prettier --check .` → 이번 사이클에서 수정한 4개 파일(`page.test.tsx`, `app-shell-chrome.tsx`, `app-shell-chrome.test.tsx`, `case-shell-nav.tsx`, `e2e/mobile-drawer-focus.spec.ts`) 전부 통과. 기존에 무관한 `app/globals.css`/`CHANGELOG.md` 포맷 이슈는 PRESERVE 범위 밖(이 사이클에서 미수정, 회귀 아님).
+- `pnpm test:e2e`(전체, 4-worker 병렬) — 3회 실행 중 매번 회전하며 다른 pre-existing 테스트(`case-flow.spec.ts` 1회, `tenant-isolation.spec.ts` 1회, `auth.spec.ts` 1회)가 `page.waitForURL("/")` 30초 타임아웃으로 flake — 이 사이클이 손댄 `AppShellChrome`/`case-shell-nav`/`page.tsx`와 무관한 로그인 플로우이며 코드 diff도 없다(`git diff --stat` 0-diff 확인). `mobile-drawer-focus.spec.ts`는 3회 중 격리 실행 1회 + 병렬 실행 1회에서 PASS 확인(나머지 1회는 최초 assertion 버그로 인한 자기 결함, 수정 후 재확인함). 각 실행에서 나머지 4개 스펙(신규 스펙 포함)은 항상 PASS.
+- `git diff --stat origin/plan/SPEC-UI-MIGRATION-001 -- lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db app/layout.tsx "app/cases/[caseId]/error.tsx" design/claimradar-ui.pen` → 빈 출력(PRESERVE 전체 0-diff, Pencil 디자인 파일 무변경).
+
+**변경/신규 파일**: `app/cases/[caseId]/page.tsx`(수정), `app/cases/[caseId]/page.test.tsx`(수정, +2 테스트), `app/cases/app-shell-chrome.tsx`(수정), `app/cases/app-shell-chrome.test.tsx`(수정, +1 테스트), `app/cases/case-shell-nav.tsx`(수정), `e2e/mobile-drawer-focus.spec.ts`(신규).
+
+**Gaps(미검증)**: AC-018(1280px 5개 화면 비붕괴 수동 시각 확인)은 이 사이클의 범위가 아니며 여전히 미검증 — 별도로 사용자 확인이 필요하다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: complete`

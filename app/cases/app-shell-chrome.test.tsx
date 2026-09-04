@@ -215,4 +215,145 @@ describe("app/cases/app-shell-chrome — 모바일 드로어 접근성 계약(RE
 
     expect(background.getAttribute("inert")).not.toBeNull();
   });
+
+  it("B3(외부 리뷰, P1): 닫힘 직후 배경이 아직 inert인 순간에는 포커스 이동을 시도하지 않는다", () => {
+    // jsdom은 실브라우저의 "inert 서브트리 내부 focus() 호출은 무시된다"는
+    // 동작을 구현하지 않는다.햄버거 버튼이 배경 콘텐츠(app-shell-content)
+    // 내부에 있으므로, 실브라우저 동작을 여기서 직접 시뮬레이션해 "닫힘
+    // 직후 React 커밋 이전에 동기적으로 focus()를 호출하면 무시된다"는
+    // 결함을 jsdom에서도 재현한다.
+    const originalFocus = HTMLElement.prototype.focus;
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.closest("[inert]")) {
+        return;
+      }
+      originalFocus.call(this);
+    });
+
+    try {
+      openDrawer();
+      const closeButton = drawer().querySelector<HTMLButtonElement>('[aria-label="메뉴 닫기"]')!;
+      act(() => closeButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      expect(document.activeElement).toBe(toggle());
+    } finally {
+      focusSpy.mockRestore();
+    }
+  });
+});
+
+// B2(외부 리뷰, P1): 모바일 드로어 nav 링크 클릭 시 닫기. 링크마다 pathname이
+// 달라야 실제 href를 가진 활성 링크가 되므로(리서치 리포트/전문가 피드백은
+// /cases/[caseId] 패턴일 때만 활성), 이 블록은 케이스 상세 경로로 pathname을
+// 오버라이드한 별도 렌더 인스턴스를 사용한다.
+describe("app/cases/app-shell-chrome — 모바일 드로어 nav 링크 클릭 시 닫기(B2, 외부 리뷰)", () => {
+  let localContainer: HTMLDivElement;
+  let localRoot: Root;
+
+  beforeEach(() => {
+    setupMatchMediaMock();
+  });
+
+  afterEach(() => {
+    act(() => localRoot.unmount());
+    localContainer.remove();
+    document.body.style.overflow = "";
+    vi.unstubAllGlobals();
+  });
+
+  function renderWithPathname(pathname: string) {
+    pathnameMock.mockReturnValue(pathname);
+    localContainer = document.createElement("div");
+    document.body.appendChild(localContainer);
+    localRoot = createRoot(localContainer);
+    act(() => {
+      localRoot.render(
+        <AppShellChrome>
+          <div data-testid="page-content">content</div>
+        </AppShellChrome>
+      );
+    });
+  }
+
+  function localToggle() {
+    return localContainer.querySelector<HTMLButtonElement>('[data-testid="mobile-nav-toggle"]')!;
+  }
+  function localDrawer() {
+    return localContainer.querySelector<HTMLElement>('[data-testid="mobile-nav-drawer"]')!;
+  }
+  function openLocalDrawer() {
+    act(() => localToggle().dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  }
+
+  it("사건 입력 링크 클릭 시 드로어와 스크림이 닫힌다", () => {
+    renderWithPathname("/cases/case-1");
+    openLocalDrawer();
+    expect(localDrawer().className).toMatch(/translate-x-0/);
+
+    const inputLink = localDrawer().querySelector<HTMLAnchorElement>('a[href="/cases/new"]')!;
+    expect(inputLink).not.toBeNull();
+    act(() => inputLink.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(localDrawer().className).toMatch(/-translate-x-full/);
+    expect(localContainer.querySelector('[data-testid="mobile-nav-scrim"]')).toBeNull();
+    // 원래 href는 그대로 유지되어야 한다.
+    expect(inputLink.getAttribute("href")).toBe("/cases/new");
+  });
+
+  it("리서치 리포트 링크 클릭 시 드로어가 닫힌다", () => {
+    renderWithPathname("/cases/case-1");
+    openLocalDrawer();
+
+    const reportLink = localDrawer().querySelector<HTMLAnchorElement>('a[href="/cases/case-1"]')!;
+    expect(reportLink).not.toBeNull();
+    act(() => reportLink.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(localDrawer().className).toMatch(/-translate-x-full/);
+    expect(reportLink.getAttribute("href")).toBe("/cases/case-1");
+  });
+
+  it("전문가 피드백(같은 페이지 #expert-feedback 앵커) 링크 클릭 시에도 드로어가 닫힌다", () => {
+    renderWithPathname("/cases/case-1");
+    openLocalDrawer();
+
+    const feedbackLink = localDrawer().querySelector<HTMLAnchorElement>(
+      'a[href="/cases/case-1#expert-feedback"]'
+    )!;
+    expect(feedbackLink).not.toBeNull();
+    act(() => feedbackLink.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(localDrawer().className).toMatch(/-translate-x-full/);
+    expect(feedbackLink.getAttribute("href")).toBe("/cases/case-1#expert-feedback");
+  });
+
+  it("비활성('준비 중') nav 항목 클릭은 내비게이션도 상태 변경도 일으키지 않는다", () => {
+    renderWithPathname("/cases/case-1");
+    openLocalDrawer();
+
+    const archiveItem = localDrawer().querySelector<HTMLElement>(
+      '[data-testid="sidebar-nav-archive"]'
+    )!;
+    expect(archiveItem.tagName).toBe("SPAN");
+    act(() => archiveItem.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    // 드로어는 열린 채로 유지된다 — 비활성 항목은 onNavigate를 호출하지 않는다.
+    expect(localDrawer().className).toMatch(/translate-x-0/);
+    expect(localContainer.querySelector('[data-testid="mobile-nav-scrim"]')).not.toBeNull();
+  });
+
+  it("데스크톱 사이드바는 계속 렌더링되며(영향 없음), nav 링크 클릭 시 오류가 발생하지 않는다", () => {
+    renderWithPathname("/cases/case-1");
+    act(() => fireDesktopChange(true));
+
+    const reportLink = localDrawer().querySelector<HTMLAnchorElement>('a[href="/cases/case-1"]')!;
+    expect(reportLink).not.toBeNull();
+    expect(() => {
+      act(() => reportLink.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    }).not.toThrow();
+
+    // 데스크톱에서는 항상 표시(translate-x-0)를 유지한다.
+    expect(localDrawer().className).toMatch(/translate-x-0/);
+  });
 });
