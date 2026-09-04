@@ -79,6 +79,15 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 - 빌드: `pnpm build` 통과, 라우트 세그먼트 표 무변경.
 - 품질: `npx eslint "app/cases/[caseId]/"` → 0 findings.
 
+### M5 — Claim 카드 "추가 확인 필요" 결정론적 연결 규칙 적용 (REQ-011)
+
+- 수정: `app/cases/[caseId]/page.tsx`(`getMatchedMissingMaterials()` 신규 헬퍼 + INSUFFICIENT claim 카드 "추가 확인 필요" 블록), `app/cases/[caseId]/page.test.tsx`(AC-011/AC-011a/AC-011b 신규 3건).
+- RED 증거: `expected '1claim-1판단 불충분…' to contain '추가 확인 필요'`(AC-011 미구현), `expected '…' to contain '장해진단서 추가 제출 필요'`(AC-011a 미구현). AC-011b는 미구현 상태에서 이미 우연히 PASS(아무것도 렌더링되지 않으므로 무관 자료도 당연히 없음) — 구현 후에도 계속 PASS함을 재확인.
+- GREEN 증거: `Test Files 1 passed (1)`, `Tests 10 passed (10)`.
+- AC-011c 확인: `git diff --stat -- lib/pipeline/types.ts` → 빈 출력(VerifiedClaim/MissingMaterial 인터페이스 무변경).
+- 회귀 확인: `pnpm test` 전체 → `Test Files 54 passed (54)`, `Tests 359 passed (359)`.
+- 빌드: `pnpm build` 통과. 품질: eslint 0 findings, prettier 적용 후 통과.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

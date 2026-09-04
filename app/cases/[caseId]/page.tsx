@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { CircleDashed } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
@@ -9,7 +10,12 @@ import { Chip } from "@/components/ui/chip";
 import { Notice } from "@/components/ui/notice";
 import { EvidenceItem } from "@/components/evidence-item";
 import { evidenceTypeLabel, queryIssueTypeLabel } from "@/lib/pipeline/labels";
-import type { EvidenceType, QueryIssueType, VerifiedClaim } from "@/lib/pipeline/types";
+import type {
+  EvidenceType,
+  MissingMaterial,
+  QueryIssueType,
+  VerifiedClaim,
+} from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
 
@@ -70,6 +76,20 @@ function getClaimIssueTypes(
     evidenceById.get(evidenceId)?.issueTypes.forEach((issueType) => seen.add(issueType));
   }
   return Array.from(seen);
+}
+
+// SPEC-UI-MIGRATION-001 M5 (REQ-011) — INSUFFICIENT claim 카드에 직접 나열할
+// missingMaterial 결정론적 연결 규칙. `missingMaterial.relatedIssueType`이
+// 이 claim의 getClaimIssueTypes() 파생 결과 집합에 포함되는 항목만
+// 반환한다 — 신규 AI 필드 없이 기존 데이터만으로 계산한다. 일치하지 않는
+// 리포트-레벨 missingMaterial을 임의로 카드에 복제하지 않는다.
+function getMatchedMissingMaterials(
+  claim: VerifiedClaim,
+  evidenceById: Map<string, EvidenceDisplay>,
+  missingMaterials: MissingMaterial[]
+): MissingMaterial[] {
+  const claimIssueTypes = new Set(getClaimIssueTypes(claim, evidenceById));
+  return missingMaterials.filter((material) => claimIssueTypes.has(material.relatedIssueType));
 }
 
 // SPEC-PILOT-VISUAL-001 M5 (REQ-014 — 우 레일 "수집 근거 유형") — 인용된
@@ -357,6 +377,53 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                             )}
                           </ul>
                         </div>
+
+                        {/* SPEC-UI-MIGRATION-001 M5 (REQ-011) — "추가 확인
+                            필요" 안내. 항상 리포트 레벨 missingMaterials/
+                            uncertainty 섹션으로 이동하는 앵커 링크를
+                            포함하며, relatedIssueType이 일치하는 항목만
+                            카드 내부에 직접 나열한다. */}
+                        {claim.status === "INSUFFICIENT" ? (
+                          <div className="border-t border-app-line px-4 py-3">
+                            <div className="flex items-start gap-2">
+                              <CircleDashed
+                                aria-hidden="true"
+                                className="mt-0.5 size-4 shrink-0 text-bora-warn"
+                              />
+                              <div className="flex flex-col gap-1.5">
+                                <p className="text-body-s font-semibold text-bora-warn">
+                                  추가 확인 필요
+                                </p>
+                                {getMatchedMissingMaterials(
+                                  claim,
+                                  evidenceById,
+                                  report.missingMaterials
+                                ).length > 0 ? (
+                                  <ul className="flex flex-col gap-1">
+                                    {getMatchedMissingMaterials(
+                                      claim,
+                                      evidenceById,
+                                      report.missingMaterials
+                                    ).map((material, materialIndex) => (
+                                      <li
+                                        key={materialIndex}
+                                        className="list-inside list-disc text-body-s text-bora-ink-2"
+                                      >
+                                        {material.description}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                                <a
+                                  href="#missing-materials"
+                                  className="text-body-s font-medium text-bora-accent hover:underline"
+                                >
+                                  추가 필요 자료·판단 불충분 사유 전체 보기
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
 
                         {claim.counterArguments.length > 0 ? (
                           <div className="border-t border-app-line px-4 py-3">

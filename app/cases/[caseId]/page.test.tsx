@@ -255,6 +255,99 @@ describe("app/cases/[caseId]/page — 리포트 정보 위계 + 근거자료 표
     );
   });
 
+  it("AC-011: INSUFFICIENT claim 카드는 항상 missing-materials/uncertainty 앵커 링크를 포함한다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport({
+        verifiedClaims: [
+          {
+            summary: "claim-1",
+            supportingEvidenceIds: [],
+            counterArguments: [],
+            status: "INSUFFICIENT",
+          },
+        ],
+        missingMaterials: [],
+      }),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([]);
+
+    await renderPage(container, root);
+
+    const claimsSection = container.querySelector('[data-testid="verified-claims"]')!;
+    expect(claimsSection.textContent).toContain("추가 확인 필요");
+    const missingLink = claimsSection.querySelector('a[href="#missing-materials"]');
+    const uncertaintyLink = claimsSection.querySelector('a[href="#uncertainty"]');
+    expect(missingLink ?? uncertaintyLink).not.toBeNull();
+  });
+
+  it("AC-011a: relatedIssueType이 claim의 issueType과 일치하면 카드 내부에 직접 나열된다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport({
+        verifiedClaims: [
+          {
+            summary: "claim-1",
+            supportingEvidenceIds: ["evidence-1"],
+            counterArguments: [],
+            status: "INSUFFICIENT",
+          },
+        ],
+        missingMaterials: [
+          {
+            description: "장해진단서 추가 제출 필요",
+            relatedIssueType: "DISABILITY_GRADE_CRITERIA",
+          },
+        ],
+      }),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([
+      {
+        id: "evidence-1",
+        title: "판례 A",
+        sourceUrl: null,
+        evidenceType: "PRECEDENT",
+        issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+      },
+    ]);
+
+    await renderPage(container, root);
+
+    const claimsSection = container.querySelector('[data-testid="verified-claims"]')!;
+    expect(claimsSection.textContent).toContain("장해진단서 추가 제출 필요");
+  });
+
+  it("AC-011b: 일치하는 issueType이 없으면 무관한 missingMaterial을 카드에 나열하지 않는다", async () => {
+    getCaseForOwnerMock.mockResolvedValue({
+      report: buildReport({
+        verifiedClaims: [
+          {
+            summary: "claim-1",
+            supportingEvidenceIds: ["evidence-1"],
+            counterArguments: [],
+            status: "INSUFFICIENT",
+          },
+        ],
+        missingMaterials: [{ description: "무관한 자료 필요", relatedIssueType: "CAUSATION" }],
+      }),
+      reportId: "report-1",
+    });
+    mockDbWithEvidence([
+      {
+        id: "evidence-1",
+        title: "판례 A",
+        sourceUrl: null,
+        evidenceType: "PRECEDENT",
+        issueTypes: ["DISABILITY_GRADE_CRITERIA"],
+      },
+    ]);
+
+    await renderPage(container, root);
+
+    const claimsSection = container.querySelector('[data-testid="verified-claims"]')!;
+    expect(claimsSection.textContent).not.toContain("무관한 자료 필요");
+  });
+
   it("AC-013: verifiedClaims/인용 근거자료가 0건이면 명시적 빈 상태 문구를 표시한다", async () => {
     getCaseForOwnerMock.mockResolvedValue({
       report: buildReport({ verifiedClaims: [] }),
