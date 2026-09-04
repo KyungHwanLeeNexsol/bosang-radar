@@ -33,4 +33,33 @@ describe("app/cases/[caseId]/not-found — 사건-없음/미소유 통합 404", 
     expect(panel?.textContent).toContain("ERR_CASE_NOT_FOUND");
     expect(panel?.textContent).not.toMatch(/권한|소유|permission|forbidden/i);
   });
+
+  it("Post-M8: 새 사건 입력 CTA는 /cases/new로 연결된 활성 링크다", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<CaseNotFound />);
+    });
+
+    const primary = container.querySelector('[data-testid="case-not-found-cta-primary"]');
+    expect(primary).not.toBeNull();
+    expect(primary?.getAttribute("href")).toBe("/cases/new");
+    expect(primary?.textContent).toContain("새 사건 입력");
+  });
+
+  it("Post-M8: 리포트 보관함으로 CTA는 미구현 기능이라 비활성 상태다", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<CaseNotFound />);
+    });
+
+    const secondary = container.querySelector('[data-testid="case-not-found-cta-secondary"]');
+    expect(secondary).not.toBeNull();
+    expect(secondary?.textContent).toContain("리포트 보관함으로");
+    expect(secondary?.hasAttribute("disabled")).toBe(true);
+    expect(secondary?.getAttribute("href")).toBeNull();
+  });
 });

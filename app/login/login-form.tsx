@@ -108,7 +108,10 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <footer className="mt-6 flex w-full max-w-sm flex-col items-center gap-3">
+      <footer className="mt-6 flex w-full max-w-sm flex-col items-center gap-3 border-t border-app-line pt-4">
+        <p className="text-meta text-bora-ink-4">
+          테스터 계정은 운영자가 직접 발급합니다. 계정 문의는 담당자에게 연락해 주세요.
+        </p>
         <div className="flex items-center gap-3 text-meta text-bora-ink-4">
           {FOOTER_LINKS.map((label) => (
             <span key={label} aria-disabled="true" className="cursor-not-allowed opacity-40">

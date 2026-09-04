@@ -9,9 +9,9 @@ import { usePathname } from "next/navigation";
 // position: fixed/sticky를 적용하지 않아 본문과 함께 스크롤된다.
 function resolveTopbar(pathname: string): { breadcrumb: string; title: string } {
   if (pathname === "/cases/new") {
-    return { breadcrumb: "WORKSPACE / 사건 입력", title: "사건 입력" };
+    return { breadcrumb: "작업 공간 / 사건 입력", title: "사건 입력" };
   }
-  return { breadcrumb: "WORKSPACE / 리서치 리포트", title: "리서치 리포트" };
+  return { breadcrumb: "작업 공간 / 리서치 리포트", title: "리서치 리포트" };
 }
 
 export function CaseShellTopbar() {

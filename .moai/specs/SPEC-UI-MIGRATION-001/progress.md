@@ -213,10 +213,45 @@ M8 완료 후 외부 코드 리뷰에서 발견된 결함 3건(P0 1건, P1 2건)
 - **판정**: 사용자의 명시적 지침("Pencil을 실제로 열거나 렌더링할 수 없다면 작업을 중단하고 차단 상태를 보고해라")에 따라, `design.md` 요약만으로 "정합" 판정을 내리는 우회를 하지 않고 **여기서 작업을 중단**한다. AC-018B는 **BLOCKED**(미검증) 상태로 기록하며, Gap Matrix 작성·수정 작업(§4~§10)은 Pencil 에디터 접근이 확보된 뒤 재개한다.
 - **재개 조건**: 사용자가 로컬에서 Pencil 앱을 실행하고 `design/claimradar-ui.pen`을 열어 둔 상태에서 재시도.
 
+### AC-018B — PNG Export 기반 Pencil 원본 조사 및 Gap Matrix (재개, 2026-09-04)
+
+- **재개 경로**: Pencil MCP 브리지(get_app_state/get_screenshot/execute)는 이 세션 내내 파일-에디터 연결 오류로 계속 차단 상태였다. 사용자가 Pencil 앱의 **Export 기능**(PNG 형식, PDF/JPG/WEBP 중 PNG를 권장·선택)으로 전체 14개 프레임(+ 하위 상태 variant 포함 총 20개 PNG)을 `design/exports/`에 직접 export했고, 이를 `Read` 도구로 직접 열람했다 — MCP 자동화 경로가 아닌 수동 export이지만, **실제 Pencil 프레임을 렌더링한 이미지를 직접 관찰**했다는 점에서 사용자 지침의 취지("Pencil을 실제로 열거나 렌더링")를 충족한다고 판단해 AC-018B 조사를 재개했다.
+- **직접 열람한 프레임(10/14)**: `00-Design-System`, `03-테스터-로그인`, `04-App-Shell`, `05-사건-입력`, `05b`, `07-리서치-리포트`, `08-전문가-피드백`, `11-공통-예외-화면`, `12-Tablet-1024`, `13-Mobile-390`. 나머지 4개(`01-Brand-BORA`, `02-Landing`, `06-AI-리서치-진행중`/`06b`, `09-리포트-보관함`/`09b`, `10-판례-약관-DB`/`10b`)는 이번 SPEC 범위(M1/M2/M7 재검토) 밖이거나 이미 "준비 중" 미구현 기능이라 조사하지 않았다.
+- **방법론**: 각 프레임 PNG를 코드(App Router 파일)와 1:1로 직접 대조 — 코드에서 `Grep`으로 관련 문자열/컴포넌트를 찾아 file:line을 확정한 뒤, Pencil 프레임에 보이는 텍스트/아이콘/레이아웃과 비교했다. `design.md` 요약을 거치지 않고 Pencil 렌더링 원본과 코드를 직접 비교했으므로, 이전에 지적된 "요약 대 요약"의 순환 검증 문제를 해소했다.
+
+**Visual Gap Matrix** (화면 | 요소 | Pencil 실제 값 | 구현(수정 전) 값 | 심각도 | 수정 파일):
+
+| 화면 | 요소 | Pencil 실제 값 | 구현(수정 전) 값 | 심각도 | 수정 파일 |
+|---|---|---|---|---|---|
+| App Shell 상단바 | breadcrumb 첫 줄 | "작업 공간" | "WORKSPACE"(하드코딩 영어) | P0 | `app/cases/case-shell-topbar.tsx` |
+| 사건-찾을수없음 | CTA 버튼 | "리포트 보관함으로"(주)+"새 사건 입력"(보조) 2개 | 버튼 없음 | P0 | `app/cases/[caseId]/not-found.tsx` |
+| 사건-찾을수없음 | 아이콘 | 원형 물음표 | 폴더-X | P1 | `app/cases/[caseId]/not-found.tsx` |
+| 로그인 | 브랜드 패널 위치 | 좌측=다크 브랜드, 우측=흰 폼 | 좌우 반대 | P1 | `app/login/page.tsx` |
+| 사건-찾을수없음 | 설명 문구 | 상세 안내(목록 확인 유도 포함) | 짧은 안내 | P2 | `app/cases/[caseId]/not-found.tsx` |
+| 로그인 | 브랜드 패널 문구·아이콘 | 3개 기능 각각 다른 아이콘+제목+설명, 자물쇠 아이콘+보안 문구 | 3개 항목 모두 동일 아이콘, 다른 문구 | P2 | `app/login/page.tsx` |
+| 로그인 | 폼 패널 안내문구 | "TESTER LOGIN" 라벨+부제+계정 발급 안내 | 없음 | P2 | `app/login/page.tsx`, `app/login/login-form.tsx` |
+
+**의도적 편차(Pencil과 다르게 유지한 항목, 사용자 승인)**:
+1. **리포트 화면 상단바 제목**: Pencil은 사건별 동적 제목(예: "경추 추간판탈출증 후유장해")+사건번호+상태뱃지를 보여주지만, `plan.md` M2/REQ-006에 이미 "고정 제목 '리서치 리포트'"로 명시적으로 결정되어 있다. 사용자에게 "고정 제목 유지 vs Pencil대로 동적 제목 변경"을 물었고, **고정 제목 유지**로 승인받아 수정하지 않았다.
+2. **사건-찾을수없음의 `context` 라벨**: Pencil 목업은 예시로 실제 사건번호("CASE-2024-0999")를 보여주지만, 이 화면은 `getCaseForOwner()`의 의도적 정보 은닉 설계(존재-없음=소유권-없음 구분 불가)를 지키기 위해 만들어졌다 — 실제 사건번호를 노출하면 "이 사건번호는 존재하지만 내 소유가 아니다"라는 정보가 새어나갈 수 있어 보안 설계를 위반한다. `context="사건 관리"`(제네릭 라벨)를 그대로 유지했다.
+3. **사건-찾을수없음의 설명 문구**: Pencil 원문은 "...접근 권한이 없는 사건입니다..."로 "권한"이라는 단어를 포함하는데, 이는 기존 테스트(`not-found.test.tsx` 정보-은닉 정규식 가드)가 명시적으로 금지하는 단어다(항목 2와 같은 이유). Pencil 문구를 그대로 베끼지 않고, "권한/소유" 언급 없이 "목록에서 확인" 안내만 추가하는 방식으로 절충했다.
+4. **사건-찾을수없음의 "리포트 보관함으로" 버튼**: 이 기능은 사이드바에 "준비 중" 칩으로 표시된 미구현 기능이다. 실제 링크 없이 클릭해도 아무 일도 일어나지 않는 버튼을 만드는 대신, 사이드바와 동일한 관례로 **비활성(disabled) 표시**로 렌더링했다("새 사건 입력"만 실제 동작하는 링크).
+
+**수정 적용(TDD, `manager-develop` 서브에이전트 위임 후 오케스트레이터가 직접 diff 재검토)**:
+- D1(topbar): RED(`작업 공간` 기대 테스트 → 기존 `WORKSPACE` 코드 대비 실패 확인) → GREEN(코드 수정 → 3/3 PASS). RED 원문: `AssertionError: expected 'WORKSPACE / 사건 입력사건 입력' to contain '작업 공간 / 사건 입력'`.
+- D2(case-not-found): 아이콘 `FolderX`→`CircleHelp`, 설명 문구 교체(정보 은닉 준수), CTA 2버튼 추가(`case-not-found-cta-primary`/`-secondary` testid, 신규 테스트 2건 추가) — `context`는 의도적으로 미변경.
+- D3(login): 브랜드/폼 패널 JSX 순서 교체(반응형 클래스는 그대로), `BRAND_FEATURES`를 아이콘+제목+설명 구조로 재작성(Search/GitCompare/ShieldCheck 아이콘), 자물쇠 아이콘+보안 문구로 하단 교체, "TESTER LOGIN" 라벨+부제 추가(`page.tsx`), 계정 발급 안내 캡션 추가(`login-form.tsx` 푸터 위, 기존 5개 testid·`authClient.signIn.email` 로직 무변경).
+- **오케스트레이터 독립 재검증**(서브에이전트 보고를 그대로 신뢰하지 않고 직접 재실행): `pnpm test` → `Test Files 59 passed (59)` / `Tests 394 passed (394)`(기존 392 + 신규 2), `pnpm build` → 성공(기존과 동일한 pre-existing edge-runtime 경고 1건만, 신규 회귀 없음), `pnpm lint`(`eslint .`) → 0 findings, `grep -rn 'AskUserQuestion\|mcp__askuser' app/ components/` → 0건(서브에이전트 경계 준수 확인).
+- **커밋되지 않은 항목**: 없음(이 커밋에 전부 포함). `pnpm test:e2e`는 개발 서버 기동이 필요해 이번 라운드에서는 실행하지 않음(잔여 위험으로 아래 기록).
+
+**증거 보관 위치**: `design/exports/*.png`(20개 파일, 이 커밋에 Git 추적으로 포함). 개인정보·민감정보 없음(디자인 시스템 목업 이미지)을 확인했다.
+
+**AC-018B 판정**: 위 10개 프레임에 대해 **PASS**(발견된 P0/P1/P2 결함 전부 수정 완료, 의도적 편차 4건은 사용자 승인 및 사유 문서화). 조사하지 않은 4개 프레임(랜딩/AI-진행중/보관함/판례DB)은 이번 SPEC 범위 밖이거나 이미 "준비 중" 상태라 **미검증으로 남긴다**(별도 SPEC 필요 시 후속 처리).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: blocked` (2026-09-04 정정 — 이전 기록: `complete`. M1~M8 기능 구현 및 반응형 비붕괴 검증은 완료 상태를 유지하지만, Pencil 원본 대비 시각 충실도 검증(AC-018B)이 미완료·BLOCKED 상태로 남아 있어 전체 run-phase 완료 판정을 보류한다. sync-phase 진입 및 main 병합은 AC-018B 재검증 전까지 진행하지 않는다. 상세: 위 "AC-018 판정 정정" 및 "AC-018B — Pencil 원본 조사" 항목 참조.)
-- `run_complete_at: 2026-09-04` (M1~M8 기능 구현 완료 시점 — 전체 run-phase 완료 시점이 아님, 위 `run_status` 참조)
+- `run_status: audit-ready` (2026-09-04 재정정 — 이전 기록: `blocked`. AC-018B가 PNG export 기반 재조사로 BLOCKED → PASS로 해소되었다(위 "AC-018B — PNG Export 기반 Pencil 원본 조사" 참조). 발견된 P0/P1/P2 시각 결함 전부 수정·재검증 완료. sync-phase 진입 가능.)
+- `run_complete_at: 2026-09-04`(M1~M8 기능 구현) / Post-M8 Pencil 시각 정합성 보정 완료 시점: 2026-09-04
 - 8개 마일스톤(M1~M8) 전부 커밋됨: `e523ae8`(M1), `af21647`(M2), `ba399df`(M3), `35f17a4`(M4), `add3fee`(M5), `80bfa5a`(M6), `fe9b026`(M7), `12f830f`(M8).
 - PRESERVE 목록 검증: `git diff --stat origin/main -- app/layout.tsx app/page.tsx lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db "app/cases/[caseId]/error.tsx"` → `lib/pipeline/labels.ts`, `lib/pipeline/labels.test.ts` 2개 신규 파일만 추가(M3, REQ-007/008의 SSOT 라벨 매핑 — 기존 pipeline 파일은 전부 0-diff, 신규 파일 추가만 발생). 그 외 모든 PRESERVE 대상 파일은 완전 0-diff.
 - 최종 전체 검증(이 세션에서 직접 관찰):
@@ -225,8 +260,8 @@ M8 완료 후 외부 코드 리뷰에서 발견된 결함 3건(P0 1건, P1 2건)
   - `pnpm build` → 통과, 라우트 테이블 위 M8 섹션 참조
   - `npx eslint .` → 0 findings
   - `npx prettier --check .` → 전부 통과
-- Gaps(미검증, 2026-09-04 재정정): AC-018A(반응형 비붕괴, 1280/1024/390px)는 오케스트레이터의 실브라우저(Playwright Chromium) 스크린샷 확인으로 PASS 유지. **AC-018B(Pencil 원본 대비 시각 충실도)는 PASS 판정을 철회하고 BLOCKED로 재분류** — Pencil MCP 도구 3종(get_app_state/get_screenshot/execute) 전부 "파일이 에디터에 열려 있어야 함" 오류로 접근 불가했다(상세: 위 "AC-018B — Pencil 원본 조사" 항목). 사용자가 Pencil 앱에서 해당 파일을 열어야 재개 가능.
-- Residual-risk(잔여 위험): (1) M1에서 발견된 React 19 controlled-input value-tracking 테스트 헬퍼 이슈는 이 SPEC의 신규 테스트 파일에서만 수정되었고 기존 `case-input-form.test.tsx`의 동일 헬퍼는 PRESERVE 범위 밖이라 무수정. (2) M6에서 로컬 빌드 검증을 위해 `.env.local`(gitignored, 미커밋)을 생성함 — CI 환경에는 별도 환경변수 설정이 필요할 수 있음(기존 인프라 관심사, 이 SPEC 범위 밖).
+- Gaps(미검증, 2026-09-04 재재정정): AC-018A(반응형 비붕괴, 1280/1024/390px)는 PASS 유지. **AC-018B(Pencil 원본 대비 시각 충실도)는 PNG export 기반 재조사로 BLOCKED → PASS로 해소** — 10/14 프레임 직접 대조, P0 2건·P1 2건·P2 3건 결함 전부 수정 완료(상세: 위 "AC-018B — PNG Export 기반 Pencil 원본 조사" 항목). 나머지 4개 프레임(랜딩/AI-진행중/보관함/판례DB)은 범위 밖 또는 미구현 기능이라 여전히 미검증. `pnpm test:e2e`는 이 라운드에서 미실행(다음 검증 단계에서 실행 예정).
+- Residual-risk(잔여 위험): (1) M1에서 발견된 React 19 controlled-input value-tracking 테스트 헬퍼 이슈는 이 SPEC의 신규 테스트 파일에서만 수정되었고 기존 `case-input-form.test.tsx`의 동일 헬퍼는 PRESERVE 범위 밖이라 무수정. (2) M6에서 로컬 빌드 검증을 위해 `.env.local`(gitignored, 미커밋)을 생성함 — CI 환경에는 별도 환경변수 설정이 필요할 수 있음(기존 인프라 관심사, 이 SPEC 범위 밖). (3) 로그인 브랜드 패널의 "B/BORA/보 상 레 이 더" 상단 레이아웃과 3개 기능 아이콘 정렬은 `pnpm build` 컴파일 성공으로만 확인했고, 실제 브라우저 렌더링(간격·줄바꿈·아이콘 크기)은 스크린샷으로 재확인하지 않았다. (4) Pencil PNG export는 사용자가 수동으로 생성한 것이라, 향후 `claimradar-ui.pen`이 변경되면 이 export 세트가 stale해질 수 있다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
