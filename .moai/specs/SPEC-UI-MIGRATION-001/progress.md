@@ -138,7 +138,7 @@ plan-auditor (subagent, invoked by the orchestrator) re-ran against the round-2-
 
 - `run_status: complete`
 - `run_complete_at: 2026-09-04`
-- 8개 마일스톤(M1~M8) 전부 커밋됨: `e523ae8`(M1), `af21647`(M2), `ba399df`(M3), `35f17a4`(M4), `add3fee`(M5), `80bfa5a`(M6), `fe9b026`(M7), M8(이 커밋 — SHA는 커밋 직후 §E.4에서 백필).
+- 8개 마일스톤(M1~M8) 전부 커밋됨: `e523ae8`(M1), `af21647`(M2), `ba399df`(M3), `35f17a4`(M4), `add3fee`(M5), `80bfa5a`(M6), `fe9b026`(M7), `12f830f`(M8).
 - PRESERVE 목록 검증: `git diff --stat origin/main -- app/layout.tsx app/page.tsx lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db "app/cases/[caseId]/error.tsx"` → `lib/pipeline/labels.ts`, `lib/pipeline/labels.test.ts` 2개 신규 파일만 추가(M3, REQ-007/008의 SSOT 라벨 매핑 — 기존 pipeline 파일은 전부 0-diff, 신규 파일 추가만 발생). 그 외 모든 PRESERVE 대상 파일은 완전 0-diff.
 - 최종 전체 검증(이 세션에서 직접 관찰):
   - `pnpm test` → `Test Files 59 passed (59)`, `Tests 384 passed (384)`
