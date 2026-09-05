@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Info } from "lucide-react";
+import { Info, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
@@ -126,7 +126,8 @@ export function CaseInputForm() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Round3: 390px 대응 — grid-cols-2 → grid-cols-1 sm:grid-cols-2 (AC-018A 수정) */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-2">
                 <Label
@@ -286,7 +287,14 @@ export function CaseInputForm() {
               data-testid="case-submit"
               className="rounded-[4px] bg-bora-accent px-5 text-white hover:bg-bora-accent-deep"
             >
-              {isSubmitting ? "제출 중..." : "제출"}
+              {isSubmitting ? (
+                "분석 중..."
+              ) : (
+                <>
+                  <Sparkles aria-hidden="true" className="mr-1.5 size-4 shrink-0" />
+                  AI 리서치 시작
+                </>
+              )}
             </Button>
           </div>
         </div>

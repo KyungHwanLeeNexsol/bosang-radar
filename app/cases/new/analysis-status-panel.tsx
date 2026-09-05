@@ -20,9 +20,10 @@ export function AnalysisStatusPanel() {
         </span>
       </div>
       {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.6) — "대기" 상태 안내 +
-          장식용 정적 진행 바. 실제 진행률 데이터가 없으므로 항상 동일한
-          고정 너비(~15%)만 표시하며, role="progressbar"는 절대 부여하지
-          않는다(가짜 진행률 금지 — AC-012 회귀 방지). */}
+          장식용 정적 진행 바. 실제 진행률 데이터가 없으므로 role="progressbar"를
+          부여하지 않는다(가짜 진행률 금지 — AC-012 회귀 방지).
+          Round3: w-[15%] → w-0 (대기 상태 0% — AC-012 취지 준수. 분석이
+          시작되기 전 상태에서 15%를 표시하는 것 자체가 가짜 진행률이다). */}
       <div className="flex flex-col gap-1 px-4 pt-3">
         <p className="text-body-s font-semibold text-bora-ink">AI 리서치 대기 중</p>
         <p className="text-label-s text-bora-ink-4">
@@ -34,7 +35,7 @@ export function AnalysisStatusPanel() {
           data-testid="analysis-status-static-bar"
           className="mt-1 h-1 w-full overflow-hidden rounded-full bg-app-line"
         >
-          <div className="h-full w-[15%] rounded-full bg-bora-accent" />
+          <div className="h-full w-0 rounded-full bg-bora-accent" />
         </div>
       </div>
       <ol className="flex flex-col gap-2.5 px-4 py-3">
