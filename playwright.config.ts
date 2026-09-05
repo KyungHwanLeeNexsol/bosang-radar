@@ -26,6 +26,10 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: false,
   retries: 0,
+  // Round3 E2E 격리 수정 — SQLite DB 및 세션 공유 충돌 방지: 단일 워커로 직렬 실행.
+  // 4개 spec이 동시에 같은 DB(.tmp/e2e.db)와 TESTER_A 세션을 사용하면
+  // loginAsTester의 page.waitForURL("/")가 타임아웃된다(AC-024 근본 원인).
+  workers: 1,
   reporter: "list",
   use: {
     baseURL,

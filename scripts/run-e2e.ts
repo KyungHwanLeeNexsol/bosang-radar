@@ -222,13 +222,27 @@ const ABSOLUTE_FALLBACK_MS = 5 * 60_000;
 // 성공 주장 금지 — verification-claim-integrity §1).
 const LAST_RESORT_MS = 90_000;
 
+function buildPlaywrightExtraArgs(specFilter?: string, workers?: number): string[] {
+  const extra: string[] = [];
+  if (workers !== undefined) extra.push(`--workers=${workers}`);
+  if (specFilter) extra.push(specFilter);
+  return extra;
+}
+
 // @MX:ANCHOR: [AUTO] Playwright 러너를 spawn하는 유일한 지점 — AC-RUNTIME-022의
 // 관측 대상(주입 가능한 spawn 경계)
 // @MX:REASON: 이 함수 시그니처(spawnFn 인자)를 바꾸면 단위 테스트의 기록용
 // 대역 주입 지점이 깨진다(design.md §3.5, acceptance.md AC-RUNTIME-022).
 // port 인자는 M7 teardown-hang 감시망 전용이며 spawn 호출 자체(명령/인자/env)에는
 // 영향을 주지 않는다 — AC-RUNTIME-022가 관측하는 것은 그대로 유지된다.
-function spawnPlaywrightRunner(spawnFn: SpawnFn, port: number): Promise<RunPlaywrightResult> {
+// specFilter/workers 인자는 Round3 E2E 격리 실험용 —
+// 디폴트(undefined)로 호출하면 기존 동작(playwright test, 인자 없음)과 동일하다.
+function spawnPlaywrightRunner(
+  spawnFn: SpawnFn,
+  port: number,
+  specFilter?: string,
+  workers?: number
+): Promise<RunPlaywrightResult> {
   return new Promise((resolve, reject) => {
     // shell: true — Windows에서 pnpm은 .cmd/.ps1 셸 래퍼이므로 셸 없이
     // spawn하면 ENOENT로 실패한다. 인자는 고정 리터럴이라 외부/신뢰되지 않은
@@ -238,11 +252,15 @@ function spawnPlaywrightRunner(spawnFn: SpawnFn, port: number): Promise<RunPlayw
     // Node가 .cmd/.bat 실행 파일에 대해 shell:true를 사실상 요구하도록
     // 강화된 보안 수정(관련: CVE-2024-27980 대응)의 영향으로 판단된다.
     // shell:true는 회피 대상이 아니라 이 플랫폼에서 필수 옵션이다.
-    const child = spawnFn("pnpm", ["exec", "playwright", "test"], {
-      env: process.env,
-      stdio: ["inherit", "pipe", "inherit"],
-      shell: true,
-    }) as ChildProcess;
+    const child = spawnFn(
+      "pnpm",
+      ["exec", "playwright", "test", ...buildPlaywrightExtraArgs(specFilter, workers)],
+      {
+        env: process.env,
+        stdio: ["inherit", "pipe", "inherit"],
+        shell: true,
+      }
+    ) as ChildProcess;
 
     let settled = false;
     let orphanKillAttempted = false;
@@ -332,7 +350,11 @@ function spawnPlaywrightRunner(spawnFn: SpawnFn, port: number): Promise<RunPlayw
 // @MX:REASON: e2e/global-setup.ts가 존재하지 않는 설계(design.md §3.3)에서
 // 이 함수가 유일한 라이프사이클 소유자다. 시그니처(spawnFn 기본 인자)를
 // 바꾸면 AC-RUNTIME-022 구조적 검증 테스트가 깨진다.
-export async function runE2E(spawnFn: SpawnFn = nodeSpawn): Promise<number> {
+export async function runE2E(
+  spawnFn: SpawnFn = nodeSpawn,
+  specFilter?: string,
+  workers?: number
+): Promise<number> {
   const assembled = await assembleE2EEnv();
   // 로드 → 검증(design.md §3.2.2). 이미 조립된 값이 process.env에 있으므로
   // .env.local이 디스크에 존재하더라도(AC-RUNTIME-015 sentinel 시나리오)
@@ -340,7 +362,7 @@ export async function runE2E(spawnFn: SpawnFn = nodeSpawn): Promise<number> {
   bootstrapCli("e2e");
   await prepareE2EDatabase(assembled);
   const port = Number(process.env.E2E_PORT);
-  const { exitCode } = await spawnPlaywrightRunner(spawnFn, port);
+  const { exitCode } = await spawnPlaywrightRunner(spawnFn, port, specFilter, workers);
   return exitCode;
 }
 
@@ -359,5 +381,9 @@ const isDirectExecution =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectExecution) {
-  void reportAndExit(runE2E());
+  const rawArgs = process.argv.slice(2);
+  const specFilterArg = rawArgs.find((a) => a.startsWith("--spec="))?.slice("--spec=".length);
+  const workersArg = rawArgs.find((a) => a.startsWith("--workers="))?.slice("--workers=".length);
+  const workersNum = workersArg !== undefined ? Number(workersArg) : undefined;
+  void reportAndExit(runE2E(nodeSpawn, specFilterArg, workersNum));
 }
