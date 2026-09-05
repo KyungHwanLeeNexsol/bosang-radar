@@ -402,3 +402,23 @@ auth.spec.ts(테스트1) + case-flow.spec.ts(테스트3) 두 테스트가 TESTER
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_
+
+## §E.3 Run-phase Audit-Ready Signal (supplemental — 시각 증빙 캡처)
+
+**시각 증빙 캡처 완료** (2026-09-05):
+- docs/evidence/SPEC-UI-MIGRATION-001/after-round3/ — 9개 PNG 커밋됨
+- login-{1440,1024,390}.png: 로그인 화면 B타일 교정 확인
+- case-input-{1440,1024,390}.png: CTA·그리드·진행바 교정 확인
+- exception-not-found-1440.png, mobile-drawer-{closed,open}-390.png: 예외/드로어 상태
+- Pencil 기준: design/exports/*.png (이미 커밋됨)
+- 캡처 스크립트: CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence.spec.ts --workers=1
+
+run_status: audit-ready — 5개 항목 전부 해소됨:
+  1. AC-024 E2E: 5/5 PASS × 3회 (workers:1 + rate limit retry)
+  2. 시각 증빙: after-round3/ 9개 PNG + Pencil design/exports/ + capture script
+  3. 로그인 B타일: 좌측 추가, 우측 제거 (826d044)
+  4. 사건입력 CTA·grid·진행바: AI 리서치 시작, sm:grid-cols-2, w-0 (ae16b48)
+  5. SPEC 용어: 작업 공간/신규 사건 리서치 요청 동기화, 신규 AC 추가 (4645689)
+
+전체 E2E 검증 (시각 증빙 spec 추가 후):
+- pnpm test:e2e: 5 passed, 2 skipped (capture-evidence 2개는 CAPTURE_EVIDENCE 미설정 시 skip) — exit 0
