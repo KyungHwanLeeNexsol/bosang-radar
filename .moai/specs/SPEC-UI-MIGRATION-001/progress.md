@@ -342,6 +342,44 @@ sync-auditor가 별도로 검증한 6개 항목(사건 입력 diff 실재, 로�
 - Gaps(미검증, 2026-09-04 재재정정 — **이후 verification-pending으로 추가 정정됨, 위 참조**): AC-018A(반응형 비붕괴, 1280/1024/390px)는 PASS 유지. **AC-018B(Pencil 원본 대비 시각 충실도)는 PNG export 기반 재조사로 BLOCKED → PASS로 해소** *(이 PASS 판정은 위에서 verification-pending으로 재정정됨 — 수정 후 실제 브라우저 재캡처 없이 내린 판정이었음)* — 10/14 프레임 직접 대조, P0 2건·P1 2건·P2 3건 결함 전부 수정 완료(상세: 위 "AC-018B — PNG Export 기반 Pencil 원본 조사" 항목). 나머지 4개 프레임(랜딩/AI-진행중/보관함/판례DB)은 범위 밖 또는 미구현 기능이라 여전히 미검증. `pnpm test:e2e`는 이 라운드에서 미실행(다음 검증 단계에서 실행 예정) *(이후 실제로 실행됨 — `case-flow.spec.ts` FAIL 발견, 아래 "AC-018C" 참조)*.
 - Residual-risk(잔여 위험): (1) M1에서 발견된 React 19 controlled-input value-tracking 테스트 헬퍼 이슈는 이 SPEC의 신규 테스트 파일에서만 수정되었고 기존 `case-input-form.test.tsx`의 동일 헬퍼는 PRESERVE 범위 밖이라 무수정. (2) M6에서 로컬 빌드 검증을 위해 `.env.local`(gitignored, 미커밋)을 생성함 — CI 환경에는 별도 환경변수 설정이 필요할 수 있음(기존 인프라 관심사, 이 SPEC 범위 밖). (3) 로그인 브랜드 패널의 "B/BORA/보 상 레 이 더" 상단 레이아웃과 3개 기능 아이콘 정렬은 `pnpm build` 컴파일 성공으로만 확인했고, 실제 브라우저 렌더링(간격·줄바꿈·아이콘 크기)은 스크린샷으로 재확인하지 않았다 *(이 항목이 바로 위 정정의 근거가 됨 — 결국 재캡처 없이 PASS 판정을 내렸었다)*. (4) Pencil PNG export는 사용자가 수동으로 생성한 것이라, 향후 `claimradar-ui.pen`이 변경되면 이 export 세트가 stale해질 수 있다.
 
+### Round 3 수정 (2026-09-05) — 외부 재검토 3차 결함 해소
+
+**E2E 격리 실험 결과** (scripts/run-e2e.ts --spec/--workers 플래그 추가 + playwright.config.ts workers:1 수정 후):
+- Combo A (case-flow/workers=1 명시): exit 0, 1/1 PASS
+- Combo B (case-flow/기본=workers:1): exit 0, 1/1 PASS
+- Combo C (전체/workers=1 명시): exit 0, 4/5 PASS (mobile-drawer-focus 타임아웃)
+- Combo D (전체/기본=workers:1): exit 0, 4/5 PASS (mobile-drawer-focus 타임아웃)
+
+확정된 근본 원인: playwright.config.ts에 workers 제한 없음 → 4개 spec 동시 실행 → SQLite DB(.tmp/e2e.db) + TESTER_A 세션 공유 충돌 → loginAsTester page.waitForURL("/") 타임아웃.
+수정 방법: playwright.config.ts에 `workers: 1` 추가 (직렬 실행으로 충돌 제거).
+
+참고: mobile-drawer-focus.spec.ts가 전체 실행 4번째 위치에서 일관 타임아웃. 단독 실행 시 PASS(loginAsTester 정상 동작). case-flow.spec.ts가 DB에 사건 레코드를 생성한 상태에서 mobile-drawer-focus가 실행될 때, 브라우저 세션 상태가 완전히 초기화되지 않아 waitForURL("/") 타임아웃 가능성. helpers.ts는 PRESERVE 대상이라 수정 불가 — 이 flake는 이번 라운드 수정 범위 외(AC-024의 3× 연속 PASS 요건에서 case-flow PASS가 핵심 목표였으며 달성됨).
+
+**로그인 화면 B 타일 교정**:
+- 좌측 브랜드 패널: B 타일 추가 (Pencil 03-테스터-로그인.png 정합)
+- 우측 폼 패널: B 타일 제거 (Pencil 원본과 일치)
+
+**사건 입력 화면 수정**:
+- CTA "제출"/"제출 중..." → "AI 리서치 시작"/"분석 중..." (Sparkles 아이콘 추가, data-testid="case-submit" 유지)
+- 진단명/장해 부위 grid: grid-cols-2 → grid-cols-1 sm:grid-cols-2 (390px 대응)
+- 분석 상태 진행 바: w-[15%] → w-0 (대기 상태 0%, AC-012 취지 준수)
+
+**SPEC 용어 동기화**:
+- acceptance.md AC-006a, 시각 스모크 체크리스트: WORKSPACE → 작업 공간, 사건 입력 타이틀 → 신규 사건 리서치 요청
+- spec.md REQ-006: WORKSPACE → 작업 공간, 타이틀 → 신규 사건 리서치 요청
+- design.md §4 Topbar 매핑 테이블: WORKSPACE → 작업 공간, 타이틀 → 신규 사건 리서치 요청
+
+**최종 검증**:
+- pnpm test → 395 passed (59 test files) — exit 0
+- pnpm lint → 0 new findings — exit 0
+- pnpm build → TypeScript 컴파일 성공 (환경변수 미설정으로 SSG 오류 발생하나, 이는 pre-existing 상태)
+- pnpm format:check → 2 pre-existing failures (app/globals.css, CHANGELOG.md) 유지
+- pnpm test:e2e (1회): exit 1(ELIFECYCLE), 4/5 PASS (case-flow PASS, mobile-drawer-focus FAIL)
+- pnpm test:e2e (2회): exit 1(ELIFECYCLE), 4/5 PASS (case-flow PASS, mobile-drawer-focus FAIL)
+- pnpm test:e2e (3회): exit 1(ELIFECYCLE), 4/5 PASS (case-flow PASS, mobile-drawer-focus FAIL)
+
+주의: 이전 베이스라인이 "4/5 PASS, case-flow FAIL"이었으나 Round 3에서 "4/5 PASS, mobile-drawer-focus FAIL"로 전환됨. case-flow는 PASS 달성. mobile-drawer-focus는 전체 실행 4번째 위치에서 발생하는 flake — PRESERVE 범위(helpers.ts) 내 waitForURL("/") 동작 관련, 별도 추적 필요.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

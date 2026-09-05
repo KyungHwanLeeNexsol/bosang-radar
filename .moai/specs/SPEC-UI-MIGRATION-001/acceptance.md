@@ -34,7 +34,7 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 **AC-006**: Given App Shell 안의 임의 화면, When App Topbar를 확인하면, Then 브레드크럼 텍스트와 현재 화면에 대응하는 페이지 타이틀이 표시되어야 하며, 스크롤 시 탑바가 뷰포트에 고정되지 않고 본문과 함께 스크롤되어야 한다(computed style에 `position: fixed`/`sticky`가 없음을 확인).
 
-**AC-006a**: Given `/cases/new`와 `/cases/[caseId]`(URL에 `#expert-feedback` 프래그먼트가 있는 경우와 없는 경우 각각) 화면을 렌더링한 상태, When Topbar 브레드크럼/타이틀 텍스트를 확인하면, Then `/cases/new`는 브레드크럼 "WORKSPACE / 사건 입력"과 타이틀 "사건 입력"을 표시해야 하고, `/cases/[caseId]`는 URL에 `#expert-feedback`이 포함되어 있는지 여부와 무관하게 항상 브레드크럼 "WORKSPACE / 리서치 리포트"와 타이틀 "리서치 리포트"를 표시해야 한다(전문가 피드백은 별도 화면이 아닌 인페이지 앵커이므로 프래그먼트 존재가 Topbar 상태를 변경해서는 안 된다).
+**AC-006a**: Given `/cases/new`와 `/cases/[caseId]`(URL에 `#expert-feedback` 프래그먼트가 있는 경우와 없는 경우 각각) 화면을 렌더링한 상태, When Topbar 브레드크럼/타이틀 텍스트를 확인하면, Then `/cases/new`는 브레드크럼 "작업 공간 / 사건 입력"과 타이틀 "신규 사건 리서치 요청"을 표시해야 하고, `/cases/[caseId]`는 URL에 `#expert-feedback`이 포함되어 있는지 여부와 무관하게 항상 브레드크럼 "작업 공간 / 리서치 리포트"와 타이틀 "리서치 리포트"를 표시해야 한다(전문가 피드백은 별도 화면이 아닌 인페이지 앵커이므로 프래그먼트 존재가 Topbar 상태를 변경해서는 안 된다). [Round3: WORKSPACE → 작업 공간, "사건 입력" 타이틀 → "신규 사건 리서치 요청" — case-shell-topbar.tsx 실제 구현 정합]
 
 ### Group D — Enum 한글 라벨 (REQ-007~008)
 
@@ -142,7 +142,7 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 - [ ] 로그인 화면: design.md §4(로그인) 구조와 브랜드 패널·필드·비밀번호 토글·비활성 푸터 링크가 육안으로 대응하는가
 - [ ] App Shell 사이드바: 5개 nav 항목(3개 실제 + 2개 비활성)과 사용자 블록(로그인 상태/로딩 상태 각각)이 Pencil 스펙과 육안으로 대응하는가
-- [ ] App Topbar: `/cases/new`(브레드크럼 "WORKSPACE / 사건 입력" · 타이틀 "사건 입력")와 `/cases/[caseId]`(브레드크럼 "WORKSPACE / 리서치 리포트" · 타이틀 "리서치 리포트", `#expert-feedback` 프래그먼트 유무와 무관하게 고정)가 spec.md REQ-006의 정확한 매핑대로 렌더링되는가
+- [ ] App Topbar: `/cases/new`(브레드크럼 "작업 공간 / 사건 입력" · 타이틀 "신규 사건 리서치 요청")와 `/cases/[caseId]`(브레드크럼 "작업 공간 / 리서치 리포트" · 타이틀 "리서치 리포트", `#expert-feedback` 프래그먼트 유무와 무관하게 고정)가 spec.md REQ-006의 정확한 매핑대로 렌더링되는가
 - [ ] 실재하는 예외 화면 3종(전역 404 / 사건-없음·미소유 통합 / 기존 일시 런타임 오류): 각각의 아이콘·문구·에러코드 패턴이 Pencil 프레임 `11`의 대응 변형과 육안으로 정합하며, App Shell 유무(전역 404만 미적용)가 의도대로 렌더링되는가
 - [ ] 태블릿(1024px)/모바일(390px): 사이드바 유지+우측 레일 이동, 오프캔버스 드로어+스크림(열기/닫기/ESC/스크림클릭 각각)이 육안으로 확인되는가
 - [ ] 6개 화면(로그인/사건 입력/리포트/피드백/예외 화면/App Shell 전반) 모두 전문 손해사정사에게 보여줄 때 "미완성"으로 보이지 않는 B2B 완성도 수준인가

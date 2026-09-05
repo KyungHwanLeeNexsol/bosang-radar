@@ -49,12 +49,12 @@ Pencil "03 · 테스터 로그인" 프레임: 좌측 폼 컬럼(업무용 이메
 
 ### App Shell 확장 (REQ-004~006)
 
-`03b 로그인 상태` 프레임과 별개로, App Sidebar 컴포넌트(SPEC-PILOT-VISUAL-001 §3)에 2개 nav 항목을 추가: "리포트 보관함"(아이콘: 문서함류), "판례·약관 자료실"(아이콘: 서재/북류) — 둘 다 disabled variant, "준비 중" Chip 부착. App Topbar 좌측에 브레드크럼 슬롯("WORKSPACE / <현재 화면명>") 추가하며, 정확한 라우트→매핑은 다음과 같다(REQ-006, 모호한 "3개 화면 각각 동적 타이틀" 서술을 대체):
+`03b 로그인 상태` 프레임과 별개로, App Sidebar 컴포넌트(SPEC-PILOT-VISUAL-001 §3)에 2개 nav 항목을 추가: "리포트 보관함"(아이콘: 문서함류), "판례·약관 자료실"(아이콘: 서재/북류) — 둘 다 disabled variant, "준비 중" Chip 부착. App Topbar 좌측에 브레드크럼 슬롯("작업 공간 / <현재 화면명>") 추가하며, 정확한 라우트→매핑은 다음과 같다(REQ-006, 모호한 "3개 화면 각각 동적 타이틀" 서술을 대체). [Round3: WORKSPACE → 작업 공간으로 용어 통일 — case-shell-topbar.tsx 실제 구현 정합]
 
 | 라우트 | 브레드크럼 | 타이틀 |
 |---|---|---|
-| `/cases/new` | "WORKSPACE / 사건 입력" | "사건 입력" |
-| `/cases/[caseId]` | "WORKSPACE / 리서치 리포트" | "리서치 리포트" |
+| `/cases/new` | "작업 공간 / 사건 입력" | "신규 사건 리서치 요청" |
+| `/cases/[caseId]` | "작업 공간 / 리서치 리포트" | "리서치 리포트" |
 | `/cases/[caseId]#expert-feedback` | (위와 동일 — 변경 없음) | (위와 동일 — 변경 없음) |
 
 `#expert-feedback`은 `/cases/[caseId]` 페이지 내부의 인페이지 앵커일 뿐 별도 라우트/화면이 아니다 — 사이드바 "전문가 피드백" nav 항목은 이 페이지 내부 섹션(`id="expert-feedback"`)으로의 앵커-스크롤일 뿐이며, Topbar 브레드크럼/타이틀은 URL 프래그먼트 존재 여부와 무관하게 "리서치 리포트"로 고정된다.
