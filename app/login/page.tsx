@@ -40,9 +40,18 @@ export default function LoginPage() {
     <div className="flex flex-1">
       <div className="hidden shrink-0 flex-col justify-between bg-app-sidebar px-10 py-12 lg:flex lg:w-[42%]">
         <div>
-          <span className="text-[19px] font-extrabold text-white [font-family:var(--font-manrope)]">
-            BORA
-          </span>
+          {/* Round3: Pencil 03-테스터-로그인.png — B 타일을 좌측 브랜드 패널에 추가 */}
+          <div className="flex items-center gap-2.5">
+            <div
+              className="flex size-8 items-center justify-center rounded-[6px] bg-bora-accent"
+              aria-hidden="true"
+            >
+              <span className="text-[15px] font-extrabold text-white">B</span>
+            </div>
+            <span className="text-[19px] font-extrabold text-white [font-family:var(--font-manrope)]">
+              BORA
+            </span>
+          </div>
           <p className="mt-1 text-meta tracking-[0.2em] text-app-sidebar-ink">보 상 레 이 더</p>
           <p className="mt-6 text-h2 font-semibold text-white">
             판례·약관·법령을 한 번에 대조하는
@@ -71,9 +80,7 @@ export default function LoginPage() {
         </p>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
-        <div className="flex size-9 items-center justify-center rounded-[8px] bg-bora-accent">
-          <span className="text-base font-extrabold text-white">B</span>
-        </div>
+        {/* Round3: 우측 폼 패널 B 타일 제거 — Pencil 03-테스터-로그인.png 기준 */}
         <div className="flex flex-col items-center gap-1.5">
           <span className="text-meta font-semibold uppercase tracking-wide text-bora-ink-4">
             TESTER LOGIN
