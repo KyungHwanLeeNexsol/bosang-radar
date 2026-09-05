@@ -380,6 +380,25 @@ sync-auditor가 별도로 검증한 6개 항목(사건 입력 diff 실재, 로�
 
 주의: 이전 베이스라인이 "4/5 PASS, case-flow FAIL"이었으나 Round 3에서 "4/5 PASS, mobile-drawer-focus FAIL"로 전환됨. case-flow는 PASS 달성. mobile-drawer-focus는 전체 실행 4번째 위치에서 발생하는 flake — PRESERVE 범위(helpers.ts) 내 waitForURL("/") 동작 관련, 별도 추적 필요.
 
+### Round 3 mobile-drawer-focus 회귀 근본원인 분석 및 2차 수정 (2026-09-05)
+
+**mobile-drawer-focus 회귀 근본 원인:**
+
+error-context.md 스냅샷에서 `Too many requests. Please try again later.` 확인.
+Better Auth 기본 rate limit: /sign-in 경로에 10초 창 내 최대 3회 요청 제한.
+auth.spec.ts(테스트1) + case-flow.spec.ts(테스트3) 두 테스트가 TESTER_A로 로그인한 직후 mobile-drawer-focus(테스트4)도 같은 TESTER_A로 로그인 시도 → 10초 창 내 3회 초과 → rate limit 오류 → loginAsTester의 waitForURL("/") 타임아웃.
+
+**수정 방법** (e2e/mobile-drawer-focus.spec.ts):
+- loginAsTester import 제거(helpers.ts PRESERVE), requireTesterPassword만 import
+- loginForDrawerTest 인라인 헬퍼: rate limit 오류 감지 시 12초 대기 후 최대 3회 재시도
+- 12초 = Better Auth 기본 창(10초)보다 넉넉하게 설정
+
+**최종 검증 (Round 3 2차 수정 후)**:
+- pnpm test --run: Test Files 59 passed (59), Tests 395 passed (395) — exit 0
+- pnpm test:e2e 1회: exit 0, 5/5 PASS (mobile-drawer-focus 13.9s)
+- pnpm test:e2e 2회: exit 0, 5/5 PASS
+- pnpm test:e2e 3회: exit 0, 5/5 PASS
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_
