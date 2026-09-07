@@ -49,13 +49,15 @@ export default async function NewCasePage() {
       <div className="min-w-0 xl:max-w-[780px] xl:flex-1">
         <CaseInputForm />
       </div>
+      {/* Round4: Pencil 05-사건-입력.png 재대조 — 우측 레일 순서를
+          개인정보 비식별 안내 → 분석 상태 → 최근 리서치로 정렬 */}
       <aside className="flex w-full flex-col gap-4 xl:w-[340px] xl:shrink-0">
-        <AnalysisStatusPanel />
-        <RecentResearchPanel cases={recentCases} />
         <Notice title="개인정보 비식별 안내">
           비식별 요약만 입력하세요. 실명, 상세 주소, 주민등록번호, 전화번호, 의료·보험 원본 문서
           내용은 입력하지 마세요.
         </Notice>
+        <AnalysisStatusPanel />
+        <RecentResearchPanel cases={recentCases} />
       </aside>
     </div>
   );

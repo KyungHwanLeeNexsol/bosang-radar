@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Info, Sparkles } from "lucide-react";
+import { Info, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
@@ -101,7 +101,10 @@ export function CaseInputForm() {
                 htmlFor="incidentDescription"
                 className="text-body-s font-semibold text-bora-ink-2"
               >
-                상해/질병 경위
+                상해·질병 경위{" "}
+                <span aria-hidden="true" className="text-bora-danger">
+                  *
+                </span>
               </Label>
               <span className="text-label-s text-bora-ink-4">육하원칙 중심 · 200자 내외 권장</span>
             </div>
@@ -113,7 +116,7 @@ export function CaseInputForm() {
               onChange={(event) => setIncidentDescription(event.target.value)}
               disabled={isSubmitting}
               data-testid="case-incident-description"
-              className="min-h-24 rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+              className="min-h-32 rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
             />
             <p className="text-label-s text-bora-ink-4">
               치료 경과, 기왕증 유무, 사고 이전 유사 증상 여부를 함께 기재하면 반대 논리까지 함께
@@ -134,7 +137,10 @@ export function CaseInputForm() {
                   htmlFor="diagnosisName"
                   className="text-body-s font-semibold text-bora-ink-2"
                 >
-                  진단명
+                  진단명{" "}
+                  <span aria-hidden="true" className="text-bora-danger">
+                    *
+                  </span>
                 </Label>
                 <span className="text-label-s text-bora-ink-4">상병코드 포함 권장</span>
               </div>
@@ -146,7 +152,7 @@ export function CaseInputForm() {
                 onChange={(event) => setDiagnosisName(event.target.value)}
                 disabled={isSubmitting}
                 data-testid="case-diagnosis-name"
-                className="rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+                className="h-10 rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
               />
               <p className="text-label-s text-bora-ink-4">복수 진단 시 쉼표로 구분해 입력하세요.</p>
               {fieldErrors.diagnosisName?.map((message) => (
@@ -162,7 +168,10 @@ export function CaseInputForm() {
                   htmlFor="disabilityBodyPart"
                   className="text-body-s font-semibold text-bora-ink-2"
                 >
-                  장해 부위
+                  장해 부위{" "}
+                  <span aria-hidden="true" className="text-bora-danger">
+                    *
+                  </span>
                 </Label>
                 <span className="text-label-s text-bora-ink-4">장해진단서 표기 그대로</span>
               </div>
@@ -174,7 +183,7 @@ export function CaseInputForm() {
                 onChange={(event) => setDisabilityBodyPart(event.target.value)}
                 disabled={isSubmitting}
                 data-testid="case-disability-body-part"
-                className="rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+                className="h-10 rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
               />
               <p className="text-label-s text-bora-ink-4">복수 부위는 쉼표로 구분해 입력하세요.</p>
               {fieldErrors.disabilityBodyPart?.map((message) => (
@@ -188,7 +197,10 @@ export function CaseInputForm() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="incidentDate" className="text-body-s font-semibold text-bora-ink-2">
-                사고·발병 일자
+                사고·발병 일자{" "}
+                <span aria-hidden="true" className="text-bora-danger">
+                  *
+                </span>
               </Label>
               <Input
                 id="incidentDate"
@@ -199,7 +211,7 @@ export function CaseInputForm() {
                 onChange={(event) => setIncidentDate(event.target.value)}
                 disabled={isSubmitting}
                 data-testid="case-incident-date"
-                className="w-fit rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
+                className="h-10 w-fit rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
               />
               <p className="text-label-s text-bora-ink-4">소멸시효·약관 버전 판별에 사용됩니다.</p>
               {fieldErrors.incidentDate?.map((message) => (
@@ -263,8 +275,11 @@ export function CaseInputForm() {
               처리 중입니다. 잠시만 기다려 주세요...
             </span>
           ) : (
-            <span className="text-body-s text-bora-ink-3">
-              모든 필드를 입력한 뒤 제출해 주세요.
+            // Round4: Pencil 05-사건-입력.png 정합 — 잠금 아이콘 + 비식별 처리 안내 문구
+            <span className="flex items-center gap-1.5 text-body-s text-bora-ink-3">
+              <Lock aria-hidden="true" className="size-3.5 shrink-0" />
+              입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다. 평균 소요 시간
+              3~5분
             </span>
           )}
 

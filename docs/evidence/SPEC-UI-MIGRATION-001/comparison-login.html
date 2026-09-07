@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>로그인 화면 — Pencil / Before / After 비교 (Round 4)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>로그인 화면 — Pencil / Before(Round3 이전) / After(Round4) 3열 비교</h1>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/03-테스터-로그인.png)</h2>
+        <img src="../../design/exports/03-테스터-로그인.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>Before — commit 493356e (1440px, dev server 캡처)</h2>
+        <img src="before-round3/login-1440.png" alt="Before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 (1440px, pnpm build && pnpm start 캡처)</h2>
+        <img src="after-round4/login-1440.png" alt="After" />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td colspan="3">1440×900 (Pencil은 2x export, 실측 CSS 환산 1440×900 상당)</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td colspan="3">
+          Before: 493356e7d6e5c7df1ccafca6921075cd05348993 · After: 이 SPEC의 현재 작업 브랜치
+          HEAD(Round 4, 미푸시)
+        </td>
+      </tr>
+      <tr>
+        <th>데이터 상태</th>
+        <td colspan="3">인증 불필요 화면 — 데이터 상태 없음(정적 렌더링)</td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이</th>
+        <td colspan="3">
+          <ul>
+            <li>비밀번호 토글: 아이콘만 → 아이콘+"표시"/"숨기기" 텍스트 추가</li>
+            <li>Footer 링크 구분선("|") 추가, "랜딩으로 돌아가기" 앞 ← 화살표 추가</li>
+            <li>
+              기능 아이콘 3종에 B 로고와 동일한 배경 컨테이너(<code>rounded-[6px] bg-white/10</code
+              >) 추가
+            </li>
+            <li>헤드라인 상단 여백 <code>mt-6</code>(24px) → <code>mt-20</code>(80px)로 확대</li>
+            <li>입력창/버튼 높이 <code>h-9</code>(36px) → <code>h-11</code>(44px)로 확대</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>의도적 편차</th>
+        <td colspan="3">
+          헤드라인 폰트 크기(<code>text-h2</code> 디자인 토큰)는 이번 라운드에서 변경하지 않음 —
+          전역 타이포 토큰 변경은 다른 화면에도 영향을 미치는 리스크로 판단해 위치 조정만 수행.
+          Pencil만큼 완전히 화면 중단으로 내려가지는 않은 잔여 편차가 남아 있음(정직하게 기록, 별도
+          사용자 승인 없음 — 후속 라운드에서 재검토 필요 시 진행).
+        </td>
+      </tr>
+      <tr>
+        <th>승인/근거</th>
+        <td colspan="3">
+          외부 재검토 요청 문서에 나열된 항목을 그대로 반영 — 별도 AskUserQuestion 승인 절차 없이
+          명시적 결함 목록에 따라 직접 수정(사용자가 이미 각 항목을 결함으로 지정함).
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

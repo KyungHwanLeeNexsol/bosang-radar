@@ -29,7 +29,10 @@ async function loginForDrawerTest(
     // rate limit 오류 메시지나 성공 리디렉트를 기다린다.
     const result = await Promise.race([
       page.waitForURL("/").then(() => "success" as const),
-      page.getByTestId("login-error").waitFor({ state: "visible" }).then(() => "error" as const),
+      page
+        .getByTestId("login-error")
+        .waitFor({ state: "visible" })
+        .then(() => "error" as const),
     ]);
 
     if (result === "success") return;

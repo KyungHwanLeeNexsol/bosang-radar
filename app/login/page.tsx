@@ -53,7 +53,9 @@ export default function LoginPage() {
             </span>
           </div>
           <p className="mt-1 text-meta tracking-[0.2em] text-app-sidebar-ink">보 상 레 이 더</p>
-          <p className="mt-6 text-h2 font-semibold text-white">
+          {/* Round4: Pencil 03-테스터-로그인.png 재대조 — 헤드라인이 로고 바로 아래가 아니라
+              화면 중단에 더 가깝게 위치한다. mt-6 → mt-20으로 간격을 넓혀 근사시킨다. */}
+          <p className="mt-20 text-h2 font-semibold text-white">
             판례·약관·법령을 한 번에 대조하는
             <br />
             손해사정 리서치 워크스페이스
@@ -65,7 +67,13 @@ export default function LoginPage() {
           <ul className="mt-6 flex flex-col gap-4">
             {BRAND_FEATURES.map(({ icon: Icon, title, description }) => (
               <li key={title} className="flex items-start gap-2.5">
-                <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-bora-accent" />
+                {/* Round4: 기능 아이콘에 B 로고와 동일한 배경 컨테이너 추가 (Pencil 정합) */}
+                <div
+                  className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[6px] bg-white/10"
+                  aria-hidden="true"
+                >
+                  <Icon aria-hidden="true" className="size-4 text-bora-accent" />
+                </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-body font-semibold text-white">{title}</span>
                   <span className="text-body-s text-app-sidebar-ink">{description}</span>

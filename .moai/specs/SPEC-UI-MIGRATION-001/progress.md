@@ -1,5 +1,88 @@
 # SPEC-UI-MIGRATION-001 — progress.md
 
+## Current Status (2026-09-07, Round 4 최종 — 이 줄이 유일하게 유효한 판정)
+
+- **`run_status: audit-ready`**(Round 4 최종 검증 완료 시점 재확정). 아래 §E.3 "Round 3" 이후 기록된 이전 `audit-ready`(2026-09-05, 커밋 `b05eb5a`)는 외부 재검토 결과 **`[SUPERSEDED — 2026-09-07 Round 4 재검토]`**로 표시한다(삭제하지 않고 그대로 보존, §E.3 하단 참조). 재검토 진행 중에는 `verification-pending`으로 되돌렸으며, 아래 3개 복구 조건을 전부 충족한 뒤 이 절에서 다시 `audit-ready`로 재확정한다.
+- **재검토 사유**: 외부 재검토가 Pencil 원본과 실제 PNG를 직접 대조한 결과 로그인·사건입력 화면의 시각 충실도 격차가 남아 있었고, `pnpm build`도 실제로는 실패 상태였다(§E.3 "Round 3" 기록의 "SSG 오류(pre-existing)"라는 진단은 **오진**이었음 — 아래 참조).
+- **audit-ready 복구 조건 — 전부 충족 확인**:
+  1. `pnpm build` 종료 코드 0 — ✅ 확인(dead-code 제거 후 이 세션에서 3회 재확인).
+  2. 로그인/사건입력 Gap Matrix 항목 전부 해소 또는 의도적 편차로 문서화 — ✅ 아래 Round 4 Gap Matrix 2건 + 의도적 편차 4건 전부 기록.
+  3. 전체 시각 검증(1440/1024/390 + Pencil 대조) 완료 — ✅ `docs/evidence/SPEC-UI-MIGRATION-001/after-round4/` 18개 캡처 + `comparison-{login,case-input}.html` 3열 비교 문서 완성.
+- 이 절 아래 §E.1~§E.4의 기존 기록은 히스토리로 그대로 둔다. 각 절 내부의 개별 `run_status`/판정 값은 이 절이 최신 유효값으로 덮어쓴다.
+
+### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
+
+Pencil `design/exports/03-테스터-로그인.png`와 `after-round3/login-1440.png`(수정 전)를 1440px 뷰포트 기준 직접 대조.
+
+| 요소 | Pencil | 구현(수정 전) | 심각도 | 수정 파일 |
+|---|---|---|---|---|
+| 비밀번호 토글 | 눈 아이콘 + "표시" 텍스트 | 아이콘만(aria-label에만 텍스트 존재, 화면엔 미노출) | P1 | `app/login/login-form.tsx` |
+| Footer 링크 | "이용약관 \| 개인정보처리방침 \| 고객지원" (구분선 있음) | 구분선 없이 gap만 | P2 | `app/login/login-form.tsx` |
+| "랜딩으로 돌아가기" | ← 화살표 아이콘 포함 | 텍스트만 | P2 | `app/login/login-form.tsx` |
+| 기능 아이콘(3개) | B 로고와 동일한 스타일의 배경 박스 안에 아이콘 | 배경 없이 아이콘만 | P2 | `app/login/page.tsx` |
+| 헤드라인 위치 | 로고~헤드라인 사이 여백이 크고, 화면 중단에 더 가까움 | 로고 바로 아래(mt-6) | P1 | `app/login/page.tsx`(`mt-6`→`mt-20`) |
+| 입력창/버튼 높이 | 육안상 더 여유 있는 높이 | `h-9`(36px) | P2 | `app/login/login-form.tsx`(`h-9`→`h-11`, 버튼도 `h-11`) |
+
+**수정 후 재캡처(1440px, `pnpm build && PORT=3100 pnpm start` 후 임시 Playwright 스크립트로 촬영, 로컬 진단용·커밋 대상 아님)**: 위 6개 항목 전부 반영 확인. 헤드라인은 로고 대비 간격이 크게 넓어졌으나 Pencil만큼(화면 정중앙 수준)은 아니고 여전히 다소 위쪽 — **잔여 편차로 정직하게 기록**(디자인 토큰 `text-h2` 폰트 크기 자체는 이번 라운드에서 변경하지 않음 — 전역 타이포 토큰 변경은 이 SPEC 범위를 넘어서는 리스크로 판단, 위치 조정만 수행).
+- `npx vitest run app/login/login-form.test.tsx` → 6/6 PASS(기존 테스트·testid·`authClient.signIn.email` 로직 무회귀 확인).
+
+### Round 4 — 사건 입력 화면 Gap Matrix + 수정 (2026-09-07)
+
+Pencil `design/exports/05-사건-입력.png`/`05b`와 `after-round3/case-input-1440.png`(수정 전, 데이터 채워진 상태) 직접 대조 + 실제 DB 생성 사건으로 재확인.
+
+| 요소 | Pencil | 구현(수정 전) | 심각도 | 수정 파일 |
+|---|---|---|---|---|
+| 우측 레일 순서 | 개인정보 비식별 안내 → 분석 상태 → 최근 리서치 | 분석 상태 → 최근 리서치 → 개인정보 비식별 안내 | P1 | `app/cases/new/page.tsx` |
+| 필수 필드 표시 | 4개 라벨 전부 `*` 포함 | `*` 없음 | P1 | `app/cases/new/case-input-form.tsx` |
+| 입력창/텍스트영역 크기 | 육안상 더 크고 여유 있음 | `Input` 기본 `h-8`(32px), textarea `min-h-24` | P2 | `case-input-form.tsx`(`h-10`/`min-h-32`로 확대) |
+| 분석 4단계 개별 표시 | 각 단계 우측에 "대기" 라벨 | 번호만, 상태 라벨 없음 | P2 | `analysis-status-panel.tsx` |
+| Footer 안내 | 🔒 아이콘 + "입력 내용은 비식별 상태로 처리되며..." | "모든 필드를 입력한 뒤 제출해 주세요." | P1 | `case-input-form.tsx` |
+| 임시저장 표시 | "임시저장 · 2분 전" | "임시저장"(정적, 타임스탬프 없음) | P3 | **의도적 편차 유지**(아래 사유 참조) |
+| 사이드바 사용자 블록 | "정하은 손해사정사 / 한결손해사정 법인" + 확장 아이콘 | 로그인 이메일만 표시 | P3 | **의도적 편차 유지**(아래 사유 참조) |
+
+**의도적 편차(수정하지 않고 유지, 사유 명시)**:
+1. **임시저장 타임스탬프**: 이 프로젝트에 임시저장 백엔드/영속화 기능이 없다(REQ-014, "준비 중" Chip으로 이미 명시). 가짜 "N분 전" 타임스탬프를 표시하는 것은 AC-012의 가짜 진행률/가짜 상태 금지 원칙과 동일한 이유로 금지된다 — 실제로 구현할 수 없으므로 현재의 정적 "임시저장" 비활성 표시를 그대로 유지한다.
+2. **사이드바 사용자 블록의 이름/소속**: 현재 데이터 모델(`user` 테이블, Better Auth)에 "손해사정사 이름"이나 "소속 법인" 필드가 없다. Pencil이 보여주는 값은 목업 데이터이며, 실제 세션에 없는 정보를 지어내 표시하는 것은 verification-claim-integrity 원칙(관찰되지 않은 값을 마치 사실인 것처럼 표시 금지)에 위배된다 — 로그인 이메일 표시를 유지한다.
+
+**수정 후 실제 캡처로 확인(`CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence.spec.ts --workers=1`, `docs/evidence/SPEC-UI-MIGRATION-001/after-round4/`)**:
+- `case-input-empty-recent-1440.png`(최근 리서치 0건) — 우측 레일 순서, `*` 표시, "대기" 라벨, footer 잠금 아이콘+문구 전부 반영 확인.
+- `case-input-with-recent-1440.png`(최근 리서치 2건, 실제 DB에 생성된 사건) — 최근 리서치 카드가 실 데이터로 정상 렌더링 확인(8자리 ID 축약 유지, AC-018C 기존 결정 무회귀).
+- `case-input-empty-recent-{1024,390}.png` + `case-input-mobile-390-fullpage.png`(전체 페이지) 추가 확보.
+- `npx vitest run app/cases/new/` → 2 test files, 12/12 PASS(기존 testid·검증 로직 무회귀).
+
+**INSUFFICIENT claim 재현 시도 — 결과: 미발생, 정직하게 기록**: `capture-evidence.spec.ts`에서 도메인이 다른 입력("돌발성 난청"/"귀", 정형외과·척추 손상 위주 시드 데이터와 무관한 이비인후과 도메인)으로 사건을 생성해 INSUFFICIENT 유도를 시도했다. 실제 결과: `report-insufficient-attempt-1440.png` 확인 결과 **6건 전부 "근거 확인"(VERIFIED), 0건 "판단 불충분"**으로 렌더링됨 — 도메인 불일치 입력으로도 INSUFFICIENT를 재현하지 못했다. 이는 `lib/ai/providers/deterministic.ts`의 `semanticVerificationFixture`가 검증 단계에서 항상 "관련성 확인됨"을 반환하고(`e2e/case-flow.spec.ts` 자체 주석에도 동일하게 문서화됨: "결정론적 provider는 모든 candidate에 대해 supported: true를 고정 반환하므로... INSUFFICIENT claim이 자연 발생하지 않는다"), 검색 단계 자체도 입력 도메인과 무관하게 항상 근거를 반환하는 것으로 관찰된다. **결론**: 이 로컬 결정론적 환경에서는 INSUFFICIENT claim 상태를 UI로 캡처하는 것이 현재 구조상 불가능하다 — 코드 결함이 아니라 테스트 환경(결정론적 provider)의 알려진 한계이며, 잔여 위험(Residual-risk)으로 남긴다. `report-verified-claim-{1440,1024}.png`로 VERIFIED 상태는 확보했다.
+
+### Round 4 — E2E 증거 정리 + rate-limit 재검토 (2026-09-07)
+
+**상충 기록 3종 조사 결과**:
+
+| 기록 | 위치 | 원인 판정 |
+|---|---|---|
+| `exit 0, 4/5 PASS` | Round 3 "Combo C/D" 진단 실험(§E.3 "Round 3 수정") | **기록 오류(invalid evidence)** — 아래 근거 참조 |
+| `exit 1(ELIFECYCLE), 4/5 PASS` | Round 3 "최종 검증" 최초 3회 실행 | 유효한 기록 — mobile-drawer-focus 회귀(rate limit) 발생 시점, 실제 실패를 정확히 반영 |
+| `5/5 PASS × 3회, exit 0` | Round 3 "mobile-drawer-focus 회귀 근본원인 분석 및 2차 수정" 이후 | 유효한 기록 — rate-limit 재시도 로직 적용 후 |
+
+**`exit 0, 4/5 PASS`가 기록 오류인 근거**: `scripts/run-e2e.ts`의 종료 코드 결정 경로를 소스 레벨로 직접 확인했다. 정상 종료는 `child.on("close", (code) => finish({ exitCode: code ?? 1 }))`로 Playwright 자체 프로세스의 종료 코드를 그대로 전달하며, 유일한 예외 경로(고아 webServer 프로세스를 죽였는데도 정상 close가 오지 않는 최후의 경우)는 `finish({ exitCode: 1 })`로 **항상 1을 반환**한다 — 즉 이 래퍼가 테스트 실패를 성공 코드로 뒤바꿔 반환하는 코드 경로는 현재 소스에 존재하지 않는다. Playwright CLI 자체도 실패한 테스트가 1건이라도 있으면 비0 종료 코드를 반환하는 것이 표준 동작이다. 따라서 "exit 0, 4/5 PASS"는 러너의 버그가 아니라 **당시 수기 기록 과정에서의 오기**로 판정하며, 이 사실을 위 표에 명시적으로 기록한다(코드 수정 불필요 — verification-claim-integrity §5의 "결함 주장은 도구로 확인되기 전까지 가설" 원칙에 따라, 실제 도구 확인 결과 결함이 아니었음을 정직하게 기록).
+
+**Rate-limit 재시도 방식 재검토(4개 대안 검토, 최소 변경 원칙 적용)**:
+
+| 대안 | 검토 결과 |
+|---|---|
+| 테스트별 독립 사용자(TESTER_B) 사용 | **기각** — 코드에 별도 rate-limit 설정이 없어 Better Auth 기본값을 그대로 사용 중이며, 기본 규칙은 이메일이 아니라 `/sign-in` 경로(IP+path) 기준으로 추정된다(기존 주석: "Better Auth 기본 rate limit: /sign-in 경로에 10초 창 내 최대 3회 요청 제한" — 이메일별 키라는 언급 없음). 다른 테스터 이메일을 써도 같은 창 안의 `/sign-in` 요청 수 자체는 줄지 않아 근본 해결이 아니다. |
+| login 횟수 축소(storageState/인증 fixture 재사용) | 근본적으로 가장 유효한 해법이지만, `playwright.config.ts`에 `globalSetup` 도입 + `helpers.ts`(PRESERVE 대상, 수정 불가) 밖에서 새 인증 경로를 만들어야 하는 등 테스트 인프라 변경 범위가 작지 않다. 이미 검증된 재시도 로직(아래)이 3회 연속 5/5 PASS로 안정 동작 중인 상태에서, 이번 라운드 막바지에 새 변수(storageState 쿠키 포맷, 여러 spec 간 실행 순서 의존)를 추가하는 것은 편익 대비 회귀 위험이 크다고 판단해 **이번 라운드에서는 보류**(후속 라운드 후보로 명시). |
+| E2E 환경 전용 rate-limit 구성 | **기각** — 프로덕션 인증 코드(`lib/auth/`)의 보안 설정 자체를 변경해야 하므로, 사용자가 명시한 "제품 보안 설정을 약화하지 않는 최소 변경" 원칙에 정면으로 위배된다. |
+| 기존 12초 sleep + 최대 3회 재시도 유지 | **채택**(변경 없음) — 이미 이전 라운드에서 근본원인(Better Auth 10초 창/3회 제한)을 규명하고 만든 해법이며, 프로덕션 인증 코드를 전혀 건드리지 않고, 아래 최종 검증에서 3회 연속 재확인했다. |
+
+**결론**: 이번 라운드는 코드를 변경하지 않고 현재 방식을 유지한다 — 새로운 테스트 인프라 변경보다 낮은 위험을 우선했다는 판단 근거를 위 표로 남긴다. 최종 검증 3회 실행 결과는 §8(최종 검증) 참조.
+
+### Round 4 — 빌드 실패 근본원인 정정 (2026-09-07)
+
+- **이전 오진**: "TypeScript 컴파일 성공, 환경변수 미설정으로 SSG 오류"(Round 3 기록) — 이는 사실이 아니었다.
+- **실제 원인**: `pnpm build` 실행 결과 `scripts/capture-evidence.ts(1,26): error TS2307: Cannot find module 'playwright'`로 **TypeScript 타입체크 단계에서 실패**하고 있었다. 이 파일은 `import { chromium } from "playwright"`(bare `playwright` 패키지, devDependencies에는 `@playwright/test`만 존재)를 사용했고, `tsconfig.json`의 `include: ["**/*.ts", ...]`가 `scripts/`도 포함하므로 `next build`의 전체 타입체크에 걸렸다.
+- **근거(dead code 확인)**: `grep -rn "capture-evidence.ts"`(node_modules/.next 제외) 결과 이 파일을 참조하는 곳은 전무했다. 이 스크립트의 기능(로그인 화면 PNG 캡처, 서버가 이미 떠 있다고 가정)은 `e2e/capture-evidence.spec.ts`(Playwright 테스트, `@playwright/test` 정상 사용, `docs/evidence/SPEC-UI-MIGRATION-001/README.md`가 실제로 참조하는 유일한 캡처 경로)로 완전히 대체되어 있었다.
+- **수정**: `scripts/capture-evidence.ts` 삭제(참조 0건 dead code 제거 — 새 의존성 추가나 tsconfig 예외 없이 근본원인만 제거).
+- **검증**: `pnpm build` → 종료 코드 `0`(재확인, 이 세션에서 직접 실행). 기존 `instrumentation.ts:33` edge-runtime 경고 1건만 남음(PRESERVE 범위 밖, 기존과 동일, 신규 회귀 아님). 라우트 테이블 무변경(`/cases/new`는 여전히 `ƒ Dynamic`).
+
 ## §E.1 Plan-phase Audit-Ready Signal
 
 ### Plan-audit report persistence policy (read before citing any `.moai/reports/plan-audit/*.md` path)
@@ -413,7 +496,7 @@ _<pending sync-phase>_
 - Pencil 기준: design/exports/*.png (이미 커밋됨)
 - 캡처 스크립트: CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence.spec.ts --workers=1
 
-run_status: audit-ready — 5개 항목 전부 해소됨:
+**`run_status: audit-ready`** `[SUPERSEDED — 2026-09-07 Round 4 재검토, 최신 유효값은 파일 최상단 "Current Status" 참조]` — 당시 근거로 들었던 5개 항목:
   1. AC-024 E2E: 5/5 PASS × 3회 (workers:1 + rate limit retry)
   2. 시각 증빙: after-round3/ 9개 PNG + Pencil design/exports/ + capture script
   3. 로그인 B타일: 좌측 추가, 우측 제거 (826d044)
@@ -422,3 +505,49 @@ run_status: audit-ready — 5개 항목 전부 해소됨:
 
 전체 E2E 검증 (시각 증빙 spec 추가 후):
 - pnpm test:e2e: 5 passed, 2 skipped (capture-evidence 2개는 CAPTURE_EVIDENCE 미설정 시 skip) — exit 0
+
+**Round 4 재검토로 무효화된 이유**: 위 5개 항목 중 어느 것도 (a) `pnpm build`가 실제로 성공하는지, (b) Pencil 원본과 수정 후 실제 화면을 나란히 재대조했는지를 확인하지 않았다 — B타일 위치 교정만으로 "Pencil 정합 완료"로 판정한 것이 문제였다. 상세: 파일 최상단 "Current Status" 및 이하 Round 4 작업 기록.
+
+## Round 4 — 최종 검증 (2026-09-07, 오케스트레이터 직접 실행)
+
+모든 명령을 이 세션에서 직접 실행하고 종료 코드를 관찰했다 — 이전 라운드 수치를 재기재하지 않았다.
+
+| 명령 | 결과 | 비고 |
+|---|---|---|
+| `pnpm test` | `Test Files 59 passed (59)`, `Tests 395 passed (395)` | exit 0 |
+| `pnpm lint`(`eslint .`) | 0 findings | exit 0 |
+| `pnpm build` | 성공 | exit 0, 3회 재확인(dead-code 제거 직후 1회 + 로그인 수정 후 1회 + 최종 1회). 기존 `instrumentation.ts:33` edge-runtime 경고 1건만 잔존(PRESERVE 범위, 신규 아님) |
+| `pnpm format:check` | 신규 위반 0건 | pre-existing 2건만 잔존(`app/globals.css`, `CHANGELOG.md`). **정정**: 이번 라운드에서 수정한 5개 파일 + 이전부터 드리프트돼 있던(이번 세션이 만들지 않은) `e2e/mobile-drawer-focus.spec.ts` 1건을 함께 포맷 정리해 pre-existing 위반을 3건→2건으로 줄였다(정직하게 기록 — "0건"이 아니라 "발견 즉시 수정"). |
+| `pnpm test:e2e` × 3회 | 매회 `5 passed, 3 skipped`, exit 0 | 3회 전부 `mobile-drawer-focus` PASS(13.6~13.8s), rate-limit 재시도 발동 없이 첫 시도에 통과. `case-flow`도 3회 전부 PASS. |
+
+**시각 스모크 체크리스트**: `docs/evidence/SPEC-UI-MIGRATION-001/after-round4/` 18개 스크린샷(로그인 3뷰포트, 사건입력 최근리서치 0건/있음, 모바일 전체페이지 2종, 리포트 VERIFIED/INSUFFICIENT-attempt, 전문가피드백 2뷰포트, 전역/사건별 404, 모바일 드로어 열림/닫힘) 전부 육안 확인 — 가로 오버플로/겹침/잘림 없음, Round4 Gap Matrix 항목 전부 반영 확인.
+
+**PRESERVE 경로 무회귀**: `git diff --stat origin/main -- app/layout.tsx app/page.tsx lib/db/schema.ts lib/validation/case-input.ts lib/feedback/schema.ts lib/cases/create-case.ts lib/feedback/submit-feedback.ts lib/pipeline lib/ai db "app/cases/[caseId]/error.tsx" e2e/helpers.ts design/claimradar-ui.pen` → 빈 출력 확인(이번 라운드는 UI 표시 계층 + 캡처 스펙 + dead-code 제거만 수행, 백엔드/검증/AI 파이프라인/디자인 원본 무변경).
+
+**기존 및 신규 testid 무회귀**: `npx vitest run app/login/ app/cases/new/`(총 18개 테스트, 위 표에 포함) 전부 PASS — 기존 testid 삭제·변경 없이 신규 시각 요소만 추가했음을 테스트 스위트 자체가 증명한다.
+
+## Round 4 — 완료 보고 요약
+
+**수정한 파일과 이유**:
+- `scripts/capture-evidence.ts`(삭제): `pnpm build` 실패의 실제 원인(참조 0건 dead code, bare `playwright` import).
+- `app/login/page.tsx`, `app/login/login-form.tsx`: 로그인 화면 Gap Matrix 6건 반영.
+- `app/cases/new/page.tsx`, `case-input-form.tsx`, `analysis-status-panel.tsx`: 사건 입력 화면 Gap Matrix 5건 반영.
+- `e2e/capture-evidence.spec.ts`: 캡처 범위 대폭 확장(9개→18개 스크린샷, VERIFIED/INSUFFICIENT 시도, 모바일 전체페이지 포함).
+- `e2e/mobile-drawer-focus.spec.ts`: 코드 변경 없음, 포맷팅만 정리(pre-existing drift 발견 즉시 수정).
+- `docs/evidence/SPEC-UI-MIGRATION-001/`: README 갱신, `comparison-{login,case-input}.html`(3열 비교) 신규, `before-round3/`(커밋 493356e 실제 재현), `after-round4/`(18개 신규 캡처).
+- `.moai/specs/SPEC-UI-MIGRATION-001/progress.md`: 상태 정정 + Gap Matrix + 최종 검증 기록.
+
+**빌드 실패의 확정 원인과 해결**: 위 "Round 4 — 빌드 실패 근본원인 정정" 참조. `.env.local`/SSG 문제가 아니라 TS2307(dead code)이었음.
+
+**E2E rate-limit 해결 방식과 3회 실행 결과**: 기존 12초 재시도 로직 유지(근거는 "Round 4 — E2E 증거 정리 + rate-limit 재검토" 참조) — 이번 세션 3회 실행 모두 exit 0, 5/5 PASS.
+
+**전체 비교 증빙 경로**: `docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`, `comparison-case-input.html`.
+
+**화면별 남은 편차**:
+- 로그인 헤드라인 위치: Pencil만큼 완전히 화면 중단까지 내려가지 않음(방향은 개선, 완전 일치는 아님) — 사용자 승인 없음, 후속 라운드 후보.
+- 사건 입력 "임시저장 · N분 전" 타임스탬프, 사이드바 이름/소속: 백엔드에 없는 데이터를 지어낼 수 없어 의도적 유지(근거: 위 Gap Matrix "의도적 편차" 항목).
+- 리포트 INSUFFICIENT claim 시각 확보: 로컬 결정론적 AI provider의 한계로 재현 불가 확인(코드 결함 아님).
+
+**AC 및 Definition of Done 최종 판정**: AC-024(4개 명령 exit 0 + format:check 신규 위반 0건) **PASS**(이 세션에서 실측). 그 외 AC들은 이번 라운드가 손대지 않은 기존 PASS 상태 유지(회귀 없음, 위 PRESERVE 확인).
+
+**최종 commit SHA와 push된 브랜치**: 아직 커밋되지 않음 — 이 progress.md 갱신을 포함해 다음 커밋에서 `plan/SPEC-UI-MIGRATION-001` 브랜치에 반영 예정(사용자 확인 후 커밋/푸시 여부 결정).

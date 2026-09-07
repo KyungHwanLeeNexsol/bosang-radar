@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 
@@ -58,7 +58,7 @@ export function LoginForm() {
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="h-9 rounded-[4px] border border-app-line bg-app-surface px-3 text-body text-bora-ink"
+            className="h-11 rounded-[4px] border border-app-line bg-app-surface px-3 text-body text-bora-ink"
             data-testid="login-email"
           />
         </div>
@@ -75,20 +75,27 @@ export function LoginForm() {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="h-9 w-full rounded-[4px] border border-app-line bg-app-surface px-3 pr-10 text-body text-bora-ink"
+              className="h-11 w-full rounded-[4px] border border-app-line bg-app-surface px-3 pr-16 text-body text-bora-ink"
               data-testid="login-password"
             />
+            {/* Round4: Pencil 정합 — 아이콘만이 아니라 "표시"/"숨기기" 텍스트도 함께 노출 */}
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
               aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
               data-testid="login-password-toggle"
-              className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-bora-ink-4 transition-colors hover:text-bora-ink-2"
+              className="absolute inset-y-0 right-0 flex items-center gap-1 px-3 text-body-s text-bora-ink-4 transition-colors hover:text-bora-ink-2"
             >
               {showPassword ? (
-                <EyeOff aria-hidden="true" className="size-4" />
+                <>
+                  <EyeOff aria-hidden="true" className="size-4" />
+                  숨기기
+                </>
               ) : (
-                <Eye aria-hidden="true" className="size-4" />
+                <>
+                  <Eye aria-hidden="true" className="size-4" />
+                  표시
+                </>
               )}
             </button>
           </div>
@@ -102,7 +109,7 @@ export function LoginForm() {
           type="submit"
           disabled={isSubmitting}
           data-testid="login-submit"
-          className="rounded-[4px] bg-bora-accent text-white hover:bg-bora-accent-deep"
+          className="h-11 rounded-[4px] bg-bora-accent text-white hover:bg-bora-accent-deep"
         >
           {isSubmitting ? "로그인 중..." : "로그인"}
         </Button>
@@ -112,14 +119,23 @@ export function LoginForm() {
         <p className="text-meta text-bora-ink-4">
           테스터 계정은 운영자가 직접 발급합니다. 계정 문의는 담당자에게 연락해 주세요.
         </p>
+        {/* Round4: Pencil 정합 — 링크 사이 "|" 구분선 추가 */}
         <div className="flex items-center gap-3 text-meta text-bora-ink-4">
-          {FOOTER_LINKS.map((label) => (
-            <span key={label} aria-disabled="true" className="cursor-not-allowed opacity-40">
-              {label}
+          {FOOTER_LINKS.map((label, index) => (
+            <span key={label} className="flex items-center gap-3">
+              {index > 0 ? <span aria-hidden="true">|</span> : null}
+              <span aria-disabled="true" className="cursor-not-allowed opacity-40">
+                {label}
+              </span>
             </span>
           ))}
         </div>
-        <Link href="/" className="text-body-s font-medium text-bora-accent hover:underline">
+        {/* Round4: Pencil 정합 — 뒤로가기 화살표 아이콘 추가 */}
+        <Link
+          href="/"
+          className="flex items-center gap-1.5 text-body-s font-medium text-bora-accent hover:underline"
+        >
+          <ArrowLeft aria-hidden="true" className="size-3.5" />
           랜딩으로 돌아가기
         </Link>
       </footer>

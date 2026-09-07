@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>사건 입력 화면 — Pencil / Before / After 비교 (Round 4)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>사건 입력 화면 — Pencil / Before(Round3) / After(Round4) 3열 비교</h1>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/05-사건-입력.png, 데이터 채움 상태)</h2>
+        <img src="../../design/exports/05-사건-입력.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>Before — Round 3 (commit b05eb5a, 데이터 채움 상태)</h2>
+        <img src="after-round3/case-input-1440.png" alt="Before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 (최근 리서치 0건 상태)</h2>
+        <img src="after-round4/case-input-empty-recent-1440.png" alt="After (empty)" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>After — Round 4 (최근 리서치 2건, 실제 DB 데이터)</h2>
+        <img src="after-round4/case-input-with-recent-1440.png" alt="After (with data)" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 리포트(VERIFIED claim 확보)</h2>
+        <img src="after-round4/report-verified-claim-1440.png" alt="report verified" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 리포트(INSUFFICIENT 재현 시도, 결과: 미발생)</h2>
+        <img
+          src="after-round4/report-insufficient-attempt-1440.png"
+          alt="report insufficient attempt"
+        />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td colspan="3">1440×900</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td colspan="3">
+          Before: b05eb5a24edef19c0ef1580bdbcab15d108f5b3c(외부 재검토 대상 커밋) · After: 이 작업
+          브랜치 HEAD(Round 4, 미푸시)
+        </td>
+      </tr>
+      <tr>
+        <th>데이터 상태</th>
+        <td colspan="3">
+          Pencil/Before는 임의 샘플 텍스트 채움 상태. After는 (a) 빈 입력 + 최근 리서치 0건, (b) 빈
+          입력 + 최근 리서치 2건(실제 DB 사건 2건 생성), (c) 리포트 화면 VERIFIED, (d) 리포트 화면
+          INSUFFICIENT 재현 시도 — 4가지 상태를 모두 확보.
+        </td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이</th>
+        <td colspan="3">
+          <ul>
+            <li>
+              우측 레일 순서: 분석상태→최근리서치→비식별안내 →
+              <b>비식별안내→분석상태→최근리서치</b>로 재정렬
+            </li>
+            <li>필수 필드 4개 라벨에 <code>*</code> 추가</li>
+            <li>
+              입력창 <code>h-8</code>(32px)→<code>h-10</code>(40px), textarea
+              <code>min-h-24</code>→<code>min-h-32</code>
+            </li>
+            <li>분석 4단계 각 항목에 "대기" 라벨 추가</li>
+            <li>
+              Footer: 잠금 아이콘 + "입력 내용은 비식별 상태로 처리되며..." 안내문 추가(기존 "모든
+              필드를 입력한 뒤 제출해 주세요." 대체)
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>의도적 편차(사용자 승인 또는 근거)</th>
+        <td colspan="3">
+          <ul>
+            <li>
+              "임시저장 · N분 전" 타임스탬프 — 백엔드 영속화 기능 없음(REQ-014 "준비 중"). 가짜
+              타임스탬프 표시는 AC-012 가짜 진행률 금지 원칙 위반이므로 정적 비활성 표시 유지.
+            </li>
+            <li>
+              사이드바 사용자 블록의 이름/소속 — 데이터 모델에 존재하지 않는 필드(손해사정사
+              이름/법인명)를 지어내지 않음. 로그인 이메일 표시 유지(verification-claim-integrity
+              원칙).
+            </li>
+            <li>
+              INSUFFICIENT claim 미확보 — 결정론적 AI provider(로컬 테스트 환경 전용)의 알려진
+              한계로 재현 불가 확인(코드 결함 아님, 잔여 위험으로 명시).
+            </li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

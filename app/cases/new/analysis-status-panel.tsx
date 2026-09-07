@@ -38,16 +38,22 @@ export function AnalysisStatusPanel() {
           <div className="h-full w-0 rounded-full bg-bora-accent" />
         </div>
       </div>
+      {/* Round4: Pencil 05-사건-입력.png 정합 — 단계별 "대기" 정적 라벨 추가
+          (전부 동일하게 "대기"만 표시 — 개별 완료/진행 여부는 여전히 표현하지
+          않으므로 가짜 진행률 금지 원칙과 충돌하지 않는다) */}
       <ol className="flex flex-col gap-2.5 px-4 py-3">
         {ANALYSIS_STAGES.map((stage, index) => (
-          <li key={stage} className="flex items-center gap-2.5">
-            <span
-              aria-hidden="true"
-              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-app-surface-inset text-label-s font-semibold text-bora-ink-3"
-            >
-              {index + 1}
+          <li key={stage} className="flex items-center justify-between gap-2.5">
+            <span className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-app-surface-inset text-label-s font-semibold text-bora-ink-3"
+              >
+                {index + 1}
+              </span>
+              <span className="text-body-s text-bora-ink-2">{stage}</span>
             </span>
-            <span className="text-body-s text-bora-ink-2">{stage}</span>
+            <span className="text-label-s text-bora-ink-4">대기</span>
           </li>
         ))}
       </ol>
