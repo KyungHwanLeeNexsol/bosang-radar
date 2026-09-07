@@ -152,7 +152,7 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 
 **최종 AC/DoD 상태**: AC-024(4개 명령 + format:check) **PASS**(이 세션 실측). `acceptance.md` §DoD 체크박스는 로그인 우측 폼 간격·모바일 리포트/피드백 IA 분리·Pencil 모바일 프레임 동일폭 비교라는 3건의 미해소·미결정 항목이 남아 있어 **의도적으로 미체크 상태 유지**(거짓 체크 금지).
 
-**최종 commit SHA와 push된 브랜치**: 이 progress.md 갱신을 포함한 Round 5 전체 변경사항은 아래 완료 보고에서 사용자에게 커밋/푸시 여부를 확인한 뒤 반영한다(커밋 SHA는 확정 후 이 절과 위 비교 HTML 파일들에 backfill한다).
+**최종 commit SHA와 push된 브랜치**: `f6ea25a614782ae60c1e2c0ceaf575483d59087c` — 사용자가 "커밋 + 푸시"를 승인해 `plan/SPEC-UI-MIGRATION-001` 브랜치에 커밋 후 `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료.
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 
