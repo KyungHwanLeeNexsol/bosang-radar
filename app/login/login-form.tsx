@@ -43,10 +43,14 @@ export function LoginForm() {
     <>
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4"
+        className="flex w-full max-w-sm flex-col gap-7"
         data-testid="login-form"
       >
-        <div className="flex flex-col gap-1.5">
+        {/* Round5(외부 재검토) — 픽셀 실측 결과 우측 폼의 라벨-입력창-버튼
+            세로 간격이 Pencil보다 30~55px 좁았다. 로그인 화면 전용 컴포넌트
+            (다른 화면과 공유되지 않음)이므로 gap-4→gap-7, gap-1.5→gap-2.5로
+            직접 확대한다. */}
+        <div className="flex flex-col gap-2.5">
           <label htmlFor="email" className="text-body-s font-semibold text-bora-ink-2">
             업무용 이메일
           </label>
@@ -62,7 +66,7 @@ export function LoginForm() {
             data-testid="login-email"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           <label htmlFor="password" className="text-body-s font-semibold text-bora-ink-2">
             비밀번호
           </label>

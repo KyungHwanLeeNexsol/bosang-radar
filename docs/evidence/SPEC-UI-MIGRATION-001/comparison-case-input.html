@@ -57,7 +57,7 @@
     <div class="row">
       <div class="col">
         <h2>Pencil 원본 (design/exports/05-사건-입력.png, 데이터 채움 상태)</h2>
-        <img src="../../design/exports/05-사건-입력.png" alt="Pencil" />
+        <img src="../../../design/exports/05-사건-입력.png" alt="Pencil" />
       </div>
       <div class="col">
         <h2>Before — Round 3 (commit b05eb5a, 데이터 채움 상태)</h2>
@@ -78,11 +78,23 @@
         <img src="after-round4/report-verified-claim-1440.png" alt="report verified" />
       </div>
       <div class="col">
-        <h2>After — Round 4 리포트(INSUFFICIENT 재현 시도, 결과: 미발생)</h2>
+        <h2>
+          After — Round 4 리포트(INSUFFICIENT 재현 시도, 결과: 미발생 — Round 5 R5-6에서 재검토)
+        </h2>
         <img
           src="after-round4/report-insufficient-attempt-1440.png"
           alt="report insufficient attempt"
         />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>Before — Round 4 모바일 Footer(390px, fullPage) — 레이아웃 붕괴</h2>
+        <img src="after-round4/case-input-mobile-390-fullpage.png" alt="mobile before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 5 모바일 Footer(390px, fullPage) — 수정 후</h2>
+        <img src="after-round5/case-input-mobile-390-fullpage.png" alt="mobile after" />
       </div>
     </div>
 
@@ -94,8 +106,9 @@
       <tr>
         <th>commit SHA</th>
         <td colspan="3">
-          Before: b05eb5a24edef19c0ef1580bdbcab15d108f5b3c(외부 재검토 대상 커밋) · After: 이 작업
-          브랜치 HEAD(Round 4, 미푸시)
+          Before(데이터 채움 비교): b05eb5a24edef19c0ef1580bdbcab15d108f5b3c · Before(모바일
+          Footer): c210ebff732f2355d52359113762a55515680528(Round 4, origin에 push됨) · After(모바일
+          Footer 수정): Round 5 작업 브랜치 최신 커밋(sync 시 SHA backfill 예정)
         </td>
       </tr>
       <tr>
@@ -124,7 +137,19 @@
               Footer: 잠금 아이콘 + "입력 내용은 비식별 상태로 처리되며..." 안내문 추가(기존 "모든
               필드를 입력한 뒤 제출해 주세요." 대체)
             </li>
+            <li>
+              (Round 5) 모바일(390px) Footer 안내문이 한 글자씩 세로로 줄바꿈되던 레이아웃 붕괴 —
+              `flex-col`/`min-w-0`/`flex-wrap`으로 수정, 실제 브라우저 Playwright assertion 확보
+              (`e2e/case-input-mobile-layout.spec.ts`)
+            </li>
           </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>route / scroll 위치</th>
+        <td colspan="3">
+          /cases/new(인증된 테스터 세션). 데스크톱 캡처는 top-of-page(fullPage 아님), 모바일 Footer
+          캡처는 390px fullPage(전체 페이지).
         </td>
       </tr>
       <tr>

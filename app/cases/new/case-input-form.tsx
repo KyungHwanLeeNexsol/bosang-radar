@@ -264,7 +264,21 @@ export function CaseInputForm() {
           <div className="border-t border-app-line" />
         </div>
 
-        <div className="flex items-center justify-between bg-app-surface-sub px-6 py-4">
+        {/* Round5(외부 재검토, B-mobile-footer) — 근본원인: 이 컨테이너가
+            `flex justify-between`(가로, wrap 없음)이었고, 버튼 그룹은
+            줄바꿈되지 않는 반면 안내문 `<span>`은 flex item 기본값
+            `min-width:auto`(= min-content)로 축소됐다. 한글은 글자 사이마다
+            줄바꿈이 허용되므로(UAX#14) 이 min-content가 글자 1개 폭까지
+            줄어들어, 390px에서 안내문이 한 글자씩 세로로 줄바꿈되는 결함이
+            발생했다. 수정: 모바일은 `flex-col`(안내문/버튼 그룹이 각각 전체
+            폭을 가짐), `sm:` 이상에서만 기존 가로 배치로 복귀 + 안내문에
+            `min-w-0`으로 정상적인 단어 단위 줄바꿈 보장 + 버튼 그룹은
+            `flex-wrap`으로 320px 같은 더 좁은 폭에서도 겹치지 않고 2행으로
+            떨어지게 한다. */}
+        <div
+          data-testid="case-input-footer"
+          className="flex flex-col gap-3 bg-app-surface-sub px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+        >
           {isSubmitting ? (
             <span
               data-testid="case-pending-indicator"
@@ -276,14 +290,22 @@ export function CaseInputForm() {
             </span>
           ) : (
             // Round4: Pencil 05-사건-입력.png 정합 — 잠금 아이콘 + 비식별 처리 안내 문구
-            <span className="flex items-center gap-1.5 text-body-s text-bora-ink-3">
-              <Lock aria-hidden="true" className="size-3.5 shrink-0" />
-              입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다. 평균 소요 시간
-              3~5분
+            <span
+              data-testid="case-input-footer-notice"
+              className="flex min-w-0 items-start gap-1.5 text-body-s text-bora-ink-3"
+            >
+              <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              <span className="min-w-0">
+                입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다. 평균 소요
+                시간 3~5분
+              </span>
             </span>
           )}
 
-          <div className="flex items-center gap-2">
+          <div
+            data-testid="case-input-footer-actions"
+            className="flex flex-wrap items-center gap-2"
+          >
             {/* SPEC-UI-MIGRATION-001 M6 (REQ-014) — 초안 저장 백엔드 로직
                 없음. 비활성 렌더링 + "준비 중" Chip만 표시한다. */}
             <Button

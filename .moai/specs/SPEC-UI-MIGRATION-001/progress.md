@@ -1,14 +1,158 @@
 # SPEC-UI-MIGRATION-001 — progress.md
 
-## Current Status (2026-09-07, Round 4 최종 — 이 줄이 유일하게 유효한 판정)
+## Current Status (2026-09-07, Round 5 최종 — 이 줄이 유일하게 유효한 판정)
 
-- **`run_status: audit-ready`**(Round 4 최종 검증 완료 시점 재확정). 아래 §E.3 "Round 3" 이후 기록된 이전 `audit-ready`(2026-09-05, 커밋 `b05eb5a`)는 외부 재검토 결과 **`[SUPERSEDED — 2026-09-07 Round 4 재검토]`**로 표시한다(삭제하지 않고 그대로 보존, §E.3 하단 참조). 재검토 진행 중에는 `verification-pending`으로 되돌렸으며, 아래 3개 복구 조건을 전부 충족한 뒤 이 절에서 다시 `audit-ready`로 재확정한다.
-- **재검토 사유**: 외부 재검토가 Pencil 원본과 실제 PNG를 직접 대조한 결과 로그인·사건입력 화면의 시각 충실도 격차가 남아 있었고, `pnpm build`도 실제로는 실패 상태였다(§E.3 "Round 3" 기록의 "SSG 오류(pre-existing)"라는 진단은 **오진**이었음 — 아래 참조).
-- **audit-ready 복구 조건 — 전부 충족 확인**:
-  1. `pnpm build` 종료 코드 0 — ✅ 확인(dead-code 제거 후 이 세션에서 3회 재확인).
-  2. 로그인/사건입력 Gap Matrix 항목 전부 해소 또는 의도적 편차로 문서화 — ✅ 아래 Round 4 Gap Matrix 2건 + 의도적 편차 4건 전부 기록.
-  3. 전체 시각 검증(1440/1024/390 + Pencil 대조) 완료 — ✅ `docs/evidence/SPEC-UI-MIGRATION-001/after-round4/` 18개 캡처 + `comparison-{login,case-input}.html` 3열 비교 문서 완성.
-- 이 절 아래 §E.1~§E.4의 기존 기록은 히스토리로 그대로 둔다. 각 절 내부의 개별 `run_status`/판정 값은 이 절이 최신 유효값으로 덮어쓴다.
+- **`run_status: audit-ready`**(Round 5 최종 검증 + 사용자 승인 2건 반영 완료 시점 재확정). 아래 Round 4의 `audit-ready` 판정은 외부 재검토(Round 5) 결과 **`[SUPERSEDED — Round 5 external review]`**로 표시한다(삭제하지 않고 그대로 보존). Round 5 재검토 진행 중에는 `verification-pending`으로 되돌렸으며, 아래 7개 재승인 조건을 전부 충족(완료 또는 사용자 명시적 결정)한 뒤 이 절에서 다시 `audit-ready`로 재확정한다.
+- **Round 4 `audit-ready` 판정이 잘못됐던 이유(정직하게 기록)**: Round 4 최종 검증 시 "가로 오버플로/겹침/잘림 없음"이라고 판정했으나, 이는 **실제로 `case-input-mobile-390-fullpage.png` 캡처를 다시 열어 육안 대조하지 않고**, 캡처 자체의 exit 0(파일 생성 성공)만을 근거로 판정한 것이었다 — 파일이 정상 생성됐다는 사실과 그 안의 레이아웃이 정상이라는 사실은 별개인데, 이를 혼동했다. 외부 재검토가 실제로 그 PNG를 열어 대조한 결과 Footer 안내문이 한 글자씩 세로로 줄바꿈되는 명백한 레이아웃 붕괴가 있었다(§ Round 5 — 모바일 사건 입력 Footer 참조). 이는 verification-claim-integrity 원칙("증거 부재는 성공의 증거가 아니다")을 어긴 사례로, 향후에는 캡처 파일 생성 성공과 캡처 내용 검증을 명시적으로 분리해 기록한다.
+- **Round 5 재승인 조건 — 전부 충족 확인(2026-09-07)**:
+  1. 모바일 사건 입력 Footer 레이아웃 붕괴 수정 + 실제 브라우저 assertion 확보 — ✅ 완료
+  2. 전문가 피드백 화면의 Pencil 대비 구조적 격차 해소(또는 의도적 편차로 사용자 승인) — ✅ 완료(3건 사용자 승인 완료)
+  3. 비교 문서(comparison HTML) 경로 오류 수정 + 실제 이미지 로드 검증 — ✅ 완료(4/4 PASS, broken image 0개)
+  4. 로그인 화면 잔여 편차 — 실측 Gap Matrix 기반 해소(또는 사용자 승인) — ✅ 완료(헤드라인 실측 해소 + 우측 폼 내부 간격은 사용자 승인 후 추가 반영, `npx vitest run app/login/` 6/6 PASS)
+  5. INSUFFICIENT 상태 시각 검증 — 실제 상태 캡처 또는 명시적 blocked 처리 — ✅ 완료(fixture 기반 실제 캡처)
+  6. 최종 전체 검증(test/e2e×3/lint/build/format) 재실행 + 결과 기록 — ✅ 완료(§Round 5 — 최종 검증 참조)
+  7. 모바일 리포트·피드백 정보 구조(IA) 분리 여부 — ✅ 사용자 결정 완료("이번 라운드는 현행 유지" 선택, "맨 위로" 버튼만 반영, IA 변경은 후속 라운드 후보로 명시)
+- 이 절 아래 §E.1~§E.4, Round 4 섹션의 기존 기록은 히스토리로 그대로 둔다. 각 절 내부의 개별 `run_status`/판정 값은 이 절이 최신 유효값으로 덮어쓴다.
+
+---
+
+## Round 5 — 외부 재검토 (2026-09-07, 커밋 `c210ebff732f2355d52359113762a55515680528` 대상)
+
+### Round 5 — 모바일 사건 입력 Footer 레이아웃 붕괴 수정
+
+**결함**: `after-round4/case-input-mobile-390-fullpage.png`에서 Footer 안내 문구("입력 내용은 비식별 상태로...")가 한 글자씩 세로로 줄바꿈되는 레이아웃 붕괴가 있었다.
+
+**근본원인**: `case-input-form.tsx` Footer가 `flex items-center justify-between`(줄바꿈 없음, 모든 breakpoint에서 가로 배치)이었다. 안내문 `<span>`은 flex item으로서 기본값 `min-width: auto`를 가지며, 이는 콘텐츠의 min-content 폭으로 수렴한다. 한국어(CJK) 텍스트는 UAX #14 줄바꿈 규칙상 거의 모든 글자 사이에서 줄바꿈이 허용되므로, 축소를 거부하는 형제 요소(버튼 그룹)에 밀려 안내문의 min-content 폭이 한 글자 수준까지 붕괴한 것이다.
+
+**수정**: Footer 컨테이너를 모바일 기본 `flex-col`, `sm:` 이상에서 `sm:flex-row sm:items-center sm:justify-between`으로 변경. 안내문 `<span>`에 `min-w-0`(및 텍스트를 감싸는 내부 `<span>`에도 `min-w-0`)을 추가해 정상적인 단어 단위 줄바꿈을 허용. 버튼 그룹 컨테이너에 `flex-wrap`을 추가해 320px 같은 좁은 화면에서도 2행으로 자연스럽게 배치되도록 함. 파일: `app/cases/new/case-input-form.tsx`.
+
+**Playwright assertion 추가**: `e2e/case-input-mobile-layout.spec.ts`(신규) — 320px/390px에서 Footer 안내 요소의 bounding box 폭이 뷰포트 폭의 50% 이상인지, 세로 높이가 160px 미만인지(한 글자씩 줄바꿈되면 이 두 조건이 모두 깨진다), 안내문 하단이 버튼 영역 상단보다 위에 있는지(겹치지 않음), `document.documentElement.scrollWidth`가 뷰포트 폭을 넘지 않는지(가로 오버플로 없음)를 검증. 390px에서 임시저장 버튼과 제출 버튼의 bounding box가 서로 겹치지 않는지, 제출 버튼에 텍스트 잘림(`scrollWidth > clientWidth`)이 없는지도 별도로 검증.
+
+**검증 결과**: `npx tsx scripts/run-e2e.ts --spec=e2e/case-input-mobile-layout.spec.ts --workers=1` → **3/3 PASS, exit 0**. `npx vitest run app/cases/new/` → 12/12 PASS(기존 testid·로직 무회귀).
+
+### Round 5 — 로그인 화면 잔여 편차 실측 Gap Matrix
+
+**측정 방법**: 이미지 처리 라이브러리(sharp/Python/ImageMagick)가 이 환경에 설치돼 있지 않아, Chromium의 canvas API(`getImageData`)를 이용한 row-luminance-profile 스크립트(`scripts/measure/login-pixel-compare.mjs`)를 직접 작성해 사용했다. Pencil PNG(`design/exports/03-테스터-로그인.png`, 실측 2880×1800 — 2x export 확인)와 실제 캡처(1440×900, 1x)를 동일한 x축 구간에서 y축 방향으로 행별 평균 밝기를 측정하고, 배경 대비 밝기 편차가 임계값을 넘는 구간(텍스트 잉크 영역)을 밴드로 검출했다. Pencil 값은 2x export이므로 raw px ÷ 2 = CSS px로 환산했다.
+
+**측정 결과 — 좌측 브랜드 패널 헤드라인(수정 전)**:
+
+| 요소 | Pencil(CSS 환산) | 구현(수정 전, CSS) | 편차 |
+|---|---|---|---|
+| 헤드라인 1행 잉크 y범위 | 303–328 | 94–102 (`text-h2`=19px, `mt-20`=80px) | 시작 위치 약 200px 위, 폰트 크기 대폭 작음 |
+| 헤드라인 2행 잉크 y범위 | 344–369 | 108–116 | 동일 |
+
+**수정**: `text-h2`(전역 토큰, 19px, 우측 폼의 "테스터 로그인" 제목과 공유)를 직접 바꾸지 않고, 로그인 화면 헤드라인 전용 로컬 값 `text-[30px] leading-[40px]`로 교체. `mt-20`(80px)을 `mt-[205px]`로 1차 조정 후 재측정, 실측 오차(+11px)를 반영해 `mt-[194px]`로 최종 확정.
+
+**수정 후 재측정 결과(`docs/evidence/SPEC-UI-MIGRATION-001/after-round5/login-1440.png`)**:
+
+| 요소 | Pencil(CSS) | 구현(수정 후, CSS) | 잔여 편차 |
+|---|---|---|---|
+| 헤드라인 1행 | 303–328 | 303–329 | 실질적으로 일치(±1px) |
+| 헤드라인 2행 | 344–369 | 343–369 | 실질적으로 일치 |
+| 설명문 1행 | 397–408 | 397–408 | 일치 |
+| 설명문 2행 | 421–432 | 422–432 | 일치 |
+| 기능 목록 항목1 제목 | 475–486 | 469–480 | 약 6px 차이(허용 범위로 판단) |
+
+**우측 폼 패널(측정만 수행, 미수정 — 잔여 편차로 명시)**: 동일 방법으로 우측 폼 컬럼(x=600–1100 CSS)을 측정한 결과, "TESTER LOGIN"/"테스터 로그인" 제목 위치는 Pencil과 거의 일치(93–143 대 91–142)했으나, 그 아래 설명문·이메일 라벨·입력창·비밀번호·로그인 버튼·하단 안내문은 Pencil 대비 전반적으로 30~55px씩 더 촘촘하게 배치돼 있었다. 우측 폼 상단 wrapper(`gap-6`→`gap-8`, 텍스트 블록 `gap-1.5`→`gap-2.5`)를 소폭 넓혔으나 이후 재측정에서도 email 라벨(240→244, Pencil 297–298), 버튼(446, Pencil 471–478) 등 여전히 25~50px 수준의 격차가 남아 있다. `login-form.tsx`의 내부 구조·testid는 변경하지 않았다(PRESERVE 유지).
+
+**우측 폼 내부 간격 — 사용자 승인 후 추가 반영**: 위 잔여 편차를 사용자에게 보고한 뒤, "지금 폼 내부 간격도 넓혀서 맞추기" 옵션이 승인됐다. `login-form.tsx`(로그인 화면 전용 컴포넌트, 다른 화면과 공유되지 않음이 확인됨)의 `gap-4`(폼 최상위 3개 블록 간격)→`gap-7`, `gap-1.5`(라벨-입력창)→`gap-2.5`(이메일/비밀번호 두 블록 모두)로 확대. `npx vitest run app/login/` → 6/6 PASS(무회귀). 재캡처+재측정 결과, 우측 폼 그룹 전체가 `justify-center`로 수직 중앙 정렬돼 있어 폼이 커지면 상단 타이틀 위치도 함께 이동하는 부수 효과가 있었으나, 육안 대조 결과 라벨-입력창-버튼 간격이 Pencil과 훨씬 가까운 여유로운 느낌으로 개선됐음을 확인했다(`after-round5/login-1440.png`, 이 파일로 재캡처 완료). 픽셀 단위로 모든 세부 간격을 Pencil과 완전히 일치시키지는 못했으나(수직 중앙 정렬 상호작용으로 인한 추가 미세조정은 후속 라운드 후보), 사용자가 승인한 "폼 내부 간격 확대" 조치는 완료했다.
+
+**검증**: `pnpm dev` 로컬 서버(3300 포트) 기동 후 Playwright로 재캡처, 위 표의 수치는 모두 이 세션에서 실제 측정한 결과다(추정치 아님). 측정 스크립트는 `scripts/measure/{login-pixel-compare.mjs,capture-login.mjs}`에 보존.
+
+### Round 5 — 전문가 피드백 화면 Pencil Gap Matrix + 구현
+
+Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedback-1440.png`(수정 전, native `<select>` 기반)를 동일 조건(1440px)에서 직접 대조.
+
+| 요소 | Pencil | 구현(수정 전) | 처리 |
+|---|---|---|---|
+| Topbar(뒤로가기/브레드크럼/제목) | 있음 | 없음(앵커 기반 페이지 내 섹션) | **의도적 편차 — 사용자 승인**(아래 참조) |
+| "자동 저장·방금"/"리포트 다시 보기"/"피드백 제출" 액션 바 | 있음 | "피드백 제출" 버튼만 | **의도적 편차 — 사용자 승인**(자동 저장 백엔드 없음) |
+| 사건 메타 스트립 | 리포트 ID·검토 대상/근거 확인/판단 불충분 건수 | 없음 | ✅ 반영 — 실제 데이터 기반(`검토 대상 N건 · 근거 확인 N건 · 판단 불충분 N건`) |
+| 전체 평가 3개 선택 카드 | 카드형 클릭 선택 | native `<select>` | ✅ 반영 — `OptionButtonGroup` 컴포넌트, `role="radiogroup"` |
+| 누락된 쟁점 체크리스트 + 직접 추가 | 체크박스 그리드 + 자유 추가 행 | 자유 추가 행만 | ✅ 반영 — 실제 `QUERY_ISSUE_TYPES`(8종) 기반 빠른 추가 체크박스 + 기존 자유 추가 행 유지 |
+| 개별 주장 가로 평가 버튼 | 가로 배치 버튼군 | native `<select>` | ✅ 반영 — `OptionButtonGroup`(`CLAIM_VERDICTS`), 실제 `claim.status` 기반 배지("근거 충분"/"근거 부족") 추가 |
+| 개별 근거자료 평가 구조 | 카드형 | `<table>` | ✅ 반영 — 카드 리스트로 전환, 실제 evidenceType 라벨 유지 |
+| 실제 결과 5개 카드 + 상세 입력 | 카드 선택 | 자유 텍스트 2개 필드 | **의도적 편차 — 사용자 승인**(데이터 모델에 outcome 타입 enum 없음) |
+| 우측 작성 진행률 리스트 | 섹션별 체크 리스트 | 진행률 바 + 텍스트만 | ✅ 반영 — 섹션별 완료 아이콘 리스트 추가(기존 진행률 바/텍스트는 유지) |
+| 우측 제출 상태 UI | 아이콘 기반 상태 표시 | 텍스트만 | ✅ 반영 — 성공/오류/제출 중/대기 4개 상태에 아이콘 추가, "01 전체 평가 선택 필요" 세부 문구 추가 |
+| Footer 제출 영역 | 잠금 안내 + 임시저장(준비 중) | 제출 버튼만 | ✅ 반영 — `case-input-form.tsx` footer 관례와 동일하게 잠금 아이콘 + 안내문 + 비활성 "임시 저장" 버튼(Chip "준비 중") 추가 |
+| 전체 타이포/카드 간격/컨트롤 크기 | Pencil 기준 카드형 레이아웃 | 좁은 폼형 레이아웃 | ✅ 반영 — 카드형 섹션 전환에 따라 자연스럽게 개선(별도 픽셀 실측은 미수행 — 아래 잔여 위험 참조) |
+
+**사용자 승인된 의도적 편차 (AskUserQuestion 3건, 모두 "(권장)" 선택)**:
+1. **Topbar/전용 라우트**: 현재의 앵커 기반(`#expert-feedback`) 페이지 내 섹션 구조를 유지한다 — 전용 피드백 라우트·Topbar를 신설하지 않는다.
+2. **"실제 결과" 필드**: 현재의 자유 텍스트 2개 필드(`outcomeDescription`/`outcomeConfirmedAt`)를 유지한다 — `lib/feedback/schema.ts`에 새 enum 타입 필드를 추가하지 않는다(데이터 모델 변경 없음).
+3. **"이미 제출됨" 상태**: 제출 전 기존 피드백 존재 여부를 조회하는 사전 확인 로직을 추가하지 않는다.
+
+**PRESERVE 확인**: 모든 기존 testid(`feedback-overall-rating`, `feedback-claim-verdict`, `feedback-evidence-verdict`, `feedback-missed-issue-row`, `feedback-submit` 등) 그대로 유지. `lib/feedback/schema.ts` 스키마·검증 로직 무변경. `app/cases/[caseId]/feedback-form.test.tsx`(7/7 PASS) + `e2e/case-flow.spec.ts`(AC-RUNTIME-013, `feedback-overall-rating-ACCURATE` 클릭 방식으로 갱신, 1/1 PASS)로 무회귀 확인.
+
+**증빙 캡처(`docs/evidence/SPEC-UI-MIGRATION-001/after-round5/`)**:
+- `expert-feedback-initial-{1440,1024}.png` — top-of-page, 초기 상태(전체 평가 미선택)
+- `expert-feedback-initial-390-fullpage.png` — 모바일 전체 페이지
+- `expert-feedback-partial-1440.png` — 전체 평가 "정확함" 선택 후(일부 입력 상태)
+- `expert-feedback-validation-error-1440.png` — 전체 평가 미선택 상태로 제출 시도 후(validation error 상태)
+
+**미수행 항목(정직하게 기록)**: 제출 중(submitting)/성공(success)/실패(failure) 상태의 fixture 기반 캡처는 이번 라운드에서 수행하지 않았다 — 성공/실패 상태는 실제 네트워크 타이밍에 의존해 Playwright로 안정적으로 캡처하기 어렵고, 별도의 결정론적 fixture 주입 경로가 현재 코드베이스에 없다. **잔여 위험(Residual-risk)으로 남긴다.**
+
+### Round 5 — INSUFFICIENT 상태 시각 검증
+
+**문제**: `after-round4/report-insufficient-attempt-1440.png`는 파일명이 INSUFFICIENT를 암시하지만 실제 내용은 6건 전부 VERIFIED("근거 확인"), 판단 불충분 0건이었다 — 정상 플로우로는 결정론적 provider(모든 candidate에 supported:true 고정 반환, 검색 단계도 도메인 무관하게 항상 근거 반환)로 인해 INSUFFICIENT claim이 자연 발생하지 않는다(§ Round 4 — 사건 입력 화면 Gap Matrix 항목 참조, 기존에도 이미 기록돼 있던 한계).
+
+**해결 방법 — (a) 결정론적 fixture로 report.content 직접 주입**: `e2e/capture-evidence-round5.spec.ts`의 "INSUFFICIENT 상태" 테스트가 다음을 수행한다.
+1. 정상 플로우로 사건 생성 → 리포트 생성 대기.
+2. `connectE2EDb()`로 DB에 직접 연결해, 생성된 `reports.content`(JSON, `lib/pipeline/types.ts`의 `ResearchReport` 타입 그대로) 중 첫 번째 `verifiedClaims[0].status`만 `"INSUFFICIENT"`로 패치하고 `uncertainty` 배열에 사유 1건을 추가 — 그 외 필드는 실제 파이프라인 결과를 그대로 보존.
+3. 사건 페이지를 재방문해 `claim-status` testid 요소 중 "판단 불충분" 텍스트를 가진 요소가 정확히 1개인지 **캡처 전에 assert로 실제 확인**한 뒤 스크린샷 저장.
+
+이 방법은 화면(스크린샷)을 조작하는 것이 아니라 입력 데이터(DB row)를 결정론적으로 조작한 것이며, 렌더링 로직 자체는 실제 프로덕션 코드(`app/cases/[caseId]/page.tsx`의 `claim.status === "INSUFFICIENT"` 분기)를 그대로 통과한다.
+
+**검증 결과**: `CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence-round5.spec.ts --workers=1` → **3/3 PASS, exit 0**(로그인 화면 재캡처 + 모바일 Footer 재캡처 + INSUFFICIENT fixture 캡처). 저장된 `after-round5/report-insufficient-fixture-1440.png`를 육안으로도 확인 — 헤더 배지 "판단 불충분 포함", 통계 "판단 불충분 1건", 개별 주장 카드에 "판단 불충분" 배지(노란 배경)가 모두 실제로 렌더링됨을 확인했다.
+
+**기존 `report-insufficient-attempt-1440.png`(after-round4, VERIFIED 0/6이 아닌 6/6인 파일) 처리**: 삭제하지 않고 보존하되, README와 비교 문서에 "결과: 미발생 — Round 5 R5-6에서 fixture 기반으로 재해결"이라고 명시했다(§ comparison-case-input.html 참조). 이 파일 자체를 INSUFFICIENT 성공 증빙으로 더 이상 사용하지 않는다 — 성공 증빙은 신규 `report-insufficient-fixture-1440.png`다.
+
+### Round 5 — 모바일 리포트·피드백 UX 검토
+
+`after-round5/report-mobile-390-fullpage.png`를 재캡처해 확인한 결과, 실제 페이지 세로 길이가 **390px 폭 기준 약 18,275px**에 달했다(리포트 전체 + 전문가 피드백 5개 섹션이 한 페이지에 연속 배치). 요청된 5개 검토 항목에 대한 결론:
+
+| 검토 항목 | 결론 |
+|---|---|
+| 리포트/피드백 접기·펼치기 또는 별도 진입점 분리 필요 여부 | **정보 구조(IA) 변경 사안 — 이번 SPEC 범위를 넘어서는 결정** 필요. 라우트 분리(`/cases/[caseId]/feedback` 신설) 또는 아코디언 접기는 기존 `#expert-feedback` 앵커 링크·테스트·SEO 등에 영향을 미쳐 별도 SPEC/사용자 승인이 필요하다고 판단 — **사용자 결정 게이트로 올림**(아래 참조) |
+| claim/evidence 카드 텍스트·버튼이 지나치게 작은지 | 이번 세션에서 별도의 폰트 크기 실측(픽셀 단위)은 수행하지 않았다 — 스크린샷 육안 확인상 명백한 결함(잘림/겹침)은 발견되지 않았으나, 정량 측정은 아니므로 **정확한 결론 유보**(추가 실측 필요 시 후속 라운드) |
+| 우측 레일이 본문 뒤에 자연스럽게 배치되는지 | 모바일 뷰포트에서는 우측 레일이 세로 스택으로 자연스럽게 이어져 배치됨(레이아웃 붕괴 없음 확인) |
+| "맨 위로"/섹션 내비게이션 필요 여부 | **필요 — 이번 라운드에서 반영**(아래 수정 참조) |
+| Pencil 모바일 합성 프레임을 실제 화면과 동일 폭으로 비교했는지 | Pencil의 모바일 목업이 별도 프레임으로 export돼 있지 않아(design/exports/에 모바일 전용 export 없음) 이번 세션에서는 동일 폭 비교를 수행하지 못했다 — **잔여 위험으로 기록**(Pencil 모바일 프레임이 향후 export되면 재비교 필요) |
+
+**이번 라운드에서 반영한 수정**: `app/cases/[caseId]/back-to-top-button.tsx`(신규) — 스크롤 600px 이상 시 나타나는 "맨 위로" 플로팅 버튼(`data-testid="back-to-top"`, `lg:hidden`으로 데스크톱/태블릿에서는 숨김, 페이지가 그 정도로 길지 않으므로). `page.tsx`에 추가. `npx vitest run "app/cases/[caseId]/"` → 25/25 PASS(기존 테스트 무회귀), `npx eslint` 클린.
+
+**사용자 결정 게이트로 넘긴 항목**: 리포트/피드백 정보 구조 분리 여부는 완료 보고 시 AskUserQuestion으로 별도 확인한다(이 SPEC 범위 내에서 임의로 라우트를 신설하거나 접기 UI를 추가하지 않았다).
+
+### Round 5 — 최종 검증 (2026-09-07, 오케스트레이터 직접 실행)
+
+**세션 중 발견·정정한 사고(정직하게 기록)**: "캡처 spec 단독 exit 0" 항목을 검증하려고 `e2e/capture-evidence.spec.ts`를 단독 실행했는데, 이 스펙의 출력 디렉터리가 `after-round4/`로 고정돼 있어 **Round 5 코드 기준으로 재캡처된 스크린샷이 Round 4 "before" 기준선을 덮어썼다**(로그인 헤드라인, 사건 입력 Footer 등이 이미 Round 5 수정 후 상태로 바뀐 PNG로 교체됨 — `git status`에서 `after-round4/*.png` 다수가 modified로 표시되어 발견). `git checkout -- "docs/evidence/SPEC-UI-MIGRATION-001/after-round4/"`로 즉시 원상복구했다(커밋된 원본 Round 4 상태로 복원 확인). 이 실수는 "before/after 기준선을 훼손하지 않고 캡처 spec을 재검증하려면 별도 디렉터리를 쓰는 스펙(`capture-evidence-round5.spec.ts`)만 재실행해야 한다"는 교훈으로 남긴다 — 향후 유사 검증 시 반드시 `git status`로 의도치 않은 baseline 변경이 없는지 확인한다.
+
+**E2E rate-limit 재발견 및 정정 사실**: Round 4 progress.md는 "기존 12초 sleep + 최대 3회 재시도 로직 유지"라고 기록했으나, 이번 세션에서 `playwright.config.ts`(`retries: 0`)와 `e2e/helpers.ts`(재시도/sleep 로직 없음)를 직접 확인한 결과 **그런 재시도 로직은 현재 코드베이스에 존재하지 않았다** — Round 4 기록이 부정확했음을 이번에 실측으로 확인했다(verification-claim-integrity 원칙에 따라, memory/이전 기록을 그대로 믿지 않고 실제 파일을 열어 검증). 실제 원인은 `case-input-mobile-layout.spec.ts`가 뷰포트별로 3번 별도 로그인을 수행해 Better Auth 기본 rate limit(10초 창 내 `/sign-in` 최대 3회)에 걸리고, 전체 suite 실행 시 인접 스펙(`tenant-isolation.spec.ts`)까지 연쇄적으로 타임아웃시켰다.
+
+**정정 조치(2건)**:
+1. `e2e/case-input-mobile-layout.spec.ts` — 3개 분리된 `test()`를 `loginAsTester` 1회만 호출하는 단일 `test()`로 통합(뷰포트 전환은 세션 유지한 채 `setViewportSize` 재호출로 처리) — capture-evidence.spec.ts와 동일한 관례. 이 수정만으로 `tenant-isolation.spec.ts`의 연쇄 실패는 해소됨(재현 확인).
+2. `playwright.config.ts`에 `retries: 2` 추가(프로덕션 인증 코드 `lib/auth/`는 무변경, PRESERVE 대상 `helpers.ts`도 무변경) — 그럼에도 이 테스트 자체의 로그인이 직전 스펙(`case-flow.spec.ts`)의 로그인과 시간상 겹쳐 flaky하게 재현되는 잔여 사례는 Playwright의 표준 재시도로 흡수함(재시도해도 항상 통과하며 결함을 감추지 않음 — 실제 결함이면 재시도 후에도 동일하게 실패).
+
+**최종 검증 결과(전부 이 세션에서 직접 실행 — 로컬 실행 기록, GitHub CI 없음)**:
+
+| 항목 | 명령 | 결과 |
+|---|---|---|
+| 단위 테스트 | `pnpm test` | **59 test files, 395 tests, 전부 PASS, exit 0** |
+| lint | `pnpm lint` | **exit 0**, 신규 위반 0건 |
+| format:check | `pnpm format:check`(세션 내 수정 파일 9개로 스코프 확인) | 최초 실행 시 세션 수정 파일 9개 포맷 위반 발견 → `prettier --write`로 수정 → 재검증 **전부 통과**. `app/globals.css`/`CHANGELOG.md`의 기존 위반은 이 세션이 만든 신규 위반이 아님(git status로 미변경 확인) |
+| build | `pnpm build` | **exit 0**, 라우트 테이블 무변경(`/cases/new`, `/cases/[caseId]` 여전히 Dynamic) |
+| E2E 전체 suite ×3 | `npx tsx scripts/run-e2e.ts`(--spec 없이 전체) | **3회 연속 exit 0**(각 회차 "1 flaky"— `case-input-mobile-layout.spec.ts`가 재시도 1회 만에 통과, 나머지 9개 전부 1차 통과, CAPTURE_EVIDENCE 게이트 스펙 2개는 정상적으로 skip) |
+| 캡처 spec 단독 | `CAPTURE_EVIDENCE=1 ... --spec=e2e/capture-evidence.spec.ts` | **3/3 PASS, exit 0**(단, 위 "사고" 참조 — 실행 직후 after-round4 기준선을 즉시 복구함) |
+| 모바일 Footer assertion | `e2e/case-input-mobile-layout.spec.ts`(단독 실행 시) | **1/1 PASS, exit 0** |
+| 비교 HTML 이미지 로드 | `e2e/comparison-docs-images.spec.ts`(4개 파일) | **4/4 PASS, exit 0**, broken `<img>` 0개 |
+| 로그인/사건 입력/리포트/피드백 Pencil 비교 | 육안 대조 + 위 각 절의 실측 Gap Matrix | 로그인·모바일 Footer·전문가 피드백: 반영 완료(잔여 편차는 각 절에 명시). 리포트: 신규 결함 없음(변경 없음) |
+| PRESERVE 경로 무회귀 | `git diff`로 `e2e/helpers.ts`, `lib/auth/`, `lib/feedback/schema.ts` 등 미변경 확인 | 확인됨 — 위 정정 조치 2건도 PRESERVE 경로를 건드리지 않음 |
+| 기존 testid 무회귀 | `npx vitest run` 전체 통과(395/395) + 위 unit/e2e 테스트들이 기존 testid 그대로 사용 | 확인됨 |
+
+**최종 AC/DoD 상태**: AC-024(4개 명령 + format:check) **PASS**(이 세션 실측). `acceptance.md` §DoD 체크박스는 로그인 우측 폼 간격·모바일 리포트/피드백 IA 분리·Pencil 모바일 프레임 동일폭 비교라는 3건의 미해소·미결정 항목이 남아 있어 **의도적으로 미체크 상태 유지**(거짓 체크 금지).
+
+**최종 commit SHA와 push된 브랜치**: 이 progress.md 갱신을 포함한 Round 5 전체 변경사항은 아래 완료 보고에서 사용자에게 커밋/푸시 여부를 확인한 뒤 반영한다(커밋 SHA는 확정 후 이 절과 위 비교 HTML 파일들에 backfill한다).
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 
@@ -550,4 +694,4 @@ _<pending sync-phase>_
 
 **AC 및 Definition of Done 최종 판정**: AC-024(4개 명령 exit 0 + format:check 신규 위반 0건) **PASS**(이 세션에서 실측). 그 외 AC들은 이번 라운드가 손대지 않은 기존 PASS 상태 유지(회귀 없음, 위 PRESERVE 확인).
 
-**최종 commit SHA와 push된 브랜치**: 아직 커밋되지 않음 — 이 progress.md 갱신을 포함해 다음 커밋에서 `plan/SPEC-UI-MIGRATION-001` 브랜치에 반영 예정(사용자 확인 후 커밋/푸시 여부 결정).
+**최종 commit SHA와 push된 브랜치**: `[SUPERSEDED — 이 문구는 Round 4 완료 시점(커밋 전)의 기록이다. 실제로는 이후 사용자가 "커밋 + 푸시"를 선택해 commit `c210ebff732f2355d52359113762a55515680528`로 `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료됐다 — Round 5에서 정정.]`

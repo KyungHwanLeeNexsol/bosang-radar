@@ -18,6 +18,7 @@ import type {
 } from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
+import { BackToTopButton } from "./back-to-top-button";
 
 export const metadata: Metadata = {
   title: "사건 상세",
@@ -213,6 +214,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-5 px-8 pt-6 pb-10">
+      <BackToTopButton />
       {report ? (
         <div data-testid="case-report" className="flex flex-col gap-5">
           {/* SPEC-PILOT-VISUAL-001 M5 (REQ-012) — "사건 요약" 패널.

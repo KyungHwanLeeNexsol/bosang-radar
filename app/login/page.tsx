@@ -53,9 +53,11 @@ export default function LoginPage() {
             </span>
           </div>
           <p className="mt-1 text-meta tracking-[0.2em] text-app-sidebar-ink">보 상 레 이 더</p>
-          {/* Round4: Pencil 03-테스터-로그인.png 재대조 — 헤드라인이 로고 바로 아래가 아니라
-              화면 중단에 더 가깝게 위치한다. mt-6 → mt-20으로 간격을 넓혀 근사시킨다. */}
-          <p className="mt-20 text-h2 font-semibold text-white">
+          {/* Round5(외부 재검토): 픽셀 실측(luminance-band 측정, progress.md Gap Matrix 참조) —
+              Pencil 헤드라인은 CSS 기준 약 30px/40px(2줄 pitch ~41px)이며 로고와의 간격도
+              Round4의 mt-20(80px)보다 훨씬 크다. 전역 타이포 토큰(text-h1/h2)은 다른 화면과
+              공유되므로 변경하지 않고, 로그인 화면 전용 로컬 값으로만 근사시킨다. */}
+          <p className="mt-[194px] text-[30px] font-semibold leading-[40px] text-white">
             판례·약관·법령을 한 번에 대조하는
             <br />
             손해사정 리서치 워크스페이스
@@ -87,9 +89,12 @@ export default function LoginPage() {
           손해사정 실무자 전용 서비스입니다. 접속 및 조회 기록이 저장되며 감사 목적으로 보관됩니다.
         </p>
       </div>
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
+      {/* Round5(외부 재검토): 우측 폼 패널도 픽셀 실측 결과 Pencil보다 세로 간격이
+          전반적으로 좁다(progress.md Gap Matrix 참조). 공유 폼 컴포넌트(login-form.tsx)의
+          구조·testid는 그대로 두고, 로그인 페이지 전용 래퍼 간격만 넓혀 근사시킨다. */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 px-4">
         {/* Round3: 우측 폼 패널 B 타일 제거 — Pencil 03-테스터-로그인.png 기준 */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2.5">
           <span className="text-meta font-semibold uppercase tracking-wide text-bora-ink-4">
             TESTER LOGIN
           </span>

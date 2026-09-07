@@ -26,9 +26,16 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function selectOption(select: HTMLSelectElement, value: string) {
-  select.value = value;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+// Round5(외부 재검토) — feedback-form.tsx의 "전체 평가"가 native <select>에서
+// 카드형 버튼 그룹(OptionButtonGroup)으로 마이그레이션됨에 따라, 값을
+// select.value로 지정하는 대신 해당 값의 버튼을 실제로 클릭한다. testid는
+// `feedback-overall-rating-${value}` 패턴이다(feedback-form.tsx 참조).
+function clickOption(container: HTMLElement, testId: string, value: string) {
+  const button = container.querySelector<HTMLButtonElement>(`[data-testid="${testId}-${value}"]`);
+  if (!button) {
+    throw new Error(`버튼을 찾지 못했습니다: [data-testid="${testId}-${value}"]`);
+  }
+  button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
 function submitForm(container: HTMLElement) {
@@ -89,8 +96,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
     const action = vi.fn().mockReturnValue(promise);
     renderForm(action);
 
-    const select = container.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select, "ACCURATE"));
+    act(() => clickOption(container, "feedback-overall-rating", "ACCURATE"));
 
     // 두 클릭을 같은 act() 블록에 넣어 React가 첫 클릭 이후 DOM을 아직
     // 재렌더링하지 않은(disabled 속성이 아직 반영되지 않은) 상태에서도
@@ -111,8 +117,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
     } satisfies SubmitFeedbackResult);
     renderForm(action);
 
-    const select = container.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select, "ACCURATE"));
+    act(() => clickOption(container, "feedback-overall-rating", "ACCURATE"));
 
     await act(async () => {
       submitForm(container);
@@ -147,8 +152,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
         />
       );
     });
-    const select2 = container2.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select2, "ACCURATE"));
+    act(() => clickOption(container2, "feedback-overall-rating", "ACCURATE"));
     await act(async () => {
       submitForm(container2);
       await Promise.resolve();
@@ -169,8 +173,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
     } satisfies SubmitFeedbackResult);
     renderForm(action);
 
-    const select = container.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select, "ACCURATE"));
+    act(() => clickOption(container, "feedback-overall-rating", "ACCURATE"));
 
     await act(async () => {
       submitForm(container);
@@ -204,8 +207,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
       } satisfies SubmitFeedbackResult);
     renderForm(action);
 
-    const select = container.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select, "ACCURATE"));
+    act(() => clickOption(container, "feedback-overall-rating", "ACCURATE"));
 
     await act(async () => {
       submitForm(container);
@@ -233,8 +235,7 @@ describe("app/cases/[caseId]/feedback-form — single-flight guard + 필드별 �
       } satisfies SubmitFeedbackResult);
     renderForm(action);
 
-    const select = container.querySelector<HTMLSelectElement>("#feedback-overall-rating")!;
-    act(() => selectOption(select, "ACCURATE"));
+    act(() => clickOption(container, "feedback-overall-rating", "ACCURATE"));
 
     await act(async () => {
       submitForm(container);

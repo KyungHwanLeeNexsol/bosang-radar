@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>전문가 피드백 화면 — Pencil / Before / After 비교 (Round 5)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>전문가 피드백 화면 — Pencil / Before(Round4, native select) / After(Round5) 3열 비교</h1>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/08-전문가-피드백.png)</h2>
+        <img src="../../../design/exports/08-전문가-피드백.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>Before — Round 4 (1440px, native &lt;select&gt; 기반)</h2>
+        <img src="after-round4/expert-feedback-1440.png" alt="Before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 5 (1440px, 카드형 버튼 그룹 기반, 초기 상태)</h2>
+        <img src="after-round5/expert-feedback-initial-1440.png" alt="After" />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td colspan="3">1440×900 (Pencil은 2x export, 실측 CSS 환산 1440×900 상당)</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td colspan="3">Round 5 작업 브랜치 HEAD — 최종 커밋 SHA는 sync 시 backfill</td>
+      </tr>
+      <tr>
+        <th>route</th>
+        <td colspan="3">/cases/&lt;caseId&gt;#expert-feedback (인증된 테스터 세션)</td>
+      </tr>
+      <tr>
+        <th>scroll 위치</th>
+        <td colspan="3">
+          top-of-page(#expert-feedback 앵커로 이동 직후, fullPage 아님). 모바일 전체 페이지는 별도로
+          `expert-feedback-initial-390-fullpage.png`에서 확인 가능.
+        </td>
+      </tr>
+      <tr>
+        <th>데이터 fixture</th>
+        <td colspan="3">
+          Before/After 동일 입력("계단에서 넘어져 발목을 다쳤습니다." / "발목 인대 파열" / "발목" /
+          2026-01-15)으로 생성한 사건의 리포트에 대한 피드백 화면 — claim 6건·근거 확인 6건·판단
+          불충분 0건으로 Before/After 조건이 동일하다. Pencil은 정적 mock이라 claim·evidence 개수가
+          정확히 일치하지는 않는다(구조/레이아웃 비교 목적).
+        </td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이(Before → After)</th>
+        <td colspan="3">
+          <ul>
+            <li>사건 메타 스트립(리포트 ID·검토 대상/근거 확인/판단 불충분 건수) 신규 추가</li>
+            <li>전체 평가: native &lt;select&gt; → 3개 카드형 버튼 그룹(role="radiogroup")</li>
+            <li>
+              누락된 쟁점: 자유 추가 행만 있던 것에 실제 8종 이슈 타입 기반 빠른 추가 체크박스
+              그리드 추가
+            </li>
+            <li>
+              개별 주장 평가: native &lt;select&gt; → 가로 배치 버튼 그룹 + 실제 claim.status 기반
+              배지("근거 충분"/"근거 부족")
+            </li>
+            <li>개별 근거자료 평가: &lt;table&gt; → 카드 리스트</li>
+            <li>우측 작성 진행률에 섹션별 완료 아이콘 리스트 추가</li>
+            <li>우측 제출 상태에 아이콘 + 세부 안내 문구 추가</li>
+            <li>
+              Footer에 잠금 안내 문구 + 비활성 "임시 저장" 버튼 추가(case-input-form.tsx 관례 통일)
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>의도적 편차(사용자 승인 완료)</th>
+        <td colspan="3">
+          <ol>
+            <li>
+              Topbar/전용 라우트 미신설 — 현재의 앵커 기반(#expert-feedback) 페이지 내 섹션 구조
+              유지
+            </li>
+            <li>
+              "실제 결과" 카드 선택 UI 미구현 — 기존 자유 텍스트 2개 필드 유지(데이터 모델에 outcome
+              타입 필드 없음)
+            </li>
+            <li>"이미 제출됨" 사전 확인 상태 미추가</li>
+          </ol>
+          세 항목 모두 AskUserQuestion으로 사용자에게 확인 후 "(권장)" 옵션으로 결정됨(progress.md
+          Round 5 전문가 피드백 섹션 참조).
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
