@@ -46,7 +46,7 @@
 **Traces**: REQ-E2EAUTH-003
 - **Given** storageState 전환이 적용된 상태에서, `CAPTURE_EVIDENCE` 환경변수가 설정되지 않은 상태일 때
 - **When** `pnpm test:e2e`(전체 스위트, 필터 없음)를 실행하면
-- **Then** 명령이 exit 0으로 종료하고, `auth.spec.ts`·`case-flow.spec.ts`·`mobile-drawer-focus.spec.ts`·`sidebar-sticky.spec.ts`·`comparison-docs-images.spec.ts` 5개 파일은 모두 통과하며(기존과 동일하게 `retries: 2` 안전망 사용은 허용 — 이 AC는 "무재시도"가 아니라 "통과"만을 요구한다), `capture-evidence.spec.ts`와 `capture-evidence-round5.spec.ts` 2개 파일은 각 파일의 `test.skip(!process.env.CAPTURE_EVIDENCE, ...)` 가드(두 파일 55-56번째 줄 부근, 실측 확인)로 인해 **EXPECTED-SKIP**으로 리포터에 나타난다 — "통과"가 아니라 "스킵"이 이 두 파일의 기대 결과이며, 스킵이 아닌 실행·실패로 나타나면 FAIL이다.
+- **Then** 명령이 exit 0으로 종료하고, `auth.spec.ts`·`case-flow.spec.ts`·`mobile-drawer-focus.spec.ts`·`sidebar-sticky.spec.ts`·`comparison-docs-images.spec.ts` 5개 파일은 모두 통과하며(기존과 동일하게 `retries: 2` 안전망 사용은 허용 — 이 AC는 "무재시도"가 아니라 "통과"만을 요구한다), `capture-evidence.spec.ts`와 `capture-evidence-round5.spec.ts` 2개 파일은 각 파일의 `test.skip(!process.env.CAPTURE_EVIDENCE, ...)` 가드(실측 확인 — `capture-evidence.spec.ts` 56번째 줄, `capture-evidence-round5.spec.ts` 52번째 줄)로 인해 **EXPECTED-SKIP**으로 리포터에 나타난다 — "통과"가 아니라 "스킵"이 이 두 파일의 기대 결과이며, 스킵이 아닌 실행·실패로 나타나면 FAIL이다.
 - **비고**: `CAPTURE_EVIDENCE=1`로 이 두 파일을 실제 활성화해 검증하는 것은 별도의 실행 조건(`CAPTURE_EVIDENCE=1 pnpm test:e2e -- --spec=e2e/capture-evidence.spec.ts` 등)이며, 이 AC(기본 실행)에 섞지 않는다. 이 SPEC은 그 별도 실행 조건에 대한 검증 의무를 지지 않는다(`spec.md` §4 Out of Scope).
 
 ### AC-E2EAUTH-005 — `e2e/helpers.ts` 무변경(커밋 기준)
