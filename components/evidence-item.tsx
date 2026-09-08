@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
+import { evidenceTypeLabel, queryIssueTypeLabel } from "@/lib/pipeline/labels";
 import type { EvidenceType, QueryIssueType } from "@/lib/pipeline/types";
 
 // SPEC-PILOT-VISUAL-001 M3 (REQ-013) — Evidence Item 프레젠테이션 컴포넌트.
@@ -31,9 +32,9 @@ export function EvidenceItem({
   return (
     <li className={cn("flex flex-col gap-1 border-l-2 border-app-line py-[13px] pl-4", className)}>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip>{evidenceType}</Chip>
+        <Chip>{evidenceTypeLabel(evidenceType)}</Chip>
         {issueTypes.map((issueType) => (
-          <Chip key={issueType}>{issueType}</Chip>
+          <Chip key={issueType}>{queryIssueTypeLabel(issueType)}</Chip>
         ))}
       </div>
       <p className="text-body font-semibold text-bora-ink">{title}</p>

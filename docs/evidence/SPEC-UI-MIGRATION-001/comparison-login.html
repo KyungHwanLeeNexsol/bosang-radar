@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>로그인 화면 — Pencil / Before / After 비교 (Round 4)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>로그인 화면 — Pencil / Before(Round4) / After(Round5) 3열 비교</h1>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/03-테스터-로그인.png)</h2>
+        <img src="../../../design/exports/03-테스터-로그인.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>Before — Round 4 (1440px, text-h2/mt-20 기반, 헤드라인 작고 위쪽)</h2>
+        <img src="after-round4/login-1440.png" alt="Before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 5 (1440px, 로컬 헤드라인 크기/위치 실측 보정)</h2>
+        <img src="after-round5/login-1440.png" alt="After" />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td colspan="3">1440×900 (Pencil은 2x export, 실측 CSS 환산 1440×900 상당)</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td colspan="3">
+          Round 4(Before): c210ebff732f2355d52359113762a55515680528(origin에 push됨) · Round
+          5(After): f6ea25a614782ae60c1e2c0ceaf575483d59087c(plan/SPEC-UI-MIGRATION-001)
+        </td>
+      </tr>
+      <tr>
+        <th>route / scroll 위치</th>
+        <td colspan="3">/login (인증 불필요), top-of-page(fullPage 아님)</td>
+      </tr>
+      <tr>
+        <th>데이터 상태</th>
+        <td colspan="3">인증 불필요 화면 — 데이터 상태 없음(정적 렌더링)</td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이(Round4 → Round5)</th>
+        <td colspan="3">
+          <ul>
+            <li>
+              row-luminance-profile 실측 결과(progress.md Round 5 Gap Matrix 참조), 헤드라인 폰트
+              크기 <code>text-h2</code>(19px) → 로컬 <code>text-[30px] leading-[40px]</code>
+              (전역 토큰 무변경, 로그인 화면 전용 로컬 값)
+            </li>
+            <li>
+              헤드라인 상단 여백 <code>mt-20</code>(80px) → <code>mt-[194px]</code>, 실측 결과
+              Pencil의 헤드라인 잉크 위치(CSS y=303~369)와 ±1px 수준으로 일치
+            </li>
+            <li>
+              우측 폼 wrapper 간격 <code>gap-6</code>→<code>gap-8</code>, 텍스트 블록
+              <code>gap-1.5</code>→<code>gap-2.5</code>
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>우측 폼 내부 간격(사용자 승인 후 반영)</th>
+        <td colspan="3">
+          라벨-입력창-버튼 간 세로 간격이 Pencil보다 좁았던 잔여 편차를 사용자에게 보고 후
+          "폼 내부 간격도 넓혀서 맞추기"로 승인받아 `login-form.tsx`의 `gap-4`→`gap-7`,
+          `gap-1.5`→`gap-2.5`로 확대 반영했다(로그인 화면 전용 컴포넌트, 다른 화면 미공유 확인).
+          `npx vitest run app/login/` 6/6 PASS.
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

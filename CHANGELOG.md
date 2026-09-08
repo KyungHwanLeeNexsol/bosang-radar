@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+### Added — SPEC-UI-MIGRATION-001 UI 마이그레이션 — Pencil 디자인 전체 화면 확장 재현(로그인·공통 예외·반응형 포함)
+
+SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트/전문가 피드백)을 넘어, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)의 나머지 화면과 App Shell 확장, 콘텐츠 정합성, 반응형 규칙을 마무리했습니다. 5차례의 외부 독립 재검토(Round 1~5)를 거쳐 발견된 결함을 매 라운드 실측으로 해소했습니다.
+
+- **로그인 화면 신규 셸**(`app/login/layout.tsx`, `login-form.tsx`, `page.tsx`): 비밀번호 표시/숨김 토글, 비활성 Footer 링크(이용약관/개인정보처리방침/고객지원) + "랜딩으로 돌아가기" 활성 링크, 좌측 다크 브랜드 패널 + 우측 흰 폼 2컬럼 레이아웃. Pretendard 폰트 로딩을 이 레이아웃 내부에만 격리해 `app/layout.tsx`/`app/page.tsx` zero-diff 유지
+- **App Shell 확장**(`case-shell-nav.tsx`, `sidebar-user-block.tsx`, `case-shell-topbar.tsx`): 사이드바 5항목(기존 3개 + 비활성 "리포트 보관함"/"판례·약관 자료실" 2개), 세션 `user.name` 기반 사용자 블록(클라이언트 컴포넌트로 분리), 라우트별 브레드크럼/타이틀
+- **콘텐츠 정합성**(`lib/pipeline/labels.ts` 신규): 근거자료 유형(5종)·쟁점 유형(8종) 영문 raw enum 값을 한글 라벨로 매핑해 화면에 노출 — 내부 `data-*` 속성은 영문 값 그대로 보존
+- **비확정성 안내 + Claim 카드 정합성**: Aggregate Status/검토 담보 패널에 비확정성 안내 문구 추가, INSUFFICIENT claim 카드에 "추가 확인 필요" 안내 + `missingMaterials`/`uncertainty` 앵커 링크
+- **사건 입력 우측 레일 확장**(`lib/cases/get-recent-cases-for-owner.ts` 신규): "최근 리서치" 패널(owner-scope 조회, 최대 3건) + "분석 상태" 4단계 정적 패널. `NewCasePage`가 자체 `getCurrentSession()`으로 async Server Component 전환 — `/cases/new`는 이 시점부터 의도적으로 Dynamic 렌더링
+- **실재하는 예외 화면**(`app/not-found.tsx`, `app/cases/[caseId]/not-found.tsx` 신규): 전역 404(App Shell 미적용) + 사건-없음/미소유 통합 404(App Shell 적용, 정보 은닉 — 두 시나리오 텍스트 완전 동일)
+- **반응형 + 모바일 드로어 접근성**(`app-shell-chrome.tsx` 신규): 1024px 우측 레일 세로 배치, 390px 오프캔버스 드로어(포커스 트랩 닫힌 루프, 배경 `inert`, ESC/스크림/nav 링크 닫기, 리사이즈 시 자동 닫힘)
+- **전문가 피드백 화면 Pencil 구조 마이그레이션**(Round 5): native `<select>` → 카드형 버튼 그룹(`OptionButtonGroup`, `role="radiogroup"`), 사건 메타 스트립, 8종 이슈 타입 빠른 추가 체크박스, 개별 근거자료 카드 리스트, 섹션별 완료 아이콘 + 제출 상태 아이콘 추가. 사용자 승인된 의도적 편차 3건(전용 라우트 미신설, "실제 결과" 자유 텍스트 유지, "이미 제출됨" 사전확인 미도입)
+
+**검증**: 24개 요구사항(REQ-001~024) 전부 구현, 24개 인수 기준(AC-001~024 + letter-suffixed sub-AC) 전부 코드 레벨/실측으로 만족. plan-auditor 2회 실행(round1 PASS 0.97 → round2-revision PASS 0.94). Round 1~5 외부 독립 재검토에서 발견된 결함(빌드 실패 dead-code, 모바일 Footer 레이아웃 붕괴, mobile-drawer-focus 회귀, 로그인/사건입력/전문가피드백 Pencil 시각 격차)을 모두 실측 Gap Matrix 기반으로 해소했으며, INSUFFICIENT claim 상태는 결정론적 fixture로 `report.content`를 직접 주입해 실제 프로덕션 렌더링 분기를 통과시킨 화면을 캡처했습니다(로컬 결정론적 AI provider 환경의 알려진 한계 — 정상 사용자 플로우로는 자연 발생하지 않음). `pnpm test`(59 test files, 395 tests)/`pnpm lint`/`pnpm build`(`/cases/new` 의도적으로 Dynamic 전환)/`pnpm format:check`(신규 위반 0건) 전부 exit 0, `pnpm test:e2e` 3회 연속 exit 0(매회 로그인 rate-limit 충돌로 1개 스펙이 1회 재시도 후 통과 — flaky debt로 기록, 근본 해결은 후속 SPEC 후보). PRESERVE 대상(`lib/db/schema.ts`, `lib/validation/case-input.ts`, `lib/feedback/schema.ts`, `lib/cases/create-case.ts`, `lib/feedback/submit-feedback.ts`, `lib/pipeline/**`, `lib/ai/**`, `db/**`, `app/layout.tsx`, `e2e/helpers.ts`)는 전체 SPEC 기간 동안 zero-diff로 확인됐습니다. 후속 SPEC 후보 2건: 모바일 리포트/피드백 정보구조(IA) 분리, E2E 인증 fixture/storageState 재사용(rate-limit flaky debt 근본 해결).
+
+**참고**: `.moai/specs/SPEC-UI-MIGRATION-001/`
+
 ### Added — SPEC-PILOT-VISUAL-001 파일럿 비주얼 리스킨 — Pencil 디자인(claimradar-ui.pen) 재현, 기능/데이터 무변경
 
 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 `사건 입력`/`Research Report`/`전문가 피드백` 3개 화면에 순수 시각 계층에서만 재현했습니다. 신규 기능·API·DB·AI 파이프라인 변경 없음 — SPEC-PILOT-UX-001로 사용성이 완성된 흐름의 룩앤필만 교체합니다.

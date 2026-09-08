@@ -81,6 +81,18 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     vi.unstubAllGlobals();
   });
 
+  it("AC-014: '임시 저장' 버튼이 disabled 상태와 '준비 중' Chip을 가진 채로 존재하고 클릭해도 네트워크 요청이 없다", () => {
+    const draftSaveButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="case-input-draft-save"]'
+    );
+    expect(draftSaveButton).not.toBeNull();
+    expect(draftSaveButton?.disabled).toBe(true);
+    expect(draftSaveButton?.textContent).toContain("준비 중");
+
+    act(() => draftSaveButton!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("AC-001: 제출이 대기 중이면 버튼 텍스트 변경과 별개로 시각적 진행 표시가 나타난다", async () => {
     const { promise } = deferred<Response>();
     fetchMock.mockReturnValue(promise);

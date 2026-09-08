@@ -144,11 +144,14 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
 
     // SPEC-FEEDBACK-001 — 구조화 피드백 제출(REQ-FEEDBACK-014/015). 옛
     // 자유 텍스트 feedback-content/feedback-submit 경로는 완전히 대체되었다.
-    await page.getByTestId("feedback-overall-rating").selectOption("ACCURATE");
+    // Round5(외부 재검토) — "전체 평가"/"개별 주장 평가"가 native <select>에서
+    // 카드형 버튼 그룹으로 마이그레이션됨에 따라 selectOption() 대신 실제
+    // 버튼을 클릭한다(feedback-form.tsx OptionButtonGroup 참조).
+    await page.getByTestId("feedback-overall-rating-ACCURATE").click();
     const claimVerdictRows = page.getByTestId("feedback-claim-verdict");
     const claimVerdictCount = await claimVerdictRows.count();
     if (claimVerdictCount > 0) {
-      await claimVerdictRows.first().locator("select").selectOption("CORRECT");
+      await claimVerdictRows.first().getByRole("button", { name: "타당함" }).click();
     }
 
     await Promise.all([

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>리서치 리포트 화면 — Pencil / Before / After 비교 (Round 5)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>리서치 리포트 화면 — Pencil / After(Round 5) 비교</h1>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/07-리서치-리포트.png)</h2>
+        <img src="../../../design/exports/07-리서치-리포트.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>After — Round 5 (1440px, VERIFIED claim 확보 사건, production 재캡처)</h2>
+        <img src="after-round5/report-verified-claim-1440.png" alt="After VERIFIED" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>After — Round 5 (1440px, INSUFFICIENT claim 실제 성공 증빙, fixture 주입)</h2>
+        <img
+          src="after-round5/report-insufficient-fixture-1440.png"
+          alt="After INSUFFICIENT fixture"
+        />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td>1440×900 (Pencil은 2x export, 실측 CSS 환산 1440×900 상당)</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td>
+          이 스크린샷의 실제 캡처 커밋: <b>eb2171e</b>
+          (production 빌드 `pnpm build && pnpm start` 기준 재캡처, Round 5 correction pass). 이전
+          버전의 이 문서는 커밋 `f6ea25a614782ae60c1e2c0ceaf575483d59087c`(Round 5 최초 작업 커밋)를
+          표기하면서 실제로는 `after-round4/report-verified-claim-1440.png`(Round 4 캡처 이미지)를
+          사용하고 있었다 — 이미지와 표기 SHA가 불일치하는 오류였다. 이번 correction pass에서
+          이미지를 Round 5 production 캡처로 교체하고 SHA 표기를 실제 캡처 시점과 일치시켰다.
+        </td>
+      </tr>
+      <tr>
+        <th>route</th>
+        <td>/cases/&lt;caseId&gt; (인증된 테스터 세션)</td>
+      </tr>
+      <tr>
+        <th>scroll 위치</th>
+        <td>top-of-page (fullPage 아님, 뷰포트 상단 고정 캡처)</td>
+      </tr>
+      <tr>
+        <th>데이터 fixture</th>
+        <td>
+          `e2e/capture-evidence.spec.ts` "계단에서 넘어져 발목을 다쳤습니다." / 진단명 "발목 인대
+          파열" / 부위 "발목" / 사고일 2026-01-15 — 결정론적 provider 하에서 실제 evidence가 매칭돼
+          VERIFIED claim이 확보되는 것이 확인된 입력. Pencil의 mock 리포트와 claim 개수·근거 개수가
+          1:1로 일치하지는 않는다(Pencil은 정적 mock, After는 실제 파이프라인 결과이므로 완전
+          동일화는 불가능 — 화면 구조/카드 배치 비교가 목적).
+        </td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이</th>
+        <td>
+          <ul>
+            <li>reviewTargets/verifiedClaims/missingMaterials 카드 구조는 Pencil과 대체로 일치</li>
+            <li>
+              claim.status 배지("근거 확인"/"판단 불충분"), uncertainty 섹션, counterArguments
+              provenance 표시는 실 데이터 기반으로 정상 렌더링(SPEC-RESEARCH-001 post-run 리뷰 반영
+              사항)
+            </li>
+          </ul>
+          이 화면은 이번 Round 5 재검토에서 별도의 신규 결함 보고가 없었으므로 구조적 변경은
+          수행하지 않았다.
+        </td>
+      </tr>
+      <tr>
+        <th>의도적 편차</th>
+        <td>
+          없음(화면 코드 자체는 이번 correction pass에서 신규 수정 없음 — 증빙 이미지/SHA 표기만
+          정정). INSUFFICIENT claim 상태는 결정론적 fixture로 report.content를 직접 주입해
+          확보했으며, 렌더링 로직은 실제 프로덕션 코드를 그대로 통과한다(위 두 번째 이미지).
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

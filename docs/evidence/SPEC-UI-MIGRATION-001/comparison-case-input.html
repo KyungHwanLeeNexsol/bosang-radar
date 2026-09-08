@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>사건 입력 화면 — Pencil / Before / After 비교 (Round 5, correction pass)</title>
+    <style>
+      body {
+        font-family: -apple-system, "Malgun Gothic", sans-serif;
+        margin: 24px;
+        background: #f5f5f7;
+        color: #111;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .col {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .col img {
+        width: 100%;
+        display: block;
+        border: 1px solid #ccc;
+      }
+      .col h2 {
+        font-size: 13px;
+        margin: 4px 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin-top: 24px;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>사건 입력 화면 — Pencil / Before(Round3) / After(Round4, 현재도 유효) 3열 비교</h1>
+    <p style="font-size: 13px; color: #555">
+      이 문서의 "After" 열은 Round 4에서 확정된 사건 입력 화면 상태이며, Round 5는 이 화면 자체를
+      변경하지 않았다(모바일 Footer 레이아웃 붕괴 수정만 Round 5에서 발생 — 아래 세 번째 행 참조).
+      이 페이지 자체는 Round 5 correction pass에서 stale 내용(INSUFFICIENT 캡처 상태, commit SHA)을
+      정정했다.
+    </p>
+    <div class="row">
+      <div class="col">
+        <h2>Pencil 원본 (design/exports/05-사건-입력.png, 데이터 채움 상태)</h2>
+        <img src="../../../design/exports/05-사건-입력.png" alt="Pencil" />
+      </div>
+      <div class="col">
+        <h2>Before — Round 3 (commit b05eb5a, 데이터 채움 상태)</h2>
+        <img src="after-round3/case-input-1440.png" alt="Before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 (최근 리서치 0건 상태)</h2>
+        <img src="after-round4/case-input-empty-recent-1440.png" alt="After (empty)" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>After — Round 4 (최근 리서치 2건, 실제 DB 데이터)</h2>
+        <img src="after-round4/case-input-with-recent-1440.png" alt="After (with data)" />
+      </div>
+      <div class="col">
+        <h2>After — Round 4 리포트(VERIFIED claim 확보)</h2>
+        <img src="after-round4/report-verified-claim-1440.png" alt="report verified" />
+      </div>
+      <div class="col">
+        <h2>
+          [SUPERSEDED — Round 5 fixture 확보] Round 4 리포트(INSUFFICIENT 재현
+          <b>시도</b>, 결과: 자연 발생 미확인)
+        </h2>
+        <img
+          src="after-round4/report-insufficient-attempt-1440.png"
+          alt="report insufficient attempt (superseded)"
+        />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>Before — Round 4 모바일 Footer(390px, fullPage) — 레이아웃 붕괴</h2>
+        <img src="after-round4/case-input-mobile-390-fullpage.png" alt="mobile before" />
+      </div>
+      <div class="col">
+        <h2>After — Round 5 모바일 Footer(390px, fullPage) — 수정 후(production 재캡처)</h2>
+        <img src="after-round5/case-input-mobile-390-fullpage.png" alt="mobile after" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col" style="flex: 2">
+        <h2>
+          After — Round 5 리포트(INSUFFICIENT 실제 성공 증빙 — 결정론적 fixture로 report.content
+          직접 주입, 렌더링 로직은 실제 프로덕션 코드 그대로 통과)
+        </h2>
+        <img
+          src="after-round5/report-insufficient-fixture-1440.png"
+          alt="report insufficient fixture (Round 5 success evidence)"
+        />
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>viewport</th>
+        <td colspan="3">1440×900</td>
+      </tr>
+      <tr>
+        <th>commit SHA</th>
+        <td colspan="3">
+          Before(데이터 채움 비교): b05eb5a24edef19c0ef1580bdbcab15d108f5b3c · Before(모바일
+          Footer): c210ebff732f2355d52359113762a55515680528(Round 4, origin에 push됨) · After(모바일
+          Footer 수정, Round 5 최초 작업 커밋): f6ea25a614782ae60c1e2c0ceaf575483d59087c
+          (plan/SPEC-UI-MIGRATION-001) · After(이 문서의 실제 스크린샷 — INSUFFICIENT fixture +
+          모바일 Footer production 재캡처, Round 5 correction pass): eb2171e (production 빌드 기준
+          재캡처, 아래 "Round 5 correction pass" 행 참조)
+        </td>
+      </tr>
+      <tr>
+        <th>데이터 상태</th>
+        <td colspan="3">
+          Pencil/Before는 임의 샘플 텍스트 채움 상태. After는 (a) 빈 입력 + 최근 리서치 0건, (b) 빈
+          입력 + 최근 리서치 2건(실제 DB 사건 2건 생성), (c) 리포트 화면 VERIFIED, (d) 리포트 화면
+          INSUFFICIENT 재현 시도 — 4가지 상태를 모두 확보.
+        </td>
+      </tr>
+      <tr>
+        <th>측정한 주요 차이</th>
+        <td colspan="3">
+          <ul>
+            <li>
+              우측 레일 순서: 분석상태→최근리서치→비식별안내 →
+              <b>비식별안내→분석상태→최근리서치</b>로 재정렬
+            </li>
+            <li>필수 필드 4개 라벨에 <code>*</code> 추가</li>
+            <li>
+              입력창 <code>h-8</code>(32px)→<code>h-10</code>(40px), textarea
+              <code>min-h-24</code>→<code>min-h-32</code>
+            </li>
+            <li>분석 4단계 각 항목에 "대기" 라벨 추가</li>
+            <li>
+              Footer: 잠금 아이콘 + "입력 내용은 비식별 상태로 처리되며..." 안내문 추가(기존 "모든
+              필드를 입력한 뒤 제출해 주세요." 대체)
+            </li>
+            <li>
+              (Round 5) 모바일(390px) Footer 안내문이 한 글자씩 세로로 줄바꿈되던 레이아웃 붕괴 —
+              `flex-col`/`min-w-0`/`flex-wrap`으로 수정, 실제 브라우저 Playwright assertion 확보
+              (`e2e/case-input-mobile-layout.spec.ts`)
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>route / scroll 위치</th>
+        <td colspan="3">
+          /cases/new(인증된 테스터 세션). 데스크톱 캡처는 top-of-page(fullPage 아님), 모바일 Footer
+          캡처는 390px fullPage(전체 페이지).
+        </td>
+      </tr>
+      <tr>
+        <th>의도적 편차(사용자 승인 또는 근거)</th>
+        <td colspan="3">
+          <ul>
+            <li>
+              "임시저장 · N분 전" 타임스탬프 — 백엔드 영속화 기능 없음(REQ-014 "준비 중"). 가짜
+              타임스탬프 표시는 AC-012 가짜 진행률 금지 원칙 위반이므로 정적 비활성 표시 유지.
+            </li>
+            <li>
+              사이드바 사용자 블록의 이름/소속 — 데이터 모델에 존재하지 않는 필드(손해사정사
+              이름/법인명)를 지어내지 않음. 로그인 이메일 표시 유지(verification-claim-integrity
+              원칙).
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>Round 5 correction pass — INSUFFICIENT 상태 최종 해결</th>
+        <td colspan="3">
+          <p>
+            <b>[SUPERSEDED — Round 5 fixture 확보]</b> 위 "의도적 편차" 목록에 과거 있었던
+            "INSUFFICIENT claim 미확보(재현 불가, 잔여 위험)" 항목은 더 이상 유효하지 않다 — 해당
+            한계는 <b>자연 발생(정상 사용자 플로우로 유도) 경로에만</b> 적용되는 한계였고, Round
+            5에서 결정론적 fixture로 <code>report.content</code>를 직접 주입하는 방법으로
+            해소했다(화면을 조작한 것이 아니라 입력 데이터를 조작 — 렌더링 로직은 실제 프로덕션 코드
+            <code>claim.status === "INSUFFICIENT"</code> 분기를 그대로 통과).
+          </p>
+          <p>
+            판단 불충분(INSUFFICIENT) 1건이 <b>실제로 렌더링됐음을 확인</b>했다 — 캡처 직전
+            <code>claim-status</code> testid 요소 중 "판단 불충분" 텍스트를 가진 요소가 정확히
+            1개인지 assert로 검증한 뒤 스크린샷을 저장했다(파일명만 INSUFFICIENT이고 실제 내용은
+            다른 상태였던 Round 4 `report-insufficient-attempt-1440.png`의 실수를 반복하지 않기
+            위함).
+          </p>
+          <p>
+            최종 성공 증빙 파일: <code>after-round5/report-insufficient-fixture-1440.png</code> (위
+            세 번째 행 이미지). 최종 캡처 commit: production 빌드/재캡처 실행 시점의 worktree HEAD는
+            <code>be381a8476110387ff651383d441a0ec8c77b021</code>이었고, 이 correction pass의 실제
+            커밋 SHA는 <code>eb2171e</code>다(위 "commit SHA" 행 참조). 기존
+            `report-insufficient-attempt-1440.png`(after-round4)는 삭제하지 않고 그대로 보존하며,
+            위에서 [SUPERSEDED]로 표시했다.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { CircleDashed } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getCaseForOwner } from "@/lib/cases/get-case-for-owner";
 import { getDb } from "@/lib/db/client";
@@ -8,9 +9,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Chip } from "@/components/ui/chip";
 import { Notice } from "@/components/ui/notice";
 import { EvidenceItem } from "@/components/evidence-item";
-import type { EvidenceType, QueryIssueType, VerifiedClaim } from "@/lib/pipeline/types";
+import { evidenceTypeLabel, queryIssueTypeLabel } from "@/lib/pipeline/labels";
+import type {
+  EvidenceType,
+  MissingMaterial,
+  QueryIssueType,
+  VerifiedClaim,
+} from "@/lib/pipeline/types";
 import { submitReportFeedback } from "./actions";
 import { FeedbackForm } from "./feedback-form";
+import { BackToTopButton } from "./back-to-top-button";
 
 export const metadata: Metadata = {
   title: "사건 상세",
@@ -69,6 +77,20 @@ function getClaimIssueTypes(
     evidenceById.get(evidenceId)?.issueTypes.forEach((issueType) => seen.add(issueType));
   }
   return Array.from(seen);
+}
+
+// SPEC-UI-MIGRATION-001 M5 (REQ-011) — INSUFFICIENT claim 카드에 직접 나열할
+// missingMaterial 결정론적 연결 규칙. `missingMaterial.relatedIssueType`이
+// 이 claim의 getClaimIssueTypes() 파생 결과 집합에 포함되는 항목만
+// 반환한다 — 신규 AI 필드 없이 기존 데이터만으로 계산한다. 일치하지 않는
+// 리포트-레벨 missingMaterial을 임의로 카드에 복제하지 않는다.
+function getMatchedMissingMaterials(
+  claim: VerifiedClaim,
+  evidenceById: Map<string, EvidenceDisplay>,
+  missingMaterials: MissingMaterial[]
+): MissingMaterial[] {
+  const claimIssueTypes = new Set(getClaimIssueTypes(claim, evidenceById));
+  return missingMaterials.filter((material) => claimIssueTypes.has(material.relatedIssueType));
 }
 
 // SPEC-PILOT-VISUAL-001 M5 (REQ-014 — 우 레일 "수집 근거 유형") — 인용된
@@ -192,6 +214,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-5 px-8 pt-6 pb-10">
+      <BackToTopButton />
       {report ? (
         <div data-testid="case-report" className="flex flex-col gap-5">
           {/* SPEC-PILOT-VISUAL-001 M5 (REQ-012) — "사건 요약" 패널.
@@ -205,7 +228,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-line px-6 py-4">
               <div>
-                <p className="text-label-s font-medium text-bora-ink-4">사건 요약 · {caseId}</p>
+                {/* SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.8) — 표시용
+                    truncation만 적용한다. 라우트 caseId 파라미터/DB 조회는
+                    무변경이다. */}
+                <p className="text-label-s font-medium text-bora-ink-4">
+                  사건 요약 · {caseId.slice(0, 8)}
+                </p>
                 <h1 className="text-h2 font-semibold text-bora-ink">사건 요약</h1>
               </div>
               <div className="flex items-center gap-3">
@@ -229,7 +257,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <MetaItem label="사고일" value={report.caseSummary.incidentDate} />
               </div>
               <div className="sm:pl-6">
-                <MetaItem label="담당" value="담당 손해사정사" />
+                {/* SPEC-UI-MIGRATION-001 D4 — 하드코딩된 "담당 손해사정사"
+                    문자열 대신 현재 로그인 세션의 이메일을 표시한다. 이
+                    페이지는 이미 유효한 세션 없이는 렌더링되지 않으므로
+                    session.user.email은 항상 존재하지만, 방어적으로
+                    기존 문자열을 폴백으로 유지한다. */}
+                <MetaItem label="담당" value={session.user.email ?? "담당 손해사정사"} />
               </div>
             </div>
 
@@ -271,11 +304,23 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               </div>
               <p className="text-[11.5px] font-normal text-bora-ink-3">{aggregateStatusCaption}</p>
             </div>
+
+            {/* SPEC-UI-MIGRATION-001 M4 (REQ-009) — 보험금 지급 비확정성 안내
+                문구. 정확한 문구를 그대로 노출해야 하므로 신규 문자열을
+                만들지 않고 spec.md REQ-009가 명시하는 텍스트를 그대로
+                렌더링한다. */}
+            <div className="mx-6 mb-6 rounded-[4px] bg-app-surface-inset px-4 py-3">
+              <p className="text-meta font-normal text-bora-ink-3">
+                본 리포트는 공개된 판례·약관·법령을 기반으로 한 참고용 AI 리서치 결과입니다. 보험금
+                지급 여부나 지급액을 확정하지 않으며, 최종 판단은 담당 손해사정사의 검토가
+                필요합니다.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-5 lg:flex-row">
+          <div className="flex flex-col gap-5 xl:flex-row">
             {/* 좌 컬럼 — 개별 주장 및 근거 검토 + 그 외 검토 항목 패널들 */}
-            <div className="flex min-w-0 flex-1 flex-col gap-5 lg:max-w-[824px]">
+            <div className="flex min-w-0 flex-1 flex-col gap-5 xl:max-w-[824px]">
               <div className="overflow-hidden rounded-[4px] bg-app-surface">
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">개별 주장 및 근거 검토</h2>
@@ -311,7 +356,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                               {issueTypes.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
                                   {issueTypes.map((issueType) => (
-                                    <Chip key={issueType}>{issueType}</Chip>
+                                    <Chip key={issueType}>{queryIssueTypeLabel(issueType)}</Chip>
                                   ))}
                                 </div>
                               ) : null}
@@ -344,6 +389,53 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                             )}
                           </ul>
                         </div>
+
+                        {/* SPEC-UI-MIGRATION-001 M5 (REQ-011) — "추가 확인
+                            필요" 안내. 항상 리포트 레벨 missingMaterials/
+                            uncertainty 섹션으로 이동하는 앵커 링크를
+                            포함하며, relatedIssueType이 일치하는 항목만
+                            카드 내부에 직접 나열한다. */}
+                        {claim.status === "INSUFFICIENT" ? (
+                          <div className="border-t border-app-line px-4 py-3">
+                            <div className="flex items-start gap-2">
+                              <CircleDashed
+                                aria-hidden="true"
+                                className="mt-0.5 size-4 shrink-0 text-bora-warn"
+                              />
+                              <div className="flex flex-col gap-1.5">
+                                <p className="text-body-s font-semibold text-bora-warn">
+                                  추가 확인 필요
+                                </p>
+                                {getMatchedMissingMaterials(
+                                  claim,
+                                  evidenceById,
+                                  report.missingMaterials
+                                ).length > 0 ? (
+                                  <ul className="flex flex-col gap-1">
+                                    {getMatchedMissingMaterials(
+                                      claim,
+                                      evidenceById,
+                                      report.missingMaterials
+                                    ).map((material, materialIndex) => (
+                                      <li
+                                        key={materialIndex}
+                                        className="list-inside list-disc text-body-s text-bora-ink-2"
+                                      >
+                                        {material.description}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                                <a
+                                  href="#missing-materials"
+                                  className="text-body-s font-medium text-bora-accent hover:underline"
+                                >
+                                  추가 필요 자료·판단 불충분 사유 전체 보기
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
 
                         {claim.counterArguments.length > 0 ? (
                           <div className="border-t border-app-line px-4 py-3">
@@ -404,6 +496,11 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                   <h2 className="text-h2 font-semibold text-bora-ink">검토할 담보 목록</h2>
                 </div>
                 <div className="px-6 py-5" data-testid="review-targets">
+                  {/* SPEC-UI-MIGRATION-001 M4 (REQ-010) — 담보 검토 비확정성
+                      부제. 정확한 문구를 그대로 노출한다. */}
+                  <p className="mb-3 text-body-s text-bora-ink-3">
+                    추가 검토가 필요한 담보 항목입니다. 지급 가능 담보를 확정한 목록이 아닙니다.
+                  </p>
                   {report.reviewTargets.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.reviewTargets.map((reviewTarget, index) => (
@@ -424,7 +521,10 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">추가 필요 자료</h2>
                 </div>
-                <div className="px-6 py-5" data-testid="missing-materials">
+                {/* Fix-B1(P0, 외부 리뷰): data-testid는 URL 프래그먼트 스크롤
+                    타깃이 될 수 없다(id만 가능) — #missing-materials 앵커
+                    링크가 실제로 이 요소로 스크롤되도록 id를 함께 부여한다. */}
+                <div className="px-6 py-5" id="missing-materials" data-testid="missing-materials">
                   {report.missingMaterials.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.missingMaterials.map((missingMaterial, index) => (
@@ -448,7 +548,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 <div className="border-b border-app-line px-6 py-4">
                   <h2 className="text-h2 font-semibold text-bora-ink">판단 불충분 사유</h2>
                 </div>
-                <div className="px-6 py-5" data-testid="uncertainty">
+                <div className="px-6 py-5" id="uncertainty" data-testid="uncertainty">
                   {report.uncertainty.length > 0 ? (
                     <ul className="flex flex-col gap-2 text-body text-bora-ink-2">
                       {report.uncertainty.map((reason, index) => (
@@ -469,7 +569,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             {/* 우 레일 — 검토 항목 / 수집 근거 유형 / Notice 활용 유의
                 (design.md §4 화면 02, REQ-014 — 신규 I/O 없이 기존 데이터에서만
                 파생, plan-auditor 블로커 4 대응으로 구현 위치는 재량) */}
-            <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[300px]">
+            <aside className="flex w-full shrink-0 flex-col gap-4 xl:w-[300px]">
               <div className="overflow-hidden rounded-[4px] bg-app-surface">
                 <div className="border-b border-app-line px-4 py-3">
                   <h3 className="text-h3 font-semibold text-bora-ink">검토 항목</h3>
@@ -503,7 +603,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                     evidenceTypeCounts.map(({ type, count }) => (
                       <div key={type} className="flex flex-col gap-1">
                         <div className="flex items-center justify-between text-body-s text-bora-ink-3">
-                          <span>{type}</span>
+                          <span>{evidenceTypeLabel(type)}</span>
                           <span>{count}건</span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-app-line">
