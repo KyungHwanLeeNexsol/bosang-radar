@@ -12,8 +12,9 @@ import { TESTER_B_STORAGE_STATE_PATH } from "./storage-state-paths.ts";
 // 실행 순서에 결합되지 않도록).
 //
 // SPEC-E2E-AUTH-STATE-001 — TESTER_B storageState를 재사용해 인증된 상태로
-// 시작한다(loginAsTester() 직접 호출 제거, REQ-E2EAUTH-002). TESTER_A의
-// DB 직접 조회(connectE2EDb)는 브라우저 인증과 무관하므로 그대로 유지한다.
+// 시작한다(helpers.ts의 실 UI 로그인 헬퍼 직접 호출을 제거, REQ-E2EAUTH-002).
+// TESTER_A의 DB 직접 조회(connectE2EDb)는 브라우저 인증과 무관하므로 그대로
+// 유지한다.
 test.use({ storageState: TESTER_B_STORAGE_STATE_PATH });
 
 test.describe("Tenant Isolation — AC-RUNTIME-014", () => {

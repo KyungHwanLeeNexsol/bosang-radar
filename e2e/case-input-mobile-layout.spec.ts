@@ -12,11 +12,11 @@ import { test, expect } from "@playwright/test";
 import { TESTER_A_STORAGE_STATE_PATH } from "./storage-state-paths.ts";
 
 // SPEC-E2E-AUTH-STATE-001 — TESTER_A storageState를 재사용해 인증된 상태로
-// 시작한다(loginAsTester() 직접 호출 제거, REQ-E2EAUTH-002). 로그인 진입
-// 방식만 대체하며, 아래 테스트 본문의 단언·시나리오는 전환 전과 완전히
-// 동일하다(REQ-E2EAUTH-008). storageState는 e2e/auth.setup.ts가 저장하고,
-// playwright.config.ts의 chromium-authed project(dependencies: ["setup"])가
-// 이 파일에 그 결과를 주입한다.
+// 시작한다(helpers.ts의 실 UI 로그인 헬퍼 직접 호출을 제거, REQ-E2EAUTH-002).
+// 로그인 진입 방식만 대체하며, 아래 테스트 본문의 단언·시나리오는 전환 전과
+// 완전히 동일하다(REQ-E2EAUTH-008). storageState는 e2e/auth.setup.ts가
+// 저장하고, playwright.config.ts의 chromium-authed project
+// (dependencies: ["setup"])가 이 파일에 그 결과를 주입한다.
 test.use({ storageState: TESTER_A_STORAGE_STATE_PATH });
 
 const MOBILE_VIEWPORTS = [
