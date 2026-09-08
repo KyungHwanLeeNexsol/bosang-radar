@@ -1,5 +1,12 @@
 # SPEC-UI-MIGRATION-001 — progress.md
 
+## Sync 최종 종결 (2026-09-08 — 이 줄이 현재 유일하게 유효한 판정, 아래 "Current Status"보다 최신)
+
+- **`sync_status: completed`** — `acceptance.md` §4 DoD 6개 항목 전부 체크, `spec.md` frontmatter `status: completed`로 전환 완료(§E.4 참조). 사용자가 correction pass 완료 보고 이후 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
+- 아래 "Current Status (2026-09-07, Round 5 최종)" 절과 그 이하 모든 기록은 히스토리로 그대로 둔다 — 그 절이 기록한 `run_status: audit-ready`는 이 종결 판정으로 대체되지 않고 그 판정을 이끌어낸 근거로 남는다.
+
+---
+
 ## Current Status (2026-09-07, Round 5 최종 — 이 줄이 유일하게 유효한 판정)
 
 - **`run_status: audit-ready`**(Round 5 최종 검증 + 사용자 승인 2건 반영 완료 시점 재확정). 아래 Round 4의 `audit-ready` 판정은 외부 재검토(Round 5) 결과 **`[SUPERSEDED — Round 5 external review]`**로 표시한다(삭제하지 않고 그대로 보존). Round 5 재검토 진행 중에는 `verification-pending`으로 되돌렸으며, 아래 7개 재승인 조건을 전부 충족(완료 또는 사용자 명시적 결정)한 뒤 이 절에서 다시 `audit-ready`로 재확정한다.
@@ -658,7 +665,12 @@ auth.spec.ts(테스트1) + case-flow.spec.ts(테스트3) 두 테스트가 TESTER
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- `sync_status: completed`
+- `sync_complete_at: 2026-09-08`
+- **3-phase close**: 이 섹션을 채우는 단일 sync 커밋이 `spec.md` frontmatter `status: in-progress → completed`(+ `updated: 2026-09-08`) 전환을 함께 수행한다. `plan.md`/`acceptance.md`는 이 프로젝트 관례상 frontmatter가 없어(spec.md만 12필드 frontmatter 보유) 전환 대상이 아니다.
+- **근거**: Round 5 최종 검증(§ "Round 5 — 최종 검증") + correction pass(§ "Round 5 — 3건 재분류", § "Round 5 — E2E retry 투명화") 전부 완료. AC-001~024 전부 PASS, `acceptance.md` §4 DoD 6개 항목 전부 체크(2026-09-08). 사용자가 AskUserQuestion에서 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
+- **CHANGELOG.md**: `[Unreleased]` 섹션에 `### Added — SPEC-UI-MIGRATION-001 ...` 항목 신규 추가(이 커밋에 포함).
+- `sync_commit_sha: pending-backfill-ui-migration-sync`(이 커밋 자신은 자기 SHA를 알 수 없음 — 다음 커밋에서 실제 SHA로 backfill, 기존 Round 5 SHA backfill과 동일한 관례).
 
 ## §E.3 Run-phase Audit-Ready Signal (supplemental — 시각 증빙 캡처)
 
