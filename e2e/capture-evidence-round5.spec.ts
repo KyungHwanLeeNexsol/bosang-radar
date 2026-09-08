@@ -66,6 +66,27 @@ test.describe("Round 5 시각 증빙 캡처", () => {
     }
   });
 
+  // correction pass (3차, 사용자 승인 2026-09-08) — 데스크톱 App Shell
+  // 사이드바를 static → sticky로 전환한 뒤, 폼이 뷰포트보다 긴 /cases/new
+  // 화면에서 사이드바 하단 사용자 블록이 초기 뷰포트 안에 보이는지 재캡처.
+  // Pencil design/exports/04-App-Shell.png 자체가 "좌측 사이드바 232px +
+  // 상단바 62px 고정"이라고 명시하므로, 이 캡처는 그 고정 사이드바 의도와의
+  // 정합을 시각적으로 재확인하는 증빙이다.
+  test("사이드바 sticky 재캡처 — /cases/new에서 사용자 블록 초기 뷰포트 가시성", async ({
+    page,
+  }) => {
+    await loginAsTester(page, TESTER_A_EMAIL);
+    for (const vp of DESKTOP_VIEWPORTS) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto("/cases/new");
+      await page.waitForLoadState("networkidle");
+      await page.screenshot({
+        path: path.join(EVIDENCE_DIR, `case-input-sticky-sidebar-${vp.label}.png`),
+        fullPage: false,
+      });
+    }
+  });
+
   test("모바일 사건 입력 Footer — 재캡처(레이아웃 붕괴 수정 확인)", async ({ page }) => {
     await loginAsTester(page, TESTER_A_EMAIL);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -224,6 +245,80 @@ test.describe("Round 5 시각 증빙 캡처", () => {
       path: path.join(EVIDENCE_DIR, "report-verified-claim-1440.png"),
       fullPage: false,
     });
+  });
+
+  // correction pass (2차) — acceptance.md §3의 "실재하는 예외 화면 3종" 중
+  // 기존 일시 런타임 오류(app/cases/[caseId]/error.tsx)는 "코드 무변경"이라는
+  // 이유만으로 별도 시각 확인 없이 [x] 체크됐었다 — 외부 재검토가 지적한 대로
+  // 코드 무변경은 실제 렌더링 확인을 대체하지 못한다. 정상 플로우로는 이
+  // 오류 경계가 트리거되지 않으므로(report.verifiedClaims는 항상 배열),
+  // INSUFFICIENT fixture와 동일한 기법으로 DB row를 결정론적으로 손상시켜
+  // page.tsx의 실제 코드 경로(`report.verifiedClaims.flatMap(...)`, report는
+  // truthy이지만 verifiedClaims가 없어 TypeError)가 Next.js의 실제 오류
+  // 경계로 이어지는지 실제 브라우저에서 관찰한다.
+  test("런타임 오류 경계 — 실제 예외 트리거 후 error.tsx 렌더링 캡처", async ({ page }) => {
+    await loginAsTester(page, TESTER_A_EMAIL);
+    const caseId = await createCase(page, {
+      incidentDescription: "계단에서 넘어져 발목을 다쳤습니다.",
+      diagnosisName: "발목 인대 파열",
+      disabilityBodyPart: "발목",
+      incidentDate: "2026-01-15",
+    });
+
+    const { db, close } = connectE2EDb();
+    try {
+      const [reportRow] = await db
+        .select()
+        .from(schema.reports)
+        .where(eq(schema.reports.caseId, caseId))
+        .limit(1);
+      expect(reportRow, "report row must exist before corruption").toBeDefined();
+
+      const original = reportRow!.content as Record<string, unknown>;
+      // report 자체는 truthy 객체로 유지하되 verifiedClaims만 제거한다 —
+      // page.tsx의 `report ? report.verifiedClaims.flatMap(...) : []` 가드는
+      // report의 truthiness만 확인하고 verifiedClaims의 shape는 확인하지
+      // 않으므로, 이 상태는 실제로 TypeError를 던진다(테스트 전용 조작).
+      const corrupted: Record<string, unknown> = { ...original };
+      delete corrupted.verifiedClaims;
+      await db
+        .update(schema.reports)
+        .set({ content: corrupted })
+        .where(eq(schema.reports.id, reportRow!.id));
+    } finally {
+      close();
+    }
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/cases/${caseId}`);
+    await page.waitForLoadState("networkidle");
+
+    // 캡처 전에 실제로 error.tsx가 렌더링됐는지(정상 리포트 화면이 아니라)
+    // 확인한다 — 코드 무변경 주장을 시각 확인으로 대체하지 않기 위해.
+    await expect(page.getByText("문제가 발생했습니다")).toBeVisible();
+    const retryButton = page.getByTestId("case-error-retry");
+    await expect(retryButton).toBeVisible();
+
+    await page.screenshot({
+      path: path.join(EVIDENCE_DIR, "runtime-error-1440.png"),
+      fullPage: false,
+    });
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("문제가 발생했습니다")).toBeVisible();
+    await page.screenshot({
+      path: path.join(EVIDENCE_DIR, "runtime-error-1024.png"),
+      fullPage: false,
+    });
+
+    // 재시도 버튼 동작 확인 — reset()이 실제로 호출되어 재렌더링을
+    // 시도한다(데이터는 여전히 손상 상태이므로 오류 화면이 다시 나타나는
+    //것이 정상 — 버튼 자체가 크래시 없이 동작함을 확인하는 것이 목적).
+    await retryButton.click();
+    await page.waitForTimeout(500);
+    await expect(page.getByText("문제가 발생했습니다")).toBeVisible();
   });
 
   test("모바일 리포트+피드백 전체 페이지 — Round5 UX 검토용 재캡처", async ({ page }) => {

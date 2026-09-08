@@ -4,6 +4,7 @@
 
 - **`sync_status: completed`** — `acceptance.md` §4 DoD 6개 항목 전부 체크, `spec.md` frontmatter `status: completed`로 전환 완료(§E.4 참조). 사용자가 correction pass 완료 보고 이후 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
 - **2차 correction pass(같은 날, 종결 이후)**: 외부 독립 재검토가 §3/§4 모순(§3 원본 체크박스 미확인 상태로 §4만 체크됨)을 발견해 재수정했다 — § "Round 5 — §3/§4 모순 재검토 (2차 correction pass, 2026-09-08)" 참조. `sync_status: completed` 판정 자체는 변경되지 않으며, 이번 2차 pass는 그 판정의 근거 문서를 실제로 일치시킨 보정이다.
+- **3차 correction pass(같은 날, 2차 pass의 판단 오류 2건 정정)**: 외부 독립 재검토가 2차 pass의 판단 오류 2건(런타임 오류 화면을 코드 무변경 이유로 시각 확인 없이 체크, 사이드바 사용자 블록 스크롤 가시성을 "REQ/AC 미명시"로 Pencil 부합 판단과 동일시)을 지적해 재수정했다 — § "Round 5 — 런타임 오류 화면 실제 재현 + App Shell 사이드바 sticky 수정 (3차 correction pass, 2026-09-08)" 참조. 이번 3차 pass는 문서만이 아니라 **실제 코드 1개 파일**(`app/cases/app-shell-chrome.tsx`, 사용자 승인 하에 sticky/fixed로 수정)을 변경했다는 점에서 1·2차 pass(문서 전용)와 다르다. `sync_status: completed` 판정은 변경되지 않는다.
 - 아래 "Current Status (2026-09-07, Round 5 최종)" 절과 그 이하 모든 기록은 히스토리로 그대로 둔다 — 그 절이 기록한 `run_status: audit-ready`는 이 종결 판정으로 대체되지 않고 그 판정을 이끌어낸 근거로 남는다.
 
 ---
@@ -192,6 +193,16 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 
 **후속 개선 항목(이번 SPEC 범위 밖, 후속 SPEC/작업 후보로 명시)**: 고정 sleep이나 전역 retry를 더 늘리는 것은 근본 해결이 아니다. Round 4에서 이미 검토했던 대로(§ "Round 4 — E2E 증거 정리 + rate-limit 재검토"), 근본적으로 유효한 해법은 **테스트 계정 분리**(rate limit이 이메일이 아닌 `/sign-in` 경로+IP 기준으로 추정되어 계정 분리만으로는 근본 해결이 아닐 수 있음, 재확인 필요) 또는 **인증 fixture/storageState 재사용**(로그인 횟수 자체를 줄여 rate limit 창에 걸릴 기회를 원천적으로 줄임 — `playwright.config.ts`에 `globalSetup` 도입 필요, `helpers.ts`는 PRESERVE 대상이라 신규 인증 경로는 그 밖에 구성해야 함)이다. 이번 correction pass는 문서·증빙 정확성 교정 범위이므로 이 인프라 변경은 수행하지 않고 후속 후보로만 기록한다.
 
+**3차 correction pass 재실행(2026-09-08, 사이드바 sticky 수정 후)**: `e2e/sidebar-sticky.spec.ts` 신규 추가로 전체 suite 구성이 바뀐 뒤 3회 재실행했다.
+
+| 회차 | 최초 시도 통과 수 | retry 발생 테스트 | retry 횟수 | 최종 통과 수 | exit code |
+|---|---|---|---|---|---|
+| 1 | 7/9 | `case-input-mobile-layout.spec.ts`, `tenant-isolation.spec.ts` | 각 1회(모두 retry #1에서 통과) | 9/9 | 0 |
+| 2 | 7/9 | `case-input-mobile-layout.spec.ts`, `tenant-isolation.spec.ts` | 각 1회(모두 retry #1에서 통과) | 9/9 | 0 |
+| 3 | 7/9 | `case-input-mobile-layout.spec.ts`, `tenant-isolation.spec.ts` | 각 1회(모두 retry #1에서 통과) | 9/9 | 0 |
+
+원본 로그: `.moai/state/verify/e2e-round5-3rd-pass/e2e-run{1,2,3}.log`(로컬 전용). `sidebar-sticky.spec.ts` 자신은 3회 모두 최초 시도에서 통과했다(신규 회귀 없음). **정직하게 기록**: flaky 테스트 수가 1개(`case-input-mobile-layout.spec.ts`)에서 2개(`tenant-isolation.spec.ts` 추가)로 늘었다 — 신규 테스트가 suite에 추가되며 로그인 타이밍이 재배치돼 동일한 근본원인(Better Auth `/sign-in` rate limit)에 걸리는 테스트가 하나 더 생긴 것으로 판단된다(무작위 flake가 아니라 매회 정확히 이 2개, 정확히 1회 재시도 후 통과하는 재현 가능한 패턴). 근본 해결(테스트 계정 분리/인증 fixture 재사용)은 여전히 이 SPEC 범위 밖이며, 위 후속 개선 항목에 이미 포함돼 있다.
+
 ### Round 5 — §3/§4 모순 재검토 (2차 correction pass, 2026-09-08)
 
 **배경**: 외부 독립 재검토(SPEC `completed` 처리 이후)가 1차 correction pass(같은 날 앞서 수행)의 결함을 발견했다 — `acceptance.md` §3 시각 스모크 체크리스트 6개 항목이 전부 `[ ]`로 남아 있는데도 §4 DoD는 "§3 전부 확인"으로 `[x]` 체크돼 있어 두 문서 상태가 모순됐다. 1차 pass에서 §4의 3건 재분류(로그인 폼 간격/모바일 IA/Pencil 모바일 프레임)에 집중하느라, §3 원본 체크박스 자체를 실제로 대조하는 단계를 건너뛴 것이 원인이다 — 정직하게 기록한다.
@@ -202,7 +213,44 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 
 이 관찰은 spec.md/acceptance.md의 어떤 REQ/AC도 사이드바의 뷰포트 고정(sticky/fixed)을 요구하지 않아 이 SPEC의 DoD를 막지 않는다 — REQ-016은 "사이드바는 고정 **폭**을 유지"라고만 명시하며 고정 **위치**는 요구하지 않는다. `app-shell-chrome.tsx`는 이 SPEC(M8)이 신설한 파일이므로 원인 자체는 이 SPEC 범위 내에 있지만, 수정 여부는 이번 correction pass의 범위(문서·증빙 정합성 보정만) 밖이므로 코드는 변경하지 않는다. **후속 SPEC 후보로 추가 기록**: 데스크톱 App Shell 사이드바를 뷰포트에 sticky/fixed로 고정해 긴 페이지에서도 사용자 블록이 항상 보이도록 개선(우선순위는 낮음 — 사용자 블록은 정보성 표시일 뿐 조작이 필요한 컨트롤이 아니므로 기능적 영향은 없음).
 
+**[SUPERSEDED — 2026-09-08 3차 correction pass에서 실제 수정 완료]** 위 문단의 "REQ/AC에 명시되지 않아 DoD를 막지 않는다"는 판단과 "후속 SPEC 후보로 남긴다"는 처리는 정정됐다 — 외부 재검토가 "REQ/AC에 명시되지 않음"과 "Pencil 디자인에 부합함"을 같은 의미로 취급한 결함이라고 지적했고, 실제로 `design/exports/04-App-Shell.png`(Pencil 원본)가 "좌측 사이드바 232px + 상단바 62px **고정**"이라고 명시적으로 서술하고 있어 REQ-016의 문면(고정 폭)과 무관하게 Pencil 디자인 자체는 고정 위치를 전제하고 있었다. 이 문단은 삭제하지 않고 그대로 보존하며, 실제 처리는 § "Round 5 — App Shell 사이드바 sticky 수정 (3차 correction pass, 2026-09-08)"를 참조한다.
+
 **검증**: `pnpm test`/`pnpm lint`/`pnpm build`/`pnpm format:check` 재실행(구현 코드 변경 없음 확인용) — 아래 "2차 correction pass 최종 검증" 참조. `git diff`로 이번 2차 pass가 `acceptance.md`/`progress.md` 외 어떤 파일도 건드리지 않았음을 확인.
+
+### Round 5 — 런타임 오류 화면 실제 재현 + App Shell 사이드바 sticky 수정 (3차 correction pass, 2026-09-08)
+
+**배경**: 2차 correction pass 완료 보고 이후 외부 독립 재검토가 §3/§4의 형식적 모순은 해소됐으나, 실제 검증 범위와 `[x]` 판정이 일치하지 않는 결함 2건을 추가로 지적했다 — (1) 코드 무변경을 시각 확인의 대체물로 취급한 런타임 오류 화면, (2) "REQ/AC에 명시되지 않음"을 "Pencil 디자인에 부합함"과 동일시한 사이드바 사용자 블록 스크롤 가시성 판단.
+
+**1) 런타임 오류 화면(`app/cases/[caseId]/error.tsx`) — 실제 재현·캡처**
+
+정상 플로우로는 `page.tsx`가 예외를 던지지 않으므로(`report.verifiedClaims`는 결정론적 provider 하에서 항상 배열), `e2e/capture-evidence-round5.spec.ts`에 신규 테스트("런타임 오류 경계 — 실제 예외 트리거 후 error.tsx 렌더링 캡처")를 추가해 DB의 `reports.content`에서 `verifiedClaims` 필드만 결정론적으로 제거했다(INSUFFICIENT fixture와 동일 기법 — 화면이 아니라 입력 데이터를 조작). `report` 자신은 truthy 객체로 유지되므로 `page.tsx:181`의 `report ? report.verifiedClaims.flatMap(...) : []` 가드를 통과한 뒤 `report.verifiedClaims.flatMap`에서 실제 TypeError가 발생하며, 이것이 Next.js의 진짜 오류 경계로 이어지는지 프로덕션 서버(`pnpm build && pnpm start`)에서 관찰했다.
+
+- 캡처 전 assert: "문제가 발생했습니다" 텍스트 + `case-error-retry` 버튼의 실제 가시성 확인(정상 리포트 화면이 아님을 보장)
+- 결과: `after-round5/runtime-error-{1440,1024}.png`(신규) — 두 뷰포트 모두 App Shell 적용됨(사이드바 5항목 + 사용자 블록 정상 렌더링), 에러코드 텍스트 없음(design.md §4 명시 그대로), 잘림·겹침·가로 오버플로 없음을 직접 열람으로 확인
+- 재시도 버튼 클릭 후에도 동일 오류 화면이 크래시 없이 재렌더링됨을 확인(`reset()` 호출 자체는 정상 동작 — 데이터가 여전히 손상 상태이므로 오류가 다시 나타나는 것이 정상)
+- `CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence-round5.spec.ts --workers=1` → 6/8 최초 통과, 2건 rate-limit 재시도 후 통과(§ "Round 5 — E2E retry 투명화"와 동일한 기존 패턴), exit 0
+
+**2) App Shell 사이드바 사용자 블록 — 사용자 결정 게이트 + 실제 코드 수정**
+
+사용자에게 AskUserQuestion으로 결정 게이트를 실행했다: "① 지금 sticky/fixed로 수정(권장)" vs "② 현재 동작을 의도적 편차로 승인 + 후속 SPEC 이관". **사용자가 ①(지금 sticky/fixed로 수정)을 선택했다(2026-09-08).**
+
+- **근본원인**: `app/cases/app-shell-chrome.tsx`의 `<aside>`가 데스크톱(`lg:` 이상)에서 `fixed` → `static` positioning으로 전환되며(`lg:static`, M8 도입), `static` 상태에서는 부모 flex row의 높이(=형제 컬럼인 본문의 실제 콘텐츠 높이)만큼 늘어난다 — `justify-between`으로 하단 배치된 `<SidebarUserBlock />`도 그 늘어난 높이의 맨 아래로 밀린다.
+- **수정**: `lg:static lg:z-auto lg:translate-x-0` → `lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0`(`app-shell-chrome.tsx`, 1개 파일, className 문자열 변경 + 설명 주석 추가). `sticky` + `top-0` + `h-screen`은 aside를 뷰포트 높이로 고정하고 스크롤 중에도 상단에 붙어 있게 하며, 별도 overflow 컨테이너를 두지 않아 이중 스크롤바 없이 페이지 전체가 하나의 스크롤 컨텍스트를 공유한다(html/body에 별도 overflow 규칙 없음을 `app/layout.tsx`/`globals.css` 확인으로 사전 검증).
+- **수정 전/후 실측(Playwright bounding-box, `/cases/new`)**:
+
+| 뷰포트 | 항목 | 수정 전 | 수정 후 |
+|---|---|---|---|
+| 1024×768 | `aside` 높이 | 1268.75px | ≤769px(뷰포트와 동일, `h-screen`) |
+| 1024×768 | 사용자 블록 y 위치 | 1226.375px(뷰포트 밖) | 뷰포트 내(스크롤 없이 보임) |
+| 1440×900 | `aside` 높이 | (미측정, 동일 패턴 추정) | ≤901px(뷰포트와 동일) |
+| 1440×900 | 사용자 블록 위치 | (미측정) | 뷰포트 내(스크롤 없이 보임) |
+
+- **신규 회귀 테스트**: `e2e/sidebar-sticky.spec.ts`(1024px/1440px 각각에서 aside 높이 ≤ 뷰포트+1px, 사용자 블록 bounding box가 초기 뷰포트 안에 있음, 본문이 실제로 렌더링됐는지 sanity 확인, 가로 오버플로 없음을 assert) — `npx tsx scripts/run-e2e.ts --spec=e2e/sidebar-sticky.spec.ts --workers=1` → 1/1 PASS, exit 0
+- **무회귀 확인**: `npx vitest run app/cases/app-shell-chrome.test.tsx` → 18/18 PASS(드로어 열기/닫기/ESC/스크림/포커스이동복귀/스크롤잠금/tab순서/리사이즈자동닫힘/포커스트랩/배경inert 전부 무회귀 — 이 테스트는 jsdom이라 실제 sticky 레이아웃은 검증하지 못하지만, mobile-first `fixed` 클래스 자체는 무변경이므로 이 결과가 의미 있다), `npx tsx scripts/run-e2e.ts --spec=e2e/mobile-drawer-focus.spec.ts --workers=1` → 1/1 PASS, exit 0(모바일 드로어 실브라우저 동작 무회귀)
+- **재캡처 증빙**: `after-round5/case-input-sticky-sidebar-{1024,1440}.png`(신규, `capture-evidence-round5.spec.ts`에 영구 테스트로 추가) — 두 뷰포트 모두 직접 열람해 사용자 블록이 스크롤 없이 사이드바 하단에 보이고, 본문/우측 레일 겹침이나 가로 오버플로가 없음을 확인
+- **Pencil 재대조**: `design/exports/04-App-Shell.png` 자체가 "좌측 사이드바 232px + 상단바 62px **고정**"이라고 명시하고 있어, 이번 수정이 Pencil 원본 의도와 정확히 일치함을 재확인했다(2차 pass가 "REQ-016은 고정 폭만 요구, 고정 위치는 요구하지 않음"이라고 판단한 것은 REQ 텍스트만 본 것이고, Pencil 원본 자체의 명시적 진술을 놓친 것이었다)
+
+**PRESERVE 확인**: `git diff --stat` 결과 이번 3차 pass가 수정한 소스 파일은 `app/cases/app-shell-chrome.tsx` 1개뿐이며, plan.md §D PRESERVE 목록(`lib/db/schema.ts` 등)과 `app/layout.tsx`는 무변경임을 확인했다(AC-019).
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 

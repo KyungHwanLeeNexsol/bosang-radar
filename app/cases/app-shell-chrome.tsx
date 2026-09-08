@@ -167,7 +167,19 @@ export function AppShellChrome({ children }: { children: ReactNode }) {
         data-testid="mobile-nav-drawer"
         inert={isDrawerInert ? true : undefined}
         onKeyDown={handleDrawerKeyDown}
-        className={`fixed inset-y-0 left-0 z-50 flex w-58 shrink-0 flex-col justify-between bg-app-sidebar px-3.5 pt-5.5 pb-4.5 transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+        // 데스크톱(lg 이상)에서 static → sticky로 전환한다(외부 재검토
+        // correction pass, 사용자 승인 2026-09-08). static일 때는 aside가
+        // 형제 컬럼(본문)의 실제 콘텐츠 높이만큼 늘어나(justify-between으로
+        // 하단에 배치된 SidebarUserBlock도 그 늘어난 높이의 맨 아래로
+        // 밀림), /cases/new처럼 폼이 뷰포트보다 긴 화면에서는 사용자 블록을
+        // 보려면 페이지 끝까지 스크롤해야 했다. sticky + top-0 + h-screen은
+        // aside를 뷰포트 높이로 고정하고 스크롤 중에도 뷰포트 상단에
+        // 붙어 있게 하여, 본문이 그 옆에서 독립적으로 스크롤되는 동안
+        // 사용자 블록이 항상 초기 뷰포트 안에 보이도록 한다(별도 overflow
+        // 컨테이너를 두지 않아 이중 스크롤바가 생기지 않음 — 페이지 전체가
+        // 하나의 스크롤 컨텍스트를 공유한다). 모바일(lg 미만)의 fixed
+        // inset-y-0 드로어 동작은 무변경이다.
+        className={`fixed inset-y-0 left-0 z-50 flex w-58 shrink-0 flex-col justify-between bg-app-sidebar px-3.5 pt-5.5 pb-4.5 transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${
           isDrawerOpen || isDesktop ? "translate-x-0" : "-translate-x-full"
         }`}
       >
