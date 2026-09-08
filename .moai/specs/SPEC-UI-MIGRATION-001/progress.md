@@ -163,7 +163,7 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 
 **최종 commit SHA와 push된 브랜치(Round 5 최초 작업 커밋)**: `f6ea25a614782ae60c1e2c0ceaf575483d59087c` — 사용자가 "커밋 + 푸시"를 승인해 `plan/SPEC-UI-MIGRATION-001` 브랜치에 커밋 후 `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료. **이후 SHA backfill 커밋** `be381a8476110387ff651383d441a0ec8c77b021`이 이 커밋 위에 비교 문서의 commit SHA 표기를 정정했다.
 
-**correction pass 커밋(이 문서·증빙 정정 작업 자체)**: `eb2171e` — `be381a8` 위에 쌓인 커밋으로, 로그인/모바일 Footer/전문가 피드백/리포트 스크린샷을 `pnpm build && pnpm start` 기준으로 재캡처하고(dev 배지 제거), `report-verified-claim-1440.png`·`report-insufficient-fixture-1440.png`를 신규 추가했으며, 4개 comparison HTML + README.md + progress.md(이 문서) + acceptance.md를 정정했다. 코드 동작 변경 없음(증빙 산출물·문서만 변경). `plan/SPEC-UI-MIGRATION-001`에 push 예정(§"Round 5 correction pass — 최종 검증" 참조).
+**correction pass 커밋(이 문서·증빙 정정 작업 자체)**: `eb2171e` — `be381a8` 위에 쌓인 커밋으로, 로그인/모바일 Footer/전문가 피드백/리포트 스크린샷을 `pnpm build && pnpm start` 기준으로 재캡처하고(dev 배지 제거), `report-verified-claim-1440.png`·`report-insufficient-fixture-1440.png`를 신규 추가했으며, 4개 comparison HTML + README.md + progress.md(이 문서) + acceptance.md를 정정했다. 코드 동작 변경 없음(증빙 산출물·문서만 변경). push 완료 → `9622bae`(SHA backfill) → `6c7d743`(2차 pass, §3/§4 모순 해소, 문서 전용) → **`16800f9`(3차 pass, 이 SPEC의 마지막 커밋 — 런타임 오류 화면 실제 재현 + `app-shell-chrome.tsx` sticky 사이드바 수정, 유일하게 실제 코드를 변경한 correction 커밋)**. `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료(로컬 HEAD와 원격 SHA 일치 확인).
 
 ### Round 5 — 3건 재분류 (correction pass, 2026-09-08) — Current Status ↔ DoD 모순 해소
 
