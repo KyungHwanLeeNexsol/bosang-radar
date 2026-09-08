@@ -670,7 +670,7 @@ auth.spec.ts(테스트1) + case-flow.spec.ts(테스트3) 두 테스트가 TESTER
 - **3-phase close**: 이 섹션을 채우는 단일 sync 커밋이 `spec.md` frontmatter `status: in-progress → completed`(+ `updated: 2026-09-08`) 전환을 함께 수행한다. `plan.md`/`acceptance.md`는 이 프로젝트 관례상 frontmatter가 없어(spec.md만 12필드 frontmatter 보유) 전환 대상이 아니다.
 - **근거**: Round 5 최종 검증(§ "Round 5 — 최종 검증") + correction pass(§ "Round 5 — 3건 재분류", § "Round 5 — E2E retry 투명화") 전부 완료. AC-001~024 전부 PASS, `acceptance.md` §4 DoD 6개 항목 전부 체크(2026-09-08). 사용자가 AskUserQuestion에서 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
 - **CHANGELOG.md**: `[Unreleased]` 섹션에 `### Added — SPEC-UI-MIGRATION-001 ...` 항목 신규 추가(이 커밋에 포함).
-- `sync_commit_sha: pending-backfill-ui-migration-sync`(이 커밋 자신은 자기 SHA를 알 수 없음 — 다음 커밋에서 실제 SHA로 backfill, 기존 Round 5 SHA backfill과 동일한 관례).
+- `sync_commit_sha: 4ddb24d` — backfill 완료(다음 커밋에서 기록).
 
 ## §E.3 Run-phase Audit-Ready Signal (supplemental — 시각 증빙 캡처)
 
