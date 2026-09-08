@@ -5,8 +5,13 @@
 // 초기 뷰포트 안에 보이는지 실제 브라우저에서 검증한다. jsdom은 실제
 // sticky/layout 계산을 수행하지 않으므로(app-shell-chrome.test.tsx는
 // 접근성 계약만 검증), 이 계약은 Playwright로만 검증 가능하다.
+//
+// 판정 조건은 e2e/sidebar-assertions.ts의 assertStickySidebarUserBlockVisible
+// 공통 helper로 위임한다 — capture-evidence-round5.spec.ts의 sticky 캡처
+// 테스트와 판정 조건이 갈라지지 않도록 하기 위함이다(외부 재검토 지적).
 import { test, expect } from "@playwright/test";
 import { loginAsTester } from "./helpers.ts";
+import { assertStickySidebarUserBlockVisible } from "./sidebar-assertions.ts";
 import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 
 const DESKTOP_VIEWPORTS = [
@@ -23,28 +28,8 @@ test.describe("데스크톱 사이드바 sticky — 사용자 블록 초기 뷰�
       await page.goto("/cases/new");
       await page.waitForLoadState("networkidle");
 
-      const aside = page.getByTestId("mobile-nav-drawer");
-      const asideBox = await aside.boundingBox();
-      expect(asideBox, `${vp.label}px: aside bounding box must exist`).not.toBeNull();
-      // sticky + h-screen이면 aside 자신의 높이는 뷰포트 높이와 같아야
-      // 한다(폼 콘텐츠 높이와 무관) — 회귀 시 이 값이 뷰포트보다 훨씬
-      // 커진다(수정 전 실측: 1024px에서 1268.75px).
-      expect(
-        asideBox!.height,
-        `${vp.label}px: aside height must match viewport (sticky), not stretch to sibling content height`
-      ).toBeLessThanOrEqual(vp.height + 1);
-
-      // 사용자 블록(이니셜 배지 + 이름) 텍스트 노드의 위치가 초기 뷰포트
-      // 안에 있는지 확인 — 스크롤 없이 보여야 한다(수정 전 실측: 1024px에서
-      // y=1226.375px, 뷰포트 밖).
-      const userBlockText = page.locator("aside p.truncate").first();
-      await expect(userBlockText).toBeVisible();
-      const userBlockBox = await userBlockText.boundingBox();
-      expect(userBlockBox, `${vp.label}px: user block bounding box must exist`).not.toBeNull();
-      expect(
-        userBlockBox!.y + userBlockBox!.height,
-        `${vp.label}px: user block must be within the initial viewport without scrolling`
-      ).toBeLessThanOrEqual(vp.height);
+      const measurement = await assertStickySidebarUserBlockVisible(page, vp);
+      console.log(`[sidebar-sticky] ${vp.label}px:`, JSON.stringify(measurement));
 
       // 본문(app-shell-content)이 실제로 렌더링됐는지 sanity 확인 — 폼이
       // 전혀 안 그려진 채 우연히 사이드바-only 상태로 테스트를 통과하는
@@ -66,13 +51,6 @@ test.describe("데스크톱 사이드바 sticky — 사용자 블록 초기 뷰�
           `${vp.label}px: main content must have actually rendered (sanity check)`
         ).toBeGreaterThan(400);
       }
-
-      // 가로 오버플로 없음(sticky/fixed 전환으로 인한 부작용 확인).
-      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      expect(
-        scrollWidth,
-        `${vp.label}px: no horizontal overflow introduced by sticky sidebar`
-      ).toBeLessThanOrEqual(vp.width);
     }
   });
 });

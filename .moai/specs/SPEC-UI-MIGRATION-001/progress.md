@@ -5,6 +5,7 @@
 - **`sync_status: completed`** — `acceptance.md` §4 DoD 6개 항목 전부 체크, `spec.md` frontmatter `status: completed`로 전환 완료(§E.4 참조). 사용자가 correction pass 완료 보고 이후 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
 - **2차 correction pass(같은 날, 종결 이후)**: 외부 독립 재검토가 §3/§4 모순(§3 원본 체크박스 미확인 상태로 §4만 체크됨)을 발견해 재수정했다 — § "Round 5 — §3/§4 모순 재검토 (2차 correction pass, 2026-09-08)" 참조. `sync_status: completed` 판정 자체는 변경되지 않으며, 이번 2차 pass는 그 판정의 근거 문서를 실제로 일치시킨 보정이다.
 - **3차 correction pass(같은 날, 2차 pass의 판단 오류 2건 정정)**: 외부 독립 재검토가 2차 pass의 판단 오류 2건(런타임 오류 화면을 코드 무변경 이유로 시각 확인 없이 체크, 사이드바 사용자 블록 스크롤 가시성을 "REQ/AC 미명시"로 Pencil 부합 판단과 동일시)을 지적해 재수정했다 — § "Round 5 — 런타임 오류 화면 실제 재현 + App Shell 사이드바 sticky 수정 (3차 correction pass, 2026-09-08)" 참조. 이번 3차 pass는 문서만이 아니라 **실제 코드 1개 파일**(`app/cases/app-shell-chrome.tsx`, 사용자 승인 하에 sticky/fixed로 수정)을 변경했다는 점에서 1·2차 pass(문서 전용)와 다르다. `sync_status: completed` 판정은 변경되지 않는다.
+- **4차 재검증(같은 날, 3차 pass의 1024px 증빙 재검토)**: 외부 독립 재검토가 3차 pass의 `case-input-sticky-sidebar-1024.png`에서 사용자 블록이 안 보인다고 지적했다 — § "Round 5 — 1024px 사이드바 증빙 재검증 (4차, 2026-09-08)" 참조. `.next` 캐시를 완전히 삭제한 fresh build로 재조사한 결과 **코드 결함은 발견되지 않았다**(두 뷰포트 모두 computed style/bounding box 실측으로 정상 확인) — 실제로 존재했던 유일한 gap은 캡처 테스트가 스크린샷 전에 assertion을 수행하지 않았던 것이며, 공통 helper(`e2e/sidebar-assertions.ts`)로 이를 보강했다. `sync_status: completed` 판정은 변경되지 않는다.
 - 아래 "Current Status (2026-09-07, Round 5 최종)" 절과 그 이하 모든 기록은 히스토리로 그대로 둔다 — 그 절이 기록한 `run_status: audit-ready`는 이 종결 판정으로 대체되지 않고 그 판정을 이끌어낸 근거로 남는다.
 
 ---
@@ -251,6 +252,56 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 - **Pencil 재대조**: `design/exports/04-App-Shell.png` 자체가 "좌측 사이드바 232px + 상단바 62px **고정**"이라고 명시하고 있어, 이번 수정이 Pencil 원본 의도와 정확히 일치함을 재확인했다(2차 pass가 "REQ-016은 고정 폭만 요구, 고정 위치는 요구하지 않음"이라고 판단한 것은 REQ 텍스트만 본 것이고, Pencil 원본 자체의 명시적 진술을 놓친 것이었다)
 
 **PRESERVE 확인**: `git diff --stat` 결과 이번 3차 pass가 수정한 소스 파일은 `app/cases/app-shell-chrome.tsx` 1개뿐이며, plan.md §D PRESERVE 목록(`lib/db/schema.ts` 등)과 `app/layout.tsx`는 무변경임을 확인했다(AC-019).
+
+### Round 5 — 1024px 사이드바 증빙 재검증 (4차, 2026-09-08) — 근본원인 조사 결과: 코드 결함 없음, 캡처 전 assertion 부재만 실제 결함
+
+**배경**: 외부 독립 재검토가 3차 pass에서 커밋된 `case-input-sticky-sidebar-1024.png`에서 사용자 블록이 보이지 않는다고 지적하며, 문서 판정(스크롤 없이 보임, 직접 열람 확인)과 committed evidence가 충돌한다고 보고했다.
+
+**조사 절차(요청된 5가지 원인 후보를 전부 확인)**:
+1. `app-shell-chrome.tsx` sticky 변경 이후 실제로 `pnpm build`를 재실행했는가 — 확인: 3차 pass 커밋(`16800f9`) 직후 `pnpm build`/`pnpm lint`/`pnpm test`를 이 세션에서 직접 실행해 exit 0을 확인했었다(§ "3차 correction pass" 최종 검증 절 참조).
+2. 기존 `.next` 캐시를 재사용한 서버에서 캡처한 것은 아닌가 — **이 가능성을 원천적으로 배제**하기 위해 이번 4차 조사에서 `rm -rf .next`로 빌드 캐시를 완전히 삭제한 뒤 `scripts/run-e2e.ts`(항상 `pnpm build && pnpm start`를 새로 실행하는 webServer)로 fresh build를 강제했다.
+3. 캡처 서버가 현재 HEAD의 production build인지 SHA로 검증 — `git rev-parse HEAD`(`06098a6`, 3차 pass의 SHA backfill 커밋이자 이 조사 시작 시점의 HEAD)와 `git log -1 -- app/cases/app-shell-chrome.tsx`(마지막 수정 커밋 `16800f9`, `06098a6`의 조상)를 대조해 fresh build가 실제로 sticky 수정을 포함한 소스 기준임을 확인.
+4. `sidebar-sticky.spec.ts`와 `capture-evidence-round5.spec.ts`가 동일한 build/서버 기동 절차를 쓰는가 — 둘 다 `scripts/run-e2e.ts`를 통해서만 실행되며 동일한 `playwright.config.ts` `webServer`(`pnpm build && pnpm start`, `reuseExistingServer: false`)를 공유함을 코드로 확인. 이번에 신규 공통 helper `e2e/sidebar-assertions.ts`(`assertStickySidebarUserBlockVisible`)로 두 스펙의 판정 조건 자체도 동일하게 통일했다(이전에는 `sidebar-sticky.spec.ts`만 assertion을 갖고 있었고, `capture-evidence-round5.spec.ts`의 캡처 테스트는 **assertion 없이 바로 스크린샷만 찍고 있었다** — 이것이 유일하게 실제로 확인된 결함이다, 아래 참조).
+5. 1024px에서 computed style을 기록 — 아래 표.
+
+**실측(fresh build, `.next` 완전 삭제 후 재빌드, HEAD `06098a6`)**:
+
+| 뷰포트 | position | top | height(computed) | aside bbox | 사용자 블록 bbox | `window.scrollY` |
+|---|---|---|---|---|---|---|
+| 1024×768 | `sticky` | `0px` | `768px` | `{x:0,y:0,w:232,h:768}` | `{x:54,y:725.625,w:73.7,h:18.75}`(하단=744.375≤768) | `0` |
+| 1440×900 | `sticky` | `0px` | `900px` | `{x:0,y:0,w:232,h:900}` | `{x:54,y:857.625,w:73.7,h:18.75}`(하단=876.375≤900) | `0` |
+
+두 뷰포트 모두 `document.documentElement.scrollWidth`가 뷰포트 너비 이하(가로 오버플로 없음), 사용자 블록 텍스트 `"e2e-tester-a"` 실제 렌더링 확인.
+
+**정직한 결론 — 근본원인은 "캡처 조건 미검증"이었지 코드 결함이 아니었다**: fresh build로 재캡처한 `case-input-sticky-sidebar-{1024,1440}.png`를 이 세션에서 직접 열람한 결과, 1024px·1440px 모두 사용자 블록이 스크롤 없이 정상적으로 보였다 — 3차 pass가 커밋한 이미지와 시각적으로 동일했다. `.next` 캐시 재사용, 잘못된 HEAD, 두 스펙 간 서로 다른 빌드 절차 — 이 세 가지 원인 후보 전부 근거를 찾지 못했다. **실제로 존재했던 유일한 결함**은 3차 pass의 `capture-evidence-round5.spec.ts` 캡처 테스트가 assertion 없이 스크린샷만 찍고 있었다는 것 — 즉 "캡처된 이미지가 실제로 올바른지"를 코드가 스스로 검증하지 않은 채 커밋됐다는 절차적 gap이었다. 이번에 공통 helper로 캡처 직전 assertion을 추가해 이 gap을 막았다 — 앞으로 이 캡처 테스트가 실패하면(어떤 이유로든 사용자 블록이 뷰포트 밖으로 밀리면) 스크린샷을 찍기 전에 테스트 자체가 실패해 잘못된 이미지가 커밋될 수 없다.
+
+**공통 helper 리팩터링**: `e2e/sidebar-assertions.ts`(신규) — `assertStickySidebarUserBlockVisible(page, viewport)`가 위 표의 6개 assertion(스크롤 위치 0, aside 높이, 사용자 블록 bounding box, 텍스트 렌더링, 가로 오버플로)을 전부 수행하고 측정값을 반환한다. `e2e/sidebar-sticky.spec.ts`(회귀 테스트)와 `e2e/capture-evidence-round5.spec.ts`(증빙 캡처)가 동일 helper를 호출하도록 리팩터링해, 두 테스트의 판정 조건이 향후 갈라지지 않도록 했다(`e2e/helpers.ts`는 PRESERVE 대상이라 신규 파일로 분리).
+
+**재검증 결과**: `npx tsx scripts/run-e2e.ts --spec=e2e/sidebar-sticky.spec.ts --workers=1`(fresh build) → 1/1 PASS, exit 0, 측정값 콘솔 로그 확인. `CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence-round5.spec.ts --workers=1` → 6/8 최초 통과, `리포트 VERIFIED` 1건만 rate-limit로 1회 재시도 후 통과(기존 패턴과 동일), exit 0.
+
+### Round 5 — 최종 검증 중 전체 E2E 스위트 exit 1 재현 및 근본원인(좀비 프로세스), 최종 재통과 (4차 마무리, 2026-09-08)
+
+**정직하게 기록**: 위 4차 조사를 마친 직후, 요청받은 "최종 검증" 절차(`pnpm test:e2e` 전체 스위트)를 1회 더 실행했더니 **exit 1**로 실패했다 — `auth.spec.ts`(가장 기본적인 로그인 테스트)를 포함해 6개 테스트가 3회 재시도를 모두 소진하고도 실패했고, 재시도 로그에 `Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:11230/login`이 반복됐다. 이 세션이 하루 동안 `pnpm build && pnpm start` + `playwright test`를 매우 여러 번 반복 실행한 결과, 이전 실행들이 남긴 좀비 프로세스가 프로덕션 서버를 밀어내거나 포트를 점유했을 가능성을 의심했다(이 저장소 progress.md에 이미 기록된 과거 결함 "M7": Windows + `next start` + Playwright 조합에서 프로세스 종료가 지연되는 실측된 결함과 동일 계열).
+
+**조사(text-pattern 추측이 아니라 실제 프로세스 목록으로 확인)**: `tasklist.exe //FI "IMAGENAME eq node.exe"`로 node.exe 11개 생존 확인 → 각각의 실제 커맨드라인을 `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Select-Object ProcessId, CreationDate, CommandLine`로 조회해 분류했다:
+- **이 저장소와 무관 — 절대 건드리지 않음**: PID 28284/10472/27764/14552 — 전부 `D:\Workspace\frontend-Tpa-Mutual-Fund-Admin`의 `next dev`/`npm run dev`/turbopack 프로세스.
+- **이 세션 자신이 반복 실행한 테스트/서버 프로세스(안전하게 종료 가능)**: PID 28600/24668/10072(`capture-evidence-round5.spec.ts` 관련 tsx 실행), PID 19832/21080(playwright test cli), PID 11052/25688(`pnpm start`/`next start`) — 총 7개.
+
+**조치와 결과**: 위 7개 PID만 `Stop-Process -Id <pid> -Force`로 종료(무관 프로젝트 4개는 전혀 건드리지 않음). 이후 `npx tsx scripts/run-e2e.ts`(전체 스위트) 재실행 결과 **exit 0** — 21개 테스트 중 9 passed, 2 flaky(`case-input-mobile-layout.spec.ts`, `tenant-isolation.spec.ts` — 각 retry #1에서 통과, 기존에 이미 문서화된 Better Auth rate-limit 패턴과 일치), 10 skipped(`CAPTURE_EVIDENCE` 미설정 시 스킵되는 캡처 전용 테스트, 정상), 0 hard-failed. `sidebar-sticky.spec.ts`는 재시도 없이 최초 통과.
+
+**결론**: 이전 exit 1은 코드 회귀가 아니라 이 세션 자신의 반복 실행이 남긴 좀비 프로세스로 인한 리소스/포트 경합이었다 — 좀비 프로세스 정리 후 동일 소스로 재실행하니 즉시 정상 통과했다. **이것을 CI 결과라고 표현하지 않는다** — GitHub Actions가 구성되어 있지 않으므로 이 모든 실행은 로컬 전용이다.
+
+**이 라운드의 나머지 품질 게이트(전부 이 세션에서 직접 실행, fresh 상태)**:
+
+| 명령 | 결과 |
+|---|---|
+| `pnpm test` | exit 0 |
+| `pnpm lint` | exit 0 |
+| `pnpm format:check` | exit 1 — 그러나 위반 3건 전부 pre-existing baseline(`app/globals.css`, `CHANGELOG.md`, `docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`) — 이 세션이 만든 신규 위반 0건 |
+| `pnpm build` | exit 0 |
+| `CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence-round5.spec.ts --workers=1`(fresh build 재재캡처) | exit 0, 6 passed(1건 retry #1) |
+
+**재캡처 결과 — 바이트 단위로 기존 커밋(`16800f9`)과 동일**: `git diff --stat`로 `case-input-sticky-sidebar-{1024,1440}.png`, `runtime-error-{1024,1440}.png` 4개 파일을 확인한 결과 **diff 없음(바이트 동일)** — 즉 이미 커밋된 이미지가 처음부터 정확했음을 재확인한다. 완료 판정 전 하드 제약("완료 판정은 교체된 1024px 이미지를 실제로 다시 열어 사용자 블록이 보이는 것을 확인한 뒤에만 유지")을 따라 두 이미지를 실제로 다시 열람했다: 1024px — 사이드바 하단에 "e2e-tester-a" 사용자 블록이 뷰포트(768px) 안에 명확히 보임(겹침·가로 오버플로 없음); 1440px — 동일하게 정상 표시, 우측 레일(분석 상태 패널)과 겹침 없음, 이중 스크롤바 없음. 두 이미지 모두 육안 확인 완료 — 완료 판정 유지.
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 

@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as schema from "../lib/db/schema.ts";
 import { connectE2EDb, loginAsTester } from "./helpers.ts";
+import { assertStickySidebarUserBlockVisible } from "./sidebar-assertions.ts";
 import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 
 const EVIDENCE_DIR = path.join(process.cwd(), "docs/evidence/SPEC-UI-MIGRATION-001/after-round5");
@@ -80,6 +81,18 @@ test.describe("Round 5 시각 증빙 캡처", () => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto("/cases/new");
       await page.waitForLoadState("networkidle");
+
+      // 캡처 전에 반드시 assert로 확인한다 — 이전 버전은 이 단계 없이
+      // 바로 스크린샷을 찍었고, 그 결과 "코드는 맞는데 캡처 조건(스크롤
+      // 위치·렌더링 완료 시점)이 실제로 검증되지 않은 채 커밋됐다"는
+      // 외부 재검토 지적을 받았다. sidebar-sticky.spec.ts와 동일한
+      // helper를 사용해 판정 조건이 갈라지지 않도록 한다.
+      const measurement = await assertStickySidebarUserBlockVisible(page, vp);
+      console.log(
+        `[capture-evidence-round5] sticky-sidebar ${vp.label}px:`,
+        JSON.stringify(measurement)
+      );
+
       await page.screenshot({
         path: path.join(EVIDENCE_DIR, `case-input-sticky-sidebar-${vp.label}.png`),
         fullPage: false,

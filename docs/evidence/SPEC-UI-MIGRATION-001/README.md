@@ -15,17 +15,37 @@
 
 ## After-Round5 Screenshots (docs/evidence/SPEC-UI-MIGRATION-001/after-round5/)
 
-| File                                      | Viewport        | Screen        | Condition                                                  |
-| ----------------------------------------- | --------------- | ------------- | ---------------------------------------------------------- |
-| login-{1440,1024,390}.png                 | 각              | Login         | Round 5 헤드라인 크기/위치 실측 보정 후                    |
-| case-input-mobile-390-fullpage.png        | 390px, fullPage | Case Input    | Footer 레이아웃 붕괴 수정 후(재캡처)                       |
-| expert-feedback-initial-{1440,1024}.png   | 각              | 전문가 피드백 | `#expert-feedback` 앵커, 초기 상태(top-of-page)            |
-| expert-feedback-initial-390-fullpage.png  | 390px, fullPage | 전문가 피드백 | 초기 상태, 전체 페이지                                     |
-| expert-feedback-partial-1440.png          | 1440px          | 전문가 피드백 | 전체 평가 선택 후(일부 입력 상태)                          |
-| expert-feedback-validation-error-1440.png | 1440px          | 전문가 피드백 | 필수 항목 미선택 제출 시도 후(validation error)            |
-| report-verified-claim-1440.png            | 1440px          | 리포트        | VERIFIED claim 확보(production 재캡처, correction pass)    |
-| report-insufficient-fixture-1440.png      | 1440px          | 리포트        | INSUFFICIENT 실제 성공 증빙(fixture 주입, correction pass) |
-| report-mobile-390-fullpage.png            | 390px, fullPage | 리포트        | 전체 페이지(production 재캡처, correction pass)            |
+| File                                      | Viewport        | Screen            | Condition                                                         |
+| ----------------------------------------- | --------------- | ----------------- | ----------------------------------------------------------------- |
+| login-{1440,1024,390}.png                 | 각              | Login             | Round 5 헤드라인 크기/위치 실측 보정 후                           |
+| case-input-mobile-390-fullpage.png        | 390px, fullPage | Case Input        | Footer 레이아웃 붕괴 수정 후(재캡처)                              |
+| expert-feedback-initial-{1440,1024}.png   | 각              | 전문가 피드백     | `#expert-feedback` 앵커, 초기 상태(top-of-page)                   |
+| expert-feedback-initial-390-fullpage.png  | 390px, fullPage | 전문가 피드백     | 초기 상태, 전체 페이지                                            |
+| expert-feedback-partial-1440.png          | 1440px          | 전문가 피드백     | 전체 평가 선택 후(일부 입력 상태)                                 |
+| expert-feedback-validation-error-1440.png | 1440px          | 전문가 피드백     | 필수 항목 미선택 제출 시도 후(validation error)                   |
+| report-verified-claim-1440.png            | 1440px          | 리포트            | VERIFIED claim 확보(production 재캡처, correction pass)           |
+| report-insufficient-fixture-1440.png      | 1440px          | 리포트            | INSUFFICIENT 실제 성공 증빙(fixture 주입, correction pass)        |
+| report-mobile-390-fullpage.png            | 390px, fullPage | 리포트            | 전체 페이지(production 재캡처, correction pass)                   |
+| runtime-error-{1440,1024}.png             | 각              | 사건 상세(리포트) | 런타임 오류 경계(`error.tsx`) 실제 트리거 후(3차 correction pass) |
+| case-input-sticky-sidebar-{1024,1440}.png | 각              | Case Input        | 데스크톱 사이드바 sticky 수정 후(3차 correction pass)             |
+
+### `runtime-error-{1440,1024}.png` 상세
+
+- **viewport**: 1440×900, 1024×768(각각 별도 파일)
+- **route**: `/cases/<caseId>`(리포트 화면, 인증된 테스터 세션) — `app/cases/[caseId]/error.tsx` 오류 경계가 이 라우트 세그먼트를 감싼다
+- **상태 및 fixture**: 정상 플로우로 사건 생성 후, `reports.content`에서 `verifiedClaims` 필드를 DB 레벨로 결정론적으로 제거(INSUFFICIENT fixture와 동일 기법 — 화면이 아니라 입력 데이터 조작). `page.tsx:181`의 `report ? report.verifiedClaims.flatMap(...) : []`가 `report`는 truthy이나 `verifiedClaims`가 없어 실제 TypeError를 던지며, Next.js의 진짜 오류 경계로 이어진다
+- **production build 기준 여부**: 예 — `pnpm build && pnpm start`(scripts/run-e2e.ts의 webServer)
+- **실제 캡처 커밋 SHA**: `16800f9`(초기 캡처) — 3차 재검토 후 `.next` 캐시를 완전히 삭제하고 fresh build로 동일 HEAD(`06098a6`)에서 재캡처해도 동일함을 재확인(2026-09-08)
+- **주요 assertion**: 캡처 직전 `getByText("문제가 발생했습니다")`와 `getByTestId("case-error-retry")`의 `toBeVisible()` — 정상 리포트 화면이 아니라 실제 오류 경계가 렌더링됐음을 캡처 전에 확인
+
+### `case-input-sticky-sidebar-{1024,1440}.png` 상세
+
+- **viewport**: 1024×768, 1440×900(각각 별도 파일)
+- **route**: `/cases/new`(사건 입력, 인증된 테스터 세션) — 폼 콘텐츠가 뷰포트보다 길어 사이드바 sticky 수정 전에는 사용자 블록이 뷰포트 밖으로 밀리던 화면
+- **상태 및 fixture**: 별도 fixture 없음(신규 사건 입력 폼의 기본 렌더링 상태)
+- **production build 기준 여부**: 예 — 3차 재검토 후 `.next` 캐시를 완전히 삭제하고(`rm -rf .next`) fresh `pnpm build && pnpm start`로 재캡처(2026-09-08) — 기존 빌드 캐시 재사용 의혹을 원천적으로 배제
+- **실제 캡처 커밋 SHA**: `06098a6`(fresh build 재캡처 시점의 HEAD; 소스 변경은 `16800f9`에서 완료, 이후 커밋은 SHA backfill/문서만)
+- **주요 assertion**(`e2e/sidebar-assertions.ts`의 `assertStickySidebarUserBlockVisible` 공통 helper — `e2e/sidebar-sticky.spec.ts` 회귀 테스트와 동일 조건 공유): `window.scrollY === 0`, aside `position: sticky` / `top: 0px` / `height`가 뷰포트와 동일(실측: 1024px→768px, 1440px→900px), 사용자 블록 bounding box 존재 + 하단 좌표가 뷰포트 높이 이하(실측: 1024px→744.375px≤768px, 1440px→876.375px≤900px), 사용자 블록 텍스트("e2e-tester-a") 실제 렌더링, 가로 오버플로 없음(`document.documentElement.scrollWidth ≤ viewport width`)
 
 **로컬 실행 기록 명시**: 이 프로젝트에는 GitHub Actions 등 원격 CI가 구성돼 있지 않다. 위 캡처와 아래 검증 결과는 모두 이 세션에서 로컬로 실행한 기록이며, CI에서 재현된 결과가 아니다.
 
@@ -84,5 +104,5 @@ CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence.spec.t
 - before-round3/login-1440.png: captured live from commit `493356e7d6e5c7df1ccafca6921075cd05348993` via a temporary `git worktree add` + `pnpm dev`, then the worktree was removed (Round 4 procedure — see progress.md).
 - after-round3/: 23a2031c69f189c5e53c0e1dd813ef212b042117 → later re-captured at `b05eb5a24edef19c0ef1580bdbcab15d108f5b3c` (the commit the Round 4 external review targeted); this directory is the Round 4 "before" baseline for case-input.
 - after-round4/: this branch's HEAD at Round 4 completion (see progress.md for the exact commit once pushed).
-- after-round5/: Round 5 work commit `f6ea25a614782ae60c1e2c0ceaf575483d59087c` (initial Round 5 fixes) → SHA-backfill commit `be381a8476110387ff651383d441a0ec8c77b021` → **correction pass commit `eb2171e`** (this commit — login/mobile-footer/expert-feedback/report screenshots re-captured against `pnpm build && pnpm start`, replacing the dev-mode captures that showed the Next.js dev badge; `report-verified-claim-1440.png` and `report-insufficient-fixture-1440.png` are new in this commit).
+- after-round5/: Round 5 work commit `f6ea25a614782ae60c1e2c0ceaf575483d59087c` (initial Round 5 fixes) → SHA-backfill commit `be381a8476110387ff651483d441a0ec8c77b021` → **1st correction pass `eb2171e`→`9622bae`(SHA backfill)** (login/mobile-footer/expert-feedback/report screenshots re-captured against `pnpm build && pnpm start`; `report-verified-claim-1440.png`/`report-insufficient-fixture-1440.png` new) → **2nd correction pass `4ddb24d`→`30cd9b8`(SHA backfill)** (§3/§4 checklist alignment, doc-only, no new screenshots) → **3rd correction pass `16800f9`→`06098a6`(SHA backfill)** (real code fix `app/cases/app-shell-chrome.tsx` static→sticky sidebar + real `error.tsx` reproduction; new: `runtime-error-{1440,1024}.png`, `case-input-sticky-sidebar-{1024,1440}.png`) → **4th re-verification pass (this update)** — external review reported the 1024px sticky-sidebar image appeared to not show the user block; re-investigated with `.next` cache fully removed + fresh `pnpm build` + a shared assertion helper (`e2e/sidebar-assertions.ts`, computed `position`/`top`/`height`, bounding boxes, `window.scrollY === 0`, no horizontal overflow) gating the capture — the re-captured images at HEAD `06098a6` show the user block correctly at both viewports; no code defect was found, only the missing pre-capture assertion (now added) was a real gap.
 - Pencil exports: already committed in design/exports/ from previous rounds
