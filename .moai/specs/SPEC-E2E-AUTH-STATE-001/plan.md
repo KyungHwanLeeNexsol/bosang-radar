@@ -42,6 +42,10 @@
 - **확인 방법**: 최소 재현 config로 `pnpm exec playwright test tenant-isolation`(대상 파일 중 하나만 매칭하는 필터)을 실행해, setup 프로젝트의 테스트가 리포터 출력에 나타나는지 관찰한다.
 - **PASS(가정대로 동작)** → M2-M6은 본 문서 §D에 서술한 project-dependency 설계를 그대로 진행한다.
 - **FAIL(setup이 필터에 걸려 스킵됨)** → **대안**: project-dependency를 폐기하고, 두 대상 스펙 파일 각각에 `test.beforeAll`에서 공유 헬퍼 함수(경로 상수 leaf 모듈에 인접 배치, 또는 별도 leaf 모듈)를 호출해 "해당 storageState 파일이 없으면 직접 로그인해 생성"하는 지연 생성(lazy) 패턴으로 전환한다. 이 대안은 REQ-E2EAUTH-001·002·007의 판정 기준(테스터당 실행 전체에서 로그인 1회, 대상 파일만 재사용, `--spec` 필터와 호환)을 낮추지 않는다 — "언제 생성되는가"만 달라질 뿐 "몇 번 로그인하는가"는 동일하게 1회로 유지된다(같은 worker 프로세스 내에서 파일 존재 여부로 판단).
+  - **[HARD] REQ-E2EAUTH-006(매 실행마다 새로 생성) 충족 — "존재하면 생성 안 함"만으로는 부족**: 순수 "파일이 없으면 생성" 로직은 이전 실행이 비정상 종료(크래시/중단)해 `.tmp/storageState-*.json`이 남아 있는 경우, `resetE2EDatabase()`로 방금 초기화되고 테스터가 재프로비저닝된 새 DB에 대해 그 **오래된(stale)** storageState를 그대로 재사용하게 되어, 더 이상 유효하지 않은 세션으로 테스트가 실패한다 — 이는 정확히 이 SPEC이 제거하려는 flaky 실패와 동일한 부류다. 이 대안을 채택하는 경우, `test.beforeAll` 로직은 다음 중 하나를 반드시 포함해야 한다:
+    - **(권장) 무조건 삭제 후 재생성**: `test.beforeAll`이 지연 생성을 시도하기 전에, 대상 storageState 파일이 이미 존재하는지와 무관하게 먼저 `fs.rmSync(path, { force: true })`로 삭제한 뒤 생성 로직을 실행한다 — "존재하면 생성 안 함"이 아니라 "이번 worker 프로세스에서 아직 생성하지 않았으면 생성"으로 로직을 뒤집는 것과 동치이며, 이는 매 `pnpm test:e2e` 실행이 이전 실행의 파일 흔적과 무관하게 항상 새로 로그인함을 보장한다.
+    - **(대안) 실행-스코프 식별자 게이팅**: 파일의 존재 여부 대신, `scripts/run-e2e.ts`가 매 실행마다 조립하는 실행-스코프 값(예: `process.env.E2E_PORT` — 매 실행 `findFreePort()`로 새로 할당됨)을 storageState 파일과 함께(또는 파일명에 인코딩해) 기록하고, 지연 생성 로직은 "파일이 존재하고 그 안의 실행-스코프 식별자가 현재 실행의 값과 일치할 때만" 재사용한다.
+    - 둘 중 어느 쪽을 채택하든, M1 FAIL 경로를 실제로 구현할 때 선택한 방식과 그 근거를 `progress.md` §E.2에 실측 기록해야 하며(§C M1 기존 문장과 동일한 기록 의무), AC-E2EAUTH-006이 이 성질을 채택된 경로에 맞게 기계적으로 검증한다(`acceptance.md` AC-E2EAUTH-006 참고).
 - 이 마일스톤은 구현 착수 시점의 재량 결정이며 사용자 재확인이 필요하지 않다(spec.md HISTORY 및 사용자 지시에 따라 이미 위임됨). 선택한 접근과 근거는 `progress.md` §E.2에 실측 기록한다.
 
 ### M2 — 경로 상수 leaf 모듈 신설 (Priority High)
@@ -99,6 +103,7 @@ Playwright "setup" 테스트 파일을 신설한다. `loginAsTester()`는 import
 | M1 검증에서 project-dependency가 `--spec` 필터와 호환되지 않음 | M4-M5 설계 변경 필요 | §C M1에 대안(공유 헬퍼 `test.beforeAll`) 이미 문서화 — 재계획 불필요, 구현 중 즉시 전환 |
 | setup 프로젝트의 2회 로그인이 인접 스펙 파일과 rate-limit 충돌 유발 | 전체 스위트의 새로운 flaky 지점 생성 | `spec.md` §5에 명시된 기존 `retries: 2` 안전망으로 흡수 — AC-E2EAUTH-004로 회귀 없음을 실행 확인 |
 | `storageState` 파일 생성 실패 시 대상 스펙이 원인 불명 오류로 실패 | 디버깅 시간 증가 | Playwright의 기본 파일-부재 오류가 이미 명확함 — 별도 방어 로직 추가는 범위 밖(YAGNI) |
+| (M1 FAIL 경로 채택 시) "파일이 없으면 생성"만으로 지연 생성을 구현해 이전 실행의 오래된 storageState가 재사용됨 | REQ-E2EAUTH-006 위반, DB 재프로비저닝과 불일치하는 세션으로 이 SPEC이 제거하려는 것과 동일한 부류의 flaky 실패 재발 | §C M1 FAIL 경로에 무조건 삭제 후 재생성(권장) 또는 실행-스코프 식별자 게이팅을 명시 — AC-E2EAUTH-006이 채택된 경로를 기계적으로 검증 |
 | 두 대상 파일의 `test.use({ storageState })` 적용 후 CJS 번들 시 leaf 모듈 import 실패 | REQ-E2EAUTH-010 위반, 빌드 전체 실패 | M2에서 leaf 모듈을 `scripts/e2e-tester-emails.ts`와 동일한 규율로 작성 + M6에서 실제 `pnpm test:e2e` 실행으로 확인 |
 
 ## §F. MX 태그 계획

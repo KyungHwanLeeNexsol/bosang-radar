@@ -1,6 +1,6 @@
 # Acceptance Criteria — SPEC-E2E-AUTH-STATE-001
 
-모든 AC는 Given-When-Then 형식으로 이진(binary) 검증 가능하게 작성한다. 각 AC는 검증 대상 요구사항(REQ-E2EAUTH-XXX)을 **Traces** 라인으로 명시적으로 추적한다. AC 개수: 11개 (Tier M 상한 16개 이내). REQ 10개 전체가 최소 1개의 AC에 의해 추적된다(§C 추적 매트릭스 참고).
+모든 AC는 Given-When-Then 형식으로 이진(binary) 검증 가능하게 작성한다. 각 AC는 검증 대상 요구사항(REQ-E2EAUTH-XXX)을 **Traces** 라인으로 명시적으로 추적한다. AC 개수: 12개 (Tier M 상한 16개 이내). REQ 10개 전체가 최소 1개의 AC에 의해 추적된다(§C 추적 매트릭스 참고).
 
 ## §A. AC 매트릭스
 
@@ -43,8 +43,8 @@
 ### AC-E2EAUTH-007 — 기존 안전망 무변경
 **Traces**: REQ-E2EAUTH-005
 - **Given** 이 SPEC의 구현이 완료된 작업 트리가 있을 때
-- **When** `git diff --stat -- e2e/mobile-drawer-focus.spec.ts`를 실행하고, `playwright.config.ts`의 `workers`/`retries` 라인을 목측 대조하면
-- **Then** `e2e/mobile-drawer-focus.spec.ts`의 diff가 완전히 비어 있고, `playwright.config.ts`에 `workers: 1`과 `retries: 2`가 원래 값 그대로 남아 있다.
+- **When** `git diff --stat -- e2e/mobile-drawer-focus.spec.ts`를 실행하고, `grep -c "retries: 2" playwright.config.ts`와 `grep -c "workers: 1" playwright.config.ts`를 실행하면
+- **Then** `e2e/mobile-drawer-focus.spec.ts`의 diff가 완전히 비어 있고, 두 `grep -c` 명령이 각각 정확히 `1`을 출력한다(목측 대조가 아닌 기계적 확인).
 
 ### AC-E2EAUTH-008 — `--spec` 필터링 시에도 setup 의존성 실행
 **Traces**: REQ-E2EAUTH-007
@@ -70,13 +70,20 @@
 - **When** 이 SPEC의 구현 범위를 점검하면
 - **Then** `e2e/auth.spec.ts`는 어떤 형태로도 사전 인증 storageState 전제조건으로 전환되지 않으며(`git diff --stat -- e2e/auth.spec.ts`가 빈 결과), 여전히 `loginAsTester()`를 통한 실제 UI 로그인 흐름을 그대로 검증한다.
 
+### AC-E2EAUTH-012 — 나머지 5개 out-of-scope 스펙 파일 소스 무변경
+**Traces**: REQ-E2EAUTH-003
+- **Given** 이 SPEC의 구현이 완료된 작업 트리가 있을 때
+- **When** `git diff --stat -- e2e/case-flow.spec.ts e2e/sidebar-sticky.spec.ts e2e/capture-evidence.spec.ts e2e/capture-evidence-round5.spec.ts e2e/comparison-docs-images.spec.ts`를 실행하면
+- **Then** 출력이 완전히 비어 있다 — AC-E2EAUTH-004("여전히 통과한다"는 동작 수준 확인)와 별개로, 이 AC는 5개 파일 각각의 소스 자체가 한 글자도 변경되지 않았음을 소스 레벨에서 직접 확인한다. 동작이 우연히 그대로 유지되면서 소스가 변경되는 경우(예: 로그인 방식을 바꿨지만 결과적으로 테스트가 여전히 통과하는 경우)를 AC-E2EAUTH-004는 놓칠 수 있으나 이 AC는 놓치지 않는다.
+
 ## §B. Definition of Done
 
-- [ ] AC-E2EAUTH-001 ~ 011 전체 PASS
+- [ ] AC-E2EAUTH-001 ~ 012 전체 PASS
 - [ ] `pnpm test:e2e`(전체 스위트) exit 0 — 5회 연속 실행 각각의 리포터 출력이 증거로 기록됨(AC-E2EAUTH-003)
 - [ ] `git diff --stat -- e2e/helpers.ts`가 빈 결과 (AC-E2EAUTH-005)
-- [ ] `git diff --stat -- e2e/mobile-drawer-focus.spec.ts`가 빈 결과, `playwright.config.ts`의 `workers`/`retries` 무변경 (AC-E2EAUTH-007)
+- [ ] `git diff --stat -- e2e/mobile-drawer-focus.spec.ts`가 빈 결과, `grep -c "retries: 2" playwright.config.ts`와 `grep -c "workers: 1" playwright.config.ts`가 각각 `1` (AC-E2EAUTH-007)
 - [ ] `git diff --stat -- e2e/auth.spec.ts`가 빈 결과 (AC-E2EAUTH-011)
+- [ ] `git diff --stat -- e2e/case-flow.spec.ts e2e/sidebar-sticky.spec.ts e2e/capture-evidence.spec.ts e2e/capture-evidence-round5.spec.ts e2e/comparison-docs-images.spec.ts`가 빈 결과 (AC-E2EAUTH-012)
 - [ ] `.tmp/storageState-*.json`이 추적되지 않고 `git check-ignore -v`로 무시 규칙이 확인됨 (AC-E2EAUTH-006)
 - [ ] `git diff --stat -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai'`가 빈 결과 (AC-E2EAUTH-009)
 - [ ] `pnpm lint`, `pnpm build`, `pnpm format:check`가 이 변경 이후에도 계속 exit 0
@@ -88,7 +95,7 @@
 |-----|---------|
 | REQ-E2EAUTH-001 | AC-E2EAUTH-001, AC-E2EAUTH-003 |
 | REQ-E2EAUTH-002 | AC-E2EAUTH-002, AC-E2EAUTH-003 |
-| REQ-E2EAUTH-003 | AC-E2EAUTH-004, AC-E2EAUTH-011 |
+| REQ-E2EAUTH-003 | AC-E2EAUTH-004, AC-E2EAUTH-011, AC-E2EAUTH-012 |
 | REQ-E2EAUTH-004 | AC-E2EAUTH-005 |
 | REQ-E2EAUTH-005 | AC-E2EAUTH-007 |
 | REQ-E2EAUTH-006 | AC-E2EAUTH-006 |
