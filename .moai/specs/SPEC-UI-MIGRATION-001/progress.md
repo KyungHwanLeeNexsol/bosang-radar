@@ -150,9 +150,37 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 | PRESERVE 경로 무회귀 | `git diff`로 `e2e/helpers.ts`, `lib/auth/`, `lib/feedback/schema.ts` 등 미변경 확인 | 확인됨 — 위 정정 조치 2건도 PRESERVE 경로를 건드리지 않음 |
 | 기존 testid 무회귀 | `npx vitest run` 전체 통과(395/395) + 위 unit/e2e 테스트들이 기존 testid 그대로 사용 | 확인됨 |
 
-**최종 AC/DoD 상태**: AC-024(4개 명령 + format:check) **PASS**(이 세션 실측). `acceptance.md` §DoD 체크박스는 로그인 우측 폼 간격·모바일 리포트/피드백 IA 분리·Pencil 모바일 프레임 동일폭 비교라는 3건의 미해소·미결정 항목이 남아 있어 **의도적으로 미체크 상태 유지**(거짓 체크 금지).
+**최종 AC/DoD 상태**: AC-024(4개 명령 + format:check) **PASS**(이 세션 실측). 아래 "3건 재분류"를 참조.
 
-**최종 commit SHA와 push된 브랜치**: `f6ea25a614782ae60c1e2c0ceaf575483d59087c` — 사용자가 "커밋 + 푸시"를 승인해 `plan/SPEC-UI-MIGRATION-001` 브랜치에 커밋 후 `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료.
+**최종 commit SHA와 push된 브랜치(Round 5 최초 작업 커밋)**: `f6ea25a614782ae60c1e2c0ceaf575483d59087c` — 사용자가 "커밋 + 푸시"를 승인해 `plan/SPEC-UI-MIGRATION-001` 브랜치에 커밋 후 `origin/plan/SPEC-UI-MIGRATION-001`에 push 완료. **이후 SHA backfill 커밋** `be381a8476110387ff651383d441a0ec8c77b021`이 이 커밋 위에 비교 문서의 commit SHA 표기를 정정했다(§ "Round 5 correction pass" 참조, 아래).
+
+### Round 5 — 3건 재분류 (correction pass, 2026-09-08) — Current Status ↔ DoD 모순 해소
+
+**배경**: 위 §Current Status(파일 최상단)는 "Round 5 재승인 조건 7건 전부 ✅ 완료"라고 기록했으나, 바로 위 문단은 동시에 "로그인 우측 폼 간격·모바일 리포트/피드백 IA 분리·Pencil 모바일 프레임 동일폭 비교 3건이 미해소·미결정이라 DoD를 의도적으로 미체크했다"고 기록해 **자기모순**이었다. 외부 재검토에서 지적된 이 모순을 아래와 같이 3건 각각 재분류해 해소한다 — 어느 쪽 기록도 삭제하지 않고, 재분류 근거를 여기 남긴다.
+
+| # | 항목 | 재분류 | 근거 |
+|---|---|---|---|
+| 1 | 로그인 우측 폼 간격 | **구현 완료** | §"Round 5 — 로그인 화면 잔여 편차 실측 Gap Matrix" §"우측 폼 내부 간격 — 사용자 승인 후 추가 반영"에 기록된 대로, 사용자가 "폼 내부 간격도 넓혀서 맞추기"를 승인했고 `login-form.tsx`의 `gap-4`→`gap-7`, `gap-1.5`→`gap-2.5`로 실제 반영 완료(`npx vitest run app/login/` 6/6 PASS, 육안 재캡처로 개선 확인). 이 SPEC이 요구하는 것은 §3 시각 스모크 체크리스트의 "육안 대응"이지 픽셀 완전 일치가 아니므로, 이 항목은 승인된 조치가 실제로 적용된 시점에 완료로 분류하는 것이 정확하다(잔여 미세 편차는 §3 체크리스트를 막지 않는 수준). |
+| 2 | 모바일 리포트/피드백 IA 분리 | **사용자 승인된 의도적 편차(이번 라운드) + 후속 SPEC 후보(향후)** | 이 항목은 애초에 acceptance.md의 어떤 AC에도 대응하지 않는다 — Round 5 자체 UX 검토("Round 5 — 모바일 리포트·피드백 UX 검토")에서 오케스트레이터가 추가로 제기한 질문이었다. 사용자는 "이번 라운드는 현행 유지"를 선택했고(사용자 결정 완료로 이미 기록됨), "맨 위로" 버튼만 반영했다. AC/DoD를 막을 근거가 원래 없었던 항목이며, IA 변경 자체는 기존 `#expert-feedback` 앵커·테스트·SEO에 영향을 미쳐 별도 SPEC이 필요하다고 판단해 후속 SPEC 후보로 명시적으로 분리한다. |
+| 3 | Pencil 모바일 프레임 동일 폭 비교 | **대체 검증으로 해소(잔여 위험 낮음, 실제 미완료 아님)** | 이 항목이 "미검증"으로 남았던 이유는 "Pencil 모바일 목업이 별도 프레임으로 export되지 않았다"는 §"Round 5 — 모바일 리포트·피드백 UX 검토"의 기록 때문이었으나, 이는 **부정확한 기록**이다 — `design/exports/13-Mobile-390.png`가 실제로 존재한다(`ls design/exports/` 확인). 다만 이 파일은 **이미 별도로 확인된 기존 실측 결과**(본 문서 555번째 줄, Round 3 시점의 독립 감사)에 따르면 **단일 390px 화면이 아니라 3-패널 합성 이미지**다 — 그러므로 "실제 화면 1장 vs Pencil 프레임 1장"의 동일 폭 픽셀 비교는 애초에 방법론적으로 성립하지 않는 요구였다(비교 대상이 서로 다른 종류의 이미지). 대신 개별 실화면 390px 캡처(`login-390.png`, `case-input-mobile-390-fullpage.png`, `expert-feedback-initial-390-fullpage.png`, `report-mobile-390-fullpage.png`, `mobile-drawer-{open,closed}-390.png`)로 반응형 비붕괴를 확인했고(AC-018A, M8 §E.3), 이것이 이 SPEC 범위에서 실질적으로 가능한 최선의 대체 검증이다. 향후 Pencil이 개별 프레임 단위의 모바일 export를 제공하면 재비교가 유효하겠으나, 이는 이 SPEC의 DoD를 막는 조건이 아니라 낮은 수준의 잔여 위험(Residual-risk)으로 기록한다. |
+
+**결론**: 위 3건 모두 이 SPEC의 DoD를 막는 "실제 미완료" 항목이 아니다(항목 2는 애초에 AC 대응이 없었고, 항목 1/3은 완료 또는 대체 검증으로 해소). 따라서 §Current Status(파일 최상단)의 "audit-ready" 판정이 정확하며, `acceptance.md` §4 DoD 체크박스는 이 재분류를 반영해 체크 처리한다(아래 참조). 이전 §153 문단의 "3건 미해소로 의도적 미체크" 기록은 이 재분류로 대체되며, 삭제하지 않고 위에 그대로 보존한다.
+
+### Round 5 — E2E retry 투명화 (correction pass, 2026-09-08)
+
+**배경**: `playwright.config.ts`의 `retries: 2`는 전체 테스트에 적용되며, 이전 Round 5 최종 검증(§ "Round 5 — 최종 검증")은 "3회 연속 exit 0(각 회차 1 flaky)"라고만 요약해 어떤 테스트가 재시도됐는지, 몇 번 재시도됐는지를 개별 기록하지 않았다. 이번 correction pass에서 전체 suite(`npx tsx scripts/run-e2e.ts`, `pnpm build && pnpm start` 기반 production 서버)를 3회 연속 재실행하고 각 회차 결과를 그대로 기록한다.
+
+| 회차 | 최초 시도 통과 수 | retry 발생 테스트 | retry 횟수 | 최종 통과 수 | exit code |
+|---|---|---|---|---|---|
+| 1 | 8/9 | `case-input-mobile-layout.spec.ts`(사건 입력 모바일 Footer 레이아웃) | 1회(retry #1에서 통과) | 9/9 | 0 |
+| 2 | 8/9 | `case-input-mobile-layout.spec.ts` | 1회(retry #1에서 통과) | 9/9 | 0 |
+| 3 | 8/9 | `case-input-mobile-layout.spec.ts` | 1회(retry #1에서 통과) | 9/9 | 0 |
+
+원본 로그: `.moai/state/verify/e2e-round5-correction/run{1,2,3}.log`(로컬 전용, gitignore 대상 `.moai/state/`).
+
+**정직한 결론 — flaky debt로 남김(단순 PASS 처리하지 않음)**: 3회 모두 **동일한 테스트가 예외 없이 매번 재시도됐다** — 사용자 요청대로 "retry가 계속 발생하면 단순 PASS로 처리하지 말고 flaky debt로 남긴다." 이 재현성(매회 정확히 이 테스트, 정확히 1회)은 무작위 flake가 아니라 §"Round 5 — 최종 검증"에서 이미 근본원인을 규명한 **결정론적 rate-limit 충돌**이다 — `case-input-mobile-layout.spec.ts` 직전에 실행되는 `case-flow.spec.ts`의 로그인이 Better Auth 기본 rate limit(`/sign-in` 경로 10초 창 내 최대 3회)과 시간상 겹쳐, 이 테스트 자신의 로그인 1회가 그 창에 걸린다. Playwright의 표준 재시도(`retries: 2`)가 이를 흡수하며, 재시도 후 결과는 매번 실제로 통과한다(결함을 감추는 것이 아니라 재시도 자체가 결함이 아님을 증명함 — 진짜 결함이라면 재시도 후에도 동일하게 실패했을 것).
+
+**후속 개선 항목(이번 SPEC 범위 밖, 후속 SPEC/작업 후보로 명시)**: 고정 sleep이나 전역 retry를 더 늘리는 것은 근본 해결이 아니다. Round 4에서 이미 검토했던 대로(§ "Round 4 — E2E 증거 정리 + rate-limit 재검토"), 근본적으로 유효한 해법은 **테스트 계정 분리**(rate limit이 이메일이 아닌 `/sign-in` 경로+IP 기준으로 추정되어 계정 분리만으로는 근본 해결이 아닐 수 있음, 재확인 필요) 또는 **인증 fixture/storageState 재사용**(로그인 횟수 자체를 줄여 rate limit 창에 걸릴 기회를 원천적으로 줄임 — `playwright.config.ts`에 `globalSetup` 도입 필요, `helpers.ts`는 PRESERVE 대상이라 신규 인증 경로는 그 밖에 구성해야 함)이다. 이번 correction pass는 문서·증빙 정확성 교정 범위이므로 이 인프라 변경은 수행하지 않고 후속 후보로만 기록한다.
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 

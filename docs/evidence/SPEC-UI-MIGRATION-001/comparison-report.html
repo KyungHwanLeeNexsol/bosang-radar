@@ -60,8 +60,17 @@
         <img src="../../../design/exports/07-리서치-리포트.png" alt="Pencil" />
       </div>
       <div class="col">
-        <h2>After — Round 4/5 (1440px, VERIFIED claim 확보 사건)</h2>
-        <img src="after-round4/report-verified-claim-1440.png" alt="After" />
+        <h2>After — Round 5 (1440px, VERIFIED claim 확보 사건, production 재캡처)</h2>
+        <img src="after-round5/report-verified-claim-1440.png" alt="After VERIFIED" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col">
+        <h2>After — Round 5 (1440px, INSUFFICIENT claim 실제 성공 증빙, fixture 주입)</h2>
+        <img
+          src="after-round5/report-insufficient-fixture-1440.png"
+          alt="After INSUFFICIENT fixture"
+        />
       </div>
     </div>
 
@@ -72,7 +81,14 @@
       </tr>
       <tr>
         <th>commit SHA</th>
-        <td>f6ea25a614782ae60c1e2c0ceaf575483d59087c(plan/SPEC-UI-MIGRATION-001)</td>
+        <td>
+          이 스크린샷의 실제 캡처 커밋: <b>{{ROUND5_CORRECTION_SHA}}</b>
+          (production 빌드 `pnpm build && pnpm start` 기준 재캡처, Round 5 correction pass). 이전
+          버전의 이 문서는 커밋 `f6ea25a614782ae60c1e2c0ceaf575483d59087c`(Round 5 최초 작업 커밋)를
+          표기하면서 실제로는 `after-round4/report-verified-claim-1440.png`(Round 4 캡처 이미지)를
+          사용하고 있었다 — 이미지와 표기 SHA가 불일치하는 오류였다. 이번 correction pass에서
+          이미지를 Round 5 production 캡처로 교체하고 SHA 표기를 실제 캡처 시점과 일치시켰다.
+        </td>
       </tr>
       <tr>
         <th>route</th>
@@ -109,7 +125,11 @@
       </tr>
       <tr>
         <th>의도적 편차</th>
-        <td>없음(이번 라운드 신규 수정 없음)</td>
+        <td>
+          없음(화면 코드 자체는 이번 correction pass에서 신규 수정 없음 — 증빙 이미지/SHA 표기만
+          정정). INSUFFICIENT claim 상태는 결정론적 fixture로 report.content를 직접 주입해
+          확보했으며, 렌더링 로직은 실제 프로덕션 코드를 그대로 통과한다(위 두 번째 이미지).
+        </td>
       </tr>
     </table>
   </body>

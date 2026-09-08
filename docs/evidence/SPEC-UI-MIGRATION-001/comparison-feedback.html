@@ -85,8 +85,13 @@
       <tr>
         <th>scroll 위치</th>
         <td colspan="3">
-          top-of-page(#expert-feedback 앵커로 이동 직후, fullPage 아님). 모바일 전체 페이지는 별도로
-          `expert-feedback-initial-390-fullpage.png`에서 확인 가능.
+          <b>"top-of-page"라는 표현은 뷰포트/문서 최상단을 의미하지 않는다</b> — 실제로는
+          `#expert-feedback` 앵커로 이동한 직후, 그 <b>앵커 대상 섹션의 시작점</b>이 뷰포트 상단에
+          오도록 브라우저가 스크롤한 위치를 캡처한 것이다(fullPage 아님, 뷰포트 1장). 이 문서의 다른
+          곳에서 "top-of-page"와 "anchor로 이동한 섹션 시작점"을 혼용하지 않는다 — 사건
+          입력/로그인처럼 실제 문서 최상단(스크롤 없음)을 캡처한 화면과는 스크롤 상태가 다르다는
+          점에 유의. 모바일 전체 페이지는 별도로 `expert-feedback-initial-390-fullpage.png`에서 확인
+          가능(이쪽은 fullPage라 앵커 섹션 앞의 App Shell 콘텐츠도 함께 보인다).
         </td>
       </tr>
       <tr>
@@ -124,19 +129,38 @@
       <tr>
         <th>의도적 편차(사용자 승인 완료)</th>
         <td colspan="3">
+          <p>
+            <b>승인 시점</b>: 2026-09-07 (Round 5 진행 중, `progress.md` "Round 5 — 전문가 피드백
+            화면 Pencil Gap Matrix + 구현" 섹션 기록 시점).
+          </p>
+          <p>
+            <b>확인 방식</b>: 오케스트레이터가 AskUserQuestion으로 3건을 각각 질의했고, 사용자는
+            매번 "(권장)" 라벨이 붙은 옵션을 선택했다(승인된 옵션 = 아래 각 항목).
+          </p>
           <ol>
             <li>
-              Topbar/전용 라우트 미신설 — 현재의 앵커 기반(#expert-feedback) 페이지 내 섹션 구조
-              유지
+              <b>승인된 옵션</b>: 전용 피드백 라우트·Topbar를 신설하지 않는다 — 현재의 앵커
+              기반(<code>#expert-feedback</code>) 페이지 내 섹션 구조를 <b>의도적 편차로</b>
+              그대로 유지한다.
             </li>
             <li>
-              "실제 결과" 카드 선택 UI 미구현 — 기존 자유 텍스트 2개 필드 유지(데이터 모델에 outcome
-              타입 필드 없음)
+              <b>승인된 옵션</b>: "실제 결과" 카드 선택 UI를 도입하지 않는다 — 기존 자유 텍스트 2개
+              필드(<code>outcomeDescription</code>/<code>outcomeConfirmedAt</code>)를
+              유지한다(데이터 모델에 outcome enum 타입 필드 없음, 신규 추가 없음).
             </li>
-            <li>"이미 제출됨" 사전 확인 상태 미추가</li>
+            <li>
+              <b>승인된 옵션</b>: 제출 전 기존 피드백 존재 여부를 조회하는 "이미 제출됨" 사전 확인
+              상태를 추가하지 않는다.
+            </li>
           </ol>
-          세 항목 모두 AskUserQuestion으로 사용자에게 확인 후 "(권장)" 옵션으로 결정됨(progress.md
-          Round 5 전문가 피드백 섹션 참조).
+          <p>
+            <b>모바일 IA 분리는 별개 사안</b> — 위 3건과 달리, "모바일에서 리포트/피드백을
+            접기·펼치기 또는 별도 진입점으로 분리할지"는 이 SPEC 범위의
+            <b>현재 실패 항목이 아니라 후속 SPEC 후보</b>다(라우트 분리나 아코디언 UI는 기존
+            <code>#expert-feedback</code> 앵커 링크·테스트·SEO에 영향을 미쳐 별도 SPEC/사용자 승인이
+            필요하다고 판단 — progress.md "Round 5 — 모바일 리포트·피드백 UX 검토" 섹션 참조). 이번
+            라운드에서는 "맨 위로" 플로팅 버튼만 반영했다.
+          </p>
         </td>
       </tr>
     </table>

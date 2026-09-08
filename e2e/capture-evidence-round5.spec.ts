@@ -202,6 +202,30 @@ test.describe("Round 5 시각 증빙 캡처", () => {
     });
   });
 
+  // correction pass — comparison-report.html이 Round4 이미지(after-round4/
+  // report-verified-claim-1440.png)를 Round5 커밋 SHA와 함께 표기하던 SHA
+  // 불일치를 바로잡기 위해, VERIFIED claim 화면을 Round5 production 빌드
+  // 기준으로 재캡처한다(Round4와 동일 fixture 입력 — 결정론적 provider 하에서
+  // 동일 입력은 항상 VERIFIED 6/6을 재현함, progress.md Round 4 기록 참조).
+  test("리포트 VERIFIED — Round5 production 재캡처(comparison-report.html SHA 정합)", async ({
+    page,
+  }) => {
+    await loginAsTester(page, TESTER_A_EMAIL);
+    const caseId = await createCase(page, {
+      incidentDescription: "계단에서 넘어져 발목을 다쳤습니다.",
+      diagnosisName: "발목 인대 파열",
+      disabilityBodyPart: "발목",
+      incidentDate: "2026-01-15",
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/cases/${caseId}`);
+    await page.waitForLoadState("networkidle");
+    await page.screenshot({
+      path: path.join(EVIDENCE_DIR, "report-verified-claim-1440.png"),
+      fullPage: false,
+    });
+  });
+
   test("모바일 리포트+피드백 전체 페이지 — Round5 UX 검토용 재캡처", async ({ page }) => {
     await loginAsTester(page, TESTER_A_EMAIL);
     const caseId = await createCase(page, {

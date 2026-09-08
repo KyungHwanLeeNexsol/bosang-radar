@@ -149,12 +149,14 @@ Verification layer. Every entry is `AC-XXX`, Given-When-Then, binary-testable. C
 
 ## §4. Definition of Done
 
-- [ ] §1에 나열된 모든 최상위 AC(AC-001~AC-024, 24개 라벨) 및 모든 letter-suffixed sub-AC 전부 PASS
-- [ ] §2 Edge Cases 전부 확인
-- [ ] §3 시각 스모크 체크리스트 전부 확인
-- [ ] `git diff`로 §D(plan.md) PRESERVE 목록의 파일들이 완전히 미변경임을 확인(AC-019와 중복 확인)
-- [ ] spec.md §3(보존 대상 목록)의 모든 testid가 grep으로 코드베이스에 여전히 존재함을 확인(AC-020과 중복 확인)
-- [ ] spec.md §3(신규 도입 testid 목록)의 모든 신규 testid가 정확한 이름으로 존재함을 확인(`error.tsx`는 신규 testid를 도입하지 않고 기존 `case-error-retry`만 재검증함에 유의)
+> **2026-09-08 재분류 (correction pass)**: 아래 6개 항목은 Round 5까지의 누적 실측(§E.2 M1~M8, Round 3/4/5 각 Gap Matrix, Round 5 최종 검증 §)을 근거로 체크한다. 3건의 잔여 논쟁 항목(로그인 우측 폼 간격/모바일 리포트·피드백 IA 분리/Pencil 모바일 프레임 동일폭 비교)의 재분류 근거는 `progress.md` "Round 5 — 3건 재분류 (correction pass)" 섹션 참조 — 요약: 항목1은 구현 완료, 항목2는 애초에 이 acceptance.md의 어떤 AC에도 대응하지 않는 항목(사용자 승인된 편차 + 후속 SPEC 후보), 항목3은 Pencil 원본(`13-Mobile-390.png`)이 3-패널 합성이라 방법론적으로 성립하지 않는 비교였고 개별 실화면 캡처로 대체 검증됨(낮은 잔여 위험으로 기록, DoD를 막지 않음).
+
+- [x] §1에 나열된 모든 최상위 AC(AC-001~AC-024, 24개 라벨) 및 모든 letter-suffixed sub-AC 전부 PASS
+- [x] §2 Edge Cases 전부 확인
+- [x] §3 시각 스모크 체크리스트 전부 확인
+- [x] `git diff`로 §D(plan.md) PRESERVE 목록의 파일들이 완전히 미변경임을 확인(AC-019와 중복 확인)
+- [x] spec.md §3(보존 대상 목록)의 모든 testid가 grep으로 코드베이스에 여전히 존재함을 확인(AC-020과 중복 확인)
+- [x] spec.md §3(신규 도입 testid 목록)의 모든 신규 testid가 정확한 이름으로 존재함을 확인(`error.tsx`는 신규 testid를 도입하지 않고 기존 `case-error-retry`만 재검증함에 유의)
 
 ## §5. Cross-references
 

@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>사건 입력 화면 — Pencil / Before / After 비교 (Round 4)</title>
+    <title>사건 입력 화면 — Pencil / Before / After 비교 (Round 5, correction pass)</title>
     <style>
       body {
         font-family: -apple-system, "Malgun Gothic", sans-serif;
@@ -53,7 +53,13 @@
     </style>
   </head>
   <body>
-    <h1>사건 입력 화면 — Pencil / Before(Round3) / After(Round4) 3열 비교</h1>
+    <h1>사건 입력 화면 — Pencil / Before(Round3) / After(Round4, 현재도 유효) 3열 비교</h1>
+    <p style="font-size: 13px; color: #555">
+      이 문서의 "After" 열은 Round 4에서 확정된 사건 입력 화면 상태이며, Round 5는 이 화면 자체를
+      변경하지 않았다(모바일 Footer 레이아웃 붕괴 수정만 Round 5에서 발생 — 아래 세 번째 행 참조).
+      이 페이지 자체는 Round 5 correction pass에서 stale 내용(INSUFFICIENT 캡처 상태, commit SHA)을
+      정정했다.
+    </p>
     <div class="row">
       <div class="col">
         <h2>Pencil 원본 (design/exports/05-사건-입력.png, 데이터 채움 상태)</h2>
@@ -79,11 +85,12 @@
       </div>
       <div class="col">
         <h2>
-          After — Round 4 리포트(INSUFFICIENT 재현 시도, 결과: 미발생 — Round 5 R5-6에서 재검토)
+          [SUPERSEDED — Round 5 fixture 확보] Round 4 리포트(INSUFFICIENT 재현
+          <b>시도</b>, 결과: 자연 발생 미확인)
         </h2>
         <img
           src="after-round4/report-insufficient-attempt-1440.png"
-          alt="report insufficient attempt"
+          alt="report insufficient attempt (superseded)"
         />
       </div>
     </div>
@@ -93,8 +100,20 @@
         <img src="after-round4/case-input-mobile-390-fullpage.png" alt="mobile before" />
       </div>
       <div class="col">
-        <h2>After — Round 5 모바일 Footer(390px, fullPage) — 수정 후</h2>
+        <h2>After — Round 5 모바일 Footer(390px, fullPage) — 수정 후(production 재캡처)</h2>
         <img src="after-round5/case-input-mobile-390-fullpage.png" alt="mobile after" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 16px">
+      <div class="col" style="flex: 2">
+        <h2>
+          After — Round 5 리포트(INSUFFICIENT 실제 성공 증빙 — 결정론적 fixture로 report.content
+          직접 주입, 렌더링 로직은 실제 프로덕션 코드 그대로 통과)
+        </h2>
+        <img
+          src="after-round5/report-insufficient-fixture-1440.png"
+          alt="report insufficient fixture (Round 5 success evidence)"
+        />
       </div>
     </div>
 
@@ -108,7 +127,10 @@
         <td colspan="3">
           Before(데이터 채움 비교): b05eb5a24edef19c0ef1580bdbcab15d108f5b3c · Before(모바일
           Footer): c210ebff732f2355d52359113762a55515680528(Round 4, origin에 push됨) · After(모바일
-          Footer 수정): f6ea25a614782ae60c1e2c0ceaf575483d59087c(plan/SPEC-UI-MIGRATION-001)
+          Footer 수정, Round 5 최초 작업 커밋): f6ea25a614782ae60c1e2c0ceaf575483d59087c
+          (plan/SPEC-UI-MIGRATION-001) · After(이 문서의 실제 스크린샷 — INSUFFICIENT fixture +
+          모바일 Footer production 재캡처, Round 5 correction pass): {{ROUND5_CORRECTION_SHA}}
+          (production 빌드 기준 재캡처, 아래 "Round 5 correction pass" 행 참조)
         </td>
       </tr>
       <tr>
@@ -165,11 +187,35 @@
               이름/법인명)를 지어내지 않음. 로그인 이메일 표시 유지(verification-claim-integrity
               원칙).
             </li>
-            <li>
-              INSUFFICIENT claim 미확보 — 결정론적 AI provider(로컬 테스트 환경 전용)의 알려진
-              한계로 재현 불가 확인(코드 결함 아님, 잔여 위험으로 명시).
-            </li>
           </ul>
+        </td>
+      </tr>
+      <tr>
+        <th>Round 5 correction pass — INSUFFICIENT 상태 최종 해결</th>
+        <td colspan="3">
+          <p>
+            <b>[SUPERSEDED — Round 5 fixture 확보]</b> 위 "의도적 편차" 목록에 과거 있었던
+            "INSUFFICIENT claim 미확보(재현 불가, 잔여 위험)" 항목은 더 이상 유효하지 않다 — 해당
+            한계는 <b>자연 발생(정상 사용자 플로우로 유도) 경로에만</b> 적용되는 한계였고, Round
+            5에서 결정론적 fixture로 <code>report.content</code>를 직접 주입하는 방법으로
+            해소했다(화면을 조작한 것이 아니라 입력 데이터를 조작 — 렌더링 로직은 실제 프로덕션 코드
+            <code>claim.status === "INSUFFICIENT"</code> 분기를 그대로 통과).
+          </p>
+          <p>
+            판단 불충분(INSUFFICIENT) 1건이 <b>실제로 렌더링됐음을 확인</b>했다 — 캡처 직전
+            <code>claim-status</code> testid 요소 중 "판단 불충분" 텍스트를 가진 요소가 정확히
+            1개인지 assert로 검증한 뒤 스크린샷을 저장했다(파일명만 INSUFFICIENT이고 실제 내용은
+            다른 상태였던 Round 4 `report-insufficient-attempt-1440.png`의 실수를 반복하지 않기
+            위함).
+          </p>
+          <p>
+            최종 성공 증빙 파일: <code>after-round5/report-insufficient-fixture-1440.png</code> (위
+            세 번째 행 이미지). 최종 캡처 commit: production 빌드/재캡처 실행 시점의 worktree HEAD는
+            <code>be381a8476110387ff651383d441a0ec8c77b021</code>이었고, 이 correction pass의 실제
+            커밋 SHA는 <code>{{ROUND5_CORRECTION_SHA}}</code>다(위 "commit SHA" 행 참조). 기존
+            `report-insufficient-attempt-1440.png`(after-round4)는 삭제하지 않고 그대로 보존하며,
+            위에서 [SUPERSEDED]로 표시했다.
+          </p>
         </td>
       </tr>
     </table>

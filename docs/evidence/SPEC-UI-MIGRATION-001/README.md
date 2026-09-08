@@ -1,6 +1,8 @@
-# SPEC-UI-MIGRATION-001 Visual Evidence — Round 5 (current, in progress)
+# SPEC-UI-MIGRATION-001 Visual Evidence — Round 5 (final, correction pass applied)
 
-> Round 5 supersedes the Round 4 `audit-ready` verdict — see `progress.md` "Current Status" for the authoritative status (`verification-pending` until Round 5 re-approval conditions are met). Round 3/4 content below is kept as history, not deleted.
+> Round 5 supersedes the Round 4 `audit-ready` verdict — see `progress.md` "Current Status" for the authoritative status (`audit-ready` as of the 2026-09-08 correction pass — see `progress.md` "Round 5 — 3건 재분류 (correction pass)" for how the previously-unresolved 3 items were classified). Round 3/4 content below is kept as history, not deleted.
+>
+> **Correction pass (2026-09-08)**: this document, the four `comparison-*.html` files, and `progress.md`/`acceptance.md` were corrected for staleness (dev-mode login screenshots replaced with production captures, `comparison-report.html`'s image/SHA mismatch fixed, `comparison-case-input.html`'s stale INSUFFICIENT-not-secured text replaced with the actual success evidence, DoD checkbox contradiction resolved). No screen behavior changed in this pass — only evidence artifacts and documentation. Final capture/correction commit: `{{ROUND5_CORRECTION_SHA}}`.
 
 ## Directories
 
