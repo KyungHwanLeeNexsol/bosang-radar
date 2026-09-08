@@ -2,7 +2,7 @@
 
 > Round 5 supersedes the Round 4 `audit-ready` verdict — see `progress.md` "Current Status" for the authoritative status (`audit-ready` as of the 2026-09-08 correction pass — see `progress.md` "Round 5 — 3건 재분류 (correction pass)" for how the previously-unresolved 3 items were classified). Round 3/4 content below is kept as history, not deleted.
 >
-> **Correction pass (2026-09-08)**: this document, the four `comparison-*.html` files, and `progress.md`/`acceptance.md` were corrected for staleness (dev-mode login screenshots replaced with production captures, `comparison-report.html`'s image/SHA mismatch fixed, `comparison-case-input.html`'s stale INSUFFICIENT-not-secured text replaced with the actual success evidence, DoD checkbox contradiction resolved). No screen behavior changed in this pass — only evidence artifacts and documentation. Final capture/correction commit: `{{ROUND5_CORRECTION_SHA}}`.
+> **Correction pass (2026-09-08)**: this document, the four `comparison-*.html` files, and `progress.md`/`acceptance.md` were corrected for staleness (dev-mode login screenshots replaced with production captures, `comparison-report.html`'s image/SHA mismatch fixed, `comparison-case-input.html`'s stale INSUFFICIENT-not-secured text replaced with the actual success evidence, DoD checkbox contradiction resolved). No screen behavior changed in this pass — only evidence artifacts and documentation. Final capture/correction commit: `eb2171e`.
 
 ## Directories
 
@@ -15,14 +15,17 @@
 
 ## After-Round5 Screenshots (docs/evidence/SPEC-UI-MIGRATION-001/after-round5/)
 
-| File                                      | Viewport        | Screen        | Condition                                       |
-| ----------------------------------------- | --------------- | ------------- | ----------------------------------------------- |
-| login-{1440,1024,390}.png                 | 각              | Login         | Round 5 헤드라인 크기/위치 실측 보정 후         |
-| case-input-mobile-390-fullpage.png        | 390px, fullPage | Case Input    | Footer 레이아웃 붕괴 수정 후(재캡처)            |
-| expert-feedback-initial-{1440,1024}.png   | 각              | 전문가 피드백 | `#expert-feedback` 앵커, 초기 상태(top-of-page) |
-| expert-feedback-initial-390-fullpage.png  | 390px, fullPage | 전문가 피드백 | 초기 상태, 전체 페이지                          |
-| expert-feedback-partial-1440.png          | 1440px          | 전문가 피드백 | 전체 평가 선택 후(일부 입력 상태)               |
-| expert-feedback-validation-error-1440.png | 1440px          | 전문가 피드백 | 필수 항목 미선택 제출 시도 후(validation error) |
+| File                                      | Viewport        | Screen        | Condition                                                  |
+| ----------------------------------------- | --------------- | ------------- | ---------------------------------------------------------- |
+| login-{1440,1024,390}.png                 | 각              | Login         | Round 5 헤드라인 크기/위치 실측 보정 후                    |
+| case-input-mobile-390-fullpage.png        | 390px, fullPage | Case Input    | Footer 레이아웃 붕괴 수정 후(재캡처)                       |
+| expert-feedback-initial-{1440,1024}.png   | 각              | 전문가 피드백 | `#expert-feedback` 앵커, 초기 상태(top-of-page)            |
+| expert-feedback-initial-390-fullpage.png  | 390px, fullPage | 전문가 피드백 | 초기 상태, 전체 페이지                                     |
+| expert-feedback-partial-1440.png          | 1440px          | 전문가 피드백 | 전체 평가 선택 후(일부 입력 상태)                          |
+| expert-feedback-validation-error-1440.png | 1440px          | 전문가 피드백 | 필수 항목 미선택 제출 시도 후(validation error)            |
+| report-verified-claim-1440.png            | 1440px          | 리포트        | VERIFIED claim 확보(production 재캡처, correction pass)    |
+| report-insufficient-fixture-1440.png      | 1440px          | 리포트        | INSUFFICIENT 실제 성공 증빙(fixture 주입, correction pass) |
+| report-mobile-390-fullpage.png            | 390px, fullPage | 리포트        | 전체 페이지(production 재캡처, correction pass)            |
 
 **로컬 실행 기록 명시**: 이 프로젝트에는 GitHub Actions 등 원격 CI가 구성돼 있지 않다. 위 캡처와 아래 검증 결과는 모두 이 세션에서 로컬로 실행한 기록이며, CI에서 재현된 결과가 아니다.
 
@@ -81,4 +84,5 @@ CAPTURE_EVIDENCE=1 npx tsx scripts/run-e2e.ts --spec=e2e/capture-evidence.spec.t
 - before-round3/login-1440.png: captured live from commit `493356e7d6e5c7df1ccafca6921075cd05348993` via a temporary `git worktree add` + `pnpm dev`, then the worktree was removed (Round 4 procedure — see progress.md).
 - after-round3/: 23a2031c69f189c5e53c0e1dd813ef212b042117 → later re-captured at `b05eb5a24edef19c0ef1580bdbcab15d108f5b3c` (the commit the Round 4 external review targeted); this directory is the Round 4 "before" baseline for case-input.
 - after-round4/: this branch's HEAD at Round 4 completion (see progress.md for the exact commit once pushed).
+- after-round5/: Round 5 work commit `f6ea25a614782ae60c1e2c0ceaf575483d59087c` (initial Round 5 fixes) → SHA-backfill commit `be381a8476110387ff651383d441a0ec8c77b021` → **correction pass commit `eb2171e`** (this commit — login/mobile-footer/expert-feedback/report screenshots re-captured against `pnpm build && pnpm start`, replacing the dev-mode captures that showed the Next.js dev badge; `report-verified-claim-1440.png` and `report-insufficient-fixture-1440.png` are new in this commit).
 - Pencil exports: already committed in design/exports/ from previous rounds
