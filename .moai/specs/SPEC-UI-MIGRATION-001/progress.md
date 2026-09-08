@@ -3,6 +3,7 @@
 ## Sync 최종 종결 (2026-09-08 — 이 줄이 현재 유일하게 유효한 판정, 아래 "Current Status"보다 최신)
 
 - **`sync_status: completed`** — `acceptance.md` §4 DoD 6개 항목 전부 체크, `spec.md` frontmatter `status: completed`로 전환 완료(§E.4 참조). 사용자가 correction pass 완료 보고 이후 "지금 최종 완료로 닫기(권장)"를 선택해 종결을 명시적으로 승인했다(2026-09-08).
+- **2차 correction pass(같은 날, 종결 이후)**: 외부 독립 재검토가 §3/§4 모순(§3 원본 체크박스 미확인 상태로 §4만 체크됨)을 발견해 재수정했다 — § "Round 5 — §3/§4 모순 재검토 (2차 correction pass, 2026-09-08)" 참조. `sync_status: completed` 판정 자체는 변경되지 않으며, 이번 2차 pass는 그 판정의 근거 문서를 실제로 일치시킨 보정이다.
 - 아래 "Current Status (2026-09-07, Round 5 최종)" 절과 그 이하 모든 기록은 히스토리로 그대로 둔다 — 그 절이 기록한 `run_status: audit-ready`는 이 종결 판정으로 대체되지 않고 그 판정을 이끌어낸 근거로 남는다.
 
 ---
@@ -190,6 +191,18 @@ Pencil `design/exports/08-전문가-피드백.png`와 `after-round4/expert-feedb
 **정직한 결론 — flaky debt로 남김(단순 PASS 처리하지 않음)**: 3회 모두 **동일한 테스트가 예외 없이 매번 재시도됐다** — 사용자 요청대로 "retry가 계속 발생하면 단순 PASS로 처리하지 말고 flaky debt로 남긴다." 이 재현성(매회 정확히 이 테스트, 정확히 1회)은 무작위 flake가 아니라 §"Round 5 — 최종 검증"에서 이미 근본원인을 규명한 **결정론적 rate-limit 충돌**이다 — `case-input-mobile-layout.spec.ts` 직전에 실행되는 `case-flow.spec.ts`의 로그인이 Better Auth 기본 rate limit(`/sign-in` 경로 10초 창 내 최대 3회)과 시간상 겹쳐, 이 테스트 자신의 로그인 1회가 그 창에 걸린다. Playwright의 표준 재시도(`retries: 2`)가 이를 흡수하며, 재시도 후 결과는 매번 실제로 통과한다(결함을 감추는 것이 아니라 재시도 자체가 결함이 아님을 증명함 — 진짜 결함이라면 재시도 후에도 동일하게 실패했을 것).
 
 **후속 개선 항목(이번 SPEC 범위 밖, 후속 SPEC/작업 후보로 명시)**: 고정 sleep이나 전역 retry를 더 늘리는 것은 근본 해결이 아니다. Round 4에서 이미 검토했던 대로(§ "Round 4 — E2E 증거 정리 + rate-limit 재검토"), 근본적으로 유효한 해법은 **테스트 계정 분리**(rate limit이 이메일이 아닌 `/sign-in` 경로+IP 기준으로 추정되어 계정 분리만으로는 근본 해결이 아닐 수 있음, 재확인 필요) 또는 **인증 fixture/storageState 재사용**(로그인 횟수 자체를 줄여 rate limit 창에 걸릴 기회를 원천적으로 줄임 — `playwright.config.ts`에 `globalSetup` 도입 필요, `helpers.ts`는 PRESERVE 대상이라 신규 인증 경로는 그 밖에 구성해야 함)이다. 이번 correction pass는 문서·증빙 정확성 교정 범위이므로 이 인프라 변경은 수행하지 않고 후속 후보로만 기록한다.
+
+### Round 5 — §3/§4 모순 재검토 (2차 correction pass, 2026-09-08)
+
+**배경**: 외부 독립 재검토(SPEC `completed` 처리 이후)가 1차 correction pass(같은 날 앞서 수행)의 결함을 발견했다 — `acceptance.md` §3 시각 스모크 체크리스트 6개 항목이 전부 `[ ]`로 남아 있는데도 §4 DoD는 "§3 전부 확인"으로 `[x]` 체크돼 있어 두 문서 상태가 모순됐다. 1차 pass에서 §4의 3건 재분류(로그인 폼 간격/모바일 IA/Pencil 모바일 프레임)에 집중하느라, §3 원본 체크박스 자체를 실제로 대조하는 단계를 건너뛴 것이 원인이다 — 정직하게 기록한다.
+
+**수행 내용**: production 서버(`pnpm build && pnpm start`, 기존 `.next` 빌드 캐시 재사용)를 기준으로 §3의 6개 항목을 실제로 하나씩 대조했다. 4개 항목은 기존 committed 스크린샷(`after-round4/`, `after-round5/`) 직접 열람만으로 충분히 확인됐다. 나머지 2개 항목(App Shell 사이드바, 태블릿/모바일)은 각각 committed 스크린샷 + (사이드바 항목의 경우) 신규 1회성 Playwright 조사로 확인했다 — 상세 근거는 `acceptance.md` §3의 각 항목 인라인 각주 참조.
+
+**조사 중 발견한 사항 — 사이드바 사용자 블록 스크롤 가시성(신규 관찰, REQ/AC 위반 아님)**: `app-shell-chrome.tsx`의 `<aside>`는 데스크톱(`lg:` 이상)에서 `fixed` → `static` positioning으로 전환된다(`lg:static`, M8에서 도입). `static` 상태에서 aside는 부모 flex row의 높이(= 형제 컨텐츠의 실제 높이, `min-h-full`이 뷰포트 높이를 보장하지 않음)에 맞춰 늘어나며, `justify-between`으로 하단에 배치된 `<SidebarUserBlock />`도 그 늘어난 높이의 맨 아래에 위치한다. `/cases/new`처럼 폼 콘텐츠가 뷰포트보다 긴 화면에서는 사용자 블록을 보려면 페이지를 끝까지 스크롤해야 한다 — 실측(Playwright, 1024×768 뷰포트): `aside` bounding box 높이 `1268.75px`(뷰포트 768px 초과), 사용자 블록 텍스트 위치 `y=1226px`. 반대로 페이지가 짧은 화면(예: 사건-없음 404, `after-round4/exception-not-found-1440.png`)이나 모바일 드로어(뷰포트 전체 높이 `fixed`, `lg:` 미적용)에서는 사용자 블록이 정상적으로 뷰포트 내에 보인다 — 스타일 자체(이니셜 배지 + 이름 + 상단 구분선)는 두 경우 모두 동일하고 Pencil 패턴과 일치한다.
+
+이 관찰은 spec.md/acceptance.md의 어떤 REQ/AC도 사이드바의 뷰포트 고정(sticky/fixed)을 요구하지 않아 이 SPEC의 DoD를 막지 않는다 — REQ-016은 "사이드바는 고정 **폭**을 유지"라고만 명시하며 고정 **위치**는 요구하지 않는다. `app-shell-chrome.tsx`는 이 SPEC(M8)이 신설한 파일이므로 원인 자체는 이 SPEC 범위 내에 있지만, 수정 여부는 이번 correction pass의 범위(문서·증빙 정합성 보정만) 밖이므로 코드는 변경하지 않는다. **후속 SPEC 후보로 추가 기록**: 데스크톱 App Shell 사이드바를 뷰포트에 sticky/fixed로 고정해 긴 페이지에서도 사용자 블록이 항상 보이도록 개선(우선순위는 낮음 — 사용자 블록은 정보성 표시일 뿐 조작이 필요한 컨트롤이 아니므로 기능적 영향은 없음).
+
+**검증**: `pnpm test`/`pnpm lint`/`pnpm build`/`pnpm format:check` 재실행(구현 코드 변경 없음 확인용) — 아래 "2차 correction pass 최종 검증" 참조. `git diff`로 이번 2차 pass가 `acceptance.md`/`progress.md` 외 어떤 파일도 건드리지 않았음을 확인.
 
 ### Round 4 — 로그인 화면 Gap Matrix + 수정 (2026-09-07)
 
