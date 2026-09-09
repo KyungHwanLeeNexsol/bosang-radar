@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+### Added — SPEC-E2E-AUTH-STATE-001 E2E storageState 인증 재사용 — Better Auth `/sign-in` rate-limit flaky 제거
+
+`e2e/case-input-mobile-layout.spec.ts`/`e2e/tenant-isolation.spec.ts`가 인접 스펙 파일의 로그인 누적으로 Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)에 걸려 간헐적으로 실패하던 문제를, 재시도 횟수를 늘리는 대신 두 파일의 실제 UI 로그인 자체를 없애는 방식으로 근본 해결했습니다. Playwright의 project-dependency 기반 "setup 프로젝트" 패턴을 도입해 `e2e/auth.setup.ts`가 TESTER_A/TESTER_B 각각 정확히 1회씩 로그인 후 `storageState`를 저장하고, 두 대상 파일은 그 `storageState`를 재사용해 인증된 세션으로 시작합니다.
+
+- **신규 `e2e/auth.setup.ts`**: TESTER_A/TESTER_B 로그인 + `storageState` 저장. `/api/auth/sign-in/email` 네트워크 요청 횟수를 테스터당 정확히 1회로 직접 검증(`page.on("request", ...)`을 로그인 트리거 이전에 등록해 실패 요청도 계수)하고, 저장 직후 그 파일을 새 브라우저 컨텍스트로 로드해 `GET /api/auth/get-session`을 호출 + `user.email` 일치를 단언하는 상시 계정 검증을 포함합니다(쿠키·응답 전체는 로그에 남기지 않음)
+- **신규 `e2e/storage-state-paths.ts`**: 두 테스터의 `storageState` 파일 경로 상수(leaf 모듈, `import.meta` 미사용)
+- **`playwright.config.ts`**: `setup` project + 대상 2개 파일 전용 `chromium-authed` project(`dependencies: ["setup"]`) 추가, 기존 `chromium` project는 두 파일을 `testIgnore`로 제외. `workers: 1`/`retries: 2`/`webServer` 블록은 완전히 무변경
+- **대상 2개 파일**: `loginAsTester()` 호출을 제거하고 `test.use({ storageState })`로 전환 — 로그인 이후의 테스트 본문·단언은 무변경
+
+**검증**: 10개 요구사항(REQ-E2EAUTH-001~010) 전부 구현, 15개 인수 기준(AC-E2EAUTH-001~015, 015는 a/b 하위 시나리오 포함) 전부 실측으로 만족. `pnpm test:e2e`(전체 스위트) 5회 연속 실행에서 setup(TESTER_A/B)·대상 2개 파일 3항목이 매회 1차 시도 통과, leftover storageState 파일을 남긴 채 재실행해도 해시·mtime이 실제로 갱신되고 setup 내장 계정 검증이 (전체 스위트·`--spec` 필터 양쪽에서) 최종적으로 통과함을 확인했습니다. plan-auditor 3회 실행(iteration 1 FAIL 0.71 → iteration 2 0.86 → iteration 3 PASS 0.92) + 외부 독립 리뷰 3회 라운드(플랜 심층 리뷰, run-phase 구현 검토, sync-phase 문서 검토)를 거쳐 지적을 실측으로 해소했습니다. `pnpm test`(59 test files/395 tests)/`pnpm lint`/`pnpm build`/`pnpm format:check`(사전 위반 3건 `app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`은 이 SPEC과 무관 — 신규 위반 0건) 전부 exit 0. PRESERVE 대상(`e2e/helpers.ts`, `e2e/mobile-drawer-focus.spec.ts`, `playwright.config.ts`의 `workers`/`retries`/`webServer`, `scripts/` 전체, out-of-scope 5개 spec 파일, `e2e/auth.spec.ts`)은 SPEC 시작 시점부터 커밋 기준 zero-diff로 확인됐습니다. 잔여 부채 1건: `e2e/case-flow.spec.ts`(이 SPEC의 대상 파일 아님)가 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로 회복하는 기존 flaky 패턴을 그대로 유지(근본 해결은 후속 SPEC 후보).
+
+**참고**: `.moai/specs/SPEC-E2E-AUTH-STATE-001/`
+
 ### Added — SPEC-UI-MIGRATION-001 UI 마이그레이션 — Pencil 디자인 전체 화면 확장 재현(로그인·공통 예외·반응형 포함)
 
 SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트/전문가 피드백)을 넘어, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)의 나머지 화면과 App Shell 확장, 콘텐츠 정합성, 반응형 규칙을 마무리했습니다. 5차례의 외부 독립 재검토(Round 1~5)를 거쳐 발견된 결함을 매 라운드 실측으로 해소했습니다.

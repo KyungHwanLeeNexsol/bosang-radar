@@ -107,7 +107,7 @@ Total: 23 tests in 10 files   # case-input-mobile-layout/tenant-isolation은 [ch
 
 **Gaps**: 없음 — 5회 모두 실제로 실행하고 리포터 출력을 직접 관측했다.
 
-**판정**: 3항목 × 5회 = 15칸 전부 "1차 시도 통과" → **PASS 유지**. 상시 계정 검증 추가가 무재시도 요건에 영향을 주지 않았다.
+**판정**: 3항목(setup/case-input-mobile-layout/tenant-isolation) × 5회 = 15칸 전부 "1차 시도 통과" → **PASS 유지**. 상시 계정 검증 추가가 이 3항목의 무재시도 요건에 영향을 주지 않았다(전체 스위트 무재시도를 뜻하지 않음 — `case-flow.spec.ts`는 이 3항목에 포함되지 않으며 5회 전부 retry로 회복, § 잔여 부채 참고).
 
 ### AC-E2EAUTH-004 — 전체 스위트 회귀 없음 + capture-evidence 예상 스킵
 
@@ -180,7 +180,9 @@ $ git check-ignore -v .tmp/storageState-tester-a.json .tmp/storageState-tester-b
 | tester-a | 1788850787 | 1788851310 | `744fc6f044ec` | `fad8dc505e07` | PASS (TESTER_A_EMAIL 일치) |
 | tester-b | 1788850788 | 1788851310 | `3bc0ee35fc9b` | `c100c53232fa` | PASS (TESTER_B_EMAIL 일치) |
 
-**[개정 v0.1.3 — 상시 검증으로 재작성, 이번 커밋]** `e2e/auth.setup.ts`가 저장 직후 새 컨텍스트로 `GET /api/auth/get-session`을 호출하고 `user.email`을 단언하는 코드를 **영구적으로** 갖게 되었으므로, 이 AC의 계정-검증 부분은 더 이상 별도 임시 테스트가 필요 없다 — 매 실행의 `exit 0` 자체가 그 실행에 포함된 두 테스터 모두의 계정 검증이 통과했다는 직접 증거다(계정이 어긋나면 setup의 `expect(body.user?.email).toBe(email)`이 실패해 그 실행은 exit 0에 도달하지 못한다).
+**[개정 v0.1.3 — 상시 검증으로 재작성]** `e2e/auth.setup.ts`가 저장 직후 새 컨텍스트로 `GET /api/auth/get-session`을 호출하고 `user.email`을 단언하는 코드를 **영구적으로** 갖게 되었으므로, 이 AC의 계정-검증 부분은 더 이상 별도 임시 테스트가 필요 없다.
+
+**[개정 v0.1.4 — `retries: 2` 정합성 정정, sync-phase]** 매 실행의 exit 0은 **최종**(재시도 포함) 결과가 통과였다는 근거다 — `playwright.config.ts`의 `retries: 2`로 인해 `expect(body.user?.email).toBe(email)`이 첫 시도에서 실패해도 재시도가 성공하면 그 실행은 여전히 exit 0으로 끝난다("한 번이라도 실패하면 exit 0이 불가능하다"는 이전 표현은 부정확했다). 다만 계정 교차오염은 결정론적으로 재현되는 오류이므로 재시도해도 같은(잘못된) 이메일이 나오고, `retries: 2`를 모두 소진한 뒤에도 실패가 남으면 exit 0에 도달하지 못한다 — 즉 exit 0(최종)은 "계정 검증이 **결국** 통과했다"는 근거다. **최초 시도(무재시도) 여부는 별도로 확인한다**: 위 § AC-E2EAUTH-003 재확인 표(run1~5)에서 setup(TESTER_A)/setup(TESTER_B) 모두 8회 invocation(5회 전체 스위트 + 015a run2 + 015b 필터 2회) 전부 reporter에 재시도 표시(`(retry #N)`) 없이 "1차 시도 통과"로 기록되어 있다 — 이번 leftover 재실행(run2)도 그 표에 포함된 실측이다.
 
 **절차(v0.1.3)**: 위 §E.2 AC-003 재확인 섹션의 run1(전체 스위트, 최초) → run2(파일을 삭제하지 않은 채 leftover 상태로 재실행) 두 회차를 그대로 이 AC의 leftover 절차로 재사용한다.
 
@@ -207,7 +209,7 @@ $ git check-ignore -v .tmp/storageState-tester-a.json .tmp/storageState-tester-b
 |---|---|---|---|---|---|
 | tester-b | 1788851649 | 1788851724 | `a9daa5af1f3b` | `4277dc2bc9d3` | PASS |
 
-**[개정 v0.1.3 — 상시 검증으로 재작성, 이번 커밋]** TEMP 테스트 없이, run5(전체 스위트, 5회차 — leftover 기준) 이후 `--spec=case-input-mobile-layout`와 `--spec=tenant-isolation`을 순차 실행했다. 두 필터 실행 모두 `dependencies: ["setup"]`에 의해 TESTER_A/TESTER_B 두 setup 테스트가 항상 함께 실행되므로(`plan.md` §C M1 D9 재현과 동일 메커니즘), 매 필터 실행이 두 파일 모두를 재생성하고 setup의 상시 계정 검증도 매번 통과해야 exit 0에 도달한다.
+**[개정 v0.1.3 — 상시 검증으로 재작성]** TEMP 테스트 없이, run5(전체 스위트, 5회차 — leftover 기준) 이후 `--spec=case-input-mobile-layout`와 `--spec=tenant-isolation`을 순차 실행했다. 두 필터 실행 모두 `dependencies: ["setup"]`에 의해 TESTER_A/TESTER_B 두 setup 테스트가 항상 함께 실행되므로(`plan.md` §C M1 D9 재현과 동일 메커니즘), 매 필터 실행이 두 파일 모두를 재생성하고 setup의 상시 계정 검증도 (재시도를 포함해) 최종적으로 통과해야 exit 0에 도달한다 — **[v0.1.4]** 실측으로는 두 필터 실행 모두 재시도 없이 1차 시도에서 exit 0에 도달했다(아래 표의 "실행 결과" 열).
 
 | 레그 | | mtime(leftover) | mtime(재실행 후) | SHA-256(leftover, 앞 12자) | SHA-256(재실행 후, 앞 12자) | 실행 결과 |
 |---|---|---|---|---|---|---|
@@ -305,4 +307,23 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+외부 구현 검토(HEAD `009dd0e`) 2차 지적 대응 sync-phase. 구현 코드(`e2e/auth.setup.ts` 등)는 이번 sync에서 변경하지 않는다 — 문서 정합화 + PR 생성만 수행한다.
+
+- **sync_complete_at**: 2026-09-09
+- **sync_commit_sha**: `pending-backfill-sync-sha`(이 sync 커밋 자신의 SHA — 커밋 직후 `git rev-parse HEAD`로 확정해 이 필드를 backfill하는 후속 소규모 커밋에서 채움; `spec-frontmatter-schema.md`의 SHA placeholder backfill 예외 패턴)
+- **sync_status**: complete
+- **문서 정정 내역**:
+  1. `plan.md` M3(3) 코드 예제의 `requestfinished` → `request` 정정(실제 구현과 일치, 로그인 트리거 이전 등록)
+  2. `acceptance.md`/`progress.md` AC-E2EAUTH-015a/015b의 "단언이 한 번이라도 실패하면 exit 0이 불가능하다" 표현을 `playwright.config.ts`의 `retries: 2`에 맞게 정정 — exit 0(최종, 재시도 포함)은 계정 검증이 결국 통과했다는 근거이며, 최초 시도(무재시도) 여부는 reporter 재시도 표시로 별도 확인
+  3. `acceptance.md` §B DoD 15개 항목 전부 실측 증거와 대조해 `[x]`로 갱신, case-flow 5회 연속 retry + 사전 format 위반 3건을 DoD 상단 고지로 명시
+  4. `spec.md` frontmatter: `version` `0.1.2` → `0.1.4`, `status` `in-progress` → `completed`, `updated` `2026-09-08` → `2026-09-09`(body 내용은 manager-spec 소유 범위이므로 미변경)
+  5. `progress.md`(이 파일): §E.2 재확인 결과 통합, 잔여 부채 섹션 유지, §E.4 신설
+- **sync 필수 검증 재확인(문서 변경만이므로 코드 검증은 회귀 확인 목적)**:
+  - `pnpm test`(단위) → exit 0, 59 test files / 395 tests 전부 통과(로그: `.moai/state/verify/e2e-auth-state-001/unit-test.log`)
+  - `pnpm lint` → exit 0, 0건
+  - `pnpm run format:check` → exit 1, 사전 위반 3건과 완전 동일(신규 위반 0건) — `app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`
+  - `pnpm run build` → exit 0
+  - `pnpm test:e2e`는 이번 sync에서 재실행하지 않음(코드 무변경 — 직전 run-phase 커밋 `009dd0e`에서 5회 연속 + 필터 2회 실측 완료, §E.2 참고). 문서 서술과 실제 코드(`e2e/auth.setup.ts`) 간 정합은 `git diff --stat` 무변경으로 확인(아래)
+  - 구현 코드 무변경 확인: `git diff --stat 798a8b2 HEAD -- e2e/ playwright.config.ts` → 빈 결과(이번 sync 커밋이 e2e/playwright.config.ts를 건드리지 않음)
+- **잔여 부채**: 1건, run-phase와 동일(`case-flow.spec.ts` 기존 flaky, out-of-scope, 판정 영향 없음) — sync-phase에서 신규로 발견된 부채 없음
+- **PR**: `plan/SPEC-E2E-AUTH-STATE-001` → `main`, 아래 최종 보고에 URL 기록

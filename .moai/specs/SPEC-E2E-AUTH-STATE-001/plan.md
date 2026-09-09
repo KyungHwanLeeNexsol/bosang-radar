@@ -67,11 +67,16 @@ Playwright "setup" 테스트 파일을 신설한다. `loginAsTester()`는 import
 
 ```ts
 let signInHits = 0;
-page.on("requestfinished", (req) => {
+page.on("request", (req) => {
   if (req.method() === "POST" && new URL(req.url()).pathname === "/api/auth/sign-in/email") {
     signInHits += 1;
   }
 });
+// [HARD] 로그인을 트리거하기 이전에 리스너를 등록한다 — page.on("request", ...)는
+// 매 시도마다 발화하므로 실패/네트워크 오류로 끝난 요청도 계수한다.
+// page.on("requestfinished", ...)만 쓰면 성공적으로 완료된 요청만 잡혀
+// rate-limit에 걸려 실패한 시도를 놓칠 수 있다(구현 시 정정 — 외부 구현
+// 검토 지적, v0.1.3에서 이 코드 예제를 실제 구현과 일치시킴).
 // ... 로그인 수행 ...
 expect(signInHits).toBe(1);
 ```
