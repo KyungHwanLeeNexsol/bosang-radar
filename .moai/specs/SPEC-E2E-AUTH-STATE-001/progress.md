@@ -20,9 +20,15 @@ _<이하 §E.4는 sync-phase에서 채워짐>_
 
 ## §E.2 Run-phase Evidence
 
-### 실행 환경
+> **[v0.1.3 보완, 외부 구현 검토 HEAD `e97dac2` 대상]** 외부 구현 검토가 지적한 누락(계정 검증이 `auth.setup.ts`에 영구 코드로 남지 않고 M6 전용 임시 테스트로만 존재)을 보완한 커밋이다. 아래 §E.2 본문 중 "실행 환경"부터 AC-E2EAUTH-014까지는 **`e97dac2` 시점(v0.1.2)의 기록으로 그대로 보존**한다 — 그 시점의 사실이었고 지금도 유효하다. **AC-E2EAUTH-015a/015b 절만 이번 보완에서 재작성**했다: 과거 절차(M6 검증 전용으로 임시 계정-검증 테스트 코드를 추가했다가 검증 후 제거하는 방식)는 **[HISTORICAL — v0.1.2, 임시 코드 기반, 대체됨]**으로 표시해 구분하고, 그 아래에 **이번 커밋의 상시 검증**(임시 코드가 아니라 `e2e/auth.setup.ts`에 영구히 남는 코드) 증거를 추가했다. 나머지 절(AC-001~014, lint/format/build)도 이번 보완 작업 중 실제로 재실행해 재확인했으며, 새 회차 결과를 §E.2 하단에 추가하고 §E.3의 최종 SHA·push 상태·잔여 부채를 갱신한다.
+
+### 실행 환경 (v0.1.2, `e97dac2` 시점)
 
 `.claude/worktrees/agent-a42ca4696a50e5b1e`(격리 세션 워크트리)에서 실행. 브랜치는 origin `plan/SPEC-E2E-AUTH-STATE-001`(HEAD `1e1847d656f75c0532326d5c1d3d1ee24f2634b6`)로 fast-forward 정렬 후 구현. `pnpm install`로 의존성 설치, Playwright `1.62.1` + Chromium 브라우저 확인.
+
+### 실행 환경 (v0.1.3 보완, 이번 커밋)
+
+메인 체크아웃(`plan/SPEC-E2E-AUTH-STATE-001`, 브랜치 HEAD `e97dac2`)에서 직접 실행 — 별도 워크트리 격리 없음. `pnpm test:e2e` 5회 연속 + `--spec` 필터 2회 + lint/format:check/build를 모두 이번 세션에서 실측 재실행했다(아래 각 AC 절 참고).
 
 ### 구현 산출물 (계획된 5개 파일, 전부 구현)
 
@@ -81,13 +87,35 @@ Total: 23 tests in 10 files   # case-input-mobile-layout/tenant-isolation은 [ch
 
 **판정**: 3항목 × 5회 = 15칸 전부 "1차 시도 통과" → **PASS**. setup이 재시도 후 통과한 회차는 0건.
 
-**잔여 위험**: out-of-scope `case-flow.spec.ts`는 5회 전부 1차 시도 실패 → retry #1 통과(flaky)로 재현됐다 — 이는 spec.md §5가 명시한 기존에도 존재하던 잔여 위험이며, 이 SPEC의 대상 파일이 아니고 AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 이 AC의 판정에 영향 없음.
+**잔여 위험**: out-of-scope `case-flow.spec.ts`는 5회 전부 1차 시도 실패 → retry #1 통과(flaky)로 재현됐다 — 이는 spec.md §5가 명시한 기존에도 존재하던 잔여 위험이며, 이 SPEC의 대상 파일이 아니고 AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 이 AC의 판정에 영향 없음. **이 잔여 위험을 § 잔여 부채(Residual Debt)에 정식으로 기록한다(v0.1.3, 아래 참고) — "잔여 부채 없음"으로 뭉뚱그리지 않는다.**
+
+### AC-E2EAUTH-003 재확인 (v0.1.3 보완, `e2e/auth.setup.ts`에 상시 계정 검증 코드 추가 후 5회 재실행)
+
+**Claim**: `e2e/auth.setup.ts`에 저장 직후 `GET /api/auth/get-session` 상시 검증 코드를 추가한 뒤에도, 클린 트리에서 `pnpm test:e2e`를 5회 연속 실행할 때 3항목(setup 자신/`case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`) 모두 5회 전부 1차 시도 통과가 유지된다(새 검증 코드가 setup 시간을 늘려 rate-limit이나 타이밍에 새로운 flaky를 유발하지 않음을 확인).
+
+**Evidence** — 5회 각각의 Playwright `list` 리포터 출력에서 대상 3항목 행 발췌:
+
+| 회차 | setup(TESTER_A) | setup(TESTER_B) | case-input-mobile-layout | tenant-isolation | 회차 전체 결과 |
+|------|------------------|------------------|---------------------------|-------------------|----------------|
+| 1 | 1차 시도 통과 (1.0s) | 1차 시도 통과 (573ms) | 1차 시도 통과 (662ms) | 1차 시도 통과 (303ms) | exit 0, capture-evidence 10개 EXPECTED-SKIP, case-flow retry #1 통과 |
+| 2 | 1차 시도 통과 (819ms) | 1차 시도 통과 (524ms) | 1차 시도 통과 (601ms) | 1차 시도 통과 (311ms) | exit 0, 동일 |
+| 3 | 1차 시도 통과 (834ms) | 1차 시도 통과 (528ms) | 1차 시도 통과 (683ms) | 1차 시도 통과 (309ms) | exit 0, 동일 |
+| 4 | 1차 시도 통과 (791ms) | 1차 시도 통과 (533ms) | 1차 시도 통과 (645ms) | 1차 시도 통과 (262ms) | exit 0, 동일 |
+| 5 | 1차 시도 통과 (710ms) | 1차 시도 통과 (425ms) | 1차 시도 통과 (674ms) | 1차 시도 통과 (276ms) | exit 0, 동일 |
+
+**Baseline-attribution**: 5회 모두 이번 커밋(작업 트리, `e97dac2` + `e2e/auth.setup.ts` 상시 검증 코드 추가분) 대상, 메인 체크아웃에서 각 회차 독립 실행(매 회 DB 초기화 + 테스터 재프로비저닝). 로그 원문: `.moai/state/verify/e2e-auth-state-001/run{1..5}.log`.
+
+**Gaps**: 없음 — 5회 모두 실제로 실행하고 리포터 출력을 직접 관측했다.
+
+**판정**: 3항목 × 5회 = 15칸 전부 "1차 시도 통과" → **PASS 유지**. 상시 계정 검증 추가가 무재시도 요건에 영향을 주지 않았다.
 
 ### AC-E2EAUTH-004 — 전체 스위트 회귀 없음 + capture-evidence 예상 스킵
 
 **Evidence**: 5회 모두 `capture-evidence.spec.ts`·`capture-evidence-round5.spec.ts`(총 10개 테스트)가 EXPECTED-SKIP(리포터의 `-` 마크)으로 나타났고, `auth.spec.ts`/`comparison-docs-images.spec.ts`/`mobile-drawer-focus.spec.ts`/`sidebar-sticky.spec.ts`/`case-flow.spec.ts`(retry 허용)는 5회 모두 통과, 매 회 exit 0.
 
 **판정**: PASS.
+
+**재확인(v0.1.3 보완)**: 상시 계정 검증 추가 후 재실행한 5회(`run1.log`~`run5.log`) 각각에서 `grep -cE "^\s*-\s+[0-9]"`로 EXPECTED-SKIP 라인 수를 세면 5회 전부 정확히 `10`, `grep -cE "✘"`로 1차 실패 라인 수를 세면 5회 전부 정확히 `1`(case-flow, retry로 회복) — 회귀 없음. **판정**: PASS 유지.
 
 ### AC-E2EAUTH-001/002/008/010 — 정적/구조 확인
 
@@ -139,32 +167,56 @@ $ git check-ignore -v .tmp/storageState-tester-a.json .tmp/storageState-tester-b
 
 **판정**: PASS.
 
+**[개정 v0.1.3]** 구현 코드(`page.on("request", ...)`를 `page.goto("/login")` 이전에 등록)는 처음부터 이렇게 작성되어 있었다 — 실패 요청도 계수하기 위함이다. `acceptance.md` AC-E2EAUTH-014의 문구가 실제 구현과 다르게 `page.on("requestfinished", ...)`로 잘못 기술되어 있던 것을 이번 커밋에서 정정했다(외부 구현 검토 지적). 코드 변경 없음, 문서만 실제 구현에 맞춰 정정. 재확인 5회(run1~5) + 필터 2회(filterA/filterB) 전부에서 TESTER_A/TESTER_B 각 `signInHits === 1` 단언 통과(exit 0으로 간접 확인 — 실패 시 그 실행 자체가 실패한다).
+
 ### AC-E2EAUTH-015a — storageState 재생성 실측: leftover 파일 + 전체 스위트
 
-**절차**: run 5 종료 직후(leftover 상태, 삭제하지 않음) 두 파일의 SHA-256/mtime을 기록 → 두 대상 파일에 TEMP 계정 검증 테스트(`GET /api/auth/get-session` 호출 + `user.email` 비교)를 임시 추가 → `pnpm test:e2e`(전체 스위트) 1회 실행 → 재측정 → TEMP 테스트 제거(git diff로 순수 wording 변경만 남았음을 확인).
+**[HISTORICAL — v0.1.2, `e97dac2` 이전 기록, 대체됨]** 아래 절차는 M6 검증 전용으로 `GET /api/auth/get-session` 계정 검증 테스트를 **임시로 추가했다가 확인 후 제거**하는 방식이었다 — 외부 구현 검토가 지적한 누락이 바로 이것이다(계정 검증이 코드에 상시로 남지 않음). 수치는 그 시점의 실측 기록으로 보존만 한다.
+
+**절차(HISTORICAL)**: run 5 종료 직후(leftover 상태, 삭제하지 않음) 두 파일의 SHA-256/mtime을 기록 → 두 대상 파일에 TEMP 계정 검증 테스트(`GET /api/auth/get-session` 호출 + `user.email` 비교)를 임시 추가 → `pnpm test:e2e`(전체 스위트) 1회 실행 → 재측정 → TEMP 테스트 제거(git diff로 순수 wording 변경만 남았음을 확인).
 
 | | mtime(leftover) | mtime(재실행 후) | SHA-256(leftover, 앞 12자) | SHA-256(재실행 후, 앞 12자) | 계정 일치(TEMP 테스트) |
 |---|---|---|---|---|---|
 | tester-a | 1788850787 | 1788851310 | `744fc6f044ec` | `fad8dc505e07` | PASS (TESTER_A_EMAIL 일치) |
 | tester-b | 1788850788 | 1788851310 | `3bc0ee35fc9b` | `c100c53232fa` | PASS (TESTER_B_EMAIL 일치) |
 
-**판정**: mtime 갱신 + 해시 변경 + 계정 교차오염 없음 3가지 모두 확인 → PASS. (원문 쿠키·세션 값은 어떤 기록에도 남기지 않음 — 해시/mtime/bool 결과만 기록.)
+**[개정 v0.1.3 — 상시 검증으로 재작성, 이번 커밋]** `e2e/auth.setup.ts`가 저장 직후 새 컨텍스트로 `GET /api/auth/get-session`을 호출하고 `user.email`을 단언하는 코드를 **영구적으로** 갖게 되었으므로, 이 AC의 계정-검증 부분은 더 이상 별도 임시 테스트가 필요 없다 — 매 실행의 `exit 0` 자체가 그 실행에 포함된 두 테스터 모두의 계정 검증이 통과했다는 직접 증거다(계정이 어긋나면 setup의 `expect(body.user?.email).toBe(email)`이 실패해 그 실행은 exit 0에 도달하지 못한다).
+
+**절차(v0.1.3)**: 위 §E.2 AC-003 재확인 섹션의 run1(전체 스위트, 최초) → run2(파일을 삭제하지 않은 채 leftover 상태로 재실행) 두 회차를 그대로 이 AC의 leftover 절차로 재사용한다.
+
+| | mtime(run1, leftover) | mtime(run2, 재실행 후) | SHA-256(run1, 앞 12자) | SHA-256(run2, 앞 12자) | run2 종료 상태 |
+|---|---|---|---|---|---|
+| tester-a | 1788913413 | 1788913705 | `b7d5c4cdef9f` | `42f9010df9bc` | exit 0 (setup 내장 계정 검증 통과 포함) |
+| tester-b | 1788913413 | 1788913705 | `a7a3ef24bf74` | `83a06af97096` | exit 0 (동일) |
+
+**판정**: mtime 갱신 + 해시 변경 + run2 exit 0(= setup 상시 계정 검증 통과, 교차오염 없음) 3가지 모두 확인 → **PASS**. (원문 쿠키·세션 값은 어떤 기록에도 남기지 않음 — 해시/mtime/exit code만 기록. 로그 원문: `run1.log`, `run2.log`.)
 
 ### AC-E2EAUTH-015b — storageState 재생성 실측: leftover 파일 + `--spec` 필터 개별 실행
 
-**절차(TESTER_A / case-input-mobile-layout 레그)**: 015a 실행 직후 leftover(tester-a) 기록 → `case-input-mobile-layout.spec.ts`에만 TEMP 계정 검증 테스트 추가 → `pnpm test:e2e -- --spec=case-input-mobile-layout` 실행(exit 0, 4 tests passed — setup 2개 + 대상 1개 + TEMP 1개) → 재측정 → TEMP 제거.
+**[HISTORICAL — v0.1.2, `e97dac2` 이전 기록, 대체됨]** AC-E2EAUTH-015a와 동일한 사유로 TEMP 테스트 기반이었다. 수치는 보존만 한다.
+
+**절차(HISTORICAL, TESTER_A / case-input-mobile-layout 레그)**: 015a 실행 직후 leftover(tester-a) 기록 → `case-input-mobile-layout.spec.ts`에만 TEMP 계정 검증 테스트 추가 → `pnpm test:e2e -- --spec=case-input-mobile-layout` 실행(exit 0, 4 tests passed — setup 2개 + 대상 1개 + TEMP 1개) → 재측정 → TEMP 제거.
 
 | | mtime(leftover) | mtime(재실행 후) | SHA-256(leftover, 앞 12자) | SHA-256(재실행 후, 앞 12자) | 계정 일치 |
 |---|---|---|---|---|---|
 | tester-a | 1788851310 | 1788851649 | `fad8dc505e07` | `f8e7303138cb` | PASS |
 
-**절차(TESTER_B / tenant-isolation 레그)**: 위 레그가 남긴 leftover(tester-b, 두 테스터 모두 setup이 매번 재생성하므로 이미 갱신된 상태) 기록 → `tenant-isolation.spec.ts`에만 TEMP 계정 검증 테스트 추가 → `pnpm test:e2e -- --spec=tenant-isolation` 실행(exit 0, 4 tests passed) → 재측정 → TEMP 제거.
+**절차(HISTORICAL, TESTER_B / tenant-isolation 레그)**: 위 레그가 남긴 leftover(tester-b) 기록 → `tenant-isolation.spec.ts`에만 TEMP 계정 검증 테스트 추가 → `pnpm test:e2e -- --spec=tenant-isolation` 실행(exit 0, 4 tests passed) → 재측정 → TEMP 제거.
 
 | | mtime(leftover) | mtime(재실행 후) | SHA-256(leftover, 앞 12자) | SHA-256(재실행 후, 앞 12자) | 계정 일치 |
 |---|---|---|---|---|---|
 | tester-b | 1788851649 | 1788851724 | `a9daa5af1f3b` | `4277dc2bc9d3` | PASS |
 
-**판정**: 두 필터 실행 각각에서 mtime 갱신 + 해시 변경 + 계정 일치 3가지 모두 성립 → PASS. 전체 스위트 경로에서만 재생성이 보장되는 회귀는 없음을 확인.
+**[개정 v0.1.3 — 상시 검증으로 재작성, 이번 커밋]** TEMP 테스트 없이, run5(전체 스위트, 5회차 — leftover 기준) 이후 `--spec=case-input-mobile-layout`와 `--spec=tenant-isolation`을 순차 실행했다. 두 필터 실행 모두 `dependencies: ["setup"]`에 의해 TESTER_A/TESTER_B 두 setup 테스트가 항상 함께 실행되므로(`plan.md` §C M1 D9 재현과 동일 메커니즘), 매 필터 실행이 두 파일 모두를 재생성하고 setup의 상시 계정 검증도 매번 통과해야 exit 0에 도달한다.
+
+| 레그 | | mtime(leftover) | mtime(재실행 후) | SHA-256(leftover, 앞 12자) | SHA-256(재실행 후, 앞 12자) | 실행 결과 |
+|---|---|---|---|---|---|---|
+| `--spec=case-input-mobile-layout` | tester-a | 1788914664 | 1788915044 | `b6b879892676` | `f347158f918d` | exit 0, 3 tests passed(1차 시도) |
+| `--spec=case-input-mobile-layout` | tester-b | 1788914664 | 1788915045 | `7d65471c436e` | `eed5f82838d2` | (동일 실행) |
+| `--spec=tenant-isolation` | tester-a | 1788915044 | 1788915098 | `f347158f918d` | `e8733ed6503d` | exit 0, 3 tests passed(1차 시도) |
+| `--spec=tenant-isolation` | tester-b | 1788915045 | 1788915099 | `eed5f82838d2` | `cf3057fcaadc` | (동일 실행) |
+
+**판정**: 두 필터 실행 각각에서 mtime 갱신 + 해시 변경 + exit 0(= setup 상시 계정 검증 통과) 3가지 모두 성립 → **PASS**. 전체 스위트 경로에서만 재생성·계정 검증이 보장되는 회귀는 없음을 확인. 로그 원문: `filterA.log`, `filterB.log`.
 
 ### lint/format/build — 신규 위반 0건
 
@@ -173,6 +225,18 @@ $ pnpm run lint            → exit 0 (0 violations)
 $ pnpm run format:check    → exit 1, 정확히 3건(app/globals.css, CHANGELOG.md, docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html) — plan.md §D 인용 사전 위반과 완전 일치, 이 SPEC 변경 파일 내 신규 위반 0건
 $ pnpm run build           → exit 0
 ```
+
+### lint/format/build 재확인 (v0.1.3 보완, `e2e/auth.setup.ts` 수정 후)
+
+```
+$ pnpm run lint            → exit 0 (0 violations, e2e/auth.setup.ts 포함)
+$ npx eslint e2e/auth.setup.ts   → exit 0, 출력 없음
+$ npx tsc --noEmit -p tsconfig.json 2>&1 | grep -i "auth.setup"   → 출력 없음(타입 오류 0건)
+$ pnpm run format:check    → exit 1, 여전히 정확히 동일한 사전 위반 3건(app/globals.css, CHANGELOG.md, docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html) — 이 SPEC이 이번에 수정한 파일(e2e/auth.setup.ts, .moai/specs/SPEC-E2E-AUTH-STATE-001/{plan,acceptance}.md) 안에서 신규 위반 0건
+$ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §E.2 run1~5 각 회차의 `pnpm test:e2e`가 내부에서 수행하는 `next build`와 별개로 독립 재확인)
+```
+
+**판정**: 신규 lint/format/build 위반 0건 유지 → PASS.
 
 ### AC 전체 PASS/FAIL 매트릭스
 
@@ -191,15 +255,25 @@ $ pnpm run build           → exit 0
 | AC-E2EAUTH-011 | PASS | auth.spec.ts 무변경 |
 | AC-E2EAUTH-012 | PASS | 나머지 5개 out-of-scope 파일 무변경 |
 | AC-E2EAUTH-013 | PASS | scripts/ 전체 무변경 |
-| AC-E2EAUTH-014 | PASS | signInHits===1, 16회 테스트 실행 전부 통과 |
-| AC-E2EAUTH-015a | PASS | 전체 스위트 leftover 재생성 3조건 확인 |
-| AC-E2EAUTH-015b | PASS | 필터별(A/B) leftover 재생성 3조건 확인 |
+| AC-E2EAUTH-014 | PASS | signInHits===1, 16회 테스트 실행 전부 통과. **v0.1.3**: acceptance.md 문구를 실제 구현(`page.on("request", ...)`, 로그인 전 등록)에 맞춰 정정, 코드 변경 없음 |
+| AC-E2EAUTH-015a | PASS | **[v0.1.3 재작성]** 계정 검증이 `auth.setup.ts` 상시 코드로 전환 — leftover 해시/mtime 변경 + run2 exit 0(= 상시 계정 검증 통과)으로 재확인 |
+| AC-E2EAUTH-015b | PASS | **[v0.1.3 재작성]** 상시 코드 기준, `--spec` 필터 2레그 모두 해시/mtime 변경 + exit 0으로 재확인 |
 
-**전체 15개 AC 전부 PASS. 잔여 부채 없음.**
+**전체 15개 AC 전부 PASS.** 잔여 부채 1건 있음 — 아래 § 잔여 부채(Residual Debt) 참고(out-of-scope `case-flow.spec.ts`의 기존 flaky 재시도 패턴, 이 SPEC이 만든 결함 아님, 어떤 AC도 FAIL시키지 않음).
+
+### 잔여 부채 (Residual Debt)
+
+| 항목 | 범위 | 근거 | 판정에 미치는 영향 |
+|------|------|------|---------------------|
+| `e2e/case-flow.spec.ts`가 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로만 회복(flaky) | 이 SPEC의 대상 파일이 아님(out-of-scope, `spec.md` §4/§5에 기존 잔여 위험으로 이미 명시) | `run1.log`~`run5.log` 5회 전부에서 동일 패턴 재현(`grep -cE "✘"` = 1, 매 회) | AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 판정에 영향 없음. AC-E2EAUTH-003은 대상 3항목(setup/case-input-mobile-layout/tenant-isolation)만 채점 대상이므로 마찬가지로 영향 없음 |
+
+이 SPEC은 위 1건 외에 알려진 잔여 부채가 없다. "잔여 부채 없음"이라는 과거 문구(v0.1.2, `e97dac2`)는 이 항목을 별도 섹션으로 명시하지 않고 AC-003 절 안의 "잔여 위험" 각주로만 남겨 두어 상위 요약에서 누락된 것으로, 이번 커밋에서 정정한다.
 
 ### 부수적 발견 및 정정
 
 구현 중 AC-E2EAUTH-002/010의 정확한 grep 검증 명령을 실제로 재현하는 과정에서, 두 대상 스펙 파일에 추가한 설명 주석이 검증 대상 리터럴 문자열("loginAsTester")을 그대로 포함해 grep이 오탐되는 것을 발견했다. 커밋 `bed08d2`에서 주석 표현만 수정(동작 변경 없음)했다 — `verification-claim-integrity.md`가 요구하는 "실제로 실행한 명령의 검증된 출력"을 확보하는 과정에서 자체 발견한 결함이며, 사후 정정 완료.
+
+**[v0.1.3]** 외부 구현 검토(HEAD `e97dac2`)가 지적한 누락 — AC-E2EAUTH-015a/015b의 계정 검증이 M6 전용 임시 테스트 코드(추가 후 제거)로만 존재해, `auth.setup.ts`를 단독으로 실행하거나 재사용해도 저장된 storageState 파일이 실제로 유효한지 상시로 확인할 방법이 없었다는 지적을 반영해 상시 검증 코드를 추가했다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -217,6 +291,17 @@ $ pnpm run build           → exit 0
 - **m1_to_mN_commit_strategy**: M1(D9 close-out, 설계 재확인)~M5(전환)를 단일 feature 커밋(`0db2e01`)으로 묶고, 검증 과정에서 발견한 주석 오탐을 별도 fix 커밋(`bed08d2`)으로 분리 — plan.md §C가 M1~M6을 순차 마일스톤으로 서술하지만 milestone 세분화는 manager-develop의 구현 재량(sprint-round-naming.md)이며, M6(검증)는 커밋 대상이 아니라 이 progress.md 자체에 기록됨
 
 **Implementation Kickoff Approval**: 오케스트레이터가 별도 세션에서 승인 게이트를 통과시킨 후 이 위임을 발급한 것으로 전제하고 진행함(이 서브에이전트 세션 자체는 게이트를 수행하지 않음 — orchestrator-subagent 경계, `agent-common-protocol.md` §User Interaction Boundary).
+
+### v0.1.3 보완 (외부 구현 검토 HEAD `e97dac2` 대상, 이번 커밋)
+
+- **보완_complete_at**: 2026-09-09
+- **보완_commit_sha**: `798a8b2`(코드+SPEC 문서 커밋, full: `798a8b2ff03d8fabe104127d034dee08d966cf6c`), 이 progress.md 커밋 자신은 `git log -1`로 확인 가능
+- **보완_status**: complete
+- **변경 파일**: `e2e/auth.setup.ts`(수정 — 상시 계정 검증 코드 추가), `.moai/specs/SPEC-E2E-AUTH-STATE-001/plan.md`(수정 — M3(3)/M6(6) 정합), `.moai/specs/SPEC-E2E-AUTH-STATE-001/acceptance.md`(수정 — AC-014/015a/015b 재작성), `.moai/specs/SPEC-E2E-AUTH-STATE-001/progress.md`(이번 커밋)
+- **preserve_list_재확인**: `e2e/helpers.ts`·`e2e/auth.spec.ts`·`e2e/mobile-drawer-focus.spec.ts`·`scripts/` 전체·나머지 out-of-scope 5개 spec 파일·`playwright.config.ts`의 `workers`/`retries`/`webServer`·대상 2개 파일의 로그인 이후 assertion 전부 무변경 확인(커밋 diff 빈 결과 + 작업 트리 빈 결과, `e2e/case-input-mobile-layout.spec.ts`/`e2e/tenant-isolation.spec.ts`에 대한 `git diff --stat HEAD` 빈 결과로 로그인 이후 코드 무변경 직접 확인)
+- **재실행 검증**: `pnpm test:e2e` 5회 연속(신규) + `--spec` 필터 2회(신규) + `pnpm lint`/`pnpm run format:check`/`pnpm run build` 재실행 — 위 §E.2 각 AC 절 "v0.1.3" 표기 참고
+- **l44_post_push_fetch**: 이 progress.md 커밋과 함께 push 완료(§E.2 상단 및 아래 최종 SHA 참고 — 과거 "아직 push 전" 문구는 이번 커밋으로 대체됨)
+- **잔여 부채**: 1건(§E.2 잔여 부채 섹션 참고 — `case-flow.spec.ts` 기존 flaky, out-of-scope, 판정 영향 없음)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
