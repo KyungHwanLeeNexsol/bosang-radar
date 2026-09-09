@@ -59,6 +59,7 @@ Playwright "setup" 테스트 파일을 신설한다. `loginAsTester()`는 import
 
 1. 새 브라우저 컨텍스트에서 `/login` 이동 → 이메일/비밀번호 입력 → 제출 → `waitForURL("/")`
 2. `page.context().storageState({ path: <M2 경로 상수> })` 호출
+3. **[HARD, 신규 v0.1.3] 저장 직후 상시 계정 검증(임시 코드 아님)** — 저장한 파일 그 자체를 `browser.newContext({ storageState: <M2 경로 상수>, baseURL })`로 **새 브라우저 컨텍스트**에 로드하고, 그 컨텍스트의 `request.get("/api/auth/get-session")`으로 이 실행의 baseURL·실행 중인 서버에 대해 GET 요청을 보낸다. 응답이 성공(`response.ok()`)이고 `body.user.email`이 해당 TESTER_A/B 이메일과 일치함을 단언한 뒤 새 컨텍스트를 `close()`한다. 로그인에 사용한 기존 컨텍스트(`page.context()`)를 확인하는 것으로 대체하지 않는다 — 그것은 살아 있는 로그인 세션만 증명할 뿐 디스크에 저장된 파일 자체의 유효성은 증명하지 못한다. 이 단계는 `e2e/auth.setup.ts`에 **영구적으로 존재하는 코드**이며, 검증 후 제거하는 임시 스파이크가 아니다 — setup이 서버가 아직 살아 있는 이 시점에 매 실행마다 자동으로 수행한다(`acceptance.md` AC-E2EAUTH-015a/015b, §D 근거).
 
 두 테스터를 순차 처리(같은 파일 안에서 두 개의 `test()` 블록, 또는 하나의 `test()` 안에서 두 컨텍스트를 순차 생성 — 최종 형태는 자유롭게 선택 가능한 구현 세부사항이다).
 
@@ -97,11 +98,10 @@ expect(signInHits).toBe(1);
 3. **`e2e/helpers.ts`, `e2e/mobile-drawer-focus.spec.ts`, `e2e/auth.spec.ts`, 나머지 5개 out-of-scope 파일, `scripts/` 전체 무변경** — 각각 §A 2단계 방법으로 확인(`acceptance.md` AC-E2EAUTH-005/007/011/012/013).
 4. **`playwright.config.ts`의 `workers`/`retries`/`webServer` 블록 무변경** — `grep -c "retries: 2" playwright.config.ts`와 `grep -c "workers: 1" playwright.config.ts`가 각각 `1`; `webServer` 블록은 `$SPEC_START_SHA`/`$IMPL_COMPLETE_HEAD` 두 리비전에서 `sed -n '/^  webServer: {/,/^  },$/p'`로 블록을 추출해 `diff`로 비교, 빈 결과(`acceptance.md` AC-E2EAUTH-007).
 5. **`--spec=<filter>` 필터링 시에도 setup 의존성 실행(실제 진입점 확인)** — `pnpm test:e2e -- --spec=tenant-isolation`을 실행해, `tenant-isolation.spec.ts`가 인증된 세션으로 성공적으로 실행되고 exit 0으로 종료하는지 확인(`acceptance.md` AC-E2EAUTH-008) — 이것이 §C M1이 위임한 "실제 진입점을 통한 env 상속" 확인이다.
-6. **storageState 재생성 실측(leftover 파일 존재 상태에서)** — 아래 절차를 **(a) 전체 스위트**와 **(b) `--spec=<filter>` 개별 실행**(대상 2개 파일 각각) 양쪽 모두에 대해 수행한다(`acceptance.md` AC-E2EAUTH-015a/015b):
+6. **storageState 재생성 실측(leftover 파일 존재 상태에서)** — 아래 절차를 **(a) 전체 스위트**와 **(b) `--spec=<filter>` 개별 실행**(대상 2개 파일 각각) 양쪽 모두에 대해 수행한다(`acceptance.md` AC-E2EAUTH-015a/015b). **[개정 v0.1.3]** 계정 검증(과거 4번 항목)은 더 이상 이 M6 절차 전용의 별도 임시 코드로 수행하지 않는다 — M3(3)이 `e2e/auth.setup.ts`에 영구히 심어둔 상시 검증(저장 직후 새 컨텍스트로 `GET /api/auth/get-session` 호출 + `user.email` 단언)이 setup의 매 실행마다 자동으로 돈다. 따라서 leftover 재실행 절차가 검증해야 하는 것은 **해시·mtime 변경(재생성 여부)** 뿐이며, 계정 일치는 그 재실행 자체가 exit 0으로 끝났다는 사실(= setup 내장 단언이 통과했다는 사실)로 이미 증명된다 — 그 재실행이 실패했다면 setup의 계정-불일치 단언이 먼저 실패해 exit 0에 도달하지 못한다.
    1. 1차 실행 후 `.tmp/storageState-tester-{a,b}.json`의 SHA-256 해시(`sha256sum`)와 mtime(`stat`)을 기록한다 — **파일 내용(쿠키·토큰) 자체는 어떤 로그·증거에도 원문으로 남기지 않는다**, 해시값과 mtime만 기록한다(비밀 노출 없이 변경 여부만 증명 가능).
-   2. 파일을 삭제하지 않은 채(leftover 상태) 2차 실행을 수행한다(DB 초기화 + 테스터 재프로비저닝이 자동으로 일어남).
-   3. 2차 실행 직후 같은 두 값을 재측정 — mtime이 더 최신인지, SHA-256 해시가 1차와 달라졌는지 확인.
-   4. 각 storageState가 실제로 **자신의** 테스터 계정으로 인증되는지, Better Auth의 세션 조회 엔드포인트 `GET /api/auth/get-session`(`node_modules/better-auth/dist/api/routes/session.mjs`의 `createAuthEndpoint("/get-session", ...)` 실측 확인, 응답 스키마 `{ session, user }`)을 그 storageState로 호출해 응답 JSON의 `user.email` 필드만 추출·비교한다(`TESTER_A_STORAGE_STATE_PATH` → `user.email === TESTER_A_EMAIL`, 그 반대는 실패). **응답 전체나 세션 쿠키 자체를 로그에 남기지 않고, 비교 결과(bool)와 비교 대상 이메일 문자열만 기록한다.**
+   2. 파일을 삭제하지 않은 채(leftover 상태) 2차 실행을 수행한다(DB 초기화 + 테스터 재프로비저닝이 자동으로 일어남) — 이 2차 실행 자체가 setup의 상시 계정 검증을 다시 통과해야 하며, 그 실행의 exit 0이 곧 "재생성된 파일이 올바른 계정으로 인증됨"의 증거다.
+   3. 2차 실행 직후 같은 두 값을 재측정 — mtime이 더 최신인지, SHA-256 해시가 1차와 달라졌는지 확인한다. 이 두 값(해시 변경, mtime 갱신)이 이 절차가 별도로 측정해야 하는 유일한 사실이다.
 7. **프로덕션/애플리케이션 코드 무변경** — `$SPEC_START_SHA`/`$IMPL_COMPLETE_HEAD` 사이 `e2e/`, `playwright.config.ts`, `scripts/`, `.moai/` 외부에 diff가 없는지 확인(`acceptance.md` AC-E2EAUTH-009).
 8. **lint/format — 신규 위반 0건(사전 위반과 구분)** — `pnpm lint` exit 0(베이스라인 실측: 사전 위반 0건, 아래 §D 인용). `pnpm format:check`는 베이스라인에 이미 존재하는 3건(`app/globals.css`, `CHANGELOG.md`, `docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html` — 이 SPEC과 무관한 사전 부채, §D 인용)을 제외하고, 이 SPEC이 변경·추가한 파일(`e2e/auth.setup.ts`, `e2e/storage-state-paths.ts`, `e2e/case-input-mobile-layout.spec.ts`, `e2e/tenant-isolation.spec.ts`, `playwright.config.ts`) 안에서 신규 위반 0건임을 확인한다. `pnpm build` exit 0.
 

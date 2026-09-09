@@ -3,6 +3,8 @@
 모든 AC는 Given-When-Then 형식으로 이진(binary) 검증 가능하게 작성한다. 각 AC는 검증 대상 요구사항(REQ-E2EAUTH-XXX)을 **Traces** 라인으로 명시적으로 추적한다. AC 개수: 15개(AC-E2EAUTH-015는 a/b 두 하위 시나리오를 갖는 하나의 논리적 AC — Tier M 상한 16개 이내). REQ 10개 전체가 최소 1개의 AC에 의해 추적된다(§C 추적 매트릭스 참고).
 
 > **개정 v0.1.2 (external reviewer 심층 기술 리뷰 대응)**: (1) AC-005/007/009/011/012의 "무변경" 검증을 인자 없는 `git diff`(작업 트리 대 HEAD 비교 — 이미 커밋된 변경은 빈 결과로 나타나 거짓 PASS를 만드는 결함)에서 `$SPEC_START_SHA` vs `$IMPL_COMPLETE_HEAD` 커밋 diff + `git status --short` 작업 트리 확인 2단계로 교체(§A.0). (2) AC-003을 setup 단계 자신까지 포함하는 3항목 × 5회 세분화 기록으로 확장 — setup의 재시도-후-통과를 "flakiness 해소" PASS로 오인정하지 않도록 명시. (3) AC-006을 유지하고 AC-E2EAUTH-015a/015b(leftover storageState 재생성 실측)를 신설 — "유효한 JSON + gitignore 커버리지"만으로는 재생성을 증명하지 못함을 반영. (4) AC-E2EAUTH-013(scripts/ 무변경), AC-E2EAUTH-014(`/sign-in` 네트워크 요청 횟수 검증)를 신설. (5) AC-004에 capture-evidence 2개 파일의 EXPECTED-SKIP 상태를 명시. (6) AC-007에 `webServer` 블록 무변경의 블록 단위 diff 검증을 추가.
+>
+> **개정 v0.1.3 (외부 구현 검토 누락 보완, HEAD `e97dac2` 대상)**: (1) AC-E2EAUTH-014를 실제 구현(`page.on("request", ...)`을 로그인 트리거 **이전**에 등록 — 실패 요청도 계수)에 맞춰 정정. 이전 문구(`page.on("requestfinished", ...)`)는 구현과 어긋나 있었다. (2) AC-E2EAUTH-015a/015b를 재구성 — 계정 검증이 더 이상 이 AC 전용의 별도 실행 절차가 아니라 `e2e/auth.setup.ts`에 영구히 심어진 상시 코드(저장 직후 새 컨텍스트로 `GET /api/auth/get-session` 호출 + `user.email` 단언)임을 반영. leftover 재실행 절차는 해시·mtime 변경만 별도로 측정하고, 계정 일치는 그 재실행의 exit 0 자체가 증거다(setup 내장 단언이 실패하면 exit 0에 도달할 수 없으므로). 해시·mtime 비교 절차 자체는 변경 없이 유지.
 
 ## §A.0 검증 기준선(baseline) 표기법
 
@@ -112,20 +114,23 @@
 ### AC-E2EAUTH-014 — `/sign-in` 네트워크 요청 횟수 검증(테스터당 정확히 1회)
 **Traces**: REQ-E2EAUTH-001 (정밀화)
 - **Given** `e2e/auth.setup.ts`가 TESTER_A/TESTER_B 각각에 대해 독립된 `test()` 블록(또는 독립된 브라우저 컨텍스트)에서 로그인을 수행하고, 이 프로젝트의 Better Auth 설치본(`1.7.1`)이 이메일 로그인을 정확히 `POST /api/auth/sign-in/email`로 노출함(`node_modules/better-auth/dist/api/routes/sign-in.mjs`, `basePath`/`rateLimit` 커스터마이즈 없음 — `lib/auth/config.ts` 실측 확인)이 확인되었을 때
-- **When** 각 테스터의 로그인 블록이 `page.on("requestfinished", ...)`로 `POST` 메서드이면서 URL pathname이 정확히 `/api/auth/sign-in/email`인 요청 수를 계수하면
+- **When** 각 테스터의 로그인 블록이 **로그인을 트리거하기 전에**(`page.goto("/login")` 호출 이전에) `page.on("request", ...)`(**[개정 v0.1.3]** `requestfinished`가 아니라 `request` — 실패·네트워크 오류로 끝난 요청도 놓치지 않기 위함)로 `POST` 메서드이면서 URL pathname이 정확히 `/api/auth/sign-in/email`인 요청 수를 계수하면
 - **Then** TESTER_A 블록과 TESTER_B 블록 각각에서 그 계수(`signInHits`)가 정확히 `1`이다 — UI 리다이렉트 성공 여부가 아니라 실제 네트워크 요청 수로 "테스터당 로그인 1회"를 직접 증명한다. 이 카운트는 정수이며 쿠키·토큰을 포함하지 않으므로 검증 증거로 그대로 로그에 남겨도 안전하다.
 
 ### AC-E2EAUTH-015a — storageState 재생성 실측: leftover 파일 + 전체 스위트
 **Traces**: REQ-E2EAUTH-006 (재생성 실측 증명)
-- **Given** `pnpm test:e2e` 1차 실행 직후 `.tmp/storageState-tester-{a,b}.json`의 SHA-256 해시(`sha256sum`)와 mtime(`stat`)을 기록해 두었고(파일 원문 내용은 어떤 로그에도 남기지 않음), 그 파일들을 삭제하지 않은 채(leftover 상태) `pnpm test:e2e`를 2차 실행할 때(DB 초기화 + 테스터 재프로비저닝이 자동 발생)
-- **When** 2차 실행 직후 같은 두 파일의 SHA-256 해시와 mtime을 재측정하고, 각 파일을 그대로 `storageState`로 사용해 `GET /api/auth/get-session`(Better Auth 세션 조회 엔드포인트, `node_modules/better-auth/dist/api/routes/session.mjs` 실측 확인 — 응답 스키마 `{ session, user }`)을 호출하면
-- **Then** (1) 2차 실행 후 mtime이 1차보다 최신이고, (2) SHA-256 해시가 1차와 다르며(leftover 파일이 실제로 덮어써졌음을 증명 — "유효한 JSON"만으로는 부족), (3) `TESTER_A_STORAGE_STATE_PATH`로 호출한 응답의 `user.email`이 `TESTER_A_EMAIL`과, `TESTER_B_STORAGE_STATE_PATH`의 응답이 `TESTER_B_EMAIL`과 정확히 일치한다(교차 오염 없음 확인). **증거 기록 제약**: 해시값·mtime·이메일 비교 결과(bool)만 로그에 남기며, 세션 쿠키 원문·응답 전체 바디·비밀번호는 어떤 증거 파일에도 기록하지 않는다.
+
+**[개정 v0.1.3]** 계정 검증(과거: 이 AC 전용의 별도 실행 절차로 `GET /api/auth/get-session`을 호출)은 더 이상 이 AC만을 위한 임시 절차가 아니다 — `e2e/auth.setup.ts`가 storageState 저장 직후 새 브라우저 컨텍스트로 그 파일을 로드해 동일한 `GET /api/auth/get-session` 호출과 `user.email` 단언을 **매 실행마다 상시** 수행하도록 영구 코드로 구현되어 있다(`plan.md` §C M3(3)). 따라서 이 AC의 증명 대상은 (1) 재생성(해시·mtime 변경)과 (2) setup 내장 계정 검증이 2차(leftover) 실행에서도 통과했다는 사실(= 그 실행이 exit 0으로 끝났다는 것 자체) 두 가지로 재구성된다 — setup의 `expect(body.user?.email).toBe(email)`이 실패하면 그 테스트 자체가 실패해 스위트가 exit 0에 도달하지 못하므로, exit 0은 계정 일치의 직접 증거다.
+
+- **Given** `pnpm test:e2e` 1차 실행 직후 `.tmp/storageState-tester-{a,b}.json`의 SHA-256 해시(`sha256sum`)와 mtime(`stat`)을 기록해 두었고(파일 원문 내용은 어떤 로그에도 남기지 않음), 그 파일들을 삭제하지 않은 채(leftover 상태) `pnpm test:e2e`를 2차 실행할 때(DB 초기화 + 테스터 재프로비저닝이 자동 발생 — 이 2차 실행의 `setup` project가 `auth.setup.ts`의 상시 계정 검증을 다시 수행한다)
+- **When** 2차 실행이 exit 0으로 종료한 직후 같은 두 파일의 SHA-256 해시와 mtime을 재측정하면
+- **Then** (1) 2차 실행 자체가 exit 0으로 종료했다(= setup 내장 `GET /api/auth/get-session` + `user.email` 단언이 TESTER_A/TESTER_B 양쪽 모두 통과했다는 직접 증거, 교차 오염이 있었다면 그 단언이 실패해 exit 0에 도달하지 못한다), (2) 2차 실행 후 mtime이 1차보다 최신이고, (3) SHA-256 해시가 1차와 다르다(leftover 파일이 실제로 덮어써졌음을 증명 — "유효한 JSON"만으로는 부족). **증거 기록 제약**: 해시값·mtime·exit code만 로그에 남기며, 세션 쿠키 원문·응답 전체 바디·비밀번호는 어떤 증거 파일에도 기록하지 않는다.
 
 ### AC-E2EAUTH-015b — storageState 재생성 실측: leftover 파일 + `--spec` 필터 개별 실행
 **Traces**: REQ-E2EAUTH-006 (재생성 실측 증명, 필터링된 실행 경로)
-- **Given** AC-E2EAUTH-015a와 동일한 leftover 절차를, `pnpm test:e2e -- --spec=case-input-mobile-layout`(TESTER_A) 및 `pnpm test:e2e -- --spec=tenant-isolation`(TESTER_B) 각각의 개별 `--spec` 필터 실행에 대해 독립적으로 수행할 때(전체 스위트 실행과는 별개의 실행 경로임을 확인하기 위함)
-- **When** 각 필터링된 실행에서 AC-E2EAUTH-015a와 동일한 3가지 확인(mtime 갱신, 해시 변경, 계정 일치)을 수행하면
-- **Then** 두 필터 실행 각각에서 세 조건이 모두 성립한다 — 전체 스위트 경로에서만 재생성이 보장되고 `--spec` 필터 경로에서는 보장되지 않는 회귀가 없음을 증명한다. 증거 기록 제약은 AC-E2EAUTH-015a와 동일하다.
+- **Given** AC-E2EAUTH-015a와 동일한 leftover 절차를, `pnpm test:e2e -- --spec=case-input-mobile-layout`(TESTER_A) 및 `pnpm test:e2e -- --spec=tenant-isolation`(TESTER_B) 각각의 개별 `--spec` 필터 실행에 대해 독립적으로 수행할 때(전체 스위트 실행과는 별개의 실행 경로임을 확인하기 위함 — `--spec` 필터 실행에서도 `setup` project는 project-dependency에 의해 실행되므로, 대상 project와 함께 setup의 상시 계정 검증도 함께 수행된다)
+- **When** 각 필터링된 실행에서 AC-E2EAUTH-015a와 동일한 확인(exit 0 = setup 내장 계정 검증 통과, mtime 갱신, 해시 변경)을 수행하면
+- **Then** 두 필터 실행 각각에서 세 조건이 모두 성립한다 — 전체 스위트 경로에서만 재생성·계정 검증이 보장되고 `--spec` 필터 경로에서는 보장되지 않는 회귀가 없음을 증명한다. 증거 기록 제약은 AC-E2EAUTH-015a와 동일하다.
 
 ## §B. Definition of Done
 

@@ -14,8 +14,13 @@
 // 실행되며, 개별 `pnpm exec playwright test auth.setup` 직접 실행도
 // 가능하지만 CI/로컬 표준 경로는 `pnpm test:e2e`뿐이다. `/api/auth/sign-in/email`
 // 네트워크 카운팅은 REQ-E2EAUTH-001의 "테스터당 1회" 요구를 UI 리다이렉트가
-// 아니라 실제 요청 수로 증명하기 위함이다(AC-E2EAUTH-014).
-import { test, expect, type Page } from "@playwright/test";
+// 아니라 실제 요청 수로 증명하기 위함이다(AC-E2EAUTH-014). storageState 저장
+// 직후 새 브라우저 컨텍스트로 그 파일을 로드해 GET /api/auth/get-session을
+// 호출하는 계정 검증은, 서버가 살아 있는 이 setup 단계에서 매 실행마다
+// 상시 도는 검증이다(AC-E2EAUTH-015a/015b) — leftover 재실행 시의
+// 해시/mtime 비교와는 독립적인, "저장된 파일이 실제로 그 테스터로
+// 인증되는가"에 대한 별도의 확인이다.
+import { test, expect, type Page, type Browser } from "@playwright/test";
 import { TESTER_A_EMAIL, TESTER_B_EMAIL } from "../scripts/e2e-tester-emails.ts";
 import { requireTesterPassword } from "./helpers.ts";
 import { TESTER_A_STORAGE_STATE_PATH, TESTER_B_STORAGE_STATE_PATH } from "./storage-state-paths.ts";
@@ -27,8 +32,20 @@ import { TESTER_A_STORAGE_STATE_PATH, TESTER_B_STORAGE_STATE_PATH } from "./stor
 // 노출된다(plan.md §D).
 const SIGN_IN_EMAIL_PATHNAME = "/api/auth/sign-in/email";
 
+// Better Auth 세션 조회 엔드포인트 — 소스 실측 확인:
+// node_modules/better-auth/dist/api/routes/session.mjs
+// createAuthEndpoint("/get-session", ...). 응답 스키마 { session, user }
+// (basePath 커스터마이즈 없음 — 위 SIGN_IN_EMAIL_PATHNAME과 동일 근거).
+const GET_SESSION_PATHNAME = "/api/auth/get-session";
+
+interface GetSessionResponseBody {
+  session: unknown;
+  user: { email: string } | null;
+}
+
 async function loginAndSaveStorageState(
   page: Page,
+  browser: Browser,
   email: string,
   storageStatePath: string
 ): Promise<void> {
@@ -57,12 +74,31 @@ async function loginAndSaveStorageState(
   expect(signInHits).toBe(1);
 
   await page.context().storageState({ path: storageStatePath });
+
+  // AC-E2EAUTH-015a/015b — 저장 직후, 저장한 파일 그 자체를 새 브라우저
+  // 컨텍스트에 로드해 실제로 그 테스터로 인증되는지 확인한다. 로그인에
+  // 사용한 기존 컨텍스트(`page.context()`)를 확인하는 것으로는 대체할 수
+  // 없다 — 그것은 "살아 있는 로그인 세션"을 확인할 뿐, 디스크에 저장된
+  // storageState 파일 자체가 유효한지는 증명하지 못한다. baseURL은 이
+  // 실행에서 실제로 로그인에 사용한 서버 origin(`page.url()`)에서 구한다.
+  const baseURL = new URL(page.url()).origin;
+  const verifyContext = await browser.newContext({ storageState: storageStatePath, baseURL });
+  try {
+    const response = await verifyContext.request.get(GET_SESSION_PATHNAME);
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as GetSessionResponseBody;
+    // [HARD] 응답 전체·세션 쿠키는 로그에 남기지 않는다 — 비교에 필요한
+    // user.email 필드만 단언에 사용한다(AC-E2EAUTH-015a/015b 증거 기록 제약).
+    expect(body.user?.email).toBe(email);
+  } finally {
+    await verifyContext.close();
+  }
 }
 
-test("TESTER_A 로그인 후 storageState 저장", async ({ page }) => {
-  await loginAndSaveStorageState(page, TESTER_A_EMAIL, TESTER_A_STORAGE_STATE_PATH);
+test("TESTER_A 로그인 후 storageState 저장", async ({ page, browser }) => {
+  await loginAndSaveStorageState(page, browser, TESTER_A_EMAIL, TESTER_A_STORAGE_STATE_PATH);
 });
 
-test("TESTER_B 로그인 후 storageState 저장", async ({ page }) => {
-  await loginAndSaveStorageState(page, TESTER_B_EMAIL, TESTER_B_STORAGE_STATE_PATH);
+test("TESTER_B 로그인 후 storageState 저장", async ({ page, browser }) => {
+  await loginAndSaveStorageState(page, browser, TESTER_B_EMAIL, TESTER_B_STORAGE_STATE_PATH);
 });
