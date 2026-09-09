@@ -310,7 +310,7 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 외부 구현 검토(HEAD `009dd0e`) 2차 지적 대응 sync-phase. 구현 코드(`e2e/auth.setup.ts` 등)는 이번 sync에서 변경하지 않는다 — 문서 정합화 + PR 생성만 수행한다.
 
 - **sync_complete_at**: 2026-09-09
-- **sync_commit_sha**: `pending-backfill-sync-sha`(이 sync 커밋 자신의 SHA — 커밋 직후 `git rev-parse HEAD`로 확정해 이 필드를 backfill하는 후속 소규모 커밋에서 채움; `spec-frontmatter-schema.md`의 SHA placeholder backfill 예외 패턴)
+- **sync_commit_sha**: `2a2ea78`(full: `2a2ea783af5939ac774562b428681d9ba1103e15`)
 - **sync_status**: complete
 - **문서 정정 내역**:
   1. `plan.md` M3(3) 코드 예제의 `requestfinished` → `request` 정정(실제 구현과 일치, 로그인 트리거 이전 등록)
