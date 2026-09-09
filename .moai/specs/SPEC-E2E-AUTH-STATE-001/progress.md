@@ -388,7 +388,7 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 기존 progress/acceptance의 PASS·체크박스를 증거로 쓰지 않고 REQ-001~010/AC-001~015(a/b)를 코드·실행 로그와 처음부터 재대조했다(방법·결과는 §E.2b). 구현 코드(`e2e/`, `playwright.config.ts`)는 이번 라운드에서도 변경하지 않는다 — 문서 정정 + `case-flow.spec.ts` 회귀 원인 조사만 수행한다.
 
 - **감사_complete_at**: 2026-09-09
-- **감사_commit_sha**: 이 progress.md를 포함한 커밋의 SHA(커밋 직후 backfill)
+- **감사_commit_sha**: `6f7bc77`(full: `6f7bc77178670f8af234eeeb6f930a479b91b569`)
 - **정정 내역**:
   1. `acceptance.md` AC-E2EAUTH-009 pathspec에 `':!CHANGELOG.md'` 추가(REQ-009 의도 — 애플리케이션 코드만 대상 — 와 기계적 검증 정합, 판정 자체는 불변)
   2. `progress.md`/`acceptance.md`의 AC-E2EAUTH-014/015a/015b 실행 횟수를 "8회 invocation/16회 테스트"(HISTORICAL, v0.1.2 임시 코드 절차 수치)와 "7회 독립 실행/14회 invocation"(v0.1.3 상시 코드 절차, run2 중복 집계 제거)로 명확히 분리
