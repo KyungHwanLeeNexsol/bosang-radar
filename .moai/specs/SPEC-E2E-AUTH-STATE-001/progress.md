@@ -30,6 +30,59 @@ _<이하 §E.4는 sync-phase에서 채워짐>_
 
 메인 체크아웃(`plan/SPEC-E2E-AUTH-STATE-001`, 브랜치 HEAD `e97dac2`)에서 직접 실행 — 별도 워크트리 격리 없음. `pnpm test:e2e` 5회 연속 + `--spec` 필터 2회 + lint/format:check/build를 모두 이번 세션에서 실측 재실행했다(아래 각 AC 절 참고).
 
+## §E.2b 독립 감사 (v0.1.5, HEAD `167c71b` 대상)
+
+**감사 범위와 방법**: 기존 이 문서·`acceptance.md`의 PASS 표기와 `[x]` 체크박스 자체는 증거로 채택하지 않고, `spec.md` REQ-001~010 / `plan.md` M1~M6 / `acceptance.md` AC-001~015(a/b)를 실제 코드(`e2e/auth.setup.ts`, `e2e/storage-state-paths.ts`, `playwright.config.ts`, `e2e/case-input-mobile-layout.spec.ts`, `e2e/tenant-isolation.spec.ts`, `e2e/helpers.ts`, `lib/auth/config.ts`, `node_modules/better-auth@1.7.1` 소스)와 처음부터 직접 대조했다. 검토 기준선 SHA(`1d480eaac2e0b53e0a5f0080baf14a596f09f533`)와 외부 검토 HEAD(`167c71be25ae71391bbf44e8e569e6c4b850e28b`)가 감사 시작 시점의 실제 HEAD와 일치함을 `git log`/`git status`로 먼저 확인했다(추가 변경 없음 — 감사 대상은 정확히 그 커밋).
+
+### REQ ↔ 구현 독립 재대조
+
+| REQ | 요구사항 요지 | 코드 위치 | 검증 근거(직접 실행/실측) | 판정 |
+|-----|---------------|-----------|---------------------------|------|
+| REQ-E2EAUTH-001 | setup에서 TESTER_A/B 각 1회 로그인 + storageState 저장 | `e2e/auth.setup.ts` 2개 `test()` 블록 | run1~5/filterA/filterB(7회) 전부 setup 2개 테스트 성공, `.tmp/storageState-tester-{a,b}.json`이 `{cookies, origins}` 구조로 존재(직접 `node -e`로 JSON 파싱 확인) | PASS |
+| REQ-E2EAUTH-002 | 대상 2개 파일이 `loginAsTester()` 대신 storageState 재사용 | `case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`의 `test.use({ storageState })` | `grep -n "loginAsTester"` 두 파일 빈 결과(직접 재실행, exit 1) | PASS |
+| REQ-E2EAUTH-003 | 대상 2개 파일 제외 다른 `e2e/*.spec.ts`의 로그인 동작 무변경 | 나머지 8개 spec 파일 소스 | `git diff --stat $SPEC_START_SHA 167c71b`가 8개 파일 전부 빈 결과(소스 레벨 무변경) — **단, `case-flow.spec.ts`의 실행 시점 rate-limit 충돌 여부는 소스 무변경과 별개 사안임을 아래 § case-flow 회귀 조사에서 별도로 다룬다** | PASS(소스 레벨) — 실행 결과 회귀는 별도 항목 |
+| REQ-E2EAUTH-004 | `e2e/helpers.ts` 무변경 | — | `git diff --stat` 빈 결과 | PASS |
+| REQ-E2EAUTH-005 | `workers`/`retries`/`loginForDrawerTest` 무변경 | `playwright.config.ts`, `e2e/mobile-drawer-focus.spec.ts` | `grep -c "retries: 2"`=1, `grep -c "workers: 1"`=1, 두 파일 `git diff` 빈 결과 | PASS |
+| REQ-E2EAUTH-006 | storageState 매 실행 재생성, 커밋 금지 | `e2e/auth.setup.ts`의 `storageState({ path })` | run1→run2 해시 변경(b7d5c4cdef9f→42f9010df9bc 등), `git log --all` 대상 파일 커밋 이력 없음, `.gitignore:108 *.tmp` 매칭 확인 | PASS |
+| REQ-E2EAUTH-007 | `--spec` 필터 실행에서도 setup 의존성 수행 | `playwright.config.ts` `dependencies: ["setup"]` | filterA.log/filterB.log 둘 다 setup 2개 테스트 포함, exit 0 | PASS |
+| REQ-E2EAUTH-008 | 대상 2개 파일의 기존 단언·시나리오 무변경 | 두 파일 본문 | `git diff $SPEC_START_SHA 167c71b`로 직접 확인 — 변경분은 import/`test.use`/`loginAsTester` 호출 제거뿐, 테스트 본문·단언 라인은 문자 그대로 동일 | PASS |
+| REQ-E2EAUTH-009 | `e2e/`·`playwright.config.ts`·`scripts/` 외부 애플리케이션 코드 무변경 | — | 원래 pathspec으로 재실행 시 `CHANGELOG.md`가 비어 있지 않은 diff로 나타남을 발견(sync-phase가 추가) — REQ 문언("애플리케이션/프로덕션 코드")상 `CHANGELOG.md`는 대상 아님이 명백하여 `acceptance.md` AC-009 pathspec에 `':!CHANGELOG.md'` 추가로 정정. 정정된 pathspec으로는 빈 결과 | PASS(정정 후) |
+| REQ-E2EAUTH-010 | storageState 경로 상수가 `import.meta` 미사용 leaf 모듈 | `e2e/storage-state-paths.ts` | `grep -n "import.meta"` 4개 관련 파일 전부 빈 결과(직접 재실행) | PASS |
+
+AC-001~015(a/b)는 위 REQ 대조와 § E.2(각 AC 절, 이번 감사에서 실행 로그 원문으로 재확인)·§ E.2b 실행 증거 재검토가 함께 뒷받침한다 — 개별 AC 재확인 결과가 기존 판정과 다른 유일한 항목은 AC-E2EAUTH-004의 잔여 부채 서술(case-flow, 아래)과 AC-E2EAUTH-009(pathspec, 위)이며, 나머지 13개 AC는 재대조 후에도 동일하게 PASS다.
+
+### 실행 증거 재검토 — 재사용 vs 재실행
+
+| 대상 | 처리 | 근거 |
+|------|------|------|
+| run1~5.log, filterA/B.log의 setup A/B·대상 2개 파일 1차 시도/재시도 여부 | **재사용**(원본 로그 재확인) | 로그가 존재하고, 로그를 만든 코드 버전(`798a8b2`)이 현재 HEAD(`167c71b`)의 `e2e/`·`playwright.config.ts`와 `git diff --stat`로 완전히 동일함을 확인(§E.2 상단) — 버전 불일치 없음 |
+| leftover 해시·mtime 변경(run1→run2, run5→filterA→filterB) | **재사용**(직접 관측한 1차 값) | 커맨드 실행 결과를 이 세션이 직접 관측·기록한 값이며 재실행해도 달라질 성질의 증거가 아님(해시/mtime은 실행 시점의 사실) |
+| `pnpm test`/`pnpm lint`/`pnpm build`/`pnpm format:check` | **재사용**(sync-phase 재실행 로그, 코드 무변경 확인 후) | 이번 감사에서 코드 변경이 없었으므로(§E.2b 결론) 재실행 불필요 — 단 CHANGELOG.md 문서 정정 후 아래 "sync 필수 검증 재확인"에서 1회 더 재실행해 회귀 없음을 확인 |
+| `case-flow.spec.ts`의 베이스라인 대비 회귀 여부 | **신규 재실행**(격리 워크트리 3회) | 기존 로그만으로는 "베이스라인에서도 그랬는지"를 판단할 수 없어(베이스라인 실행 기록이 없었음) 아래 § case-flow 회귀 조사에서 별도로 수행 |
+
+### § case-flow 회귀 조사 (v0.1.5)
+
+**배경**: `spec.md` §1 WHY와 이 문서의 과거 기록은 SPEC 시작 시점의 flaky 대상을 `case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts` 2개 파일로 명시했다 — `case-flow.spec.ts`는 baseline 문서 어디에도 flaky로 언급되지 않는다. 그런데 이번 SPEC 구현 이후 `case-flow.spec.ts`가 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로 회복하는 패턴을 보였고(§E.2 AC-003 재확인 표), 과거 기록은 이를 "이 SPEC의 대상 파일이 아닌 기존 잔여 위험"으로만 서술했다 — `case-flow.spec.ts` 소스 자체는 무변경(§ REQ-003)이므로 그 서술은 일견 타당해 보이지만, **소스 무변경이 곧 실행 결과(타이밍) 무변경을 의미하지 않는다**는 점이 검증되지 않은 채 넘어갔다.
+
+**조사 방법**: `git worktree add`로 `$SPEC_START_SHA`(`1d480eaac2e0b53e0a5f0080baf14a596f09f533`, storageState 도입 이전 코드)를 별도 워크트리에 격리(`pnpm install` 후 동일 `pnpm test:e2e` 진입점)해, 현재 코드와 **동일한 실행 조건**(같은 머신, 같은 DB 리셋, 같은 rate-limit 설정)에서 3회 연속 실행하고 결과를 비교했다.
+
+| 대상 | 베이스라인(`$SPEC_START_SHA`, 3회) | 현재(`167c71b`, 5회 전체 + 필터 2회 = 7회) |
+|------|-------------------------------------|----------------------------------------------|
+| `case-flow.spec.ts` | **3/3 1차 시도 통과**(재시도 0건) | **5/5(전체 스위트 실행) 1차 시도 실패 → retry #1로 회복** |
+| `case-input-mobile-layout.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **7/7 1차 시도 통과**(재시도 0건) |
+| `tenant-isolation.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **7/7 1차 시도 통과**(재시도 0건) |
+| 매 실행 exit code | 3/3 exit 0 | 7/7 exit 0 |
+
+로그 원문: `.moai/state/verify/e2e-auth-state-001/baseline/base{1,2,3}.log`(베이스라인), `run{1..5}.log`/`filterA.log`/`filterB.log`(현재).
+
+**원인 특정**: 베이스라인에서는 `chromium` project 안에서 파일이 알파벳 순으로 실행되며, `case-flow.spec.ts`가 실행될 때까지 `/sign-in/email` POST는 `auth.spec.ts`의 2건(성공 1 + 거부 1, 거부도 `/sign-in/email`에 POST됨)뿐이었다 — `case-flow.spec.ts`의 로그인이 그 창 안에서 3번째 요청이었다. 현재 코드는 `e2e/auth.setup.ts`가 스위트 시작 직후 TESTER_A/TESTER_B 로그인 2건을 **추가로** 선행시키므로(setup project가 항상 가장 먼저 실행), `case-flow.spec.ts`가 로그인을 시도하는 시점에는 이미 setup 2건 + auth.spec 2건 = 4건의 `/sign-in/email` POST가 짧은 시간 안에 선행되어 있다 — `case-flow.spec.ts`의 로그인은 그 창 안에서 5번째 요청이 되어, Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)을 초과한다. 이 인과관계는 (a) 두 조건에서 `case-flow.spec.ts` 소스가 완전히 동일하고, (b) 실행 순서상 `case-flow.spec.ts` 앞에 새로 추가된 요청이 정확히 setup 2건뿐이며, (c) `--spec` 필터 실행(filterA/filterB, `case-flow.spec.ts`가 아예 실행되지 않는 경로)에서는 이 현상이 관측되지 않는다는 사실과 모두 정합적이다.
+
+**결론**: `case-flow.spec.ts`의 flakiness는 "이 SPEC과 무관하게 기존부터 있던 잔여 위험"이 아니라, **이 SPEC이 도입한 setup 로그인 2건이 rate-limit 충돌 지점을 원래 대상 2개 파일에서 `case-flow.spec.ts`로 이동시킨 결과**다 — `case-flow.spec.ts` 소스는 무변경이지만 그 파일이 실행되는 **타이밍 컨텍스트**가 이 SPEC에 의해 변경됐기 때문에 나타난, 인과관계가 특정된 부작용이다. `spec.md` §5는 "setup 프로젝트 실행이 인접 스펙 파일의 rate-limit 예산을 소비할 가능성"을 일반론으로 이미 예견했고, 그 완화책으로 기존 `retries: 2` 안전망과 AC-E2EAUTH-004의 "무재시도가 아니라 통과(재시도 허용)만 요구" 판정 기준을 명시적으로 지정해 두었다 — 그 설계상 이 사실만으로 어떤 AC도 FAIL되지 않는다(AC-E2EAUTH-003의 무재시도 요건은 setup A/B + 대상 2개 파일 3항목에만 적용되고, `case-flow.spec.ts`는 그 3항목에 포함되지 않는다). 다만 "기존 flaky 패턴을 그대로 유지"라는 과거 서술은 사실과 다르므로, 이번 감사에서 "이동(shift)"으로 정정한다.
+
+**미확인/잔여 사항**: (1) 베이스라인 3회 vs 현재 7회로 표본 크기가 다르다 — baseline 5회 재현까지는 수행하지 않았다(3회로도 100%/100% 대비가 명확해 표본을 늘려도 결론이 바뀔 가능성은 낮다고 판단했으나, 통계적으로 완전히 동일한 표본 크기는 아니다). (2) `auth.spec.ts`의 두 번째 테스트(거부된 로그인)가 실제로 `/sign-in/email`에 POST를 보내는지는 코드 리딩으로 강하게 추정했을 뿐 네트워크 레벨로 재확인하지 않았다 — 다만 (a)(b)(c)의 정합성 논거는 이 세부사항과 무관하게 성립한다. (3) rate-limit 윈도우의 정확한 슬라이딩 경계(몇 초 시점에 몇 건이 만료되는지)까지는 재현하지 않았다 — "충돌이 발생한다"는 사실은 7/7 재현으로 확정됐으나, "정확히 몇 번째 요청부터"는 근사치다.
+
+**후속 처리 권고 (수정하지 않음 — 범위 확장 필요)**: 이 회귀를 없애려면 (a) `case-flow.spec.ts`를 수정(이 SPEC의 PRESERVE/out-of-scope 대상 — `spec.md` §4 "다른 e2e 스펙 파일의 storageState 전환" 목록에 명시)하거나, (b) `playwright.config.ts`의 `retries`/rate-limit 관련 설정을 조정(REQ-E2EAUTH-005가 명시적으로 금지)하거나, (c) Better Auth의 rate limit 설정을 완화(spec.md §4 "프로덕션 인증 코드 변경"이 명시적으로 배제)해야 하는데, 세 경로 모두 이 SPEC의 명시적 제약을 위반한다. `e2e/auth.setup.ts`(이 SPEC이 신설한, 수정 가능한 유일한 파일)에 인위적 지연을 추가하는 방안도 검토했으나, 그 자체가 근본 원인(요청 총량 증가)을 해결하지 못하고 다른 파일로 충돌 지점을 한 번 더 이동시킬 뿐인 임시방편이라 채택하지 않았다. **따라서 이번 sync-phase에서는 코드를 수정하지 않고, 이 발견을 정확히 기록한 뒤 "스위트 시작 시점 rate-limit 충돌 근본 해결"을 후속 SPEC 후보로 남긴다.**
+
 ### 구현 산출물 (계획된 5개 파일, 전부 구현)
 
 | 파일 | 상태 |
@@ -163,7 +216,9 @@ $ git check-ignore -v .tmp/storageState-tester-a.json .tmp/storageState-tester-b
 
 ### AC-E2EAUTH-014 — `/sign-in` 네트워크 요청 횟수(테스터당 정확히 1회)
 
-**Evidence**: `signInHits === 1`의 `expect()` 단언이 `e2e/auth.setup.ts`의 TESTER_A/TESTER_B 두 테스트 블록 모두에서 5회 연속 실행 + 015a/015b 3회 추가 실행(총 8회 invocation × 2 테스터 = 16회 테스트 실행) 전부 통과. 이 카운트는 정수이며 쿠키·토큰을 포함하지 않는다.
+**[HISTORICAL — v0.1.2, `e97dac2` 시점 기록]** `signInHits === 1`의 `expect()` 단언이 `e2e/auth.setup.ts`의 TESTER_A/TESTER_B 두 테스트 블록 모두에서 5회 연속 실행 + 015a/015b 3회 추가 실행(총 8회 invocation × 2 테스터 = 16회 테스트 실행) 전부 통과. 이 수치는 당시(임시 코드 기반 AC-015a/015b 절차) 실행 구성에서 나온 것이며, 아래 v0.1.5 재계산과 다르다.
+
+**[개정 v0.1.5 — 실행 횟수 재계산]** v0.1.3(상시 검증 코드 도입) 재검증은 전체 스위트 5회(run1~5) + `--spec` 필터 2회(filterA/filterB) = **독립 실행 7회**다. 이 7회 각각이 setup TESTER_A/TESTER_B 블록을 1회씩 실행하므로 setup invocation 합계는 **7 × 2 = 14회**다 — AC-E2EAUTH-015a의 leftover 재실행(run2)은 이 5회 중 2번째 실행을 그대로 재사용한 것이며 별도의 6번째 실행이 아니므로 8회로 집계하지 않는다. 이 카운트는 정수이며 쿠키·토큰을 포함하지 않는다.
 
 **판정**: PASS.
 
@@ -182,7 +237,7 @@ $ git check-ignore -v .tmp/storageState-tester-a.json .tmp/storageState-tester-b
 
 **[개정 v0.1.3 — 상시 검증으로 재작성]** `e2e/auth.setup.ts`가 저장 직후 새 컨텍스트로 `GET /api/auth/get-session`을 호출하고 `user.email`을 단언하는 코드를 **영구적으로** 갖게 되었으므로, 이 AC의 계정-검증 부분은 더 이상 별도 임시 테스트가 필요 없다.
 
-**[개정 v0.1.4 — `retries: 2` 정합성 정정, sync-phase]** 매 실행의 exit 0은 **최종**(재시도 포함) 결과가 통과였다는 근거다 — `playwright.config.ts`의 `retries: 2`로 인해 `expect(body.user?.email).toBe(email)`이 첫 시도에서 실패해도 재시도가 성공하면 그 실행은 여전히 exit 0으로 끝난다("한 번이라도 실패하면 exit 0이 불가능하다"는 이전 표현은 부정확했다). 다만 계정 교차오염은 결정론적으로 재현되는 오류이므로 재시도해도 같은(잘못된) 이메일이 나오고, `retries: 2`를 모두 소진한 뒤에도 실패가 남으면 exit 0에 도달하지 못한다 — 즉 exit 0(최종)은 "계정 검증이 **결국** 통과했다"는 근거다. **최초 시도(무재시도) 여부는 별도로 확인한다**: 위 § AC-E2EAUTH-003 재확인 표(run1~5)에서 setup(TESTER_A)/setup(TESTER_B) 모두 8회 invocation(5회 전체 스위트 + 015a run2 + 015b 필터 2회) 전부 reporter에 재시도 표시(`(retry #N)`) 없이 "1차 시도 통과"로 기록되어 있다 — 이번 leftover 재실행(run2)도 그 표에 포함된 실측이다.
+**[개정 v0.1.4 — `retries: 2` 정합성 정정, sync-phase]** 매 실행의 exit 0은 **최종**(재시도 포함) 결과가 통과였다는 근거다 — `playwright.config.ts`의 `retries: 2`로 인해 `expect(body.user?.email).toBe(email)`이 첫 시도에서 실패해도 재시도가 성공하면 그 실행은 여전히 exit 0으로 끝난다("한 번이라도 실패하면 exit 0이 불가능하다"는 이전 표현은 부정확했다). 다만 계정 교차오염은 결정론적으로 재현되는 오류이므로 재시도해도 같은(잘못된) 이메일이 나오고, `retries: 2`를 모두 소진한 뒤에도 실패가 남으면 exit 0에 도달하지 못한다 — 즉 exit 0(최종)은 "계정 검증이 **결국** 통과했다"는 근거다. **최초 시도(무재시도) 여부는 별도로 확인한다**: 위 § AC-E2EAUTH-003 재확인 표(run1~5) + filterA/filterB에서 setup(TESTER_A)/setup(TESTER_B) 모두 **7회 독립 실행(14회 invocation)** 전부 reporter에 재시도 표시(`(retry #N)`) 없이 "1차 시도 통과"로 기록되어 있다(run2는 그 5회 중 2번째 실행이며 별도 실행이 아니다 — v0.1.5 재계산 참고).
 
 **절차(v0.1.3)**: 위 §E.2 AC-003 재확인 섹션의 run1(전체 스위트, 최초) → run2(파일을 삭제하지 않은 채 leftover 상태로 재실행) 두 회차를 그대로 이 AC의 leftover 절차로 재사용한다.
 
@@ -257,19 +312,19 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 | AC-E2EAUTH-011 | PASS | auth.spec.ts 무변경 |
 | AC-E2EAUTH-012 | PASS | 나머지 5개 out-of-scope 파일 무변경 |
 | AC-E2EAUTH-013 | PASS | scripts/ 전체 무변경 |
-| AC-E2EAUTH-014 | PASS | signInHits===1, 16회 테스트 실행 전부 통과. **v0.1.3**: acceptance.md 문구를 실제 구현(`page.on("request", ...)`, 로그인 전 등록)에 맞춰 정정, 코드 변경 없음 |
+| AC-E2EAUTH-014 | PASS | signInHits===1, 7회 독립 실행(14회 invocation) 전부 통과(v0.1.5 재계산 — 과거 "16회"는 임시 코드 기반 v0.1.2 절차의 수치, HISTORICAL). **v0.1.3**: acceptance.md 문구를 실제 구현(`page.on("request", ...)`, 로그인 전 등록)에 맞춰 정정, 코드 변경 없음 |
 | AC-E2EAUTH-015a | PASS | **[v0.1.3 재작성]** 계정 검증이 `auth.setup.ts` 상시 코드로 전환 — leftover 해시/mtime 변경 + run2 exit 0(= 상시 계정 검증 통과)으로 재확인 |
 | AC-E2EAUTH-015b | PASS | **[v0.1.3 재작성]** 상시 코드 기준, `--spec` 필터 2레그 모두 해시/mtime 변경 + exit 0으로 재확인 |
 
-**전체 15개 AC 전부 PASS.** 잔여 부채 1건 있음 — 아래 § 잔여 부채(Residual Debt) 참고(out-of-scope `case-flow.spec.ts`의 기존 flaky 재시도 패턴, 이 SPEC이 만든 결함 아님, 어떤 AC도 FAIL시키지 않음).
+**전체 15개 AC 전부 PASS.** 잔여 부채 1건 있음 — 아래 § 잔여 부채(Residual Debt) 참고. **[v0.1.5 정정]** 이 부채는 "이 SPEC이 만든 결함 아님(기존 flaky 그대로)"이 아니라 **이 SPEC의 변경이 원인으로 특정된, rate-limit 충돌 지점의 이동**이다 — 상세 인과관계는 § case-flow 회귀 조사 참고. 어떤 AC도 FAIL시키지는 않는다(AC-E2EAUTH-004가 재시도를 허용하기 때문).
 
 ### 잔여 부채 (Residual Debt)
 
 | 항목 | 범위 | 근거 | 판정에 미치는 영향 |
 |------|------|------|---------------------|
-| `e2e/case-flow.spec.ts`가 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로만 회복(flaky) | 이 SPEC의 대상 파일이 아님(out-of-scope, `spec.md` §4/§5에 기존 잔여 위험으로 이미 명시) | `run1.log`~`run5.log` 5회 전부에서 동일 패턴 재현(`grep -cE "✘"` = 1, 매 회) | AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 판정에 영향 없음. AC-E2EAUTH-003은 대상 3항목(setup/case-input-mobile-layout/tenant-isolation)만 채점 대상이므로 마찬가지로 영향 없음 |
+| `e2e/case-flow.spec.ts`가 5/5(전체 스위트) 1차 시도 실패 → retry #1로만 회복(flaky) | 이 SPEC의 대상 파일이 아님(out-of-scope, `spec.md` §4가 storageState 전환 대상에서 명시적으로 제외) — **단, 이 flaky 자체는 이 SPEC이 새로 유발한 rate-limit 충돌 이동의 결과임이 격리 베이스라인 대조로 확인됨(§ case-flow 회귀 조사)** | `run1.log`~`run5.log` 5회 전부 동일 패턴(`grep -cE "✘"` = 1, 매 회) + 격리 워크트리 베이스라인 3회 대조(베이스라인은 3/3 무재시도 통과) | AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 판정에 영향 없음. AC-E2EAUTH-003의 무재시도 요건은 대상 3항목(setup/case-input-mobile-layout/tenant-isolation)만 채점 대상이므로 마찬가지로 영향 없음 — **다만 이 부채는 "이 SPEC과 무관한 기존 문제"가 아니라 "이 SPEC이 유발했으나 SPEC 제약(PRESERVE/out-of-scope) 때문에 이 SPEC 범위에서 고칠 수 없는 부작용"으로 정확히 분류해야 한다** |
 
-이 SPEC은 위 1건 외에 알려진 잔여 부채가 없다. "잔여 부채 없음"이라는 과거 문구(v0.1.2, `e97dac2`)는 이 항목을 별도 섹션으로 명시하지 않고 AC-003 절 안의 "잔여 위험" 각주로만 남겨 두어 상위 요약에서 누락된 것으로, 이번 커밋에서 정정한다.
+이 SPEC은 위 1건 외에 알려진 잔여 부채가 없다. "잔여 부채 없음"이라는 v0.1.2 문구, 그리고 v0.1.2~v0.1.4가 이 항목을 "이 SPEC과 무관한 기존 flaky"로 서술한 것 모두 이번 v0.1.5 독립 감사에서 정정한다 — 근본 해결(스위트 시작 시점 rate-limit 충돌 제거)은 후속 SPEC 후보로 남긴다(§ case-flow 회귀 조사 § 후속 처리 권고).
 
 ### 부수적 발견 및 정정
 
@@ -315,7 +370,7 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 - **문서 정정 내역**:
   1. `plan.md` M3(3) 코드 예제의 `requestfinished` → `request` 정정(실제 구현과 일치, 로그인 트리거 이전 등록)
   2. `acceptance.md`/`progress.md` AC-E2EAUTH-015a/015b의 "단언이 한 번이라도 실패하면 exit 0이 불가능하다" 표현을 `playwright.config.ts`의 `retries: 2`에 맞게 정정 — exit 0(최종, 재시도 포함)은 계정 검증이 결국 통과했다는 근거이며, 최초 시도(무재시도) 여부는 reporter 재시도 표시로 별도 확인
-  3. `acceptance.md` §B DoD 15개 항목 전부 실측 증거와 대조해 `[x]`로 갱신, case-flow 5회 연속 retry + 사전 format 위반 3건을 DoD 상단 고지로 명시
+  3. `acceptance.md` §B DoD **14개**(체크박스 실제 개수 — 15는 논리 AC 개수) 항목 전부 실측 증거와 대조해 `[x]`로 갱신, case-flow 5회 연속 retry + 사전 format 위반 3건을 DoD 상단 고지로 명시(**[v0.1.5 정정]** 당시 "15개"로 잘못 표기했던 것을 아래 v0.1.5에서 바로잡음)
   4. `spec.md` frontmatter: `version` `0.1.2` → `0.1.4`, `status` `in-progress` → `completed`, `updated` `2026-09-08` → `2026-09-09`(body 내용은 manager-spec 소유 범위이므로 미변경)
   5. `progress.md`(이 파일): §E.2 재확인 결과 통합, 잔여 부채 섹션 유지, §E.4 신설
 - **sync 필수 검증 재확인(문서 변경만이므로 코드 검증은 회귀 확인 목적)**:
@@ -325,5 +380,27 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
   - `pnpm run build` → exit 0
   - `pnpm test:e2e`는 이번 sync에서 재실행하지 않음(코드 무변경 — 직전 run-phase 커밋 `009dd0e`에서 5회 연속 + 필터 2회 실측 완료, §E.2 참고). 문서 서술과 실제 코드(`e2e/auth.setup.ts`) 간 정합은 `git diff --stat` 무변경으로 확인(아래)
   - 구현 코드 무변경 확인: `git diff --stat 798a8b2 HEAD -- e2e/ playwright.config.ts` → 빈 결과(이번 sync 커밋이 e2e/playwright.config.ts를 건드리지 않음)
-- **잔여 부채**: 1건, run-phase와 동일(`case-flow.spec.ts` 기존 flaky, out-of-scope, 판정 영향 없음) — sync-phase에서 신규로 발견된 부채 없음
-- **PR**: `plan/SPEC-E2E-AUTH-STATE-001` → `main`, 아래 최종 보고에 URL 기록
+- **잔여 부채**: 1건(`case-flow.spec.ts`, out-of-scope, 판정 영향 없음) — **[v0.1.5 정정]** "기존 flaky"가 아니라 이 SPEC이 유발한 rate-limit 충돌 이동으로 원인 재분류됨, § case-flow 회귀 조사 참고
+- **PR**: `plan/SPEC-E2E-AUTH-STATE-001` → `main` (#9), 아래 최종 보고에 URL 기록
+
+### v0.1.5 독립 감사 (외부 검토 HEAD `167c71b` 대상, 이번 커밋)
+
+기존 progress/acceptance의 PASS·체크박스를 증거로 쓰지 않고 REQ-001~010/AC-001~015(a/b)를 코드·실행 로그와 처음부터 재대조했다(방법·결과는 §E.2b). 구현 코드(`e2e/`, `playwright.config.ts`)는 이번 라운드에서도 변경하지 않는다 — 문서 정정 + `case-flow.spec.ts` 회귀 원인 조사만 수행한다.
+
+- **감사_complete_at**: 2026-09-09
+- **감사_commit_sha**: 이 progress.md를 포함한 커밋의 SHA(커밋 직후 backfill)
+- **정정 내역**:
+  1. `acceptance.md` AC-E2EAUTH-009 pathspec에 `':!CHANGELOG.md'` 추가(REQ-009 의도 — 애플리케이션 코드만 대상 — 와 기계적 검증 정합, 판정 자체는 불변)
+  2. `progress.md`/`acceptance.md`의 AC-E2EAUTH-014/015a/015b 실행 횟수를 "8회 invocation/16회 테스트"(HISTORICAL, v0.1.2 임시 코드 절차 수치)와 "7회 독립 실행/14회 invocation"(v0.1.3 상시 코드 절차, run2 중복 집계 제거)로 명확히 분리
+  3. `case-flow.spec.ts` 잔여 부채 서술을 "이 SPEC과 무관한 기존 flaky"에서 "이 SPEC이 유발한 rate-limit 충돌 이동(원인 특정, 격리 베이스라인 3회 대조)"으로 정정 — 격리 워크트리(`$SPEC_START_SHA`) 3회 재현으로 실증
+  4. `progress.md` §E.4의 "DoD 15개" 표기를 실제 개수 "14개"로 정정
+  5. `CHANGELOG.md`의 "pnpm test/lint/build/format:check 전부 exit 0" 표현을 "test/lint/build exit 0, format:check exit 1(사전 위반 3건, 신규 0건)"로 분리하고 case-flow 서술을 위 3번과 동일하게 정정
+- **sync 필수 검증 재확인(문서 변경만이므로 코드 재실행 없음)**:
+  - `pnpm test`(단위) → exit 0(재실행, 로그: `unit-test-v015.log`)
+  - `pnpm lint` → exit 0
+  - `pnpm run format:check` → exit 1, 사전 위반 3건과 동일(신규 0건)
+  - `pnpm run build` → exit 0
+  - `pnpm test:e2e` 5회·필터 2회는 **재실행하지 않음**(코드 무변경 — `git diff --stat 798a8b2 167c71b -- e2e/ playwright.config.ts` 빈 결과로 이번 라운드에서도 재확인) — 기존 run1~5/filterA/filterB 로그를 재사용
+  - `case-flow.spec.ts` 회귀 조사용 베이스라인 3회는 **신규 실행**(격리 워크트리, §E.2b 참고) — 감사 종료 후 `git worktree remove`로 정리
+- **잔여 부채**: 1건(위와 동일, 원인 재분류)
+- **PR**: #9 본문을 이번 정정 내용에 맞춰 갱신(case-flow 서술, exit code 표현)

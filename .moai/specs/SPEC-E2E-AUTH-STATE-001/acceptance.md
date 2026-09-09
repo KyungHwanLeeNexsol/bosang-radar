@@ -7,6 +7,8 @@
 > **개정 v0.1.3 (외부 구현 검토 누락 보완, HEAD `e97dac2` 대상)**: (1) AC-E2EAUTH-014를 실제 구현(`page.on("request", ...)`을 로그인 트리거 **이전**에 등록 — 실패 요청도 계수)에 맞춰 정정. 이전 문구(`page.on("requestfinished", ...)`)는 구현과 어긋나 있었다. (2) AC-E2EAUTH-015a/015b를 재구성 — 계정 검증이 더 이상 이 AC 전용의 별도 실행 절차가 아니라 `e2e/auth.setup.ts`에 영구히 심어진 상시 코드(저장 직후 새 컨텍스트로 `GET /api/auth/get-session` 호출 + `user.email` 단언)임을 반영. leftover 재실행 절차는 해시·mtime 변경만 별도로 측정하고, 계정 일치는 그 재실행이 (재시도를 포함해) 최종적으로 exit 0에 도달했다는 사실이 증거다. 해시·mtime 비교 절차 자체는 변경 없이 유지.
 >
 > **개정 v0.1.4 (외부 구현 검토 2차 누락 보완, HEAD `009dd0e` 대상, sync-phase)**: (1) `plan.md` M3(3)의 코드 예제가 여전히 `requestfinished`를 쓰고 있던 것을 실제 구현(`request`, 로그인 트리거 이전 등록)에 맞춰 정정 — AC-E2EAUTH-014 본문은 이미 v0.1.3에서 정정되어 있었으나 plan.md 코드 예제가 정정 대상에서 누락되어 있었다. (2) **[HARD] `retries: 2` 정합성 정정**: v0.1.3이 AC-E2EAUTH-015a/015b에 남긴 "setup 내장 단언이 실패하면 exit 0에 도달할 수 없다"는 표현은 `playwright.config.ts`의 `retries: 2`와 맞지 않는다 — 단언이 **첫 시도에서** 실패해도 재시도가 성공하면 그 실행은 여전히 exit 0으로 종료한다. 아래 AC-E2EAUTH-015a/015b 본문을 "exit 0(최종, 재시도 포함)은 그 실행에서 계정 검증이 **결국** 통과했다는 근거이며, **최초 시도부터** 문제가 없었다는 근거가 아니다 — 최초 시도(무재시도) 여부는 reporter의 재시도 표시로 별도 확인한다"로 정정한다. (3) DoD·spec.md·progress.md를 이번 sync-phase 재검증 결과에 맞춰 동기화하고, `case-flow.spec.ts`의 5회 연속 retry와 사전 존재하던 format 위반 3건을 명시적으로 기록한다(전체 스위트가 무재시도로 통과했다는 뜻으로 오독되지 않도록, 무재시도는 항상 setup A/B + 대상 2개 파일 3항목에 한정됨을 재확인).
+>
+> **개정 v0.1.5 (독립 감사 — 요구사항/구현 대조 + case-flow 회귀 조사, HEAD `167c71b` 대상)**: 기존 progress.md의 PASS 표기를 증거로 삼지 않고 REQ/AC를 코드·실행 로그와 처음부터 재대조했다. **(1) AC-E2EAUTH-009 pathspec 정정**: sync-phase가 `CHANGELOG.md`를 수정하면서 원래 pathspec으로는 그 diff가 비어 있지 않게 나타남을 발견 — REQ-009의 "애플리케이션/프로덕션 코드" 의도에 맞춰 `':!CHANGELOG.md'`를 pathspec에 추가(애플리케이션 코드 무변경 판정 자체는 불변). **(2) [HARD] case-flow.spec.ts 회귀 확인**: `$SPEC_START_SHA`에서 격리된 워크트리로 동일 조건 3회 재현한 결과, 베이스라인에서는 `case-flow.spec.ts`가 3/3 무재시도 통과, 반대로 `case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`가 3/3 모두 1차 실패 → retry로 회복(원래 SPEC이 기록한 flaky 대상과 정확히 일치)했다 — 이번 SPEC 이후에는 그 패턴이 뒤바뀌어 대상 2개 파일은 7/7 무재시도, `case-flow.spec.ts`는 5/5 전부 1차 실패 → retry로 회복한다. 이는 우연의 일치가 아니라 `e2e/auth.setup.ts`가 스위트 시작 직후 2회 로그인을 새로 추가해 Better Auth `/sign-in` rate-limit(10초 창 내 최대 3회) 예산을 기존보다 이른 시점에 소비하기 때문으로 원인이 특정된다(상세: `progress.md` § case-flow 회귀 조사). 이 SPEC의 어떤 AC도 이 사실만으로 FAIL 처리되지는 않는다 — AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하며, 대상 3항목(무재시도 요건)에 case-flow는 애초에 포함되지 않는다. 다만 이전까지 이 문서와 CHANGELOG.md가 이 사실을 "기존 flaky 그대로 유지"로 서술한 것은 부정확했으며, 이번 개정에서 "이 SPEC의 변경으로 rate-limit 충돌이 이동함"으로 정정한다. **(3) 실행 횟수 재계산**: v0.1.3 재검증은 전체 스위트 5회 + `--spec` 필터 2회 = 독립 실행 7회이며(015a의 leftover 재실행은 그 5회 중 2번째 실행을 재사용한 것으로, 별도 실행이 아니다), setup(TESTER_A/B) invocation 합계는 7×2=14회다 — 과거 v0.1.2가 기록한 "8회 invocation/16회 테스트"는 그 시점의 다른(임시 코드 기반) 절차에서 나온 수치이므로 HISTORICAL로 구분해 보존한다. **(4) DoD 개수 표기 정정**: `acceptance.md` §B의 실제 체크박스는 14개다(15개는 논리 AC 개수 — 015가 a/b 하위 시나리오를 가진 하나의 논리 AC이므로 DoD의 "AC-001~015(a/b 포함) 전체 PASS" 1줄이 그 15개를 대표한다). "DoD 15개"라는 progress.md의 표현을 정정한다.
 
 ## §A.0 검증 기준선(baseline) 표기법
 
@@ -85,9 +87,12 @@
 
 ### AC-E2EAUTH-009 — 프로덕션/애플리케이션 코드 무변경(커밋 기준)
 **Traces**: REQ-E2EAUTH-009
+
+**[개정 v0.1.5 — sync-phase 감사, pathspec 정정]** run-phase 완료 이후 sync-phase에서 `CHANGELOG.md`(저장소 루트, `e2e/`·`playwright.config.ts`·`scripts/`·`.moai/` 어디에도 속하지 않음)에 SPEC 항목을 추가하면서, 아래 원래 pathspec으로 재실행하면 `CHANGELOG.md`가 비어 있지 않은 diff로 나타남을 발견했다(실측: `git diff --stat "$SPEC_START_SHA" 167c71b -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai'` → `CHANGELOG.md | 13 +++++++++++++`). REQ-E2EAUTH-009의 문언("`e2e/`, `playwright.config.ts`, `scripts/` 디렉터리 외부의 **애플리케이션/프로덕션 코드**를 변경해서는 안 된다")은 `CHANGELOG.md` 같은 저장소 문서를 금지 대상으로 삼지 않는다 — 이 SPEC의 다른 모든 완료 SPEC(`SPEC-UI-MIGRATION-001` 등)도 동일하게 sync-phase에서 `CHANGELOG.md`를 수정해 왔다(기존 관례). 따라서 pathspec에 `':!CHANGELOG.md'`를 추가해 AC의 기계적 검증을 REQ-009의 의도와 정합시킨다 — **애플리케이션 코드 무변경이라는 판정 자체는 바뀌지 않는다**(이 정정은 검증 명령의 범위 정의를 REQ 의도에 맞춘 것이지, PRESERVE 완화가 아니다).
+
 - **Given** `$SPEC_START_SHA`와 `$IMPL_COMPLETE_HEAD`가 있을 때
-- **When** `git diff --stat "$SPEC_START_SHA" "$IMPL_COMPLETE_HEAD" -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai'`와 `git status --short -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai'`를 실행하면
-- **Then** 두 명령 모두 출력이 완전히 비어 있다 — `e2e/`, `playwright.config.ts`, `scripts/`, `.moai/`(SPEC 아티팩트 자신) 외부에는 어떤 변경도 없다. **참고**: 이 AC의 pathspec은 `scripts/`를 diff 대상에서 제외한다 — `scripts/` 디렉터리 자체의 무변경은 AC-E2EAUTH-013이 별도로 검증한다(이 AC의 제외 범위가 곧 "무변경 확인 없음"을 의미하지 않도록 분리).
+- **When** `git diff --stat "$SPEC_START_SHA" "$IMPL_COMPLETE_HEAD" -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai' ':!CHANGELOG.md'`와 `git status --short -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai' ':!CHANGELOG.md'`를 실행하면
+- **Then** 두 명령 모두 출력이 완전히 비어 있다 — `e2e/`, `playwright.config.ts`, `scripts/`, `.moai/`(SPEC 아티팩트 자신), `CHANGELOG.md`(sync-phase 문서, 애플리케이션 코드 아님) 외부에는 어떤 변경도 없다. **참고**: 이 AC의 pathspec은 `scripts/`를 diff 대상에서 제외한다 — `scripts/` 디렉터리 자체의 무변경은 AC-E2EAUTH-013이 별도로 검증한다(이 AC의 제외 범위가 곧 "무변경 확인 없음"을 의미하지 않도록 분리).
 
 ### AC-E2EAUTH-010 — 경로 상수 leaf 모듈 규율 준수
 **Traces**: REQ-E2EAUTH-010
@@ -138,7 +143,7 @@
 
 ## §B. Definition of Done
 
-> **[v0.1.4, sync-phase]** 아래 체크박스는 `009dd0e`(run-phase 최종 커밋) 기준 실측 증거(`progress.md` §E.2)와 대조해 갱신했다. **무재시도(1차 시도 통과)는 항상 setup A/B + 대상 2개 파일(`case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`) 3항목에 한정된다** — "전체 스위트가 무재시도로 통과했다"는 뜻이 아니다. `case-flow.spec.ts`는 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로만 회복했다(out-of-scope, 기존 잔여 위험, `progress.md` § 잔여 부채 참고). `pnpm format:check`의 사전 위반 3건(`app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`)은 이 SPEC 시작 이전부터 존재했으며 이 SPEC의 정리 대상이 아니다 — 신규 위반 0건과는 별개로 명시한다.
+> **[v0.1.4, sync-phase; v0.1.5에서 case-flow 서술 정정]** 아래 체크박스(실제 14개 — 15는 논리 AC 개수이며 첫 줄이 그 15개를 대표해 묶는다)는 `167c71b` 기준 독립 재대조 증거(`progress.md` §E.2, § case-flow 회귀 조사)와 대조해 갱신했다. **무재시도(1차 시도 통과)는 항상 setup A/B + 대상 2개 파일(`case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`) 3항목에 한정된다** — "전체 스위트가 무재시도로 통과했다"는 뜻이 아니다. `case-flow.spec.ts`는 5회 연속 실행 전부에서 1차 시도 실패 → retry #1로만 회복했다 — **[v0.1.5 정정]** 이는 "기존부터 있던 flaky를 그대로 유지"가 아니라, 이 SPEC이 추가한 setup 2회 로그인이 rate-limit 예산을 더 이른 시점에 소비해 그 충돌이 원래 대상 2개 파일에서 `case-flow.spec.ts`로 **이동**한 것으로 원인이 특정됐다(격리 베이스라인 3회 재현 대조, `progress.md` § case-flow 회귀 조사). AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 이 사실이 어떤 AC도 FAIL시키지 않지만, "신규 회귀 없음"이라는 과거 서술은 부정확했다. `pnpm format:check`의 사전 위반 3건(`app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html`)은 이 SPEC 시작 이전부터 존재했으며 이 SPEC의 정리 대상이 아니다 — 신규 위반 0건과는 별개로 명시한다.
 
 - [x] AC-E2EAUTH-001 ~ 015(a/b 포함) 전체 PASS(`progress.md` §E.2 AC 전체 매트릭스)
 - [x] `pnpm test:e2e`(전체 스위트) 5회 연속 실행 각각 exit 0(재시도 포함 최종 결과) — setup A/B·대상 2개 파일 3항목은 5회 전부 1차 시도 통과, `case-flow.spec.ts`는 5회 전부 retry #1로 회복(위 잔여 부채 고지 참고)(AC-E2EAUTH-003)
@@ -151,7 +156,7 @@
 - [x] `.tmp/storageState-*.json`이 추적되지 않고 `git check-ignore -v`로 무시 규칙이 확인됨(AC-E2EAUTH-006)
 - [x] `/sign-in` 네트워크 요청 횟수가 테스터당 정확히 1(AC-E2EAUTH-014) — `page.on("request", ...)`를 로그인 트리거 이전에 등록, 실패 요청도 계수
 - [x] leftover storageState가 전체 스위트·`--spec` 필터 양쪽에서 실제로 재생성되고, `auth.setup.ts`의 상시 계정 검증(최종 exit 0)으로 계정 일치가 확인됨(AC-E2EAUTH-015a/015b)
-- [x] `git diff --stat "$SPEC_START_SHA" "$IMPL_COMPLETE_HEAD" -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai'`와 대응 `git status --short`가 모두 빈 결과(AC-E2EAUTH-009)
+- [x] `git diff --stat "$SPEC_START_SHA" "$IMPL_COMPLETE_HEAD" -- . ':!e2e' ':!playwright.config.ts' ':!scripts' ':!.moai' ':!CHANGELOG.md'`와 대응 `git status --short`가 모두 빈 결과(AC-E2EAUTH-009, v0.1.5에서 `CHANGELOG.md` 제외 추가 — 사유는 AC-E2EAUTH-009 본문 참고)
 - [x] `pnpm lint` exit 0(사전 위반 0건 베이스라인 대비 신규 위반 0건); `pnpm format:check` — 이 SPEC이 변경·추가한 파일에서 신규 위반 0건(사전 위반 3건은 위 고지 참고, `plan.md` §D 베이스라인 인용); `pnpm build` exit 0
 - [x] spec.md §4 Out of Scope 5개 항목이 구현 범위에 포함되지 않았음을 확인
 

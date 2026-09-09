@@ -1,7 +1,7 @@
 ---
 id: SPEC-E2E-AUTH-STATE-001
 title: "E2E storageState 인증 재사용 — Better Auth /sign-in rate limit로 인한 flaky 테스트 제거"
-version: "0.1.4"
+version: "0.1.5"
 status: completed
 created: 2026-09-08
 updated: 2026-09-09
