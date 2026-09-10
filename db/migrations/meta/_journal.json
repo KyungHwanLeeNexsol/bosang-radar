@@ -36,6 +36,13 @@
       "when": 1788150000000,
       "tag": "0004_calm_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789029158683,
+      "tag": "0005_tidy_karen_page",
+      "breakpoints": true
     }
   ]
 }

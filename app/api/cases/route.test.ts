@@ -72,4 +72,34 @@ describe("app/api/cases POST (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)", () => {
     expect(response.status).toBe(400);
     expect(body.fieldErrors.incidentDescription).toBeDefined();
   });
+
+  it("이미 처리 중인 요청이면 409를 반환한다 (REQ-PILOT-READY-007)", async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
+    createCaseMock.mockResolvedValue({ success: false, alreadyProcessing: true });
+    const { POST } = await import("./route");
+
+    const response = await POST(postRequest(validInput));
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBeDefined();
+  });
+
+  it("route segment의 maxDuration은 300초(리스 TTL 최소 330초보다 짧은 안전한 하한)로 설정되어 있다", async () => {
+    const routeModule = await import("./route");
+
+    expect(routeModule.maxDuration).toBe(300);
+  });
+
+  it("요청 시작 시점에 console.info로 최소 1회 구조적 로그를 남긴다 (REQ-PILOT-READY-008, M2)", async () => {
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
+    createCaseMock.mockResolvedValue({ success: true, caseId: "case-123" });
+    const { POST } = await import("./route");
+
+    await POST(postRequest(validInput));
+
+    expect(infoSpy).toHaveBeenCalled();
+    infoSpy.mockRestore();
+  });
 });

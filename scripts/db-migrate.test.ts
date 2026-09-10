@@ -10,7 +10,7 @@ const projectRoot = path.resolve(scriptDir, "..");
 const scriptPath = path.join(scriptDir, "db-migrate.ts");
 const tmpDir = path.join(projectRoot, ".tmp");
 
-// lib/db/schema.ts의 9개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
+// lib/db/schema.ts의 10개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
 // 상수도 함께 갱신한다.
 const EXPECTED_TABLES = [
   "account",
@@ -19,6 +19,7 @@ const EXPECTED_TABLES = [
   "evidence",
   "feedback",
   "reports",
+  "reservations",
   "session",
   "user",
   "verification",

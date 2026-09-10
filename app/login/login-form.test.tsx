@@ -119,13 +119,14 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     });
   });
 
-  it("AC-002d: 정책 링크 3종은 href 없는 aria-disabled 텍스트이고, 랜딩 링크만 실제 활성 링크다", () => {
+  it("AC-002d: 정책 링크 2종은 href 없는 aria-disabled 텍스트이고, 랜딩 링크만 실제 활성 링크다", () => {
     const disabledLinks = container.querySelectorAll('[aria-disabled="true"]');
     // 사이드바 nav 항목과 구분하기 위해 텍스트 콘텐츠로 좁힌다.
     const disabledLabels = Array.from(disabledLinks).map((el) => el.textContent);
-    expect(disabledLabels).toEqual(
-      expect.arrayContaining(["이용약관", "개인정보처리방침", "고객지원"])
-    );
+    expect(disabledLabels).toEqual(expect.arrayContaining(["이용약관", "개인정보처리방침"]));
+    // SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013) — "고객지원"은 더 이상
+    // aria-disabled 텍스트가 아니므로 이 목록에 포함되지 않는다.
+    expect(disabledLabels).not.toContain("고객지원");
     for (const el of disabledLinks) {
       expect(el.getAttribute("href")).toBeNull();
     }
@@ -133,6 +134,35 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     const landingLink = container.querySelector('a[href="/"]');
     expect(landingLink).not.toBeNull();
     expect(landingLink?.textContent).toContain("랜딩으로 돌아가기");
+  });
+
+  it("AC-PILOT-READY-013: supportEmail prop 없이도(기본값) '고객지원'이 aria-disabled가 아닌 실제 mailto: 링크로 렌더링된다", () => {
+    const supportLink = Array.from(container.querySelectorAll("a")).find(
+      (a) => a.textContent === "고객지원"
+    );
+
+    expect(supportLink).toBeDefined();
+    expect(supportLink?.getAttribute("aria-disabled")).toBeNull();
+    expect(supportLink?.getAttribute("href")).toMatch(/^mailto:.+@.+/);
+  });
+
+  it("SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013): supportEmail prop이 주어지면 그 값으로 mailto: 링크가 렌더링된다", () => {
+    const supportContainer = document.createElement("div");
+    document.body.appendChild(supportContainer);
+    const supportRoot = createRoot(supportContainer);
+    act(() => {
+      supportRoot.render(<LoginForm supportEmail="real-ops@bosang-radar.example" />);
+    });
+
+    const supportLink = Array.from(supportContainer.querySelectorAll("a")).find(
+      (a) => a.textContent === "고객지원"
+    );
+    expect(supportLink).toBeDefined();
+    expect(supportLink?.getAttribute("href")).toBe("mailto:real-ops@bosang-radar.example");
+    expect(supportLink?.getAttribute("aria-disabled")).toBeNull();
+
+    act(() => supportRoot.unmount());
+    supportContainer.remove();
   });
 
   it("잘못된 자격증명이면 login-error에 오류 메시지를 표시한다(기존 동작 회귀 없음)", async () => {

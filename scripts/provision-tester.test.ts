@@ -263,8 +263,11 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // 레거시 feedback 행은 의도적으로 폐기되므로 DROP TABLE + CREATE TABLE
   // 전략을 사용한다(plan.md M1 기술적 비상 대책, REQ-FEEDBACK-001).
   const FEEDBACK_MIGRATION = "0004_calm_paladin.sql";
+  // SPEC-PILOT-READY-001 M1(REQ-PILOT-READY-007) — 사용자별 동시 실행
+  // 가드(TTL 기반 리스)를 위한 신규 reservations 테이블 마이그레이션.
+  const RESERVATIONS_MIGRATION = "0005_tidy_karen_page.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개 + feedback 구조화 마이그레이션 1개, 총 5개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개 + feedback 구조화 마이그레이션 1개 + reservations 마이그레이션 1개, 총 6개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -274,7 +277,8 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(EVIDENCE_SCHEMA_MIGRATION);
     expect(sqlFiles).toContain(EVIDENCE_ISSUE_TYPES_MIGRATION);
     expect(sqlFiles).toContain(FEEDBACK_MIGRATION);
-    expect(sqlFiles).toHaveLength(5);
+    expect(sqlFiles).toContain(RESERVATIONS_MIGRATION);
+    expect(sqlFiles).toHaveLength(6);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {

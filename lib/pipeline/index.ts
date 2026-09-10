@@ -57,19 +57,48 @@ function withPipelineLock<T>(task: () => Promise<T>): Promise<T> {
   return settled;
 }
 
+// SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008) — 파이프라인 각 단계
+// (CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier)
+// 실패 시 단계 이름과 오류 요약을 로그로 남긴다. 사건 입력 원문(자유 텍스트
+// 3개 필드)은 절대 로그에 포함하지 않는다(PII 최소화 원칙 유지) — 이
+// 헬퍼는 stage 이름과 error 요약만 기록하며 task의 인자를 로그에 담지 않는다.
+function withStageLogging<T>(stage: string, task: () => T): T {
+  try {
+    return task();
+  } catch (error) {
+    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, error: String(error) }));
+    throw error;
+  }
+}
+
+async function withAsyncStageLogging<T>(stage: string, task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (error) {
+    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, error: String(error) }));
+    throw error;
+  }
+}
+
 export async function runPipeline(
   input: CaseInput,
   options: RunPipelineOptions = {}
 ): Promise<ResearchReport> {
   const { research: researchProvider, fast: fastProvider } =
     options.providers ?? getDefaultLLMProviders();
-  const caseSummary = normalizeCase(input);
-  const queries = planQueries(caseSummary);
-  const evidence = await retrieveEvidence(queries);
+  const caseSummary = withStageLogging("CaseNormalizer", () => normalizeCase(input));
+  const queries = withStageLogging("QueryPlanner", () => planQueries(caseSummary));
+  const evidence = await withAsyncStageLogging("EvidenceRetriever", () => retrieveEvidence(queries));
   const verification = await withPipelineLock(async () => {
-    const findings = await research(queries, evidence, researchProvider);
-    const challenges = await challenge(findings, evidence, fastProvider);
-    return verify(queries, findings, challenges, evidence, fastProvider);
+    const findings = await withAsyncStageLogging("Researcher", () =>
+      research(queries, evidence, researchProvider)
+    );
+    const challenges = await withAsyncStageLogging("Skeptic", () =>
+      challenge(findings, evidence, fastProvider)
+    );
+    return withAsyncStageLogging("Verifier", () =>
+      verify(queries, findings, challenges, evidence, fastProvider)
+    );
   });
 
   // reviewTargets 도출 — planQueries()가 이미 (domain, issueType) 쌍마다

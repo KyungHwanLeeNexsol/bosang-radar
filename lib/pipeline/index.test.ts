@@ -613,3 +613,26 @@ describe("AC-GEMINI-RUNTIME-023 — generateStructured() 논리적 호출 횟수
     expect(mixedQuery.stageCallCounts()).toEqual({ research: 1, skeptic: 1, verifier: 1 });
   });
 });
+
+describe("파이프라인 단계 실패 로깅 (REQ-PILOT-READY-008, SPEC-PILOT-READY-001 M2)", () => {
+  it("한 단계가 실패하면 console.error로 최소 1회 구조적 로그를 남기고 예외를 그대로 전파한다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const queryPlanner = await import("./query-planner");
+    const planQueriesSpy = vi.spyOn(queryPlanner, "planQueries").mockImplementationOnce(() => {
+      throw new Error("query-planner boom (test-injected)");
+    });
+
+    const { runPipeline } = await import("./index");
+    const deterministicProvider = createDeterministicLLMProvider();
+    await expect(
+      runPipeline(validInput, {
+        providers: { research: deterministicProvider, fast: deterministicProvider },
+      })
+    ).rejects.toThrow("query-planner boom (test-injected)");
+
+    expect(errorSpy).toHaveBeenCalled();
+
+    planQueriesSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});

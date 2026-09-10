@@ -34,4 +34,12 @@ describe("lib/db/schema", () => {
     // 스키마 요구사항" 위험이 실제로 발생한 사례).
     expect(schema.account.issuer).toBeDefined();
   });
+
+  it("reservations 테이블은 ownerUserId/leaseId/expiresAt 3개 컬럼을 가지며 ownerUserId가 PK(UNIQUE)다 (REQ-PILOT-READY-007, plan.md §A 결정 1)", () => {
+    expect(getTableName(schema.reservations)).toBe("reservations");
+    expect(schema.reservations.ownerUserId).toBeDefined();
+    expect(schema.reservations.ownerUserId.primary).toBe(true);
+    expect(schema.reservations.leaseId).toBeDefined();
+    expect(schema.reservations.expiresAt).toBeDefined();
+  });
 });

@@ -133,3 +133,18 @@ export const allowedTesters = sqliteTable("allowed_testers", {
   email: text("email").notNull().unique(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
+
+// SPEC-PILOT-READY-001 M1(REQ-PILOT-READY-007, plan.md §A 결정 1) — 사용자별
+// 동시 실행 가드(TTL 기반 리스). ownerUserId를 PK로 삼아 "UNIQUE 키"
+// 요구사항을 만족시키며(plan.md는 ownerUserId/leaseId/expiresAt 3개 컬럼만
+// 요구 — 별도 id 컬럼 없음), 이 PK 제약이 조건부 UPSERT(ON CONFLICT)의
+// 원자성 근거다. leaseId는 획득마다 새로 생성되는 고유 토큰(crypto.randomUUID())
+// 이며, 해제/완료 기록은 항상 ownerUserId AND leaseId 둘 다 일치할 때만
+// 수행되는 펜싱된 연산이다(lib/cases/create-case.ts).
+export const reservations = sqliteTable("reservations", {
+  ownerUserId: text("owner_user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  leaseId: text("lease_id").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+});

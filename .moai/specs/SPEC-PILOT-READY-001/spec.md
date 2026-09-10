@@ -2,7 +2,7 @@
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
 version: "0.5.0"
-status: draft
+status: in-progress
 created: 2026-09-10
 updated: 2026-09-10
 author: Nexsol
