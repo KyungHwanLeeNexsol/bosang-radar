@@ -336,8 +336,9 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 
 - `run_status: complete` (M1, M2, M3, M5, M6 — M4 explicitly deferred, see §E.2 E7)
 - `run_complete_at: 2026-09-10`
-- `run_commit_sha: pending-backfill-SPEC-PILOT-READY-001-M1` (backfilled in a follow-up
-  commit per the SHA placeholder backfill exemption — a commit cannot cite its own hash)
+- `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
+  follow-up commit per the SHA placeholder backfill exemption — the M1-M6 commit
+  itself could not cite its own hash)
 - `ac_pass_count: 8` (AC-PILOT-READY-007, 008, 009, 011, 012, 013, 014, 015)
 - `ac_fail_count: 0`
 - `ac_na_count: 9` (M4-scoped: 001, 002, 003, 004, 005, 006, 010, 016a, 016b)
