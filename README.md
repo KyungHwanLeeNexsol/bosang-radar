@@ -16,9 +16,11 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 + SPEC-EVIDENCE-001 + SPEC-FEEDBACK-001 + SPEC-PILOT-UX-001 + SPEC-PILOT-VISUAL-001 완료)
+## 현재 구현 상태 (10개 SPEC 완료 — SPEC-SCAFFOLD-001 ~ SPEC-E2E-AUTH-STATE-001)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 그리고 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001까지 완료되었습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
+
+파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 tier 결정, 원격 DB/인증 도메인 검증, 최소 idempotency 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 현재 plan-phase 검토 중입니다(`.moai/specs/SPEC-PILOT-READY-001/`).
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
@@ -126,14 +128,27 @@ bosang-radar/
 
 전체 구조와 각 디렉터리의 설계 의도는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 다음 단계 (이번 SPEC까지가 다루지 않은 것)
+## 다음 단계
 
-SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처), SPEC-RUNTIME-001(런타임 활성화), SPEC-RESEARCH-001(evidence-first 파이프라인 전환)은 전체 서비스 완성이 아니라, 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중했습니다. 다음 항목은 후속 SPEC 후보로 이연되었습니다.
+전체 서비스 완성이 아니라 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중해 왔습니다. 남은 작업은 3단계로 분류합니다.
 
-- **근거자료 corpus 대량 확장**: SPEC-EVIDENCE-001로 담보×쟁점 기준 검증 가능한 21건까지 확장했으나 여전히 프로덕션 규모 대비 소규모 — 실제 판례·법령·분쟁사례를 대량 수집
-- **Gold Dataset 추출·집계**: SPEC-FEEDBACK-001로 리포트 단위 구조화 피드백(`feedback` 테이블 — 전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과) 축적 경로는 마련되었으나, 축적된 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰는 아직 없음
+### 구현 완료 (10개 SPEC)
+
+SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
+
+### 배포 검증 필요 (진행 중)
+
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, plan-phase 검토 중): 호스팅 tier 결정(Vercel Hobby/Pro — Fair Use Guidelines 상용 사용 정의 준수 여부), 원격 DB/실 배포 도메인 인증 검증, 최소 서버측 재제출 가드(idempotency 보장 범위 명시 포함), 최소 구조적 로깅, 장애 대응 런북, 데이터 취급 고지 정직성 개선. 실행 시간 상한은 결정적 리스크가 아니며(Hobby tier도 300초로 충분), 진짜 확인 대상은 상용 사용 ToS 준수 여부입니다.
+
+### 후속 개발 (파일럿 데이터 확보 이후)
+
+- **Vercel 정식 CI/CD 배포 자동화**: SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만 다루며, 정식 배포 파이프라인 구축은 범위 밖
+- **로그인 rate-limiting 하드닝**: 프로덕션 수준의 인증 하드닝
+- **Gold Dataset 추출·집계 도구**: SPEC-FEEDBACK-001로 마련된 `feedback` 테이블(전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과)의 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행
+- **대규모 evidence corpus 확장**: 실제 판례·법령·분쟁사례 대량 수집(현재 21건은 프로덕션 규모 대비 소규모)
 - **담보 영역 확장**: 상해후유장해·질병후유장해 외 담보 영역(질병사망, 실손의료비 등)
-- **파일럿 배포 준비**: 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝, 실무자 대상 파일럿 배포
+
+이 4가지(정식 배포 자동화·rate-limiting·Gold Dataset·PostgreSQL/evidence/담보 확장)는 SPEC-PILOT-READY-001이 남기는 **파일럿 실측 데이터가 존재해야 다음 우선순위를 판단할 수 있는** 순서로 이어집니다 — ①대표 사례 표본에 대한 실 Gemini 기반 코퍼스 품질 평가(`counterEvidenceIds`가 항상 빈 배열인 현상의 원인 규명 등) → ②사용자별 완료/피드백 집계 → ③Gold Dataset 추출, 순으로 각 단계는 이전 단계의 파일럿 데이터를 전제로 합니다.
 
 자세한 배경과 로드맵은 [`.moai/project/product.md`](.moai/project/product.md) §Roadmap과 [`.moai/specs/SPEC-SCAFFOLD-001/spec.md`](.moai/specs/SPEC-SCAFFOLD-001/spec.md) §4를 참고하세요.

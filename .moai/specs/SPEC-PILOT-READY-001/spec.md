@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 최소 idempotency 가드, 데이터 취급 고지"
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 created: 2026-09-10
 updated: 2026-09-10
@@ -27,6 +27,39 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
   채널 + 예시)으로 범위를 고정한다. 모든 항목은 오케스트레이터 세션에서 4개 병렬
   조사 에이전트(git/PR 상태, 로드맵 3단계 분류, 배포 준비 갭, 데이터 계약 연결)가
   실제 코드베이스를 read-only로 조사해 확인한 구체적 결함·갭만을 근거로 삼는다.
+- 2026-09-10 (v0.2.0): 외부 리뷰 6개 항목 반영 개정 — plan/SPEC-PILOT-READY-001 브랜치에서
+  수행 (baseline: main@7ebb3b7). ①REQ-PILOT-READY-007의 재제출 가드가 SELECT-후-INSERT
+  구조라 진정한 원자성을 제공하지 못함을 명시하고, Turso Cloud 표준(비-MVCC) 아키텍처의
+  단일 writer 트랜잭션 모델을 근거로 한 예약 테이블(UNIQUE + `ON CONFLICT DO NOTHING`)
+  방식과 "무마이그레이션" 방식 두 대안을 병기 — 실제 채택 여부는 run-phase 착수 전
+  사용자 확인이 필요한 미확정 결정으로 명시(REQ-PILOT-READY-007). ②동시성 제한과 제출
+  idempotency를 별개 개념으로 분리하고, 크래시 복구·완료+리포트 원자성·응답 유실 후
+  재제출·지연 도착 결과 충돌 4개 실패 모드를 명시적으로 문서화하는 신규
+  REQ-PILOT-READY-015 추가 — "재시도는 무제한으로 해도 중복 실행을 막는다"는 과잉 보장
+  문구를 plan.md에서 제거. 최근 리서치 패널(`recent-research-panel.tsx`)의
+  `STATUS_LABELS`가 `pending`/`completed`만 정의하고 있어 신규 `processing`/`failed`
+  상태 행이 영문 원문으로 노출되는 UI 갭을 조사로 확인해 Out of Scope 항목으로 기록
+  (문서화만, UI 코드 변경 없음). ③REQ-PILOT-READY-005(인증)를 로그인 성공·세션 수립·보호된
+  페이지 접근 3단계로, REQ-PILOT-READY-010(Gemini 스모크)을 3단계 파이프라인 완료·201
+  응답·DB 영속화·재조회·호출 횟수 일치로 세분화하고, REQ-PILOT-READY-008(로깅)의 DB
+  쓰기 실패 로그와 PII 비노출을 검증하는 AC를 보강. AC-PILOT-READY-006을 "서로 다른
+  사용자" 동시 부하 측정으로 명확히 하고, 동일 사용자 진성 경쟁 조건을 검증하는 신규
+  AC-PILOT-READY-015를 REQ-PILOT-READY-007에 추가 — 두 AC가 서로 다른 것을 검증함을
+  분리. 로컬 대체 실행이 "원격/실배포 검증"을 요구하는 AC의 PASS 조건을 대신할 수
+  없음을 명시하고, "측정 완료"와 "파일럿 진행 여부 판단"을 분리하는 신규 하위 절을
+  추가 — 측정 결과로부터 사람이 go/no-go 판단을 내리는 것 자체를 막는 문구는 없었는지
+  재확인해 과잉 교정 문구를 찾지 못함(원래 문구는 "이 리포트 안에 결론성 판단 문장이
+  없다"는 REQ-PILOT-READY-006 한정 제약이며, 이는 인프라 도입 여부라는 별개 후속
+  SPEC 결정에 대한 것이지 파일럿 go/no-go 판단을 막는 것이 아니었음을 확인). ④Vercel
+  Hobby tier의 실제 제약이 실행 시간 상한이 아니라 Fair Use Guidelines의 상용 사용
+  정의(제작에 관여한 유급 인력이 있는 배포)에 있음을 Vercel 공식 문서 근거로 정정하고,
+  REQ-PILOT-READY-001/002를 재작성 — Hobby(무료, ToS 준수 여부 미확인)/Pro($20/좌석/월
+  + 사용량, 상용 사용 명시적 허용) 두 후보를 문서화하고 실제 선택은 비용 결정 권한자의
+  미확정 결정으로 명시. ⑤`lib/validation/case-input.ts`가 "전혀 스캔하지 않는다"는
+  과장 표현이 실제로는 이미 존재하지 않음을 코드 재확인으로 검증(주민등록번호·전화번호
+  패턴은 이미 정확히 스캔 대상으로 기술되어 있었음) — 정밀도 개선 차원의 경미한 표현
+  정리만 수행. ⑥README.md/product.md 로드맵을 구현 완료/배포 검증 필요/후속 개발
+  3단계로 갱신(별도 커밋).
 
 ## §1. 개요 (Overview)
 
@@ -43,11 +76,21 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
 등)에서 파일럿 동시 사용 규모(10명)로 가동해 본 적이 없다.** 조사 세션이 read-only로
 확인한 구체적 배포 리스크는 다음과 같다:
 
-- **호스팅 타임아웃 미확인**: 이 프로젝트에 유료 Vercel 플랜 사용의 증거가 없어(조사
-  세션 기준), Vercel Hobby(무료) tier가 배포 대상이라고 가정해야 한다. `POST /api/cases`의
-  실측 처리 시간은 로컬에서 30초(`.moai/reports/gemini-runtime-smoke-20260828.md` §실행
-  로그 5번 — curl 실측)였는데, 이 값이 실제 배포 환경의 서버리스 함수 실행 시간 상한
-  안에 들어오는지 확인된 바 없다.
+- **배포 대상 tier가 실행 시간이 아니라 상용 사용 ToS 준수 여부의 문제**: 이 프로젝트에
+  유료 Vercel 플랜 사용의 증거가 없어(조사 세션 기준), 애초에는 Vercel Hobby(무료) tier를
+  가정하고 "실행 시간 상한 초과" 위험으로만 프레이밍했다. 그러나 Vercel 공식 문서 재확인
+  결과, Fluid Compute가 기본 활성화된 현재 Hobby tier의 서버리스 함수 실행 시간은
+  기본값이자 최댓값이 300초(5분)이며, `POST /api/cases`의 로컬 실측 처리 시간
+  30초(`.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — curl 실측)는 이
+  상한에 여유 있게 들어온다 — 실행 시간은 실제로는 결정적 리스크가 아니었다. 진짜 문제는
+  Vercel Hobby 플랜의 Fair Use Guidelines가 "이 프로젝트 제작 어느 부분에든 관여한 누군가의
+  금전적 이익을 위한 배포"를 상용(commercial) 사용으로 정의한다는 점이다 — 유급
+  개발자가 구축한 B2B 파일럿(외부 전문가 테스터 대상, 파일럿 자체의 유상 여부와 무관)이
+  이 정의에 해당하는지는 Vercel 공식 문서만으로 확정할 수 없는 미확인 사항이며,
+  Vercel 자신도 불확실한 경우 지원팀에 문의하라고 안내한다. Vercel Pro tier(실행 시간
+  기본 300초/GA 최대 800초/베타 최대 1800초, $20/좌석/월 + 포함 크레딧 초과분 사용량
+  과금)는 "플랫폼의 모든 상용 사용은 Pro 또는 Enterprise 플랜을 요구한다"고 명시적으로
+  ToS 준수를 보장한다.
 - **Gemini 쿼터가 코드 기본값(4 RPM)으로 미확정**: `.env.local.example:64,67`의
   `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 기본값은 `4`이며,
   `.moai/reports/gemini-runtime-smoke-20260828.md` §잔여 위험이 "이번 세션은 AI Studio
@@ -74,7 +117,19 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
   컬럼(`lib/db/schema.ts:75`, 기본값 `"pending"`) 자체는 이미 존재하지만 이 상태 전이가
   파이프라인 실행 이전에 활용되지 않고 있다 — SPEC-PILOT-UX-001 iteration 3에서 명시적으로
   기각된 DB-nonce 방식(§Out of Scope 참고)과는 다른, 훨씬 단순한 기존 컬럼 재사용
-  기회다.
+  기회다. **단, "기존 컬럼을 재사용한다"는 선택이 자동으로 원자적(atomic) 가드를
+  의미하지는 않는다** — `SELECT status` 후 별도 `INSERT`를 실행하는 app 레벨
+  check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간(race window)을 막지
+  못한다. 이 SPEC은 이 결함을 원 설계 단계에서부터 명시적으로 다룬다(REQ-PILOT-READY-007
+  참고 — 진정한 원자성을 얻으려면 DB 제약(UNIQUE + `ON CONFLICT`) 기반의 예약 테이블이
+  필요하며, 이는 소규모 스키마 변경을 의미한다).
+- **동시성 제한(concurrency limit)과 제출 idempotency는 서로 다른 보장이며, 이 SPEC의
+  최소 가드는 idempotency를 제공하지 않음**: REQ-PILOT-READY-007의 가드가 막는 것은
+  "동일 사용자당 동시 in-flight 파이프라인 1개"라는 동시성 제한뿐이다. 크래시로 인한
+  `processing` 상태 고착, 완료 상태 전이와 리포트 저장의 원자성, 응답 유실 후 재제출
+  시 테스터가 보게 되는 결과, 지연 도착 결과와 재시도 결과의 충돌 가능성 — 이 4가지는
+  모두 이 가드만으로는 다뤄지지 않는 별개의 실패 모드이며, 해결하지 않고 넘어갈
+  경우 그 사실 자체를 명시적으로 문서화해야 한다(REQ-PILOT-READY-015 참고).
 - **애플리케이션 레벨 로깅이 전무함**: `app/api/cases/route.ts`, `lib/cases/create-case.ts`,
   `lib/pipeline/index.ts`, `lib/ai/providers/gemini.ts` 어디에도 요청 시작/파이프라인
   단계 실패/DB 쓰기 실패에 대한 구조적 로그 출력이 없다(조사 세션 grep 확인) — 파일럿
@@ -84,7 +139,10 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
   주민등록번호·전화번호 **형식**을 구조적으로 거부하고(`:17,20,26-31`), (b) `.strict()`로
   주소·의료기록 원본 등 애초에 정의되지 않은 필드를 거부하는 것(`:36-43`)뿐이다. 3개
   자유 텍스트 필드(`incidentDescription`/`diagnosisName`/`disabilityBodyPart`)에 타이핑된
-  임의의 이름·기타 식별정보는 전혀 스캔하지 않는다. 그런데 `app/cases/new/page.tsx:56`의
+  임의의 이름·기타 식별정보는 전혀 스캔하지 않는다(v0.2.0 개정 시 `lib/validation/case-input.ts`를
+  재확인 — 위 서술은 "주민등록번호·전화번호 형식은 스캔되지만 이름 등 다른 식별정보는
+  스캔되지 않는다"는 정확한 구분이며, "아무것도 스캔하지 않는다"는 과잉 단순화가 아님을
+  확인했다). 그런데 `app/cases/new/page.tsx:56`의
   현재 고지 문구("비식별 요약만 입력하세요")는 스키마가 실제로 무엇을 막고 무엇을 막지
   않는지, 그리고 "합성/이미 비식별화된 사례만 가져와야 한다"는 테스터 책임을 명시하지
   않는다. 로그인 화면 하단의 "고객지원" 링크(`app/login/login-form.tsx:14,131`)는
@@ -95,21 +153,52 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
 
 신규 비즈니스 기능을 도입하지 않고, 10개 영역으로 범위를 고정한다:
 
-1. 호스팅 타임아웃 실측 및 문서화 (측정형)
+1. 배포 대상 tier 결정 및 호스팅 실행 시간 정합성 확인 (측정형 + 미확정 결정 기록)
 2. Gemini 쿼터 사전 점검 (운영 체크리스트)
 3. 원격 DB 마이그레이션/시드 실행 검증 (측정형)
 4. 실제 배포 도메인 인증 설정 검증 (측정형)
 5. 동시성 실측 및 문서화 — 큐/락 서비스 도입 없음 (측정형)
-6. 최소 서버측 재제출 가드 — 기존 `cases.status` 컬럼 재사용 (코드 변경)
-7. 최소 구조적 로깅 (코드 변경)
-8. 최소 장애 대응 런북 (문서)
-9. 실 Gemini 스모크 재검증 (측정형)
-10. 데이터 취급 고지 정직성 개선 — 한계 명시, 연락 채널, 예시 (코드+문서 변경)
+6. 최소 서버측 재제출 가드 — 원자적 구현 방식 결정 포함 (코드 변경 + 미확정 결정 기록)
+7. 재제출 가드의 동시성 제한 vs. 제출 idempotency 구분 및 4개 실패 모드 문서화 (문서)
+8. 최소 구조적 로깅 (코드 변경)
+9. 최소 장애 대응 런북 (문서)
+10. 실 Gemini 스모크 재검증 (측정형)
+11. 데이터 취급 고지 정직성 개선 — 한계 명시, 연락 채널, 예시 (코드+문서 변경)
 
-기존 API·DB 스키마·파이프라인 알고리즘 계약은 수정하지 않는다. 유일한 데이터 계층
-변경은 REQ-PILOT-READY-007(재제출 가드)이 `cases.status` 컬럼(이미 존재, 기본값
-`"pending"`)의 기존 값을 파이프라인 실행 **이전** 시점에 활용하는 것뿐이며, 이는
-컬럼 추가나 마이그레이션이 아니다.
+기존 API·DB 스키마·파이프라인 알고리즘 계약은 수정하지 않는다. 데이터 계층 변경
+범위는 REQ-PILOT-READY-007(재제출 가드)의 구현 방식 결정에 달려 있다 — "기존
+`cases.status` 컬럼만 재사용"(무마이그레이션, 경쟁 구간 위험 수용) 또는 "신규 예약
+테이블 추가"(소규모 마이그레이션, 진정한 원자성 확보) 중 하나이며, 이 SPEC은 두
+옵션을 모두 문서화하고 후자를 권고안으로 제시하되 실제 채택은 run-phase 착수 전
+사용자 확인이 필요한 미확정 결정으로 남긴다(§2 REQ-PILOT-READY-007 참고). 이 결정과
+무관하게, `evidence`/`feedback`/`allowed_testers` 등 다른 테이블과 파이프라인
+알고리즘 자체는 수정하지 않는다.
+
+### 측정 완료(measurement-done) vs. 파일럿 진행 여부 판단(go/no-go) 구분
+
+이 SPEC의 측정형 REQ(REQ-PILOT-READY-002/004/005/006/010)에 대응하는 AC는 "측정이
+실제로 수행되고 그 결과가 리포트에 정확히 기록되었는가"만을 판정 대상으로 한다.
+측정 결과(타임아웃 초과, 원격 DB 마이그레이션 실패, 인증 실패, 동시성 경쟁 증상 등)를
+바탕으로 "그래서 파일럿을 진행해도 되는가"를 판단하는 것은 이 SPEC의 AC가 대신
+내려주는 것이 아니라, 리포트를 읽는 사람이 별도로 내려야 하는 판단이다. 이는 그런
+판단을 내리는 행위 자체를 금지하는 것이 아니다 — 오히려 각 측정 리포트는 그 판단을
+사람이 정확히 내릴 수 있도록 충분히 구체적인 수치·오류 메시지를 남겨야 한다.
+(REQ-PILOT-READY-006에 있는 "이 리포트 안에 결론성 판단 문장이 없다"는 제약은 이와는
+별개로, "큐/락 인프라를 도입해야 하는가"라는 후속 SPEC의 결정 범위를 이 리포트
+안에서 앞서가지 않는다는 스코프 제약이며, 파일럿 진행 여부 판단 자체를 막는 것이
+아니다 — 두 판단을 혼동하지 않는다.)
+
+### 로컬 대체 실행 증거의 위상
+
+측정형 REQ 중 "가장 근접한 가용 환경으로 대체 가능"이라는 표현이 붙은 항목
+(REQ-PILOT-READY-002/006)에서, 로컬(`next start`, `localhost`) 실행으로 얻은 측정값은
+**참고/비교 증거로만 사용되며, 그 AC가 요구하는 원격·실배포 검증의 PASS 조건을
+대신 충족시키지 않는다.** 로컬로 대체한 경우 리포트에는 그 사실과 한계를 명시하고,
+"측정은 로컬 대체로 완료됨 / 배포 대상에 대한 검증은 아직 미확정"이라고 정확히
+기록해야 한다 — 로컬 결과를 원격 결과인 것처럼 리포트에 남기는 것은 금지된다.
+REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인증)는 정의상
+로컬로 대체할 수 없는 항목이다(각각 실제 원격 Turso 인스턴스, 실제 배포 도메인을
+요구).
 
 ### 핵심 판단 근거 — Tier M
 
@@ -117,19 +206,23 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
 `lib/ai/providers/gemini.ts`, `app/cases/new/case-input-form.tsx` 또는 `page.tsx`,
 `app/login/login-form.tsx`, `.moai/docs/runtime-runbook.md`(확장) 또는 신규
 `.moai/docs/incident-runbook.md`, 그리고 신규 측정/검증 리포트 3-4건으로 약 8-10개,
-예상 변경량 300-600 LOC 범위다. DB 스키마 마이그레이션은 없다(기존 컬럼 재사용).
-파일 수가 Tier S 기준(5개 미만)을 넘고, 서로 다른 10개 요구사항 그룹(운영 측정 5개 +
-코드 변경 3개 + 데이터 고지 개선까지)에 걸쳐 배포·코드·문서 3개 계층을 모두 다루므로
-Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 해당하지 않는다).
+예상 변경량 300-600 LOC 범위다. DB 스키마 마이그레이션은 REQ-PILOT-READY-007의 구현
+방식 결정에 조건부다 — "기존 컬럼 재사용" 옵션이 채택되면 마이그레이션은 없고,
+"예약 테이블 추가" 옵션이 채택되면 `lib/db/schema.ts`에 신규 테이블 1개 + Drizzle Kit
+마이그레이션 파일 1개가 추가된다(파일 수·LOC 범위에 영향을 주더라도 여전히 Tier M
+범위 안이다). 파일 수가 Tier S 기준(5개 미만)을 넘고, 서로 다른 11개 요구사항
+그룹(운영 측정 5개 + 코드 변경 3개 + idempotency 실패 모드 문서화 + 데이터 고지
+개선까지)에 걸쳐 배포·코드·문서 3개 계층을 모두 다루므로 Tier M으로 분류한다(15개
+파일·1000 LOC를 넘지 않아 Tier L에는 해당하지 않는다).
 
 ## §2. 요구사항 (Requirements — GEARS 표기법)
 
-### A. 호스팅 타임아웃 실측 (Hosting Timeout Measurement)
+### A. 배포 대상 tier 결정 및 호스팅 실행 시간 정합성 확인 (Deployment Tier Decision & Timeout Sanity Check)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-001 | Ubiquitous | 이 SPEC의 배포 준비 계획은 Vercel Hobby(무료) tier를 배포 대상으로 가정해야 한다 — 이 프로젝트에 유료 플랜 사용의 증거가 조사 세션에서 확인되지 않았기 때문이다. | 오케스트레이터 조사 세션(배포 준비 갭 조사), 유료 플랜 증거 부재 확인 |
-| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 환경에서 `POST /api/cases`의 실제 요청 처리 시간(로컬 실측 기준선: 30초, `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번)을 측정하고, 그 값이 Vercel Hobby tier의 서버리스 함수 실행 시간 상한 안에 들어오는지 문서로 남겨야 한다. 상한을 초과하면 해결 방법(플랜 업그레이드, 파이프라인 단축 등)은 이 SPEC의 범위가 아니며 후속 SPEC으로 명시적으로 미룬다. | 사용자 지시(측정 후 문서화, "빠르게 만들라"는 AC 아님), 유료 플랜 미확인 상태 |
+| REQ-PILOT-READY-001 | Ubiquitous | 이 SPEC의 배포 준비 계획은 Vercel 배포 tier 선택을 "실행 시간 상한" 문제가 아니라 **Fair Use Guidelines의 상용(commercial) 사용 정의 준수 여부** 문제로 다뤄야 한다. Vercel Hobby(무료) tier의 Fair Use Guidelines는 "이 프로젝트 제작 어느 부분에든 관여한 누군가(유급 직원·컨설턴트 포함)의 금전적 이익을 위한 배포"를 상용 사용으로 정의한다. 유급 개발자가 구축한 B2B 파일럿(외부 전문가 테스터 대상)이 이 정의에 해당하는지는 Vercel 공식 문서만으로 확정할 수 없는 미확인 사항이며, Vercel 자신도 불확실한 경우 지원팀 문의를 안내한다. 이 SPEC은 Hobby(무료, ToS 준수 여부 미확인)와 Pro($20/좌석/월 + 포함 크레딧 초과분 사용량 과금, "플랫폼의 모든 상용 사용은 Pro 또는 Enterprise 플랜을 요구한다"고 명시적으로 ToS 준수 보장)를 문서화된 두 후보로 병기해야 하며, 실제 채택은 이 SPEC이 내리지 않는다 — run-phase 착수 전 비용 결정 권한을 가진 사람의 확인이 필요한 **미확정 결정**으로 명시적으로 기록한다. | Vercel 공식 문서(Fair Use Guidelines — 상용 사용 정의; Pricing 페이지 — Pro $20/좌석/월 + 사용량; "모든 상용 사용은 Pro/Enterprise 요구" 명시), 오케스트레이터 조사 세션(배포 준비 갭 조사), 유료 플랜 사용 증거 부재 확인 |
+| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 환경(또는 가장 근접한 가용 환경)에서 `POST /api/cases`의 실제 요청 처리 시간(로컬 실측 기준선: 30초, `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번)을 측정하고, 그 값이 REQ-PILOT-READY-001에서 실제로 선택된 tier의 서버리스 함수 실행 시간 상한 안에 들어오는지 문서로 남겨야 한다. Fluid Compute가 기본 활성화된 현재 Vercel Hobby tier의 함수 실행 시간은 기본값이자 최댓값이 300초(5분)이고, Pro tier는 기본 300초/GA 최대 800초/베타 최대 1800초다 — 로컬 실측 30초는 두 tier 모두의 상한에 여유 있게 들어오므로, 이 REQ는 "위험 요인을 찾는 측정"이 아니라 "선택된 tier에서도 여전히 안전한지 확인하는 정합성 점검(sanity check)"으로 재정의된다. 상한을 초과하면 해결 방법(플랜 업그레이드, 파이프라인 단축 등)은 이 SPEC의 범위가 아니며 후속 SPEC으로 명시적으로 미룬다. | Vercel 공식 문서(Functions 실행 시간 문서 — Fluid Compute 기본 활성화, Hobby 300s 기본/최대, Pro 300s 기본/800s GA 최대/1800s 베타 최대), 사용자 지시(측정 후 문서화) |
 
 ### B. Gemini 쿼터 사전 점검 (Operational Checklist)
 
@@ -141,25 +234,25 @@ Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 �
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-004 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 기존 `pnpm db:migrate` → `pnpm db:seed` → `pnpm tester:add` 흐름(`.moai/docs/runtime-runbook.md`에 이미 문서화됨)을 로컬 `file:` DB가 아닌 실제 원격 Turso 인스턴스(`libsql://` 또는 `https://` 스킴)에 대해 실제로 1회 실행하고, 그 결과(성공/실패, 관측된 오류)를 문서로 남겨야 한다 — 이 REQ는 새로운 마이그레이션 도구를 만들지 않으며, 기존 런북이 실제 원격 대상에도 적용됨을 검증하는 것만을 목적으로 한다. | `.moai/docs/runtime-runbook.md` §1(로컬 file: DB 경로만 검증됨), 원격 실행 기록 부재 확인 |
+| REQ-PILOT-READY-004 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 기존 `pnpm db:migrate` → `pnpm db:seed` → `pnpm tester:add` 흐름(`.moai/docs/runtime-runbook.md`에 이미 문서화됨)을 로컬 `file:` DB가 아닌 실제 원격 Turso 인스턴스(`libsql://` 또는 `https://` 스킴)에 대해 실제로 1회 실행하고, 그 결과(성공/실패, 관측된 오류)를 문서로 남겨야 한다 — 이 REQ는 새로운 마이그레이션 도구를 만들지 않으며, 기존 런북이 실제 원격 대상에도 적용됨을 검증하는 것만을 목적으로 한다. 이 REQ는 정의상 로컬 대체를 허용하지 않는다(§ 로컬 대체 실행 증거의 위상 참고) — 실제 원격 인스턴스 없이는 이 REQ를 충족할 수 없다. | `.moai/docs/runtime-runbook.md` §1(로컬 file: DB 경로만 검증됨), 원격 실행 기록 부재 확인 |
 
 ### D. 실제 배포 도메인 인증 설정 검증 (Auth Config Verification)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-005 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, `BETTER_AUTH_URL`(및 도메인에 종속되는 그 밖의 인증 관련 환경변수)을 실제 배포된 도메인으로 설정하고, 그 도메인에 대해 실제 로그인 테스트를 수행해 성공을 확인해야 한다. | `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번(로컬 포트 `:3006`으로만 검증됨), 실 배포 도메인 로그인 검증 기록 부재 확인 |
+| REQ-PILOT-READY-005 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, `BETTER_AUTH_URL`(및 도메인에 종속되는 그 밖의 인증 관련 환경변수)을 실제 배포된 도메인으로 설정하고, 그 도메인에 대해 다음 3가지를 각각 구분해 확인해야 한다: (a) 로그인 요청 자체의 성공(HTTP 성공 상태 또는 UI 성공 신호), (b) 그 로그인으로 실제 세션이 수립됨(세션 쿠키/토큰 존재 확인), (c) 수립된 세션으로 인증이 필요한 보호된 페이지(예: `/cases/new`)에 실제로 접근 가능함. 세 가지 중 하나라도 확인되지 않으면 이 REQ는 충족되지 않는다 — "로그인 성공"이라는 모호한 단일 확인만으로는 부족하다. 이 REQ는 정의상 로컬 대체를 허용하지 않는다(§ 로컬 대체 실행 증거의 위상 참고). | `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번(로컬 포트 `:3006`으로만 검증됨), 실 배포 도메인 로그인 검증 기록 부재 확인 |
 
 ### E. 동시성 실측 (Concurrency Measurement — 측정 only, 큐/락 도입 없음)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-006 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포 대상(또는 가장 근접한 가용 환경)에 대해 3~5개의 동시(simultaneous) `POST /api/cases` 요청을 실제로 발생시키고, 관측된 거동(성공/실패/지연/인스턴스 간 경쟁 증상)을 문서로 남겨야 한다 — 이 REQ는 큐, Redis, 락 서비스 등 새로운 동시성 인프라의 도입을 요구하지 않으며, 그러한 도입이 필요한지에 대한 판단은 이 측정 결과를 근거로 한 후속 SPEC의 몫으로 명시적으로 미룬다. | 사용자 지시(측정 우선, 검증되지 않은 근거로 사전에 인프라를 도입하지 말 것), `lib/pipeline/index.ts:43,51`(모듈 스코프 락이 서로 다른 serverless 인스턴스 간 보호를 전혀 제공하지 않음을 코드 주석이 스스로 명시) |
+| REQ-PILOT-READY-006 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포 대상(또는 가장 근접한 가용 환경)에 대해 3~5개의 동시(simultaneous) `POST /api/cases` 요청을 **서로 다른 사용자 계정으로** 실제로 발생시키고, 관측된 거동(성공/실패/지연/인스턴스 간 경쟁 증상)을 문서로 남겨야 한다 — 이 REQ는 일반적인 동시 부하(throughput/안정성)를 다루며, "동일 사용자당 동시 1개 제한"이라는 REQ-PILOT-READY-007의 가드를 검증하는 것이 아니다(그 검증은 REQ-PILOT-READY-007 자체의 AC가 별도로 다룬다 — 두 REQ는 서로 다른 것을 측정하며 혼동하지 않는다). 이 REQ는 큐, Redis, 락 서비스 등 새로운 동시성 인프라의 도입을 요구하지 않으며, 그러한 도입이 필요한지에 대한 판단은 이 측정 결과를 근거로 한 후속 SPEC의 몫으로 명시적으로 미룬다. | 사용자 지시(측정 우선, 검증되지 않은 근거로 사전에 인프라를 도입하지 말 것), `lib/pipeline/index.ts:43,51`(모듈 스코프 락이 서로 다른 serverless 인스턴스 간 보호를 전혀 제공하지 않음을 코드 주석이 스스로 명시) |
 
 ### F. 최소 서버측 재제출 가드 (Minimal Resubmission Guard)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호)을 반환해야 한다 — 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, SPEC-PILOT-UX-001 iteration 3에서 명시적으로 기각된 `submissionNonce` 컬럼 + unique index 방식(§Out of Scope 참고)을 재도입하지 않는다. | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼이 이미 존재, 재사용 가능) |
+| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. 이 SPEC은 다음 두 구현 옵션을 문서화하며, 실제 채택은 이 SPEC이 내리지 않는 **미확정 결정**으로 run-phase 착수 전 사용자 확인이 필요하다: **(옵션 A, 권고안)** `ownerUserId`를 키로 하는 신규 예약(reservation) 테이블 + plain `UNIQUE` 제약 — `INSERT INTO reservations (owner_user_id) VALUES (?) ON CONFLICT DO NOTHING` 후 `rowsAffected`(0이면 이미 다른 요청이 예약을 보유 — "이미 처리 중"으로 응답)를 확인하고, 파이프라인 종료(성공/실패 모두) 시 그 예약 행을 삭제한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 즉 opt-in `tursodb` 타입이 아닌 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로("어떤 트랜잭션이 쓰기 작업을 하는 동안에는 다른 쓰기 트랜잭션이 진행될 수 없다"), `UNIQUE` 제약 + `ON CONFLICT DO NOTHING`은 이 프로젝트의 현재 설정에서 DB 엔진 수준의 진정한 원자성을 제공한다. 이 옵션은 소규모 스키마 변경(신규 테이블 1개)을 필요로 하며, 이는 최초 SPEC의 "무마이그레이션" 프레이밍과 상충한다. **(옵션 B, 무마이그레이션 대안)** 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(원 설계) — 마이그레이션은 없으나 진정한 경쟁 구간 해소를 보장하지 않으며, 파일럿 규모(~10명, 의도적 동시 이중 제출 가능성 낮음)에서 좁아진 위험을 수용하는 것일 뿐이다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, 어느 옵션을 택하든 SPEC-PILOT-UX-001 iteration 3에서 명시적으로 기각된 `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, §Out of Scope 참고)을 재도입하지 않는다. | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼이 이미 존재, 옵션 B의 재사용 대상) |
 
 ### G. 최소 구조적 로깅 (Minimal Structured Logging)
 
@@ -177,7 +270,7 @@ Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 �
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-010 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 현재 main HEAD(이 SPEC의 run-phase 시점 기준) 또는 그 이후 커밋에 대해 실 Gemini 스모크 테스트(`.moai/reports/gemini-runtime-smoke-20260828.md`와 동일한 방법론 — 코드 임시 수정 없음, 관측기 기반 logical call count 확인)를 재실행하고 새 리포트로 남겨야 한다. | 사용자 지시(마지막 실 Gemini 증거가 13일·4개 SPEC만큼 stale), `.moai/reports/gemini-runtime-smoke-20260828.md`(2026-08-28 시점, `feat/SPEC-GEMINI-RUNTIME-001@fb23553` 기준 — 이후 SPEC-EVIDENCE-001/SPEC-FEEDBACK-001/SPEC-PILOT-UX-001/SPEC-PILOT-VISUAL-001/SPEC-UI-MIGRATION-001/SPEC-E2E-AUTH-STATE-001가 병합됨) |
+| REQ-PILOT-READY-010 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 현재 main HEAD(이 SPEC의 run-phase 시점 기준) 또는 그 이후 커밋에 대해 실 Gemini 스모크 테스트(`.moai/reports/gemini-runtime-smoke-20260828.md`와 동일한 방법론 — 코드 임시 수정 없음, 관측기 기반 logical call count 확인)를 재실행하고 새 리포트로 남겨야 한다. 스모크는 최소한 다음 5가지를 개별적으로 확인·기록해야 한다: (a) Researcher/Skeptic/Verifier 3단계 각각의 실제 Gemini 호출 성공 여부, (b) `POST /api/cases`의 최종 HTTP 상태가 `201 Created`인지, (c) 응답에 포함된 결과가 실제로 DB(`reports` 테이블)에 영속화됐는지, (d) 그 DB 행을 별도 조회로 재확인할 수 있는지(응답 값과 DB 값의 일치), (e) 관측된 Gemini 실제 호출 횟수가 파이프라인이 요구하는 기대 호출 횟수(3회, 또는 재시도가 있었다면 그 실제 횟수)와 일치하는지 — 이 5가지 중 어느 하나라도 확인 없이 "스모크 통과"로 리포트에 기록해서는 안 된다. | 사용자 지시(마지막 실 Gemini 증거가 13일·4개 SPEC만큼 stale, 스모크 검증 항목 구체화), `.moai/reports/gemini-runtime-smoke-20260828.md`(2026-08-28 시점, `feat/SPEC-GEMINI-RUNTIME-001@fb23553` 기준 — 이후 SPEC-EVIDENCE-001/SPEC-FEEDBACK-001/SPEC-PILOT-UX-001/SPEC-PILOT-VISUAL-001/SPEC-UI-MIGRATION-001/SPEC-E2E-AUTH-STATE-001가 병합됨) |
 
 ### J. 데이터 취급 고지 정직성 (Data-Handling Disclosure Honesty)
 
@@ -188,12 +281,34 @@ Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 �
 | REQ-PILOT-READY-013 | Ubiquitous | 데이터 취급 문의를 위한 실제로 동작하는 연락 채널(이메일 주소 또는 그에 준하는 링크)이 추가되어야 한다 — 현재 로그인 화면 하단의 "고객지원" 링크(`app/login/login-form.tsx:14,131`)는 `aria-disabled="true"`로 비활성 상태이며 실제 채널에 연결되어 있지 않다. | `app/login/login-form.tsx:14,131` 조사 확인(비활성 placeholder) |
 | REQ-PILOT-READY-014 | Ubiquitous | 사건 입력 화면(또는 그에 준하는 온보딩 위치)에는 올바르게 비식별화·합성 처리된 사건 입력의 구체적 예시가 최소 1건 포함되어야 한다. | 조사 세션 grep 확인(현재 저장소 전체에 비식별 입력의 구체적 예시가 존재하지 않음) |
 
+### K. 재제출 가드의 보장 범위 및 실패 모드 문서화 (Idempotency Scope & Failure-Mode Documentation)
+
+| ID | 유형 | 요구사항 | 근거 |
+|----|------|----------|------|
+| REQ-PILOT-READY-015 | Ubiquitous | REQ-PILOT-READY-007의 재제출 가드는 "동일 사용자당 동시 in-flight 파이프라인 최대 1개"라는 **동시성 제한(concurrency limit)**만 보장하며, "동일 논리적 제출의 재제출은 항상 동일한 결과를 반환한다"는 **제출 idempotency**는 보장하지 않는다 — 이 둘은 서로 다른 개념이며 혼동해서는 안 된다. 이 SPEC은 다음 4가지 실패 모드 각각에 대해 실제 동작을 명시적으로 문서화해야 한다. 각 모드에 대해 해결 메커니즘이 있으면 그 메커니즘을, 없으면 "이 파일럿 규모(약 10명)에서는 의도적으로 다루지 않는 gap"임을 명시적으로 기록해야 하며, 다루지 않는 gap을 마치 해결된 것처럼 진술하는 것("재시도는 무제한으로 해도 중복 실행을 막는다"는 식의 과잉 보장 포함)은 금지된다: (a) **크래시/강제종료 복구** — 파이프라인 실행 도중 프로세스가 강제 종료되면 `processing`(또는 REQ-PILOT-READY-007 옵션 A 채택 시 예약 행)이 영구히 고착(orphan)될 수 있는지, 되면 무엇이 이를 회수하는지(TTL 기반 재활용, 수동 조치, 또는 의도적으로 다루지 않는 gap 중 어느 것인지); (b) **완료 상태와 리포트 저장의 원자성** — 파이프라인 성공 시 `cases` 행의 완료 상태 전이와 `reports` 행 INSERT가 같은 트랜잭션(원자적)인지, 아니면 한쪽만 성공하고 다른 쪽이 실패해 불일치 상태가 남을 수 있는지; (c) **응답 유실 후 재제출** — 서버측에서는 실제로 성공했으나 클라이언트가 응답을 받지 못한 경우(네트워크 유실), 재제출 시 테스터에게 무엇이 보이는지(이미 완료된 결과가 재사용되는지, 처음부터 재실행되는지); (d) **지연 도착 결과와 재시도 결과의 충돌 가능성** — (a)의 고착 상태가 회수된 뒤 재시도가 허용된 경우, 원래 시도에서 뒤늦게 도착한 결과가 재시도의 결과와 충돌할 수 있는지. | 사용자 지시(동시성 제한과 제출 idempotency를 별개로 다루고, 이 SPEC이 정확히 무엇을 보장하고 무엇을 보장하지 않는지 정직하게 진술할 것), 외부 리뷰(4개 실패 모드가 원 SPEC에서 누락됐다는 지적) |
+
 ## Out of Scope
 
 ### Out of Scope — Vercel CI/CD 자동화
 
 - 정식 Vercel CI/CD 배포 자동화 파이프라인 구축은 이 SPEC의 범위가 아니다 — 이 SPEC은
-  Hobby tier 가정 하에서의 타임아웃 실측·문서화(REQ-PILOT-READY-002)까지만 다룬다.
+  선택된 tier(REQ-PILOT-READY-001)에서의 타임아웃 정합성 확인·문서화(REQ-PILOT-READY-002)까지만
+  다룬다.
+
+### Out of Scope — "최근 리서치" 패널의 processing/failed 상태 표시 개선
+
+- `app/cases/new/recent-research-panel.tsx`의 `STATUS_LABELS`는 현재 `pending`/`completed`만
+  한글 라벨로 매핑하며, `statusLabel()`은 매핑에 없는 상태값을 영문 원문 그대로 노출한다
+  (`?? status` 폴백). `getRecentCasesForOwner()`(`lib/cases/get-recent-cases-for-owner.ts`)는
+  `cases.status`로 필터링하지 않고 소유자의 최근 사건을 그대로 조회하므로,
+  REQ-PILOT-READY-007 구현 이후 `processing`/`failed` 상태의 행이 실제로 생성되면 "최근
+  리서치" 패널에 라벨 없이 영문 원문("processing"/"failed")으로 노출된다. 또한
+  `app/cases/[caseId]/page.tsx`로의 링크는 아직 리포트가 없는(`report: null`,
+  `lib/cases/get-case-for-owner.ts` 확인) 사건에 대해서도 그대로 생성된다 — 이 화면이
+  `report === null` 상태를 어떻게 렌더링하는지는 이 SPEC 조사 범위에서 별도로 검증하지
+  않았다. 이 UI 표시 개선(라벨 매핑 추가, `report: null` 상태 처리)은 이 SPEC의 범위가
+  아니다 — 이 SPEC은 이 갭을 문서로만 기록하며, 코드 변경은 run-phase 실행자 또는
+  후속 SPEC의 판단에 맡긴다.
 
 ### Out of Scope — 프로덕션 로그인 rate-limiting 강화
 
@@ -230,9 +345,15 @@ Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 �
 ### Out of Scope — 분산 서버측(DB 기반) idempotency (nonce/unique-index 방식)
 
 - SPEC-PILOT-UX-001 iteration 3에서 외부 독립 리뷰에 의해 명시적으로 기각된
-  `submissionNonce` 컬럼 + unique index 방식(예약/완료 상태 전이, 크래시 복구를 포함하는
-  진정한 분산 idempotency)은 이 SPEC에서도 재도입하지 않는다. REQ-PILOT-READY-007은 이와
-  다른, 기존 `cases.status` 컬럼을 재사용하는 훨씬 단순한 메커니즘이다.
+  `submissionNonce` 컬럼 + unique index 방식(요청 **페이로드 해시** 기반 정밀 dedup —
+  동일 페이로드의 재제출을 정확히 식별해 완료된 결과를 재사용하는 진정한 분산
+  idempotency)은 이 SPEC에서도 재도입하지 않는다. REQ-PILOT-READY-007의 두 구현 옵션
+  (기존 `cases.status` 재사용 또는 신규 예약 테이블) 중 어느 것도 페이로드 기반 dedup을
+  하지 않는다 — 두 옵션 모두 매칭 키가 `ownerUserId`(사용자 단위)이지 페이로드 해시가
+  아니며, "동일 사용자당 동시 1개"라는 동시성 제한만 제공한다. 예약 테이블(옵션 A)이
+  DB 제약으로 원자성을 얻더라도, 이는 `submissionNonce` 방식이 목표했던 페이로드 수준
+  정밀 dedup과는 다른, 훨씬 좁은 보장이다(REQ-PILOT-READY-015가 이 차이와 그로 인해
+  다뤄지지 않는 실패 모드를 명시적으로 문서화한다).
 
 ## §3. 인수 조건 요약
 
@@ -243,6 +364,12 @@ Tier M으로 분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 �
 
 - `SPEC-RUNTIME-001` — `.moai/docs/runtime-runbook.md`의 출처, 환경변수 스코프 매트릭스 — REQ-PILOT-READY-004/005의 기반
 - `SPEC-GEMINI-RUNTIME-001` — Gemini 파이프라인 실행 런타임(`withPipelineLock`, RateScheduler)의 출처 — REQ-PILOT-READY-002/003/006의 기반
-- `SPEC-PILOT-UX-001` — 클라이언트측 single-flight 가드 및 기각된 DB-nonce idempotency 설계 이력의 출처 — REQ-PILOT-READY-007이 그 판단을 그대로 계승
+- `SPEC-PILOT-UX-001` — 클라이언트측 single-flight 가드 및 기각된 DB-nonce idempotency 설계 이력의 출처 — REQ-PILOT-READY-007/015가 그 판단을 참고해 동시성 제한과 제출 idempotency를 구분
 - `SPEC-EVIDENCE-001` / `SPEC-FEEDBACK-001` — REQ-PILOT-READY-010(스모크 재검증)이 stale 여부를 판단하는 기준이 되는, 마지막 스모크 이후 병합된 SPEC들
 - `.moai/reports/gemini-runtime-smoke-20260828.md` — REQ-PILOT-READY-002/003/010의 직접적 실측 근거
+- Turso 공식 문서(docs.turso.tech §Client Access) — REQ-PILOT-READY-007 옵션 A(예약 테이블)의
+  단일 writer 트랜잭션 모델 근거
+- Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud) — 이 프로젝트가 사용하는
+  표준(비-MVCC) Turso Cloud 아키텍처와, 신규 opt-in MVCC `tursodb` 엔진이 별개임을 확인하는 근거
+- Vercel 공식 문서(Fair Use Guidelines, Functions 실행 시간 문서, Pricing 페이지) —
+  REQ-PILOT-READY-001/002의 Hobby/Pro tier 근거
