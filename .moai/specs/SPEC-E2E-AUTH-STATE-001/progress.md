@@ -75,7 +75,7 @@ AC-001~015(a/b)는 위 REQ 대조와 § E.2(각 AC 절, 이번 감사에서 실�
 
 로그 원문: `.moai/state/verify/e2e-auth-state-001/baseline/base{1,2,3}.log`(베이스라인), `run{1..5}.log`/`filterA.log`/`filterB.log`(현재).
 
-**원인 특정**: 베이스라인에서는 `chromium` project 안에서 파일이 알파벳 순으로 실행되며, `case-flow.spec.ts`가 실행될 때까지 `/sign-in/email` POST는 `auth.spec.ts`의 2건(성공 1 + 거부 1, 거부도 `/sign-in/email`에 POST됨)뿐이었다 — `case-flow.spec.ts`의 로그인이 그 창 안에서 3번째 요청이었다. 현재 코드는 `e2e/auth.setup.ts`가 스위트 시작 직후 TESTER_A/TESTER_B 로그인 2건을 **추가로** 선행시키므로(setup project가 항상 가장 먼저 실행), `case-flow.spec.ts`가 로그인을 시도하는 시점에는 이미 setup 2건 + auth.spec 2건 = 4건의 `/sign-in/email` POST가 짧은 시간 안에 선행되어 있다 — `case-flow.spec.ts`의 로그인은 그 창 안에서 5번째 요청이 되어, Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)을 초과한다. 이 인과관계는 (a) 두 조건에서 `case-flow.spec.ts` 소스가 완전히 동일하고, (b) 실행 순서상 `case-flow.spec.ts` 앞에 새로 추가된 요청이 정확히 setup 2건뿐이며, (c) `--spec` 필터 실행(filterA/filterB, `case-flow.spec.ts`가 아예 실행되지 않는 경로)에서는 이 현상이 관측되지 않는다는 사실과 모두 정합적이다.
+**원인 특정**: 베이스라인에서는 `chromium` project 안에서 파일이 알파벳 순으로 실행되며, `case-flow.spec.ts`가 실행될 때까지 `/sign-in/email` POST는 `auth.spec.ts`의 2건(성공 1 + 거부 1, 거부도 `/sign-in/email`에 POST됨)뿐이었다 — `case-flow.spec.ts`의 로그인이 그 창 안에서 3번째 요청이었다. 현재 코드는 `e2e/auth.setup.ts`가 스위트 시작 직후 TESTER_A/TESTER_B 로그인 2건을 **추가로** 선행시키므로(**[v0.1.7 정정]** setup이 `chromium`보다 먼저 실행되는 것은 `dependencies: ["setup"]`(이 필드는 `chromium-authed`에만 선언되어 있다)로 config가 강제하는 보장이 아니라, `projects` 배열 선언 순서에 따라 관측된 Playwright 스케줄링 동작이다 — 상세: 위 §E.2c "스케줄링 의존성" 정정), `case-flow.spec.ts`가 로그인을 시도하는 시점에는 이미 setup 2건 + auth.spec 2건 = 4건의 `/sign-in/email` POST가 짧은 시간 안에 선행되어 있다 — `case-flow.spec.ts`의 로그인은 그 창 안에서 5번째 요청이 되어, Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)을 초과한다. 이 인과관계는 (a) 두 조건에서 `case-flow.spec.ts` 소스가 완전히 동일하고, (b) 실행 순서상 `case-flow.spec.ts` 앞에 새로 추가된 요청이 정확히 setup 2건뿐이며, (c) `--spec` 필터 실행(filterA/filterB, `case-flow.spec.ts`가 아예 실행되지 않는 경로)에서는 이 현상이 관측되지 않는다는 사실과 모두 정합적이다.
 
 **결론**: `case-flow.spec.ts`의 flakiness는 "이 SPEC과 무관하게 기존부터 있던 잔여 위험"이 아니라, **이 SPEC이 도입한 setup 로그인 2건이 rate-limit 충돌 지점을 원래 대상 2개 파일에서 `case-flow.spec.ts`로 이동시킨 결과**다 — `case-flow.spec.ts` 소스는 무변경이지만 그 파일이 실행되는 **타이밍 컨텍스트**가 이 SPEC에 의해 변경됐기 때문에 나타난, 인과관계가 특정된 부작용이다. `spec.md` §5는 "setup 프로젝트 실행이 인접 스펙 파일의 rate-limit 예산을 소비할 가능성"을 일반론으로 이미 예견했고, 그 완화책으로 기존 `retries: 2` 안전망과 AC-E2EAUTH-004의 "무재시도가 아니라 통과(재시도 허용)만 요구" 판정 기준을 명시적으로 지정해 두었다 — 그 설계상 이 사실만으로 어떤 AC도 FAIL되지 않는다(AC-E2EAUTH-003의 무재시도 요건은 setup A/B + 대상 2개 파일 3항목에만 적용되고, `case-flow.spec.ts`는 그 3항목에 포함되지 않는다). 다만 "기존 flaky 패턴을 그대로 유지"라는 과거 서술은 사실과 다르므로, 이번 감사에서 "이동(shift)"으로 정정한다.
 
@@ -318,13 +318,21 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 
 **전체 15개 AC 전부 PASS.** 잔여 부채 1건 있음 — 아래 § 잔여 부채(Residual Debt) 참고. **[v0.1.5 정정]** 이 부채는 "이 SPEC이 만든 결함 아님(기존 flaky 그대로)"이 아니라 **이 SPEC의 변경이 원인으로 특정된, rate-limit 충돌 지점의 이동**이다 — 상세 인과관계는 § case-flow 회귀 조사 참고. 어떤 AC도 FAIL시키지는 않는다(AC-E2EAUTH-004가 재시도를 허용하기 때문).
 
-### 잔여 부채 (Residual Debt)
+### 잔여 부채 (Residual Debt) — **[HISTORICAL, v0.1.2~v0.1.5 시점 기록, v0.1.6에서 해소됨]**
+
+> 아래 표와 그 아래 문단은 v0.1.2~v0.1.5 시점(HEAD `798a8b2`~`167c71b`)의 실제 관측 기록이며, **그 시점의 사실로서 그대로 보존**한다. 이 부채는 **v0.1.6**(`e2e/auth.setup.ts` 10초 대기 추가)에서 해소됐다 — 현재(v0.1.7 시점) 유효한 잔여 사항은 이 섹션이 아니라 바로 아래 "§ 현재 잔여 사항(v0.1.6 이후)"을 참고한다.
 
 | 항목 | 범위 | 근거 | 판정에 미치는 영향 |
 |------|------|------|---------------------|
 | `e2e/case-flow.spec.ts`가 5/5(전체 스위트) 1차 시도 실패 → retry #1로만 회복(flaky) | 이 SPEC의 대상 파일이 아님(out-of-scope, `spec.md` §4가 storageState 전환 대상에서 명시적으로 제외) — **단, 이 flaky 자체는 이 SPEC이 새로 유발한 rate-limit 충돌 이동의 결과임이 격리 베이스라인 대조로 확인됨(§ case-flow 회귀 조사)** | `run1.log`~`run5.log` 5회 전부 동일 패턴(`grep -cE "✘"` = 1, 매 회) + 격리 워크트리 베이스라인 3회 대조(베이스라인은 3/3 무재시도 통과) | AC-E2EAUTH-004는 "무재시도"가 아니라 "통과(재시도 허용)"만 요구하므로 판정에 영향 없음. AC-E2EAUTH-003의 무재시도 요건은 대상 3항목(setup/case-input-mobile-layout/tenant-isolation)만 채점 대상이므로 마찬가지로 영향 없음 — **다만 이 부채는 "이 SPEC과 무관한 기존 문제"가 아니라 "이 SPEC이 유발했으나 SPEC 제약(PRESERVE/out-of-scope) 때문에 이 SPEC 범위에서 고칠 수 없는 부작용"으로 정확히 분류해야 한다** |
 
-이 SPEC은 위 1건 외에 알려진 잔여 부채가 없다. "잔여 부채 없음"이라는 v0.1.2 문구, 그리고 v0.1.2~v0.1.4가 이 항목을 "이 SPEC과 무관한 기존 flaky"로 서술한 것 모두 이번 v0.1.5 독립 감사에서 정정한다 — 근본 해결(스위트 시작 시점 rate-limit 충돌 제거)은 후속 SPEC 후보로 남긴다(§ case-flow 회귀 조사 § 후속 처리 권고).
+이 SPEC은 위 1건 외에 알려진 잔여 부채가 없다(당시 기준). "잔여 부채 없음"이라는 v0.1.2 문구, 그리고 v0.1.2~v0.1.4가 이 항목을 "이 SPEC과 무관한 기존 flaky"로 서술한 것 모두 v0.1.5 독립 감사에서 정정했다 — 당시에는 근본 해결(스위트 시작 시점 rate-limit 충돌 제거)을 후속 SPEC 후보로 남겼으나, **v0.1.6에서 이 SPEC 범위 안에서 직접 해결했다**(§E.2c).
+
+### 현재 잔여 사항(v0.1.6 이후) — 이 섹션이 최신 상태다
+
+- **잔여 부채**: 없음. 위 case-flow flaky는 v0.1.6에서 해소되어 재검증 7회 전부 1차 시도 통과로 확인됐다(§E.2c "AC-E2EAUTH-003/004 회차별 판정표").
+- **알려진 검증 한계(부채와 구분 — 코드 결함이 아니라 검증 설계의 한계)**: `auth.spec.ts`(PRESERVE, 무변경)의 미등록 이메일 거부 테스트는 오류 원인(진짜 인증 거부 vs rate-limit)을 구분하지 않는다. v0.1.6에서 이 테스트가 진짜 401 응답을 받는 것을 계측 1회로 직접 확인했으나, 이후 스위트에 새 sign-in 요청이 추가되는 등 변경이 생기면 같은 유형의 429 거짓 통과가 재발할 수 있고, 그 경우에도 이 테스트만으로는 검출되지 않는다 — `auth.spec.ts`를 건드리지 않는 한(PRESERVE) 구조적으로 남는 한계다.
+- **[v0.1.7]** 위 두 항목은 v0.1.6 시점부터 유효하며 이번 v0.1.7(문서 정확도 정정)로 인해 바뀌지 않았다.
 
 ### 부수적 발견 및 정정
 
@@ -455,8 +463,8 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
 **측정한 효과와 비용**:
 - **효과(재계측, 로그 `.moai/state/verify/e2e-auth-state-001/review2/run2-candidate.log`)**: `setup-A(t=0)/setup-B(t=+574ms)/auth-success(t=+11759ms, 200)/auth-reject(t=+801ms 후, **401** `error=INVALID_EMAIL_OR_PASSWORD`)/case-flow(t=+506ms 후, **200**, 1차 시도)` — `auth-reject`가 이제 진짜 자격증명 거부(401)를 받고, `case-flow`가 재시도 없이 1차 시도로 통과한다.
 - **추가 실행 시간**: 매 `pnpm test:e2e` 실행(setup이 실행되는 모든 경로 — 전체 스위트 및 두 `--spec` 필터 모두)에 10초 고정 추가. 그러나 수정 전에는 `case-flow.spec.ts`가 매회 30초 타임아웃 후 1.7초 retry로 회복하는 비용을 치렀으므로(§E.2b), 전체 스위트 기준 순 변화는 오히려 감소 방향이다 — 실측 리포터 총 소요시간은 수정 전/후 모두 반올림 표기로 "5.0m" 동일(§E.2 v0.1.6 재검증 로그 참고).
-- **스케줄링 의존성**: 이 대기는 setup project가 chromium/chromium-authed project보다 먼저 실행된다는 `dependencies: ["setup"]` 순서 보장에만 의존한다 — 이 SPEC이 이미 확정한 base 설계(D9 close-out)와 동일한 보장이며 새로운 의존성을 추가하지 않는다.
-- **setup 재시도 영향**: 대기는 TESTER_B 테스트의 마지막 문장이므로, `page.on` 리스너나 `expect()` 단언 이후에 실행되어 setup 자신의 무재시도 판정(AC-E2EAUTH-003)에 영향을 주지 않는다(아래 4) 재검증에서 setup A/B 모두 7/7 1차 시도 통과로 확인).
+- **[v0.1.7 정정] 스케줄링 의존성 — 설정 보장 vs 관측된 동작 구분**: `playwright.config.ts`를 다시 확인하면 `dependencies: ["setup"]`는 **`chromium-authed` project에만** 선언되어 있다(대상 2개 파일이 속한 project). `chromium` project(여기에 `auth.spec.ts`·`case-flow.spec.ts`가 속함)는 `dependencies`를 전혀 선언하지 않는다 — 따라서 "setup이 `chromium-authed`보다 먼저 실행된다"는 것은 config가 강제하는 사실이지만, "setup이 `chromium` project보다 먼저 실행된다"는 것은 **config가 보장하지 않는다**. 이전 v0.1.6 서술("setup project가 chromium/chromium-authed project보다 먼저 실행된다는 순서 보장에만 의존한다")은 이 둘을 구분하지 않아 부정확했다 — 정정한다. 실제로는 `projects` 배열에서 `setup`이 첫 번째로 선언되어 있고, `chromium-authed`가 그것에 의존하므로 Playwright가 setup을 먼저 스케줄링하는 것으로 보이며, 이 관측은 이번 조사에 포함된 7회 전부(§E.2c 5)에서 안정적으로 재현됐다 — 그러나 이는 **관측된 스케줄링 동작**이지 `chromium` project에 대한 **설정상의 보장**이 아니다. `chromium` 전체에 `dependencies: ["setup"]`를 추가하면 이 보장을 config 수준으로 격상시킬 수 있으나, 이는 `playwright.config.ts`의 `projects` 구조를 이 SPEC이 확정한 base 설계(M1, D9 close-out) 이상으로 변경하는 것이라 이번 수정 범위에서는 채택하지 않는다 — 관측 사실을 정확히 구분해 기록하는 것으로 대신한다.
+- **[v0.1.7 정정] setup 재시도 영향 — 근거 없는 인과 추론 철회**: 10초 대기는 TESTER_B 테스트 **자체의 실행 시간**에 그대로 더해지며, Playwright 테스트 timeout 예산(이 프로젝트는 `timeout` 오버라이드가 없으므로 기본값 30000ms)을 함께 소비한다. 이전 v0.1.6 서술("`page.on` 리스너나 `expect()` 단언 이후에 실행되어 setup 자신의 무재시도 판정에 영향을 주지 않는다")은 "단언 이후에 실행되므로 재시도에 영향이 없다"는 인과관계를 주장했으나, 이 인과관계를 뒷받침하는 근거가 없다 — timeout은 단언 통과 여부가 아니라 테스트 전체 소요시간으로 판정되므로, 대기가 단언 뒤에 있다는 사실만으로 timeout/retry 영향이 없다고 결론지을 수 없다. 이번 개정에서 이 주장을 철회하고, 실측으로 한정한다: 최종 7회(final-run1~5, final-filterA/B — 로그 원문 아래) 각각에서 TESTER_B 테스트의 리포터 소요시간은 `10.6s / 10.5s / 10.6s / 10.5s / 10.5s`(전체 스위트) · `10.6s / 10.5s`(필터 2회)로, 기본 timeout 30초 대비 약 19.4~19.5초의 여유가 있었고, 이 7회 전부에서 setup(TESTER_A/B)가 재시도 표시(`(retry #N)`) 없이 1차 시도로 통과했다. **이 관측은 이 7회에 한정되며, 대기가 timeout/재시도에 구조적으로 영향을 주지 않는다는 일반 보장을 주장하지 않는다** — 근거 없이 timeout이나 `retries` 값을 늘리는 조치도 취하지 않았다(현재 여유로 충분하다고 판단).
 - **다른 파일로의 충돌 이동 여부**: 재검증(아래 4)에서 `sidebar-sticky`/`mobile-drawer-focus`/`comparison-docs-images`/`capture-evidence`류를 포함한 전체 13개 테스트가 매회 동일 패턴(EXPECTED-SKIP 10개, 통과 13개, 재시도 0건)으로 통과해 충돌이 다른 파일로 이동한 흔적은 없다.
 
 ### 4) 실행 횟수 정정 (v0.1.6)
@@ -490,6 +498,20 @@ final-filterB.log (--spec=tenant-isolation)          ... 3 passed (39.1s) exit=0
 ```
 7개 로그 전부에 `retry #`, `✘`, `flaky` 문자열이 0건(각 로그를 `grep -E "retry #|✘|flaky"`로 확인, 빈 결과) — 수정 전(§E.2c 1) `12 passed, 1 flaky`이던 것과 대비된다. `auth.spec.ts`의 두 테스트(성공/거부)와 `case-flow.spec.ts`도 이 5회 전부에 포함되어 통과했다(전체 스위트 실행이므로 case-flow가 실제로 실행됨 — §E.2c 1)의 "필터 결과를 원인 입증에 쓰지 않음" 원칙과 별개로, 5회 전부가 case-flow를 포함하는 전체 스위트이므로 이 재검증 자체는 유효하다).
 
+**AC-E2EAUTH-003/004 회차별 판정표(v0.1.6 최종 코드, 로그 원문에서 직접 발췌 — `[INVESTIGATE]` 계측 없는 공식 재검증)**:
+
+| 회차 | setup(TESTER_A) | setup(TESTER_B) | `case-input-mobile-layout` | `tenant-isolation` | `case-flow.spec.ts` | `capture-evidence`류(10개) | `auth.spec.ts`(2개) | 회차 결과 |
+|---|---|---|---|---|---|---|---|---|
+| run1(전체) | 1차 통과(826ms) | 1차 통과(10.6s) | 1차 통과(760ms) | 1차 통과(305ms) | 1차 통과(1.6s) | EXPECTED-SKIP 10/10 | 1차 통과 2/2 | exit 0, 13 passed |
+| run2(전체) | 1차 통과(806ms) | 1차 통과(10.5s) | 1차 통과(732ms) | 1차 통과(298ms) | 1차 통과(1.6s) | EXPECTED-SKIP 10/10 | 1차 통과 2/2 | exit 0, 13 passed |
+| run3(전체) | 1차 통과(831ms) | 1차 통과(10.6s) | 1차 통과(825ms) | 1차 통과(337ms) | 1차 통과(1.6s) | EXPECTED-SKIP 10/10 | 1차 통과 2/2 | exit 0, 13 passed |
+| run4(전체) | 1차 통과(840ms) | 1차 통과(10.5s) | 1차 통과(826ms) | 1차 통과(316ms) | 1차 통과(1.7s) | EXPECTED-SKIP 10/10 | 1차 통과 2/2 | exit 0, 13 passed |
+| run5(전체) | 1차 통과(681ms) | 1차 통과(10.5s) | 1차 통과(685ms) | 1차 통과(290ms) | 1차 통과(1.5s) | EXPECTED-SKIP 10/10 | 1차 통과 2/2 | exit 0, 13 passed |
+| filterA(`--spec=case-input-mobile-layout`) | 1차 통과(797ms) | 1차 통과(10.6s) | 1차 통과(752ms) | (필터 미포함) | (필터 미포함) | (필터 미포함) | (필터 미포함) | exit 0, 3 passed |
+| filterB(`--spec=tenant-isolation`) | 1차 통과(816ms) | 1차 통과(10.5s) | (필터 미포함) | 1차 통과(510ms) | (필터 미포함) | (필터 미포함) | (필터 미포함) | exit 0, 3 passed |
+
+**판정 근거**: AC-E2EAUTH-003 대상 3항목(setup 자신·대상 2개 파일) — 위 표에서 7회(해당 파일이 등장하는 실행만 계수 — §E.2c 4의 6/6·7/7 분모와 일치) 전부 "1차 시도 통과", 재시도 0건 → **PASS**. AC-E2EAUTH-004(전체 스위트 회귀 없음 + capture-evidence 예상 스킵) — 전체 스위트 5회 전부 `capture-evidence`류 10개 EXPECTED-SKIP + 나머지 전부 통과 + exit 0 → **PASS**. `case-flow.spec.ts`는 5/5(전체 스위트에만 등장) 전부 1차 시도 통과로, 이전 버전(v0.1.5 이하)이 기록한 "5/5 1차 실패 → retry로 회복"이라는 잔여 부채가 이번 수정으로 해소됐음을 재확인한다.
+
 **Baseline-attribution**: 이 7회 실행 전부, HEAD `49f986a` + `e2e/auth.setup.ts`의 10초 대기 추가분(작업 트리, 커밋 전) 대상. 메인 체크아웃에서 순차 실행(병렬 세션 없음).
 
 **Gaps**: `auth-reject`가 매회 401(진짜 거부)을 받았는지는 §E.2c 3)의 1회 재계측(run2-candidate.log)으로만 직접 확인했다 — 이 5+2회 공식 재검증에는 계측 코드가 없으므로(계측은 PRESERVE 파일에 영구 반영하지 않음, §E.2c 1)) 상태 코드를 직접 재확인하지 않았다. 다만 (a) 코드가 동일하고, (b) 타이밍 여유(10초 대기)가 결정론적으로 유지되며, (c) 7회 전부 재시도 없이 통과한 것이 rate-limit 충돌이 재발하지 않았다는 간접 증거이므로, 401 유지에 대한 신뢰도는 높다고 판단하되 "직접 관측"과 "간접 근거"를 구분해 기록한다.
@@ -505,8 +527,37 @@ $ pnpm run build        → exit 0
 
 **구현 변경 범위**: `e2e/auth.setup.ts` 1개 파일 — TESTER_B 테스트 끝에 `await page.waitForTimeout(10_000)` 1줄 + 설명 주석. `git diff --stat` 기준 다른 어떤 파일도 변경되지 않았다(SPEC 문서 4개 제외). PRESERVE 재확인: `e2e/helpers.ts`·`e2e/auth.spec.ts`·`e2e/case-flow.spec.ts`·`e2e/mobile-drawer-focus.spec.ts`·`scripts/` 전체·나머지 out-of-scope spec 파일·`playwright.config.ts`의 `workers`/`retries`/`webServer` 전부 `git diff --stat` 빈 결과로 무변경 확인.
 
-**판정**: **AC-E2EAUTH-003/004 재확인 — PASS 유지**(재시도 0건으로 오히려 강화). **잔여 부채(§ 잔여 부채, `case-flow.spec.ts` flaky)는 이번 수정으로 해소** — 이 AC들의 원래 요구(무재시도 3항목/전체 스위트 통과)를 위해 필요했던 것은 아니었으나(재시도는 원래도 허용됐다), 근본 원인 제거의 부수 효과로 실제로 사라졌다. **신규 확정 사실**: `auth.spec.ts`의 미등록 이메일 거부 테스트가 이제 진짜 401 응답으로 검증된다(§E.2c 3) 재계측).
+**판정**: **AC-E2EAUTH-003/004 재확인 — PASS 유지**(재시도 0건으로 오히려 강화). **잔여 부채(§ 잔여 부채, `case-flow.spec.ts` flaky)는 이번 수정으로 해소** — 이 AC들의 원래 요구(무재시도 3항목/전체 스위트 통과)를 위해 필요했던 것은 아니었으나(재시도는 원래도 허용됐다), 근본 원인 제거의 부수 효과로 실제로 사라졌다.
+
+**[v0.1.7 정정] 인증 검증 범위 — 계측 확인과 비계측 확인을 구분**: 이 두 종류의 증거를 혼동하지 않는다 — (a) `auth.spec.ts`의 거부 테스트가 **진짜 401 응답**을 받는다는 것은 §E.2c 3)의 계측 재실행 **1회**(`run2-candidate.log`)에서만 직접 관측했다. (b) 위 표의 공식 5+2회 재검증은 계측 코드가 없으므로 이 테스트가 **PASS했다는 사실**만 확인하며, 그 PASS의 원인이 401(진짜 거부)인지 다른 무언가인지는 재확인하지 않는다. 이전(v0.1.6) 문구가 "재검증(5+2회)에서 ... 진짜 401 응답으로 ... 확인했다"처럼 (a)와 (b)를 한 문장에 섞어 서술한 것을 이번 개정에서 분리한다. **알려진 검증 한계(해소되지 않음, 앞으로도 남음)**: `auth.spec.ts` 자체는 PRESERVE 대상이라 오류 원인(진짜 거부 vs rate-limit)을 구분하도록 수정하지 않았다 — 따라서 향후 스위트에 sign-in 요청이 추가되는 등의 변경으로 같은 유형의 429 거짓 통과가 재발해도, 이 테스트의 PASS/FAIL만으로는 검출되지 않는다. 이 한계는 이번 수정으로 해소된 것이 아니라 구조적으로 남아 있으며, `auth.spec.ts`를 건드리지 않는 한 계속 남는다.
 
 - **완료_complete_at**: 2026-09-10
 - **완료_commit_sha**: `595324f`(full: `595324f86c10ae921426e88009e5ed40b09dbe45`)
 - **PR**: #9 — 아래 최종 보고의 내용으로 본문 갱신, **open 유지, merge하지 않음**(외부 재검토 요청)
+
+## §E.2d 외부 재검토 4차 대응 — v0.1.6 서술 정확도 정정 (v0.1.7, PR #9 HEAD `8e7d36a` 대상)
+
+**배경**: v0.1.6의 수정(10초 대기)은 유지하되, 외부 재검토가 그 설명에서 4가지 부정확성을 지적했다 — (1) 실행 순서 보장 범위 과장, (2) timeout 영향에 대한 근거 없는 인과 추론, (3) 계측 확인과 비계측 확인의 혼동, (4) AC-003 회차별 판정표 미제시. **구현 변경은 없다** — 이번 라운드는 문서 정정만 수행한다.
+
+**정정 내역**(각 항목의 본문 위치는 위 §E.2c 및 § 잔여 부채 참고):
+1. **스케줄링 의존성**: `dependencies: ["setup"]`가 `chromium-authed`에만 선언되어 있고 `chromium`에는 없음을 반영 — "config 보장"과 "관측된 스케줄링 동작"을 구분. `chromium` 전체에 `dependencies`를 추가하는 코드 변경은 하지 않았다(§E.2c "스케줄링 의존성" 정정 + 위 § case-flow 회귀 조사의 "[v0.1.7 정정]" 각주).
+2. **timeout 영향**: "단언 이후라 재시도에 영향 없다"는 근거 없는 인과 추론을 철회하고, 실측(final-run1~5/final-filterA/B)한 TESTER_B 소요시간(10.5~10.6초, 기본 30초 timeout 대비 여유 확인)과 "이 7회에서 setup 재시도 0건"이라는 관측 사실로 한정했다(§E.2c "setup 재시도 영향" 정정). 근거 없이 `timeout`/`retries` 값을 늘리는 조치는 하지 않았다.
+3. **인증 검증 범위**: `auth.spec.ts`의 진짜 401 확인(계측 1회, `run2-candidate.log`)과 공식 5+2회 재검증(PASS만 확인, 상태 코드 미확인)을 모든 문서(`progress.md`/`spec.md`/`acceptance.md`/`CHANGELOG.md`/PR 본문)에서 일관되게 구분했다. 향후 429 거짓 통과 재발 가능성을 "알려진 검증 한계"로 명시(§ 현재 잔여 사항). `e2e/auth.spec.ts`는 이번에도 수정하지 않았다(`git diff --stat` 빈 결과로 확인).
+4. **AC-003/004 회차별 판정표**: 위 §E.2c에 `final-run1~5.log`/`final-filterA.log`/`final-filterB.log`에서 직접 발췌한 회차별 표(setup A/B·대상 2개 파일·case-flow·capture-evidence·auth.spec.ts)를 신설했다 — 새 실행 없이 기존 v0.1.6 최종 로그 원문에서 `grep`으로 재추출한 것이다.
+5. **과거/현재 구분**: § 잔여 부채(Residual Debt) 섹션 전체를 "**[HISTORICAL, v0.1.2~v0.1.5 시점]**"로 명시하고, 그 아래 "§ 현재 잔여 사항(v0.1.6 이후)"을 신설해 현재 유효한 잔여 부채(없음)와 알려진 검증 한계(auth.spec.ts 원인 미구분)를 분리했다.
+
+**재실행 여부**: 구현 변경이 없고 v0.1.6의 `final-run1~5.log`/`final-filterA.log`/`final-filterB.log`가 이번 판정에 충분하므로, 전체 E2E 5회 + 필터 2회는 **다시 반복하지 않았다**. 프로젝트 필수 sync 검증은 실제로 재실행해 기록한다:
+
+```
+$ pnpm run lint         → exit 0 (로그: .moai/state/verify/e2e-auth-state-001/review2/v017-lint.log)
+$ pnpm run format:check → exit 1, 사전 위반 3건과 동일(app/globals.css/CHANGELOG.md/docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html) — 신규 위반 0건 (로그: v017-format.log)
+$ pnpm run build        → 재실행하지 않음 — 코드 변경이 없으므로(git diff --stat 기준 e2e/·playwright.config.ts 등 코드 경로 무변경, SPEC 문서 5개만 변경) v0.1.6 시점의 exit 0(review2/final-build.log)을 그대로 인용한다
+```
+
+**Baseline-attribution**: lint/format:check는 이 세션에서 방금 재실행(HEAD `8e7d36a` + 이번 문서 변경, 작업 트리). build는 v0.1.6 시점(HEAD `8e7d36a` 이전 작업 트리, `final-build.log`)의 기존 실행 결과를 재사용 — 코드 무변경이므로 결과가 달라질 이유가 없다.
+
+**Gaps**: build를 이번 라운드에서 직접 재실행하지는 않았다 — 문서만 변경했으므로 회귀 가능성이 없다고 판단했으나, 이는 "재실행해서 확인"이 아니라 "무변경이므로 재사용"이라는 판단에 근거한다.
+
+- **완료_complete_at**: 2026-09-10
+- **완료_commit_sha**: `pending-backfill-v0.1.7`(이 커밋 자신 — 별도 backfill 커밋에서 채움)
+- **PR**: #9 — 아래 최종 보고 내용으로 본문 갱신, **open 유지, merge하지 않음**
