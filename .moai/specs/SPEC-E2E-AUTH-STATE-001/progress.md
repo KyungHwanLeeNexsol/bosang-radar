@@ -69,9 +69,9 @@ AC-001~015(a/b)는 위 REQ 대조와 § E.2(각 AC 절, 이번 감사에서 실�
 | 대상 | 베이스라인(`$SPEC_START_SHA`, 3회) | 현재(`167c71b`, 5회 전체 + 필터 2회 = 7회) |
 |------|-------------------------------------|----------------------------------------------|
 | `case-flow.spec.ts` | **3/3 1차 시도 통과**(재시도 0건) | **5/5(전체 스위트 실행) 1차 시도 실패 → retry #1로 회복** |
-| `case-input-mobile-layout.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **7/7 1차 시도 통과**(재시도 0건) |
-| `tenant-isolation.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **7/7 1차 시도 통과**(재시도 0건) |
-| 매 실행 exit code | 3/3 exit 0 | 7/7 exit 0 |
+| `case-input-mobile-layout.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **[v0.1.6 정정 — 과잉 집계였음] 6/6 1차 시도 통과**(재시도 0건) — 전체 스위트 5회 + 이 파일을 포함하는 `--spec=case-input-mobile-layout` 필터 1회 = 6회. `--spec=tenant-isolation` 필터에는 이 파일이 포함되지 않으므로 그 실행은 계수하지 않는다(과거 "7/7"은 "독립 실행 7회"와 "이 파일이 등장하는 실행 횟수"를 혼동한 과잉 집계였다) |
+| `tenant-isolation.spec.ts` | **3/3 1차 시도 실패 → retry #1로 회복**(당시 `loginAsTester` 직접 호출) | **[v0.1.6 정정 — 과잉 집계였음] 6/6 1차 시도 통과**(재시도 0건) — 전체 스위트 5회 + `--spec=tenant-isolation` 필터 1회 = 6회(`--spec=case-input-mobile-layout` 필터는 계수하지 않음, 사유는 위와 동일) |
+| 매 실행(pnpm test:e2e 호출 단위) exit code | 3/3 exit 0 | 7/7 exit 0 — 이 행만 "독립 실행 7회" 단위(전체 스위트 5회 + 필터 2회)이며, 위 두 파일의 등장 횟수(6회)와는 분모가 다르다 |
 
 로그 원문: `.moai/state/verify/e2e-auth-state-001/baseline/base{1,2,3}.log`(베이스라인), `run{1..5}.log`/`filterA.log`/`filterB.log`(현재).
 
@@ -79,7 +79,7 @@ AC-001~015(a/b)는 위 REQ 대조와 § E.2(각 AC 절, 이번 감사에서 실�
 
 **결론**: `case-flow.spec.ts`의 flakiness는 "이 SPEC과 무관하게 기존부터 있던 잔여 위험"이 아니라, **이 SPEC이 도입한 setup 로그인 2건이 rate-limit 충돌 지점을 원래 대상 2개 파일에서 `case-flow.spec.ts`로 이동시킨 결과**다 — `case-flow.spec.ts` 소스는 무변경이지만 그 파일이 실행되는 **타이밍 컨텍스트**가 이 SPEC에 의해 변경됐기 때문에 나타난, 인과관계가 특정된 부작용이다. `spec.md` §5는 "setup 프로젝트 실행이 인접 스펙 파일의 rate-limit 예산을 소비할 가능성"을 일반론으로 이미 예견했고, 그 완화책으로 기존 `retries: 2` 안전망과 AC-E2EAUTH-004의 "무재시도가 아니라 통과(재시도 허용)만 요구" 판정 기준을 명시적으로 지정해 두었다 — 그 설계상 이 사실만으로 어떤 AC도 FAIL되지 않는다(AC-E2EAUTH-003의 무재시도 요건은 setup A/B + 대상 2개 파일 3항목에만 적용되고, `case-flow.spec.ts`는 그 3항목에 포함되지 않는다). 다만 "기존 flaky 패턴을 그대로 유지"라는 과거 서술은 사실과 다르므로, 이번 감사에서 "이동(shift)"으로 정정한다.
 
-**미확인/잔여 사항**: (1) 베이스라인 3회 vs 현재 7회로 표본 크기가 다르다 — baseline 5회 재현까지는 수행하지 않았다(3회로도 100%/100% 대비가 명확해 표본을 늘려도 결론이 바뀔 가능성은 낮다고 판단했으나, 통계적으로 완전히 동일한 표본 크기는 아니다). (2) `auth.spec.ts`의 두 번째 테스트(거부된 로그인)가 실제로 `/sign-in/email`에 POST를 보내는지는 코드 리딩으로 강하게 추정했을 뿐 네트워크 레벨로 재확인하지 않았다 — 다만 (a)(b)(c)의 정합성 논거는 이 세부사항과 무관하게 성립한다. (3) rate-limit 윈도우의 정확한 슬라이딩 경계(몇 초 시점에 몇 건이 만료되는지)까지는 재현하지 않았다 — "충돌이 발생한다"는 사실은 7/7 재현으로 확정됐으나, "정확히 몇 번째 요청부터"는 근사치다.
+**미확인/잔여 사항**: (1) 베이스라인 3회 vs 현재 7회로 표본 크기가 다르다 — baseline 5회 재현까지는 수행하지 않았다(3회로도 100%/100% 대비가 명확해 표본을 늘려도 결론이 바뀔 가능성은 낮다고 판단했으나, 통계적으로 완전히 동일한 표본 크기는 아니다). (2) `auth.spec.ts`의 두 번째 테스트(거부된 로그인)가 실제로 `/sign-in/email`에 POST를 보내는지는 코드 리딩으로 강하게 추정했을 뿐 네트워크 레벨로 재확인하지 않았다 — 다만 (a)(b)(c)의 정합성 논거는 이 세부사항과 무관하게 성립한다. (3) rate-limit 윈도우의 정확한 슬라이딩 경계(몇 초 시점에 몇 건이 만료되는지)까지는 재현하지 않았다 — "충돌이 발생한다"는 사실은 `case-flow.spec.ts`가 실제로 실행되는 전체 스위트 5회 전부(5/5, **[v0.1.6 정정]** `case-flow.spec.ts`가 아예 실행되지 않는 `--spec` 필터 2회는 이 인과관계의 증거로 집계하지 않는다 — 존재하지 않는 실행을 "확인됨"으로 세는 것을 피하기 위함)로 확정됐으나, "정확히 몇 번째 요청부터"는 근사치다.
 
 **후속 처리 권고 (수정하지 않음 — 범위 확장 필요)**: 이 회귀를 없애려면 (a) `case-flow.spec.ts`를 수정(이 SPEC의 PRESERVE/out-of-scope 대상 — `spec.md` §4 "다른 e2e 스펙 파일의 storageState 전환" 목록에 명시)하거나, (b) `playwright.config.ts`의 `retries`/rate-limit 관련 설정을 조정(REQ-E2EAUTH-005가 명시적으로 금지)하거나, (c) Better Auth의 rate limit 설정을 완화(spec.md §4 "프로덕션 인증 코드 변경"이 명시적으로 배제)해야 하는데, 세 경로 모두 이 SPEC의 명시적 제약을 위반한다. `e2e/auth.setup.ts`(이 SPEC이 신설한, 수정 가능한 유일한 파일)에 인위적 지연을 추가하는 방안도 검토했으나, 그 자체가 근본 원인(요청 총량 증가)을 해결하지 못하고 다른 파일로 충돌 지점을 한 번 더 이동시킬 뿐인 임시방편이라 채택하지 않았다. **따라서 이번 sync-phase에서는 코드를 수정하지 않고, 이 발견을 정확히 기록한 뒤 "스위트 시작 시점 rate-limit 충돌 근본 해결"을 후속 SPEC 후보로 남긴다.**
 
@@ -404,3 +404,109 @@ $ pnpm run build           → exit 0(Next.js 프로덕션 빌드 성공, 위 §
   - `case-flow.spec.ts` 회귀 조사용 베이스라인 3회는 **신규 실행**(격리 워크트리, §E.2b 참고) — 감사 종료 후 `git worktree remove`로 정리
 - **잔여 부채**: 1건(위와 동일, 원인 재분류)
 - **PR**: #9 본문을 이번 정정 내용에 맞춰 갱신(case-flow 서술, exit code 표현)
+
+## §E.2c 외부 재검토 3차 대응 — 계측 기반 원인 확정 + 근본 수정 + 거짓 통과 정정 (v0.1.6, PR #9 HEAD `49f986a` 대상)
+
+**배경**: v0.1.5는 case-flow 원인을 "베이스라인 대조 + 소스 리딩"으로 정합적으로 설명했으나, 실제 요청의 타임스탬프·HTTP 상태·오류 코드를 직접 계측하지는 않았다. 외부 재검토가 (1) 이 원인을 실측으로 확정할 것, (2) `auth.spec.ts`의 미등록 이메일 거부 테스트가 429로 거짓 통과하고 있지 않은지 확인할 것, (3) PRESERVE 제약 안에서 근본 수정 가능성을 조사할 것, (4) 실행 횟수 표기를 정정할 것, (5) 최종 코드로 전량 재검증할 것을 요구했다.
+
+### 1) 원인 계측 — 관측 vs 추정의 구분
+
+**계측 방법**: 격리된 조사 환경이 아니라 이 세션의 클린 작업 트리에서, 실제 `pnpm test:e2e` 진입점으로 임시 계측을 3개 파일(`e2e/auth.setup.ts`의 기존 `signInHits` 리스너 옆, `e2e/auth.spec.ts`·`e2e/case-flow.spec.ts`에 임시 추가)에 넣어 `page.on("response", ...)`로 `/api/auth/sign-in/email` 응답의 `Date.now()` 타임스탬프·HTTP 상태·(4xx일 때만) 오류 코드를 `console.log`로 남겼다. 비밀번호·쿠키·토큰·응답 본문 전체는 어디에도 기록하지 않았다(상태 코드와 오류 코드 필드만 추출). 계측은 `auth.spec.ts`/`case-flow.spec.ts`(PRESERVE 대상)에는 **영구 반영하지 않는다** — 계측 종료 직후 `git checkout -- e2e/auth.spec.ts e2e/case-flow.spec.ts`로 두 파일을 원본과 바이트 단위로 동일하게 되돌렸다(`git diff`/`git status --porcelain` 빈 결과로 확인). `e2e/auth.setup.ts`의 계측 리스너도 최종 구현에는 남기지 않았다 — 아래 3)의 10초 대기 한 줄과 그 설명 주석만 남는다.
+
+**Claim**: `case-flow.spec.ts`의 로그인이 스위트 시작 이후 문자 그대로 5번째 `/api/auth/sign-in/email` 요청이며, Better Auth 기본 rate limit(10초 창/최대 3회)을 초과해 429를 받는다 — 이것은 추정이 아니라 계측으로 직접 관측된 사실이다.
+
+**Evidence**(수정 전 코드, 1회 계측 실행, 로그 원문 `.moai/state/verify/e2e-auth-state-001/review2/run1.log`):
+```
+[INVESTIGATE] t=1788998951236 label=setup-A   status=200
+[INVESTIGATE] t=1788998951778 label=setup-B   status=200                (setup-A로부터 +542ms)
+[INVESTIGATE] t=1788998953516 label=auth-success status=200             (+2280ms)
+[INVESTIGATE] t=1788998954035 label=auth-reject  status=429 error=Too many requests. Please try again later.  (+2799ms)
+[INVESTIGATE] t=1788998954533 label=case-flow    status=429 error=Too many requests. Please try again later.  (+3297ms, 1차 시도)
+[INVESTIGATE] t=1788998986285 label=case-flow    status=200             (+31.75s 뒤, retry #1로 회복)
+```
+리포터 요약: `12 passed, 1 flaky(case-flow, 30.1s 타임아웃 후 retry #1 1.7s로 회복)`.
+
+**Baseline-attribution**: 이 run, HEAD `49f986a`(수정 전) 작업 트리 대상, 메인 체크아웃에서 단독 실행(다른 병렬 세션 없음, `git status --porcelain` 사전 확인).
+
+**Gaps(관측하지 않은 것)**: (a) Better Auth rate-limit 알고리즘이 고정 창인지 슬라이딩 창인지는 소스를 재확인하지 않고 관측된 429/200 전환 지점으로만 역산했다. (b) 위 6줄은 1회 계측의 결과다 — 계측 자체를 5회 반복하지는 않았다(계측 코드는 PRESERVE 파일에 영구히 남길 수 없어 반복 계측 비용이 매회 코드 삽입/제거를 요구하기 때문 — 대신 아래 4)의 5+2회 재검증은 계측 없이 최종 코드로 반복해 인과관계가 재현성 있게 해소됐는지를 별도로 확인했다). (c) "5번째 요청"이라는 서수는 이 1회 실행의 관측값이며, Playwright의 파일 실행 순서가 매 실행 완전히 결정론적이라는 런타임 보장을 주장하는 것은 아니다 — 5회 연속 실행 전부에서 동일 실패 패턴이 재현된 것(§E.2b)은 순서가 사실상 안정적임을 뒷받침하는 별도 증거다.
+
+**Residual-risk**: rate-limit 윈도우의 정확한 슬라이딩 경계(밀리초 단위)는 역산치이지, Better Auth 내부 구현을 읽어 확정한 값이 아니다. 아래 3)의 10초 대기 값은 이 근사치에 안전 여유(관측된 자연 간격 약 2.2~3.3초를 제거하고도 남는 여유)를 더한 것이다.
+
+**[HARD] 필터 결과를 원인 입증에 오용하지 않음**: `case-flow.spec.ts`가 아예 실행되지 않는 `--spec` 필터 실행(filterA/filterB)은 이 인과관계의 증거로 사용하지 않는다 — "실행되지 않았다"는 "충돌이 없었다"의 증거가 될 수 없다(관측 부재는 실패의 증거도 성공의 증거도 아니다). 필터 실행은 아래 4)의 "대상 2개 파일이 필터 경로에서도 정상 동작하는지"의 증거로만 사용한다.
+
+### 2) [HARD] `auth.spec.ts` 거짓 통과 확정
+
+**Claim**: `auth.spec.ts`의 "allowed_testers에 없는 이메일은 로그인이 거부되어 세션이 생성되지 않는다" 테스트는, 수정 전 코드에서 실제로는 Better Auth의 인증 거부 로직이 아니라 **rate-limit(HTTP 429)**에 의해 그 요청이 차단되어 통과하고 있었다.
+
+**근거(코드 검토 + 계측)**: `app/login/login-form.tsx`는 `authClient.signIn.email()`이 반환한 `signInError.message`를 원인 구분 없이 그대로 `login-error`(data-testid)에 표시한다(108행). `auth.spec.ts`의 해당 테스트는 `login-error`가 보이고 URL이 `/login`에 머무르는지, 그리고 `/cases/new`가 `/login`으로 리다이렉트되는지만 단언한다 — HTTP 상태 코드나 오류 메시지 내용은 전혀 확인하지 않는다. 위 1)의 계측이 직접 보여주듯 이 요청은 **429**를 받았다(`error=Too many requests. Please try again later.`) — "미등록 이메일이므로 거부됨"이 아니라 "네 번째 sign-in 요청이므로 rate-limit에 걸림"이었다. 두 실패 모드 모두 "에러 배너 표시 + 세션 미생성 + `/login` 유지"라는 동일한 관찰 가능 증상을 만들기 때문에, 이 테스트의 단언만으로는 둘을 구분할 수 없다 — 이것이 "false pass"의 정의다: 테스트는 PASS하지만, 그 PASS가 REQ가 실제로 의도한 동작(인증 로직에 의한 거부)을 증명하지 않는다.
+
+**Baseline-attribution**: 위 1)과 동일 계측 실행. `auth-reject status=429`가 직접 증거.
+
+**Gaps**: 이 false-pass가 이 SPEC 도입(setup 프로젝트 신설) 이전부터 존재했는지, 아니면 이 SPEC이 유발했는지는 별도로 재현하지 않았다 — `spec.md`의 최초 작성 시점 근거(2026-09-08 HISTORY)가 이미 "Better Auth 기본 rate limit이 IP+경로 기준"이라고 명시하고 있고, 이 SPEC이 setup 로그인 2건을 스위트 시작 직후 추가하기 전에는 `auth-reject`가 스위트 안에서 3번째 요청(auth-success 다음)이었을 가능성이 높아 그 시점에는 rate-limit에 걸리지 않았을 것으로 추정되나, `$SPEC_START_SHA` 베이스라인에서 이 특정 테스트를 계측 재현하지는 않았다 — 이 SPEC이 이 false-pass를 새로 유발했는지 이미 있던 것을 이 SPEC이 드러냈을 뿐인지는 미확인으로 남긴다.
+
+**Residual-risk**: 아래 3)의 수정으로 이 특정 실행 조건에서는 해소되지만, 향후 스위트에 새 sign-in 요청이 추가되면 동일한 유형의 false-pass가 재발할 수 있다 — `auth.spec.ts` 자체가 원인 불문 단언이라는 구조적 취약점은 이 SPEC의 PRESERVE 제약(`auth.spec.ts` 무변경)상 이번 수정 범위에서 고치지 않는다.
+
+### 3) 최소 수정 — PRESERVE 안에서의 해결
+
+**검토한 후보와 기각 사유** (모두 PRESERVE/out-of-scope 위반이므로 채택하지 않음): (a) `case-flow.spec.ts` 수정 — `spec.md` §4가 명시적으로 out-of-scope. (b) `playwright.config.ts`의 `retries`/rate-limit 관련 설정 조정 — REQ-E2EAUTH-005가 명시적으로 금지. (c) Better Auth rate limit 완화 — `spec.md` §4 "프로덕션 인증 코드 변경"이 명시적으로 배제.
+
+**채택한 수정**: `e2e/auth.setup.ts`의 TESTER_B 로그인 테스트 끝에 `await page.waitForTimeout(10_000)` 1줄을 추가했다(이 SPEC이 신설한, 수정 가능한 유일한 파일). 근거: setup(TESTER_A/B) 2건이 뒤이은 요청들(auth-success/auth-reject/case-flow)과 같은 10초 rate-limit 창에 들어가는 것이 원인이므로, setup 완료 시점을 10초 이상 앞당기면(=대기) 그 창이 갈릴 때 chromium project가 시작되어 setup의 2건이 이미 만료된 상태가 된다. 10초 값은 관측된 rate-limit 창 길이(10초)에서 자연 간격(약 2.2~3.3초)을 뺀 여유(약 6.7~7.8초)보다 큰 값을 선택해 타이밍 변동에 대한 여유를 확보했다.
+
+**측정한 효과와 비용**:
+- **효과(재계측, 로그 `.moai/state/verify/e2e-auth-state-001/review2/run2-candidate.log`)**: `setup-A(t=0)/setup-B(t=+574ms)/auth-success(t=+11759ms, 200)/auth-reject(t=+801ms 후, **401** `error=INVALID_EMAIL_OR_PASSWORD`)/case-flow(t=+506ms 후, **200**, 1차 시도)` — `auth-reject`가 이제 진짜 자격증명 거부(401)를 받고, `case-flow`가 재시도 없이 1차 시도로 통과한다.
+- **추가 실행 시간**: 매 `pnpm test:e2e` 실행(setup이 실행되는 모든 경로 — 전체 스위트 및 두 `--spec` 필터 모두)에 10초 고정 추가. 그러나 수정 전에는 `case-flow.spec.ts`가 매회 30초 타임아웃 후 1.7초 retry로 회복하는 비용을 치렀으므로(§E.2b), 전체 스위트 기준 순 변화는 오히려 감소 방향이다 — 실측 리포터 총 소요시간은 수정 전/후 모두 반올림 표기로 "5.0m" 동일(§E.2 v0.1.6 재검증 로그 참고).
+- **스케줄링 의존성**: 이 대기는 setup project가 chromium/chromium-authed project보다 먼저 실행된다는 `dependencies: ["setup"]` 순서 보장에만 의존한다 — 이 SPEC이 이미 확정한 base 설계(D9 close-out)와 동일한 보장이며 새로운 의존성을 추가하지 않는다.
+- **setup 재시도 영향**: 대기는 TESTER_B 테스트의 마지막 문장이므로, `page.on` 리스너나 `expect()` 단언 이후에 실행되어 setup 자신의 무재시도 판정(AC-E2EAUTH-003)에 영향을 주지 않는다(아래 4) 재검증에서 setup A/B 모두 7/7 1차 시도 통과로 확인).
+- **다른 파일로의 충돌 이동 여부**: 재검증(아래 4)에서 `sidebar-sticky`/`mobile-drawer-focus`/`comparison-docs-images`/`capture-evidence`류를 포함한 전체 13개 테스트가 매회 동일 패턴(EXPECTED-SKIP 10개, 통과 13개, 재시도 0건)으로 통과해 충돌이 다른 파일로 이동한 흔적은 없다.
+
+### 4) 실행 횟수 정정 (v0.1.6)
+
+과거 v0.1.5가 기록한 "대상 2개 파일 7/7"은 "독립 실행 7회(전체 스위트 5 + `--spec` 필터 2)"라는 분모를 두 파일 모두에 그대로 적용한 과잉 집계였다. 올바른 계산(각 파일이 실제로 실행되는 횟수만 계수):
+
+| 대상 | 전체 스위트(5회) | `--spec=case-input-mobile-layout`(1회) | `--spec=tenant-isolation`(1회) | 합계 |
+|---|---|---|---|---|
+| setup(TESTER_A), setup(TESTER_B) | 5 | 1(`dependencies: ["setup"]`로 필터와 무관하게 항상 실행) | 1 | **7 각각** |
+| `case-input-mobile-layout.spec.ts` | 5 | 1 | 0(이 필터에는 포함되지 않음) | **6** |
+| `tenant-isolation.spec.ts` | 5 | 0(이 필터에는 포함되지 않음) | 1 | **6** |
+| `case-flow.spec.ts` | 5 | 0(필터 실행에는 애초에 포함되지 않음) | 0 | **5** |
+
+이 표에 맞춰 `acceptance.md` v0.1.5 HISTORY 절과 `progress.md` §E.2b의 "7/7" 2곳을 "6/6"으로 정정했다(이 문서 §E.2b 참고). `spec.md`/`plan.md`는 이 수치를 직접 인용하지 않으므로 추가 정정 대상이 없다.
+
+### 5) 재검증 (v0.1.6, 전량 신규 실행 — 이전 버전 로그 재사용 없음)
+
+구현이 변경됐으므로(`e2e/auth.setup.ts`에 10초 대기 추가) 위 §E.2/§E.2b의 기존 run1~5/filterA/filterB 로그는 이번 판정에 사용하지 않는다. 최종 코드(diff는 아래 "구현 변경 범위" 참고)로 전체 스위트 5회 연속 + `--spec` 필터 2회를 전량 재실행했다.
+
+**Claim**: 최종 코드에서 setup(TESTER_A/B)·`case-input-mobile-layout.spec.ts`·`tenant-isolation.spec.ts`·`case-flow.spec.ts`·`auth.spec.ts`를 포함한 스위트 전체가 5회 연속 + 필터 2회 전부에서 exit 0 + 1차 시도 통과(재시도 0건)한다.
+
+**Evidence**(리포터 요약 발췌, 로그 원문 `.moai/state/verify/e2e-auth-state-001/review2/final-run{1..5}.log`, `final-filterA.log`, `final-filterB.log`):
+```
+final-run1.log ... 13 passed (5.0m)   exit=0
+final-run2.log ... 13 passed (5.0m)   exit=0
+final-run3.log ... 13 passed (5.0m)   exit=0
+final-run4.log ... 13 passed (5.0m)   exit=0
+final-run5.log ... 13 passed (5.0m)   exit=0
+final-filterA.log (--spec=case-input-mobile-layout) ... 3 passed (43.5s)  exit=0
+final-filterB.log (--spec=tenant-isolation)          ... 3 passed (39.1s) exit=0
+```
+7개 로그 전부에 `retry #`, `✘`, `flaky` 문자열이 0건(각 로그를 `grep -E "retry #|✘|flaky"`로 확인, 빈 결과) — 수정 전(§E.2c 1) `12 passed, 1 flaky`이던 것과 대비된다. `auth.spec.ts`의 두 테스트(성공/거부)와 `case-flow.spec.ts`도 이 5회 전부에 포함되어 통과했다(전체 스위트 실행이므로 case-flow가 실제로 실행됨 — §E.2c 1)의 "필터 결과를 원인 입증에 쓰지 않음" 원칙과 별개로, 5회 전부가 case-flow를 포함하는 전체 스위트이므로 이 재검증 자체는 유효하다).
+
+**Baseline-attribution**: 이 7회 실행 전부, HEAD `49f986a` + `e2e/auth.setup.ts`의 10초 대기 추가분(작업 트리, 커밋 전) 대상. 메인 체크아웃에서 순차 실행(병렬 세션 없음).
+
+**Gaps**: `auth-reject`가 매회 401(진짜 거부)을 받았는지는 §E.2c 3)의 1회 재계측(run2-candidate.log)으로만 직접 확인했다 — 이 5+2회 공식 재검증에는 계측 코드가 없으므로(계측은 PRESERVE 파일에 영구 반영하지 않음, §E.2c 1)) 상태 코드를 직접 재확인하지 않았다. 다만 (a) 코드가 동일하고, (b) 타이밍 여유(10초 대기)가 결정론적으로 유지되며, (c) 7회 전부 재시도 없이 통과한 것이 rate-limit 충돌이 재발하지 않았다는 간접 증거이므로, 401 유지에 대한 신뢰도는 높다고 판단하되 "직접 관측"과 "간접 근거"를 구분해 기록한다.
+
+**Residual-risk**: 7회는 유한 표본이다 — 이론상 낮은 확률로 timing jitter가 10초 여유를 넘어설 가능성을 완전히 배제하지는 못한다(다만 관측된 자연 간격이 최대 3.3초 수준이었고 여유가 6.7초 이상이므로 위험은 낮다고 판단). CI 환경(이 세션과 다른 머신 성능)에서의 재현은 이번 세션 범위 밖이다.
+
+**lint/format/build 재확인**(코드 변경이 `e2e/auth.setup.ts` 1개 파일, 1블록뿐이므로 회귀 확인 목적):
+```
+$ pnpm run lint         → exit 0
+$ pnpm run format:check → exit 1, 사전 위반 3건과 동일(app/globals.css/CHANGELOG.md/docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html) — 신규 위반 0건
+$ pnpm run build        → exit 0
+```
+
+**구현 변경 범위**: `e2e/auth.setup.ts` 1개 파일 — TESTER_B 테스트 끝에 `await page.waitForTimeout(10_000)` 1줄 + 설명 주석. `git diff --stat` 기준 다른 어떤 파일도 변경되지 않았다(SPEC 문서 4개 제외). PRESERVE 재확인: `e2e/helpers.ts`·`e2e/auth.spec.ts`·`e2e/case-flow.spec.ts`·`e2e/mobile-drawer-focus.spec.ts`·`scripts/` 전체·나머지 out-of-scope spec 파일·`playwright.config.ts`의 `workers`/`retries`/`webServer` 전부 `git diff --stat` 빈 결과로 무변경 확인.
+
+**판정**: **AC-E2EAUTH-003/004 재확인 — PASS 유지**(재시도 0건으로 오히려 강화). **잔여 부채(§ 잔여 부채, `case-flow.spec.ts` flaky)는 이번 수정으로 해소** — 이 AC들의 원래 요구(무재시도 3항목/전체 스위트 통과)를 위해 필요했던 것은 아니었으나(재시도는 원래도 허용됐다), 근본 원인 제거의 부수 효과로 실제로 사라졌다. **신규 확정 사실**: `auth.spec.ts`의 미등록 이메일 거부 테스트가 이제 진짜 401 응답으로 검증된다(§E.2c 3) 재계측).
+
+- **완료_complete_at**: 2026-09-10
+- **완료_commit_sha**: `pending-backfill-v0.1.6`(이 커밋 자신 — 별도 backfill 커밋에서 채움)
+- **PR**: #9 — 아래 최종 보고의 내용으로 본문 갱신, **open 유지, merge하지 않음**(외부 재검토 요청)

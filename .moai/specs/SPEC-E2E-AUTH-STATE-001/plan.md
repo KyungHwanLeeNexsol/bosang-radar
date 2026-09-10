@@ -139,7 +139,7 @@ expect(signInHits).toBe(1);
 
 | 위험 | 영향 | 대응 |
 |------|------|------|
-| setup 프로젝트의 2회 로그인이 인접 스펙 파일과 rate-limit 충돌 유발 | 전체 스위트의 새로운 flaky 지점 생성 | `spec.md` §5에 명시된 기존 `retries: 2` 안전망으로 흡수 — AC-E2EAUTH-004로 회귀 없음을 실행 확인 |
+| setup 프로젝트의 2회 로그인이 인접 스펙 파일과 rate-limit 충돌 유발 | 전체 스위트의 새로운 flaky 지점 생성(v0.1.5 독립 감사로 실증 — `case-flow.spec.ts`가 회귀 대상이 됨) | **[해소, v0.1.6]** 애초 서술한 "기존 `retries: 2` 안전망으로 흡수"만으로는 근본 원인(요청 총량 증가)이 남아 있었다 — 외부 재검토 요청에 따라 계측(page.on("response") 타임스탬프+상태코드)으로 원인을 직접 확정하고, `e2e/auth.setup.ts`의 TESTER_B 로그인 완료 직후 10초 대기를 추가해 setup의 2건이 뒤이은 요청들과 같은 rate-limit 창(10초)에 들지 않도록 수정했다(workers/retries/webServer, case-flow.spec.ts/auth.spec.ts 소스 전부 무변경). 재검증(5회 연속+`--spec` 필터 2회, 총 7회)에서 case-flow를 포함한 전 항목이 재시도 없이 1차 시도로 통과함을 확인 — 상세: `progress.md` § case-flow 회귀 재조사(v0.1.6) |
 | `storageState` 파일 생성 실패 시 대상 스펙이 원인 불명 오류로 실패 | 디버깅 시간 증가 | Playwright의 기본 파일-부재 오류가 이미 명확함 — 별도 방어 로직 추가는 범위 밖(YAGNI) |
 | 두 대상 파일의 `test.use({ storageState })` 적용 후 CJS 번들 시 leaf 모듈 import 실패 | REQ-E2EAUTH-010 위반, 빌드 전체 실패 | M2에서 leaf 모듈을 `scripts/e2e-tester-emails.ts`와 동일한 규율로 작성 + M6에서 실제 `pnpm test:e2e` 실행으로 확인 |
 | `GET /api/auth/get-session` 응답 스키마가 향후 Better Auth 버전 업그레이드로 바뀔 가능성 | AC-E2EAUTH-015a/015b의 계정 검증 로직이 깨질 수 있음 | 현재 설치본(`1.7.1`) 소스로 직접 확인한 스키마를 사용하며, 버전 업그레이드 시 재검증이 필요함을 `acceptance.md` §D에 명시 |

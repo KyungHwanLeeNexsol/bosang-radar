@@ -1,10 +1,10 @@
 ---
 id: SPEC-E2E-AUTH-STATE-001
 title: "E2E storageState 인증 재사용 — Better Auth /sign-in rate limit로 인한 flaky 테스트 제거"
-version: "0.1.5"
+version: "0.1.6"
 status: completed
 created: 2026-09-08
-updated: 2026-09-09
+updated: 2026-09-10
 author: Nexsol
 priority: P2
 phase: "v1.0.0 target"
@@ -14,9 +14,14 @@ tags: "e2e, playwright, authentication, storagestate, flaky-test, rate-limiting,
 tier: M
 depends_on: [SPEC-RUNTIME-001]
 related_specs: [SPEC-PILOT-UX-001, SPEC-PILOT-VISUAL-001]
+amendment_of: SPEC-E2E-AUTH-STATE-001
 ---
 
 ## HISTORY
+
+### Amendments
+
+- **v0.1.6 (2026-09-10)** — 인-플레이스 개정. `prior_completed_version`: `0.1.5`. `prior_completed_sha`: `167c71b`(문서), `49f986a`(PR #9 HEAD, 개정 대상). **사유**: PR #9에 대한 외부 재검토가 v0.1.5의 case-flow 원인 서술이 실측(계측) 없이 정황 정합만으로 도출됐다고 지적하고, `auth.spec.ts`의 미등록 이메일 거부 테스트가 실제로는 rate-limit(429)로 거짓 통과하고 있을 가능성을 별도로 제기했다. **범위**: (1) `page.on("response", ...)` 계측으로 원인을 직접 재측정(추정 → 관측), (2) `auth.spec.ts` 거짓 통과를 실측으로 확정, (3) `e2e/auth.setup.ts`에 10초 대기를 추가해 근본 원인(요청 총량이 rate-limit 창을 넘는 것)을 제거(코드 변경은 이 1개 파일, 1블록뿐 — case-flow.spec.ts/auth.spec.ts/playwright.config.ts의 workers·retries·webServer·Better Auth 설정은 전부 무변경), (4) 실행 횟수 표기 오류(대상 2개 파일 "7/7" → "6/6") 정정, (5) 전량 신규 5+2회 재검증. 상세: `acceptance.md`/`progress.md`의 v0.1.6 절.
 
 - 2026-09-08: 플랜 개정 v0.1.2 (외부 리뷰어 심층 기술 리뷰 대응, 브랜치 `plan/SPEC-E2E-AUTH-STATE-001`, 리뷰 기준 HEAD `d29fce99c0e1e9a7e8741cccf90f55cf1ac30be3` / SPEC-start 기준선 `1d480eaac2e0b53e0a5f0080baf14a596f09f533`) — 6개 범주의 지적을 반영했다. **(1) 무변경 검증의 비교 기준선 오류**: `git diff --stat -- <path>`(인자 없음, 작업 트리 대 HEAD 비교 — 이미 커밋된 변경은 빈 결과로 나타나 거짓 PASS를 만드는 결함)를 사용하던 AC-E2EAUTH-005/007/009/011/012를 `$SPEC_START_SHA` vs `$IMPL_COMPLETE_HEAD` 커밋 diff + `git status --short` 작업 트리 확인 2단계로 전면 교체하고, `plan.md` §A.2가 선언한 `scripts/`·`webServer` 블록 PRESERVE와 실제 검증 항목의 정합 갭(AC-E2EAUTH-009의 pathspec이 `scripts/`를 제외해 그 디렉터리 자체의 무변경이 검증되지 않던 갭)을 신규 AC-E2EAUTH-013(scripts/ 전체)과 AC-E2EAUTH-007 확장(webServer 블록 diff 추출)으로 폐쇄했다. **(2) auth-setup 단계 자체가 무재시도 검증에서 누락**: AC-E2EAUTH-003을 setup 자신 / 대상 2개 파일 3항목 × 5회 세분화 기록으로 확장하고, setup이 재시도 후에만 통과한 회차를 "flakiness 해소" PASS 집계에서 제외하도록 명시했다. "테스트 스위트 전체에서 단 1회씩만"이라는 §1 WHAT의 부정확한 표현을 "이 auth-setup 단계에서 정확히 1회씩"으로 교정했고, `/api/auth/sign-in/email`(Better Auth 1.7.1 소스 실측 확인) 실제 네트워크 요청 횟수를 계수하는 신규 AC-E2EAUTH-014를 추가했다. `retries: 2`가 "결함을 가리지 않는다"던 과잉주장을 §1 WHY와 §4에서 완화했다. **(3) storageState 재생성 검증의 구체성 부족**: "유효한 JSON + gitignore 커버리지"만으로는 재생성을 증명하지 못함을 AC-E2EAUTH-006에 명시하고, leftover 파일 상태에서의 실제 재생성(mtime/해시 변경 + Better Auth `GET /api/auth/get-session` 엔드포인트를 통한 계정 교차-오염 없음 확인, 원문 비밀 미기록)을 전체 스위트(AC-E2EAUTH-015a)와 `--spec` 필터 개별 실행(AC-E2EAUTH-015b) 양쪽에 대해 신설했다. **(4) M1 설계 재정리**: 외부 리뷰어가 Playwright 공식 문서 + `1.62.1` 최소 재현으로 project-dependency × `--spec` 필터 호환성을 이미 확인함에 따라, `plan.md` §C M1을 "검증 스파이크"에서 "base 설계 확정 기록"으로 재정의하고, `test.beforeAll` 기반 지연 생성 fallback(및 그 fallback 전용이었던 stale-storageState 가드)을 전면 삭제했다. `spec.md` §5의 관련 잔여 위험 항목을 해소로 갱신했다. **(5) 회귀/포맷 완료 조건의 현재 베이스라인 정합**: `capture-evidence.spec.ts`·`capture-evidence-round5.spec.ts`가 기본 실행에서 `test.skip(!process.env.CAPTURE_EVIDENCE, ...)`로 EXPECTED-SKIP임을 실측 확인해 AC-E2EAUTH-004와 `spec.md` §4에 명시했고, `pnpm format:check`의 사전 위반 3건(`app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html` — `pnpm lint`는 0건, plan-phase 실측)을 이 SPEC의 정리 대상에서 제외하고 이 SPEC이 변경한 파일에서의 신규 위반 0건만 요구하도록 DoD를 재서술했다. **(6) 문서 정합**: `plan.md`의 낡은 "AC 11개" 표기를 실제 개수(15개, 015가 a/b 하위 시나리오를 가짐)로 갱신했다. `spec.md` §1 WHY/WHAT의 핵심 목표와 §4 Out of Scope 5개 항목은 변경하지 않으며, REQ 10개 개수는 불변, AC는 12개 → 15개로 증가(013/014/015a/015b 신규, 순감 없음)했다. 어떤 기존 AC의 판정 기준도 완화하지 않았다 — 모두 강화 또는 정밀화다.
 - 2026-09-08: 플랜 개정 v0.1.1 (plan-auditor iteration-1 FAIL, 종합 점수 0.71 → Tier M 기준 0.80 대응) — D2(blocking, major)/D3(blocking, major)/D4(blocking, minor) 3건과 선택 항목 D1/D5 2건을 반영했다. (1) **D2**: `plan.md` §C M1 FAIL 경로의 지연 생성 대안이 "파일 없으면 생성"만으로는 REQ-E2EAUTH-006(매 실행마다 새로 생성)을 충족하지 못함 — 이전 실행이 비정상 종료해 남은 storageState가 재프로비저닝된 새 DB와 불일치한 채 재사용될 수 있는 결함을 발견해, 무조건 삭제 후 재생성(권장) 또는 실행-스코프 식별자 게이팅을 명시적으로 추가하고 `acceptance.md` AC-E2EAUTH-006이 채택된 경로를 검증하도록 연결했다. (2) **D3**: REQ-E2EAUTH-003(대상 2개 파일 외 로그인 무변경)이 `capture-evidence.spec.ts` 등 나머지 5개 파일에 대해 동작 수준(AC-004 "여전히 통과")으로만 검증되던 갭을 신규 AC-E2EAUTH-012(소스 레벨 `git diff --stat` 무변경)로 메웠다. (3) **D4**: AC-E2EAUTH-007의 "목측 대조"를 `grep -c "retries: 2"`/`grep -c "workers: 1"` 기계적 확인으로 교체했다. (4) **D1**(선택, 반영): REQ-E2EAUTH-002·007을 "Where(capability gate)"에서 "Event-driven"으로 재분류(캐패빌리티 게이트가 아니라 실행 트리거를 서술하므로). (5) **D5**(선택, 반영): `spec.md` §5에 CI 아티팩트를 통한 storageState 노출이 이번 SPEC의 검증 대상이 아님을 명시하는 문장을 추가했다. `spec.md` §1 WHY/WHAT과 §4 Out of Scope 5개 항목은 변경하지 않으며, REQ 10개 개수는 불변, AC는 11개 → 12개로 증가(신규 AC-E2EAUTH-012 1건 추가)했다. 어떤 기존 AC의 판정 기준도 완화하지 않았다.
@@ -92,7 +97,7 @@ Playwright의 project-dependency 기반 "setup 프로젝트" 패턴을 도입해
 
 ## §5. 잔여 위험 (Residual Risks)
 
-- **setup 프로젝트 실행이 인접 스펙 파일의 rate-limit 예산을 소비할 가능성**: `chromium`과 setup 의존성을 갖는 신규 project는 서로 다른 Playwright project이므로, `workers: 1`이 보장하는 것은 "동시에 두 요청이 나가지 않는다"이지 "setup의 2회 로그인이 항상 다른 스펙 파일의 로그인과 10초 이상 떨어져 실행된다"가 아니다. 독립적인(의존 관계 없는) project 간 실행 순서는 Playwright 내부 스케줄링에 따르며 이 SPEC이 강제하지 않는다. 이 잔여 위험은 새로 도입되는 것이 아니라 기존에도 존재했던 것과 동일한 종류이며, 기존 `retries: 2` 안전망(§4 "workers/retries 정책 변경" — 무변경 유지)이 그대로 흡수한다. AC-E2EAUTH-004(전체 스위트 회귀 없음)가 이 위험이 실제로 문제를 일으키지 않음을 실행으로 확인한다.
+- **[해소, v0.1.6] setup 프로젝트 실행이 인접 스펙 파일의 rate-limit 예산을 소비할 가능성**: 이 위험은 실제로 발생했다 — v0.1.5 독립 감사가 `case-flow.spec.ts`의 flakiness로 실증했고, 외부 재검토 3차 요청에 따른 계측(page.on("response") 타임스탬프+상태코드)이 `case-flow.spec.ts` 로그인이 문자 그대로 5번째 `/sign-in/email` 요청이며, 나아가 `auth.spec.ts`의 미등록 이메일 거부 테스트도 (429로 인해) 거짓 통과하고 있었음을 원인까지 직접 확정했다. "기존 `retries: 2` 안전망이 흡수한다"는 원래 서술은 case-flow의 증상만 가렸을 뿐 auth.spec.ts의 거짓 통과는 가리지 못했다 — 재시도는 증상 완화이지 원인 제거가 아니었다. `e2e/auth.setup.ts`의 TESTER_B 로그인 완료 직후 10초 대기를 추가해(관측된 rate-limit 창 길이에서 역산) 근본 원인(짧은 시간에 몰린 요청 총량)을 제거했다 — `workers`/`retries`/`webServer`/Better Auth 설정/대상 외 spec 파일은 전부 무변경. 재검증(5회+필터 2회, 전량 신규 실행)에서 setup·대상 2개 파일·`case-flow.spec.ts`·`auth.spec.ts`(진짜 401 응답으로 거부됨을 확인) 전부가 1차 시도로 통과함을 확인했다. 상세: `acceptance.md`/`progress.md`의 v0.1.6 절.
 - **[해소, v0.1.2] Playwright project-dependency와 `--spec=<filter>` CLI 패스스루의 상호작용**: 외부 리뷰어가 Playwright 공식 문서와 `1.62.1`에서의 최소 재현으로 확인한 바에 따르면, project dependency는 파일 경로 필터(`--spec=<filter>` 패스스루 포함)가 주어져도 여전히 실행된다 — 필터가 setup 프로젝트의 테스트 파일에 직접 매칭되지 않아도 그 setup을 의존하는 대상 project가 실행 대상에 포함되는 한 setup은 실행된다. 이 위험은 더 이상 미해결 설계 불확실성이 아니며, project-dependency는 조건부 후보가 아니라 이 SPEC의 유일한(base) 설계다 — `plan.md` §C M1은 "검증"에서 "실제 진입점(`scripts/run-e2e.ts`) 대상 확인"으로 재정의되었고, 이전에 문서화됐던 `test.beforeAll` 공유 헬퍼 대안(fallback)은 이 해소에 따라 `plan.md`에서 완전히 삭제되었다. 잔존 확인 항목은 오직 하나 — `scripts/run-e2e.ts`가 실제로 조립하는 env(예: `TURSO_DATABASE_URL`)가 setup 프로젝트에도 다른 project와 동일하게 상속되는지는 `acceptance.md` AC-E2EAUTH-008(M6, 실제 `--spec=` 실행)이 실행으로 확인한다.
 - **storageState 파일의 재사용 불가 인지 실패**: setup 실행이 실패해 `storageState` 파일이 생성되지 않은 채로 대상 스펙 파일이 그 경로를 읽으려 시도하면 Playwright는 파일 부재 오류로 명확히 실패한다(무음 통과가 아님) — 이는 의도된 fail-fast 동작이며 별도 방어 로직을 추가하지 않는다.
 - **CI 아티팩트를 통한 storageState 노출**: `spec.md` §4 "CI 파이프라인 신설"이 배제하는 바와 같이 이번 SPEC은 CI 파이프라인을 신설하지 않으므로, `storageState` JSON(인증 세션 쿠키 포함)이 CI 아티팩트(예: Playwright trace/report 업로드)로 노출될 가능성은 이번 SPEC의 검증·완화 대상이 아니다. 향후 CI를 도입하는 SPEC이 `.tmp/`를 아티팩트 업로드 범위에서 제외하는 책임을 진다.

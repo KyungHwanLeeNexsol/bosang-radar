@@ -101,4 +101,16 @@ test("TESTER_A 로그인 후 storageState 저장", async ({ page, browser }) => 
 
 test("TESTER_B 로그인 후 storageState 저장", async ({ page, browser }) => {
   await loginAndSaveStorageState(page, browser, TESTER_B_EMAIL, TESTER_B_STORAGE_STATE_PATH);
+
+  // [외부 재검토 v0.1.6 대응] setup의 TESTER_A/TESTER_B 로그인 2건이 뒤이어
+  // 실행되는 chromium project(auth.spec.ts 2건 + case-flow.spec.ts 1건)와
+  // 같은 Better Auth rate-limit 창(10초/최대 3회, /sign-in/email)을
+  // 공유해 4~5번째 요청을 429로 밀어냈다(직접 계측으로 원인 확정 —
+  // progress.md § case-flow 회귀 재조사(v0.1.6) 참고). setup은 이 SPEC이
+  // 신설한 유일한 수정 가능 파일이므로, TESTER_B 완료 직후 여기서
+  // 10초를 대기해 setup의 2건이 chromium project 시작 시점에는 이미
+  // 그 창 밖으로 나가도록 만든다 — workers/retries/webServer,
+  // auth.spec.ts/case-flow.spec.ts 소스, Better Auth rate-limit 설정은
+  // 모두 무변경으로 유지된다(REQ-E2EAUTH-003/005/009/011 PRESERVE 준수).
+  await page.waitForTimeout(10_000);
 });
