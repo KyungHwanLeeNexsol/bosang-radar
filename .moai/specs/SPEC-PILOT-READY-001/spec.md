@@ -1,16 +1,16 @@
 ---
 id: SPEC-PILOT-READY-001
-title: "파일럿 배포 준비 — 운영 검증, 최소 idempotency 가드, 데이터 취급 고지"
-version: "0.2.0"
+title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
+version: "0.3.0"
 status: draft
 created: 2026-09-10
 updated: 2026-09-10
 author: Nexsol
 priority: P1
 phase: "v1.0.0 target"
-module: "app/api/cases/, lib/cases/, lib/pipeline/, app/cases/new/, app/login/, .moai/docs/"
+module: "app/api/cases/, lib/cases/, lib/db/, lib/pipeline/, app/cases/new/, app/login/, .moai/docs/"
 lifecycle: spec-anchored
-tags: "pilot, deployment-readiness, idempotency, logging, data-handling, observability"
+tags: "pilot, deployment-readiness, concurrency-guard, lease, logging, data-handling, observability"
 tier: M
 depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 ---
@@ -60,6 +60,56 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
   패턴은 이미 정확히 스캔 대상으로 기술되어 있었음) — 정밀도 개선 차원의 경미한 표현
   정리만 수행. ⑥README.md/product.md 로드맵을 구현 완료/배포 검증 필요/후속 개발
   3단계로 갱신(별도 커밋).
+- 2026-09-10 (v0.3.0): 외부 리뷰 2차 개정 — v0.2.0에서 미확정으로 남겨둔 결정 중 재제출 가드
+  구현 방식을 **옵션 A(예약 테이블) 단독 확정**으로 종결하고, 나머지 요구사항을 더 엄격하게
+  재설계. ①REQ-PILOT-READY-007을 옵션 A(예약 테이블) 단독 요구사항으로 재작성하고, 옵션
+  B(컬럼 재사용, SELECT-후-INSERT)는 "고려했으나 진정한 원자성을 제공하지 못해 기각된
+  대안"으로만 plan.md에 기록 — spec.md 요구사항 텍스트와 acceptance.md의 PASS 조건 어디에도
+  옵션 B를 유효한 구현 경로로 남기지 않는다. AC-PILOT-READY-015의 "옵션 B의 경쟁 테스트 FAIL도
+  허용된 결과"라는 모순 문구를 제거하고, 두 요청이 동시에 경쟁할 때 정확히 1개의 예약+1개의
+  파이프라인 실행만 허용되고 두 번째 실행이 일시적으로라도 시작되면 FAIL이라는 단일 기준으로
+  재작성. ②재제출 가드를 단순 예약(reservation)에서 **복구 가능한 리스(lease)**로 재설계 —
+  `ownerUserId` + 신규 `leaseId`(획득마다 새로 생성) + `expiresAt`(TTL 60초 = 실측 파이프라인
+  처리 시간 30초의 2배 여유, Gemini 429 재시도 백오프와 네트워크 지연을 흡수하기 위함) 3개
+  컬럼. 원자적 획득/재획득은 표준 SQLite/libSQL 조건부 UPSERT(`INSERT ... ON CONFLICT
+  (owner_user_id) DO UPDATE ... WHERE expires_at < now`)로 수행하며, 이 구체적 조건부 UPSERT
+  구문 형태는 이 SPEC 조사 범위에서 Turso 공식 문서로 별도 재검증되지 않은 "표준 SQLite/libSQL
+  문법으로 알려진 것"이라는 한계를 정직하게 명시한다(v0.2.0에서 이미 확인한 단순 `ON CONFLICT
+  DO NOTHING`과는 다른, 조건부 `DO UPDATE ... WHERE` 형태이므로 이 구분을 유지한다). 해제
+  (release)는 `ownerUserId` AND `leaseId`가 모두 일치할 때만 수행하는 펜싱(fencing) 삭제로
+  재정의하여, 만료 후 재획득된 새 리스를 옛 실행이 실수로 해제하거나 덮어쓰지 못하도록 한다.
+  ③완료 시점의 `cases` 상태 전이 + `reports` INSERT를 **동일 DB 트랜잭션**으로 묶는 것을
+  REQ-PILOT-READY-007의 하드 요구사항으로 격상하고(문서화 대상이던 REQ-PILOT-READY-015(b)를
+  "해결됨"으로 전환), 완료 기록 트랜잭션도 리스의 `leaseId` 일치를 커밋 전에 확인하는 두 번째
+  펜싱 게이트로 지정 — 만료 후 재획득이 일어난 뒤 뒤늦게 도착한 옛 실행의 결과가 새 실행의
+  상태를 덮어쓰지 못하게 한다. ④REQ-PILOT-READY-015의 4개 실패 모드 재판정: (a) 크래시 복구는
+  TTL 기반 재획득으로 해결됨, (b) 완료+리포트 저장 원자성은 동일 트랜잭션 요구사항으로 해결됨,
+  (c) 응답 유실 후 재제출 시 동일 결과 재사용(진정한 요청 수준 idempotency)은 여전히 이 SPEC
+  범위에서 의도적으로 다루지 않는 gap으로 남김(리스는 "동일 사용자당 동시 실행 1개 제한"만
+  제공하며 페이로드 기반 재사용을 제공하지 않음 — Out of Scope 절 참고), (d) 지연 도착 결과와
+  재시도 결과의 충돌은 완료 기록의 leaseId 펜싱으로 해결됨. ⑤"idempotency 가드"라는 부정확한
+  용어를 이 SPEC 전체(spec.md/plan.md/acceptance.md)에서 "사용자별 동시 실행 가드"로 정정 —
+  이 가드는 동일 사용자당 동시 in-flight 파이프라인 1개 제한만 제공하며 일반적 의미의
+  idempotency(동일 요청 재시도 시 동일 결과 재사용)를 제공하지 않기 때문이다. ⑥신규
+  REQ-PILOT-READY-016 추가 — 파일럿 최종 착수 여부를 판단하는 별도 리포트
+  (`.moai/reports/pilot-ready-readiness-decision-<date>.md`)가 6개 항목(호스팅 적합성/원격
+  DB/실 도메인 인증/실 Gemini 스모크/동시 부하/리스+트랜잭션 보장) 각각을 READY/BLOCKED/
+  UNVERIFIED로 개별 판정하고, 원격 검증이 필요한 항목 중 하나라도 BLOCKED 또는 UNVERIFIED면
+  전체 판정은 NO-GO라는 게이트 규칙을 요구 — "이 SPEC 자체의 구현 완료"와 "파일럿을 실제
+  외부 테스터에게 열어도 되는가"를 구조적으로 분리하기 위함(run-phase 착수 시점에는 템플릿만
+  작성, 실제 판정은 run-phase/파일럿 착수 직전에 채워짐). ⑦PII 고지 문구를 "3개 자유 텍스트
+  필드는 스캔되지 않는다"는 일반화된 표현에서 리뷰어가 요구한 정밀한 문구("세 자유 입력란에서
+  주민등록번호·휴대전화번호 형식은 검사하지만, 실명·주소·상세 정황 등 모든 식별정보 탐지나
+  자동 비식별화는 보장하지 않는다")로 전면 교체하고, "주소 필드가 애초에 없다는 구조적 사실"과
+  "그래도 자유 텍스트 필드에 주소를 타이핑해 넣을 수 있다는 잔여 위험"을 항상 함께 명시하도록
+  구분을 명확히 한다. ⑧plan.md에 Implementation Kickoff 결정 체크리스트(Vercel
+  프로젝트/tier/도메인, 원격 Turso 대상, 지원 연락처, 장애 대응 담당자, Gemini 쿼터 점검
+  담당·시점, 동시성 측정용 테스터 계정 준비)를 신규 추가. ⑨README.md/product.md의 "구현 완료
+  10개 SPEC" 목록에서 누락됐던 SPEC-GEMINI-RUNTIME-001을 추가해 목록과 개수 표기를
+  일치시킴(별도 커밋). 이 개정은 Tier M REQ/AC 상한(각 16개) 이내를 유지한다 — REQ는 기존
+  15개에 REQ-PILOT-READY-016 1개를 추가해 16/16(상한 도달), AC는 신규 최상위 AC 번호를
+  추가하지 않고 기존 AC-PILOT-READY-007/015/016에 하위 절(sub-clause, `a`/`b` 접미사)을
+  추가하는 방식으로 16/16(상한 유지, 신규 최상위 AC 없음)을 유지한다.
 
 ## §1. 개요 (Overview)
 
@@ -121,15 +171,17 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
   의미하지는 않는다** — `SELECT status` 후 별도 `INSERT`를 실행하는 app 레벨
   check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간(race window)을 막지
   못한다. 이 SPEC은 이 결함을 원 설계 단계에서부터 명시적으로 다룬다(REQ-PILOT-READY-007
-  참고 — 진정한 원자성을 얻으려면 DB 제약(UNIQUE + `ON CONFLICT`) 기반의 예약 테이블이
-  필요하며, 이는 소규모 스키마 변경을 의미한다).
+  참고 — 진정한 원자성을 얻으려면 DB 제약(UNIQUE + `ON CONFLICT`) 기반의 예약/리스(lease)
+  테이블이 필요하며, 이는 소규모 스키마 변경을 의미한다 — v0.3.0 개정으로 이 구현 방식은
+  더 이상 미확정 결정이 아니라 REQ-PILOT-READY-007이 요구하는 단독 확정 경로다).
 - **동시성 제한(concurrency limit)과 제출 idempotency는 서로 다른 보장이며, 이 SPEC의
-  최소 가드는 idempotency를 제공하지 않음**: REQ-PILOT-READY-007의 가드가 막는 것은
-  "동일 사용자당 동시 in-flight 파이프라인 1개"라는 동시성 제한뿐이다. 크래시로 인한
-  `processing` 상태 고착, 완료 상태 전이와 리포트 저장의 원자성, 응답 유실 후 재제출
-  시 테스터가 보게 되는 결과, 지연 도착 결과와 재시도 결과의 충돌 가능성 — 이 4가지는
-  모두 이 가드만으로는 다뤄지지 않는 별개의 실패 모드이며, 해결하지 않고 넘어갈
-  경우 그 사실 자체를 명시적으로 문서화해야 한다(REQ-PILOT-READY-015 참고).
+  사용자별 동시 실행 가드는 일반적 의미의 idempotency(동일 요청 재시도 시 동일 결과 재사용)를
+  제공하지 않음**: REQ-PILOT-READY-007의 가드가 막는 것은 "동일 사용자당 동시 in-flight
+  파이프라인 1개"라는 동시성 제한뿐이다. 리스(lease)의 TTL 기반 재획득과 leaseId 펜싱으로
+  크래시로 인한 고착 상태 회수, 완료 상태 전이와 리포트 저장의 원자성, 지연 도착 결과와
+  재시도 결과의 충돌 3가지는 해결되지만, 응답 유실 후 재제출 시 테스터가 동일하게 완료된
+  결과를 재사용하는 진정한 요청 수준 idempotency는 이 SPEC 범위에서 의도적으로 다루지
+  않는 gap으로 남는다 — 이 구분을 명시적으로 문서화해야 한다(REQ-PILOT-READY-015 참고).
 - **애플리케이션 레벨 로깅이 전무함**: `app/api/cases/route.ts`, `lib/cases/create-case.ts`,
   `lib/pipeline/index.ts`, `lib/ai/providers/gemini.ts` 어디에도 요청 시작/파이프라인
   단계 실패/DB 쓰기 실패에 대한 구조적 로그 출력이 없다(조사 세션 grep 확인) — 파일럿
@@ -137,12 +189,17 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
 - **데이터 취급 고지가 과대 주장 위험을 안고 있음**: `lib/validation/case-input.ts`가 실제로
   하는 일은 (a) `RESIDENT_REGISTRATION_NUMBER_PATTERN`/`PHONE_NUMBER_PATTERN` 정규식으로
   주민등록번호·전화번호 **형식**을 구조적으로 거부하고(`:17,20,26-31`), (b) `.strict()`로
-  주소·의료기록 원본 등 애초에 정의되지 않은 필드를 거부하는 것(`:36-43`)뿐이다. 3개
-  자유 텍스트 필드(`incidentDescription`/`diagnosisName`/`disabilityBodyPart`)에 타이핑된
-  임의의 이름·기타 식별정보는 전혀 스캔하지 않는다(v0.2.0 개정 시 `lib/validation/case-input.ts`를
-  재확인 — 위 서술은 "주민등록번호·전화번호 형식은 스캔되지만 이름 등 다른 식별정보는
-  스캔되지 않는다"는 정확한 구분이며, "아무것도 스캔하지 않는다"는 과잉 단순화가 아님을
-  확인했다). 그런데 `app/cases/new/page.tsx:56`의
+  주소·의료기록 원본 등 애초에 스키마에 정의되지 않은 필드를 거부하는 것(`:36-43`)뿐이다.
+  정확한 진술은 **"세 자유 입력란에서 주민등록번호·휴대전화번호 형식은 검사하지만,
+  실명·주소·상세 정황 등 모든 식별정보 탐지나 자동 비식별화는 보장하지 않는다"**이다
+  (v0.2.0/v0.3.0 개정 시 `lib/validation/case-input.ts`를 재확인 — "아무것도 스캔하지
+  않는다"는 과잉 단순화가 아니며, 동시에 "주소·의료기록 원본 필드가 없다"는 구조적 사실과
+  "그래도 3개 자유 텍스트 필드에 주소·실명 등을 타이핑해 넣을 수 있다"는 잔여 위험은
+  서로 다른 두 가지 사실이므로 이 둘을 하나로 뭉뚱그리지 않는다: (i) 주소·의료기록 원본
+  필드가 스키마에 애초에 없다는 것은 `.strict()`로 강제되는 **구조적 사실**이고, (ii) 사용자가
+  `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 3개 자유 텍스트 필드에 주소나
+  실명 등 식별정보를 직접 타이핑해 넣는 것을 스키마가 막지 못한다는 것은 스키마가 해소하지
+  않는 **잔여 위험**이다). 그런데 `app/cases/new/page.tsx:56`의
   현재 고지 문구("비식별 요약만 입력하세요")는 스키마가 실제로 무엇을 막고 무엇을 막지
   않는지, 그리고 "합성/이미 비식별화된 사례만 가져와야 한다"는 테스터 책임을 명시하지
   않는다. 로그인 화면 하단의 "고객지원" 링크(`app/login/login-form.tsx:14,131`)는
@@ -151,28 +208,31 @@ SPEC-EVIDENCE-001·SPEC-FEEDBACK-001·SPEC-PILOT-UX-001을 거치며 기능·UX 
 
 ### WHAT — 이번 SPEC 범위
 
-신규 비즈니스 기능을 도입하지 않고, 10개 영역으로 범위를 고정한다:
+신규 비즈니스 기능을 도입하지 않고, 12개 영역으로 범위를 고정한다:
 
 1. 배포 대상 tier 결정 및 호스팅 실행 시간 정합성 확인 (측정형 + 미확정 결정 기록)
 2. Gemini 쿼터 사전 점검 (운영 체크리스트)
 3. 원격 DB 마이그레이션/시드 실행 검증 (측정형)
 4. 실제 배포 도메인 인증 설정 검증 (측정형)
 5. 동시성 실측 및 문서화 — 큐/락 서비스 도입 없음 (측정형)
-6. 최소 서버측 재제출 가드 — 원자적 구현 방식 결정 포함 (코드 변경 + 미확정 결정 기록)
-7. 재제출 가드의 동시성 제한 vs. 제출 idempotency 구분 및 4개 실패 모드 문서화 (문서)
+6. 최소 서버측 재제출 가드 — TTL 기반 리스(lease) 방식(옵션 A)으로 확정, 완료+리포트
+   저장 원자성 포함 (코드 변경 + 신규 마이그레이션)
+7. 재제출 가드의 동시성 제한 vs. 제출 idempotency 구분 및 4개 실패 모드 재판정 문서화 (문서)
 8. 최소 구조적 로깅 (코드 변경)
 9. 최소 장애 대응 런북 (문서)
 10. 실 Gemini 스모크 재검증 (측정형)
 11. 데이터 취급 고지 정직성 개선 — 한계 명시, 연락 채널, 예시 (코드+문서 변경)
+12. 최종 파일럿 준비 상태 판정 문서 — 개별 항목별 READY/BLOCKED/UNVERIFIED 판정 +
+    원격 검증 항목 하나라도 실패 시 전체 NO-GO 게이트 규칙 (문서, run-phase 착수 시점에는
+    템플릿만)
 
-기존 API·DB 스키마·파이프라인 알고리즘 계약은 수정하지 않는다. 데이터 계층 변경
-범위는 REQ-PILOT-READY-007(재제출 가드)의 구현 방식 결정에 달려 있다 — "기존
-`cases.status` 컬럼만 재사용"(무마이그레이션, 경쟁 구간 위험 수용) 또는 "신규 예약
-테이블 추가"(소규모 마이그레이션, 진정한 원자성 확보) 중 하나이며, 이 SPEC은 두
-옵션을 모두 문서화하고 후자를 권고안으로 제시하되 실제 채택은 run-phase 착수 전
-사용자 확인이 필요한 미확정 결정으로 남긴다(§2 REQ-PILOT-READY-007 참고). 이 결정과
-무관하게, `evidence`/`feedback`/`allowed_testers` 등 다른 테이블과 파이프라인
-알고리즘 자체는 수정하지 않는다.
+기존 API·DB 스키마·파이프라인 알고리즘 계약은 수정하지 않는다. 다만 데이터 계층은
+REQ-PILOT-READY-007(재제출 가드)이 요구하는 신규 `reservations`(리스) 테이블 1개를
+반드시 추가한다 — v0.3.0 개정으로 "기존 컬럼만 재사용"하는 무마이그레이션 대안은
+더 이상 이 SPEC이 허용하는 구현 경로가 아니며(§2 REQ-PILOT-READY-007 참고, 기각된
+대안의 근거는 plan.md §A 결정 1에 기록), 소규모 마이그레이션(신규 테이블 1개)은 이제
+이 SPEC의 확정된 범위다. 이 결정과 무관하게, `cases`/`evidence`/`feedback`/
+`allowed_testers` 등 기존 테이블과 파이프라인 알고리즘 자체는 수정하지 않는다.
 
 ### 측정 완료(measurement-done) vs. 파일럿 진행 여부 판단(go/no-go) 구분
 
@@ -202,18 +262,17 @@ REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인�
 
 ### 핵심 판단 근거 — Tier M
 
-영향 파일은 `app/api/cases/route.ts`, `lib/cases/create-case.ts`, `lib/pipeline/index.ts`,
-`lib/ai/providers/gemini.ts`, `app/cases/new/case-input-form.tsx` 또는 `page.tsx`,
-`app/login/login-form.tsx`, `.moai/docs/runtime-runbook.md`(확장) 또는 신규
-`.moai/docs/incident-runbook.md`, 그리고 신규 측정/검증 리포트 3-4건으로 약 8-10개,
-예상 변경량 300-600 LOC 범위다. DB 스키마 마이그레이션은 REQ-PILOT-READY-007의 구현
-방식 결정에 조건부다 — "기존 컬럼 재사용" 옵션이 채택되면 마이그레이션은 없고,
-"예약 테이블 추가" 옵션이 채택되면 `lib/db/schema.ts`에 신규 테이블 1개 + Drizzle Kit
-마이그레이션 파일 1개가 추가된다(파일 수·LOC 범위에 영향을 주더라도 여전히 Tier M
-범위 안이다). 파일 수가 Tier S 기준(5개 미만)을 넘고, 서로 다른 11개 요구사항
-그룹(운영 측정 5개 + 코드 변경 3개 + idempotency 실패 모드 문서화 + 데이터 고지
-개선까지)에 걸쳐 배포·코드·문서 3개 계층을 모두 다루므로 Tier M으로 분류한다(15개
-파일·1000 LOC를 넘지 않아 Tier L에는 해당하지 않는다).
+영향 파일은 `app/api/cases/route.ts`, `lib/cases/create-case.ts`, `lib/db/schema.ts`,
+`lib/pipeline/index.ts`, `lib/ai/providers/gemini.ts`, `app/cases/new/case-input-form.tsx`
+또는 `page.tsx`, `app/login/login-form.tsx`, `.moai/docs/runtime-runbook.md`(확장) 또는
+신규 `.moai/docs/incident-runbook.md`, 그리고 신규 측정/검증 리포트 4-5건으로 약 9-11개,
+예상 변경량 300-650 LOC 범위다. DB 스키마 마이그레이션은 v0.3.0 개정으로 더 이상
+REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/db/schema.ts`에 신규
+`reservations`(리스) 테이블 1개(ownerUserId/leaseId/expiresAt) + Drizzle Kit 마이그레이션
+파일 1개가 확정적으로 추가된다. 파일 수가 Tier S 기준(5개 미만)을 넘고, 서로 다른 12개
+요구사항 그룹(운영 측정 5개 + 코드 변경 3개 + idempotency 실패 모드 문서화 + 데이터 고지
+개선 + 최종 준비 상태 판정까지)에 걸쳐 배포·코드·문서 3개 계층을 모두 다루므로 Tier M으로
+분류한다(15개 파일·1000 LOC를 넘지 않아 Tier L에는 해당하지 않는다).
 
 ## §2. 요구사항 (Requirements — GEARS 표기법)
 
@@ -252,7 +311,7 @@ REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인�
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. 이 SPEC은 다음 두 구현 옵션을 문서화하며, 실제 채택은 이 SPEC이 내리지 않는 **미확정 결정**으로 run-phase 착수 전 사용자 확인이 필요하다: **(옵션 A, 권고안)** `ownerUserId`를 키로 하는 신규 예약(reservation) 테이블 + plain `UNIQUE` 제약 — `INSERT INTO reservations (owner_user_id) VALUES (?) ON CONFLICT DO NOTHING` 후 `rowsAffected`(0이면 이미 다른 요청이 예약을 보유 — "이미 처리 중"으로 응답)를 확인하고, 파이프라인 종료(성공/실패 모두) 시 그 예약 행을 삭제한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 즉 opt-in `tursodb` 타입이 아닌 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로("어떤 트랜잭션이 쓰기 작업을 하는 동안에는 다른 쓰기 트랜잭션이 진행될 수 없다"), `UNIQUE` 제약 + `ON CONFLICT DO NOTHING`은 이 프로젝트의 현재 설정에서 DB 엔진 수준의 진정한 원자성을 제공한다. 이 옵션은 소규모 스키마 변경(신규 테이블 1개)을 필요로 하며, 이는 최초 SPEC의 "무마이그레이션" 프레이밍과 상충한다. **(옵션 B, 무마이그레이션 대안)** 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(원 설계) — 마이그레이션은 없으나 진정한 경쟁 구간 해소를 보장하지 않으며, 파일럿 규모(~10명, 의도적 동시 이중 제출 가능성 낮음)에서 좁아진 위험을 수용하는 것일 뿐이다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, 어느 옵션을 택하든 SPEC-PILOT-UX-001 iteration 3에서 명시적으로 기각된 `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, §Out of Scope 참고)을 재도입하지 않는다. | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼이 이미 존재, 옵션 B의 재사용 대상) |
+| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호, `409 Conflict`)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. **v0.3.0 개정으로 이 REQ는 다음 리스(lease) 기반 구현을 단독으로(only) 요구한다 — 더 이상 대안 옵션은 없다**: `ownerUserId`를 키(UNIQUE)로 하는 신규 `reservations` 테이블에 `leaseId`(획득마다 새로 생성되는 고유 토큰)와 `expiresAt`(TTL 60초 = 실측 파이프라인 처리 시간 30초의 2배 여유 — `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — Gemini 429 재시도 백오프와 네트워크 지연을 흡수하기 위함) 2개 컬럼을 추가한다. **(1) 원자적 획득/재획득**: `INSERT INTO reservations (owner_user_id, lease_id, expires_at) VALUES (?, ?, ?) ON CONFLICT (owner_user_id) DO UPDATE SET lease_id = excluded.lease_id, expires_at = excluded.expires_at WHERE reservations.expires_at < <now>` 후, 이 쓰기가 실제로 자신의 `leaseId`를 반영했는지(영향받은 행 수, 또는 즉시 재조회로 `leaseId` 일치 확인)를 검사해 "나는 리스를 보유했다"와 "다른 실행의 만료 전 리스에 막혔다"를 구분한다 — 후자면 "이미 처리 중"으로 즉시 응답한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로(docs.turso.tech §Client Access), `UNIQUE` 제약 기반 조건부 UPSERT는 DB 엔진 수준의 진정한 원자성을 제공한다 — 다만 이 조건부 `DO UPDATE ... WHERE` 구문 형태 자체가 Turso 공식 문서에서 별도로 재검증되지는 않은 "표준 SQLite/libSQL 문법으로 알려진 것"이라는 한계를 정직하게 명시한다(단순 `ON CONFLICT DO NOTHING`과는 구문이 다름). **(2) 펜싱된 해제(fenced release)**: 파이프라인 종료(성공/실패 모두) 시 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`로 자신의 `leaseId`가 여전히 일치할 때만 해제한다 — 리스가 만료되어 다른 실행이 이미 재획득한 경우 이 삭제는 0행에 매치되는 no-op이어야 하며, 절대로 새 리스를 실수로 삭제해서는 안 된다. **(3) 완료 기록의 동일 트랜잭션 원자성(하드 요구사항)**: 파이프라인 성공 시 `cases` 행의 완료 상태 전이(`status: "completed"`)와 `reports` 행 INSERT는 **동일 DB 트랜잭션**으로 수행해야 하며, 가능한 한 그 트랜잭션 안에서 리스의 `leaseId` 일치 여부를 커밋 전에 재확인하는 두 번째 펜싱 게이트를 둔다(만료 후 재획득이 일어난 뒤 뒤늦게 도착한 옛 실행의 결과가 새 실행의 완료 기록을 덮어쓰지 못하게 하기 위함) — `reports` INSERT가 실패하면 `cases`의 완료 상태 전이도 롤백되어야 하며, 한쪽만 성공한 불일치 상태가 남아서는 안 된다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, SPEC-PILOT-UX-001 iteration 3에서 기각됨, §Out of Scope 참고)을 재도입하지 않는다 — 매칭 키는 여전히 `ownerUserId`(사용자 단위)이지 페이로드 해시가 아니다. **기각된 대안**: 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(무마이그레이션)은 진정한 경쟁 구간 해소를 제공하지 못해 이 REQ의 "DB 엔진 수준 원자성" 요구를 충족하지 않으므로 기각한다 — 기각 근거의 전체 기록은 plan.md §A 결정 1을 참고한다(이 SPEC의 요구사항 텍스트와 acceptance.md의 PASS 조건에는 이 대안이 유효한 구현 경로로 등장하지 않는다). | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위 + 크래시 복구 가능한 형태로 재설계), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적 + 리스 기반 재설계 요구), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼) |
 
 ### G. 최소 구조적 로깅 (Minimal Structured Logging)
 
@@ -276,16 +335,22 @@ REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인�
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-011 | Unwanted | 이 SPEC이 도입·수정하는 어떤 파일럿 온보딩 문구·UI 텍스트·문서도 `lib/validation/case-input.ts`의 입력 스키마가 사건 데이터의 완전한 비식별화를 "보장"한다고 주장하거나 암시해서는 안 된다. | 사용자 지시(HARD constraint — 과대 주장 금지), `lib/validation/case-input.ts:17,20,26-31,36-43`(주민등록번호·전화번호 형식 및 미정의 필드만 구조적으로 차단하며, 3개 자유 텍스트 필드에 타이핑된 임의의 식별정보는 전혀 스캔하지 않음을 코드로 직접 확인) |
-| REQ-PILOT-READY-012 | Ubiquitous | 파일럿 온보딩 문구(사건 입력 화면 또는 그에 준하는 위치)는 스키마가 실제로 차단하는 것(주민등록번호·전화번호 형식, 주소·의료기록 원본 필드의 부재)과 차단하지 않는 것(3개 자유 텍스트 필드에 타이핑된 임의의 식별정보는 스캔하지 않음)을 명시적으로 구분해 설명해야 하며, 테스터가 이미 합성(synthetic)이거나 이미 비식별화된 사례만 가져와야 한다는 책임을 명시적으로 진술해야 한다 — 현재 문구("비식별 요약만 입력하세요", `app/cases/new/page.tsx:56`)는 이 구분을 제공하지 않는다. | REQ-PILOT-READY-011과 동일 근거, `app/cases/new/page.tsx:56` 현재 문구 조사 |
+| REQ-PILOT-READY-011 | Unwanted | 이 SPEC이 도입·수정하는 어떤 파일럿 온보딩 문구·UI 텍스트·문서도 `lib/validation/case-input.ts`의 입력 스키마가 사건 데이터의 완전한 비식별화를 "보장"한다고 주장하거나 암시해서는 안 된다. 정확한 진술은 **"세 자유 입력란에서 주민등록번호·휴대전화번호 형식은 검사하지만, 실명·주소·상세 정황 등 모든 식별정보 탐지나 자동 비식별화는 보장하지 않는다"**이다. | 사용자 지시(HARD constraint — 과대 주장 금지), `lib/validation/case-input.ts:17,20,26-31,36-43`(주민등록번호·전화번호 형식만 구조적으로 차단하며, 3개 자유 텍스트 필드에 타이핑된 임의의 식별정보는 스캔하지 않음을 코드로 직접 확인) |
+| REQ-PILOT-READY-012 | Ubiquitous | 파일럿 온보딩 문구(사건 입력 화면 또는 그에 준하는 위치)는 다음 두 가지를 서로 다른 사실로서 각각 명시적으로 구분해 설명해야 한다: (i) **구조적 사실** — 주소·의료기록 원본 필드는 스키마에 애초에 정의되어 있지 않으며(`.strict()`), 주민등록번호·휴대전화번호는 형식 패턴으로 구조적으로 거부된다; (ii) **잔여 위험** — 그럼에도 3개 자유 텍스트 필드(`incidentDescription`/`diagnosisName`/`disabilityBodyPart`)에는 실명·주소·상세 정황 등 다른 식별정보를 사용자가 직접 타이핑해 넣을 수 있으며, 스키마는 이를 탐지·차단하지 않는다. 이 두 사실을 하나로 뭉뚱그려 "일부만 스캔된다"는 식으로 뭉개서는 안 된다. 아울러 테스터가 이미 합성(synthetic)이거나 이미 비식별화된 사례만 가져와야 한다는 책임을 명시적으로 진술해야 한다 — 현재 문구("비식별 요약만 입력하세요", `app/cases/new/page.tsx:56`)는 이 구분을 제공하지 않는다. | REQ-PILOT-READY-011과 동일 근거, `app/cases/new/page.tsx:56` 현재 문구 조사 |
 | REQ-PILOT-READY-013 | Ubiquitous | 데이터 취급 문의를 위한 실제로 동작하는 연락 채널(이메일 주소 또는 그에 준하는 링크)이 추가되어야 한다 — 현재 로그인 화면 하단의 "고객지원" 링크(`app/login/login-form.tsx:14,131`)는 `aria-disabled="true"`로 비활성 상태이며 실제 채널에 연결되어 있지 않다. | `app/login/login-form.tsx:14,131` 조사 확인(비활성 placeholder) |
 | REQ-PILOT-READY-014 | Ubiquitous | 사건 입력 화면(또는 그에 준하는 온보딩 위치)에는 올바르게 비식별화·합성 처리된 사건 입력의 구체적 예시가 최소 1건 포함되어야 한다. | 조사 세션 grep 확인(현재 저장소 전체에 비식별 입력의 구체적 예시가 존재하지 않음) |
 
-### K. 재제출 가드의 보장 범위 및 실패 모드 문서화 (Idempotency Scope & Failure-Mode Documentation)
+### K. 재제출 가드의 보장 범위 및 실패 모드 재판정 (Concurrent-Execution Guard Scope & Failure-Mode Re-Assessment)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-015 | Ubiquitous | REQ-PILOT-READY-007의 재제출 가드는 "동일 사용자당 동시 in-flight 파이프라인 최대 1개"라는 **동시성 제한(concurrency limit)**만 보장하며, "동일 논리적 제출의 재제출은 항상 동일한 결과를 반환한다"는 **제출 idempotency**는 보장하지 않는다 — 이 둘은 서로 다른 개념이며 혼동해서는 안 된다. 이 SPEC은 다음 4가지 실패 모드 각각에 대해 실제 동작을 명시적으로 문서화해야 한다. 각 모드에 대해 해결 메커니즘이 있으면 그 메커니즘을, 없으면 "이 파일럿 규모(약 10명)에서는 의도적으로 다루지 않는 gap"임을 명시적으로 기록해야 하며, 다루지 않는 gap을 마치 해결된 것처럼 진술하는 것("재시도는 무제한으로 해도 중복 실행을 막는다"는 식의 과잉 보장 포함)은 금지된다: (a) **크래시/강제종료 복구** — 파이프라인 실행 도중 프로세스가 강제 종료되면 `processing`(또는 REQ-PILOT-READY-007 옵션 A 채택 시 예약 행)이 영구히 고착(orphan)될 수 있는지, 되면 무엇이 이를 회수하는지(TTL 기반 재활용, 수동 조치, 또는 의도적으로 다루지 않는 gap 중 어느 것인지); (b) **완료 상태와 리포트 저장의 원자성** — 파이프라인 성공 시 `cases` 행의 완료 상태 전이와 `reports` 행 INSERT가 같은 트랜잭션(원자적)인지, 아니면 한쪽만 성공하고 다른 쪽이 실패해 불일치 상태가 남을 수 있는지; (c) **응답 유실 후 재제출** — 서버측에서는 실제로 성공했으나 클라이언트가 응답을 받지 못한 경우(네트워크 유실), 재제출 시 테스터에게 무엇이 보이는지(이미 완료된 결과가 재사용되는지, 처음부터 재실행되는지); (d) **지연 도착 결과와 재시도 결과의 충돌 가능성** — (a)의 고착 상태가 회수된 뒤 재시도가 허용된 경우, 원래 시도에서 뒤늦게 도착한 결과가 재시도의 결과와 충돌할 수 있는지. | 사용자 지시(동시성 제한과 제출 idempotency를 별개로 다루고, 이 SPEC이 정확히 무엇을 보장하고 무엇을 보장하지 않는지 정직하게 진술할 것), 외부 리뷰(4개 실패 모드가 원 SPEC에서 누락됐다는 지적) |
+| REQ-PILOT-READY-015 | Ubiquitous | REQ-PILOT-READY-007의 **사용자별 동시 실행 가드**는 "동일 사용자당 동시 in-flight 파이프라인 최대 1개"라는 **동시성 제한(concurrency limit)**만 보장하며, "동일 논리적 제출의 재제출은 항상 동일한 결과를 반환한다"는 **제출 idempotency**는 보장하지 않는다 — 이 둘은 서로 다른 개념이며 혼동해서는 안 된다("idempotency 가드"라는 명칭은 부정확하므로 이 SPEC 전체에서 사용하지 않는다). v0.3.0의 리스(lease) 재설계로 4가지 실패 모드의 판정이 달라졌으며, 이 SPEC은 각 모드에 대해 실제 동작을 명시적으로 문서화해야 한다 — 해결됨으로 판정하려면 그 구체적 메커니즘을 제시해야 하고, gap으로 남기려면 "이 파일럿 규모(약 10명)에서는 의도적으로 다루지 않는 gap"임을 명시적으로 기록해야 하며, 다루지 않는 gap을 마치 해결된 것처럼 진술하는 것("재시도는 무제한으로 해도 중복 실행을 막는다"는 식의 과잉 보장 포함)은 금지된다: (a) **크래시/강제종료 복구 — 해결됨(TTL 기반 재획득)** — 파이프라인 실행 도중 프로세스가 강제 종료되면 리스(reservation) 행이 영구히 고착(orphan)되지 않는다. `expiresAt`을 지난 리스는 다음 요청이 조건부 UPSERT(`WHERE expires_at < now`)로 자동 재획득하므로, TTL(60초) 경과 후 자연 회수된다 — 수동 조치가 필요 없다; (b) **완료 상태와 리포트 저장의 원자성 — 해결됨(동일 트랜잭션 하드 요구사항)** — REQ-PILOT-READY-007(3)에 따라 파이프라인 성공 시 `cases` 행의 완료 상태 전이와 `reports` 행 INSERT는 동일 DB 트랜잭션으로 수행되어야 하며, 한쪽만 성공하는 불일치 상태는 허용되지 않는다(구현 시 트랜잭션 API 제약으로 완전한 단일 트랜잭션이 기술적으로 불가능하다고 판단되면 run-phase 실행자는 그 사실과 근거를 정직하게 명시해야 한다 — 이 SPEC은 목표 설계를 하드 요구사항으로 고정하되, 구현 불가능이 실제로 확인될 가능성을 배제하지 않는다); (c) **응답 유실 후 재제출 — 여전히 의도적으로 다루지 않는 gap** — 서버측에서는 실제로 성공했으나 클라이언트가 응답을 받지 못한 경우(네트워크 유실), 재제출 시 새 리스를 획득할 수 있다면(이전 리스가 이미 해제됐으므로) 파이프라인이 처음부터 다시 실행된다 — 이미 완료된 결과를 재사용하는 진정한 요청 수준 idempotency(페이로드 기반 dedup)는 이 SPEC 범위에서 제공하지 않으며, 이는 §Out of Scope에 명시된 의도적 gap이다; (d) **지연 도착 결과와 재시도 결과의 충돌 가능성 — 해결됨(leaseId 펜싱)** — REQ-PILOT-READY-007(2)/(3)의 펜싱된 해제와 완료-기록 펜싱 게이트에 따라, 만료 후 재획득된 새 리스가 존재하는 상태에서 원래(만료된) 시도가 뒤늦게 도착해도 그 `leaseId`는 더 이상 현재 리스와 일치하지 않으므로 해제도 완료-기록도 no-op으로 거부되어 새 실행의 상태를 덮어쓰지 못한다. | 사용자 지시(동시성 제한과 제출 idempotency를 별개로 다루고, 이 SPEC이 정확히 무엇을 보장하고 무엇을 보장하지 않는지 정직하게 진술할 것), 외부 리뷰(4개 실패 모드가 원 SPEC에서 누락됐다는 지적 + 리스 재설계로 인한 재판정 요구) |
+
+### L. 최종 파일럿 준비 상태 판정 (Final Pilot-Readiness Determination)
+
+| ID | 유형 | 요구사항 | 근거 |
+|----|------|----------|------|
+| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 6개 항목을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) 호스팅 적합성(선택된 tier의 기간·ToS 적합성), (2) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행), (3) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작), (4) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증), (5) 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006), (6) 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장이 실 환경 또는 현실적 환경에 대해 검증됨). **전체 게이트 규칙**: (1)의 ToS 적합성 판단(문서 판단으로 가능)을 제외하고, 원격 검증이 필요한 항목(2~6) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 원격 필수 항목에 대해서는 존재하지 않는다. 로컬(`next start`) 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). 이 문서는 run-phase 착수 시점에는 6개 항목의 표와 판정 기준만 담은 템플릿으로 작성되며, 실제 판정 값은 run-phase 진행 중 또는 파일럿 착수 직전에 채워진다. | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지) |
 
 ## Out of Scope
 
@@ -347,13 +412,13 @@ REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인�
 - SPEC-PILOT-UX-001 iteration 3에서 외부 독립 리뷰에 의해 명시적으로 기각된
   `submissionNonce` 컬럼 + unique index 방식(요청 **페이로드 해시** 기반 정밀 dedup —
   동일 페이로드의 재제출을 정확히 식별해 완료된 결과를 재사용하는 진정한 분산
-  idempotency)은 이 SPEC에서도 재도입하지 않는다. REQ-PILOT-READY-007의 두 구현 옵션
-  (기존 `cases.status` 재사용 또는 신규 예약 테이블) 중 어느 것도 페이로드 기반 dedup을
-  하지 않는다 — 두 옵션 모두 매칭 키가 `ownerUserId`(사용자 단위)이지 페이로드 해시가
-  아니며, "동일 사용자당 동시 1개"라는 동시성 제한만 제공한다. 예약 테이블(옵션 A)이
-  DB 제약으로 원자성을 얻더라도, 이는 `submissionNonce` 방식이 목표했던 페이로드 수준
-  정밀 dedup과는 다른, 훨씬 좁은 보장이다(REQ-PILOT-READY-015가 이 차이와 그로 인해
-  다뤄지지 않는 실패 모드를 명시적으로 문서화한다).
+  idempotency)은 이 SPEC에서도 재도입하지 않는다. REQ-PILOT-READY-007의 리스(lease) 기반
+  구현은 페이로드 기반 dedup을 하지 않는다 — 매칭 키는 `ownerUserId`(사용자 단위)이지
+  페이로드 해시가 아니며, "동일 사용자당 동시 1개"라는 동시성 제한만 제공한다. 리스가 DB
+  제약(UNIQUE + 조건부 UPSERT)으로 원자성을 얻더라도, 이는 `submissionNonce` 방식이
+  목표했던 페이로드 수준 정밀 dedup과는 다른, 훨씬 좁은 보장이다(REQ-PILOT-READY-015가
+  이 차이와 그로 인해 여전히 dedup으로 다뤄지지 않는 실패 모드 — 응답 유실 후 재제출 —
+  를 명시적으로 문서화한다).
 
 ## §3. 인수 조건 요약
 
@@ -367,9 +432,11 @@ REQ-PILOT-READY-004(원격 DB)와 REQ-PILOT-READY-005(실 배포 도메인 인�
 - `SPEC-PILOT-UX-001` — 클라이언트측 single-flight 가드 및 기각된 DB-nonce idempotency 설계 이력의 출처 — REQ-PILOT-READY-007/015가 그 판단을 참고해 동시성 제한과 제출 idempotency를 구분
 - `SPEC-EVIDENCE-001` / `SPEC-FEEDBACK-001` — REQ-PILOT-READY-010(스모크 재검증)이 stale 여부를 판단하는 기준이 되는, 마지막 스모크 이후 병합된 SPEC들
 - `.moai/reports/gemini-runtime-smoke-20260828.md` — REQ-PILOT-READY-002/003/010의 직접적 실측 근거
-- Turso 공식 문서(docs.turso.tech §Client Access) — REQ-PILOT-READY-007 옵션 A(예약 테이블)의
-  단일 writer 트랜잭션 모델 근거
+- Turso 공식 문서(docs.turso.tech §Client Access) — REQ-PILOT-READY-007 리스(reservations) 테이블의
+  단일 writer 트랜잭션 모델 근거(조건부 UPSERT의 구체적 구문 형태 자체는 별도 재검증되지 않은 한계로 명시)
 - Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud) — 이 프로젝트가 사용하는
   표준(비-MVCC) Turso Cloud 아키텍처와, 신규 opt-in MVCC `tursodb` 엔진이 별개임을 확인하는 근거
 - Vercel 공식 문서(Fair Use Guidelines, Functions 실행 시간 문서, Pricing 페이지) —
   REQ-PILOT-READY-001/002의 Hobby/Pro tier 근거
+- `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — REQ-PILOT-READY-007의
+  리스 TTL(60초) 산정 기준선(실측 처리 시간 30초)

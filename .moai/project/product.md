@@ -82,6 +82,7 @@
 - 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
 - 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
 - AI provider abstraction 인터페이스 설계 및 Gemini adapter 구현, evidence-first 파이프라인 전환 — SPEC-RESEARCH-001
+- 무료 티어 파일럿 안정화(역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력) — SPEC-GEMINI-RUNTIME-001
 - Drizzle ORM 스키마 설계 (사건, 근거자료, 리포트, 피드백 테이블) + Turso/libSQL 연결 — SPEC-SCAFFOLD-001/SPEC-RESEARCH-001
 - 근거자료 corpus 담보×쟁점 기준 21건 확장 + 쟁점 중심 ranking — SPEC-EVIDENCE-001
 - Research Report 렌더링 UI 및 리포트 데이터 모델 — SPEC-SCAFFOLD-001/SPEC-RESEARCH-001

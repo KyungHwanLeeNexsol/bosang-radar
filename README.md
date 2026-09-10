@@ -18,7 +18,7 @@
 
 ## 현재 구현 상태 (10개 SPEC 완료 — SPEC-SCAFFOLD-001 ~ SPEC-E2E-AUTH-STATE-001)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001, 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력으로 무료 티어 파일럿 안정성을 확보한 SPEC-GEMINI-RUNTIME-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
 
 파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 tier 결정, 원격 DB/인증 도메인 검증, 최소 idempotency 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 현재 plan-phase 검토 중입니다(`.moai/specs/SPEC-PILOT-READY-001/`).
 
@@ -134,7 +134,7 @@ bosang-radar/
 
 ### 구현 완료 (10개 SPEC)
 
-SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
+SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
 
 ### 배포 검증 필요 (진행 중)
 

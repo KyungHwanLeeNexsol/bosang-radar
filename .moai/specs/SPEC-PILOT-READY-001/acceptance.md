@@ -53,8 +53,8 @@ requirement as a scenario.
   각 명령의 실행 결과(성공/실패, 관측된 오류 메시지가 있다면 그 내용)가 기록되어 있다.
 - And 이 AC는 로컬 대체를 허용하지 않는다 — 로컬 `file:` DB에 대한 실행 결과는 이
   AC의 PASS 조건을 충족시키지 않는다(정의상 "원격" 인스턴스가 요구되기 때문).
-  §A 결정 1에서 옵션 A(예약 테이블)가 채택된 경우, 신규 `reservations` 테이블
-  마이그레이션도 이 실행 대상에 포함되어야 한다.
+  M1의 신규 `reservations`(리스) 테이블 마이그레이션은 항상 존재하므로, 이 실행
+  대상에 반드시 포함되어야 한다.
 
 ## AC Group D — 실제 배포 도메인 인증 설정 검증 (REQ-PILOT-READY-005)
 
@@ -94,7 +94,7 @@ requirement as a scenario.
 - When 동일한 `ownerUserId`로 `createCase`를 두 번째로 호출(첫 번째 호출이 아직
   진행 중인 동안)하면
 - Then `runPipeline`은 정확히 1회만 호출되고, 두 번째 호출의 반환값은 첫 번째 호출의
-  성공 응답과 구분되는("이미 처리 중") 값이다.
+  성공 응답과 구분되는("이미 처리 중", `409 Conflict`) 값이다.
 - And (실패 후 재시도 허용) given 첫 번째 호출의 mock된 `runPipeline`이 reject하도록
   설정된 상태에서, when 그 실패 이후 동일 `ownerUserId`로 다시 `createCase`를 호출하면,
   then `runPipeline`이 다시 호출된다 — 가드가 실패 시 해제되어 영구히 재시도를 막지
@@ -102,25 +102,42 @@ requirement as a scenario.
 - And (성공 후 정상 완료) given 첫 번째 호출의 mock된 `runPipeline`이 성공적으로
   resolve된 상태에서, when 해당 `cases` 행을 DB에서 직접 조회하면, then 그 행의
   `status`는 `"completed"`이고 `"processing"`으로 영구히 남아있지 않는다.
+- And (**완료 기록의 트랜잭션 원자성 — REQ-PILOT-READY-007(3)**) given `reports` 테이블
+  INSERT가 mock을 통해 실패하도록 설정된 상태에서, when 파이프라인이 성공적으로 완료되어
+  완료 기록 트랜잭션이 실행되면, then `cases` 행의 상태는 `"completed"`로 커밋되지 않고
+  (`"processing"` 또는 실패 이전 상태로 남거나 롤백되어) 완료 상태만 홀로 커밋된
+  불일치 행이 DB에 존재하지 않는다 — `reports` INSERT 실패 시 `cases`의 완료 상태
+  전이도 함께 롤백됨을 직접 DB 조회로 확인한다.
+- And (**크래시 후 TTL 만료·재획득 — REQ-PILOT-READY-007(1)**) given 첫 번째 `createCase`
+  호출이 리스를 획득한 뒤 정상 종료도 실패도 하지 않고 그대로 멈춘 상태(크래시 시뮬레이션
+  — 해제 로직이 실행되지 않음)에서, when 그 리스의 `expiresAt`을 지난 시각(mock 시계
+  또는 과거 `expiresAt` 값을 직접 주입)에 동일 `ownerUserId`로 새 `createCase` 요청을
+  보내면, then 그 요청은 새 `leaseId`로 리스를 성공적으로 재획득하고 `runPipeline`을
+  실행한다 — TTL 경과 전에는 동일한 요청이 "이미 처리 중"으로 거부됨을 대조 확인한다.
+- And (**지연 도착 결과의 펜싱 — REQ-PILOT-READY-007(2)/(3)**) given 위 크래시 시나리오에서
+  새 리스가 재획득되어 두 번째 `createCase`가 진행 중인 상태에서, when 원래(만료된)
+  첫 번째 호출이 뒤늦게 자신의 (이제 낡은) `leaseId`로 리스 해제 또는 완료 기록 커밋을
+  시도하면, then 그 해제/커밋 시도는 0행에 매치되어 no-op으로 거부되고, 두 번째(현재)
+  리스 행과 그 실행의 최종 상태는 첫 번째 호출의 시도로 인해 변경되거나 삭제되지 않는다
+  — DB를 직접 조회해 현재 리스 행의 `leaseId`가 두 번째 호출의 것과 일치함을 확인한다.
 
 **AC-PILOT-READY-015** (동일 사용자 진성 경쟁 조건 — REQ-PILOT-READY-007)
-- Given `lib/cases/create-case.ts`의 재제출 가드 구현(§A 결정 1에서 채택된 옵션 A 또는
-  B), 동일한 `ownerUserId`
+- Given `lib/cases/create-case.ts`의 리스(lease) 기반 재제출 가드 구현(REQ-PILOT-READY-007
+  — 옵션 A/B의 선택 여지는 없다), 동일한 `ownerUserId`
 - When 두 `createCase` 호출을 **첫 번째 읽기/확인 시점부터 가능한 한 동시에**(둘 중
-  하나가 먼저 완료된 뒤 두 번째가 시작되는 것이 아니라) 발생시키면 — 옵션 A가
-  채택된 경우 실제 DB(또는 `UNIQUE` 제약을 실제로 강제하는 동등한 대상)에 대해 두
-  `INSERT`를 동시에 실행하고, 옵션 B가 채택된 경우 가드 내부의 읽기/쓰기 순서를 mock
-  으로 제어해 두 호출이 서로의 쓰기를 보기 전에 각자의 확인 단계에 도달하도록 강제하면
-- Then `runPipeline`(또는 옵션 A의 예약 INSERT 성공)은 정확히 1회만 발생하고, 다른
-  한쪽은 "이미 처리 중" 응답을 받는다.
+  하나가 먼저 완료된 뒤 두 번째가 시작되는 것이 아니라) 발생시키면 — 실제 DB(또는
+  `UNIQUE` 제약을 실제로 강제하는 동등한 대상)에 대해 두 조건부 UPSERT를 동시에
+  실행하면
+- Then `runPipeline`(리스 획득 성공)은 **정확히 1회만** 발생하고, 다른 한쪽은 "이미
+  처리 중" 응답을 받는다. **PASS 판정 기준은 단일하며 예외를 허용하지 않는다** — 두
+  번째 실행이 일시적으로라도(나중에 실패하거나 중단되더라도) 시작되면 그 자체로 FAIL이다.
+  이 AC를 PASS로 만족시키는 구현 경로는 오직 하나(REQ-PILOT-READY-007의 리스 기반
+  구현)이며, "다른 구현을 택했다면 이 AC가 FAIL하는 것도 허용된 결과"라는 식의 예외나
+  특성화(characterization) 테스트로의 재해석은 존재하지 않는다.
 - And 이 AC는 AC-PILOT-READY-007과 다른 것을 검증한다 — AC-PILOT-READY-007은 "첫 번째
   호출이 아직 진행 중인 동안 두 번째 호출이 도착"하는 시나리오(더 약한 순차적 경쟁)를,
   이 AC는 "두 호출이 첫 읽기 시점부터 동시에 경쟁"하는 시나리오(진성 경쟁 조건)를
-  검증한다. 옵션 B(SELECT-후-INSERT)가 채택된 경우 이 AC가 FAIL하는 것은 예상된
-  결과이며(REQ-PILOT-READY-007이 옵션 B의 한계로 이미 명시), 그 FAIL 자체와 그 한계가
-  리포트(`.moai/reports/pilot-ready-idempotency-scope-*.md`)에 정직하게 기록되어 있으면
-  이 SPEC의 완료 조건을 충족한다 — 옵션 B 채택 시 이 AC는 "경쟁 구간이 실제로 존재함을
-  보여주는" 특성화(characterization) 테스트로 재해석된다.
+  검증한다.
 
 ## AC Group G — 최소 구조적 로깅 (REQ-PILOT-READY-008)
 
@@ -166,18 +183,34 @@ requirement as a scenario.
 - And 기존 `gemini-smoke-20260827.md`/`gemini-runtime-smoke-20260828.md` 파일은
   덮어써지지 않고 그대로 보존된다.
 
-## AC Group K — 재제출 가드의 보장 범위 및 실패 모드 문서화 (REQ-PILOT-READY-015)
+## AC Group K — 재제출 가드의 보장 범위 재판정 + 최종 파일럿 준비 상태 판정 (REQ-PILOT-READY-015, REQ-PILOT-READY-016)
 
-**AC-PILOT-READY-016**
+**AC-PILOT-READY-016a** (REQ-PILOT-READY-015 — 재제출 가드 보장 범위 재판정)
 - Given `.moai/reports/pilot-ready-idempotency-scope-*.md` 리포트
 - When 그 리포트를 확인하면
-- Then §A 결정 1에서 실제로 채택된 옵션(A 또는 B)이 명시되어 있고,
-  REQ-PILOT-READY-015(a)~(d) 4개 실패 모드(크래시/강제종료 복구, 완료+리포트 저장
-  원자성, 응답 유실 후 재제출, 지연 도착 결과 충돌) 각각에 대해 "해결됨(구체적
-  메커니즘 설명 포함)" 또는 "이 파일럿 규모에서 의도적으로 다루지 않는 gap"임이
-  4가지 모두 개별적으로 명시되어 있다.
+- Then REQ-PILOT-READY-007의 리스(lease) 기반 구현이 명시되어 있고(더 이상 옵션 선택을
+  기록하지 않는다 — 리스 구현은 확정 경로이므로), REQ-PILOT-READY-015(a)~(d) 4개 실패
+  모드(크래시/강제종료 복구, 완료+리포트 저장 원자성, 응답 유실 후 재제출, 지연 도착
+  결과 충돌) 각각에 대해 "해결됨(구체적 메커니즘 설명 포함 — (a)는 TTL 재획득, (b)는
+  동일 트랜잭션, (d)는 leaseId 펜싱)" 또는 "이 파일럿 규모에서 의도적으로 다루지 않는
+  gap((c)는 반드시 이 상태로 기록)"임이 4가지 모두 개별적으로 명시되어 있다.
 - And 리포트 어디에도 "재시도는 무제한으로 해도 항상 중복 실행을 막는다"는 식의,
-  실제로 검증되지 않은 보장을 진술하는 문장이 없다.
+  실제로 검증되지 않은 보장을 진술하는 문장이 없으며, "idempotency 가드"라는 부정확한
+  명칭 대신 "사용자별 동시 실행 가드"가 일관되게 사용된다.
+
+**AC-PILOT-READY-016b** (REQ-PILOT-READY-016 — 최종 파일럿 준비 상태 판정)
+- Given `.moai/reports/pilot-ready-readiness-decision-*.md` 리포트
+- When 그 리포트를 확인하면
+- Then 6개 항목(호스팅 적합성, 원격 DB, 실 도메인 인증, 실 Gemini 스모크, 서로 다른
+  사용자 동시 부하, 저장소/복구 검증) 각각이 READY / BLOCKED / UNVERIFIED 중 하나로
+  개별적으로 판정되어 있다.
+- And 원격 검증이 필요한 항목(2~6) 중 하나라도 BLOCKED 또는 UNVERIFIED이면 리포트의
+  전체 판정이 **NO-GO**로 명시되어 있다 — 원격 필수 항목에 대한 "부분적으로 준비됨"류의
+  절충 판정은 FAIL이다.
+- And 리포트 어디에도 로컬(`next start`) 실행 결과만으로 원격 필수 항목을 READY로
+  판정한 기록이 없다(§ 로컬 대체 실행 증거의 위상 위반 확인).
+- And 이 리포트는 "이 SPEC 자체의 구현 완료"와 "파일럿을 실제 외부 테스터에게 열어도
+  되는가"가 서로 다른 판단임을 리포트 본문에서 명시적으로 구분한다.
 
 ## AC Group J — 데이터 취급 고지 정직성 (REQ-PILOT-READY-011 ~ REQ-PILOT-READY-014)
 
@@ -190,10 +223,12 @@ requirement as a scenario.
 **AC-PILOT-READY-012**
 - Given 동일 렌더링된 DOM
 - When 개인정보 안내 영역을 확인하면
-- Then (a) 스키마가 실제로 차단하는 것(주민등록번호/전화번호 형식, 주소/의료기록 원본
-  필드 부재)에 대한 설명과, (b) 3개 자유 텍스트 필드는 스캔되지 않는다는 한계 설명과,
-  (c) "합성이거나 이미 비식별화된 사례만 입력하라"는 테스터 책임 문장이, 세 가지 모두
-  DOM에 개별적으로 식별 가능한 텍스트로 존재한다.
+- Then 다음 4가지가 모두 DOM에 개별적으로 식별 가능한 텍스트로 존재한다: (a) 주민등록번호·
+  휴대전화번호 형식은 검사된다는 설명, (b) 주소·의료기록 원본 필드는 스키마에 애초에
+  정의되어 있지 않다는 **구조적 사실**, (c) 그럼에도 3개 자유 텍스트 필드에 실명·주소·
+  상세 정황 등 다른 식별정보를 타이핑해 넣는 것은 스키마가 탐지·차단하지 않는다는
+  **잔여 위험**(즉 (b)의 구조적 사실과 (c)의 잔여 위험이 하나로 뭉개지지 않고 구분되어
+  진술됨), (d) "합성이거나 이미 비식별화된 사례만 입력하라"는 테스터 책임 문장.
 
 **AC-PILOT-READY-013**
 - Given M3에서 수정된 `app/login/login-form.tsx`의 렌더링된 DOM
