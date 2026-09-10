@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.3.0"
+version: "0.4.0"
 status: draft
 created: 2026-09-10
 updated: 2026-09-10
@@ -110,6 +110,99 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
   15개에 REQ-PILOT-READY-016 1개를 추가해 16/16(상한 도달), AC는 신규 최상위 AC 번호를
   추가하지 않고 기존 AC-PILOT-READY-007/015/016에 하위 절(sub-clause, `a`/`b` 접미사)을
   추가하는 방식으로 16/16(상한 유지, 신규 최상위 AC 없음)을 유지한다.
+- 2026-09-10 (v0.4.0): 외부 리뷰 3차 개정 — v0.3.0의 리스(lease) 설계에서 발견된 2개의
+  실제 설계 결함을 수정하고, 최종 준비 상태 판정 게이트를 정밀화한다. 이번 개정은 신규
+  최상위 REQ/AC를 추가하지 않고(REQ 16/16, AC 16/16 상한 유지), 기존 REQ-PILOT-READY-007/
+  015/016과 그 하위 AC의 문구를 교정·정밀화하는 방식으로만 진행한다. ①TTL 설계 결함
+  수정 — 기존 "TTL 60초 = 로컬 실측 30초의 2배"라는 산정은 로컬 happy-path 실측만
+  반영했을 뿐, 실제 배포된 서버리스 함수가 겪을 수 있는 worst-case(재시도, 429 백오프,
+  느린 Gemini 응답)를 반영하지 못해 기각한다 — 정상적으로 아직 실행 중인 파이프라인의
+  리스가 TTL보다 먼저 만료되면, 두 번째 요청이 리스를 재획득해 REQ-PILOT-READY-007이
+  막으려던 바로 그 동시 이중 실행이 발생할 수 있다는 실제 결함이었다. REQ-PILOT-READY-007을
+  배포 라우트가 `export const maxDuration = 300`(Next.js route segment config, 300초 —
+  Vercel Hobby/Pro 두 tier 모두의 상한 안에 들어오므로 §A 결정 4의 tier 미확정 상태와
+  충돌하지 않음)을 명시적으로 설정하도록 재작성하고, `LEASE_TTL_SECONDS`를 이 `maxDuration`
+  보다 최소 330초(약 30초 안전 여유) 이상으로 요구한다 — 정상 처리 중인 요청의 리스가
+  플랫폼이 함수를 강제 종료하기 전에 만료되는 일이 없도록 하기 위함이다. "30초 단일 로컬
+  실측과 429 재시도 가능성만으로 60초가 충분하다"는 과소평가된 정당화 문장 자체를
+  spec.md/plan.md에서 제거하고, plan.md §A 결정 1에 정적 TTL(maxDuration 이상 고정값)
+  방식과 heartbeat 갱신(실행 중인 파이프라인이 주기적으로 자신의 리스 `expiresAt`을
+  연장) 방식을 명시적으로 비교해 정적 방식을 채택한 근거를 기록한다. plan.md §D Risk
+  4의 "실제 처리 시간이 15초를 초과하면 TTL 재조정이 필요하다"는 문구는 새 TTL 설계와
+  모순되므로 제거한다. 신규 AC(AC-PILOT-READY-007에 하위 절로 추가) — 정상적인 첫 번째
+  실행이 30초 happy path가 아니라 새 TTL 여유 안에서의 현실적 worst-case 지속 시간
+  동안에도 유효하게 실행 중인 동안, 동일 사용자의 두 번째 요청이 `runPipeline`을 시작하지
+  않음을 검증한다. ②완료 기록 트랜잭션 원자성/펜싱을 폴백 없는 하드 요구사항으로 확정 —
+  이 프로젝트가 고정 사용하는 `@libsql/client@0.17.4`(원격 `libsql://` 연결에 사용되는
+  main 패키지 — 제약이 다른 `@libsql/client/web` 서브셋이 아님)의 `http.js`
+  `transaction()` 구현과 `drizzle-orm@0.45.2`의 `libsql/session.js`
+  `LibSQLSession.transaction()` 구현을 실제 소스 코드로 확인한 결과, 원격 HTTP 연결에
+  대해서도 진짜 인터랙티브 트랜잭션(실패 시 자동 rollback, 성공 시 commit)을 지원함이
+  이 SPEC 조사 범위에서 검증됐다(출처: unpkg.com/@libsql/client@0.17.4/lib-esm/http.js,
+  unpkg.com/drizzle-orm@0.45.2/libsql/session.js,
+  github.com/tursodatabase/libsql-client-ts CHANGELOG.md — v0.2.0부터 HTTP 인터랙티브
+  트랜잭션 지원, tursodatabase.github.io/libsql-client-ts Client 인터페이스 문서). 운영
+  제약으로 libSQL은 열려 있는 인터랙티브 트랜잭션에 서버측 5초 잠금 타임아웃을 두므로,
+  이 사실을 REQ-PILOT-READY-007에 명시해 향후 구현자가 트랜잭션 안에 느린 작업을 넣지
+  않도록 경고한다. 일부 AI 검색 요약 결과가 "libSQL은 HTTP를 통한 인터랙티브 트랜잭션을
+  지원하지 않는다"고 잘못 주장하는 경우가 있는데, 이는 별도의 제약이 있는
+  `@libsql/client/web` 패키지에만 해당하는 사실이며 이 프로젝트가 쓰는 main 패키지에는
+  해당하지 않는다는 주의 문구도 함께 남긴다 — 향후 독자가 이 오해로 정상 동작하는 코드를
+  "고치려" 시도하는 것을 방지하기 위함이다. 이 확인에 따라 REQ-PILOT-READY-007(3)을
+  "가능한 한 같은 트랜잭션으로 묶는다"는 목표 설계에서 "리스 소유권 재확인 + `cases`
+  INSERT + `reports` INSERT + `reservations` 삭제, 이 4단계 전부를 단일
+  `db.transaction(async (tx) => {...})` 호출로 수행해야 한다"는 예외 없는 단일 요구사항으로
+  재작성하고, "드라이버가 지원하지 않으면 문서화하고 통과시킨다"는 기존 폴백 이스케이프
+  해치를 완전히 제거한다 — 아울러 트랜잭션 밖에서 리스 소유권을 확인하는 잔여 폴백
+  경로도 함께 제거해, 소유권 확인이 반드시 쓰기와 같은 트랜잭션 안에서 수행되도록
+  한다. plan.md에는 일반 원칙만 남긴다 — run-phase 구현 중 이 확인된 동작과 실제로
+  다른 드라이버 회귀가 발견되는 등 이 요구사항이 실제로 충족되지 않음이 확인되면, 그
+  사실 자체를 REQ-PILOT-READY-007의 FAIL로, 파일럿 준비 상태(REQ-PILOT-READY-016)를
+  NO-GO로 판정해야 한다는 폴백 **정책**으로 기록한다(현재 불확실해서 두는 hedge가
+  아니라, 확인된 사실이 실제 구현에서 어긋날 경우의 대응 정책). 신규 AC(둘 다
+  AC-PILOT-READY-007 하위 절로 추가) — (a) 트랜잭션 기반 완료+해제 직후 리스
+  재획득(reacquisition) 시도가 깨끗이 성공함을 검증하는 경쟁 테스트(다음 사용자를 막는
+  잔여 상태가 없음을 확인), (b) `reports` INSERT 실패를 주입해 `cases` 완료 행이 전혀
+  존재하지 않음(부분 커밋 없음)을 후속 조회로 재확인하는 롤백 테스트 — 두 테스트 모두
+  아무 일도 없었던 것과 동일한 DB 상태임을 직접 조회로 검증한다. ③최종 파일럿 준비 상태
+  판정 게이트 정밀화(REQ-PILOT-READY-016/AC-PILOT-READY-016b) — 호스팅 적합성 항목을
+  "tier/ToS 결정"과 "실제 배포 환경에서의 타임아웃 실측(maxDuration 상한 안에 여유 있게
+  들어옴을 보여주는 증거)" 둘 다를 요구하도록 세분화하고(결정만 있고 실측이 없으면
+  UNVERIFIED), Gemini 쿼터(REQ-PILOT-READY-003)를 호스팅과 별개의 독립 게이트 항목으로
+  승격해 실제 AI Studio 대시보드 확인과 기록된 `GEMINI_*_RPM_BUDGET` 값(코드 기본값
+  그대로는 UNVERIFIED)을 READY 조건으로 명시한다. 서로 다른 사용자 동시 부하 항목의
+  READY 기준을 "배치 안의 모든 요청이 성공적인 최종 상태에 도달하고, 그 결과가 실제로
+  DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없음"으로 정밀화한다
+  (기존 재시도/백오프로 흡수된 429는 무방). DB 메커니즘 검증(조건부 UPSERT 재획득 +
+  완료 트랜잭션) 항목은 실제 원격 Turso 대상에 대한 검증만을 READY로 인정하며,
+  로컬/in-memory SQLite 결과만으로는 READY로 판정할 수 없음을 명시한다. 실 Gemini
+  스모크 항목은 로컬(`next start`) 실행과 실제 배포 도메인 실행을 명시적으로 구분하고,
+  최종 판정은 반드시 배포 도메인 결과를 요구한다. 이로써 항목 수가 6개에서 7개로
+  늘어난다 — 게이트 규칙도 "(1) tier/ToS 결정을 제외하고, 원격 검증·실측이 필요한
+  항목(1의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED 또는 UNVERIFIED면 전체 NO-GO"로
+  재작성한다. 아울러 이 판정 문서의 **공정** 자체를 명시한다 — plan-phase에는 빈
+  템플릿으로만 작성되는 것이 맞지만(기존과 동일), run-phase의 마지막 마일스톤에서는
+  7개 항목 전부에 실제 판정값과 전체 GO/NO-GO가 채워져야 하며, 템플릿이 비어 있는
+  상태로 run-phase가 종료되는 것은 허용되지 않는다 — 단, 실제로 채워 넣은 판정이
+  NO-GO인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만
+  금지된다). AC-PILOT-READY-016b를 "6개 항목 각각 판정" 검증에서 "7개 항목 모두가
+  실제 값으로 채워졌는가 + 전체 GO/NO-GO가 기록됐는가"까지 검증하도록 보강한다.
+  ④Out of Scope 절의 "최근 리서치 패널 processing/failed 상태 미표시" 항목을 정리한다
+  — 이 우려는 REQ-PILOT-READY-007의 원 설계(옛 컬럼 재사용, 파이프라인 실행 이전에
+  `processing` 상태를 기록)에서만 유효했다. v0.3.0의 리스(lease) 설계에서는 `cases` 행이
+  파이프라인이 **성공**한 뒤 완료 기록 트랜잭션 안에서만 생성되므로(REQ-PILOT-READY-007(3)),
+  `processing`/`failed` 상태의 `cases` 행은 애초에 전혀 생성되지 않는다 — 이 우려는 더
+  이상 이 SPEC의 현재 설계에 적용되지 않는 사실로 확인되어, Out of Scope 절에서
+  "기각된 옛 설계(Option B)에서만 유효했던, 현재는 적용되지 않는 우려"로 재분류하고
+  plan.md §D Risk 6도 동일하게 갱신한다. ⑤plan.md §F 체크리스트의 "위 5개 항목"이라는
+  표기 오류를 실제 표 행 수(6개)에 맞춰 수정하고, 실제 프로덕션 도메인 값과 원격 Turso
+  대상 값을 run-phase 필수 블로커(run-phase 완료를 위해 반드시 실제 값으로 확정되어야
+  하는 항목)로 명시적으로 격상한다 — Vercel tier 자체(Hobby/Pro 중 선택)는 여전히 비용
+  결정 권한자의 미확정 결정으로 남지만, tier와 무관하게 실제 도메인 값 자체는
+  run-phase의 타임아웃/인증 검증 리포트가 동작하기 위한 전제조건이므로 별개로
+  블로커임을 명시한다. 사용자 승인 전 결제·플랜 업그레이드·배포 금지 원칙은 변경하지
+  않는다. 이 개정은 신규 최상위 REQ/AC를 추가하지 않으므로 REQ 16/16, AC 16/16
+  상한을 그대로 유지한다.
 
 ## §1. 개요 (Overview)
 
@@ -311,7 +404,7 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호, `409 Conflict`)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. **v0.3.0 개정으로 이 REQ는 다음 리스(lease) 기반 구현을 단독으로(only) 요구한다 — 더 이상 대안 옵션은 없다**: `ownerUserId`를 키(UNIQUE)로 하는 신규 `reservations` 테이블에 `leaseId`(획득마다 새로 생성되는 고유 토큰)와 `expiresAt`(TTL 60초 = 실측 파이프라인 처리 시간 30초의 2배 여유 — `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — Gemini 429 재시도 백오프와 네트워크 지연을 흡수하기 위함) 2개 컬럼을 추가한다. **(1) 원자적 획득/재획득**: `INSERT INTO reservations (owner_user_id, lease_id, expires_at) VALUES (?, ?, ?) ON CONFLICT (owner_user_id) DO UPDATE SET lease_id = excluded.lease_id, expires_at = excluded.expires_at WHERE reservations.expires_at < <now>` 후, 이 쓰기가 실제로 자신의 `leaseId`를 반영했는지(영향받은 행 수, 또는 즉시 재조회로 `leaseId` 일치 확인)를 검사해 "나는 리스를 보유했다"와 "다른 실행의 만료 전 리스에 막혔다"를 구분한다 — 후자면 "이미 처리 중"으로 즉시 응답한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로(docs.turso.tech §Client Access), `UNIQUE` 제약 기반 조건부 UPSERT는 DB 엔진 수준의 진정한 원자성을 제공한다 — 다만 이 조건부 `DO UPDATE ... WHERE` 구문 형태 자체가 Turso 공식 문서에서 별도로 재검증되지는 않은 "표준 SQLite/libSQL 문법으로 알려진 것"이라는 한계를 정직하게 명시한다(단순 `ON CONFLICT DO NOTHING`과는 구문이 다름). **(2) 펜싱된 해제(fenced release)**: 파이프라인 종료(성공/실패 모두) 시 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`로 자신의 `leaseId`가 여전히 일치할 때만 해제한다 — 리스가 만료되어 다른 실행이 이미 재획득한 경우 이 삭제는 0행에 매치되는 no-op이어야 하며, 절대로 새 리스를 실수로 삭제해서는 안 된다. **(3) 완료 기록의 동일 트랜잭션 원자성(하드 요구사항)**: 파이프라인 성공 시 `cases` 행의 완료 상태 전이(`status: "completed"`)와 `reports` 행 INSERT는 **동일 DB 트랜잭션**으로 수행해야 하며, 가능한 한 그 트랜잭션 안에서 리스의 `leaseId` 일치 여부를 커밋 전에 재확인하는 두 번째 펜싱 게이트를 둔다(만료 후 재획득이 일어난 뒤 뒤늦게 도착한 옛 실행의 결과가 새 실행의 완료 기록을 덮어쓰지 못하게 하기 위함) — `reports` INSERT가 실패하면 `cases`의 완료 상태 전이도 롤백되어야 하며, 한쪽만 성공한 불일치 상태가 남아서는 안 된다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, SPEC-PILOT-UX-001 iteration 3에서 기각됨, §Out of Scope 참고)을 재도입하지 않는다 — 매칭 키는 여전히 `ownerUserId`(사용자 단위)이지 페이로드 해시가 아니다. **기각된 대안**: 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(무마이그레이션)은 진정한 경쟁 구간 해소를 제공하지 못해 이 REQ의 "DB 엔진 수준 원자성" 요구를 충족하지 않으므로 기각한다 — 기각 근거의 전체 기록은 plan.md §A 결정 1을 참고한다(이 SPEC의 요구사항 텍스트와 acceptance.md의 PASS 조건에는 이 대안이 유효한 구현 경로로 등장하지 않는다). | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위 + 크래시 복구 가능한 형태로 재설계), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적 + 리스 기반 재설계 요구), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼) |
+| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호, `409 Conflict`)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. **v0.3.0 개정으로 이 REQ는 다음 리스(lease) 기반 구현을 단독으로(only) 요구한다 — 더 이상 대안 옵션은 없다**: `ownerUserId`를 키(UNIQUE)로 하는 신규 `reservations` 테이블에 `leaseId`(획득마다 새로 생성되는 고유 토큰)와 `expiresAt`(TTL 값 산정은 아래 참고) 2개 컬럼을 추가한다. **v0.4.0 개정으로 이 REQ는 배포 라우트가 `export const maxDuration = 300`(Next.js route segment config, 300초)을 명시적으로 설정할 것을 함께 요구하며, `LEASE_TTL_SECONDS`는 이 `maxDuration`보다 충분히 길게(최소 330초 — `maxDuration` 대비 약 30초의 안전 여유) 설정해야 한다** — 정상 처리 중인 파이프라인이 플랫폼에 의해 강제 종료되기 전에 리스가 먼저 만료되어 두 번째 요청이 리스를 재획득해 동시 이중 실행이 발생하는 것을 방지하기 위함이다 (기존 "TTL 60초 = 로컬 실측 30초의 2배"라는 산정은 로컬 happy-path 실측만 반영하고 재시도·429 백오프·느린 응답을 포함한 실제 배포 환경의 worst-case를 반영하지 못해 v0.4.0에서 기각됐다 — 정적 TTL과 heartbeat 갱신 두 대안의 비교 및 채택 근거는 plan.md §A 결정 1 참고). 이 REQ는 정상적인 첫 번째 실행이 30초 happy path가 아니라 새 TTL 여유 안에서의 현실적 worst-case 지속 시간 동안 유효하게 실행 중인 동안에도, 동일 사용자의 두 번째 요청이 `runPipeline`을 시작하지 않아야 함을 요구한다 (AC-PILOT-READY-007 하위 절 참고). **(1) 원자적 획득/재획득**: `INSERT INTO reservations (owner_user_id, lease_id, expires_at) VALUES (?, ?, ?) ON CONFLICT (owner_user_id) DO UPDATE SET lease_id = excluded.lease_id, expires_at = excluded.expires_at WHERE reservations.expires_at < <now>` 후, 이 쓰기가 실제로 자신의 `leaseId`를 반영했는지(영향받은 행 수, 또는 즉시 재조회로 `leaseId` 일치 확인)를 검사해 "나는 리스를 보유했다"와 "다른 실행의 만료 전 리스에 막혔다"를 구분한다 — 후자면 "이미 처리 중"으로 즉시 응답한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로(docs.turso.tech §Client Access), `UNIQUE` 제약 기반 조건부 UPSERT는 DB 엔진 수준의 진정한 원자성을 제공한다 — 다만 이 조건부 `DO UPDATE ... WHERE` 구문 형태 자체가 Turso 공식 문서에서 별도로 재검증되지는 않은 "표준 SQLite/libSQL 문법으로 알려진 것"이라는 한계를 정직하게 명시한다(단순 `ON CONFLICT DO NOTHING`과는 구문이 다름). **(2) 펜싱된 해제(fenced release)**: 파이프라인 종료(성공/실패 모두) 시 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`로 자신의 `leaseId`가 여전히 일치할 때만 해제한다 — 리스가 만료되어 다른 실행이 이미 재획득한 경우 이 삭제는 0행에 매치되는 no-op이어야 하며, 절대로 새 리스를 실수로 삭제해서는 안 된다. **(3) 완료 기록의 동일 트랜잭션 원자성(하드 요구사항, 폴백 없음 — v0.4.0 확정)**: 파이프라인 성공 시 (i) 리스의 `leaseId` 일치 여부 재확인(펜싱 게이트), (ii) `cases` 행의 완료 상태 전이(`status: "completed"`), (iii) `reports` 행 INSERT, (iv) 자신의 `reservations` 리스 행 삭제, 이 4단계 전부를 **단일 DB 트랜잭션**(`db.transaction(async (tx) => {...})`) 안에서 순서대로 수행해야 한다 — 이는 더 이상 "가능한 한" 시도하는 목표 설계가 아니라 예외 없는 단일 요구사항이다. 이 프로젝트가 고정 사용하는 `@libsql/client@0.17.4`(원격 `libsql://` 연결에 사용되는 main 패키지 — 제약이 다른 `@libsql/client/web` 서브셋이 아님)의 `http.js` `transaction()` 구현과 `drizzle-orm@0.45.2`의 `libsql/session.js` `LibSQLSession.transaction()` 구현을 실제 소스 코드로 확인한 결과, 원격 HTTP 연결에 대해서도 진짜 인터랙티브 트랜잭션(실패 시 자동 rollback, 성공 시 commit)을 지원함이 이 SPEC 조사 범위에서 검증됐다(출처: unpkg.com/@libsql/client@0.17.4/lib-esm/http.js, unpkg.com/drizzle-orm@0.45.2/libsql/session.js, github.com/tursodatabase/libsql-client-ts CHANGELOG.md, tursodatabase.github.io/libsql-client-ts Client 인터페이스 문서). 운영 제약으로 libSQL은 열려 있는 인터랙티브 트랜잭션에 서버측 **5초 잠금 타임아웃**을 두므로, 트랜잭션 안의 4단계는 신속하게 실행되어야 한다(모두 단순 단일 쿼리이므로 여유가 충분하다) — 향후 구현자는 이 트랜잭션 안에 느린 작업을 넣지 않아야 한다. 일부 AI 검색 요약 결과가 "libSQL은 HTTP를 통한 인터랙티브 트랜잭션을 지원하지 않는다"고 주장하는 경우가 있으나, 이는 별도 제약이 있는 `@libsql/client/web` 패키지에만 해당하는 사실이며 이 프로젝트가 쓰는 main 패키지에는 해당하지 않는다 — 이 혼동으로 정상 동작하는 코드를 "고치려" 시도하지 않도록 주의를 남긴다. `reports` INSERT가 실패하면 트랜잭션 전체가 롤백되어야 하며, `cases`의 완료 상태 전이만 홀로 커밋된 불일치 상태가 남아서는 안 된다. **폴백 정책**(현재 불확실해서 두는 hedge가 아니라, 확인된 동작이 실제 구현에서 어긋날 경우의 대응 정책): run-phase 구현 중 이 확인된 동작과 실제로 다른 드라이버 회귀가 발견되어 이 트랜잭션 요구사항이 실제로 충족되지 않음이 확인되면, 그 사실 자체를 이 REQ의 FAIL로, 파일럿 준비 상태(REQ-PILOT-READY-016)를 NO-GO로 판정해야 한다 — 완화된 대안 설계로 조용히 우회하는 것은 허용되지 않는다. 트랜잭션 밖에서 리스 소유권을 별도로 확인하는 잔여 폴백 경로는 존재하지 않는다 — 소유권 재확인은 반드시 위 4단계와 같은 트랜잭션 안에서 수행된다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, SPEC-PILOT-UX-001 iteration 3에서 기각됨, §Out of Scope 참고)을 재도입하지 않는다 — 매칭 키는 여전히 `ownerUserId`(사용자 단위)이지 페이로드 해시가 아니다. **기각된 대안**: 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(무마이그레이션)은 진정한 경쟁 구간 해소를 제공하지 못해 이 REQ의 "DB 엔진 수준 원자성" 요구를 충족하지 않으므로 기각한다 — 기각 근거의 전체 기록은 plan.md §A 결정 1을 참고한다(이 SPEC의 요구사항 텍스트와 acceptance.md의 PASS 조건에는 이 대안이 유효한 구현 경로로 등장하지 않는다). | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위 + 크래시 복구 가능한 형태로 재설계), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적 + 리스 기반 재설계 요구), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼) |
 
 ### G. 최소 구조적 로깅 (Minimal Structured Logging)
 
@@ -344,13 +437,13 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-015 | Ubiquitous | REQ-PILOT-READY-007의 **사용자별 동시 실행 가드**는 "동일 사용자당 동시 in-flight 파이프라인 최대 1개"라는 **동시성 제한(concurrency limit)**만 보장하며, "동일 논리적 제출의 재제출은 항상 동일한 결과를 반환한다"는 **제출 idempotency**는 보장하지 않는다 — 이 둘은 서로 다른 개념이며 혼동해서는 안 된다("idempotency 가드"라는 명칭은 부정확하므로 이 SPEC 전체에서 사용하지 않는다). v0.3.0의 리스(lease) 재설계로 4가지 실패 모드의 판정이 달라졌으며, 이 SPEC은 각 모드에 대해 실제 동작을 명시적으로 문서화해야 한다 — 해결됨으로 판정하려면 그 구체적 메커니즘을 제시해야 하고, gap으로 남기려면 "이 파일럿 규모(약 10명)에서는 의도적으로 다루지 않는 gap"임을 명시적으로 기록해야 하며, 다루지 않는 gap을 마치 해결된 것처럼 진술하는 것("재시도는 무제한으로 해도 중복 실행을 막는다"는 식의 과잉 보장 포함)은 금지된다: (a) **크래시/강제종료 복구 — 해결됨(TTL 기반 재획득)** — 파이프라인 실행 도중 프로세스가 강제 종료되면 리스(reservation) 행이 영구히 고착(orphan)되지 않는다. `expiresAt`을 지난 리스는 다음 요청이 조건부 UPSERT(`WHERE expires_at < now`)로 자동 재획득하므로, TTL(60초) 경과 후 자연 회수된다 — 수동 조치가 필요 없다; (b) **완료 상태와 리포트 저장의 원자성 — 해결됨(동일 트랜잭션 하드 요구사항)** — REQ-PILOT-READY-007(3)에 따라 파이프라인 성공 시 `cases` 행의 완료 상태 전이와 `reports` 행 INSERT는 동일 DB 트랜잭션으로 수행되어야 하며, 한쪽만 성공하는 불일치 상태는 허용되지 않는다(구현 시 트랜잭션 API 제약으로 완전한 단일 트랜잭션이 기술적으로 불가능하다고 판단되면 run-phase 실행자는 그 사실과 근거를 정직하게 명시해야 한다 — 이 SPEC은 목표 설계를 하드 요구사항으로 고정하되, 구현 불가능이 실제로 확인될 가능성을 배제하지 않는다); (c) **응답 유실 후 재제출 — 여전히 의도적으로 다루지 않는 gap** — 서버측에서는 실제로 성공했으나 클라이언트가 응답을 받지 못한 경우(네트워크 유실), 재제출 시 새 리스를 획득할 수 있다면(이전 리스가 이미 해제됐으므로) 파이프라인이 처음부터 다시 실행된다 — 이미 완료된 결과를 재사용하는 진정한 요청 수준 idempotency(페이로드 기반 dedup)는 이 SPEC 범위에서 제공하지 않으며, 이는 §Out of Scope에 명시된 의도적 gap이다; (d) **지연 도착 결과와 재시도 결과의 충돌 가능성 — 해결됨(leaseId 펜싱)** — REQ-PILOT-READY-007(2)/(3)의 펜싱된 해제와 완료-기록 펜싱 게이트에 따라, 만료 후 재획득된 새 리스가 존재하는 상태에서 원래(만료된) 시도가 뒤늦게 도착해도 그 `leaseId`는 더 이상 현재 리스와 일치하지 않으므로 해제도 완료-기록도 no-op으로 거부되어 새 실행의 상태를 덮어쓰지 못한다. | 사용자 지시(동시성 제한과 제출 idempotency를 별개로 다루고, 이 SPEC이 정확히 무엇을 보장하고 무엇을 보장하지 않는지 정직하게 진술할 것), 외부 리뷰(4개 실패 모드가 원 SPEC에서 누락됐다는 지적 + 리스 재설계로 인한 재판정 요구) |
+| REQ-PILOT-READY-015 | Ubiquitous | REQ-PILOT-READY-007의 **사용자별 동시 실행 가드**는 "동일 사용자당 동시 in-flight 파이프라인 최대 1개"라는 **동시성 제한(concurrency limit)**만 보장하며, "동일 논리적 제출의 재제출은 항상 동일한 결과를 반환한다"는 **제출 idempotency**는 보장하지 않는다 — 이 둘은 서로 다른 개념이며 혼동해서는 안 된다("idempotency 가드"라는 명칭은 부정확하므로 이 SPEC 전체에서 사용하지 않는다). v0.3.0의 리스(lease) 재설계로 4가지 실패 모드의 판정이 달라졌으며, 이 SPEC은 각 모드에 대해 실제 동작을 명시적으로 문서화해야 한다 — 해결됨으로 판정하려면 그 구체적 메커니즘을 제시해야 하고, gap으로 남기려면 "이 파일럿 규모(약 10명)에서는 의도적으로 다루지 않는 gap"임을 명시적으로 기록해야 하며, 다루지 않는 gap을 마치 해결된 것처럼 진술하는 것("재시도는 무제한으로 해도 중복 실행을 막는다"는 식의 과잉 보장 포함)은 금지된다: (a) **크래시/강제종료 복구 — 해결됨(TTL 기반 재획득)** — 파이프라인 실행 도중 프로세스가 강제 종료되면 리스(reservation) 행이 영구히 고착(orphan)되지 않는다. `expiresAt`을 지난 리스는 다음 요청이 조건부 UPSERT(`WHERE expires_at < now`)로 자동 재획득하므로, TTL(v0.4.0부터 `maxDuration`(300초) + 안전 여유 = 최소 330초) 경과 후 자연 회수된다 — 수동 조치가 필요 없다; (b) **완료 상태와 리포트 저장의 원자성 — 해결됨(동일 트랜잭션 하드 요구사항, 폴백 없음)** — REQ-PILOT-READY-007(3)에 따라 파이프라인 성공 시 리스 소유권 재확인·`cases` 행의 완료 상태 전이·`reports` 행 INSERT·리스 해제 4단계 전부가 단일 DB 트랜잭션으로 수행되어야 하며, 한쪽만 성공하는 불일치 상태는 허용되지 않는다. 이 동작은 v0.4.0에서 `@libsql/client@0.17.4`/`drizzle-orm@0.45.2`의 실제 소스 코드 확인으로 지원됨이 검증됐으므로 더 이상 불확실한 가정이 아니다 — run-phase 구현 중 이 확인된 동작과 실제로 다른 드라이버 회귀가 발견되면, 그 사실 자체가 이 REQ의 FAIL이자 REQ-PILOT-READY-016의 NO-GO 사유이며, 완화된 대안으로 조용히 우회하는 것은 허용되지 않는다; (c) **응답 유실 후 재제출 — 여전히 의도적으로 다루지 않는 gap** — 서버측에서는 실제로 성공했으나 클라이언트가 응답을 받지 못한 경우(네트워크 유실), 재제출 시 새 리스를 획득할 수 있다면(이전 리스가 이미 해제됐으므로) 파이프라인이 처음부터 다시 실행된다 — 이미 완료된 결과를 재사용하는 진정한 요청 수준 idempotency(페이로드 기반 dedup)는 이 SPEC 범위에서 제공하지 않으며, 이는 §Out of Scope에 명시된 의도적 gap이다; (d) **지연 도착 결과와 재시도 결과의 충돌 가능성 — 해결됨(leaseId 펜싱)** — REQ-PILOT-READY-007(2)/(3)의 펜싱된 해제와 완료-기록 펜싱 게이트에 따라, 만료 후 재획득된 새 리스가 존재하는 상태에서 원래(만료된) 시도가 뒤늦게 도착해도 그 `leaseId`는 더 이상 현재 리스와 일치하지 않으므로 해제도 완료-기록도 no-op으로 거부되어 새 실행의 상태를 덮어쓰지 못한다. | 사용자 지시(동시성 제한과 제출 idempotency를 별개로 다루고, 이 SPEC이 정확히 무엇을 보장하고 무엇을 보장하지 않는지 정직하게 진술할 것), 외부 리뷰(4개 실패 모드가 원 SPEC에서 누락됐다는 지적 + 리스 재설계로 인한 재판정 요구) |
 
 ### L. 최종 파일럿 준비 상태 판정 (Final Pilot-Readiness Determination)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 6개 항목을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) 호스팅 적합성(선택된 tier의 기간·ToS 적합성), (2) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행), (3) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작), (4) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증), (5) 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006), (6) 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장이 실 환경 또는 현실적 환경에 대해 검증됨). **전체 게이트 규칙**: (1)의 ToS 적합성 판단(문서 판단으로 가능)을 제외하고, 원격 검증이 필요한 항목(2~6) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 원격 필수 항목에 대해서는 존재하지 않는다. 로컬(`next start`) 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). 이 문서는 run-phase 착수 시점에는 6개 항목의 표와 판정 기준만 담은 템플릿으로 작성되며, 실제 판정 값은 run-phase 진행 중 또는 파일럿 착수 직전에 채워진다. | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지) |
+| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 **7개 항목**(v0.4.0 — 기존 6개에서 Gemini 쿼터를 독립 항목으로 승격)을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) **호스팅 적합성** — 선택된 tier의 기간·ToS 적합성 **결정**(REQ-PILOT-READY-001)과, 실제 배포 환경에서 측정한 처리 시간이 그 tier의 `maxDuration`(300초) 상한 안에 여유 있게 들어오는지에 대한 **실측 증거**(REQ-PILOT-READY-002) 둘 다가 있어야 READY — 결정만 있고 실측이 없으면 UNVERIFIED; (2) **Gemini 쿼터**(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) — 실제 AI Studio 쿼터 대시보드를 확인하고 관측된 실제 한도를 근거로 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값을 실제로 기록해야 READY — 코드 기본값(4)을 그대로 둔 상태는 UNVERIFIED; (3) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행); (4) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작); (5) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증 — 반드시 실제 배포 도메인 기준이며, 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다); (6) **서로 다른 사용자 동시 부하**(REQ-PILOT-READY-006) — 배치 안의 모든 요청이 성공적인 최종 상태에 도달하고 그 결과가 실제로 DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없어야 READY(기존 재시도/백오프로 흡수된 429는 무방); (7) **저장소/복구 검증**(REQ-PILOT-READY-007의 리스+트랜잭션 보장) — 실제 원격 Turso 대상에 대한 검증만 READY로 인정하며, 로컬/in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다. **전체 게이트 규칙**: (1)의 tier/ToS 적합성 "결정" 자체(문서 판단으로 가능)를 제외하고, 원격 검증 또는 실측이 필요한 항목((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 존재하지 않는다. 로컬 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). **run-phase 완료 시점 공정(v0.4.0 명시)**: 이 문서는 run-phase 착수 시점에는 7개 항목의 표와 판정 기준만 담은 템플릿으로 작성된다. run-phase의 **마지막 마일스톤**에서는 7개 항목 모두에 실제 READY/BLOCKED/UNVERIFIED 판정값과 전체 GO/NO-GO 판정이 채워져야 하며, 템플릿이 비어 있는 상태로 run-phase가 종료되는 것은 이 SPEC의 run-phase 완료 상태로 허용되지 않는다 — 단, 실제로 채워 넣은 판정 결과가 **NO-GO**인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만 금지된다). | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지, 게이트 평가 자체를 run-phase 완료 조건으로 명시할 것) |
 
 ## Out of Scope
 
@@ -360,20 +453,20 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
   선택된 tier(REQ-PILOT-READY-001)에서의 타임아웃 정합성 확인·문서화(REQ-PILOT-READY-002)까지만
   다룬다.
 
-### Out of Scope — "최근 리서치" 패널의 processing/failed 상태 표시 개선
+### Out of Scope — "최근 리서치" 패널의 processing/failed 상태 표시 (v0.4.0: 더 이상 적용되지 않음 — 기각된 옛 설계에서만 유효했던 우려)
 
-- `app/cases/new/recent-research-panel.tsx`의 `STATUS_LABELS`는 현재 `pending`/`completed`만
-  한글 라벨로 매핑하며, `statusLabel()`은 매핑에 없는 상태값을 영문 원문 그대로 노출한다
-  (`?? status` 폴백). `getRecentCasesForOwner()`(`lib/cases/get-recent-cases-for-owner.ts`)는
-  `cases.status`로 필터링하지 않고 소유자의 최근 사건을 그대로 조회하므로,
-  REQ-PILOT-READY-007 구현 이후 `processing`/`failed` 상태의 행이 실제로 생성되면 "최근
-  리서치" 패널에 라벨 없이 영문 원문("processing"/"failed")으로 노출된다. 또한
-  `app/cases/[caseId]/page.tsx`로의 링크는 아직 리포트가 없는(`report: null`,
-  `lib/cases/get-case-for-owner.ts` 확인) 사건에 대해서도 그대로 생성된다 — 이 화면이
-  `report === null` 상태를 어떻게 렌더링하는지는 이 SPEC 조사 범위에서 별도로 검증하지
-  않았다. 이 UI 표시 개선(라벨 매핑 추가, `report: null` 상태 처리)은 이 SPEC의 범위가
-  아니다 — 이 SPEC은 이 갭을 문서로만 기록하며, 코드 변경은 run-phase 실행자 또는
-  후속 SPEC의 판단에 맡긴다.
+- **이 항목은 v0.4.0 개정으로 재분류됐다.** 이 우려는 REQ-PILOT-READY-007의 옛 설계
+  (기존 `cases.status` 컬럼 재사용, 파이프라인 실행 **이전**에 `processing` 상태를
+  먼저 기록하는 방식 — v0.3.0에서 진정한 원자성을 제공하지 못해 이미 기각된 대안)에서만
+  유효했다. v0.3.0/v0.4.0의 리스(lease) 설계에서는 `cases` 행이 파이프라인이 **성공**한
+  뒤 완료 기록 트랜잭션 안에서만 INSERT되며(REQ-PILOT-READY-007(3) — 파이프라인이
+  실패하거나 예외를 던지면 리스만 해제되고 `cases`/`reports`에는 아무것도 기록되지
+  않는다), `processing`/`failed` 상태의 `cases` 행은 이 설계에서 **애초에 전혀 생성되지
+  않는다**. 따라서 `app/cases/new/recent-research-panel.tsx`의 `STATUS_LABELS`가
+  `pending`/`completed`만 매핑하고 `processing`/`failed`를 매핑하지 않는다는 사실은
+  더 이상 실제 배포 리스크가 아니다 — 이 SPEC이 도입하는 어떤 경로로도 그 상태값을 가진
+  행이 DB에 쓰이지 않기 때문이다. 이 항목은 현재 진행 중인 우려로 취급하지 않으며,
+  코드 변경은 필요하지 않다.
 
 ### Out of Scope — 프로덕션 로그인 rate-limiting 강화
 
@@ -439,4 +532,12 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 - Vercel 공식 문서(Fair Use Guidelines, Functions 실행 시간 문서, Pricing 페이지) —
   REQ-PILOT-READY-001/002의 Hobby/Pro tier 근거
 - `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — REQ-PILOT-READY-007의
-  리스 TTL(60초) 산정 기준선(실측 처리 시간 30초)
+  리스 TTL 산정에 참고하는 로컬 happy-path 실측 처리 시간(30초) 기준선(v0.4.0부터 TTL 값
+  자체는 이 실측이 아니라 `maxDuration`(300초) + 안전 여유로 산정됨 — §A 결정 1 참고)
+- (v0.4.0 추가) `@libsql/client@0.17.4` 소스(unpkg.com/@libsql/client@0.17.4/lib-esm/http.js)
+  + `drizzle-orm@0.45.2` 소스(unpkg.com/drizzle-orm@0.45.2/libsql/session.js) +
+  `github.com/tursodatabase/libsql-client-ts` CHANGELOG.md +
+  `tursodatabase.github.io/libsql-client-ts` Client 인터페이스 문서 — REQ-PILOT-READY-007(3)
+  완료 기록 트랜잭션(리스 소유권 재확인 + `cases` INSERT + `reports` INSERT + 리스 해제
+  단일 트랜잭션)이 원격 `libsql://` HTTP 연결에서도 실제로 지원됨을 확인하는 직접 근거
+  (이 프로젝트가 사용하는 것은 `@libsql/client/web`이 아닌 main 패키지임에 유의)

@@ -102,12 +102,30 @@ requirement as a scenario.
 - And (성공 후 정상 완료) given 첫 번째 호출의 mock된 `runPipeline`이 성공적으로
   resolve된 상태에서, when 해당 `cases` 행을 DB에서 직접 조회하면, then 그 행의
   `status`는 `"completed"`이고 `"processing"`으로 영구히 남아있지 않는다.
-- And (**완료 기록의 트랜잭션 원자성 — REQ-PILOT-READY-007(3)**) given `reports` 테이블
-  INSERT가 mock을 통해 실패하도록 설정된 상태에서, when 파이프라인이 성공적으로 완료되어
-  완료 기록 트랜잭션이 실행되면, then `cases` 행의 상태는 `"completed"`로 커밋되지 않고
-  (`"processing"` 또는 실패 이전 상태로 남거나 롤백되어) 완료 상태만 홀로 커밋된
-  불일치 행이 DB에 존재하지 않는다 — `reports` INSERT 실패 시 `cases`의 완료 상태
-  전이도 함께 롤백됨을 직접 DB 조회로 확인한다.
+- And (**완료 기록의 트랜잭션 원자성 — REQ-PILOT-READY-007(3), v0.4.0 강화**) given
+  `reports` 테이블 INSERT가 mock을 통해 실패하도록 설정된 상태에서, when 파이프라인이
+  성공적으로 완료되어 단일 완료 기록 트랜잭션(리스 소유권 재확인 + `cases` INSERT +
+  `reports` INSERT + `reservations` DELETE)이 실행되면, then `cases` 행이 전혀
+  존재하지 않고(부분 커밋 없음), `reports` 행도 존재하지 않으며, `reservations` 리스
+  행은 여전히 원래대로 남아 있다 — **롤백 후 DB 상태가 이 트랜잭션이 아예 시도되지
+  않았던 것과 정확히 동일함**을 세 테이블 모두에 대한 직접 조회로 확인한다(부분
+  성공/부분 롤백 상태는 FAIL).
+- And (**리스 재획득(reacquisition) 클린 성공 — REQ-PILOT-READY-007(3), v0.4.0 신규**)
+  given 첫 번째 `createCase` 호출이 위 완료 기록 트랜잭션(리스 소유권 재확인 + `cases`
+  INSERT + `reports` INSERT + `reservations` DELETE)을 정상적으로 성공시킨 직후,
+  when 동일한 `ownerUserId`로 두 번째 `createCase` 요청을 즉시 보내면, then 그 요청은
+  새 `leaseId`로 리스를 깨끗이 재획득하고 `runPipeline`이 정상적으로 호출된다 — 첫
+  번째 실행이 남긴 어떤 잔여 상태(고아 `reservations` 행, 잠긴 상태 등)도 다음
+  사용자의 요청을 막지 않음을 확인한다.
+- And (**현실적 worst-case 지속 시간 동안의 가드 유지 — REQ-PILOT-READY-007(1), v0.4.0
+  신규**) given `runPipeline`이 즉시 resolve하지 않고 새 TTL(최소 330초) 여유 안의
+  현실적인 worst-case 지속 시간(예: 200초 이상) 동안 계속 pending 상태로 남도록 mock된
+  상태에서, when 그 지속 시간 내내 동일 `ownerUserId`로 반복적으로 `createCase`를
+  호출하면, then 모든 반복 호출에서 `runPipeline`은 여전히 1회만 호출된 상태를 유지하고
+  각 반복 호출은 "이미 처리 중" 응답을 받는다 — 이 AC는 30초 happy-path 지속 시간이
+  아니라 TTL 여유 안의 더 긴 현실적 지속 시간 동안에도 가드가 계속 유효함을 검증하며,
+  AC-PILOT-READY-007의 다른 크래시/재획득 시나리오(TTL을 실제로 지난 경우)와는
+  구분된다.
 - And (**크래시 후 TTL 만료·재획득 — REQ-PILOT-READY-007(1)**) given 첫 번째 `createCase`
   호출이 리스를 획득한 뒤 정상 종료도 실패도 하지 않고 그대로 멈춘 상태(크래시 시뮬레이션
   — 해제 로직이 실행되지 않음)에서, when 그 리스의 `expiresAt`을 지난 시각(mock 시계
@@ -198,19 +216,43 @@ requirement as a scenario.
   실제로 검증되지 않은 보장을 진술하는 문장이 없으며, "idempotency 가드"라는 부정확한
   명칭 대신 "사용자별 동시 실행 가드"가 일관되게 사용된다.
 
-**AC-PILOT-READY-016b** (REQ-PILOT-READY-016 — 최종 파일럿 준비 상태 판정)
+**AC-PILOT-READY-016b** (REQ-PILOT-READY-016 — 최종 파일럿 준비 상태 판정, v0.4.0 — 6개→7개 항목)
 - Given `.moai/reports/pilot-ready-readiness-decision-*.md` 리포트
 - When 그 리포트를 확인하면
-- Then 6개 항목(호스팅 적합성, 원격 DB, 실 도메인 인증, 실 Gemini 스모크, 서로 다른
-  사용자 동시 부하, 저장소/복구 검증) 각각이 READY / BLOCKED / UNVERIFIED 중 하나로
+- Then **7개 항목** — (1) 호스팅 적합성, (2) Gemini 쿼터(호스팅과 별개의 독립 항목),
+  (3) 원격 DB, (4) 실 도메인 인증, (5) 실 Gemini 스모크, (6) 서로 다른 사용자 동시
+  부하, (7) 저장소/복구 검증 — 각각이 READY / BLOCKED / UNVERIFIED 중 하나로
   개별적으로 판정되어 있다.
-- And 원격 검증이 필요한 항목(2~6) 중 하나라도 BLOCKED 또는 UNVERIFIED이면 리포트의
-  전체 판정이 **NO-GO**로 명시되어 있다 — 원격 필수 항목에 대한 "부분적으로 준비됨"류의
-  절충 판정은 FAIL이다.
+- And (**항목 1 — 호스팅 적합성 세분화**) 항목 (1)이 READY로 표시되어 있다면, tier/ToS
+  적합성 "결정" 기록과 실제 배포 환경에서 측정한 처리 시간이 `maxDuration`(300초)
+  상한 안에 여유 있게 들어옴을 보여주는 **실측 증거** 둘 다가 리포트에 존재한다 —
+  결정 기록만 있고 실측 증거가 없는 상태를 READY로 표시한 리포트는 FAIL이다.
+- And (**항목 2 — Gemini 쿼터 독립 검증**) 항목 (2)가 READY로 표시되어 있다면, 실제
+  AI Studio 쿼터 대시보드를 확인했다는 기록과, 그 관측된 한도를 근거로 실제로 조정된
+  `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 리포트에 기록되어 있다 —
+  코드 기본값(4)이 그대로 기록된 상태를 READY로 표시한 리포트는 FAIL이다.
+- And (**항목 6 — 동시 부하 READY 기준 정밀화**) 항목 (6)이 READY로 표시되어 있다면,
+  측정 배치 안의 모든 요청이 성공적인 최종 상태에 도달했고, 그 결과가 실제로 DB에
+  영속화되어 조회 가능했으며, 처리되지 않은(재시도/백오프로 흡수되지 않은) 429/5xx/
+  타임아웃이 하나도 없었다는 근거가 리포트에 기록되어 있다.
+- And (**항목 7 — 원격 대상 필수**) 항목 (7)이 READY로 표시되어 있다면, 그 근거가 된
+  검증이 실제 원격 Turso 대상에 대해 수행됐다는 기록이 있다 — 로컬 또는 in-memory
+  SQLite 결과만을 근거로 항목 (7)을 READY로 표시한 리포트는 FAIL이다.
+- And 항목 (1)의 tier/ToS "결정" 자체(문서 판단으로 가능한 부분)를 제외하고, 원격
+  검증 또는 실측이 필요한 항목들((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED
+  또는 UNVERIFIED이면 리포트의 전체 판정이 **NO-GO**로 명시되어 있다 — 원격 필수
+  항목에 대한 "부분적으로 준비됨"류의 절충 판정은 FAIL이다.
 - And 리포트 어디에도 로컬(`next start`) 실행 결과만으로 원격 필수 항목을 READY로
   판정한 기록이 없다(§ 로컬 대체 실행 증거의 위상 위반 확인).
 - And 이 리포트는 "이 SPEC 자체의 구현 완료"와 "파일럿을 실제 외부 테스터에게 열어도
   되는가"가 서로 다른 판단임을 리포트 본문에서 명시적으로 구분한다.
+- And (**run-phase 완료 시점 공정 검증 — v0.4.0 신규**) 이 AC가 run-phase 종료
+  시점에 평가될 때, 리포트의 7개 항목 표는 하나도 빈칸(템플릿 placeholder) 없이 실제
+  READY/BLOCKED/UNVERIFIED 판정값으로 채워져 있고, 리포트 본문에 전체 GO/NO-GO
+  판정이 명시적으로 기록되어 있다 — 템플릿이 채워지지 않은 채로 남아 있으면(파일이
+  존재한다는 사실만으로는) 이 AC는 FAIL이다. 채워 넣은 전체 판정이 **NO-GO**인
+  것 자체는 이 AC를 FAIL시키지 않는다 — 이 AC는 "판정이 실제로 내려졌는가"만 검증하며,
+  "그 판정이 GO인가"는 검증하지 않는다.
 
 ## AC Group J — 데이터 취급 고지 정직성 (REQ-PILOT-READY-011 ~ REQ-PILOT-READY-014)
 
