@@ -2,13 +2,20 @@ import { randomUUID } from "node:crypto";
 import { test, expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as schema from "../lib/db/schema.ts";
-import { TESTER_A_EMAIL, TESTER_B_EMAIL } from "../scripts/e2e-tester-emails.ts";
-import { connectE2EDb, loginAsTester } from "./helpers.ts";
+import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
+import { connectE2EDb } from "./helpers.ts";
+import { TESTER_B_STORAGE_STATE_PATH } from "./storage-state-paths.ts";
 
 // AC-RUNTIME-014 — tenant isolation: 타 사용자 사건 접근 차단. case-flow.spec.ts의
 // 사건 생성 흐름에 의존하지 않고 DB에 직접 사건을 만들어 이 spec을 독립적으로
 // 실행 가능하게 한다(design.md §3.3의 프로세스 계보와 무관하게 spec 파일 간
 // 실행 순서에 결합되지 않도록).
+//
+// SPEC-E2E-AUTH-STATE-001 — TESTER_B storageState를 재사용해 인증된 상태로
+// 시작한다(helpers.ts의 실 UI 로그인 헬퍼 직접 호출을 제거, REQ-E2EAUTH-002).
+// TESTER_A의 DB 직접 조회(connectE2EDb)는 브라우저 인증과 무관하므로 그대로
+// 유지한다.
+test.use({ storageState: TESTER_B_STORAGE_STATE_PATH });
 
 test.describe("Tenant Isolation — AC-RUNTIME-014", () => {
   // connectE2EDb()가 연 libsql 연결을 테스트 성공·실패와 무관하게 닫는다 —
@@ -50,8 +57,6 @@ test.describe("Tenant Isolation — AC-RUNTIME-014", () => {
       createdAt: now,
       updatedAt: now,
     });
-
-    await loginAsTester(page, TESTER_B_EMAIL);
 
     const response = await page.goto(`/cases/${caseId}`);
     expect(response?.status()).toBe(404);

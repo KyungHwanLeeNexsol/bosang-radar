@@ -9,24 +9,23 @@
 // jsdom 단위 테스트는 실제 텍스트 줄바꿈/CJK 줄바꿈 규칙을 재현하지 못하므로
 // 이 결함류는 실브라우저 검증이 필수다.
 import { test, expect } from "@playwright/test";
-import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
-import { loginAsTester } from "./helpers.ts";
+import { TESTER_A_STORAGE_STATE_PATH } from "./storage-state-paths.ts";
+
+// SPEC-E2E-AUTH-STATE-001 — TESTER_A storageState를 재사용해 인증된 상태로
+// 시작한다(helpers.ts의 실 UI 로그인 헬퍼 직접 호출을 제거, REQ-E2EAUTH-002).
+// 로그인 진입 방식만 대체하며, 아래 테스트 본문의 단언·시나리오는 전환 전과
+// 완전히 동일하다(REQ-E2EAUTH-008). storageState는 e2e/auth.setup.ts가
+// 저장하고, playwright.config.ts의 chromium-authed project
+// (dependencies: ["setup"])가 이 파일에 그 결과를 주입한다.
+test.use({ storageState: TESTER_A_STORAGE_STATE_PATH });
 
 const MOBILE_VIEWPORTS = [
   { width: 320, height: 700, label: "320" },
   { width: 390, height: 844, label: "390" },
 ] as const;
 
-// 단일 loginAsTester 호출(1회만)로 세션을 유지한 채 뷰포트별 검증을 모두
-// 순서대로 수행한다(capture-evidence.spec.ts와 동일한 rate-limit 회피
-// 관례). 뷰포트별로 별도 test()를 두고 각각 loginAsTester를 호출하면,
-// 전체 suite 실행 시 Better Auth의 /sign-in 기본 rate limit(10초 창 내
-// 최대 3회)에 다른 spec의 로그인과 합산되어 걸릴 수 있다(실측: 전체 suite
-// 1회 실행 시 이 결함으로 재현됨 — progress.md Round 5 §E 참조).
 test.describe("사건 입력 모바일 Footer 레이아웃 — Round5(외부 재검토)", () => {
   test("모바일 뷰포트별 Footer 줄바꿈/겹침/오버플로 검증(단일 세션)", async ({ page }) => {
-    await loginAsTester(page, TESTER_A_EMAIL);
-
     for (const vp of MOBILE_VIEWPORTS) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto("/cases/new");

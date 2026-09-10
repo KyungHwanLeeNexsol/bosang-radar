@@ -44,10 +44,27 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
   },
+  // SPEC-E2E-AUTH-STATE-001 M4 — project-dependency 기반 storageState 인증
+  // 재사용. `setup` project가 TESTER_A/TESTER_B 로그인을 1회씩 수행해
+  // storageState를 저장하고(e2e/auth.setup.ts), `dependencies: ["setup"]`을
+  // 가진 `chromium-authed` project가 대상 2개 파일만 그 결과를 재사용해
+  // 인증된 세션으로 시작한다. `chromium`은 testIgnore로 그 2개 파일을
+  // 제외해 동일 파일이 두 project에서 중복 실행되지 않게 한다(plan.md §C M4).
   projects: [
+    {
+      name: "setup",
+      testMatch: /.*\.setup\.ts/,
+    },
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: [/case-input-mobile-layout\.spec\.ts/, /tenant-isolation\.spec\.ts/],
+    },
+    {
+      name: "chromium-authed",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+      testMatch: [/case-input-mobile-layout\.spec\.ts/, /tenant-isolation\.spec\.ts/],
     },
   ],
   webServer: {
