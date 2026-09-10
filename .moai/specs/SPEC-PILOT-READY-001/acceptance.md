@@ -22,10 +22,12 @@ requirement as a scenario.
 **AC-PILOT-READY-002**
 - Given AC-PILOT-READY-001에서 확정(또는 잠정 확정)된 tier, 배포된(또는 가장 근접한
   가용) 환경
-- When `POST /api/cases`에 대해 실제 요청을 1건 이상 실행하면
-- Then `.moai/reports/pilot-ready-timeout-measurement-*.md` 리포트가 존재하고, 실측
-  처리 시간(초 단위 구체적 수치)과 확정된 tier의 실행 시간 상한과의 비교 결론(상한
-  이내/초과)이 명시적으로 기록되어 있다.
+- When `POST /api/cases`에 대해 실제 요청을 **최소 3회 이상**(v0.5.0 정밀화) 개별
+  실행하면
+- Then `.moai/reports/pilot-ready-timeout-measurement-*.md` 리포트가 존재하고, 각
+  실행의 실측 처리 시간(초 단위 구체적 수치)이 개별적으로 기록되어 있으며, 확정된
+  tier의 실행 시간 상한과의 비교 결론(상한 이내/초과)이 명시적으로 기록되어 있다.
+  실행 횟수가 3회 미만이면 이 AC는 FAIL이다.
 - And 가장 근접한 가용 환경(로컬 대체 포함)으로 대체했다면, 그 사실과 한계가
   리포트에 명시되어 있다 — 로컬 대체 실측값은 참고 증거로만 취급되며, "배포된
   환경에서 실측했다"고 리포트에 오기재해서는 안 된다.
@@ -35,14 +37,23 @@ requirement as a scenario.
 
 ## AC Group B — Gemini 쿼터 사전 점검 (REQ-PILOT-READY-003)
 
-**AC-PILOT-READY-003**
-- Given 파일럿 런칭 전 운영 체크리스트 문서(런북 또는 별도 리포트)
-- When 그 문서를 확인하면
-- Then "AI Studio 쿼터 대시보드를 확인하고 `GEMINI_RESEARCH_RPM_BUDGET`/
-  `GEMINI_FAST_RPM_BUDGET`을 관측된 실제 한도의 약 70~80%로 설정한다"는 절차가 체크리스트
-  항목으로 명시적으로 존재한다.
-- And 이 AC는 코드 diff에 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`의 기본값
-  변경을 요구하지 않는다(운영 절차 문서화만으로 충족).
+**AC-PILOT-READY-003** (v0.5.0 격상 — 체크리스트 문서화에서 실제 실행 검증으로)
+- Given `.moai/reports/pilot-ready-quota-checklist-*.md`(또는 런북 통합 섹션) 리포트
+- When 그 리포트를 확인하면
+- Then 실제 AI Studio 쿼터 대시보드를 확인한 기록(확인 날짜, 확인한 사람, 관측된
+  실제 쿼터/레이트리밋 한도)과, 그 근거로 실제 선택한
+  `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 두 값이 모두 리포트에
+  명시적으로 기록되어 있다.
+- And 이 확인이 수행되지 않았거나 위 항목이 리포트에 기록되지 않았다면 이 AC는
+  FAIL이다 — "파일럿 런칭 담당자가 나중에 확인할 절차"로만 문서화된 상태(운영
+  체크리스트 문구만 존재하고 실제 확인 기록이 없는 상태)는 더 이상 이 AC를 충족하지
+  않는다.
+- And RPM budget 값이 확인 후에도 코드 기본값 4로 유지되는 것 자체는 이 AC를
+  FAIL시키지 않는다 — 4가 실제로 관측된 한도의 약 70~80%에 해당한다는 근거가 함께
+  기록되어 있으면 정상적으로 PASS한다. 대시보드 확인 없이 기본값 4만 남아 있는
+  상태(근거 기록 없음)만이 FAIL이다.
+- And 이 AC는 코드 diff에 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`의
+  기본값 변경 자체를 요구하지 않는다 — 요구되는 것은 실제 확인·기록 행위다.
 
 ## AC Group C — 원격 DB 마이그레이션/시드 실행 검증 (REQ-PILOT-READY-004)
 
@@ -105,11 +116,22 @@ requirement as a scenario.
 - And (**완료 기록의 트랜잭션 원자성 — REQ-PILOT-READY-007(3), v0.4.0 강화**) given
   `reports` 테이블 INSERT가 mock을 통해 실패하도록 설정된 상태에서, when 파이프라인이
   성공적으로 완료되어 단일 완료 기록 트랜잭션(리스 소유권 재확인 + `cases` INSERT +
-  `reports` INSERT + `reservations` DELETE)이 실행되면, then `cases` 행이 전혀
-  존재하지 않고(부분 커밋 없음), `reports` 행도 존재하지 않으며, `reservations` 리스
-  행은 여전히 원래대로 남아 있다 — **롤백 후 DB 상태가 이 트랜잭션이 아예 시도되지
-  않았던 것과 정확히 동일함**을 세 테이블 모두에 대한 직접 조회로 확인한다(부분
-  성공/부분 롤백 상태는 FAIL).
+  `reports` INSERT + `reservations` DELETE)이 실행되면, then 그 트랜잭션이 롤백된
+  **직후** 시점에는 `cases` 행이 전혀 존재하지 않고(부분 커밋 없음), `reports` 행도
+  존재하지 않으며, `reservations` 리스 행은 트랜잭션 시도 이전과 동일하게(트랜잭션에
+  포함됐던 삭제도 함께 롤백되므로) 여전히 존재한다 — **트랜잭션 롤백 직후 DB 상태가
+  이 트랜잭션이 아예 시도되지 않았던 것과 정확히 동일함**을 세 테이블 모두에 대한
+  직접 조회로 확인한다(부분 성공/부분 롤백 상태는 FAIL). 이 리스 행의 최종 처리는
+  아래 별도 사후 해제 시나리오(v0.5.0 신규)가 이어서 검증한다.
+- And (**트랜잭션 실패 후 리스의 후속 명시적 해제 — REQ-PILOT-READY-007(3-보충),
+  v0.5.0 신규**) 위 시나리오에 이어서, when 그 트랜잭션 실패를 처리하는 catch 경로가
+  실행되면, then 별도의 펜싱된 `DELETE`(자신의 `ownerUserId` AND `leaseId` 일치
+  조건)로 `reservations` 리스 행이 실제로 삭제되고, 이어서 동일한 `ownerUserId`로
+  즉시 새 `createCase` 요청을 보내면 그 요청은 새 `leaseId`로 리스를 성공적으로
+  재획득하고 `runPipeline`이 정상적으로 호출된다 — 인위적인 추가 대기 없이 즉시
+  재제출이 가능함을 확인한다. 이 후속 해제는 위 4단계 트랜잭션 자체의 일부가
+  아니며(트랜잭션이 이미 실패해 롤백된 이후에만 실행되는 별개의 단계), 트랜잭션
+  원자성 요구사항을 완화하지 않는다.
 - And (**리스 재획득(reacquisition) 클린 성공 — REQ-PILOT-READY-007(3), v0.4.0 신규**)
   given 첫 번째 `createCase` 호출이 위 완료 기록 트랜잭션(리스 소유권 재확인 + `cases`
   INSERT + `reports` INSERT + `reservations` DELETE)을 정상적으로 성공시킨 직후,
@@ -125,7 +147,13 @@ requirement as a scenario.
   각 반복 호출은 "이미 처리 중" 응답을 받는다 — 이 AC는 30초 happy-path 지속 시간이
   아니라 TTL 여유 안의 더 긴 현실적 지속 시간 동안에도 가드가 계속 유효함을 검증하며,
   AC-PILOT-READY-007의 다른 크래시/재획득 시나리오(TTL을 실제로 지난 경우)와는
-  구분된다.
+  구분된다. **테스트 방법론(명시, v0.5.0 신규)**: 이 시나리오는 실제로 200초 이상
+  기다리는(real wall-clock sleep) 방식으로 구현하지 않는다 — fake timer/mock
+  clock(테스트 프레임워크의 시간 조작 유틸리티, 또는 리스 만료 판정 로직이 읽는
+  "현재 시각" 값을 mock)으로 "200초 이상 경과했다"는 상태를 시뮬레이션하고,
+  `runPipeline`은 그 시뮬레이션된 시간 동안 단지 즉시 resolve하지 않는 pending
+  Promise로만 유지하면 충분하다 — 실제 테스트 실행 시간이 200초 이상 걸려서는
+  안 된다.
 - And (**크래시 후 TTL 만료·재획득 — REQ-PILOT-READY-007(1)**) given 첫 번째 `createCase`
   호출이 리스를 획득한 뒤 정상 종료도 실패도 하지 않고 그대로 멈춘 상태(크래시 시뮬레이션
   — 해제 로직이 실행되지 않음)에서, when 그 리스의 `expiresAt`을 지난 시각(mock 시계
@@ -223,14 +251,23 @@ requirement as a scenario.
   (3) 원격 DB, (4) 실 도메인 인증, (5) 실 Gemini 스모크, (6) 서로 다른 사용자 동시
   부하, (7) 저장소/복구 검증 — 각각이 READY / BLOCKED / UNVERIFIED 중 하나로
   개별적으로 판정되어 있다.
-- And (**항목 1 — 호스팅 적합성 세분화**) 항목 (1)이 READY로 표시되어 있다면, tier/ToS
-  적합성 "결정" 기록과 실제 배포 환경에서 측정한 처리 시간이 `maxDuration`(300초)
-  상한 안에 여유 있게 들어옴을 보여주는 **실측 증거** 둘 다가 리포트에 존재한다 —
-  결정 기록만 있고 실측 증거가 없는 상태를 READY로 표시한 리포트는 FAIL이다.
-- And (**항목 2 — Gemini 쿼터 독립 검증**) 항목 (2)가 READY로 표시되어 있다면, 실제
-  AI Studio 쿼터 대시보드를 확인했다는 기록과, 그 관측된 한도를 근거로 실제로 조정된
-  `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 리포트에 기록되어 있다 —
-  코드 기본값(4)이 그대로 기록된 상태를 READY로 표시한 리포트는 FAIL이다.
+- And (**항목 1 — 호스팅 적합성 세분화, v0.5.0 정밀화**) 항목 (1)이 READY로 표시되어
+  있다면, tier/ToS 적합성 "결정" 기록과, 실제 **배포 도메인** 환경에서 수행된
+  **최소 3회 이상**의 개별 측정 실행 각각의 처리 시간이 기록되어 있고 그 중
+  **관측된 최대 처리 시간이 270초 이하**(`maxDuration`(300초) 상한 대비 약 30초의
+  안전 여유)임을 보여주는 실측 증거 둘 다가 리포트에 존재한다 — 결정 기록만 있고
+  실측 증거가 없는 상태, 실측 횟수가 3회 미만인 상태, 관측된 최대 처리 시간이
+  270초를 초과하는 상태, 또는 로컬(`next start`) 실행 결과만으로 이 항목을 READY로
+  표시한 상태는 모두 FAIL이다.
+- And (**항목 2 — Gemini 쿼터 독립 검증, v0.5.0 정정**) 항목 (2)가 READY로 표시되어
+  있다면, 실제 AI Studio 쿼터 대시보드를 확인했다는 기록(확인 날짜·확인자 포함)과,
+  그 관측된 실제 한도를 근거로 실제 선택한
+  `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 리포트에 기록되어 있다
+  — **값이 코드 기본값 4와 같더라도, 4가 관측된 실제 한도의 약 70~80%에 해당한다는
+  근거가 함께 기록되어 있으면 정상적으로 READY 조건을 충족한다**(이전 "실제로
+  조정된 값이어야 한다"는 취지의 과도하게 엄격한 표현을 교정). 대시보드 확인 자체가
+  수행되지 않은 채 기본값 4만 남아 있는 상태(근거 기록 없음)를 READY로 표시한
+  리포트는 FAIL이다.
 - And (**항목 6 — 동시 부하 READY 기준 정밀화**) 항목 (6)이 READY로 표시되어 있다면,
   측정 배치 안의 모든 요청이 성공적인 최종 상태에 도달했고, 그 결과가 실제로 DB에
   영속화되어 조회 가능했으며, 처리되지 않은(재시도/백오프로 흡수되지 않은) 429/5xx/

@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.4.0"
+version: "0.5.0"
 status: draft
 created: 2026-09-10
 updated: 2026-09-10
@@ -203,6 +203,80 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
   블로커임을 명시한다. 사용자 승인 전 결제·플랜 업그레이드·배포 금지 원칙은 변경하지
   않는다. 이 개정은 신규 최상위 REQ/AC를 추가하지 않으므로 REQ 16/16, AC 16/16
   상한을 그대로 유지한다.
+- 2026-09-10 (v0.5.0): 외부 리뷰 4차 개정 — **plan-auditor Retry Loop Contract가
+  규정하는 SPEC plan-phase당 최대 3회 반복 상한(`.claude/agents/moai/plan-auditor.md`
+  §Retry Loop Contract "Max 3 iterations cap")을 이미 초과한 상태에서 진행되는 개정임을
+  명시적으로 기록한다.** 오케스트레이터가 사용자에게 이 SPEC이 이미 문서화된
+  3회 plan-audit 반복 상한을 넘어섰음을 경고했고, 사용자는 `AskUserQuestion`을 통해
+  이 사실을 인지한 상태로 계속 진행할 것을 명시적으로 확인했다 — 이 확인이 이번
+  개정을 진행하는 오버라이드 근거다. 이번 개정은 신규 최상위 REQ/AC를 추가하지 않고
+  (REQ 16/16, AC 16/16 상한 유지), 기존 REQ-PILOT-READY-002/003/007/016과 그 하위
+  AC의 문구를 교정·정밀화하는 방식으로만 진행한다. ①`.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+  템플릿 파일 자체가 v0.4.0 개정(6개→7개 항목 정밀화) 이후 갱신되지 않고 방치되어
+  있었음을 확인해 동기화한다 — 항목 수를 7개로 맞추고(신규 Gemini 쿼터 항목 삽입),
+  호스팅 항목의 근거 필드가 tier/도메인 결정(plan.md §F)과 실제 배포 환경 타임아웃
+  실측 리포트 둘 다를 요구하도록 명시하고, 실 Gemini 스모크 항목이 반드시 배포
+  도메인 결과를 요구함을(로컬 `next start` 결과 불인정) 명시하고, 저장소/복구 항목이
+  반드시 실제 원격 Turso 대상 검증을 요구함을(로컬/in-memory SQLite 결과 불인정)
+  명시하고, 전체 게이트 규칙 문구를 v0.4.0 표현("tier/ToS 결정을 제외하고 2~7번 항목
+  중 하나라도 BLOCKED/UNVERIFIED면 전체 NO-GO")에 맞춰 재작성한다. **아울러 이
+  문서의 공정(process) 자체를 명시한다** — plan-phase 초안 상태에서만 빈칸
+  (`unfilled` placeholder)이 허용되며, run-phase 완료 이전에는 7개 항목 전부가
+  실제 판정값(READY/BLOCKED/UNVERIFIED — UNVERIFIED도 정당한 최종 판정값이다)으로
+  채워져야 한다는 절차를 명문화하고, 템플릿의 **현재 상태**를 이 원칙에 맞게
+  "7개 항목 전부 UNVERIFIED, 전체 판정 NO-GO"로 명시적으로 채운다 — plan-phase
+  시점에는 실제로 아무것도 측정되지 않았으므로 이것이 정직한 현재 상태이며, 빈칸
+  placeholder와는 구분되는 상태임을 문서 본문에서 명시한다. ②REQ-PILOT-READY-003을
+  "run-phase에는 실행되지 않고 이후 운영자가 확인할 절차로만 문서화하면 충분한"
+  체크리스트 항목에서, "When 파일럿 런칭 준비 절차가 수행되면"으로 시작하는 실제
+  run-phase 실행 항목(유형: Ubiquitous → When(이벤트 감지))으로 격상한다 — 실제
+  AI Studio 쿼터 대시보드를 사람이 직접 확인하고, 확인 날짜·확인한 사람·관측된 실제
+  쿼터/레이트리밋 한도·그 근거로 실제 선택한 `GEMINI_RESEARCH_RPM_BUDGET`/
+  `GEMINI_FAST_RPM_BUDGET` 두 값을 기록해야 하며, 이 확인이 수행·기록되지 않으면
+  이 게이트 항목은 UNVERIFIED로 남아 전체 NO-GO에 기여한다. **동시에 기존의 과도하게
+  엄격한 규칙("RPM budget 값이 검증되지 않은 기본값 4로 남아 있으면 자동으로 FAIL"
+  이라는 취지의 문구, REQ-PILOT-READY-016 항목(2) 원문 "코드 기본값(4)을 그대로 둔
+  상태는 UNVERIFIED"에 남아 있던 표현)를 교정한다** — 값이 4로 유지되는 것 자체는
+  문제가 아니다; 4가 실제로 관측된 한도의 약 70~80%에 해당한다는 근거가 함께
+  기록되어 있으면 4를 유지하는 것도 정상적으로 허용된 READY 결과다. 대시보드 확인
+  자체가 전혀 수행되지 않은 채(근거 기록 없이) 기본값 4만 남아 있는 상태만이
+  UNVERIFIED를 유발한다 — 숫자 4 자체가 아니라 검증 여부가 판정 기준이다.
+  ③REQ-PILOT-READY-007(3)의 완료 기록 트랜잭션과 관련해, `reports` INSERT 실패로
+  트랜잭션이 롤백된 이후의 리스(lease) 처리에 대한 실제 오류가 있었음을 확인해
+  정밀화한다 — 롤백 자체는 여전히 4단계 전부(리스 소유권 재확인/`cases` INSERT/
+  `reports` INSERT/`reservations` DELETE)를 되돌리므로 그 직후 시점에는 `reservations`
+  리스 행이 트랜잭션 시도 이전 상태 그대로 남아 있는 것이 맞다(이 부분은 이미
+  정확했다, 유지). 그러나 원 설계에는 그 이후의 처리가 빠져 있었다 — 이 상태로 두면
+  같은 사용자가 리스 TTL(최소 330초)이 지날 때까지 재제출할 수 없다. 이를 정밀화해,
+  이 트랜잭션 실패를 처리하는 catch/에러 처리 경로(트랜잭션이 이미 롤백된 *이후에*
+  실행되는, 그 트랜잭션과는 별개의 후속 단계)가 자신의 `ownerUserId` AND `leaseId`가
+  모두 일치할 때만 수행하는 펜싱된 `DELETE`로 리스를 명시적으로 해제해야 한다는
+  요구사항을 REQ-PILOT-READY-007(3)에 새 하위 절로 추가한다 — 이 해제가 성공하면
+  같은 사용자는 인위적인 추가 대기 없이 즉시 새 리스를 재획득할 수 있어야 한다. 만약
+  이 후속 해제 자체도 실패하는 드문 이중 실패 상황이면, 그 오류를 로그로 남기고 최종
+  회복은 기존 TTL 만료 메커니즘에 맡긴다(이 경우에만 즉시 재제출이 차단되며, TTL로
+  상한이 있어 영구히 막히지는 않는다). **이 후속 해제 단계는 (3)의 4단계 단일
+  트랜잭션 요구사항(폴백 없음)을 완화하거나 대체하지 않는다** — 성공 경로의 원자성
+  요구사항은 그대로 유지되며, 이 후속 해제는 그 트랜잭션이 이미 실패해 롤백된
+  이후에만 실행되는 별개의 실패 복구 행동이다. AC-PILOT-READY-007에 이 후속 해제와
+  즉시 재제출 성공을 검증하는 신규 하위 절(sub-clause)을 추가한다(신규 최상위 AC
+  번호는 추가하지 않는다). ④호스팅 적합성 READY 게이트의 "maxDuration 상한 안에
+  여유 있게 들어와야 한다"는 문구가 이진(binary)으로 판정 가능하지 않다는 점을
+  확인해 구체적 수치 기준으로 대체한다 — REQ-PILOT-READY-002가 요구하는 실측을
+  **최소 3회 이상**의 개별 실행으로 구성하도록 명시하고, REQ-PILOT-READY-016
+  항목(1)의 READY 기준을 "실제 **배포 도메인** 환경에서 수행된 그 3회 이상의 측정
+  중 **관측된 최대 처리 시간이 270초 이하**(선택된 tier의 `maxDuration`(300초)
+  대비 약 30초의 안전 여유 — 측정된 파이프라인 로직 자체가 아니라 플랫폼 수준의
+  콜드스타트·네트워크 오버헤드를 흡수하기 위한 여유)"로 구체화한다. 이 270초/3회
+  라는 구체적 수치는 이 SPEC이 새로 도입하는 판단 기준이며, 기존 `maxDuration`
+  300초 자체(Vercel 공식 문서 근거)와는 구분되는 이 SPEC의 안전 여유 정책 결정이다.
+  ⑤AC-PILOT-READY-007의 "현실적 worst-case 지속 시간 동안의 가드 유지"(예: 200초
+  이상 pending) 시나리오가 실제 200초 이상의 real wall-clock 대기를 요구하는 것으로
+  오독될 수 있음을 확인해, plan.md(M6, 설계 노트)와 acceptance.md(해당 AC 하위 절,
+  테스트 방법론 노트) 양쪽에 이 테스트가 fake timer/mock clock으로 "200초 이상
+  경과"를 시뮬레이션할 뿐 실제로 200초 이상 대기하지 않는다는 점을 명시적으로
+  기록한다 — run-phase 구현자가 문자 그대로 200초 이상 sleep하는 테스트를 작성하지
+  않도록 하기 위함이다.
 
 ## §1. 개요 (Overview)
 
@@ -374,13 +448,13 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
 | REQ-PILOT-READY-001 | Ubiquitous | 이 SPEC의 배포 준비 계획은 Vercel 배포 tier 선택을 "실행 시간 상한" 문제가 아니라 **Fair Use Guidelines의 상용(commercial) 사용 정의 준수 여부** 문제로 다뤄야 한다. Vercel Hobby(무료) tier의 Fair Use Guidelines는 "이 프로젝트 제작 어느 부분에든 관여한 누군가(유급 직원·컨설턴트 포함)의 금전적 이익을 위한 배포"를 상용 사용으로 정의한다. 유급 개발자가 구축한 B2B 파일럿(외부 전문가 테스터 대상)이 이 정의에 해당하는지는 Vercel 공식 문서만으로 확정할 수 없는 미확인 사항이며, Vercel 자신도 불확실한 경우 지원팀 문의를 안내한다. 이 SPEC은 Hobby(무료, ToS 준수 여부 미확인)와 Pro($20/좌석/월 + 포함 크레딧 초과분 사용량 과금, "플랫폼의 모든 상용 사용은 Pro 또는 Enterprise 플랜을 요구한다"고 명시적으로 ToS 준수 보장)를 문서화된 두 후보로 병기해야 하며, 실제 채택은 이 SPEC이 내리지 않는다 — run-phase 착수 전 비용 결정 권한을 가진 사람의 확인이 필요한 **미확정 결정**으로 명시적으로 기록한다. | Vercel 공식 문서(Fair Use Guidelines — 상용 사용 정의; Pricing 페이지 — Pro $20/좌석/월 + 사용량; "모든 상용 사용은 Pro/Enterprise 요구" 명시), 오케스트레이터 조사 세션(배포 준비 갭 조사), 유료 플랜 사용 증거 부재 확인 |
-| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 환경(또는 가장 근접한 가용 환경)에서 `POST /api/cases`의 실제 요청 처리 시간(로컬 실측 기준선: 30초, `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번)을 측정하고, 그 값이 REQ-PILOT-READY-001에서 실제로 선택된 tier의 서버리스 함수 실행 시간 상한 안에 들어오는지 문서로 남겨야 한다. Fluid Compute가 기본 활성화된 현재 Vercel Hobby tier의 함수 실행 시간은 기본값이자 최댓값이 300초(5분)이고, Pro tier는 기본 300초/GA 최대 800초/베타 최대 1800초다 — 로컬 실측 30초는 두 tier 모두의 상한에 여유 있게 들어오므로, 이 REQ는 "위험 요인을 찾는 측정"이 아니라 "선택된 tier에서도 여전히 안전한지 확인하는 정합성 점검(sanity check)"으로 재정의된다. 상한을 초과하면 해결 방법(플랜 업그레이드, 파이프라인 단축 등)은 이 SPEC의 범위가 아니며 후속 SPEC으로 명시적으로 미룬다. | Vercel 공식 문서(Functions 실행 시간 문서 — Fluid Compute 기본 활성화, Hobby 300s 기본/최대, Pro 300s 기본/800s GA 최대/1800s 베타 최대), 사용자 지시(측정 후 문서화) |
+| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 환경(또는 가장 근접한 가용 환경)에서 `POST /api/cases`의 실제 요청 처리 시간(로컬 실측 기준선: 30초, `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번)을 측정하고, 그 값이 REQ-PILOT-READY-001에서 실제로 선택된 tier의 서버리스 함수 실행 시간 상한 안에 들어오는지 문서로 남겨야 한다. Fluid Compute가 기본 활성화된 현재 Vercel Hobby tier의 함수 실행 시간은 기본값이자 최댓값이 300초(5분)이고, Pro tier는 기본 300초/GA 최대 800초/베타 최대 1800초다 — 로컬 실측 30초는 두 tier 모두의 상한에 여유 있게 들어오므로, 이 REQ는 "위험 요인을 찾는 측정"이 아니라 "선택된 tier에서도 여전히 안전한지 확인하는 정합성 점검(sanity check)"으로 재정의된다. 상한을 초과하면 해결 방법(플랜 업그레이드, 파이프라인 단축 등)은 이 SPEC의 범위가 아니며 후속 SPEC으로 명시적으로 미룬다. 이 실측은 (v0.5.0 정밀화) **최소 3회 이상**의 개별 요청 실행으로 구성되어야 하며(단일 1회 실행만으로는 이 REQ의 문서화 요건을 충족하지 못한다), 각 실행의 처리 시간을 초 단위로 개별 기록해야 한다 — 이 REQ 자체는 여전히 "측정이 정확히 수행·기록되었는가"만 판정하며(§ 측정 완료 vs. 파일럿 진행 여부 판단 구분 참고), 그 값이 REQ-PILOT-READY-016 항목(1)의 호스팅 적합성 READY 판정 기준(실제 배포 도메인 기준 최대 처리 시간 270초 이하)을 충족하는지는 REQ-PILOT-READY-016/AC-PILOT-READY-016b가 별도로 판정한다. | Vercel 공식 문서(Functions 실행 시간 문서 — Fluid Compute 기본 활성화, Hobby 300s 기본/최대, Pro 300s 기본/800s GA 최대/1800s 베타 최대), 사용자 지시(측정 후 문서화) |
 
 ### B. Gemini 쿼터 사전 점검 (Operational Checklist)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-003 | Ubiquitous | 파일럿 런칭 이전, 실제 사용 중인 Gemini API 키의 AI Studio 쿼터 대시보드를 사람이 직접 확인하고, 관측된 실제 한도의 약 70~80% 값으로 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`(현재 코드 기본값 4, `.env.local.example:64,67`)를 설정해야 한다는 운영 전제조건이 체크리스트로 문서화되어야 한다 — 이 REQ는 코드 변경을 요구하지 않는다. | `.moai/reports/gemini-runtime-smoke-20260828.md` §잔여 위험(대시보드 접근 세션에서 재조정 권장 — 미해결 과제로 명시적으로 남김), `.env.local.example:64,67` |
+| REQ-PILOT-READY-003 | When(이벤트 감지) | (v0.5.0 격상 — 더 이상 "운영자가 나중에 확인할 절차"로 문서화만 하면 충분한 체크리스트 항목이 아니다) When 파일럿 런칭 준비 절차가 수행되면, run-phase 실행자는 실제 사용 중인 Gemini API 키의 AI Studio 쿼터 대시보드를 실제로 확인하고, (a) 확인 날짜, (b) 확인을 수행한 사람, (c) 관측된 실제 쿼터/레이트리밋 한도, (d) 그 한도를 근거로 실제로 선택한 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET`(현재 코드 기본값 4, `.env.local.example:64,67`) 두 값을 문서로 기록해야 한다. 이 확인이 수행되지 않거나 위 4가지가 기록되지 않으면 이 REQ와 REQ-PILOT-READY-016 항목(2)는 UNVERIFIED로 남아 전체 NO-GO에 기여한다. **RPM budget 값이 확인 후에도 코드 기본값 4로 유지되는 것 자체는 문제가 아니다** — 4가 실제로 관측된 한도의 약 70~80%에 해당한다는 근거가 함께 기록되어 있으면 4를 유지하는 것도 정상적으로 허용된 결과다. 대시보드 확인 자체가 수행되지 않은 채(근거 기록 없이) 기본값 4만 남아 있는 상태만이 UNVERIFIED를 유발한다 — 숫자 4 자체가 아니라 검증 여부가 판정 기준이다. | `.moai/reports/gemini-runtime-smoke-20260828.md` §잔여 위험(대시보드 접근 세션에서 재조정 권장 — 미해결 과제로 명시적으로 남김), `.env.local.example:64,67` |
 
 ### C. 원격 DB 마이그레이션/시드 실행 검증 (Remote DB Verification)
 
@@ -404,7 +478,7 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호, `409 Conflict`)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. **v0.3.0 개정으로 이 REQ는 다음 리스(lease) 기반 구현을 단독으로(only) 요구한다 — 더 이상 대안 옵션은 없다**: `ownerUserId`를 키(UNIQUE)로 하는 신규 `reservations` 테이블에 `leaseId`(획득마다 새로 생성되는 고유 토큰)와 `expiresAt`(TTL 값 산정은 아래 참고) 2개 컬럼을 추가한다. **v0.4.0 개정으로 이 REQ는 배포 라우트가 `export const maxDuration = 300`(Next.js route segment config, 300초)을 명시적으로 설정할 것을 함께 요구하며, `LEASE_TTL_SECONDS`는 이 `maxDuration`보다 충분히 길게(최소 330초 — `maxDuration` 대비 약 30초의 안전 여유) 설정해야 한다** — 정상 처리 중인 파이프라인이 플랫폼에 의해 강제 종료되기 전에 리스가 먼저 만료되어 두 번째 요청이 리스를 재획득해 동시 이중 실행이 발생하는 것을 방지하기 위함이다 (기존 "TTL 60초 = 로컬 실측 30초의 2배"라는 산정은 로컬 happy-path 실측만 반영하고 재시도·429 백오프·느린 응답을 포함한 실제 배포 환경의 worst-case를 반영하지 못해 v0.4.0에서 기각됐다 — 정적 TTL과 heartbeat 갱신 두 대안의 비교 및 채택 근거는 plan.md §A 결정 1 참고). 이 REQ는 정상적인 첫 번째 실행이 30초 happy path가 아니라 새 TTL 여유 안에서의 현실적 worst-case 지속 시간 동안 유효하게 실행 중인 동안에도, 동일 사용자의 두 번째 요청이 `runPipeline`을 시작하지 않아야 함을 요구한다 (AC-PILOT-READY-007 하위 절 참고). **(1) 원자적 획득/재획득**: `INSERT INTO reservations (owner_user_id, lease_id, expires_at) VALUES (?, ?, ?) ON CONFLICT (owner_user_id) DO UPDATE SET lease_id = excluded.lease_id, expires_at = excluded.expires_at WHERE reservations.expires_at < <now>` 후, 이 쓰기가 실제로 자신의 `leaseId`를 반영했는지(영향받은 행 수, 또는 즉시 재조회로 `leaseId` 일치 확인)를 검사해 "나는 리스를 보유했다"와 "다른 실행의 만료 전 리스에 막혔다"를 구분한다 — 후자면 "이미 처리 중"으로 즉시 응답한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로(docs.turso.tech §Client Access), `UNIQUE` 제약 기반 조건부 UPSERT는 DB 엔진 수준의 진정한 원자성을 제공한다 — 다만 이 조건부 `DO UPDATE ... WHERE` 구문 형태 자체가 Turso 공식 문서에서 별도로 재검증되지는 않은 "표준 SQLite/libSQL 문법으로 알려진 것"이라는 한계를 정직하게 명시한다(단순 `ON CONFLICT DO NOTHING`과는 구문이 다름). **(2) 펜싱된 해제(fenced release)**: 파이프라인 종료(성공/실패 모두) 시 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`로 자신의 `leaseId`가 여전히 일치할 때만 해제한다 — 리스가 만료되어 다른 실행이 이미 재획득한 경우 이 삭제는 0행에 매치되는 no-op이어야 하며, 절대로 새 리스를 실수로 삭제해서는 안 된다. **(3) 완료 기록의 동일 트랜잭션 원자성(하드 요구사항, 폴백 없음 — v0.4.0 확정)**: 파이프라인 성공 시 (i) 리스의 `leaseId` 일치 여부 재확인(펜싱 게이트), (ii) `cases` 행의 완료 상태 전이(`status: "completed"`), (iii) `reports` 행 INSERT, (iv) 자신의 `reservations` 리스 행 삭제, 이 4단계 전부를 **단일 DB 트랜잭션**(`db.transaction(async (tx) => {...})`) 안에서 순서대로 수행해야 한다 — 이는 더 이상 "가능한 한" 시도하는 목표 설계가 아니라 예외 없는 단일 요구사항이다. 이 프로젝트가 고정 사용하는 `@libsql/client@0.17.4`(원격 `libsql://` 연결에 사용되는 main 패키지 — 제약이 다른 `@libsql/client/web` 서브셋이 아님)의 `http.js` `transaction()` 구현과 `drizzle-orm@0.45.2`의 `libsql/session.js` `LibSQLSession.transaction()` 구현을 실제 소스 코드로 확인한 결과, 원격 HTTP 연결에 대해서도 진짜 인터랙티브 트랜잭션(실패 시 자동 rollback, 성공 시 commit)을 지원함이 이 SPEC 조사 범위에서 검증됐다(출처: unpkg.com/@libsql/client@0.17.4/lib-esm/http.js, unpkg.com/drizzle-orm@0.45.2/libsql/session.js, github.com/tursodatabase/libsql-client-ts CHANGELOG.md, tursodatabase.github.io/libsql-client-ts Client 인터페이스 문서). 운영 제약으로 libSQL은 열려 있는 인터랙티브 트랜잭션에 서버측 **5초 잠금 타임아웃**을 두므로, 트랜잭션 안의 4단계는 신속하게 실행되어야 한다(모두 단순 단일 쿼리이므로 여유가 충분하다) — 향후 구현자는 이 트랜잭션 안에 느린 작업을 넣지 않아야 한다. 일부 AI 검색 요약 결과가 "libSQL은 HTTP를 통한 인터랙티브 트랜잭션을 지원하지 않는다"고 주장하는 경우가 있으나, 이는 별도 제약이 있는 `@libsql/client/web` 패키지에만 해당하는 사실이며 이 프로젝트가 쓰는 main 패키지에는 해당하지 않는다 — 이 혼동으로 정상 동작하는 코드를 "고치려" 시도하지 않도록 주의를 남긴다. `reports` INSERT가 실패하면 트랜잭션 전체가 롤백되어야 하며, `cases`의 완료 상태 전이만 홀로 커밋된 불일치 상태가 남아서는 안 된다. **폴백 정책**(현재 불확실해서 두는 hedge가 아니라, 확인된 동작이 실제 구현에서 어긋날 경우의 대응 정책): run-phase 구현 중 이 확인된 동작과 실제로 다른 드라이버 회귀가 발견되어 이 트랜잭션 요구사항이 실제로 충족되지 않음이 확인되면, 그 사실 자체를 이 REQ의 FAIL로, 파일럿 준비 상태(REQ-PILOT-READY-016)를 NO-GO로 판정해야 한다 — 완화된 대안 설계로 조용히 우회하는 것은 허용되지 않는다. 트랜잭션 밖에서 리스 소유권을 별도로 확인하는 잔여 폴백 경로는 존재하지 않는다 — 소유권 재확인은 반드시 위 4단계와 같은 트랜잭션 안에서 수행된다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, SPEC-PILOT-UX-001 iteration 3에서 기각됨, §Out of Scope 참고)을 재도입하지 않는다 — 매칭 키는 여전히 `ownerUserId`(사용자 단위)이지 페이로드 해시가 아니다. **기각된 대안**: 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(무마이그레이션)은 진정한 경쟁 구간 해소를 제공하지 못해 이 REQ의 "DB 엔진 수준 원자성" 요구를 충족하지 않으므로 기각한다 — 기각 근거의 전체 기록은 plan.md §A 결정 1을 참고한다(이 SPEC의 요구사항 텍스트와 acceptance.md의 PASS 조건에는 이 대안이 유효한 구현 경로로 등장하지 않는다). | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위 + 크래시 복구 가능한 형태로 재설계), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적 + 리스 기반 재설계 요구), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼) |
+| REQ-PILOT-READY-007 | While | While 어떤 사용자의 사건 생성 요청이 이미 접수되어 파이프라인이 처리 중인 상태(파이프라인 완료 전)이면, 그 사용자로부터 새로운 사건 생성 요청이 도착했을 때 시스템은 그 사용자에 대해 두 번째 리서치 파이프라인 실행을 동시에 시작해서는 안 되며, 새 요청에는 정상적으로 접수된 새 제출과 구분되는 응답("이미 처리 중" 신호, `409 Conflict`)을 반환해야 한다. 이 보장은 **DB 엔진 수준에서 원자적으로** 이루어져야 한다 — app 레벨 `SELECT status` 후 별도 `INSERT`를 실행하는 check-then-act 구조는 두 요청이 거의 동시에 도착하면 경쟁 구간을 막지 못하므로 이 REQ를 충족하지 않는다. **v0.3.0 개정으로 이 REQ는 다음 리스(lease) 기반 구현을 단독으로(only) 요구한다 — 더 이상 대안 옵션은 없다**: `ownerUserId`를 키(UNIQUE)로 하는 신규 `reservations` 테이블에 `leaseId`(획득마다 새로 생성되는 고유 토큰)와 `expiresAt`(TTL 값 산정은 아래 참고) 2개 컬럼을 추가한다. **v0.4.0 개정으로 이 REQ는 배포 라우트가 `export const maxDuration = 300`(Next.js route segment config, 300초)을 명시적으로 설정할 것을 함께 요구하며, `LEASE_TTL_SECONDS`는 이 `maxDuration`보다 충분히 길게(최소 330초 — `maxDuration` 대비 약 30초의 안전 여유) 설정해야 한다** — 정상 처리 중인 파이프라인이 플랫폼에 의해 강제 종료되기 전에 리스가 먼저 만료되어 두 번째 요청이 리스를 재획득해 동시 이중 실행이 발생하는 것을 방지하기 위함이다 (기존 "TTL 60초 = 로컬 실측 30초의 2배"라는 산정은 로컬 happy-path 실측만 반영하고 재시도·429 백오프·느린 응답을 포함한 실제 배포 환경의 worst-case를 반영하지 못해 v0.4.0에서 기각됐다 — 정적 TTL과 heartbeat 갱신 두 대안의 비교 및 채택 근거는 plan.md §A 결정 1 참고). 이 REQ는 정상적인 첫 번째 실행이 30초 happy path가 아니라 새 TTL 여유 안에서의 현실적 worst-case 지속 시간 동안 유효하게 실행 중인 동안에도, 동일 사용자의 두 번째 요청이 `runPipeline`을 시작하지 않아야 함을 요구한다 (AC-PILOT-READY-007 하위 절 참고). **(1) 원자적 획득/재획득**: `INSERT INTO reservations (owner_user_id, lease_id, expires_at) VALUES (?, ?, ?) ON CONFLICT (owner_user_id) DO UPDATE SET lease_id = excluded.lease_id, expires_at = excluded.expires_at WHERE reservations.expires_at < <now>` 후, 이 쓰기가 실제로 자신의 `leaseId`를 반영했는지(영향받은 행 수, 또는 즉시 재조회로 `leaseId` 일치 확인)를 검사해 "나는 리스를 보유했다"와 "다른 실행의 만료 전 리스에 막혔다"를 구분한다 — 후자면 "이미 처리 중"으로 즉시 응답한다. 이 프로젝트가 사용하는 Turso Cloud 표준(비-MVCC, 일반 `libsql://` 원격 연결) 아키텍처는 SQLite의 단일 writer 트랜잭션 모델을 그대로 가지므로(docs.turso.tech §Client Access), `UNIQUE` 제약 기반 조건부 UPSERT는 DB 엔진 수준의 진정한 원자성을 제공한다 — 다만 이 조건부 `DO UPDATE ... WHERE` 구문 형태 자체가 Turso 공식 문서에서 별도로 재검증되지는 않은 "표준 SQLite/libSQL 문법으로 알려진 것"이라는 한계를 정직하게 명시한다(단순 `ON CONFLICT DO NOTHING`과는 구문이 다름). **(2) 펜싱된 해제(fenced release)**: 파이프라인 종료(성공/실패 모두) 시 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`로 자신의 `leaseId`가 여전히 일치할 때만 해제한다 — 리스가 만료되어 다른 실행이 이미 재획득한 경우 이 삭제는 0행에 매치되는 no-op이어야 하며, 절대로 새 리스를 실수로 삭제해서는 안 된다. **(3) 완료 기록의 동일 트랜잭션 원자성(하드 요구사항, 폴백 없음 — v0.4.0 확정)**: 파이프라인 성공 시 (i) 리스의 `leaseId` 일치 여부 재확인(펜싱 게이트), (ii) `cases` 행의 완료 상태 전이(`status: "completed"`), (iii) `reports` 행 INSERT, (iv) 자신의 `reservations` 리스 행 삭제, 이 4단계 전부를 **단일 DB 트랜잭션**(`db.transaction(async (tx) => {...})`) 안에서 순서대로 수행해야 한다 — 이는 더 이상 "가능한 한" 시도하는 목표 설계가 아니라 예외 없는 단일 요구사항이다. 이 프로젝트가 고정 사용하는 `@libsql/client@0.17.4`(원격 `libsql://` 연결에 사용되는 main 패키지 — 제약이 다른 `@libsql/client/web` 서브셋이 아님)의 `http.js` `transaction()` 구현과 `drizzle-orm@0.45.2`의 `libsql/session.js` `LibSQLSession.transaction()` 구현을 실제 소스 코드로 확인한 결과, 원격 HTTP 연결에 대해서도 진짜 인터랙티브 트랜잭션(실패 시 자동 rollback, 성공 시 commit)을 지원함이 이 SPEC 조사 범위에서 검증됐다(출처: unpkg.com/@libsql/client@0.17.4/lib-esm/http.js, unpkg.com/drizzle-orm@0.45.2/libsql/session.js, github.com/tursodatabase/libsql-client-ts CHANGELOG.md, tursodatabase.github.io/libsql-client-ts Client 인터페이스 문서). 운영 제약으로 libSQL은 열려 있는 인터랙티브 트랜잭션에 서버측 **5초 잠금 타임아웃**을 두므로, 트랜잭션 안의 4단계는 신속하게 실행되어야 한다(모두 단순 단일 쿼리이므로 여유가 충분하다) — 향후 구현자는 이 트랜잭션 안에 느린 작업을 넣지 않아야 한다. 일부 AI 검색 요약 결과가 "libSQL은 HTTP를 통한 인터랙티브 트랜잭션을 지원하지 않는다"고 주장하는 경우가 있으나, 이는 별도 제약이 있는 `@libsql/client/web` 패키지에만 해당하는 사실이며 이 프로젝트가 쓰는 main 패키지에는 해당하지 않는다 — 이 혼동으로 정상 동작하는 코드를 "고치려" 시도하지 않도록 주의를 남긴다. `reports` INSERT가 실패하면 트랜잭션 전체가 롤백되어야 하며, `cases`의 완료 상태 전이만 홀로 커밋된 불일치 상태가 남아서는 안 된다. **(3-보충) 완료 트랜잭션 실패 시 리스의 후속 명시적 해제(v0.5.0 신규)**: 위 롤백이 일어나면 그 롤백에는 트랜잭션에 포함됐던 `reservations` DELETE도 함께 되돌려지므로, 롤백 직후 시점에는 `reservations` 리스 행이 트랜잭션 시도 이전과 동일하게 여전히 존재한다 — 이는 트랜잭션 원자성이 의도한 대로 동작한 정상적인 결과다. 그러나 이 상태로 두면 같은 사용자가 리스 TTL(최소 330초)이 지날 때까지 재제출할 수 없다. 이를 방지하기 위해, 이 트랜잭션의 실패를 처리하는 catch/에러 처리 경로는 — 위 4단계 트랜잭션과는 별개로, 그 트랜잭션이 이미 실패해 롤백된 *이후에만* 실행되는 후속 단계로서 — 자신의 `ownerUserId` AND `leaseId`가 모두 일치할 때만 수행하는 펜싱된 `DELETE FROM reservations WHERE owner_user_id = ? AND lease_id = ?`를 실행해 리스를 명시적으로 해제해야 한다. 이 후속 해제가 성공하면 같은 사용자는 인위적인 추가 대기 없이 즉시 새 요청으로 새 리스를 재획득할 수 있어야 한다. 이 후속 해제 자체도 실패하는 드문 이중 실패(double-failure) 상황이면, 시스템은 그 오류를 로그로 남기고 최종 회복은 기존 TTL 만료 메커니즘((1) 참고)에 맡긴다 — 이 드문 경우에만 즉시 재제출이 차단되며, TTL로 상한이 있어 영구히 막히지는 않는다. **이 후속 해제 단계는 (3)의 4단계 단일 트랜잭션 요구사항(폴백 없음)을 완화하거나 대체하지 않는다** — 성공 경로의 4단계 원자성 요구사항은 그대로 유지되며, 이 후속 해제는 그 트랜잭션이 이미 실패해 롤백된 이후에만 실행되는 별개의 실패 복구 행동이다. **폴백 정책**(현재 불확실해서 두는 hedge가 아니라, 확인된 동작이 실제 구현에서 어긋날 경우의 대응 정책): run-phase 구현 중 이 확인된 동작과 실제로 다른 드라이버 회귀가 발견되어 이 트랜잭션 요구사항이 실제로 충족되지 않음이 확인되면, 그 사실 자체를 이 REQ의 FAIL로, 파일럿 준비 상태(REQ-PILOT-READY-016)를 NO-GO로 판정해야 한다 — 완화된 대안 설계로 조용히 우회하는 것은 허용되지 않는다. 트랜잭션 밖에서 리스 소유권을 별도로 확인하는 잔여 폴백 경로는 존재하지 않는다 — 소유권 재확인은 반드시 위 4단계와 같은 트랜잭션 안에서 수행된다. 이는 파일럿 규모(10명 테스터)에 맞춘 최소 가드이며, `submissionNonce` 컬럼 + unique index 방식(요청 페이로드 해시 기반 정밀 dedup, SPEC-PILOT-UX-001 iteration 3에서 기각됨, §Out of Scope 참고)을 재도입하지 않는다 — 매칭 키는 여전히 `ownerUserId`(사용자 단위)이지 페이로드 해시가 아니다. **기각된 대안**: 기존 `cases.status` 컬럼만 재사용하는 SELECT-후-INSERT 방식(무마이그레이션)은 진정한 경쟁 구간 해소를 제공하지 못해 이 REQ의 "DB 엔진 수준 원자성" 요구를 충족하지 않으므로 기각한다 — 기각 근거의 전체 기록은 plan.md §A 결정 1을 참고한다(이 SPEC의 요구사항 텍스트와 acceptance.md의 PASS 조건에는 이 대안이 유효한 구현 경로로 등장하지 않는다). | 사용자 지시(타임아웃/실패 후 재제출 시 중복 파이프라인 실행 방지, 최소 범위 + 크래시 복구 가능한 형태로 재설계), 외부 리뷰(SELECT-후-INSERT는 진정한 원자성을 제공하지 않는다는 지적 + 리스 기반 재설계 요구), Turso 공식 문서(docs.turso.tech §Client Access — SQLite 단일 writer 트랜잭션 모델) + Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud — MVCC 엔진은 별도 opt-in `tursodb` 타입이며 이 프로젝트는 표준 `libsql://` 연결을 사용), `lib/cases/create-case.ts:38-72`(파이프라인 실행 이전에 기록되는 상태가 전혀 없음), `lib/db/schema.ts:75`(`cases.status` 컬럼) |
 
 ### G. 최소 구조적 로깅 (Minimal Structured Logging)
 
@@ -443,7 +517,7 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 **7개 항목**(v0.4.0 — 기존 6개에서 Gemini 쿼터를 독립 항목으로 승격)을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) **호스팅 적합성** — 선택된 tier의 기간·ToS 적합성 **결정**(REQ-PILOT-READY-001)과, 실제 배포 환경에서 측정한 처리 시간이 그 tier의 `maxDuration`(300초) 상한 안에 여유 있게 들어오는지에 대한 **실측 증거**(REQ-PILOT-READY-002) 둘 다가 있어야 READY — 결정만 있고 실측이 없으면 UNVERIFIED; (2) **Gemini 쿼터**(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) — 실제 AI Studio 쿼터 대시보드를 확인하고 관측된 실제 한도를 근거로 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값을 실제로 기록해야 READY — 코드 기본값(4)을 그대로 둔 상태는 UNVERIFIED; (3) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행); (4) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작); (5) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증 — 반드시 실제 배포 도메인 기준이며, 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다); (6) **서로 다른 사용자 동시 부하**(REQ-PILOT-READY-006) — 배치 안의 모든 요청이 성공적인 최종 상태에 도달하고 그 결과가 실제로 DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없어야 READY(기존 재시도/백오프로 흡수된 429는 무방); (7) **저장소/복구 검증**(REQ-PILOT-READY-007의 리스+트랜잭션 보장) — 실제 원격 Turso 대상에 대한 검증만 READY로 인정하며, 로컬/in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다. **전체 게이트 규칙**: (1)의 tier/ToS 적합성 "결정" 자체(문서 판단으로 가능)를 제외하고, 원격 검증 또는 실측이 필요한 항목((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 존재하지 않는다. 로컬 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). **run-phase 완료 시점 공정(v0.4.0 명시)**: 이 문서는 run-phase 착수 시점에는 7개 항목의 표와 판정 기준만 담은 템플릿으로 작성된다. run-phase의 **마지막 마일스톤**에서는 7개 항목 모두에 실제 READY/BLOCKED/UNVERIFIED 판정값과 전체 GO/NO-GO 판정이 채워져야 하며, 템플릿이 비어 있는 상태로 run-phase가 종료되는 것은 이 SPEC의 run-phase 완료 상태로 허용되지 않는다 — 단, 실제로 채워 넣은 판정 결과가 **NO-GO**인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만 금지된다). | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지, 게이트 평가 자체를 run-phase 완료 조건으로 명시할 것) |
+| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 **7개 항목**(v0.4.0 — 기존 6개에서 Gemini 쿼터를 독립 항목으로 승격)을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) **호스팅 적합성** — 선택된 tier의 기간·ToS 적합성 **결정**(REQ-PILOT-READY-001)과, 실제 **배포 도메인** 환경에서 REQ-PILOT-READY-002가 요구하는 **최소 3회 이상**의 개별 측정 실행 중 **관측된 최대 처리 시간이 270초 이하**(선택된 tier의 `maxDuration`(300초) 상한 대비 약 30초의 안전 여유 — 측정된 파이프라인 로직 자체가 아니라 플랫폼 수준의 콜드스타트·네트워크 오버헤드를 흡수하기 위함, v0.5.0 정밀화)임을 보여주는 **실측 증거**(REQ-PILOT-READY-002) 둘 다가 있어야 READY — 결정만 있고 실측이 없거나, 실측 횟수가 3회 미만이거나, 관측된 최대 처리 시간이 270초를 초과하거나, 로컬(`next start`) 실행 결과만 있으면 UNVERIFIED; (2) **Gemini 쿼터**(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) — 실제 AI Studio 쿼터 대시보드를 확인한 기록(확인 날짜·확인자 포함)과, 그 관측된 실제 한도를 근거로 실제 선택한 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 실제로 기록되어야 READY — **값이 코드 기본값 4와 같더라도, 4가 관측된 실제 한도의 약 70~80%에 해당한다는 근거가 함께 기록되어 있으면 정상적으로 READY 조건을 충족한다(v0.5.0 정정 — "기본값 4가 유지되면 자동 UNVERIFIED"라는 과도하게 엄격한 이전 표현을 교정)**; 대시보드 확인 자체가 수행되지 않은 채(근거 기록 없이) 기본값 4만 남아 있는 상태만이 UNVERIFIED; (3) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행); (4) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작); (5) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증 — 반드시 실제 배포 도메인 기준이며, 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다); (6) **서로 다른 사용자 동시 부하**(REQ-PILOT-READY-006) — 배치 안의 모든 요청이 성공적인 최종 상태에 도달하고 그 결과가 실제로 DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없어야 READY(기존 재시도/백오프로 흡수된 429는 무방); (7) **저장소/복구 검증**(REQ-PILOT-READY-007의 리스+트랜잭션 보장) — 실제 원격 Turso 대상에 대한 검증만 READY로 인정하며, 로컬/in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다. **전체 게이트 규칙**: (1)의 tier/ToS 적합성 "결정" 자체(문서 판단으로 가능)를 제외하고, 원격 검증 또는 실측이 필요한 항목((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 존재하지 않는다. 로컬 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). **run-phase 완료 시점 공정(v0.4.0 명시)**: 이 문서는 run-phase 착수 시점에는 7개 항목의 표와 판정 기준만 담은 템플릿으로 작성된다. run-phase의 **마지막 마일스톤**에서는 7개 항목 모두에 실제 READY/BLOCKED/UNVERIFIED 판정값과 전체 GO/NO-GO 판정이 채워져야 하며, 템플릿이 비어 있는 상태로 run-phase가 종료되는 것은 이 SPEC의 run-phase 완료 상태로 허용되지 않는다 — 단, 실제로 채워 넣은 판정 결과가 **NO-GO**인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만 금지된다). | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지, 게이트 평가 자체를 run-phase 완료 조건으로 명시할 것) |
 
 ## Out of Scope
 

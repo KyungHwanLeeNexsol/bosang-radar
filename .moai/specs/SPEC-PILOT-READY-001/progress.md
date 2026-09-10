@@ -11,7 +11,88 @@
   top-level AC number; AC-PILOT-READY-016 split into sub-clauses 016a/016b per the
   AC sub-ID pairing convention; v0.4.0 adds no new top-level AC number — new v0.4.0
   scenarios are sub-clauses (`And ...`) appended to the existing AC-PILOT-READY-007 and
-  AC-PILOT-READY-016b bodies; AC 16/16 unchanged)
+  AC-PILOT-READY-016b bodies; AC 16/16 unchanged; v0.5.0 likewise adds no new
+  top-level REQ or AC number — REQ 16/16, AC 16/16 unchanged)
+
+### v0.5.0 revision (external review, fourth round — exceeds the documented 3-audit-iteration cap)
+
+- **Cap-exceedance override recorded**: this SPEC's plan-phase has now undergone 4
+  external-review revision rounds (v0.2.0, v0.3.0, v0.4.0, v0.5.0), exceeding the
+  plan-auditor Retry Loop Contract's documented "Max 3 iterations cap (hard limit)"
+  (`.claude/agents/moai/plan-auditor.md` § Retry Loop Contract). The orchestrator
+  explicitly warned the user of this cap-exceedance before dispatching this revision,
+  and the user explicitly confirmed proceeding anyway via `AskUserQuestion` — this
+  confirmation is the override rationale for continuing beyond the documented cap.
+- Branch: `plan/SPEC-PILOT-READY-001` (not merged; baseline
+  `plan/SPEC-PILOT-READY-001@6ca56e39562499f8e2d2513c9212b9de7ff510b5`, itself the
+  v0.4.0 HEAD)
+- Trigger: external reviewer fourth-round correction requests (5 items)
+- Decisions RESOLVED in this revision (no longer open):
+  1. The actual `pilot-ready-readiness-decision-2026-09-10.md` template file had gone
+     stale since v0.4.0's 6-item-to-7-item precision pass — it still carried 6 items,
+     old milestone-count wording, and a bare `unfilled` state. Synced to 7 items,
+     added the per-item READY criteria section mirroring AC-PILOT-READY-016b verbatim,
+     and filled the template's CURRENT plan-phase state as 7×`UNVERIFIED` + overall
+     `NO-GO` (an honest plan-phase determination, not a blank placeholder) — with new
+     process language distinguishing "blank/unfilled" (allowed only as the initial
+     plan-phase draft state) from "UNVERIFIED" (a legitimate final determination).
+  2. REQ-PILOT-READY-003 (Gemini quota check) elevated from an Ubiquitous
+     documentation-only checklist item ("not executed in this session") to a When
+     (event-driven) run-phase execution requirement — the actual AI Studio dashboard
+     check must be performed and recorded (date, performer, observed limit, chosen
+     RPM budget values) during this SPEC's run-phase. Corrected an overly strict
+     implication in REQ-PILOT-READY-016 item(2) / AC-PILOT-READY-016b item(2) ("RPM
+     staying at the unverified default of 4" read as an automatic UNVERIFIED/FAIL
+     regardless of evidence) — the correct rule is that RPM=4 is acceptable as long
+     as evidence shows 4 is actually ~70-80% of the real observed quota limit; only
+     an unperformed dashboard check (no evidence at all) triggers UNVERIFIED.
+  3. Fixed a real design/AC error in REQ-PILOT-READY-007(3): the completion
+     transaction rollback (on a `reports` INSERT failure) correctly leaves the
+     `reservations` lease row present immediately post-rollback (the DELETE step
+     rolls back too) — that part was already accurate and is kept. What was missing
+     was the subsequent catch-path handling: added a new "(3-보충)" requirement that
+     the transaction-failure catch path performs a SEPARATE fenced `DELETE`
+     (`ownerUserId` AND `leaseId` match) to actually release the lease, enabling
+     immediate resubmission by the same user rather than forcing a wait for TTL
+     expiry (up to 330s). This does NOT weaken or replace the 4-step single
+     transaction hard requirement (no fallback) — it is a distinct recovery action
+     that runs only after that transaction has already failed and rolled back. Added
+     a matching AC-PILOT-READY-007 sub-clause verifying the post-rollback lease
+     deletion and immediate clean reacquisition.
+  4. Quantified the previously vague "comfortably within maxDuration" hosting-gate
+     criterion: REQ-PILOT-READY-002's measurement now requires a minimum of 3
+     individual execution runs (each recorded individually); REQ-PILOT-READY-016 item
+     (1) / AC-PILOT-READY-016b item(1) READY bar is now "the maximum observed
+     processing time across those ≥3 runs, measured against the real deployed
+     domain, is ≤270 seconds" (a ~30s safety margin below the 300s `maxDuration`, to
+     absorb platform-level cold-start/overhead beyond the measured pipeline logic
+     itself) — a concrete, binary-testable numeric criterion replacing "comfortably".
+  5. Clarified the test methodology for the AC-PILOT-READY-007 "realistic worst-case
+     duration (~200s+) guard-holds" scenario in both plan.md (M6 design note) and
+     acceptance.md (the AC sub-clause itself): this test uses a fake timer/mock clock
+     to simulate elapsed time, NOT a real 200+ second wall-clock wait — explicitly
+     stated to prevent a run-phase implementer from writing a literal 200+ second
+     sleep in the test.
+- Manual 5-way cross-read findings (spec.md + plan.md + acceptance.md + progress.md +
+  the actual `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md` template,
+  per the team-lead's verification discipline request): (a) confirmed the readiness
+  template's 7 gate items now match AC-PILOT-READY-016b's 7 gate items exactly in
+  name and READY-bar criteria (item-by-item cross-check performed, including the new
+  270s/3-run hosting bar and the RPM=4-with-evidence correction on item 2); (b)
+  confirmed the corrected AC-PILOT-READY-007 lease-release contract (post-rollback
+  catch-path DELETE + immediate reacquisition) matches what plan.md §A 결정 3 and
+  plan.md M1's completion-record section now describe — the same fencing pattern
+  (`ownerUserId` AND `leaseId`), the same "does not weaken the 4-step transaction"
+  framing, and the same double-failure/TTL-fallback edge case; (c) confirmed the
+  quantified 270s/≥3-run criteria from item 4 appear consistently in spec.md
+  REQ-PILOT-READY-002/016, plan.md (the timeout-measurement and readiness-decision
+  M4 bullets), acceptance.md (AC-PILOT-READY-002/016b), and the readiness-decision
+  template's new per-item READY criteria section — no drift found between the five
+  documents on any of the five items above.
+- REQ/AC count verification: REQ 16/16, AC 16/16 — unchanged from v0.4.0 (this
+  revision is corrections/precision additions as sub-clauses on existing REQ/AC
+  numbers only, per the Tier M budget ceiling; no new top-level REQ or AC number was
+  added).
 
 ### v0.4.0 revision (external review, third round)
 
