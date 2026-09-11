@@ -630,6 +630,36 @@ PASS 가능". §J(v0.10.0)의 3층위 증거 정리는 정확했으나, 그 뒤 
 - **코드·배포 없음**: 이번에도 코드 변경·실 배포·Gemini 재호출·테스트 반복·
   테스터 초대·비동기 SPEC 생성·PR·main 병합을 수행하지 않았다.
 
+## §L 최종 프로젝트 검증 + PR (외부 최종 검토: PASS, HEAD `393242e`)
+
+`final_verification_at: 2026-09-11`. 외부 최종 검토가 v0.11.0(HEAD `393242e`)을
+PASS로 확인했다 — "추가 문서 또는 구현 수정은 필요 없다". PR 생성 전 최종
+프로젝트 검증을 수행했다.
+
+```
+$ pnpm exec vitest run       → 60/60 test files, 430/430 tests pass — EXIT=0
+$ pnpm exec tsc --noEmit     → EXIT=0
+$ pnpm lint                  → eslint . → EXIT=0
+$ pnpm run format:check      → prettier --check . → EXIT=1 (최초 실행, 12개 파일
+                                 포맷 불일치 — 이 SPEC에서 처음 실행됨)
+```
+
+**포맷 불일치 발견 + 정정**: `format:check`가 이 SPEC의 검증 이력에서 처음
+실행되어(이전 라운드는 전부 `eslint`만 실행) 12개 파일의 포맷 불일치를
+발견했다. 사용자에게 보고 후 확인을 받아 `pnpm run format` 적용(공백/따옴표/
+줄바꿈만 — `git diff` 확인 결과 로직/동작 변경 없음), 5개 검증 재실행:
+
+```
+$ pnpm exec vitest run       → 60/60, 430/430 pass — EXIT=0 (회귀 없음)
+$ pnpm exec tsc --noEmit     → EXIT=0
+$ pnpm lint                  → EXIT=0
+$ pnpm run format:check      → EXIT=0 (All matched files use Prettier code style!)
+$ pnpm build                 → EXIT=0 (기존 instrumentation.ts Edge Runtime 경고만,
+                                 이 SPEC과 무관)
+```
+
+포맷 수정 커밋: `990e525`(`style(SPEC-PILOT-READY-001): ...`).
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_
