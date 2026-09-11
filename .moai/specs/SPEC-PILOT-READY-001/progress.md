@@ -704,6 +704,67 @@ $ pnpm build                 → EXIT=0 (기존 instrumentation.ts Edge Runtime 
   전체 NO-GO를 변경하지 않았다 — Deploy Preview 실패 원인이 미확인이고, E2E는
   로컬 deterministic 환경 실행이라 Netlify 배포 적합성 증거가 아니다.
 
+## §N Netlify Deploy Preview 수정 (v0.13.0, 실제 fatal 원인 확인 + 수정 + 재배포 성공)
+
+`fix_round_at: 2026-09-11`. 사용자가 Netlify 대시보드에서 최초 fatal을 직접
+확인해 제공했다:
+
+```
+Plugin "@netlify/plugin-nextjs" internal error
+Usage of unsupported C++ Addon(s) found in Node.js Middleware:
+@libsql/linux-x64-gnu/index.node
+```
+
+**원인**: `proxy.ts`(Middleware)가 `lib/auth/session.ts`의 `hasSessionCookie`만
+쓰지만, 그 파일이 `getCurrentSession`용으로 `./config`→`../db/client`→
+`@libsql/client`(네이티브 애드온)를 모듈 최상위에서 함께 import해 Middleware
+정적 번들에 딸려 들어갔다.
+
+**수정**(`manager-develop` 위임, TDD): `lib/auth/session-cookie.ts` 신규
+분리(DB 의존성 0, `better-auth/cookies`만 import) → `proxy.ts`가 이 신규
+모듈만 참조하도록 변경. `getCurrentSession`과 그 DB 의존성 체인은 무변경
+(서버 페이지/API의 실제 세션 검증 로직 불변). `@libsql/client`를 web 버전으로
+전역 교체하지 않음(기존 트랜잭션/리스 보장 유지). 회귀 테스트
+`proxy.import-graph.test.ts` 신규 — `proxy.ts`의 전이 import 그래프에
+`lib/db/client`/`@libsql/client`/`*.node`가 재유입되면 실패한다.
+
+**검증**(이 세션이 직접 재실행, `manager-develop` 자체 보고와 독립적으로 확인):
+
+```
+$ pnpm exec vitest run       → 62/62 test files, 431/431 tests pass — EXIT=0
+$ pnpm exec tsc --noEmit     → EXIT=0
+$ pnpm lint                  → EXIT=0
+$ pnpm run format:check      → EXIT=0
+$ pnpm build                 → EXIT=0
+$ pnpm test:e2e              → 23 total / 13 passed / 10 skipped / 0 failed — EXIT=0
+                                 (baseline과 동일, 회귀 없음)
+```
+
+`git diff --stat`으로 변경 파일이 정확히 6개(`proxy.ts`,
+`lib/auth/session{,-cookie}.ts`, `lib/auth/session{,-cookie}.test.ts`,
+`proxy.import-graph.test.ts`)임을 확인했다. 커밋: `9beb3a7`, push 확인.
+
+**Netlify Deploy Preview 재확인 결과** (`gh pr checks 10`, HEAD `9beb3a7`):
+
+```
+netlify/musical-macaron-82feb3/deploy-preview  PASS  "Deploy Preview ready!"
+Header rules   PASS
+Redirect rules PASS
+Pages changed  skipping (실패 아님)
+```
+
+**readiness 판정 불변(사용자 지시 준수)**: Deploy Preview 성공은 빌드/번들링
+결함 해소의 증거일 뿐, §3의 동기 함수 실행 시간 상한(공식 60초 vs 커뮤니티
+관측 ~10초, 이 프로젝트 실제 적용값 미확인) 질문과는 별개다. readiness-decision
+문서의 7개 항목과 전체 판정(`NO-GO`)은 이 라운드에서 변경하지 않았다 — 호스팅
+적합성(AC-PILOT-READY-001이 다루는 3층위 문서화와는 별개로, readiness 문서의
+항목 (1) 실제 판정)은 여전히 `UNVERIFIED`다.
+
+**여전히 열린 질문**: `musical-macaron-82feb3` 사이트 신원(의도된 프로젝트인지)
+확인은 이번 라운드에서 사용자로부터 명시적 확답을 받지 못했다 — 로그를
+제공받아 원인 수정을 진행할 수 있었던 것으로 보아 사용자가 실제로 접근 권한을
+가진 사이트로 보이지만, 명시적 "예/아니오" 확인은 아직 기록되지 않았다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

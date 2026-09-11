@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.12.0"
+version: "0.13.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,28 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.13.0): PR #10 Netlify Deploy Preview 실패 수정. 사용자가
+  Netlify 대시보드에서 직접 확인한 최초 fatal — `Usage of unsupported C++
+  Addon(s) found in Node.js Middleware: @libsql/linux-x64-gnu/index.node`
+  — 을 근거로 원인을 확정했다: `proxy.ts`(Middleware)가 `hasSessionCookie`만
+  쓰는 `lib/auth/session.ts`를 import했는데, 그 파일이 `getCurrentSession`용
+  DB 의존성 체인(`./config`→`../db/client`→`@libsql/client`, 네이티브 애드온)을
+  모듈 최상위에서 함께 갖고 있어 Middleware 정적 번들에 딸려 들어갔다.
+  `manager-develop`에게 TDD로 위임해 `lib/auth/session-cookie.ts`(DB 의존성
+  0)를 신규 분리하고 `proxy.ts`가 그것만 참조하도록 수정했다 — `getCurrentSession`과
+  그 DB 체인, `@libsql/client` 메인 패키지 사용(트랜잭션/리스 보장)은 무변경.
+  회귀 테스트(`proxy.import-graph.test.ts`)를 추가해 이 클래스의 결함 재발을
+  방지했다. 전체 검증(vitest 62/62·431/431, tsc, lint, format:check, build,
+  test:e2e 23/13/10/0)을 이 세션이 직접 재확인했다(커밋 `9beb3a7`). 재배포 후
+  `gh pr checks 10`으로 Netlify Deploy Preview가 **PASS**로 전환됐음을 확인했다.
+  이 성공은 빌드/번들링 결함 해소의 증거일 뿐, §3의 동기 함수 실행 시간 상한
+  (공식 60초 vs 커뮤니티 관측 ~10초, 이 프로젝트 실제 적용값 미확인) 문제와는
+  별개이므로 readiness-decision 문서의 전체 판정(`NO-GO`)과 호스팅 적합성
+  (`UNVERIFIED`)은 변경하지 않았다(사용자 지시 준수). 사이트 신원
+  (`musical-macaron-82feb3`가 의도된 프로젝트인지)은 명시적 확답을 받지
+  못해 열린 질문으로 남겼다. PR #10은 open 유지, 병합하지 않았다. 프로덕션
+  배포·Turso 신규 생성·Gemini 재호출·테스터 초대는 수행하지 않았다. 환경변수
+  값/비밀값은 로그·문서·커밋 어디에도 기록하지 않았다.
 - 2026-09-11 (v0.12.0): 외부 PR 검토("수정 후 PASS 가능", HEAD `6d1aa36`) 반영.
   PR #10 생성 직후 Netlify 자동 Deploy Preview(사이트 `musical-macaron-82feb3`)가
   트리거되어 실패한 것을 발견했다 — "Netlify 배포 미수행"이라는 이전 표현을

@@ -1,10 +1,14 @@
 # Netlify 적합성 스파이크 (REQ-PILOT-READY-001/002 호스팅 후보 변경 — M4)
 
-> **판정 요약: UNVERIFIED (수동·프로덕션 배포는 미수행, 자동 Preview 배포는
-> 실패 — v0.12.0 정정, §7-b 참고).** 실제 비공개 배포와 Gemini 10회 실측은
-> 여전히 수동으로 수행하지 않았다(사용자 확인·재확인됨) — 단, PR #10 생성 후
-> Netlify 자동 Deploy Preview가 트리거되어 **실패**했다(최초 fatal 원인 미확인,
-> §7-b). v1(2026-09-11 초판)은 이 상태를
+> **판정 요약: UNVERIFIED (수동·프로덕션 배포는 미수행; 자동 Preview 배포는
+> 최초 실패 후 원인 확인·수정을 거쳐 현재 PASS — v0.13.0, §7-c 참고).** 실제
+> 비공개(프로덕션) 배포와 Gemini 10회 실측은 여전히 수동으로 수행하지
+> 않았다(사용자 확인·재확인됨). PR #10 생성 직후 자동 Deploy Preview가
+> **실패**했고(네이티브 애드온 Middleware 번들링, §7-b), 사용자가 제공한 실제
+> Netlify 로그로 원인을 확인해 수정했으며, 재배포 결과 **Deploy Preview는 현재
+> PASS**다(§7-c) — 그러나 이 성공은 §3의 실행 시간 상한 질문과는 별개이며,
+> 이 성공만으로 readiness 판정을 바꾸지 않는다(전체 NO-GO 유지). 초판(v1,
+> 2026-09-11)은 이 상태를
 > "BLOCKED"로 표기했으나, 이는 이 SPEC의 acceptance.md AC-PILOT-READY-016b가 정의한
 > READY/BLOCKED/UNVERIFIED 3분류 중 잘못된 항목을 골랐다는 지적(외부 구현 검토
 > 7차)을 받아 **UNVERIFIED로 정정한다** — "값을 실제로 측정했고 기준을 넘는 것을
@@ -208,6 +212,57 @@ status check `FAILURE`, "Header rules"/"Pages changed"/"Redirect rules" 체크�
 - **후속 조치 필요**: main 병합 시 프로덕션 자동 배포가 트리거되는지 여부를
   확인하기 전에는 병합하지 않는다(§ 전체 원칙 참고, 이미 준수 중 — PR #10은
   open 유지, 병합 없음).
+
+## 7-c. 실제 fatal 원인 확인 + 수정 + 재배포 성공 (v0.13.0)
+
+**최초 fatal(사용자가 Netlify 대시보드에서 직접 확인해 제공)**:
+
+```
+Plugin "@netlify/plugin-nextjs" internal error
+Usage of unsupported C++ Addon(s) found in Node.js Middleware:
+@libsql/linux-x64-gnu/index.node
+```
+
+**원인**: `proxy.ts`(Next.js 16 Middleware, 항상 `nodejs` 런타임)가
+`lib/auth/session.ts`에서 `hasSessionCookie`만 가져다 쓰지만, 그 파일이
+`getCurrentSession`을 위해 모듈 최상위에서 `./config` → `../db/client` →
+`@libsql/client`(네이티브 C++ 애드온)까지 함께 import하고 있었다. Middleware
+번들러는 실제로 쓰는 export가 아니라 import 그래프에 **도달 가능한 파일
+전체**를 정적으로 포함하므로, `proxy.ts`가 쓰지도 않는 `@libsql/client`가
+Middleware 번들에 딸려 들어갔다 — Netlify의 Next.js Middleware 런타임은
+네이티브 애드온을 지원하지 않는다(§3의 함수 실행 시간 상한과는 무관한,
+별개의 결함이었다 — 이전 가설은 폐기).
+
+**수정** (`lib/auth/session-cookie.ts` 신규 분리, `better-auth/cookies`만
+import — DB 의존성 완전 제거; `proxy.ts`는 이 신규 모듈만 참조; 기존
+`lib/auth/session.ts`의 `getCurrentSession`과 그 DB 의존성 체인은 그대로
+유지 — 서버 페이지/API 라우트의 실제 세션 검증은 변경 없음; `@libsql/client`를
+web 버전으로 전역 교체하지 않아 기존 트랜잭션/리스 보장 훼손 없음; 회귀
+테스트 `proxy.import-graph.test.ts` 신규 추가 — `proxy.ts`의 전이 import
+그래프에 `lib/db/client`/`@libsql/client`/`*.node`가 재유입되면 실패):
+커밋 `9beb3a7`.
+
+**재배포 결과 — Deploy Preview 성공 확인** (`gh pr checks 10`으로 직접 확인,
+HEAD `9beb3a7`):
+
+```
+netlify/musical-macaron-82feb3/deploy-preview  pass  https://deploy-preview-10--musical-macaron-82feb3.netlify.app  "Deploy Preview ready!"
+Header rules - musical-macaron-82feb3    pass
+Redirect rules - musical-macaron-82feb3  pass
+Pages changed - musical-macaron-82feb3   skipping (실패 아님)
+```
+
+**이것이 의미하는 것과 의미하지 않는 것**: 이 성공은 **빌드/번들링 결함이
+해소됐다는 증거**이며, §3에서 여전히 미해결인 "동기 함수 실행 시간 상한(공식
+60초 vs 상충하는 커뮤니티 관측 ~10초)" 질문과는 **별개**다. Preview 빌드가
+성공했다고 해서 (a) 실제 Gemini 3단계 파이프라인이 이 상한 안에서 완료되는지,
+(b) 원격 Turso 마이그레이션/시드가 이 배포 환경에서 정상 동작하는지, (c) 실
+도메인 인증·동시 부하·실 Gemini 스모크가 통과하는지는 **여전히 아무것도
+검증되지 않았다**. 사용자 지시대로, 이 성공만으로 readiness 판정을 GO로
+바꾸지 않는다 — §I/§J/§K/§L/§M이 이미 기록한 대로 전체 판정은 **NO-GO**,
+호스팅 적합성은 **UNVERIFIED**로 유지한다. 이 성공은 M4의 "저장소/복구
+검증"·"타임아웃 실측" 등 나머지 실측 항목을 **시도할 수 있게 됐다**는
+의미이지, 그 항목들이 통과했다는 의미가 아니다.
 
 ## 8. 잔여 위험
 
