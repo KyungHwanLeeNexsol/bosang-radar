@@ -155,10 +155,7 @@ export function LoginForm({ supportEmail }: LoginFormProps = {}) {
           <span className="flex items-center gap-3">
             <span aria-hidden="true">|</span>
             {supportEmail ? (
-              <a
-                href={`mailto:${supportEmail}`}
-                className="hover:text-bora-ink-2 hover:underline"
-              >
+              <a href={`mailto:${supportEmail}`} className="hover:text-bora-ink-2 hover:underline">
                 고객지원
               </a>
             ) : (

@@ -78,7 +78,14 @@ async function seedUsers(dbInstance: LibSQLDatabase<typeof schema>, ownerUserIds
   for (const id of ownerUserIds) {
     await dbInstance
       .insert(schema.user)
-      .values({ id, name: id, email: `${id}@example.test`, emailVerified: false, createdAt: now, updatedAt: now })
+      .values({
+        id,
+        name: id,
+        email: `${id}@example.test`,
+        emailVerified: false,
+        createdAt: now,
+        updatedAt: now,
+      })
       .onConflictDoNothing();
   }
 }
@@ -156,7 +163,10 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
 
     await createCase("owner-42", validInput);
 
-    const rows = await db.select().from(schema.cases).where(eq(schema.cases.ownerUserId, "owner-42"));
+    const rows = await db
+      .select()
+      .from(schema.cases)
+      .where(eq(schema.cases.ownerUserId, "owner-42"));
     expect(rows).toHaveLength(1);
     expect(rows[0].ownerUserId).toBe("owner-42");
   });
@@ -441,7 +451,9 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       for (const line of loggedLines) {
         expect(line).not.toContain(validInput.incidentDescription);
       }
-      const pipelineFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_failed"'));
+      const pipelineFailedLine = loggedLines.find((line) =>
+        line.includes('"event":"pipeline_failed"')
+      );
       expect(pipelineFailedLine).toBeDefined();
 
       errorSpy.mockRestore();
@@ -476,7 +488,9 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const { createCase } = await import("./create-case");
       runPipelineMock.mockResolvedValueOnce(sampleReport);
-      const txSpy = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("completion tx boom"));
+      const txSpy = vi
+        .spyOn(db, "transaction")
+        .mockRejectedValueOnce(new Error("completion tx boom"));
       const deleteSpy = vi.spyOn(db, "delete").mockImplementationOnce(() => {
         throw new Error(`release failed, body part: ${validInput.disabilityBodyPart}`);
       });

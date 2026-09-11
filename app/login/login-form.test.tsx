@@ -149,9 +149,9 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     // aria-disabled 텍스트로 렌더링되며(정책 링크 2종과 동일한 패턴), 실재하지
     // 않는 example.com 자리표시자를 mailto: href로 노출하지 않는다.
     expect(supportLink).toBeUndefined();
-    const disabledSupport = Array.from(
-      container.querySelectorAll('[aria-disabled="true"]')
-    ).find((el) => el.textContent === "고객지원");
+    const disabledSupport = Array.from(container.querySelectorAll('[aria-disabled="true"]')).find(
+      (el) => el.textContent === "고객지원"
+    );
     expect(disabledSupport).toBeDefined();
     expect(disabledSupport?.getAttribute("href")).toBeNull();
   });

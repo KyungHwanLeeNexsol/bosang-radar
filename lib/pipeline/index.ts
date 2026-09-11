@@ -72,7 +72,9 @@ function withStageLogging<T>(stage: string, task: () => T): T {
   try {
     return task();
   } catch (error) {
-    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) }));
+    console.error(
+      JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) })
+    );
     throw error;
   }
 }
@@ -81,7 +83,9 @@ async function withAsyncStageLogging<T>(stage: string, task: () => Promise<T>): 
   try {
     return await task();
   } catch (error) {
-    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) }));
+    console.error(
+      JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) })
+    );
     throw error;
   }
 }
@@ -94,7 +98,9 @@ export async function runPipeline(
     options.providers ?? getDefaultLLMProviders();
   const caseSummary = withStageLogging("CaseNormalizer", () => normalizeCase(input));
   const queries = withStageLogging("QueryPlanner", () => planQueries(caseSummary));
-  const evidence = await withAsyncStageLogging("EvidenceRetriever", () => retrieveEvidence(queries));
+  const evidence = await withAsyncStageLogging("EvidenceRetriever", () =>
+    retrieveEvidence(queries)
+  );
   const verification = await withPipelineLock(async () => {
     const findings = await withAsyncStageLogging("Researcher", () =>
       research(queries, evidence, researchProvider)

@@ -658,7 +658,9 @@ describe("PII 비노출 로깅 — pipeline_stage_failed 로그는 사건 입력
     for (const line of loggedLines) {
       expect(line).not.toContain(piiFragment);
     }
-    const stageFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_stage_failed"'));
+    const stageFailedLine = loggedLines.find((line) =>
+      line.includes('"event":"pipeline_stage_failed"')
+    );
     expect(stageFailedLine).toBeDefined();
 
     planQueriesSpy.mockRestore();
@@ -686,7 +688,9 @@ describe("PII 비노출 로깅 — pipeline_stage_failed 로그는 사건 입력
     for (const line of loggedLines) {
       expect(line).not.toContain(piiFragment);
     }
-    const stageFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_stage_failed"'));
+    const stageFailedLine = loggedLines.find((line) =>
+      line.includes('"event":"pipeline_stage_failed"')
+    );
     expect(stageFailedLine).toBeDefined();
 
     errorSpy.mockRestore();

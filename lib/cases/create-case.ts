@@ -44,9 +44,7 @@ export interface CreateCaseAlreadyProcessing {
 }
 
 export type CreateCaseResult =
-  | CreateCaseSuccess
-  | CreateCaseValidationFailure
-  | CreateCaseAlreadyProcessing;
+  CreateCaseSuccess | CreateCaseValidationFailure | CreateCaseAlreadyProcessing;
 
 function toFieldErrors(
   issues: { path: PropertyKey[]; message: string }[]
