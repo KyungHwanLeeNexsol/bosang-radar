@@ -20,9 +20,11 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 | `completion_transaction_failed` | `lib/cases/create-case.ts` | 완료 기록 트랜잭션(cases/reports INSERT + 리스 해제)이 실패해 롤백됨 |
 | `post_failure_lease_release_failed` | `lib/cases/create-case.ts` | 위 트랜잭션 실패 후 후속 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다 |
 
-**확인 위치**: Vercel에 배포된 경우 Vercel 대시보드의 해당 프로젝트 → Logs
-탭에서 위 `event` 값으로 검색한다. 로컬에서는 `pnpm dev` 실행 중인 터미널에
-그대로 출력된다.
+**확인 위치**(v0.10.0 정정 — 호스팅이 Netlify Free로 확정됨): Netlify에 배포된
+경우 Netlify 대시보드의 해당 프로젝트 → **Logs → Functions**(또는 프로젝트
+개요의 **Functions** 탭 → 대상 함수 선택 → 로그)에서 위 `event` 값으로 검색한다.
+로컬에서는 `pnpm dev` 실행 중인 터미널에 그대로 출력된다. (이전 버전은 Vercel
+대시보드를 기준으로 서술했다 — HISTORICAL, spec.md HISTORY v0.8.0 참고.)
 
 ## 2. 테스터 재시도 안내
 

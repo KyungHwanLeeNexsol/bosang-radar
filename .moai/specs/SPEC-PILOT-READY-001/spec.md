@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.9.0"
+version: "0.10.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,31 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.10.0): 외부 구현 검토(run-phase, 8차) 반영 — 8차 검토가 공식 출처
+  URL(`docs.netlify.com/build/functions/configuration/#default-values`)을 제시해
+  이 세션이 직접 재확인한 결과, **동기 함수 실행 제한의 공식 게시 값은 60초(변경
+  불가, 2026-07-06 갱신)임을 확인했다** — 이 세션이 v0.8.0/v0.9.0에서 반복 주장한
+  "10초(Free/Personal), 26초(Pro)"는 검색엔진 요약 결과와 커뮤니티 포럼에 의존한
+  결과였고, 이번에 직접 원문 표를 재확인해 **정정한다**. v0.8.0/v0.9.0의 "공식
+  문서가 10초를 확인했다", "60초는 스트리밍 전용이다", "외부 검토가 URL을 제공하지
+  않았다"는 문구는 모두 제거했다(더 이상 사실이 아니다). **이제 3층위 증거로
+  기록한다**: (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티 관측 ~10초
+  (2026-09-08 게시, Netlify 직원의 공식 확인 없음 — 지원 티켓만 생성됨), (c) 이
+  프로젝트 계정에 실제 적용되는 상한은 실 배포 전까지 UNVERIFIED. spec REQ-001/002/
+  016(1), acceptance AC-001/002/016b, plan §A 결정 1/4·M4·§F, Out of Scope, 출처,
+  readiness-decision 템플릿을 모두 이 3층위 기준으로 동기화했다. 기존 route
+  `maxDuration=300`과 lease `TTL=330`은 현행 구현값 그대로 유지하되, Netlify가
+  이 값을 보장한다는 근거로는 더 이상 쓰지 않는다. 비동기(POST 202+상태조회) 재설계
+  제안은 "필수 선행"이 아니라 "실측 초과 시 조건부 대안"이라는 재조정을 유지하되,
+  §5의 재설계 범위 설명을 더 정확히 다듬었다. `.moai/docs/pilot-incident-runbook.md`
+  §1의 로그 확인 위치를 Vercel Logs에서 Netlify Functions 로그로 정정했다. progress.md
+  AC-001(Netlify 적합성 UNVERIFIED로 재작성), AC-009(Netlify 로그 위치 정정 +
+  triage 담당자 반영 후 PASS로 전환), AC-013(BLOCKED 유지, 문구를 "이메일
+  미확정"에서 "주소 확정·로컬 설정 완료, Netlify 환경 설정/렌더링 미검증"으로
+  정정)을 갱신하고 집계를 재계산했다. v0.8.0의 "동기 함수 10초/BLOCKED" 원본 기록은
+  삭제하지 않고 HISTORICAL로 명시적으로 표시했다(아래 v0.8.0 항목 참고). 코드
+  변경·실 배포·Gemini 재호출·테스터 초대·비동기 SPEC 생성·PR·main 병합은 이번에도
+  수행하지 않았다.
 - 2026-09-11 (v0.9.0): 외부 구현 검토(run-phase, 7차) 반영 — v0.8.0의 판정 언어와
   일부 사실 주장을 정정했다. **(a) BLOCKED→UNVERIFIED**: 실 배포를 하지 않은
   상태에서 "구조적으로 BLOCKED"라고 단정한 것은 acceptance.md
@@ -38,7 +63,10 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
   실수이므로, 어느 쪽도 확정하지 않고 불일치 상태 자체를 기록했다(스파이크
   리포트 §3) — 사용자의 추가 확인 또는 실 배포 실측이 필요하다. 코드·배포·API
   재실행·테스터 초대·PR·병합은 이번에도 수행하지 않았다.
-- 2026-09-11 (v0.8.0): **호스팅 후보를 Vercel에서 Netlify Free로 변경 확정**(운영
+- 2026-09-11 (v0.8.0, **HISTORICAL — 이 항목의 "동기 함수 10초"/"BLOCKED" 판정은
+  v0.9.0에서 UNVERIFIED로, v0.10.0에서 3층위 증거(공식 60초/커뮤니티 ~10초/이
+  프로젝트 UNVERIFIED)로 각각 폐기·대체됐다. 아래 원문은 감사 기록으로만
+  보존한다.**): **호스팅 후보를 Vercel에서 Netlify Free로 변경 확정**(운영
   결정) — DB는 Turso Free, AI는 Gemini API Free 유지. 지원 연락처
   이메일(`zuge3927@naver.com`)과 장애 대응 triage 담당자(이경환, 1영업일 이내 1차
   확인)를 확정하고 `.env.local`/`.moai/docs/pilot-incident-runbook.md`에 반영했다.
@@ -507,8 +535,8 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-001 | Ubiquitous | 이 SPEC의 배포 준비 계획은 Vercel 배포 tier 선택을 "실행 시간 상한" 문제가 아니라 **Fair Use Guidelines의 상용(commercial) 사용 정의 준수 여부** 문제로 다뤄야 한다. Vercel Hobby(무료) tier의 Fair Use Guidelines는 "이 프로젝트 제작 어느 부분에든 관여한 누군가(유급 직원·컨설턴트 포함)의 금전적 이익을 위한 배포"를 상용 사용으로 정의한다. 유급 개발자가 구축한 B2B 파일럿(외부 전문가 테스터 대상)이 이 정의에 해당하는지는 Vercel 공식 문서만으로 확정할 수 없는 미확인 사항이며, Vercel 자신도 불확실한 경우 지원팀 문의를 안내한다. 이 SPEC은 Hobby(무료, ToS 준수 여부 미확인)와 Pro($20/좌석/월 + 포함 크레딧 초과분 사용량 과금, "플랫폼의 모든 상용 사용은 Pro 또는 Enterprise 플랜을 요구한다"고 명시적으로 ToS 준수 보장)를 문서화된 두 후보로 병기해야 하며, 실제 채택은 이 SPEC이 내리지 않는다 — run-phase 착수 전 비용 결정 권한을 가진 사람의 확인이 필요한 **미확정 결정**으로 명시적으로 기록한다. | Vercel 공식 문서(Fair Use Guidelines — 상용 사용 정의; Pricing 페이지 — Pro $20/좌석/월 + 사용량; "모든 상용 사용은 Pro/Enterprise 요구" 명시), 오케스트레이터 조사 세션(배포 준비 갭 조사), 유료 플랜 사용 증거 부재 확인 |
-| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 환경(또는 가장 근접한 가용 환경)에서 `POST /api/cases`의 실제 요청 처리 시간(로컬 실측 기준선: 30초, `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번)을 측정하고, 그 값이 REQ-PILOT-READY-001에서 실제로 선택된 tier의 서버리스 함수 실행 시간 상한 안에 들어오는지 문서로 남겨야 한다. Fluid Compute가 기본 활성화된 현재 Vercel Hobby tier의 함수 실행 시간은 기본값이자 최댓값이 300초(5분)이고, Pro tier는 기본 300초/GA 최대 800초/베타 최대 1800초다 — 로컬 실측 30초는 두 tier 모두의 상한에 여유 있게 들어오므로, 이 REQ는 "위험 요인을 찾는 측정"이 아니라 "선택된 tier에서도 여전히 안전한지 확인하는 정합성 점검(sanity check)"으로 재정의된다. 상한을 초과하면 해결 방법(플랜 업그레이드, 파이프라인 단축 등)은 이 SPEC의 범위가 아니며 후속 SPEC으로 명시적으로 미룬다. 이 실측은 (v0.5.0 정밀화) **최소 3회 이상**의 개별 요청 실행으로 구성되어야 하며(단일 1회 실행만으로는 이 REQ의 문서화 요건을 충족하지 못한다), 각 실행의 처리 시간을 초 단위로 개별 기록해야 한다 — 이 REQ 자체는 여전히 "측정이 정확히 수행·기록되었는가"만 판정하며(§ 측정 완료 vs. 파일럿 진행 여부 판단 구분 참고), 그 값이 REQ-PILOT-READY-016 항목(1)의 호스팅 적합성 READY 판정 기준(실제 배포 도메인 기준 최대 처리 시간 270초 이하)을 충족하는지는 REQ-PILOT-READY-016/AC-PILOT-READY-016b가 별도로 판정한다. | Vercel 공식 문서(Functions 실행 시간 문서 — Fluid Compute 기본 활성화, Hobby 300s 기본/최대, Pro 300s 기본/800s GA 최대/1800s 베타 최대), 사용자 지시(측정 후 문서화) |
+| REQ-PILOT-READY-001 | Ubiquitous | **(v0.10.0 재작성 — 호스팅이 Netlify Free로 확정됨에 따라, 이전 버전의 Vercel Fair Use Guidelines 상용 사용 정의 논의는 HISTORICAL이다, HISTORY 참고.)** 이 SPEC의 배포 준비 계획은 호스팅 tier 선택 문제가 아니라 **Netlify Free의 실제 동기 함수 실행 시간 상한이 이 파일럿의 요구를 충족하는지**를 3개 증거 층위로 구분해 판정해야 한다: (a) **공식 게시 값** — 동기(synchronous) 함수 60초, 설정 변경 불가(`docs.netlify.com/build/functions/configuration/#default-values`의 Default values 표, 2026-07-06 갱신 확인됨); (b) **상충하는 커뮤니티 관측** — 일부 사용자가 Pro 플랜에서도 약 10초 근방의 타임아웃을 경험했다고 보고하나(예: `answers.netlify.com/t/synchronous-function-timeout/168727`, 2026-09-08), Netlify 직원은 지원 티켓만 생성했을 뿐 10초/26초 상한을 공식 확인하지 않았다; (c) **이 프로젝트 계정에 실제 적용되는 상한** — 실 배포 전까지 **UNVERIFIED**. 이 세 층위를 하나의 확정 숫자로 뭉뚱그려 서술해서는 안 되며, 어느 층위의 값인지 항상 명시해야 한다. | Netlify 공식 문서(Functions Configuration — Default values 표), Netlify 커뮤니티 포럼(상충하는 사용자 관측, 직원의 비공식 확인), 사용자 운영 결정(호스팅 Netlify Free 확정, 2026-09-11) |
+| REQ-PILOT-READY-002 | When(이벤트 감지) | When 파일럿 런칭 준비 절차가 수행되면, 실제 배포된 **Netlify** 환경(또는 가장 근접한 가용 환경)에서 `POST /api/cases`의 실제 요청 처리 시간을 최소 3회 이상 개별 측정하고, 그 값을 REQ-PILOT-READY-001(c)에서 실제로 확인되는 상한과 비교해 문서로 남겨야 한다(v0.10.0 재작성 — Vercel Fluid Compute 300s/800s/1800s 논의는 HISTORICAL). 다른 환경(예: `.moai/reports/gemini-runtime-smoke-20260828.md`의 30초)에서의 과거 실측은 참고 자료로만 인용할 수 있으며, 이 REQ가 요구하는 Netlify 배포 적합성 증거를 대체하지 못한다. 이 REQ는 "위험 요인을 찾는 측정"이 아니라 "실제 적용 상한 안에서도 안전한지 확인하는 정합성 점검(sanity check)"이다 — 단, REQ-PILOT-READY-001(c)가 UNVERIFIED인 동안에는 비교 기준 자체가 없으므로 이 REQ도 함께 UNVERIFIED로 남는다. 상한을 초과하거나 안전 여유가 부족하면 대응책(플랜 업그레이드, 비동기 재설계 등)은 이 SPEC의 범위가 아니며 후속 판단으로 명시적으로 미룬다. 이 실측은 (v0.5.0 정밀화) **최소 3회 이상**의 개별 요청 실행으로 구성되어야 하며, 각 실행의 처리 시간을 초 단위로 개별 기록해야 한다. 그 값이 REQ-PILOT-READY-016 항목(1)의 호스팅 적합성 READY 판정 기준(**확인된 실제 상한과 안전 여유를 기준으로 판정** — v0.10.0, 특정 초 값을 미리 확정하지 않음)을 충족하는지는 REQ-PILOT-READY-016/AC-PILOT-READY-016b가 별도로 판정한다. | Netlify 공식 문서(REQ-PILOT-READY-001 근거와 동일), 사용자 지시(측정 후 문서화) |
 
 ### B. Gemini 쿼터 사전 점검 (Operational Checklist)
 
@@ -577,15 +605,16 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 **7개 항목**(v0.4.0 — 기존 6개에서 Gemini 쿼터를 독립 항목으로 승격)을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) **호스팅 적합성** — 선택된 tier의 기간·ToS 적합성 **결정**(REQ-PILOT-READY-001)과, 실제 **배포 도메인** 환경에서 REQ-PILOT-READY-002가 요구하는 **최소 3회 이상**의 개별 측정 실행 중 **관측된 최대 처리 시간이 270초 이하**(선택된 tier의 `maxDuration`(300초) 상한 대비 약 30초의 안전 여유 — 측정된 파이프라인 로직 자체가 아니라 플랫폼 수준의 콜드스타트·네트워크 오버헤드를 흡수하기 위함, v0.5.0 정밀화)임을 보여주는 **실측 증거**(REQ-PILOT-READY-002) 둘 다가 있어야 READY — 결정만 있고 실측이 없거나, 실측 횟수가 3회 미만이거나, 관측된 최대 처리 시간이 270초를 초과하거나, 로컬(`next start`) 실행 결과만 있으면 UNVERIFIED; (2) **Gemini 쿼터**(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) — 실제 AI Studio 쿼터 대시보드를 확인한 기록(확인 날짜·확인자 포함)과, 그 관측된 실제 한도를 근거로 실제 선택한 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 실제로 기록되어야 READY — **값이 코드 기본값 4와 같더라도, 4가 관측된 실제 한도의 약 70~80%에 해당한다는 근거가 함께 기록되어 있으면 정상적으로 READY 조건을 충족한다(v0.5.0 정정 — "기본값 4가 유지되면 자동 UNVERIFIED"라는 과도하게 엄격한 이전 표현을 교정)**; 대시보드 확인 자체가 수행되지 않은 채(근거 기록 없이) 기본값 4만 남아 있는 상태만이 UNVERIFIED; (3) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행); (4) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작); (5) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증 — 반드시 실제 배포 도메인 기준이며, 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다); (6) **서로 다른 사용자 동시 부하**(REQ-PILOT-READY-006) — 배치 안의 모든 요청이 성공적인 최종 상태에 도달하고 그 결과가 실제로 DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없어야 READY(기존 재시도/백오프로 흡수된 429는 무방); (7) **저장소/복구 검증**(REQ-PILOT-READY-007의 리스+트랜잭션 보장) — 실제 원격 Turso 대상에 대한 검증만 READY로 인정하며, 로컬/in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다. **전체 게이트 규칙**: (1)의 tier/ToS 적합성 "결정" 자체(문서 판단으로 가능)를 제외하고, 원격 검증 또는 실측이 필요한 항목((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 존재하지 않는다. 로컬 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). **run-phase 완료 시점 공정(v0.4.0 명시)**: 이 문서는 run-phase 착수 시점에는 7개 항목의 표와 판정 기준만 담은 템플릿으로 작성된다. run-phase의 **마지막 마일스톤**에서는 7개 항목 모두에 실제 READY/BLOCKED/UNVERIFIED 판정값과 전체 GO/NO-GO 판정이 채워져야 하며, 템플릿이 비어 있는 상태로 run-phase가 종료되는 것은 이 SPEC의 run-phase 완료 상태로 허용되지 않는다 — 단, 실제로 채워 넣은 판정 결과가 **NO-GO**인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만 금지된다). | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지, 게이트 평가 자체를 run-phase 완료 조건으로 명시할 것) |
+| REQ-PILOT-READY-016 | Ubiquitous | 파일럿을 실제 외부 테스터에게 여는 최종 결정은 **이 SPEC 자체의 구현 완료**와 **구조적으로 분리된** 별도의 판정 문서로 내려야 한다. `.moai/reports/pilot-ready-readiness-decision-<date>.md`(신규)는 다음 **7개 항목**(v0.4.0 — 기존 6개에서 Gemini 쿼터를 독립 항목으로 승격)을 각각 독립적으로 READY / BLOCKED / UNVERIFIED 중 하나로 판정해야 한다: (1) **호스팅 적합성**(v0.10.0 재작성 — Netlify 기준, 특정 초 값을 미리 확정하지 않는다) — Netlify Free 호스팅 확정(REQ-PILOT-READY-001)과, 실제 **배포 도메인**(`*.netlify.app`) 환경에서 REQ-PILOT-READY-002가 요구하는 **최소 3회 이상**의 개별 측정 실행 결과를 REQ-PILOT-READY-001(c)에서 그 시점에 실제로 확인된 상한과 대조해, **확인된 실제 상한에서 콜드스타트·네트워크 오버헤드를 흡수할 안전 여유를 뺀 값 이하**로 관측된 최대 처리 시간이 들어오면 READY — 결정만 있고 실측이 없거나, 실측 횟수가 3회 미만이거나, 관측된 최대 처리 시간이 그 안전 여유 기준을 초과하거나, 로컬(`next start`) 실행 결과만 있거나, REQ-PILOT-READY-001(c)의 실제 적용 상한 자체가 아직 확인되지 않았으면(비교 기준 부재) UNVERIFIED; (2) **Gemini 쿼터**(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) — 실제 AI Studio 쿼터 대시보드를 확인한 기록(확인 날짜·확인자 포함)과, 그 관측된 실제 한도를 근거로 실제 선택한 `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 실제로 기록되어야 READY — **값이 코드 기본값 4와 같더라도, 4가 관측된 실제 한도의 약 70~80%에 해당한다는 근거가 함께 기록되어 있으면 정상적으로 READY 조건을 충족한다(v0.5.0 정정 — "기본값 4가 유지되면 자동 UNVERIFIED"라는 과도하게 엄격한 이전 표현을 교정)**; 대시보드 확인 자체가 수행되지 않은 채(근거 기록 없이) 기본값 4만 남아 있는 상태만이 UNVERIFIED; (3) 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행); (4) 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작); (5) 실 Gemini 스모크(REQ-PILOT-READY-010 재검증 — 반드시 실제 배포 도메인 기준이며, 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다); (6) **서로 다른 사용자 동시 부하**(REQ-PILOT-READY-006) — 배치 안의 모든 요청이 성공적인 최종 상태에 도달하고 그 결과가 실제로 DB에 영속화·조회 가능하며, 처리되지 않은 429/5xx/타임아웃이 하나도 없어야 READY(기존 재시도/백오프로 흡수된 429는 무방); (7) **저장소/복구 검증**(REQ-PILOT-READY-007의 리스+트랜잭션 보장) — 실제 원격 Turso 대상에 대한 검증만 READY로 인정하며, 로컬/in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다. **전체 게이트 규칙**: (1)의 tier/ToS 적합성 "결정" 자체(문서 판단으로 가능)를 제외하고, 원격 검증 또는 실측이 필요한 항목((1)의 타임아웃 실측 포함, 2~7) 중 하나라도 BLOCKED이거나 UNVERIFIED(실행되지 않음)이면 전체 판정은 **NO-GO**여야 한다 — "부분적으로 준비됨"이라는 절충 상태는 존재하지 않는다. 로컬 실행 결과만 있는 항목은 절대 READY로 판정할 수 없으며 UNVERIFIED로 남아야 한다(§ 로컬 대체 실행 증거의 위상과 동일 원칙, 이 문서에 한해 명시적으로 재확인). **run-phase 완료 시점 공정(v0.4.0 명시)**: 이 문서는 run-phase 착수 시점에는 7개 항목의 표와 판정 기준만 담은 템플릿으로 작성된다. run-phase의 **마지막 마일스톤**에서는 7개 항목 모두에 실제 READY/BLOCKED/UNVERIFIED 판정값과 전체 GO/NO-GO 판정이 채워져야 하며, 템플릿이 비어 있는 상태로 run-phase가 종료되는 것은 이 SPEC의 run-phase 완료 상태로 허용되지 않는다 — 단, 실제로 채워 넣은 판정 결과가 **NO-GO**인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다(판정을 회피하는 것만 금지된다). | 사용자 지시(SPEC 완료와 파일럿 외부 착수 가능 여부를 명확히 구분할 것, 원격 필수 항목의 부분 통과 금지, 게이트 평가 자체를 run-phase 완료 조건으로 명시할 것) |
 
 ## Out of Scope
 
-### Out of Scope — Vercel CI/CD 자동화
+### Out of Scope — Netlify CI/CD 자동화 (v0.10.0 — Vercel에서 Netlify로 대상 갱신)
 
-- 정식 Vercel CI/CD 배포 자동화 파이프라인 구축은 이 SPEC의 범위가 아니다 — 이 SPEC은
-  선택된 tier(REQ-PILOT-READY-001)에서의 타임아웃 정합성 확인·문서화(REQ-PILOT-READY-002)까지만
-  다룬다.
+- 정식 Netlify CI/CD 배포 자동화 파이프라인 구축(예: 브랜치별 배포 컨텍스트 세부
+  튜닝, 커스텀 빌드 플러그인 개발)은 이 SPEC의 범위가 아니다 — 이 SPEC은 Netlify Free
+  호스팅 확정(REQ-PILOT-READY-001)에서의 실행 시간 상한 정합성 확인·문서화
+  (REQ-PILOT-READY-002)까지만 다룬다.
 
 ### Out of Scope — "최근 리서치" 패널의 processing/failed 상태 표시 (v0.4.0: 더 이상 적용되지 않음 — 기각된 옛 설계에서만 유효했던 우려)
 
@@ -663,11 +692,21 @@ REQ-PILOT-READY-007의 구현 방식 결정에 조건부가 아니다 — `lib/d
   단일 writer 트랜잭션 모델 근거(조건부 UPSERT의 구체적 구문 형태 자체는 별도 재검증되지 않은 한계로 명시)
 - Turso 공식 블로그(turso.tech/blog/concurrent-writes-on-turso-cloud) — 이 프로젝트가 사용하는
   표준(비-MVCC) Turso Cloud 아키텍처와, 신규 opt-in MVCC `tursodb` 엔진이 별개임을 확인하는 근거
-- Vercel 공식 문서(Fair Use Guidelines, Functions 실행 시간 문서, Pricing 페이지) —
-  REQ-PILOT-READY-001/002의 Hobby/Pro tier 근거
+- (HISTORICAL, v0.9.0 이전) Vercel 공식 문서(Fair Use Guidelines, Functions 실행
+  시간 문서, Pricing 페이지) — 폐기된 Vercel Hobby/Pro tier 검토의 근거였다. 호스팅이
+  Netlify Free로 대체된 이후에는 REQ-PILOT-READY-001/002가 이 근거를 참조하지 않는다.
+- (v0.10.0 추가) Netlify 공식 문서 — Functions Configuration Default values 표
+  (`docs.netlify.com/build/functions/configuration/#default-values`, 2026-07-06 갱신
+  확인) — REQ-PILOT-READY-001/002의 "공식 게시 값 60초" 근거
+- (v0.10.0 추가) Netlify 커뮤니티 포럼(`answers.netlify.com/t/synchronous-function-timeout/168727`
+  등) — REQ-PILOT-READY-001의 "상충하는 커뮤니티 관측 ~10초" 근거(Netlify 직원의
+  공식 확인 없음)
 - `.moai/reports/gemini-runtime-smoke-20260828.md` §실행 로그 5번 — REQ-PILOT-READY-007의
-  리스 TTL 산정에 참고하는 로컬 happy-path 실측 처리 시간(30초) 기준선(v0.4.0부터 TTL 값
-  자체는 이 실측이 아니라 `maxDuration`(300초) + 안전 여유로 산정됨 — §A 결정 1 참고)
+  리스 TTL 산정에 참고하는 다른 환경에서의 happy-path 실측 처리 시간(30초) 기준선
+  (TTL 값 자체는 이 실측이 아니라 `maxDuration`(300초) + 안전 여유로 산정됨 — §A 결정 1
+  참고). Netlify 배포 적합성의 확정 증거로는 세지 않는다(스파이크 리포트 §4 참고).
+- `.moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` — Netlify 적합성
+  스파이크(v0.8.0-v0.10.0에 걸친 3라운드 정정 이력 포함)
 - (v0.4.0 추가) `@libsql/client@0.17.4` 소스(unpkg.com/@libsql/client@0.17.4/lib-esm/http.js)
   + `drizzle-orm@0.45.2` 소스(unpkg.com/drizzle-orm@0.45.2/libsql/session.js) +
   `github.com/tursodatabase/libsql-client-ts` CHANGELOG.md +

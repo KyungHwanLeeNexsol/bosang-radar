@@ -57,7 +57,7 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 | # | 항목 | 판정 | 근거 리포트 | 비고 |
 |---|------|------|-------------|------|
-| 1 | 호스팅 적합성(선택된 tier의 기간·ToS 적합성 **결정** + 실제 배포 도메인 기준 **실측 증거**) | `UNVERIFIED` | `.moai/reports/pilot-ready-deployment-tier-decision-*.md` + `.moai/reports/pilot-ready-timeout-measurement-*.md` | 원격 실행이 아닌 문서적 판단(tier/ToS 결정)은 전체 게이트 규칙의 예외지만, **타임아웃 실측 증거는 예외가 아니다** — 결정과 실측 둘 다 있어야 READY (§항목별 READY 세부 기준 (1) 참고) |
+| 1 | 호스팅 적합성(Netlify Free 확정 + 3층위 실행시간 상한 증거 + 실제 배포 도메인 기준 **실측 증거**, v0.10.0 재작성) | `UNVERIFIED` | `.moai/reports/pilot-ready-deployment-tier-decision-*.md` + `.moai/reports/pilot-ready-timeout-measurement-*.md` | 호스팅 결정(Netlify Free) 자체는 이미 확정됐지만, **타임아웃 실측 증거는 게이트 예외가 아니다** — 3층위 상한 증거와 실측 둘 다 있어야 READY (§항목별 READY 세부 기준 (1) 참고) |
 | 2 | Gemini 쿼터(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) | `UNVERIFIED` | `.moai/reports/pilot-ready-quota-checklist-*.md`(또는 런북 통합 섹션) | 원격 필수 — 실제 AI Studio 대시보드 확인 기록 필요 (§항목별 READY 세부 기준 (2) 참고) |
 | 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `UNVERIFIED` | `.moai/reports/pilot-ready-remote-db-verification-*.md` | 원격 필수 — 로컬 대체 불가 |
 | 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `UNVERIFIED` | `.moai/reports/pilot-ready-auth-domain-verification-*.md` | 원격 필수 — 로컬 대체 불가 |
@@ -67,14 +67,19 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 ## 항목별 READY 세부 기준 (v0.5.0 신규 — acceptance.md AC-PILOT-READY-016b와 정확히 일치)
 
-- **(1) 호스팅 적합성** — tier/ToS 적합성 "결정" 기록(문서적 판단으로 가능)과, 실제
-  **배포 도메인** 환경에서 수행된 **최소 3회 이상**의 개별 측정 실행 각각의 처리
-  시간이 기록되어 있고 그 중 **관측된 최대 처리 시간이 270초 이하**(선택된 tier의
-  `maxDuration`(300초) 상한 대비 약 30초의 안전 여유 — 파이프라인 로직 자체가 아닌
-  플랫폼 수준의 콜드스타트·네트워크 오버헤드를 흡수하기 위함)임을 보여주는 실측
-  증거, 둘 다가 있어야 READY다. 결정 기록만 있고 실측 증거가 없는 상태, 실측 횟수가
-  3회 미만인 상태, 관측된 최대 처리 시간이 270초를 초과하는 상태, 또는
-  로컬(`next start`) 실행 결과만으로 이 항목을 READY로 표시하는 것은 모두 금지된다.
+- **(1) 호스팅 적합성**(v0.10.0 재작성 — Netlify 기준, 특정 초 값을 미리 확정하지
+  않는다) — Netlify Free 호스팅 확정 기록과, 이 프로젝트 계정의 실제 적용 상한을
+  3층위로 구분해 기록한 증거 — (a) 공식 게시 값(60초, 변경 불가,
+  `docs.netlify.com/build/functions/configuration/#default-values`), (b) 상충하는
+  커뮤니티 관측(~10초, 미확인), (c) 이 프로젝트 계정의 실제 적용 상한(실 배포 결과)
+  — 그리고 실제 **배포 도메인**(`*.netlify.app`) 환경에서 수행된 **최소 3회 이상**의
+  개별 측정 실행 각각의 처리 시간이 기록되어 있고, 그 중 **관측된 최대 처리 시간**이
+  (c)에서 확인된 실제 상한에서 콜드스타트·네트워크 오버헤드를 흡수할 안전 여유를
+  뺀 값 이하임을 보여주는 실측 증거, 이 모두가 있어야 READY다. 3층위 기록이
+  없거나 서로 혼동된 상태, 실측 증거가 없는 상태, 실측 횟수가 3회 미만인 상태,
+  관측된 최대 처리 시간이 안전 여유 기준을 초과하는 상태, 로컬(`next start`) 실행
+  결과만으로 이 항목을 READY로 표시하는 것, 또는 (c)가 UNVERIFIED인 채로 이 항목을
+  READY로 표시하는 것은 모두 금지된다.
 - **(2) Gemini 쿼터** — 실제 AI Studio 쿼터 대시보드를 확인했다는 기록(확인 날짜·
   확인자 포함)과, 그 관측된 실제 한도를 근거로 실제 선택한
   `GEMINI_RESEARCH_RPM_BUDGET`/`GEMINI_FAST_RPM_BUDGET` 값이 기록되어 있어야 READY다.
