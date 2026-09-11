@@ -1,8 +1,8 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-10 (SPEC-PILOT-READY-001 v0.2.0 개정 반영 — §Roadmap을 SPEC 상태
-> 기준 3단계(구현 완료/배포 검증 필요/후속 개발)로 갱신; 이전 개정: 2026-08-24 D1/D2
-> 후속 개정 — 접근 제어 및 PII 검증 원칙 추가, 성공 기준 구체화)
+> 최종 수정: 2026-09-12 (SPEC-PILOT-READY-001 v0.14.0 반영 — Netlify Deploy Preview
+> 수정 성공과 잔여 원격 readiness 검증 상태 동기화; 이전 개정: 2026-09-10 §Roadmap
+> 3단계 분류)
 
 ## 한 줄 소개
 
@@ -93,15 +93,17 @@
 - Pencil 디자인 전체 화면 확장 재현 — SPEC-UI-MIGRATION-001
 - E2E storageState 인증 재사용(Better Auth rate-limit flaky 제거) — SPEC-E2E-AUTH-STATE-001
 
-### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기 (`status: in-progress`, v0.11.0)
+### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기 (`status: in-progress`, v0.14.0)
 
 - **파일럿 배포 준비**(SPEC-PILOT-READY-001) — **호스팅은 Netlify Free로 확정**
   (DB: Turso Free, AI: Gemini API Free). 동기 함수 실행 시간 제한은 3층위
   증거로 기록한다 — (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티
   관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지
   UNVERIFIED. **구현(M1: 사용자별 동시 실행 가드, M2: 최소 구조적 로깅, M3: 데이터
-  취급 고지 정직성 개선, M5: 최소 장애 대응 런북, M6: 테스트)은 완료됐다** — 검증:
-  60/60 test files, 430/430 tests, `format:check` PASS. **M4(실 인프라 검증 7건 —
+  취급 고지 정직성 개선, M5: 최소 장애 대응 런북, M6: 테스트)은 완료됐고, PR #10의
+  자동 Deploy Preview에서 발견된 Middleware 네이티브 애드온 번들링 문제도 수정 후
+  재배포에 성공했다** — 검증: 62/62 test files, 431/431 tests, `format:check` PASS.
+  **M4(실 인프라 검증 7건 —
   Gemini 쿼터 사전 점검, 원격 Turso 인스턴스 마이그레이션/시드 검증, 실 배포
   도메인 인증 검증, 동시성 실측, 실 Gemini 스모크 재검증, 타임아웃 실측, 최종
   readiness 판정)은 여전히 대기 중이며, readiness-decision 문서는 7개 항목 전부
@@ -125,9 +127,9 @@
 
 그 밖의 후속 개발 후보(순서 무관, 병행 가능):
 
-- Netlify 정식 CI/CD 배포 자동화 파이프라인 구축(SPEC-PILOT-READY-001은 타임아웃
-  정합성 확인까지만 다룸) — PR #10에서 Netlify 자동 Deploy Preview가 실패한
-  원인 조사가 선행되어야 함
+- Netlify 프로덕션 배포 확정(SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만
+  다룸) — PR #10 자동 Deploy Preview는 수정 후 통과했으나, 연결된 사이트를 장기
+  프로덕션 사이트로 채택하고 main 병합 시 자동 프로덕션 배포를 사용할지는 미결정
 - 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝
 - (장기) PostgreSQL 마이그레이션 실행(Drizzle ORM 뒤에서 이전 가능한 구조는 이미
   유지 중, 실제 마이그레이션은 미실행)

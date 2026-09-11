@@ -41,7 +41,7 @@ export interface RunPipelineOptions {
 // @MX:NOTE: [AUTO] 동시 사건 제한(design.md §4, REQ-GEMINI-RUNTIME-013/014) —
 // 순수 인메모리 Promise 체인 뮤텍스다(신규 의존성 없음, Redis 없음, 큐
 // 프레임워크 없음). 프로세스 로컬 보호일 뿐이며 분산 락이 아니다 — Node.js
-// 모듈 스코프 변수이므로 Vercel의 서로 다른 serverless 인스턴스(별도
+// 모듈 스코프 변수이므로 Netlify의 서로 다른 serverless 인스턴스(별도
 // 프로세스) 사이에서는 전혀 공유되지 않는다. 대기 시간에 참된 상한은
 // 없다(design.md §4 D4) — 락 보유자의 Gemini 네트워크 지연, RateScheduler
 // 페이싱 대기, GeminiProvider.withRetry() 재시도 대기가 모두 이 대기

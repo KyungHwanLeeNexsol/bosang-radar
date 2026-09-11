@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+### Added — SPEC-PILOT-READY-001 파일럿 배포 준비 — Netlify Preview 통과, 원격 readiness `NO-GO` 유지
+
+외부 전문가 파일럿 전에 필요한 최소 운영 안전장치를 구현하고 Netlify Free 배포 적합성을 점검했습니다. 사용자별 DB 리스 기반 동시 실행 가드, 구조적 비식별 로그, 데이터 취급 고지, 장애 대응 런북을 추가했습니다. PR #10의 자동 Deploy Preview에서 `@libsql/client` 네이티브 애드온이 Middleware 번들에 포함되는 문제를 발견해 세션 쿠키 판별 코드를 DB 비의존 모듈로 분리했고, 수정 후 Preview가 통과했습니다.
+
+- **동시 실행 가드**: `reservations.owner_user_id` 유일 제약과 330초 TTL·lease ID 펜싱으로 같은 사용자의 중복 파이프라인 실행을 차단하고, 완료 기록은 사건·리포트 저장과 동일 트랜잭션으로 처리
+- **운영 안전성**: 오류명·코드·단계만 허용하는 구조적 로그와 Netlify 로그 확인·재시도 안내·triage 담당자를 담은 파일럿 장애 대응 런북 추가
+- **데이터 취급 고지**: 합성 또는 사전 비식별화된 사건만 허용하고 실 PII·원본 문서 입력을 금지한다는 운영 계약을 반영하고, `SUPPORT_CONTACT_EMAIL`이 설정되면 활성 지원 링크를 렌더링하도록 구성
+- **Netlify Preview 수정**: `proxy.ts`가 DB 의존 세션 모듈을 전이 import하지 않도록 `lib/auth/session-cookie.ts`를 분리하고 import-graph 회귀 테스트 추가
+
+**검증**: `pnpm exec vitest run` 62/62 test files·431/431 tests, `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm run format:check`, `pnpm build`, `pnpm test:e2e`(13 passed·10 skipped·0 failed) 모두 exit 0. 자동 Deploy Preview와 Header/Redirect checks 통과. 실제 Netlify 함수 처리시간, AI Studio 쿼터, 원격 Turso, 실 도메인 인증, 실 Gemini 스모크, 서로 다른 사용자 동시 부하, 원격 저장소·복구 검증은 실행되지 않아 readiness 7개 항목은 모두 `UNVERIFIED`, 전체 판정은 `NO-GO`로 유지합니다.
+
+**참고**: `.moai/specs/SPEC-PILOT-READY-001/`, `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+
 ### Added — SPEC-E2E-AUTH-STATE-001 E2E storageState 인증 재사용 — Better Auth `/sign-in` rate-limit flaky 제거
 
 `e2e/case-input-mobile-layout.spec.ts`/`e2e/tenant-isolation.spec.ts`가 인접 스펙 파일의 로그인 누적으로 Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)에 걸려 간헐적으로 실패하던 문제를, 재시도 횟수를 늘리는 대신 두 파일의 실제 UI 로그인 자체를 없애는 방식으로 근본 해결했습니다. Playwright의 project-dependency 기반 "setup 프로젝트" 패턴을 도입해 `e2e/auth.setup.ts`가 TESTER_A/TESTER_B 각각 정확히 1회씩 로그인 후 `storageState`를 저장하고, 두 대상 파일은 그 `storageState`를 재사용해 인증된 세션으로 시작합니다.

@@ -770,4 +770,28 @@ Pages changed  skipping (실패 아님)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- `sync_status: current-state-synced`
+- `sync_updated_at: 2026-09-12`
+- **동기화 범위**: `README.md`, `.moai/project/product.md`, `.moai/project/tech.md`,
+  `CHANGELOG.md`를 v0.14.0/HEAD `11e23fe`의 실제 상태에 맞췄다. 62/62 test files·
+  431/431 tests, Netlify Deploy Preview 수정 후 성공, 장기 프로덕션 사이트 채택 미결정,
+  readiness 7개 항목 전부 `UNVERIFIED`와 전체 `NO-GO`를 서로 구분해 기록했다.
+- **SPEC 상태 유지**: `spec.md` frontmatter의 `status: in-progress`를 변경하지 않는다.
+  이 sync는 현재 상태의 문서 정합화이며, M4 원격 검증을 완료하거나 readiness를
+  `GO`로 바꿨다는 뜻이 아니다. 이 워크스페이스에는 `.env.local`, Netlify/Turso/
+  Gemini/Better Auth/테스터 환경변수, Netlify CLI 연결 상태가 없어 7개 원격 게이트를
+  실행할 수 없다.
+- **sync 검증**: 동기화 과정에서 README의 스키마 목록·전체 검증 수치와 tech.md의
+  Gemini 동시성 설명, `lib/pipeline/index.ts`의 옛 Vercel 코드 주석도 현재 구현에
+  맞게 정정했다. 변경 후 저장소에 설치된 실행 파일을 직접 사용해
+  `prettier --check`(변경한 6개 파일), `tsc --noEmit`, `eslint .`을
+  재실행했으며 모두 exit 0.
+  `pnpm run format:check`는 프로젝트 코드를 읽기 전에 로컬 Corepack 런처의
+  `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`로 종료되어, 동일한 저장소 설치본
+  `node_modules/prettier/bin/prettier.cjs`를 Node 20.19.6으로 직접 실행했다. 런타임
+  동작은 변경하지 않았고, 전체 테스트·build·E2E는 §N의 HEAD `9beb3a7` 이후 검증
+  결과를 재사용한다(`lib/pipeline/index.ts` 변경은 호스트명 주석 1단어뿐이다).
+- **다음 전환 조건**: 실제 배포 환경 접근이 제공되면 M4의 타임아웃 3회 실측, AI
+  Studio 쿼터 확인, 원격 Turso 마이그레이션·시드·테스터 생성, 실 도메인 인증,
+  실 Gemini 스모크, 서로 다른 사용자 동시 부하, 원격 리스·복구 검증을 수행하고
+  readiness-decision 문서를 다시 판정한다.
