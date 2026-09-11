@@ -59,7 +59,7 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 |---|------|------|-------------|------|
 | 1 | 호스팅 적합성(Netlify Free 확정 + 3층위 실행시간 상한 증거 + 실제 배포 도메인 기준 **실측 증거**, v0.10.0 재작성) | `UNVERIFIED` | `.moai/reports/pilot-ready-deployment-tier-decision-*.md` + `.moai/reports/pilot-ready-timeout-measurement-*.md` | 호스팅 결정(Netlify Free) 자체는 이미 확정됐지만, **타임아웃 실측 증거는 게이트 예외가 아니다** — 3층위 상한 증거와 실측 둘 다 있어야 READY (§항목별 READY 세부 기준 (1) 참고) |
 | 2 | Gemini 쿼터(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) | `UNVERIFIED` | `.moai/reports/pilot-ready-quota-checklist-*.md`(또는 런북 통합 섹션) | 원격 필수 — 실제 AI Studio 대시보드 확인 기록 필요 (§항목별 READY 세부 기준 (2) 참고) |
-| 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `UNVERIFIED` | `.moai/reports/pilot-ready-remote-db-verification-*.md` | 원격 필수 — 로컬 대체 불가 |
+| 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `UNVERIFIED` | `.moai/reports/pilot-ready-remote-db-verification-20260912.md` | 원격 마이그레이션·시드 및 읽기 재확인은 성공. `tester:add` 미실행, 원격 `users`/`allowed_testers` 0건이므로 READY 기준에는 아직 미달 |
 | 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `UNVERIFIED` | `.moai/reports/pilot-ready-auth-domain-verification-*.md` | 원격 필수 — 로컬 대체 불가 |
 | 5 | 실 Gemini 스모크(REQ-PILOT-READY-010 재검증) | `UNVERIFIED` | `.moai/reports/gemini-runtime-smoke-*.md`(신규 날짜) | 원격 필수 — **반드시 실제 배포 도메인 결과여야 한다. 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다** (§항목별 READY 세부 기준 (5) 참고) |
 | 6 | 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006) | `UNVERIFIED` | `.moai/reports/pilot-ready-concurrency-measurement-*.md` | 원격 필수, 로컬 대체는 참고 증거로만 허용 (§항목별 READY 세부 기준 (6) 참고) |
@@ -127,3 +127,4 @@ NO-GO인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다 �
 |------|--------|-----------|------|
 | 2026-09-10 | (템플릿 작성) | `unfilled`(6개 항목) | plan-phase 템플릿 최초 작성 — REQ-PILOT-READY-016 |
 | 2026-09-10 | (템플릿 갱신, v0.5.0) | `NO-GO`(7개 항목, 전부 UNVERIFIED) | v0.4.0에서 6개→7개 항목으로 정밀화된 spec.md/acceptance.md와 동기화되지 않은 채 방치되어 있던 것을 발견해 갱신. plan-phase 시점의 정직한 현재 상태(빈칸이 아니라 UNVERIFIED)를 명시적으로 채워 넣음 — 실제 판정은 run-phase 종료 시점에 재평가된다 |
+| 2026-09-12 | Codex(Netlify/Turso 실환경 확인) | `NO-GO`(원격 DB 부분 검증) | Netlify 환경변수로 원격 마이그레이션·시드와 읽기 재확인은 성공했으나 테스터 프로비저닝이 남아 항목 (3)은 UNVERIFIED 유지. 나머지 실배포 게이트도 아직 READY가 아니므로 전체 판정 유지 |

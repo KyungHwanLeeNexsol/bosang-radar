@@ -795,3 +795,29 @@ Pages changed  skipping (실패 아님)
   Studio 쿼터 확인, 원격 Turso 마이그레이션·시드·테스터 생성, 실 도메인 인증,
   실 Gemini 스모크, 서로 다른 사용자 동시 부하, 원격 리스·복구 검증을 수행하고
   readiness-decision 문서를 다시 판정한다.
+
+## §O Netlify 환경 확인 + 원격 Turso 부분 검증 (2026-09-12)
+
+사용자 확인에 따라 기존 Netlify 사이트 `musical-macaron-82feb3`에 CLI로 연결하고,
+비밀값을 출력하지 않은 채 production/deploy-preview 컨텍스트의 환경변수 존재 여부를
+확인했다. 두 컨텍스트 모두 앱 실행 필수값인 `TURSO_DATABASE_URL`,
+`TURSO_AUTH_TOKEN`, `GEMINI_API_KEY`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`과
+선택값 `SUPPORT_CONTACT_EMAIL`을 보유한다.
+
+- Netlify production 환경을 주입해 `scripts/db-migrate.ts` 실행 성공(exit 0).
+- 같은 환경에서 `scripts/db-seed.ts` 실행 성공(exit 0).
+- 독립 읽기 조회로 마이그레이션 6건, `evidence` 21건, `allowed_testers` 0건,
+  `users` 0건, `reservations` 0건을 확인했다.
+- 세부 증거: `.moai/reports/pilot-ready-remote-db-verification-20260912.md`.
+- **AC/readiness 판정**: 원격 마이그레이션·시드는 확인됐지만 `tester:add`가 미실행이고
+  실제 테스터 계정이 0건이므로 AC-PILOT-READY-004와 readiness 항목 (3)은 계속
+  `UNVERIFIED`다. 부분 성공을 READY로 올리지 않는다.
+- **실 도메인 차단**: Deploy Preview는 `/`, `/login`, `/api/auth/get-session` 모두
+  Netlify 방문자 접근 제어에서 HTTP 401을 반환한다. Production URL은 HTTP 404다.
+  따라서 앱 레이어의 인증, 실 Gemini 스모크, 처리시간 3회, 다중 사용자 부하 및
+  원격 리스/복구 검증은 아직 실행하지 못했다.
+- **설정 정정 필요**: production의 `BETTER_AUTH_URL`도 Deploy Preview URL을
+  가리키므로, production 배포 전 최종 Production URL로 분리해야 한다.
+- **Gemini 쿼터 미확인**: 두 컨텍스트 모두 RPM budget 명시값이 없어 코드 기본값 4를
+  사용한다. 실행 가능 여부와 별개로, 실제 AI Studio 한도 확인 및 그에 근거한 예산값
+  기록이 없으므로 readiness 항목 (2)은 계속 `UNVERIFIED`다.
