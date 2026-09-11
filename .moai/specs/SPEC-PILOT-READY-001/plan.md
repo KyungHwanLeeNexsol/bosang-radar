@@ -559,22 +559,17 @@ v0.3.0부터 §A 결정 1(재제출 가드 구현 방식)은 확정됐으므로 
 
 | 항목 | 상태 | 비고 |
 |------|------|------|
-| Vercel 프로젝트/tier/실제 프로덕션 도메인 | **tier: unconfirmed** / **도메인 값: unconfirmed / required-blocker(v0.4.0 명시)** | **Pro tier를 권고안으로 제시한다** — 이 프로젝트는 유급 컨설턴트가 구축한 B2B 파일럿이므로 Vercel Hobby tier의 Fair Use Guidelines 상용 사용 정의에 해당할 가능성이 높다(§A 결정 4). Hobby는 (a) Vercel의 서면 확인 또는 (b) 실제로 성립하는 비상용·개인용 근거 중 하나가 있을 때만 대안이며, 이 파일럿에는 (b)가 실제로 성립할 가능성이 낮다는 점을 정직하게 명시한다. **tier 자체(Hobby/Pro 중 선택)는 비용 결정 권한자의 미확정 결정으로 남지만, tier와 무관하게 실제 프로덕션 도메인 값 자체는 M4의 타임아웃/인증 검증 리포트(REQ-PILOT-READY-002/005)가 동작하기 위한 전제조건이므로 별개로 run-phase 필수 블로커다** — run-phase는 도메인 값 없이 완료될 수 없다 |
-| 원격 Turso 대상(어느 인스턴스/DB) | **unconfirmed / required-blocker** | REQ-PILOT-READY-004(원격 DB 검증)와 REQ-PILOT-READY-007(신규 `reservations` 테이블 마이그레이션 대상)이 이 값 없이는 실행 불가능하다 |
-| 지원 연락처 이메일 주소 | **unconfirmed / required-blocker** | REQ-PILOT-READY-013(실제 동작하는 연락 채널)의 `mailto:` 링크에 쓸 실제 주소가 필요하다 — 운영자가 실제로 모니터링하는 주소여야 한다 |
-| 장애 대응 triage 담당자(누가 파일럿 중 장애를 통보받는가) | **unconfirmed / required-blocker** | REQ-PILOT-READY-009(최소 장애 대응 런북)의 "이슈의 최종 triage 담당자" 항목에 실명 또는 역할명이 필요하다 |
+| 호스팅/프로젝트/도메인 (v0.8.0 — Vercel→**Netlify Free로 변경 확정**) | **확정: Netlify Free, 무료 `*.netlify.app` 도메인** / **구조적 required-blocker 신설** | 사용자가 Vercel 검토를 대체해 Netlify Free를 확정했다. 어댑터는 zero-config(`@netlify/plugin-nextjs`)라 별도 구조 변경은 불필요하지만, **Netlify Free의 동기 함수 실행 제한은 60초가 아니라 실제로 10초**다(`.moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` 참고, 공식 문서 확인). 지금의 동기 응답 구조(`POST /api/cases` → `201`)는 기존 실측(`gemini-runtime-smoke-20260828.md`, 30초)만으로도 이 제한을 구조적으로 넘어선다 — **비동기(POST 202 + 상태 조회) 재설계가 선행되지 않으면 이 REQ는 BLOCKED로 남는다.** 재설계는 별도 후속 SPEC으로 제안됐다(스파이크 리포트 §5) |
+| 원격 Turso 대상(어느 인스턴스/DB) | **프로바이더 확정: Turso Free / 구체적 인스턴스: 아직 미생성** | 사용자가 Turso Free를 확정했으나, 실제 인스턴스는 운영자가 직접 `turso db create`로 생성 예정(계정 로그인이 필요해 이 세션에서 대행 불가) — 생성 후 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`을 `.env.local` 및 Netlify 환경변수에 등록해야 REQ-PILOT-READY-004/007이 실행 가능하다 |
+| 지원 연락처 이메일 주소 | **확정: `zuge3927@naver.com`** (`.env.local`의 `SUPPORT_CONTACT_EMAIL`에 반영됨) | REQ-PILOT-READY-013의 `mailto:` 링크 주소가 결정됐다 — 단, 실 배포 환경(Netlify)에도 동일 환경변수를 등록하고 그 환경에서 렌더링을 검증해야 "set+verified"까지 완료된다(로컬 `.env.local` 반영만으로는 배포 환경 검증까지 끝난 것은 아니다) |
+| 장애 대응 triage 담당자(누가 파일럿 중 장애를 통보받는가) | **확정: 이경환(파일럿 운영 책임자), 장애 접수 목표 1영업일 이내 1차 확인** | REQ-PILOT-READY-009의 triage 담당자 항목이 결정됐다 — `.moai/docs/pilot-incident-runbook.md` §3을 이 값으로 갱신 필요(다음 run-phase 작업) |
 | Gemini 쿼터 점검 담당자 + 점검 시점 | **unconfirmed** | REQ-PILOT-READY-003(운영 체크리스트)의 절차를 "언제, 누가" 수행할지 확정되지 않았다 — 권고 시점: 파일럿 런칭 T-1일 |
 | 동시성 측정용 테스터 계정 3-5개 준비 방법 | **unconfirmed** | REQ-PILOT-READY-006(서로 다른 사용자 동시 부하 측정)을 실행하려면 실제로 로그인 가능한 테스터 계정 3-5개가 사전에 `pnpm tester:add`로 프로비저닝되어 있어야 한다 — 기존 테스터 계정을 재사용할지 별도 측정 전용 계정을 만들지 결정 필요 |
 
-**게이트**: 위 **6개 항목**(v0.4.0 — 표기 오류 수정: 기존 "5개"는 실제 표 행 수와
-불일치했다) 중 어느 하나라도 "required-blocker" 상태로 남아 있으면 해당 REQ의 M4
-리포트는 실행될 수 없으므로, run-phase 실행자는 그 사실을 구조화된 blocker 보고로
-오케스트레이터에 에스컬레이션한다. **Vercel tier 자체**(Hobby/Pro 중 선택)는
-required-blocker는 아니지만("unconfirmed", 비용 결정 권한자 몫), **실제 프로덕션
-도메인 값**과 **원격 Turso 대상 값**은 이 표에서 명시적으로 required-blocker로
-격상됐다(v0.4.0) — 이 둘은 tier 선택과 무관하게 run-phase의 여러 M4 리포트
-(REQ-PILOT-READY-002/004/005/007)가 동작하기 위한 전제조건이므로, run-phase는 이
-두 값이 실제로 확정되지 않은 채로는 완료될 수 없다. Implementation Kickoff Approval
-시점에 최소한 이 두 값만큼은 함께 확인받는 것을 강력히 권고한다. 사용자 승인 전
-결제·플랜 업그레이드·배포 행위는 이 체크리스트의 어떤 항목도 허가하지 않는다는
-원칙은 변경되지 않는다.
+**게이트(v0.8.0 갱신)**: 6개 항목 중 지원 이메일·triage 담당자 2개는 이번 라운드에서
+확정됐다. **호스팅 항목은 단순 미확정이 아니라 구조적 required-blocker로 격상됐다**
+— 값 자체는 정해졌지만(Netlify Free), 그 위에서 지금 코드가 동작하려면 별도 SPEC의
+비동기 재설계가 선행돼야 한다. Turso는 프로바이더만 확정, 인스턴스 생성은 운영자
+행동 대기 중이다. 나머지(Gemini 쿼터 담당자, 테스터 계정)는 그대로 미확정이다. 사용자
+승인 전 결제·플랜 업그레이드·실제 배포 행위는 이 체크리스트의 어떤 항목도 허가하지
+않는다는 원칙은 변경되지 않는다 — 이번 라운드도 실제 배포를 수행하지 않았다.

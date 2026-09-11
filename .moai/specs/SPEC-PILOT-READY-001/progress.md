@@ -534,6 +534,30 @@ Consolidated Blocker Report)과 §G(5차 정정 B5)에서 이미 밝힌 미확�
 - AC-PILOT-READY-009(BLOCKED, 신규): 실제 트리아지 담당자/역할 미확정.
 - AC-PILOT-READY-013(BLOCKED, 신규): `SUPPORT_CONTACT_EMAIL` 실 주소 미확정.
 
+## §I Netlify 호스팅 결정 + 적합성 스파이크 (v0.8.0)
+
+`decision_round_at: 2026-09-11`. 사용자가 호스팅 후보를 Vercel에서 Netlify Free로
+변경 확정하고, 지원 이메일·triage 담당자를 함께 확정했다. 코드 변경은 없었다 — 이
+라운드는 결정 기록 + 문서 조사 + 스파이크 리포트 작성만 수행했다(실 배포 없음).
+
+- **확정된 값**: 호스팅 Netlify Free, DB Turso Free(인스턴스 미생성), AI Gemini
+  Free, `SUPPORT_CONTACT_EMAIL=zuge3927@naver.com`(`.env.local` 반영), triage
+  담당자 이경환(1영업일 이내 1차 확인, `pilot-incident-runbook.md` §3 반영).
+- **스파이크 리포트**: `.moai/reports/pilot-ready-netlify-suitability-spike-20260911.md`
+  — 사용자가 제시한 "동기 함수 60초 제한"을 공식 문서로 재검증한 결과 **실제로는
+  10초**임을 확인·정정했다. 기존 실측(`gemini-runtime-smoke-20260828.md`, 30초
+  종단 처리 시간)만으로 이 제한을 구조적으로 초과하므로, 새 실 배포나 Gemini
+  10회 재호출 없이 **BLOCKED**로 판정했다(쿼터 낭비 방지 — 사용자 확인 후 결정).
+- **AC-PILOT-READY-009/013 상태 변경 없음**: 두 항목의 실제 값은 이번에 결정됐지만,
+  §G/§H가 요구한 "결정·설정·검증" 중 "실 배포 환경에서의 set+verified"는 아직
+  수행되지 않았다(이번 라운드가 실 배포를 하지 않았으므로) — 따라서 두 행 모두
+  `BLOCKED`로 유지한다. 값이 결정됐다는 사실은 plan.md §F 체크리스트에만 반영했다.
+- **후속 제안**: 비동기(POST 202 + 상태 조회) 재설계를 별도 SPEC(가칭
+  SPEC-PILOT-ASYNC-SUBMIT-001)으로 제안했다(스파이크 리포트 §5) — 이번 라운드에서
+  실제로 생성하지 않았다.
+- **여전히 미확정**: Gemini 쿼터 점검 담당자+시점, 동시성 측정용 테스터 계정
+  준비 방법. M4 전체 7개 운영-측정 리포트는 여전히 실 인프라 접근이 필요하다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.6.0"
+version: "0.8.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,28 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.8.0): **호스팅 후보를 Vercel에서 Netlify Free로 변경 확정**(운영
+  결정) — DB는 Turso Free, AI는 Gemini API Free 유지. 지원 연락처
+  이메일(`zuge3927@naver.com`)과 장애 대응 triage 담당자(이경환, 1영업일 이내 1차
+  확인)를 확정하고 `.env.local`/`.moai/docs/pilot-incident-runbook.md`에 반영했다.
+  Netlify 적합성 스파이크를 수행해(`.moai/reports/pilot-ready-netlify-suitability-spike-20260911.md`)
+  사용자가 제시한 "동기 함수 60초 제한"이 **실제로는 10초**임을 공식 문서로 확인·정정했다
+  — 기존 실측(`gemini-runtime-smoke-20260828.md`, 30초 종단 처리 시간)만으로도 이
+  제한을 구조적으로 초과하므로, 별도의 실 배포·Gemini 10회 재호출 없이 **BLOCKED**로
+  판정했다(쿼터 낭비 방지, 사용자 확인). 비동기(POST 202 + 상태 조회) 재설계를 별도
+  후속 SPEC(가칭 SPEC-PILOT-ASYNC-SUBMIT-001)으로 제안했다 — 이번 라운드에서 그
+  SPEC을 실제로 생성하지는 않았다. 실 배포·테스터 초대·PR 생성·main 병합은 수행하지
+  않았다. plan.md §F 체크리스트를 이 결정들로 갱신했다.
+- 2026-09-11 (v0.7.0, 소급 기록): 외부 구현 검토(run-phase, 6차) 반영 —
+  `lib/logging/safe-error.ts`의 errorName/errorCode를 실제 고정 화이트리스트로
+  강화(이전 버전은 화이트리스트라 주장했으나 실제로는 검증 없이 통과시켰다는 지적을
+  반영), `.message`뿐 아니라 `.name`/`.code`에 대한 적대적 테스트 3종 추가.
+  progress.md의 AC-PILOT-READY-009/013을 PASS에서 BLOCKED로 정정(구현은 검증됐지만
+  실제 지원 채널/triage 담당자가 당시 미확정이었으므로 SPEC 레벨 요구사항은
+  미충족). `run_complete_at`(모순되는 완료 시점 문구)를 범위를 명시한
+  `implementation_subset_complete_at`으로 교체하고 "M1-M6 완료" 표현을 모두
+  정정했다. 이 라운드는 코드/progress.md만 수정했고 spec.md 버전은 당시 갱신되지
+  않았다 — 이번(v0.8.0) 편집에서 소급 기록한다.
 - 2026-09-11 (v0.6.0): 외부 구현 검토(run-phase, 5차) 반영 — run_status를 `complete`에서
   `partial`/`blocked`로 정정(M4 readiness는 여전히 NO-GO)하고, `pilot-ready-idempotency-scope`
   리포트를 작성했다(외부 접근 불필요, M1 구현 완료로 차단 해제됨). PII 비노출 로깅을
