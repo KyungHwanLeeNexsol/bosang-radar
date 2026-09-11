@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { cases, reports, reservations } from "../db/schema";
+import { caseJobs, cases, reports, reservations } from "../db/schema";
 import { toSafeErrorMeta } from "../logging/safe-error";
 import { runPipeline } from "../pipeline/index";
-import { validateCaseInput } from "../validation/case-input";
+import { validateCaseInput, type CaseInput } from "../validation/case-input";
 
 // 사건 입력을 받아 검증 → 파이프라인 실행 → cases/reports 저장까지 수행하는
 // 단일 엔트리 포인트 (REQ-SCAFFOLD-016, AC-SCAFFOLD-015). app/api/cases/
@@ -25,6 +25,9 @@ import { validateCaseInput } from "../validation/case-input";
 // 최소값. 정상 처리 중인 요청의 리스가 플랫폼 강제 종료보다 먼저 만료될
 // 수 없도록 하는 것이 이 산정의 안전성 근거다(plan.md §A 결정 1).
 export const LEASE_TTL_SECONDS = 330;
+// Background Function은 Netlify Free에서 최대 15분까지 실행될 수 있으므로,
+// 비동기 job이 정상 처리 중인 동안 리스가 먼저 만료되지 않도록 별도 여유를 둔다.
+export const BACKGROUND_LEASE_TTL_SECONDS = 960;
 
 export interface CreateCaseSuccess {
   success: true;
@@ -45,6 +48,14 @@ export interface CreateCaseAlreadyProcessing {
 
 export type CreateCaseResult =
   CreateCaseSuccess | CreateCaseValidationFailure | CreateCaseAlreadyProcessing;
+
+export interface StartCaseJobSuccess {
+  success: true;
+  jobId: string;
+}
+
+export type StartCaseJobResult =
+  StartCaseJobSuccess | CreateCaseValidationFailure | CreateCaseAlreadyProcessing;
 
 function toFieldErrors(
   issues: { path: PropertyKey[]; message: string }[]
@@ -72,10 +83,14 @@ type Db = ReturnType<typeof getDb>;
 // DB 엔진 수준 원자성을 보장한다(plan.md §A 결정 1). 영향받은 행 수가
 // 드라이버에서 신뢰성 있게 노출되지 않으므로, 쓰기 직후 즉시 재조회로
 // 자신의 leaseId가 실제로 반영됐는지 확인한다.
-async function acquireLease(db: Db, ownerUserId: string): Promise<string | null> {
+async function acquireLease(
+  db: Db,
+  ownerUserId: string,
+  ttlSeconds = LEASE_TTL_SECONDS
+): Promise<string | null> {
   const leaseId = randomUUID();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + LEASE_TTL_SECONDS * 1000);
+  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
 
   await db
     .insert(reservations)
@@ -223,4 +238,129 @@ export async function createCase(
   }
 
   return { success: true, caseId };
+}
+
+// Netlify Background Function 경로. 요청은 리스를 먼저 획득하고 검증된 input을
+// case_jobs에 저장한 뒤 jobId만 반환한다. 실제 Gemini 호출과 cases/reports 완료
+// 트랜잭션은 processCaseJob()에서 수행해 동기 함수의 60초 응답 제한을 피한다.
+export async function startCaseJob(
+  ownerUserId: string,
+  rawInput: unknown
+): Promise<StartCaseJobResult> {
+  const parsed = validateCaseInput(rawInput);
+  if (!parsed.success) {
+    return { success: false, fieldErrors: toFieldErrors(parsed.error.issues) };
+  }
+
+  const db = getDb();
+  const leaseId = await acquireLease(db, ownerUserId, BACKGROUND_LEASE_TTL_SECONDS);
+  if (!leaseId) {
+    return { success: false, alreadyProcessing: true };
+  }
+
+  const jobId = randomUUID();
+  const now = new Date();
+  try {
+    await db.insert(caseJobs).values({
+      id: jobId,
+      ownerUserId,
+      leaseId,
+      input: parsed.data,
+      status: "processing",
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    try {
+      await releaseLeaseFenced(db, ownerUserId, leaseId);
+    } catch (releaseError) {
+      console.error(
+        JSON.stringify({
+          event: "case_job_create_lease_release_failed",
+          ...toSafeErrorMeta(releaseError),
+        })
+      );
+    }
+    throw error;
+  }
+
+  return { success: true, jobId };
+}
+
+// Background Function 전용 실행부. jobId와 leaseId를 DB에서 함께 읽어 소유권을
+// 확인하고, 완료 기록·리스 해제·job 상태 갱신을 하나의 트랜잭션으로 처리한다.
+// 실패 시 job은 안전한 일반 오류 상태로 남기고 펜싱된 리스를 해제한다.
+export async function processCaseJob(jobId: string): Promise<void> {
+  const db = getDb();
+  const [job] = await db.select().from(caseJobs).where(eq(caseJobs.id, jobId));
+
+  if (!job || job.status !== "processing") {
+    return;
+  }
+
+  try {
+    const report = await runPipeline(job.input as CaseInput);
+    const caseId = randomUUID();
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ leaseId: reservations.leaseId })
+        .from(reservations)
+        .where(eq(reservations.ownerUserId, job.ownerUserId));
+
+      if (current?.leaseId !== job.leaseId) {
+        throw new LeaseFencedError();
+      }
+
+      await tx.insert(cases).values({
+        id: caseId,
+        ownerUserId: job.ownerUserId,
+        input: job.input,
+        status: "completed",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await tx.insert(reports).values({
+        id: randomUUID(),
+        caseId,
+        content: report,
+        createdAt: now,
+      });
+      await tx
+        .delete(reservations)
+        .where(
+          and(eq(reservations.ownerUserId, job.ownerUserId), eq(reservations.leaseId, job.leaseId))
+        );
+      await tx
+        .update(caseJobs)
+        .set({ status: "completed", caseId, updatedAt: now })
+        .where(eq(caseJobs.id, jobId));
+    });
+  } catch (error) {
+    const now = new Date();
+    try {
+      await db
+        .update(caseJobs)
+        .set({ status: "failed", updatedAt: now })
+        .where(eq(caseJobs.id, jobId));
+    } catch (statusError) {
+      console.error(
+        JSON.stringify({ event: "case_job_status_update_failed", ...toSafeErrorMeta(statusError) })
+      );
+    }
+    if (!(error instanceof LeaseFencedError)) {
+      try {
+        await releaseLeaseFenced(db, job.ownerUserId, job.leaseId);
+      } catch (releaseError) {
+        console.error(
+          JSON.stringify({
+            event: "case_job_failed_lease_release_failed",
+            ...toSafeErrorMeta(releaseError),
+          })
+        );
+      }
+    }
+    console.error(JSON.stringify({ event: "case_job_failed", ...toSafeErrorMeta(error) }));
+  }
 }

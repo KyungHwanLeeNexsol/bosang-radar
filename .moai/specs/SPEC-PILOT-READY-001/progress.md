@@ -852,3 +852,19 @@ Pages changed  skipping (실패 아님)
 - 선택지는 (a) 동기 60초 초과 실행을 지원하는 호스팅으로 이전하거나, (b) 분석을
   비동기 작업/상태 조회 구조로 바꾸는 것이다. 단순히 Netlify 환경변수 키를 다시
   입력하는 것으로는 해결되지 않는다.
+
+## §R Netlify Free 비동기 전환 구현 (2026-09-12)
+
+Netlify Free를 유지하면서 60초 동기 응답 제한을 피하기 위해 분석 요청을 Background
+Function 작업으로 전환했다. `POST /api/cases`는 입력 검증과 사용자별 리스 획득,
+`case_jobs` 저장까지만 수행하고 HTTP 202와 `jobId`를 즉시 반환한다. Background
+Function(`netlify/functions/process-case-background.ts`)이 기존 6단계 파이프라인을
+실행하고 `cases`/`reports`를 원자적으로 저장하며, 클라이언트는
+`/api/cases/status?jobId=...`를 polling해 완료 시 결과 페이지로 이동한다.
+
+- 새 스키마/마이그레이션: `case_jobs` 및 migration 0006
+- 실패 시 job 상태를 `failed`로 기록하고 사용자 리스를 fenced release
+- Background Function 최대 실행시간에 맞춰 비동기 job 리스 TTL은 960초로 분리
+- 기존 동기 `createCase()`와 201 응답 호환 분기는 기존 테스트·호출자를 위해 유지
+- 다음 게이트: Preview 배포 후 실제 로그인 사용자 1건 제출, 202 즉시 응답, 81초 이상
+  처리 완료 및 실패/중복 제출 동작을 실제 도메인에서 확인

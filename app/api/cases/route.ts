@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
-import { createCase } from "@/lib/cases/create-case";
+import { startCaseJob } from "@/lib/cases/create-case";
 
 // 사건 입력 폼(app/cases/new/)이 호출하는 route handler(design.md §2).
 // proxy.ts가 이미 /api/cases/*를 비로그인 접근으로부터 보호하지만, 세션의
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body: unknown = await request.json();
-  const result = await createCase(session.user.id, body);
+  const result = await startCaseJob(session.user.id, body);
 
   if (!result.success) {
     if ("alreadyProcessing" in result) {
@@ -48,5 +48,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ caseId: result.caseId }, { status: 201 });
+  const backgroundUrl = new URL("/.netlify/functions/process-case-background", request.url);
+  const enqueueResponse = await fetch(backgroundUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jobId: result.jobId }),
+  });
+
+  if (!enqueueResponse.ok) {
+    return NextResponse.json(
+      { error: "분석 작업을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      { status: 502 }
+    );
+  }
+
+  return NextResponse.json({ jobId: result.jobId, status: "processing" }, { status: 202 });
 }

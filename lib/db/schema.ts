@@ -148,3 +148,20 @@ export const reservations = sqliteTable("reservations", {
   leaseId: text("lease_id").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
 });
+
+// Netlify Background Function 작업 큐. 동기 함수의 60초 제한을 피하기 위해
+// 요청 접수와 Gemini 파이프라인 실행을 분리한다. input은 검증을 통과한 사건
+// 데이터만 저장하며, status/caseId로 클라이언트 polling 결과를 owner 범위 안에서
+// 조회한다.
+export const caseJobs = sqliteTable("case_jobs", {
+  id: text("id").primaryKey(),
+  ownerUserId: text("owner_user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  leaseId: text("lease_id").notNull(),
+  input: text("input", { mode: "json" }).notNull(),
+  status: text("status").notNull().default("processing"),
+  caseId: text("case_id").references(() => cases.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});

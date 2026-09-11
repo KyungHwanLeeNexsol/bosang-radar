@@ -228,8 +228,8 @@ Vercel Hobby/Pro tier 문구는 HISTORICAL이다)
   레벨 fetch 관측기, 코드 임시 수정 없음)으로 스모크를 재실행하면
 - Then 새 날짜의 `.moai/reports/gemini-runtime-smoke-*.md` 리포트가 생성되고, 다음
   5가지가 각각 개별적으로 확인·기록되어 있다: (a) Researcher/Skeptic/Verifier 3단계
-  각각의 실제 Gemini 호출 성공 여부, (b) `POST /api/cases`의 최종 HTTP 상태가 `201
-  Created`인지, (c) 응답 결과가 실제로 `reports` 테이블에 영속화됐는지, (d) 그 DB
+  각각의 실제 Gemini 호출 성공 여부, (b) `POST /api/cases`가 `202 Accepted`와 jobId를
+  반환하고 최종 상태 조회가 완료된 사건의 `caseId`를 제공하는지, (c) 응답 결과가 실제로 `reports` 테이블에 영속화됐는지, (d) 그 DB
   행을 별도 조회로 재확인했을 때 응답 값과 일치하는지, (e) 관측된 실제 Gemini 호출
   횟수가 기대 호출 횟수(3회, 또는 재시도가 있었다면 그 실제 횟수)와 일치하는지. 5가지
   중 하나라도 리포트에서 확인할 수 없으면 이 AC는 FAIL이다.

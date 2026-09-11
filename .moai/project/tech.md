@@ -45,7 +45,7 @@
 ### Netlify (Free tier 배포)
 - SPEC-PILOT-READY-001에서 파일럿 호스팅 대상으로 확정했다. 공식 OpenNext 기반 Next.js 어댑터가 빌드 시 자동 적용되어 현재 단일 Next.js 구조를 유지할 수 있다.
 - PR #10 자동 Deploy Preview에서 Middleware 번들에 `@libsql/client` 네이티브 애드온이 포함되는 문제가 발견됐고, 세션 쿠키 판별 모듈에서 DB 의존성을 분리한 뒤 Preview가 통과했다.
-- 동기 함수의 공식 게시 상한은 60초지만 이 프로젝트 계정의 실제 적용 상한과 Gemini 파이프라인 처리 시간은 아직 실측하지 않았다. 원격 Turso·실 도메인 인증·동시 부하를 포함한 readiness 판정은 현재 `NO-GO`다.
+- 동기 함수의 공식 게시 상한은 60초이며, 이 프로젝트 파이프라인은 로컬 production 환경 측정에서 약 81초가 걸렸다. 따라서 `POST /api/cases`는 `case_jobs`에 작업을 기록하고 202를 반환한 뒤 Netlify Background Function이 처리하는 비동기 구조를 사용한다. 원격 Turso·실 도메인 인증·동시 부하를 포함한 readiness 판정은 실제 Preview 검증 전까지 `NO-GO`다.
 
 ## 개발 환경 요구사항
 

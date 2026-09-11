@@ -256,11 +256,11 @@ v0.3.0부터 M1은 옵션 분기가 없는 단일 구현이다. Implementation K
 
 **공통**:
 - Edit `app/api/cases/route.ts`: "이미 처리 중" 응답을 `409 Conflict`와 함께 클라이언트에
-  전달한다. 기존 `201`/`400`/`401` 응답 계약은 변경하지 않는다.
-  `app/cases/new/case-input-form.tsx`의 기존 제네릭 에러 처리(`response.status !== 201`
-  이면 `data.error`를 표시)가 그대로 이 응답을 처리하므로, 클라이언트 코드 변경은
-  필요 없다 — `data.error`에 "이미 처리 중입니다" 같은 사용자 친화적 메시지를 담는
-  것으로 충분하다.
+  전달한다. 비동기 실행 경로는 검증된 job을 등록한 뒤 `202 Accepted`와 `jobId`를
+  반환하고, `/.netlify/functions/process-case-background`가 파이프라인을 수행한다.
+  `app/api/cases/status`는 owner 범위 안에서 `processing`/`completed`/`failed` 상태를
+  반환하며 완료 시 `caseId`를 제공한다. 입력 오류/인증 오류/동시 실행 충돌은 기존
+  `400`/`401`/`409` 계약을 유지한다.
 - 신규 응답 타입(`CreateCaseResult` 유니온에 "already processing" 케이스 추가)의 정확한
   판별자(discriminant) 이름은 구현 시점에 기존 `success: false`/`fieldErrors` 패턴과
   충돌하지 않는 새 필드로 결정한다(예: `{ success: false, alreadyProcessing: true }`).
