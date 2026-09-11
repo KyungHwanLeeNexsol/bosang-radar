@@ -1,14 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionCookieMock, headersMock, getAuthMock, getSessionMock } = vi.hoisted(() => ({
-  getSessionCookieMock: vi.fn(),
+const { headersMock, getAuthMock, getSessionMock } = vi.hoisted(() => ({
   headersMock: vi.fn(),
   getAuthMock: vi.fn(),
   getSessionMock: vi.fn(),
-}));
-
-vi.mock("better-auth/cookies", () => ({
-  getSessionCookie: getSessionCookieMock,
 }));
 
 vi.mock("next/headers", () => ({
@@ -21,25 +16,10 @@ vi.mock("./config", () => ({
 
 describe("lib/auth/session", () => {
   beforeEach(() => {
-    getSessionCookieMock.mockReset();
     headersMock.mockReset();
     getAuthMock.mockReset();
     getSessionMock.mockReset();
     getAuthMock.mockReturnValue({ api: { getSession: getSessionMock } });
-  });
-
-  it("hasSessionCookie()는 세션 쿠키가 있으면 true를 반환한다", async () => {
-    getSessionCookieMock.mockReturnValue("token-value");
-    const { hasSessionCookie } = await import("./session");
-
-    expect(hasSessionCookie(new Request("http://localhost/cases"))).toBe(true);
-  });
-
-  it("hasSessionCookie()는 세션 쿠키가 없으면 false를 반환한다 (proxy.ts 리다이렉트 판단 기준)", async () => {
-    getSessionCookieMock.mockReturnValue(null);
-    const { hasSessionCookie } = await import("./session");
-
-    expect(hasSessionCookie(new Request("http://localhost/cases"))).toBe(false);
   });
 
   it("getCurrentSession()은 next/headers의 headers()를 better-auth getSession에 그대로 전달한다", async () => {

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { hasSessionCookie } from "@/lib/auth/session";
+import { hasSessionCookie } from "@/lib/auth/session-cookie";
 
 // Next.js 16: middleware.ts → proxy.ts로 이름 변경, edge 런타임 미지원, nodejs
 // 런타임에서만 동작한다(research.md §1). middleware.ts를 별도로 생성하지 않는다.
