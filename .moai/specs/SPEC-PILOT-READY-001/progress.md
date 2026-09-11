@@ -229,11 +229,11 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-006 | N/A (M4-scoped) | — | cross-user concurrent load measurement — out of scope |
 | AC-PILOT-READY-007 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts` | 13/13 tests pass — covers: 2nd-call-blocked-while-1st-in-flight, retry-after-failure re-invokes runPipeline, completion-transaction atomicity (circular-content-forced `reports` INSERT failure leaves 0 `cases` rows), post-failure explicit lease release + immediate reacquisition (v0.5.0), worst-case 200s+ guard-hold under fake timers, TTL(330s) crash recovery with before/after contrast, delayed-result fencing (stale lease's late completion is a no-op, current lease row unchanged), genuine race condition via `Promise.all` against a real file-based SQLite engine enforcing the `reservations.owner_user_id` PK/UNIQUE constraint (exactly 1 of 2 concurrent acquires wins) |
 | AC-PILOT-READY-008 | **PASS** (v0.6.0 강화) | `pnpm exec vitest run app/api/cases/route.test.ts lib/pipeline/index.test.ts lib/cases/create-case.test.ts lib/logging/safe-error.test.ts` | Request-start log (`case_request_received`, `route.test.ts`), per-stage pipeline failure log (`pipeline_stage_failed` with `stage` field, `pipeline/index.test.ts`), pipeline-level + completion-transaction + 신규 `pipeline_failed_lease_release_failed`(이중 실패 대칭화, v0.6.0) DB-write failure logs (`create-case.test.ts`) — 모든 5개 호출부가 신규 `lib/logging/safe-error.ts`의 `toSafeErrorMeta()`(errorName/errorCode 화이트리스트만 추출, `.message` 절대 미참조)를 거친다. 적대적 테스트가 `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문을 오류 `.message`에 직접 주입해 5개 로그 호출부 전부가 그 원문을 반사하지 않음을 검증(이전 리뷰 라운드의 `error: String(error)` 평가는 `.message`가 원문을 반사할 위험을 검증하지 않은 채 PASS 처리된 결함이었다) |
-| AC-PILOT-READY-009 | **PASS** | `Read .moai/docs/pilot-incident-runbook.md` | Doc created with 3 distinct sections: §1 log locations/how-to-check (event-name table), §2 tester retry guidance (explicitly avoids "unlimited retry is always safe" overclaim), §3 triage owner (honestly marked "미확정 — required-blocker", not fabricated). Distinct file from `.moai/docs/runtime-runbook.md` |
+| AC-PILOT-READY-009 | **BLOCKED** (v0.7.0 정정, 외부 구현 검토 6차) | `Read .moai/docs/pilot-incident-runbook.md` | 구현 검증됨(implementation-level evidence): 문서는 3개 별개 절로 존재 — §1 log locations/how-to-check(event-name table), §2 tester retry guidance(explicitly avoids "unlimited retry is always safe" overclaim), §3 triage owner(honestly marked "미확정 — required-blocker", not fabricated). Distinct file from `.moai/docs/runtime-runbook.md`. **그러나 실제 트리아지 담당자/역할이 아직 확정되지 않아, SPEC 레벨 요구사항(실재하는 트리아지 연락 경로)은 미충족** — "문서 구조가 검증됨"과 "요구사항이 충족됨"은 서로 다른 주장이며, 후자가 미해결 상태다 |
 | AC-PILOT-READY-010 | N/A (M4-scoped) | — | real Gemini smoke re-run — out of scope |
 | AC-PILOT-READY-011 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` (그리고 `grep -rn "완전히 비식별화\|확실히 차단\|보장합니다\|보장한다" app/cases/new/page.tsx` → 렌더 텍스트에는 미검출, 코드 주석에서만 1건 검출) | Rendered notice text contains no "보장"/"확실히 차단"/"완전히 비식별화" |
 | AC-PILOT-READY-012 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice DOM contains all 4 required items individually: (a) 주민등록번호·휴대전화번호 형식 검사 설명, (b) 주소·의료기록 원본 필드 부재(구조적 사실), (c) 자유 텍스트 필드 잔여 위험(구조적 사실과 구분해 별도 문단으로 진술), (d) 합성/비식별화 사례만 입력하라는 테스터 책임 문장 |
-| AC-PILOT-READY-013 | **PASS** (v0.6.0 정정) | `pnpm exec vitest run app/login/login-form.test.tsx` | AC 정정(외부 구현 검토 5차) — 이전 "항상 활성 링크" 동작은 `supportEmail` 미설정 기본 상태에서도 example.com 자리표시자를 실제 mailto: 링크로 노출해, 실재하는 채널처럼 보이는 클릭 가능한 가짜 연락처를 보여주는 부작용이 있었다. 정정된 동작: `supportEmail` prop이 설정되면(`app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL` 환경변수) 그 실제 주소로 활성 `mailto:` 링크; 미설정이면 다른 2개 정책 링크와 동일하게 `aria-disabled` 텍스트로 미설정 상태를 정직하게 드러낸다(가짜 링크 노출 없음). `.env.local.example`에 `SUPPORT_CONTACT_EMAIL`(optional) 추가 |
+| AC-PILOT-READY-013 | **BLOCKED** (v0.7.0 정정, 외부 구현 검토 6차) | `pnpm exec vitest run app/login/login-form.test.tsx` | 구현 검증됨(implementation-level evidence, v0.6.0 정정 유지) — 이전 "항상 활성 링크" 동작은 `supportEmail` 미설정 기본 상태에서도 example.com 자리표시자를 실제 mailto: 링크로 노출해, 실재하는 채널처럼 보이는 클릭 가능한 가짜 연락처를 보여주는 부작용이 있었다. 정정된 컴포넌트 동작(테스트로 검증됨): `supportEmail` prop이 설정되면(`app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL` 환경변수) 그 실제 주소로 활성 `mailto:` 링크; 미설정이면 다른 2개 정책 링크와 동일하게 `aria-disabled` 텍스트로 미설정 상태를 정직하게 드러낸다(가짜 링크 노출 없음). `.env.local.example`에 `SUPPORT_CONTACT_EMAIL`(optional) 추가. **그러나 `SUPPORT_CONTACT_EMAIL`이 실제 환경에 아직 결정/설정/검증되지 않아, SPEC 레벨 요구사항(실재하는 지원 연락 채널)은 미충족** — "컴포넌트 동작이 정직하게 구현·검증됨"과 "실제 채널이 확보됨"은 서로 다른 주장이며, 후자가 미해결 상태다 |
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
@@ -334,23 +334,37 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: partial` (v0.6.0 정정 — M1, M2, M3, M5, M6 코드 구현은 완료됐으나
-  M4 파일럿 준비 상태는 여전히 NO-GO다; 이 SPEC의 run-phase는 아직 종료되지
-  않는다. 상세: §G 아래)
-- `run_complete_at: 2026-09-10` (M1-M6 구현 완료 시점 — 정정 라운드는 새 완료
-  시점을 주장하지 않는다; 상세는 §G의 `correction_round_at` 참고)
+- `run_status: partial` (v0.6.0 정정, v0.7.0에서도 유지 — M1, M2, M3, M5, M6 코드
+  구현은 완료됐으나 M4 파일럿 준비 상태는 여전히 NO-GO다; 이 SPEC의 run-phase는
+  아직 종료되지 않는다. 상세: §G 아래)
+- `implementation_subset_complete_at: 2026-09-10 (M1,M2,M3,M5,M6 서브셋만 —
+  M4 제외)` (v0.7.0 정정, 외부 구현 검토 6차 — 이전 필드명 `run_complete_at`은
+  `run_status: partial`과 모순되는, 한정 없는 전체 완료 주장으로 읽혔다. 이
+  필드는 M1,M2,M3,M5,M6 서브셋의 구현 완료 시점만 가리키며, 전체 run-phase
+  완료를 주장하지 않는다. 정정 라운드는 새 완료 시점을 주장하지 않는다; 상세는
+  §G의 `correction_round_at` 참고)
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
-  follow-up commit per the SHA placeholder backfill exemption — the M1-M6 commit
-  itself could not cite its own hash)
-- `ac_pass_count: 9` (v0.6.0 정정 — AC-PILOT-READY-007, 008, 009, 011, 012, 013,
-  014, 015, 016a; 016a는 M1 완료로 차단 해제되어 N/A→PASS로 전환됨, §E.2 참고)
+  follow-up commit per the SHA placeholder backfill exemption — the
+  M1,M2,M3,M5,M6 commit itself could not cite its own hash)
+- `ac_pass_count: 7` (v0.7.0 정정, 외부 구현 검토 6차 — AC-PILOT-READY-007, 008,
+  011, 012, 014, 015, 016a; 016a는 M1 완료로 차단 해제되어 N/A→PASS로 전환됨,
+  §E.2 참고. AC-009와 AC-013은 v0.6.0에서 PASS로 잘못 집계됐으나, "구현이
+  정직하게 검증됨"과 "SPEC 레벨 요구사항이 충족됨"을 혼동한 것이었다 —
+  아래 `ac_blocked_count` 및 §E.2 해당 행 참고)
 - `ac_fail_count: 0`
 - `ac_na_count: 8` (M4-scoped: 001, 002, 003, 004, 005, 006, 010, 016b)
+- `ac_blocked_count: 2` (v0.7.0 신설, 외부 구현 검토 6차 — AC-PILOT-READY-009,
+  AC-PILOT-READY-013. 두 항목 모두 구현/컴포넌트 동작 수준 증거는 존재하고
+  테스트로 검증됐으나, 실제 채널·담당자 확보라는 SPEC 레벨 전제가 아직
+  해소되지 않았다. `BLOCKED`는 "구현 증거는 PASS 수준이나, 미해결된 실세계
+  전제 조건이 있어 SPEC 요구사항 자체는 아직 충족되지 않음"을 뜻한다 — §E.2
+  해당 행 참고)
 - `new_warnings_or_lints_introduced: false`
 - `cross_platform_build: N/A` (TypeScript/Next.js project, not Go — no GOOS/GOARCH cross-build applicable)
 - `total_run_phase_files: 19` (16 modified + 3 new: pilot-incident-runbook.md,
-  0005_tidy_karen_page.sql migration + its meta/0005_snapshot.json) — M1-M6
-  원본 델리게이션 기준. 정정 라운드가 추가로 건드린 파일 목록은 §G 참고.
+  0005_tidy_karen_page.sql migration + its meta/0005_snapshot.json) —
+  M1,M2,M3,M5,M6 원본 델리게이션 기준. 정정 라운드가 추가로 건드린 파일
+  목록은 §G 참고.
 - `m1_to_mN_commit_strategy: single consolidated commit for M1+M2+M3+M5+M6 (per Hybrid
   Trunk 1-person OSS default), plus one follow-up commit backfilling run_commit_sha,
   plus this correction round's own commit(s) (see §G)`
@@ -431,6 +445,94 @@ AssertionError: expected [Function] to throw error including 'pipeline boom (ori
 FAIL app/login/login-form.test.tsx > ... > AC-PILOT-READY-013: ...
 AssertionError: expected <a href="mailto:pilot-support@example.com">고객지원</a> to be undefined
 ```
+
+## §H Run-phase Correction Round 2 (External Implementation Review, 6차)
+
+`correction_round_2_at: 2026-09-11`. 이 절은 외부 구현 검토(6차)가 지적한
+3개 결함(B1-B3)에 대한 두 번째 정정 라운드다. §G(5차 정정)를 대체하지
+않고 그 위에 쌓인다. M4 파일럿 준비 상태 판정은 여전히 NO-GO이며, 이
+라운드도 그 사실을 바꾸지 않는다.
+
+### 정정된 항목
+
+- **B1 — `lib/logging/safe-error.ts` PII 경계 강화**: v0.6.0의
+  `errorName`/`errorCode` 추출은 주석상 "화이트리스트"였으나 실제로는
+  `typeof` 검사만으로 임의 문자열/숫자를 그대로 통과시켰다(진짜
+  화이트리스트가 아니었다). v0.7.0은 `KNOWN_ERROR_NAMES`/
+  `KNOWN_ERROR_CODES`라는 고정된 안전 목록을 도입했다 — 목록에 없는
+  `errorName`은 `UnclassifiedError`로 대체, 목록에 없는 `errorCode`는
+  필드 자체를 생략한다(그대로 통과 없음). 3개 주입 시나리오(message/
+  name/code 각각에 `incidentDescription`/`diagnosisName`/
+  `disabilityBodyPart` 원문 직접 주입) 테스트로 신설 검증했다 — RED
+  캡처 후 GREEN 확인, TDD 준수. `lib/logging/safe-error.test.ts` 9/9 pass.
+- **B2 — AC-PILOT-READY-009/013 과잉 주장 정정**: 두 AC 모두 v0.6.0에서
+  PASS로 집계됐으나, "구현/컴포넌트 동작이 정직하게 구현되고 테스트로
+  검증됨"과 "SPEC 레벨 요구사항(실재하는 트리아지 연락 경로 / 실재하는
+  지원 연락 채널)이 충족됨"을 혼동한 결과였다. v0.7.0은 두 행을 `BLOCKED`로
+  정정하고, `ac_pass_count`를 9→7로, `ac_na_count`는 8 유지, 신규
+  `ac_blocked_count: 2`를 §E.3에 추가해 합계가 내적으로 일관되게 했다(§E.2/
+  §E.3 참고). 가짜 주소나 가짜 담당자를 발명하지 않았다.
+- **B3 — §E.3 완료 시점 필드명/문구 정정**: `run_complete_at:
+  2026-09-10` 필드명이 같은 절의 `run_status: partial`과 모순되는, 한정
+  없는 전체 완료 주장으로 읽혔다. v0.7.0은 필드명을
+  `implementation_subset_complete_at`으로 바꾸고 "M1,M2,M3,M5,M6 서브셋만
+  — M4 제외"를 명시했다. 같은 절의 "M1-M6 구현/커밋" 표현 3곳도 실제
+  완료 범위(M1,M2,M3,M5,M6, M4 제외)와 일치하도록 정정했다.
+
+### 이 라운드가 건드린 파일
+
+수정: `lib/logging/safe-error.ts`, `lib/logging/safe-error.test.ts`,
+`.moai/specs/SPEC-PILOT-READY-001/progress.md`. 신규/수정된 소스 코드는
+`lib/logging/safe-error.ts` 1개 파일뿐이다(요청 범위: B1-B3는 코드 1개
+파일 + progress.md만).
+
+### 이 라운드의 검증 증거
+
+```
+$ pnpm exec vitest run lib/logging/safe-error.test.ts
+  → 9/9 tests pass (v0.6.0 대비 +4: 화이트리스트 미등록 code 생략 검증
+    1건 + 라이브러리 에러 이름 검증 1건 + 3개 주입 시나리오)
+$ pnpm exec vitest run lib/cases/create-case.test.ts lib/pipeline/index.test.ts
+  → 26/26 tests pass (safe-error.ts 화이트리스트 강화 후 회귀 없음)
+$ pnpm exec vitest run  → 430/430 tests pass, 60/60 test files pass (기준
+    426/426 대비 +4, 회귀 없음)
+$ pnpm exec tsc --noEmit → exit 0
+$ pnpm lint              → 0 errors, 0 warnings
+$ pnpm build             → exit 0 (동일한 사전 존재 instrumentation.ts
+    Edge Runtime 경고만, 이 SPEC과 무관)
+```
+
+TDD RED 증거(B1, 3개 주입 시나리오 신설 테스트 — 화이트리스트 도입 전
+구현 기준으로 캡처):
+
+```
+FAIL lib/logging/safe-error.test.ts > ... > code 속성이 화이트리스트에 없는 값(문자열/숫자)이면 errorCode 필드 자체를 생략한다
+AssertionError: expected 'SOME_UNLISTED_CODE' to be undefined
+- Expected: undefined
++ Received: "SOME_UNLISTED_CODE"
+
+FAIL lib/logging/safe-error.test.ts > ... > [주입 시나리오: name] error.name에 사건 입력 원문을 주입해도 UnclassifiedError로 대체된다
+AssertionError: expected '우측 발목 인대 파열' to be 'UnclassifiedError'
+Expected: "UnclassifiedError"
+Received: "우측 발목 인대 파열"
+
+FAIL lib/logging/safe-error.test.ts > ... > [주입 시나리오: code] error.code에 사건 입력 원문을 주입해도 errorCode가 생략된다
+AssertionError: expected '우측 발목' to be undefined
+- Expected: undefined
++ Received: "우측 발목"
+```
+
+### 여전히 BLOCKED/N/A로 남는 항목 (이 라운드가 해소하지 않음)
+
+이 라운드는 실행-단계(run-phase) 코드 결함과 progress.md의 보고 정확성만
+정정했다 — 외부 세계의 실물 전제 조건은 하나도 해소하지 않았다. §E7(M4
+Consolidated Blocker Report)과 §G(5차 정정 B5)에서 이미 밝힌 미확정 항목이
+실질적으로 그대로 남아 있다:
+
+- M4 전체 7개 운영-측정 리포트(배포 티어/타임아웃/Gemini 쿼터/원격 DB/도메인
+  인증/동시성/준비 상태 판정) — 실 Vercel/Turso/도메인/AI-Studio 접근 필요.
+- AC-PILOT-READY-009(BLOCKED, 신규): 실제 트리아지 담당자/역할 미확정.
+- AC-PILOT-READY-013(BLOCKED, 신규): `SUPPORT_CONTACT_EMAIL` 실 주소 미확정.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
