@@ -1,5 +1,6 @@
 import type { RoleProviders } from "../ai/provider-factory";
 import { getDefaultLLMProviders } from "../ai/provider-factory";
+import { toSafeErrorMeta } from "../logging/safe-error";
 import { normalizeCase } from "./case-normalizer";
 import { retrieveEvidence } from "./evidence-retriever";
 import { research } from "./researcher";
@@ -62,11 +63,16 @@ function withPipelineLock<T>(task: () => Promise<T>): Promise<T> {
 // 실패 시 단계 이름과 오류 요약을 로그로 남긴다. 사건 입력 원문(자유 텍스트
 // 3개 필드)은 절대 로그에 포함하지 않는다(PII 최소화 원칙 유지) — 이
 // 헬퍼는 stage 이름과 error 요약만 기록하며 task의 인자를 로그에 담지 않는다.
+//
+// v0.6.0(외부 구현 검토 5차 반영) — `error: String(error)`는 근본 원인
+// 오류의 .message가 우연히 사건 입력 원문을 반사할 위험이 있어,
+// toSafeErrorMeta()로 화이트리스트 메타데이터(errorName/errorCode)만
+// 기록하도록 강화했다(lib/logging/safe-error.ts).
 function withStageLogging<T>(stage: string, task: () => T): T {
   try {
     return task();
   } catch (error) {
-    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, error: String(error) }));
+    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) }));
     throw error;
   }
 }
@@ -75,7 +81,7 @@ async function withAsyncStageLogging<T>(stage: string, task: () => Promise<T>): 
   try {
     return await task();
   } catch (error) {
-    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, error: String(error) }));
+    console.error(JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) }));
     throw error;
   }
 }

@@ -309,11 +309,16 @@ requirement as a scenario.
   **잔여 위험**(즉 (b)의 구조적 사실과 (c)의 잔여 위험이 하나로 뭉개지지 않고 구분되어
   진술됨), (d) "합성이거나 이미 비식별화된 사례만 입력하라"는 테스터 책임 문장.
 
-**AC-PILOT-READY-013**
+**AC-PILOT-READY-013** (v0.6.0 정정 — 외부 구현 검토 5차 반영)
 - Given M3에서 수정된 `app/login/login-form.tsx`의 렌더링된 DOM
-- When 데이터 취급 문의 관련 링크(또는 텍스트)를 확인하면
-- Then `aria-disabled="true"`가 아닌, 실제로 클릭 가능한(`href` 속성이 `mailto:` 또는
-  유효한 URL을 가리키는) 연락 채널 요소가 존재한다.
+- When `SUPPORT_CONTACT_EMAIL` 환경변수(실제 지원 이메일)가 설정된 상태에서 데이터 취급
+  문의 관련 링크를 확인하면
+- Then `aria-disabled="true"`가 아닌, 그 실제 주소를 가리키는 `mailto:` 링크가 존재한다.
+- And `SUPPORT_CONTACT_EMAIL`이 설정되지 않은 기본 상태(운영자가 아직 실제 주소를
+  확정하지 않은 상태)에서 확인하면, 클릭 가능한 것처럼 보이는 가짜(placeholder) 링크를
+  노출하지 않고 `aria-disabled="true"`(또는 이에 준하는 비활성 표시)로 미설정 상태를
+  정직하게 드러낸다 — RFC 2606 예약 도메인(example.com) 등을 실재하는 채널처럼 클릭
+  가능하게 보여주는 것은 금지된다.
 
 **AC-PILOT-READY-014**
 - Given M3에서 수정된 사건 입력 화면(또는 그에 준하는 온보딩 위치)의 렌더링된 DOM

@@ -636,3 +636,59 @@ describe("파이프라인 단계 실패 로깅 (REQ-PILOT-READY-008, SPEC-PILOT-
     errorSpy.mockRestore();
   });
 });
+
+describe("PII 비노출 로깅 — pipeline_stage_failed 로그는 사건 입력 원문을 반사하지 않는다 (v0.6.0, 외부 구현 검토 5차 반영)", () => {
+  it("동기 단계(withStageLogging) 실패 오류의 .message에 담긴 사건 입력 원문이 로그에 포함되지 않는다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const queryPlanner = await import("./query-planner");
+    const piiFragment = validInput.incidentDescription;
+    const planQueriesSpy = vi.spyOn(queryPlanner, "planQueries").mockImplementationOnce(() => {
+      throw new Error(`query-planner boom, saw incident: ${piiFragment}`);
+    });
+
+    const { runPipeline } = await import("./index");
+    const deterministicProvider = createDeterministicLLMProvider();
+    await expect(
+      runPipeline(validInput, {
+        providers: { research: deterministicProvider, fast: deterministicProvider },
+      })
+    ).rejects.toThrow();
+
+    const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+    for (const line of loggedLines) {
+      expect(line).not.toContain(piiFragment);
+    }
+    const stageFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_stage_failed"'));
+    expect(stageFailedLine).toBeDefined();
+
+    planQueriesSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it("비동기 단계(withAsyncStageLogging) 실패 오류의 .message에 담긴 사건 입력 원문도 로그에 포함되지 않는다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const piiFragment = validInput.diagnosisName;
+    const failingProvider: LLMProvider = {
+      async generate() {
+        return { text: "probe" };
+      },
+      async generateStructured() {
+        throw new Error(`researcher boom, diagnosis: ${piiFragment}`);
+      },
+    };
+
+    const { runPipeline } = await import("./index");
+    await expect(
+      runPipeline(validInput, { providers: { research: failingProvider, fast: failingProvider } })
+    ).rejects.toThrow();
+
+    const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+    for (const line of loggedLines) {
+      expect(line).not.toContain(piiFragment);
+    }
+    const stageFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_stage_failed"'));
+    expect(stageFailedLine).toBeDefined();
+
+    errorSpy.mockRestore();
+  });
+});

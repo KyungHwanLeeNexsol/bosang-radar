@@ -228,15 +228,15 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-005 | N/A (M4-scoped) | — | real-domain auth verification — out of scope |
 | AC-PILOT-READY-006 | N/A (M4-scoped) | — | cross-user concurrent load measurement — out of scope |
 | AC-PILOT-READY-007 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts` | 13/13 tests pass — covers: 2nd-call-blocked-while-1st-in-flight, retry-after-failure re-invokes runPipeline, completion-transaction atomicity (circular-content-forced `reports` INSERT failure leaves 0 `cases` rows), post-failure explicit lease release + immediate reacquisition (v0.5.0), worst-case 200s+ guard-hold under fake timers, TTL(330s) crash recovery with before/after contrast, delayed-result fencing (stale lease's late completion is a no-op, current lease row unchanged), genuine race condition via `Promise.all` against a real file-based SQLite engine enforcing the `reservations.owner_user_id` PK/UNIQUE constraint (exactly 1 of 2 concurrent acquires wins) |
-| AC-PILOT-READY-008 | **PASS** | `pnpm exec vitest run app/api/cases/route.test.ts lib/pipeline/index.test.ts lib/cases/create-case.test.ts` | Request-start log (`case_request_received`, `route.test.ts`), per-stage pipeline failure log (`pipeline_stage_failed` with `stage` field, `pipeline/index.test.ts` — verified by spying on `query-planner.planQueries`), pipeline-level + completion-transaction DB-write failure logs (`pipeline_failed`/`completion_transaction_failed`, `create-case.test.ts`) — all 3 scenarios PASS; none of the log call args include raw `incidentDescription`/`diagnosisName`/`disabilityBodyPart` values (logs carry only `event`/`stage`/`error: String(error)` — error messages here are static strings like `"pipeline boom"`, `"query-planner boom (test-injected)"`, never the input payload) |
+| AC-PILOT-READY-008 | **PASS** (v0.6.0 강화) | `pnpm exec vitest run app/api/cases/route.test.ts lib/pipeline/index.test.ts lib/cases/create-case.test.ts lib/logging/safe-error.test.ts` | Request-start log (`case_request_received`, `route.test.ts`), per-stage pipeline failure log (`pipeline_stage_failed` with `stage` field, `pipeline/index.test.ts`), pipeline-level + completion-transaction + 신규 `pipeline_failed_lease_release_failed`(이중 실패 대칭화, v0.6.0) DB-write failure logs (`create-case.test.ts`) — 모든 5개 호출부가 신규 `lib/logging/safe-error.ts`의 `toSafeErrorMeta()`(errorName/errorCode 화이트리스트만 추출, `.message` 절대 미참조)를 거친다. 적대적 테스트가 `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문을 오류 `.message`에 직접 주입해 5개 로그 호출부 전부가 그 원문을 반사하지 않음을 검증(이전 리뷰 라운드의 `error: String(error)` 평가는 `.message`가 원문을 반사할 위험을 검증하지 않은 채 PASS 처리된 결함이었다) |
 | AC-PILOT-READY-009 | **PASS** | `Read .moai/docs/pilot-incident-runbook.md` | Doc created with 3 distinct sections: §1 log locations/how-to-check (event-name table), §2 tester retry guidance (explicitly avoids "unlimited retry is always safe" overclaim), §3 triage owner (honestly marked "미확정 — required-blocker", not fabricated). Distinct file from `.moai/docs/runtime-runbook.md` |
 | AC-PILOT-READY-010 | N/A (M4-scoped) | — | real Gemini smoke re-run — out of scope |
 | AC-PILOT-READY-011 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` (그리고 `grep -rn "완전히 비식별화\|확실히 차단\|보장합니다\|보장한다" app/cases/new/page.tsx` → 렌더 텍스트에는 미검출, 코드 주석에서만 1건 검출) | Rendered notice text contains no "보장"/"확실히 차단"/"완전히 비식별화" |
 | AC-PILOT-READY-012 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice DOM contains all 4 required items individually: (a) 주민등록번호·휴대전화번호 형식 검사 설명, (b) 주소·의료기록 원본 필드 부재(구조적 사실), (c) 자유 텍스트 필드 잔여 위험(구조적 사실과 구분해 별도 문단으로 진술), (d) 합성/비식별화 사례만 입력하라는 테스터 책임 문장 |
-| AC-PILOT-READY-013 | **PASS** | `pnpm exec vitest run app/login/login-form.test.tsx` | "고객지원" is now an active `<a href="mailto:...">` (not `aria-disabled`) — default fallback uses the RFC 2606 reserved `example.com` domain as an explicit placeholder (no fabricated real address); `supportEmail` prop (env-driven via `app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL`) overrides it when the operator confirms the real address |
+| AC-PILOT-READY-013 | **PASS** (v0.6.0 정정) | `pnpm exec vitest run app/login/login-form.test.tsx` | AC 정정(외부 구현 검토 5차) — 이전 "항상 활성 링크" 동작은 `supportEmail` 미설정 기본 상태에서도 example.com 자리표시자를 실제 mailto: 링크로 노출해, 실재하는 채널처럼 보이는 클릭 가능한 가짜 연락처를 보여주는 부작용이 있었다. 정정된 동작: `supportEmail` prop이 설정되면(`app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL` 환경변수) 그 실제 주소로 활성 `mailto:` 링크; 미설정이면 다른 2개 정책 링크와 동일하게 `aria-disabled` 텍스트로 미설정 상태를 정직하게 드러낸다(가짜 링크 노출 없음). `.env.local.example`에 `SUPPORT_CONTACT_EMAIL`(optional) 추가 |
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
-| AC-PILOT-READY-016a | N/A (M4-scoped) | — | idempotency-scope report — out of scope |
+| AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
 | AC-PILOT-READY-016b | N/A (M4-scoped) | — | readiness-decision report — out of scope (template already exists from plan-phase, left untouched per delegation constraint) |
 
 ### E2. Build Result
@@ -334,20 +334,103 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: complete` (M1, M2, M3, M5, M6 — M4 explicitly deferred, see §E.2 E7)
-- `run_complete_at: 2026-09-10`
+- `run_status: partial` (v0.6.0 정정 — M1, M2, M3, M5, M6 코드 구현은 완료됐으나
+  M4 파일럿 준비 상태는 여전히 NO-GO다; 이 SPEC의 run-phase는 아직 종료되지
+  않는다. 상세: §G 아래)
+- `run_complete_at: 2026-09-10` (M1-M6 구현 완료 시점 — 정정 라운드는 새 완료
+  시점을 주장하지 않는다; 상세는 §G의 `correction_round_at` 참고)
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
   follow-up commit per the SHA placeholder backfill exemption — the M1-M6 commit
   itself could not cite its own hash)
-- `ac_pass_count: 8` (AC-PILOT-READY-007, 008, 009, 011, 012, 013, 014, 015)
+- `ac_pass_count: 9` (v0.6.0 정정 — AC-PILOT-READY-007, 008, 009, 011, 012, 013,
+  014, 015, 016a; 016a는 M1 완료로 차단 해제되어 N/A→PASS로 전환됨, §E.2 참고)
 - `ac_fail_count: 0`
-- `ac_na_count: 9` (M4-scoped: 001, 002, 003, 004, 005, 006, 010, 016a, 016b)
+- `ac_na_count: 8` (M4-scoped: 001, 002, 003, 004, 005, 006, 010, 016b)
 - `new_warnings_or_lints_introduced: false`
 - `cross_platform_build: N/A` (TypeScript/Next.js project, not Go — no GOOS/GOARCH cross-build applicable)
 - `total_run_phase_files: 19` (16 modified + 3 new: pilot-incident-runbook.md,
-  0005_tidy_karen_page.sql migration + its meta/0005_snapshot.json)
+  0005_tidy_karen_page.sql migration + its meta/0005_snapshot.json) — M1-M6
+  원본 델리게이션 기준. 정정 라운드가 추가로 건드린 파일 목록은 §G 참고.
 - `m1_to_mN_commit_strategy: single consolidated commit for M1+M2+M3+M5+M6 (per Hybrid
-  Trunk 1-person OSS default), plus one follow-up commit backfilling run_commit_sha`
+  Trunk 1-person OSS default), plus one follow-up commit backfilling run_commit_sha,
+  plus this correction round's own commit(s) (see §G)`
+
+## §G Run-phase Correction Round (External Implementation Review)
+
+`correction_round_at: 2026-09-11`. 이 절은 외부 구현 검토(5차, spec.md HISTORY
+v0.6.0 항목 — `.moai/specs/SPEC-PILOT-READY-001/spec.md` §HISTORY 참고)가
+지적한 5개 결함(B1-B5)에 대한 정정 라운드다. M4 파일럿 준비 상태 판정은
+여전히 NO-GO이며, 이 라운드는 그 사실을 바꾸지 않는다 — §E.3의
+`run_status: partial`이 그 사실을 반영한다.
+
+### 정정된 항목
+
+- **B1 — PII 비노출 로깅 강화**: 신규 `lib/logging/safe-error.ts`
+  (`toSafeErrorMeta()`)가 `create-case.ts`의 3개 호출부(`pipeline_failed`,
+  `completion_transaction_failed`, `post_failure_lease_release_failed`) +
+  `pipeline/index.ts`의 2개 호출부(`withStageLogging`/
+  `withAsyncStageLogging`, `pipeline_stage_failed`)를 `error: String(error)`
+  대신 화이트리스트 메타데이터(`errorName`/`errorCode`)로 교체한다. 적대적
+  테스트(`incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문을
+  오류 `.message`에 직접 주입)가 5개 호출부 전부에서 원문 미반사를 검증한다.
+- **B2 — 파이프라인 실패 시 리스 해제 대칭화**: `create-case.ts`의 첫 번째
+  catch(파이프라인 실행 실패)가 두 번째 catch(완료 트랜잭션 실패)와 동일한
+  중첩 try/catch + 이중 실패 로깅(`pipeline_failed_lease_release_failed`,
+  신규 이벤트 — `.moai/docs/pilot-incident-runbook.md` §1 표에 추가) 패턴을
+  적용한다. 리스 해제 자체가 실패해도 원래 파이프라인 오류가 항상 그대로
+  전파되며, TTL 경과 후 재획득이 여전히 가능함을 테스트로 검증한다.
+- **B3 — 정직한 지원 연락 링크**: `login-form.tsx`의
+  `DEFAULT_SUPPORT_EMAIL_PLACEHOLDER`(example.com 자리표시자 활성 링크)
+  폴백을 제거했다. `supportEmail`이 설정되면 활성 `mailto:` 링크,
+  미설정이면 다른 2개 정책 링크와 동일한 `aria-disabled` 정직한 비활성
+  표시. `.env.local.example`에 `SUPPORT_CONTACT_EMAIL`(optional) 추가.
+  `app/login/page.tsx`의 기존 주석은 이미 이 정정된 의도와 일치해 별도
+  수정이 불필요했다(코드만 그 의도와 어긋나 있었다).
+- **B4 — 테스트 증거 강화**: "진성 경쟁 조건" 테스트를 deferred 파이프라인
+  기반으로 재작성해 파이프라인이 pending인 동안 예약 1건만 존재함과 패자가
+  파이프라인을 기다리지 않고 즉시 거부됨을 `Promise.race`로 직접 관측한다.
+  트랜잭션 실패 테스트 2건을 1건으로 통합해 cases/reports/reservations
+  3개 테이블 모두 0행(사후 펜싱 해제 증거)과 새 leaseId가 실패한 시도의
+  leaseId와 다름(즉시 재획득 증거)을 구분된 단계로 검증한다.
+- **B5 — 준비 상태 미주장**: 이 라운드는 코드 결함만 수정했으며, M4(실
+  배포/원격 Turso/Gemini 쿼터/실 지원 주소/실 triage 담당자)는 여전히
+  미확정·NO-GO다 — 어디에서도 그 반대를 주장하지 않는다.
+
+### 이 라운드가 건드린 파일
+
+신규: `lib/logging/safe-error.ts`, `lib/logging/safe-error.test.ts`,
+`.moai/reports/pilot-ready-idempotency-scope-20260911.md`.
+수정: `lib/cases/create-case.ts`, `lib/cases/create-case.test.ts`,
+`lib/pipeline/index.ts`, `lib/pipeline/index.test.ts`,
+`app/login/login-form.tsx`, `app/login/login-form.test.tsx`,
+`.env.local.example`, `.moai/docs/pilot-incident-runbook.md`,
+`.moai/specs/SPEC-PILOT-READY-001/{spec,acceptance,progress}.md`.
+
+### 이 라운드의 검증 증거
+
+```
+$ pnpm exec vitest run   → 426/426 tests pass, 60/60 test files pass (기준
+                             415/415 대비 +11개, 회귀 없음)
+$ pnpm exec tsc --noEmit → exit 0
+$ pnpm lint              → 0 errors, 0 warnings
+$ pnpm build             → exit 0 (동일한 사전 존재 instrumentation.ts
+                             Edge Runtime 경고만, 이 SPEC과 무관)
+```
+
+TDD RED 증거(B1/B2/B3, 격리 실행 기준 — 파일 전체 실행 시 일부 테스트 간
+console.error spy 상호작용으로 순서 의존 노이즈가 관측됐으나, `-t` 필터로
+격리 실행하면 각 신규 테스트가 결함을 정확히 재현하는 깨끗한 RED를 보였다):
+
+```
+FAIL lib/cases/create-case.test.ts > ... > post_failure_lease_release_failed 로그는 ...
+AssertionError: expected '{"event":"post_failure_lease_release_failed","error":"Error: release failed, body part: 우측 발목"}' not to contain '우측 발목'
+
+FAIL lib/cases/create-case.test.ts > ... > 파이프라인 실패 시 리스 해제까지 실패해도(이중 실패) ...
+AssertionError: expected [Function] to throw error including 'pipeline boom (original)' but got 'release also failed'
+
+FAIL app/login/login-form.test.tsx > ... > AC-PILOT-READY-013: ...
+AssertionError: expected <a href="mailto:pilot-support@example.com">고객지원</a> to be undefined
+```
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

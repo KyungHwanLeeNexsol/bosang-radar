@@ -116,6 +116,10 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       "owner-fencing",
       "owner-race",
       "owner-log",
+      "owner-pii-pipeline",
+      "owner-pii-tx",
+      "owner-pii-release",
+      "owner-pipeline-double-fail",
     ]);
   });
 
@@ -229,25 +233,57 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       expect(rows).toHaveLength(0);
     });
 
-    it("트랜잭션 실패 후 리스가 후속 명시적으로 해제되어 즉시 새 leaseId로 재획득할 수 있다 (v0.5.0)", async () => {
+    it("트랜잭션 실패 시 cases/reports/reservations 3개 테이블 모두 0행(사후 펜싱 해제 증거)이고, 새 leaseId로 즉시 재획득에 성공한다(이전 leaseId와 다름을 직접 확인, v0.6.0 보강)", async () => {
       const { createCase } = await import("./create-case");
       const circular: Record<string, unknown> = {};
       circular.self = circular;
-      runPipelineMock.mockResolvedValueOnce(circular);
 
-      await expect(createCase("owner-tx-recover", validInput)).rejects.toThrow();
+      // 1차 시도 — pending 상태에서 실패 전 leaseId를 직접 관측한다. circular
+      // content로 트랜잭션을 실패시킬 것이므로 sampleReport와 형태가 다른
+      // 값을 resolve하기 위해 unknown으로 느슨하게 타입한다.
+      const firstPending = deferred<unknown>();
+      runPipelineMock.mockReturnValueOnce(firstPending.promise);
+      const firstCall = createCase("owner-tx-recover", validInput);
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
 
-      const rowsAfterFailure = await db
-        .select()
+      const [firstLeaseRow] = await db
+        .select({ leaseId: reservations.leaseId })
         .from(reservations)
         .where(eq(reservations.ownerUserId, "owner-tx-recover"));
-      expect(rowsAfterFailure).toHaveLength(0);
+      expect(firstLeaseRow).toBeDefined();
+      const firstLeaseId = firstLeaseRow!.leaseId;
 
-      runPipelineMock.mockResolvedValueOnce(sampleReport);
-      const retryResult = await createCase("owner-tx-recover", validInput);
+      firstPending.resolve(circular);
+      await expect(firstCall).rejects.toThrow();
 
+      // 증거 1 — 사후 펜싱 해제: cases/reports/reservations 3개 테이블 모두
+      // owner-tx-recover에 대해 0행이다(트랜잭션 롤백 + 후속 명시적 해제).
+      const [caseRows, reportRows, reservationRowsAfterFailure] = await Promise.all([
+        db.select().from(schema.cases).where(eq(schema.cases.ownerUserId, "owner-tx-recover")),
+        db.select().from(schema.reports),
+        db.select().from(reservations).where(eq(reservations.ownerUserId, "owner-tx-recover")),
+      ]);
+      expect(caseRows).toHaveLength(0);
+      expect(reportRows).toHaveLength(0);
+      expect(reservationRowsAfterFailure).toHaveLength(0);
+
+      // 증거 2 — 즉시 재획득: 새 leaseId가 실패한 1차 시도의 leaseId와
+      // 다르다(펜싱된 해제가 실제로 일어났음을 leaseId 값 자체로 확인).
+      const retryPending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValueOnce(retryPending.promise);
+      const retryCall = createCase("owner-tx-recover", validInput);
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(2));
+
+      const [newLeaseRow] = await db
+        .select({ leaseId: reservations.leaseId })
+        .from(reservations)
+        .where(eq(reservations.ownerUserId, "owner-tx-recover"));
+      expect(newLeaseRow).toBeDefined();
+      expect(newLeaseRow!.leaseId).not.toBe(firstLeaseId);
+
+      retryPending.resolve(sampleReport);
+      const retryResult = await retryCall;
       expect(retryResult.success).toBe(true);
-      expect(runPipelineMock).toHaveBeenCalledTimes(2);
     });
 
     it("현실적 worst-case 지속 시간(200초 이상) 동안 TTL(최소 330초) 안에서 가드가 계속 유지된다", async () => {
@@ -355,14 +391,32 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       expect(freshResult.success).toBe(true);
     });
 
-    it("동시에 시작된 두 요청 중 정확히 하나만 리스를 획득한다(진성 경쟁 조건, 실제 UNIQUE 제약 대상)", async () => {
+    it("동시에 시작된 두 요청 중 정확히 하나만 리스를 획득한다(진성 경쟁 조건, 실제 UNIQUE 제약 대상) — 파이프라인이 pending인 동안 승자의 예약 1건만 존재하고 패자는 파이프라인을 기다리지 않고 즉시 거부된다(v0.6.0 보강)", async () => {
       const { createCase } = await import("./create-case");
-      runPipelineMock.mockResolvedValue(sampleReport);
+      const pending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValueOnce(pending.promise);
 
-      const [resultA, resultB] = await Promise.all([
-        createCase("owner-race", validInput),
-        createCase("owner-race", validInput),
-      ]);
+      const callA = createCase("owner-race", validInput);
+      const callB = createCase("owner-race", validInput);
+
+      // 승자가 acquireLease를 마치고 runPipeline을 호출할 때까지 기다린다 —
+      // 이 시점에 파이프라인은 아직 pending이며, 패자는 이미 정착됐어야 한다.
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+
+      const reservationRows = await db
+        .select()
+        .from(reservations)
+        .where(eq(reservations.ownerUserId, "owner-race"));
+      expect(reservationRows).toHaveLength(1);
+
+      // 두 Promise 중 이미 정착된 쪽(패자)을 Promise.race로 직접 관측한다 —
+      // 파이프라인이 여전히 pending이므로 승자 쪽은 이 race에서 절대 먼저
+      // 정착될 수 없다(파이프라인을 기다리지 않고 즉시 거부됐다는 직접 증거).
+      const loserResult = await Promise.race([callA, callB]);
+      expect(loserResult).toEqual({ success: false, alreadyProcessing: true });
+
+      pending.resolve(sampleReport);
+      const [resultA, resultB] = await Promise.all([callA, callB]);
 
       const successes = [resultA, resultB].filter((r) => r.success);
       const blocked = [resultA, resultB].filter((r) => !r.success);
@@ -370,6 +424,113 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       expect(successes).toHaveLength(1);
       expect(blocked).toHaveLength(1);
       expect(runPipelineMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("PII 비노출 로깅 — errorName/errorCode만 기록, .message 원문 반사 금지 (v0.6.0, 외부 구현 검토 5차 반영)", () => {
+    it("pipeline_failed 로그는 파이프라인 오류의 .message에 담긴 사건 입력 원문을 포함하지 않는다", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const { createCase } = await import("./create-case");
+      runPipelineMock.mockRejectedValueOnce(
+        new Error(`DB write failed for input: ${validInput.incidentDescription}`)
+      );
+
+      await expect(createCase("owner-pii-pipeline", validInput)).rejects.toThrow();
+
+      const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+      for (const line of loggedLines) {
+        expect(line).not.toContain(validInput.incidentDescription);
+      }
+      const pipelineFailedLine = loggedLines.find((line) => line.includes('"event":"pipeline_failed"'));
+      expect(pipelineFailedLine).toBeDefined();
+
+      errorSpy.mockRestore();
+    });
+
+    it("completion_transaction_failed 로그는 트랜잭션 오류의 .message에 담긴 사건 입력 원문을 포함하지 않는다", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const { createCase } = await import("./create-case");
+      runPipelineMock.mockResolvedValueOnce(sampleReport);
+      const txSpy = vi
+        .spyOn(db, "transaction")
+        .mockRejectedValueOnce(
+          new Error(`reports insert failed near diagnosis: ${validInput.diagnosisName}`)
+        );
+
+      await expect(createCase("owner-pii-tx", validInput)).rejects.toThrow();
+
+      const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+      for (const line of loggedLines) {
+        expect(line).not.toContain(validInput.diagnosisName);
+      }
+      const txFailedLine = loggedLines.find((line) =>
+        line.includes('"event":"completion_transaction_failed"')
+      );
+      expect(txFailedLine).toBeDefined();
+
+      txSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it("post_failure_lease_release_failed 로그는 리스 해제 오류의 .message에 담긴 사건 입력 원문을 포함하지 않는다(이중 실패)", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const { createCase } = await import("./create-case");
+      runPipelineMock.mockResolvedValueOnce(sampleReport);
+      const txSpy = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("completion tx boom"));
+      const deleteSpy = vi.spyOn(db, "delete").mockImplementationOnce(() => {
+        throw new Error(`release failed, body part: ${validInput.disabilityBodyPart}`);
+      });
+
+      await expect(createCase("owner-pii-release", validInput)).rejects.toThrow();
+
+      const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+      for (const line of loggedLines) {
+        expect(line).not.toContain(validInput.disabilityBodyPart);
+      }
+      const releaseFailedLine = loggedLines.find((line) =>
+        line.includes('"event":"post_failure_lease_release_failed"')
+      );
+      expect(releaseFailedLine).toBeDefined();
+
+      deleteSpy.mockRestore();
+      txSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+  });
+
+  describe("파이프라인 실패 시 리스 해제 대칭화 (REQ-PILOT-READY-007, v0.6.0 — 외부 구현 검토 5차 반영)", () => {
+    it("파이프라인 실패 시 리스 해제까지 실패해도(이중 실패) 원래 파이프라인 오류가 그대로 전파되고, TTL 경과 후 재획득이 가능하다", async () => {
+      vi.useFakeTimers();
+      const start = new Date("2024-03-15T00:00:00.000Z");
+      vi.setSystemTime(start);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      const { createCase } = await import("./create-case");
+      runPipelineMock.mockRejectedValueOnce(new Error("pipeline boom (original)"));
+      const deleteSpy = vi.spyOn(db, "delete").mockImplementationOnce(() => {
+        throw new Error("release also failed");
+      });
+
+      // (a) 리스 해제 자체도 실패했지만, 원래 파이프라인 오류가 삼켜지지
+      // 않고 그대로 전파된다.
+      await expect(createCase("owner-pipeline-double-fail", validInput)).rejects.toThrow(
+        "pipeline boom (original)"
+      );
+      deleteSpy.mockRestore();
+
+      // (b) 이중 실패로 리스가 여전히 남아있으므로 TTL 경과 전에는 막힌다.
+      vi.setSystemTime(new Date(start.getTime() + 329_000));
+      const stillBlocked = await createCase("owner-pipeline-double-fail", validInput);
+      expect(stillBlocked).toEqual({ success: false, alreadyProcessing: true });
+
+      // TTL(330초) 경과 후에는 정상적으로 재획득해 성공한다 — 이중 실패가
+      // 영구적으로 재제출을 막지 않는다.
+      vi.setSystemTime(new Date(start.getTime() + 331_000));
+      runPipelineMock.mockResolvedValueOnce(sampleReport);
+      const recovered = await createCase("owner-pipeline-double-fail", validInput);
+      expect(recovered.success).toBe(true);
+
+      errorSpy.mockRestore();
     });
   });
 

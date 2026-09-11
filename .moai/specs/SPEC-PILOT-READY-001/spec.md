@@ -1,10 +1,10 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.5.0"
+version: "0.6.0"
 status: in-progress
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 author: Nexsol
 priority: P1
 phase: "v1.0.0 target"
@@ -17,6 +17,23 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.6.0): 외부 구현 검토(run-phase, 5차) 반영 — run_status를 `complete`에서
+  `partial`/`blocked`로 정정(M4 readiness는 여전히 NO-GO)하고, `pilot-ready-idempotency-scope`
+  리포트를 작성했다(외부 접근 불필요, M1 구현 완료로 차단 해제됨). PII 비노출 로깅을
+  `error: String(error)` 대신 화이트리스트 메타데이터(errorName/errorCode/stage)로
+  강화하고, `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문 주입 적대적
+  테스트를 추가했다. 파이프라인 실패 경로(`pipeline_failed`)에서도 완료 트랜잭션 실패
+  경로와 동일하게 `releaseLeaseFenced` 자체 실패를 흡수·기록하고 원래 오류를 보존하도록
+  대칭화했다. **AC-PILOT-READY-013을 정정**: 기존 문구("`aria-disabled`가 아닌 실제
+  클릭 가능한 링크가 항상 존재해야 한다")는 `SUPPORT_CONTACT_EMAIL`이 아직 미확정인
+  기본 상태에서도 RFC 2606 예약 도메인(example.com)을 실제 채널인 것처럼 클릭 가능하게
+  노출시키는 부작용을 낳았다 — 외부 검토가 이를 정확히 지적했다. 정정된 AC-013은
+  "실제 주소가 설정되면 그 주소로 활성 mailto 링크, 미설정이면 정직한 비활성 표시"로
+  나뉜다. 사용자가 두 대안(정직한 비활성 표시 유지 vs 기존 항상-활성 문구 유지) 중
+  전자를 명시적으로 선택했다(AskUserQuestion). 진성 경쟁 테스트를 pending 파이프라인
+  상태에서 승자의 리스가 유지됨을 검증하도록 강화하고, 트랜잭션 실패 시 cases/reports/
+  reservations 3개 테이블 모두를 확인하며 사후 펜싱 해제와 즉시 재획득을 구분된
+  단계로 검증하도록 보강했다.
 - 2026-09-10: 최초 작성 (Nexsol) — 10명의 외부 전문가(보험설계사/손해사정사) 파일럿 착수 전,
   이미 완성된 사건 입력→Gemini 6단계 리서치 파이프라인→리포트→구조화 피드백 흐름을
   실제 배포 환경에서 안전하게 가동하기 위한 최소 범위의 배포 준비 SPEC. 신규 비즈니스

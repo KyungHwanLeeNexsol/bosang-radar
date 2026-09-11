@@ -12,17 +12,20 @@ import { authClient } from "@/lib/auth/client";
 // 신규: 비밀번호 표시/숨김 토글(type state 전환만, 제출값 무영향) + 푸터
 // 링크(정책 3종 비활성, "랜딩으로 돌아가기"만 활성).
 //
-// SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013, AC-PILOT-READY-013) — "고객지원"
-// 항목은 더 이상 aria-disabled 텍스트가 아니라 실제로 클릭 가능한 mailto:
-// 링크다. 실제 운영자 연락 이메일(plan.md §F Implementation Kickoff Decision
-// Checklist "지원 연락처 이메일 주소" — unconfirmed/required-blocker)이
-// 확정되기 전까지는 `supportEmail` prop(서버 컴포넌트인 app/login/page.tsx가
-// SUPPORT_CONTACT_EMAIL 환경변수로 전달)이 비어 있으므로, RFC 2606 예약
-// 도메인(example.com — 이 프로젝트가 README.md의 테스터 계정 예시에서도 이미
-// 쓰는 동일한 관례)을 쓴 자리표시자로 폴백한다 — 실재하는 것처럼 보이는
-// 가짜 운영 이메일을 하드코딩하지 않는다. 운영자가 실제 주소를 확정하면
-// SUPPORT_CONTACT_EMAIL 환경변수만 설정하면 된다(코드 변경 불필요).
-const DEFAULT_SUPPORT_EMAIL_PLACEHOLDER = "pilot-support@example.com";
+// SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013, AC-PILOT-READY-013) — 실제
+// 운영자 연락 이메일이 확정되어 `supportEmail` prop(서버 컴포넌트인
+// app/login/page.tsx가 SUPPORT_CONTACT_EMAIL 환경변수로 전달)이 설정되면
+// "고객지원" 항목이 그 주소로 실제로 클릭 가능한 mailto: 링크가 된다.
+//
+// v0.6.0(외부 구현 검토 5차 반영) — 이전 버전은 `supportEmail`이 아직
+// 미확정인 기본 상태에서도 RFC 2606 예약 도메인(example.com) 자리표시자를
+// 실제 mailto: 링크로 노출해, 실재하는 채널처럼 보이는 클릭 가능한 가짜
+// 연락처를 보여주는 부작용이 있었다 — 외부 검토가 이를 정확히 지적했다.
+// 정정된 동작: `supportEmail`이 없으면(미확정 기본 상태) 클릭 가능한 것처럼
+// 보이는 가짜 링크를 노출하지 않고, 다른 2개 정책 링크와 동일한 방식으로
+// aria-disabled 텍스트로 정직하게 미설정 상태를 드러낸다. 운영자가 실제
+// 주소를 확정하면 SUPPORT_CONTACT_EMAIL 환경변수만 설정하면 된다(코드
+// 변경 불필요).
 const DISABLED_FOOTER_LINKS = ["이용약관", "개인정보처리방침"] as const;
 
 interface LoginFormProps {
@@ -30,7 +33,6 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ supportEmail }: LoginFormProps = {}) {
-  const resolvedSupportEmail = supportEmail ?? DEFAULT_SUPPORT_EMAIL_PLACEHOLDER;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -152,12 +154,18 @@ export function LoginForm({ supportEmail }: LoginFormProps = {}) {
           ))}
           <span className="flex items-center gap-3">
             <span aria-hidden="true">|</span>
-            <a
-              href={`mailto:${resolvedSupportEmail}`}
-              className="hover:text-bora-ink-2 hover:underline"
-            >
-              고객지원
-            </a>
+            {supportEmail ? (
+              <a
+                href={`mailto:${supportEmail}`}
+                className="hover:text-bora-ink-2 hover:underline"
+              >
+                고객지원
+              </a>
+            ) : (
+              <span aria-disabled="true" className="cursor-not-allowed opacity-40">
+                고객지원
+              </span>
+            )}
           </span>
         </div>
         {/* Round4: Pencil 정합 — 뒤로가기 화살표 아이콘 추가 */}

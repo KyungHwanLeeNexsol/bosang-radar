@@ -16,6 +16,7 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 | `case_request_received` | `app/api/cases/route.ts` | 요청 시작(로그인 여부 확인 직후). `hasOwnerUserId`로 세션 존재 여부만 기록 |
 | `pipeline_stage_failed` | `lib/pipeline/index.ts` | 파이프라인 6단계(CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier) 중 한 단계가 실패. `stage` 필드로 어느 단계인지 확인 |
 | `pipeline_failed` | `lib/cases/create-case.ts` | 파이프라인 전체가 예외를 던짐(리스는 자동 해제됨) |
+| `pipeline_failed_lease_release_failed` | `lib/cases/create-case.ts` | 위 파이프라인 실패 후 리스 해제 자체도 실패(드문 이중 실패, v0.6.0 대칭화) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다. 원래 파이프라인 오류는 이 이중 실패와 무관하게 항상 호출자에게 전파된다 |
 | `completion_transaction_failed` | `lib/cases/create-case.ts` | 완료 기록 트랜잭션(cases/reports INSERT + 리스 해제)이 실패해 롤백됨 |
 | `post_failure_lease_release_failed` | `lib/cases/create-case.ts` | 위 트랜잭션 실패 후 후속 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다 |
 

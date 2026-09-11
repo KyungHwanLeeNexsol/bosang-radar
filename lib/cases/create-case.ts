@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { cases, reports, reservations } from "../db/schema";
+import { toSafeErrorMeta } from "../logging/safe-error";
 import { runPipeline } from "../pipeline/index";
 import { validateCaseInput } from "../validation/case-input";
 
@@ -128,11 +129,30 @@ export async function createCase(
     report = await runPipeline(parsed.data);
   } catch (error) {
     console.error(
-      JSON.stringify({ event: "pipeline_failed", hasOwnerUserId: Boolean(ownerUserId), error: String(error) })
+      JSON.stringify({
+        event: "pipeline_failed",
+        hasOwnerUserId: Boolean(ownerUserId),
+        ...toSafeErrorMeta(error),
+      })
     );
     // 파이프라인 실패/예외 — 리스만 정리하고 cases/reports에는 아무것도
-    // 기록하지 않는다(재시도가 차단되지 않게 한다).
-    await releaseLeaseFenced(db, ownerUserId, leaseId);
+    // 기록하지 않는다(재시도가 차단되지 않게 한다). 완료 트랜잭션 실패
+    // 경로(아래)와 대칭적으로, 이 해제 자체가 실패해도 원래 파이프라인
+    // 오류를 삼키지 않고 항상 원래 오류를 던진다(v0.6.0 정정 — 외부
+    // 구현 검토 5차 반영).
+    try {
+      await releaseLeaseFenced(db, ownerUserId, leaseId);
+    } catch (releaseError) {
+      // 이중 실패 — 로그만 남기고 최종 회복은 기존 TTL 만료 메커니즘에
+      // 맡긴다(완료 트랜잭션 실패 경로의 post_failure_lease_release_failed와
+      // 동일한 이중 실패 처리 패턴).
+      console.error(
+        JSON.stringify({
+          event: "pipeline_failed_lease_release_failed",
+          ...toSafeErrorMeta(releaseError),
+        })
+      );
+    }
     throw error;
   }
 
@@ -187,7 +207,7 @@ export async function createCase(
     // 재제출할 수 있도록 이 트랜잭션과는 별개의 후속 단계로 펜싱된 해제를
     // 수행한다(plan.md §A v0.5.0 정밀화).
     console.error(
-      JSON.stringify({ event: "completion_transaction_failed", error: String(error) })
+      JSON.stringify({ event: "completion_transaction_failed", ...toSafeErrorMeta(error) })
     );
     try {
       await releaseLeaseFenced(db, ownerUserId, leaseId);
@@ -197,7 +217,7 @@ export async function createCase(
       console.error(
         JSON.stringify({
           event: "post_failure_lease_release_failed",
-          error: String(releaseError),
+          ...toSafeErrorMeta(releaseError),
         })
       );
     }
