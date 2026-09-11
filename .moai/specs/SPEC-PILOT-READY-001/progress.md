@@ -821,3 +821,18 @@ Pages changed  skipping (실패 아님)
 - **Gemini 쿼터 미확인**: 두 컨텍스트 모두 RPM budget 명시값이 없어 코드 기본값 4를
   사용한다. 실행 가능 여부와 별개로, 실제 AI Studio 한도 확인 및 그에 근거한 예산값
   기록이 없으므로 readiness 항목 (2)은 계속 `UNVERIFIED`다.
+
+## §P Deploy Preview 공개 후 접근 재확인 (2026-09-12)
+
+사용자가 Deploy Preview 방문자 접근을 Public으로 전환했다. 동일한 실제 배포 도메인에서
+다음 응답을 확인했다.
+
+- `/` → HTTP 200
+- `/login` → HTTP 200, 로그인 페이지 콘텐츠 확인
+- `/api/auth/get-session` → HTTP 200
+- `/cases/new` → HTTP 307 → `/login` (비로그인 보호 라우트 정상)
+
+이로써 Netlify 방문자 보호로 인한 검증 차단은 해소됐다. 다만 원격 DB의
+`users`/`allowed_testers`가 0건이므로 실제 로그인과 이후 M4 검증은 아직 시작하지
+못했다. 세부 결과는 `.moai/reports/pilot-ready-remote-db-verification-20260912.md`에
+추가했다.
