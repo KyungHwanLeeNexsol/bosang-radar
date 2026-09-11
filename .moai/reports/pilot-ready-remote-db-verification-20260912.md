@@ -2,13 +2,13 @@
 
 ## 판정
 
-**`UNVERIFIED (부분 실행 완료)`**
+**`PARTIAL (readiness 판정은 UNVERIFIED 유지)`**
 
 Netlify production 컨텍스트의 실제 환경변수를 주입해 원격 Turso 마이그레이션과
 시드를 실행했고, 별도 읽기 전용 조회로 결과를 재확인했다. 그러나
-REQ-PILOT-READY-016의 원격 DB READY 기준에 포함된 `tester:add`는 아직 실행하지
-않았으며, 실제 원격 DB의 `users`와 `allowed_testers` 행은 모두 0건이다. 따라서 이
-리포트만으로 readiness 항목 (3)을 READY로 올리지 않는다.
+REQ-PILOT-READY-016의 원격 DB READY 기준에 포함된 `tester:add`를 실행하고 세 계정의
+allowlist/user 행을 재확인했다. 다만 이 리포트는 원격 DB 결과만 다루므로 readiness
+항목 (3)의 최종 판정은 다른 실환경 게이트와 함께 재평가한다.
 
 ## 대상
 
@@ -66,8 +66,8 @@ db-seed.ts    → ✅ 시드 완료 (exit 0)
 |-----------|------|
 | 적용된 마이그레이션 | 6건 |
 | `evidence` 기준 데이터 | 21건 |
-| `allowed_testers` | 0건 |
-| `users` | 0건 |
+| `allowed_testers` | 3건 |
+| `users` | 3건 |
 | `reservations` | 0건 |
 
 `reservations` 테이블 조회까지 성공했으므로 M1에서 추가한 원격 스키마가 실제 Turso에
@@ -105,5 +105,18 @@ db-seed.ts    → ✅ 시드 완료 (exit 0)
 | `/api/auth/get-session` | HTTP 200 | 인증 API가 앱 레이어에서 응답 |
 | `/cases/new` | HTTP 307 → `/login` | 비로그인 보호 라우트 가드 정상 |
 
-따라서 Preview 접근 제한은 해소됐다. 아직 계정이 없어 실제 로그인·세션 수립,
-Gemini 호출, DB 영속화, 동시부하 검증은 수행하지 않았다.
+따라서 Preview 접근 제한은 해소됐다. 계정은 생성됐지만 실제 로그인·세션 수립,
+Gemini 호출, DB 영속화, 동시부하 검증은 아직 수행하지 않았다.
+
+## 테스터 프로비저닝 재확인
+
+Netlify production 컨텍스트를 주입해 `tester:add`를 세 번 실행한 뒤, 읽기 전용 조회로
+각 이메일의 두 테이블 행을 확인했다.
+
+| 계정 | `allowed_testers` | `users` |
+|------|------------------|---------|
+| `khwan3927@gmail.com` | 1 | 1 |
+| `fucktube3927@gmail.com` | 1 | 1 |
+| `indiatube3927@gmail.com` | 1 | 1 |
+
+비밀번호와 인증 토큰은 출력하거나 저장하지 않았다.

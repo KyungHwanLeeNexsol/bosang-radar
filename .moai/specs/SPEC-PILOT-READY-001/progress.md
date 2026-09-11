@@ -807,11 +807,11 @@ Pages changed  skipping (실패 아님)
 - Netlify production 환경을 주입해 `scripts/db-migrate.ts` 실행 성공(exit 0).
 - 같은 환경에서 `scripts/db-seed.ts` 실행 성공(exit 0).
 - 독립 읽기 조회로 마이그레이션 6건, `evidence` 21건, `allowed_testers` 0건,
-  `users` 0건, `reservations` 0건을 확인했다.
+  `users` 0건, `reservations` 0건을 확인한 뒤, 사용자가 세 테스터 계정을 생성했다.
 - 세부 증거: `.moai/reports/pilot-ready-remote-db-verification-20260912.md`.
-- **AC/readiness 판정**: 원격 마이그레이션·시드는 확인됐지만 `tester:add`가 미실행이고
-  실제 테스터 계정이 0건이므로 AC-PILOT-READY-004와 readiness 항목 (3)은 계속
-  `UNVERIFIED`다. 부분 성공을 READY로 올리지 않는다.
+- **AC/readiness 판정**: 세 이메일 모두 `allowed_testers=1`, `users=1`로 재확인했다.
+  원격 DB 준비 조건은 충족됐지만, 실 도메인 인증·Gemini·부하·복구 검증과 함께
+  readiness 항목 (3)을 최종 재판정해야 하므로 전체 판정은 아직 `NO-GO`다.
 - **실 도메인 차단**: Deploy Preview는 `/`, `/login`, `/api/auth/get-session` 모두
   Netlify 방문자 접근 제어에서 HTTP 401을 반환한다. Production URL은 HTTP 404다.
   따라서 앱 레이어의 인증, 실 Gemini 스모크, 처리시간 3회, 다중 사용자 부하 및
@@ -832,7 +832,7 @@ Pages changed  skipping (실패 아님)
 - `/api/auth/get-session` → HTTP 200
 - `/cases/new` → HTTP 307 → `/login` (비로그인 보호 라우트 정상)
 
-이로써 Netlify 방문자 보호로 인한 검증 차단은 해소됐다. 다만 원격 DB의
-`users`/`allowed_testers`가 0건이므로 실제 로그인과 이후 M4 검증은 아직 시작하지
-못했다. 세부 결과는 `.moai/reports/pilot-ready-remote-db-verification-20260912.md`에
-추가했다.
+이로써 Netlify 방문자 보호로 인한 검증 차단은 해소됐다. 원격 DB의
+`users`/`allowed_testers`에 세 계정이 등록되어 실제 로그인과 이후 M4 검증을 시작할 수
+있다. 세부 결과는 `.moai/reports/pilot-ready-remote-db-verification-20260912.md`에
+추가했다. 계정별 원격 조회 결과는 세 이메일 모두 `allowlist=1`, `user=1`이다.
