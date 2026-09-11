@@ -836,3 +836,19 @@ Pages changed  skipping (실패 아님)
 `users`/`allowed_testers`에 세 계정이 등록되어 실제 로그인과 이후 M4 검증을 시작할 수
 있다. 세부 결과는 `.moai/reports/pilot-ready-remote-db-verification-20260912.md`에
 추가했다. 계정별 원격 조회 결과는 세 이메일 모두 `allowlist=1`, `user=1`이다.
+
+## §Q Preview 분석 실패 원인 진단 (2026-09-12)
+
+사용자가 첫 분석 요청이 1분 이내에 “네트워크 오류”로 실패했다고 보고했다. 프런트
+메시지는 HTTP 5xx/비정상 응답도 동일하게 표시하므로, Netlify production 환경변수를
+주입한 동일 `runPipeline()`을 별도 프로세스에서 1회 측정했다.
+
+- `gemini-3.6-flash`, `gemini-3.5-flash-lite` 단일 호출: 모두 성공.
+- 전체 파이프라인: `PIPELINE_OK elapsedMs=81227` (약 81.2초).
+- 결론: 키·모델·인증 실패가 아니라, 현재 동기 파이프라인이 Netlify 공식 60초
+  상한을 초과해 배포 요청이 종료되는 것이 가장 직접적인 원인이다.
+- 이 측정은 배포 도메인 실측이 아니므로 readiness 항목 (1)의 READY 근거로 승격하지
+  않는다. 다만 호스팅 적합성의 BLOCKER를 재현하는 진단 증거로 기록한다.
+- 선택지는 (a) 동기 60초 초과 실행을 지원하는 호스팅으로 이전하거나, (b) 분석을
+  비동기 작업/상태 조회 구조로 바꾸는 것이다. 단순히 Netlify 환경변수 키를 다시
+  입력하는 것으로는 해결되지 않는다.
