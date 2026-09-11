@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.13.0"
+version: "0.14.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,17 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.14.0): 외부 최종 검토("Netlify Middleware 수정 PASS", HEAD
+  `a3d61c6`) 반영 — 기록 동기화만 수행(추가 구현/전체 테스트 반복 없음). PR
+  #10 본문을 정정했다: 수동·프로덕션 배포는 미수행, 자동 Deploy Preview는
+  최초 실패 후 수정되어 PASS(Preview URL:
+  https://deploy-preview-10--musical-macaron-82feb3.netlify.app), 검증 수치를
+  62/62·431/431·E2E 13/10/0으로 갱신. `musical-macaron-82feb3`가 PR #10과
+  연결된 Netlify 사이트임을 GitHub status check로 확인했다고 기록하되, 장기
+  프로덕션 사이트 채택 여부는 별도 미확정 결정으로 남겼다(스파이크 리포트
+  §7-b, progress.md §N 갱신). Preview 성공과 파일럿 readiness를 혼동하지
+  않는다 — 실 인증·Turso·Gemini·처리시간 검증 전까지 전체 NO-GO와 호스팅
+  UNVERIFIED를 그대로 유지했다. PR #10은 open 유지, 병합하지 않았다.
 - 2026-09-11 (v0.13.0): PR #10 Netlify Deploy Preview 실패 수정. 사용자가
   Netlify 대시보드에서 직접 확인한 최초 fatal — `Usage of unsupported C++
   Addon(s) found in Node.js Middleware: @libsql/linux-x64-gnu/index.node`

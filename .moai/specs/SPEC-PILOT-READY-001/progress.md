@@ -760,10 +760,13 @@ Pages changed  skipping (실패 아님)
 적합성(AC-PILOT-READY-001이 다루는 3층위 문서화와는 별개로, readiness 문서의
 항목 (1) 실제 판정)은 여전히 `UNVERIFIED`다.
 
-**여전히 열린 질문**: `musical-macaron-82feb3` 사이트 신원(의도된 프로젝트인지)
-확인은 이번 라운드에서 사용자로부터 명시적 확답을 받지 못했다 — 로그를
-제공받아 원인 수정을 진행할 수 있었던 것으로 보아 사용자가 실제로 접근 권한을
-가진 사이트로 보이지만, 명시적 "예/아니오" 확인은 아직 기록되지 않았다.
+**부분 해소 (v0.14.0)**: `musical-macaron-82feb3`가 **PR #10과 연결된 Netlify
+사이트라는 사실 자체는 GitHub status check로 확인됐다**(`gh pr checks 10`,
+`netlify/musical-macaron-82feb3/deploy-preview` context — GitHub 저장소
+연동이 이미 이 사이트로 구성되어 있다는 객관적 증거). 다만 **이 사이트를
+장기 프로덕션 사이트로 채택할지는 여전히 별도의 미확정 운영 결정**으로
+남긴다(PR #10 본문에도 동일하게 명시) — "GitHub에 연결된 사이트"와 "프로덕션
+사이트로 확정"은 다른 질문이다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
