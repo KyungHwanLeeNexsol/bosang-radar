@@ -660,6 +660,50 @@ $ pnpm build                 → EXIT=0 (기존 instrumentation.ts Edge Runtime 
 
 포맷 수정 커밋: `990e525`(`style(SPEC-PILOT-READY-001): ...`).
 
+## §M PR #10 검토 후속 — Deploy Preview 실패 발견, E2E 1회 실행 (v0.12.0)
+
+`pr_review_round_at: 2026-09-11`. 외부 PR 검토: "수정 후 PASS 가능", HEAD
+`6d1aa36`. PR #10은 open 유지, 병합하지 않았다.
+
+- **Netlify 자동 Deploy Preview 실패 발견 및 기록 정정**: PR 생성 직후 Netlify가
+  이미 이 저장소에 연결되어 있어 자동 Deploy Preview가 트리거되어 실패했다
+  (사이트 `musical-macaron-82feb3`, 배포 `6aa366b046557f0008ceef11`) — GitHub
+  `gh pr checks 10` + Check Runs/Statuses API로 직접 확인. "Netlify 배포
+  미수행"이라는 이전 표현을 "수동·프로덕션 배포는 미수행, 자동 Preview 배포는
+  실패"로 정정했다(스파이크 리포트 §7-b에 상세 기록).
+- **최초 fatal 원인: 미확인.** Netlify 대시보드 로그는 로그인이 필요하며, 이
+  세션은 Netlify CLI 인증도 브라우저 연동(claude-in-chrome 확장 미연결 확인함)도
+  없어 실제 로그를 읽을 수 없었다. 원인을 모르는 채로 readiness 판정(항목 1)을
+  변경하지 않았다 — 지시사항 준수.
+- **사이트 신원 확인 필요**: `musical-macaron-82feb3`는 Netlify 자동 생성
+  슬러그 패턴이다. 이 세션의 어떤 라운드도 Netlify 계정을 조작한 적이 없어,
+  이 사이트가 이 프로젝트를 위해 의도적으로 만들어진 것인지 확인할 수 없었다
+  — 사용자 확인이 필요한 open question으로 남긴다.
+- **README.md/product.md 현행화**: Vercel Hobby/Pro 및 "Vercel CI/CD 자동화"
+  문구를 Netlify Free 결정으로 교체하고, SPEC 상태 서술을 "plan-phase 검토
+  중"에서 "구현 완료(M1/M2/M3/M5/M6) + M4 실 인프라 검증 대기 + readiness
+  NO-GO"로 갱신했다. 검증 결과(60/60 files, 430/430 tests, format:check PASS)를
+  반영했다.
+- **`.env.local.example` 정정**: `SUPPORT_CONTACT_EMAIL` 주석을 "이메일
+  미확정"에서 "주소는 확정·로컬 설정 완료, Netlify 환경 적용·렌더링은
+  미검증"으로 갱신했다. 비밀값 자체는 커밋하지 않았다(`.env.local`은 계속
+  gitignored).
+- **`pnpm test:e2e` 1회 실행** (실제 Gemini 아님, 기존 deterministic 구성 —
+  `run-e2e.ts`가 자체적으로 `LLM_PROVIDER_MODE=deterministic`을 설정):
+
+  ```
+  $ pnpm test:e2e
+  → 23 tests total: 13 passed, 10 skipped, 0 failed
+  → Duration: 5.0m
+  → EXIT=0
+  ```
+
+  10건 skip은 이 실행이 대상으로 삼지 않은 시각 증빙 캡처(`capture-evidence*.spec.ts`)
+  스펙들이다 — 실패가 아니라 이 스위트의 기존 skip 설정이다.
+- **readiness 판정 불변**: 이 라운드는 readiness-decision 문서의 7개 항목이나
+  전체 NO-GO를 변경하지 않았다 — Deploy Preview 실패 원인이 미확인이고, E2E는
+  로컬 deterministic 환경 실행이라 Netlify 배포 적합성 증거가 아니다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

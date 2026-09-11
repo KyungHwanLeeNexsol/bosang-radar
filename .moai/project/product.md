@@ -93,15 +93,20 @@
 - Pencil 디자인 전체 화면 확장 재현 — SPEC-UI-MIGRATION-001
 - E2E storageState 인증 재사용(Better Auth rate-limit flaky 제거) — SPEC-E2E-AUTH-STATE-001
 
-### 배포 검증 필요 (진행 중, `status: draft`)
+### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기 (`status: in-progress`, v0.11.0)
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001) — Vercel 호스팅 tier 결정(Hobby/Pro,
-  Fair Use Guidelines 상용 사용 정의 준수 여부가 실행 시간 상한보다 더 결정적인
-  리스크), 실제 배포된 환경에서의 실행 시간 정합성 확인, Gemini 쿼터 사전 점검,
-  원격 Turso 인스턴스 마이그레이션/시드 검증, 실 배포 도메인 인증 검증, 동시성 실측,
-  최소 서버측 재제출 idempotency 가드(동시성 제한과 제출 idempotency를 구분해
-  명시), 최소 구조적 로깅, 최소 장애 대응 런북, 실 Gemini 스모크 재검증, 데이터
-  취급 고지 정직성 개선(비식별 보장 범위 명확화 + 연락 채널 + 예시)
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001) — **호스팅은 Netlify Free로 확정**
+  (DB: Turso Free, AI: Gemini API Free). 동기 함수 실행 시간 제한은 3층위
+  증거로 기록한다 — (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티
+  관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지
+  UNVERIFIED. **구현(M1: 사용자별 동시 실행 가드, M2: 최소 구조적 로깅, M3: 데이터
+  취급 고지 정직성 개선, M5: 최소 장애 대응 런북, M6: 테스트)은 완료됐다** — 검증:
+  60/60 test files, 430/430 tests, `format:check` PASS. **M4(실 인프라 검증 7건 —
+  Gemini 쿼터 사전 점검, 원격 Turso 인스턴스 마이그레이션/시드 검증, 실 배포
+  도메인 인증 검증, 동시성 실측, 실 Gemini 스모크 재검증, 타임아웃 실측, 최종
+  readiness 판정)은 여전히 대기 중이며, readiness-decision 문서는 7개 항목 전부
+  `UNVERIFIED` + 전체 `NO-GO`다.** 파일럿을 외부 테스터에게 열어도 된다는 뜻이
+  아니다
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
 
@@ -120,8 +125,9 @@
 
 그 밖의 후속 개발 후보(순서 무관, 병행 가능):
 
-- Vercel 정식 CI/CD 배포 자동화 파이프라인 구축(SPEC-PILOT-READY-001은 타임아웃
-  정합성 확인까지만 다룸)
+- Netlify 정식 CI/CD 배포 자동화 파이프라인 구축(SPEC-PILOT-READY-001은 타임아웃
+  정합성 확인까지만 다룸) — PR #10에서 Netlify 자동 Deploy Preview가 실패한
+  원인 조사가 선행되어야 함
 - 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝
 - (장기) PostgreSQL 마이그레이션 실행(Drizzle ORM 뒤에서 이전 가능한 구조는 이미
   유지 중, 실제 마이그레이션은 미실행)

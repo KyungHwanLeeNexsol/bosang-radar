@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.11.0"
+version: "0.12.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,22 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.12.0): 외부 PR 검토("수정 후 PASS 가능", HEAD `6d1aa36`) 반영.
+  PR #10 생성 직후 Netlify 자동 Deploy Preview(사이트 `musical-macaron-82feb3`)가
+  트리거되어 실패한 것을 발견했다 — "Netlify 배포 미수행"이라는 이전 표현을
+  "수동·프로덕션 배포는 미수행, 자동 Preview 배포는 실패"로 정정했다(스파이크
+  리포트 §7-b). 최초 fatal 원인은 Netlify 대시보드 로그인이 필요해 이 세션에서
+  확인하지 못했다(Netlify CLI 인증 없음, 브라우저 확장 미연결) — 원인 불명
+  상태에서 readiness 판정은 변경하지 않았다. 사이트 신원(의도된 프로젝트인지)도
+  확인하지 못해 사용자 확인이 필요한 open question으로 남겼다. README.md/
+  product.md의 Vercel Hobby/Pro·Vercel CI/CD 문구를 Netlify Free 결정으로
+  교체하고, SPEC 상태 서술을 "plan-phase 검토 중"에서 "구현 완료 + M4 대기 +
+  readiness NO-GO"로 갱신했다. `.env.local.example`의 `SUPPORT_CONTACT_EMAIL`
+  주석을 "이메일 미확정"에서 "주소 확정·로컬 완료, Netlify 환경 미검증"으로
+  정정했다(비밀값 미커밋). `pnpm test:e2e`를 1회 실행했다(deterministic 구성,
+  실 Gemini 아님) — 23개 중 13 통과·10 skip·0 실패, exit 0. PR #10은 open
+  유지, 병합하지 않았다. 실 배포·Turso 생성·Gemini 재호출·테스터 초대는
+  이번에도 수행하지 않았다.
 - 2026-09-11 (v0.11.0): 외부 구현 검토(run-phase, 9차) 반영 — "문서 정합성 수정 후
   PASS 가능"이라는 조건부 승인. (1) `pilot-incident-runbook.md` §1의 로그 확인
   경로를 공식 문서(`docs.netlify.com/build/functions/logs/`)로 재확인해 "사이트

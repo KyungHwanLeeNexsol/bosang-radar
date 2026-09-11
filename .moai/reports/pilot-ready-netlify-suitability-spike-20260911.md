@@ -1,7 +1,10 @@
 # Netlify 적합성 스파이크 (REQ-PILOT-READY-001/002 호스팅 후보 변경 — M4)
 
-> **판정 요약: UNVERIFIED (실 배포 미수행).** 실제 비공개 배포와 Gemini 10회 실측은
-> 여전히 수행하지 않았다(사용자 확인·재확인됨). v1(2026-09-11 초판)은 이 상태를
+> **판정 요약: UNVERIFIED (수동·프로덕션 배포는 미수행, 자동 Preview 배포는
+> 실패 — v0.12.0 정정, §7-b 참고).** 실제 비공개 배포와 Gemini 10회 실측은
+> 여전히 수동으로 수행하지 않았다(사용자 확인·재확인됨) — 단, PR #10 생성 후
+> Netlify 자동 Deploy Preview가 트리거되어 **실패**했다(최초 fatal 원인 미확인,
+> §7-b). v1(2026-09-11 초판)은 이 상태를
 > "BLOCKED"로 표기했으나, 이는 이 SPEC의 acceptance.md AC-PILOT-READY-016b가 정의한
 > READY/BLOCKED/UNVERIFIED 3분류 중 잘못된 항목을 골랐다는 지적(외부 구현 검토
 > 7차)을 받아 **UNVERIFIED로 정정한다** — "값을 실제로 측정했고 기준을 넘는 것을
@@ -169,6 +172,42 @@ Free 플랜에 존재하지 않는다**(위 정정 참고).
 - 지원 링크(`mailto:zuge3927@naver.com`)가 실제 배포 환경에서도 정상 렌더링되는지
 - Gemini 3단계 파이프라인의 배포환경 종단 실행
 - `201`(또는 §5 조건부 재설계 시 `202`) 응답 및 DB 영속화·조회
+
+## 7-b. PR #10 자동 Deploy Preview 실패 (v0.12.0, 외부 PR 검토 반영)
+
+**정정**: "Netlify 배포 미수행"이라는 이전 표현은 부정확하다. GitHub PR #10을
+생성하자(2026-09-11T02:25Z) Netlify가 이 저장소에 이미 연결되어 있어 **자동
+Deploy Preview가 트리거됐고, 실패했다**(사이트: `musical-macaron-82feb3`, 배포
+`6aa366b046557f0008ceef11`, `netlify/musical-macaron-82feb3/deploy-preview`
+status check `FAILURE`, "Header rules"/"Pages changed"/"Redirect rules" 체크도
+모두 `FAILURE`). 정확한 서술은: **"수동·프로덕션 배포는 미수행, 자동 Preview
+배포는 실패"**다.
+
+- **최초 fatal 원인**: **미확인**. Netlify 배포 로그는 `app.netlify.com` 대시보드
+  로그인이 필요하며, 이 세션은 Netlify CLI 인증도 브라우저 세션도 보유하지
+  않아 로그를 직접 읽을 수 없었다(GitHub API의 check-run/`statuses` 응답은
+  "Please check the logs" 링크만 제공하고 실제 로그 텍스트는 포함하지 않음 —
+  확인 완료). 가설(미검증, 근거로 사용하지 않음): 로컬 `pnpm build`는 성공하지만
+  Netlify의 Preview 빌드 환경에는 `.env.local`(gitignored)의 어떤 값도 전달되지
+  않으므로, `GEMINI_API_KEY`/`TURSO_DATABASE_URL`/`BETTER_AUTH_SECRET` 등이
+  Netlify 사이트 설정에 별도로 등록되어 있지 않다면 빌드 또는 부팅 단계에서
+  실패했을 가능성이 있다 — 이는 추정일 뿐이며 실제 로그로 확인되기 전까지
+  판정 근거로 쓰지 않는다.
+- **사이트 신원**: `musical-macaron-82feb3`는 Netlify가 이름을 지정하지 않은
+  사이트에 자동 부여하는 전형적인 임의 슬러그(형용사-명사-해시) 패턴이다 — 이
+  세션은 이 사이트를 만든 적이 없고, 이 SPEC의 어떤 이전 라운드도 Netlify
+  계정 조작을 수행하지 않았다(매 라운드 "실 배포 없음"을 확인·기록함, §7 참고).
+  따라서 이 사이트가 **이 프로젝트를 위해 의도적으로 만들어진 것인지, 이 세션이
+  전혀 모르는 경위로 이미 연결되어 있었는지 확인이 필요하다** — 사용자 확인
+  필요 항목으로 남긴다.
+- **판정 불변**: 원인을 모르는 상태이므로 REQ-PILOT-READY-001(c)("이 프로젝트
+  계정의 실제 적용 상한")와 readiness-decision 문서의 항목 (1) 판정을 이
+  실패를 근거로 임의로 변경하지 않는다 — 빌드/부팅 실패는 함수 실행 시간
+  상한과는 다른 종류의 결함일 수 있다. 두 사실(실행 시간 상한 UNVERIFIED,
+  Deploy Preview 빌드 실패)은 별개로 기록한다.
+- **후속 조치 필요**: main 병합 시 프로덕션 자동 배포가 트리거되는지 여부를
+  확인하기 전에는 병합하지 않는다(§ 전체 원칙 참고, 이미 준수 중 — PR #10은
+  open 유지, 병합 없음).
 
 ## 8. 잔여 위험
 

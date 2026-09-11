@@ -20,7 +20,7 @@
 
 최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001, 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력으로 무료 티어 파일럿 안정성을 확보한 SPEC-GEMINI-RUNTIME-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
 
-파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 tier 결정, 원격 DB/인증 도메인 검증, 최소 idempotency 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 현재 plan-phase 검토 중입니다(`.moai/specs/SPEC-PILOT-READY-001/`).
+파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 결정, 원격 DB/인증 도메인 검증, 최소 동시 실행 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 **호스팅을 Netlify Free로 확정**하고 구현(M1/M2/M3/M5/M6)을 완료했습니다(60/60 test files, 430/430 tests, `format:check` PASS) — **M4(실 인프라 검증 7건)는 여전히 대기 중이며 readiness 판정은 전체 `NO-GO`**입니다(`.moai/specs/SPEC-PILOT-READY-001/`, PR #10 open).
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
@@ -136,13 +136,13 @@ bosang-radar/
 
 SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
 
-### 배포 검증 필요 (진행 중)
+### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001, plan-phase 검토 중): 호스팅 tier 결정(Vercel Hobby/Pro — Fair Use Guidelines 상용 사용 정의 준수 여부), 원격 DB/실 배포 도메인 인증 검증, 최소 서버측 재제출 가드(idempotency 보장 범위 명시 포함), 최소 구조적 로깅, 장애 대응 런북, 데이터 취급 고지 정직성 개선. 실행 시간 상한은 결정적 리스크가 아니며(Hobby tier도 300초로 충분), 진짜 확인 대상은 상용 사용 ToS 준수 여부입니다.
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.11.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 동기 함수 실행 시간 제한은 3층위 증거로 기록합니다 — (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티 관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지 UNVERIFIED. 구현(사용자별 동시 실행 가드, 최소 구조적 로깅, 데이터 취급 고지 정직성, 장애 대응 런북, 테스트)은 완료됐습니다. **M4(Gemini 쿼터 점검, 원격 DB/실 도메인 인증 검증, 동시성 실측, 실 Gemini 스모크, 타임아웃 실측, 최종 readiness 판정)는 실 인프라 접근이 필요해 대기 중이며, readiness-decision 문서는 전체 `NO-GO`입니다.**
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 
-- **Vercel 정식 CI/CD 배포 자동화**: SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만 다루며, 정식 배포 파이프라인 구축은 범위 밖
+- **Netlify 정식 CI/CD 배포 자동화**: SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만 다루며, 정식 배포 파이프라인 구축은 범위 밖(PR #10의 자동 Deploy Preview 실패 원인 조사가 선행 필요)
 - **로그인 rate-limiting 하드닝**: 프로덕션 수준의 인증 하드닝
 - **Gold Dataset 추출·집계 도구**: SPEC-FEEDBACK-001로 마련된 `feedback` 테이블(전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과)의 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행
