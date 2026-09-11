@@ -20,11 +20,14 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 | `completion_transaction_failed` | `lib/cases/create-case.ts` | 완료 기록 트랜잭션(cases/reports INSERT + 리스 해제)이 실패해 롤백됨 |
 | `post_failure_lease_release_failed` | `lib/cases/create-case.ts` | 위 트랜잭션 실패 후 후속 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다 |
 
-**확인 위치**(v0.10.0 정정 — 호스팅이 Netlify Free로 확정됨): Netlify에 배포된
-경우 Netlify 대시보드의 해당 프로젝트 → **Logs → Functions**(또는 프로젝트
-개요의 **Functions** 탭 → 대상 함수 선택 → 로그)에서 위 `event` 값으로 검색한다.
-로컬에서는 `pnpm dev` 실행 중인 터미널에 그대로 출력된다. (이전 버전은 Vercel
-대시보드를 기준으로 서술했다 — HISTORICAL, spec.md HISTORY v0.8.0 참고.)
+**확인 위치**(v0.11.0 정정 — 공식 문서 `docs.netlify.com/build/functions/logs/`
+기준으로 경로 재확인): Netlify에 배포된 경우 Netlify 대시보드에서 **사이트 선택
+→ Cloud compute → Functions → 대상 함수 선택**하면 그 함수의 로그를 볼 수 있다
+— 위 `event` 값으로 검색한다. 기본적으로 Functions 목록은 현재 게시된 배포의
+함수만 표시하므로, 다른 배포의 함수를 찾으려면 목록 상단 검색창을 사용한다.
+로컬에서는 `pnpm dev` 실행 중인 터미널에 그대로 출력된다. (v0.10.0의 "Logs →
+Functions" 경로 서술은 부정확했다 — 정정함. 이전 Vercel 대시보드 기준 서술은
+HISTORICAL, spec.md HISTORY v0.8.0 참고.)
 
 ## 2. 테스터 재시도 안내
 

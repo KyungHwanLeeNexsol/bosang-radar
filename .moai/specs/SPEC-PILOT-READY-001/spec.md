@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-READY-001
 title: "파일럿 배포 준비 — 운영 검증, 사용자별 동시 실행 가드, 데이터 취급 고지"
-version: "0.10.0"
+version: "0.11.0"
 status: in-progress
 created: 2026-09-10
 updated: 2026-09-11
@@ -17,6 +17,27 @@ depends_on: [SPEC-RUNTIME-001, SPEC-GEMINI-RUNTIME-001, SPEC-PILOT-UX-001]
 
 ## HISTORY
 
+- 2026-09-11 (v0.11.0): 외부 구현 검토(run-phase, 9차) 반영 — "문서 정합성 수정 후
+  PASS 가능"이라는 조건부 승인. (1) `pilot-incident-runbook.md` §1의 로그 확인
+  경로를 공식 문서(`docs.netlify.com/build/functions/logs/`)로 재확인해 "사이트
+  선택 → Cloud compute → Functions → 대상 함수 선택"으로 정정했다(v0.10.0의
+  "Logs → Functions" 서술은 부정확했다). (2) **AC 충족 상태와 readiness 판정을
+  명확히 분리**했다: AC-PILOT-READY-001은 "3층위 증거 문서화 AC"이지 "호스팅
+  준비상태 판정 AC"가 아니므로, acceptance.md의 Given을 기존 스파이크 리포트에
+  직접 연결하도록 정정하고 PASS로 전환했다 — 호스팅의 실제 준비상태는
+  readiness-decision 문서에서 여전히 UNVERIFIED로 유지된다. AC-PILOT-READY-002/
+  003/004/005/006/010을 "N/A(적용 불가)"에서 "UNVERIFIED(실 인프라 검증 미수행)"로
+  재분류했다 — 이 SPEC에 적용되지 않는 것이 아니라 아직 검증하지 않은 것이기
+  때문이다. AC-PILOT-READY-016b는 "템플릿이 판정값으로 채워졌는가"만 판정하며
+  "GO인가"를 판정하지 않으므로(acceptance.md 자신이 NO-GO도 정상 완료 상태로
+  인정한다), 7개 항목 UNVERIFIED + 전체 NO-GO로 이미 채워진 readiness-decision
+  문서를 근거로 PASS로 전환했다 — 리포트 내부 7개 항목과 전체 NO-GO는 변경하지
+  않았다. (3) progress.md AC 집계를 PASS 10 / UNVERIFIED 6 / BLOCKED 1 / N/A 0 /
+  FAIL 0으로 재계산했다. (4) plan.md §F triage 행의 "다음 run-phase에서 갱신 필요"
+  문구를 제거하고 `pilot-incident-runbook.md` §3이 이미 이경환 담당자로 갱신
+  완료됐음을 반영했다(v0.10.0에서 실제로 이미 수행된 일이었다). 코드 변경·실
+  배포·Gemini 재호출·테스트 반복·테스터 초대·비동기 SPEC 생성·PR·main 병합은
+  이번에도 수행하지 않았다.
 - 2026-09-11 (v0.10.0): 외부 구현 검토(run-phase, 8차) 반영 — 8차 검토가 공식 출처
   URL(`docs.netlify.com/build/functions/configuration/#default-values`)을 제시해
   이 세션이 직접 재확인한 결과, **동기 함수 실행 제한의 공식 게시 값은 60초(변경

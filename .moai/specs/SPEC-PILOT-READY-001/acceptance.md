@@ -8,9 +8,12 @@ requirement as a scenario.
 
 ## AC Group A — 배포 대상 tier 결정 및 호스팅 실행 시간 정합성 확인 (REQ-PILOT-READY-001, REQ-PILOT-READY-002)
 
-**AC-PILOT-READY-001** (v0.10.0 재작성 — Netlify 3층위 증거 기준. 이전 버전의
+**AC-PILOT-READY-001** (v0.11.0 재작성 — Netlify 3층위 증거 기준. 이전 버전의
 Vercel Hobby/Pro tier 문구는 HISTORICAL이다)
-- Given `.moai/reports/pilot-ready-deployment-tier-decision-*.md` 리포트
+- Given `.moai/reports/pilot-ready-deployment-tier-decision-*.md` 리포트 **또는**
+  `.moai/reports/pilot-ready-netlify-suitability-spike-*.md`(3층위 증거를 이미
+  담고 있는 기존 스파이크 리포트 — 전용 파일명이 아직 없다는 이유만으로 이 AC를
+  FAIL 처리하지 않는다, v0.11.0)
 - When Netlify 동기 함수 실행 시간 상한에 대한 기록 내용을 확인하면
 - Then 3개 증거 층위 — (a) 공식 게시 값(60초, 변경 불가,
   `docs.netlify.com/build/functions/configuration/#default-values` 인용 포함),

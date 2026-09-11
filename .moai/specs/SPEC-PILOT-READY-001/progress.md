@@ -221,23 +221,23 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 
 | AC | Status | Verification Command | Actual Output |
 |----|--------|----------------------|----------------|
-| AC-PILOT-READY-001 | **UNVERIFIED** (v0.10.0 재작성, 외부 구현 검토 8차) | `Read .moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` §3 | Vercel tier 결정이 아니라 **Netlify 동기 함수 실행 시간 상한의 적합성**이 판정 대상이다(AC-PILOT-READY-001 v0.10.0). 3층위 증거는 스파이크 리포트에 기록됐다 — (a) 공식 게시 값 60초(`docs.netlify.com/build/functions/configuration/#default-values`, 변경 불가), (b) 상충하는 커뮤니티 관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지 UNVERIFIED. AC가 참조하는 전용 파일명(`pilot-ready-deployment-tier-decision-*.md`)은 아직 작성되지 않았다 — 스파이크 리포트가 그 내용을 담고 있으나 파일명 규칙은 다르다 |
-| AC-PILOT-READY-002 | N/A (M4-scoped) | — | real-environment timeout measurement — out of scope |
-| AC-PILOT-READY-003 | N/A (M4-scoped) | — | Gemini quota dashboard check — out of scope |
-| AC-PILOT-READY-004 | N/A (M4-scoped) | — | remote Turso migration verification — out of scope |
-| AC-PILOT-READY-005 | N/A (M4-scoped) | — | real-domain auth verification — out of scope |
-| AC-PILOT-READY-006 | N/A (M4-scoped) | — | cross-user concurrent load measurement — out of scope |
+| AC-PILOT-READY-001 | **PASS** (v0.11.0 정정, 외부 구현 검토 9차) | `Read .moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` §3 | 이 AC는 **3층위 증거의 문서화 여부만** 판정하는 문서화 AC다(호스팅의 실제 준비상태 판정이 아니다 — 그것은 readiness-decision 문서, AC-016b의 몫). acceptance.md가 v0.11.0에서 Given 근거로 스파이크 리포트를 직접 인정하도록 정정됨에 따라, 3층위 증거 — (a) 공식 게시 값 60초(`docs.netlify.com/build/functions/configuration/#default-values`, 변경 불가), (b) 상충하는 커뮤니티 관측 ~10초(Netlify 직원 미확인), (c) 이 프로젝트 실제 적용 상한 UNVERIFIED — 가 서로 혼동 없이 구분 기록되어 있음을 확인해 PASS다. 호스팅의 실제 READY/BLOCKED/UNVERIFIED 판정 자체는 readiness-decision 문서에서 여전히 UNVERIFIED로 유지된다 |
+| AC-PILOT-READY-002 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 이전 라운드는 이 항목을 "N/A(M4-scoped, out of delegation scope)"로 기록했으나, 이는 "적용되지 않음"이 아니라 "실 인프라 검증을 아직 수행하지 않음"이다 — UNVERIFIED가 정확한 상태다. 실 배포 환경에서의 타임아웃 실측이 필요하다 |
+| AC-PILOT-READY-003 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 AI Studio 쿼터 대시보드 확인이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-004 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 원격 Turso 인스턴스에 대한 migration/seed 실행이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-005 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 배포 도메인에서의 로그인/세션/보호된 페이지 접근 검증이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-006 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 서로 다른 사용자 계정의 실제 동시 부하 측정이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-007 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts` | 13/13 tests pass — covers: 2nd-call-blocked-while-1st-in-flight, retry-after-failure re-invokes runPipeline, completion-transaction atomicity (circular-content-forced `reports` INSERT failure leaves 0 `cases` rows), post-failure explicit lease release + immediate reacquisition (v0.5.0), worst-case 200s+ guard-hold under fake timers, TTL(330s) crash recovery with before/after contrast, delayed-result fencing (stale lease's late completion is a no-op, current lease row unchanged), genuine race condition via `Promise.all` against a real file-based SQLite engine enforcing the `reservations.owner_user_id` PK/UNIQUE constraint (exactly 1 of 2 concurrent acquires wins) |
 | AC-PILOT-READY-008 | **PASS** (v0.6.0 강화) | `pnpm exec vitest run app/api/cases/route.test.ts lib/pipeline/index.test.ts lib/cases/create-case.test.ts lib/logging/safe-error.test.ts` | Request-start log (`case_request_received`, `route.test.ts`), per-stage pipeline failure log (`pipeline_stage_failed` with `stage` field, `pipeline/index.test.ts`), pipeline-level + completion-transaction + 신규 `pipeline_failed_lease_release_failed`(이중 실패 대칭화, v0.6.0) DB-write failure logs (`create-case.test.ts`) — 모든 5개 호출부가 신규 `lib/logging/safe-error.ts`의 `toSafeErrorMeta()`(errorName/errorCode 화이트리스트만 추출, `.message` 절대 미참조)를 거친다. 적대적 테스트가 `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문을 오류 `.message`에 직접 주입해 5개 로그 호출부 전부가 그 원문을 반사하지 않음을 검증(이전 리뷰 라운드의 `error: String(error)` 평가는 `.message`가 원문을 반사할 위험을 검증하지 않은 채 PASS 처리된 결함이었다) |
 | AC-PILOT-READY-009 | **PASS** (v0.10.0 — 차단 해제, 외부 구현 검토 8차) | `Read .moai/docs/pilot-incident-runbook.md` | 문서는 3개 별개 절로 존재 — §1 log locations/how-to-check(event-name table, **v0.10.0에서 Vercel Logs → Netlify Functions 로그 위치로 정정됨**), §2 tester retry guidance(explicitly avoids "unlimited retry is always safe" overclaim), §3 triage owner(**v0.10.0 — 이경환(파일럿 운영 책임자), 1영업일 이내 1차 확인으로 확정됨, 더 이상 "미확정"이 아님**). Distinct file from `.moai/docs/runtime-runbook.md`. 실제 트리아지 담당자가 확정되고 로그 위치가 실제 호스팅(Netlify)과 일치하므로, "구현이 검증됨"과 "SPEC 레벨 요구사항이 충족됨"이 이제 둘 다 성립한다 |
-| AC-PILOT-READY-010 | N/A (M4-scoped) | — | real Gemini smoke re-run — out of scope |
+| AC-PILOT-READY-010 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실 Gemini 배포환경 종단 재검증이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-011 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` (그리고 `grep -rn "완전히 비식별화\|확실히 차단\|보장합니다\|보장한다" app/cases/new/page.tsx` → 렌더 텍스트에는 미검출, 코드 주석에서만 1건 검출) | Rendered notice text contains no "보장"/"확실히 차단"/"완전히 비식별화" |
 | AC-PILOT-READY-012 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice DOM contains all 4 required items individually: (a) 주민등록번호·휴대전화번호 형식 검사 설명, (b) 주소·의료기록 원본 필드 부재(구조적 사실), (c) 자유 텍스트 필드 잔여 위험(구조적 사실과 구분해 별도 문단으로 진술), (d) 합성/비식별화 사례만 입력하라는 테스터 책임 문장 |
 | AC-PILOT-READY-013 | **BLOCKED 유지**(문구 정정, v0.10.0 — 외부 구현 검토 8차) | `pnpm exec vitest run app/login/login-form.test.tsx` | 구현 검증됨(implementation-level evidence, v0.6.0 정정 유지) — `supportEmail` prop이 설정되면(`app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL` 환경변수) 그 실제 주소로 활성 `mailto:` 링크; 미설정이면 다른 2개 정책 링크와 동일하게 `aria-disabled` 텍스트로 정직하게 드러낸다. **v0.10.0 정정**: BLOCKED 사유를 "이메일 미확정"에서 "**주소 확정·로컬 설정 완료, Netlify 환경 설정/렌더링 미검증**"으로 정정한다 — `SUPPORT_CONTACT_EMAIL=zuge3927@naver.com`은 이미 확정되어 `.env.local`에 반영됐고(로컬에서는 활성 mailto 링크가 렌더링됨), 남은 미충족은 이 값을 실제 Netlify 배포 환경변수에도 등록하고 그 환경에서 렌더링을 검증하는 것뿐이다(실 배포가 아직 수행되지 않았으므로) |
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
-| AC-PILOT-READY-016b | N/A (M4-scoped) | — | readiness-decision report — out of scope (template already exists from plan-phase, left untouched per delegation constraint) |
+| AC-PILOT-READY-016b | **PASS** (v0.11.0 정정, 외부 구현 검토 9차) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다 — acceptance.md AC-016b 자신이 "채워 넣은 전체 판정이 NO-GO인 것 자체는 정상적으로 허용되는 완료 상태"라고 명시한다. 리포트를 확인한 결과 7개 항목 전부 `UNVERIFIED`로 채워져 있고 전체 판정이 `NO-GO`로 명시적으로 기록되어 있다(§전체 판정) — 게이트 규칙(원격 검증 필요 항목 중 하나라도 BLOCKED/UNVERIFIED면 전체 NO-GO)과도 일치한다. 템플릿의 7개 항목 자체와 전체 NO-GO는 이 라운드에서 변경하지 않았다 |
 
 ### E2. Build Result
 
@@ -346,22 +346,23 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
   follow-up commit per the SHA placeholder backfill exemption — the
   M1,M2,M3,M5,M6 commit itself could not cite its own hash)
-- `ac_pass_count: 8` (v0.10.0 정정, 외부 구현 검토 8차 — AC-PILOT-READY-007, 008,
-  009, 011, 012, 014, 015, 016a. AC-009는 triage 담당자(이경환) 확정 + Netlify
-  로그 위치 정정으로 BLOCKED→PASS 전환됨, §E.2 참고)
+- `ac_pass_count: 10` (v0.11.0 정정, 외부 구현 검토 9차 — AC-PILOT-READY-001, 007,
+  008, 009, 011, 012, 014, 015, 016a, 016b. AC-001은 "3층위 증거 문서화 AC"이지
+  "호스팅 준비상태 판정 AC"가 아니므로, 문서화가 완전하면 PASS다(호스팅의 실제
+  준비상태는 readiness-decision 문서에서 별도로 UNVERIFIED 유지됨). AC-016b는
+  "템플릿이 판정값으로 채워졌는가"를 판정하며 "GO인가"를 판정하지 않으므로,
+  7개 항목 UNVERIFIED + 전체 NO-GO로 채워진 현재 리포트도 PASS다 — §E.2 참고)
 - `ac_fail_count: 0`
-- `ac_na_count: 7` (M4-scoped, out of this delegation's scope, 실 인프라 접근
-  필요: 002, 003, 004, 005, 006, 010, 016b — AC-001은 아래 `ac_unverified_count`로
-  이동함, v0.10.0)
-- `ac_unverified_count: 1` (v0.10.0 신설 — AC-PILOT-READY-001. acceptance.md의
-  READY/BLOCKED/UNVERIFIED 3분류를 이 SPEC이 스스로 판정한 항목이다 — "이 세션이
-  아예 손대지 않은 M4 항목"(N/A)과는 구분된다: 3층위 증거는 스파이크 리포트에
-  기록됐지만, 이 프로젝트 계정의 실제 적용 상한(층위 c)이 실 배포 전까지
-  UNVERIFIED이기 때문에 AC 자체도 UNVERIFIED다)
-- `ac_blocked_count: 1` (v0.10.0 정정, 외부 구현 검토 8차 — AC-PILOT-READY-013만
-  유지. 구현/컴포넌트 동작 수준 증거는 존재하고 테스트로 검증됐으며 실 주소도
-  확정·로컬 설정 완료됐으나, Netlify 배포 환경에서의 설정·렌더링 검증이라는
-  SPEC 레벨 전제가 아직 해소되지 않았다 — §E.2 해당 행 참고)
+- `ac_na_count: 0` (v0.11.0 — 더 이상 N/A 항목 없음. 이전 라운드가 "N/A(적용 불가)"로
+  기록했던 002/003/004/005/006/010은 "적용되지 않음"이 아니라 "실 인프라 검증을
+  아직 수행하지 않음"이었다는 지적을 반영해 UNVERIFIED로 재분류함)
+- `ac_unverified_count: 6` (v0.11.0 정정 — AC-PILOT-READY-002, 003, 004, 005, 006,
+  010. 모두 실 인프라(배포 환경/AI Studio/원격 Turso/실 도메인)에 대한 검증이
+  아직 수행되지 않은 상태를 뜻하며, "이 SPEC에 적용되지 않는다"는 뜻이 아니다)
+- `ac_blocked_count: 1` (v0.10.0 정정 유지, 외부 구현 검토 8차 — AC-PILOT-READY-013.
+  구현/컴포넌트 동작 수준 증거는 존재하고 테스트로 검증됐으며 실 주소도 확정·로컬
+  설정 완료됐으나, Netlify 배포 환경에서의 설정·렌더링 검증이라는 SPEC 레벨 전제가
+  아직 해소되지 않았다 — §E.2 해당 행 참고)
 - `new_warnings_or_lints_introduced: false`
 - `cross_platform_build: N/A` (TypeScript/Next.js project, not Go — no GOOS/GOARCH cross-build applicable)
 - `total_run_phase_files: 19` (16 modified + 3 new: pilot-incident-runbook.md,
@@ -600,6 +601,34 @@ Consolidated Blocker Report)과 §G(5차 정정 B5)에서 이미 밝힌 미확�
   참고). 집계: PASS 8 / BLOCKED 1 / UNVERIFIED 1 / N/A 7 / FAIL 0(§E.3 참고).
 - **코드·배포 없음**: 이번에도 코드 변경·실 배포·Gemini 재호출·테스터 초대·
   비동기 SPEC 생성·PR·main 병합을 수행하지 않았다.
+
+## §K AC 충족 vs Readiness 판정 분리 + 로그 경로 정정 (v0.11.0, 외부 구현 검토 9차)
+
+`correction_round_4_at: 2026-09-11`. 외부 구현 검토 9차: "문서 정합성 수정 후
+PASS 가능". §J(v0.10.0)의 3층위 증거 정리는 정확했으나, 그 뒤 AC 판정에 두 가지가
+섞여 있었다 — "문서가 완전한가"(AC 충족)와 "호스팅이 실제로 준비됐는가"(readiness
+판정)를 구분하지 않은 것이다. 이번 라운드가 이 둘을 분리했다.
+
+- **로그 경로 정정**: `docs.netlify.com/build/functions/logs/` 직접 재확인 —
+  "사이트 선택 → Cloud compute → Functions → 대상 함수 선택"이 정확한 경로다.
+  `pilot-incident-runbook.md` §1을 이 경로로 갱신했다(v0.10.0의 "Logs → Functions"
+  서술은 부정확했다).
+- **AC-001 PASS 전환**: 3층위 증거 문서화 AC다 — acceptance.md Given이 기존
+  스파이크 리포트를 직접 인정하도록 정정됐고, 3층위가 완전·구분되게 기록되어
+  있으므로 PASS. 호스팅의 실제 준비상태는 readiness-decision 문서에서 별도로
+  UNVERIFIED 유지(변경 없음).
+- **AC-002/003/004/005/006/010 재분류**: N/A(적용 불가) → UNVERIFIED(실 인프라
+  검증 미수행)로 정정 — 이 SPEC에 적용되지 않는 항목이 아니라 아직 검증하지
+  않은 항목이었다.
+- **AC-016b PASS 전환**: "템플릿이 판정값으로 채워졌는가"만 판정한다.
+  readiness-decision 문서는 7개 항목 전부 UNVERIFIED + 전체 NO-GO로 이미 채워져
+  있고, acceptance.md 자신이 "NO-GO도 정상 완료"라고 명시하므로 PASS — 문서
+  내부 7개 항목과 전체 NO-GO 자체는 이 라운드에서 변경하지 않았다.
+- **집계 재계산**: PASS 10 / UNVERIFIED 6 / BLOCKED 1 / N/A 0 / FAIL 0(§E.3 참고).
+- **plan.md §F triage 행 정정**: "다음 run-phase에서 갱신 필요" 문구 제거 —
+  `pilot-incident-runbook.md` §3은 v0.10.0에서 이미 이경환 담당자로 갱신 완료됐다.
+- **코드·배포 없음**: 이번에도 코드 변경·실 배포·Gemini 재호출·테스트 반복·
+  테스터 초대·비동기 SPEC 생성·PR·main 병합을 수행하지 않았다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
