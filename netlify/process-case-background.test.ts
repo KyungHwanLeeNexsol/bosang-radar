@@ -4,7 +4,7 @@ const { processCaseJobMock } = vi.hoisted(() => ({
   processCaseJobMock: vi.fn(),
 }));
 
-vi.mock("../../lib/cases/create-case", () => ({
+vi.mock("../lib/cases/create-case", () => ({
   processCaseJob: processCaseJobMock,
 }));
 
@@ -15,7 +15,7 @@ describe("process-case-background Netlify Function", () => {
   });
 
   it("JSON이 아니면 400을 반환하고 job을 실행하지 않는다", async () => {
-    const { default: handler } = await import("./process-case-background");
+    const { default: handler } = await import("./functions/process-case-background");
 
     const response = await handler(
       new Request("http://localhost/.netlify/functions/process-case-background", {
@@ -29,7 +29,7 @@ describe("process-case-background Netlify Function", () => {
   });
 
   it("jobId가 없으면 400을 반환한다", async () => {
-    const { default: handler } = await import("./process-case-background");
+    const { default: handler } = await import("./functions/process-case-background");
 
     const response = await handler(
       new Request("http://localhost/.netlify/functions/process-case-background", {
@@ -43,7 +43,7 @@ describe("process-case-background Netlify Function", () => {
   });
 
   it("유효한 jobId면 해당 job을 처리하고 202를 반환한다", async () => {
-    const { default: handler } = await import("./process-case-background");
+    const { default: handler } = await import("./functions/process-case-background");
 
     const response = await handler(
       new Request("http://localhost/.netlify/functions/process-case-background", {
@@ -58,7 +58,7 @@ describe("process-case-background Netlify Function", () => {
   });
 
   it("함수 설정은 background 모드를 명시한다", async () => {
-    const { config } = await import("./process-case-background");
+    const { config } = await import("./functions/process-case-background");
 
     expect(config).toEqual({ background: true });
   });
