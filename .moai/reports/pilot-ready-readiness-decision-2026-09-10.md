@@ -27,9 +27,9 @@
 아니다.
 
 **이 문서의 현재 상태(2026-09-12 실환경 검증 반영)**: 아래 7개 항목 중 원격 DB
-항목 (3)은 **READY**, 나머지 6개 항목은 **UNVERIFIED**다. 일부 게이트가 READY로
-전환됐더라도 하나 이상의 원격 필수 항목이 UNVERIFIED이면 전체 판정은 `NO-GO`라는
-규칙을 그대로 적용한다.
+항목 (3)과 실 도메인 인증 항목 (4)는 **READY**, 나머지 5개 항목은 **UNVERIFIED**다.
+일부 게이트가 READY로 전환됐더라도 하나 이상의 원격 필수 항목이 UNVERIFIED이면 전체
+판정은 `NO-GO`라는 규칙을 그대로 적용한다.
 
 ## 이 문서의 목적 — SPEC 완료와는 다른 판단
 
@@ -60,7 +60,7 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 1 | 호스팅 적합성(Netlify Free 확정 + 3층위 실행시간 상한 증거 + 실제 배포 도메인 기준 **실측 증거**, v0.10.0 재작성) | `UNVERIFIED` | `.moai/reports/pilot-ready-deployment-tier-decision-*.md` + `.moai/reports/pilot-ready-timeout-measurement-*.md` | 호스팅 결정(Netlify Free) 자체는 이미 확정됐지만, **타임아웃 실측 증거는 게이트 예외가 아니다** — 3층위 상한 증거와 실측 둘 다 있어야 READY (§항목별 READY 세부 기준 (1) 참고) |
 | 2 | Gemini 쿼터(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) | `UNVERIFIED` | `.moai/reports/pilot-ready-quota-checklist-*.md`(또는 런북 통합 섹션) | 원격 필수 — 실제 AI Studio 대시보드 확인 기록 필요 (§항목별 READY 세부 기준 (2) 참고) |
 | 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `READY` | `.moai/reports/pilot-ready-remote-db-verification-20260912.md` | production 컨텍스트에서 migration 0006까지 총 7건 적용, `case_jobs` 스키마 확인, seed 21건 및 `tester:add` 3계정의 `users`/`allowed_testers` 행을 읽기 재확인 |
-| 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `UNVERIFIED` | `.moai/reports/pilot-ready-auth-domain-verification-*.md` | 원격 필수 — 로컬 대체 불가 |
+| 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `READY` | `.moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키 및 세션 사용자 확인, 비로그인 `/cases/new` 307과 로그인 후 200을 개별 검증 |
 | 5 | 실 Gemini 스모크(REQ-PILOT-READY-010 재검증) | `UNVERIFIED` | `.moai/reports/gemini-runtime-smoke-*.md`(신규 날짜) | 원격 필수 — **반드시 실제 배포 도메인 결과여야 한다. 로컬(`next start`) 실행 결과는 참고 증거일 뿐 이 항목의 READY 근거가 될 수 없다** (§항목별 READY 세부 기준 (5) 참고) |
 | 6 | 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006) | `UNVERIFIED` | `.moai/reports/pilot-ready-concurrency-measurement-*.md` | 원격 필수, 로컬 대체는 참고 증거로만 허용 (§항목별 READY 세부 기준 (6) 참고) |
 | 7 | 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장) | `UNVERIFIED` | `.moai/reports/pilot-ready-idempotency-scope-*.md` + M6 테스트 증거 | **반드시 실제 원격 Turso 대상에 대한 검증만 READY로 인정한다 — 로컬 또는 in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다** (§항목별 READY 세부 기준 (7) 참고) |
@@ -115,8 +115,9 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 ## 전체 판정
 
-**`NO-GO`** — 원격 DB 항목 (3)은 `READY`지만 항목 (1), (2), (4), (5), (6), (7)이
-`UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은 `NO-GO`다. 남은 항목이 실제
+**`NO-GO`** — 원격 DB 항목 (3)과 실 도메인 인증 항목 (4)는 `READY`지만 항목 (1),
+(2), (5), (6), (7)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은
+`NO-GO`다. 남은 항목이 실제
 값으로 채워질 run-phase 종료 시점에 재평가한다(그 시점의 판정이 다시 NO-GO인 것
 자체는 정상적으로 허용되는 run-phase 완료 상태다 — REQ-PILOT-READY-016 참고).
 
@@ -128,3 +129,4 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 2026-09-10 | (템플릿 갱신, v0.5.0) | `NO-GO`(7개 항목, 전부 UNVERIFIED) | v0.4.0에서 6개→7개 항목으로 정밀화된 spec.md/acceptance.md와 동기화되지 않은 채 방치되어 있던 것을 발견해 갱신. plan-phase 시점의 정직한 현재 상태(빈칸이 아니라 UNVERIFIED)를 명시적으로 채워 넣음 — 실제 판정은 run-phase 종료 시점에 재평가된다 |
 | 2026-09-12 | Codex(Netlify/Turso 실환경 확인) | `NO-GO`(원격 DB 부분 검증) | Netlify 환경변수로 원격 마이그레이션·시드와 읽기 재확인은 성공했으나 테스터 프로비저닝이 남아 항목 (3)은 UNVERIFIED 유지. 나머지 실배포 게이트도 아직 READY가 아니므로 전체 판정 유지 |
 | 2026-09-12 | Codex(비동기 DB migration 재검증) | `NO-GO`(항목 3 READY, 6개 UNVERIFIED) | 테스터 3계정 프로비저닝, migration 0006까지 총 7건 적용, 원격 `case_jobs` 스키마와 seed/계정 행 읽기 재확인을 완료해 항목 (3)을 READY로 전환. 나머지 6개 실환경 게이트는 UNVERIFIED이므로 전체 판정 유지 |
+| 2026-09-12 | Codex(실 도메인 인증·비동기 E2E) | `NO-GO`(항목 3·4 READY, 5개 UNVERIFIED) | 실제 Preview에서 로그인·세션·보호 페이지를 검증해 항목 (4)을 READY로 전환. 비동기 제출 202, 중복 409, 완료와 원격 case/report 영속화도 확인했으나 항목 (1), (2), (5), (6), (7)의 전체 기준은 아직 미충족 |

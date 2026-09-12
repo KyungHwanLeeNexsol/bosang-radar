@@ -225,7 +225,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-002 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 이전 라운드는 이 항목을 "N/A(M4-scoped, out of delegation scope)"로 기록했으나, 이는 "적용되지 않음"이 아니라 "실 인프라 검증을 아직 수행하지 않음"이다 — UNVERIFIED가 정확한 상태다. 실 배포 환경에서의 타임아웃 실측이 필요하다 |
 | AC-PILOT-READY-003 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 AI Studio 쿼터 대시보드 확인이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-004 | **PASS** (2026-09-12 원격 재검증) | `Read .moai/reports/pilot-ready-remote-db-verification-20260912.md` | Netlify production 컨텍스트의 실제 원격 Turso에 migration 0006까지 총 7건 적용하고 seed 21건, `case_jobs` 8개 컬럼, `users`/`allowed_testers` 각 3건을 독립 읽기 조회로 재확인했다 |
-| AC-PILOT-READY-005 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 배포 도메인에서의 로그인/세션/보호된 페이지 접근 검증이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-005 | **PASS** (2026-09-12 실 도메인 검증) | `Read .moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키와 세션 사용자 일치, 비로그인 `/cases/new` 307 및 로그인 후 200을 각각 확인했다 |
 | AC-PILOT-READY-006 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 서로 다른 사용자 계정의 실제 동시 부하 측정이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-007 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts` | 13/13 tests pass — covers: 2nd-call-blocked-while-1st-in-flight, retry-after-failure re-invokes runPipeline, completion-transaction atomicity (circular-content-forced `reports` INSERT failure leaves 0 `cases` rows), post-failure explicit lease release + immediate reacquisition (v0.5.0), worst-case 200s+ guard-hold under fake timers, TTL(330s) crash recovery with before/after contrast, delayed-result fencing (stale lease's late completion is a no-op, current lease row unchanged), genuine race condition via `Promise.all` against a real file-based SQLite engine enforcing the `reservations.owner_user_id` PK/UNIQUE constraint (exactly 1 of 2 concurrent acquires wins) |
 | AC-PILOT-READY-008 | **PASS** (v0.6.0 강화) | `pnpm exec vitest run app/api/cases/route.test.ts lib/pipeline/index.test.ts lib/cases/create-case.test.ts lib/logging/safe-error.test.ts` | Request-start log (`case_request_received`, `route.test.ts`), per-stage pipeline failure log (`pipeline_stage_failed` with `stage` field, `pipeline/index.test.ts`), pipeline-level + completion-transaction + 신규 `pipeline_failed_lease_release_failed`(이중 실패 대칭화, v0.6.0) DB-write failure logs (`create-case.test.ts`) — 모든 5개 호출부가 신규 `lib/logging/safe-error.ts`의 `toSafeErrorMeta()`(errorName/errorCode 화이트리스트만 추출, `.message` 절대 미참조)를 거친다. 적대적 테스트가 `incidentDescription`/`diagnosisName`/`disabilityBodyPart` 원문을 오류 `.message`에 직접 주입해 5개 로그 호출부 전부가 그 원문을 반사하지 않음을 검증(이전 리뷰 라운드의 `error: String(error)` 평가는 `.message`가 원문을 반사할 위험을 검증하지 않은 채 PASS 처리된 결함이었다) |
@@ -233,7 +233,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-010 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실 Gemini 배포환경 종단 재검증이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-011 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` (그리고 `grep -rn "완전히 비식별화\|확실히 차단\|보장합니다\|보장한다" app/cases/new/page.tsx` → 렌더 텍스트에는 미검출, 코드 주석에서만 1건 검출) | Rendered notice text contains no "보장"/"확실히 차단"/"완전히 비식별화" |
 | AC-PILOT-READY-012 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice DOM contains all 4 required items individually: (a) 주민등록번호·휴대전화번호 형식 검사 설명, (b) 주소·의료기록 원본 필드 부재(구조적 사실), (c) 자유 텍스트 필드 잔여 위험(구조적 사실과 구분해 별도 문단으로 진술), (d) 합성/비식별화 사례만 입력하라는 테스터 책임 문장 |
-| AC-PILOT-READY-013 | **BLOCKED 유지**(문구 정정, v0.10.0 — 외부 구현 검토 8차) | `pnpm exec vitest run app/login/login-form.test.tsx` | 구현 검증됨(implementation-level evidence, v0.6.0 정정 유지) — `supportEmail` prop이 설정되면(`app/login/page.tsx` → `SUPPORT_CONTACT_EMAIL` 환경변수) 그 실제 주소로 활성 `mailto:` 링크; 미설정이면 다른 2개 정책 링크와 동일하게 `aria-disabled` 텍스트로 정직하게 드러낸다. **v0.10.0 정정**: BLOCKED 사유를 "이메일 미확정"에서 "**주소 확정·로컬 설정 완료, Netlify 환경 설정/렌더링 미검증**"으로 정정한다 — `SUPPORT_CONTACT_EMAIL=zuge3927@naver.com`은 이미 확정되어 `.env.local`에 반영됐고(로컬에서는 활성 mailto 링크가 렌더링됨), 남은 미충족은 이 값을 실제 Netlify 배포 환경변수에도 등록하고 그 환경에서 렌더링을 검증하는 것뿐이다(실 배포가 아직 수행되지 않았으므로) |
+| AC-PILOT-READY-013 | **PASS** (2026-09-12 Preview 렌더 검증) | `Read .moai/reports/pilot-ready-auth-domain-verification-20260912.md`; `pnpm exec vitest run app/login/login-form.test.tsx` | Netlify에 `SUPPORT_CONTACT_EMAIL`이 설정된 상태에서 실제 Preview `/login` HTML의 활성 `mailto:` 링크를 확인했다. 미설정 상태가 `aria-disabled`로 렌더되는 기존 컴포넌트 테스트와 함께 양쪽 조건을 충족한다 |
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
@@ -346,24 +346,22 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
   follow-up commit per the SHA placeholder backfill exemption — the
   M1,M2,M3,M5,M6 commit itself could not cite its own hash)
-- `ac_pass_count: 11` (2026-09-12 원격 DB 재검증 — AC-PILOT-READY-001, 004, 007,
-  008, 009, 011, 012, 014, 015, 016a, 016b. AC-001은 "3층위 증거 문서화 AC"이지
+- `ac_pass_count: 13` (2026-09-12 실 도메인 검증 — AC-PILOT-READY-001, 004, 005,
+  007, 008, 009, 011, 012, 013, 014, 015, 016a, 016b. AC-001은 "3층위 증거 문서화 AC"이지
   "호스팅 준비상태 판정 AC"가 아니므로, 문서화가 완전하면 PASS다(호스팅의 실제
   준비상태는 readiness-decision 문서에서 별도로 UNVERIFIED 유지됨). AC-016b는
   "템플릿이 판정값으로 채워졌는가"를 판정하며 "GO인가"를 판정하지 않으므로,
-  항목 3 READY + 나머지 6개 UNVERIFIED + 전체 NO-GO로 채워진 현재 리포트도 PASS다 —
+  항목 3·4 READY + 나머지 5개 UNVERIFIED + 전체 NO-GO로 채워진 현재 리포트도 PASS다 —
   §E.2 참고)
 - `ac_fail_count: 0`
 - `ac_na_count: 0` (v0.11.0 — 더 이상 N/A 항목 없음. 이전 라운드가 "N/A(적용 불가)"로
   기록했던 002/003/004/005/006/010은 "적용되지 않음"이 아니라 "실 인프라 검증을
   아직 수행하지 않음"이었다는 지적을 반영해 UNVERIFIED로 재분류함)
-- `ac_unverified_count: 5` (2026-09-12 원격 DB 재검증 — AC-PILOT-READY-002, 003, 005,
-  006, 010. 배포 환경/AI Studio/실 도메인에 대한 검증이 아직 수행되지 않은 상태를
+- `ac_unverified_count: 4` (2026-09-12 실 도메인 검증 — AC-PILOT-READY-002, 003, 006,
+  010. 배포 환경/AI Studio/실 도메인에 대한 검증이 아직 수행되지 않은 상태를
   뜻하며, "이 SPEC에 적용되지 않는다"는 뜻이 아니다)
-- `ac_blocked_count: 1` (v0.10.0 정정 유지, 외부 구현 검토 8차 — AC-PILOT-READY-013.
-  구현/컴포넌트 동작 수준 증거는 존재하고 테스트로 검증됐으며 실 주소도 확정·로컬
-  설정 완료됐으나, Netlify 배포 환경에서의 설정·렌더링 검증이라는 SPEC 레벨 전제가
-  아직 해소되지 않았다 — §E.2 해당 행 참고)
+- `ac_blocked_count: 0` (2026-09-12 — AC-PILOT-READY-013의 Netlify 설정·실제 렌더링
+  검증을 완료해 차단 해제)
 - `new_warnings_or_lints_introduced: false`
 - `cross_platform_build: N/A` (TypeScript/Next.js project, not Go — no GOOS/GOARCH cross-build applicable)
 - `total_run_phase_files: 19` (16 modified + 3 new: pilot-incident-runbook.md,
@@ -919,3 +917,28 @@ Deploy Preview 반영과 원격 Turso migration 0006 적용은 §T에서 완료�
 다음 게이트는 실제 Preview 도메인 로그인·세션·보호 페이지 접근을 확인한 뒤 비동기
 happy path 한 건을 종단 검증하는 것이다. PR #10은 이 게이트와 남은 readiness 검증이
 끝날 때까지 머지하지 않는다.
+
+## §U 실 도메인 인증 및 비동기 happy path 직접 검증 (2026-09-12)
+
+최신 Deploy Preview(`6aa5533dc973a900089fa6f3`, commit `9ae909c`, state `ready`)에서
+합성 전용 테스터를 프로비저닝하고 비밀번호·세션 토큰을 출력하지 않은 채 실제 HTTP
+종단 검증을 수행했다.
+
+- `/login` HTTP 200 및 실제 `SUPPORT_CONTACT_EMAIL` 기반 활성 `mailto:` 렌더 확인.
+- `POST /api/auth/sign-in/email` HTTP 200, 세션 쿠키 수립, `/api/auth/get-session` 사용자
+  일치 확인.
+- 비로그인 `/cases/new`는 307→`/login`, 같은 세션의 요청은 HTTP 200.
+- 합성 사건 제출은 1,597ms에 HTTP 202 + jobId 반환.
+- 처리 중 같은 사용자의 두 번째 제출은 HTTP 409.
+- 상태는 `processing → completed`, 완료 관측은 36,528ms, 전체 검증은 40,675ms.
+- 결과 페이지 HTTP 200 및 합성 진단명 렌더 확인.
+- 원격 Turso 독립 조회에서 해당 job `completed`, 연결된 `cases` 1건과 `reports` 1건 확인.
+- 인증 상세 증거: `.moai/reports/pilot-ready-auth-domain-verification-20260912.md`.
+
+이 결과로 AC-PILOT-READY-005와 AC-PILOT-READY-013을 PASS, readiness 항목 (4)을
+READY로 전환했다. 네트워크 관측기 기반 Gemini 3단계별 호출 성공·실제 호출 횟수와
+응답/DB 필드 일치까지는 이번 검증에서 수집하지 않았으므로 AC-010/readiness 항목 (5)는
+UNVERIFIED를 유지한다. 전체 readiness는 항목 (1), (2), (5), (6), (7)이 남아
+`NO-GO`다.
+
+다음 게이트는 REQ-PILOT-READY-010의 5가지 증거를 모두 수집하는 실 Gemini 스모크다.
