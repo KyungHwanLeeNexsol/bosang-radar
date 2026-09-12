@@ -1,17 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { processCaseJobMock } = vi.hoisted(() => ({
+const { processCaseJobMock, withGeminiFetchObservationMock } = vi.hoisted(() => ({
   processCaseJobMock: vi.fn(),
+  withGeminiFetchObservationMock: vi.fn(async (_jobId: string, task: () => Promise<void>) =>
+    task()
+  ),
 }));
 
 vi.mock("../lib/cases/create-case", () => ({
   processCaseJob: processCaseJobMock,
 }));
 
+vi.mock("../lib/observability/gemini-fetch-observer", () => ({
+  withGeminiFetchObservation: withGeminiFetchObservationMock,
+}));
+
 describe("process-case-background Netlify Function", () => {
   beforeEach(() => {
     processCaseJobMock.mockReset();
     processCaseJobMock.mockResolvedValue(undefined);
+    withGeminiFetchObservationMock.mockClear();
   });
 
   it("JSON이 아니면 400을 반환하고 job을 실행하지 않는다", async () => {
@@ -53,6 +61,8 @@ describe("process-case-background Netlify Function", () => {
     );
 
     expect(response.status).toBe(202);
+    expect(withGeminiFetchObservationMock).toHaveBeenCalledOnce();
+    expect(withGeminiFetchObservationMock).toHaveBeenCalledWith("job-123", expect.any(Function));
     expect(processCaseJobMock).toHaveBeenCalledOnce();
     expect(processCaseJobMock).toHaveBeenCalledWith("job-123");
   });
