@@ -2,13 +2,14 @@
 
 ## 판정
 
-**`PARTIAL (readiness 판정은 UNVERIFIED 유지)`**
+**`READY (readiness 항목 3 — 원격 DB)`**
 
 Netlify production 컨텍스트의 실제 환경변수를 주입해 원격 Turso 마이그레이션과
-시드를 실행했고, 별도 읽기 전용 조회로 결과를 재확인했다. 그러나
-REQ-PILOT-READY-016의 원격 DB READY 기준에 포함된 `tester:add`를 실행하고 세 계정의
-allowlist/user 행을 재확인했다. 다만 이 리포트는 원격 DB 결과만 다루므로 readiness
-항목 (3)의 최종 판정은 다른 실환경 게이트와 함께 재평가한다.
+시드를 실행했고, REQ-PILOT-READY-016의 원격 DB READY 기준에 포함된 `tester:add`를
+세 계정에 대해 실행했다. 비동기 처리용 migration 0006까지 적용한 뒤 별도 읽기 전용
+조회로 migration 7건, `case_jobs` 스키마, 기준 데이터와 테스터 행을 재확인했다.
+따라서 readiness 항목 (3)은 READY다. 이 판정은 원격 DB 항목에 한정되며 전체
+readiness 판정은 다른 실환경 게이트가 남아 `NO-GO`다.
 
 ## 대상
 
@@ -64,35 +65,32 @@ db-seed.ts    → ✅ 시드 완료 (exit 0)
 
 | 확인 항목 | 결과 |
 |-----------|------|
-| 적용된 마이그레이션 | 6건 |
+| 적용된 마이그레이션 | 7건 (`0000`~`0006`) |
+| `case_jobs` | 테이블 존재, 8개 컬럼 확인 |
 | `evidence` 기준 데이터 | 21건 |
 | `allowed_testers` | 3건 |
 | `users` | 3건 |
 | `reservations` | 0건 |
 
-`reservations` 테이블 조회까지 성공했으므로 M1에서 추가한 원격 스키마가 실제 Turso에
-적용됐음을 확인했다. 빈 `reservations`는 현재 실행 중인 파이프라인 리스가 없다는
-정상 상태다.
+`reservations`와 `case_jobs` 테이블 조회까지 성공했으므로 M1의 원격 리스 스키마와
+비동기 처리용 migration 0006이 실제 Turso에 적용됐음을 확인했다. 빈 `reservations`는
+현재 실행 중인 파이프라인 리스가 없다는 정상 상태다.
 
 ## 추가 발견
 
 - production과 deploy-preview의 `BETTER_AUTH_URL`이 모두 Deploy Preview URL을
   가리킨다. 현재 Preview 검증에는 맞지만, production 배포 전에 production 컨텍스트는
   최종 Production URL로 분리해야 한다.
-- Deploy Preview의 `/`, `/login`, `/api/auth/get-session`은 모두 Netlify 레이어에서
-  HTTP 401을 반환한다. 앱의 로그인 화면까지 요청이 도달하지 않아 인증·Gemini·동시
-  부하 검증을 진행할 수 없다.
+- Deploy Preview 방문자 접근 제한은 이후 Public 전환으로 해소됐으며 `/`, `/login`,
+  `/api/auth/get-session`이 HTTP 200을 반환한다(아래 재확인 참고).
 - Production URL의 `/`는 HTTP 404를 반환한다. 아직 검증할 production 배포가 없다.
 
-## READY 전환에 남은 조건
+## 다른 readiness 항목에 남은 조건
 
-1. 실제로 로그인할 테스터 계정을 `tester:add`로 생성하고 `users`와
-   `allowed_testers` 반영을 재확인한다.
-2. Netlify Preview 방문자 접근 제한을 해제하거나, 외부 검증 요청에 사용할 인증된
-   접근 수단을 마련한다.
-3. 실제 배포 도메인에서 로그인·세션·보호 페이지 접근을 확인한다.
-4. 같은 도메인에서 실 Gemini 스모크, 처리시간 3회 측정, 서로 다른 사용자 동시 부하,
+1. 실제 배포 도메인에서 로그인·세션·보호 페이지 접근을 확인한다.
+2. 같은 도메인에서 실 Gemini 스모크, 처리시간 3회 측정, 서로 다른 사용자 동시 부하,
    원격 리스/복구 검증을 수행한다.
+3. 실제 AI Studio 쿼터를 확인하고 관측값에 근거한 RPM budget을 기록한다.
 
 ## Preview 공개 전환 후 재확인
 
@@ -137,3 +135,20 @@ Gemini 두 모델의 단일 호출 스모크는 모두 성공했으므로 키 �
 도메인 3회 측정 READY 근거로 사용하지 않지만, Preview의 “네트워크 오류” 원인을
 설명하는 직접적인 근거다. 현재 구조를 유지하려면 60초 초과 동기 실행을 지원하는
 호스팅으로 옮기거나, 분석을 비동기 작업으로 분리해야 한다.
+
+## 비동기 migration 0006 적용 재확인
+
+비동기 작업 경로가 Deploy Preview에 반영된 뒤 Netlify production 컨텍스트를 주입해
+`scripts/db-migrate.ts`를 다시 실행했고 exit 0을 확인했다. 이어 애플리케이션 명령과
+분리된 읽기 전용 조회로 다음 결과를 확인했다.
+
+- 적용된 마이그레이션: 7건
+- 원격 테이블: `__drizzle_migrations`를 포함해 12개
+- `case_jobs` 컬럼: `id`, `owner_user_id`, `lease_id`, `input`, `status`, `case_id`,
+  `created_at`, `updated_at`
+- `evidence`: 21건
+- `users`: 3건
+- `allowed_testers`: 3건
+
+실행 중 표시된 Netlify AI Gateway 토큰 `Forbidden` 경고는 직접 사용하는
+`GEMINI_API_KEY` 및 Turso 연결과 무관하며, 마이그레이션과 읽기 검증은 모두 성공했다.

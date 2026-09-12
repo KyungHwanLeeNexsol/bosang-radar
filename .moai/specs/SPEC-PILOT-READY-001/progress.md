@@ -224,7 +224,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-001 | **PASS** (v0.11.0 정정, 외부 구현 검토 9차) | `Read .moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` §3 | 이 AC는 **3층위 증거의 문서화 여부만** 판정하는 문서화 AC다(호스팅의 실제 준비상태 판정이 아니다 — 그것은 readiness-decision 문서, AC-016b의 몫). acceptance.md가 v0.11.0에서 Given 근거로 스파이크 리포트를 직접 인정하도록 정정됨에 따라, 3층위 증거 — (a) 공식 게시 값 60초(`docs.netlify.com/build/functions/configuration/#default-values`, 변경 불가), (b) 상충하는 커뮤니티 관측 ~10초(Netlify 직원 미확인), (c) 이 프로젝트 실제 적용 상한 UNVERIFIED — 가 서로 혼동 없이 구분 기록되어 있음을 확인해 PASS다. 호스팅의 실제 READY/BLOCKED/UNVERIFIED 판정 자체는 readiness-decision 문서에서 여전히 UNVERIFIED로 유지된다 |
 | AC-PILOT-READY-002 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 이전 라운드는 이 항목을 "N/A(M4-scoped, out of delegation scope)"로 기록했으나, 이는 "적용되지 않음"이 아니라 "실 인프라 검증을 아직 수행하지 않음"이다 — UNVERIFIED가 정확한 상태다. 실 배포 환경에서의 타임아웃 실측이 필요하다 |
 | AC-PILOT-READY-003 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 AI Studio 쿼터 대시보드 확인이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
-| AC-PILOT-READY-004 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 원격 Turso 인스턴스에 대한 migration/seed 실행이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-004 | **PASS** (2026-09-12 원격 재검증) | `Read .moai/reports/pilot-ready-remote-db-verification-20260912.md` | Netlify production 컨텍스트의 실제 원격 Turso에 migration 0006까지 총 7건 적용하고 seed 21건, `case_jobs` 8개 컬럼, `users`/`allowed_testers` 각 3건을 독립 읽기 조회로 재확인했다 |
 | AC-PILOT-READY-005 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 배포 도메인에서의 로그인/세션/보호된 페이지 접근 검증이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-006 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 서로 다른 사용자 계정의 실제 동시 부하 측정이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
 | AC-PILOT-READY-007 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts` | 13/13 tests pass — covers: 2nd-call-blocked-while-1st-in-flight, retry-after-failure re-invokes runPipeline, completion-transaction atomicity (circular-content-forced `reports` INSERT failure leaves 0 `cases` rows), post-failure explicit lease release + immediate reacquisition (v0.5.0), worst-case 200s+ guard-hold under fake timers, TTL(330s) crash recovery with before/after contrast, delayed-result fencing (stale lease's late completion is a no-op, current lease row unchanged), genuine race condition via `Promise.all` against a real file-based SQLite engine enforcing the `reservations.owner_user_id` PK/UNIQUE constraint (exactly 1 of 2 concurrent acquires wins) |
@@ -237,7 +237,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
-| AC-PILOT-READY-016b | **PASS** (v0.11.0 정정, 외부 구현 검토 9차) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다 — acceptance.md AC-016b 자신이 "채워 넣은 전체 판정이 NO-GO인 것 자체는 정상적으로 허용되는 완료 상태"라고 명시한다. 리포트를 확인한 결과 7개 항목 전부 `UNVERIFIED`로 채워져 있고 전체 판정이 `NO-GO`로 명시적으로 기록되어 있다(§전체 판정) — 게이트 규칙(원격 검증 필요 항목 중 하나라도 BLOCKED/UNVERIFIED면 전체 NO-GO)과도 일치한다. 템플릿의 7개 항목 자체와 전체 NO-GO는 이 라운드에서 변경하지 않았다 |
+| AC-PILOT-READY-016b | **PASS** (2026-09-12 판정 동기화) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다. 현재 리포트는 원격 DB 항목 (3)을 `READY`, 나머지 6개 항목을 `UNVERIFIED`, 전체를 `NO-GO`로 명시해 게이트 규칙과 일치한다 |
 
 ### E2. Build Result
 
@@ -346,19 +346,20 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
   follow-up commit per the SHA placeholder backfill exemption — the
   M1,M2,M3,M5,M6 commit itself could not cite its own hash)
-- `ac_pass_count: 10` (v0.11.0 정정, 외부 구현 검토 9차 — AC-PILOT-READY-001, 007,
+- `ac_pass_count: 11` (2026-09-12 원격 DB 재검증 — AC-PILOT-READY-001, 004, 007,
   008, 009, 011, 012, 014, 015, 016a, 016b. AC-001은 "3층위 증거 문서화 AC"이지
   "호스팅 준비상태 판정 AC"가 아니므로, 문서화가 완전하면 PASS다(호스팅의 실제
   준비상태는 readiness-decision 문서에서 별도로 UNVERIFIED 유지됨). AC-016b는
   "템플릿이 판정값으로 채워졌는가"를 판정하며 "GO인가"를 판정하지 않으므로,
-  7개 항목 UNVERIFIED + 전체 NO-GO로 채워진 현재 리포트도 PASS다 — §E.2 참고)
+  항목 3 READY + 나머지 6개 UNVERIFIED + 전체 NO-GO로 채워진 현재 리포트도 PASS다 —
+  §E.2 참고)
 - `ac_fail_count: 0`
 - `ac_na_count: 0` (v0.11.0 — 더 이상 N/A 항목 없음. 이전 라운드가 "N/A(적용 불가)"로
   기록했던 002/003/004/005/006/010은 "적용되지 않음"이 아니라 "실 인프라 검증을
   아직 수행하지 않음"이었다는 지적을 반영해 UNVERIFIED로 재분류함)
-- `ac_unverified_count: 6` (v0.11.0 정정 — AC-PILOT-READY-002, 003, 004, 005, 006,
-  010. 모두 실 인프라(배포 환경/AI Studio/원격 Turso/실 도메인)에 대한 검증이
-  아직 수행되지 않은 상태를 뜻하며, "이 SPEC에 적용되지 않는다"는 뜻이 아니다)
+- `ac_unverified_count: 5` (2026-09-12 원격 DB 재검증 — AC-PILOT-READY-002, 003, 005,
+  006, 010. 배포 환경/AI Studio/실 도메인에 대한 검증이 아직 수행되지 않은 상태를
+  뜻하며, "이 SPEC에 적용되지 않는다"는 뜻이 아니다)
 - `ac_blocked_count: 1` (v0.10.0 정정 유지, 외부 구현 검토 8차 — AC-PILOT-READY-013.
   구현/컴포넌트 동작 수준 증거는 존재하고 테스트로 검증됐으며 실 주소도 확정·로컬
   설정 완료됐으나, Netlify 배포 환경에서의 설정·렌더링 검증이라는 SPEC 레벨 전제가
@@ -806,12 +807,12 @@ Pages changed  skipping (실패 아님)
 
 - Netlify production 환경을 주입해 `scripts/db-migrate.ts` 실행 성공(exit 0).
 - 같은 환경에서 `scripts/db-seed.ts` 실행 성공(exit 0).
-- 독립 읽기 조회로 마이그레이션 6건, `evidence` 21건, `allowed_testers` 0건,
+- 최초 독립 읽기 조회로 마이그레이션 6건, `evidence` 21건, `allowed_testers` 0건,
   `users` 0건, `reservations` 0건을 확인한 뒤, 사용자가 세 테스터 계정을 생성했다.
 - 세부 증거: `.moai/reports/pilot-ready-remote-db-verification-20260912.md`.
-- **AC/readiness 판정**: 세 이메일 모두 `allowed_testers=1`, `users=1`로 재확인했다.
-  원격 DB 준비 조건은 충족됐지만, 실 도메인 인증·Gemini·부하·복구 검증과 함께
-  readiness 항목 (3)을 최종 재판정해야 하므로 전체 판정은 아직 `NO-GO`다.
+- **AC/readiness 판정**: 세 이메일 모두 `allowed_testers=1`, `users=1`로 재확인했고,
+  후속 migration 0006 적용과 스키마 조회까지 완료해 항목 (3)을 `READY`로 판정했다.
+  실 도메인 인증·Gemini·부하·복구 검증이 남아 전체 판정은 아직 `NO-GO`다.
 - **실 도메인 차단**: Deploy Preview는 `/`, `/login`, `/api/auth/get-session` 모두
   Netlify 방문자 접근 제어에서 HTTP 401을 반환한다. Production URL은 HTTP 404다.
   따라서 앱 레이어의 인증, 실 Gemini 스모크, 처리시간 3회, 다중 사용자 부하 및
@@ -893,6 +894,28 @@ TDD로 보강했다.
 - 최종 검증: Vitest **64/64 files, 448/448 tests PASS**, `tsc --noEmit` PASS,
   ESLint PASS, Prettier PASS, `git diff --check` PASS.
 
-다음 게이트는 변경분을 Deploy Preview에 반영하고 원격 Turso에 migration 0006을 적용한
-뒤, 실제 로그인 계정으로 `202 → Background Function → completed → case/report 조회` 한
-건을 종단 검증하는 것이다.
+Deploy Preview 반영과 원격 Turso migration 0006 적용은 §T에서 완료했다. 다음 게이트는
+실제 로그인 계정으로 `202 → Background Function → completed → case/report 조회` 한 건을
+종단 검증하는 것이다.
+
+## §T 비동기 배포 및 원격 DB READY 전환 (2026-09-12)
+
+비동기 경로 안정화 변경을 커밋·푸시하고 PR #10의 Deploy Preview와 원격 Turso를
+순서대로 검증했다.
+
+- 비동기 lifecycle 보강 커밋: `1d0b4ef`.
+- 최초 Preview는 `netlify/functions/` 아래의 테스트 파일을 함수로 오인해 함수명 검증에
+  실패했다. 테스트를 배포 함수 디렉터리 밖으로 이동한 수정 커밋 `f4bcfa3`을 푸시했다.
+- 최신 Deploy Preview 배포 `6aa551276d1d0c0008bd57c3`은 commit `f4bcfa3` 기준
+  `ready`다.
+- Netlify production 컨텍스트로 `scripts/db-migrate.ts`를 실행해 migration 0006 적용을
+  완료했다(exit 0).
+- 독립 읽기 조회 결과: 마이그레이션 7건, `case_jobs` 8개 컬럼, `evidence` 21건,
+  `users` 3건, `allowed_testers` 3건.
+- `.moai/reports/pilot-ready-remote-db-verification-20260912.md`와 readiness-decision을
+  동기화해 항목 (3)을 `READY`로 전환했다. 나머지 6개 항목은 `UNVERIFIED`이므로 전체
+  판정은 `NO-GO`를 유지한다.
+
+다음 게이트는 실제 Preview 도메인 로그인·세션·보호 페이지 접근을 확인한 뒤 비동기
+happy path 한 건을 종단 검증하는 것이다. PR #10은 이 게이트와 남은 readiness 검증이
+끝날 때까지 머지하지 않는다.
