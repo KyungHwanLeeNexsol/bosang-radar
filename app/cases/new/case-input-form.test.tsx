@@ -79,6 +79,7 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     });
     container.remove();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("AC-014: '임시 저장' 버튼이 disabled 상태와 '준비 중' Chip을 가진 채로 존재하고 클릭해도 네트워크 요청이 없다", () => {
@@ -153,6 +154,33 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
 
     act(() => submitForm(container));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("202 응답을 받으면 job 상태를 polling하고 완료된 case 페이지로 이동한다", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 202,
+        json: () => Promise.resolve({ jobId: "job-123" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: "completed", caseId: "case-async" }),
+      } as Response);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/cases/status?jobId=job-123");
+    expect(pushMock).toHaveBeenCalledWith("/cases/case-async");
   });
 
   it("AC-004: 실패(비-201) 후 재제출하면 fetch가 다시 호출된다", async () => {

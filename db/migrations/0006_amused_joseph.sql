@@ -3,7 +3,7 @@ CREATE TABLE `case_jobs` (
 	`owner_user_id` text NOT NULL,
 	`lease_id` text NOT NULL,
 	`input` text NOT NULL,
-	`status` text DEFAULT 'processing' NOT NULL,
+	`status` text DEFAULT 'queued' NOT NULL,
 	`case_id` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,

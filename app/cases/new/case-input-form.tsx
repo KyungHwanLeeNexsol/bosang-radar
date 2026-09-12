@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+class CaseSubmissionError extends Error {}
+
 // bare UI — 사건 입력 폼(SPEC-PILOT-VISUAL-001 M4, design.md §4 화면 01).
 // 필드는 lib/validation/case-input.ts의 caseInputSchema와 그대로 매핑된다
 // (주민등록번호/전화번호/상세주소/의료기록 원본 필드는 애초에 존재하지 않음).
@@ -43,7 +45,7 @@ export function CaseInputForm() {
         cache: "no-store",
       });
       if (!response.ok) {
-        throw new Error("분석 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+        throw new CaseSubmissionError("분석 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
       }
       const data = (await response.json()) as {
         status?: string;
@@ -55,10 +57,14 @@ export function CaseInputForm() {
         return;
       }
       if (data.status === "failed") {
-        throw new Error(data.error ?? "분석을 완료하지 못했습니다. 다시 시도해 주세요.");
+        throw new CaseSubmissionError(
+          data.error ?? "분석을 완료하지 못했습니다. 다시 시도해 주세요."
+        );
       }
     }
-    throw new Error("분석 시간이 너무 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요.");
+    throw new CaseSubmissionError(
+      "분석 시간이 너무 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요."
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -86,7 +92,7 @@ export function CaseInputForm() {
       if (response.status === 202) {
         const data = (await response.json()) as { jobId?: string };
         if (!data.jobId) {
-          throw new Error("분석 작업을 시작하지 못했습니다. 다시 시도해 주세요.");
+          throw new CaseSubmissionError("분석 작업을 시작하지 못했습니다. 다시 시도해 주세요.");
         }
         await waitForCaseJob(data.jobId);
         return;
@@ -110,7 +116,7 @@ export function CaseInputForm() {
       // unhandled promise rejection으로 전파되지 않으며, 재제출이 허용된다.
       submitGuardRef.current = false;
       setFormError(
-        error instanceof Error && error.message
+        error instanceof CaseSubmissionError
           ? error.message
           : "네트워크 오류로 요청을 완료하지 못했습니다. 다시 시도해 주세요."
       );

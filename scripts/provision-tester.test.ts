@@ -266,8 +266,11 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // SPEC-PILOT-READY-001 M1(REQ-PILOT-READY-007) — 사용자별 동시 실행
   // 가드(TTL 기반 리스)를 위한 신규 reservations 테이블 마이그레이션.
   const RESERVATIONS_MIGRATION = "0005_tidy_karen_page.sql";
+  // SPEC-PILOT-READY-001 비동기 전환 — Netlify Background Function 작업의
+  // 입력과 처리 상태를 저장하는 case_jobs 테이블 마이그레이션.
+  const CASE_JOBS_MIGRATION = "0006_amused_joseph.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개 + feedback 구조화 마이그레이션 1개 + reservations 마이그레이션 1개, 총 6개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline부터 case_jobs까지 총 7개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -278,7 +281,8 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(EVIDENCE_ISSUE_TYPES_MIGRATION);
     expect(sqlFiles).toContain(FEEDBACK_MIGRATION);
     expect(sqlFiles).toContain(RESERVATIONS_MIGRATION);
-    expect(sqlFiles).toHaveLength(6);
+    expect(sqlFiles).toContain(CASE_JOBS_MIGRATION);
+    expect(sqlFiles).toHaveLength(7);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {

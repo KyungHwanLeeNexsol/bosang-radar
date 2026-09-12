@@ -10,11 +10,12 @@ const projectRoot = path.resolve(scriptDir, "..");
 const scriptPath = path.join(scriptDir, "db-migrate.ts");
 const tmpDir = path.join(projectRoot, ".tmp");
 
-// lib/db/schema.ts의 10개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
+// lib/db/schema.ts의 11개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
 // 상수도 함께 갱신한다.
 const EXPECTED_TABLES = [
   "account",
   "allowed_testers",
+  "case_jobs",
   "cases",
   "evidence",
   "feedback",
@@ -77,7 +78,7 @@ describe("scripts/db-migrate — 실제 CLI 실행 (AC-RUNTIME-001, AC-RUNTIME-0
     await cleanupDbFile(dbFile);
   });
 
-  it("[AC-RUNTIME-001] pnpm db:migrate 실행 시 9개 테이블이 모두 생성된다", async () => {
+  it("[AC-RUNTIME-001] pnpm db:migrate 실행 시 11개 테이블이 모두 생성된다", async () => {
     mkdirSync(tmpDir, { recursive: true });
 
     runMigrateCli(dbFile);

@@ -127,6 +127,9 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       "owner-pii-tx",
       "owner-pii-release",
       "owner-pipeline-double-fail",
+      "owner-job",
+      "owner-job-cancel",
+      "owner-job-race",
     ]);
   });
 
@@ -558,6 +561,83 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
 
       expect(errorSpy).toHaveBeenCalled();
       errorSpy.mockRestore();
+    });
+  });
+
+  describe("Netlify Background Function job 경로", () => {
+    it("startCaseJob은 검증된 입력과 리스를 queued job으로 저장한다", async () => {
+      const { startCaseJob } = await import("./create-case");
+
+      const result = await startCaseJob("owner-job", validInput);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, result.jobId));
+      expect(job).toMatchObject({ ownerUserId: "owner-job", status: "queued", caseId: null });
+
+      const leases = await db
+        .select()
+        .from(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-job"));
+      expect(leases).toHaveLength(1);
+      expect(leases[0].leaseId).toBe(job.leaseId);
+    });
+
+    it("cancelCaseJob은 enqueue 실패로 남은 job을 failed로 바꾸고 리스를 해제한다", async () => {
+      const { cancelCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-job-cancel", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      await cancelCaseJob("owner-job-cancel", started.jobId);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("failed");
+      const leases = await db
+        .select()
+        .from(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-job-cancel"));
+      expect(leases).toHaveLength(0);
+    });
+
+    it("동일 job이 동시에 두 번 호출되어도 파이프라인은 한 번만 실행되고 완료 상태를 유지한다", async () => {
+      const { processCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-job-race", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      const pending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValue(pending.promise);
+
+      const runA = processCaseJob(started.jobId);
+      const runB = processCaseJob(started.jobId);
+
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(runPipelineMock).toHaveBeenCalledTimes(1);
+
+      pending.resolve(sampleReport);
+      await Promise.all([runA, runB]);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("completed");
+      expect(job.caseId).not.toBeNull();
+
+      const savedCases = await db
+        .select()
+        .from(schema.cases)
+        .where(eq(schema.cases.ownerUserId, "owner-job-race"));
+      expect(savedCases).toHaveLength(1);
     });
   });
 });

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
-import { startCaseJob } from "@/lib/cases/create-case";
+import { cancelCaseJob, startCaseJob } from "@/lib/cases/create-case";
+import { toSafeErrorMeta } from "@/lib/logging/safe-error";
 
 // 사건 입력 폼(app/cases/new/)이 호출하는 route handler(design.md §2).
 // proxy.ts가 이미 /api/cases/*를 비로그인 접근으로부터 보호하지만, 세션의
@@ -49,13 +50,24 @@ export async function POST(request: NextRequest) {
   }
 
   const backgroundUrl = new URL("/.netlify/functions/process-case-background", request.url);
-  const enqueueResponse = await fetch(backgroundUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jobId: result.jobId }),
-  });
+  let enqueued = false;
+  try {
+    const enqueueResponse = await fetch(backgroundUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jobId: result.jobId }),
+    });
+    enqueued = enqueueResponse.ok;
+  } catch (error) {
+    console.error(JSON.stringify({ event: "case_job_enqueue_failed", ...toSafeErrorMeta(error) }));
+  }
 
-  if (!enqueueResponse.ok) {
+  if (!enqueued) {
+    try {
+      await cancelCaseJob(session.user.id, result.jobId);
+    } catch (error) {
+      console.error(JSON.stringify({ event: "case_job_cancel_failed", ...toSafeErrorMeta(error) }));
+    }
     return NextResponse.json(
       { error: "분석 작업을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 502 }

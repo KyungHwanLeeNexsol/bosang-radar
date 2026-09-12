@@ -160,7 +160,7 @@ export const caseJobs = sqliteTable("case_jobs", {
     .references(() => user.id, { onDelete: "cascade" }),
   leaseId: text("lease_id").notNull(),
   input: text("input", { mode: "json" }).notNull(),
-  status: text("status").notNull().default("processing"),
+  status: text("status").notNull().default("queued"),
   caseId: text("case_id").references(() => cases.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

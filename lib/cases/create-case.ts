@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { caseJobs, cases, reports, reservations } from "../db/schema";
 import { toSafeErrorMeta } from "../logging/safe-error";
@@ -266,7 +266,7 @@ export async function startCaseJob(
       ownerUserId,
       leaseId,
       input: parsed.data,
-      status: "processing",
+      status: "queued",
       createdAt: now,
       updatedAt: now,
     });
@@ -287,14 +287,48 @@ export async function startCaseJob(
   return { success: true, jobId };
 }
 
+// Background Function 호출이 Netlify에 접수되지 못한 경우의 보상 작업.
+// 아직 완료되지 않은 job만 failed로 전환하고, 그 job이 가진 leaseId와 정확히
+// 일치하는 사용자 리스만 같은 트랜잭션에서 해제한다.
+export async function cancelCaseJob(ownerUserId: string, jobId: string): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    const [cancelled] = await tx
+      .update(caseJobs)
+      .set({ status: "failed", updatedAt: now })
+      .where(
+        and(
+          eq(caseJobs.id, jobId),
+          eq(caseJobs.ownerUserId, ownerUserId),
+          inArray(caseJobs.status, ["queued", "processing"])
+        )
+      )
+      .returning({ leaseId: caseJobs.leaseId });
+
+    if (!cancelled) return;
+
+    await tx
+      .delete(reservations)
+      .where(
+        and(eq(reservations.ownerUserId, ownerUserId), eq(reservations.leaseId, cancelled.leaseId))
+      );
+  });
+}
+
 // Background Function 전용 실행부. jobId와 leaseId를 DB에서 함께 읽어 소유권을
 // 확인하고, 완료 기록·리스 해제·job 상태 갱신을 하나의 트랜잭션으로 처리한다.
 // 실패 시 job은 안전한 일반 오류 상태로 남기고 펜싱된 리스를 해제한다.
 export async function processCaseJob(jobId: string): Promise<void> {
   const db = getDb();
-  const [job] = await db.select().from(caseJobs).where(eq(caseJobs.id, jobId));
+  const [job] = await db
+    .update(caseJobs)
+    .set({ status: "processing", updatedAt: new Date() })
+    .where(and(eq(caseJobs.id, jobId), eq(caseJobs.status, "queued")))
+    .returning();
 
-  if (!job || job.status !== "processing") {
+  if (!job) {
     return;
   }
 
@@ -335,7 +369,13 @@ export async function processCaseJob(jobId: string): Promise<void> {
       await tx
         .update(caseJobs)
         .set({ status: "completed", caseId, updatedAt: now })
-        .where(eq(caseJobs.id, jobId));
+        .where(
+          and(
+            eq(caseJobs.id, jobId),
+            eq(caseJobs.leaseId, job.leaseId),
+            eq(caseJobs.status, "processing")
+          )
+        );
     });
   } catch (error) {
     const now = new Date();
@@ -343,7 +383,13 @@ export async function processCaseJob(jobId: string): Promise<void> {
       await db
         .update(caseJobs)
         .set({ status: "failed", updatedAt: now })
-        .where(eq(caseJobs.id, jobId));
+        .where(
+          and(
+            eq(caseJobs.id, jobId),
+            eq(caseJobs.leaseId, job.leaseId),
+            eq(caseJobs.status, "processing")
+          )
+        );
     } catch (statusError) {
       console.error(
         JSON.stringify({ event: "case_job_status_update_failed", ...toSafeErrorMeta(statusError) })

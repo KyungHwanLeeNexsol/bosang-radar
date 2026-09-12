@@ -868,3 +868,31 @@ Function(`netlify/functions/process-case-background.ts`)이 기존 6단계 파�
 - 기존 동기 `createCase()`와 201 응답 호환 분기는 기존 테스트·호출자를 위해 유지
 - 다음 게이트: Preview 배포 후 실제 로그인 사용자 1건 제출, 202 즉시 응답, 81초 이상
   처리 완료 및 실패/중복 제출 동작을 실제 도메인에서 확인
+
+## §S 비동기 경로 로컬 안정화 및 회귀 테스트 보강 (2026-09-12)
+
+§R 구현 직후 전체 품질 게이트를 재실행해 발견한 회귀와 비동기 경로의 미검증 구간을
+TDD로 보강했다.
+
+- `case_jobs` 추가 뒤 갱신되지 않았던 마이그레이션 테스트의 테이블 목록(11개)과 SQL
+  파일 개수(7개)를 실제 스키마에 맞췄다.
+- 네트워크 `fetch` 예외의 원시 메시지가 사건 입력 화면에 노출되던 회귀를 재현하고,
+  의도적으로 생성한 분석 상태 오류와 네트워크 예외를 구분해 후자는 안전한 일반 안내로
+  되돌렸다.
+- Background Function enqueue가 HTTP 오류를 반환하거나 네트워크 예외로 실패하면 생성한
+  job을 `failed`로 전환하고 동일 `leaseId`의 사용자 리스를 트랜잭션으로 해제하도록
+  보상 경로를 추가했다.
+- job 초기 상태를 `queued`로 분리하고, `queued → processing` 조건부 UPDATE를 원자적
+  실행 claim으로 사용했다. 동일 job의 Background Function이 동시에 호출돼도 claim을
+  획득한 한 실행만 Gemini 파이프라인을 시작한다.
+- 실패 재현: 신규 route/core 테스트 5개가 수정 전 모두 실패함을 확인했다(enqueue 정리
+  미호출 2건, queued 상태 부재, cancel 함수 부재, 동시 실행 시 파이프라인 2회 호출).
+- 직접 검증 범위를 `startCaseJob`/`cancelCaseJob`/`processCaseJob`, 상태조회 API의 인증·
+  소유권·4개 상태, Netlify Background Function 입력 계약, 클라이언트의
+  `202 → polling → 결과 이동` 흐름까지 확장했다.
+- 최종 검증: Vitest **64/64 files, 448/448 tests PASS**, `tsc --noEmit` PASS,
+  ESLint PASS, Prettier PASS, `git diff --check` PASS.
+
+다음 게이트는 변경분을 Deploy Preview에 반영하고 원격 Turso에 migration 0006을 적용한
+뒤, 실제 로그인 계정으로 `202 → Background Function → completed → case/report 조회` 한
+건을 종단 검증하는 것이다.
