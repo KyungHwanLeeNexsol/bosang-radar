@@ -59,8 +59,10 @@ GEMINI_FAST_RPM_BUDGET=11
 
 - Netlify CLI가 두 컨텍스트의 저장값을 production `4/11`, deploy-preview `4/11`로
   반환했다.
-- 환경변수 변경은 기존 배포에 소급 적용되지 않으므로 이 문서 커밋을 푸시해 새 Deploy
-  Preview를 생성하고, 그 배포가 `ready`인 것을 확인한 뒤 적용 완료로 확정한다.
+- 환경변수 설정 후 commit `e84d777`을 푸시해 새 Deploy Preview
+  `6aa6221cf800c80008113d33`을 생성했다. Netlify Deploy API에서 해당 배포의 state
+  `ready`, plugin state `success`, `process-case-background` 포함을 확인해 적용 완료로
+  확정했다.
 - API key, 프로젝트 ID, 로그인 이메일은 이 리포트에 기록하지 않았다.
 
 ## 결론 범위

@@ -999,6 +999,8 @@ job 단위로 교차 검증할 수 있도록 비민감 관측값 영속화를 �
   `gemini-3.5-flash-lite` 15 RPM/250K TPM/500 RPD다.
 - 자체 예산을 Research 4 RPM(80%), Fast 11 RPM(약 73.3%)으로 결정하고 Netlify
   production/deploy-preview 양쪽에 설정했다. 각 컨텍스트의 읽기 재확인 결과도 4/11이다.
+- 설정 후 commit `e84d777`의 Deploy Preview `6aa6221cf800c80008113d33`이 `ready`이고
+  Background Function을 포함함을 확인해 새 예산값의 배포 적용을 확정했다.
 - Research 모델의 20 RPD가 일일 병목이므로 30건 파일럿을 최소 2일 이상 분산하고,
   재시도 여유를 위해 하루 15~18건 이하로 운영한다.
 - 상세 증거: `.moai/reports/pilot-ready-quota-checklist-20260913.md`.
