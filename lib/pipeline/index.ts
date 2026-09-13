@@ -3,6 +3,11 @@ import { getDefaultLLMProviders } from "../ai/provider-factory";
 import { toSafeErrorMeta } from "../logging/safe-error";
 import { normalizeCase } from "./case-normalizer";
 import { retrieveEvidence } from "./evidence-retriever";
+import {
+  preferPremiumVerification,
+  selectEscalation,
+  selectInitialResearchTier,
+} from "./hybrid-research-router";
 import { research } from "./researcher";
 import { planQueries } from "./query-planner";
 import { challenge } from "./skeptic";
@@ -102,15 +107,52 @@ export async function runPipeline(
     retrieveEvidence(queries)
   );
   const verification = await withPipelineLock(async () => {
-    const findings = await withAsyncStageLogging("Researcher", () =>
-      research(queries, evidence, researchProvider)
+    const initialDecision = selectInitialResearchTier(queries);
+    const initialResearchProvider =
+      initialDecision.tier === "premium" ? researchProvider : fastProvider;
+    console.info(
+      JSON.stringify({
+        event: "pipeline_research_routed",
+        tier: initialDecision.tier,
+        reason: initialDecision.reason,
+      })
     );
-    const challenges = await withAsyncStageLogging("Skeptic", () =>
-      challenge(findings, evidence, fastProvider)
+
+    const runReview = async (provider: typeof researchProvider) => {
+      const findings = await withAsyncStageLogging("Researcher", () =>
+        research(queries, evidence, provider)
+      );
+      const challenges = await withAsyncStageLogging("Skeptic", () =>
+        challenge(findings, evidence, fastProvider)
+      );
+      const result = await withAsyncStageLogging("Verifier", () =>
+        verify(queries, findings, challenges, evidence, fastProvider)
+      );
+      return { findings, result };
+    };
+
+    const initial = await runReview(initialResearchProvider);
+    if (initialDecision.tier === "premium" || researchProvider === fastProvider) {
+      return initial.result;
+    }
+
+    const escalation = selectEscalation(queries, evidence, initial.findings, initial.result);
+    if (!escalation) {
+      return initial.result;
+    }
+
+    console.info(
+      JSON.stringify({
+        event: "pipeline_research_escalated",
+        from: "lite",
+        to: "premium",
+        reason: escalation.reason,
+      })
     );
-    return withAsyncStageLogging("Verifier", () =>
-      verify(queries, findings, challenges, evidence, fastProvider)
-    );
+    const premium = await runReview(researchProvider);
+    return preferPremiumVerification(initial.result, premium.result)
+      ? premium.result
+      : initial.result;
   });
 
   // reviewTargets 도출 — planQueries()가 이미 (domain, issueType) 쌍마다

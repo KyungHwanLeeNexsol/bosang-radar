@@ -5,6 +5,26 @@
 
 ## [Unreleased]
 
+### Changed — Gemini Researcher 하이브리드 라우팅
+
+무료 티어의 `gemini-3.6-flash` 20 RPD 병목을 줄이기 위해 일반 사건은
+`gemini-3.5-flash-lite` Researcher로 시작하고, 기왕증·상해/질병 혼재·추가확인
+신호가 있거나 Lite 결과가 근거 대비 누락/판단불충분인 경우에만 3.6 Flash로
+승격하도록 변경했습니다. 근거자료 자체가 없는 항목은 상위 모델로 해결할 수 없으므로
+승격하지 않으며, Premium 결과가 더 나쁘면 Lite 결과를 보존합니다. 라우팅 결정은
+사건 원문 없는 구조화 로그로 남깁니다.
+
+Google 쿼터가 API 키가 아닌 프로젝트 단위인 점과 공정 사용 제한의 운영 취지를 고려해,
+여러 무료 계정/프로젝트의 키를 429 이후 순환시키는 쿼터 합산 기능은 도입하지 않았습니다.
+
+**검증**: 하이브리드 라우터·파이프라인 회귀 테스트 3 files/19 tests, TypeScript
+`--noEmit`, 변경 파일 ESLint 및 Prettier 검사 통과. 전체 Vitest에서는 테스트
+53 files/382 tests가 통과했으나 현재 Windows/Node 환경의 기존 `jsdom`/`undici`
+worker 호환 오류 13건으로 러너 exit 1. 로컬 Next build는 필수 운영 환경변수 미주입으로
+prerender 단계에서 중단됐으며 컴파일과 TypeScript 단계는 통과했습니다.
+
+**참고**: `.moai/reports/hybrid-research-routing-20260913.md`
+
 ### Added — SPEC-PILOT-READY-001 파일럿 배포 준비 — Netlify Preview 통과, 원격 readiness `NO-GO` 유지
 
 외부 전문가 파일럿 전에 필요한 최소 운영 안전장치를 구현하고 Netlify Free 배포 적합성을 점검했습니다. 사용자별 DB 리스 기반 동시 실행 가드, 구조적 비식별 로그, 데이터 취급 고지, 장애 대응 런북을 추가했습니다. PR #10의 자동 Deploy Preview에서 `@libsql/client` 네이티브 애드온이 Middleware 번들에 포함되는 문제를 발견해 세션 쿠키 판별 코드를 DB 비의존 모듈로 분리했고, 수정 후 Preview가 통과했습니다.
