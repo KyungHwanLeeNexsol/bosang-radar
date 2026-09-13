@@ -942,3 +942,24 @@ UNVERIFIED를 유지한다. 전체 readiness는 항목 (1), (2), (5), (6), (7)�
 `NO-GO`다.
 
 다음 게이트는 REQ-PILOT-READY-010의 5가지 증거를 모두 수집하는 실 Gemini 스모크다.
+
+## §V 실 Gemini 관측 영속화 로컬 준비 (2026-09-13)
+
+실 배포 스모크에서 Gemini 호출 횟수와 단계별 성공 여부를 로그 열람에만 의존하지 않고
+job 단위로 교차 검증할 수 있도록 비민감 관측값 영속화를 추가했다.
+
+- `gemini_request_observations` 테이블과 migration 0007을 추가했다. 저장 필드는 job ID,
+  HTTP method, 모델명, 상태 코드, 성공 여부, 소요시간, 관측 시각뿐이며 API key, 요청 URL,
+  prompt, response 본문은 저장하지 않는다.
+- Background Function의 `AsyncLocalStorage` 관측 컨텍스트에 저장 콜백을 연결했다. 관측값
+  저장 실패는 별도의 안전한 구조적 오류 로그를 남기되 Gemini 응답 자체를 실패로
+  바꾸지 않는다.
+- Node 20에서도 스크립트 CLI 테스트가 일관되게 실행되도록 테스트 자식 프로세스가
+  저장소에 고정된 `tsx` CLI를 명시적으로 사용하게 했다.
+- 로컬 검증: 관련 7개 파일/64개 테스트 PASS, 전체 65개 파일/453개 테스트 PASS
+  (Node 22.23.2), `tsc --noEmit`, ESLint, Prettier, `git diff --check`, sentinel 환경값과
+  로컬 임시 DB를 사용한 `next build` 모두 exit 0.
+- 이 단계는 실 배포 증거를 수집할 수 있는 코드 경로를 준비한 것일 뿐이다. 원격 Turso에
+  migration 0007을 적용하고 최신 Preview에서 합성 사건을 실행해 AC-PILOT-READY-010의
+  5개 증거를 리포트로 남기기 전까지 readiness 항목 (5)는 `UNVERIFIED`, 전체 판정은
+  `NO-GO`를 유지한다.

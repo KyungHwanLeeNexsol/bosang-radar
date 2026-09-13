@@ -607,6 +607,37 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       expect(leases).toHaveLength(0);
     });
 
+    it("Gemini 네트워크 관측 결과를 job에 연결해 별도 테이블에 영속화한다", async () => {
+      const { startCaseJob } = await import("./create-case");
+      const { recordGeminiRequestObservation } =
+        await import("../observability/gemini-observation-store");
+      const started = await startCaseJob("owner-job", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      await recordGeminiRequestObservation(started.jobId, {
+        method: "POST",
+        model: "gemini-3.6-flash",
+        status: 200,
+        ok: true,
+        durationMs: 125,
+      });
+
+      const rows = await db
+        .select()
+        .from(schema.geminiRequestObservations)
+        .where(eq(schema.geminiRequestObservations.jobId, started.jobId));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        jobId: started.jobId,
+        method: "POST",
+        model: "gemini-3.6-flash",
+        status: 200,
+        ok: true,
+        durationMs: 125,
+      });
+    });
+
     it("동일 job이 동시에 두 번 호출되어도 파이프라인은 한 번만 실행되고 완료 상태를 유지한다", async () => {
       const { processCaseJob, startCaseJob } = await import("./create-case");
       const started = await startCaseJob("owner-job-race", validInput);

@@ -1,5 +1,6 @@
 import { processCaseJob } from "../../lib/cases/create-case";
 import { withGeminiFetchObservation } from "../../lib/observability/gemini-fetch-observer";
+import { recordGeminiRequestObservation } from "../../lib/observability/gemini-observation-store";
 
 // config.background는 호출자에게 즉시 202를 반환하고 최대 15분 동안 작업을
 // 계속 실행하게 한다(Netlify Free 포함). 파일명 suffix 방식도 호환되지만,
@@ -16,7 +17,11 @@ async function handler(request: Request) {
     return new Response("jobId is required", { status: 400 });
   }
 
-  await withGeminiFetchObservation(jobId, () => processCaseJob(jobId));
+  await withGeminiFetchObservation(
+    jobId,
+    (observation) => recordGeminiRequestObservation(jobId, observation),
+    () => processCaseJob(jobId)
+  );
   return new Response(null, { status: 202 });
 }
 

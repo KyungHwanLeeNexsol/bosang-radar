@@ -4,8 +4,17 @@ type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
 type FetchLogger = (line: string) => void;
 
+export interface GeminiRequestObservation {
+  method: string;
+  model: string;
+  status: number | null;
+  ok: boolean;
+  durationMs: number;
+}
+
 interface ObservationContext {
   jobId: string;
+  onObservation: (observation: GeminiRequestObservation) => void | Promise<void>;
 }
 
 const observationContext = new AsyncLocalStorage<ObservationContext>();
@@ -35,36 +44,50 @@ function geminiModel(url: URL): string | undefined {
 
 export function createGeminiObservedFetch(
   originalFetch: typeof fetch,
-  getJobId: () => string | undefined,
+  getObservationContext: () => ObservationContext | undefined,
   log: FetchLogger = console.info,
   now: () => number = Date.now
 ): typeof fetch {
   return async (input: FetchInput, init?: FetchInit) => {
     const url = requestUrl(input);
     const model = url ? geminiModel(url) : undefined;
-    const jobId = getJobId();
-    if (!model || !jobId) return originalFetch(input, init);
+    const context = getObservationContext();
+    if (!model || !context) return originalFetch(input, init);
 
     const startedAt = now();
     try {
       const response = await originalFetch(input, init);
+      const observation: GeminiRequestObservation = {
+        method: requestMethod(input, init),
+        model,
+        status: response.status,
+        ok: response.ok,
+        durationMs: Math.max(0, now() - startedAt),
+      };
       log(
         JSON.stringify({
           event: "gemini_request_observed",
-          jobId,
-          method: requestMethod(input, init),
-          model,
-          status: response.status,
-          ok: response.ok,
-          durationMs: Math.max(0, now() - startedAt),
+          jobId: context.jobId,
+          ...observation,
         })
       );
+      try {
+        await context.onObservation(observation);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "gemini_observation_persist_failed",
+            jobId: context.jobId,
+            errorName: error instanceof Error ? error.name : "UnknownError",
+          })
+        );
+      }
       return response;
     } catch (error) {
       log(
         JSON.stringify({
           event: "gemini_request_observed",
-          jobId,
+          jobId: context.jobId,
           method: requestMethod(input, init),
           model,
           status: null,
@@ -80,14 +103,17 @@ export function createGeminiObservedFetch(
 
 function installGeminiFetchObserver(): void {
   if (installed) return;
-  globalThis.fetch = createGeminiObservedFetch(
-    globalThis.fetch.bind(globalThis),
-    () => observationContext.getStore()?.jobId
+  globalThis.fetch = createGeminiObservedFetch(globalThis.fetch.bind(globalThis), () =>
+    observationContext.getStore()
   );
   installed = true;
 }
 
-export function withGeminiFetchObservation<T>(jobId: string, task: () => Promise<T>): Promise<T> {
+export function withGeminiFetchObservation<T>(
+  jobId: string,
+  onObservation: ObservationContext["onObservation"],
+  task: () => Promise<T>
+): Promise<T> {
   installGeminiFetchObserver();
-  return observationContext.run({ jobId }, task);
+  return observationContext.run({ jobId, onObservation }, task);
 }

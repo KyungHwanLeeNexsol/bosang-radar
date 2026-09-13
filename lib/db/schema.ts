@@ -165,3 +165,18 @@ export const caseJobs = sqliteTable("case_jobs", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
+
+// 배포 환경의 실 Gemini 호출을 job 단위로 교차 검증하기 위한 비민감 관측값.
+// 요청 URL, API key, prompt/response 본문은 저장하지 않는다.
+export const geminiRequestObservations = sqliteTable("gemini_request_observations", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => caseJobs.id, { onDelete: "cascade" }),
+  method: text("method").notNull(),
+  model: text("model").notNull(),
+  status: integer("status"),
+  ok: integer("ok", { mode: "boolean" }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
+});

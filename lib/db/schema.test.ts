@@ -42,4 +42,15 @@ describe("lib/db/schema", () => {
     expect(schema.reservations.leaseId).toBeDefined();
     expect(schema.reservations.expiresAt).toBeDefined();
   });
+
+  it("Gemini 요청 관측 테이블은 job 연결과 비민감 메타데이터 컬럼을 정의한다", () => {
+    expect(getTableName(schema.geminiRequestObservations)).toBe("gemini_request_observations");
+    expect(schema.geminiRequestObservations.jobId).toBeDefined();
+    expect(schema.geminiRequestObservations.method).toBeDefined();
+    expect(schema.geminiRequestObservations.model).toBeDefined();
+    expect(schema.geminiRequestObservations.status).toBeDefined();
+    expect(schema.geminiRequestObservations.ok).toBeDefined();
+    expect(schema.geminiRequestObservations.durationMs).toBeDefined();
+    expect(schema.geminiRequestObservations.observedAt).toBeDefined();
+  });
 });

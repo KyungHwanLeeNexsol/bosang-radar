@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { processCaseJobMock, withGeminiFetchObservationMock } = vi.hoisted(() => ({
-  processCaseJobMock: vi.fn(),
-  withGeminiFetchObservationMock: vi.fn(async (_jobId: string, task: () => Promise<void>) =>
-    task()
-  ),
-}));
+const { processCaseJobMock, recordGeminiRequestObservationMock, withGeminiFetchObservationMock } =
+  vi.hoisted(() => ({
+    processCaseJobMock: vi.fn(),
+    recordGeminiRequestObservationMock: vi.fn(),
+    withGeminiFetchObservationMock: vi.fn(
+      async (
+        _jobId: string,
+        onObservation: (observation: { model: string }) => Promise<void>,
+        task: () => Promise<void>
+      ) => {
+        await onObservation({ model: "gemini-test" });
+        return task();
+      }
+    ),
+  }));
 
 vi.mock("../lib/cases/create-case", () => ({
   processCaseJob: processCaseJobMock,
@@ -15,10 +24,16 @@ vi.mock("../lib/observability/gemini-fetch-observer", () => ({
   withGeminiFetchObservation: withGeminiFetchObservationMock,
 }));
 
+vi.mock("../lib/observability/gemini-observation-store", () => ({
+  recordGeminiRequestObservation: recordGeminiRequestObservationMock,
+}));
+
 describe("process-case-background Netlify Function", () => {
   beforeEach(() => {
     processCaseJobMock.mockReset();
     processCaseJobMock.mockResolvedValue(undefined);
+    recordGeminiRequestObservationMock.mockReset();
+    recordGeminiRequestObservationMock.mockResolvedValue(undefined);
     withGeminiFetchObservationMock.mockClear();
   });
 
@@ -62,7 +77,14 @@ describe("process-case-background Netlify Function", () => {
 
     expect(response.status).toBe(202);
     expect(withGeminiFetchObservationMock).toHaveBeenCalledOnce();
-    expect(withGeminiFetchObservationMock).toHaveBeenCalledWith("job-123", expect.any(Function));
+    expect(withGeminiFetchObservationMock).toHaveBeenCalledWith(
+      "job-123",
+      expect.any(Function),
+      expect.any(Function)
+    );
+    expect(recordGeminiRequestObservationMock).toHaveBeenCalledWith("job-123", {
+      model: "gemini-test",
+    });
     expect(processCaseJobMock).toHaveBeenCalledOnce();
     expect(processCaseJobMock).toHaveBeenCalledWith("job-123");
   });
