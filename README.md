@@ -141,10 +141,10 @@ SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 
 
 - Netlify 동기 함수의 60초 제한과 실제 파이프라인 81초 측정 결과에 따라 분석 요청을
   Background Function 비동기 경로로 전환했다. `case_jobs`에 작업을 기록하고 `202`
-  응답 후 상태 polling으로 완료된 `caseId`를 전달한다. Preview 배포 후 실제 Gemini·
-  저장·동시부하 검증이 남아 있다.
+  응답 후 상태 polling으로 완료된 `caseId`를 전달한다. Preview에서 실제 Gemini 3회
+  호출과 report 저장까지 검증했으며, 처리시간 반복 실측·쿼터·동시부하·복구 검증이 남아 있다.
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.14.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 동기 함수 실행 시간 제한은 3층위 증거로 기록합니다 — (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티 관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지 UNVERIFIED. 구현(사용자별 동시 실행 가드, 최소 구조적 로깅, 데이터 취급 고지 정직성, 장애 대응 런북, 테스트)과 PR #10 자동 Deploy Preview의 Middleware 번들링 수정은 완료됐습니다. **M4(Gemini 쿼터 점검, 원격 DB/실 도메인 인증 검증, 동시성 실측, 실 Gemini 스모크, 타임아웃 실측, 최종 readiness 판정)는 실 인프라 접근이 필요해 대기 중이며, readiness-decision 문서는 전체 `NO-GO`입니다.**
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.14.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현과 PR #10 자동 Deploy Preview 수정은 완료됐고, 원격 DB·실 도메인 인증·실 Gemini 스모크까지 `READY`입니다. **남은 readiness 항목은 (1) 배포 처리시간 3회 이상 실측과 실제 상한 대조, (2) AI Studio 쿼터 확인, (6) 서로 다른 사용자 동시 부하, (7) 원격 리스·복구 검증의 4개이며, 하나라도 `UNVERIFIED`이면 전체 판정은 `NO-GO`입니다.** 현재 전체 판정도 `NO-GO`입니다.
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 
