@@ -144,7 +144,7 @@ SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 
   응답 후 상태 polling으로 완료된 `caseId`를 전달한다. Preview에서 실제 Gemini 3회
   호출과 report 저장까지 검증했으며, 처리시간 반복 실측·쿼터·동시부하·복구 검증이 남아 있다.
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.14.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현과 PR #10 자동 Deploy Preview 수정은 완료됐고, 배포 처리시간 3회 실측·원격 DB·실 도메인 인증·실 Gemini 스모크까지 `READY`입니다. **남은 readiness 항목은 (2) AI Studio 쿼터 확인, (6) 서로 다른 사용자 동시 부하, (7) 원격 리스·복구 검증의 3개이며, 하나라도 `UNVERIFIED`이면 전체 판정은 `NO-GO`입니다.** 현재 전체 판정도 `NO-GO`입니다.
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.14.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현과 PR #10 자동 Deploy Preview 수정은 완료됐고, readiness 항목 (1)~(5)가 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **남은 readiness 항목은 (6) 서로 다른 사용자 동시 부하와 (7) 원격 리스·복구 검증의 2개이며, 현재 전체 판정은 `NO-GO`입니다.**
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 

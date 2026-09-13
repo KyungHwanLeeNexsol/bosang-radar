@@ -27,8 +27,8 @@
 아니다.
 
 **이 문서의 현재 상태(2026-09-13 실환경 검증 반영)**: 아래 7개 항목 중 호스팅
-적합성 항목 (1), 원격 DB 항목 (3), 실 도메인 인증 항목 (4), 실 Gemini 스모크 항목
-(5)는 **READY**, 나머지 3개 항목은 **UNVERIFIED**다.
+적합성 항목 (1), Gemini 쿼터 항목 (2), 원격 DB 항목 (3), 실 도메인 인증 항목 (4),
+실 Gemini 스모크 항목 (5)는 **READY**, 나머지 2개 항목은 **UNVERIFIED**다.
 일부 게이트가 READY로 전환됐더라도 하나 이상의 원격 필수 항목이 UNVERIFIED이면 전체
 판정은 `NO-GO`라는 규칙을 그대로 적용한다.
 
@@ -59,7 +59,7 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | # | 항목 | 판정 | 근거 리포트 | 비고 |
 |---|------|------|-------------|------|
 | 1 | 호스팅 적합성(Netlify Free 확정 + 3층위 실행시간 상한 증거 + 실제 배포 도메인 기준 **실측 증거**, v0.10.0 재작성) | `READY` | `.moai/reports/pilot-ready-deployment-tier-decision-20260913.md` + `.moai/reports/pilot-ready-timeout-measurement-20260913.md` | 실제 Preview의 `stream`/`background` 실행 모드를 확인하고 3회 개별 측정했다. 동기 접수 최대 3.761초는 60초-10초 안전여유 기준 이내, Background 완료 최대 47.900초는 900초-120초 안전여유 기준 이내다 |
-| 2 | Gemini 쿼터(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) | `UNVERIFIED` | `.moai/reports/pilot-ready-quota-checklist-*.md`(또는 런북 통합 섹션) | 원격 필수 — 실제 AI Studio 대시보드 확인 기록 필요 (§항목별 READY 세부 기준 (2) 참고) |
+| 2 | Gemini 쿼터(REQ-PILOT-READY-003, 호스팅과 별개의 독립 항목) | `READY` | `.moai/reports/pilot-ready-quota-checklist-20260913.md` | 프로젝트 운영자가 실제 AI Studio 무료 등급 한도(Research 5 RPM, Fast 15 RPM)를 확인했고 production/deploy-preview에 각각 4 RPM(80%), 11 RPM(73.3%) 예산을 설정해 읽기 재확인 |
 | 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `READY` | `.moai/reports/pilot-ready-remote-db-verification-20260912.md` | production 컨텍스트에서 migration 0006까지 총 7건 적용, `case_jobs` 스키마 확인, seed 21건 및 `tester:add` 3계정의 `users`/`allowed_testers` 행을 읽기 재확인 |
 | 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `READY` | `.moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키 및 세션 사용자 확인, 비로그인 `/cases/new` 307과 로그인 후 200을 개별 검증 |
 | 5 | 실 Gemini 스모크(REQ-PILOT-READY-010 재검증) | `READY` | `.moai/reports/gemini-runtime-smoke-20260913.md` | 실제 Deploy Preview에서 Researcher/Skeptic/Verifier 3회 호출이 모두 HTTP 200으로 관측됐고, 202→completed 상태 전이와 응답 caseId·원격 job/report 행 일치를 독립 조회로 확인 |
@@ -116,8 +116,8 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 ## 전체 판정
 
-**`NO-GO`** — 호스팅 적합성 항목 (1), 원격 DB 항목 (3), 실 도메인 인증 항목 (4),
-실 Gemini 스모크 항목 (5)는 `READY`지만 항목 (2), (6), (7)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은
+**`NO-GO`** — 호스팅 적합성·Gemini 쿼터·원격 DB·실 도메인 인증·실 Gemini 스모크
+항목 (1)~(5)는 `READY`지만 항목 (6), (7)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은
 `NO-GO`다. 남은 항목이 실제
 값으로 채워질 run-phase 종료 시점에 재평가한다(그 시점의 판정이 다시 NO-GO인 것
 자체는 정상적으로 허용되는 run-phase 완료 상태다 — REQ-PILOT-READY-016 참고).
@@ -133,3 +133,4 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 2026-09-12 | Codex(실 도메인 인증·비동기 E2E) | `NO-GO`(항목 3·4 READY, 5개 UNVERIFIED) | 실제 Preview에서 로그인·세션·보호 페이지를 검증해 항목 (4)을 READY로 전환. 비동기 제출 202, 중복 409, 완료와 원격 case/report 영속화도 확인했으나 항목 (1), (2), (5), (6), (7)의 전체 기준은 아직 미충족 |
 | 2026-09-13 | Codex(실 Gemini 네트워크 관측·DB 교차검증) | `NO-GO`(항목 3·4·5 READY, 4개 UNVERIFIED) | commit `a2b3ef0`의 실제 Preview에서 합성 사건을 실행해 Gemini 3회 호출 HTTP 200, 202→completed, caseId와 원격 job/report 행 일치를 확인하여 항목 (5)을 READY로 전환. 항목 (1), (2), (6), (7)은 아직 미검증 |
 | 2026-09-13 | Codex(Netlify 3회 처리시간·실행 모드 대조) | `NO-GO`(항목 1·3·4·5 READY, 3개 UNVERIFIED) | 실제 Preview 3회 측정에서 동기 접수 최대 3.761초, Background 완료 최대 47.900초를 관측했다. 배포 메타데이터의 `stream`/`background` 실행 모드와 공식 60초/15분 상한을 대조하고 안전 여유 기준을 모두 충족해 항목 (1)을 READY로 전환 |
+| 2026-09-13 | 프로젝트 운영자 + Codex(AI Studio 쿼터 확인·예산 적용) | `NO-GO`(항목 1~5 READY, 2개 UNVERIFIED) | AI Studio 실제 무료 등급 한도 Research 5 RPM/Fast 15 RPM을 확인하고 Netlify production/deploy-preview에 4/11 RPM 예산을 설정했다. 항목 (2)을 READY로 전환했으나 다중 사용자 부하와 원격 복구 검증은 아직 미검증 |

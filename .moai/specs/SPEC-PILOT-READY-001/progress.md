@@ -223,7 +223,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 |----|--------|----------------------|----------------|
 | AC-PILOT-READY-001 | **PASS** (2026-09-13 실제 실행 모드 확인) | `Read .moai/reports/pilot-ready-netlify-suitability-spike-20260911.md` §3; `Read .moai/reports/pilot-ready-deployment-tier-decision-20260913.md` | 3층위 증거 — (a) 공식 동기 60초/Background 15분, (b) 상충하는 커뮤니티 관측 ~10초(Netlify 직원 미확인), (c) 이 프로젝트 최신 Preview의 실제 `stream`/`background` invocation mode — 를 서로 혼동 없이 기록했다. 호스팅의 실제 준비상태는 3회 실측까지 완료한 readiness 항목 (1)에서 READY다 |
 | AC-PILOT-READY-002 | **PASS** (2026-09-13 실제 Preview 3회 실측) | `Read .moai/reports/pilot-ready-timeout-measurement-20260913.md` | 실제 Preview에서 합성 사건 3건을 개별 측정했다. HTTP 202 접수는 1.597/3.761/3.488초, Background 완료는 36.528/46.188/47.900초였고 모두 성공했다. 실제 `stream`/`background` 모드의 60초/900초 상한에서 10초/120초 안전 여유를 제외한 기준을 모두 충족했다 |
-| AC-PILOT-READY-003 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 실제 AI Studio 쿼터 대시보드 확인이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
+| AC-PILOT-READY-003 | **PASS** (2026-09-13 AI Studio 실제 확인) | `Read .moai/reports/pilot-ready-quota-checklist-20260913.md` | 프로젝트 운영자가 AI Studio 무료 등급의 실제 한도 Research 5 RPM/Fast 15 RPM을 확인했다. 한도의 80%/73.3%인 4/11 RPM을 Netlify production/deploy-preview 양쪽에 설정하고 읽기 재확인했다 |
 | AC-PILOT-READY-004 | **PASS** (2026-09-13 원격 재검증) | `Read .moai/reports/pilot-ready-remote-db-verification-20260912.md`; `Read .moai/reports/gemini-runtime-smoke-20260913.md` | Netlify production 컨텍스트의 실제 원격 Turso에 migration 0007까지 총 8건 적용하고 seed 21건, `case_jobs`와 `gemini_request_observations`, 기존 사용자/allowlist 행을 독립 읽기 조회로 재확인했다 |
 | AC-PILOT-READY-005 | **PASS** (2026-09-12 실 도메인 검증) | `Read .moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키와 세션 사용자 일치, 비로그인 `/cases/new` 307 및 로그인 후 200을 각각 확인했다 |
 | AC-PILOT-READY-006 | **UNVERIFIED** (v0.11.0 정정, 외부 구현 검토 9차) | — | 서로 다른 사용자 계정의 실제 동시 부하 측정이 아직 수행되지 않았다(적용 불가가 아니라 미수행) |
@@ -237,7 +237,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
-| AC-PILOT-READY-016b | **PASS** (2026-09-13 판정 동기화) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다. 현재 리포트는 호스팅·원격 DB·실 도메인 인증·실 Gemini 스모크 항목 (1),(3)~(5)을 `READY`, 나머지 3개 항목을 `UNVERIFIED`, 전체를 `NO-GO`로 명시해 게이트 규칙과 일치한다 |
+| AC-PILOT-READY-016b | **PASS** (2026-09-13 판정 동기화) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다. 현재 리포트는 항목 (1)~(5)을 `READY`, 항목 (6),(7)을 `UNVERIFIED`, 전체를 `NO-GO`로 명시해 게이트 규칙과 일치한다 |
 
 ### E2. Build Result
 
@@ -346,7 +346,7 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 - `run_commit_sha: 8d39283c0a8544c9e093dc8940c2790612998d6e` (backfilled in this
   follow-up commit per the SHA placeholder backfill exemption — the
   M1,M2,M3,M5,M6 commit itself could not cite its own hash)
-- `ac_pass_count: 15` (2026-09-13 Netlify 처리시간 검증 — AC-PILOT-READY-001, 002, 004, 005,
+- `ac_pass_count: 16` (2026-09-13 AI Studio 쿼터 검증 — AC-PILOT-READY-001, 002, 003, 004, 005,
   007, 008, 009, 010, 011, 012, 013, 014, 015, 016a, 016b. AC-001은 "3층위 증거 문서화 AC"이지
   "호스팅 준비상태 판정 AC"가 아니므로, 문서화가 완전하면 PASS다(호스팅의 실제
   준비상태도 readiness-decision 문서에서 READY로 전환됨). AC-016b는
@@ -357,8 +357,8 @@ mailto-link test was confirmed RED against the pre-M3 disabled-span markup.
 - `ac_na_count: 0` (v0.11.0 — 더 이상 N/A 항목 없음. 이전 라운드가 "N/A(적용 불가)"로
   기록했던 002/003/004/005/006/010은 "적용되지 않음"이 아니라 "실 인프라 검증을
   아직 수행하지 않음"이었다는 지적을 반영해 UNVERIFIED로 재분류함)
-- `ac_unverified_count: 2` (2026-09-13 Netlify 처리시간 검증 — AC-PILOT-READY-003,
-  006. AI Studio/실 도메인에 대한 검증이 아직 수행되지 않은 상태를
+- `ac_unverified_count: 1` (2026-09-13 AI Studio 쿼터 검증 — AC-PILOT-READY-006.
+  서로 다른 사용자의 실 도메인 부하 검증이 아직 수행되지 않은 상태를
   뜻하며, "이 SPEC에 적용되지 않는다"는 뜻이 아니다)
 - `ac_blocked_count: 0` (2026-09-12 — AC-PILOT-READY-013의 Netlify 설정·실제 렌더링
   검증을 완료해 차단 해제)
@@ -990,3 +990,17 @@ job 단위로 교차 검증할 수 있도록 비민감 관측값 영속화를 �
   `.moai/reports/pilot-ready-timeout-measurement-20260913.md`.
 - 결과: AC-PILOT-READY-002 PASS, readiness 항목 (1) READY. 남은 항목 (2), (6),
   (7)이 UNVERIFIED이므로 전체 판정은 계속 `NO-GO`다.
+
+## §Y AI Studio 실제 쿼터 확인 및 Netlify 예산 설정 (2026-09-13)
+
+- 프로젝트 운영자가 AI Studio의 `Default Gemini Project`, 무료 등급, `모든 모델`
+  화면을 직접 확인했다.
+- 실제 한도는 `gemini-3.6-flash` 5 RPM/250K TPM/20 RPD,
+  `gemini-3.5-flash-lite` 15 RPM/250K TPM/500 RPD다.
+- 자체 예산을 Research 4 RPM(80%), Fast 11 RPM(약 73.3%)으로 결정하고 Netlify
+  production/deploy-preview 양쪽에 설정했다. 각 컨텍스트의 읽기 재확인 결과도 4/11이다.
+- Research 모델의 20 RPD가 일일 병목이므로 30건 파일럿을 최소 2일 이상 분산하고,
+  재시도 여유를 위해 하루 15~18건 이하로 운영한다.
+- 상세 증거: `.moai/reports/pilot-ready-quota-checklist-20260913.md`.
+- 결과: AC-PILOT-READY-003 PASS, readiness 항목 (2) READY. 남은 항목 (6),(7)이
+  UNVERIFIED이므로 전체 판정은 계속 `NO-GO`다.
