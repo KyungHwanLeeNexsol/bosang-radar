@@ -39,16 +39,15 @@ echo "$TURSO_DATABASE_URL"
 일치해야 한다는 근거는 없다.**
 
 Better Auth 1.7.1의 이메일/비밀번호 자격 증명은 비밀번호를 scrypt로 해시해
-DB에 저장·검증하며, 프로비저닝 스크립트는 `autoSignIn: false`로 계정을
-생성한다(`scripts/provision-tester.ts:39`) — 즉 발급 과정 자체가 세션을
-만들지 않으므로, 발급 시 사용한 `BETTER_AUTH_SECRET` 값이 세션 서명에
-관여할 여지가 없다. 실제 로그인 세션은 이후 프로덕션 Next.js 런타임이
-**자신의** `BETTER_AUTH_SECRET`으로 서명하며, 이는 발급 스크립트가 로컬에서
-어떤 값을 썼는지와 무관하다.
+DB에 저장·검증한다 — 발급 시 사용한 시크릿 값과 무관하다. 프로비저닝
+스크립트는 `autoSignIn: false`로 계정을 생성한다(`scripts/provision-tester.ts:39`)
+— 즉 발급 과정 자체가 세션을 만들지 않으므로, 발급 시 사용한
+`BETTER_AUTH_SECRET` 값이 세션 생성에 관여할 여지가 없다.
 
 **프로덕션 secret 값을 로컬로 복사할 필요는 없다** — `validateEnv`를
-통과할 임의의 값이면 실행 자체는 가능하다. 실제로 계정 발급이 올바르게
-동작하는지를 좌우하는 조건은 다음 두 가지뿐이다.
+통과하면서 **프로덕션 값과는 별개인, 충분히 강한 실행용 값**이면 된다
+(예: `openssl rand -base64 32`로 생성). 핵심 운영 확인 항목은 다음과
+같다.
 
 - 2-1에서 확인한 **정확한 프로덕션 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`**을
   사용해 올바른 DB에 계정 행을 쓰는 것.

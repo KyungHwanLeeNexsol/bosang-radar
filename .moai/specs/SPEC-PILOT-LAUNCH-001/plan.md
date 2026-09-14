@@ -119,8 +119,9 @@ AC-PILOT-LAUNCH-004):
 3. `BETTER_AUTH_SECRET`은 `validateEnv("provision")`이 요구하는 실행 입력값일
    뿐 Netlify Production 값과 일치할 필요가 없다는 명시(Better Auth 1.7.1
    scrypt 해시 + 발급 인스턴스 `autoSignIn: false` 근거 — 발급 시 세션이
-   생성되지 않으므로 시크릿 값이 세션 서명에 관여하지 않는다). 프로덕션
-   secret을 로컬로 복사하도록 안내하지 않는다.
+   생성되지 않으므로 시크릿 값이 세션 생성에 관여하지 않는다). 프로덕션
+   secret을 로컬로 복사하도록 안내하지 않으며, 프로덕션 값과는 별개인
+   충분히 강한 실행용 값(예: `openssl rand -base64 32`)을 쓰도록 안내한다.
 4. 재실행 시 비밀번호 미변경 제약(`scripts/provision-tester.ts:139-147`
    existing-user 조기 반환에서 확인됨 — 라인 번호 무변경)
 5. 비밀값 미기록 경고

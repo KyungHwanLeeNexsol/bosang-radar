@@ -192,6 +192,35 @@ m1_to_mN_commit_strategy: consolidated  # M1-M5 단일 커밋(로컬 커밋만, 
 - 코드 변경 없음(문서 정합성 수정만) — 기존 run-phase 테스트 결과(§E.2)는
   재사용하며, `npm run format:check` + 관련 문서 grep 정합성만 재검증한다.
 
+### Post-run Doc Correction Round 2 (External Re-review, review HEAD `ad9a92e`)
+
+- Trigger: Round 1 문서 정정 반영 이후 외부 재검토 — 구현 PASS, 문서 정확성
+  1건 추가 수정 필요 판정. 대상: 위 Round 1과 동일한 5개 문서
+  (`scripts/provision-tester.ts`, `lib/env.ts`, 테스트는 무변경).
+- 정정 항목 1 (`BETTER_AUTH_SECRET` 서명 설명 제거): account-provisioning.md
+  §2-2의 "실제 로그인 세션은 프로덕션 Next.js 런타임이 자신의
+  `BETTER_AUTH_SECRET`으로 서명한다"는 설명을 제거 — 현재 설정의 기본
+  `session_token`은 DB 세션 행을 가리키는 opaque token이며,
+  `session.cookieCache`는 활성화돼 있지 않다(`lib/auth/config.ts`에
+  `session:`/`advanced:` 설정 없음, 재확인). 결론(프로비저닝용
+  `BETTER_AUTH_SECRET`은 Production 값과 일치할 필요 없음 — 비밀번호는
+  scrypt로 검증되고 `autoSignIn: false`이므로 발급 시 세션이 생성되지
+  않음)은 그대로 유지했다.
+- 정정 항목 2 ("임의의 값" → "충분히 강한 실행용 값"): "`validateEnv`를
+  통과할 임의의 값이면 실행 자체는 가능하다"는 표현을 "프로덕션 값과는
+  별개인 충분히 강한 실행용 값(예: `openssl rand -base64 32`)이면 된다"로
+  정정 — 약한 값 사용을 암묵적으로 허용하는 것처럼 읽히지 않도록.
+- 정정 항목 3 (단정 완화): "실제로 계정 발급이 올바르게 동작하는지를
+  좌우하는 조건은 다음 두 가지뿐이다"를 "핵심 운영 확인 항목은 다음과
+  같다"로 완화 — 정확한 프로덕션 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`
+  사용과 발급 후 실 로그인 성공 확인이 배타적으로 유일한 조건이라는
+  단정을 피한다.
+- spec.md REQ-PILOT-LAUNCH-005 (c), plan.md §B.3 항목 3을 동일 설명으로
+  동기화했다(acceptance.md AC-PILOT-LAUNCH-004 ⓒ는 "서명"·"두 가지뿐"
+  표현을 포함하지 않아 이번 라운드에서 변경 불필요로 확인).
+- 코드·테스트 무변경 — `npm run format:check` 재검증 후 commit/push만
+  수행하며, main 병합·PR 생성은 하지 않는다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase — main 병합 전. 구현 워크트리는 `plan/SPEC-PILOT-LAUNCH-001`에 병합된 상태이며, main(`d08c01d`)으로의 PR/병합은 아직 없음>_
