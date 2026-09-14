@@ -126,7 +126,7 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-006 | Ubiquitous | README.md와 `.moai/project/product.md`는 SPEC-PILOT-READY-001의 `status: completed`, readiness 7개 항목 전부 READY, 전체 판정 GO, PR #10 병합 커밋 `d74ece4`를 정확히 반영해야 한다. 이 SPEC의 plan-phase 조사에서 이미 일치를 확인했다(README.md:19,142, product.md:3-5,82,101,104). 이 REQ는 회귀 방지를 위한 확인 항목이며, run-phase 착수 시점에 동일한 Grep으로 재확인해 그 결과를 progress.md에 기록해야 한다 — 이미 확인된 사실을 다시 "구현"하지 않는다. | Grep 조사 확인(README.md:19,142; product.md:3-5,82,101,104 — 모두 일치, 불일치 없음) |
+| REQ-PILOT-LAUNCH-006 | Ubiquitous | README.md와 `.moai/project/product.md`는 SPEC-PILOT-READY-001의 `status: completed`, readiness 7개 항목 전부 READY, 전체 판정 GO, PR #10 병합 커밋 `d74ece4`를 정확히 반영해야 한다. 2026-09-14 재확인 시점 기준 일치를 확인했다(README.md:19,23,138,142, product.md:3-5,82,104). 이 REQ는 회귀 방지를 위한 확인 항목이며, run-phase 착수 시점에 동일한 Grep으로 **다시** 재확인해 그 결과를 progress.md에 기록해야 한다 — 두 파일이 이 REQ 확인 이후에도 편집될 수 있으므로, 위 줄 번호는 참고용이며 run-phase 시점의 실제 재확인이 최종 근거다. | Grep 조사 확인(2026-09-14, README.md:19,23,138,142; product.md:3-5,82,104 — 모두 일치, 불일치 없음). plan-auditor 1차 감사(D1)가 이전 초안의 줄 번호 인용 오류를 지적해 이 근거를 재검증 후 정정했다. |
 
 ## Out of Scope
 
