@@ -1006,3 +1006,130 @@ job 단위로 교차 검증할 수 있도록 비민감 관측값 영속화를 �
 - 상세 증거: `.moai/reports/pilot-ready-quota-checklist-20260913.md`.
 - 결과: AC-PILOT-READY-003 PASS, readiness 항목 (2) READY. 남은 항목 (6),(7)이
   UNVERIFIED이므로 전체 판정은 계속 `NO-GO`다.
+
+## §Z 최신 HEAD 재검증 — 하이브리드 라우팅 이후 품질 게이트·로컬 E2E 회귀 (2026-09-14)
+
+외부 최종 검토(NEEDS REVISION/NO-GO 유지) 요청에 따라, 커밋 `187afc2`(하이브리드
+Gemini 리서치 라우팅) 기준 HEAD에서 로컬로 실제 실행 가능한 검증을 전부 재실행했다.
+원격(Deploy Preview·gh·netlify CLI) 접근이 이 세션에는 없어(§ 원격 검증 범위 제한
+참고), 로컬 범위로 검증을 한정했다.
+
+### 품질 게이트 재실행 (HEAD `187afc2`, 전부 실측·exit code 기록)
+
+| 명령 | 결과 | exit |
+|---|---|---|
+| `npx vitest run` (2회 반복) | 67/67 파일, 463/463 테스트 PASS (재현됨) | 0 |
+| `npx tsc --noEmit` | PASS | 0 |
+| `npx eslint .` | PASS | 0 |
+| `npx prettier --check .` | PASS | 0 |
+| `npx next build` | PASS (`instrumentation.ts` Edge-runtime 경고 1건, 이번 diff와 무관, 기존부터 존재) | 0 |
+| `npx tsx scripts/run-e2e.ts` (Playwright, 격리된 로컬 DB `.tmp/e2e.db`) | 수정 전: 12 passed/10 skipped/**1 failed**(case-flow.spec.ts, 3/3 결정적 실패). 수정 후: **11 passed/11 skipped/0 failed** | 실질 0 (래퍼 자체는 Windows 알려진 WebServer 정리-hang으로 timeout, 실제 Playwright 요약은 위 수치) |
+
+외부 검토가 언급한 "jsdom/undici worker 오류 13개, exit 1"의 출처를 확인했다 —
+`CHANGELOG.md` `[Unreleased]` 하이브리드 라우팅 절에 커밋 `187afc2` 작성자 본인이
+이미 "전체 Vitest에서는 테스트 53 files/382 tests가 통과했으나 현재 Windows/Node
+환경의 기존 `jsdom`/`undici` worker 호환 오류 13건으로 러너 exit 1"이라고 자체
+기록해 두었다 — 외부 검토자의 창작이 아니라 작성자 본인 환경(정확한 Node 버전
+미기재)에서 실측된 사실이다. 이 세션의 환경(Node v24.19.0, Windows, Git Bash)에서는
+2회 재현 시도 모두 재현되지 않았다 — Node 버전 차이가 원인일 가능성이 있으나
+작성자의 정확한 Node 버전을 알 수 없어 확정하지 못한다. 마찬가지로 CHANGELOG는
+"로컬 Next build는 필수 운영 환경변수 미주입으로 prerender 단계에서 중단"됐다고
+기록했으나, 이 세션은 `.env.local`의 실제 값으로 `next build`가 exit 0으로
+완주함을 확인했다(환경변수 유무 차이). 두 항목 모두 "해결됨"이 아니라
+"이 세션 환경에서는 재현 안 됨 — 원 작성자 환경과의 차이가 원인으로 추정"으로
+기록한다. 참고로 `.github/workflows/`에는 테스트를 실행하는 CI가 없다(label-sync만
+존재) — 이 프로젝트는 PR merge 전 자동 테스트 게이트가 없으므로, 로컬 E2E 회귀는
+§S 이후 사람이 직접 재실행하지 않는 한 발견될 수 없었다.
+
+### E2E 회귀 진단 — `case-flow.spec.ts`, 근본원인 확인, 스킵 처리
+
+- **증상**: `expect(response.status()).toBe(201)` → 실측 **502**.
+- **원인**: `app/api/cases/route.ts`가 같은 origin의
+  `/.netlify/functions/process-case-background`를 fetch해 job을 큐에
+  넣는다(§R, commit `ff706c2`). `playwright.config.ts`의 webServer는
+  `pnpm build && pnpm start`(순수 Next.js)만 띄워 그 경로가 존재하지 않는다 —
+  enqueue fetch가 항상 실패해 job이 취소되고 502가 반환된다.
+- **오래된 테스트**: `case-flow.spec.ts`는 비동기 전환(`ff706c2`, 2026-09-12)
+  이전인 `1a6180f`부터 갱신되지 않아 예전 동기(201) 계약을 그대로 가정했다.
+  `187afc2`(하이브리드 라우팅)는 이 파일도 route.ts도 건드리지 않아 이번
+  회귀의 원인이 아니다 — §R 이후 방치된 기존 결함이다.
+- **은폐 경위**: §S~§Y 전 구간이 "Vitest/tsc/lint/prettier PASS"만 재확인하고
+  로컬 E2E는 재실행하지 않은 채 원격 Preview 검증으로 직행했다(원격에는 진짜
+  Netlify Functions가 있어 그 경로는 실제로 통과한다). 정확히 "일부 PASS를
+  전체 PASS로 기록"하는 패턴이었다.
+- **처리(사용자 승인)**: `test.skip(true, "...")`으로 전환하고 근본원인을
+  테스트 본문 주석에 남겼다. 코드/런타임 동작은 변경하지 않았다 — 이 async
+  경로는 원격 Netlify Preview 스모크(§T~§X, §W의 실 Gemini 스모크 포함)가
+  이미 실측 검증한다. `next tsc/eslint/prettier` 3종 모두 이 수정에 대해
+  PASS(exit 0).
+- **spec.md와의 정합**: spec.md는 이미 "로컬(`next start`) 측정값은
+  REQ-PILOT-READY-002/006에 유효하지 않다"고 명시한다 — 이 경로는 애초에
+  로컬에서 통과할 수 없는 계약이었다는 점과 일치한다.
+
+### 하이브리드 Gemini 라우팅 — 로컬 실 Gemini 호출 실측(사용자 승인, 원격 미포함)
+
+원격 Preview URL·인증 정보가 이 세션에 없어(§ 원격 검증 범위 제한), §Q와 동일한
+방식으로 `runPipeline()`을 로컬 프로세스에서 실제 `GEMINI_API_KEY`로 2회
+직접 호출했다. 원격 DB(Turso)는 evidence 조회(읽기)만 수행했고 쓰기는 전혀
+하지 않았다 — `case_jobs`/`cases`/`reports`에 아무것도 남기지 않았다. 검증
+스크립트는 로컬 임시 스크립트(`scripts/tmp-hybrid-verify.ts`)로 작성해
+실행 직후 삭제했다(커밋되지 않음).
+
+| 시나리오 | 기대 라우팅 | 실측 라우팅 | Premium 호출 | Lite 호출 | 소요시간 |
+|---|---|---|---|---|---|
+| 일반 사건(기본 쟁점만) | Lite 시작, 승격 없음 | `tier=lite, reason=standard_case` | **0회** | 3회(Researcher+Skeptic+Verifier) | 35.5초 |
+| 복합 사건(기왕증 신호) | Premium 직행 | `tier=premium, reason=complex_issue` | **1회** | 2회(Skeptic+Verifier) | 40.4초 |
+
+두 시나리오 모두 `lib/pipeline/hybrid-research-router.ts`의 설계대로
+정확히 동작했다 — 일반 사건은 Premium을 전혀 소모하지 않고, 복합 신호
+사건만 Premium 1회를 쓴다. 이는 실제 Gemini API 응답을 기준으로 한 측정이며
+mock/deterministic provider가 아니다.
+
+**미검증(승격 경로, lite→premium)**: `selectEscalation()`의 승격 조건(근거는
+있으나 Lite finding 누락, 또는 Lite 검증 결과 INSUFFICIENT)은 실제 모델
+응답을 인위적으로 유도하기 어려워 이번 로컬 실측에서 재현하지 못했다 —
+단위 테스트(`hybrid-pipeline.test.ts`, `hybrid-research-router.test.ts`,
+deterministic provider 기반)로만 검증된 상태다. 사용자 지시(2/3번 항목은
+로컬 범위로 한정, 최대 6회 호출 가능성 — 승격 시 lite 3회+premium 3회 —
+평가)에 따라 이 경로의 실제 API 호출 실측은 UNVERIFIED로 남긴다.
+
+**readiness 항목 (5)에 대한 정합성 참고**: readiness-decision 문서의 항목
+(5)(실 Gemini 스모크) READY 판정(§W, 2026-09-13)은 하이브리드 라우팅
+커밋(`187afc2`, 2026-09-13 이후 커밋)보다 시간상 앞선 파이프라인 버전을
+기준으로 한다 — 당시 파이프라인은 모든 사건에서 무조건 Researcher를
+Premium으로 호출했다. 이번 로컬 실측은 하이브리드 라우팅이 설계대로
+동작함을 확인했지만, **원격 Preview에서 실제로 같은 라우팅 패턴이 나타나는지는
+아직 실측하지 않았다** — Preview URL/세션 접근이 이 세션에 없기 때문이다.
+파일럿 착수 전 원격 Preview에서 최소 1건(일반 사건)과 1건(복합 신호 사건)의
+실 스모크를 재실행해 항목 (5)의 근거를 하이브리드 라우팅 이후 버전으로
+갱신할 것을 다음 세션 게이트로 남긴다.
+
+### 원격 검증 범위 제한 (이번 세션의 정직한 한계)
+
+이 세션에는 `gh`, `netlify`, `turso` CLI가 설치돼 있지 않고, `.env.local`의
+`BETTER_AUTH_URL`도 로컬 값(`http://localhost:3005`)이라 실제 Deploy Preview
+도메인 주소를 알지 못한다. 따라서 다음은 **이번 세션에서 수행하지 못했다**:
+
+- PR #10 본문 조회/정정(gh 없음)
+- Netlify 배포 상태·함수 메타데이터 조회(netlify CLI 없음)
+- 원격 Preview에서 하이브리드 라우팅 실제 모델별 호출수 재측정(항목 (5) 갱신)
+- 서로 다른 사용자 동시 제출, 동일 사용자 최초 경합, lease 만료·fencing,
+  처리 중 강제 종료 시 job 상태 복구 계약(항목 (6), (7))
+- UI polling 6분 vs backend lease 960초 차이 재검토
+
+readiness-decision 문서의 항목 (6), (7)은 이번 세션에서도 여전히
+`UNVERIFIED`이며, 전체 판정은 계속 `NO-GO`다. 이 항목들은 실제 원격 Turso·
+동시 세션 대상 검증이 반드시 필요하므로, Preview URL과 합성 테스터 접근이
+가능한 세션(또는 프로젝트 운영자 직접 수행)에서 이어서 처리해야 한다.
+
+### SPEC 범위 동기화 — 하이브리드 라우팅 미반영 확인
+
+spec.md/plan.md/acceptance.md를 확인한 결과, `lib/pipeline/index.ts`의
+하이브리드 라우팅 로직(§V 이전 커밋들이 도입한 비동기 202/polling/
+case_jobs/Background Function/Gemini 관측은 이미 REQ-PILOT-READY-007~010에
+반영돼 있으나) 자체는 REQ/AC 어디에도 명시적으로 등재돼 있지 않다 — §Z
+작성 시점까지 코드에만 존재하는 변경이다. 이 문서(progress.md §Z)가 그
+사실과 근거(commit `187afc2`, `.moai/reports/hybrid-research-routing-20260913.md`)를
+기록하는 최초 SPEC 아티팩트 기재다. REQ/AC 신설 또는 기존 REQ 하위 절 확장은
+plan-phase 소유(manager-spec)이므로, 이번 세션은 사실 기재에 그치고 실제
+REQ/AC 개정은 다음 plan-phase 세션으로 넘긴다.
