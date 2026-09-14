@@ -9,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
 const migrateScriptPath = path.join(scriptDir, "db-migrate.ts");
 const seedScriptPath = path.join(scriptDir, "db-seed.ts");
+const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
 const seedJsonPath = path.join(projectRoot, "db", "seed", "evidence.json");
 const tmpDir = path.join(projectRoot, ".tmp");
 
@@ -25,7 +26,7 @@ const SEED_RECORDS: EvidenceSeedRecord[] = JSON.parse(readFileSync(seedJsonPath,
 function runCli(scriptPath: string, dbFile: string): string {
   // NODE_ENV=test → loadEnvConfig가 .env.local을 로드 목록에서 제외한다
   // (db-migrate.test.ts와 동일한 실측 근거).
-  return execFileSync(process.execPath, [scriptPath], {
+  return execFileSync(process.execPath, [tsxCliPath, scriptPath], {
     cwd: projectRoot,
     env: {
       ...process.env,

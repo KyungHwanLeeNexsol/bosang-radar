@@ -9,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
 const migrateScriptPath = path.join(scriptDir, "db-migrate.ts");
 const provisionScriptPath = path.join(scriptDir, "provision-tester.ts");
+const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
 const tmpDir = path.join(projectRoot, ".tmp");
 
 const BETTER_AUTH_SECRET = "test-secret-not-a-real-secret-value";
@@ -26,7 +27,7 @@ function baseEnv(dbFile: string): Record<string, string | undefined> {
 }
 
 function runMigrateCli(dbFile: string): void {
-  execFileSync(process.execPath, [migrateScriptPath], {
+  execFileSync(process.execPath, [tsxCliPath, migrateScriptPath], {
     cwd: projectRoot,
     env: baseEnv(dbFile) as NodeJS.ProcessEnv,
     encoding: "utf-8",
@@ -38,7 +39,7 @@ function runProvisionCli(
   args: string[],
   extraEnv: Record<string, string | undefined> = {}
 ): string {
-  return execFileSync(process.execPath, [provisionScriptPath, ...args], {
+  return execFileSync(process.execPath, [tsxCliPath, provisionScriptPath, ...args], {
     cwd: projectRoot,
     env: { ...baseEnv(dbFile), ...extraEnv } as NodeJS.ProcessEnv,
     encoding: "utf-8",
@@ -263,8 +264,17 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // 레거시 feedback 행은 의도적으로 폐기되므로 DROP TABLE + CREATE TABLE
   // 전략을 사용한다(plan.md M1 기술적 비상 대책, REQ-FEEDBACK-001).
   const FEEDBACK_MIGRATION = "0004_calm_paladin.sql";
+  // SPEC-PILOT-READY-001 M1(REQ-PILOT-READY-007) — 사용자별 동시 실행
+  // 가드(TTL 기반 리스)를 위한 신규 reservations 테이블 마이그레이션.
+  const RESERVATIONS_MIGRATION = "0005_tidy_karen_page.sql";
+  // SPEC-PILOT-READY-001 비동기 전환 — Netlify Background Function 작업의
+  // 입력과 처리 상태를 저장하는 case_jobs 테이블 마이그레이션.
+  const CASE_JOBS_MIGRATION = "0006_amused_joseph.sql";
+  // SPEC-PILOT-READY-001 실 Gemini 스모크 — 배포 환경의 비민감 네트워크
+  // 관측값을 job에 연결해 저장하는 테이블 마이그레이션.
+  const GEMINI_OBSERVATIONS_MIGRATION = "0007_lying_puff_adder.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline 1개 + account.issuer 보정 마이그레이션 1개 + evidence 스키마 확장 마이그레이션 1개 + evidence.issueTypes 마이그레이션 1개 + feedback 구조화 마이그레이션 1개, 총 5개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline부터 Gemini 관측 테이블까지 총 8개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -274,7 +284,10 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(EVIDENCE_SCHEMA_MIGRATION);
     expect(sqlFiles).toContain(EVIDENCE_ISSUE_TYPES_MIGRATION);
     expect(sqlFiles).toContain(FEEDBACK_MIGRATION);
-    expect(sqlFiles).toHaveLength(5);
+    expect(sqlFiles).toContain(RESERVATIONS_MIGRATION);
+    expect(sqlFiles).toContain(CASE_JOBS_MIGRATION);
+    expect(sqlFiles).toContain(GEMINI_OBSERVATIONS_MIGRATION);
+    expect(sqlFiles).toHaveLength(8);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {

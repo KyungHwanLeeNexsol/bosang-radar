@@ -1,6 +1,6 @@
 # 기술 스택
 
-> 최종 수정: 2026-08-25 (SPEC-RUNTIME-001 후속 — `@next/env`, `@playwright/test` 추가)
+> 최종 수정: 2026-09-12 (SPEC-PILOT-READY-001 — 배포 플랫폼을 Netlify Free로 갱신)
 
 ## 개요
 
@@ -10,7 +10,7 @@
 
 ### Next.js (최신 안정 버전) + App Router
 - 프런트엔드와 백엔드(API route handler)를 하나의 코드베이스로 통합해, MVP 단계에서 별도 백엔드 서버를 운영할 필요가 없다.
-- Vercel과의 통합이 매끄러워 무료 tier 배포를 그대로 활용할 수 있다.
+- Netlify의 OpenNext 기반 공식 Next.js 어댑터로 단일 애플리케이션을 별도 프런트엔드·백엔드 분리 없이 배포할 수 있다.
 - App Router는 서버 컴포넌트 기반으로, 사건 입력·리포트 조회처럼 데이터 흐름이 명확한 화면에 적합하다.
 
 ### TypeScript strict
@@ -29,10 +29,10 @@
 - Gemini를 초기 LLM으로 채택하되, 애플리케이션 로직이 Gemini API에 직접 종속되지 않도록 공통 provider 인터페이스(`lib/ai/provider.ts`) 뒤에 감싼다.
 - Researcher, Skeptic, Verifier 등 파이프라인 단계는 이 인터페이스에만 의존하며, Gemini 전용 SDK를 직접 호출하지 않는다.
 - 이 구조 덕분에 향후 다른 LLM provider를 추가하거나 교체하더라도, 파이프라인 로직 자체는 수정할 필요가 없다.
-- **무료 tier 한도(rate limit/quota) 대응**: Gemini 무료 tier는 분당/일별 요청 한도가 존재한다. 사건 하나당 Researcher/Skeptic/Verifier 등 여러 단계가 순차적으로 LLM을 호출하므로, `lib/ai/providers/gemini.ts`에서 429(rate limit) 응답 시 지수 백오프 재시도를 적용하고, 한도 초과가 반복되면 파이프라인을 실패로 표시해 사용자에게 재시도를 안내한다(큐잉/전역 동시성 제한은 실사용 중 필요성이 확인되면 추후 검토).
+- **무료 tier 한도(rate limit/quota) 대응**: Gemini 무료 tier는 분당/일별 요청 한도가 존재한다. Researcher/Skeptic/Verifier 호출을 사건당 3회로 고정하고, 모델별 `RateScheduler`가 프로세스 생애주기 동안 자체 부과 RPM 간격을 유지한다. `lib/pipeline/index.ts`의 프로세스 로컬 Promise 체인이 Gemini 단계의 동시 사건 실행을 1개로 제한하며, `lib/ai/providers/gemini.ts`는 429/503 응답의 재시도 힌트를 반영해 제한된 횟수로 재시도한다. 이 보호는 여러 서버리스 인스턴스 사이에서 공유되는 분산 큐가 아니므로, 실제 Netlify 동시 부하는 readiness 단계에서 별도로 검증한다.
 
 ### Better Auth — 초대 전용 접근 제어
-- 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Vercel + Turso 무료 tier 조합에서 무리 없이 동작하는 세션 기반 인증 라이브러리로 **Better Auth**를 채택한다.
+- 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Netlify + Turso 무료 tier 조합을 대상으로 세션 기반 인증 라이브러리 **Better Auth**를 채택한다.
 - 원래는 Auth.js(NextAuth) v5를 검토했으나, plan-phase 조사(`research.md` §4) 결과 Auth.js v5가 여전히 npm `beta` 태그로만 배포 중이고 2025년 9월부터 Better Auth 팀이 유지보수를 인수해 Auth.js는 보안 패치만 하는 유지보수 전용 모드로 전환된 사실을 확인했다. 신규 프로젝트가 유지보수 전용 라이브러리를 채택할 이유가 없으므로, 실제로 개발이 이어지고 있는 Better Auth로 결정을 바꿨다.
 - Credentials(이메일+비밀번호) 또는 매직 링크 provider + 운영자가 미리 등록한 테스터 이메일 allowlist(Drizzle 스키마의 `allowed_testers` 테이블 등)를 조합해, 셀프 가입 없이 지정된 테스터만 로그인할 수 있도록 한다. Better Auth는 Drizzle ORM 어댑터를 공식 지원해 별도 스키마 브리지 없이 기존 DB 계층과 통합된다.
 - 별도 SaaS형 인증 서비스(Auth0, Clerk 등)를 도입하지 않는 이유: 테스터 규모가 10명 내외로 작고, "무료 tier 우선, 불필요한 overengineering 금지" 원칙(`product.md` 원칙 8, 본 문서 개요 참고)에 더 부합하기 때문이다.
@@ -42,9 +42,10 @@
 - 사건 입력 폼/API의 입력 검증 스키마 라이브러리로 Zod를 채택한다. TypeScript strict 모드와 타입 추론이 자연스럽게 통합되고, 별도 런타임 의존성 없이 스키마 기반 검증을 표현할 수 있다.
 - `lib/validation/case-input.ts`에 정의된 스키마가 주민등록번호·전화번호·상세주소·의료기록 원본에 해당하는 필드 형식(정규식/포맷 검사)을 구조적으로 거부하며, 이 검증을 통과하지 못한 요청은 `CaseNormalizer` 이전 단계에서 차단되어 DB나 Gemini API에 도달하지 않는다.
 
-### Vercel (무료 tier 배포)
-- Next.js와 가장 매끄럽게 통합되는 배포 플랫폼이며, 무료 tier로 MVP 단계의 트래픽을 충분히 감당할 수 있다.
-- 별도 CI/CD 파이프라인 구축 없이 Git 연동만으로 배포 자동화가 가능하다.
+### Netlify (Free tier 배포)
+- SPEC-PILOT-READY-001에서 파일럿 호스팅 대상으로 확정했다. 공식 OpenNext 기반 Next.js 어댑터가 빌드 시 자동 적용되어 현재 단일 Next.js 구조를 유지할 수 있다.
+- PR #10 자동 Deploy Preview에서 Middleware 번들에 `@libsql/client` 네이티브 애드온이 포함되는 문제가 발견됐고, 세션 쿠키 판별 모듈에서 DB 의존성을 분리한 뒤 Preview가 통과했다.
+- 동기 함수의 공식 게시 상한은 60초이며, 이 프로젝트 파이프라인은 로컬 production 환경 측정에서 약 81초가 걸렸다. 따라서 `POST /api/cases`는 `case_jobs`에 작업을 기록하고 202를 반환한 뒤 Netlify Background Function이 처리하는 비동기 구조를 사용한다. 원격 Turso·실 도메인 인증·동시 부하를 포함한 readiness 판정은 실제 Preview 검증 전까지 `NO-GO`다.
 
 ## 개발 환경 요구사항
 

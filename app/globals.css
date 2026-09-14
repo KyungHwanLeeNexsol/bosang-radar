@@ -50,39 +50,39 @@
   /* SPEC-PILOT-VISUAL-001 §1 색상 토큰 — Pencil 디자인(claimradar-ui.pen) 재현.
      기존 shadcn 베이스 토큰(--color-accent, --color-sidebar 등)을 대체하지 않고
      --color-bora- 및 --color-app- 네임스페이스로 확장(plan-auditor D8 대응, 이름 충돌 없음). */
-  --color-app-bg: #F4F6F8;
-  --color-app-surface: #FFFFFF;
-  --color-app-surface-sub: #F8FAFB;
-  --color-app-surface-inset: #EFF2F5;
-  --color-app-line: #E2E7EC;
-  --color-app-line-strong: #CBD3DB;
+  --color-app-bg: #f4f6f8;
+  --color-app-surface: #ffffff;
+  --color-app-surface-sub: #f8fafb;
+  --color-app-surface-inset: #eff2f5;
+  --color-app-line: #e2e7ec;
+  --color-app-line-strong: #cbd3db;
   --color-bora-ink: #111820;
-  --color-bora-ink-2: #39424E;
-  --color-bora-ink-3: #6B7684;
-  --color-bora-ink-4: #95A0AD;
-  --color-bora-accent: #6C47FF;
-  --color-bora-accent-deep: #5227D6;
-  --color-bora-accent-soft: #EDE7FF;
-  --color-bora-accent-line: #B7A1FF;
-  --color-bora-ok: #17694A;
-  --color-bora-ok-soft: #EAF3EE;
-  --color-bora-ok-line: #BFDCCD;
-  --color-bora-warn: #8A5A12;
-  --color-bora-warn-soft: #FBF3E3;
-  --color-bora-warn-line: #E8D4A8;
-  --color-bora-danger: #A32C2C;
-  --color-bora-danger-soft: #FBEDED;
-  --color-bora-danger-line: #EDC9C9;
-  --color-app-sidebar: #141A21;
-  --color-app-sidebar-line: #28313C;
-  --color-app-sidebar-ink: #9AA5B2;
-  --color-bora-700: #3B1E9E;
-  --color-bora-600: #5227D6;
-  --color-bora-500: #6C47FF;
-  --color-bora-400: #8B6BFF;
-  --color-bora-300: #B7A1FF;
-  --color-bora-200: #EDE7FF;
-  --color-bora-050: #F7F4FF;
+  --color-bora-ink-2: #39424e;
+  --color-bora-ink-3: #6b7684;
+  --color-bora-ink-4: #95a0ad;
+  --color-bora-accent: #6c47ff;
+  --color-bora-accent-deep: #5227d6;
+  --color-bora-accent-soft: #ede7ff;
+  --color-bora-accent-line: #b7a1ff;
+  --color-bora-ok: #17694a;
+  --color-bora-ok-soft: #eaf3ee;
+  --color-bora-ok-line: #bfdccd;
+  --color-bora-warn: #8a5a12;
+  --color-bora-warn-soft: #fbf3e3;
+  --color-bora-warn-line: #e8d4a8;
+  --color-bora-danger: #a32c2c;
+  --color-bora-danger-soft: #fbeded;
+  --color-bora-danger-line: #edc9c9;
+  --color-app-sidebar: #141a21;
+  --color-app-sidebar-line: #28313c;
+  --color-app-sidebar-ink: #9aa5b2;
+  --color-bora-700: #3b1e9e;
+  --color-bora-600: #5227d6;
+  --color-bora-500: #6c47ff;
+  --color-bora-400: #8b6bff;
+  --color-bora-300: #b7a1ff;
+  --color-bora-200: #ede7ff;
+  --color-bora-050: #f7f4ff;
 
   /* SPEC-PILOT-VISUAL-001 §2 타이포그래피 스케일.
      font-weight은 신규 토큰 없이 기존 Tailwind 유틸리티(font-semibold=600,

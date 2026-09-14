@@ -34,4 +34,23 @@ describe("lib/db/schema", () => {
     // 스키마 요구사항" 위험이 실제로 발생한 사례).
     expect(schema.account.issuer).toBeDefined();
   });
+
+  it("reservations 테이블은 ownerUserId/leaseId/expiresAt 3개 컬럼을 가지며 ownerUserId가 PK(UNIQUE)다 (REQ-PILOT-READY-007, plan.md §A 결정 1)", () => {
+    expect(getTableName(schema.reservations)).toBe("reservations");
+    expect(schema.reservations.ownerUserId).toBeDefined();
+    expect(schema.reservations.ownerUserId.primary).toBe(true);
+    expect(schema.reservations.leaseId).toBeDefined();
+    expect(schema.reservations.expiresAt).toBeDefined();
+  });
+
+  it("Gemini 요청 관측 테이블은 job 연결과 비민감 메타데이터 컬럼을 정의한다", () => {
+    expect(getTableName(schema.geminiRequestObservations)).toBe("gemini_request_observations");
+    expect(schema.geminiRequestObservations.jobId).toBeDefined();
+    expect(schema.geminiRequestObservations.method).toBeDefined();
+    expect(schema.geminiRequestObservations.model).toBeDefined();
+    expect(schema.geminiRequestObservations.status).toBeDefined();
+    expect(schema.geminiRequestObservations.ok).toBeDefined();
+    expect(schema.geminiRequestObservations.durationMs).toBeDefined();
+    expect(schema.geminiRequestObservations.observedAt).toBeDefined();
+  });
 });

@@ -124,4 +124,40 @@ describe("app/cases/new/page — 분석 상태 + 최근 리서치 우 레일", (
     expect(panel).not.toBeNull();
     expect(panel?.querySelectorAll('[data-testid="case-recent-research-item"]')).toHaveLength(0);
   });
+
+  describe("개인정보 비식별 안내 정직성 개선 (SPEC-PILOT-READY-001 M3, REQ-PILOT-READY-011/012/014)", () => {
+    it("구조적 사실(형식 검사 + 원본 필드 부재)과 잔여 위험(자유 텍스트 탐지 불가)을 구분해 명시한다", async () => {
+      await renderPage(container, root);
+
+      const noticeText = container.textContent ?? "";
+      // 구조적 사실: 형식 검사 대상 + 애초에 없는 원본 필드.
+      expect(noticeText).toContain("주민등록번호");
+      expect(noticeText).toContain("휴대전화번호");
+      expect(noticeText).toContain("주소");
+      expect(noticeText).toContain("의료기록 원본");
+      // 잔여 위험: 자유 텍스트 필드에 타이핑해 넣는 것은 탐지·차단되지 않음.
+      expect(noticeText).toContain("탐지");
+    });
+
+    it("테스터 책임 문장('합성이거나 이미 비식별화된 사례만 입력')을 포함한다", async () => {
+      await renderPage(container, root);
+
+      expect(container.textContent).toContain("합성");
+      expect(container.textContent).toContain("비식별화된 사례만");
+    });
+
+    it("과대 주장 표현('보장', '확실히 차단')을 사용하지 않는다", async () => {
+      await renderPage(container, root);
+
+      const noticeText = container.textContent ?? "";
+      expect(noticeText).not.toContain("보장");
+      expect(noticeText).not.toContain("확실히 차단");
+    });
+
+    it("올바르게 비식별화된 synthetic 사건 입력 예시를 포함한다 (REQ-PILOT-READY-014)", async () => {
+      await renderPage(container, root);
+
+      expect(container.textContent).toContain("좌측 발목 관절 인대 파열");
+    });
+  });
 });

@@ -8,17 +8,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
 const scriptPath = path.join(scriptDir, "db-migrate.ts");
+const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
 const tmpDir = path.join(projectRoot, ".tmp");
 
-// lib/db/schema.ts의 9개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
+// lib/db/schema.ts의 12개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
 // 상수도 함께 갱신한다.
 const EXPECTED_TABLES = [
   "account",
   "allowed_testers",
+  "case_jobs",
   "cases",
   "evidence",
   "feedback",
+  "gemini_request_observations",
   "reports",
+  "reservations",
   "session",
   "user",
   "verification",
@@ -27,7 +31,7 @@ const EXPECTED_TABLES = [
 function runMigrateCli(dbFile: string): string {
   // NODE_ENV=test → loadEnvConfig가 .env.local을 로드 목록에서 제외한다
   // (research.md §0.2 실측) — 여기서 명시한 env가 그대로 검증 대상이 된다.
-  return execFileSync(process.execPath, [scriptPath], {
+  return execFileSync(process.execPath, [tsxCliPath, scriptPath], {
     cwd: projectRoot,
     env: {
       ...process.env,
@@ -76,7 +80,7 @@ describe("scripts/db-migrate — 실제 CLI 실행 (AC-RUNTIME-001, AC-RUNTIME-0
     await cleanupDbFile(dbFile);
   });
 
-  it("[AC-RUNTIME-001] pnpm db:migrate 실행 시 9개 테이블이 모두 생성된다", async () => {
+  it("[AC-RUNTIME-001] pnpm db:migrate 실행 시 12개 테이블이 모두 생성된다", async () => {
     mkdirSync(tmpDir, { recursive: true });
 
     runMigrateCli(dbFile);

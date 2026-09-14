@@ -5,6 +5,98 @@
 
 ## [Unreleased]
 
+### Fixed — 클라이언트 polling 상한(6분)이 backend 리스 TTL(960초)보다 먼저 끝나던 불일치
+
+`app/cases/new/case-input-form.tsx`의 job 상태 polling이 고정 180회×2초(6분)에서
+멈춰, 실제로는 여전히 유효한(TTL 960초) backend job에 대해 사용자에게 "실패"를
+먼저 알리는 창이 있었습니다. `lib/cases/job-timing.ts`(신규, DB 의존성 없는
+순수 상수 모듈)를 추가해 polling 상한을 리스 TTL 기준 안전 여유(60초)를 둔
+450회×2초(15분)로 넓혔고, `create-case.ts`의 `BACKGROUND_LEASE_TTL_SECONDS`는
+이 파일에서 재수출해 값 하나로 유지합니다. 타임아웃 메시지도 즉시 재제출을
+유도하지 않도록("지금 다시 제출하지 말고 잠시 후 새로고침해 확인해 주세요")
+정정했습니다.
+
+**검증**: `lib/cases/job-timing.test.ts`(신규 2개), `case-input-form.test.tsx`에
+예전 180회 상한을 지나도 계속 대기함을 확인하는 케이스 1개 추가. 전체
+Vitest 68/68 files·466/466 tests, tsc/eslint/prettier/build 모두 exit 0.
+
+### Verified — 실제 Deploy Preview + 원격 Turso 대상 하이브리드 라우팅·동시성·리스 복구 실측
+
+`GITHUB_TOKEN`으로 PR #10의 최신 Deploy Preview가 `ready`이고 런타임도 살아
+있음을 확인한 뒤, 사용자 승인에 따라 새 합성 전용 테스터 3계정을 원격 Turso에
+직접 프로비저닝(비밀번호는 프로세스 메모리에만 존재, 기록하지 않음)해 다음을
+실제 환경에서 검증했습니다: 서로 다른 사용자 3명의 동시 사건 제출(정상/복합
+하이브리드 경로 각각 실측, 429/5xx 없음, 소유자별 DB 격리 확인), 동일 사용자
+동시 경합(202+409), 동일 job에 대한 background 함수 중복 호출 시 정확히 1회만
+실행됨(관측 테이블로 확인), 원격 DB에서 리스 만료를 직접 재현했을 때의 TTL
+재획득과 지연 완료 fencing.
+
+**남은 gap**: 완료 트랜잭션 실패 시 부분 저장 없음은 단위 테스트로만 확인(실환경
+fault-injection은 위험 대비 실익이 낮아 미시도), processing 중 강제 종료 복구는
+실제 재현이 불가능해 UNVERIFIED로 남기고 최소 수정안(상태 조회 시 리스 TTL
+초과+리스 미보유면 `failed`로 간접 판정)만 제시했습니다.
+
+**참고**: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA, `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+
+### Fixed — 로컬 E2E `case-flow.spec.ts` 502 회귀 (§R 비동기 전환 이후 방치)
+
+`POST /api/cases`가 같은 origin의 `/.netlify/functions/process-case-background`를
+enqueue하도록 바뀐 뒤(§R, `ff706c2`), 순수 Next.js(`pnpm build && pnpm start`)만
+띄우는 로컬 E2E 하네스에는 그 Function 경로가 존재하지 않아 enqueue가 항상 실패하고
+502가 반환되는 회귀가 있었습니다. `case-flow.spec.ts`가 그 전환 이전의 동기(201)
+계약을 그대로 가정한 채(`1a6180f` 이후 미갱신) 3/3 결정적으로 실패하고 있었습니다.
+이 경로는 원격 Netlify Preview 스모크(§T~§X, §W)가 이미 실측 검증하므로,
+근본원인을 테스트에 주석으로 남기고 `test.skip()`으로 전환했습니다 — 런타임 동작은
+변경하지 않았습니다.
+
+**검증**: 최신 HEAD(`187afc2`) 기준 전체 재실행 — Vitest 67/67 files·463/463
+tests, `tsc --noEmit`, ESLint, Prettier, `next build` 모두 exit 0(2회 재현).
+E2E는 수정 전 12 passed/10 skipped/**1 failed**(502) → 수정 후 **11 passed/11
+skipped/0 failed**. 하이브리드 라우팅(일반→Lite/복합→Premium)은 실 GEMINI_API_KEY로
+로컬 2개 시나리오를 직접 호출해 설계대로 동작함을 확인했습니다(Premium 호출 0회/1회,
+원격 DB는 evidence 읽기만, 쓰기 없음) — 승격(lite→premium) 경로의 실 API 실측과
+원격 Preview 기준 재측정은 이번 세션에서 수행하지 못해 UNVERIFIED로 남습니다.
+
+**참고**: 이전 CHANGELOG 항목이 기록한 "jsdom/undici worker 오류 13건, exit 1"과
+"필수 환경변수 미주입으로 build가 prerender 단계에서 중단"은 작성자 본인 환경에서
+실측된 사실이며, 이 세션 환경(Node v24.19.0, Windows)에서는 재현되지 않았습니다 —
+환경 차이로 추정하며 "해결됨"으로 승격하지 않습니다.
+
+**참고**: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §Z, `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+
+### Changed — Gemini Researcher 하이브리드 라우팅
+
+무료 티어의 `gemini-3.6-flash` 20 RPD 병목을 줄이기 위해 일반 사건은
+`gemini-3.5-flash-lite` Researcher로 시작하고, 기왕증·상해/질병 혼재·추가확인
+신호가 있거나 Lite 결과가 근거 대비 누락/판단불충분인 경우에만 3.6 Flash로
+승격하도록 변경했습니다. 근거자료 자체가 없는 항목은 상위 모델로 해결할 수 없으므로
+승격하지 않으며, Premium 결과가 더 나쁘면 Lite 결과를 보존합니다. 라우팅 결정은
+사건 원문 없는 구조화 로그로 남깁니다.
+
+Google 쿼터가 API 키가 아닌 프로젝트 단위인 점과 공정 사용 제한의 운영 취지를 고려해,
+여러 무료 계정/프로젝트의 키를 429 이후 순환시키는 쿼터 합산 기능은 도입하지 않았습니다.
+
+**검증**: 하이브리드 라우터·파이프라인 회귀 테스트 3 files/19 tests, TypeScript
+`--noEmit`, 변경 파일 ESLint 및 Prettier 검사 통과. 전체 Vitest에서는 테스트
+53 files/382 tests가 통과했으나 현재 Windows/Node 환경의 기존 `jsdom`/`undici`
+worker 호환 오류 13건으로 러너 exit 1. 로컬 Next build는 필수 운영 환경변수 미주입으로
+prerender 단계에서 중단됐으며 컴파일과 TypeScript 단계는 통과했습니다.
+
+**참고**: `.moai/reports/hybrid-research-routing-20260913.md`
+
+### Added — SPEC-PILOT-READY-001 파일럿 배포 준비 — Netlify Preview 통과, 원격 readiness `NO-GO` 유지
+
+외부 전문가 파일럿 전에 필요한 최소 운영 안전장치를 구현하고 Netlify Free 배포 적합성을 점검했습니다. 사용자별 DB 리스 기반 동시 실행 가드, 구조적 비식별 로그, 데이터 취급 고지, 장애 대응 런북을 추가했습니다. PR #10의 자동 Deploy Preview에서 `@libsql/client` 네이티브 애드온이 Middleware 번들에 포함되는 문제를 발견해 세션 쿠키 판별 코드를 DB 비의존 모듈로 분리했고, 수정 후 Preview가 통과했습니다.
+
+- **동시 실행 가드**: `reservations.owner_user_id` 유일 제약과 330초 TTL·lease ID 펜싱으로 같은 사용자의 중복 파이프라인 실행을 차단하고, 완료 기록은 사건·리포트 저장과 동일 트랜잭션으로 처리
+- **운영 안전성**: 오류명·코드·단계만 허용하는 구조적 로그와 Netlify 로그 확인·재시도 안내·triage 담당자를 담은 파일럿 장애 대응 런북 추가
+- **데이터 취급 고지**: 합성 또는 사전 비식별화된 사건만 허용하고 실 PII·원본 문서 입력을 금지한다는 운영 계약을 반영하고, `SUPPORT_CONTACT_EMAIL`이 설정되면 활성 지원 링크를 렌더링하도록 구성
+- **Netlify Preview 수정**: `proxy.ts`가 DB 의존 세션 모듈을 전이 import하지 않도록 `lib/auth/session-cookie.ts`를 분리하고 import-graph 회귀 테스트 추가
+
+**검증**: `pnpm exec vitest run` 62/62 test files·431/431 tests, `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm run format:check`, `pnpm build`, `pnpm test:e2e`(13 passed·10 skipped·0 failed) 모두 exit 0. 자동 Deploy Preview와 Header/Redirect checks 통과. 실제 Netlify 함수 처리시간, AI Studio 쿼터, 원격 Turso, 실 도메인 인증, 실 Gemini 스모크, 서로 다른 사용자 동시 부하, 원격 저장소·복구 검증은 실행되지 않아 readiness 7개 항목은 모두 `UNVERIFIED`, 전체 판정은 `NO-GO`로 유지합니다.
+
+**참고**: `.moai/specs/SPEC-PILOT-READY-001/`, `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+
 ### Added — SPEC-E2E-AUTH-STATE-001 E2E storageState 인증 재사용 — Better Auth `/sign-in` rate-limit flaky 제거
 
 `e2e/case-input-mobile-layout.spec.ts`/`e2e/tenant-isolation.spec.ts`가 인접 스펙 파일의 로그인 누적으로 Better Auth 기본 rate limit(`/sign-in` 10초 창 내 최대 3회)에 걸려 간헐적으로 실패하던 문제를, 재시도 횟수를 늘리는 대신 두 파일의 실제 UI 로그인 자체를 없애는 방식으로 근본 해결했습니다. Playwright의 project-dependency 기반 "setup 프로젝트" 패턴을 도입해 `e2e/auth.setup.ts`가 TESTER_A/TESTER_B 각각 정확히 1회씩 로그인 후 `storageState`를 저장하고, 두 대상 파일은 그 `storageState`를 재사용해 인증된 세션으로 시작합니다.
@@ -14,7 +106,7 @@
 - **`playwright.config.ts`**: `setup` project + 대상 2개 파일 전용 `chromium-authed` project(`dependencies: ["setup"]`) 추가, 기존 `chromium` project는 두 파일을 `testIgnore`로 제외. `workers: 1`/`retries: 2`/`webServer` 블록은 완전히 무변경
 - **대상 2개 파일**: `loginAsTester()` 호출을 제거하고 `test.use({ storageState })`로 전환 — 로그인 이후의 테스트 본문·단언은 무변경
 
-**검증**: 10개 요구사항(REQ-E2EAUTH-001~010) 전부 구현, 15개 인수 기준(AC-E2EAUTH-001~015, 015는 a/b 하위 시나리오 포함) 전부 실측으로 만족. `pnpm test:e2e`(전체 스위트) 5회 연속 실행 + `--spec` 필터 2회에서 setup(TESTER_A/B)은 각 7회, 대상 2개 파일(`case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`)은 각 6회(전체 5회 + 자신을 포함하는 필터 1회) 모두 1차 시도 통과, leftover storageState 파일을 남긴 채 재실행해도 해시·mtime이 실제로 갱신되고 setup 내장 계정 검증이 (전체 스위트·`--spec` 필터 양쪽에서) 최종적으로 통과함을 확인했습니다. plan-auditor 3회 실행(iteration 1 FAIL 0.71 → iteration 2 0.86 → iteration 3 PASS 0.92) + 외부 독립 리뷰 5회 라운드(플랜 심층 리뷰, run-phase 구현 검토, sync-phase 문서 검토, REQ/AC 독립 재대조 감사, PR #9 계측 기반 3차 재검토)를 거쳐 지적을 실측으로 해소했습니다. `pnpm test`(59 test files/395 tests)/`pnpm lint`/`pnpm build` exit 0, `pnpm format:check`는 exit 1(사전 위반 3건 `app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html` — 이 SPEC과 무관, 신규 위반 0건). PRESERVE 대상(`e2e/helpers.ts`, `e2e/mobile-drawer-focus.spec.ts`, `e2e/case-flow.spec.ts`, `e2e/auth.spec.ts`, `playwright.config.ts`의 `workers`/`retries`/`webServer`, `scripts/` 전체, out-of-scope 5개 spec 파일)은 SPEC 시작 시점부터 커밋 기준 zero-diff로 확인됐습니다.
+**검증**: 10개 요구사항(REQ-E2EAUTH-001~~010) 전부 구현, 15개 인수 기준(AC-E2EAUTH-001~~015, 015는 a/b 하위 시나리오 포함) 전부 실측으로 만족. `pnpm test:e2e`(전체 스위트) 5회 연속 실행 + `--spec` 필터 2회에서 setup(TESTER_A/B)은 각 7회, 대상 2개 파일(`case-input-mobile-layout.spec.ts`/`tenant-isolation.spec.ts`)은 각 6회(전체 5회 + 자신을 포함하는 필터 1회) 모두 1차 시도 통과, leftover storageState 파일을 남긴 채 재실행해도 해시·mtime이 실제로 갱신되고 setup 내장 계정 검증이 (전체 스위트·`--spec` 필터 양쪽에서) 최종적으로 통과함을 확인했습니다. plan-auditor 3회 실행(iteration 1 FAIL 0.71 → iteration 2 0.86 → iteration 3 PASS 0.92) + 외부 독립 리뷰 5회 라운드(플랜 심층 리뷰, run-phase 구현 검토, sync-phase 문서 검토, REQ/AC 독립 재대조 감사, PR #9 계측 기반 3차 재검토)를 거쳐 지적을 실측으로 해소했습니다. `pnpm test`(59 test files/395 tests)/`pnpm lint`/`pnpm build` exit 0, `pnpm format:check`는 exit 1(사전 위반 3건 `app/globals.css`/`CHANGELOG.md`/`docs/evidence/SPEC-UI-MIGRATION-001/comparison-login.html` — 이 SPEC과 무관, 신규 위반 0건). PRESERVE 대상(`e2e/helpers.ts`, `e2e/mobile-drawer-focus.spec.ts`, `e2e/case-flow.spec.ts`, `e2e/auth.spec.ts`, `playwright.config.ts`의 `workers`/`retries`/`webServer`, `scripts/` 전체, out-of-scope 5개 spec 파일)은 SPEC 시작 시점부터 커밋 기준 zero-diff로 확인됐습니다.
 
 **v0.1.6 — 근본 원인 제거 + `auth.spec.ts` 거짓 통과 정정 (외부 재검토 3차 대응)**: 이전 버전이 "잔여 부채"로 기록했던 `e2e/case-flow.spec.ts` 5회 연속 1차 시도 실패 → retry로 회복 현상을, 실제 `pnpm test:e2e` 진입점에서 네트워크 응답을 직접 계측(타임스탬프+HTTP 상태+오류 코드, 비밀·쿠키·응답 본문은 미기록)해 원인을 확정했습니다 — case-flow의 로그인이 스위트 시작 이후 정확히 5번째 `/api/auth/sign-in/email` 요청이라 Better Auth 기본 rate limit(10초 창/최대 3회)에 걸립니다. 같은 계측으로 `e2e/auth.spec.ts`의 "미등록 이메일 거부" 테스트가 실제로는 인증 거부(401)가 아니라 **동일한 rate-limit(429)**로 우연히 통과하고 있던 거짓 통과(false pass)도 확정했습니다 — 로그인 폼이 원인과 무관하게 오류 메시지를 표시하고, 그 테스트는 상태 코드를 확인하지 않기 때문입니다. `playwright.config.ts`의 `workers`/`retries`/`webServer`, Better Auth 설정, `case-flow.spec.ts`/`auth.spec.ts` 소스는 전부 무변경으로 유지한 채, 이 SPEC이 신설한 유일한 수정 가능 파일인 `e2e/auth.setup.ts`의 TESTER_B 로그인 직후 10초 대기 1줄을 추가해 setup의 2건이 뒤이은 요청들과 다른 rate-limit 창에 들도록 했습니다(이 대기는 TESTER_B 테스트 자체의 timeout 예산도 함께 소비합니다 — 실측 10.5~10.6초, 기본 30초 예산 대비 여유 확인). 계측을 넣은 재실행 1회에서 `auth.spec.ts`의 거부 테스트가 진짜 401 응답을 받는 것을 직접 확인했고, 이어서 계측 없는 최종 코드로 전체 스위트 5회 연속 + 필터 2회를 전량 재실행해 `case-flow.spec.ts`를 포함한 스위트 전체가 재시도 없이 1차 시도로 통과함을 확인했습니다(이 5+2회는 테스트 PASS만 확인하며 상태 코드는 재확인하지 않습니다 — `auth.spec.ts` 자체가 오류 원인을 구분하지 않으므로, 향후 유사한 429 거짓 통과가 재발해도 이 테스트만으로는 검출되지 않는다는 것이 알려진 검증 한계로 남습니다). 상세: `.moai/specs/SPEC-E2E-AUTH-STATE-001/progress.md` §E.2c/§E.2d.
 
@@ -33,7 +125,7 @@ SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트
 - **반응형 + 모바일 드로어 접근성**(`app-shell-chrome.tsx` 신규): 1024px 우측 레일 세로 배치, 390px 오프캔버스 드로어(포커스 트랩 닫힌 루프, 배경 `inert`, ESC/스크림/nav 링크 닫기, 리사이즈 시 자동 닫힘)
 - **전문가 피드백 화면 Pencil 구조 마이그레이션**(Round 5): native `<select>` → 카드형 버튼 그룹(`OptionButtonGroup`, `role="radiogroup"`), 사건 메타 스트립, 8종 이슈 타입 빠른 추가 체크박스, 개별 근거자료 카드 리스트, 섹션별 완료 아이콘 + 제출 상태 아이콘 추가. 사용자 승인된 의도적 편차 3건(전용 라우트 미신설, "실제 결과" 자유 텍스트 유지, "이미 제출됨" 사전확인 미도입)
 
-**검증**: 24개 요구사항(REQ-001~024) 전부 구현, 24개 인수 기준(AC-001~024 + letter-suffixed sub-AC) 전부 코드 레벨/실측으로 만족. plan-auditor 2회 실행(round1 PASS 0.97 → round2-revision PASS 0.94). Round 1~5 외부 독립 재검토에서 발견된 결함(빌드 실패 dead-code, 모바일 Footer 레이아웃 붕괴, mobile-drawer-focus 회귀, 로그인/사건입력/전문가피드백 Pencil 시각 격차)을 모두 실측 Gap Matrix 기반으로 해소했으며, INSUFFICIENT claim 상태는 결정론적 fixture로 `report.content`를 직접 주입해 실제 프로덕션 렌더링 분기를 통과시킨 화면을 캡처했습니다(로컬 결정론적 AI provider 환경의 알려진 한계 — 정상 사용자 플로우로는 자연 발생하지 않음). `pnpm test`(59 test files, 395 tests)/`pnpm lint`/`pnpm build`(`/cases/new` 의도적으로 Dynamic 전환)/`pnpm format:check`(신규 위반 0건) 전부 exit 0, `pnpm test:e2e` 3회 연속 exit 0(매회 로그인 rate-limit 충돌로 1개 스펙이 1회 재시도 후 통과 — flaky debt로 기록, 근본 해결은 후속 SPEC 후보). PRESERVE 대상(`lib/db/schema.ts`, `lib/validation/case-input.ts`, `lib/feedback/schema.ts`, `lib/cases/create-case.ts`, `lib/feedback/submit-feedback.ts`, `lib/pipeline/**`, `lib/ai/**`, `db/**`, `app/layout.tsx`, `e2e/helpers.ts`)는 전체 SPEC 기간 동안 zero-diff로 확인됐습니다. 후속 SPEC 후보 2건: 모바일 리포트/피드백 정보구조(IA) 분리, E2E 인증 fixture/storageState 재사용(rate-limit flaky debt 근본 해결).
+**검증**: 24개 요구사항(REQ-001~~024) 전부 구현, 24개 인수 기준(AC-001~~024 + letter-suffixed sub-AC) 전부 코드 레벨/실측으로 만족. plan-auditor 2회 실행(round1 PASS 0.97 → round2-revision PASS 0.94). Round 1~5 외부 독립 재검토에서 발견된 결함(빌드 실패 dead-code, 모바일 Footer 레이아웃 붕괴, mobile-drawer-focus 회귀, 로그인/사건입력/전문가피드백 Pencil 시각 격차)을 모두 실측 Gap Matrix 기반으로 해소했으며, INSUFFICIENT claim 상태는 결정론적 fixture로 `report.content`를 직접 주입해 실제 프로덕션 렌더링 분기를 통과시킨 화면을 캡처했습니다(로컬 결정론적 AI provider 환경의 알려진 한계 — 정상 사용자 플로우로는 자연 발생하지 않음). `pnpm test`(59 test files, 395 tests)/`pnpm lint`/`pnpm build`(`/cases/new` 의도적으로 Dynamic 전환)/`pnpm format:check`(신규 위반 0건) 전부 exit 0, `pnpm test:e2e` 3회 연속 exit 0(매회 로그인 rate-limit 충돌로 1개 스펙이 1회 재시도 후 통과 — flaky debt로 기록, 근본 해결은 후속 SPEC 후보). PRESERVE 대상(`lib/db/schema.ts`, `lib/validation/case-input.ts`, `lib/feedback/schema.ts`, `lib/cases/create-case.ts`, `lib/feedback/submit-feedback.ts`, `lib/pipeline/**`, `lib/ai/**`, `db/**`, `app/layout.tsx`, `e2e/helpers.ts`)는 전체 SPEC 기간 동안 zero-diff로 확인됐습니다. 후속 SPEC 후보 2건: 모바일 리포트/피드백 정보구조(IA) 분리, E2E 인증 fixture/storageState 재사용(rate-limit flaky debt 근본 해결).
 
 **참고**: `.moai/specs/SPEC-UI-MIGRATION-001/`
 
@@ -46,7 +138,7 @@ SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트
 - **공유 프레젠테이션 컴포넌트**(`components/ui/status-badge.tsx`, `chip.tsx`, `notice.tsx`, `components/evidence-item.tsx`): 기존 shadcn 프리미티브로 표현 불가능한 시각 패턴만 신규 도입해 `claim-status` pill과 evidence 참조 렌더링에 재사용 — 기존 testid/`data-status` 속성 전부 보존
 - **3개 화면 재스타일**: 사건 입력(2컬럼 레이아웃), Research Report(사건 요약 패널 + claim 카드 + 우측 레일), 전문가 피드백(번호 매김 섹션 패턴, native `<select>`·동적 `missedIssues` 배열 UI 그대로 유지) — 각 화면의 기존 데이터 계약·테스트 셀렉터·접근성 속성(label 연관, `role="status"`, `aria-live`, focus 동작) 완전 보존
 
-**검증**: 24개 요구사항(REQ-PILOT-VISUAL-001~024) 전부 구현, 25개 인수 기준(AC-PILOT-VISUAL-001~024 + 서브레터 006b/020b/021b, AC-013 의도적 결번) 전부 코드 레벨로 만족. plan-auditor 감사 3회 실행(iteration 1 FAIL(0.63, GEARS 모달리티 위반) → iteration 2 PASS(0.92) → 외부 독립 리뷰 6개 블로커 대응 후 iteration 3 PASS(0.92, 회귀 없음)). M1~M6 전 마일스톤에서 `pnpm test`(335/335)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build`/`pnpm format:check` exit 0 통과를 오케스트레이터가 매 마일스톤 최종 커밋에 대해 독립 재실행으로 재확인했으며, `app/layout.tsx`/`app/page.tsx`/`app/login/**`의 zero-diff를 전체 M1~M6 범위(`git diff --stat`)로 재검증했습니다. 오케스트레이터가 Playwright로 실제 `pnpm dev` 인스턴스에 대해 1440px/1280px 두 뷰포트에서 3개 화면 전체를 수동 시각 확인(가로 오버플로/사이드바-콘텐츠 겹침 없음). 신규 런타임 의존성 없음(pretendard 패키지 추가 제외), 서버 write-path·DB 스키마·API 계약 변경 없음.
+**검증**: 24개 요구사항(REQ-PILOT-VISUAL-001~~024) 전부 구현, 25개 인수 기준(AC-PILOT-VISUAL-001~~024 + 서브레터 006b/020b/021b, AC-013 의도적 결번) 전부 코드 레벨로 만족. plan-auditor 감사 3회 실행(iteration 1 FAIL(0.63, GEARS 모달리티 위반) → iteration 2 PASS(0.92) → 외부 독립 리뷰 6개 블로커 대응 후 iteration 3 PASS(0.92, 회귀 없음)). M1~~M6 전 마일스톤에서 `pnpm test`(335/335)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build`/`pnpm format:check` exit 0 통과를 오케스트레이터가 매 마일스톤 최종 커밋에 대해 독립 재실행으로 재확인했으며, `app/layout.tsx`/`app/page.tsx`/`app/login/**`의 zero-diff를 전체 M1~~M6 범위(`git diff --stat`)로 재검증했습니다. 오케스트레이터가 Playwright로 실제 `pnpm dev` 인스턴스에 대해 1440px/1280px 두 뷰포트에서 3개 화면 전체를 수동 시각 확인(가로 오버플로/사이드바-콘텐츠 겹침 없음). 신규 런타임 의존성 없음(pretendard 패키지 추가 제외), 서버 write-path·DB 스키마·API 계약 변경 없음.
 
 **참고**: `.moai/specs/SPEC-PILOT-VISUAL-001/`
 
@@ -62,7 +154,7 @@ SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트
 - **명시적 UI 상태**: 사건 상세 화면의 `verifiedClaims`/인용 근거자료 빈 배열에 대한 명시적 빈 상태 문구 추가(기존 `reviewTargets`/`missingMaterials`/`uncertainty` 패턴과 동일); 사건 입력 폼의 `fetch` 호출에 `.catch()`를 추가해 네트워크 수준 실패를 사람이 읽을 수 있는 오류 메시지로 처리(unhandled promise rejection 없음); 저장소 전체에 하나도 없던 Next.js App Router `error.tsx` 오류 경계를 `app/cases/[caseId]/`에 신설(재시도 버튼이 `reset()` 호출)
 - **안전 문구·개인정보 보존**: 이번 SPEC이 도입·수정한 UI 문구 어디에도 보험금 지급 가능성 확정 서술이 없으며, 신규 개인정보 수집 필드나 기존 PII 차단 검증(`piiFreeText`) 약화 없음 — 어떤 스키마도 수정하지 않음
 
-**검증**: 16개 요구사항(REQ-PILOT-UX-001~016) 전부 구현, 16개 인수 기준(AC-PILOT-UX-001~016) 전부 코드 레벨로 만족. 사용자가 실제 브라우저에서 사건 입력→리포트 렌더링→피드백 제출 성공 메시지→콘솔 오류 없음까지 수동 스모크로 직접 확인했으며, 성공 후 제출 버튼이 계속 비활성 유지되는지는 자동 unit/e2e 테스트(`feedback-form.test.tsx` AC-010, `case-flow.spec.ts`)로 확인했습니다. plan-auditor 감사 7회 실행(iteration 3 FAIL(0.82, GEARS 단일 트리거 형식 위반) → iteration 4 FAIL(0.875, 잔존 위반) → iteration 5 PASS(0.98) → pre-run 정합성 보정 후 iteration 6 FAIL(0.74, REQ-010 응답 분기 위반 + M4 커버리지 갭) → iteration 7 PASS(0.92)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(48 test files, 335 tests)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build` 전체 exit 0 통과. `case-input-form.tsx`(79.5%)/`feedback-form.tsx`(61.6%)/`page.tsx`(72.7%) 3개 파일의 statement coverage가 프로젝트 목표(85%)에 미달 — 이 SPEC의 인수 기준에 요구되지 않는 기존 상호작용 분기(쟁점 추가/제거, 개별 평가 select, 실제 결과 필드)로 사용자 승인 하에 갭으로 남깁니다. 신규 런타임 의존성 없음, 서버 write-path(`lib/cases/create-case.ts`/`lib/feedback/submit-feedback.ts`)·스키마(`lib/db/schema.ts`) 변경 없음.
+**검증**: 16개 요구사항(REQ-PILOT-UX-001~~016) 전부 구현, 16개 인수 기준(AC-PILOT-UX-001~~016) 전부 코드 레벨로 만족. 사용자가 실제 브라우저에서 사건 입력→리포트 렌더링→피드백 제출 성공 메시지→콘솔 오류 없음까지 수동 스모크로 직접 확인했으며, 성공 후 제출 버튼이 계속 비활성 유지되는지는 자동 unit/e2e 테스트(`feedback-form.test.tsx` AC-010, `case-flow.spec.ts`)로 확인했습니다. plan-auditor 감사 7회 실행(iteration 3 FAIL(0.82, GEARS 단일 트리거 형식 위반) → iteration 4 FAIL(0.875, 잔존 위반) → iteration 5 PASS(0.98) → pre-run 정합성 보정 후 iteration 6 FAIL(0.74, REQ-010 응답 분기 위반 + M4 커버리지 갭) → iteration 7 PASS(0.92)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(48 test files, 335 tests)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build` 전체 exit 0 통과. `case-input-form.tsx`(79.5%)/`feedback-form.tsx`(61.6%)/`page.tsx`(72.7%) 3개 파일의 statement coverage가 프로젝트 목표(85%)에 미달 — 이 SPEC의 인수 기준에 요구되지 않는 기존 상호작용 분기(쟁점 추가/제거, 개별 평가 select, 실제 결과 필드)로 사용자 승인 하에 갭으로 남깁니다. 신규 런타임 의존성 없음, 서버 write-path(`lib/cases/create-case.ts`/`lib/feedback/submit-feedback.ts`)·스키마(`lib/db/schema.ts`) 변경 없음.
 
 **참고**: `.moai/specs/SPEC-PILOT-UX-001/`
 
@@ -78,7 +170,7 @@ SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트
 - **append-only 정책**: `(reportId, userId)` 조합에 유일성 제약을 두지 않아 동일 사용자가 동일 리포트에 여러 번(최초 리뷰 + 이후 실제 결과 확인 등) 제출 가능하며, 기존 피드백 행을 수정·삭제하는 API/Server Action은 제공하지 않음
 - **post-run 버그 수정**: 외부 독립 리뷰에서 `outcomeSchema`의 preprocess가 "공백 문자열"과 "잘못된 타입(number/null/object)"을 동일하게 취급해, (a) 잘못된 타입 입력이 조용히 `outcome` 생략으로 정규화되어 검증을 통과하거나 (b) 부분 outcome(`description`만 공백, `confirmedAt`만 유효)이 `piiFreeText`의 `min(1)`이 trim 없이 길이만 검사하는 특성 때문에 통과하는 결함 2건을 발견 — RED(결함 재현 테스트 2건 실패 확인) → GREEN(타입 검사와 공백 판정을 분리하는 헬퍼 3개 추가 + `description`에 trim 기반 `.refine()` 추가) 순서로 수정하고 회귀 테스트 3건 추가
 
-**검증**: 15개 요구사항(REQ-FEEDBACK-001~015) 전부 구현, 16개 인수 기준(AC-FEEDBACK-001~016) 전부 코드 레벨로 만족. plan-auditor 감사 4회 실행(iteration 1 PASS(0.92) → 외부 리뷰 11건 반영 후 iteration 2/3 PASS(0.97) → 3차 정합성 보정 후 iteration 3 FAIL(0.90, progress.md 시제 오류 1건) → 수정 후 최종 게이트 PASS(0.97)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(44 test files, 316 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(post-run 버그 수정 반영 후 재확인). 신규 런타임 의존성 없음.
+**검증**: 15개 요구사항(REQ-FEEDBACK-001~~015) 전부 구현, 16개 인수 기준(AC-FEEDBACK-001~~016) 전부 코드 레벨로 만족. plan-auditor 감사 4회 실행(iteration 1 PASS(0.92) → 외부 리뷰 11건 반영 후 iteration 2/3 PASS(0.97) → 3차 정합성 보정 후 iteration 3 FAIL(0.90, progress.md 시제 오류 1건) → 수정 후 최종 게이트 PASS(0.97)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(44 test files, 316 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(post-run 버그 수정 반영 후 재확인). 신규 런타임 의존성 없음.
 
 **참고**: `.moai/specs/SPEC-FEEDBACK-001/`
 
@@ -94,7 +186,7 @@ SPEC-PILOT-VISUAL-001이 재현한 3개 화면(사건 입력/리서치 리포트
 - **정직한 미충족 항목 명시 (best-effort로 공식 하향)**: DISPUTE_CASE(분쟁조정 사례) evidenceType은 FSS/KNIA/FCSC 공식 소스가 텍스트 추출 가능한 형식(HTML)으로 공개되어 있지 않아 3회 세션에 걸친 조사에도 0건 — 사용자 승인을 받아 plan.md M4b 요구를 "최소 1건 필수"에서 "best-effort(0건도 AC 충족)"로 정식 하향. 지어낸 데이터나 사례는 어디에도 추가하지 않았습니다
 - **post-run 정합성 보정**: 벤치마크 baseline 배선 결함(전략 A가 일시적으로 `computeBaselineScore`/tie-break-없음 정렬을 잘못 사용해 REQ-EVIDENCE-012를 위반했던 버그)을 발견 즉시 재수정, coverage-delta 리포트를 append-correction 방식에서 단일 최종본으로 재작성
 
-**검증**: 25개 요구사항(REQ-EVIDENCE-001~025) 전부 구현, 25개 인수 기준(AC-EVIDENCE-001~021/026 + AC-EVIDENCE-016 서브레터 a/b/c/d) 전부 코드 레벨로 만족. plan-auditor 감사 7회 실행(iteration 1 FAIL → iteration 2/3 PASS(0.923) → 배선 결함 발견 후 iteration 5 PASS(0.923) → iteration 6 FAIL(기존 미해결 결함) → D1/D2 수정 후 iteration 7 PASS(1.0)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(42 test files, 289 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(Node 22 + pnpm 환경 실측, 이번 세션 재확인). 신규 런타임 의존성 없음.
+**검증**: 25개 요구사항(REQ-EVIDENCE-001~~025) 전부 구현, 25개 인수 기준(AC-EVIDENCE-001~~021/026 + AC-EVIDENCE-016 서브레터 a/b/c/d) 전부 코드 레벨로 만족. plan-auditor 감사 7회 실행(iteration 1 FAIL → iteration 2/3 PASS(0.923) → 배선 결함 발견 후 iteration 5 PASS(0.923) → iteration 6 FAIL(기존 미해결 결함) → D1/D2 수정 후 iteration 7 PASS(1.0)), 매 결과를 축소·과장 없이 정직하게 기록. `pnpm test`(42 test files, 289 tests)/`pnpm lint`/`pnpm format:check`/`pnpm build`/`pnpm test:e2e`(4/4) 전체 exit 0 통과(Node 22 + pnpm 환경 실측, 이번 세션 재확인). 신규 런타임 의존성 없음.
 
 **참고**: `.moai/specs/SPEC-EVIDENCE-001/`, `.moai/reports/coverage-delta-m4e.md`, `.moai/reports/evidence-source-audit-manifest.md`
 

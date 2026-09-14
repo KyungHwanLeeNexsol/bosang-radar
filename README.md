@@ -16,11 +16,13 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (SPEC-SCAFFOLD-001 + SPEC-RUNTIME-001 + SPEC-RESEARCH-001 + SPEC-EVIDENCE-001 + SPEC-FEEDBACK-001 + SPEC-PILOT-UX-001 + SPEC-PILOT-VISUAL-001 완료)
+## 현재 구현 상태 (10개 SPEC 완료 — SPEC-SCAFFOLD-001 ~ SPEC-E2E-AUTH-STATE-001)
 
-최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 그리고 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001까지 완료되었습니다.
+최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001, 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력으로 무료 티어 파일럿 안정성을 확보한 SPEC-GEMINI-RUNTIME-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
 
-- Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`) + Turso/libSQL 클라이언트 배선
+파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 결정, 원격 DB/인증 도메인 검증, 최소 동시 실행 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 **호스팅을 Netlify Free로 확정**하고 구현(M1-M6, Netlify Background Function 비동기 전환 및 Researcher 하이브리드 모델 라우팅 포함)을 완료했습니다. PR #10의 자동 Deploy Preview에서 발견된 Middleware 네이티브 애드온 번들링 문제도 수정되어 Preview가 통과했습니다(최신 HEAD 기준 68/68 test files, 466/466 tests, `tsc`/`eslint`/`format:check`/`build` 모두 PASS) — 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)-(6)이 `READY`, 남은 (7) 원격 리스/복구 검증만 `UNVERIFIED`라 **readiness 판정은 전체 `NO-GO`**입니다(`.moai/specs/SPEC-PILOT-READY-001/`, PR #10 open, 병합 보류).
+
+- Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`, `reservations`, `case_jobs`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
 - Better Auth 초대 전용 인증 + `proxy.ts` 라우트 가드(`cases/*`, `api/cases/*` 보호) + 실제 계정 생성 CLI(`pnpm tester:add`)
 - 사건 입력 PII 차단 Zod 검증 스키마(`lib/validation/case-input.ts`)
@@ -30,7 +32,8 @@
 - **DB 마이그레이션·시드 CLI**(`pnpm db:migrate`, `pnpm db:seed`) — 재실행 안전
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
 - **실제 Playwright E2E 스위트**(`pnpm test:e2e`) — 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 실제 Chromium으로 검증
-- `pnpm test`(48 files, 335 tests)/`pnpm test:e2e`(4/4)/`pnpm lint`/`pnpm build` PASS — `pnpm format:check`는 `CHANGELOG.md`의 기존 baseline 경고 1건으로 exit 1(이번 SPEC의 신규 위반 없음)
+- **Netlify Background Function 비동기 분석 경로** — `POST /api/cases`는 `202`와 jobId를 즉시 반환하고, 최대 15분 백그라운드 실행 후 상태 조회로 결과 페이지에 이동
+- `pnpm test`(68 files, 466 tests)/`pnpm test:e2e`(11 passed, 11 expected skips — 로컬 하네스가 Netlify Background Functions를 흉내내지 않는 async case-flow 경로는 스킵, 원격 Preview 스모크로 대체 검증)/`pnpm lint`/`pnpm build`/`pnpm format:check` PASS
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
@@ -126,14 +129,31 @@ bosang-radar/
 
 전체 구조와 각 디렉터리의 설계 의도는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 다음 단계 (이번 SPEC까지가 다루지 않은 것)
+## 다음 단계
 
-SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처), SPEC-RUNTIME-001(런타임 활성화), SPEC-RESEARCH-001(evidence-first 파이프라인 전환)은 전체 서비스 완성이 아니라, 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중했습니다. 다음 항목은 후속 SPEC 후보로 이연되었습니다.
+전체 서비스 완성이 아니라 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중해 왔습니다. 남은 작업은 3단계로 분류합니다.
 
-- **근거자료 corpus 대량 확장**: SPEC-EVIDENCE-001로 담보×쟁점 기준 검증 가능한 21건까지 확장했으나 여전히 프로덕션 규모 대비 소규모 — 실제 판례·법령·분쟁사례를 대량 수집
-- **Gold Dataset 추출·집계**: SPEC-FEEDBACK-001로 리포트 단위 구조화 피드백(`feedback` 테이블 — 전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과) 축적 경로는 마련되었으나, 축적된 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰는 아직 없음
+### 구현 완료 (10개 SPEC)
+
+SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
+
+### 파일럿 배포 준비 — 구현 완료, readiness 항목 (7) 정정 라운드 진행
+
+Netlify 동기 함수의 60초 제한에 따라 분석 요청을 Background Function 비동기
+경로로 전환했다. `case_jobs`에 작업을 기록하고 `202` 응답 후 상태 polling으로
+완료된 `caseId`를 전달한다.
+
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.15.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현(비동기 전환 + 하이브리드 Gemini 라우팅 포함)과 PR #10 자동 Deploy Preview 수정은 완료됐고, 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)~(6)이 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **2026-09-14 정정 라운드**: 항목 (7)의 강제 종료 복구 시나리오가 `UNVERIFIED`(라이브 재현 불가)로 오분류돼 있었음이 밝혀져(실제로는 최소 수정안이 구현되지 않은 `BLOCKED` 상태) `recoverStaleCaseJob()`을 구현·연동하고 관련 완료 트랜잭션 하드닝, polling/lease 타이밍 역방향 버그까지 수정해 `FIXED(로컬/유닛 검증 완료)`로 재분류했습니다. **남은 readiness 항목은 (7) 원격 리스·복구 검증 하나이며, 실 원격 Turso·실 프로덕션 강제 종료 라이브 재현이 아직 미수행이라 현재 전체 판정은 여전히 `NO-GO`입니다.**
+
+### 후속 개발 (파일럿 데이터 확보 이후)
+
+- **Netlify 프로덕션 배포 확정**: PR #10의 자동 Deploy Preview는 번들링 수정 후 통과했지만, 연결된 사이트를 장기 프로덕션 사이트로 채택하고 main 병합 시 프로덕션 자동 배포를 사용할지는 아직 결정되지 않았습니다.
+- **로그인 rate-limiting 하드닝**: 프로덕션 수준의 인증 하드닝
+- **Gold Dataset 추출·집계 도구**: SPEC-FEEDBACK-001로 마련된 `feedback` 테이블(전체 평가·누락 쟁점·주장별/근거자료별 verdict·선택적 실제 결과)의 원시 행을 실제 골드 데이터셋으로 추출·가공하는 도구와 관리자 통계 뷰
 - **PostgreSQL 마이그레이션 실행**: Drizzle ORM 뒤에서 이전 가능한 구조는 유지하되, 실제 마이그레이션은 미실행
+- **대규모 evidence corpus 확장**: 실제 판례·법령·분쟁사례 대량 수집(현재 21건은 프로덕션 규모 대비 소규모)
 - **담보 영역 확장**: 상해후유장해·질병후유장해 외 담보 영역(질병사망, 실손의료비 등)
-- **파일럿 배포 준비**: 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝, 실무자 대상 파일럿 배포
+
+이 4가지(정식 배포 자동화·rate-limiting·Gold Dataset·PostgreSQL/evidence/담보 확장)는 SPEC-PILOT-READY-001이 남기는 **파일럿 실측 데이터가 존재해야 다음 우선순위를 판단할 수 있는** 순서로 이어집니다 — ①대표 사례 표본에 대한 실 Gemini 기반 코퍼스 품질 평가(`counterEvidenceIds`가 항상 빈 배열인 현상의 원인 규명 등) → ②사용자별 완료/피드백 집계 → ③Gold Dataset 추출, 순으로 각 단계는 이전 단계의 파일럿 데이터를 전제로 합니다.
 
 자세한 배경과 로드맵은 [`.moai/project/product.md`](.moai/project/product.md) §Roadmap과 [`.moai/specs/SPEC-SCAFFOLD-001/spec.md`](.moai/specs/SPEC-SCAFFOLD-001/spec.md) §4를 참고하세요.

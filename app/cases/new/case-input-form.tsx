@@ -8,6 +8,9 @@ import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
+
+class CaseSubmissionError extends Error {}
 
 // bare UI — 사건 입력 폼(SPEC-PILOT-VISUAL-001 M4, design.md §4 화면 01).
 // 필드는 lib/validation/case-input.ts의 caseInputSchema와 그대로 매핑된다
@@ -36,6 +39,43 @@ export function CaseInputForm() {
   // 언마운트되기 전까지) 재제출을 계속 막는다.
   const submitGuardRef = useRef(false);
 
+  async function waitForCaseJob(jobId: string): Promise<void> {
+    // SPEC-PILOT-READY-001 §Z — 이 polling 상한은 backend 리스 TTL(960초)보다
+    // 먼저 끝나지 않도록 job-timing.ts에서 안전 여유를 두고 계산된 값이다.
+    // 상한에 먼저 도달하면 백엔드가 아직 처리 중일 가능성이 낮다는 뜻이므로,
+    // "실패"가 아니라 "완료가 지연되고 있다"로 안내한다(아래 메시지 참고).
+    for (let attempt = 0; attempt < CLIENT_POLL_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, CLIENT_POLL_INTERVAL_MS));
+      const response = await fetch(`/api/cases/status?jobId=${encodeURIComponent(jobId)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new CaseSubmissionError("분석 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+      }
+      const data = (await response.json()) as {
+        status?: string;
+        caseId?: string;
+        error?: string;
+      };
+      if (data.status === "completed" && data.caseId) {
+        router.push(`/cases/${data.caseId}`);
+        return;
+      }
+      if (data.status === "failed") {
+        throw new CaseSubmissionError(
+          data.error ?? "분석을 완료하지 못했습니다. 다시 시도해 주세요."
+        );
+      }
+    }
+    // 이 시점까지도 완료되지 않았다면 백엔드가 여전히 처리 중일 가능성이
+    // 낮다(안전 여유가 이미 소진됨) — 그래도 "실패"를 단정하지 않고, 즉시
+    // 재제출을 유도하지 않는다: 재제출은 아직 유효한 리스에 막혀 409로
+    // 거부될 뿐 분석 완료 여부를 알려주지 않기 때문이다.
+    throw new CaseSubmissionError(
+      "분석이 예상보다 오래 걸리고 있습니다. 지금 다시 제출하지 말고 잠시 후 새로고침해 확인해 주세요."
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitGuardRef.current) {
@@ -58,6 +98,15 @@ export function CaseInputForm() {
         }),
       });
 
+      if (response.status === 202) {
+        const data = (await response.json()) as { jobId?: string };
+        if (!data.jobId) {
+          throw new CaseSubmissionError("분석 작업을 시작하지 못했습니다. 다시 시도해 주세요.");
+        }
+        await waitForCaseJob(data.jobId);
+        return;
+      }
+
       if (response.status === 201) {
         const data = (await response.json()) as { caseId: string };
         router.push(`/cases/${data.caseId}`);
@@ -71,11 +120,15 @@ export function CaseInputForm() {
       submitGuardRef.current = false;
       setFormError(data.error ?? "사건 입력을 저장하지 못했습니다.");
       setFieldErrors(data.fieldErrors ?? {});
-    } catch {
+    } catch (error) {
       // 네트워크 수준 예외(fetch 자체가 reject) — REQ-PILOT-UX-014.
       // unhandled promise rejection으로 전파되지 않으며, 재제출이 허용된다.
       submitGuardRef.current = false;
-      setFormError("네트워크 오류로 요청을 완료하지 못했습니다. 다시 시도해 주세요.");
+      setFormError(
+        error instanceof CaseSubmissionError
+          ? error.message
+          : "네트워크 오류로 요청을 완료하지 못했습니다. 다시 시도해 주세요."
+      );
     } finally {
       setIsSubmitting(false);
     }

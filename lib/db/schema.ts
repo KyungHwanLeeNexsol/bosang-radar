@@ -133,3 +133,50 @@ export const allowedTesters = sqliteTable("allowed_testers", {
   email: text("email").notNull().unique(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
+
+// SPEC-PILOT-READY-001 M1(REQ-PILOT-READY-007, plan.md §A 결정 1) — 사용자별
+// 동시 실행 가드(TTL 기반 리스). ownerUserId를 PK로 삼아 "UNIQUE 키"
+// 요구사항을 만족시키며(plan.md는 ownerUserId/leaseId/expiresAt 3개 컬럼만
+// 요구 — 별도 id 컬럼 없음), 이 PK 제약이 조건부 UPSERT(ON CONFLICT)의
+// 원자성 근거다. leaseId는 획득마다 새로 생성되는 고유 토큰(crypto.randomUUID())
+// 이며, 해제/완료 기록은 항상 ownerUserId AND leaseId 둘 다 일치할 때만
+// 수행되는 펜싱된 연산이다(lib/cases/create-case.ts).
+export const reservations = sqliteTable("reservations", {
+  ownerUserId: text("owner_user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  leaseId: text("lease_id").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+});
+
+// Netlify Background Function 작업 큐. 동기 함수의 60초 제한을 피하기 위해
+// 요청 접수와 Gemini 파이프라인 실행을 분리한다. input은 검증을 통과한 사건
+// 데이터만 저장하며, status/caseId로 클라이언트 polling 결과를 owner 범위 안에서
+// 조회한다.
+export const caseJobs = sqliteTable("case_jobs", {
+  id: text("id").primaryKey(),
+  ownerUserId: text("owner_user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  leaseId: text("lease_id").notNull(),
+  input: text("input", { mode: "json" }).notNull(),
+  status: text("status").notNull().default("queued"),
+  caseId: text("case_id").references(() => cases.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+// 배포 환경의 실 Gemini 호출을 job 단위로 교차 검증하기 위한 비민감 관측값.
+// 요청 URL, API key, prompt/response 본문은 저장하지 않는다.
+export const geminiRequestObservations = sqliteTable("gemini_request_observations", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => caseJobs.id, { onDelete: "cascade" }),
+  method: text("method").notNull(),
+  model: text("model").notNull(),
+  status: integer("status"),
+  ok: integer("ok", { mode: "boolean" }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
+});

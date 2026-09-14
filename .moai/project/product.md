@@ -1,6 +1,8 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-08-24 (D1/D2 후속 개정 — 접근 제어 및 PII 검증 원칙 추가, 성공 기준 구체화)
+> 최종 수정: 2026-09-14 (SPEC-PILOT-READY-001 v0.15.0 반영 — readiness 항목
+> (1)~(6) READY 전환 및 항목 (7) stale-job 복구 정정 라운드(M1~M4) 동기화;
+> 이전 개정: 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계 분류)
 
 ## 한 줄 소개
 
@@ -69,22 +71,72 @@
 8. **불필요한 overengineering을 하지 않는다.** microservice, Kubernetes, 별도 vector DB 등은 이번 MVP에서 도입하지 않는다.
 9. **작은 실사용 검증이 목표다.** 현직 실무자 10명 각각이 최소 3건의 사건 리서치 사이클을 완료하고 전문가 피드백을 제출하는 것을 이번 단계의 성공 기준으로 삼는다.
 
-## §Roadmap (향후 SPEC 후보 아이디어 — 문서화만, SPEC 문서 생성 안 함)
+## §Roadmap (SPEC 상태 기준 3단계 분류)
 
-아래는 앞으로 검토할 수 있는 후속 작업 아이디어 목록이다. 이 문서는 아이디어만 나열하며, `.moai/specs/` 아래에 실제 SPEC 문서를 생성하지 않는다.
+이 문서는 아이디어만 나열하며, `.moai/specs/` 아래의 실제 SPEC 문서가 SSOT다. 아래는
+그 SPEC들의 현재 상태를 3단계로 분류한 것이다 — 각 항목의 `status:`는
+`.moai/specs/<SPEC-ID>/spec.md`의 frontmatter에서 직접 확인할 수 있다.
 
-- 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격)
-- AI provider abstraction 인터페이스 설계 및 Gemini adapter 구현
-- Drizzle ORM 스키마 설계 (사건, 근거자료, 리포트, 피드백 테이블) + Turso/libSQL 연결
-- seed evidence 데이터셋 설계 및 초기 시드 스크립트
-- CaseNormalizer 단계 구현 (사건 입력 → 표준 구조 정규화)
-- QueryPlanner 단계 구현 (쟁점 도출 및 검색 쿼리 계획)
-- Evidence Retriever 단계 구현 (seed 데이터 기반 근거자료 검색)
-- Researcher / Skeptic / Verifier 단계 구현 (LLM 기반 소견 생성·반박·교차검증)
-- Research Report 렌더링 UI 및 리포트 데이터 모델
-- 전문가 피드백 저장 UI 및 데이터 모델
-- 사건 입력 폼 UI (민감정보 입력 차단 검증 포함)
-- Vercel 무료 tier 배포 파이프라인 구성
-- 실무자 10명 대상 비공개 테스트 온보딩 플로우
-- (장기) PostgreSQL 마이그레이션 검토
+### 구현 완료 (10개 SPEC, `status: completed`)
+
+- 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
+- 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
+- AI provider abstraction 인터페이스 설계 및 Gemini adapter 구현, evidence-first 파이프라인 전환 — SPEC-RESEARCH-001
+- 무료 티어 파일럿 안정화(역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력) — SPEC-GEMINI-RUNTIME-001
+- Drizzle ORM 스키마 설계 (사건, 근거자료, 리포트, 피드백 테이블) + Turso/libSQL 연결 — SPEC-SCAFFOLD-001/SPEC-RESEARCH-001
+- 근거자료 corpus 담보×쟁점 기준 21건 확장 + 쟁점 중심 ranking — SPEC-EVIDENCE-001
+- Research Report 렌더링 UI 및 리포트 데이터 모델 — SPEC-SCAFFOLD-001/SPEC-RESEARCH-001
+- 전문가 피드백 저장 UI 및 데이터 모델(구조화 피드백: 전체 평가·누락 쟁점·주장별/근거자료별 verdict) — SPEC-FEEDBACK-001
+- 사건 입력 폼 UI (민감정보 입력 차단 검증 포함) — SPEC-SCAFFOLD-001
+- UI 사용성 다듬기(대기 상태·중복 제출 방지·리포트 요약 배너 등) — SPEC-PILOT-UX-001
+- 확정 Pencil 디자인의 순수 시각 계층 재현(3개 화면) — SPEC-PILOT-VISUAL-001
+- Pencil 디자인 전체 화면 확장 재현 — SPEC-UI-MIGRATION-001
+- E2E storageState 인증 재사용(Better Auth rate-limit flaky 제거) — SPEC-E2E-AUTH-STATE-001
+
+### 파일럿 배포 준비 — 구현 완료, readiness 항목 (7) 정정 라운드 진행 (`status: in-progress`, v0.15.0)
+
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001) — **호스팅은 Netlify Free로 확정**
+  (DB: Turso Free, AI: Gemini API Free). 실제 배포 도메인에서 3회 측정한
+  처리 시간(동기 접수 최대 3.761초, Background 완료 최대 47.900초)이 안전
+  여유 기준 이내임을 확인했다. **구현(M1: 사용자별 동시 실행 가드, M2: 최소
+  구조적 로깅, M3: 데이터 취급 고지 정직성 개선, M5: 최소 장애 대응 런북,
+  M6: 테스트)은 완료됐고**, 실제 Deploy Preview + 원격 Turso 대상 재검증으로
+  readiness 항목 (1)~(6)이 모두 `READY`로 전환됐다(호스팅 적합성/Gemini
+  쿼터/원격 DB/실 도메인 인증/실 Gemini 스모크/서로 다른 사용자 동시 부하).
+  AI Studio 실제 무료 등급 한도에 따라 Research/Fast 자체 예산은 4/11 RPM으로
+  설정했고, Research 20 RPD 제약 때문에 30건 파일럿은 최소 2일 이상 분산한다.
+  **2026-09-14 정정 라운드(M1~M4)**: 외부 구현 검토 9차가 항목 (7)(저장소/
+  복구 검증)의 강제 종료 복구 시나리오가 `UNVERIFIED`(라이브 재현 불가)로
+  오분류돼 있었음을 지적 — 실제로는 제안된 최소 수정안이 전혀 구현되지 않은
+  `BLOCKED` 상태였다. `recoverStaleCaseJob()`을 구현·연동하고 관련 완료
+  트랜잭션 하드닝, polling/lease 타이밍 역방향 버그(클라이언트가 backend보다
+  먼저 포기하던 결함)까지 수정해 `FIXED(로컬/유닛 검증 완료)`로 재분류했다.
+  **남은 항목은 (7) 원격 리스·복구 검증 하나이며, 실 원격 Turso·실 프로덕션
+  강제 종료 라이브 재현이 아직 미수행이라 현재 전체 판정은 여전히
+  `NO-GO`다.** 파일럿을 외부 테스터에게 열어도 된다는 뜻이 아니다
+
+### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
+
+파일럿 실행 자체(테스터 모집·초대·실제 사용)는 SPEC-PILOT-READY-001의 범위가
+아니며, 그 실행이 안전하게 가능해지도록 준비하는 것까지만 다룬다. 파일럿이 실제로
+진행되어야 아래 항목들의 우선순위를 데이터 기반으로 판단할 수 있다 — 다음 순서를
+전제로 한다:
+
+1. **실 Gemini 기반 코퍼스 품질 평가** — 대표성 있는 사례 표본에 대해 실제 Gemini로
+   코퍼스 품질을 평가(예: `counterEvidenceIds`가 항상 빈 배열인 현상의 원인 규명)
+2. **사용자별 완료/피드백 집계 대시보드** — ①의 데이터를 바탕으로 완료 현황·피드백
+   집계를 보여주는 관리자 뷰
+3. **Gold Dataset 추출·집계 도구** — ①②로 축적된 원시 피드백 행을 실제 골드
+   데이터셋으로 추출·가공(SPEC-FEEDBACK-001에서 이미 후속 SPEC으로 명시적으로
+   미뤄진 항목)
+
+그 밖의 후속 개발 후보(순서 무관, 병행 가능):
+
+- Netlify 프로덕션 배포 확정(SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만
+  다룸) — PR #10 자동 Deploy Preview는 수정 후 통과했으나, 연결된 사이트를 장기
+  프로덕션 사이트로 채택하고 main 병합 시 자동 프로덕션 배포를 사용할지는 미결정
+- 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝
+- (장기) PostgreSQL 마이그레이션 실행(Drizzle ORM 뒤에서 이전 가능한 구조는 이미
+  유지 중, 실제 마이그레이션은 미실행)
+- (장기) 대규모 근거자료 코퍼스 확장(현재 21건은 프로덕션 규모 대비 소규모)
 - (장기) 상해후유장해/질병후유장해 외 추가 담보 영역 확장 검토

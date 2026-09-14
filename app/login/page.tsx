@@ -103,7 +103,11 @@ export default function LoginPage() {
             운영자가 승인한 테스터 계정으로만 로그인할 수 있습니다.
           </p>
         </div>
-        <LoginForm />
+        {/* SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013) — 실제 운영자 연락
+            이메일이 확정되어 SUPPORT_CONTACT_EMAIL 환경변수로 설정되면
+            "고객지원" 링크가 활성화된다(plan.md §F, 미확정 시 기존 비활성
+            표시 유지). */}
+        <LoginForm supportEmail={process.env.SUPPORT_CONTACT_EMAIL} />
       </div>
     </div>
   );

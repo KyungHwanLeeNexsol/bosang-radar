@@ -52,9 +52,25 @@ export default async function NewCasePage() {
       {/* Round4: Pencil 05-사건-입력.png 재대조 — 우측 레일 순서를
           개인정보 비식별 안내 → 분석 상태 → 최근 리서치로 정렬 */}
       <aside className="flex w-full flex-col gap-4 xl:w-[340px] xl:shrink-0">
+        {/* SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-011/012/014) — 구조적
+            사실(형식 검사 + 원본 필드 부재)과 잔여 위험(자유 텍스트 탐지
+            불가)을 구분해 명시한다. "보장"·"확실히 차단" 등 과대 주장 표현은
+            사용하지 않는다(REQ-PILOT-READY-011, 이 SPEC의 최우선 제약). */}
         <Notice title="개인정보 비식별 안내">
-          비식별 요약만 입력하세요. 실명, 상세 주소, 주민등록번호, 전화번호, 의료·보험 원본 문서
-          내용은 입력하지 마세요.
+          <p>
+            주민등록번호·휴대전화번호 형식은 자동으로 검사되어 차단되며, 주소·의료기록 원본을
+            입력하는 필드 자체가 이 양식에 없습니다.
+          </p>
+          <p className="mt-1.5">
+            다만 사건 경위·진단명·장해 부위 등 자유 텍스트 필드에 실명·상세 주소 등을 직접 타이핑해
+            넣는 경우는 탐지되지 않습니다. 합성이거나 이미 비식별화된 사례만 입력해 주세요.
+          </p>
+          <p className="mt-1.5 text-bora-ink-3">
+            입력 예시 — 사건 경위: &quot;2026년 8월 20일 창고에서 물건을 옮기던 중 바닥의 물기에
+            미끄러져 넘어지면서 왼쪽 발목을 심하게 접질렀습니다.&quot; / 진단명: &quot;좌측 발목
+            관절 인대 파열&quot; / 장해 부위: &quot;좌측 발목&quot; / 사고 일자:
+            &quot;2026-08-20&quot;
+          </p>
         </Notice>
         <AnalysisStatusPanel />
         <RecentResearchPanel cases={recentCases} />

@@ -1,7 +1,13 @@
 import type { RoleProviders } from "../ai/provider-factory";
 import { getDefaultLLMProviders } from "../ai/provider-factory";
+import { toSafeErrorMeta } from "../logging/safe-error";
 import { normalizeCase } from "./case-normalizer";
 import { retrieveEvidence } from "./evidence-retriever";
+import {
+  preferPremiumVerification,
+  selectEscalation,
+  selectInitialResearchTier,
+} from "./hybrid-research-router";
 import { research } from "./researcher";
 import { planQueries } from "./query-planner";
 import { challenge } from "./skeptic";
@@ -40,7 +46,7 @@ export interface RunPipelineOptions {
 // @MX:NOTE: [AUTO] 동시 사건 제한(design.md §4, REQ-GEMINI-RUNTIME-013/014) —
 // 순수 인메모리 Promise 체인 뮤텍스다(신규 의존성 없음, Redis 없음, 큐
 // 프레임워크 없음). 프로세스 로컬 보호일 뿐이며 분산 락이 아니다 — Node.js
-// 모듈 스코프 변수이므로 Vercel의 서로 다른 serverless 인스턴스(별도
+// 모듈 스코프 변수이므로 Netlify의 서로 다른 serverless 인스턴스(별도
 // 프로세스) 사이에서는 전혀 공유되지 않는다. 대기 시간에 참된 상한은
 // 없다(design.md §4 D4) — 락 보유자의 Gemini 네트워크 지연, RateScheduler
 // 페이싱 대기, GeminiProvider.withRetry() 재시도 대기가 모두 이 대기
@@ -57,19 +63,96 @@ function withPipelineLock<T>(task: () => Promise<T>): Promise<T> {
   return settled;
 }
 
+// SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008) — 파이프라인 각 단계
+// (CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier)
+// 실패 시 단계 이름과 오류 요약을 로그로 남긴다. 사건 입력 원문(자유 텍스트
+// 3개 필드)은 절대 로그에 포함하지 않는다(PII 최소화 원칙 유지) — 이
+// 헬퍼는 stage 이름과 error 요약만 기록하며 task의 인자를 로그에 담지 않는다.
+//
+// v0.6.0(외부 구현 검토 5차 반영) — `error: String(error)`는 근본 원인
+// 오류의 .message가 우연히 사건 입력 원문을 반사할 위험이 있어,
+// toSafeErrorMeta()로 화이트리스트 메타데이터(errorName/errorCode)만
+// 기록하도록 강화했다(lib/logging/safe-error.ts).
+function withStageLogging<T>(stage: string, task: () => T): T {
+  try {
+    return task();
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) })
+    );
+    throw error;
+  }
+}
+
+async function withAsyncStageLogging<T>(stage: string, task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: "pipeline_stage_failed", stage, ...toSafeErrorMeta(error) })
+    );
+    throw error;
+  }
+}
+
 export async function runPipeline(
   input: CaseInput,
   options: RunPipelineOptions = {}
 ): Promise<ResearchReport> {
   const { research: researchProvider, fast: fastProvider } =
     options.providers ?? getDefaultLLMProviders();
-  const caseSummary = normalizeCase(input);
-  const queries = planQueries(caseSummary);
-  const evidence = await retrieveEvidence(queries);
+  const caseSummary = withStageLogging("CaseNormalizer", () => normalizeCase(input));
+  const queries = withStageLogging("QueryPlanner", () => planQueries(caseSummary));
+  const evidence = await withAsyncStageLogging("EvidenceRetriever", () =>
+    retrieveEvidence(queries)
+  );
   const verification = await withPipelineLock(async () => {
-    const findings = await research(queries, evidence, researchProvider);
-    const challenges = await challenge(findings, evidence, fastProvider);
-    return verify(queries, findings, challenges, evidence, fastProvider);
+    const initialDecision = selectInitialResearchTier(queries);
+    const initialResearchProvider =
+      initialDecision.tier === "premium" ? researchProvider : fastProvider;
+    console.info(
+      JSON.stringify({
+        event: "pipeline_research_routed",
+        tier: initialDecision.tier,
+        reason: initialDecision.reason,
+      })
+    );
+
+    const runReview = async (provider: typeof researchProvider) => {
+      const findings = await withAsyncStageLogging("Researcher", () =>
+        research(queries, evidence, provider)
+      );
+      const challenges = await withAsyncStageLogging("Skeptic", () =>
+        challenge(findings, evidence, fastProvider)
+      );
+      const result = await withAsyncStageLogging("Verifier", () =>
+        verify(queries, findings, challenges, evidence, fastProvider)
+      );
+      return { findings, result };
+    };
+
+    const initial = await runReview(initialResearchProvider);
+    if (initialDecision.tier === "premium" || researchProvider === fastProvider) {
+      return initial.result;
+    }
+
+    const escalation = selectEscalation(queries, evidence, initial.findings, initial.result);
+    if (!escalation) {
+      return initial.result;
+    }
+
+    console.info(
+      JSON.stringify({
+        event: "pipeline_research_escalated",
+        from: "lite",
+        to: "premium",
+        reason: escalation.reason,
+      })
+    );
+    const premium = await runReview(researchProvider);
+    return preferPremiumVerification(initial.result, premium.result)
+      ? premium.result
+      : initial.result;
   });
 
   // reviewTargets 도출 — planQueries()가 이미 (domain, issueType) 쌍마다
