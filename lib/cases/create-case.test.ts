@@ -130,6 +130,10 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       "owner-job",
       "owner-job-cancel",
       "owner-job-race",
+      "owner-stale-missing",
+      "owner-stale-expired",
+      "owner-stale-reissued",
+      "owner-stale-valid",
     ]);
   });
 
@@ -636,6 +640,166 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
         ok: true,
         durationMs: 125,
       });
+    });
+
+    it("processing job의 리스가 사라졌으면(만료 후 정리) stale로 판단해 failed로 전환하고, 사용자는 즉시 재제출에 성공한다(M1, readiness 항목 7)", async () => {
+      const { recoverStaleCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-stale-missing", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      await db
+        .update(schema.caseJobs)
+        .set({ status: "processing" })
+        .where(eq(schema.caseJobs.id, started.jobId));
+      // 리스가 사라진 상태를 시뮬레이션 — 실제 만료 후 청소되거나 크래시로
+      // 리스만 유실된 경우를 재현한다.
+      await db
+        .delete(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-missing"));
+
+      await recoverStaleCaseJob("owner-stale-missing", started.jobId);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("failed");
+
+      const freshResult = await startCaseJob("owner-stale-missing", validInput);
+      expect(freshResult.success).toBe(true);
+    });
+
+    it("processing job의 리스가 만료됐으면 stale로 판단해 failed로 전환하고 그 stale 리스만 삭제한다", async () => {
+      const { recoverStaleCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-stale-expired", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      await db
+        .update(schema.caseJobs)
+        .set({ status: "processing" })
+        .where(eq(schema.caseJobs.id, started.jobId));
+      await db
+        .update(schema.reservations)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-expired"));
+
+      await recoverStaleCaseJob("owner-stale-expired", started.jobId);
+
+      const [recoveredJob] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(recoveredJob.status).toBe("failed");
+
+      const leases = await db
+        .select()
+        .from(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-expired"));
+      expect(leases).toHaveLength(0);
+      expect(job.leaseId).toBeDefined();
+    });
+
+    it("processing job의 리스가 이미 새 leaseId로 재발급됐으면(경쟁 상태) stale job만 failed로 전환하고 새 리스는 건드리지 않는다", async () => {
+      const { recoverStaleCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-stale-reissued", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      await db
+        .update(schema.caseJobs)
+        .set({ status: "processing" })
+        .where(eq(schema.caseJobs.id, started.jobId));
+      // 다른 leaseId로 이미 재발급된 새 리스를 시뮬레이션한다 — 이 새 리스는
+      // stale job의 leaseId와 다르므로 절대 삭제되면 안 된다.
+      const newLeaseId = "fresh-lease-id-owner-stale-reissued";
+      await db
+        .update(schema.reservations)
+        .set({ leaseId: newLeaseId, expiresAt: new Date(Date.now() + 300_000) })
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-reissued"));
+
+      await recoverStaleCaseJob("owner-stale-reissued", started.jobId);
+
+      const [recoveredJob] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(recoveredJob.status).toBe("failed");
+
+      const [currentLease] = await db
+        .select()
+        .from(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-reissued"));
+      expect(currentLease?.leaseId).toBe(newLeaseId);
+    });
+
+    it("리스가 여전히 유효하면(leaseId 일치 + 미만료) 아무 것도 하지 않는다(no-op)", async () => {
+      const { recoverStaleCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-stale-valid", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      await db
+        .update(schema.caseJobs)
+        .set({ status: "processing" })
+        .where(eq(schema.caseJobs.id, started.jobId));
+
+      await recoverStaleCaseJob("owner-stale-valid", started.jobId);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("processing");
+
+      const leases = await db
+        .select()
+        .from(schema.reservations)
+        .where(eq(schema.reservations.ownerUserId, "owner-stale-valid"));
+      expect(leases).toHaveLength(1);
+    });
+
+    it("완료 트랜잭션의 마지막 case_jobs UPDATE가 0행에 영향을 주면(다른 경로가 이미 상태를 바꿈) cases/reports INSERT까지 전부 롤백된다(M2)", async () => {
+      const { processCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-job", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      const pending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValueOnce(pending.promise);
+
+      const run = processCaseJob(started.jobId);
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+
+      // 파이프라인이 아직 진행 중인 동안, 다른 경로가 이미 이 job의 상태를
+      // failed로 바꿔놓은 상황을 시뮬레이션한다(reservations는 그대로 두어
+      // 앞선 펜싱 체크는 통과하게 한다) — 완료 트랜잭션 마지막 UPDATE가
+      // status='processing' 가드에 걸려 0행을 반환해야 한다.
+      await db
+        .update(schema.caseJobs)
+        .set({ status: "failed" })
+        .where(eq(schema.caseJobs.id, started.jobId));
+
+      pending.resolve(sampleReport);
+      await run;
+
+      const savedCases = await db
+        .select()
+        .from(schema.cases)
+        .where(eq(schema.cases.ownerUserId, "owner-job"));
+      expect(savedCases).toHaveLength(0);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("failed");
+      expect(job.caseId).toBeNull();
     });
 
     it("동일 job이 동시에 두 번 호출되어도 파이프라인은 한 번만 실행되고 완료 상태를 유지한다", async () => {

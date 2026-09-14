@@ -321,6 +321,59 @@ export async function cancelCaseJob(ownerUserId: string, jobId: string): Promise
   });
 }
 
+// M1(readiness 항목 7 재정정) — stale job 복구. case_jobs가 queued/processing
+// 상태인데 대응하는 reservations 리스가 없거나, leaseId가 다르거나(이미 다른
+// 실행이 재획득), 만료됐다면 — 정상 완료 전에 멈춘(함수 강제 종료 등) stale
+// 상태로 간주해 해당 job만 failed로 전환하고 그 job이 보유했던 (낡은)
+// leaseId에 한정해 펜싱된 방식으로 reservations를 정리한다. 현재 유효한
+// 리스(다른 leaseId로 이미 재발급된 경우 포함)는 절대 건드리지 않는다. 리스가
+// 여전히 유효하면(leaseId 일치 + 미만료) 아무 것도 하지 않는다(no-op).
+export async function recoverStaleCaseJob(ownerUserId: string, jobId: string): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    const [job] = await tx
+      .select({ leaseId: caseJobs.leaseId, status: caseJobs.status })
+      .from(caseJobs)
+      .where(and(eq(caseJobs.id, jobId), eq(caseJobs.ownerUserId, ownerUserId)));
+
+    if (!job || (job.status !== "queued" && job.status !== "processing")) {
+      return;
+    }
+
+    const [reservation] = await tx
+      .select({ leaseId: reservations.leaseId, expiresAt: reservations.expiresAt })
+      .from(reservations)
+      .where(eq(reservations.ownerUserId, ownerUserId));
+
+    const leaseIsValid =
+      reservation !== undefined &&
+      reservation.leaseId === job.leaseId &&
+      reservation.expiresAt.getTime() > now.getTime();
+
+    if (leaseIsValid) {
+      return;
+    }
+
+    const [failed] = await tx
+      .update(caseJobs)
+      .set({ status: "failed", updatedAt: now })
+      .where(and(eq(caseJobs.id, jobId), inArray(caseJobs.status, ["queued", "processing"])))
+      .returning({ id: caseJobs.id });
+
+    if (!failed) {
+      // 트랜잭션 시작 시점 조회 이후 다른 실행이 이미 상태를 바꿨다 —
+      // 경쟁 상태에서 더는 stale이 아니므로 그대로 둔다.
+      return;
+    }
+
+    await tx
+      .delete(reservations)
+      .where(and(eq(reservations.ownerUserId, ownerUserId), eq(reservations.leaseId, job.leaseId)));
+  });
+}
+
 // Background Function 전용 실행부. jobId와 leaseId를 DB에서 함께 읽어 소유권을
 // 확인하고, 완료 기록·리스 해제·job 상태 갱신을 하나의 트랜잭션으로 처리한다.
 // 실패 시 job은 안전한 일반 오류 상태로 남기고 펜싱된 리스를 해제한다.
@@ -370,7 +423,11 @@ export async function processCaseJob(jobId: string): Promise<void> {
         .where(
           and(eq(reservations.ownerUserId, job.ownerUserId), eq(reservations.leaseId, job.leaseId))
         );
-      await tx
+      // M2(readiness 항목 7 재정정) — 이 UPDATE가 정확히 1행에 적용됐는지
+      // 확인한다. 0행이면(예: 이 트랜잭션이 진행되는 동안 다른 경로가 이미
+      // 이 job의 상태를 바꿨다) 펜싱된 것으로 간주해 전체 트랜잭션(이미 실행된
+      // cases/reports INSERT 포함)을 롤백한다.
+      const [updatedJob] = await tx
         .update(caseJobs)
         .set({ status: "completed", caseId, updatedAt: now })
         .where(
@@ -379,7 +436,12 @@ export async function processCaseJob(jobId: string): Promise<void> {
             eq(caseJobs.leaseId, job.leaseId),
             eq(caseJobs.status, "processing")
           )
-        );
+        )
+        .returning({ id: caseJobs.id });
+
+      if (!updatedJob) {
+        throw new LeaseFencedError();
+      }
     });
   } catch (error) {
     const now = new Date();

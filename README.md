@@ -137,14 +137,13 @@ bosang-radar/
 
 SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
 
-### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기
+### 파일럿 배포 준비 — 구현 완료, readiness 항목 (7) 정정 라운드 진행
 
-- Netlify 동기 함수의 60초 제한과 실제 파이프라인 81초 측정 결과에 따라 분석 요청을
-  Background Function 비동기 경로로 전환했다. `case_jobs`에 작업을 기록하고 `202`
-  응답 후 상태 polling으로 완료된 `caseId`를 전달한다. Preview에서 실제 Gemini 3회
-  호출과 report 저장까지 검증했으며, 처리시간 반복 실측·쿼터·동시부하·복구 검증이 남아 있다.
+Netlify 동기 함수의 60초 제한에 따라 분석 요청을 Background Function 비동기
+경로로 전환했다. `case_jobs`에 작업을 기록하고 `202` 응답 후 상태 polling으로
+완료된 `caseId`를 전달한다.
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.15.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현(비동기 전환 + 하이브리드 Gemini 라우팅 포함)과 PR #10 자동 Deploy Preview 수정은 완료됐고, 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)~(6)이 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **남은 readiness 항목은 (7) 원격 리스·복구 검증(6개 하위 시나리오 중 4개 실측 PASS, 2개 잔여) 하나이며, 현재 전체 판정은 `NO-GO`입니다.**
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.15.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현(비동기 전환 + 하이브리드 Gemini 라우팅 포함)과 PR #10 자동 Deploy Preview 수정은 완료됐고, 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)~(6)이 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **2026-09-14 정정 라운드**: 항목 (7)의 강제 종료 복구 시나리오가 `UNVERIFIED`(라이브 재현 불가)로 오분류돼 있었음이 밝혀져(실제로는 최소 수정안이 구현되지 않은 `BLOCKED` 상태) `recoverStaleCaseJob()`을 구현·연동하고 관련 완료 트랜잭션 하드닝, polling/lease 타이밍 역방향 버그까지 수정해 `FIXED(로컬/유닛 검증 완료)`로 재분류했습니다. **남은 readiness 항목은 (7) 원격 리스·복구 검증 하나이며, 실 원격 Turso·실 프로덕션 강제 종료 라이브 재현이 아직 미수행이라 현재 전체 판정은 여전히 `NO-GO`입니다.**
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 

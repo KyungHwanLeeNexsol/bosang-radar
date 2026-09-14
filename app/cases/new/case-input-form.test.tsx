@@ -247,6 +247,36 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("M3(readiness 항목 7 재정정): 서버가 409(이미 처리 중)를 반환하면 안내 메시지를 표시하고 즉시 재제출이 가능하도록 가드를 해제한다", async () => {
+    const conflictResponse = {
+      status: 409,
+      json: () =>
+        Promise.resolve({ error: "이미 처리 중인 요청이 있습니다. 잠시 후 다시 시도해 주세요." }),
+    } as Response;
+    fetchMock.mockResolvedValue(conflictResponse);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("이미 처리 중인 요청이 있습니다");
+
+    // 409 이후에도 submitGuardRef가 해제되어 재제출이 가능해야 한다(스턱 UI
+    // 락 방지 — jsdom disabled/value 보존 한계 우회 사유는 AC-004 주석 참고).
+    act(() => fillAllFields(container));
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("AC-014 (네트워크 예외): fetch가 reject되면 사람이 읽을 수 있는 오류 메시지를 표시하고 unhandled rejection이 없다", async () => {
     fetchMock.mockRejectedValue(new TypeError("network error"));
 

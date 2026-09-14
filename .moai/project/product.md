@@ -1,8 +1,8 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-12 (SPEC-PILOT-READY-001 v0.14.0 반영 — Netlify Deploy Preview
-> 수정 성공과 잔여 원격 readiness 검증 상태 동기화; 이전 개정: 2026-09-10 §Roadmap
-> 3단계 분류)
+> 최종 수정: 2026-09-14 (SPEC-PILOT-READY-001 v0.15.0 반영 — readiness 항목
+> (1)~(6) READY 전환 및 항목 (7) stale-job 복구 정정 라운드(M1~M4) 동기화;
+> 이전 개정: 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계 분류)
 
 ## 한 줄 소개
 
@@ -93,22 +93,26 @@
 - Pencil 디자인 전체 화면 확장 재현 — SPEC-UI-MIGRATION-001
 - E2E storageState 인증 재사용(Better Auth rate-limit flaky 제거) — SPEC-E2E-AUTH-STATE-001
 
-### 파일럿 배포 준비 — 구현 완료, M4 실 인프라 검증 대기 (`status: in-progress`, v0.14.0)
+### 파일럿 배포 준비 — 구현 완료, readiness 항목 (7) 정정 라운드 진행 (`status: in-progress`, v0.15.0)
 
 - **파일럿 배포 준비**(SPEC-PILOT-READY-001) — **호스팅은 Netlify Free로 확정**
-  (DB: Turso Free, AI: Gemini API Free). 동기 함수 실행 시간 제한은 3층위
-  증거로 기록한다 — (a) 공식 게시 값 60초(변경 불가), (b) 상충하는 커뮤니티
-  관측 ~10초(미확인), (c) 이 프로젝트 계정의 실제 적용 상한은 실 배포 전까지
-  UNVERIFIED. **구현(M1: 사용자별 동시 실행 가드, M2: 최소 구조적 로깅, M3: 데이터
-  취급 고지 정직성 개선, M5: 최소 장애 대응 런북, M6: 테스트)은 완료됐고, PR #10의
-  자동 Deploy Preview에서 발견된 Middleware 네이티브 애드온 번들링 문제도 수정 후
-  재배포에 성공했다** — 최신 로컬 검증: 65/65 test files, 453/453 tests,
-  `format:check` PASS. M4 중 원격 Turso, 실 도메인 인증, 실 Gemini 스모크는 실제
-  Preview에서 검증됐고 배포 처리시간 3회 실측도 완료되어 readiness 항목
-  (1)~(5)가 `READY`다. AI Studio 실제 무료 등급 한도에 따라 Research/Fast 자체
-  예산은 4/11 RPM으로 설정했고, Research 20 RPD 제약 때문에 30건 파일럿은 최소 2일
-  이상 분산한다. **남은 항목은 (6) 서로 다른 사용자 동시 부하와 (7) 원격 리스·복구
-  검증의 2개이며, 현재 전체 판정은
+  (DB: Turso Free, AI: Gemini API Free). 실제 배포 도메인에서 3회 측정한
+  처리 시간(동기 접수 최대 3.761초, Background 완료 최대 47.900초)이 안전
+  여유 기준 이내임을 확인했다. **구현(M1: 사용자별 동시 실행 가드, M2: 최소
+  구조적 로깅, M3: 데이터 취급 고지 정직성 개선, M5: 최소 장애 대응 런북,
+  M6: 테스트)은 완료됐고**, 실제 Deploy Preview + 원격 Turso 대상 재검증으로
+  readiness 항목 (1)~(6)이 모두 `READY`로 전환됐다(호스팅 적합성/Gemini
+  쿼터/원격 DB/실 도메인 인증/실 Gemini 스모크/서로 다른 사용자 동시 부하).
+  AI Studio 실제 무료 등급 한도에 따라 Research/Fast 자체 예산은 4/11 RPM으로
+  설정했고, Research 20 RPD 제약 때문에 30건 파일럿은 최소 2일 이상 분산한다.
+  **2026-09-14 정정 라운드(M1~M4)**: 외부 구현 검토 9차가 항목 (7)(저장소/
+  복구 검증)의 강제 종료 복구 시나리오가 `UNVERIFIED`(라이브 재현 불가)로
+  오분류돼 있었음을 지적 — 실제로는 제안된 최소 수정안이 전혀 구현되지 않은
+  `BLOCKED` 상태였다. `recoverStaleCaseJob()`을 구현·연동하고 관련 완료
+  트랜잭션 하드닝, polling/lease 타이밍 역방향 버그(클라이언트가 backend보다
+  먼저 포기하던 결함)까지 수정해 `FIXED(로컬/유닛 검증 완료)`로 재분류했다.
+  **남은 항목은 (7) 원격 리스·복구 검증 하나이며, 실 원격 Turso·실 프로덕션
+  강제 종료 라이브 재현이 아직 미수행이라 현재 전체 판정은 여전히
   `NO-GO`다.** 파일럿을 외부 테스터에게 열어도 된다는 뜻이 아니다
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)

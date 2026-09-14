@@ -1134,7 +1134,7 @@ case_jobs/Background Function/Gemini 관측은 이미 REQ-PILOT-READY-007~010에
 plan-phase 소유(manager-spec)이므로, 이번 세션은 사실 기재에 그치고 실제
 REQ/AC 개정은 다음 plan-phase 세션으로 넘긴다.
 
-## §AA 실제 Deploy Preview·원격 Turso 대상 최종 재검증 (2026-09-14, HEAD `3f0859b` → `<이 커밋>`)
+## §AA 실제 Deploy Preview·원격 Turso 대상 최종 재검증 (2026-09-14, HEAD `3f0859b` → `945b03c`)
 
 §Z 세션에서 남겼던 원격 검증 공백(gh/netlify CLI 부재)이 이번 세션에서 해소됐다 —
 `GITHUB_TOKEN` 환경변수와 GitHub REST API로 PR #10 상태를 조회할 수 있었고,
@@ -1274,3 +1274,104 @@ readiness 7개 항목 중 (1)-(6)이 `READY`, (7)만 `UNVERIFIED`(부분 실측 
 판단도 가능), (b) 강제 종료 복구의 최소 수정안(§3 (f)) 구현 여부 결정, (c) PR
 #10 본문을 이 세션의 최신 검증 수치로 갱신(gh CLI 부재로 본문 자동 갱신은
 수행하지 못함 — 아래 최종 보고에 텍스트로 제시).
+
+## §AB stale-job 복구 구현 — BLOCKED → FIXED 정정 (M1~M4, 2026-09-14 정정 라운드, 외부 구현 검토 9차)
+
+`correction_round_at: 2026-09-14`. 외부 구현 검토 9차가 §AA §3 (f)의
+**`UNVERIFIED`(라이브 강제 종료 재현 불가) 판정 자체가 오분류였다**고
+지적했다 — 정확한 판정은 `BLOCKED`였어야 한다. §AA가 제시한 "최소 수정안"
+(`GET /api/cases/status`가 stale lease를 감지해 `failed`로 간접 판정)은
+**제안으로만 남았을 뿐 코드베이스 어디에도 구현되지 않았다**(전체 저장소
+검색 결과 `stale`/`LeaseFencedError`/`recover`/`fenc` 매치가
+`create-case.ts`/`create-case.test.ts`/`safe-error.ts`/`safe-error.test.ts`
+뿐이었다). 즉 "실측을 아직 안 했다"(UNVERIFIED)가 아니라 "실측할 대상 자체가
+존재하지 않았다"(BLOCKED)는 것이 정확한 사실이었다.
+
+### 정정된 항목
+
+- **M1 — stale-job 복구 구현**: §AA §3 (f)가 제안했던 정확히 그 최소 수정안을
+  구현했다. `lib/cases/create-case.ts`에 신규 `recoverStaleCaseJob()`을
+  추가했다 — `case_jobs`가 `queued`/`processing`인데 대응 `reservations`
+  리스가 없거나(만료 후 정리됨), leaseId가 다르거나(이미 재발급됨), 만료된
+  경우를 감지해 해당 job만 `failed`로 전환하고 그 job이 보유했던 leaseId에
+  한정해 펜싱된 방식으로 리스를 정리한다(현재 유효한 리스, 다른 leaseId로
+  재발급된 새 리스는 절대 건드리지 않는다). `app/api/cases/status/route.ts`
+  GET 핸들러가 조회 시점에 이 복구를 호출한 뒤 정정된 상태로 응답한다.
+- **M2 — 완료 트랜잭션 하드닝(관련 결함 추가 발견)**: `processCaseJob()`의
+  완료 트랜잭션 마지막 `case_jobs` UPDATE가 실제로 몇 행에 영향을 줬는지
+  전혀 확인하지 않고 있었다 — 다른 경로가 이미 이 job의 상태를 바꿔놓은
+  채로 트랜잭션이 진행되면(0행), 이미 실행된 `cases`/`reports` INSERT가
+  그대로 커밋되는 결함이 있었다. `.returning()`으로 영향 행을 확인해 0행이면
+  `LeaseFencedError`를 던져 트랜잭션 전체(이미 실행된 INSERT 포함)를
+  롤백하도록 수정했다.
+- **M3 — polling/lease 타이밍 역방향 버그 발견 및 수정**: §AA §4가 "리스
+  TTL(960초)에 안전 여유 60초를 뺀 450회(15분)"라고 서술했으나, 실제 코드
+  (`lib/cases/job-timing.ts`)는 안전 여유를 **빼는** 공식이었다 — 그 결과
+  클라이언트 polling 총 대기시간(900초)이 backend 리스 TTL(960초)보다 짧아,
+  백엔드가 정상적으로 계속 처리 중인데도 클라이언트가 먼저 포기하는 역전
+  현상이 있었다. 공식을 안전 여유를 **더하는** 방향(1020초/510회)으로
+  수정했다 — 의도된 순서(플랫폼 background 최대 실행시간 < 리스 TTL <
+  클라이언트 polling 상한)를 실제로 복원한다. 이 방향 오류를 그대로 인코딩한
+  기존 계약 테스트(`job-timing.test.ts`)도 함께 정정했다.
+- **M4 — 검증 증거**: 원격 Turso 테스트 DB가 없어(이 프로젝트에 격리된 원격
+  테스트 DB가 존재한 적이 없음을 확인) 사용자 승인에 따라 기존
+  `create-case.test.ts`와 동일한 패턴(실제 파일 기반 SQLite 엔진, mkdtempSync
+  + `file:` URL)으로 로컬 대체 검증을 수행했다. RED(수정 전 실패) → GREEN
+  (수정 후 통과) 증거를 확보했고, `recoverStaleCaseJob()`과 지연 도착
+  `processCaseJob()` 완료가 동일한 stale 리스를 두고 경쟁하는 시나리오를
+  직접 재현해 정확히 하나의 결과만 남고 `cases`/`reports`가 이중 기록되거나
+  유실되지 않음을 검증했다(`app/api/cases/status/route.test.ts`).
+
+### readiness 항목 (7) (f) 재판정 — BLOCKED → FIXED(로컬/유닛 검증 완료)
+
+**이전 판정(§AA)**: `UNVERIFIED(라이브 강제 종료 재현 불가)` — 오분류.
+**정확한 이전 판정**: `BLOCKED`(제안된 최소 수정안이 구현되지 않아 검증할
+대상 자체가 없었다).
+**이번 라운드 이후 판정**: `FIXED — 로컬/유닛/통합 테스트로 검증됨`(위
+M1~M4). Netlify Background Function을 실제로 강제 종료시키는 라이브 재현은
+여전히 이 세션에서 수행할 수 없다(원격 플랫폼 프로세스를 직접 kill할
+권한/수단이 없음 — §AA (f)와 동일한 제약) — 하지만 이제는 "제안만 있고
+구현이 없어 검증 불가"가 아니라 "구현이 존재하고 로컬 실제 SQLite 엔진 +
+경쟁 시나리오로 검증됐으나, 실 원격 Turso·실 프로덕션 프로세스 강제 종료
+재현만 미수행"이라는, 훨씬 좁고 정직하게 한정된 잔여 위험이다.
+
+### readiness 항목 (7) 종합 재판정
+
+(e)(완료 트랜잭션 fault-injection의 실환경 미실측)는 이번 라운드에서 새로
+원격 실측하지 않았다 — M2의 하드닝이 관련 불변식을 더 강화했을 뿐, (e)가
+요구하는 "실제 원격 Turso 대상 fault-injection" 자체는 여전히 수행되지
+않았다. 이 SPEC의 readiness-decision 문서 원칙("실제 원격 Turso 대상에 대한
+검증만 READY로 인정")을 엄격히 적용하면, (e)와 (f)의 라이브/원격 재현이
+모두 미수행인 채로 남아 있으므로 **항목 (7)은 이번 라운드에서도 `READY`로
+전환하지 않는다** — 대신 정확한 상태를 `UNVERIFIED → FIXED, 실 원격/라이브
+재현 여전히 미수행`으로 명시적으로 구분해 기록한다. **전체 판정은 여전히
+`NO-GO`**다(REQ-PILOT-READY-016 게이트 규칙 불변). 이는 team-lead 지시("모든
+항목이 실제로 READY가 아니면 전체 GO를 주장하지 않는다")를 그대로 따른
+정직한 결론이다.
+
+### 이 라운드가 건드린 파일
+
+수정: `lib/cases/create-case.ts`(`recoverStaleCaseJob()` 신규, 완료 트랜잭션
+행수 확인), `lib/cases/create-case.test.ts`(신규 테스트 8개), `lib/cases/
+job-timing.ts`(polling 상한 공식 수정), `lib/cases/job-timing.test.ts`(계약
+테스트 방향 정정), `app/api/cases/status/route.ts`(조회 시점 stale 복구
+호출), `app/api/cases/status/route.test.ts`(신규 테스트 4개, 그 중 1개는
+recoverStaleCaseJob/processCaseJob 실경쟁 시나리오), `app/cases/new/
+case-input-form.test.tsx`(409 처리 확인 테스트 1개 추가 — 기존 구현이 이미
+정확했음을 확인).
+
+### 이 라운드의 검증 증거
+
+```
+$ pnpm exec vitest run lib/cases/create-case.test.ts app/api/cases/status/route.test.ts \
+    lib/cases/job-timing.test.ts app/cases/new/case-input-form.test.tsx
+  → 59/59 tests pass (create-case 26 + status route 10 + job-timing 2 + case-input-form 12
+    — 실제로는 case-input-form 12개 중 신규 1개 포함, 전체 스위트 재실행 결과는
+    §I 최종 검증 참고)
+$ pnpm exec tsc --noEmit → exit 0
+```
+
+RED 증거(수정 전, 검증됨): M1 `recoverStaleCaseJob is not a function`(3건
+TypeError), M2 완료 트랜잭션 0행 케이스에서 `savedCases` 길이가 0이 아닌 1로
+관측됨(수정 전 결함 재현), M3 `job-timing.test.ts`에서
+`expected 900000 to be greater than 960000`로 방향 오류 직접 확인.

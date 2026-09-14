@@ -15,7 +15,12 @@ export const BACKGROUND_LEASE_TTL_SECONDS = 960;
 const CLIENT_POLL_SAFETY_MARGIN_SECONDS = 60;
 
 export const CLIENT_POLL_INTERVAL_MS = 2000;
+// M3(readiness 항목 7 재정정) — 안전 여유는 리스 TTL에서 빼는 것이 아니라
+// 더해야 한다. 의도된 순서는 "플랫폼 background 최대 실행시간 < 리스 TTL <
+// 클라이언트 polling 상한"이다 — 클라이언트가 backend보다 먼저 포기하면
+// 실제로는 계속 처리 중인 job에 대해 사용자가 혼란스러운 재제출을 시도하게
+// 된다.
 export const CLIENT_POLL_MAX_ATTEMPTS = Math.floor(
-  ((BACKGROUND_LEASE_TTL_SECONDS - CLIENT_POLL_SAFETY_MARGIN_SECONDS) * 1000) /
+  ((BACKGROUND_LEASE_TTL_SECONDS + CLIENT_POLL_SAFETY_MARGIN_SECONDS) * 1000) /
     CLIENT_POLL_INTERVAL_MS
 );

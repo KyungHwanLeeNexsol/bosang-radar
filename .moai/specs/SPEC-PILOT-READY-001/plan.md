@@ -557,9 +557,14 @@ v0.3.0부터 M1은 옵션 분기가 없는 단일 구현이다. Implementation K
   이 PRESERVE 대상에서 제외된 승인된 확장이다. `lib/ai/**`(모델 선택·RateScheduler
   페이싱 로직)는 REQ-PILOT-READY-008의 로그 추가 지점(`lib/ai/providers/
   gemini.ts`)을 제외하고는 기존과 동일하게 알고리즘·타입 계약 미변경.
-- `lib/db/schema.ts` — 신규 `reservations`(리스) 테이블 추가(`ownerUserId`/`leaseId`/
-  `expiresAt` 3개 컬럼)만 허용되며, 기존 테이블(`cases`/`evidence`/`reports`/
-  `feedback`/`allowed_testers`)의 컬럼·제약은 변경하지 않는다
+- `lib/db/schema.ts` — **(정정 라운드, 2026-09-14)** 신규 테이블 3개 추가가
+  허용된다: `reservations`(리스 — `ownerUserId`[PK, UNIQUE]/`leaseId`/
+  `expiresAt` 3개 컬럼), `case_jobs`(Netlify Background Function 작업 큐 —
+  `id`[PK]/`ownerUserId`/`leaseId`/`input`(json)/`status`/`caseId`(nullable,
+  cases 참조)/`createdAt`/`updatedAt`), `geminiRequestObservations`(비민감
+  Gemini 호출 관측 — `id`[PK]/`jobId`(case_jobs 참조)/`method`/`model`/
+  `status`/`ok`/`durationMs`/`observedAt`). 기존 테이블(`cases`/`evidence`/
+  `reports`/`feedback`/`allowed_testers`)의 컬럼·제약은 변경하지 않는다
 - `lib/validation/case-input.ts` — 기존 PII 차단 검증(`piiFreeText` 등) 미변경, 미약화
 - `lib/feedback/**` — 완전히 범위 밖(이 SPEC은 사건 생성 경로만 다룸)
 - `lib/auth/**`(설정값 제외) — 인증 로직 자체는 미변경, `BETTER_AUTH_URL` 등 배포
@@ -580,20 +585,21 @@ v0.3.0부터 §A 결정 1(재제출 가드 구현 방식)은 확정됐으므로 
 
 | 항목 | 상태 | 비고 |
 |------|------|------|
-| 호스팅/프로젝트/도메인 (v0.10.0 — Vercel→**Netlify Free로 변경 확정**) | **확정: Netlify Free, 무료 `*.netlify.app` 도메인** / **UNVERIFIED(v0.10.0 정정)** | 사용자가 Vercel 검토를 대체해 Netlify Free를 확정했다. 어댑터는 zero-config(`@netlify/plugin-nextjs`)라 별도 구조 변경은 불필요하다. **동기 함수 실행 시간 제한은 3층위로 기록한다**(v0.10.0 — 외부 구현 검토 8차가 제시한 공식 출처 `docs.netlify.com/build/functions/configuration/#default-values`를 이 세션이 직접 재확인함): (a) 공식 게시 값 **60초, 변경 불가**(2026-07-06 갱신 문서 확인), (b) 상충하는 커뮤니티 관측 **~10초**(Netlify 직원의 공식 확인 없음, 지원 티켓만 생성됨), (c) 이 프로젝트 계정에 실제 적용되는 상한은 실 배포 전까지 **UNVERIFIED**. 실 배포를 하지 않았으므로 현재 상태는 READY도 BLOCKED도 아닌 **UNVERIFIED**다. 비동기(POST 202 + 상태 조회) 재설계는 **조건부 대안**으로 남긴다 — 실 배포 실측에서 확인된 실제 상한 초과 또는 안전 여유 부족이 확인될 때만 착수한다(스파이크 리포트 §5, 필수 선행 작업 아님) |
-| 원격 Turso 대상(어느 인스턴스/DB) | **프로바이더 확정: Turso Free / 구체적 인스턴스: 아직 미생성** | 사용자가 Turso Free를 확정했으나, 실제 인스턴스는 운영자가 직접 `turso db create`로 생성 예정(계정 로그인이 필요해 이 세션에서 대행 불가) — 생성 후 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`을 `.env.local` 및 Netlify 환경변수에 등록해야 REQ-PILOT-READY-004/007이 실행 가능하다 |
-| 지원 연락처 이메일 주소 | **확정: `zuge3927@naver.com`** (`.env.local`의 `SUPPORT_CONTACT_EMAIL`에 반영됨) | REQ-PILOT-READY-013의 `mailto:` 링크 주소가 결정됐다 — 단, 실 배포 환경(Netlify)에도 동일 환경변수를 등록하고 그 환경에서 렌더링을 검증해야 "set+verified"까지 완료된다(로컬 `.env.local` 반영만으로는 배포 환경 검증까지 끝난 것은 아니다) |
+| 호스팅/프로젝트/도메인 (v0.10.0 — Vercel→**Netlify Free로 변경 확정**) | **HISTORICAL(v0.10.0 당시 상태) — 현재는 READY** | v0.10.0 작성 시점에는 실 배포 전이라 UNVERIFIED였다. **2026-09-13 이후 실측으로 해소됨**(readiness 항목 (1), `.moai/reports/pilot-ready-deployment-tier-decision-20260913.md` + `pilot-ready-timeout-measurement-20260913.md`): 3층위 증거(공식 60초/커뮤니티 ~10초/실제 배포 도메인 실측)를 모두 기록하고 실제 Preview 3회 측정(동기 접수 최대 3.761초, Background 완료 최대 47.900초)이 안전 여유 기준 이내임을 확인했다 |
+| 원격 Turso 대상(어느 인스턴스/DB) | **HISTORICAL(v0.3.0 당시 상태) — 현재는 READY, 인스턴스 생성·검증 완료** | v0.3.0 작성 시점에는 인스턴스가 아직 생성되지 않았다. **2026-09-12 이후 실측으로 해소됨**(readiness 항목 (3), `.moai/reports/pilot-ready-remote-db-verification-20260912.md`): 실제 원격 Turso 인스턴스에 migration 0007까지 총 8건 적용, seed 21건, `case_jobs`/`gemini_request_observations` 및 기존 사용자/allowlist 행을 독립 읽기로 재확인했다 |
+| 지원 연락처 이메일 주소 | **확정: `zuge3927@naver.com`** (`.env.local`의 `SUPPORT_CONTACT_EMAIL`에 반영됨) | REQ-PILOT-READY-013의 `mailto:` 링크 주소가 결정됐다 — 실 배포 환경(Netlify)에도 동일 환경변수가 설정된 상태에서 실제 Preview 렌더링까지 검증 완료됐다(`.moai/reports/pilot-ready-auth-domain-verification-20260912.md`, AC-PILOT-READY-013 PASS) |
 | 장애 대응 triage 담당자(누가 파일럿 중 장애를 통보받는가) | **확정: 이경환(파일럿 운영 책임자), 장애 접수 목표 1영업일 이내 1차 확인** | REQ-PILOT-READY-009의 triage 담당자 항목이 결정됐다 — `.moai/docs/pilot-incident-runbook.md` §3이 이미 이 값으로 갱신 완료됐다(v0.10.0, AC-PILOT-READY-009 PASS 전환 근거) |
-| Gemini 쿼터 점검 담당자 + 점검 시점 | **unconfirmed** | REQ-PILOT-READY-003(운영 체크리스트)의 절차를 "언제, 누가" 수행할지 확정되지 않았다 — 권고 시점: 파일럿 런칭 T-1일 |
-| 동시성 측정용 테스터 계정 3-5개 준비 방법 | **unconfirmed** | REQ-PILOT-READY-006(서로 다른 사용자 동시 부하 측정)을 실행하려면 실제로 로그인 가능한 테스터 계정 3-5개가 사전에 `pnpm tester:add`로 프로비저닝되어 있어야 한다 — 기존 테스터 계정을 재사용할지 별도 측정 전용 계정을 만들지 결정 필요 |
+| Gemini 쿼터 점검 담당자 + 점검 시점 | **HISTORICAL(v0.5.0 당시 상태) — 현재는 READY, 점검 완료** | v0.5.0 작성 시점에는 담당자/시점이 unconfirmed였다. **2026-09-13 이후 실측으로 해소됨**(readiness 항목 (2), `.moai/reports/pilot-ready-quota-checklist-20260913.md`): 프로젝트 운영자가 AI Studio 무료 등급 실제 한도(Research 5 RPM/Fast 15 RPM)를 확인하고 production/deploy-preview 양쪽에 4/11 RPM 예산을 설정·재확인했다 |
+| 동시성 측정용 테스터 계정 3-5개 준비 방법 | **HISTORICAL(v0.5.0 당시 상태) — 현재는 프로비저닝 완료** | v0.5.0 작성 시점에는 준비 방법이 unconfirmed였다. **2026-09-14 실측으로 해소됨**(readiness 항목 (6), `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-2): 사용자 승인에 따라 신규 합성 전용 테스터 3계정(`smoke-test-20260914-{1,2,3}@bosang-radar.internal`)을 원격 Turso에 직접 프로비저닝했다(비밀번호는 세션 프로세스 메모리에만 존재, 기록하지 않음) — 세 계정으로 서로 다른 사용자 동시 부하 측정을 완료했다 |
 
-**게이트(v0.10.0 갱신)**: 6개 항목 중 지원 이메일·triage 담당자 2개는 확정됐다.
-**호스팅 항목은 v0.8.0에서 "구조적 required-blocker"(HISTORICAL, 폐기된 판정)로
-과잉 단정됐던 것을 v0.9.0에서 UNVERIFIED로 정정했다** — 값 자체는 정해졌지만
-(Netlify Free), 이 프로젝트 계정에 실제 적용되는 동기 함수 실행 상한은 실 배포
-전까지 READY도 BLOCKED도 확정할 수 없다(공식 게시 값 60초 vs 상충하는 커뮤니티
-관측 ~10초 — 3층위 증거는 위 표 참고). 비동기 재설계는 실측 결과에 따른 조건부
-대안일 뿐, 선행 필수 조건이 아니다. Turso는 프로바이더만 확정, 인스턴스 생성은 운영자 행동 대기
-중이다. 나머지(Gemini 쿼터 담당자, 테스터 계정)는 그대로 미확정이다. 사용자 승인 전
-결제·플랜 업그레이드·실제 배포 행위는 이 체크리스트의 어떤 항목도 허가하지 않는다는
-원칙은 변경되지 않는다 — 이번 라운드도 실제 배포를 수행하지 않았다.
+**게이트(2026-09-14 갱신)**: 6개 항목 중 4개(호스팅, 원격 Turso, Gemini 쿼터,
+테스터 계정)는 v0.3.0~v0.10.0 작성 당시 unconfirmed/UNVERIFIED였던 상태가
+이후 세션들의 실측으로 모두 해소됐다 — 위 표는 그 히스토리(당시 상태)와
+현재 상태를 명시적으로 구분해 기록한다(단순 삭제가 아니라 HISTORICAL로
+표시). 지원 이메일·triage 담당자 2개는 애초부터 확정된 채 유지된다. 6개
+항목 전부가 이 SPEC 자체 범위 안에서는 해소됐지만, 이는 readiness 항목
+(7)(저장소/복구 검증)의 UNVERIFIED 상태나 전체 판정(`NO-GO`)을 바꾸지
+않는다 — 이 체크리스트는 "운영 결정이 확정됐는가"를 다루고, readiness
+문서는 "실제 파일럿을 열어도 되는가"라는 별개의 질문을 다룬다. 사용자 승인
+전 결제·플랜 업그레이드·실제 배포 행위는 이 체크리스트의 어떤 항목도
+허가하지 않는다는 원칙은 변경되지 않는다.
