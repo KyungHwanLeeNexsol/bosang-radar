@@ -223,4 +223,31 @@ m1_to_mN_commit_strategy: consolidated  # M1-M5 단일 커밋(로컬 커밋만, 
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase — main 병합 전. 구현 워크트리는 `plan/SPEC-PILOT-LAUNCH-001`에 병합된 상태이며, main(`d08c01d`)으로의 PR/병합은 아직 없음>_
+```yaml
+sync_status: completed
+sync_complete_at: 2026-09-14
+pr_merge_commit_sha: bc289ad9b95cf862ca3785d3fd73c2b143ca8983  # PR #11 squash-merge (plan/SPEC-PILOT-LAUNCH-001 → main), 전체 run-phase + 문서 정정 2라운드 내용을 담음
+sync_commit_sha: pending-backfill-self-referential  # 이 §E.4를 기록하는 커밋 자신의 SHA — 커밋은 자기 자신의 해시를 알 수 없어 표준 관례상 후속 백필 커밋이 필요하나, 문서 전용 커밋 재푸시가 추가 Netlify 프로덕션 빌드를 또 유발할 수 있어 이번 SPEC 종결에서는 백필하지 않기로 함(사용자 승인, 위 §Post-run Doc Correction Round 2 이후 논의) — `git log -1 main`으로 확인 가능
+production_deploy_confirmed_by: user_direct_dashboard_check  # GitHub commit-status/deployments API는 이 커밋 계열에서도 신호 없음(total_count 0 / 빈 배열, main HEAD bc289ad 기준 재확인) — 이 세션은 독립 검증 불가, 사용자가 Netlify 대시보드에서 직접 확인해 보고함
+production_deploy_confirmed_at: 2026-09-14
+main_head_before: d08c01d
+main_head_after: bc289ad
+```
+
+### 최종 품질 게이트 (PR #11 병합 직전, 병합 대상 HEAD `4c5cf94`에서 재실행)
+
+| 항목 | 명령 | 결과 |
+|---|---|---|
+| 타입체크 | `tsc --noEmit` | PASS(exit 0) — `.next/types` 생성을 위해 build 선행 필요했음(사전 build 미실행 시 `LayoutProps` 미해결 오류, 이 SPEC 무관 환경 이슈) |
+| Lint | `eslint`(`pnpm run lint`) | PASS(exit 0) |
+| 포맷 | `prettier --check .` | PASS(exit 0) |
+| 빌드 | `next build`(Turbopack) | PASS(exit 0) — 로컬 `file:` DB + 로컬 전용 임의 `BETTER_AUTH_SECRET`/더미 `GEMINI_API_KEY` 사용, 실 프로덕션 자격 증명 미사용 |
+| 테스트 전체 | `vitest run` | PASS — `Test Files 70 passed (70)` / `Tests 484 passed (484)`(run-phase 원본 수치와 동일, 코드 무변경이므로 재현됨) |
+
+### 변경 범위 재확인 (`git diff --stat origin/main..HEAD`, PR #11 병합 직전)
+
+11개 파일(코드/테스트 6 + 문서 5), 890 insertions / 10 deletions. `scripts/provision-tester.ts`, `lib/env.ts`, `lib/auth/config.ts` 무변경 확인(diff에 미등장). 상세 목록은 위 § 및 PR #11 본문 참고.
+
+### 프로덕션 배포 확인 — GitHub API 한계 (재확인)
+
+`git show --stat`으로 확인한 main HEAD(`bc289ad`)에 대해 commit-status API(`/commits/bc289ad.../status`)와 deployments API(`/deployments?sha=bc289ad...`)를 재조회한 결과 모두 신호 없음(`total_count: 0`, 빈 배열) — plan-phase에서 관찰된 것과 동일한 패턴(Netlify가 프로덕션 배포에 GitHub 구분 가능 상태를 게시하지 않는 것으로 보임). 이 세션은 Netlify 대시보드·CLI 접근 권한이 없어 이 이상 독립 검증할 수 없었다. **사용자가 Netlify 대시보드에서 직접 확인해 배포 성공을 보고했다**(2026-09-14) — 이 사실을 근거로 SPEC을 종결한다.

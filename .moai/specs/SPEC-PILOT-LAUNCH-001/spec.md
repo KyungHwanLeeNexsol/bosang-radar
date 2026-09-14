@@ -2,7 +2,7 @@
 id: SPEC-PILOT-LAUNCH-001
 title: "프로덕션 사용자 문구 정리 및 계정 운영 준비"
 version: "0.3.0"
-status: in-progress
+status: completed
 created: 2026-09-14
 updated: 2026-09-14
 author: Nexsol
@@ -98,6 +98,18 @@ depends_on: [SPEC-PILOT-READY-001]
   REQ-PILOT-LAUNCH-005 (c)와 plan.md §B.3 항목 3을 동일 설명으로
   동기화했다(acceptance.md는 해당 표현을 포함하지 않아 변경 불필요).
   코드·테스트는 이번에도 변경하지 않았다.
+- 2026-09-14: SPEC 종결 (Nexsol, 외부 최종 검토 PASS — 검토 HEAD `ad9a92e`/
+  `4c5cf94`) — 사용자 승인 아래 PR #11(`plan/SPEC-PILOT-LAUNCH-001` → `main`)을
+  squash 병합했다(병합 커밋 `bc289ad9b95cf862ca3785d3fd73c2b143ca8983`, main
+  `d08c01d` → `bc289ad`). 병합 전 `tsc`/`eslint`/`prettier --check`/
+  `next build`/`vitest run`(70/70 파일, 484/484 테스트) 전체 PASS를 이
+  머지 대상 HEAD(`4c5cf94`)에서 재확인했다(로컬 `file:` DB + 로컬 전용
+  임의 값만 사용, 실 프로덕션 자격 증명 미사용). 병합 후 사용자가 Netlify
+  대시보드에서 직접 프로덕션 배포 성공을 확인해 알려왔다 — §2.F 아래
+  미해결 확인 사항을 해소로 기록했다. 이로써 SPEC-PILOT-LAUNCH-001을
+  `status: completed`로 전환한다. `scripts/provision-tester.ts`,
+  `lib/env.ts`는 이 SPEC 전체 기간 동안 무변경으로 유지됐다(문서화·문구
+  정리만 수행, 실 계정 발급·원격 DB 쓰기 없음).
 
 ## §1. 개요 (Overview)
 
@@ -197,6 +209,16 @@ Deployments API(`/deployments`)를 main HEAD(`d08c01d15b8f8ecaa5d8f34cb171aed2b6
 SPEC-PILOT-READY-001 문서 동기화 사실(status/GO/PR#10/병합 SHA)과는 무관한
 별개 확인 대상이다 — REQ-PILOT-LAUNCH-006 자체는 이 SPEC의 plan-phase
 재검증으로 이미 충족됐다(§2.F 근거 열 참고).
+
+**해소 (2026-09-14, PR #11 병합 후)**: PR #11이 main(`bc289ad9b95cf862ca3785d3fd73c2b143ca8983`)에
+squash 병합된 뒤, 사용자가 Netlify 대시보드에서 직접 프로덕션 배포 성공을
+확인하고 세션에 알렸다(옵션 (a)의 취지에 해당하는 사용자 직접 확인 —
+다만 정확한 배포 SHA·URL 값 자체를 별도로 전달받지는 않았다). 이 세션은
+여전히 GitHub commit-status/deployments API로 이 커밋의 배포 신호를
+독립적으로 확인할 수 없었다(§E.4 근거 참고, main HEAD 기준 두 API 모두
+`total_count: 0`/빈 배열 — plan-phase에서 관찰한 것과 동일한 패턴).
+이 미해결 항목은 사용자의 직접 확인으로 해소된 것으로 기록하며, GitHub API
+경로로는 향후에도 독립 검증이 불가능하다는 사실 자체는 참고용으로 남긴다.
 
 ## Out of Scope
 
