@@ -795,6 +795,47 @@ Pages changed  skipping (실패 아님)
   실 Gemini 스모크, 서로 다른 사용자 동시 부하, 원격 리스·복구 검증을 수행하고
   readiness-decision 문서를 다시 판정한다.
 
+### 2026-09-14 sync-phase 종결 (SPEC 완료 전환)
+
+- `sync_status: completed`
+- `sync_complete_at: 2026-09-14`
+- `sync_commit_sha: pending-backfill-sync-close` (다음 커밋에서 실제 SHA로 백필 —
+  SHA placeholder backfill exemption, `spec-frontmatter-schema.md` 참고)
+
+이 항목은 위 2026-09-12 §E.4 항목(현재 상태 문서 정합화, `status: in-progress`
+유지)과 달리 SPEC을 실제로 종결하는 sync다. §AC/§AD(2026-09-14)에서 readiness
+7개 항목이 전부 `READY`로 전환되고 전체 판정이 `GO`로 전환된 사실, 그리고 PR
+#10이 main에 병합된 사실(merge commit `d74ece47b442717e6d8c60cbc2cb68443841a4ae`,
+`git log`로 직접 확인)을 근거로 `spec.md` frontmatter를
+`status: in-progress` → `status: completed`로 전환했다(Status Transition
+Ownership Matrix `in-progress → implemented → completed`, manager-docs 단일
+sync 커밋).
+
+- **동기화 범위**: `README.md`, `.moai/project/product.md`를 readiness 7/7
+  `READY`·전체 `GO`·PR #10 main 병합 완료 상태로 갱신했다. 인용한 최종 검증
+  수치(68 files·477 tests)는 §AC/§AD M6 최종 검증 스위트를 그대로 인용한다 —
+  이 sync 세션은 코드/테스트를 재실행하지 않았다(docs-only sync, team-lead
+  지시). `CHANGELOG.md`는 B12 사전 방출 grep(`grep -c 'SPEC-PILOT-READY-001'
+  CHANGELOG.md` → 4)이 이미 1 이상이라 신규 항목을 추가하지 않았다 — 기존
+  4개 항목이 이미 이 SPEC의 진행 이력을 문서화하고 있어 중복 방지 원칙에 따라
+  방출을 보류했다.
+- **frontmatter 전환 근거**: §AC "전체 판정 — `NO-GO` → `GO`로 전환" +
+  §AD(3회차 정정 라운드, M1~M6 전부 완료) + git 이력상 PR #10 병합 확인(merge
+  commit `d74ece47b442717e6d8c60cbc2cb68443841a4ae`, base branch `main`, 현재
+  `main` HEAD 기준 clean/up-to-date 확인).
+- **HISTORY 미변경 고지**: `spec.md` §HISTORY 본문은 이 sync에서 수정하지
+  않았다 — Status Transition Ownership Matrix(spec-frontmatter-schema.md)에
+  따라 manager-docs는 spec.md/plan.md/acceptance.md 본문 콘텐츠를 수정할
+  권한이 없고 frontmatter `status:`/`updated:`만 전환할 수 있다. SPEC 종결
+  근거(readiness 7/7 READY, GO, PR #10 병합)는 이 §E.4 항목과 §AC/§AD에 이미
+  기록되어 있으므로 별도 HISTORY 편집 없이도 감사 가능하다.
+- **잔여 위험**: 이 sync 자체는 README/product.md 갱신 및 frontmatter 전환일
+  뿐이다. readiness `GO` 판정은 이 SPEC이 요구하는 배포 준비 기준 충족을
+  뜻하며, 연결된 Netlify 사이트를 실제 장기 프로덕션 사이트로 채택하고 자동
+  배포를 사용할지는 여전히 별도의 미확정 운영 결정이다(README.md "다음 단계"
+  §후속 개발 참고). 이 구분을 GO 판정과 혼동하지 않도록 README.md/product.md
+  본문에도 동일하게 명시했다.
+
 ## §O Netlify 환경 확인 + 원격 Turso 부분 검증 (2026-09-12)
 
 사용자 확인에 따라 기존 Netlify 사이트 `musical-macaron-82feb3`에 CLI로 연결하고,

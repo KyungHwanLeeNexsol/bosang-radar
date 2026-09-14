@@ -1,8 +1,10 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-14 (SPEC-PILOT-READY-001 v0.15.0 반영 — readiness 항목
-> (1)~(6) READY 전환 및 항목 (7) stale-job 복구 정정 라운드(M1~M4) 동기화;
-> 이전 개정: 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계 분류)
+> 최종 수정: 2026-09-14 (SPEC-PILOT-READY-001 sync-phase 종결 — readiness 7개
+> 항목 전부 READY 전환, 전체 판정 GO, PR #10 main 병합 완료(`d74ece4`),
+> status: completed 전환; 이전 개정: 2026-09-14 v0.15.0(항목 (1)~(6) READY +
+> 항목 (7) 정정 라운드 M1~M4), 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계
+> 분류)
 
 ## 한 줄 소개
 
@@ -20,7 +22,7 @@
 보상레이더는 공개 서비스가 아니라, 사전에 지정한 실무자 10명 내외를 대상으로 하는 비공개 파일럿이다. 회원가입은 없고, 운영자가 사전에 등록한 테스터 계정만 로그인할 수 있는 초대 전용(allowlist) 방식을 채택한다. 모든 사건(case) 레코드는 생성한 사용자 계정에 귀속되며, 다른 테스터의 사건 데이터를 조회할 수 없다. 구체적인 인증 방식은 `tech.md`, 라우트/미들웨어 구조는 `structure.md` 참고.
 
 ### 2. 사건 입력
-사용자가 비식별화된 보험 사건 정보(상해/질병 경위, 진단명, 장해 부위 등)를 입력한다. 주민번호, 전화번호, 상세주소, 의료기록 원본 등 민감정보는 애초에 입력받지 않는다. 이 원칙은 선언에 그치지 않고, 사건 입력 폼/API의 입력 검증 스키마(Zod)가 해당 필드 형식(주민등록번호 패턴, 전화번호 패턴 등)을 구조적으로 거부하는 방식으로 실제 코드에 강제한다 — 자세한 내용은 `structure.md`의 `lib/validation/` 항목과 `tech.md`의 Zod 항목 참고.
+사용자가 비식별화된 보험 사건 정보(상해/질병 경위, 진단명, 장해 부위 등)를 입력한다. 주민번호, 전화번호, 상세주소, 의료기록 원본을 입력받는 필드는 이 양식에 애초에 존재하지 않는다. 나아가 사건 경위·진단명·장해 부위 등 자유 텍스트 필드에 대해서는, 입력 검증 스키마(Zod)가 주민등록번호 형식과 휴대전화번호 형식을 정규식으로 검사해 구조적으로 거부한다 — 이는 선언이 아니라 실제 코드에 강제된 동작이다. 다만 이 정규식 검증은 주민등록번호·휴대전화번호 "형식"만 탐지하며, 실명·상세 주소·병원명 등 다른 식별정보를 자유 텍스트에 직접 타이핑해 넣는 경우까지 탐지하거나 자동으로 비식별화하지는 않는다 — 그래서 테스터는 합성 사례이거나 이미 비식별화된 사례만 입력해야 한다(실제 UI 고지: `app/cases/new/page.tsx`의 "개인정보 비식별 안내" 참고). 자세한 내용은 `structure.md`의 `lib/validation/` 항목과 `tech.md`의 Zod 항목 참고.
 
 ### 3. 리서치 파이프라인
 입력된 사건은 다음 단계를 거쳐 리서치 리포트로 변환된다.
@@ -77,7 +79,7 @@
 그 SPEC들의 현재 상태를 3단계로 분류한 것이다 — 각 항목의 `status:`는
 `.moai/specs/<SPEC-ID>/spec.md`의 frontmatter에서 직접 확인할 수 있다.
 
-### 구현 완료 (10개 SPEC, `status: completed`)
+### 구현 완료 (11개 SPEC, `status: completed`)
 
 - 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
 - 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
@@ -92,28 +94,14 @@
 - 확정 Pencil 디자인의 순수 시각 계층 재현(3개 화면) — SPEC-PILOT-VISUAL-001
 - Pencil 디자인 전체 화면 확장 재현 — SPEC-UI-MIGRATION-001
 - E2E storageState 인증 재사용(Better Auth rate-limit flaky 제거) — SPEC-E2E-AUTH-STATE-001
-
-### 파일럿 배포 준비 — 구현 완료, readiness 항목 (7) 정정 라운드 진행 (`status: in-progress`, v0.15.0)
-
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001) — **호스팅은 Netlify Free로 확정**
-  (DB: Turso Free, AI: Gemini API Free). 실제 배포 도메인에서 3회 측정한
-  처리 시간(동기 접수 최대 3.761초, Background 완료 최대 47.900초)이 안전
-  여유 기준 이내임을 확인했다. **구현(M1: 사용자별 동시 실행 가드, M2: 최소
-  구조적 로깅, M3: 데이터 취급 고지 정직성 개선, M5: 최소 장애 대응 런북,
-  M6: 테스트)은 완료됐고**, 실제 Deploy Preview + 원격 Turso 대상 재검증으로
-  readiness 항목 (1)~(6)이 모두 `READY`로 전환됐다(호스팅 적합성/Gemini
-  쿼터/원격 DB/실 도메인 인증/실 Gemini 스모크/서로 다른 사용자 동시 부하).
+- 파일럿 배포 준비 — 운영 배포 검증(**호스팅은 Netlify Free로 확정** — DB: Turso
+  Free, AI: Gemini API Free; Background Function 비동기 전환; Gemini 하이브리드
+  모델 라우팅; 사용자별 동시 실행 가드; 최소 구조적 로깅; 최소 장애 대응 런북;
+  데이터 취급 고지 정직성 개선). 실제 Deploy Preview + 원격 Turso 대상
+  재검증으로 readiness 7개 항목이 모두 `READY`로 전환되어 전체 판정은 `GO`다.
   AI Studio 실제 무료 등급 한도에 따라 Research/Fast 자체 예산은 4/11 RPM으로
   설정했고, Research 20 RPD 제약 때문에 30건 파일럿은 최소 2일 이상 분산한다.
-  **2026-09-14 정정 라운드(M1~M4)**: 외부 구현 검토 9차가 항목 (7)(저장소/
-  복구 검증)의 강제 종료 복구 시나리오가 `UNVERIFIED`(라이브 재현 불가)로
-  오분류돼 있었음을 지적 — 실제로는 제안된 최소 수정안이 전혀 구현되지 않은
-  `BLOCKED` 상태였다. `recoverStaleCaseJob()`을 구현·연동하고 관련 완료
-  트랜잭션 하드닝, polling/lease 타이밍 역방향 버그(클라이언트가 backend보다
-  먼저 포기하던 결함)까지 수정해 `FIXED(로컬/유닛 검증 완료)`로 재분류했다.
-  **남은 항목은 (7) 원격 리스·복구 검증 하나이며, 실 원격 Turso·실 프로덕션
-  강제 종료 라이브 재현이 아직 미수행이라 현재 전체 판정은 여전히
-  `NO-GO`다.** 파일럿을 외부 테스터에게 열어도 된다는 뜻이 아니다
+  PR #10은 main에 병합 완료(merge commit `d74ece4`)됐다 — SPEC-PILOT-READY-001
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
 
@@ -132,8 +120,8 @@
 
 그 밖의 후속 개발 후보(순서 무관, 병행 가능):
 
-- Netlify 프로덕션 배포 확정(SPEC-PILOT-READY-001은 타임아웃 정합성 확인까지만
-  다룸) — PR #10 자동 Deploy Preview는 수정 후 통과했으나, 연결된 사이트를 장기
+- Netlify 프로덕션 배포 확정(SPEC-PILOT-READY-001은 readiness 기준 충족까지만
+  다룸) — PR #10은 main에 병합됐으나(merge commit `d74ece4`), 연결된 사이트를 장기
   프로덕션 사이트로 채택하고 main 병합 시 자동 프로덕션 배포를 사용할지는 미결정
 - 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝
 - (장기) PostgreSQL 마이그레이션 실행(Drizzle ORM 뒤에서 이전 가능한 구조는 이미
