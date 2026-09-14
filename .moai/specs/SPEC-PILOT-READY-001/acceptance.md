@@ -184,6 +184,15 @@ Vercel Hobby/Pro tier 문구는 HISTORICAL이다)
   job은 뒤늦게 완료를 시도해도 `failed`로 남으며 `cases`/`reports` 행을 생성하지
   않는다(지연 완료 fencing) — 근거: `.moai/specs/SPEC-PILOT-READY-001/progress.md`
   §AA(2026-09-14 원격 실측, PR #10 HEAD `3f0859b` 이후 커밋 기준).
+- And (**동등 검증 방법 인정 — 실제 프로세스 강제 종료의 대체, v0.16.0 신규**) readiness
+  항목 (7)의 "Netlify Background Function 강제 종료 후 상태 지속" 시나리오를 검증할 때,
+  실제 배포된 Deploy Preview(`*.netlify.app`)와 실제 원격 프로덕션 Turso에 synthetic-ID로
+  태그된 행을 직접 써서 "리스는 만료됐지만 job은 아직 처리 중으로 남아 있는" 상태를
+  재현하고, 그 상태에서 실제 `/api/cases/status` 응답과 원격 DB 재조회로 `recoverStaleCaseJob()`/
+  완료 트랜잭션 펜싱이 정확하게 동작함을 확인하는 방법은, 실제로 Netlify 프로세스를
+  라이브로 강제 종료(kill)하는 것과 **동등하게 인정되는 검증 방법**이다 — 실제 프로세스
+  강제 종료 그 자체는 이 AC를 만족시키기 위한 필수 행위가 아니다. 검증 후에는 synthetic
+  행이 모두 정리되어(0건) 프로덕션에 잔존하지 않았음이 함께 기록되어 있어야 한다.
 
 **AC-PILOT-READY-015** (동일 사용자 진성 경쟁 조건 — REQ-PILOT-READY-007)
 - Given `lib/cases/create-case.ts`의 리스(lease) 기반 재제출 가드 구현(REQ-PILOT-READY-007

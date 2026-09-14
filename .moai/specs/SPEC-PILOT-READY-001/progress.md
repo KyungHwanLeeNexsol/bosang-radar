@@ -237,7 +237,7 @@ Kickoff Approval — see § M4 Consolidated Blocker Report below). cycle_type=td
 | AC-PILOT-READY-014 | **PASS** | `pnpm exec vitest run app/cases/new/page.test.tsx` | Notice includes the full synthetic example (reused verbatim from `.moai/reports/gemini-runtime-smoke-20260828.md`) with all 4 field values: 사건 경위/진단명("좌측 발목 관절 인대 파열")/장해 부위/사고 일자 |
 | AC-PILOT-READY-015 | **PASS** | `pnpm exec vitest run lib/cases/create-case.test.ts -t "동시에 시작된"` | `Promise.all([createCase(...), createCase(...)])` against the same `ownerUserId`, same file-based SQLite engine — exactly 1 success + 1 `alreadyProcessing`, `runPipeline` called exactly once. No partial/transient double-start observed |
 | AC-PILOT-READY-016a | **PASS** (v0.6.0 — 차단 해제) | `Read .moai/reports/pilot-ready-idempotency-scope-20260911.md` | 이전에는 M1 구현 미완료로 N/A 처리됐으나, M1이 이번 라운드 이전에 이미 완료되어 외부 접근 없이 작성 가능해졌다. 리포트는 REQ-PILOT-READY-015의 4개 실패 모드(크래시 복구/완료 원자성/응답 유실 재제출/지연 도착 충돌) 재판정과 "idempotency 가드"→"사용자별 동시 실행 가드" 명명 정정을 기록한다 |
-| AC-PILOT-READY-016b | **PASS** (2026-09-13 판정 동기화) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다. 현재 리포트는 항목 (1)~(5)을 `READY`, 항목 (6),(7)을 `UNVERIFIED`, 전체를 `NO-GO`로 명시해 게이트 규칙과 일치한다 |
+| AC-PILOT-READY-016b | **PASS** (2026-09-14 판정 동기화 — 정정) | `Read .moai/reports/pilot-ready-readiness-decision-2026-09-10.md` (2026-09-14 HEAD `3f0859b` 이후 항목) | 이 AC는 "템플릿이 실제 판정값으로 채워졌는가"를 판정하며, "판정이 GO인가"를 판정하지 않는다. **정정**: 이 행이 이전에 인용하던 2026-09-13 스냅샷("항목 (1)~(5) READY, 항목 (6),(7) UNVERIFIED")은 커밋 `945b03c`(2026-09-14, 실 원격 Turso 3-테스터 동시부하 실측)로 이미 갱신됐다 — 현재 리포트는 **항목 (1)~(6)을 `READY`, 항목 (7)만 `UNVERIFIED`**, 전체를 `NO-GO`로 명시하며, 이는 여전히 게이트 규칙과 일치한다 |
 
 ### E2. Build Result
 
@@ -1375,3 +1375,144 @@ RED 증거(수정 전, 검증됨): M1 `recoverStaleCaseJob is not a function`(3�
 TypeError), M2 완료 트랜잭션 0행 케이스에서 `savedCases` 길이가 0이 아닌 1로
 관측됨(수정 전 결함 재현), M3 `job-timing.test.ts`에서
 `expected 900000 to be greater than 960000`로 방향 오류 직접 확인.
+
+## §AC stale-job 복구 2회차 정정 라운드 — expiresAt 펜싱 결함 수정 + 실 원격 검증 시도 (2026-09-14, HEAD `1f7f848` → `049be54`)
+
+`correction_round_at: 2026-09-14`. §AB가 고친 완료 트랜잭션 펜싱 가드에
+잔여 결함이 있었다 — leaseId 일치만 확인하고 `expiresAt`은 확인하지 않아,
+`recoverStaleCaseJob()`이 개입하기 전에 **같은 leaseId를 유지한 채 리스가
+만료된 경우** 완료 트랜잭션이 그대로 통과해버릴 수 있었다.
+
+### M1/M2 — 결함 수정 + RED/GREEN 증거 (완료, 원격 무관)
+
+`lib/cases/create-case.ts` `processCaseJob()` 완료 트랜잭션의 가드를
+`recoverStaleCaseJob()`과 동일한 3-조건(leaseId 일치 + 미만료 + job 상태
+`processing`)으로 강화했다. TDD 순서를 지키기 위해 수정을 먼저 되돌리고
+(`git stash`) 실패 테스트를 작성해 RED를 확인한 뒤, 수정을 재적용해 GREEN을
+확인했다.
+
+```
+RED (수정 전, git stash로 재현):
+  AssertionError: expected [ { …(6) } ] to have a length of +0 but got 1
+  (만료된 리스로 case 1건이 잘못 저장됨)
+
+GREEN (수정 후, 전체 스위트):
+$ pnpm exec vitest run lib/cases/create-case.test.ts
+  → 28/28 tests pass (신규 2개 포함: 만료-펜싱 재현 + 만료 1초 전 경계 통과)
+```
+
+경계 테스트(만료 1초 전에 커밋되면 정상 `completed` 전환)도 함께 통과시켜
+과도한 차단이 없음을 확인했다. 커밋 `049be54` (main 아님 —
+`plan/SPEC-PILOT-READY-001`)로 커밋+푸시 완료.
+
+### M3 — 실 원격 stale-job 합성 + status-API 검증: **BLOCKED**(테스터 자격증명 불일치)
+
+PR #10 Deploy Preview(`https://deploy-preview-10--musical-macaron-82feb3.netlify.app`,
+deploy SHA `049be54`)가 `success`로 빌드됨을 GitHub REST API로 확인했다.
+실제 원격 프로덕션 Turso에 synthetic-ID 태그된 `case_jobs`(status=`processing`)
++ `reservations`(같은 leaseId, 만료된 `expiresAt`) 행을 직접 써서
+(`scripts/pilot-ready-remote-stale-verify.ts` 신규 — owner-id/check-reservation/
+seed-stale/verify-after/cleanup/rollback-test 서브커맨드) 재현 자체는
+성공했으나, 그 다음 단계(Preview에 실제로 로그인해 `/api/cases/status`를
+호출)에서 막혔다:
+
+- `.moai/reports/pilot-ready-remote-db-verification-20260912.md`에 기록된
+  기존 테스터 3계정(`khwan3927@gmail.com`, `fucktube3927@gmail.com`,
+  `indiatube3927@gmail.com`) 모두, 현재 `.env.local`의 `TESTER_PASSWORD`로
+  `POST /api/auth/sign-in/email`을 시도하면 3계정 전부 `401
+  INVALID_EMAIL_OR_PASSWORD`를 반환한다(비밀번호 추출 자체는 16자 길이
+  일치로 재확인 — 추출 버그 아님). 즉 현재 `.env.local`의 `TESTER_PASSWORD`
+  값은 그 3계정이 실제로 프로비저닝됐던 시점의 비밀번호와 더 이상 일치하지
+  않는다(그 사이 로컬 값이 재생성/교체된 것으로 추정).
+- 대안으로 새 synthetic 검증 전용 테스터 계정(`test-pilot-ready-verify-*@example.test`,
+  기존 `scripts/provision-tester.ts` 재사용, 검증 후 즉시 삭제 예정)을 현재
+  `TESTER_PASSWORD`로 프로비저닝하려 시도했으나, 이 Bash 명령이 **Claude Code
+  auto-mode 권한 분류기에 의해 `[Modify Shared Resources]` 사유로 거부**됐다
+  — 이 거부를 우회하려는 시도(예: `user`/`account` 테이블에 직접 SQL INSERT)는
+  하지 않았다.
+- 시딩했던 synthetic `case_jobs`/`reservations` 행은 즉시 정리해(cleanup
+  서브커맨드) 0건 잔존을 확인했다 — 자격증명 문제로 막힌 채로 synthetic
+  데이터를 남겨두지 않았다.
+- team-lead(디스패치 세션)에게 구조화된 blocker 보고(유효한 테스터 자격증명,
+  또는 새 계정 프로비저닝을 위한 권한 허용, 또는 DB-레이어 전용 증거로
+  이 하위 단계를 대체 인정 — 3가지 선택지)를 전송했다. 이 세션 종료 시점까지
+  응답 없음 — **이번 라운드에서 M3의 HTTP/인증 레이어 검증은 미완료로
+  남는다.**
+
+### M4 — 실 원격 롤백 안전성 검증: **PASS**
+
+`scripts/pilot-ready-remote-stale-verify.ts rollback-test`로, 실제 원격
+프로덕션 Turso에서 synthetic `cases`+`reports` 행을 트랜잭션 안에 INSERT한
+뒤 의도적 오류로 롤백시켰다.
+
+```
+$ pnpm exec tsx scripts/pilot-ready-remote-stale-verify.ts rollback-test --owner=<tester-id>
+{"threwAsExpected":true,"remainingCases":0,"remainingReports":0,"syntheticCaseId":"synth-rollback-862aeea5-…","syntheticReportId":"synth-rollback-report-332f2695-…"}
+```
+
+트랜잭션이 의도한 대로 예외를 던졌고(`threwAsExpected: true`), `cases`/
+`reports` 양쪽 모두 실제 원격 대상에서 0행으로 확인됐다 — M2(§AB)가 고친
+완료 트랜잭션의 동일한 롤백 안전성이 실제 원격 Turso에서도 성립함을
+확인한다. 이 결과는 §AB의 기존 로컬 유닛 테스트 증거와 함께 판정한다(둘
+다 명명).
+
+### readiness 항목 (7) — 이번 라운드에서도 `READY`로 전환하지 않음
+
+M1/M2(로컬 원인 수정 + RED/GREEN)와 M4(실 원격 롤백 안전성)는 PASS했으나,
+M3의 HTTP/인증 레이어 실측(실제 Preview에 로그인해 `/api/cases/status`
+응답까지 확인하는 단계)이 테스터 자격증명 불일치로 막혀 완료되지 못했다.
+acceptance.md에 "실제 프로세스 강제 종료의 동등 대체 검증 방법"(synthetic
+행 + 실 Preview + 실 원격 Turso)을 명시적으로 인정하는 조항을 추가했으나
+(AC-PILOT-READY-007 신규 And절, v0.16.0), 이 라운드 자체가 그 방법을 끝까지
+수행하지 못했으므로 조항 추가와 별개로 **항목 (7)은 여전히 `READY`가
+아니다** — 정확한 상태는 `FIXED(로컬 원인 수정 완료) + 실 원격 롤백
+PASS(M4) + 실 원격 HTTP 인증 레이어 BLOCKED(자격증명, M3)`로 기록한다.
+**전체 판정은 여전히 `NO-GO`**다(REQ-PILOT-READY-016 게이트 규칙 불변).
+
+### readiness 항목 (6) — 정정: 이미 `READY`(이번 라운드에서 재검증 안 함)
+
+이 progress.md의 AC-PILOT-READY-016b 요약 테이블 행(위 §)이 커밋
+`945b03c` 이전 스냅샷("항목 (6) UNVERIFIED")을 그대로 인용하고 있어
+정정했다 — `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`의
+2026-09-14(`3f0859b` 이후) 항목에 이미 기록된 대로, 항목 (6)은 실 원격
+Turso 대상 3-테스터 동시부하 실측(커밋 `945b03c`)으로 **이미 `READY`**다.
+이번 라운드에서 항목 (6)을 재검증하지 않았다 — 정정은 문서 표기 오류
+수정일 뿐, 새 실측이 아니다.
+
+### PR #10 본문 갱신
+
+GitHub REST API(`$GITHUB_TOKEN`)로 PR #10 본문의 "최신 커밋 재빌드 대기"류
+텍스트를 실제 빌드 상태(`success`, deploy SHA `049be54`)로 갱신했다. PR은
+여전히 `open`(merge하지 않음).
+
+### 이 라운드가 건드린 파일
+
+수정: `lib/cases/create-case.ts`(완료 트랜잭션 3-조건 펜싱 가드),
+`lib/cases/create-case.test.ts`(신규 테스트 2개), `.moai/specs/
+SPEC-PILOT-READY-001/acceptance.md`(AC-PILOT-READY-007 동등 검증 방법 조항
+신규), `.moai/specs/SPEC-PILOT-READY-001/progress.md`(이 섹션 + 항목 (6)
+표기 정정). 신규: `scripts/pilot-ready-remote-stale-verify.ts`(원격 검증
+전용 일회성 스크립트, 커밋 유지 — 자격증명 확보 후 M3 재개 시 그대로
+재사용).
+
+### 최종 검증 스위트 (M6.5)
+
+```
+$ pnpm exec vitest run          → 477/477 tests pass (68 files)
+$ pnpm exec tsc --noEmit        → exit 0
+$ pnpm lint                     → exit 0 (eslint .)
+$ pnpm run format:check         → exit 0 (prettier --check .; 1회 --write로 스크립트 포맷 수정 후 재확인)
+$ pnpm build                    → exit 0 (Turbopack build 성공; instrumentation.ts Edge Runtime 경고는 기존 이슈, 이번 변경과 무관)
+$ pnpm test:e2e                 → exit 0 (11 passed, 11 skipped, 1 flaky→retry pass; sidebar-sticky.spec.ts 1회 flake는 완전 로컬/결정론적 스위트의 기존 known-flake이며 이번 변경과 무관)
+```
+
+### 잔여 위험(Residual Risk)
+
+- M3가 미완료이므로 "같은 leaseId를 유지한 채 리스가 만료되는" 시나리오의
+  실 원격 HTTP 레이어 증거는 여전히 로컬 유닛 테스트(M1/M2, GREEN)로만
+  뒷받침된다 — 실 원격 Turso 자체의 트랜잭션/타이밍 동작은 M4가 검증한
+  롤백 케이스로 간접 뒷받침되지만, 완료 트랜잭션 성공 경로 자체는 실 원격
+  대상으로 재현하지 못했다.
+- team-lead 응답(자격증명 제공/권한 허용/대체 인정) 대기 중 — 응답을
+  받으면 `scripts/pilot-ready-remote-stale-verify.ts`로 즉시 M3 재개
+  가능(추가 코드 변경 불필요).
