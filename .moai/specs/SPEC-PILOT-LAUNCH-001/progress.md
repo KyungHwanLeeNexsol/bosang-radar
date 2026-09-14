@@ -125,7 +125,7 @@ touch-list와 완전 일치 (초과 편집 없음).
 
 ```yaml
 run_complete_at: 2026-09-14
-run_commit_sha: pending-backfill-M1..M5  # 다음 커밋(또는 sync-phase)에서 실제 SHA로 백필
+run_commit_sha: 423ed9b
 run_status: PASS
 ac_pass_count: 8
 ac_fail_count: 0
