@@ -34,11 +34,113 @@ plan_audit_verdict: iteration 1 = PASS, score 0.92 (Tier M 임계값 0.80 이상
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### AC PASS/FAIL Matrix
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|----------------------|----------------|
+| AC-PILOT-LAUNCH-001 (TESTER LOGIN 캡션 제거, 헤딩→"로그인") | PASS | `npx vitest run app/login/page.test.tsx` | 3/3 tests pass, incl. new test asserting `TESTER LOGIN`/`테스터 로그인` absent and `<h1>` == `로그인` |
+| AC-PILOT-LAUNCH-002 (부제 문구 교체) | PASS | same run as above | new test asserts old 부제 문구 absent, new 문구 `승인된 계정으로만 로그인할 수 있습니다.` present |
+| AC-PILOT-LAUNCH-003 (전송 고지 문구 교체) | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx` | 11/11 tests pass, incl. new test asserting old 문구 absent, new active-instruction + Gemini 전송 고지 present, `평균 소요 시간 3~5분` retained |
+| AC-PILOT-LAUNCH-004 (account-provisioning.md 신규 작성, 6개 항목 (a)-(f) 포함) | PASS | `Read .moai/docs/account-provisioning.md` | 새 문서 작성 완료 (§1 자동 프로덕션 판별 없음(a), §2-1 대상 DB 호스트/토큰 미출력(b), §2-2 BETTER_AUTH_SECRET 일치(c), §3 재실행 무연산(d), §4 비밀값 기록 금지(e), §5 exit 0만으로 부족·실 로그인 검증(f)) |
+| AC-PILOT-LAUNCH-005 (README/product.md 재확인, 불일치 시만 수정) | PASS | `grep -n "SPEC-PILOT-READY-001" README.md .moai/project/product.md` | README.md:19,23,138,149 / product.md:3,104,108,123 — plan-phase snapshot과 일치, 불일치 없음, 두 파일 모두 무편집 |
+| AC-PILOT-LAUNCH-006 (Out of Scope 절 — 계정 비활성화 미구현) | PASS (범위 외 확인) | `git diff --stat` | `lib/auth/config.ts` 무변경 확인 — 이 SPEC은 계정 비활성화 로직을 구현하지 않음(Out of Scope 준수) |
+| AC-PILOT-LAUNCH-007 (푸터 안내 문구 교체) | PASS | `npx vitest run app/login/login-form.test.tsx` | 9/9 tests pass, incl. new test asserting old 푸터 문구 absent, new 문구 `계정은 운영자가 직접 발급합니다. 발급 및 로그인 문의는 담당자에게 연락해 주세요.` present |
+| AC-PILOT-LAUNCH-008 (Gemini 명시 전송 고지) | PASS | same run as AC-003 | 신규 어설션이 `Google Gemini` 명시 문구 포함을 직접 검증 |
+
+### RED Failure Evidence (TDD, pre-GREEN verbatim output)
+
+**M1 (login page/form)** — `npx vitest run app/login/page.test.tsx app/login/login-form.test.tsx`, 실행 전 상태(구 문구 잔존):
+```
+FAIL  app/login/login-form.test.tsx > ... > REQ-PILOT-LAUNCH-001: ...
+AssertionError: expected '업무용 이메일비밀번호표시로그인테스터 계정은 운영자가 직접 발급합니다…' not to contain '테스터 계정은 운영자가 직접 발급합니다. 계정 문의는 담당자에게 연…'
+
+FAIL  app/login/page.test.tsx > ... > REQ-PILOT-LAUNCH-001: ...
+AssertionError: expected 'BBORA보 상 레 이 더판례·약관·법령을 한 번에 대조하는손해사정…' not to contain 'TESTER LOGIN'
+
+Test Files  2 failed (2)
+     Tests  2 failed | 10 passed (12)
+```
+GREEN 이후: `Test Files 2 passed (2) / Tests 12 passed (12)`.
+
+**M2 (case-input-form)** — `npx vitest run app/cases/new/case-input-form.test.tsx`, 실행 전 상태:
+```
+FAIL  app/cases/new/case-input-form.test.tsx > ... > REQ-PILOT-LAUNCH-003/004: ...
+AssertionError: expected '입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습…' not to contain '입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습…'
+
+Test Files  1 failed (1)
+     Tests  1 failed | 10 passed (11)
+```
+GREEN 이후: `Test Files 1 passed (1) / Tests 11 passed (11)`.
+
+### Full Test Suite
+
+```
+$ npm run test   (vitest run, 전체 스위트)
+Test Files  70 passed (70)
+     Tests  484 passed (484)
+```
+1차 전체 실행 시 `scripts/provision-tester.test.ts`의 `[AC-RUNTIME-006]` 1건이 15000ms 타임아웃으로 실패했으나(exit=1, 69 passed/70), 해당 파일 단독 재실행에서 19/19 전부 통과 — 서브프로세스(tsx CLI) 병렬 부하 경합으로 인한 환경 플레이크로 판정(내 스코프 밖, `scripts/provision-tester.ts`/테스트 파일 모두 무편집). 2차 전체 재실행(exit=0, 70/70 passed / 484/484 tests)으로 확인.
+
+### Cross-Platform Build / Type / Lint / Format
+
+```
+$ npx tsc --noEmit                       → exit 0 (no errors)
+$ npm run lint (eslint .)                → exit 0
+$ npm run format:check (prettier --check) → exit 0 (1건 자동 포맷 정정: case-input-form.tsx, 내용 변경 없음 — wrapping만)
+$ npm run build (next build, Turbopack)  → exit 0
+  - 사전 이슈: 워크트리 node_modules에 next 패키지 누락(pnpm 심볼릭 링크 깨짐) → `pnpm install --frozen-lockfile`로 복구, 재시도 성공
+  - 잔존 경고 1건: instrumentation.ts:33 Edge Runtime의 process.exit 사용 경고 — 기존 코드, 이 SPEC 무관, 무편집
+```
+
+### PRESERVE Verification
+
+```
+$ git diff -- scripts/provision-tester.ts lib/db/schema.ts scripts/e2e-tester-emails.ts
+(빈 출력 — PRESERVE 대상 무편집 확인)
+```
+
+### git diff --stat
+
+```
+ app/cases/new/case-input-form.test.tsx | 15 +++++++++++++++
+ app/cases/new/case-input-form.tsx      |  4 ++--
+ app/login/login-form.test.tsx          | 12 ++++++++++++
+ app/login/login-form.tsx               |  2 +-
+ app/login/page.test.tsx                | 17 +++++++++++++++++
+ app/login/page.tsx                     |  9 ++-------
+ 6 files changed, 49 insertions(+), 10 deletions(-)
+?? .moai/docs/account-provisioning.md (신규)
+```
+touch-list와 완전 일치 (초과 편집 없음).
+
+### M4 doc-sync regression re-check
+
+`grep -n "SPEC-PILOT-READY-001" README.md .moai/project/product.md` 재실행 결과 README.md:19,23,138,149 / product.md:3,104,108,123 — plan-phase 스냅샷과 일치. 불일치 없음, 두 파일 모두 무편집.
+
+### Blockers encountered
+
+없음. 단, run-phase 착수 시 워크트리가 stale 상태(runtime-synthetic 브랜치, unrelated HEAD)였음 — 자가 치유 절차(§Step 0)로 해결(같은 오브젝트 DB를 공유하는 독립 워크트리이므로 안전; `plan/SPEC-PILOT-LAUNCH-001` 브랜치는 무접촉).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+```yaml
+run_complete_at: 2026-09-14
+run_commit_sha: pending-backfill-M1..M5  # 다음 커밋(또는 sync-phase)에서 실제 SHA로 백필
+run_status: PASS
+ac_pass_count: 8
+ac_fail_count: 0
+preserve_list_post_run_count: 0  # scripts/provision-tester.ts, lib/db/schema.ts, scripts/e2e-tester-emails.ts 무편집 확인(git diff 빈 출력)
+l44_pre_commit_fetch: not_applicable  # 로컬 worktree 자가 치유 케이스, 원격 fetch 불필요(§Step 0 참고)
+l44_post_push_fetch: not_applicable  # manual git-strategy 모드 — push 없음
+new_warnings_or_lints_introduced: 0  # eslint exit 0, tsc --noEmit exit 0
+cross_platform_build:
+  typecheck: PASS
+  lint: PASS
+  format_check: PASS
+  build: PASS
+total_run_phase_files: 7  # 6 touched (source+test) + 1 new doc
+m1_to_mN_commit_strategy: consolidated  # M1-M5 단일 커밋(로컬 커밋만, manual git-strategy 모드 — push 없음)
+```
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

@@ -302,4 +302,19 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  // SPEC-PILOT-LAUNCH-001 M2(REQ-PILOT-LAUNCH-003/004, AC-PILOT-LAUNCH-003/008)
+  // — 파일럿 출시 전 사건 입력 화면 하단 안내 문구를 합성/비식별 데이터
+  // 전용 지침 + 외부 AI 모델(Gemini) 전송 고지로 교체한다.
+  it("REQ-PILOT-LAUNCH-003/004: 안내 문구가 합성/비식별 지침과 전송 고지로 교체되고 소요시간 안내는 그대로 유지된다", () => {
+    const notice = container.querySelector('[data-testid="case-input-footer-notice"]')!;
+    expect(notice.textContent).not.toContain(
+      "입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다."
+    );
+    expect(notice.textContent).toContain("합성이거나 이미 비식별화된 사례만 입력해 주세요.");
+    expect(notice.textContent).toContain(
+      "입력한 정보는 AI 분석을 위해 외부 AI 모델 제공자(Google Gemini)에 전송됩니다."
+    );
+    expect(notice.textContent).toContain("평균 소요 시간 3~5분");
+  });
 });

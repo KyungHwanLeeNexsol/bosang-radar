@@ -175,6 +175,18 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     supportContainer.remove();
   });
 
+  // SPEC-PILOT-LAUNCH-001 M1(REQ-PILOT-LAUNCH-001, AC-PILOT-LAUNCH-001/007)
+  // — 파일럿 출시 전 "테스터" 문구 제거. 푸터 안내 문구를 일반 계정 발급
+  // 안내로 교체한다.
+  it("REQ-PILOT-LAUNCH-001: 푸터 안내 문구가 테스터 계정 발급 문구에서 일반 계정 발급 문구로 교체된다", () => {
+    expect(container.textContent).not.toContain(
+      "테스터 계정은 운영자가 직접 발급합니다. 계정 문의는 담당자에게 연락해 주세요."
+    );
+    expect(container.textContent).toContain(
+      "계정은 운영자가 직접 발급합니다. 발급 및 로그인 문의는 담당자에게 연락해 주세요."
+    );
+  });
+
   it("잘못된 자격증명이면 login-error에 오류 메시지를 표시한다(기존 동작 회귀 없음)", async () => {
     signInEmailMock.mockResolvedValue({
       error: { message: "이메일 또는 비밀번호가 올바르지 않습니다." },

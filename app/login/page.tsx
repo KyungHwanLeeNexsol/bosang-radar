@@ -106,13 +106,8 @@ export default async function LoginPage() {
       <div className="flex flex-1 flex-col items-center justify-center gap-8 px-4">
         {/* Round3: 우측 폼 패널 B 타일 제거 — Pencil 03-테스터-로그인.png 기준 */}
         <div className="flex flex-col items-center gap-2.5">
-          <span className="text-meta font-semibold uppercase tracking-wide text-bora-ink-4">
-            TESTER LOGIN
-          </span>
-          <h1 className="text-h2 font-semibold text-bora-ink">테스터 로그인</h1>
-          <p className="text-body-s text-bora-ink-3">
-            운영자가 승인한 테스터 계정으로만 로그인할 수 있습니다.
-          </p>
+          <h1 className="text-h2 font-semibold text-bora-ink">로그인</h1>
+          <p className="text-body-s text-bora-ink-3">승인된 계정으로만 로그인할 수 있습니다.</p>
         </div>
         {/* SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013) — 실제 운영자 연락
             이메일이 확정되어 SUPPORT_CONTACT_EMAIL 환경변수로 설정되면
