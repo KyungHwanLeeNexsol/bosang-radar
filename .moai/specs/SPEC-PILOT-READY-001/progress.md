@@ -799,8 +799,9 @@ Pages changed  skipping (실패 아님)
 
 - `sync_status: completed`
 - `sync_complete_at: 2026-09-14`
-- `sync_commit_sha: pending-backfill-sync-close` (다음 커밋에서 실제 SHA로 백필 —
-  SHA placeholder backfill exemption, `spec-frontmatter-schema.md` 참고)
+- `sync_commit_sha: 4ae1eebb32d3474d14e2cc024ff50e8d6c7756cb` (backfilled in this
+  follow-up commit per the SHA placeholder backfill exemption — the sync
+  commit itself could not cite its own hash)
 
 이 항목은 위 2026-09-12 §E.4 항목(현재 상태 문서 정합화, `status: in-progress`
 유지)과 달리 SPEC을 실제로 종결하는 sync다. §AC/§AD(2026-09-14)에서 readiness
