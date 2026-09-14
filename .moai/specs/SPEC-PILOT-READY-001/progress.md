@@ -1692,7 +1692,22 @@ $ pnpm exec vitest run lib/cases/create-case.test.ts
   → 28/28 tests pass
 ```
 
-### M3 — PR #10 본문 갱신: (아래 기록)
+### M3 — PR #10 본문 갱신: **완료**
+
+`gh` CLI가 이 환경에 없어 GitHub REST API(`$GITHUB_TOKEN`)로 직접
+조회·갱신했다. M1/M2 커밋(`5110044`)과 M4/M5 커밋(`1732435`)을 push한
+뒤 PR #10을 재조회 — `state: open`, `merged: false`, `head.sha:
+1732435ac74f21c4d8f141f90885b8c3e735b8eb`, `base.ref: main`로
+확인했다. `GET /repos/{owner}/{repo}/commits/{sha}/status`로 이 HEAD의
+Netlify Deploy Preview 빌드 상태를 폴링(1차 `pending` → 2차 15초 뒤
+`success`, "Deploy Preview ready!") 확인한 뒤 `PATCH
+/repos/{owner}/{repo}/pulls/10`로 본문을 갱신했다 — HEAD `b841d4b`가
+이 라운드의 새 HEAD `1732435`로 대체됐음을 명시하고, readiness 표를
+7개 항목 전부 READY·전체 판정 GO로 갱신하고, 검증 섹션의 테스트
+수치를 M6에서 재확인한 실측값(68/68 test files, 477/477 tests)으로
+갱신하고, Deploy Preview 링크의 deploy SHA와 build state(success)를
+갱신했다. `PATCH` 응답과 재조회 모두 `state: open`, `merged: false`를
+확인해 이 갱신이 병합을 유발하지 않았음을 확인했다.
 
 ### M4 — Gemini 호출 위반 서술 정확화: **완료**
 
@@ -1718,7 +1733,20 @@ M3 PASS·항목 (7) READY·전체 GO 판정을 뒤집지 않는다는 점을 명
 중복 쓰기/읽기와 회피 가능했던 실 Gemini 호출 1건을 유발)를 근거로,
 시작/종료 시각과 test-run ID를 알리는 절차를 명문화했다.
 
-### M6 — 최종 검증: (아래 기록)
+### M6 — 최종 검증: **완료**
+
+```
+$ pnpm exec vitest run          → 477/477 tests pass (68 files)
+$ pnpm exec tsc --noEmit        → exit 0
+$ pnpm lint                     → exit 0 (eslint .)
+$ pnpm run format:check         → exit 0 (prettier --check .)
+$ pnpm build                    → exit 0 (Turbopack build 성공; instrumentation.ts Edge Runtime 경고는 기존 이슈, 이번 변경과 무관 — §AC와 동일)
+```
+
+이 라운드의 실제 커밋: M1/M2(`5110044`) → M4/M5(`1732435`) → 이 M3/M6
+정정 기록(다음 커밋). `plan/SPEC-PILOT-READY-001`에 push 완료. main은
+건드리지 않았고, PR #10은 병합하지 않았다(`state: open`, `merged: false`
+유지 확인).
 
 ### 이 라운드가 건드린 파일
 
