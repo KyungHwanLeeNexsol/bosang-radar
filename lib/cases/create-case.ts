@@ -395,12 +395,27 @@ export async function processCaseJob(jobId: string): Promise<void> {
     const now = new Date();
 
     await db.transaction(async (tx) => {
+      // M3(readiness 항목 7 재정정 2회차) — 기존 가드는 leaseId 일치만
+      // 확인했다. 같은 leaseId를 유지한 채 리스가 만료된 경우(예:
+      // recoverStaleCaseJob이 아직 개입하지 않은 시점)가 통과해버리는
+      // 결함이 있었다 — recoverStaleCaseJob의 3-조건 판정(leaseId 일치 +
+      // 미만료 + job 상태)을 이 완료 트랜잭션 자신도 동일하게 적용한다.
       const [current] = await tx
-        .select({ leaseId: reservations.leaseId })
+        .select({ leaseId: reservations.leaseId, expiresAt: reservations.expiresAt })
         .from(reservations)
         .where(eq(reservations.ownerUserId, job.ownerUserId));
 
-      if (current?.leaseId !== job.leaseId) {
+      const [currentJob] = await tx
+        .select({ status: caseJobs.status })
+        .from(caseJobs)
+        .where(eq(caseJobs.id, jobId));
+
+      const leaseStillValid =
+        current !== undefined &&
+        current.leaseId === job.leaseId &&
+        current.expiresAt.getTime() > now.getTime();
+
+      if (!leaseStillValid || currentJob?.status !== "processing") {
         throw new LeaseFencedError();
       }
 

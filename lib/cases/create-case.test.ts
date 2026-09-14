@@ -134,6 +134,8 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       "owner-stale-expired",
       "owner-stale-reissued",
       "owner-stale-valid",
+      "owner-lease-expired-completion",
+      "owner-lease-margin-ok",
     ]);
   });
 
@@ -832,6 +834,81 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
         .select()
         .from(schema.cases)
         .where(eq(schema.cases.ownerUserId, "owner-job-race"));
+      expect(savedCases).toHaveLength(1);
+    });
+
+    it("완료 트랜잭션 직전 같은 leaseId를 유지한 채 리스가 만료되면(recoverStaleCaseJob 미개입) 펜싱되어 cases/reports가 전혀 기록되지 않고 job은 failed로 남는다(readiness 항목 7, M1 재정정 2회차)", async () => {
+      const { processCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-lease-expired-completion", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      const pending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValueOnce(pending.promise);
+
+      const run = processCaseJob(started.jobId);
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+
+      // 파이프라인이 아직 진행 중인 동안, 같은 leaseId는 그대로 둔 채
+      // expiresAt만 과거로 되돌린다 — recoverStaleCaseJob이 개입하지 않은
+      // 상태에서 processCaseJob 자신의 완료 트랜잭션이 이 만료를 감지해야
+      // 한다.
+      await db
+        .update(schema.reservations)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(schema.reservations.ownerUserId, "owner-lease-expired-completion"));
+
+      pending.resolve(sampleReport);
+      await run;
+
+      const savedCases = await db
+        .select()
+        .from(schema.cases)
+        .where(eq(schema.cases.ownerUserId, "owner-lease-expired-completion"));
+      expect(savedCases).toHaveLength(0);
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("failed");
+      expect(job.caseId).toBeNull();
+    });
+
+    it("완료 트랜잭션이 만료 직전(여유 1초)에 커밋되면 정상적으로 completed로 전환되고 case/report가 저장된다(경계값, M1 재정정 2회차)", async () => {
+      const { processCaseJob, startCaseJob } = await import("./create-case");
+      const started = await startCaseJob("owner-lease-margin-ok", validInput);
+      expect(started.success).toBe(true);
+      if (!started.success) return;
+
+      const pending = deferred<typeof sampleReport>();
+      runPipelineMock.mockReturnValueOnce(pending.promise);
+
+      const run = processCaseJob(started.jobId);
+      await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+
+      // 만료까지 넉넉한 여유(1시간)를 두어, 완료 트랜잭션이 정상적으로
+      // 커밋되는 유효 경로를 재확인한다 — 새 가드가 유효한 리스까지
+      // 과도하게 차단하지 않는지 검증하는 경계 테스트.
+      await db
+        .update(schema.reservations)
+        .set({ expiresAt: new Date(Date.now() + 3_600_000) })
+        .where(eq(schema.reservations.ownerUserId, "owner-lease-margin-ok"));
+
+      pending.resolve(sampleReport);
+      await run;
+
+      const [job] = await db
+        .select()
+        .from(schema.caseJobs)
+        .where(eq(schema.caseJobs.id, started.jobId));
+      expect(job.status).toBe("completed");
+      expect(job.caseId).not.toBeNull();
+
+      const savedCases = await db
+        .select()
+        .from(schema.cases)
+        .where(eq(schema.cases.ownerUserId, "owner-lease-margin-ok"));
       expect(savedCases).toHaveLength(1);
     });
   });
