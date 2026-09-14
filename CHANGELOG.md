@@ -5,6 +5,39 @@
 
 ## [Unreleased]
 
+### Fixed — 클라이언트 polling 상한(6분)이 backend 리스 TTL(960초)보다 먼저 끝나던 불일치
+
+`app/cases/new/case-input-form.tsx`의 job 상태 polling이 고정 180회×2초(6분)에서
+멈춰, 실제로는 여전히 유효한(TTL 960초) backend job에 대해 사용자에게 "실패"를
+먼저 알리는 창이 있었습니다. `lib/cases/job-timing.ts`(신규, DB 의존성 없는
+순수 상수 모듈)를 추가해 polling 상한을 리스 TTL 기준 안전 여유(60초)를 둔
+450회×2초(15분)로 넓혔고, `create-case.ts`의 `BACKGROUND_LEASE_TTL_SECONDS`는
+이 파일에서 재수출해 값 하나로 유지합니다. 타임아웃 메시지도 즉시 재제출을
+유도하지 않도록("지금 다시 제출하지 말고 잠시 후 새로고침해 확인해 주세요")
+정정했습니다.
+
+**검증**: `lib/cases/job-timing.test.ts`(신규 2개), `case-input-form.test.tsx`에
+예전 180회 상한을 지나도 계속 대기함을 확인하는 케이스 1개 추가. 전체
+Vitest 68/68 files·466/466 tests, tsc/eslint/prettier/build 모두 exit 0.
+
+### Verified — 실제 Deploy Preview + 원격 Turso 대상 하이브리드 라우팅·동시성·리스 복구 실측
+
+`GITHUB_TOKEN`으로 PR #10의 최신 Deploy Preview가 `ready`이고 런타임도 살아
+있음을 확인한 뒤, 사용자 승인에 따라 새 합성 전용 테스터 3계정을 원격 Turso에
+직접 프로비저닝(비밀번호는 프로세스 메모리에만 존재, 기록하지 않음)해 다음을
+실제 환경에서 검증했습니다: 서로 다른 사용자 3명의 동시 사건 제출(정상/복합
+하이브리드 경로 각각 실측, 429/5xx 없음, 소유자별 DB 격리 확인), 동일 사용자
+동시 경합(202+409), 동일 job에 대한 background 함수 중복 호출 시 정확히 1회만
+실행됨(관측 테이블로 확인), 원격 DB에서 리스 만료를 직접 재현했을 때의 TTL
+재획득과 지연 완료 fencing.
+
+**남은 gap**: 완료 트랜잭션 실패 시 부분 저장 없음은 단위 테스트로만 확인(실환경
+fault-injection은 위험 대비 실익이 낮아 미시도), processing 중 강제 종료 복구는
+실제 재현이 불가능해 UNVERIFIED로 남기고 최소 수정안(상태 조회 시 리스 TTL
+초과+리스 미보유면 `failed`로 간접 판정)만 제시했습니다.
+
+**참고**: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA, `.moai/reports/pilot-ready-readiness-decision-2026-09-10.md`
+
 ### Fixed — 로컬 E2E `case-flow.spec.ts` 502 회귀 (§R 비동기 전환 이후 방치)
 
 `POST /api/cases`가 같은 origin의 `/.netlify/functions/process-case-background`를

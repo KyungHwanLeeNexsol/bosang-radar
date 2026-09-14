@@ -20,7 +20,7 @@
 
 최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001, 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력으로 무료 티어 파일럿 안정성을 확보한 SPEC-GEMINI-RUNTIME-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
 
-파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 결정, 원격 DB/인증 도메인 검증, 최소 동시 실행 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 **호스팅을 Netlify Free로 확정**하고 구현(M1-M6, Netlify Background Function 비동기 전환 및 Researcher 하이브리드 모델 라우팅 포함)을 완료했습니다. PR #10의 자동 Deploy Preview에서 발견된 Middleware 네이티브 애드온 번들링 문제도 수정되어 Preview가 통과했습니다(최신 HEAD 기준 67/67 test files, 463/463 tests, `tsc`/`eslint`/`format:check`/`build` 모두 PASS) — readiness 항목 (1)-(5)는 `READY`, 남은 (6) 서로 다른 사용자 동시 부하·(7) 원격 리스/복구 검증 2개가 `UNVERIFIED`라 **readiness 판정은 전체 `NO-GO`**입니다(`.moai/specs/SPEC-PILOT-READY-001/`, PR #10 open, 병합 보류).
+파일럿(외부 전문가 10명 내외) 실제 착수 전 운영 배포 검증(호스팅 결정, 원격 DB/인증 도메인 검증, 최소 동시 실행 가드, 구조적 로깅, 데이터 취급 고지 정직성)을 다루는 SPEC-PILOT-READY-001은 **호스팅을 Netlify Free로 확정**하고 구현(M1-M6, Netlify Background Function 비동기 전환 및 Researcher 하이브리드 모델 라우팅 포함)을 완료했습니다. PR #10의 자동 Deploy Preview에서 발견된 Middleware 네이티브 애드온 번들링 문제도 수정되어 Preview가 통과했습니다(최신 HEAD 기준 68/68 test files, 466/466 tests, `tsc`/`eslint`/`format:check`/`build` 모두 PASS) — 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)-(6)이 `READY`, 남은 (7) 원격 리스/복구 검증만 `UNVERIFIED`라 **readiness 판정은 전체 `NO-GO`**입니다(`.moai/specs/SPEC-PILOT-READY-001/`, PR #10 open, 병합 보류).
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`, `reservations`, `case_jobs`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
@@ -33,7 +33,7 @@
 - **테스터 계정 프로비저닝 CLI**(`pnpm tester:add`) — Better Auth 공식 API(`signUpEmail`) 기반
 - **실제 Playwright E2E 스위트**(`pnpm test:e2e`) — 로그인·사건입력·피드백·테넌트 격리 4개 시나리오를 실제 Chromium으로 검증
 - **Netlify Background Function 비동기 분석 경로** — `POST /api/cases`는 `202`와 jobId를 즉시 반환하고, 최대 15분 백그라운드 실행 후 상태 조회로 결과 페이지에 이동
-- `pnpm test`(67 files, 463 tests)/`pnpm test:e2e`(11 passed, 11 expected skips — 로컬 하네스가 Netlify Background Functions를 흉내내지 않는 async case-flow 경로는 스킵, 원격 Preview 스모크로 대체 검증)/`pnpm lint`/`pnpm build`/`pnpm format:check` PASS
+- `pnpm test`(68 files, 466 tests)/`pnpm test:e2e`(11 passed, 11 expected skips — 로컬 하네스가 Netlify Background Functions를 흉내내지 않는 async case-flow 경로는 스킵, 원격 Preview 스모크로 대체 검증)/`pnpm lint`/`pnpm build`/`pnpm format:check` PASS
 
 로컬 환경에서 DB 연결부터 E2E 실행까지 처음 시작하는 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
 
@@ -144,7 +144,7 @@ SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 
   응답 후 상태 polling으로 완료된 `caseId`를 전달한다. Preview에서 실제 Gemini 3회
   호출과 report 저장까지 검증했으며, 처리시간 반복 실측·쿼터·동시부하·복구 검증이 남아 있다.
 
-- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.14.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현과 PR #10 자동 Deploy Preview 수정은 완료됐고, readiness 항목 (1)~(5)가 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **남은 readiness 항목은 (6) 서로 다른 사용자 동시 부하와 (7) 원격 리스·복구 검증의 2개이며, 현재 전체 판정은 `NO-GO`입니다.**
+- **파일럿 배포 준비**(SPEC-PILOT-READY-001, v0.15.0): 호스팅은 **Netlify Free로 확정**(DB Turso Free, AI Gemini Free). 구현(비동기 전환 + 하이브리드 Gemini 라우팅 포함)과 PR #10 자동 Deploy Preview 수정은 완료됐고, 실제 Deploy Preview·원격 Turso 대상 재검증으로 readiness 항목 (1)~(6)이 `READY`입니다. AI Studio 실제 한도에 따라 Research/Fast 예산을 4/11 RPM으로 설정했으며, Research 20 RPD 제약 때문에 파일럿은 최소 2일 이상 분산합니다. **남은 readiness 항목은 (7) 원격 리스·복구 검증(6개 하위 시나리오 중 4개 실측 PASS, 2개 잔여) 하나이며, 현재 전체 판정은 `NO-GO`입니다.**
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 
