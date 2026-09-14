@@ -875,7 +875,16 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       expect(job.caseId).toBeNull();
     });
 
-    it("완료 트랜잭션이 만료 직전(여유 1초)에 커밋되면 정상적으로 completed로 전환되고 case/report가 저장된다(경계값, M1 재정정 2회차)", async () => {
+    it("완료 트랜잭션이 만료 직전(실제 1초 여유)에 커밋되면 정상적으로 completed로 전환되고 case/report가 저장된다(경계값, M1 재정정 3회차)", async () => {
+      // 3회차 정정 — 이전 라운드의 이 테스트는 이름은 "1초 경계"였지만
+      // 실제 expiresAt 여유는 3,600,000ms(1시간)였다(외부 검토에서 확인된
+      // 불일치). vi.useFakeTimers()로 "지금"을 고정한 뒤 expiresAt을
+      // 정확히 now+1000ms로 설정해, 진짜 1초 경계에서도 완료 트랜잭션이
+      // 과도하게 차단되지 않는지 검증한다.
+      vi.useFakeTimers();
+      const start = new Date("2024-03-15T00:00:00.000Z");
+      vi.setSystemTime(start);
+
       const { processCaseJob, startCaseJob } = await import("./create-case");
       const started = await startCaseJob("owner-lease-margin-ok", validInput);
       expect(started.success).toBe(true);
@@ -887,12 +896,12 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
       const run = processCaseJob(started.jobId);
       await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
 
-      // 만료까지 넉넉한 여유(1시간)를 두어, 완료 트랜잭션이 정상적으로
-      // 커밋되는 유효 경로를 재확인한다 — 새 가드가 유효한 리스까지
-      // 과도하게 차단하지 않는지 검증하는 경계 테스트.
+      // 만료까지 정확히 1초(실제 경계값)의 여유만 둔다 — 시스템 시각은
+      // start에 고정되어 있으므로, 완료 트랜잭션의 now.getTime()도 동일한
+      // start이고, expiresAt(start+1000ms)은 그보다 1초 뒤다.
       await db
         .update(schema.reservations)
-        .set({ expiresAt: new Date(Date.now() + 3_600_000) })
+        .set({ expiresAt: new Date(start.getTime() + 1_000) })
         .where(eq(schema.reservations.ownerUserId, "owner-lease-margin-ok"));
 
       pending.resolve(sampleReport);
