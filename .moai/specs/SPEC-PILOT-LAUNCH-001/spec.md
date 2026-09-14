@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-LAUNCH-001
 title: "프로덕션 사용자 문구 정리 및 계정 운영 준비"
-version: "0.2.0"
+version: "0.3.0"
 status: draft
 created: 2026-09-14
 updated: 2026-09-14
@@ -49,6 +49,29 @@ depends_on: [SPEC-PILOT-READY-001]
   `app/login/login-form.test.tsx`, `app/cases/new/case-input-form.test.tsx`)에
   추가하는 작업이 파일 수에 포함됨을 반영해 Tier S(< 5 files)에서 Tier
   M(5-15 files, acceptance.md 별도 작성)으로 상향.
+- 2026-09-14: plan-phase 외부 검토 3차 반영 (Nexsol) — 4가지 정정.
+  ① Netlify 프로덕션 배포 확인: 사용자가 프로덕션 배포 완료를 확인했으나,
+  오케스트레이터가 GitHub commit-status API(`/commits/{sha}/status`)와
+  Deployments API(`/deployments`)를 main HEAD(`d08c01d15b8f8ecaa5d8f34cb171aed2b6620f24`)
+  기준으로 조회한 결과 두 API 모두 신호가 없어(commit-status
+  `total_count: 0`, deployments 빈 배열) 실제 프로덕션 URL·배포 SHA를
+  독립적으로 검증할 수 없었다 — §2.F 아래 미해결 확인 사항으로
+  `[NEEDS CLARIFICATION]` 마커를 신규 기록하고, README.md:142/product.md:123-124의
+  기존 "아직 결정되지 않았습니다" 서술은 이 불확실성과 일치하므로 수정하지
+  않는다. ② REQ-PILOT-LAUNCH-003/004 및 acceptance.md의 교체 문구를
+  "전송될 수 있습니다"(가능성 표현)에서 "전송됩니다"(확정 표현, Google
+  Gemini 명시)로 정정 — Gemini 무료 티어 호출은 모든 제출 건에서 항상
+  발생하는 실제 흐름이지 가능성이 아니므로. ③ REQ-PILOT-LAUNCH-006 근거
+  줄 번호를 D1 감사 이후 초안(README.md:19,23,138,142; product.md:3-5,82,104)에서
+  다시 오케스트레이터의 신규 재검증 결과(README.md:19,23,138,149;
+  product.md:3,104,108,123)로 재정정하고, 기계적 Grep 인용(줄 번호)과
+  의미적 검증 대상(status/GO/PR#10/병합 SHA 4가지 사실)을 명시적으로
+  구분했다 — D1 감사에서 지적된 이전 오류가 이번 재검증에서도 완전히
+  해소되지 않았음을 확인하고 정정한 것이다. ④ plan-auditor 1차 감사(PASS
+  0.92, iteration 1, commit `2af6f0f` 기준)는 D1(줄 번호 인용 오류)을
+  제외한 모든 must-pass 기준을 충족했으나, 이번 3차 반영이 spec.md/plan.md/
+  acceptance.md 아티팩트 해시를 다시 변경하므로 재감사(iteration 2)가
+  필요함을 progress.md에 기록한다.
 
 ## §1. 개요 (Overview)
 
@@ -113,7 +136,7 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-003 | Unwanted | `app/cases/new/case-input-form.tsx`의 폼 하단 안내 문구(현재: "입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다.", `case-input-form.tsx:352`)는 두 가지를 사용해서는 안 된다 — (a) 시스템이 입력 내용을 비식별 상태로 "처리한다"는 수동태 보장 표현(`lib/validation/case-input.ts`의 스키마는 자유 텍스트 3개 필드 `incidentDescription`/`diagnosisName`/`disabilityBodyPart`에 입력된 임의의 식별정보를 탐지·비식별화하지 않는다 — SPEC-PILOT-READY-001 REQ-PILOT-READY-011에서 이미 코드로 확인된 사실과 동일), (b) "리서치 목적 외에 사용되지 않습니다"라는 이용 목적 제한 보장 진술 — Gemini 무료 티어 호출은 외부 제공자(Google) 자체의 데이터 취급 정책을 따르므로, 운영자는 그 목적 제한이 실제로 집행됨을 보장할 수 없다. 이 문구는 (1) 사용자에게 합성이거나 이미 비식별화된 사례만 입력하도록 요구하는 능동 지시 표현(같은 화면 우측 Notice `app/cases/new/page.tsx:66`이 이미 채택한 "합성이거나 이미 비식별화된 사례만 입력해 주세요." 표현과 통일)과, (2) 입력 내용이 AI 분석을 위해 외부 모델 제공자에게 전송될 수 있다는 사실 고지로 교체되어야 한다. "평균 소요 시간 3~5분" 안내는 이 정정과 무관하며 그대로 유지한다. | Grep 조사 확인(`app/cases/new/case-input-form.tsx:352` vs `app/cases/new/page.tsx:66` — 같은 화면 안에서 두 문구가 서로 다른 정직성 수준을 갖고 있음을 확인); Gemini 무료 티어 데이터 취급 정책이 운영자 통제 밖에 있다는 사실은 외부 검토 2차로 재확인 |
+| REQ-PILOT-LAUNCH-003 | Unwanted | `app/cases/new/case-input-form.tsx`의 폼 하단 안내 문구(현재: "입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다.", `case-input-form.tsx:352`)는 두 가지를 사용해서는 안 된다 — (a) 시스템이 입력 내용을 비식별 상태로 "처리한다"는 수동태 보장 표현(`lib/validation/case-input.ts`의 스키마는 자유 텍스트 3개 필드 `incidentDescription`/`diagnosisName`/`disabilityBodyPart`에 입력된 임의의 식별정보를 탐지·비식별화하지 않는다 — SPEC-PILOT-READY-001 REQ-PILOT-READY-011에서 이미 코드로 확인된 사실과 동일), (b) "리서치 목적 외에 사용되지 않습니다"라는 이용 목적 제한 보장 진술 — Gemini 무료 티어 호출은 외부 제공자(Google) 자체의 데이터 취급 정책을 따르므로, 운영자는 그 목적 제한이 실제로 집행됨을 보장할 수 없다. 이 문구는 (1) 사용자에게 합성이거나 이미 비식별화된 사례만 입력하도록 요구하는 능동 지시 표현(같은 화면 우측 Notice `app/cases/new/page.tsx:66`이 이미 채택한 "합성이거나 이미 비식별화된 사례만 입력해 주세요." 표현과 통일)과, (2) 입력한 정보는 AI 분석을 위해 외부 AI 모델 제공자(Google Gemini)에 전송된다는 사실 고지로 교체되어야 한다. "평균 소요 시간 3~5분" 안내는 이 정정과 무관하며 그대로 유지한다. | Grep 조사 확인(`app/cases/new/case-input-form.tsx:352` vs `app/cases/new/page.tsx:66` — 같은 화면 안에서 두 문구가 서로 다른 정직성 수준을 갖고 있음을 확인); Gemini 무료 티어 데이터 취급 정책이 운영자 통제 밖에 있다는 사실은 외부 검토 2차로 재확인 |
 | REQ-PILOT-LAUNCH-004 | Ubiquitous | REQ-PILOT-LAUNCH-003의 교정된 문구는 SPEC-PILOT-READY-001 REQ-PILOT-READY-011(과대 주장 금지, HARD constraint — "보장"·"확실히 차단" 등 표현 사용 금지)을 그대로 재확인해야 하며, 새로운 예외나 완화된 표현을 만들지 않는다. 이 금지는 비식별화 보장 주장뿐 아니라 운영자가 실제로 집행을 확인할 수 없는 이용 목적 제한 주장(예: 외부 제공자 데이터 취급 정책에 대한 보장)에도 동일하게 적용된다. | SPEC-PILOT-READY-001 REQ-PILOT-READY-011 상속; 외부 검토 2차로 이용 목적 제한 주장까지 명시적으로 포함하도록 정정 |
 
 ### D. 계정 프로비저닝 절차 문서화 (Account Provisioning Documentation)
@@ -126,7 +149,28 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-006 | Ubiquitous | README.md와 `.moai/project/product.md`는 SPEC-PILOT-READY-001의 `status: completed`, readiness 7개 항목 전부 READY, 전체 판정 GO, PR #10 병합 커밋 `d74ece4`를 정확히 반영해야 한다. 2026-09-14 재확인 시점 기준 일치를 확인했다(README.md:19,23,138,142, product.md:3-5,82,104). 이 REQ는 회귀 방지를 위한 확인 항목이며, run-phase 착수 시점에 동일한 Grep으로 **다시** 재확인해 그 결과를 progress.md에 기록해야 한다 — 두 파일이 이 REQ 확인 이후에도 편집될 수 있으므로, 위 줄 번호는 참고용이며 run-phase 시점의 실제 재확인이 최종 근거다. | Grep 조사 확인(2026-09-14, README.md:19,23,138,142; product.md:3-5,82,104 — 모두 일치, 불일치 없음). plan-auditor 1차 감사(D1)가 이전 초안의 줄 번호 인용 오류를 지적해 이 근거를 재검증 후 정정했다. |
+| REQ-PILOT-LAUNCH-006 | Ubiquitous | README.md와 `.moai/project/product.md`는 SPEC-PILOT-READY-001의 `status: completed`, readiness 7개 항목 전부 READY, 전체 판정 GO, PR #10 병합 커밋 `d74ece4`를 정확히 반영해야 한다(**의미적 근거** — 이 4가지 사실 자체가 검증 대상이며, 아래 줄 번호는 그 사실을 찾아낸 **기계적 근거**(Grep 결과 스냅샷)일 뿐 검증 대상 자체가 아니다). 2026-09-14 재확인 시점 기준 일치를 확인했다(README.md:19,23,138,149, product.md:3,104,108,123). 이 REQ는 회귀 방지를 위한 확인 항목이며, run-phase 착수 시점에 동일한 Grep으로 **다시** 재확인해 그 결과를 progress.md에 기록해야 한다 — 두 파일이 이 REQ 확인 이후에도 편집될 수 있으므로, 위 줄 번호는 참고용 스냅샷이며 run-phase 시점의 실제 재확인이 최종 근거다. 이 확인 사항은 REQ-PILOT-LAUNCH-006 자체(2026-09-14 기준 status/GO/PR#10/병합 SHA의 정확성)에 한정되며, 위 §1 HISTORY(정정 항목 신규 3차)에 별도로 기록된 Netlify 프로덕션 배포 URL·SHA 미확인 사항([NEEDS CLARIFICATION])과는 서로 다른 확인 대상이다 — 후자가 미해결이라고 해서 이 REQ가 검증한 4가지 사실이 흔들리는 것은 아니다. | Grep 조사 확인(2026-09-14, README.md:19,23,138,149; product.md:3,104,108,123 — 모두 일치, 불일치 없음. 이 재검증은 이 SPEC의 세 번째 revision round에서 오케스트레이터가 직접 재실행한 Grep 결과다). plan-auditor 1차 감사(D1)가 이전 두 초안(스코프 최초 작성분·외부 검토 2차분)의 줄 번호 인용 오류를 지적했고, 이번 재검증에서 두 초안 모두와 다른 정확한 값(README.md:149 vs 이전의 142; product.md:104,108,123 vs 이전의 3-5,82,104)으로 정정했다. |
+
+### 미해결 확인 사항 (Open Clarification)
+
+[NEEDS CLARIFICATION: Netlify 프로덕션 배포 실제 URL·배포 SHA] 사용자는 Netlify
+프로덕션 배포가 이미 완료됐다고 확인했다(이 SPEC HISTORY 최초 작성 항목의
+전제). 그러나 오케스트레이터가 GitHub commit-status API(`/commits/{sha}/status`)와
+Deployments API(`/deployments`)를 main HEAD(`d08c01d15b8f8ecaa5d8f34cb171aed2b6620f24`)
+기준으로 조회한 결과, 두 API 모두 신호가 없었다(commit-status
+`total_count: 0`, deployments 빈 배열) — Netlify는 PR Deploy Preview와 달리
+프로덕션 배포에 대해서는 GitHub에 구분 가능한 웹훅 상태를 게시하지 않는
+것으로 관찰된다. 이 SPEC의 plan-phase 조사는 GitHub API 조회 외에 Netlify
+대시보드나 CLI에 대한 접근 권한을 갖고 있지 않으므로, 실제 프로덕션 URL과
+배포 SHA를 독립적으로 검증할 수 없었다. README.md:142와 product.md:123-124의
+기존 "아직 결정되지 않았습니다" 서술은 이 불확실성과 일치하므로 이 SPEC에서
+수정하지 않는다. 이 항목은 (a) 사용자로부터 직접 실제 URL/SHA를 받거나,
+(b) run-phase에서 실제 Netlify 대시보드·CLI 접근 권한을 가진 상태로
+재확인해야 해소된다 — plan-phase와 run-phase 모두 자체적으로 해소할 수 있는
+수단을 갖고 있지 않다. 이 미해결 항목은 REQ-PILOT-LAUNCH-006이 검증하는
+SPEC-PILOT-READY-001 문서 동기화 사실(status/GO/PR#10/병합 SHA)과는 무관한
+별개 확인 대상이다 — REQ-PILOT-LAUNCH-006 자체는 이 SPEC의 plan-phase
+재검증으로 이미 충족됐다(§2.F 근거 열 참고).
 
 ## Out of Scope
 
