@@ -52,14 +52,14 @@ Justification: Tier M SPEC with 7 files across one domain (frontend copy edits +
 
 | AC | Status | Verification Command | Actual Output |
 |----|--------|----------------------|----------------|
-| AC-PILOT-LAUNCH-001 (TESTER LOGIN 캡션 제거, 헤딩→"로그인") | PASS | `npx vitest run app/login/page.test.tsx` | 3/3 tests pass, incl. new test asserting `TESTER LOGIN`/`테스터 로그인` absent and `<h1>` == `로그인` |
-| AC-PILOT-LAUNCH-002 (부제 문구 교체) | PASS | same run as above | new test asserts old 부제 문구 absent, new 문구 `승인된 계정으로만 로그인할 수 있습니다.` present |
+| AC-PILOT-LAUNCH-001 (로그인 화면 캡션·헤딩·부제·푸터 문구 전체 교체) | PASS | `npx vitest run app/login/page.test.tsx app/login/login-form.test.tsx` | page.test.tsx 3/3 pass(`TESTER LOGIN`/`테스터 로그인` 부재, `<h1>` == `로그인`, 부제 `승인된 계정으로만 로그인할 수 있습니다.` 존재); login-form.test.tsx 9/9 pass(옛 푸터 문구 부재, 신규 문구 `계정은 운영자가 직접 발급합니다. 발급 및 로그인 문의는 담당자에게 연락해 주세요.` 존재) |
+| AC-PILOT-LAUNCH-002 (allowedTesters/tester:add/TESTER_PASSWORD/TESTER_A_EMAIL/TESTER_B_EMAIL 등 내부 식별자 보존) | PASS | `grep -rn "allowedTesters\|tester:add\|TESTER_PASSWORD\|TESTER_A_EMAIL\|TESTER_B_EMAIL" lib/ scripts/ package.json e2e/` | 67줄 매치(`lib/db/schema.ts`·`scripts/provision-tester.ts`·`scripts/e2e-tester-emails.ts`·`package.json:17`·`e2e/*` 등). 이 SPEC의 구현 커밋(`423ed9b`)의 변경 파일 9개 중 어느 것도 이 5개 식별자가 정의된 파일(`lib/db/schema.ts`, `scripts/provision-tester.ts`, `scripts/e2e-tester-emails.ts`, `package.json`, `e2e/*`)을 포함하지 않음(`git show --stat 423ed9b` 확인) — SPEC 착수 이전과 동일한 결과 |
 | AC-PILOT-LAUNCH-003 (전송 고지 문구 교체) | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx` | 11/11 tests pass, incl. new test asserting old 문구 absent, new active-instruction + Gemini 전송 고지 present, `평균 소요 시간 3~5분` retained |
-| AC-PILOT-LAUNCH-004 (account-provisioning.md 신규 작성, 6개 항목 (a)-(f) 포함) | PASS | `Read .moai/docs/account-provisioning.md` | 새 문서 작성 완료 (§1 자동 프로덕션 판별 없음(a), §2-1 대상 DB 호스트/토큰 미출력(b), §2-2 BETTER_AUTH_SECRET 일치(c), §3 재실행 무연산(d), §4 비밀값 기록 금지(e), §5 exit 0만으로 부족·실 로그인 검증(f)) |
+| AC-PILOT-LAUNCH-004 (account-provisioning.md 신규 작성, 6개 항목 (a)-(f) 포함) | PASS | `Read .moai/docs/account-provisioning.md` | 새 문서 작성 완료 (§1 자동 프로덕션 판별 없음(a), §2-1 대상 DB 호스트/토큰 미출력(b), §2-2 BETTER_AUTH_SECRET 값 준비 — 실행 입력값일 뿐 프로덕션 일치 불필요(c), §3 재실행 무연산(d), §4 비밀값 기록 금지(e), §5 exit 0만으로 부족·실 로그인 검증(f)) |
 | AC-PILOT-LAUNCH-005 (README/product.md 재확인, 불일치 시만 수정) | PASS | `grep -n "SPEC-PILOT-READY-001" README.md .moai/project/product.md` | README.md:19,23,138,149 / product.md:3,104,108,123 — plan-phase snapshot과 일치, 불일치 없음, 두 파일 모두 무편집 |
-| AC-PILOT-LAUNCH-006 (Out of Scope 절 — 계정 비활성화 미구현) | PASS (범위 외 확인) | `git diff --stat` | `lib/auth/config.ts` 무변경 확인 — 이 SPEC은 계정 비활성화 로직을 구현하지 않음(Out of Scope 준수) |
-| AC-PILOT-LAUNCH-007 (푸터 안내 문구 교체) | PASS | `npx vitest run app/login/login-form.test.tsx` | 9/9 tests pass, incl. new test asserting old 푸터 문구 absent, new 문구 `계정은 운영자가 직접 발급합니다. 발급 및 로그인 문의는 담당자에게 연락해 주세요.` present |
-| AC-PILOT-LAUNCH-008 (Gemini 명시 전송 고지) | PASS | same run as AC-003 | 신규 어설션이 `Google Gemini` 명시 문구 포함을 직접 검증 |
+| AC-PILOT-LAUNCH-006 (Out of Scope 절 전체 — 비밀번호 재설정·계정 비활성화·계정 목록 조회 미구현) | PASS | `git show --stat 423ed9b`; `grep -n "disabled" lib/db/schema.ts`; `grep -n "tester:list" package.json`; `find app -iname "*reset*"` | 구현 커밋(`423ed9b`)의 변경 파일 9개(소스 6 + 신규 문서 1 + spec.md/progress.md) 중 신규 라우트·DB 컬럼·CLI 스크립트 없음; `lib/db/schema.ts`에 `disabled` 컬럼 없음; `package.json`에 `tester:list` 스크립트 없음; `app/` 하위에 reset 관련 라우트 없음(빈 결과) — 비밀번호 재설정·계정 비활성화·계정 목록 조회 3개 기능 모두 미구현 확인 |
+| AC-PILOT-LAUNCH-007 (기존 테스트 파일 어설션 — 로그인 화면 4곳) | PASS | same run as AC-PILOT-LAUNCH-001 | AC-PILOT-LAUNCH-001과 동일한 vitest 실행이 REQ-PILOT-LAUNCH-001의 4곳(캡션·헤딩·부제·푸터) 각각의 "옛 문구 부재 + 신규 문구 존재" 어설션 통과를 함께 검증 |
+| AC-PILOT-LAUNCH-008 (Gemini 명시 전송 고지) | PASS | same run as AC-PILOT-LAUNCH-003 | 신규 어설션이 `Google Gemini` 명시 문구 포함을 직접 검증 |
 
 ### RED Failure Evidence (TDD, pre-GREEN verbatim output)
 
@@ -156,6 +156,42 @@ total_run_phase_files: 7  # 6 touched (source+test) + 1 new doc
 m1_to_mN_commit_strategy: consolidated  # M1-M5 단일 커밋(로컬 커밋만, manual git-strategy 모드 — push 없음)
 ```
 
+### Post-run Doc Correction (External Review, review HEAD `2d32e61`)
+
+- Trigger: run-phase 구현 완료(커밋 `423ed9b`) 이후 외부 구현 검토 — 구현
+  코드는 PASS, 문서 정합성 수정 필요 판정. 대상: spec.md, plan.md,
+  acceptance.md, progress.md, `.moai/docs/account-provisioning.md`만
+  (`scripts/provision-tester.ts`, `lib/env.ts`는 무변경).
+- 정정 항목 1 (`BETTER_AUTH_SECRET` 설명): account-provisioning.md §2-2의
+  "Netlify Production과 secret이 다르면 세션 서명 불일치로 발급 계정
+  로그인이 실패한다"는 주장을 제거 — Better Auth 1.7.1의 비밀번호는
+  scrypt로 저장·검증되고, 프로비저닝 인스턴스는 `autoSignIn: false`로
+  세션을 생성하지 않으므로 발급 시 사용한 시크릿 값이 세션 서명에
+  관여하지 않는다(`scripts/provision-tester.ts:39` 재확인). `validateEnv("provision")`
+  때문에 실행용 시크릿 값은 여전히 필요하지만, 프로덕션 값과 일치해야
+  한다고 단정하지 않도록 정정했고, 프로덕션 secret을 로컬로 복사하도록
+  안내하지 않는다. 실제 필수 조건은 정확한 프로덕션
+  `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` 사용과 발급 후 실제 프로덕션
+  로그인 성공 확인임을 명시했다. spec.md REQ-PILOT-LAUNCH-005 (c),
+  plan.md §B.3 항목 3, acceptance.md AC-PILOT-LAUNCH-004 ⓒ를 동일 근거로
+  동기화했다.
+- 정정 항목 2 (AC 매핑 정정): 위 AC PASS/FAIL Matrix의 AC-PILOT-LAUNCH-001/002/006
+  행이 acceptance.md의 실제 AC 정의와 어긋나 있었음을 발견해 정정했다 —
+  AC-001은 로그인 캡션·헤딩·부제·푸터 문구 전체(4곳)를 다루고, AC-002는
+  "부제 문구 교체"가 아니라 `allowedTesters`/`tester:add`/`TESTER_PASSWORD`/
+  `TESTER_A_EMAIL`/`TESTER_B_EMAIL` 내부 식별자 보존이며, AC-006은
+  "계정 비활성화 미구현"만이 아니라 비밀번호 재설정·계정 비활성화·계정
+  목록 조회 3개 기능 전체의 미구현을 다룬다. 정정된 AC-002/AC-006 행은
+  이 딜리게이션 세션에서 실제로 재실행한 grep/`git show --stat`
+  결과를 근거로 기록했다(위 표 참고).
+- 정정 항목 3 (병합 상태 정확화): 이 시점 기준 구현 워크트리는
+  `plan/SPEC-PILOT-LAUNCH-001` 브랜치에 병합된 상태다(`git worktree add`로
+  이 브랜치를 격리 체크아웃해 문서만 수정). main은 `d08c01d`이며, 이
+  SPEC의 신규 PR 생성이나 main 병합은 아직 이루어지지 않았다 — "main
+  병합 완료" 또는 "프로덕션 반영 완료"로 기록하지 않는다.
+- 코드 변경 없음(문서 정합성 수정만) — 기존 run-phase 테스트 결과(§E.2)는
+  재사용하며, `npm run format:check` + 관련 문서 grep 정합성만 재검증한다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+_<pending sync-phase — main 병합 전. 구현 워크트리는 `plan/SPEC-PILOT-LAUNCH-001`에 병합된 상태이며, main(`d08c01d`)으로의 PR/병합은 아직 없음>_

@@ -31,13 +31,30 @@ echo "$TURSO_DATABASE_URL"
 - `TURSO_AUTH_TOKEN` 값은 어떤 경우에도 로그, 커밋 메시지, 대화창 등에
   출력하거나 붙여넣지 않는다.
 
-### 2-2. `BETTER_AUTH_SECRET` 일치 확인
+### 2-2. `BETTER_AUTH_SECRET` 값 준비 (실행 요건일 뿐, 프로덕션과 일치할 필요는 없다)
 
-로컬에서 계정을 발급하면서 실수로 Netlify 프로덕션과 다른
-`BETTER_AUTH_SECRET`을 사용하면, 발급된 계정으로 프로덕션에서 로그인이
-실패한다(세션 서명 불일치). 발급 전 로컬 `.env` 파일의
-`BETTER_AUTH_SECRET` 값이 Netlify 대시보드의 Production 환경변수 값과
-**정확히 일치**하는지 확인한다.
+`validateEnv("provision")`(`lib/env.ts`)은 실행 시점에 `TURSO_DATABASE_URL`과
+`BETTER_AUTH_SECRET` 값이 모두 설정돼 있을 것을 요구한다 — 값이 비어 있으면
+스크립트가 즉시 실패한다. 하지만 이 값이 **Netlify 프로덕션에 설정된 값과
+일치해야 한다는 근거는 없다.**
+
+Better Auth 1.7.1의 이메일/비밀번호 자격 증명은 비밀번호를 scrypt로 해시해
+DB에 저장·검증하며, 프로비저닝 스크립트는 `autoSignIn: false`로 계정을
+생성한다(`scripts/provision-tester.ts:39`) — 즉 발급 과정 자체가 세션을
+만들지 않으므로, 발급 시 사용한 `BETTER_AUTH_SECRET` 값이 세션 서명에
+관여할 여지가 없다. 실제 로그인 세션은 이후 프로덕션 Next.js 런타임이
+**자신의** `BETTER_AUTH_SECRET`으로 서명하며, 이는 발급 스크립트가 로컬에서
+어떤 값을 썼는지와 무관하다.
+
+**프로덕션 secret 값을 로컬로 복사할 필요는 없다** — `validateEnv`를
+통과할 임의의 값이면 실행 자체는 가능하다. 실제로 계정 발급이 올바르게
+동작하는지를 좌우하는 조건은 다음 두 가지뿐이다.
+
+- 2-1에서 확인한 **정확한 프로덕션 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`**을
+  사용해 올바른 DB에 계정 행을 쓰는 것.
+- §5에서 다루는 대로 **발급 후 실제 프로덕션 로그인 화면에서 로그인이
+  성공**하는지 직접 확인하는 것 — 이것이 발급 성공 여부를 판단하는
+  유일하게 신뢰할 수 있는 신호다.
 
 ## 3. 알려진 제약 — 재실행 시 조용한 무연산(no-op)
 

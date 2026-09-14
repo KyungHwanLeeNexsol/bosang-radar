@@ -72,6 +72,20 @@ depends_on: [SPEC-PILOT-READY-001]
   제외한 모든 must-pass 기준을 충족했으나, 이번 3차 반영이 spec.md/plan.md/
   acceptance.md 아티팩트 해시를 다시 변경하므로 재감사(iteration 2)가
   필요함을 progress.md에 기록한다.
+- 2026-09-14: run-phase 완료 후 외부 구현 검토 반영 (Nexsol, 검토 HEAD
+  `2d32e61`) — 문서 정합성 정정 1건. REQ-PILOT-LAUNCH-005 (c):
+  `BETTER_AUTH_SECRET`이 Netlify Production 값과 일치해야 한다는 서술을
+  철회 — `validateEnv("provision")`이 요구하는 실행 입력값일 뿐이며, Better
+  Auth 1.7.1의 비밀번호는 scrypt로 저장·검증되고 발급 인스턴스는
+  `autoSignIn: false`로 세션을 생성하지 않으므로 발급 시 사용한 시크릿
+  값이 세션 서명에 관여하지 않는다는 근거로 정정. 실제 필수 조건은
+  정확한 프로덕션 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` 사용((b))과
+  발급 후 실제 프로덕션 로그인 성공 확인((f)) 두 가지임을 명시.
+  plan.md/acceptance.md/account-provisioning.md/progress.md를 동기화했다.
+  `scripts/provision-tester.ts`, `lib/env.ts`는 이번 정정에서 변경하지
+  않았다(문서 정합성만 수정, 코드 무변경). 이 시점 기준 구현 워크트리는
+  `plan/SPEC-PILOT-LAUNCH-001` 브랜치에 병합된 상태이며, main(`d08c01d`)으로의
+  PR/병합은 아직 이루어지지 않았다.
 
 ## §1. 개요 (Overview)
 
@@ -143,7 +157,7 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-005 | Ubiquitous | 운영자가 `pnpm tester:add`로 실 계정을 발급하는 절차를 신규 문서 `.moai/docs/account-provisioning.md`에 기록해야 한다. `scripts/provision-tester.ts`는 프로덕션을 자동으로 대상으로 삼는 자체 판별 로직을 갖고 있지 않다 — 실제로 어느 DB에 쓰는지는 오직 실행 시점 운영자 환경에서 `TURSO_DATABASE_URL`이 무엇으로 해석되는지에 의해 전적으로 결정된다(`buildDb()`가 이 값을 그대로 `createClient()`에 전달할 뿐이다). 문서는 최소한 다음을 포함해야 한다: (a) 스크립트의 실제 대상 DB는 프로덕션을 자동 선택하지 않으며 전적으로 실행 시점 `TURSO_DATABASE_URL` 해석 값에 의해 결정된다는 사실 명시; (b) 발급 전 확인 절차 — 해석된 원격 DB 호스트를 확인하고, `file:` URL이거나 예상과 다른 호스트이면 중단한다는 기준(이 절차 자체는 이 SPEC이 실행하지 않는 run-phase 이후의 운영 절차이며 문서화만 대상이다); 이 확인 과정에서 `TURSO_AUTH_TOKEN` 등 토큰 값은 절대 출력·로그로 남기지 않는다; (c) 발급 전 확인 절차 — 운영자 환경의 `BETTER_AUTH_SECRET`이 Netlify Production에 설정된 값과 일치하는지 확인한다는 기준; (d) 이미 존재하는 이메일로 재실행하면 계정을 건드리지 않고 조용히 스킵한다는 알려진 제약(`scripts/provision-tester.ts`의 existing-user 조기 `return` 경로에서 확인됨 — 비밀번호는 재설정되지 않는다) — 재발급이 필요한 경우 이 스크립트만으로는 처리할 수 없음을 명시; (e) 실제 비밀번호나 발급된 계정의 비밀값을 이 문서에 절대 기록하지 않는다는 경고; (f) 발급 후 검증 절차 — 스크립트가 exit 0으로 종료했다는 사실만으로 발급 완료를 판단하지 않고, 실제 프로덕션 로그인 성공으로 검증한다는 기준. 이 문서는 `.moai/docs/pilot-incident-runbook.md`(파일럿 **운영 중** 장애 대응 절차, 이미 별도 문서로 확립된 관례 — 그 문서 자신도 "이 문서는 파일럿 운영 중 장애 대응 절차다", "`runtime-runbook.md`와는 서로 다른 문서" 라고 명시함)와 관심사가 다른(계정 **사전** 발급 절차 vs **사후** 장애 대응) 별개 신규 문서여야 한다. 이 SPEC은 plan-phase와 run-phase 모두에서 이 절차를 실제로 실행하지 않으며, 실 계정을 생성하거나 원격 DB에 쓰지 않는다 — REQ-PILOT-LAUNCH-005는 절차의 **문서화**만 요구한다. `scripts/provision-tester.ts` 코드 자체는 변경하지 않는다. | Read 조사 확인(`scripts/provision-tester.ts:24-27` `buildDb()`가 자체 프로덕션 판별 없이 `TURSO_DATABASE_URL`을 그대로 사용, `scripts/provision-tester.ts:139-147` existing-user 조기 반환, `.env.local.example` `BETTER_AUTH_SECRET`/`TURSO_AUTH_TOKEN` 변수명 확인, `.moai/docs/pilot-incident-runbook.md:1-5` 기존 문서 분리 관례) |
+| REQ-PILOT-LAUNCH-005 | Ubiquitous | 운영자가 `pnpm tester:add`로 실 계정을 발급하는 절차를 신규 문서 `.moai/docs/account-provisioning.md`에 기록해야 한다. `scripts/provision-tester.ts`는 프로덕션을 자동으로 대상으로 삼는 자체 판별 로직을 갖고 있지 않다 — 실제로 어느 DB에 쓰는지는 오직 실행 시점 운영자 환경에서 `TURSO_DATABASE_URL`이 무엇으로 해석되는지에 의해 전적으로 결정된다(`buildDb()`가 이 값을 그대로 `createClient()`에 전달할 뿐이다). 문서는 최소한 다음을 포함해야 한다: (a) 스크립트의 실제 대상 DB는 프로덕션을 자동 선택하지 않으며 전적으로 실행 시점 `TURSO_DATABASE_URL` 해석 값에 의해 결정된다는 사실 명시; (b) 발급 전 확인 절차 — 해석된 원격 DB 호스트를 확인하고, `file:` URL이거나 예상과 다른 호스트이면 중단한다는 기준(이 절차 자체는 이 SPEC이 실행하지 않는 run-phase 이후의 운영 절차이며 문서화만 대상이다); 이 확인 과정에서 `TURSO_AUTH_TOKEN` 등 토큰 값은 절대 출력·로그로 남기지 않는다; (c) `BETTER_AUTH_SECRET`은 `validateEnv("provision")`(`lib/env.ts`)이 실행 요건으로 요구하는 입력값일 뿐, Netlify Production에 설정된 값과 반드시 일치해야 한다는 근거는 없다는 점을 명시 — Better Auth 1.7.1의 비밀번호는 scrypt로 저장·검증되고, 발급 인스턴스는 `autoSignIn: false`로 세션을 생성하지 않으므로 발급 시 사용한 시크릿 값이 세션 서명에 관여하지 않는다. 로컬에 프로덕션 secret 값을 복사하도록 안내하지 않는다. 실제로 발급이 올바르게 동작하는지를 좌우하는 조건은 (b)의 정확한 프로덕션 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` 사용과 (f)의 발급 후 실제 프로덕션 로그인 성공 확인 두 가지뿐이다; (d) 이미 존재하는 이메일로 재실행하면 계정을 건드리지 않고 조용히 스킵한다는 알려진 제약(`scripts/provision-tester.ts`의 existing-user 조기 `return` 경로에서 확인됨 — 비밀번호는 재설정되지 않는다) — 재발급이 필요한 경우 이 스크립트만으로는 처리할 수 없음을 명시; (e) 실제 비밀번호나 발급된 계정의 비밀값을 이 문서에 절대 기록하지 않는다는 경고; (f) 발급 후 검증 절차 — 스크립트가 exit 0으로 종료했다는 사실만으로 발급 완료를 판단하지 않고, 실제 프로덕션 로그인 성공으로 검증한다는 기준. 이 문서는 `.moai/docs/pilot-incident-runbook.md`(파일럿 **운영 중** 장애 대응 절차, 이미 별도 문서로 확립된 관례 — 그 문서 자신도 "이 문서는 파일럿 운영 중 장애 대응 절차다", "`runtime-runbook.md`와는 서로 다른 문서" 라고 명시함)와 관심사가 다른(계정 **사전** 발급 절차 vs **사후** 장애 대응) 별개 신규 문서여야 한다. 이 SPEC은 plan-phase와 run-phase 모두에서 이 절차를 실제로 실행하지 않으며, 실 계정을 생성하거나 원격 DB에 쓰지 않는다 — REQ-PILOT-LAUNCH-005는 절차의 **문서화**만 요구한다. `scripts/provision-tester.ts` 코드 자체는 변경하지 않는다. | Read 조사 확인(`scripts/provision-tester.ts:24-27` `buildDb()`가 자체 프로덕션 판별 없이 `TURSO_DATABASE_URL`을 그대로 사용, `scripts/provision-tester.ts:139-147` existing-user 조기 반환, `.env.local.example` `BETTER_AUTH_SECRET`/`TURSO_AUTH_TOKEN` 변수명 확인, `.moai/docs/pilot-incident-runbook.md:1-5` 기존 문서 분리 관례) |
 
 ### F. SPEC-PILOT-READY-001 문서 동기화 확인 (Doc-Sync Regression Confirmation)
 

@@ -116,7 +116,11 @@ AC-PILOT-LAUNCH-004):
 
 1. 대상 DB가 자동 선택되지 않고 실행 시점 환경에만 의존한다는 사실
 2. 발급 전 원격 DB 호스트 확인 + `file:`/예상 밖 호스트 시 중단 기준(토큰 값 미출력)
-3. 발급 전 `BETTER_AUTH_SECRET`이 Netlify Production과 일치하는지 확인하는 기준
+3. `BETTER_AUTH_SECRET`은 `validateEnv("provision")`이 요구하는 실행 입력값일
+   뿐 Netlify Production 값과 일치할 필요가 없다는 명시(Better Auth 1.7.1
+   scrypt 해시 + 발급 인스턴스 `autoSignIn: false` 근거 — 발급 시 세션이
+   생성되지 않으므로 시크릿 값이 세션 서명에 관여하지 않는다). 프로덕션
+   secret을 로컬로 복사하도록 안내하지 않는다.
 4. 재실행 시 비밀번호 미변경 제약(`scripts/provision-tester.ts:139-147`
    existing-user 조기 반환에서 확인됨 — 라인 번호 무변경)
 5. 비밀값 미기록 경고
@@ -162,7 +166,7 @@ M1과 M2를 먼저 배치한 이유는 사용자에게 직접 노출되는 문�
 | 2 | `.moai/docs/account-provisioning.md` 작성 중 실수로 실제 환경변수 값이나 비밀값을 예시로 기록할 위험 | 문서 작성 시 예시 값은 항상 플레이스홀더(`<email>`, `<password>`)만 사용하고, 커밋 전 `git diff`로 실제 비밀값 패턴이 없는지 육안 확인 |
 | 3 | 로그인 화면 문구를 정상 서비스 톤으로 바꾸는 과정에서 사용자가 의도하지 않은 어조 변화가 생길 수 있음 | Implementation Kickoff Approval 단계에서 정확한 교체 문구 4곳을 사용자에게 다시 한번 제시하고 확인받는다(§B.1 문구는 이미 spec.md REQ-PILOT-LAUNCH-001에 확정 기재됨) |
 | 4 | Out of Scope 스케치(비밀번호 재설정 등)가 run-phase에서 스코프 크리프로 이어질 위험 | manager-develop 위임 프롬프트의 Constraints(Section D)에 Out of Scope 절 전체를 명시적으로 포함해 구현 금지를 재확인 |
-| 5 | REQ-PILOT-LAUNCH-005 (b)/(c)의 발급 전 확인 절차(원격 DB 호스트 확인, `BETTER_AUTH_SECRET` Netlify Production 일치 확인)는 실제 운영 환경(Netlify 대시보드) 접근이 필요해 이 SPEC의 plan/run-phase 어느 쪽도 검증을 자동화할 수 없음 | account-provisioning.md에는 절차의 **기준**만 정확히 기술하고, 실제 적용 결과 검증은 이 SPEC의 완료 조건에서 명시적으로 제외한다(acceptance.md §D.5/§D.7) |
+| 5 | REQ-PILOT-LAUNCH-005 (b)의 발급 전 원격 DB 호스트 확인 절차는 실제 운영 환경(Netlify 대시보드) 접근이 필요해 이 SPEC의 plan/run-phase 어느 쪽도 검증을 자동화할 수 없음 — (c)의 `BETTER_AUTH_SECRET`은 post-run 문서 정정 이후 Netlify Production과의 일치를 요구하지 않으므로 이 위험에서 제외됨 | account-provisioning.md에는 절차의 **기준**만 정확히 기술하고, 실제 적용 결과 검증은 이 SPEC의 완료 조건에서 명시적으로 제외한다(acceptance.md §D.5/§D.7) |
 | 6 | `app/login/page.test.tsx`/`login-form.test.tsx`/`case-input-form.test.tsx`가 이미 큰 파일(81/201/305줄)이라 어설션 추가 시 기존 테스트를 실수로 깨뜨릴 위험 | manager-develop이 어설션 추가 직후 해당 파일만 단독 실행(`vitest run <파일>`)해 기존 테스트가 모두 여전히 통과함을 즉시 확인 |
 
 ## §E. 도메인 전문가 컨설테이션 권고 (Step 6)
