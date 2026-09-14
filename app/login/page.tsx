@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import type { LucideIcon } from "lucide-react";
 import { GitCompare, Lock, Search, ShieldCheck } from "lucide-react";
+import { redirect } from "next/navigation";
+import { getCurrentSession } from "@/lib/auth/session";
 import { LoginForm } from "./login-form";
+
+// 로그인 세션에 따라 리다이렉트 여부가 달라지므로 정적 프리렌더링 대상에서
+// 제외한다 — app/page.tsx와 동일한 세션 확인 패턴이다.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "로그인",
@@ -35,7 +41,12 @@ const BRAND_FEATURES: BrandFeature[] = [
   },
 ];
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await getCurrentSession();
+  if (session?.user) {
+    redirect("/cases/new");
+  }
+
   return (
     <div className="flex flex-1">
       <div className="hidden shrink-0 flex-col justify-between bg-app-sidebar px-10 py-12 lg:flex lg:w-[42%]">
