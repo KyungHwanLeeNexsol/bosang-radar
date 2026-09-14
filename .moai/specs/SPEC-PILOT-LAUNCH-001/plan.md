@@ -133,8 +133,10 @@ run-phase 착수 시점에 README.md·product.md에 대해 plan-phase와 동일�
 progress.md에 결과를 기록한다. 불일치가 없으면 이 REQ는 "확인 완료, 변경
 없음"으로 종결된다. plan-phase 외부 검토 2차 반영 시점에 재확인용
 Grep(`grep -n "SPEC-PILOT-READY-001" README.md .moai/project/product.md`)을
-다시 실행했으며, README.md:19,138,149와 product.md:3,104,108,123가 여전히
-일치함을 재확인했다(불일치 없음) — run-phase 착수 시점에 동일한 Grep을
+다시 실행했으며, README.md:19,23,138,149와 product.md:3,104,108,123가 여전히
+일치함을 재확인했다(불일치 없음; 2026-09-14 iteration 3 감사 D-NEW-2 반영 —
+이 줄이 README.md 23번 줄을 누락했던 것을 오케스트레이터가 SPEC 폴더
+전체 재검색 후 직접 정정) — run-phase 착수 시점에 동일한 Grep을
 한 번 더 실행하는 것이 여전히 필요하다(회귀 방지 목적).
 
 ## §C. 마일스톤 (우선순위 기반, 시간 추정 없음)
