@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-LAUNCH-001
 title: "프로덕션 사용자 문구 정리 및 계정 운영 준비"
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 created: 2026-09-14
 updated: 2026-09-14
@@ -11,7 +11,7 @@ phase: "v1.1.0 target"
 module: "app/login/, app/cases/new/, .moai/docs/"
 lifecycle: spec-anchored
 tags: "pilot, copy-cleanup, account-provisioning, data-handling"
-tier: S
+tier: M
 depends_on: [SPEC-PILOT-READY-001]
 ---
 
@@ -29,6 +29,26 @@ depends_on: [SPEC-PILOT-READY-001]
   않음, ⑥SPEC-PILOT-READY-001 문서 동기화 상태 회귀 확인으로 범위를 고정한다.
   plan-phase 조사는 오케스트레이터 세션에서 Grep/Read로 실제 코드베이스를
   read-only로 조사해 확인한 구체적 문구·파일 위치만을 근거로 삼았다.
+- 2026-09-14: plan-phase 외부 검토 2차 반영 (Nexsol) — 4가지 정정. ①
+  REQ-PILOT-LAUNCH-005/AC-PILOT-LAUNCH-004: `pnpm tester:add`가 프로덕션을
+  자동으로 대상으로 한다는 서술을 제거하고, 스크립트는 `TURSO_DATABASE_URL`이
+  가리키는 DB를 그대로 대상으로 할 뿐 자체 프로덕션 판별 로직이 없음을
+  명시(`scripts/provision-tester.ts` 재확인 근거로 정정). 발급 전 원격 DB
+  호스트 확인·중단 기준, 비밀값 미출력, `BETTER_AUTH_SECRET` Netlify Production
+  일치 확인, 발급 후 실제 로그인 성공으로 검증하는 절차를 문서화 요건에 추가.
+  ② REQ-PILOT-LAUNCH-003: "리서치 목적 외에 사용되지 않습니다"를 무해한 유지
+  대상으로 판단했던 근거를 철회 — Gemini 무료 티어는 외부 제공자 자체 데이터
+  취급 정책을 따르므로 목적 제한을 운영자가 보장할 수 없다. 교체 문구를
+  외부 모델 제공자 전송 고지로 재작성. ③ Out of Scope — 계정 비활성화:
+  `lib/auth/config.ts:56-77`의 `databaseHooks.session.create.before` 훅이
+  이미 매 로그인 시점마다 `allowed_testers`를 재확인함을 코드로 재확인하고,
+  설계 스케치를 `allowed_testers`에서 이메일 제거(기존 훅 활용) + 즉시 세션
+  차단이 필요한 경우에 한해 해당 사용자의 `session` 행 삭제 병행으로
+  변경(`user.disabled` 컬럼 추가는 2차 대안으로 격하). ④ Tier 재산정: 로그인·
+  사건입력 렌더링 확인 테스트를 기존 테스트 파일(`app/login/page.test.tsx`,
+  `app/login/login-form.test.tsx`, `app/cases/new/case-input-form.test.tsx`)에
+  추가하는 작업이 파일 수에 포함됨을 반영해 Tier S(< 5 files)에서 Tier
+  M(5-15 files, acceptance.md 별도 작성)으로 상향.
 
 ## §1. 개요 (Overview)
 
@@ -61,13 +81,19 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 - SPEC-PILOT-READY-001의 README.md/product.md 문서 동기화 상태(status:
   completed, GO, PR #10 `d74ece4`)가 회귀하지 않았음을 재확인한다.
 
-### 핵심 판단 근거 — Tier S
+### 핵심 판단 근거 — Tier M
 
-영향 파일은 `app/login/page.tsx`, `app/login/login-form.tsx`,
-`app/cases/new/case-input-form.tsx`(문구 교체, 각 파일 1~2줄), 신규 문서
-`.moai/docs/account-provisioning.md` 1개로 총 4개이며, 변경 LOC은 300줄을
-크게 밑돈다(대부분 문자열 치환). 스키마 변경, 아키텍처 결정, 신규 컴포넌트가
-없으므로 Tier S(< 300 LOC, < 5 files)로 분류한다 — plan.md §Tier 판단 참고.
+영향 파일은 소스 3개(`app/login/page.tsx`, `app/login/login-form.tsx`,
+`app/cases/new/case-input-form.tsx` — 문구 교체, 각 파일 1~2줄), 신규 문서
+`.moai/docs/account-provisioning.md` 1개, 그리고 REQ-PILOT-LAUNCH-001/003의
+렌더링 결과를 확인하는 테스트 어설션을 추가할 기존 테스트 파일 3개
+(`app/login/page.test.tsx`, `app/login/login-form.test.tsx`,
+`app/cases/new/case-input-form.test.tsx` — 이미 존재하며 이번 SPEC에서
+수정됨)로 총 7개다. 변경 LOC 자체는 300줄을 밑돌지만(대부분 문자열 치환 +
+어설션 추가), 테스트 파일을 포함한 영향 파일 수가 Tier S의 "< 5 files"
+가이드를 명확히 초과하므로 Tier M(5-15 files)으로 분류한다 — plan.md
+§A Tier 판단의 파일 수 산식 참고. 스키마 변경·아키텍처 결정·신규 컴포넌트는
+여전히 없다.
 
 ## §2. 요구사항 (Requirements — GEARS 표기법)
 
@@ -87,14 +113,14 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-003 | Unwanted | `app/cases/new/case-input-form.tsx`의 폼 하단 안내 문구(현재: "입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다.", `case-input-form.tsx:352`)는 시스템이 입력 내용을 비식별 상태로 "처리한다"는 수동태 보장 표현을 사용해서는 안 된다 — `lib/validation/case-input.ts`의 스키마는 자유 텍스트 3개 필드(`incidentDescription`/`diagnosisName`/`disabilityBodyPart`)에 입력된 임의의 식별정보를 탐지·비식별화하지 않는다(SPEC-PILOT-READY-001 REQ-PILOT-READY-011에서 이미 코드로 확인된 사실과 동일). 이 문구는 사용자에게 합성이거나 이미 비식별화된 사례만 입력하도록 요구하는 능동 지시 표현으로 교체되어야 하며, 같은 화면 우측 Notice(`app/cases/new/page.tsx:66`)가 이미 채택한 "합성이거나 이미 비식별화된 사례만 입력해 주세요." 표현과 통일해야 한다. "리서치 목적 외에 사용되지 않습니다"라는 이용 목적 제한 진술 자체는 비식별화 보장 주장이 아니므로 유지할 수 있다. | Grep 조사 확인(`app/cases/new/case-input-form.tsx:352` vs `app/cases/new/page.tsx:66` — 같은 화면 안에서 두 문구가 서로 다른 정직성 수준을 갖고 있음을 확인) |
-| REQ-PILOT-LAUNCH-004 | Ubiquitous | REQ-PILOT-LAUNCH-003의 교정된 문구는 SPEC-PILOT-READY-001 REQ-PILOT-READY-011(과대 주장 금지, HARD constraint — "보장"·"확실히 차단" 등 표현 사용 금지)을 그대로 재확인해야 하며, 새로운 예외나 완화된 표현을 만들지 않는다. | SPEC-PILOT-READY-001 REQ-PILOT-READY-011 상속 |
+| REQ-PILOT-LAUNCH-003 | Unwanted | `app/cases/new/case-input-form.tsx`의 폼 하단 안내 문구(현재: "입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다.", `case-input-form.tsx:352`)는 두 가지를 사용해서는 안 된다 — (a) 시스템이 입력 내용을 비식별 상태로 "처리한다"는 수동태 보장 표현(`lib/validation/case-input.ts`의 스키마는 자유 텍스트 3개 필드 `incidentDescription`/`diagnosisName`/`disabilityBodyPart`에 입력된 임의의 식별정보를 탐지·비식별화하지 않는다 — SPEC-PILOT-READY-001 REQ-PILOT-READY-011에서 이미 코드로 확인된 사실과 동일), (b) "리서치 목적 외에 사용되지 않습니다"라는 이용 목적 제한 보장 진술 — Gemini 무료 티어 호출은 외부 제공자(Google) 자체의 데이터 취급 정책을 따르므로, 운영자는 그 목적 제한이 실제로 집행됨을 보장할 수 없다. 이 문구는 (1) 사용자에게 합성이거나 이미 비식별화된 사례만 입력하도록 요구하는 능동 지시 표현(같은 화면 우측 Notice `app/cases/new/page.tsx:66`이 이미 채택한 "합성이거나 이미 비식별화된 사례만 입력해 주세요." 표현과 통일)과, (2) 입력 내용이 AI 분석을 위해 외부 모델 제공자에게 전송될 수 있다는 사실 고지로 교체되어야 한다. "평균 소요 시간 3~5분" 안내는 이 정정과 무관하며 그대로 유지한다. | Grep 조사 확인(`app/cases/new/case-input-form.tsx:352` vs `app/cases/new/page.tsx:66` — 같은 화면 안에서 두 문구가 서로 다른 정직성 수준을 갖고 있음을 확인); Gemini 무료 티어 데이터 취급 정책이 운영자 통제 밖에 있다는 사실은 외부 검토 2차로 재확인 |
+| REQ-PILOT-LAUNCH-004 | Ubiquitous | REQ-PILOT-LAUNCH-003의 교정된 문구는 SPEC-PILOT-READY-001 REQ-PILOT-READY-011(과대 주장 금지, HARD constraint — "보장"·"확실히 차단" 등 표현 사용 금지)을 그대로 재확인해야 하며, 새로운 예외나 완화된 표현을 만들지 않는다. 이 금지는 비식별화 보장 주장뿐 아니라 운영자가 실제로 집행을 확인할 수 없는 이용 목적 제한 주장(예: 외부 제공자 데이터 취급 정책에 대한 보장)에도 동일하게 적용된다. | SPEC-PILOT-READY-001 REQ-PILOT-READY-011 상속; 외부 검토 2차로 이용 목적 제한 주장까지 명시적으로 포함하도록 정정 |
 
 ### D. 계정 프로비저닝 절차 문서화 (Account Provisioning Documentation)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-LAUNCH-005 | Ubiquitous | 운영자가 `pnpm tester:add`로 실제 원격 Turso 프로덕션 대상에 실 계정을 발급하는 절차를 신규 문서 `.moai/docs/account-provisioning.md`에 기록해야 한다. 문서는 최소한 다음을 포함해야 한다: (a) 이 스크립트가 로컬 `file:` DB가 아니라 프로덕션 원격 DB(`TURSO_DATABASE_URL`)를 직접 대상으로 함을 명시; (b) 이미 존재하는 이메일로 재실행하면 계정을 건드리지 않고 조용히 스킵한다는 알려진 제약(`scripts/provision-tester.ts`의 existing-user 조기 `return` 경로에서 확인됨 — 비밀번호는 재설정되지 않는다) — 재발급이 필요한 경우 이 스크립트만으로는 처리할 수 없음을 명시; (c) 실제 비밀번호나 발급된 계정의 비밀값을 이 문서에 절대 기록하지 않는다는 경고. 이 문서는 `.moai/docs/pilot-incident-runbook.md`(파일럿 **운영 중** 장애 대응 절차, 이미 별도 문서로 확립된 관례 — 그 문서 자신도 "이 문서는 파일럿 운영 중 장애 대응 절차다", "`runtime-runbook.md`와는 서로 다른 문서" 라고 명시함)와 관심사가 다른(계정 **사전** 발급 절차 vs **사후** 장애 대응) 별개 신규 문서여야 한다. `scripts/provision-tester.ts` 코드 자체는 변경하지 않는다. | Read 조사 확인(`scripts/provision-tester.ts:139-147` existing-user 조기 반환, `.moai/docs/pilot-incident-runbook.md:1-5` 기존 문서 분리 관례) |
+| REQ-PILOT-LAUNCH-005 | Ubiquitous | 운영자가 `pnpm tester:add`로 실 계정을 발급하는 절차를 신규 문서 `.moai/docs/account-provisioning.md`에 기록해야 한다. `scripts/provision-tester.ts`는 프로덕션을 자동으로 대상으로 삼는 자체 판별 로직을 갖고 있지 않다 — 실제로 어느 DB에 쓰는지는 오직 실행 시점 운영자 환경에서 `TURSO_DATABASE_URL`이 무엇으로 해석되는지에 의해 전적으로 결정된다(`buildDb()`가 이 값을 그대로 `createClient()`에 전달할 뿐이다). 문서는 최소한 다음을 포함해야 한다: (a) 스크립트의 실제 대상 DB는 프로덕션을 자동 선택하지 않으며 전적으로 실행 시점 `TURSO_DATABASE_URL` 해석 값에 의해 결정된다는 사실 명시; (b) 발급 전 확인 절차 — 해석된 원격 DB 호스트를 확인하고, `file:` URL이거나 예상과 다른 호스트이면 중단한다는 기준(이 절차 자체는 이 SPEC이 실행하지 않는 run-phase 이후의 운영 절차이며 문서화만 대상이다); 이 확인 과정에서 `TURSO_AUTH_TOKEN` 등 토큰 값은 절대 출력·로그로 남기지 않는다; (c) 발급 전 확인 절차 — 운영자 환경의 `BETTER_AUTH_SECRET`이 Netlify Production에 설정된 값과 일치하는지 확인한다는 기준; (d) 이미 존재하는 이메일로 재실행하면 계정을 건드리지 않고 조용히 스킵한다는 알려진 제약(`scripts/provision-tester.ts`의 existing-user 조기 `return` 경로에서 확인됨 — 비밀번호는 재설정되지 않는다) — 재발급이 필요한 경우 이 스크립트만으로는 처리할 수 없음을 명시; (e) 실제 비밀번호나 발급된 계정의 비밀값을 이 문서에 절대 기록하지 않는다는 경고; (f) 발급 후 검증 절차 — 스크립트가 exit 0으로 종료했다는 사실만으로 발급 완료를 판단하지 않고, 실제 프로덕션 로그인 성공으로 검증한다는 기준. 이 문서는 `.moai/docs/pilot-incident-runbook.md`(파일럿 **운영 중** 장애 대응 절차, 이미 별도 문서로 확립된 관례 — 그 문서 자신도 "이 문서는 파일럿 운영 중 장애 대응 절차다", "`runtime-runbook.md`와는 서로 다른 문서" 라고 명시함)와 관심사가 다른(계정 **사전** 발급 절차 vs **사후** 장애 대응) 별개 신규 문서여야 한다. 이 SPEC은 plan-phase와 run-phase 모두에서 이 절차를 실제로 실행하지 않으며, 실 계정을 생성하거나 원격 DB에 쓰지 않는다 — REQ-PILOT-LAUNCH-005는 절차의 **문서화**만 요구한다. `scripts/provision-tester.ts` 코드 자체는 변경하지 않는다. | Read 조사 확인(`scripts/provision-tester.ts:24-27` `buildDb()`가 자체 프로덕션 판별 없이 `TURSO_DATABASE_URL`을 그대로 사용, `scripts/provision-tester.ts:139-147` existing-user 조기 반환, `.env.local.example` `BETTER_AUTH_SECRET`/`TURSO_AUTH_TOKEN` 변수명 확인, `.moai/docs/pilot-incident-runbook.md:1-5` 기존 문서 분리 관례) |
 
 ### F. SPEC-PILOT-READY-001 문서 동기화 확인 (Doc-Sync Regression Confirmation)
 
@@ -116,9 +142,20 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
 ### Out of Scope — 계정 비활성화 (Account Deactivation)
 
 - 특정 계정을 로그인 불가 상태로 전환하는 기능은 이 SPEC의 범위가 아니다.
-  **최소 설계 스케치**: `user` 테이블에 `disabled: boolean`(기본값 `false`)
-  컬럼을 추가하고, 로그인 처리 경로에서 이 값을 확인해 `true`면 거부하는
-  가드를 추가하는 방향이 유력한 후보다 — 마이그레이션 1개가 필요하다.
+  **최소 설계 스케치**: `lib/auth/config.ts:56-77`의
+  `databaseHooks.session.create.before` 훅이 이미 매 로그인(세션 생성)
+  시점마다 `isAllowedTesterEmail()`로 `allowed_testers` 대조를 수행하고
+  있음을 코드로 확인했다(REQ-SCAFFOLD-009/AC-SCAFFOLD-008 — 계정이 이미
+  존재하더라도 allowlist에서 제거된 이메일이면 세션 생성 자체를 거부한다).
+  따라서 최소 실행 가능 후보는 `allowed_testers`에서 해당 이메일을
+  제거하는 것만으로 **신규 로그인 시도**를 차단할 수 있다(신규 마이그레이션
+  불필요, 기존 훅 재사용). 다만 이 훅은 세션 **생성** 시점에만 실행되므로,
+  이미 로그인해 유효한 세션을 보유한 사용자는 allowlist 제거만으로는 즉시
+  차단되지 않고 세션이 자연 만료될 때까지 유효하게 남는다 — 즉시 차단이
+  필요한 경우에는 해당 사용자의 `session` 테이블 행을 함께 삭제하는 절차를
+  병행해야 한다. `user` 테이블에 `disabled: boolean` 컬럼과 별도 가드를
+  추가하는 방향은 더 무거운 대안으로 여전히 고려 가능하지만, 기존 훅으로
+  이미 충족되는 요구를 위해 우선 채택할 최소 후보는 아니다.
 
 ### Out of Scope — 계정 목록 조회 (Account Listing)
 
@@ -141,16 +178,12 @@ SPEC-PILOT-READY-001은 파일럿을 외부 테스터에게 안전하게 열기 
   않는다 — REQ-PILOT-LAUNCH-005는 기존 절차를 **문서화**하는 것만 요구하며
   그 절차를 실행하는 것을 요구하지 않는다.
 
-## §3. 인수 조건 (Acceptance Criteria — Given-When-Then)
+## §3. 인수 조건 (Acceptance Criteria)
 
-| AC | 연결 REQ | 시나리오 |
-|----|----------|----------|
-| AC-PILOT-LAUNCH-001 | REQ-PILOT-LAUNCH-001 | **Given** `app/login/page.tsx`와 `app/login/login-form.tsx`가 수정된 상태, **When** 두 파일의 렌더링된 텍스트를 확인하면, **Then** "TESTER LOGIN" 문자열은 존재하지 않고, 헤딩은 "로그인"이며, 부제는 "승인된 계정으로만 로그인할 수 있습니다."이고, 폼 하단 안내는 "계정은 운영자가 직접 발급합니다. 발급 및 로그인 문의는 담당자에게 연락해 주세요."이다. |
-| AC-PILOT-LAUNCH-002 | REQ-PILOT-LAUNCH-002 | **Given** REQ-PILOT-LAUNCH-001 적용 이후의 코드베이스, **When** `grep -rn "allowedTesters\|tester:add\|TESTER_PASSWORD\|TESTER_A_EMAIL\|TESTER_B_EMAIL" lib/ scripts/ package.json e2e/`를 실행하면, **Then** 이 SPEC 착수 이전과 동일한 결과(파일·라인 단위로 무변경)가 나온다. |
-| AC-PILOT-LAUNCH-003 | REQ-PILOT-LAUNCH-003, REQ-PILOT-LAUNCH-004 | **Given** `app/cases/new/case-input-form.tsx`가 수정된 상태, **When** 폼 하단 안내 텍스트를 확인하면, **Then** "비식별 상태로 처리되며"라는 수동태 보장 표현은 존재하지 않고, "합성이거나 이미 비식별화된 사례만 입력"이라는 능동 지시 표현이 포함되어 있으며, "보장"·"확실히 차단" 등 REQ-PILOT-READY-011이 금지하는 과대 주장 표현이 새로 추가되지 않았다. |
-| AC-PILOT-LAUNCH-004 | REQ-PILOT-LAUNCH-005 | **Given** `.moai/docs/account-provisioning.md`가 신규 작성된 상태, **When** 문서 내용을 확인하면, **Then** (a)~(c) 3가지 필수 내용(원격 프로덕션 대상 명시, 재실행 시 비밀번호 미변경 제약, 비밀값 미기록 경고)이 모두 포함되어 있고, 실제 비밀번호나 발급된 계정의 값은 어디에도 기록되어 있지 않으며, `scripts/provision-tester.ts`는 `git diff`상 무변경이다. |
-| AC-PILOT-LAUNCH-005 | REQ-PILOT-LAUNCH-006 | **Given** run-phase 착수 시점의 README.md와 `.moai/project/product.md`, **When** SPEC-PILOT-READY-001 관련 문구(`status: completed`, 7개 항목 READY, 전체 GO, PR #10 `d74ece4`)를 Grep으로 재확인하면, **Then** plan-phase에서 확인한 것과 동일하게 일치하며, 불일치가 발견되면 이 SPEC의 REQ-PILOT-LAUNCH-006 하위 항목으로 정정 내용을 기록한다. |
-| AC-PILOT-LAUNCH-006 | Out of Scope 절 전체 | **Given** run-phase 완료 시점의 diff, **When** 변경된 파일 목록을 확인하면, **Then** 비밀번호 재설정·계정 비활성화·계정 목록 조회 기능에 해당하는 신규 코드(라우트, DB 컬럼, CLI 스크립트)가 존재하지 않는다. |
+Tier M 분류(§1 핵심 판단 근거)에 따라 인수 조건 전체는 별도 파일
+`.moai/specs/SPEC-PILOT-LAUNCH-001/acceptance.md`에 Given-When-Then 형식으로
+기록한다(AC-PILOT-LAUNCH-001 ~ 008, 8개). 이 절에는 인라인 AC 테이블을
+포함하지 않는다.
 
 ## §4. 교차 참조
 
