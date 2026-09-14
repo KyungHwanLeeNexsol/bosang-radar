@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { caseJobs, cases, reports, reservations } from "../db/schema";
+import { BACKGROUND_LEASE_TTL_SECONDS } from "./job-timing";
 import { toSafeErrorMeta } from "../logging/safe-error";
 import { runPipeline } from "../pipeline/index";
 import { validateCaseInput, type CaseInput } from "../validation/case-input";
+
+export { BACKGROUND_LEASE_TTL_SECONDS };
 
 // 사건 입력을 받아 검증 → 파이프라인 실행 → cases/reports 저장까지 수행하는
 // 단일 엔트리 포인트 (REQ-SCAFFOLD-016, AC-SCAFFOLD-015). app/api/cases/
@@ -27,7 +30,8 @@ import { validateCaseInput, type CaseInput } from "../validation/case-input";
 export const LEASE_TTL_SECONDS = 330;
 // Background Function은 Netlify Free에서 최대 15분까지 실행될 수 있으므로,
 // 비동기 job이 정상 처리 중인 동안 리스가 먼저 만료되지 않도록 별도 여유를 둔다.
-export const BACKGROUND_LEASE_TTL_SECONDS = 960;
+// 값 자체는 클라이언트 polling 상한과 공유해야 하는 순수 상수라 job-timing.ts에
+// 정의하고 여기서는 재수출만 한다(SSOT는 하나 — SPEC-PILOT-READY-001 §Z).
 
 export interface CreateCaseSuccess {
   success: true;

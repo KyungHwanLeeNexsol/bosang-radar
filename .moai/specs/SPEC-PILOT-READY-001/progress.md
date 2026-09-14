@@ -1133,3 +1133,144 @@ case_jobs/Background Function/Gemini 관측은 이미 REQ-PILOT-READY-007~010에
 기록하는 최초 SPEC 아티팩트 기재다. REQ/AC 신설 또는 기존 REQ 하위 절 확장은
 plan-phase 소유(manager-spec)이므로, 이번 세션은 사실 기재에 그치고 실제
 REQ/AC 개정은 다음 plan-phase 세션으로 넘긴다.
+
+## §AA 실제 Deploy Preview·원격 Turso 대상 최종 재검증 (2026-09-14, HEAD `3f0859b` → `<이 커밋>`)
+
+§Z 세션에서 남겼던 원격 검증 공백(gh/netlify CLI 부재)이 이번 세션에서 해소됐다 —
+`GITHUB_TOKEN` 환경변수와 GitHub REST API로 PR #10 상태를 조회할 수 있었고,
+`.env.local`의 `TURSO_DATABASE_URL`이 실제 원격 인스턴스를 가리키고 있어 직접
+읽기/쓰기가 가능했다. 사용자 승인에 따라 새 합성 전용 테스터 3계정
+(`smoke-test-20260914-{1,2,3}@bosang-radar.internal`)을 원격 Turso에 직접
+프로비저닝했다 — 비밀번호는 이 세션 프로세스 메모리에만 존재했고 로그·문서·
+커밋 어디에도 기록하지 않았다.
+
+### 1. Deploy Preview 상태 확인
+
+- GitHub combined status(`GET /repos/.../commits/3f0859b.../status`):
+  `netlify/musical-macaron-82feb3/deploy-preview` = `success`, "Deploy Preview
+  ready!", target `https://deploy-preview-10--musical-macaron-82feb3.netlify.app`.
+  대상 commit SHA가 로컬/원격 브랜치 HEAD(`3f0859b`)와 일치함을 확인했다 —
+  빌드 성공 증거.
+- 런타임 성공을 빌드 성공과 별도로 직접 확인했다: `/login` HTTP 200(제목
+  "로그인" 렌더 확인), `/api/auth/get-session` HTTP 200, `/cases/new`(비로그인)
+  HTTP 307→`/login`.
+
+### 2. 하이브리드 Gemini 원격 스모크 + 서로 다른 사용자 동시 부하(readiness 항목 (6))
+
+세 계정으로 일반/복합/일반 사건을 **동시에**(`Promise.all`) 제출했다.
+
+| 사용자 | 사건 | 제출 응답 | 최종 상태 | 완료까지 | Gemini 관측 |
+|---|---|---|---|---|---|
+| tester-1 | 일반 | 202(3.0s) | completed | 24.0s | Lite×3 (research/challenge/verify), 모두 HTTP 200 |
+| tester-2 | 복합(기왕증 신호) | 202(3.0s) | completed | 43.4s | Premium×1(8.5~24.3s)+Lite×2, 모두 HTTP 200 |
+| tester-3 | 일반 | 202(3.4s) | completed | 20.4s | Lite×3, 모두 HTTP 200 |
+
+- 세 요청 모두 202로 정상 접수됐고(429/5xx 없음), 3건 모두 202→completed에
+  도달했다. `cases` 테이블 직접 조회로 각 caseId의 `ownerUserId`가 제출한
+  본인과 정확히 일치함을 확인했다(소유자 격리 정상).
+- 하이브리드 라우팅이 실제 Gemini 호출에서도 설계대로 동작함을 원격 환경에서
+  재확인했다(§Z의 로컬 실측을 원격으로 승격) — REQ-PILOT-READY-010 v0.15.0
+  정정의 "일반/복합-직행 3회" 기대치와 일치한다.
+- **readiness 항목 (6) 판정**: 이 실측이 REQ-PILOT-READY-006/AC-PILOT-READY-006의
+  요구(서로 다른 사용자 3~5명 동시 요청, 성공적 최종 상태 도달, DB 영속화·조회
+  가능, 처리되지 않은 429/5xx/타임아웃 없음)를 모두 충족한다 — **UNVERIFIED →
+  READY로 전환**.
+- **명시적 한계(REQ-PILOT-READY-006과 동일 근거 재확인)**: `lib/pipeline/index.ts`의
+  `pipelineChain`(프로세스 인메모리 락)은 이번 동시 요청 3건 모두를 하나의
+  Netlify 서버리스 인스턴스가 처리했다면 그 인스턴스 내부에서만 순서를
+  보장했을 뿐이며, 서로 다른 인스턴스에 분산됐다면 전혀 공유되지 않는다 — 이번
+  실측(3건, RPM budget 4/11 대비 여유 충분)에서는 문제가 관측되지 않았지만,
+  10명 파일럿 규모로 확장 시 인스턴스 간 미공유 상태가 RPM 예산 초과의 실제
+  원인이 될 수 있다는 구조적 한계는 여전히 유효하다(README/CHANGELOG에는 별도
+  기재하지 않음 — 이 문서가 SSOT).
+
+### 3. readiness 항목 (7) — 원격 리스·복구 검증
+
+**(a) 동일 사용자 최초 동시 경합** — tester-1로 두 `POST /api/cases`를 동시
+발생시키자 정확히 하나는 `202`, 다른 하나는 `409`였다. **PASS(원격 실측)**.
+
+**(b) 동일 background job 중복 실행 claim** — 위 (a)의 승자 jobId로
+`/.netlify/functions/process-case-background`를 동시에 두 번 직접 POST했다(둘
+다 `202` 즉시 응답 — Background Function의 fire-and-forget 특성상 당연함). 완료
+후 `gemini_request_observations`를 job 단위로 조회한 결과 정확히 3행(파이프라인
+1회분)만 존재했다 — 두 번째 호출은 `queued→processing` claim에서 영향 행 0으로
+조용히 종료됐음을 실측으로 확인했다. **PASS(원격 실측)**.
+
+**(c) 만료 lease 재획득 + (d) 지연 완료 fencing** — tester-2로 job1을 제출한 직후
+원격 `reservations.expires_at`을 과거로 직접 되돌려 TTL 경과를 즉시 재현하고,
+곧바로 job2를 제출했다. 결과: job2는 `202`로 새 리스를 재획득했고 `completed`로
+정상 종료됐다(caseId 발급). job1은 정상적으로 끝까지 실행됐으나(Gemini 호출도
+실제로 소비함) 완료 트랜잭션에서 리스 소유권 재확인이 실패해 `failed`로
+남았고 `cases`/`reports` 행을 전혀 생성하지 않았다 — tester-2의 최종 case
+행 수는 정확히 2건(§2의 복합 사건 + job2)이었고, 원격 `reservations`에는
+job1의 낡은 leaseId가 전혀 남아있지 않았다. **PASS(원격 실측) — 두 시나리오
+모두 확인**.
+
+**(e) 완료 트랜잭션 실패 시 부분 저장 없음** — 이번 세션에서 실제 원격 Turso에
+대해 트랜잭션 중간 실패를 인위적으로 주입하는 시도는 하지 않았다(운영 중인
+공유 DB에 대한 fault injection은 위험 대비 실익이 낮다고 판단) — 이 시나리오는
+`lib/cases/create-case.test.ts`(249행)의 mock 기반 단위 테스트로만 PASS가
+확인되어 있다. **단위 테스트 PASS / 실환경(원격 Turso 대상) UNVERIFIED로
+구분 기록**한다 — 트랜잭션 원자성 자체는 DB 엔진(SQLite/libSQL) 수준의
+보장이며 네트워크 조건에 좌우되지 않는다는 점에서 위험은 낮다고 평가하지만,
+이 세션의 실측 범위에는 포함되지 않았다는 사실은 정직하게 남긴다.
+
+**(f) processing 중 강제 종료 시 job 상태·복구 계약** — Netlify Background
+Function을 실행 도중 실제로 강제 종료시키는 것은 이 세션에서 수행할 수 없다
+(원격 플랫폼 프로세스를 직접 kill할 권한/수단이 없음). 현재 코드로 추론한
+실제 계약: 강제 종료되면 `case_jobs.status`는 `processing`에서 영원히
+전이되지 않고 남는다(그 job을 완료·실패로 전환하는 코드 경로가 전혀 실행되지
+않으므로) — 반면 **`reservations` 리스는 TTL(960초) 경과 후 자동 재획득되므로
+사용자가 영구히 새 제출을 못 하게 막히지는 않는다**(위 (c)/(d)가 이 자가치유
+메커니즘 자체를 실측으로 확인했다). 즉 사용자 차단은 해소되지만, 죽은 job의
+`case_jobs` 행 자체는 상태가 진실하지 않은 채(`processing`으로 영구 고착)
+DB에 남는다는 잔여 결함이 있다 — 데이터 손상(부분 case/report 생성)은 없다.
+**정확한 판정: UNVERIFIED(라이브 강제 종료 재현 불가)**. **최소 수정안(구현하지
+않음, 제안만)**: `GET /api/cases/status`가 `status==="processing"`이고
+`updatedAt`이 `BACKGROUND_LEASE_TTL_SECONDS`를 초과했으며 해당 사용자의
+`reservations` 행에 그 job의 leaseId가 더 이상 없는 경우, 응답을 `failed`로
+간접 판정해 클라이언트에 알려주는 조건 하나를 상태 조회 라우트에 추가한다 —
+별도 reaper/cron 없이 읽기 시점에만 판정하는 최소 변경이며, 10명 규모 파일럿에
+과잉이라 이번 세션에서는 구현하지 않고 제안으로만 남긴다.
+
+**readiness 항목 (7) 종합 판정**: 6개 하위 시나리오 중 4개((a)(b)(c)(d))가
+실제 원격 Turso 대상으로 새로 실측 PASS됐다 — §Z 이전에는 전부 UNVERIFIED였다.
+남은 2개는 (e) 단위 테스트 PASS/실환경 미실측, (f) 라이브 재현 불가+최소
+수정안 제시. readiness 문서의 "실제 원격 Turso 대상에 대한 검증만 READY로
+인정" 원칙과 "7개 시나리오 전부"라는 REQ-PILOT-READY-015 요구를 엄격히
+적용해 **항목 (7)은 UNVERIFIED를 유지**한다(부분 통과를 READY로 승격하지
+않는다 — readiness-decision 문서의 이진 판정 원칙과 동일).
+
+### 4. UI polling(6분) vs backend lease(960초) 불일치 수정
+
+`lib/cases/job-timing.ts`(신규, DB 의존성 없는 순수 상수 모듈)를 추가해
+클라이언트 polling 상한을 기존 고정 180회(6분)에서 리스 TTL(960초)에 안전
+여유 60초를 뺀 450회(15분)로 확장했다 — `create-case.ts`의
+`BACKGROUND_LEASE_TTL_SECONDS`는 이 파일에서 재수출한다(SSOT 단일화). 타임아웃
+메시지도 "다시 시도해 주세요"에서 "지금 다시 제출하지 말고 잠시 후 새로고침해
+확인해 주세요"로 정정해, 아직 유효한 리스에 막혀 409만 돌려받는 무의미한
+재제출을 유도하지 않는다. 신규 테스트: `lib/cases/job-timing.test.ts`(2개),
+`case-input-form.test.tsx`에 예전 180회 상한을 지나도 계속 대기함을 확인하는
+케이스 1개 추가.
+
+### 5. SPEC 문서 정합화
+
+spec.md를 v0.15.0으로 갱신 — HISTORY 신규 항목, REQ-PILOT-READY-007에 (4)
+Background Function 비동기 변형 하위 절 추가, REQ-PILOT-READY-008에
+`gemini_request_observations` 테이블 추가 기재, REQ-PILOT-READY-010의 고정
+"3회" 기대치를 경로별(3회/6회) 기대치로 정정. plan.md §E PRESERVE List의
+`lib/pipeline/**` 전면 동결 문구를 실제 구현(하이브리드 라우팅 승인된 확장)과
+일치하도록 정정 — 6단계 알고리즘 내부·공개 타입 계약은 여전히 미변경.
+acceptance.md에 AC-PILOT-READY-007 Background Function 변형 하위 AC(위 §3
+근거 인용) 및 AC-PILOT-READY-010의 경로별 기대 호출 횟수 정정을 반영했다.
+
+### 6. 남은 차단 사항
+
+readiness 7개 항목 중 (1)-(6)이 `READY`, (7)만 `UNVERIFIED`(부분 실측 PASS,
+잔여 2개 시나리오는 라이브 재현 불가 또는 미시도) — **전체 판정은 여전히
+`NO-GO`**(REQ-PILOT-READY-016 게이트 규칙: 하나라도 UNVERIFIED면 전체 NO-GO).
+파일럿 착수 전 남은 작업: (a) 완료 트랜잭션 실패의 원격 fault-injection 실측
+여부 결정(권장하지 않음 — 위험 대비 실익 낮음, 단위 테스트로 충분하다는 대안
+판단도 가능), (b) 강제 종료 복구의 최소 수정안(§3 (f)) 구현 여부 결정, (c) PR
+#10 본문을 이 세션의 최신 검증 수치로 갱신(gh CLI 부재로 본문 자동 갱신은
+수행하지 못함 — 아래 최종 보고에 텍스트로 제시).

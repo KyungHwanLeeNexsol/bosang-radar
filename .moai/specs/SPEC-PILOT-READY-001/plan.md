@@ -544,9 +544,19 @@ v0.3.0부터 M1은 옵션 분기가 없는 단일 구현이다. Implementation K
 
 ## §E. PRESERVE List (files this SPEC MUST NOT modify beyond the stated edit)
 
-- `lib/pipeline/**`(단계 알고리즘 자체), `lib/ai/**`(모델 선택·RateScheduler 페이싱
-  로직) — REQ-PILOT-READY-008의 로그 추가 지점(`lib/pipeline/index.ts`,
-  `lib/ai/providers/gemini.ts`)을 제외하고는 알고리즘·타입 계약 미변경
+- `lib/pipeline/**` — **(v0.15.0 정정)** 이전 버전은 이 디렉터리를 "단계 알고리즘
+  자체... 미변경"으로 전면 동결했으나, §R(비동기 전환)과 하이브리드 라우팅 도입
+  (REQ-PILOT-READY-007(4)/REQ-PILOT-READY-010 v0.15.0 정정 참고)이 실제로
+  `lib/pipeline/index.ts`의 오케스트레이션 로직과 신규 `lib/pipeline/
+  hybrid-research-router.ts`를 수정·추가했다 — 이는 이 문구와 충돌하는 실제
+  구현이었으며, 이 HISTORY 항목으로 그 충돌을 정정한다. 지금부터 유효한
+  PRESERVE 범위는: CaseNormalizer/QueryPlanner/EvidenceRetriever/Researcher/
+  Skeptic/Verifier 6단계 각 알고리즘의 내부 구현과 `ResearchReport`/
+  `VerifiedClaim`/`EvidenceCandidate` 타입 계약(`lib/pipeline/types.ts`)은
+  미변경 — `index.ts`의 단계 호출 순서·라우팅 계층과 `hybrid-research-router.ts`는
+  이 PRESERVE 대상에서 제외된 승인된 확장이다. `lib/ai/**`(모델 선택·RateScheduler
+  페이싱 로직)는 REQ-PILOT-READY-008의 로그 추가 지점(`lib/ai/providers/
+  gemini.ts`)을 제외하고는 기존과 동일하게 알고리즘·타입 계약 미변경.
 - `lib/db/schema.ts` — 신규 `reservations`(리스) 테이블 추가(`ownerUserId`/`leaseId`/
   `expiresAt` 3개 컬럼)만 허용되며, 기존 테이블(`cases`/`evidence`/`reports`/
   `feedback`/`allowed_testers`)의 컬럼·제약은 변경하지 않는다

@@ -173,6 +173,17 @@ Vercel Hobby/Pro tier 문구는 HISTORICAL이다)
   시도하면, then 그 해제/커밋 시도는 0행에 매치되어 no-op으로 거부되고, 두 번째(현재)
   리스 행과 그 실행의 최종 상태는 첫 번째 호출의 시도로 인해 변경되거나 삭제되지 않는다
   — DB를 직접 조회해 현재 리스 행의 `leaseId`가 두 번째 호출의 것과 일치함을 확인한다.
+- And (**Background Function 비동기 변형 — REQ-PILOT-READY-007(4), v0.15.0 신규 —
+  실제 원격 Turso + Deploy Preview 대상 실측 완료**) 위 (1)-(3)의 시나리오를
+  `startCaseJob()`/`processCaseJob()` 경로에 대해 실제 배포 도메인과 실제 원격
+  Turso를 대상으로 재현했다: (a) 동일 사용자 두 `POST /api/cases`를 동시 발생시키면
+  정확히 하나만 `202`, 나머지는 `409`; (b) 동일 jobId로 Background Function 엔드포인트를
+  동시에 두 번 호출해도 `gemini_request_observations` 관측 행 수가 파이프라인 1회분과
+  정확히 일치(중복 실행 없음); (c) 진행 중인 리스의 `expiresAt`을 원격 DB에서 직접
+  과거로 되돌리면 동일 사용자의 새 제출이 즉시 `202`로 재획득에 성공하고, 원래(만료된)
+  job은 뒤늦게 완료를 시도해도 `failed`로 남으며 `cases`/`reports` 행을 생성하지
+  않는다(지연 완료 fencing) — 근거: `.moai/specs/SPEC-PILOT-READY-001/progress.md`
+  §AA(2026-09-14 원격 실측, PR #10 HEAD `3f0859b` 이후 커밋 기준).
 
 **AC-PILOT-READY-015** (동일 사용자 진성 경쟁 조건 — REQ-PILOT-READY-007)
 - Given `lib/cases/create-case.ts`의 리스(lease) 기반 재제출 가드 구현(REQ-PILOT-READY-007
@@ -231,8 +242,10 @@ Vercel Hobby/Pro tier 문구는 HISTORICAL이다)
   각각의 실제 Gemini 호출 성공 여부, (b) `POST /api/cases`가 `202 Accepted`와 jobId를
   반환하고 최종 상태 조회가 완료된 사건의 `caseId`를 제공하는지, (c) 응답 결과가 실제로 `reports` 테이블에 영속화됐는지, (d) 그 DB
   행을 별도 조회로 재확인했을 때 응답 값과 일치하는지, (e) 관측된 실제 Gemini 호출
-  횟수가 기대 호출 횟수(3회, 또는 재시도가 있었다면 그 실제 횟수)와 일치하는지. 5가지
-  중 하나라도 리포트에서 확인할 수 없으면 이 AC는 FAIL이다.
+  횟수가 그 사건의 라우팅 경로가 요구하는 기대 호출 횟수와 일치하는지(v0.15.0 정정
+  — 하이브리드 라우팅 도입 이후 고정 3회가 아니다: 일반/복합-직행 경로는 3회, Lite→Premium
+  승격 경로는 최대 6회 — 리포트는 실행한 경로와 그 경로의 기대 횟수를 함께 명시한다).
+  5가지 중 하나라도 리포트에서 확인할 수 없으면 이 AC는 FAIL이다.
 - And 기존 `gemini-smoke-20260827.md`/`gemini-runtime-smoke-20260828.md` 파일은
   덮어써지지 않고 그대로 보존된다.
 

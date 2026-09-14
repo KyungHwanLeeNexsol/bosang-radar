@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CaseInputForm } from "./case-input-form";
+import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
 
 // SPEC-PILOT-UX-001 M3/M4 — case-input-form.tsx는 client component이므로
 // react-dom/client로 직접 렌더링한다(@testing-library/react 미설치).
@@ -181,6 +182,40 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][0]).toBe("/api/cases/status?jobId=job-123");
     expect(pushMock).toHaveBeenCalledWith("/cases/case-async");
+  });
+
+  it("SPEC-PILOT-READY-001 §Z: 예전 6분(180회) 상한을 지나도 계속 polling하고, 새 상한에서만 타임아웃을 안내한다", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 202,
+        json: () => Promise.resolve({ jobId: "job-slow" }),
+      } as Response)
+      .mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "processing" }),
+      } as Response);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // 예전 고정 상한(180회×2초=6분)을 이미 지났어도 아직 타임아웃이 아니어야 한다.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(180 * CLIENT_POLL_INTERVAL_MS);
+    });
+    expect(container.textContent).not.toContain("분석이 예상보다 오래 걸리고 있습니다");
+
+    // 새 상한까지 마저 진행하면 "실패"가 아니라 지연 안내 메시지가 뜨고,
+    // 즉시 재제출을 유도하지 않는다.
+    const remainingMs = (CLIENT_POLL_MAX_ATTEMPTS - 180) * CLIENT_POLL_INTERVAL_MS;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(remainingMs);
+    });
+    expect(container.textContent).toContain("분석이 예상보다 오래 걸리고 있습니다");
+    expect(container.textContent).toContain("지금 다시 제출하지 말고");
   });
 
   it("AC-004: 실패(비-201) 후 재제출하면 fetch가 다시 호출된다", async () => {

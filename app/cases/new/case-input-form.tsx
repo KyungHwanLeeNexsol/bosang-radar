@@ -8,6 +8,7 @@ import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
 
 class CaseSubmissionError extends Error {}
 
@@ -39,8 +40,12 @@ export function CaseInputForm() {
   const submitGuardRef = useRef(false);
 
   async function waitForCaseJob(jobId: string): Promise<void> {
-    for (let attempt = 0; attempt < 180; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    // SPEC-PILOT-READY-001 §Z — 이 polling 상한은 backend 리스 TTL(960초)보다
+    // 먼저 끝나지 않도록 job-timing.ts에서 안전 여유를 두고 계산된 값이다.
+    // 상한에 먼저 도달하면 백엔드가 아직 처리 중일 가능성이 낮다는 뜻이므로,
+    // "실패"가 아니라 "완료가 지연되고 있다"로 안내한다(아래 메시지 참고).
+    for (let attempt = 0; attempt < CLIENT_POLL_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, CLIENT_POLL_INTERVAL_MS));
       const response = await fetch(`/api/cases/status?jobId=${encodeURIComponent(jobId)}`, {
         cache: "no-store",
       });
@@ -62,8 +67,12 @@ export function CaseInputForm() {
         );
       }
     }
+    // 이 시점까지도 완료되지 않았다면 백엔드가 여전히 처리 중일 가능성이
+    // 낮다(안전 여유가 이미 소진됨) — 그래도 "실패"를 단정하지 않고, 즉시
+    // 재제출을 유도하지 않는다: 재제출은 아직 유효한 리스에 막혀 409로
+    // 거부될 뿐 분석 완료 여부를 알려주지 않기 때문이다.
     throw new CaseSubmissionError(
-      "분석 시간이 너무 오래 걸리고 있습니다. 잠시 후 다시 확인해 주세요."
+      "분석이 예상보다 오래 걸리고 있습니다. 지금 다시 제출하지 말고 잠시 후 새로고침해 확인해 주세요."
     );
   }
 

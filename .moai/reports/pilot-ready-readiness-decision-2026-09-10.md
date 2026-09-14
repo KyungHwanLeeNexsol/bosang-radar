@@ -26,9 +26,10 @@
 금지하는 것은 "판정을 회피하는 것"(빈칸으로 방치)이지, "판정 결과가 부정적인 것"이
 아니다.
 
-**이 문서의 현재 상태(2026-09-13 실환경 검증 반영)**: 아래 7개 항목 중 호스팅
-적합성 항목 (1), Gemini 쿼터 항목 (2), 원격 DB 항목 (3), 실 도메인 인증 항목 (4),
-실 Gemini 스모크 항목 (5)는 **READY**, 나머지 2개 항목은 **UNVERIFIED**다.
+**이 문서의 현재 상태(2026-09-14 실환경 재검증 반영)**: 아래 7개 항목 중
+(1) 호스팅 적합성, (2) Gemini 쿼터, (3) 원격 DB, (4) 실 도메인 인증,
+(5) 실 Gemini 스모크, (6) 서로 다른 사용자 동시 부하는 **READY**, (7) 저장소/
+복구 검증만 **UNVERIFIED**다(부분 실측 PASS — 아래 항목 (7) 비고 참고).
 일부 게이트가 READY로 전환됐더라도 하나 이상의 원격 필수 항목이 UNVERIFIED이면 전체
 판정은 `NO-GO`라는 규칙을 그대로 적용한다.
 
@@ -63,8 +64,8 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 3 | 원격 DB(실제 원격 Turso 대상에 대한 마이그레이션/시드 실행) | `READY` | `.moai/reports/pilot-ready-remote-db-verification-20260912.md` | production 컨텍스트에서 migration 0006까지 총 7건 적용, `case_jobs` 스키마 확인, seed 21건 및 `tester:add` 3계정의 `users`/`allowed_testers` 행을 읽기 재확인 |
 | 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `READY` | `.moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키 및 세션 사용자 확인, 비로그인 `/cases/new` 307과 로그인 후 200을 개별 검증 |
 | 5 | 실 Gemini 스모크(REQ-PILOT-READY-010 재검증) | `READY` | `.moai/reports/gemini-runtime-smoke-20260913.md` | 실제 Deploy Preview에서 Researcher/Skeptic/Verifier 3회 호출이 모두 HTTP 200으로 관측됐고, 202→completed 상태 전이와 응답 caseId·원격 job/report 행 일치를 독립 조회로 확인 |
-| 6 | 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006) | `UNVERIFIED` | `.moai/reports/pilot-ready-concurrency-measurement-*.md` | 원격 필수, 로컬 대체는 참고 증거로만 허용 (§항목별 READY 세부 기준 (6) 참고) |
-| 7 | 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장) | `UNVERIFIED` | `.moai/reports/pilot-ready-idempotency-scope-*.md` + M6 테스트 증거 | **반드시 실제 원격 Turso 대상에 대한 검증만 READY로 인정한다 — 로컬 또는 in-memory SQLite 결과만으로는 이 항목을 READY로 판정할 수 없다** (§항목별 READY 세부 기준 (7) 참고) |
+| 6 | 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006) | `READY` | `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-2 | 2026-09-14, 실제 Deploy Preview + 원격 Turso 대상 서로 다른 사용자 3명 동시 제출 — 전원 202→completed, 429/5xx/타임아웃 0건, 소유자별 DB 격리 확인 |
+| 7 | 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장) | `UNVERIFIED` | `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-3 | 6개 하위 시나리오 중 4개(동시 경합/중복 실행 claim/리스 재획득/지연 완료 fencing)는 2026-09-14 실제 원격 Turso 대상 실측 PASS. 남은 2개(완료 트랜잭션 실패 시 부분저장 없음 — 단위 테스트 PASS만·실환경 미실측; 강제 종료 복구 — 라이브 재현 불가, 최소 수정안 제시)가 남아 있어 이 항목은 부분 통과를 READY로 승격하지 않는 원칙에 따라 UNVERIFIED 유지 |
 
 ## 항목별 READY 세부 기준 (v0.5.0 신규 — acceptance.md AC-PILOT-READY-016b와 정확히 일치)
 
@@ -116,11 +117,15 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 ## 전체 판정
 
-**`NO-GO`** — 호스팅 적합성·Gemini 쿼터·원격 DB·실 도메인 인증·실 Gemini 스모크
-항목 (1)~(5)는 `READY`지만 항목 (6), (7)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은
-`NO-GO`다. 남은 항목이 실제
-값으로 채워질 run-phase 종료 시점에 재평가한다(그 시점의 판정이 다시 NO-GO인 것
-자체는 정상적으로 허용되는 run-phase 완료 상태다 — REQ-PILOT-READY-016 참고).
+**`NO-GO`** — 호스팅 적합성·Gemini 쿼터·원격 DB·실 도메인 인증·실 Gemini 스모크·
+서로 다른 사용자 동시 부하 항목 (1)~(6)은 `READY`지만 항목 (7)(저장소/복구
+검증)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은 `NO-GO`다. 항목
+(7)은 6개 하위 시나리오 중 4개가 2026-09-14 실제 원격 Turso 대상 실측으로
+PASS했으나, 나머지 2개(완료 트랜잭션 실패의 실환경 fault-injection, 강제 종료
+복구의 라이브 재현)가 남아 있다 — 부분 통과를 READY로 승격하지 않는다. 남은
+항목이 실제 값으로 채워질 run-phase 종료 시점에 재평가한다(그 시점의 판정이
+다시 NO-GO인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다 —
+REQ-PILOT-READY-016 참고).
 
 ## 판정 이력
 
@@ -135,3 +140,4 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 2026-09-13 | Codex(Netlify 3회 처리시간·실행 모드 대조) | `NO-GO`(항목 1·3·4·5 READY, 3개 UNVERIFIED) | 실제 Preview 3회 측정에서 동기 접수 최대 3.761초, Background 완료 최대 47.900초를 관측했다. 배포 메타데이터의 `stream`/`background` 실행 모드와 공식 60초/15분 상한을 대조하고 안전 여유 기준을 모두 충족해 항목 (1)을 READY로 전환 |
 | 2026-09-13 | 프로젝트 운영자 + Codex(AI Studio 쿼터 확인·예산 적용) | `NO-GO`(항목 1~5 READY, 2개 UNVERIFIED) | AI Studio 실제 무료 등급 한도 Research 5 RPM/Fast 15 RPM을 확인하고 Netlify production/deploy-preview에 4/11 RPM 예산을 설정했다. 항목 (2)을 READY로 전환했으나 다중 사용자 부하와 원격 복구 검증은 아직 미검증 |
 | 2026-09-14 | MoAI(HEAD `187afc2` 재검증, 로컬 범위) | `NO-GO`(항목 1~5 READY 유지, 항목 6·7 UNVERIFIED 유지) — **판정 불변, 단 항목 (5) 근거 staleness 주의 플래그 추가** | 최신 HEAD(하이브리드 Gemini 라우팅 커밋 `187afc2`) 기준 품질 게이트를 전부 재실행(vitest 463/463·tsc·eslint·prettier·build 모두 PASS)하고, §R(2026-09-12) 이후 방치돼 있던 로컬 E2E 회귀(`case-flow.spec.ts`, 502) 하나를 발견·근본원인 확인 후 스킵 처리했다(원격 Preview 스모크가 이 경로를 대체 검증). 하이브리드 라우팅은 로컬에서 실 Gemini API로 2개 경로(일반→Lite 0회 Premium, 복합→Premium 1회)를 실측해 설계대로 동작함을 확인했으나, 승격(lite→premium) 경로와 **원격 Preview 기준 재측정**은 이번 세션에서 수행하지 못했다(gh/netlify CLI 부재, Preview URL 미보유). **주의**: 항목 (5)의 기존 READY 근거(§W, 2026-09-13)는 하이브리드 라우팅 도입 이전 파이프라인 버전 기준이다 — 파일럿 착수 전 하이브리드 라우팅 이후 버전으로 원격 스모크를 재실행해 항목 (5) 근거를 갱신할 것을 권고한다(항목 자체를 UNVERIFIED로 강등하지는 않음 — 라우팅 로직 자체의 무결성은 로컬 실측으로 확인됐고, 변경된 것은 호출 경로 분기이지 개별 호출의 성공/실패 계약이 아니기 때문). 항목 (6), (7)은 원격 동시성·복구 검증이 필요해 이번에도 UNVERIFIED로 남았고, 전체 판정은 `NO-GO`를 유지한다. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §Z |
+| 2026-09-14 | MoAI(HEAD `3f0859b` 이후, 실제 Deploy Preview + 원격 Turso 재검증) | `NO-GO`(항목 1~6 READY, 항목 7만 UNVERIFIED) — **항목 (6) UNVERIFIED→READY 전환, 항목 (5) staleness 해소** | GitHub API(`GITHUB_TOKEN`)로 PR #10 Deploy Preview가 최신 HEAD 기준 `ready`임을 확인하고 런타임 동작(login/get-session/보호 라우트)도 직접 검증했다. 사용자 승인에 따라 새 합성 테스터 3계정을 원격 Turso에 프로비저닝(비밀번호는 프로세스 메모리에만 존재, 미기록)해 실제 Preview에서: (1) 정상/복합 하이브리드 사건을 서로 다른 사용자 3명이 동시에 제출 — 전원 202→completed, 모델별 호출수가 하이브리드 라우팅 설계와 일치, 429/5xx 0건, 소유자별 DB 격리 확인 → **항목 (6) READY 전환**, 항목 (5)의 하이브리드-라우팅-이후 재검증도 완료; (2) 동일 사용자 동시 경합(202+409), 동일 job 중복 background 호출(관측 행 수로 1회 실행만 확인), 원격 DB 직접 조작으로 만료 lease 재획득 + 지연 완료 fencing까지 4개 시나리오를 실제 원격 Turso 대상으로 재현·PASS시켰다. 남은 2개 시나리오(완료 트랜잭션 실패의 실환경 fault-injection, 강제 종료 복구의 라이브 재현)는 각각 단위 테스트 PASS/실환경 미실측, 라이브 재현 불가(최소 수정안 제시)로 남아 **항목 (7)은 UNVERIFIED 유지** — 전체 판정은 `NO-GO`를 유지한다. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA |
