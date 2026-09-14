@@ -1490,6 +1490,23 @@ d455f218-…@example.test`, 고유 UUID 포함 — 실 테스터와 절대 충�
 프로덕션 Turso 대상으로 stale-job 복구, status API 응답, DB 재확인,
 재획득(unblock), synthetic 데이터 완전 정리까지 전 과정을 검증했다.
 
+**독립 재확인(team-lead, 동일 세션 시점 병행 실행)**: 이 M3 판정을 내가
+커밋(`3ab15a3`)+push한 직후, team-lead가 같은 승인 범위 안에서 **다른**
+synthetic 테스터 계정(ownerUserId `F3xMEE2EQ72VVOhshXpJEjW4xaLx2lVr`, job
+`synth-verify-job-3af7a897-…`, lease `synth-verify-lease-0a097f10-…`)으로
+독립적으로 같은 시나리오를 재현했다 — 로그인 200, `GET /api/cases/status`
+→ `{"status":"failed"}`, 직접 DB 재조회로 `{"jobStatus":"failed",
+"jobCaseId":null,"reservationCount":0}` 확인까지 동일한 결과를 얻었다.
+(team-lead는 이번 라운드에서 추가 Gemini 호출을 만들지 않기 위해 실제
+`POST /api/cases` 재제출 단계는 생략하고, `reservationCount:0`이 곧 다음
+`acquireLease()`가 즉시 성공함을 보장한다는 — 로컬 유닛 테스트가 이미
+쓰는 것과 동일한 — 증명 원리로 대체했다.) 이 계정도 검증 직후 완전히
+삭제됐다(session/account/allowedTesters/user, `{"deleted":true,
+"remaining":0}`). 서로 다른 synthetic 계정으로 두 차례 독립 재현이 같은
+결과를 내면서 M3 판정의 신뢰도를 한 번 더 뒷받침한다 — git 이력 상
+충돌·중복 커밋은 없었다(HEAD가 이미 `3ab15a3`인 상태에서 team-lead의
+실행은 읽기/쓰기 검증만 수행하고 별도 커밋을 만들지 않았다).
+
 ### M4 — 실 원격 롤백 안전성 검증: **PASS**
 
 `scripts/pilot-ready-remote-stale-verify.ts rollback-test`로, 실제 원격
