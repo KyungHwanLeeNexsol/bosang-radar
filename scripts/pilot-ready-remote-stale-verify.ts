@@ -315,6 +315,41 @@ async function deleteTester(argv: readonly string[]): Promise<void> {
   }
 }
 
+// delete-tester가 caseId/jobId 기준으로 이미 삭제했어야 할 reports/
+// gemini_request_observations 행을, 계정 삭제 후에도 알려진 특정 id로 직접
+// 재조회해 재확인한다(사후 감사용 — 계정이 이미 삭제된 뒤라 owner 기준
+// 조회는 불가능하므로 caseId/jobId를 직접 지정해야 한다).
+async function checkOrphans(argv: readonly string[]): Promise<void> {
+  const caseId = parseFlag(argv, "case");
+  const jobId = parseFlag(argv, "job");
+  if (!caseId && !jobId) {
+    throw new Error("사용법: check-orphans --case=<caseId> --job=<jobId> (둘 중 하나 이상)");
+  }
+
+  const env = bootstrapCli("db");
+  const { client, db } = buildDb(env);
+  try {
+    const result: Record<string, number> = {};
+    if (caseId) {
+      const reports = await db
+        .select()
+        .from(schema.reports)
+        .where(eq(schema.reports.caseId, caseId));
+      result.remainingReports = reports.length;
+    }
+    if (jobId) {
+      const observations = await db
+        .select()
+        .from(schema.geminiRequestObservations)
+        .where(eq(schema.geminiRequestObservations.jobId, jobId));
+      result.remainingGeminiRequestObservations = observations.length;
+    }
+    console.log(JSON.stringify(result));
+  } finally {
+    client.close();
+  }
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   switch (command) {
@@ -338,6 +373,9 @@ async function main(): Promise<void> {
       return;
     case "delete-tester":
       await deleteTester(rest);
+      return;
+    case "check-orphans":
+      await checkOrphans(rest);
       return;
     default:
       throw new Error(`알 수 없는 명령: ${command}`);
