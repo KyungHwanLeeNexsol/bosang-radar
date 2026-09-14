@@ -229,6 +229,92 @@ async function rollbackTest(argv: readonly string[]): Promise<void> {
   }
 }
 
+// synthetic 검증 전용 테스터 계정 완전 삭제 — cascade(ON DELETE CASCADE)
+// pragma 활성화 여부에 의존하지 않도록, 자식 테이블부터 명시적 순서로 직접
+// 삭제한다: gemini_request_observations → reports → feedback → case_jobs →
+// reservations → cases → account → session → allowed_testers → user.
+async function deleteTester(argv: readonly string[]): Promise<void> {
+  const owner = parseFlag(argv, "owner");
+  const email = parseFlag(argv, "email");
+  if (!owner || !email) {
+    throw new Error("사용법: delete-tester --owner=<id> --email=<email>");
+  }
+
+  const env = bootstrapCli("db");
+  const { client, db } = buildDb(env);
+  try {
+    const ownedCases = await db
+      .select({ id: schema.cases.id })
+      .from(schema.cases)
+      .where(eq(schema.cases.ownerUserId, owner));
+    const ownedJobs = await db
+      .select({ id: schema.caseJobs.id })
+      .from(schema.caseJobs)
+      .where(eq(schema.caseJobs.ownerUserId, owner));
+
+    for (const { id: caseId } of ownedCases) {
+      await db.delete(schema.reports).where(eq(schema.reports.caseId, caseId));
+      await db.delete(schema.feedback).where(eq(schema.feedback.caseId, caseId));
+    }
+    for (const { id: jobId } of ownedJobs) {
+      await db
+        .delete(schema.geminiRequestObservations)
+        .where(eq(schema.geminiRequestObservations.jobId, jobId));
+    }
+    await db.delete(schema.caseJobs).where(eq(schema.caseJobs.ownerUserId, owner));
+    await db.delete(schema.reservations).where(eq(schema.reservations.ownerUserId, owner));
+    await db.delete(schema.cases).where(eq(schema.cases.ownerUserId, owner));
+    await db.delete(schema.feedback).where(eq(schema.feedback.userId, owner));
+    await db.delete(schema.account).where(eq(schema.account.userId, owner));
+    await db.delete(schema.session).where(eq(schema.session.userId, owner));
+    await db
+      .delete(schema.allowedTesters)
+      .where(eq(schema.allowedTesters.email, email.toLowerCase()));
+    await db.delete(schema.user).where(eq(schema.user.id, owner));
+
+    const remainingUser = await db.select().from(schema.user).where(eq(schema.user.id, owner));
+    const remainingAllowedTesters = await db
+      .select()
+      .from(schema.allowedTesters)
+      .where(eq(schema.allowedTesters.email, email.toLowerCase()));
+    const remainingCases = await db
+      .select()
+      .from(schema.cases)
+      .where(eq(schema.cases.ownerUserId, owner));
+    const remainingJobs = await db
+      .select()
+      .from(schema.caseJobs)
+      .where(eq(schema.caseJobs.ownerUserId, owner));
+    const remainingReservations = await db
+      .select()
+      .from(schema.reservations)
+      .where(eq(schema.reservations.ownerUserId, owner));
+    const remainingAccount = await db
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.userId, owner));
+    const remainingSession = await db
+      .select()
+      .from(schema.session)
+      .where(eq(schema.session.userId, owner));
+
+    console.log(
+      JSON.stringify({
+        deleted: true,
+        remainingUser: remainingUser.length,
+        remainingAllowedTesters: remainingAllowedTesters.length,
+        remainingCases: remainingCases.length,
+        remainingJobs: remainingJobs.length,
+        remainingReservations: remainingReservations.length,
+        remainingAccount: remainingAccount.length,
+        remainingSession: remainingSession.length,
+      })
+    );
+  } finally {
+    client.close();
+  }
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   switch (command) {
@@ -249,6 +335,9 @@ async function main(): Promise<void> {
       return;
     case "rollback-test":
       await rollbackTest(rest);
+      return;
+    case "delete-tester":
+      await deleteTester(rest);
       return;
     default:
       throw new Error(`알 수 없는 명령: ${command}`);

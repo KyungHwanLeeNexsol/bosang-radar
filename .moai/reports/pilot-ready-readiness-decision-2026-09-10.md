@@ -26,12 +26,15 @@
 금지하는 것은 "판정을 회피하는 것"(빈칸으로 방치)이지, "판정 결과가 부정적인 것"이
 아니다.
 
-**이 문서의 현재 상태(2026-09-14 실환경 재검증 반영)**: 아래 7개 항목 중
-(1) 호스팅 적합성, (2) Gemini 쿼터, (3) 원격 DB, (4) 실 도메인 인증,
-(5) 실 Gemini 스모크, (6) 서로 다른 사용자 동시 부하는 **READY**, (7) 저장소/
-복구 검증만 **UNVERIFIED**다(부분 실측 PASS — 아래 항목 (7) 비고 참고).
-일부 게이트가 READY로 전환됐더라도 하나 이상의 원격 필수 항목이 UNVERIFIED이면 전체
-판정은 `NO-GO`라는 규칙을 그대로 적용한다.
+**이 문서의 현재 상태(2026-09-14 실환경 재검증 반영, 최종 갱신)**: 아래 7개
+항목 — (1) 호스팅 적합성, (2) Gemini 쿼터, (3) 원격 DB, (4) 실 도메인 인증,
+(5) 실 Gemini 스모크, (6) 서로 다른 사용자 동시 부하, (7) 저장소/복구
+검증 — **전부 `READY`**다(항목 (7)의 근거: `.moai/specs/
+SPEC-PILOT-READY-001/progress.md` §AC — team-lead 승인 이후 synthetic
+검증 전용 테스터 1계정으로 실 배포 도메인 + 실 원격 Turso 대상
+stale-job 복구 → status API → DB 재확인 → 재획득(unblock) → synthetic
+데이터/계정 완전 삭제까지 전 과정 PASS). 7개 항목 전부가 READY이므로
+전체 판정은 `GO`다.
 
 ## 이 문서의 목적 — SPEC 완료와는 다른 판단
 
@@ -65,7 +68,7 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 | 4 | 실 도메인 인증(실제 배포 도메인에 대한 로그인 동작) | `READY` | `.moai/reports/pilot-ready-auth-domain-verification-20260912.md` | 실제 Preview에서 로그인 HTTP 200, 세션 쿠키 및 세션 사용자 확인, 비로그인 `/cases/new` 307과 로그인 후 200을 개별 검증 |
 | 5 | 실 Gemini 스모크(REQ-PILOT-READY-010 재검증) | `READY` | `.moai/reports/gemini-runtime-smoke-20260914.md`(하이브리드 라우팅 이후 버전 재검증 — `gemini-runtime-smoke-20260913.md`는 하이브리드 라우팅 커밋 `187afc2` 이전 버전 기준이라 대체됨) | 실제 Deploy Preview에서 일반/복합/일반 3개 사건을 하이브리드 라우팅으로 처리 — 일반 경로 Lite×3, 복합 경로 Premium×1+Lite×2 모두 HTTP 200으로 관측됐고, 202→completed 상태 전이와 소유자별 DB 격리를 독립 조회로 확인 |
 | 6 | 서로 다른 사용자 동시 부하(REQ-PILOT-READY-006) | `READY` | `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-2 | 2026-09-14, 실제 Deploy Preview + 원격 Turso 대상 서로 다른 사용자 3명 동시 제출 — 전원 202→completed, 429/5xx/타임아웃 0건, 소유자별 DB 격리 확인 |
-| 7 | 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장) | `UNVERIFIED` | `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-3, §AB | 6개 하위 시나리오 중 4개(동시 경합/중복 실행 claim/리스 재획득/지연 완료 fencing)는 2026-09-14 실제 원격 Turso 대상 실측 PASS. **2026-09-14 정정(§AB, 외부 구현 검토 9차)**: 남은 2개 중 강제 종료 복구는 이전에 `UNVERIFIED(라이브 재현 불가)`로 오분류돼 있었으나 실제로는 `BLOCKED`(제안된 최소 수정안이 구현되지 않았음)였다 — 이번 라운드에서 `recoverStaleCaseJob()`을 구현하고 로컬 실제 SQLite 엔진 + 경쟁 시나리오 테스트로 검증해 `FIXED(로컬/유닛 검증 완료)`로 재분류했다. 완료 트랜잭션 실패는 여전히 단위 테스트 PASS·실환경 미실측이다. 두 시나리오 모두 실 원격 Turso·실 프로덕션 강제 종료 재현은 아직 미수행이므로, 이 항목은 부분 통과를 READY로 승격하지 않는 원칙에 따라 여전히 UNVERIFIED다(단, 근본 결함은 해소됨) |
+| 7 | 저장소/복구 검증(REQ-PILOT-READY-007의 리스+트랜잭션 보장) | `READY` | `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA-3, §AB, §AC | 6개 하위 시나리오 중 4개(동시 경합/중복 실행 claim/리스 재획득/지연 완료 fencing)는 2026-09-14 실제 원격 Turso 대상 실측 PASS. §AB에서 완료 트랜잭션 가드에 남아 있던 잔여 결함(같은 leaseId 유지 + 만료된 리스가 펜싱을 통과하는 경로)을 §AC(2026-09-14, 2회차 정정)에서 발견·수정(RED→GREEN)했고, 실 원격 Turso 롤백 안전성(M4)과, team-lead 승인 이후 synthetic 검증 전용 테스터 1계정으로 실 배포 도메인 대상 강제-종료-등가 시나리오(stale job 시딩 → `/api/cases/status` `failed` 응답 → DB 재확인(0 리스 잔존) → 재획득 재획득(unblock, 새 job `completed`까지 확인) → synthetic 계정/데이터 완전 삭제(전 테이블 0행 확인))까지 전부 PASS시켰다. acceptance.md AC-PILOT-READY-007의 "실제 프로세스 강제 종료의 동등 대체 검증 방법" 조항에 따라 이 결과로 항목 (7)을 `READY`로 전환한다 |
 
 ## 항목별 READY 세부 기준 (v0.5.0 신규 — acceptance.md AC-PILOT-READY-016b와 정확히 일치)
 
@@ -117,18 +120,23 @@ start`, `localhost`) 실행은 참고/비교 증거로만 취급되며, 이 문�
 
 ## 전체 판정
 
-**`NO-GO`** — 호스팅 적합성·Gemini 쿼터·원격 DB·실 도메인 인증·실 Gemini 스모크·
-서로 다른 사용자 동시 부하 항목 (1)~(6)은 `READY`지만 항목 (7)(저장소/복구
-검증)이 `UNVERIFIED`이므로 게이트 규칙에 따라 현재 전체 판정은 `NO-GO`다. 항목
-(7)은 6개 하위 시나리오 중 4개가 2026-09-14 실제 원격 Turso 대상 실측으로
-PASS했다. 남은 2개 중 강제 종료 복구는 2026-09-14 정정 라운드(§AB)에서
-`BLOCKED`(구현 자체가 없었음)로 정확히 재분류된 뒤 구현·로컬 검증을 완료해
-`FIXED`로 전환됐고, 완료 트랜잭션 실패는 여전히 단위 테스트 PASS·실환경
-미실측이다 — 두 시나리오 모두 실 원격 Turso 대상 라이브 재현은 아직
-수행되지 않았으므로 부분 통과를 READY로 승격하지 않는다. 남은 항목이 실제
-값으로 채워질 run-phase 종료 시점에 재평가한다(그 시점의 판정이 다시
-NO-GO인 것 자체는 정상적으로 허용되는 run-phase 완료 상태다 —
-REQ-PILOT-READY-016 참고).
+**`GO`** — 호스팅 적합성·Gemini 쿼터·원격 DB·실 도메인 인증·실 Gemini 스모크·
+서로 다른 사용자 동시 부하·저장소/복구 검증 항목 (1)~(7) **전부**가 `READY`다.
+항목 (7)은 6개 하위 시나리오 중 4개가 2026-09-14 실제 원격 Turso 대상
+실측으로 PASS했고, §AB(2026-09-14 정정 라운드)가 강제 종료 복구를
+`BLOCKED`(구현 부재)에서 구현+로컬 검증 완료로 `FIXED` 전환한 뒤,
+§AC(2026-09-14, 2회차 정정 라운드)가 그 구현의 잔여 결함(같은 leaseId
+유지 + 만료된 리스가 완료 트랜잭션 펜싱을 통과하는 경로)을 발견·수정하고,
+실 원격 Turso 롤백 안전성(M4)과 실 배포 도메인 대상 강제-종료-등가
+시나리오(team-lead 승인 이후 synthetic 검증 전용 테스터 1계정, M3)까지
+전부 실측 PASS시켰다. acceptance.md AC-PILOT-READY-007의 "실제 프로세스
+강제 종료의 동등 대체 검증 방법" 조항에 따라 라이브 프로세스 강제 종료
+그 자체는 더 이상 필수 요건이 아니며, 그 동등 방법이 실제로 끝까지
+수행됐으므로 게이트 규칙("원격 검증 또는 실측이 필요한 항목 중 하나라도
+BLOCKED 또는 UNVERIFIED이면 NO-GO")의 예외 조건이 더 이상 성립하지 않아
+**전체 판정을 `GO`로 전환한다.** 이 GO 판정은 "SPEC-PILOT-READY-001의
+구현이 완료되었는가"와는 별개의 "실제 외부 테스터에게 파일럿을 열어도
+되는가"라는 이 문서 고유의 질문에 대한 답이다(§ 이 문서의 목적 참고).
 
 ## 판정 이력
 
@@ -145,3 +153,4 @@ REQ-PILOT-READY-016 참고).
 | 2026-09-14 | MoAI(HEAD `187afc2` 재검증, 로컬 범위) | `NO-GO`(항목 1~5 READY 유지, 항목 6·7 UNVERIFIED 유지) — **판정 불변, 단 항목 (5) 근거 staleness 주의 플래그 추가** | 최신 HEAD(하이브리드 Gemini 라우팅 커밋 `187afc2`) 기준 품질 게이트를 전부 재실행(vitest 463/463·tsc·eslint·prettier·build 모두 PASS)하고, §R(2026-09-12) 이후 방치돼 있던 로컬 E2E 회귀(`case-flow.spec.ts`, 502) 하나를 발견·근본원인 확인 후 스킵 처리했다(원격 Preview 스모크가 이 경로를 대체 검증). 하이브리드 라우팅은 로컬에서 실 Gemini API로 2개 경로(일반→Lite 0회 Premium, 복합→Premium 1회)를 실측해 설계대로 동작함을 확인했으나, 승격(lite→premium) 경로와 **원격 Preview 기준 재측정**은 이번 세션에서 수행하지 못했다(gh/netlify CLI 부재, Preview URL 미보유). **주의**: 항목 (5)의 기존 READY 근거(§W, 2026-09-13)는 하이브리드 라우팅 도입 이전 파이프라인 버전 기준이다 — 파일럿 착수 전 하이브리드 라우팅 이후 버전으로 원격 스모크를 재실행해 항목 (5) 근거를 갱신할 것을 권고한다(항목 자체를 UNVERIFIED로 강등하지는 않음 — 라우팅 로직 자체의 무결성은 로컬 실측으로 확인됐고, 변경된 것은 호출 경로 분기이지 개별 호출의 성공/실패 계약이 아니기 때문). 항목 (6), (7)은 원격 동시성·복구 검증이 필요해 이번에도 UNVERIFIED로 남았고, 전체 판정은 `NO-GO`를 유지한다. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §Z |
 | 2026-09-14 | MoAI(HEAD `3f0859b` 이후, 실제 Deploy Preview + 원격 Turso 재검증) | `NO-GO`(항목 1~6 READY, 항목 7만 UNVERIFIED) — **항목 (6) UNVERIFIED→READY 전환, 항목 (5) staleness 해소** | GitHub API(`GITHUB_TOKEN`)로 PR #10 Deploy Preview가 최신 HEAD 기준 `ready`임을 확인하고 런타임 동작(login/get-session/보호 라우트)도 직접 검증했다. 사용자 승인에 따라 새 합성 테스터 3계정을 원격 Turso에 프로비저닝(비밀번호는 프로세스 메모리에만 존재, 미기록)해 실제 Preview에서: (1) 정상/복합 하이브리드 사건을 서로 다른 사용자 3명이 동시에 제출 — 전원 202→completed, 모델별 호출수가 하이브리드 라우팅 설계와 일치, 429/5xx 0건, 소유자별 DB 격리 확인 → **항목 (6) READY 전환**, 항목 (5)의 하이브리드-라우팅-이후 재검증도 완료; (2) 동일 사용자 동시 경합(202+409), 동일 job 중복 background 호출(관측 행 수로 1회 실행만 확인), 원격 DB 직접 조작으로 만료 lease 재획득 + 지연 완료 fencing까지 4개 시나리오를 실제 원격 Turso 대상으로 재현·PASS시켰다. 남은 2개 시나리오(완료 트랜잭션 실패의 실환경 fault-injection, 강제 종료 복구의 라이브 재현)는 각각 단위 테스트 PASS/실환경 미실측, 라이브 재현 불가(최소 수정안 제시)로 남아 **항목 (7)은 UNVERIFIED 유지** — 전체 판정은 `NO-GO`를 유지한다. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AA |
 | 2026-09-14 | manager-develop(cycle_type=tdd, 정정 라운드, 외부 구현 검토 9차) | `NO-GO`(항목 1~6 READY 유지, 항목 7 UNVERIFIED 유지 — **오분류 정정: BLOCKED→FIXED**) | 외부 구현 검토 9차가 항목 (7) (f)의 `UNVERIFIED(라이브 재현 불가)` 판정이 오분류였다고 지적 — 실제로는 제안된 최소 수정안이 전혀 구현되지 않아 `BLOCKED`였다. `recoverStaleCaseJob()`을 구현(`lib/cases/create-case.ts`), `app/api/cases/status/route.ts` 조회 시점에 연동, 완료 트랜잭션 0행 하드닝(관련 결함 추가 발견·수정), polling/lease 타이밍 역방향 버그(클라이언트가 backend보다 60초 먼저 포기하던 결함) 발견·수정을 완료했다. 원격 Turso 테스트 DB 부재로 사용자 승인에 따라 로컬 실제 SQLite 엔진(mkdtempSync+file: URL, 기존 create-case.test.ts와 동일 패턴)으로 대체 검증 — RED→GREEN 증거 확보, recoverStaleCaseJob과 지연 도착 processCaseJob 완료의 실경쟁 시나리오까지 직접 재현해 이중 기록/유실 없음을 확인했다. (f)는 `BLOCKED`→`FIXED(로컬/유닛 검증 완료)`로 재분류됐으나, 실 원격 Turso·실 프로덕션 강제 종료 재현은 여전히 미수행이고 (e)도 실환경 미실측인 채로 남아 있어 항목 (7)은 이 라운드에서도 `READY`로 전환하지 않는다 — 전체 판정은 `NO-GO`를 유지한다. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AB |
+| 2026-09-14 | manager-develop(cycle_type=tdd, 2회차 정정 라운드, HEAD `1f7f848`→`c2bbfd4`+M3 재개) | `GO`(항목 1~7 전부 READY — **항목 (7) 최종 READY 전환, 전체 GO 전환**) | §AB 완료 트랜잭션 가드에 남아 있던 잔여 결함(같은 leaseId를 유지한 채 리스가 만료되는 경로가 펜싱을 통과)을 발견해 RED→GREEN으로 수정(`create-case.ts`, `create-case.test.ts` 신규 테스트 2개). 실 원격 Turso 롤백 안전성(트랜잭션 내 의도적 오류 → `cases`/`reports` 0행 확인)을 직접 검증(M4 PASS). 실 배포 도메인 HTTP 인증 레이어 검증(M3)은 기존 테스터 3계정의 비밀번호 불일치로 최초 시도가 막혔으나, team-lead가 새 synthetic 검증 전용 테스터 1계정 프로비저닝을 승인(사용자 승인 전달) — 재시도 시 Claude Code 권한 시스템이 허용해 `test-pilot-ready-verify-<uuid>@example.test` 계정을 생성했다. 이 계정으로 실 Deploy Preview에 로그인 → synthetic stale job(만료된 리스, 같은 leaseId) 시딩 → `GET /api/cases/status`가 실제로 `{"status":"failed"}` 응답 → 직접 DB 재조회로 job=failed·리스 0건 확인 → 같은 계정으로 실제 새 사건 제출이 `202`로 성공하고 완료(`completed`)까지 확인해 사용자가 완전히 unblock됨을 실측했다. 검증 직후 이 synthetic 테스터 계정을 `user`/`account`/`session`/`allowed_testers`/`cases`/`case_jobs`/`reservations` 전 테이블에서 명시적으로 삭제해 0행 잔존을 확인했다(`scripts/pilot-ready-remote-stale-verify.ts` `delete-tester` 신규 서브커맨드, cascade pragma 의존 없이 직접 삭제). acceptance.md AC-PILOT-READY-007의 "실제 프로세스 강제 종료의 동등 대체 검증 방법" 조항에 따라 이 결과로 항목 (7)을 `READY`로 전환하며, 7개 항목이 모두 READY가 되어 게이트 규칙에 따라 **전체 판정을 `GO`로 전환한다**. 상세: `.moai/specs/SPEC-PILOT-READY-001/progress.md` §AC |
