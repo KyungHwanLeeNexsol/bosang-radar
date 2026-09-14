@@ -78,4 +78,21 @@ describe("app/login/page — 이미 로그인된 사용자 가드", () => {
     expect(redirectMock).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="login-form"]')).not.toBeNull();
   });
+
+  // SPEC-PILOT-LAUNCH-001 M1(REQ-PILOT-LAUNCH-001, AC-PILOT-LAUNCH-001/007)
+  // — 파일럿 출시 전 "테스터" 문구 제거. 캡션은 완전히 제거하고, 헤딩/부제는
+  // 일반 로그인 문구로 교체한다.
+  it("REQ-PILOT-LAUNCH-001: TESTER LOGIN 캡션이 제거되고, 헤딩/부제가 일반 로그인 문구로 교체된다", async () => {
+    getCurrentSessionMock.mockResolvedValue(null);
+
+    await renderPage(container, root);
+
+    expect(container.textContent).not.toContain("TESTER LOGIN");
+    expect(container.textContent).not.toContain("테스터 로그인");
+    expect(container.textContent).not.toContain(
+      "운영자가 승인한 테스터 계정으로만 로그인할 수 있습니다."
+    );
+    expect(container.querySelector("h1")?.textContent).toBe("로그인");
+    expect(container.textContent).toContain("승인된 계정으로만 로그인할 수 있습니다.");
+  });
 });

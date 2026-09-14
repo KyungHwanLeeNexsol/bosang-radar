@@ -349,8 +349,8 @@ export function CaseInputForm() {
             >
               <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
               <span className="min-w-0">
-                입력 내용은 비식별 상태로 처리되며 리서치 목적 외에 사용되지 않습니다. 평균 소요
-                시간 3~5분
+                합성이거나 이미 비식별화된 사례만 입력해 주세요. 입력한 정보는 AI 분석을 위해 외부
+                AI 모델 제공자(Google Gemini)에 전송됩니다. 평균 소요 시간 3~5분
               </span>
             </span>
           )}

@@ -2,7 +2,7 @@
 id: SPEC-PILOT-LAUNCH-001
 title: "프로덕션 사용자 문구 정리 및 계정 운영 준비"
 version: "0.3.0"
-status: draft
+status: in-progress
 created: 2026-09-14
 updated: 2026-09-14
 author: Nexsol
