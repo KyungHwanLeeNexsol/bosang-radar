@@ -32,6 +32,20 @@ plan_audit_verdict: iteration 1 = PASS, score 0.92 (Tier M 임계값 0.80 이상
 - 정정 항목 3 (REQ-PILOT-LAUNCH-006 근거 재재검증): `grep -n "SPEC-PILOT-READY-001" README.md .moai/project/product.md`를 이 딜리게이션 세션에서 직접 재실행 — README.md:19,23,138,149 / product.md:3,104,108,123을 확인(무변경 확인, Bash 실행 결과 verbatim). D1 감사 이후 정정 커밋 `2dbc9b2`가 기록한 값(README.md:19,23,138,142; product.md:3-5,82,104)이 실제로는 여전히 부정확했음을 발견 — README.md 4번째 줄 번호가 142가 아니라 149였고, product.md 전체 4개 줄 번호가 달랐다. spec.md REQ-PILOT-LAUNCH-006 본문과 근거 열을 이번 재검증 값으로 재정정하고, 기계적 Grep 인용(줄 번호, 편집 시 드리프트 가능)과 의미적 검증 대상(status/GO/PR#10/병합 SHA 4가지 사실, 안정적)을 명시적으로 구분하는 문장을 추가했다.
 - 정정 항목 4 (재감사 필요성 기록): 위 §E.1 `plan_audit_verdict` 필드에 iteration 1(PASS 0.92, commit `2af6f0f`)의 실제 결과와 D1 해결 이력(`2dbc9b2`)을 정확히 기록하고, Round 3의 추가 편집이 아티팩트 해시를 다시 변경했으므로 iteration 2 재감사가 필요함을 명시. `open_clarifications`를 0에서 1로 갱신(정정 항목 1의 신규 클래리피케이션 마커 반영).
 
+## §F Phase 4 Mode Selection
+
+Input parameters: tier=M, scope=7 files (3 source + 1 new doc + 3 existing test files), domain count=1 (frontend copy + docs, no cross-domain fan-out), file language mix=TSX + Markdown, concurrency benefit=LOW (coding-heavy sequential edits, not research).
+
+Mode evaluation:
+- direct: not selected — multi-file, non-trivial (string replacement + test assertions + new doc across 7 files).
+- fanout: not selected — single domain, coding-heavy (Anthropic coding-task parallelism caveat applies).
+- sweep: not selected — scope (7 files) is far below the ~30-file mechanical-transform threshold, and the work is not a single uniform mechanical rule.
+- serial: selected.
+
+Decision: serial
+
+Justification: Tier M SPEC with 7 files across one domain (frontend copy edits + one new doc), all changes are sequential/dependent milestones (M1→M5 per plan.md §C) authored by a single manager-develop delegation using the full Section A-E template. No genuine parallelism benefit exists per Anthropic's coding-task parallelism caveat.
+
 ## §E.2 Run-phase Evidence
 
 _<pending run-phase>_
