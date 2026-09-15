@@ -244,36 +244,42 @@ manager-develop run-phase 실행 결과(2026-09-15). Tier S 문서 전용 SPEC �
 `af6c0a1`부터 이 fix-review 커밋까지)를 반영하지 않은 스테일 스냅샷이었다.
 올바른 증거는 두 **불변(immutable)** 커밋 사이의 range diff여야 한다.
 
-**펜딩-백필(pending-backfill)**: `git diff af6c0a1..HEAD --stat`는 이
-fix-review 라운드의 최종 커밋이 landing된 **직후에만** 정확히 계산할 수
-있다(커밋은 자기 자신의 최종 SHA를 알 수 없다는 동일한 자기참조 제약 —
+**백필 완료**: fix-review 라운드의 최종 커밋(`1381c22`)이 landing된 직후
+`git diff af6c0a1..1381c22 --stat`를 실행해 아래에 verbatim 기록한다(이
+편집 자체는 progress.md 자기참조 문제를 피하기 위한 후속 소규모 편집이며,
 `.claude/rules/moai/development/spec-frontmatter-schema.md` § SHA
-placeholder backfill exemption과 동일 패턴). 따라서 이 커밋에서는
-placeholder를 기록하고, 바로 다음의 소규모 백필 커밋에서 실제
-`af6c0a1..<이 커밋 SHA>` range diff 출력을 이 절에 verbatim으로 교체한다.
+placeholder backfill exemption과 동일한 패턴의 즉시 백필이다):
 
 ```
-$ git diff af6c0a1..<pending-backfill-fix-review-1> --stat
-(백필 대기 — 다음 커밋에서 verbatim 교체)
+$ git rev-parse HEAD
+1381c2212c8530c575fd18bcbaa8f2ef221cd998
+
+$ git diff af6c0a1..1381c22 --stat
+ .moai/docs/pilot-ops-launch-plan.md        | 406 +++++++++++++++++++++++++++++
+ .moai/project/product.md                   |  29 ++-
+ .moai/specs/SPEC-PILOT-OPS-001/progress.md | 132 +++++++++-
+ .moai/specs/SPEC-PILOT-OPS-001/spec.md     |   2 +-
+ README.md                                  |  10 +-
+ 5 files changed, 564 insertions(+), 15 deletions(-)
 ```
 
-예상 파일 집합(plan-phase 이후 run-phase 전체 누적, 5개 — 아래 §E.3
-`total_run_phase_files`와 동일): `README.md`, `.moai/project/product.md`,
-`.moai/docs/pilot-ops-launch-plan.md`(신규), 본 `progress.md`, `.moai/specs/
-SPEC-PILOT-OPS-001/spec.md`(frontmatter만). `.moai/docs/
-pilot-incident-runbook.md`는 이 예상 집합에 포함되지 않는다 — 별도의
-"보존 검증(preservation-verified)" 파일로 분리 기록한다(아래 참고).
+정확히 5개 파일이 확인됐다 — 아래 §E.3 `total_run_phase_files`와 일치.
+`.moai/docs/pilot-incident-runbook.md`는 이 집합에 포함되지 않는다(아래
+참고, 별도의 "보존 검증(preservation-verified)" 파일로 분리 기록).
 
 **`.ts`/`.tsx`/`.js` 무변경 재확인(이번 fix-review 라운드, 작업 트리
 기준)**: `git diff --stat | grep -E "\.ts$|\.tsx$"` → 매치 없음(exit=1).
 
 **`.moai/docs/pilot-incident-runbook.md` 보존 검증(분리 기록)**: 이
-파일은 위 5개 변경 파일 집합에 포함되지 않고, `af6c0a1..HEAD` 전체 range
-에서 무변경임을 별도로 확인한다 — 5차 개정 plan-phase 중 선반영된 §1/§2
+파일은 위 5개 변경 파일 집합에 포함되지 않고, `af6c0a1..1381c22` 전체
+range에서 무변경임을 확인했다 — 5차 개정 plan-phase 중 선반영된 §1/§2
 정정이 run-phase(이번 fix-review 라운드 포함) 동안 그대로 보존됐음을
-확인(run-phase는 재작성하지 않음, plan.md §D 제약 준수). 백필 커밋에서
-`git diff af6c0a1..<최종 SHA> --stat -- .moai/docs/pilot-incident-runbook.md`
-가 빈 출력임을 함께 기록한다.
+확인(run-phase는 재작성하지 않음, plan.md §D 제약 준수).
+
+```
+$ git diff af6c0a1..1381c22 --stat -- .moai/docs/pilot-incident-runbook.md
+(출력 없음 — 무변경 확인)
+```
 
 ### 신규 문서 자체 검증 (fix-review 라운드 — 재실행, 변경분 아닌 전체 파일 대상)
 
