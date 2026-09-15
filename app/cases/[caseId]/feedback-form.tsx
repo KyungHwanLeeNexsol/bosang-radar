@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Circle, Loader2, Lock, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
@@ -661,12 +661,13 @@ export function FeedbackForm({
               onChange={(event) => setOutcomeDescription(event.target.value)}
               className={TEXTAREA_CLASSNAME}
             />
-            <DatePicker
+            <Input
+              type="date"
               aria-label="실제 결과 확인일"
               data-testid="feedback-outcome-confirmed-at"
               value={outcomeConfirmedAt}
-              onChange={setOutcomeConfirmedAt}
-              className="w-fit"
+              onChange={(event) => setOutcomeConfirmedAt(event.target.value)}
+              className="w-fit rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
             />
             {fieldErrorMessages(fieldErrors, "outcome")}
           </div>

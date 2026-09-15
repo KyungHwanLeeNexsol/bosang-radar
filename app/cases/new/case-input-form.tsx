@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Info, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -256,13 +255,16 @@ export function CaseInputForm() {
                   *
                 </span>
               </Label>
-              <DatePicker
+              <Input
                 id="incidentDate"
+                name="incidentDate"
+                type="date"
+                required
                 value={incidentDate}
-                onChange={setIncidentDate}
+                onChange={(event) => setIncidentDate(event.target.value)}
                 disabled={isSubmitting}
                 data-testid="case-incident-date"
-                className="h-10"
+                className="h-10 w-fit rounded-[4px] border-app-line bg-app-surface text-body text-bora-ink"
               />
               <p className="text-label-s text-bora-ink-4">소멸시효·약관 버전 판별에 사용됩니다.</p>
               {fieldErrors.incidentDate?.map((message) => (

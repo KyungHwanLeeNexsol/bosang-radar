@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as schema from "../lib/db/schema.ts";
-import { connectE2EDb, loginAsTester, pickDateFromPicker } from "./helpers.ts";
+import { connectE2EDb, loginAsTester } from "./helpers.ts";
 import { assertStickySidebarUserBlockVisible } from "./sidebar-assertions.ts";
 import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 
@@ -36,7 +36,7 @@ async function createCase(
   await page.getByTestId("case-incident-description").fill(input.incidentDescription);
   await page.getByTestId("case-diagnosis-name").fill(input.diagnosisName);
   await page.getByTestId("case-disability-body-part").fill(input.disabilityBodyPart);
-  await pickDateFromPicker(page, "case-incident-date", input.incidentDate);
+  await page.getByTestId("case-incident-date").fill(input.incidentDate);
   const [response] = await Promise.all([
     page.waitForResponse(
       (res) => res.url().includes("/api/cases") && res.request().method() === "POST"

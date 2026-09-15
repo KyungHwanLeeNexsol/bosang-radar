@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CaseInputForm } from "./case-input-form";
 import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
@@ -33,59 +32,9 @@ function fillField(input: HTMLElement, value: string) {
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function click(el: Element) {
-  // flushSync — 팝오버가 열리며 Portal로 새 DOM(달력)이 붙는 갱신은 다음
-  // 줄에서 바로 querySelector로 찾아야 하므로, 커밋을 동기적으로 강제한다.
-  flushSync(() => {
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  });
-}
-
-// DatePicker는 타이핑을 지원하지 않는 버튼 트리거다 — 값은 달력을 열고
-// 월을 맞춘 뒤 해당 날짜 셀을 클릭해야만 채워진다. 팝오버는 Portal로
-// document.body에 렌더링되므로 container가 아닌 document에서 찾는다.
-function pickDate(container: HTMLElement, testId: string, isoDate: string) {
-  const trigger = container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!;
-  click(trigger);
-
-  const [, yearStr, monthStr] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate)!;
-  const targetYear = Number(yearStr);
-  const targetMonth = Number(monthStr) - 1;
-
-  for (let guard = 0; guard < 36; guard += 1) {
-    const heading = Array.from(document.querySelectorAll("p")).find((p) =>
-      /^\d{4}년 \d{1,2}월$/.test(p.textContent ?? "")
-    );
-    if (!heading) break;
-    const [, shownYearStr, shownMonthStr] = /^(\d{4})년 (\d{1,2})월$/.exec(
-      heading.textContent!.trim()
-    )!;
-    const shownYear = Number(shownYearStr);
-    const shownMonth = Number(shownMonthStr) - 1;
-    if (shownYear === targetYear && shownMonth === targetMonth) break;
-    const forward =
-      shownYear < targetYear || (shownYear === targetYear && shownMonth < targetMonth);
-    const navButton = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.getAttribute("aria-label") === (forward ? "다음 달" : "이전 달")
-    )!;
-    click(navButton);
-  }
-
-  click(document.querySelector(`[data-testid="calendar-day-${isoDate}"]`)!);
-}
-
 function submitForm(container: HTMLElement) {
-  // "제출" 버튼을 클릭하는 대신 form에 네이티브 submit 이벤트를 직접
-  // dispatch한다. jsdom의 "submit 버튼 클릭 → form이 자동으로 submit
-  // 이벤트를 낸다"는 활성화 동작이, 이 테스트에서 먼저 열고 닫는 Base UI
-  // Popover(팝오버 콘텐츠는 Portal로 document.body에 별도로 렌더링됨)를
-  // 거치고 나면 더 이상 신뢰할 수 없다(jsdom 자체의 한계 — 실제 브라우저와
-  // React onSubmit 배선 자체는 이 파일 밖에서 별도로 확인했고 정상이다).
-  // submit 이벤트를 직접 내면 그 활성화 동작 경로를 완전히 건너뛰고
-  // <form onSubmit>이 실제로 호출되는지만 검증하므로, 이 테스트가 원래
-  // 확인하려는 것(핸들러 로직)에는 차이가 없다.
-  const form = container.querySelector("form");
-  form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  const submitButton = container.querySelector<HTMLButtonElement>('[data-testid="case-submit"]');
+  submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
 function fillAllFields(container: HTMLElement) {
@@ -95,7 +44,7 @@ function fillAllFields(container: HTMLElement) {
   );
   fillField(container.querySelector('[data-testid="case-diagnosis-name"]')!, "발목 인대 파열");
   fillField(container.querySelector('[data-testid="case-disability-body-part"]')!, "발목");
-  pickDate(container, "case-incident-date", "2026-01-15");
+  fillField(container.querySelector('[data-testid="case-incident-date"]')!, "2026-01-15");
 }
 
 describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드 + 네트워크 예외", () => {
