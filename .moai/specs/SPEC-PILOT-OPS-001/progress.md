@@ -211,6 +211,13 @@
   수행됨. 이 검증으로 SPEC의 plan-phase 개정 사이클이 종결됨 — 이후 변경은
   run-phase 진입 후 필요 시 D-NEW-1 인라인 수정 패턴을 통해서만 이뤄진다.
 
+## §F Phase 4 Mode Selection
+
+- Input parameters: tier=S, scope=4 files (README.md, .moai/project/product.md, `.moai/docs/pilot-ops-launch-plan.md` 신규, `.moai/docs/pilot-incident-runbook.md` 보존 검증만), domain count=1(문서화), file language mix=100% markdown, concurrency benefit=LOW(순차 편집 — 서로 참조), Agent Teams 전제=미충족
+- Mode evaluation: direct=not selected(다중 파일·비trivial), fanout=not selected(단일 도메인·순차 의존), sweep=not selected(문서 4개, 30파일 미만 + Kickoff Approval 이전), **serial=selected**(기본값 — 코드 없음, manager-develop 1회 순차 위임으로 충분)
+- Decision: serial
+- Justification: Tier S 문서 전용 SPEC으로 파일 수(4개)가 적고 서로 참조 관계(README→product.md 문구 재사용)가 있어 병렬화 이득이 없음. Anthropic coding-task parallelism 원칙과 무관하게 순차 위임이 가장 단순하고 안전함.
+
 ## §E.2 Run-phase Evidence
 
 manager-develop run-phase 실행 결과(2026-09-15). Tier S 문서 전용 SPEC —
