@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 
 // SPEC-UI-MIGRATION-001 M1 (REQ-002) — Pencil "03 · 테스터 로그인" 재스타일.
 // authClient.signIn.email 호출 로직과 5개 기존 testid는 그대로 보존한다.
 // 신규: 비밀번호 표시/숨김 토글(type state 전환만, 제출값 무영향) + 푸터
-// 링크(정책 3종 비활성, "랜딩으로 돌아가기"만 활성).
+// 링크(정책 3종 모두 비활성). "랜딩으로 돌아가기" 링크는 이후 제거됐다
+// (사용자 요청 — 로그인 페이지에서 랜딩으로 되돌아갈 필요가 없다는 판단).
 //
 // SPEC-PILOT-READY-001 M3(REQ-PILOT-READY-013, AC-PILOT-READY-013) — 실제
 // 운영자 연락 이메일이 확정되어 `supportEmail` prop(서버 컴포넌트인
@@ -27,6 +27,27 @@ import { authClient } from "@/lib/auth/client";
 // 주소를 확정하면 SUPPORT_CONTACT_EMAIL 환경변수만 설정하면 된다(코드
 // 변경 불필요).
 const DISABLED_FOOTER_LINKS = ["이용약관", "개인정보처리방침"] as const;
+
+// better-auth 클라이언트가 반환하는 signInError.message는 영문 고정 문구다
+// (예: "Invalid email or password" — @better-auth/core BASE_ERROR_CODES).
+// 화면에는 항상 한글 문구만 노출해야 하므로 message를 직접 쓰지 않고,
+// 안정적인 code 값(RawError.code)을 한글 문구로 매핑한다. 매핑되지 않은
+// code(신규 코드, 네트워크 예외 등)는 안전한 기본 한글 문구로 대체된다.
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_EMAIL_OR_PASSWORD: "이메일 또는 비밀번호가 올바르지 않습니다.",
+  INVALID_EMAIL: "올바른 이메일 형식이 아닙니다.",
+  EMAIL_NOT_VERIFIED: "이메일 인증이 완료되지 않았습니다.",
+  FAILED_TO_CREATE_SESSION: "로그인 세션을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
+};
+
+const DEFAULT_LOGIN_ERROR_MESSAGE = "로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.";
+
+function getLoginErrorMessage(code?: string): string {
+  if (code && code in LOGIN_ERROR_MESSAGES) {
+    return LOGIN_ERROR_MESSAGES[code];
+  }
+  return DEFAULT_LOGIN_ERROR_MESSAGE;
+}
 
 interface LoginFormProps {
   supportEmail?: string;
@@ -50,7 +71,7 @@ export function LoginForm({ supportEmail }: LoginFormProps = {}) {
     setIsSubmitting(false);
 
     if (signInError) {
-      setError(signInError.message ?? "로그인에 실패했습니다.");
+      setError(getLoginErrorMessage(signInError.code));
       return;
     }
 
@@ -165,14 +186,6 @@ export function LoginForm({ supportEmail }: LoginFormProps = {}) {
             )}
           </span>
         </div>
-        {/* Round4: Pencil 정합 — 뒤로가기 화살표 아이콘 추가 */}
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 text-body-s font-medium text-bora-accent hover:underline"
-        >
-          <ArrowLeft aria-hidden="true" className="size-3.5" />
-          랜딩으로 돌아가기
-        </Link>
       </footer>
     </>
   );

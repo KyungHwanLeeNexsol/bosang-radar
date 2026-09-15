@@ -119,7 +119,7 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     });
   });
 
-  it("AC-002d: 정책 링크 2종은 href 없는 aria-disabled 텍스트이고, 랜딩 링크만 실제 활성 링크다", () => {
+  it("AC-002d: 정책 링크 3종은 href 없는 aria-disabled 텍스트다", () => {
     const disabledLinks = container.querySelectorAll('[aria-disabled="true"]');
     // 사이드바 nav 항목과 구분하기 위해 텍스트 콘텐츠로 좁힌다.
     const disabledLabels = Array.from(disabledLinks).map((el) => el.textContent);
@@ -135,10 +135,13 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     for (const el of disabledLinks) {
       expect(el.getAttribute("href")).toBeNull();
     }
+  });
 
-    const landingLink = container.querySelector('a[href="/"]');
-    expect(landingLink).not.toBeNull();
-    expect(landingLink?.textContent).toContain("랜딩으로 돌아가기");
+  // 사용자 요청으로 "랜딩으로 돌아가기" 링크를 제거했다 — 로그인 페이지에는
+  // 더 이상 랜딩(/)으로 나가는 링크가 존재하지 않는다.
+  it("로그인 페이지 푸터에는 랜딩(/)으로 돌아가는 링크가 더 이상 없다", () => {
+    expect(container.querySelector('a[href="/"]')).toBeNull();
+    expect(container.textContent).not.toContain("랜딩으로 돌아가기");
   });
 
   it("AC-PILOT-READY-013: supportEmail prop 없이도(기본값) '고객지원'은 클릭 가능한 것처럼 보이는 가짜 링크를 노출하지 않고 aria-disabled로 미설정 상태를 정직하게 드러낸다(v0.6.0 정정)", () => {
@@ -187,9 +190,11 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     );
   });
 
-  it("잘못된 자격증명이면 login-error에 오류 메시지를 표시한다(기존 동작 회귀 없음)", async () => {
+  // better-auth 클라이언트가 실제로 반환하는 형태(code + 영문 message)로
+  // mock한다 — code를 한글 문구로 매핑해서 보여주는지 검증한다.
+  it("잘못된 자격증명이면 login-error에 한글 오류 메시지를 표시한다(영문 message는 노출하지 않는다)", async () => {
     signInEmailMock.mockResolvedValue({
-      error: { message: "이메일 또는 비밀번호가 올바르지 않습니다." },
+      error: { code: "INVALID_EMAIL_OR_PASSWORD", message: "Invalid email or password" },
     });
     fillField(
       container.querySelector<HTMLInputElement>('[data-testid="login-email"]')!,
@@ -208,6 +213,34 @@ describe("app/login/login-form — 비밀번호 토글 + 푸터 링크 + 기존 
     });
 
     const errorEl = container.querySelector('[data-testid="login-error"]');
-    expect(errorEl?.textContent).toContain("이메일 또는 비밀번호가 올바르지 않습니다.");
+    expect(errorEl?.textContent).toBe("이메일 또는 비밀번호가 올바르지 않습니다.");
+    expect(errorEl?.textContent).not.toContain("Invalid email or password");
+  });
+
+  // 매핑표에 없는 code(신규/미확인 code)가 와도 영문이 새지 않고 기본 한글
+  // 문구로 대체되는지 확인한다.
+  it("매핑되지 않은 오류 code라도 영문 대신 기본 한글 문구를 표시한다", async () => {
+    signInEmailMock.mockResolvedValue({
+      error: { code: "SOME_UNMAPPED_CODE", message: "Something went wrong" },
+    });
+    fillField(
+      container.querySelector<HTMLInputElement>('[data-testid="login-email"]')!,
+      "tester@example.com"
+    );
+    fillField(
+      container.querySelector<HTMLInputElement>('[data-testid="login-password"]')!,
+      "wrong"
+    );
+
+    const form = container.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const errorEl = container.querySelector('[data-testid="login-error"]');
+    expect(errorEl?.textContent).toBe("로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.");
+    expect(errorEl?.textContent).not.toContain("Something went wrong");
   });
 });
