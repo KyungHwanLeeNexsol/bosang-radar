@@ -357,7 +357,7 @@ status/updated만 허용, `.claude/rules/moai/development/spec-frontmatter-schem
 
 - sync_status: sync-complete
 - sync_complete_at: 2026-09-15
-- sync_commit_sha: pending-backfill-syncops001 (backfilled in the immediately following commit per the SHA placeholder backfill exemption, `spec-frontmatter-schema.md` § SHA placeholder backfill exemption)
+- sync_commit_sha: c267079c2f1f8c2413b29f60ea2380c8282733f6 (backfilled via the SHA placeholder backfill exemption, `spec-frontmatter-schema.md` § SHA placeholder backfill exemption)
 - ac_pass_count: 8 (AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 — all PASS per the external run-phase review against reviewed HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364`)
 - ac_fail_count: 0
 - status transition: spec.md frontmatter `status: in-progress` → `status: completed` (this sync commit); `updated:` retained at `2026-09-15` (no date change needed — the sync commit lands the same day)
