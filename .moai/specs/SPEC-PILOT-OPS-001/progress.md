@@ -97,6 +97,50 @@
   plan.md §D(코드 파일 목록 4개 추가·runbook 편집 명시)·§E([5차] grep 행
   6개 추가)·§H(교차 참조 4개 추가)도 갱신. REQ/AC 개수는 이번 라운드에서도
   변경되지 않았다(REQ 7개, AC 8개 그대로).
+- 6차 개정 라운드 기록(2026-09-15, 코디네이터가 브랜치 오염 정리를 먼저
+  위임하고 이어서 콘텐츠 수정 4건을 지시함): **브랜치 정리(Step 0)** —
+  `plan/SPEC-PILOT-OPS-001` 브랜치 HEAD에 동일 작성자
+  (kyunghwan/zuge3927@naver.com)의 무관한 기능 커밋 `3a3614c`(datepicker UI
+  교체, 10개 파일)가 직접 push돼 있던 것을 코디네이터가 `git log`/
+  `git show --stat`으로 독립 확인 후 위임 — `feat/case-date-picker-ui`
+  브랜치로 보존한 뒤 `git revert --no-edit`으로 비파괴적으로 되돌림(revert
+  커밋 `19e3377`). `git diff main...plan/SPEC-PILOT-OPS-001 --stat`으로
+  브랜치-main diff가 SPEC 범위 파일 4개(spec.md/plan.md/progress.md/
+  pilot-incident-runbook.md)만 포함함을 재확인. **콘텐츠 수정** — (1)
+  REQ-PILOT-OPS-004(6)/(7)을 ROUTE invocation(`app/api/cases/route.ts`)
+  범위와 BACKGROUND invocation(`netlify/functions/process-case-background.ts`)
+  범위로 분리해 각각 별도 Netlify function invocation(별도 로그 스트림)임을
+  명시하고 판정 항목을 재배치(AC-PILOT-OPS-004·plan.md §D/§E·
+  pilot-incident-runbook.md 동기화). (2) REQ-PILOT-OPS-007에 Gemini 관측
+  지속성 한계(네트워크 예외 호출은 콘솔에만 기록되고 DB에는 저장되지 않음,
+  DB 저장 자체의 독립 실패 가능성 `gemini_observation_persist_failed`)를
+  명시하고, AI Studio 콘솔 실시간 표시를 일일 쿼터 판단의 운영상
+  ground-truth로 지정하며 DB/스모크 값은 교차 대조 자료로만 사용한다는
+  원칙, 불일치·저장 실패 시 배치 중단/보수적 예약 태세 전환 대응, 단일
+  Google Cloud 프로젝트·단일 `GEMINI_API_KEY` 아키텍처 제약(다중 계정/
+  로테이션/페일오버 명시적 금지 — 현재 아키텍처와 일치, 해소할 결함 아님)을
+  추가(AC-PILOT-OPS-007 동기화). (3) Out of Scope 절의 "현재 로그 이벤트"
+  평면 목록을 "실제 async 프로덕션 이벤트" 8개 vs "sync legacy 이벤트
+  (미사용)" 3개로 명시적으로 분리하고, `app/api/cases/route.ts:12-13`의 구
+  TTL 주석(`LEASE_TTL_SECONDS` 330초, 미사용 동기 경로 전용, 실제
+  `BACKGROUND_LEASE_TTL_SECONDS` 960초와 불일치)을 알려진
+  code-comment debt로 기록하되 이 SPEC은 문서 전용이므로 정정은 향후
+  코드를 다루는 별도 SPEC으로 이연한다는 Out of Scope 항목을 신설.
+  (4) **runbook pre-application 투명성 기록**: `.moai/docs/
+  pilot-incident-runbook.md`의 §1 이벤트 표·§2 TTL 서술 정정은 5차 개정
+  라운드에서 이미 plan-phase 중에 선반영(pre-applied)돼 커밋됐다 —
+  README.md/product.md 편집이나 신규 운영 문서 작성 같은 통상적인
+  run-phase 문서화 REQ(plan.md §F M1~M6)보다 먼저 적용된 것이며, 이는
+  scope creep이 아니라 정당한 정확성 수정이다. run-phase의 역할은 이
+  정정 내용을 다시 새로 작성하는 것이 아니라, 이미 정정된 상태(§1 이벤트
+  표의 ROUTE/BACKGROUND 두 invocation 구분 포함, §2의 960초/1020초 값)가
+  그대로 보존돼 있는지 검증하는 것으로 한정된다 — plan.md §D에 이
+  재작성-금지·검증-한정 제약을 명시적으로 추가했다. REQ/AC 개수는 이번
+  라운드에서도 변경되지 않았다(REQ 7개, AC 8개 그대로 — 기존 REQ 본문
+  내용만 정정·구체화). plan.md §A.5(역사적 평면 목록에 6차 개정 갱신
+  안내 추가)·§D(코드 파일 3개 추가·ROUTE/BACKGROUND 구분 명시·runbook
+  재작성-금지 제약)·§E([6차] grep 행 7개 추가)·§G(안티패턴 3개 추가)·
+  §H(교차 참조 4개 추가)도 갱신.
 
 ## §E.2 Run-phase Evidence
 

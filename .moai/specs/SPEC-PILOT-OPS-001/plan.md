@@ -71,6 +71,14 @@ jobId·caseId 필드를 전혀 포함하지 않는다(필드는 `event`/`timesta
 추가되거나 리스 펜싱 메커니즘이 변경되면(둘 다 이 SPEC의 범위 밖) 이 SPEC의
 스모크 판정 기준·정리 계약 서술도 그에 맞춰 재확인이 필요하다.
 
+> **6차 개정 갱신 안내**: 위 (1) 문단의 이벤트 나열은 3차 개정 시점(5차·6차
+> 개정 이전)의 평면(undifferentiated) 목록이며, 그 이후 5차 개정에서 "실제
+> async 7개 이벤트 vs 레거시 sync 3개 이벤트" 구분으로, 6차 개정에서 다시
+> "ROUTE invocation 4개(양성 1+음성 3) vs BACKGROUND invocation 4개(음성)"
+> 구분으로 대체됐다 — 현재 유효한 판정 기준은 spec.md REQ-PILOT-OPS-004
+> (6)/(7)과 이 문서 §D/§E다. 이 A.5 절은 역사적 결정 기록으로 원문 그대로
+> 남긴다(과거 라운드의 정확한 발견 시점을 보존하기 위함).
+
 ## §B. 기술 접근 (Technical Approach)
 
 이 SPEC은 코드를 작성하지 않는다. 접근은 순수 문서 편집이다:
@@ -132,13 +140,25 @@ Netlify 대시보드에서 직접 확인한 사실(배포 URL·SHA가 실제로 
 - `scripts/provision-tester.ts`, `lib/env.ts`, `lib/db/schema.ts`,
   `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts`,
   `netlify/functions/process-case-background.ts`, `lib/cases/job-timing.ts`,
-  `app/cases/[caseId]/page.tsx`, `app/api/cases/status/route.ts`
+  `app/cases/[caseId]/page.tsx`, `app/api/cases/status/route.ts`,
+  `lib/observability/gemini-fetch-observer.ts`,
+  `lib/observability/gemini-observation-store.ts`,
+  `lib/ai/providers/gemini.ts`
   등 코드 파일은 일절 변경하지 않는다(스키마 테이블명·로그 이벤트 필드·
   `leaseId`/`releaseLeaseFenced` 펜싱 메커니즘·실제 async 경로
-  (`startCaseJob`→`processCaseJob`)·TTL/폴링 상수·테넌트 격리 메커니즘은
-  REQ-PILOT-OPS-004/005의 정리 계약·스모크 판정 기준·격리 게이트 절차 서술을
-  위해 읽기 전용으로 재확인만 했다 — jobId/caseId 상관관계 필드를 로깅
-  코드에 추가하는 것도 포함해 코드 변경은 하지 않는다).
+  (`startCaseJob`→`processCaseJob`)·TTL/폴링 상수·테넌트 격리 메커니즘·
+  Gemini 관측 지속성 경로(`gemini_request_observed` 콘솔 로그·
+  `onObservation` DB 저장·`gemini_observation_persist_failed`)·단일
+  `GEMINI_API_KEY` 아키텍처는 REQ-PILOT-OPS-004/005/007의 정리 계약·스모크
+  판정 기준·격리 게이트 절차·쿼터 운영 절차 서술을 위해 읽기 전용으로
+  재확인만 했다 — jobId/caseId 상관관계 필드를 로깅 코드에 추가하는 것,
+  Gemini 관측 지속성 코드를 수정하는 것, 다중 키/로테이션 아키텍처를
+  구현하는 것 모두 포함해 코드 변경은 하지 않는다).
+- **route.ts/process-case-background.ts 두 invocation 구분(6차 개정)**:
+  REQ-PILOT-OPS-004(6)/(7)의 ROUTE invocation 범위(`app/api/cases/route.ts`)와
+  BACKGROUND invocation 범위(`netlify/functions/process-case-background.ts`)
+  구분은 문서 서술상의 구분이며, 두 Netlify function 자체를 SPEC이 수정하는
+  것은 아니다(위 코드 파일 무변경 제약 그대로 적용).
 - README.md/product.md 편집은 §2.A가 명시한 지점에 한정하며, 그 외 절(예:
   §Roadmap의 순서 있는 후속 개발 목록, 기술 스택 절 등)은 건드리지 않는다
   (Scope Discipline).
@@ -147,7 +167,15 @@ Netlify 대시보드에서 직접 확인한 사실(배포 URL·SHA가 실제로 
 - `.moai/docs/pilot-incident-runbook.md`는 5차 개정부터 예외적으로 이 SPEC이
   직접 편집하는 대상이다(§1 이벤트 표·§2 TTL 서술을 실제 async 경로·실제
   상수 값에 맞춰 정정) — 다른 절(§3 triage 담당자, §4 원격 DB 단독 진행
-  원칙)은 그대로 참조만 하며 건드리지 않는다.
+  원칙)은 그대로 참조만 하며 건드리지 않는다. **run-phase 재작성 금지
+  (6차 개정 명시)**: 이 정정은 이미 plan-phase 중(5차 개정 라운드)에
+  선반영(pre-applied)돼 커밋됐다 — README.md/product.md 편집이나 신규 운영
+  문서 작성 같은 통상적인 run-phase 문서화 REQ(plan.md §F M1~M6)보다 앞서
+  적용된 것이다. 따라서 run-phase의 역할은 이 정정 내용을 다시 새로
+  작성하는 것이 아니라, 이미 정정된 §1 이벤트 표·§2 TTL 서술(960초/1020초
+  값, ROUTE/BACKGROUND 두 invocation 구분)이 그대로 보존돼 있는지
+  검증하는 것으로 한정된다 — run-phase가 이 파일을 다시 Write로 덮어쓰거나
+  §1/§2를 재생성하려 하면 이는 이 제약 위반이다.
 
 ## §E. 자체 검증 (Self-Verification)
 
@@ -175,6 +203,13 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 | [5차] 실제 외부 계정 경로 격리 게이트 사건도 집계 제외·정리 대상 명시 여부 | 신규 문서 내 "실제 외부" 계정 언급 부근 "집계"와 "정리" 동시 등장 grep | ≥ 1 |
 | [5차] 일일 리셋 경계 하드코딩 금지 + 운영 시점 확인 절차 존재 여부 | 신규 문서 내 "UTC"와 "KST" 동시 등장 grep | ≥ 1 |
 | [5차] 실무자×완료 사건 수×피드백 존재 여부 증거 표 형식 명시 여부 | 신규 문서 내 "완료 사건 수"와 "피드백" 동시 등장 grep | ≥ 1 |
+| [6차] ROUTE/BACKGROUND 두 invocation 구분이 스모크 판정에 명시됐는지 | 신규 문서 내 "ROUTE"와 "BACKGROUND"가 "invocation" 부근에 동시 등장하는지 grep | ≥ 1 |
+| [6차] route.ts/process-case-background.ts가 별개 Netlify function invocation(별도 로그 스트림)임이 명시됐는지 | 신규 문서 내 "별개의" 또는 "서로 다른"과 "invocation" 동시 등장 grep | ≥ 1 |
+| [6차] Gemini 관측 지속성 한계(콘솔 로그만/DB 미저장, `gemini_observation_persist_failed`) 명시 여부 | 신규 문서 내 "gemini_observation_persist_failed" 또는 "저장" + "예외" 동시 등장 grep | ≥ 1 |
+| [6차] AI Studio 콘솔 ground-truth 지정 + DB/스모크 교차 대조 구분 명시 여부 | 신규 문서 내 "ground-truth" 또는 "AI Studio 콘솔"과 "교차 대조" 동시 등장 grep | ≥ 1 |
+| [6차] 단일 Google Cloud 프로젝트·단일 GEMINI_API_KEY 제약(다중 키/로테이션/페일오버 금지) 명시 여부 | 신규 문서 내 "GEMINI_API_KEY"와 "로테이션" 또는 "페일오버" 동시 등장 grep | ≥ 1 |
+| [6차] `.moai/docs/pilot-ops-launch-plan.md`/`.moai/project/product.md`/`README.md`/`app/`·`components/`·`e2e/` 외 코드 파일 무변경(브랜치 정리 후 재확인) | `git diff main...HEAD --stat` 결과에 `.ts`/`.tsx` 파일 없음 | 매치 없음 |
+| [6차] pilot-incident-runbook.md의 §1/§2 정정이 plan-phase 중 선반영됐음이 progress.md/plan.md에 기록됐는지 | `grep -c "선반영\|pre-applied" .moai/specs/SPEC-PILOT-OPS-001/progress.md .moai/specs/SPEC-PILOT-OPS-001/plan.md` | 각 ≥ 1 |
 
 ## §F. 마일스톤 (Priority-Based, No Time Estimates)
 
@@ -220,12 +255,23 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
   기록하지 않고 스모크 데이터를 정리하지 말 것 — 일일 쿼터 집계에서 그
   호출이 조용히 사라진다(REQ-PILOT-OPS-004(j)/REQ-PILOT-OPS-007(e) 결합
   규칙 참고).
+- (6차) route.ts와 process-case-background.ts 로그를 마치 하나의 연속된
+  invocation·로그 스트림인 것처럼 서술하지 말 것 — 둘은 서로 다른 Netlify
+  function invocation이며, 신규 문서는 ROUTE invocation 범위와 BACKGROUND
+  invocation 범위를 항상 구분해 기록한다.
+- (6차) `gemini_request_observations` DB 행 수 + 스모크 선기록 합계를 "전체
+  Gemini 사용량의 완전한 그림"인 것처럼 서술하지 말 것 — 네트워크 예외 호출은
+  DB에 기록되지 않고, DB 저장 자체도 독립 실패할 수 있다. AI Studio 콘솔
+  실시간 표시가 ground-truth이며 DB/스모크 값은 교차 대조 자료일 뿐이다.
+- (6차) 다중 계정/다중 프로젝트 Gemini 키 로테이션이나 페일오버를 암시하는
+  서술을 넣지 말 것 — 이 파일럿은 단일 Google Cloud 프로젝트·단일
+  `GEMINI_API_KEY`만 사용한다는 명시적 제약이다.
 
 ## §H. 교차 참조 (Cross-References)
 
 - `.moai/specs/SPEC-PILOT-OPS-001/spec.md` §2 — 요구사항 원문
 - `.moai/docs/account-provisioning.md` — 계정 발급 절차 SSOT
-- `.moai/docs/pilot-incident-runbook.md` — 장애 대응 절차 + triage 담당자 + §4 원격 DB 단독 진행 원칙(5차 개정부터 §1 이벤트 표·§2 TTL 서술은 이 SPEC이 직접 편집)
+- `.moai/docs/pilot-incident-runbook.md` — 장애 대응 절차 + triage 담당자 + §4 원격 DB 단독 진행 원칙(5차 개정부터 §1 이벤트 표·§2 TTL 서술은 이 SPEC이 직접 편집·plan-phase 중 선반영, run-phase는 재작성하지 않고 보존만 검증 — §D 참고)
 - `.moai/specs/SPEC-PILOT-LAUNCH-001/spec.md` HISTORY — 배포 URL·SHA 미해결 항목의 최초 출처(이 §C에서 해소됨)
 - `.moai/reports/pilot-ready-quota-checklist-20260913.md` — Gemini 쿼터 실측 한도(20 RPD 절대 상한)·보수적 운영 목표(15회/일, 라인 58)의 출처
 - `netlify/functions/process-case-background.ts`, `lib/cases/job-timing.ts` — 5차 개정에서 재확인한 실제 async 경로·TTL/폴링 상수(`BACKGROUND_LEASE_TTL_SECONDS`=960, `CLIENT_POLL_SAFETY_MARGIN_SECONDS`=60)의 출처
@@ -233,3 +279,6 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 - `.moai/reports/hybrid-research-routing-20260913.md` — 하이브리드 라우팅 승격 규칙·`gemini_request_observations` 실사용량 확인 출처
 - `lib/db/schema.ts` — REQ-PILOT-OPS-004 정리 계약이 인용하는 테이블명(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations`) 및 `leaseId`(`lease_id`) 컬럼의 SSOT(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
 - `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts` — 3차 개정에서 재확인한 로그 이벤트 실제 필드(jobId/caseId 부재)와 `releaseLeaseFenced` 펜싱 메커니즘의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `lib/observability/gemini-fetch-observer.ts`, `lib/observability/gemini-observation-store.ts` — 6차 개정에서 재확인한 Gemini 관측 지속성 한계(성공/예외 콘솔 로그, DB 저장은 성공 경로 한정, `gemini_observation_persist_failed`)의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `lib/env.ts`, `lib/ai/providers/gemini.ts` — 6차 개정에서 재확인한 단일 `GEMINI_API_KEY` 아키텍처의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `app/api/cases/route.ts:12-13` — 6차 개정에서 확인한 구 TTL 주석(`LEASE_TTL_SECONDS` 330초, 미사용 동기 경로 전용) code-comment debt의 출처(spec.md Out of Scope 참고, 이 SPEC은 정정하지 않음)

@@ -21,15 +21,32 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 테스트·e2e 스펙 파일에서만 참조되고 현재 프로덕션 라우트에서는 호출되지
 않는다 — 역사적 맥락으로만 남긴다.
 
+**정정(SPEC-PILOT-OPS-001 6차 개정, v0.13.0)**: `app/api/cases/route.ts`
+(Next.js API route)와 `netlify/functions/process-case-background.ts`
+(Background Function)는 **서로 다른 두 개의 Netlify function invocation**이며,
+각자 별도의 로그 스트림·invocation ID를 가진다 — 하나의 연속된 로그이 아니다.
+아래 1.1 표는 이 사실을 반영해 **ROUTE invocation**(`app/api/cases/route.ts`
+자체 실행 범위)과 **BACKGROUND invocation**(`netlify/functions/
+process-case-background.ts` 실행 범위, `processCaseJob` 포함)으로 나눠
+이벤트를 기록한다. Netlify 대시보드에서 두 함수를 조회할 때도 각각 별도의
+함수 항목·별도의 invocation 로그로 나타난다.
+
 ### 1.1 실제 프로덕션 경로(비동기) 이벤트
+
+#### 1.1a ROUTE invocation — `app/api/cases/route.ts` (Next.js API route)
 
 | `event` 값 | 출처 | 의미 |
 |---|---|---|
 | `case_request_received` | `app/api/cases/route.ts:26` | 요청 시작(로그인 여부 확인 직후). `hasOwnerUserId`로 세션 존재 여부만 기록 |
 | `case_job_enqueue_failed` | `app/api/cases/route.ts:62` | `startCaseJob` 호출이 실패해 job을 등록하지 못함 |
 | `case_job_cancel_failed` | `app/api/cases/route.ts:69` | job 취소 요청 처리가 실패함 |
-| `case_job_create_lease_release_failed` | `lib/cases/create-case.ts:283` | `startCaseJob` 내부에서 리스 생성 실패 후 리스 해제 자체도 실패(드문 이중 실패) |
-| `pipeline_stage_failed` | `lib/pipeline/index.ts:81,92` | 파이프라인 6단계(CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier) 중 한 단계가 실패. `stage` 필드로 어느 단계인지 확인. `processCaseJob`의 파이프라인 실행 중 호출되므로 경로 공용 |
+| `case_job_create_lease_release_failed` | `lib/cases/create-case.ts:283` | `startCaseJob` 내부(ROUTE invocation에서 동기 호출됨)에서 리스 생성 실패 후 리스 해제 자체도 실패(드문 이중 실패) |
+
+#### 1.1b BACKGROUND invocation — `netlify/functions/process-case-background.ts` (Background Function)
+
+| `event` 값 | 출처 | 의미 |
+|---|---|---|
+| `pipeline_stage_failed` | `lib/pipeline/index.ts:81,92` | 파이프라인 6단계(CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier) 중 한 단계가 실패. `stage` 필드로 어느 단계인지 확인. `processCaseJob`의 파이프라인 실행 중 호출되므로 이 BACKGROUND invocation에서만 발생 |
 | `case_job_status_update_failed` | `lib/cases/create-case.ts:476` | `processCaseJob` 완료 후 job 상태 갱신이 실패함 |
 | `case_job_failed_lease_release_failed` | `lib/cases/create-case.ts:485` | `processCaseJob` 실패 후 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(`BACKGROUND_LEASE_TTL_SECONDS`=960초, `lib/cases/job-timing.ts:12`) 만료까지 재제출이 지연될 수 있다 |
 | `case_job_failed` | `lib/cases/create-case.ts:491` | `processCaseJob`이 예외를 던짐(리스는 정상적으로는 자동 해제됨) |
