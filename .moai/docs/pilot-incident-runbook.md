@@ -11,14 +11,69 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 `{ event, ... }` 형태의 JSON 문자열 한 줄로 출력되며, 사건 입력 원문(자유
 텍스트 3개 필드)은 어떤 로그에도 포함되지 않는다.
 
+**정정(SPEC-PILOT-OPS-001 5차 개정, v0.12.0)**: `app/api/cases/route.ts`는
+`startCaseJob`을 호출하며(`createCase`는 임포트하지 않음), 실제 프로덕션
+경로는 `startCaseJob`(`lib/cases/create-case.ts:250-296`) →
+`netlify/functions/process-case-background.ts` → `processCaseJob`
+(`lib/cases/create-case.ts:380-491`)로 이어지는 **비동기** 경로다. 아래 첫
+번째 표가 이 실제 경로의 이벤트다. 두 번째 표의 이벤트는 동기(sync) 레거시
+함수 `createCase`(`lib/cases/create-case.ts:125-249`) 전용이며, 이 함수는
+테스트·e2e 스펙 파일에서만 참조되고 현재 프로덕션 라우트에서는 호출되지
+않는다 — 역사적 맥락으로만 남긴다.
+
+**정정(SPEC-PILOT-OPS-001 6차 개정, v0.13.0)**: `app/api/cases/route.ts`
+(Next.js API route)와 `netlify/functions/process-case-background.ts`
+(Background Function)는 **서로 다른 두 개의 Netlify function invocation**이며,
+각자 별도의 로그 스트림·invocation ID를 가진다 — 하나의 연속된 로그이 아니다.
+아래 1.1 표는 이 사실을 반영해 **ROUTE invocation**(`app/api/cases/route.ts`
+자체 실행 범위)과 **BACKGROUND invocation**(`netlify/functions/
+process-case-background.ts` 실행 범위, `processCaseJob` 포함)으로 나눠
+이벤트를 기록한다.
+
+**정정(SPEC-PILOT-OPS-001 8차 개정)**: **주의(대시보드 함수명 사전 확인
+필요)**: 위 `route.ts`라는 명칭은 소스 파일 경로이며, Netlify 대시보드에
+그 파일 경로 이름 그대로 별도 함수 항목으로 표시된다고 단정하지 않는다 —
+Next.js API route는 실제 배포 시 소스 파일 경로와 다르게 번들링·명명될 수
+있다. 따라서 스모크 체크리스트를 실제로 수행하기 **전에** 운영자가 실제
+배포된 Netlify 대시보드에서 `POST /api/cases`를 처리하는 함수의 실제 표시
+이름(function display name)과 그룹핑/번들링 동작, invocation ID를 먼저
+확인하고 그 확인된 이름·ID를 기록한 뒤에만 아래 ROUTE invocation 확인에
+사용한다(추정 명칭이나 특정 그룹핑 패턴을 그대로 신뢰하지 않음).
+`process-case-background`는 Background Function으로서 이미 파일명 자체가
+진입점 이름이므로 별도의 함수 항목·별도의 invocation으로 명확히 구분되며
+— 이 주의는 ROUTE invocation의 실제 대시보드 함수명 확인에만 적용되고,
+ROUTE/BACKGROUND 두 invocation이 서로 다른 Netlify function invocation
+(별도 로그 스트림·invocation ID)이라는 사실 자체는 이번 개정에서 변경하지
+않는다.
+
+### 1.1 실제 프로덕션 경로(비동기) 이벤트
+
+#### 1.1a ROUTE invocation — `app/api/cases/route.ts` (Next.js API route)
+
 | `event` 값 | 출처 | 의미 |
 |---|---|---|
-| `case_request_received` | `app/api/cases/route.ts` | 요청 시작(로그인 여부 확인 직후). `hasOwnerUserId`로 세션 존재 여부만 기록 |
-| `pipeline_stage_failed` | `lib/pipeline/index.ts` | 파이프라인 6단계(CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier) 중 한 단계가 실패. `stage` 필드로 어느 단계인지 확인 |
-| `pipeline_failed` | `lib/cases/create-case.ts` | 파이프라인 전체가 예외를 던짐(리스는 자동 해제됨) |
-| `pipeline_failed_lease_release_failed` | `lib/cases/create-case.ts` | 위 파이프라인 실패 후 리스 해제 자체도 실패(드문 이중 실패, v0.6.0 대칭화) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다. 원래 파이프라인 오류는 이 이중 실패와 무관하게 항상 호출자에게 전파된다 |
-| `completion_transaction_failed` | `lib/cases/create-case.ts` | 완료 기록 트랜잭션(cases/reports INSERT + 리스 해제)이 실패해 롤백됨 |
-| `post_failure_lease_release_failed` | `lib/cases/create-case.ts` | 위 트랜잭션 실패 후 후속 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(최소 330초) 만료까지 재제출이 지연될 수 있다 |
+| `case_request_received` | `app/api/cases/route.ts:26` | 요청 시작(로그인 여부 확인 직후). `hasOwnerUserId`로 세션 존재 여부만 기록 |
+| `case_job_enqueue_failed` | `app/api/cases/route.ts:62` | `startCaseJob` 호출이 실패해 job을 등록하지 못함 |
+| `case_job_cancel_failed` | `app/api/cases/route.ts:69` | job 취소 요청 처리가 실패함 |
+| `case_job_create_lease_release_failed` | `lib/cases/create-case.ts:283` | `startCaseJob` 내부(ROUTE invocation에서 동기 호출됨)에서 리스 생성 실패 후 리스 해제 자체도 실패(드문 이중 실패) |
+
+#### 1.1b BACKGROUND invocation — `netlify/functions/process-case-background.ts` (Background Function)
+
+| `event` 값 | 출처 | 의미 |
+|---|---|---|
+| `pipeline_stage_failed` | `lib/pipeline/index.ts:81,92` | 파이프라인 6단계(CaseNormalizer→QueryPlanner→EvidenceRetriever→Researcher→Skeptic→Verifier) 중 한 단계가 실패. `stage` 필드로 어느 단계인지 확인. `processCaseJob`의 파이프라인 실행 중 호출되므로 이 BACKGROUND invocation에서만 발생 |
+| `case_job_status_update_failed` | `lib/cases/create-case.ts:476` | `processCaseJob` 완료 후 job 상태 갱신이 실패함 |
+| `case_job_failed_lease_release_failed` | `lib/cases/create-case.ts:485` | `processCaseJob` 실패 후 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 TTL(`BACKGROUND_LEASE_TTL_SECONDS`=960초, `lib/cases/job-timing.ts:12`) 만료까지 재제출이 지연될 수 있다 |
+| `case_job_failed` | `lib/cases/create-case.ts:491` | `processCaseJob`이 예외를 던짐(리스는 정상적으로는 자동 해제됨) |
+
+### 1.2 동기(sync) 레거시 경로 이벤트 — 역사적 맥락만, 현재 미사용
+
+| `event` 값 | 출처 | 의미 |
+|---|---|---|
+| `pipeline_failed` | `lib/cases/create-case.ts` (`createCase`, 미사용) | 파이프라인 전체가 예외를 던짐(리스는 자동 해제됨) |
+| `pipeline_failed_lease_release_failed` | `lib/cases/create-case.ts` (`createCase`, 미사용) | 위 파이프라인 실패 후 리스 해제 자체도 실패(드문 이중 실패, v0.6.0 대칭화) — 이 경우만 (당시) TTL 만료까지 재제출이 지연될 수 있었다. 원래 파이프라인 오류는 이 이중 실패와 무관하게 항상 호출자에게 전파된다 |
+| `completion_transaction_failed` | `lib/cases/create-case.ts` (`createCase`, 미사용) | 완료 기록 트랜잭션(cases/reports INSERT + 리스 해제)이 실패해 롤백됨 |
+| `post_failure_lease_release_failed` | `lib/cases/create-case.ts` (`createCase`, 미사용) | 위 트랜잭션 실패 후 후속 리스 해제 자체도 실패(드문 이중 실패) — 이 경우만 (당시) TTL 만료까지 재제출이 지연될 수 있었다 |
 
 **확인 위치**(v0.11.0 정정 — 공식 문서 `docs.netlify.com/build/functions/logs/`
 기준으로 경로 재확인): Netlify에 배포된 경우 Netlify 대시보드에서 **사이트 선택
@@ -43,8 +98,13 @@ REQ-PILOT-READY-007의 사용자별 동시 실행 가드 덕분에, **같은 사
   잠시(수 분) 기다린 뒤 다시 시도**하도록 권장한다.
 - `409` 응답("이미 처리 중")을 받으면 기존 요청이 아직 처리 중이라는 뜻이므로
   추가 제출 없이 기다리도록 안내한다.
-- 크래시 등으로 리스가 고착된 경우에도 TTL(최소 330초, `LEASE_TTL_SECONDS`)이
-  지나면 자동으로 재제출이 가능해진다.
+- 크래시 등으로 리스가 고착된 경우에도 TTL(`BACKGROUND_LEASE_TTL_SECONDS`=960초,
+  `lib/cases/job-timing.ts:12`)이 지나면 자동으로 재제출이 가능해진다. 클라이언트
+  폴링 상한은 이 TTL에 안전 마진(`CLIENT_POLL_SAFETY_MARGIN_SECONDS`=60초,
+  `job-timing.ts:15`)을 더한 1020초다(`job-timing.ts:24`). **정정(v0.12.0)**:
+  이전 버전이 서술한 "최소 330초, `LEASE_TTL_SECONDS`"는 §1.2의 동기 레거시
+  경로(`createCase`) 전용 상수였고, 현재 프로덕션이 사용하는 비동기 경로에는
+  적용되지 않는다 — 실제 적용 값은 위 960초/1020초다.
 
 ## 3. 이슈 triage 담당자
 

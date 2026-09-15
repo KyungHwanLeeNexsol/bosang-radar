@@ -1,10 +1,13 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-14 (SPEC-PILOT-READY-001 sync-phase 종결 — readiness 7개
-> 항목 전부 READY 전환, 전체 판정 GO, PR #10 main 병합 완료(`d74ece4`),
-> status: completed 전환; 이전 개정: 2026-09-14 v0.15.0(항목 (1)~(6) READY +
-> 항목 (7) 정정 라운드 M1~M4), 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계
-> 분류)
+> 최종 수정: 2026-09-15 (SPEC-PILOT-OPS-001 문서 현행화 — SPEC-PILOT-LAUNCH-001
+> 완료(12번째 SPEC, PR #11 main 병합 완료 `bc289ad`, 3-phase close `14a6394`)
+> 반영, Netlify 프로덕션 배포 URL(`https://musical-macaron-82feb3.netlify.app`)
+> ·SHA(`381e38d`, 이 시점 기준) 확정값 반영 — GitHub API 독립 검증 불가 한계는
+> 유지; 이전 개정: 2026-09-14 SPEC-PILOT-READY-001 sync-phase 종결(readiness
+> 7개 항목 전부 READY 전환, 전체 판정 GO, PR #10 main 병합 완료(`d74ece4`),
+> status: completed 전환), 2026-09-14 v0.15.0(항목 (1)~(6) READY + 항목 (7)
+> 정정 라운드 M1~M4), 2026-09-12 v0.14.0, 2026-09-10 §Roadmap 3단계 분류)
 
 ## 한 줄 소개
 
@@ -79,7 +82,7 @@
 그 SPEC들의 현재 상태를 3단계로 분류한 것이다 — 각 항목의 `status:`는
 `.moai/specs/<SPEC-ID>/spec.md`의 frontmatter에서 직접 확인할 수 있다.
 
-### 구현 완료 (11개 SPEC, `status: completed`)
+### 구현 완료 (13개 SPEC, `status: completed`)
 
 - 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
 - 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
@@ -102,6 +105,18 @@
   AI Studio 실제 무료 등급 한도에 따라 Research/Fast 자체 예산은 4/11 RPM으로
   설정했고, Research 20 RPD 제약 때문에 30건 파일럿은 최소 2일 이상 분산한다.
   PR #10은 main에 병합 완료(merge commit `d74ece4`)됐다 — SPEC-PILOT-READY-001
+- 프로덕션 사용자 노출 문구를 정상 서비스 수준으로 정리하고 최초 운영 계정
+  발급 절차(`.moai/docs/account-provisioning.md`)를 문서화 — 계정 비활성화·
+  비밀번호 재설정 최소 설계 스케치는 Out of Scope로 명시. PR #11이 main에
+  squash 병합(커밋 `bc289ad`)된 뒤 3-phase close(`14a6394`)로 종결됐다 —
+  SPEC-PILOT-LAUNCH-001
+- README/product.md 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일
+  계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표
+  집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서
+  (`.moai/docs/pilot-ops-launch-plan.md`) 작성 — 코드 변경 없음, 실제 계정
+  발급·실 DB 쓰기·실 Gemini 호출·실 배포·실 테스터 초대는 수행하지 않았다.
+  단일 Google Cloud 프로젝트/단일 `GEMINI_API_KEY` 아키텍처 제약을 유지한다
+  — SPEC-PILOT-OPS-001
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
 
@@ -121,8 +136,13 @@
 그 밖의 후속 개발 후보(순서 무관, 병행 가능):
 
 - Netlify 프로덕션 배포 확정(SPEC-PILOT-READY-001은 readiness 기준 충족까지만
-  다룸) — PR #10은 main에 병합됐으나(merge commit `d74ece4`), 연결된 사이트를 장기
-  프로덕션 사이트로 채택하고 main 병합 시 자동 프로덕션 배포를 사용할지는 미결정
+  다룸) — 프로덕션 배포 URL은 `https://musical-macaron-82feb3.netlify.app`,
+  배포 SHA는 `381e38d`(이 시점 기준, 사용자 Netlify 대시보드 직접 확인값이며
+  main에 새 커밋이 push되면 전진)로 확정됐다. GitHub commit-status/deployments
+  API로는 이 배포를 여전히 독립 검증할 수 없다(사용자 직접 확인과 API 독립
+  검증은 별개 사실). PR #10은 main에 병합됐으나(merge commit `d74ece4`), 연결된
+  사이트를 장기 프로덕션 사이트로 채택하고 main 병합 시 자동 프로덕션 배포를
+  사용할지는 미결정
 - 로그인 시도 rate-limiting 등 프로덕션 수준의 인증 하드닝
 - (장기) PostgreSQL 마이그레이션 실행(Drizzle ORM 뒤에서 이전 가능한 구조는 이미
   유지 중, 실제 마이그레이션은 미실행)
