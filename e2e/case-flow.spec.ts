@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as schema from "../lib/db/schema.ts";
 import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
-import { connectE2EDb, loginAsTester } from "./helpers.ts";
+import { connectE2EDb, loginAsTester, pickDateFromPicker } from "./helpers.ts";
 
 // AC-RUNTIME-012 — 사건 입력 → 처리 → 저장 → 리포트 조회.
 // AC-RUNTIME-013 — 전문가 피드백 저장.
@@ -44,7 +44,7 @@ test.describe("사건 흐름 — AC-RUNTIME-012, AC-RUNTIME-013", () => {
     await page.getByTestId("case-incident-description").fill("계단에서 넘어져 발목을 다쳤습니다.");
     await page.getByTestId("case-diagnosis-name").fill("발목 인대 파열");
     await page.getByTestId("case-disability-body-part").fill("발목");
-    await page.getByTestId("case-incident-date").fill("2026-01-15");
+    await pickDateFromPicker(page, "case-incident-date", "2026-01-15");
 
     // SPEC-PILOT-UX-001 REQ-PILOT-UX-002/003 — 클라이언트 단일 흐름 가드
     // 종단간 검증: 더블클릭(빠른 재클릭)해도 /api/cases POST 요청은 정확히

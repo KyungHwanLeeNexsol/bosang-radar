@@ -10,7 +10,7 @@
 import { test } from "@playwright/test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loginAsTester } from "./helpers.ts";
+import { loginAsTester, pickDateFromPicker } from "./helpers.ts";
 import { TESTER_A_EMAIL } from "../scripts/e2e-tester-emails.ts";
 
 const EVIDENCE_DIR = path.join(process.cwd(), "docs/evidence/SPEC-UI-MIGRATION-001/after-round4");
@@ -39,7 +39,7 @@ async function createCase(
   await page.getByTestId("case-incident-description").fill(input.incidentDescription);
   await page.getByTestId("case-diagnosis-name").fill(input.diagnosisName);
   await page.getByTestId("case-disability-body-part").fill(input.disabilityBodyPart);
-  await page.getByTestId("case-incident-date").fill(input.incidentDate);
+  await pickDateFromPicker(page, "case-incident-date", input.incidentDate);
   const [response] = await Promise.all([
     page.waitForResponse(
       (res) => res.url().includes("/api/cases") && res.request().method() === "POST"
