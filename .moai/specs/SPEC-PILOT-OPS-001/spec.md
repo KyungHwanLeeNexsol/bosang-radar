@@ -1,7 +1,7 @@
 ---
 id: SPEC-PILOT-OPS-001
 title: "실제 파일럿 운영 개시 — 문서 현행화, 계정 발급·스모크·단계별 롤아웃 계획"
-version: "0.2.0"
+version: "0.3.0"
 status: draft
 created: 2026-09-15
 updated: 2026-09-15
@@ -73,6 +73,62 @@ depends_on: [SPEC-PILOT-READY-001, SPEC-PILOT-LAUNCH-001]
   스킴 포함 `https://musical-macaron-82feb3.netlify.app` 형태로 통일했다.
   이 라운드는 REQ 7개(REQ-PILOT-OPS-001~007, Tier S 상한 8개 이내)와
   AC 8개(Tier S 상한 정확히 도달)로 재구성됐다.
+- 2026-09-15: 3차 개정 라운드 (Nexsol, 오케스트레이터가 직접 Grep으로 재확인한
+  코드 근거 2건 반영) — 5가지 결함을 수정했다. 오케스트레이터가 이번 라운드
+  위임 전에 직접 확인한 사실: (a) `case_request_received`(`app/api/cases/route.ts:26-29`)·
+  `pipeline_stage_failed`(`lib/pipeline/index.ts:81,92`)·
+  `pipeline_failed`/`pipeline_failed_lease_release_failed`/
+  `completion_transaction_failed`/`post_failure_lease_release_failed`
+  (모두 `lib/cases/create-case.ts`) 로그 이벤트 어디에도 jobId·caseId 필드가
+  없다(필드는 `event`/`timestamp`/`hasOwnerUserId`(일부)/safe-error-meta뿐);
+  (b) `leaseId`는 `reservations`(`lib/db/schema.ts:148`)와 `caseJobs`
+  (`lib/db/schema.ts:156-161`) 양쪽에 실제 `lease_id` 컬럼으로 존재하고,
+  실제 해제 함수 `releaseLeaseFenced(db, ownerUserId, leaseId)`
+  (`lib/cases/create-case.ts:119`, 161/230/279/481행 호출)는 ownerUserId AND
+  leaseId 둘 다 일치할 때만 펜싱 해제한다. ①(재확인 (a)) REQ-PILOT-OPS-004의
+  스모크 로그 검증 항목(6)(7)이 "동일 jobId/caseId 기준"이라는, 실제 코드에
+  존재하지 않는 상관관계를 전제하고 있었음을 발견 — 격리된 스모크
+  시간창(고유 스모크런 ID·시작/종료 타임스탬프·Netlify function invocation
+  범위로 식별)을 기준으로 이벤트 존재/부재를 판정하도록 정정했다. 실 jobId/
+  caseId 상관관계 필드를 로깅 코드에 추가하는 것은 이 SPEC이 계획하지 않으며,
+  Out of Scope에 별도 후속 구현 후보로만 명명했다(신규 SPEC 생성은 하지
+  않음). ②REQ-PILOT-OPS-004의 정리 계약이 `gemini_request_observations`
+  행을 삭제하면서도 REQ-PILOT-OPS-007의 쿼터 집계가 같은 테이블의 라이브
+  값을 읽는 충돌을 발견 — 삭제 전 스모크 실행의 실제 모델별 호출 횟수를
+  운영 기록(코드 아님)에 먼저 남기고, 일일 집계를 "기록되고 이미 삭제된
+  스모크 호출 + 라이브 DB 관측치"로 재정의(스모크런 ID·타임스탬프 범위 기준
+  결합, 시간 중복 없음)하는 사항을 REQ-PILOT-OPS-004(j)/REQ-PILOT-OPS-007(e)에
+  추가했다. ③(재확인 (b)) 정리 계약의 리스 관련 조건이 실제 코드의 펜싱
+  메커니즘과 분리되어 있었음을 발견 — `case_jobs.leaseId` 기록, 정상 완료 후
+  동일 리스의 `reservations` 행 부재 확인(존재 시 즉시 중단·트리아지, 자동
+  PASS나 광범위 정리 근거 아님), 삭제는 ownerUserId AND leaseId 둘 다 일치 +
+  새 활성 job 없음일 때만(`releaseLeaseFenced`와 동일 조건), 다른 leaseId
+  발견 시 절대 미삭제를 REQ-PILOT-OPS-004에 명시했다. ④REQ-PILOT-OPS-006의
+  "총 10명 내외·약 30건"이라는 근사 표현을 "집계 가능한 실제 실무자 최소
+  10명·집계 가능한 완료 사이클 최소 30건"이라는 정밀 최소값 표현으로
+  정정했다(기존 자격/전체사이클/이중집계금지 계약은 무변경). ⑤plan.md §E
+  자체 검증 표가 헤딩 존재 여부만으로 AC-004~007을 PASS 처리하던 것을
+  발견 — 시간창 기반 검증(jobId 상관관계 아님), 리스 펜싱 조건, 삭제-쿼터
+  결합 규칙, "최소 10명/최소 30건" 정밀 표현, 20 RPD/15회 구분 유지 여부를
+  각각 실제 내용으로 확인하는 grep 행을 추가했다. REQ/AC 개수는 이번
+  라운드에서 변경되지 않았다(REQ 7개, AC 8개 그대로 — 기존 REQ 본문의
+  내용만 정정·구체화됐다).
+- 2026-09-15: 4차 개정 라운드 (Nexsol, plan-auditor iteration-4 스트레스 테스트가
+  발견한 결함 D-new-1 1건 수정 — D-new-2/D-new-3은 논블로킹으로 이번 라운드에서
+  손대지 않음). REQ-PILOT-OPS-004(j)의 "이중 계산·누락 방지" 결합 규칙이
+  gemini_request_observations 삭제(항목 (j))가 항상 완전히 성공한다는 전제에
+  암묵적으로 의존하고 있었다는 점을 발견 — 항목 (d)의 범용 "0행 확인"은 6개
+  cleanup 테이블 전체에 적용되지만, gemini_request_observations 실패에 대해서는
+  항목 (h, lease 잔존)처럼 명시된 결과가 없었다. 삭제가 일부만 성공해 행이
+  남으면 그 행은 (이미 (j)가 선기록한 값 + 여전히 살아있는 DB 값) 양쪽에
+  잡혀 이중 계산되는데, 이는 REQ가 방지하겠다고 주장하는 바로 그 실패
+  양상이다. 수정: REQ-PILOT-OPS-004에 (k) 절을 신설 — gemini_request_observations
+  삭제 후 0행 확인이 실패(행 잔존)하면 (h)와 동일한 등급의 즉시 중단·트리아지
+  대상이며 결코 조용히 일일 집계에 포함되지 않고, 그 스모크 실행의 선기록
+  호출 수치는 상태가 해소될 때까지 수동 재조정(reconcile) 대상으로 별도
+  표시한다. 동일 조건을 REQ-PILOT-OPS-007(e)에도 동기화했고, AC-PILOT-OPS-004·
+  AC-PILOT-OPS-007도 함께 갱신했다(cleanup 계약 10개→11개 항목 a~k). REQ/AC
+  개수는 이번 라운드에서도 변경되지 않았다(REQ 7개, AC 8개 그대로).
 
 ## §1. 개요 (Overview)
 
@@ -139,20 +195,20 @@ acceptance.md 없이 본 문서 §3에 Given-When-Then 형식으로 인라인 �
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-OPS-004 | Ubiquitous | 신규 운영 문서의 스모크 체크리스트 절에는, 실제 파일럿 운영 개시 **전** 운영자 계정(`zuge3927@naver.com`) **1개만으로** 수행하는 단일 계정 E2E 흐름 검증을 다음 8개 항목으로 순서대로 기록해야 한다: (1) 로그인 성공 및 세션 유지 확인; (2) 사건 제출 시 `202` 응답 및 jobId 수신 확인; (3) Background Function 처리 완료 후 사건 상태가 `completed`로 전이되는지 확인; (4) 생성된 사건(case)과 리포트(report)가 저장되고 재조회로 확인되는지 검증; (5) 구조화 전문가 피드백 제출·저장 확인; (6) Netlify Functions 로그에서 해당 jobId/caseId에 대해 `case_request_received` 이벤트가 존재함을 확인(**양성 증거**); (7) 같은 jobId/caseId에 대해 `pipeline_stage_failed`·`pipeline_failed`·`completion_transaction_failed` 세 이벤트가 전혀 관측되지 않음을 확인(**음성 증거**) — 이 중 하나라도 관측되면 판정은 "주의사항이 있는 PASS"가 아니라 **즉시 중단·트리아지**(`.moai/docs/pilot-incident-runbook.md`로 라우팅)이며 전체 스모크를 중단한다; (8) 해당 사건에 대해 실제 Gemini 호출이 발생했고 결과가 반영됐는지 확인(REQ-PILOT-OPS-007의 하이브리드 라우팅에 따라 Lite·Premium 어느 쪽이 응답했는지는 무관). **이 체크리스트는 테넌트 격리를 검증하지 않는다** — 계정 1개로는 구조적으로 불가능하며, 테넌트 격리는 REQ-PILOT-OPS-005의 별도 게이트에서 검증한다. 추가로 스모크 데이터 정리(cleanup) 계약을 다음과 같이 구체적으로 기록해야 한다: (a) 매 스모크 실행마다 고유 스모크런 ID를 부여하고 그 실행이 건드린 정확한 사용자·사건·job 식별자를 기록한다("최근 N개 행" 같은 모호한 범위 지정 금지); (b) 정리 조사 범위는 `cases`/`reports`/`feedback`에 한정되지 않고 `case_jobs`, `gemini_request_observations`, 그리고 그 식별자에 연결된 `reservations`/리스 상태까지 포함한다; (c) 삭제 전 행 소유권과 정확한 대상 행(기록된 식별자 기준)을 확인한다 — `created_at > X` 같은 넓은 WHERE 스윕은 절대 금지; (d) FK/리스 관계를 지키는 안전한 의존성 순서로 삭제한 뒤, 그 식별자에 연결된 행이 0개 남았는지 확인하는 절차 자체를 계약의 일부로 명시한다(생략 불가); (e) 원격 DB 정리 작업은 `.moai/docs/pilot-incident-runbook.md` §4(한 시점에 한 사람만, 시작 라벨·종료 결과 통보)를 그대로 따른다고만 명시하고 재서술하지 않는다; (f) 어떤 경우에도 실제 파일럿 데이터에 대한 광범위/일괄 삭제는 금지하며, 정리 범위는 항상 스모크런 식별자에 한정한다(와일드카드 금지). 이 REQ는 체크리스트 **작성**만 요구하며, 이 SPEC의 plan-phase·run-phase 어느 쪽도 이 스모크를 실제로 실행하지 않는다. | Read 조사 확인(`.moai/docs/pilot-incident-runbook.md` §1 이벤트 표·§4 단독 진행 원칙, README.md:35 "Netlify Background Function 비동기 분석 경로", product.md §3 6단계 파이프라인, product.md 핵심 원칙 4 "다른 테스터의 사건 데이터는 조회할 수 없다"); `lib/db/schema.ts`로 테이블명 재확인(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations` 모두 실존) |
+| REQ-PILOT-OPS-004 | Ubiquitous | 신규 운영 문서의 스모크 체크리스트 절에는, 실제 파일럿 운영 개시 **전** 운영자 계정(`zuge3927@naver.com`) **1개만으로** 수행하는 단일 계정 E2E 흐름 검증을 다음 8개 항목으로 순서대로 기록해야 한다: (1) 로그인 성공 및 세션 유지 확인; (2) 사건 제출 시 `202` 응답 및 jobId 수신 확인; (3) Background Function 처리 완료 후 사건 상태가 `completed`로 전이되는지 확인; (4) 생성된 사건(case)과 리포트(report)가 저장되고 재조회로 확인되는지 검증; (5) 구조화 전문가 피드백 제출·저장 확인; (6) Netlify Functions 로그에서 이 스모크 실행의 격리된 시간창(고유 스모크런 ID로 식별, 시작·종료 타임스탬프와 그 시간창에 대응하는 Netlify function invocation 범위를 함께 기록) 안에서 `case_request_received` 이벤트가 존재함을 확인(**양성 증거**) — **주의**: 이 프로젝트의 로그 이벤트(`case_request_received` `app/api/cases/route.ts:26-29`, `pipeline_stage_failed` `lib/pipeline/index.ts:81,92`, `pipeline_failed`/`pipeline_failed_lease_release_failed`/`completion_transaction_failed`/`post_failure_lease_release_failed` 모두 `lib/cases/create-case.ts`)는 **jobId·caseId 필드를 전혀 포함하지 않는다**(필드는 `event`/`timestamp`/`hasOwnerUserId`(일부)/safe-error-meta뿐) — 따라서 이 확인은 "동일 jobId/caseId 기준" 상관관계가 아니라 격리된 시간창·invocation 범위 안에서의 이벤트 존재/부재로만 판정하며, 신규 문서는 이 스모크를 다른 동시 활동 없이 격리된 시간창에서 수행한다는 절차 전제를 명시해야 한다; (7) 같은 시간창·invocation 범위 안에서 `pipeline_stage_failed`·`pipeline_failed`·`completion_transaction_failed` 세 이벤트가 전혀 관측되지 않음을 확인(**음성 증거**) — 이 중 하나라도 관측되면 판정은 "주의사항이 있는 PASS"가 아니라 **즉시 중단·트리아지**(`.moai/docs/pilot-incident-runbook.md`로 라우팅)이며 전체 스모크를 중단한다; (8) 해당 사건에 대해 실제 Gemini 호출이 발생했고 결과가 반영됐는지 확인(REQ-PILOT-OPS-007의 하이브리드 라우팅에 따라 Lite·Premium 어느 쪽이 응답했는지는 무관). **이 체크리스트는 테넌트 격리를 검증하지 않는다** — 계정 1개로는 구조적으로 불가능하며, 테넌트 격리는 REQ-PILOT-OPS-005의 별도 게이트에서 검증한다. 추가로 스모크 데이터 정리(cleanup) 계약을 다음과 같이 구체적으로 기록해야 한다: (a) 매 스모크 실행마다 고유 스모크런 ID를 부여하고 그 실행이 건드린 정확한 사용자·사건·job 식별자를 기록한다("최근 N개 행" 같은 모호한 범위 지정 금지); (b) 정리 조사 범위는 `cases`/`reports`/`feedback`에 한정되지 않고 `case_jobs`, `gemini_request_observations`, 그리고 그 식별자에 연결된 `reservations`/리스 상태까지 포함한다; (c) 삭제 전 행 소유권과 정확한 대상 행(기록된 식별자 기준)을 확인한다 — `created_at > X` 같은 넓은 WHERE 스윕은 절대 금지; (d) FK/리스 관계를 지키는 안전한 의존성 순서로 삭제한 뒤, 그 식별자에 연결된 행이 0개 남았는지 확인하는 절차 자체를 계약의 일부로 명시한다(생략 불가); (e) 원격 DB 정리 작업은 `.moai/docs/pilot-incident-runbook.md` §4(한 시점에 한 사람만, 시작 라벨·종료 결과 통보)를 그대로 따른다고만 명시하고 재서술하지 않는다; (f) 어떤 경우에도 실제 파일럿 데이터에 대한 광범위/일괄 삭제는 금지하며, 정리 범위는 항상 스모크런 식별자에 한정한다(와일드카드 금지); (g) 사건마다 `case_jobs.leaseId`(DB 컬럼 `lease_id`)를 정확히 기록한다(jobId만으로는 불충분); (h) 정상 완료 후에는 같은 리스의 `reservations` 행이 더 이상 존재하지 않아야 하며 이를 확인 절차로 명시한다 — 같은 리스가 "정상 완료" 이후에도 여전히 존재한다면 이는 자동 PASS나 광범위/일괄 정리의 근거가 아니라 (7)과 같은 등급의 **즉시 중단·트리아지** 대상이다; (i) 삭제가 실제로 필요한 경우, `owner_user_id`와 `lease_id`가 모두 기록된 값과 일치할 때만, 그리고 그 소유자에 대한 새 활성 job이 없을 때만 삭제한다(`releaseLeaseFenced(db, ownerUserId, leaseId)`, `lib/cases/create-case.ts:119`, 161/230/279/481행 호출과 동일한 펜싱 조건) — 그 행에서 기록된 값과 다른 leaseId가 발견되면(다른 사람의 정상적인 동시 리스) 어떤 경우에도 삭제하지 않는다; (j) `gemini_request_observations` 행을 삭제하기 전에, 그 스모크 실행의 실제 모델별(Lite/Premium) 요청 횟수를 운영 기록(스모크런 기록, 코드 아님)에 먼저 남긴다 — 삭제 이후 일일 쿼터 집계는 "기록되고 이미 삭제된 스모크 호출 + 현재 라이브 DB 관측치"로 계산하며, 두 출처를 스모크런 ID·타임스탬프 범위 기준으로 결합해 라이브 관측치의 타임스탬프와 겹치지 않게 한다(이중 계산·누락 방지 — REQ-PILOT-OPS-007(e)가 이 결합 규칙을 반영한다); (k) (j)의 이중 계산·누락 방지 결합 규칙은 `gemini_request_observations`에 대한 (d)의 0행 확인이 실제로 성공했을 때만 성립한다 — 그 스모크 실행의 식별자에 연결된 행이 삭제 후에도 하나라도 남아 있으면, (h)와 동일한 등급의 **즉시 중단·트리아지** 대상이며 결코 조용히 일일 집계에 포함되지 않는다. 이 경우 해당 스모크 실행에 대해 (j)가 선기록한 호출 횟수는 이 상태가 해소될 때까지 "있는 그대로" 일일 집계에 사용하지 않고 수동으로 재조정(reconcile)해야 한다 — 그렇지 않으면 그 남은 행이 라이브 관측치로도 잡히고 선기록 값으로도 잡혀 동일 호출이 이중 계산된다. 이 REQ는 체크리스트 **작성**만 요구하며, 이 SPEC의 plan-phase·run-phase 어느 쪽도 이 스모크를 실제로 실행하지 않는다. 실 jobId/caseId 로그 상관관계 필드를 로깅 코드에 추가하는 것은 이 SPEC의 범위가 아니다(Out of Scope 참고). | Read 조사 확인(`.moai/docs/pilot-incident-runbook.md` §1 이벤트 표·§4 단독 진행 원칙, README.md:35 "Netlify Background Function 비동기 분석 경로", product.md §3 6단계 파이프라인, product.md 핵심 원칙 4 "다른 테스터의 사건 데이터는 조회할 수 없다"); `lib/db/schema.ts`로 테이블명 재확인(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations` 모두 실존); 3차 개정에서 Grep 재확인: 로그 이벤트에 jobId/caseId 필드 부재(`app/api/cases/route.ts:26-29`, `lib/pipeline/index.ts:81,92`, `lib/cases/create-case.ts` 전체), `leaseId` 실존 및 `releaseLeaseFenced` 펜싱 메커니즘(`lib/db/schema.ts:148,156-161`, `lib/cases/create-case.ts:119-121,161,230,279,481`) |
 | REQ-PILOT-OPS-005 | Ubiquitous | 신규 운영 문서에는 REQ-PILOT-OPS-004의 단일 계정 스모크와는 별도로, REQ-PILOT-OPS-006의 2단계 착수 **전**에 반드시 통과해야 하는 **테넌트 격리 확인 게이트**를 기록해야 한다. 이 게이트는 최소 서로 다른 계정 **2개**(운영자 계정 + 첫 실제 외부 사용자 계정, 또는 아래 임시 계정 대안)로 수행하며, 서로 다른 두 계정 간 사건 데이터가 상호 조회되지 않는지 확인한다. 문서는 두 경로를 모두 명시해야 한다: (a) 기본 경로 — 첫 실제 외부 실무자 계정이 발급될 때까지 이 게이트를 대기한다; (b) 임시 계정 대안 경로 — 대기하지 않고 임시(throwaway) 계정을 사용할 경우, 그 계정을 (i) 어떻게 발급하는지, (ii) 검증 후 어떻게 정리(REQ-PILOT-OPS-004의 정리 계약과 동일한 기준 적용)하는지, (iii) 그 계정과 그 계정이 생성한 사건이 REQ-PILOT-OPS-006의 "10명×3건" 성공지표 집계에서 명시적으로 제외됨을 모두 문서에 기록해야 한다. | product.md 핵심 원칙 4 "다른 테스터의 사건 데이터는 조회할 수 없다"(구조적 요구사항의 근거); REQ-PILOT-OPS-004 D1 결함 수정(단일 계정으로 테넌트 격리 검증이 구조적으로 불가능하다는 재검토 결과) |
 
 ### D. 파일럿 운영 단계 분리 (Pilot Operation Stage Separation)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-OPS-006 | Ubiquitous | 신규 운영 문서의 단계 분리 절에는 파일럿 운영을 다음 순서로 명시해야 한다: **1단계(운영자 단독)** — REQ-PILOT-OPS-004의 단일 계정 E2E 흐름 검증만 수행한다(테넌트 격리는 이 단계에서 검증하지 않는다); **테넌트 격리 게이트** — REQ-PILOT-OPS-005를 통과해야 2단계로 진행할 수 있다; **2단계(제한적 외부 검증)** — 외부 실무자 2~3명만 초대해 소수 사건으로 제한 검증한다; **3단계(전체 파일럿)** — 나머지 실무자를 포함해 총 10명 내외가 각 최소 3건씩, 총 약 30건을 수행한다. 각 단계 전환 조건, 중단(abort) 기준, 문의 채널(`zuge3927@naver.com`, `.moai/docs/pilot-incident-runbook.md` §3의 이경환 담당·1영업일 이내 1차 확인), 그리고 합성이거나 이미 비식별화된 사례만 입력하라는 기존 안내 문구(SPEC-PILOT-LAUNCH-001 REQ-PILOT-LAUNCH-003이 확정한 "합성이거나 이미 비식별화된 사례만 입력해 주세요" 표현 재사용, 신규 문구 작성 금지)를 명시해야 한다. **성공지표 집계 계약**도 명시적으로 기록해야 한다 — 성공 기준은 "실제 실무자 최소 10명, 각자 최소 3건의 완료된(`completed`) 리서치 사이클 + 제출된 구조화 피드백"이며: (a) 1단계 운영자 스모크 세션과 REQ-PILOT-OPS-005의 임시/검증 계정(임시 격리 확인 계정 포함)은 이 집계에 절대 자동 포함되지 않는다; (b) 2단계 참여자는 실무자 자격 기준을 충족하고 전체 사이클(제출→`completed`→피드백)을 완료한 경우에만 10명 목표에 집계된다 — 부분/미완료 사이클은 집계되지 않는다; (c) 이중 집계를 금지한다 — 앞선 단계에서 이미 집계된 사용자나 사건은 후속 단계에 참여하더라도 다시 집계하지 않는다. | Read 조사 확인(product.md "핵심 원칙" 9 "현직 실무자 10명 각각이 최소 3건의 사건 리서치 사이클을 완료"); SPEC-PILOT-LAUNCH-001 spec.md §2.C REQ-PILOT-LAUNCH-003 확정 문구; REQ-PILOT-OPS-004/005 D1/D3 결함 수정 결과 |
+| REQ-PILOT-OPS-006 | Ubiquitous | 신규 운영 문서의 단계 분리 절에는 파일럿 운영을 다음 순서로 명시해야 한다: **1단계(운영자 단독)** — REQ-PILOT-OPS-004의 단일 계정 E2E 흐름 검증만 수행한다(테넌트 격리는 이 단계에서 검증하지 않는다); **테넌트 격리 게이트** — REQ-PILOT-OPS-005를 통과해야 2단계로 진행할 수 있다; **2단계(제한적 외부 검증)** — 외부 실무자 2~3명만 초대해 소수 사건으로 제한 검증한다; **3단계(전체 파일럿)** — 나머지 실무자를 포함해 집계 가능한 실제 실무자 최소 10명이 각자 최소 3건씩, 집계 가능한 완료 사이클 최소 30건을 수행한다(근사 표현 "내외"/"약"이 아닌 정밀 최소값 — REQ-PILOT-OPS-006 성공지표 집계 계약과 동일 기준). 각 단계 전환 조건, 중단(abort) 기준, 문의 채널(`zuge3927@naver.com`, `.moai/docs/pilot-incident-runbook.md` §3의 이경환 담당·1영업일 이내 1차 확인), 그리고 합성이거나 이미 비식별화된 사례만 입력하라는 기존 안내 문구(SPEC-PILOT-LAUNCH-001 REQ-PILOT-LAUNCH-003이 확정한 "합성이거나 이미 비식별화된 사례만 입력해 주세요" 표현 재사용, 신규 문구 작성 금지)를 명시해야 한다. **성공지표 집계 계약**도 명시적으로 기록해야 한다 — 성공 기준은 "실제 실무자 최소 10명, 각자 최소 3건의 완료된(`completed`) 리서치 사이클 + 제출된 구조화 피드백"이며: (a) 1단계 운영자 스모크 세션과 REQ-PILOT-OPS-005의 임시/검증 계정(임시 격리 확인 계정 포함)은 이 집계에 절대 자동 포함되지 않는다; (b) 2단계 참여자는 실무자 자격 기준을 충족하고 전체 사이클(제출→`completed`→피드백)을 완료한 경우에만 10명 목표에 집계된다 — 부분/미완료 사이클은 집계되지 않는다; (c) 이중 집계를 금지한다 — 앞선 단계에서 이미 집계된 사용자나 사건은 후속 단계에 참여하더라도 다시 집계하지 않는다. | Read 조사 확인(product.md "핵심 원칙" 9 "현직 실무자 10명 각각이 최소 3건의 사건 리서치 사이클을 완료"); SPEC-PILOT-LAUNCH-001 spec.md §2.C REQ-PILOT-LAUNCH-003 확정 문구; REQ-PILOT-OPS-004/005 D1/D3 결함 수정 결과 |
 
 ### E. Gemini 쿼터 운영 계획 (Gemini Quota Operating Plan)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-PILOT-OPS-007 | Where | **Where** Gemini `gemini-3.6-flash`(Research/Premium) 모델의 일일 요청 한도가 적용되는 동안, 신규 운영 문서는 다음을 모두 명시해야 한다: (a) 20 RPD는 절대 상한(hard ceiling)이며 목표치가 아니다(출처: `.moai/reports/pilot-ready-quota-checklist-20260913.md`의 AI Studio 실측 한도 표 — `gemini-3.6-flash` RPD 실제 한도 20); (b) 2026-09-13 하이브리드 라우팅 도입 이후 모든 사건이 Premium 모델을 호출하지 않는다 — 일반 사건은 `gemini-3.5-flash-lite`(Fast/Lite)로 시작하고, 복합 쟁점 사건(`PRE_EXISTING_CONDITION`/`INJURY_DISEASE_RELATION`/`ADDITIONAL_CONFIRMATION_NEEDED`) 또는 Lite 결과가 품질 실패(Verifier `INSUFFICIENT` 등)한 사건만 Premium으로 1회 승격되며, 승격은 `pipeline_research_routed`/`pipeline_research_escalated` 구조화 로그로 남는다(출처: `.moai/reports/hybrid-research-routing-20260913.md`) — **따라서 사건 수 ≠ 모델 요청 수**이며, 문서는 이 등식을 어디에서도 전제하지 않는다; (c) 프로젝트의 기존 보수적 운영 목표는 Premium 모델 **호출 자체**(사건 수가 아님) 기준 재시도 여유를 포함해 **하루 15회 이내**이며, 이 값은 20 RPD 절대 상한과 구분해 둘 다 출처(`.moai/reports/pilot-ready-quota-checklist-20260913.md:58`)와 함께 명시한다; (d) 일일 예산에는 스모크 단계 호출, 승격(promotion) 호출, 429/503 재시도-백오프 호출, 실패 후 재제출 호출을 모두 포함해야 하며, 낙관적인 happy-path 건수만으로 예산을 세우지 않는다; (e) 구체적인 일일 절차를 명시해야 한다 — 매일 `gemini_request_observations` 테이블에서 실제 Premium 모델 호출 실적을 확인 → 그 결과로 다음 날 배치 규모를 결정 → 쿼터 소진에 연동된 중단(abort)/중지 기준을 명시. 이 REQ는 "≤20건/일" 같은 단순 사건 수 상한 표현만으로는 충족되지 않으며, 그런 프레이밍 자체가 이번 개정에서 수정하는 결함이다. | Read 조사 확인(`.moai/reports/pilot-ready-quota-checklist-20260913.md` 전문 — 모델별 RPM/TPM/RPD 실측 표, §RPD 운영 제한과 하이브리드 후속 결정, 라인 58 보수적 운영 목표); `.moai/reports/hybrid-research-routing-20260913.md` 전문(승격 규칙 1-4, 구조화 로그 이벤트명, `gemini_request_observations` 실사용량 확인 출처) |
+| REQ-PILOT-OPS-007 | Where | **Where** Gemini `gemini-3.6-flash`(Research/Premium) 모델의 일일 요청 한도가 적용되는 동안, 신규 운영 문서는 다음을 모두 명시해야 한다: (a) 20 RPD는 절대 상한(hard ceiling)이며 목표치가 아니다(출처: `.moai/reports/pilot-ready-quota-checklist-20260913.md`의 AI Studio 실측 한도 표 — `gemini-3.6-flash` RPD 실제 한도 20); (b) 2026-09-13 하이브리드 라우팅 도입 이후 모든 사건이 Premium 모델을 호출하지 않는다 — 일반 사건은 `gemini-3.5-flash-lite`(Fast/Lite)로 시작하고, 복합 쟁점 사건(`PRE_EXISTING_CONDITION`/`INJURY_DISEASE_RELATION`/`ADDITIONAL_CONFIRMATION_NEEDED`) 또는 Lite 결과가 품질 실패(Verifier `INSUFFICIENT` 등)한 사건만 Premium으로 1회 승격되며, 승격은 `pipeline_research_routed`/`pipeline_research_escalated` 구조화 로그로 남는다(출처: `.moai/reports/hybrid-research-routing-20260913.md`) — **따라서 사건 수 ≠ 모델 요청 수**이며, 문서는 이 등식을 어디에서도 전제하지 않는다; (c) 프로젝트의 기존 보수적 운영 목표는 Premium 모델 **호출 자체**(사건 수가 아님) 기준 재시도 여유를 포함해 **하루 15회 이내**이며, 이 값은 20 RPD 절대 상한과 구분해 둘 다 출처(`.moai/reports/pilot-ready-quota-checklist-20260913.md:58`)와 함께 명시한다; (d) 일일 예산에는 스모크 단계 호출, 승격(promotion) 호출, 429/503 재시도-백오프 호출, 실패 후 재제출 호출을 모두 포함해야 하며, 낙관적인 happy-path 건수만으로 예산을 세우지 않는다; (e) 구체적인 일일 절차를 명시해야 한다 — 매일 `gemini_request_observations` 테이블의 라이브 관측치에 REQ-PILOT-OPS-004(j)가 요구하는 "기록되고 이미 삭제된 스모크 호출" 기록을 더해(스모크런 ID·타임스탬프 범위 기준으로 결합, 라이브 관측치와 시간 중복 없이) 그날의 실제 Premium 모델 호출 실적을 산출 → 그 결과로 다음 날 배치 규모를 결정 → 쿼터 소진에 연동된 중단(abort)/중지 기준을 명시. 이 결합은 REQ-PILOT-OPS-004(d)의 `gemini_request_observations` 0행 확인이 실제로 성공했다는 전제 위에서만 유효하다 — REQ-PILOT-OPS-004(k)에 따라, 어느 스모크 실행이든 이 확인이 실패(행 잔존)한 상태라면 그 실행의 선기록 호출 수치를 일일 합산에 그대로 포함하지 않고, 해소될 때까지 수동 재조정(reconcile) 대상으로 별도 표시해야 한다. 이 REQ는 "≤20건/일" 같은 단순 사건 수 상한 표현만으로는 충족되지 않으며, 그런 프레이밍 자체가 2차 개정에서 수정한 결함이다. | Read 조사 확인(`.moai/reports/pilot-ready-quota-checklist-20260913.md` 전문 — 모델별 RPM/TPM/RPD 실측 표, §RPD 운영 제한과 하이브리드 후속 결정, 라인 58 보수적 운영 목표); `.moai/reports/hybrid-research-routing-20260913.md` 전문(승격 규칙 1-4, 구조화 로그 이벤트명, `gemini_request_observations` 실사용량 확인 출처) |
 
 ### 확인 사항 해소 기록 (Resolved Clarification — 상세는 plan.md §C)
 
@@ -179,6 +235,17 @@ commit-status/deployments API로는 여전히 독립 검증할 수단이 없으�
   체크리스트나 REQ-PILOT-OPS-005의 테넌트 격리 게이트를 실제로 수행하거나,
   REQ-PILOT-OPS-006의 3단계 중 어느 하나라도 실제로 착수하지 않는다 — 모든
   REQ는 **계획·문서화**만 요구한다.
+
+### Out of Scope — 로그 jobId/caseId 상관관계 필드 추가
+
+- 현재 로그 이벤트(`case_request_received`/`pipeline_stage_failed`/`pipeline_failed`/
+  `completion_transaction_failed`/`post_failure_lease_release_failed`)에 jobId나
+  caseId 필드를 추가해 스모크 로그를 사건 단위로 직접 상관관계 지을 수 있게
+  하는 로깅 코드 변경은 이 SPEC의 범위가 아니다. 3차 개정에서 이 SPEC은
+  REQ-PILOT-OPS-004의 스모크 판정을 격리된 시간창·invocation 범위 기준으로
+  재정의해 이 필드 부재를 우회했다 — 만약 향후 실제 jobId 단위 로그 상관관계가
+  꼭 필요하다고 판단되면, 그것은 이 SPEC이 아니라 명명된 별도 후속 SPEC 후보로
+  다뤄야 한다(이번 SPEC은 그 SPEC을 생성하지 않는다).
 
 ### Out of Scope — 실 Gemini 코퍼스 품질 평가
 
@@ -211,9 +278,9 @@ commit-status/deployments API로는 여전히 독립 검증할 수단이 없으�
 
 ### Out of Scope — 신규 SPEC 생성
 
-- 위 4개 Out of Scope 항목 모두, 이 SPEC의 plan-phase는 해당 후속 SPEC을 실제로
-  생성(가칭 SPEC ID 부여 포함)하지 않는다 — 필요성 확인 후 별도 `/moai plan`
-  호출로 착수한다.
+- 위 "로그 jobId/caseId 상관관계 필드 추가"를 포함한 5개 Out of Scope 항목
+  모두, 이 SPEC의 plan-phase는 해당 후속 SPEC을 실제로 생성(가칭 SPEC ID 부여
+  포함)하지 않는다 — 필요성 확인 후 별도 `/moai plan` 호출로 착수한다.
 
 ## §3. 인수 조건 (Acceptance Criteria — Tier S, 본 문서 인라인)
 
@@ -223,10 +290,10 @@ commit-status/deployments API로는 여전히 독립 검증할 수단이 없으�
 | AC-PILOT-OPS-001b | `.moai/project/product.md`가 아직 "11개 SPEC" 표기 상태일 때 | product.md의 최종 수정 표기와 §Roadmap "구현 완료" 목록(REQ-PILOT-OPS-001(d))을 편집하면 | product.md 전체에서 "12개 SPEC"·"SPEC-PILOT-LAUNCH-001"이 일관되게 나타나고, "11개 SPEC" 잔존 표기가 남아있지 않아야 한다 |
 | AC-PILOT-OPS-002 | README.md/product.md의 Netlify 배포 서술이 "배포 여부 자체가 미결정"이라는 구식 문구를 담고 있을 때 | REQ-PILOT-OPS-002에 따라 재서술하면 | 두 문서 모두 확정된 URL(`https://musical-macaron-82feb3.netlify.app`, 스킴 포함)·SHA(`381e38d`)를 "이 시점 기준" 값으로 명시하고, 동시에 "GitHub API로는 독립 검증이 여전히 불가능하다"는 한계를 구분해 기술해야 하며, 어느 쪽 서술도 URL·SHA를 영구 고정 pin으로 단정하지 않아야 한다 |
 | AC-PILOT-OPS-003 | `.moai/docs/pilot-ops-launch-plan.md`가 아직 존재하지 않을 때 | REQ-PILOT-OPS-003에 따라 계정 발급 절을 작성하면 | 해당 절에 운영자 계정 후보(`zuge3927@naver.com`), `account-provisioning.md` 참조, 발급 전 Turso 호스트 확인 문구, 발급 후 로그인 검증 문구, "실 계정 미발급" 명시가 모두 존재해야 한다 |
-| AC-PILOT-OPS-004 | 같은 신규 문서에 단일 계정 스모크 체크리스트 절이 아직 없을 때 | REQ-PILOT-OPS-004에 따라 작성하면 | 8개 확인 항목(로그인·202·completed 전이·저장/재조회·피드백·`case_request_received` 존재·3개 실패 이벤트 부재·Gemini 호출 확인)이 순서대로 모두 존재하고, 실패 이벤트 관측 시 "즉시 중단·트리아지"라는 단일 판정 규칙이 명시돼 있으며, cleanup 계약 6개 항목(스모크런 ID+식별자 기록, 6개 테이블 범위, 소유권·대상 확인, 안전 순서 삭제+0행 확인, 런북 §4 참조, 광범위 삭제 금지)이 모두 존재해야 한다 |
+| AC-PILOT-OPS-004 | 같은 신규 문서에 단일 계정 스모크 체크리스트 절이 아직 없을 때 | REQ-PILOT-OPS-004에 따라 작성하면 | 8개 확인 항목(로그인·202·completed 전이·저장/재조회·피드백·격리된 시간창/invocation 범위 기준 `case_request_received` 존재·같은 시간창 내 3개 실패 이벤트 부재·Gemini 호출 확인)이 순서대로 모두 존재하고, 로그 판정이 "동일 jobId/caseId 기준" 상관관계가 아니라 시간창/invocation 범위 기준임이 명시되며, 실패 이벤트 관측 시 "즉시 중단·트리아지"라는 단일 판정 규칙이 명시돼 있으며, cleanup 계약 11개 항목(a~k — 스모크런 ID+식별자 기록, 6개 테이블 범위, 소유권·대상 확인, 안전 순서 삭제+0행 확인, 런북 §4 참조, 광범위 삭제 금지, `leaseId` 기록, 정상 완료 후 리스 부재 확인(존재 시 즉시 중단·트리아지), ownerUserId+leaseId 이중 일치 펜싱 삭제(다른 leaseId 절대 미삭제), `gemini_request_observations` 삭제 전 호출 횟수 선기록, `gemini_request_observations` 0행 확인 실패 시 즉시 중단·트리아지 + 해당 스모크 실행 선기록 수치의 수동 재조정 요구)이 모두 존재해야 한다 |
 | AC-PILOT-OPS-005 | 같은 신규 문서에 테넌트 격리 게이트 절이 아직 없을 때 | REQ-PILOT-OPS-005에 따라 작성하면 | 최소 계정 2개 요구사항, 기본 경로(첫 실제 외부 계정 대기)와 임시 계정 대안 경로(발급·정리·집계제외 3가지 모두 명시) 둘 다 존재해야 한다 |
-| AC-PILOT-OPS-006 | 같은 신규 문서에 3단계 분리 절이 아직 없을 때 | REQ-PILOT-OPS-006에 따라 작성하면 | 1단계→격리 게이트→2단계→3단계 순서, 전환/중단 기준, 문의 채널, 기존 PII 안내 문구 재사용, 그리고 성공지표 집계 계약 3개 항목(운영자·임시 계정 자동 제외, 부분 사이클 미집계, 이중 집계 금지)이 모두 명시돼 있어야 한다 |
-| AC-PILOT-OPS-007 | 같은 신규 문서에 Gemini 쿼터 운영 절이 아직 없거나 "사건 수 ≤ 20건/일"로만 서술돼 있을 때 | REQ-PILOT-OPS-007에 따라 작성하면 | 20 RPD 절대 상한과 15회/일 보수적 운영 목표가 각각 출처와 함께 구분 서술되고, "사건 수 ≠ 모델 요청 수" 설명과 하이브리드 라우팅 승격 규칙이 존재하며, 일일 예산에 스모크·승격·재시도·재제출 호출이 모두 포함되고, `gemini_request_observations` 기반 일일 점검→배치 결정→중단 기준의 구체 절차가 존재해야 한다 — "≤20건/일" 단독 서술만으로는 PASS하지 않는다 |
+| AC-PILOT-OPS-006 | 같은 신규 문서에 3단계 분리 절이 아직 없을 때 | REQ-PILOT-OPS-006에 따라 작성하면 | 1단계→격리 게이트→2단계→3단계 순서, 전환/중단 기준, 문의 채널, 기존 PII 안내 문구 재사용, "집계 가능한 실무자 최소 10명·집계 가능한 완료 사이클 최소 30건"이라는 정밀 최소값 표현(근사 표현 "내외"/"약" 잔존 금지), 그리고 성공지표 집계 계약 3개 항목(운영자·임시 계정 자동 제외, 부분 사이클 미집계, 이중 집계 금지)이 모두 명시돼 있어야 한다 |
+| AC-PILOT-OPS-007 | 같은 신규 문서에 Gemini 쿼터 운영 절이 아직 없거나 "사건 수 ≤ 20건/일"로만 서술돼 있을 때 | REQ-PILOT-OPS-007에 따라 작성하면 | 20 RPD 절대 상한과 15회/일 보수적 운영 목표가 각각 출처와 함께 구분 서술되고, "사건 수 ≠ 모델 요청 수" 설명과 하이브리드 라우팅 승격 규칙이 존재하며, 일일 예산에 스모크·승격·재시도·재제출 호출이 모두 포함되고, `gemini_request_observations` 라이브 관측치와 REQ-PILOT-OPS-004(j)의 삭제-전-기록 스모크 호출을 스모크런 ID·타임스탬프 범위 기준으로 결합(시간 중복 없이)하는 일일 점검→배치 결정→중단 기준의 구체 절차가 존재하고, REQ-PILOT-OPS-004(k)의 0행 확인 실패 시 그 실행의 선기록 수치를 일일 합산에 그대로 포함하지 않고 수동 재조정 대상으로 표시한다는 조건이 명시돼 있어야 한다 — "≤20건/일" 단독 서술만으로는 PASS하지 않는다 |
 
 ## §4. 교차 참조
 
@@ -236,4 +303,6 @@ commit-status/deployments API로는 여전히 독립 검증할 수단이 없으�
 - `.moai/docs/pilot-incident-runbook.md` — 파일럿 운영 중 장애 대응 절차(triage 담당자·로그 이벤트 표·§4 원격 DB 단독 진행 원칙의 출처)
 - `.moai/reports/pilot-ready-quota-checklist-20260913.md` — Gemini 쿼터 실측 한도·보수적 운영 목표의 출처
 - `.moai/reports/hybrid-research-routing-20260913.md` — 하이브리드 라우팅 승격 규칙·구조화 로그 이벤트명의 출처
+- `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts` — 3차 개정에서 재확인한 로그 이벤트 실제 필드(jobId/caseId 필드 부재)의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `lib/db/schema.ts`, `lib/cases/create-case.ts` (`releaseLeaseFenced`) — 3차 개정에서 재확인한 실제 `leaseId` 컬럼과 ownerUserId+leaseId 펜싱 메커니즘의 출처
 - SPEC-FEEDBACK-001 — Gold Dataset 추출·집계가 이미 후속 SPEC으로 명시적으로 미뤄진 근거

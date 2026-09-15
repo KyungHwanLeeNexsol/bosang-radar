@@ -52,6 +52,25 @@ product.md가 서로 참조하지 않으므로 순서 자체는 임의적이나,
 정확히 정리해두면 product.md 편집 시 문구를 그대로 재사용할 수 있어 왕복이
 줄어든다).
 
+### A.5 (3차 개정) 코드 근거 재확인 — 로그 필드 부재·리스 펜싱 메커니즘
+
+3차 개정 라운드에서 오케스트레이터가 위임 전 직접 Grep으로 재확인한 두 사실은
+REQ-PILOT-OPS-004의 스모크 판정·정리 계약 내용을 바꾸는 근거가 됐다: (1) 이
+프로젝트의 로그 이벤트(`case_request_received`/`pipeline_stage_failed`/
+`pipeline_failed`/`completion_transaction_failed`/
+`post_failure_lease_release_failed`)는 `app/api/cases/route.ts:26-29`,
+`lib/pipeline/index.ts:81,92`, `lib/cases/create-case.ts` 전체를 확인한 결과
+jobId·caseId 필드를 전혀 포함하지 않는다(필드는 `event`/`timestamp`/
+`hasOwnerUserId`(일부)/safe-error-meta뿐); (2) `leaseId`는 `lib/db/schema.ts:148,
+156-161`에서 `reservations`와 `caseJobs` 양쪽에 실제 `lease_id` 컬럼으로
+존재하며, `lib/cases/create-case.ts:119-121`(161/230/279/481행 호출)의
+`releaseLeaseFenced(db, ownerUserId, leaseId)`는 ownerUserId AND leaseId 둘
+다 일치할 때만 해제한다. 이 두 사실은 문서 서술의 근거이지 이 SPEC이
+변경하는 코드가 아니다 — **뒤집기 쉬운 지점**: 이 두 사실은 코드 자체가
+바뀌지 않는 한 안정적이므로, 향후 실제 로깅 코드에 jobId/caseId 필드가
+추가되거나 리스 펜싱 메커니즘이 변경되면(둘 다 이 SPEC의 범위 밖) 이 SPEC의
+스모크 판정 기준·정리 계약 서술도 그에 맞춰 재확인이 필요하다.
+
 ## §B. 기술 접근 (Technical Approach)
 
 이 SPEC은 코드를 작성하지 않는다. 접근은 순수 문서 편집이다:
@@ -110,9 +129,12 @@ Netlify 대시보드에서 직접 확인한 사실(배포 URL·SHA가 실제로 
   REQ-PILOT-OPS-005의 테넌트 격리 게이트를 실제로 수행하지 않는다.
 - 이 SPEC의 run-phase는 REQ-PILOT-OPS-006의 3단계 중 어느 것도 실제로 착수하지
   않는다.
-- `scripts/provision-tester.ts`, `lib/env.ts`, `lib/db/schema.ts` 등 코드 파일은
-  일절 변경하지 않는다(스키마 테이블명은 REQ-PILOT-OPS-004의 정리 계약 서술을
-  위해 읽기 전용으로 재확인만 했다).
+- `scripts/provision-tester.ts`, `lib/env.ts`, `lib/db/schema.ts`,
+  `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts`
+  등 코드 파일은 일절 변경하지 않는다(스키마 테이블명·로그 이벤트 필드·
+  `leaseId`/`releaseLeaseFenced` 펜싱 메커니즘은 REQ-PILOT-OPS-004의 정리
+  계약·스모크 판정 기준 서술을 위해 읽기 전용으로 재확인만 했다 — jobId/caseId
+  상관관계 필드를 로깅 코드에 추가하는 것도 포함해 코드 변경은 하지 않는다).
 - README.md/product.md 편집은 §2.A가 명시한 지점에 한정하며, 그 외 절(예:
   §Roadmap의 순서 있는 후속 개발 목록, 기술 스택 절 등)은 건드리지 않는다
   (Scope Discipline).
@@ -134,6 +156,12 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 | 신규 문서 존재 여부 | `ls .moai/docs/pilot-ops-launch-plan.md` | 파일 존재 |
 | 신규 문서 4개 절 존재 여부 | 신규 문서 내 "계정 발급"·"스모크"·"테넌트 격리"·"3단계"·"쿼터" 헤딩 grep | 각 ≥ 1 |
 | 코드 파일 무변경 확인 | `git diff --stat` 대상에 `.ts`/`.tsx` 파일 없음 | 매치 없음 |
+| [3차] 스모크 로그 판정이 시간창 기준임(jobId 상관관계 아님) | 신규 문서 내 "jobId" 또는 "caseId"와 "상관관계"가 동시에 긍정형으로 등장하지 않는지 + "시간창"/"invocation 범위" 존재 여부 grep | "시간창"/"invocation 범위" ≥ 1, "jobId 기준 상관관계"류 긍정 서술 0 |
+| [3차] 리스 펜싱 조건(ownerUserId+leaseId 이중 일치, 다른 leaseId 미삭제) 존재 여부 | 신규 문서 내 "leaseId"·"ownerUserId"·"다른" 동시 등장 grep | ≥ 1 |
+| [3차] 삭제-쿼터 결합 규칙(스모크런 ID+타임스탬프 범위, 시간 중복 없음) 존재 여부 | 신규 문서 내 "스모크런 ID"와 "타임스탬프" 동시 등장 grep | ≥ 1 |
+| [3차] "최소 10명/최소 30건" 정밀 표현 존재, "내외"/"약" 근사 표현 잔존 여부 | `grep -c "최소 10명" <신규문서>` ≥ 1 AND `grep -c "10명 내외\|약 30건" <신규문서>` = 0 | 둘 다 충족 |
+| [3차] 20 RPD/15회 구분이 2차 개정 이후에도 유지되는지 | 신규 문서 내 "20 RPD"와 "15회" 동시 등장 grep | ≥ 1 |
+| [4차] 0행 확인 실패 시 즉시 중단·트리아지 + 선기록 수치 수동 재조정 요구 존재 여부 | 신규 문서 내 "즉시 중단" 또는 "트리아지"와 "재조정" 동시 등장 grep | ≥ 1 |
 
 ## §F. 마일스톤 (Priority-Based, No Time Estimates)
 
@@ -166,6 +194,19 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
   로 분리된 이유).
 - REQ-PILOT-OPS-007의 Gemini 쿼터 서술에서 "사건 수"와 "Premium 모델 호출 수"를
   다시 같은 것처럼 쓰지 말 것 — 하이브리드 라우팅 도입 이후 둘은 다르다.
+- 스모크 로그 검증을 "동일 jobId/caseId 기준" 상관관계인 것처럼 서술하지 말
+  것 — 이 프로젝트의 로그 이벤트에는 그런 식별자 필드가 없다
+  (`app/api/cases/route.ts:26-29`, `lib/pipeline/index.ts:81,92`,
+  `lib/cases/create-case.ts` 전체 재확인). 격리된 시간창·invocation 범위
+  기준으로만 판정한다.
+- 리스 펜싱 조건(`owner_user_id` AND `lease_id` 둘 다 일치, 해당 소유자에
+  새 활성 job 없음) 없이 광범위 삭제를 허용하지 말 것 — 다른 leaseId가
+  발견되면 절대 삭제하지 않는다(`releaseLeaseFenced` 실제 구현과 동일 조건,
+  `lib/cases/create-case.ts:119-121`).
+- `gemini_request_observations` 행을 삭제하기 전 실제 호출 횟수를 먼저
+  기록하지 않고 스모크 데이터를 정리하지 말 것 — 일일 쿼터 집계에서 그
+  호출이 조용히 사라진다(REQ-PILOT-OPS-004(j)/REQ-PILOT-OPS-007(e) 결합
+  규칙 참고).
 
 ## §H. 교차 참조 (Cross-References)
 
@@ -175,4 +216,5 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 - `.moai/specs/SPEC-PILOT-LAUNCH-001/spec.md` HISTORY — 배포 URL·SHA 미해결 항목의 최초 출처(이 §C에서 해소됨)
 - `.moai/reports/pilot-ready-quota-checklist-20260913.md` — Gemini 쿼터 실측 한도(20 RPD 절대 상한)·보수적 운영 목표(15회/일, 라인 58)의 출처
 - `.moai/reports/hybrid-research-routing-20260913.md` — 하이브리드 라우팅 승격 규칙·`gemini_request_observations` 실사용량 확인 출처
-- `lib/db/schema.ts` — REQ-PILOT-OPS-004 정리 계약이 인용하는 테이블명(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations`)의 SSOT(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `lib/db/schema.ts` — REQ-PILOT-OPS-004 정리 계약이 인용하는 테이블명(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations`) 및 `leaseId`(`lease_id`) 컬럼의 SSOT(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
+- `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts` — 3차 개정에서 재확인한 로그 이벤트 실제 필드(jobId/caseId 부재)와 `releaseLeaseFenced` 펜싱 메커니즘의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
