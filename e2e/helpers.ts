@@ -43,3 +43,45 @@ export async function loginAsTester(page: Page, email: string): Promise<void> {
   await page.getByTestId("login-submit").click();
   await page.waitForURL("/");
 }
+
+// DatePicker(components/ui/date-picker.tsx)는 타이핑을 지원하지 않는 버튼
+// 트리거다 — 값은 달력을 열고, 목표 월까지 이동한 뒤, 해당 날짜 셀을
+// 클릭해야만 채워진다. testId는 트리거(예: "case-incident-date")를
+// 가리킨다. 달력 헤더 문구("YYYY년 M월")와 셀의
+// `calendar-day-YYYY-MM-DD` testid는 components/ui/calendar.tsx와
+// 같은 형식을 따른다.
+export async function pickDateFromPicker(
+  page: Page,
+  testId: string,
+  isoDate: string
+): Promise<void> {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) {
+    throw new Error(`잘못된 날짜 형식입니다: ${isoDate}`);
+  }
+  const targetYear = Number(match[1]);
+  const targetMonth = Number(match[2]) - 1;
+
+  await page.getByTestId(testId).click();
+
+  const monthLabel = page.getByText(/^\d{4}년 \d{1,2}월$/);
+  await monthLabel.waitFor({ state: "visible" });
+
+  for (let guard = 0; guard < 36; guard += 1) {
+    const labelText = (await monthLabel.textContent())?.trim() ?? "";
+    const parsed = /^(\d{4})년 (\d{1,2})월$/.exec(labelText);
+    if (!parsed) {
+      throw new Error(`달력 헤더를 해석하지 못했습니다: "${labelText}"`);
+    }
+    const shownYear = Number(parsed[1]);
+    const shownMonth = Number(parsed[2]) - 1;
+    if (shownYear === targetYear && shownMonth === targetMonth) {
+      break;
+    }
+    const forward =
+      shownYear < targetYear || (shownYear === targetYear && shownMonth < targetMonth);
+    await page.getByRole("button", { name: forward ? "다음 달" : "이전 달" }).click();
+  }
+
+  await page.getByTestId(`calendar-day-${isoDate}`).click();
+}
