@@ -213,11 +213,87 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+manager-develop run-phase 실행 결과(2026-09-15). Tier S 문서 전용 SPEC —
+코드 변경 없음. M1~M7(plan.md §F) 전체 완료.
+
+### AC Binary PASS/FAIL Matrix
+
+| AC | 상태 | 근거 |
+|----|------|------|
+| AC-PILOT-OPS-001a | PASS | README.md 헤딩(19행)·본문(21-23행 부근)·"다음 단계" 절(136,138행) 편집 완료. `grep -c "11개 SPEC" README.md` = 0, `grep -c "SPEC-PILOT-LAUNCH-001" README.md` = 3 |
+| AC-PILOT-OPS-001b | PASS | product.md 최종 수정 표기(3-7행)·§Roadmap 헤딩/목록(82,84-104행 부근) 편집 완료. `grep -c "11개 SPEC" product.md` = 0, `grep -c "SPEC-PILOT-LAUNCH-001" product.md` = 2 |
+| AC-PILOT-OPS-002 | PASS | README.md/product.md 모두 확정 URL(스킴 포함)·SHA `381e38d`를 "이 시점 기준" 값으로 명시하고, GitHub API 독립 검증 불가 한계를 구분해 기술. "배포 여부 자체가 미결정"이라는 구식 문구 제거. `grep -c "https://musical-macaron-82feb3.netlify.app"` README.md=1행, product.md=2행 |
+| AC-PILOT-OPS-003 | PASS | `.moai/docs/pilot-ops-launch-plan.md` §1에 운영자 계정 후보(`zuge3927@naver.com`), `account-provisioning.md` 참조, 발급 전 Turso 호스트 확인, 발급 후 로그인 검증, "실 계정을 발급하지 않는다" 명시 모두 존재 |
+| AC-PILOT-OPS-004 | PASS | 신규 문서 §2.1에 8개 확인 항목 순서대로 존재, ROUTE/BACKGROUND 두 invocation 구분·대시보드 함수명 사전 확인 절차·시간창 기준 판정·레거시 경로 구분·단일 즉시 중단 규칙 모두 명시. §2.2에 cleanup 계약 (a)~(k) 11개 항목 모두 존재 |
+| AC-PILOT-OPS-005 | PASS | 신규 문서 §2.3에 최소 계정 2개 요구, 4단계 절차(양성 대조군·notFound()/404 JSON 양방향 확인 코드 위치 인용·세션 분리/재로그인·합성 사례만 사용), 기본 경로+임시 계정 대안 경로(둘 다 집계 제외·정리 명시) 모두 존재 |
+| AC-PILOT-OPS-006 | PASS | 신규 문서 §3에 1→격리게이트→2→3단계 순서, 전환/중단 기준, 문의 채널, PII 안내 문구 재사용, "최소 10명"·"최소 30건" 정밀 표현("10명 내외"/"약 30건" 잔존 0), 성공지표 집계 계약 3개 항목, "완료 사건 수"·"피드백" 증거 표 형식 모두 존재 |
+| AC-PILOT-OPS-007 | PASS | 신규 문서 §4에 20 RPD/15회 구분, 사건수≠모델요청수, 일일 예산 구성요소, 콘솔 로그=호출시도 기준/DB=교차대조 전용(비합산)/스모크 선기록=로그갭만 보충, status:null·persist_failed 보수 집계, 불확실 시 중단/보류, UTC/KST 운영시점 확인, 지속성 한계+AI Studio 결정 규칙(IF/IF), 단일 GEMINI_API_KEY 아키텍처 제약 모두 존재 |
+
+### 코드 무변경 검증
+
+```
+$ git diff --stat
+ .moai/project/product.md               | 29 +++++++++++++++++++++--------
+ .moai/specs/SPEC-PILOT-OPS-001/spec.md |  2 +-
+ README.md                              | 10 ++++++----
+ 3 files changed, 28 insertions(+), 13 deletions(-)
+```
+`.ts`/`.tsx`/`.js` 파일 매치 없음. `.moai/docs/pilot-incident-runbook.md`는
+`git status --porcelain` 매치 없음 — 5차 개정 plan-phase 중 선반영된 §1/§2
+정정이 run-phase 동안 그대로 보존됐음을 확인(run-phase는 재작성하지 않음,
+plan.md §D 제약 준수).
+
+### 신규 문서 자체 검증 (plan.md §E 전체 행 실행 결과)
+
+plan.md §E의 grep 행 전체(3차~8차, 총 23개 세부 행)를 신규 문서
+`.moai/docs/pilot-ops-launch-plan.md` 대상으로 실행 — 전체 PASS. 대표
+결과: 헤딩 5종("계정 발급"·"스모크"·"테넌트 격리"·"3단계"·"쿼터") 각 ≥1;
+"시간창"/"invocation 범위" 각 5행; "leaseId"·"ownerUserId"·"다른 leaseId"
+각 존재; "스모크런 ID"·"타임스탬프" 각 2행; "최소 10명" 3행 AND "10명
+내외"/"약 30건" 0행; "20 RPD"·"15회" 각 존재; "즉시 중단"/"트리아지" 5행
++ "재조정" 2행; "case_job_enqueue_failed"·"case_job_failed"·"레거시"·
+"createCase" 각 존재; runbook "960\|1020" 4행, "330초" 1행이 "정정/레거시/
+적용되지 않는다" 문맥과 co-occur(3행) — 오탐 아님; "양성 대조군"·
+"notFound" 각 존재; "실제 외부" 3행; "UTC"·"KST" 각 2행; "완료 사건 수"·
+"피드백" 각 존재; "ROUTE"·"BACKGROUND"·"invocation" 각 존재; "서로 다른"+
+"invocation" 존재; "gemini_observation_persist_failed" 4행;
+progress.md/plan.md "선반영\|pre-applied" 각 ≥1; "관측치" 4행 +
+"담보하지 않는다" 계열 부정 표현 1행; "지연"·"확인"·"기록"·"primary" 각
+존재; "교차 대조"·"합산하지 않는다\|이중 계산" 각 존재; "status"·
+"보수적으로 집계" 각 존재; "중단\|보류"·"abort/halt" 각 존재; runbook
+"표시 이름\|display name" 1행, 신규 문서 동일 표현 1행; progress.md
+artifact_set에 "pilot-incident-runbook" 존재.
+
+### Gap (알려진 잔여 항목 — 이번 run-phase 범위 밖)
+
+plan.md §E [7차] 행 "spec.md `6개 Out of Scope` ≥1 AND `5개 Out of Scope`
+=0"을 문자열 그대로 검사하면 `grep -c "6개 Out of Scope" spec.md` = 0(
+실제 원문은 `**6개** Out of Scope`로 마크다운 볼드가 "개"와 공백 사이에
+끼어 있어 공백 1칸 리터럴 매치가 어긋남 — `grep -c "**6개** Out of Scope"`
+= 1로 실제 값은 6개가 맞음을 별도 확인함) 이고 `grep -c "5개 Out of Scope"
+spec.md` = 1(255행 HISTORY 7차 개정 기록 안에서 "이전에는 '5개'로 잘못
+쓰여 있었다"는 과거 서술을 인용하는 문맥이며, 현재 유효한 요약 서술이
+아님). 이 항목은 spec.md **body**(HISTORY) 내용이며, 이 SPEC의 run-phase
+manager-develop은 spec.md body를 수정할 권한이 없다(frontmatter
+status/updated만 허용, `.claude/rules/moai/development/spec-frontmatter-schema.md`
+§ Forbidden ownership crossings) — plan-phase에서 이미 완료된 7차 개정
+작업의 잔존 서식(마크다운 볼드) 이슈이며 이 run-phase가 새로 만든 결함이
+아니다. 실질적 내용(현재 Out of Scope 항목 수가 6개라는 사실)은 정확하다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- run_status: run-complete
+- run_complete_at: 2026-09-15
+- ac_pass_count: 8 (AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 — 전부 PASS)
+- ac_fail_count: 0
+- preserve_list_post_run_count: `.moai/docs/pilot-incident-runbook.md` 1건 — run-phase 동안 무변경 확인(git status 매치 없음)
+- new_warnings_or_lints_introduced: 0 (코드 변경 없음, 린트 대상 아님)
+- cross_platform_build: n/a (코드 변경 없음)
+- total_run_phase_files: 4 (README.md 편집, `.moai/project/product.md` 편집,
+  `.moai/docs/pilot-ops-launch-plan.md` 신규, 본 progress.md; spec.md
+  frontmatter status만 draft→in-progress 전환)
+- m1_to_mN_commit_strategy: 단일 run-phase 커밋(M1~M7 통합) — plan/SPEC-PILOT-OPS-001
+  브랜치에 직접 커밋 + push (사용자 명시 지시에 따름, PR 미생성)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
