@@ -206,10 +206,15 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 | [6차] ROUTE/BACKGROUND 두 invocation 구분이 스모크 판정에 명시됐는지 | 신규 문서 내 "ROUTE"와 "BACKGROUND"가 "invocation" 부근에 동시 등장하는지 grep | ≥ 1 |
 | [6차] route.ts/process-case-background.ts가 별개 Netlify function invocation(별도 로그 스트림)임이 명시됐는지 | 신규 문서 내 "별개의" 또는 "서로 다른"과 "invocation" 동시 등장 grep | ≥ 1 |
 | [6차] Gemini 관측 지속성 한계(콘솔 로그만/DB 미저장, `gemini_observation_persist_failed`) 명시 여부 | 신규 문서 내 "gemini_observation_persist_failed" 또는 "저장" + "예외" 동시 등장 grep | ≥ 1 |
-| [6차] AI Studio 콘솔 ground-truth 지정 + DB/스모크 교차 대조 구분 명시 여부 | 신규 문서 내 "ground-truth" 또는 "AI Studio 콘솔"과 "교차 대조" 동시 등장 grep | ≥ 1 |
+| [6차] (7차에서 결정-규칙 기반으로 대체됨 — 아래 [7차] 행 참고) AI Studio 콘솔 사용량 표시 관련 명시 여부 | 신규 문서 내 "AI Studio 콘솔"과 "교차 대조" 또는 "결정 규칙" 동시 등장 grep | ≥ 1 |
 | [6차] 단일 Google Cloud 프로젝트·단일 GEMINI_API_KEY 제약(다중 키/로테이션/페일오버 금지) 명시 여부 | 신규 문서 내 "GEMINI_API_KEY"와 "로테이션" 또는 "페일오버" 동시 등장 grep | ≥ 1 |
 | [6차] `.moai/docs/pilot-ops-launch-plan.md`/`.moai/project/product.md`/`README.md`/`app/`·`components/`·`e2e/` 외 코드 파일 무변경(브랜치 정리 후 재확인) | `git diff main...HEAD --stat` 결과에 `.ts`/`.tsx` 파일 없음 | 매치 없음 |
 | [6차] pilot-incident-runbook.md의 §1/§2 정정이 plan-phase 중 선반영됐음이 progress.md/plan.md에 기록됐는지 | `grep -c "선반영\|pre-applied" .moai/specs/SPEC-PILOT-OPS-001/progress.md .moai/specs/SPEC-PILOT-OPS-001/plan.md` | 각 ≥ 1 |
+| [7차] REQ-007(e) 산출물이 "실적"이 아니라 "관측치(observation)"로 완화 표현됐는지, 완전성 보장이 부정되는지 | 신규 문서 내 "관측치" 또는 "observation"과 "담보"/"보장" 부정 표현 동시 등장 grep | ≥ 1 |
+| [7차] AI Studio 콘솔의 실제 운영 동작(실시간 여부·화면/필드·지연)을 운영 시점에 확인·기록하는 절차 + IF/IF 결정 규칙(확인+지연 파악 시 주 수치, 미확인 시 내부 원장 기준 ≤15회/일) 존재 여부 | 신규 문서 내 "지연" 또는 "update-lag"과 "확인"·"기록" 동시 등장 grep, "주 수치" 또는 "primary" 존재 여부 | 각 ≥ 1 |
+| [7차] REQ-004(6) 대시보드 함수명 사전 확인 절차(POST /api/cases 실제 표시 이름·invocation ID 확인 후 사용) 존재 여부 | 신규 문서 내 "표시 이름" 또는 "display name"과 "확인" 동시 등장 grep | ≥ 1 |
+| [7차] progress.md artifact_set에 pilot-incident-runbook.md 포함 여부 | `grep -A2 "artifact_set" .moai/specs/SPEC-PILOT-OPS-001/progress.md \| grep -c "pilot-incident-runbook"` | ≥ 1 |
+| [7차] Out of Scope "신규 SPEC 생성" 요약이 "6개"로 정정됐는지("5개" 잔존 없음) | `grep -c "6개 Out of Scope" .moai/specs/SPEC-PILOT-OPS-001/spec.md` ≥ 1 AND `grep -c "5개 Out of Scope" .moai/specs/SPEC-PILOT-OPS-001/spec.md` = 0 | 둘 다 충족 |
 
 ## §F. 마일스톤 (Priority-Based, No Time Estimates)
 
@@ -261,11 +266,21 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
   invocation 범위를 항상 구분해 기록한다.
 - (6차) `gemini_request_observations` DB 행 수 + 스모크 선기록 합계를 "전체
   Gemini 사용량의 완전한 그림"인 것처럼 서술하지 말 것 — 네트워크 예외 호출은
-  DB에 기록되지 않고, DB 저장 자체도 독립 실패할 수 있다. AI Studio 콘솔
-  실시간 표시가 ground-truth이며 DB/스모크 값은 교차 대조 자료일 뿐이다.
+  DB에 기록되지 않고, DB 저장 자체도 독립 실패할 수 있다.
 - (6차) 다중 계정/다중 프로젝트 Gemini 키 로테이션이나 페일오버를 암시하는
   서술을 넣지 말 것 — 이 파일럿은 단일 Google Cloud 프로젝트·단일
   `GEMINI_API_KEY`만 사용한다는 명시적 제약이다.
+- (7차) AI Studio 콘솔 실시간 표시를 무조건적 ground-truth로 단정하지 말
+  것 — 이 SPEC은 그 콘솔 표시의 실제 운영 동작(실시간 여부·화면/필드·
+  갱신 지연)을 검증하지 않았다. 신규 문서는 운영 시점에 그 동작을 확인·
+  기록하는 절차와, 확인 가능+지연 파악 시에만 주 수치로 쓰고 그렇지 않으면
+  내부 원장(DB+스모크) 기준 Premium ≤15회/일 제약으로 운영한다는 조건부
+  결정 규칙을 명시해야 한다 — "AI Studio 콘솔 = ground-truth"라는 무조건
+  단정 문구는 REQ-PILOT-OPS-007(g) 6차 개정 원문이었으나 7차 개정에서
+  대체됐으므로 재사용하지 않는다.
+- (7차) REQ-PILOT-OPS-007(e)의 일일 산출물을 "그날의 실제 호출 실적"처럼
+  단정적으로 서술하지 말 것 — (g)의 지속성 한계 때문에 이 값은 "DB·스모크
+  기록 기준 관측치"일 뿐이며, 총 실사용량을 담보하는 최종 수치가 아니다.
 
 ## §H. 교차 참조 (Cross-References)
 

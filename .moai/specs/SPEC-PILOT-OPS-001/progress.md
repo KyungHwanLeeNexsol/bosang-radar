@@ -5,7 +5,7 @@
 - plan_status: audit-ready
 - plan_complete_at: 2026-09-15
 - tier: S
-- artifact_set: spec.md, plan.md (acceptance.md 없음 — AC는 spec.md §3에 인라인), progress.md
+- artifact_set: spec.md, plan.md (acceptance.md 없음 — AC는 spec.md §3에 인라인), progress.md, `.moai/docs/pilot-incident-runbook.md`(5차 개정부터 이 SPEC이 plan-phase 중 직접 편집·선반영 — §E.1 5차/6차 개정 기록 참고. README.md/`.moai/project/product.md`/신규 문서 `.moai/docs/pilot-ops-launch-plan.md`는 이 SPEC 자신의 plan-phase 산출물이 아니라 run-phase에서 편집될 **대상 파일**이므로 이 artifact_set에는 포함하지 않음 — 대상 파일 전체 목록은 spec.md §1 영향 파일 절 참고)
 - 요약: README.md/product.md 문서 현행화(11→12개 SPEC, 배포 URL·SHA 확정값
   반영 — 아래 참고), 계정 발급 절차 계획, 단일 계정 스모크 체크리스트, 테넌트
   격리 게이트, 3단계 롤아웃 + 성공지표 집계 계약, Gemini 쿼터 운영 계획을
@@ -141,6 +141,20 @@
   안내 추가)·§D(코드 파일 3개 추가·ROUTE/BACKGROUND 구분 명시·runbook
   재작성-금지 제약)·§E([6차] grep 행 7개 추가)·§G(안티패턴 3개 추가)·
   §H(교차 참조 4개 추가)도 갱신.
+- **plan-auditor 세션 검증 기록 (2026-09-15, iteration 9, 7차 개정 —
+  semantic re-audit)**: Verdict **PASS**, Overall Score **0.98**.
+  REQ-007(e)/(g)/AC-007 internal-contradiction fix independently verified as
+  a genuine semantic resolution (not hedging language) — (e) no longer
+  claims completeness, (g)'s decision rule confirmed operator-executable,
+  round-6 D-new-1 abort/reconcile contract confirmed intact and unweakened.
+  progress.md §E.1 artifact_set fix, REQ-004(6)
+  dashboard-confirmation-without-reclassification, and Out-of-Scope 6-item
+  count all independently re-verified against actual file content (not the
+  self-report). `git diff --check`/`pnpm format:check` both independently
+  re-run, exit=0. Branch-vs-main diff confirmed clean (4 SPEC-scope files
+  only). No blocking defects. Minor note: plan.md §E actually gained 5 new
+  `[7차]` rows (not the reported 2) — under-reported, not over-reported;
+  does not affect SPEC quality.
 
 ## §E.2 Run-phase Evidence
 
