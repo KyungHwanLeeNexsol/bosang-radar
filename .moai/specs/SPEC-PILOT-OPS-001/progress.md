@@ -232,44 +232,85 @@ manager-develop run-phase 실행 결과(2026-09-15). Tier S 문서 전용 SPEC �
 | AC-PILOT-OPS-002 | PASS | README.md/product.md 모두 확정 URL(스킴 포함)·SHA `381e38d`를 "이 시점 기준" 값으로 명시하고, GitHub API 독립 검증 불가 한계를 구분해 기술. "배포 여부 자체가 미결정"이라는 구식 문구 제거. `grep -c "https://musical-macaron-82feb3.netlify.app"` README.md=1행, product.md=2행 |
 | AC-PILOT-OPS-003 | PASS | `.moai/docs/pilot-ops-launch-plan.md` §1에 운영자 계정 후보(`zuge3927@naver.com`), `account-provisioning.md` 참조, 발급 전 Turso 호스트 확인, 발급 후 로그인 검증, "실 계정을 발급하지 않는다" 명시 모두 존재 |
 | AC-PILOT-OPS-004 | PASS | 신규 문서 §2.1에 8개 확인 항목 순서대로 존재, ROUTE/BACKGROUND 두 invocation 구분·대시보드 함수명 사전 확인 절차·시간창 기준 판정·레거시 경로 구분·단일 즉시 중단 규칙 모두 명시. §2.2에 cleanup 계약 (a)~(k) 11개 항목 모두 존재 |
-| AC-PILOT-OPS-005 | PASS | 신규 문서 §2.3에 최소 계정 2개 요구, 4단계 절차(양성 대조군·notFound()/404 JSON 양방향 확인 코드 위치 인용·세션 분리/재로그인·합성 사례만 사용), 기본 경로+임시 계정 대안 경로(둘 다 집계 제외·정리 명시) 모두 존재 |
+| AC-PILOT-OPS-005 | PASS | 신규 문서 §2.3에 최소 계정 2개 요구, 4단계 격리 확인 절차(양성 대조군·notFound()/404 JSON 양방향 확인 코드 위치 인용·세션 분리/재로그인·합성 사례만 사용)가 존재한다. 임시 계정 대안 경로는 **fix-review 라운드에서 구체화** — (i) 이전의 3개 항목 요약 서술 대신, 스모크런 ID·임시 이메일 선기록 → account-provisioning.md 참조 발급 → 결과 userId/이메일 기록 → §2.2 기준 사건 데이터 우선 정리(정확한 식별자, 와일드카드 금지) → session/account/user/verification 정리 + 0행 확인 → `lib/db/schema.ts` 재확인 근거로 cascade(session.userId/account.userId → user.id, onDelete: cascade) vs 비-cascade(verification은 identifier 컬럼, allowed_testers는 email 컬럼 — 둘 다 user 외래키 없음, 별도 삭제 필요)를 명시적으로 구분 → 이상 활동 시 즉시 중단 → 모든 삭제는 기록된 식별자만 대상(와일드카드/날짜범위/최근N개 금지) → §3.2 집계 제외의 9단계 구체 절차로 재작성됐다. 기본 경로(첫 실제 외부 계정 대기, 이 경로의 게이트 사건도 집계 제외·정리 대상 명시)도 그대로 존재한다 |
 | AC-PILOT-OPS-006 | PASS | 신규 문서 §3에 1→격리게이트→2→3단계 순서, 전환/중단 기준, 문의 채널, PII 안내 문구 재사용, "최소 10명"·"최소 30건" 정밀 표현("10명 내외"/"약 30건" 잔존 0), 성공지표 집계 계약 3개 항목, "완료 사건 수"·"피드백" 증거 표 형식 모두 존재 |
 | AC-PILOT-OPS-007 | PASS | 신규 문서 §4에 20 RPD/15회 구분, 사건수≠모델요청수, 일일 예산 구성요소, 콘솔 로그=호출시도 기준/DB=교차대조 전용(비합산)/스모크 선기록=로그갭만 보충, status:null·persist_failed 보수 집계, 불확실 시 중단/보류, UTC/KST 운영시점 확인, 지속성 한계+AI Studio 결정 규칙(IF/IF), 단일 GEMINI_API_KEY 아키텍처 제약 모두 존재 |
 
-### 코드 무변경 검증
+### 코드 무변경 검증 (fix-review 라운드 — 재작성)
+
+**(정정 사유)** 아래 이전 버전은 `git diff --stat`(작업 트리 스냅샷, 커밋
+전 시점)을 최종 증거로 사용해 3개 파일만 보고했으나, 이는 이 SPEC의 실제
+전체 run-phase 범위(plan-auditor가 확인한 plan-phase 최종 커밋
+`af6c0a1`부터 이 fix-review 커밋까지)를 반영하지 않은 스테일 스냅샷이었다.
+올바른 증거는 두 **불변(immutable)** 커밋 사이의 range diff여야 한다.
+
+**펜딩-백필(pending-backfill)**: `git diff af6c0a1..HEAD --stat`는 이
+fix-review 라운드의 최종 커밋이 landing된 **직후에만** 정확히 계산할 수
+있다(커밋은 자기 자신의 최종 SHA를 알 수 없다는 동일한 자기참조 제약 —
+`.claude/rules/moai/development/spec-frontmatter-schema.md` § SHA
+placeholder backfill exemption과 동일 패턴). 따라서 이 커밋에서는
+placeholder를 기록하고, 바로 다음의 소규모 백필 커밋에서 실제
+`af6c0a1..<이 커밋 SHA>` range diff 출력을 이 절에 verbatim으로 교체한다.
 
 ```
-$ git diff --stat
- .moai/project/product.md               | 29 +++++++++++++++++++++--------
- .moai/specs/SPEC-PILOT-OPS-001/spec.md |  2 +-
- README.md                              | 10 ++++++----
- 3 files changed, 28 insertions(+), 13 deletions(-)
+$ git diff af6c0a1..<pending-backfill-fix-review-1> --stat
+(백필 대기 — 다음 커밋에서 verbatim 교체)
 ```
-`.ts`/`.tsx`/`.js` 파일 매치 없음. `.moai/docs/pilot-incident-runbook.md`는
-`git status --porcelain` 매치 없음 — 5차 개정 plan-phase 중 선반영된 §1/§2
-정정이 run-phase 동안 그대로 보존됐음을 확인(run-phase는 재작성하지 않음,
-plan.md §D 제약 준수).
 
-### 신규 문서 자체 검증 (plan.md §E 전체 행 실행 결과)
+예상 파일 집합(plan-phase 이후 run-phase 전체 누적, 5개 — 아래 §E.3
+`total_run_phase_files`와 동일): `README.md`, `.moai/project/product.md`,
+`.moai/docs/pilot-ops-launch-plan.md`(신규), 본 `progress.md`, `.moai/specs/
+SPEC-PILOT-OPS-001/spec.md`(frontmatter만). `.moai/docs/
+pilot-incident-runbook.md`는 이 예상 집합에 포함되지 않는다 — 별도의
+"보존 검증(preservation-verified)" 파일로 분리 기록한다(아래 참고).
 
-plan.md §E의 grep 행 전체(3차~8차, 총 23개 세부 행)를 신규 문서
-`.moai/docs/pilot-ops-launch-plan.md` 대상으로 실행 — 전체 PASS. 대표
-결과: 헤딩 5종("계정 발급"·"스모크"·"테넌트 격리"·"3단계"·"쿼터") 각 ≥1;
-"시간창"/"invocation 범위" 각 5행; "leaseId"·"ownerUserId"·"다른 leaseId"
-각 존재; "스모크런 ID"·"타임스탬프" 각 2행; "최소 10명" 3행 AND "10명
-내외"/"약 30건" 0행; "20 RPD"·"15회" 각 존재; "즉시 중단"/"트리아지" 5행
-+ "재조정" 2행; "case_job_enqueue_failed"·"case_job_failed"·"레거시"·
-"createCase" 각 존재; runbook "960\|1020" 4행, "330초" 1행이 "정정/레거시/
-적용되지 않는다" 문맥과 co-occur(3행) — 오탐 아님; "양성 대조군"·
-"notFound" 각 존재; "실제 외부" 3행; "UTC"·"KST" 각 2행; "완료 사건 수"·
-"피드백" 각 존재; "ROUTE"·"BACKGROUND"·"invocation" 각 존재; "서로 다른"+
-"invocation" 존재; "gemini_observation_persist_failed" 4행;
-progress.md/plan.md "선반영\|pre-applied" 각 ≥1; "관측치" 4행 +
-"담보하지 않는다" 계열 부정 표현 1행; "지연"·"확인"·"기록"·"primary" 각
-존재; "교차 대조"·"합산하지 않는다\|이중 계산" 각 존재; "status"·
-"보수적으로 집계" 각 존재; "중단\|보류"·"abort/halt" 각 존재; runbook
-"표시 이름\|display name" 1행, 신규 문서 동일 표현 1행; progress.md
-artifact_set에 "pilot-incident-runbook" 존재.
+**`.ts`/`.tsx`/`.js` 무변경 재확인(이번 fix-review 라운드, 작업 트리
+기준)**: `git diff --stat | grep -E "\.ts$|\.tsx$"` → 매치 없음(exit=1).
+
+**`.moai/docs/pilot-incident-runbook.md` 보존 검증(분리 기록)**: 이
+파일은 위 5개 변경 파일 집합에 포함되지 않고, `af6c0a1..HEAD` 전체 range
+에서 무변경임을 별도로 확인한다 — 5차 개정 plan-phase 중 선반영된 §1/§2
+정정이 run-phase(이번 fix-review 라운드 포함) 동안 그대로 보존됐음을
+확인(run-phase는 재작성하지 않음, plan.md §D 제약 준수). 백필 커밋에서
+`git diff af6c0a1..<최종 SHA> --stat -- .moai/docs/pilot-incident-runbook.md`
+가 빈 출력임을 함께 기록한다.
+
+### 신규 문서 자체 검증 (fix-review 라운드 — 재실행, 변경분 아닌 전체 파일 대상)
+
+plan.md §E의 grep 행 전체(3차~8차, 총 23개 세부 행 — 위 §2.3 임시 계정
+경로 재작성 이후 상태 반영)를 신규 문서
+`.moai/docs/pilot-ops-launch-plan.md` **전체 최신본** 대상으로 재실행 —
+전체 PASS. 대표 결과(변경된 것만 표기, 나머지는 이전 라운드와 동일):
+헤딩 5종 개별 확인 각 ≥1(계정 발급=6, 스모크=25, 테넌트 격리=7, 3단계=3,
+쿼터=5); "시간창"/"invocation 범위" 10행; "leaseId"=5행·"ownerUserId"=4행·
+"다른"=12행; "스모크런 ID"=3행·"타임스탬프"=2행; "최소 10명" 3행 AND
+"10명 내외"/"약 30건" 0행; "20 RPD"=2행·"15회"=3행; "즉시 중단"/"트리아지"
+6행 + "재조정" 2행; "case_job_enqueue_failed"=1행·"case_job_failed"=1행·
+"동기"/"레거시"=4행·"createCase"=2행; runbook "960\|1020" 4행, "330초" 1행이
+"정정(v0.12.0)... 적용되지 않는다" 문맥과 co-occur(직접 확인) — 오탐 아님;
+"양성 대조군"=1행·"notFound"=1행; "실제 외부" 3행; "UTC"=2행·"KST"=2행;
+"완료 사건 수"=2행·"피드백"=7행; "ROUTE"=3행·"BACKGROUND"=2행·"invocation"=11행;
+"별개의\|서로 다른" 5행; "gemini_observation_persist_failed" 4행;
+progress.md "선반영\|pre-applied" 4행, plan.md 3행; "관측치\|observation"
+15행(§4(g) "담보하지 않는다" 완전성 부정 표현과 인접 존재, 직접 확인);
+"지연\|update-lag" 6행·"확인\|기록" 75행·"주 수치\|primary" 1행; "교차 대조"
+1행·"합산하지 않는다\|이중 계산" 3행; "status" 4행·"보수적으로 집계" 1행;
+"중단\|보류" 14행·"abort\|halt" 3행; runbook "표시 이름\|display name" 1행,
+신규 문서 동일 표현 1행 + "확인" 54행; progress.md artifact_set에
+"pilot-incident-runbook" 2행 존재.
+
+**git diff --check / pnpm format:check (Fix4 추가 검증)**:
+```
+$ git diff --check
+(exit=0, 출력 없음)
+
+$ pnpm format:check
+...
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+(exit=0)
+```
 
 ### Gap (알려진 잔여 항목 — 이번 run-phase 범위 밖)
 
@@ -289,18 +330,22 @@ status/updated만 허용, `.claude/rules/moai/development/spec-frontmatter-schem
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-- run_status: run-complete
+- run_status: run-complete (fix-review 라운드 반영 — 외부 검토 4건 수정)
 - run_complete_at: 2026-09-15
-- ac_pass_count: 8 (AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 — 전부 PASS)
+- ac_pass_count: 8 (AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 — 전부 PASS, AC-005 rationale은 fix-review 라운드에서 갱신)
 - ac_fail_count: 0
-- preserve_list_post_run_count: `.moai/docs/pilot-incident-runbook.md` 1건 — run-phase 동안 무변경 확인(git status 매치 없음)
-- new_warnings_or_lints_introduced: 0 (코드 변경 없음, 린트 대상 아님)
+- preserve_list_post_run_count: `.moai/docs/pilot-incident-runbook.md` 1건 — run-phase(이번 fix-review 라운드 포함) 동안 무변경 확인. 위 §E.2 "코드 무변경 검증"이 이 파일을 5개 변경 파일 집합에서 분리해 별도로 기록한다
+- new_warnings_or_lints_introduced: 0 (코드 변경 없음, 린트 대상 아님). `git diff --check`/`pnpm format:check` 모두 exit=0(위 §E.2 참고)
 - cross_platform_build: n/a (코드 변경 없음)
-- total_run_phase_files: 4 (README.md 편집, `.moai/project/product.md` 편집,
-  `.moai/docs/pilot-ops-launch-plan.md` 신규, 본 progress.md; spec.md
-  frontmatter status만 draft→in-progress 전환)
-- m1_to_mN_commit_strategy: 단일 run-phase 커밋(M1~M7 통합) — plan/SPEC-PILOT-OPS-001
-  브랜치에 직접 커밋 + push (사용자 명시 지시에 따름, PR 미생성)
+- total_run_phase_files: 5 (README.md 편집, `.moai/project/product.md` 편집,
+  `.moai/docs/pilot-ops-launch-plan.md` 신규+fix-review 개정, 본 progress.md;
+  spec.md frontmatter status만 draft→in-progress 전환) — 이전 버전은 4로
+  오기재(스테일 `git diff --stat` 스냅샷이 progress.md 자신을 누락시킨 결과);
+  `.moai/docs/pilot-incident-runbook.md`는 이 5개 집합에 포함되지 않는
+  별도의 "보존 검증" 파일이다
+- m1_to_mN_commit_strategy: run-phase 초기 단일 커밋(M1~M7 통합) + 본
+  fix-review 라운드의 후속 커밋(들) — plan/SPEC-PILOT-OPS-001 브랜치에
+  직접 커밋 + push (사용자 명시 지시에 따름, PR 미생성)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
