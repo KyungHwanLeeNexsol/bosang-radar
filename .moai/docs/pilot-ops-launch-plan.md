@@ -14,9 +14,10 @@
 
 최초 운영 계정 발급 대상은 운영자 본인 계정 `zuge3927@naver.com`이다 — 이
 이메일은 `SPEC-PILOT-READY-001` spec.md HISTORY(2026-09-11, v0.8.0 항목)에서
-장애 대응 triage 담당자(이경환, 1영업일 이내 1차 확인)와 함께 확정되어
-`.env.local`/`.moai/docs/pilot-incident-runbook.md`에 반영된 동일 주소이며,
-신규 이메일이 아니라 기존에 확정된 주소를 재사용한다. `.moai/docs/
+장애 대응 triage 담당자(이경환, 1영업일 이내 1차 확인)와 함께 지원 연락처로
+확정된 주소이며, 이 SPEC(SPEC-PILOT-OPS-001) spec.md REQ-PILOT-OPS-003·
+AC-PILOT-OPS-003에서도 운영 계정 겸 문의 채널 주소로 재확인됐다 — 신규
+이메일이 아니라 기존에 확정된 주소를 재사용한다. `.moai/docs/
 pilot-incident-runbook.md` §3 자체는 그 확정 결과 중 triage 담당자와
 1영업일 이내 1차 확인이라는 응대 목표만 기록하며, 이메일 주소 자체를 §3
 본문에 별도로 기재하지는 않는다.
@@ -196,10 +197,13 @@ invocation의 로그 범위를 별도로 기록·판정한다(다만 두 invocat
      정확한 `userId`/이메일 기준으로 정리한다(§2.2와 동일하게
      와일드카드·날짜범위·"최근 N개" 지정은 금지).
   5. **그 다음** 임시 계정 자신의 `session`/`account`/`user` 행과,
-     해당하는 `verification` 행을 3번에서 기록한 정확한 `userId`/
-     이메일 기준으로 정리한다 — 정리를 마친 뒤 각 테이블에 그
-     식별자에 연결된 행이 0개 남았는지 확인하는 절차를 명시적으로
-     거친다(생략 불가).
+     해당하는 `verification` 행, 그리고 해당하는 `allowed_testers`
+     행을 3번에서 기록한 정확한 `userId`/이메일 기준으로 정리한다
+     (`verification`은 `identifier` 컬럼, `allowed_testers`는
+     `email` 컬럼이 각각 유일한 매칭 기준이며 둘 다 `userId` 컬럼이
+     없다) — 정리를 마친 뒤 `session`/`account`/`user`/`verification`/
+     `allowed_testers` **다섯** 테이블 모두에 그 식별자에 연결된
+     행이 0개 남았는지 확인하는 절차를 명시적으로 거친다(생략 불가).
   6. `user`/`session`/`account`/`verification`/`allowed_testers`
      (Drizzle 스키마명 `allowedTesters`) 중 어느 것이 `user` 행 삭제로
      **자동(cascade) 삭제**되고 어느 것이 **별도 삭제가 필요한지**를
