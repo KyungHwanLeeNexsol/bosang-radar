@@ -130,17 +130,24 @@ Netlify 대시보드에서 직접 확인한 사실(배포 URL·SHA가 실제로 
 - 이 SPEC의 run-phase는 REQ-PILOT-OPS-006의 3단계 중 어느 것도 실제로 착수하지
   않는다.
 - `scripts/provision-tester.ts`, `lib/env.ts`, `lib/db/schema.ts`,
-  `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts`
+  `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts`,
+  `netlify/functions/process-case-background.ts`, `lib/cases/job-timing.ts`,
+  `app/cases/[caseId]/page.tsx`, `app/api/cases/status/route.ts`
   등 코드 파일은 일절 변경하지 않는다(스키마 테이블명·로그 이벤트 필드·
-  `leaseId`/`releaseLeaseFenced` 펜싱 메커니즘은 REQ-PILOT-OPS-004의 정리
-  계약·스모크 판정 기준 서술을 위해 읽기 전용으로 재확인만 했다 — jobId/caseId
-  상관관계 필드를 로깅 코드에 추가하는 것도 포함해 코드 변경은 하지 않는다).
+  `leaseId`/`releaseLeaseFenced` 펜싱 메커니즘·실제 async 경로
+  (`startCaseJob`→`processCaseJob`)·TTL/폴링 상수·테넌트 격리 메커니즘은
+  REQ-PILOT-OPS-004/005의 정리 계약·스모크 판정 기준·격리 게이트 절차 서술을
+  위해 읽기 전용으로 재확인만 했다 — jobId/caseId 상관관계 필드를 로깅
+  코드에 추가하는 것도 포함해 코드 변경은 하지 않는다).
 - README.md/product.md 편집은 §2.A가 명시한 지점에 한정하며, 그 외 절(예:
   §Roadmap의 순서 있는 후속 개발 목록, 기술 스택 절 등)은 건드리지 않는다
   (Scope Discipline).
-- 신규 문서는 `.moai/docs/account-provisioning.md`와
-  `.moai/docs/pilot-incident-runbook.md`의 내용을 복제하지 않고 참조만 한다 —
-  세 문서 간 내용 중복은 향후 문서 유지보수 부담을 늘린다.
+- 신규 문서는 `.moai/docs/account-provisioning.md`의 내용을 복제하지 않고
+  참조만 한다 — 문서 간 내용 중복은 향후 문서 유지보수 부담을 늘린다.
+- `.moai/docs/pilot-incident-runbook.md`는 5차 개정부터 예외적으로 이 SPEC이
+  직접 편집하는 대상이다(§1 이벤트 표·§2 TTL 서술을 실제 async 경로·실제
+  상수 값에 맞춰 정정) — 다른 절(§3 triage 담당자, §4 원격 DB 단독 진행
+  원칙)은 그대로 참조만 하며 건드리지 않는다.
 
 ## §E. 자체 검증 (Self-Verification)
 
@@ -162,6 +169,12 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 | [3차] "최소 10명/최소 30건" 정밀 표현 존재, "내외"/"약" 근사 표현 잔존 여부 | `grep -c "최소 10명" <신규문서>` ≥ 1 AND `grep -c "10명 내외\|약 30건" <신규문서>` = 0 | 둘 다 충족 |
 | [3차] 20 RPD/15회 구분이 2차 개정 이후에도 유지되는지 | 신규 문서 내 "20 RPD"와 "15회" 동시 등장 grep | ≥ 1 |
 | [4차] 0행 확인 실패 시 즉시 중단·트리아지 + 선기록 수치 수동 재조정 요구 존재 여부 | 신규 문서 내 "즉시 중단" 또는 "트리아지"와 "재조정" 동시 등장 grep | ≥ 1 |
+| [5차] 실제 async 이벤트 7개(enqueue/cancel/create_lease/pipeline_stage/failed/status_update/failed_lease) 언급 및 레거시 경로 구분 존재 여부 | 신규 문서 내 "case_job_enqueue_failed"·"case_job_failed" 동시 등장 grep, "동기"/"레거시"와 "createCase" 동시 등장 grep | 각 ≥ 1 |
+| [5차] TTL 실제 값(960/1020초) 반영 여부, "330초"가 남아 있다면 정정/레거시 문맥과 함께인지 | `grep -c "960\|1020" .moai/docs/pilot-incident-runbook.md` ≥ 1 AND (`grep -c "330초" .moai/docs/pilot-incident-runbook.md` = 0 OR `grep -B2 -A2 "330초" .moai/docs/pilot-incident-runbook.md \| grep -c "정정\|레거시\|적용되지 않는다"` ≥ 1) | 둘 다 충족(후자는 "330초"가 있어도 정정/레거시 문맥과 co-occur하면 OK — 교정 문장 자체가 구 값을 정당하게 인용하는 경우를 오탐하지 않음) |
+| [5차] 테넌트 격리 게이트 4단계(양성 대조군·notFound·404·재로그인) 구체 절차 존재 여부 | 신규 문서 내 "양성 대조군"과 "notFound" 동시 등장 grep | ≥ 1 |
+| [5차] 실제 외부 계정 경로 격리 게이트 사건도 집계 제외·정리 대상 명시 여부 | 신규 문서 내 "실제 외부" 계정 언급 부근 "집계"와 "정리" 동시 등장 grep | ≥ 1 |
+| [5차] 일일 리셋 경계 하드코딩 금지 + 운영 시점 확인 절차 존재 여부 | 신규 문서 내 "UTC"와 "KST" 동시 등장 grep | ≥ 1 |
+| [5차] 실무자×완료 사건 수×피드백 존재 여부 증거 표 형식 명시 여부 | 신규 문서 내 "완료 사건 수"와 "피드백" 동시 등장 grep | ≥ 1 |
 
 ## §F. 마일스톤 (Priority-Based, No Time Estimates)
 
@@ -212,9 +225,11 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 
 - `.moai/specs/SPEC-PILOT-OPS-001/spec.md` §2 — 요구사항 원문
 - `.moai/docs/account-provisioning.md` — 계정 발급 절차 SSOT
-- `.moai/docs/pilot-incident-runbook.md` — 장애 대응 절차 + triage 담당자 + §4 원격 DB 단독 진행 원칙
+- `.moai/docs/pilot-incident-runbook.md` — 장애 대응 절차 + triage 담당자 + §4 원격 DB 단독 진행 원칙(5차 개정부터 §1 이벤트 표·§2 TTL 서술은 이 SPEC이 직접 편집)
 - `.moai/specs/SPEC-PILOT-LAUNCH-001/spec.md` HISTORY — 배포 URL·SHA 미해결 항목의 최초 출처(이 §C에서 해소됨)
 - `.moai/reports/pilot-ready-quota-checklist-20260913.md` — Gemini 쿼터 실측 한도(20 RPD 절대 상한)·보수적 운영 목표(15회/일, 라인 58)의 출처
+- `netlify/functions/process-case-background.ts`, `lib/cases/job-timing.ts` — 5차 개정에서 재확인한 실제 async 경로·TTL/폴링 상수(`BACKGROUND_LEASE_TTL_SECONDS`=960, `CLIENT_POLL_SAFETY_MARGIN_SECONDS`=60)의 출처
+- `app/cases/[caseId]/page.tsx`, `app/api/cases/status/route.ts` — 5차 개정에서 재확인한 테넌트 격리 메커니즘(`getCaseForOwner`→`notFound()`, `ownerUserId` 스코프 쿼리→`404`)의 출처
 - `.moai/reports/hybrid-research-routing-20260913.md` — 하이브리드 라우팅 승격 규칙·`gemini_request_observations` 실사용량 확인 출처
 - `lib/db/schema.ts` — REQ-PILOT-OPS-004 정리 계약이 인용하는 테이블명(`cases`/`reports`/`feedback`/`caseJobs`/`geminiRequestObservations`/`reservations`) 및 `leaseId`(`lease_id`) 컬럼의 SSOT(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
 - `app/api/cases/route.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts` — 3차 개정에서 재확인한 로그 이벤트 실제 필드(jobId/caseId 부재)와 `releaseLeaseFenced` 펜싱 메커니즘의 출처(읽기 전용 재확인만 수행, 이 SPEC은 변경하지 않음)
