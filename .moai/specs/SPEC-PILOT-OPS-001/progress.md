@@ -155,6 +155,24 @@
   only). No blocking defects. Minor note: plan.md §E actually gained 5 new
   `[7차]` rows (not the reported 2) — under-reported, not over-reported;
   does not affect SPEC quality.
+- 8차 개정 라운드 기록(2026-09-15, 코디네이터가 독립적으로 확인한 두 건의
+  잔여 결함 — REQ-007 AI Studio 미확인 시 폴백 원장의 취약함,
+  pilot-incident-runbook.md의 대시보드 표시 과잉 단정 — 을 PASS 전 최종
+  재검토 라운드로 위임함): (1) REQ-PILOT-OPS-007(e)/(g)와 AC-PILOT-OPS-007의
+  폴백 원장을 "DB 관측치 + 스모크 선기록"에서 "전체 시간창
+  `gemini_request_observed` 콘솔 로그 = 호출 시도 기준, DB = 교차 대조
+  전용(비합산), 스모크 선기록 = 로그 누락분만 보충"으로 전면 재구성하고,
+  `status:null`/`gemini_observation_persist_failed`의 1건 보수 집계와
+  집계 불확실 시 배치 중단/보류(≤15 진행 금지)를 신규 요구사항으로 추가 —
+  AI Studio-확인-후-분기 IF/IF 구조와 단일 `GEMINI_API_KEY` 제약(h)은
+  변경 없음. (2) `.moai/docs/pilot-incident-runbook.md` §1.1의 "Netlify
+  대시보드에서 두 함수를 조회할 때도 각각 별도의 함수 항목·별도의
+  invocation 로그로 나타난다"는 무조건 단정을 제거하고, REQ-004(6)와 동일
+  문구 패턴의 "대시보드 함수명 사전 확인 필요" 주의로 대체 — ROUTE/BACKGROUND가
+  서로 다른 Netlify function invocation이라는 사실 서술 자체는 유지.
+  plan.md §D(제약 3개 추가·1개 갱신)·§E([8차] 행 4개 추가·[7차] 행 1개
+  문구 갱신)도 동기화. REQ/AC 개수는 이번 라운드에서도 변경되지 않았다
+  (REQ 7개, AC 8개 그대로 — 기존 REQ 본문 내용만 정정·구체화).
 
 ## §E.2 Run-phase Evidence
 

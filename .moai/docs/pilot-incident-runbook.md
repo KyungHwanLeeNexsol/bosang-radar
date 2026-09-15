@@ -28,8 +28,23 @@ SPEC-PILOT-READY-001 M2(REQ-PILOT-READY-008)에서 추가한 로그는 새 의�
 아래 1.1 표는 이 사실을 반영해 **ROUTE invocation**(`app/api/cases/route.ts`
 자체 실행 범위)과 **BACKGROUND invocation**(`netlify/functions/
 process-case-background.ts` 실행 범위, `processCaseJob` 포함)으로 나눠
-이벤트를 기록한다. Netlify 대시보드에서 두 함수를 조회할 때도 각각 별도의
-함수 항목·별도의 invocation 로그로 나타난다.
+이벤트를 기록한다.
+
+**정정(SPEC-PILOT-OPS-001 8차 개정)**: **주의(대시보드 함수명 사전 확인
+필요)**: 위 `route.ts`라는 명칭은 소스 파일 경로이며, Netlify 대시보드에
+그 파일 경로 이름 그대로 별도 함수 항목으로 표시된다고 단정하지 않는다 —
+Next.js API route는 실제 배포 시 소스 파일 경로와 다르게 번들링·명명될 수
+있다. 따라서 스모크 체크리스트를 실제로 수행하기 **전에** 운영자가 실제
+배포된 Netlify 대시보드에서 `POST /api/cases`를 처리하는 함수의 실제 표시
+이름(function display name)과 그룹핑/번들링 동작, invocation ID를 먼저
+확인하고 그 확인된 이름·ID를 기록한 뒤에만 아래 ROUTE invocation 확인에
+사용한다(추정 명칭이나 특정 그룹핑 패턴을 그대로 신뢰하지 않음).
+`process-case-background`는 Background Function으로서 이미 파일명 자체가
+진입점 이름이므로 별도의 함수 항목·별도의 invocation으로 명확히 구분되며
+— 이 주의는 ROUTE invocation의 실제 대시보드 함수명 확인에만 적용되고,
+ROUTE/BACKGROUND 두 invocation이 서로 다른 Netlify function invocation
+(별도 로그 스트림·invocation ID)이라는 사실 자체는 이번 개정에서 변경하지
+않는다.
 
 ### 1.1 실제 프로덕션 경로(비동기) 이벤트
 

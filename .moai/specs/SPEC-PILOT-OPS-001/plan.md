@@ -211,7 +211,11 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
 | [6차] `.moai/docs/pilot-ops-launch-plan.md`/`.moai/project/product.md`/`README.md`/`app/`·`components/`·`e2e/` 외 코드 파일 무변경(브랜치 정리 후 재확인) | `git diff main...HEAD --stat` 결과에 `.ts`/`.tsx` 파일 없음 | 매치 없음 |
 | [6차] pilot-incident-runbook.md의 §1/§2 정정이 plan-phase 중 선반영됐음이 progress.md/plan.md에 기록됐는지 | `grep -c "선반영\|pre-applied" .moai/specs/SPEC-PILOT-OPS-001/progress.md .moai/specs/SPEC-PILOT-OPS-001/plan.md` | 각 ≥ 1 |
 | [7차] REQ-007(e) 산출물이 "실적"이 아니라 "관측치(observation)"로 완화 표현됐는지, 완전성 보장이 부정되는지 | 신규 문서 내 "관측치" 또는 "observation"과 "담보"/"보장" 부정 표현 동시 등장 grep | ≥ 1 |
-| [7차] AI Studio 콘솔의 실제 운영 동작(실시간 여부·화면/필드·지연)을 운영 시점에 확인·기록하는 절차 + IF/IF 결정 규칙(확인+지연 파악 시 주 수치, 미확인 시 내부 원장 기준 ≤15회/일) 존재 여부 | 신규 문서 내 "지연" 또는 "update-lag"과 "확인"·"기록" 동시 등장 grep, "주 수치" 또는 "primary" 존재 여부 | 각 ≥ 1 |
+| [7차] AI Studio 콘솔의 실제 운영 동작(실시간 여부·화면/필드·지연)을 운영 시점에 확인·기록하는 절차 + IF/IF 결정 규칙(확인+지연 파악 시 주 수치, 미확인 시 (e)의 콘솔 로그 기준 집계로 ≤15회/일) 존재 여부 | 신규 문서 내 "지연" 또는 "update-lag"과 "확인"·"기록" 동시 등장 grep, "주 수치" 또는 "primary" 존재 여부 | 각 ≥ 1 |
+| [8차] REQ-007(e)/(g) 폴백 원장이 "전체 시간창 콘솔 로그=호출 시도 기준 / DB=교차 대조 전용(비합산) / 스모크 선기록=로그 누락분만 보충" 구조로 재구성됐는지 | 신규 문서 내 "교차 대조"와 "합산하지 않는다"(또는 "이중 계산") 동시 등장 grep | ≥ 1 |
+| [8차] `status:null`/`gemini_observation_persist_failed`를 각 1건으로 보수 집계하는 신규 요구사항 존재 여부 | 신규 문서 내 "status" 또는 "status:null"과 "보수적으로 집계" 동시 등장 grep | ≥ 1 |
+| [8차] 집계 불확실성(로그 보존·회전·갱신 지연·중복 제거) 시 "≤15 진행" 대신 배치 중단/보류를 요구하는지 | 신규 문서 내 "중단" 또는 "보류"와 "abort" 또는 "halt" 동시 등장 grep | ≥ 1 |
+| [8차] pilot-incident-runbook.md의 ROUTE/BACKGROUND 대시보드 표시 절 서술이 REQ-004(6)의 대시보드-확인-우선 요구사항과 동일 문구 패턴으로 갱신됐는지 | `grep -c "표시 이름\|display name" .moai/docs/pilot-incident-runbook.md` | ≥ 1 |
 | [7차] REQ-004(6) 대시보드 함수명 사전 확인 절차(POST /api/cases 실제 표시 이름·invocation ID 확인 후 사용) 존재 여부 | 신규 문서 내 "표시 이름" 또는 "display name"과 "확인" 동시 등장 grep | ≥ 1 |
 | [7차] progress.md artifact_set에 pilot-incident-runbook.md 포함 여부 | `grep -A2 "artifact_set" .moai/specs/SPEC-PILOT-OPS-001/progress.md \| grep -c "pilot-incident-runbook"` | ≥ 1 |
 | [7차] Out of Scope "신규 SPEC 생성" 요약이 "6개"로 정정됐는지("5개" 잔존 없음) | `grep -c "6개 Out of Scope" .moai/specs/SPEC-PILOT-OPS-001/spec.md` ≥ 1 AND `grep -c "5개 Out of Scope" .moai/specs/SPEC-PILOT-OPS-001/spec.md` = 0 | 둘 다 충족 |
@@ -274,13 +278,27 @@ Tier S이므로 이 절은 최소 형태로 유지한다. run-phase 완료 시 �
   것 — 이 SPEC은 그 콘솔 표시의 실제 운영 동작(실시간 여부·화면/필드·
   갱신 지연)을 검증하지 않았다. 신규 문서는 운영 시점에 그 동작을 확인·
   기록하는 절차와, 확인 가능+지연 파악 시에만 주 수치로 쓰고 그렇지 않으면
-  내부 원장(DB+스모크) 기준 Premium ≤15회/일 제약으로 운영한다는 조건부
-  결정 규칙을 명시해야 한다 — "AI Studio 콘솔 = ground-truth"라는 무조건
-  단정 문구는 REQ-PILOT-OPS-007(g) 6차 개정 원문이었으나 7차 개정에서
+  (e)의 콘솔 로그 기준 집계를 기준으로 Premium ≤15회/일 제약으로 운영한다는
+  조건부 결정 규칙을 명시해야 한다 — "AI Studio 콘솔 = ground-truth"라는
+  무조건 단정 문구는 REQ-PILOT-OPS-007(g) 6차 개정 원문이었으나 7차 개정에서
   대체됐으므로 재사용하지 않는다.
-- (7차) REQ-PILOT-OPS-007(e)의 일일 산출물을 "그날의 실제 호출 실적"처럼
-  단정적으로 서술하지 말 것 — (g)의 지속성 한계 때문에 이 값은 "DB·스모크
-  기록 기준 관측치"일 뿐이며, 총 실사용량을 담보하는 최종 수치가 아니다.
+- (7차/8차) REQ-PILOT-OPS-007(e)의 일일 산출물을 "그날의 실제 호출 실적"처럼
+  단정적으로 서술하지 말 것 — (g)의 지속성 한계 때문에 이 값은 "전체 시간창
+  콘솔 로그 기준 호출 시도 집계"일 뿐이며, 총 실사용량을 담보하는 최종
+  수치가 아니다.
+- (8차) REQ-PILOT-OPS-007(e)/(g)의 폴백 원장을 "DB 관측치 + 스모크 선기록"으로
+  다시 서술하지 말 것 — 8차 개정에서 이 정의는 "전체 시간창 `gemini_request_observed`
+  콘솔 로그를 호출 시도 기준으로 삼고, DB는 교차 대조 자료로만 사용하며(합산
+  금지), 스모크 선기록은 로그에서 확인된 누락분에만 보충"하는 방식으로
+  전면 재구성됐다. DB 행 수를 콘솔 로그 집계 위에 그대로 더하는 서술은
+  성공 경로 이중 계산이므로 금지한다.
+- (8차) `status:null` 네트워크 예외 관측치 또는 `gemini_observation_persist_failed`
+  이벤트를 "DB에 반영되지 않았으니 집계에서 제외"하는 것처럼 서술하지 말
+  것 — 각각 실제 호출 1건으로 보수적으로 집계해야 한다.
+- (8차) 로그 보존·회전 갭, 콘솔 로그 갱신 지연, 또는 중복 제거 불확실성으로
+  호출 수를 확정할 수 없는 상황을 "추적된 수치 ≤15이니 진행"으로 기본
+  설정하는 것처럼 서술하지 말 것 — 그 불확실성이 해소될 때까지 신규 Premium
+  배치 착수를 중단/보류(abort/halt)해야 한다.
 
 ## §H. 교차 참조 (Cross-References)
 
