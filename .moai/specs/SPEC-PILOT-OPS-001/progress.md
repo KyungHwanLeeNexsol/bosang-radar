@@ -414,9 +414,9 @@ All four checks above were run in this session against this working tree at HEAD
 - The `sync_commit_sha` field above was originally written as a placeholder in commit `c267079` (a commit cannot self-reference its own SHA) and was backfilled with the real value in the immediately following commit `e008b99`. This is now resolved — no outstanding gap.
 - This SPEC's launch-plan document (`pilot-ops-launch-plan.md`) describes a future operational rollout (account provisioning, smoke checklist, 3-stage pilot) that has not yet been executed — the plan's own correctness against the real Gemini/Netlify/Turso environment remains unverified until that rollout actually happens.
 
-### Final close-consistency verification (re-run after Fix 1, on the actual final working tree, commit `pending-backfill-fix3`)
+### Final close-consistency verification (re-run after Fix 1, on the actual final working tree, commit `e24a53446030c7c570c8b462616b87ccb93edb03`)
 
-This section reflects the ACTUAL FINAL committed state of this SPEC's branch as of this fix-round commit — distinct from the "Sync-phase final verification" section above, which is pre-sync-commit evidence captured on HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364` and MUST NOT be edited or relabeled. This section's own commit SHA is written here as a placeholder (`pending-backfill-fix3`, a commit cannot self-reference its own SHA) and is backfilled with the real value in an immediately following commit, per the SHA placeholder backfill exemption (`spec-frontmatter-schema.md` § SHA placeholder backfill exemption).
+This section reflects the ACTUAL FINAL committed state of this SPEC's branch as of commit `e24a53446030c7c570c8b462616b87ccb93edb03` — distinct from the "Sync-phase final verification" section above, which is pre-sync-commit evidence captured on HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364` and MUST NOT be edited or relabeled. (This SHA was originally written as a placeholder — `pending-backfill-fix3` — in the commit itself, since a commit cannot self-reference its own SHA, and is backfilled here per the SHA placeholder backfill exemption, `spec-frontmatter-schema.md` § SHA placeholder backfill exemption.)
 
 **1. `git diff --check`** (run against the tree including this commit's own Fix 1 + Fix 2 edits to progress.md)
 ```
