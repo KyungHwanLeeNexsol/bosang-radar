@@ -5,6 +5,30 @@
 
 ## [Unreleased]
 
+### Docs — SPEC-PILOT-OPS-001: 문서 현행화 + 파일럿 운영 개시 계획 신설(코드 변경 없음)
+
+README.md와 `.moai/project/product.md`를 12개 SPEC(SPEC-PILOT-LAUNCH-001까지)에서
+13개 SPEC(이 SPEC 자신 포함) 현행으로 갱신하고, 확정된 Netlify 프로덕션 배포
+URL(`https://musical-macaron-82feb3.netlify.app`)·SHA(`381e38d`, 이 시점 기준)를
+반영했습니다. 신규 운영 문서 `.moai/docs/pilot-ops-launch-plan.md`(410줄)를
+작성해 다음을 계획으로 담았습니다: 최초 운영 계정 발급 절차(임시 계정 대안
+경로 포함), 프로덕션 단일 계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿
+3단계 롤아웃(소규모→확대→전체) + 사용자별 완료/피드백 성공지표 집계 계약,
+Gemini 하이브리드 라우팅 쿼터 운영 계획 — 단일 Google Cloud 프로젝트/단일
+`GEMINI_API_KEY` 아키텍처 제약(멀티 키·로테이션·페일오버 없음)을 명시적으로
+유지합니다.
+
+이 SPEC은 **문서 전용(documentation-only)**입니다 — 코드 변경 없음, 실제 계정
+발급 없음, 실 DB 쓰기 없음, 실 Gemini API 호출 없음, 실 배포 없음, 실 테스터
+초대 없음. `.moai/docs/pilot-incident-runbook.md`, `.moai/docs/account-provisioning.md`는
+run-phase·sync-phase 동안 무변경으로 보존됐습니다.
+
+**검증**: AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 전부 PASS(외부
+run-phase 검토, 리뷰 대상 HEAD `26e0d8c`). sync-phase에서 `git diff --check`,
+`pnpm format:check` 모두 exit 0, `git diff af6c0a1..HEAD --stat` 기준 정확히
+5개 파일 변경(README.md, product.md, pilot-ops-launch-plan.md, progress.md,
+spec.md) 확인, runbook 무변경 재확인.
+
 ### Fixed — 클라이언트 polling 상한(6분)이 backend 리스 TTL(960초)보다 먼저 끝나던 불일치
 
 `app/cases/new/case-input-form.tsx`의 job 상태 polling이 고정 180회×2초(6분)에서

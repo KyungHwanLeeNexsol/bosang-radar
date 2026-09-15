@@ -82,7 +82,7 @@
 그 SPEC들의 현재 상태를 3단계로 분류한 것이다 — 각 항목의 `status:`는
 `.moai/specs/<SPEC-ID>/spec.md`의 frontmatter에서 직접 확인할 수 있다.
 
-### 구현 완료 (12개 SPEC, `status: completed`)
+### 구현 완료 (13개 SPEC, `status: completed`)
 
 - 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
 - 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
@@ -110,6 +110,13 @@
   비밀번호 재설정 최소 설계 스케치는 Out of Scope로 명시. PR #11이 main에
   squash 병합(커밋 `bc289ad`)된 뒤 3-phase close(`14a6394`)로 종결됐다 —
   SPEC-PILOT-LAUNCH-001
+- README/product.md 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일
+  계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표
+  집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서
+  (`.moai/docs/pilot-ops-launch-plan.md`) 작성 — 코드 변경 없음, 실제 계정
+  발급·실 DB 쓰기·실 Gemini 호출·실 배포·실 테스터 초대는 수행하지 않았다.
+  단일 Google Cloud 프로젝트/단일 `GEMINI_API_KEY` 아키텍처 제약을 유지한다
+  — SPEC-PILOT-OPS-001
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
 

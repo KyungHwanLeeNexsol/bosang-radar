@@ -355,4 +355,61 @@ status/updated만 허용, `.claude/rules/moai/development/spec-frontmatter-schem
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_status: sync-complete
+- sync_complete_at: 2026-09-15
+- sync_commit_sha: pending-backfill-syncops001 (backfilled in the immediately following commit per the SHA placeholder backfill exemption, `spec-frontmatter-schema.md` § SHA placeholder backfill exemption)
+- ac_pass_count: 8 (AC-PILOT-OPS-001a, 001b, 002, 003, 004, 005, 006, 007 — all PASS per the external run-phase review against reviewed HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364`)
+- ac_fail_count: 0
+- status transition: spec.md frontmatter `status: in-progress` → `status: completed` (this sync commit); `updated:` retained at `2026-09-15` (no date change needed — the sync commit lands the same day)
+
+### Sync-phase final verification (re-run on HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364`, before this commit)
+
+**1. `git diff --check`**
+```
+$ git diff --check
+(no output)
+exit=0
+```
+
+**2. `pnpm format:check`**
+```
+$ pnpm format:check
+> prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+exit=0
+```
+
+**3. `git diff af6c0a1..HEAD --stat`** (plan-phase baseline `af6c0a1e0b5de4a15dde7edf7e7823a516b90b25` → sync-phase HEAD)
+```
+$ git diff af6c0a1..HEAD --stat
+ .moai/docs/pilot-ops-launch-plan.md        | 410 +++++++++++++++++++++++++++++
+ .moai/project/product.md                   |  29 +-
+ .moai/specs/SPEC-PILOT-OPS-001/progress.md | 138 +++++++++-
+ .moai/specs/SPEC-PILOT-OPS-001/spec.md     |   2 +-
+ README.md                                  |  10 +-
+ 5 files changed, 574 insertions(+), 15 deletions(-)
+```
+Confirms exactly 5 changed files as expected (README.md, product.md, pilot-ops-launch-plan.md, progress.md, spec.md).
+
+**4. `git diff af6c0a1..HEAD --stat -- .moai/docs/pilot-incident-runbook.md`** (preservation check)
+```
+$ git diff af6c0a1..HEAD --stat -- .moai/docs/pilot-incident-runbook.md
+(no output)
+```
+Confirms the runbook was not touched during run-phase or sync-phase — preservation verified.
+
+### Baseline-attribution
+
+All four checks above were run in this session against this working tree at HEAD `26e0d8cd6a8fe9c6365e5632d4d57a02132f6364` (pre-sync-commit). This is the same HEAD the external run-phase review cited when confirming all 8 ACs PASS.
+
+### Gaps (not verified in this sync phase — by design, per the delegation constraints)
+
+- No real account provisioning, no real DB write, no real Gemini API call, no real deployment, and no real tester invitation were performed — this SPEC is documentation-only and none of these actions were in scope.
+- No code-level test suite was run — this SPEC touches no `.ts`/`.tsx`/`.js` files, so `pnpm test`/`pnpm lint`/`pnpm build` were not part of this sync-phase verification (no code changed to verify).
+- The pre-existing "5개 Out of Scope" HISTORY-quoting cosmetic wording gap in spec.md HISTORY (documented in a prior run-phase progress.md entry) was left as-is per the sync-phase delegation's explicit instruction not to touch spec.md body content.
+
+### Residual-risk
+
+- The `sync_commit_sha` value above is a placeholder (a commit cannot self-reference its own SHA); it is backfilled in an immediately following commit. Until that backfill lands, any external reader of this file sees the placeholder rather than the real SHA.
+- This SPEC's launch-plan document (`pilot-ops-launch-plan.md`) describes a future operational rollout (account provisioning, smoke checklist, 3-stage pilot) that has not yet been executed — the plan's own correctness against the real Gemini/Netlify/Turso environment remains unverified until that rollout actually happens.

@@ -2,7 +2,7 @@
 id: SPEC-PILOT-OPS-001
 title: "실제 파일럿 운영 개시 — 문서 현행화, 계정 발급·스모크·단계별 롤아웃 계획"
 version: "0.3.0"
-status: in-progress
+status: completed
 created: 2026-09-15
 updated: 2026-09-15
 author: Nexsol
