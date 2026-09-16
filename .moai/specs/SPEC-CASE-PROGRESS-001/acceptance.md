@@ -24,7 +24,7 @@
 
 ### Group B — 회귀 방지 (기존 폴링 종료 분기)
 
-REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1 D1/D2 결함 반영으로 제거되었다 — `app/api/cases/status/route.ts:47-53`가 `"queued"`를 JSON으로 노출하지 않아 애초에 충족 불가능했다. AC-CASE-PROGRESS-004/AC-CASE-PROGRESS-005도 함께 제거되었다(HISTORY 및 `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-1.md` 참고). 아래 AC-CASE-PROGRESS-006만 기존 종료 분기 회귀 방지 목적으로 유지한다(특정 REQ에 결부되지 않은 일반 회귀 가드 — AC-CASE-PROGRESS-009와 동일한 성격).
+舊 REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1 D1/D2 결함 반영으로 제거되었다 — `app/api/cases/status/route.ts:47-53`가 `"queued"`를 JSON으로 노출하지 않아 애초에 충족 불가능했다. AC-CASE-PROGRESS-004/AC-CASE-PROGRESS-005도 함께 제거되었다(HISTORY 및 `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-1.md` 참고). **주의**: iteration 3에서 결번 해소를 위해 REQ ID가 재번호되어, 현재의 REQ-CASE-PROGRESS-004(§A 아래 AC-CASE-PROGRESS-007 참고)는 접근성 요구사항을 가리키며 이 舊 REQ-CASE-PROGRESS-004(queued/processing 구분 표시)와는 무관하다. 아래 AC-CASE-PROGRESS-006만 기존 종료 분기 회귀 방지 목적으로 유지한다(특정 REQ에 결부되지 않은 일반 회귀 가드 — AC-CASE-PROGRESS-009와 동일한 성격).
 
 **AC-CASE-PROGRESS-006** (기존 종료 분기 회귀 방지 — REQ 미결부, 일반 회귀 가드)
 - **Given** 사건 입력 폼이 제출되어 `/api/cases`가 `202`+`jobId`를 반환하고, `waitForCaseJob`이 폴링을 시작함
@@ -35,7 +35,7 @@ REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1
 
 ### Group C — 접근성
 
-**AC-CASE-PROGRESS-007** (REQ-CASE-PROGRESS-005)
+**AC-CASE-PROGRESS-007** (REQ-CASE-PROGRESS-004)
 - **Given** AC-CASE-PROGRESS-001과 동일한 대기 상태
 - **When** `case-pending-indicator` 요소의 속성을 검사함
 - **Then** `role="status"`와 `aria-live="polite"`가 그대로 존재한다(기존 SPEC-PILOT-UX-001 계약 보존)
@@ -43,7 +43,7 @@ REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1
 
 ### Group D — 범위 보존 (회귀 방지)
 
-**AC-CASE-PROGRESS-008** (REQ-CASE-PROGRESS-006, SPEC-PILOT-UX-001 계승)
+**AC-CASE-PROGRESS-008** (REQ-CASE-PROGRESS-005, SPEC-PILOT-UX-001 계승)
 - **Given** 사건 입력 폼이 제출 전(idle) 상태
 - **When** `AnalysisStatusPanel`을 렌더링함
 - **Then** "대기 중" 배지, 모든 4단계 항목의 "대기" 라벨, `data-testid="analysis-status-static-bar"`의 `w-0` 정적 바가 기존과 동일하게 렌더링된다(REQ-CASE-PROGRESS-001의 상수 추출로 인한 import 경로 변경 외에는 시각적 차이가 없다)
@@ -55,7 +55,7 @@ REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1
 
 ## §B. 엣지 케이스
 
-- **폴링 응답 전 구간을 포함해 모든 비종료 상태**: `case-pending-indicator`의 기존 고정 문구("처리 중입니다...")는 이 SPEC에서 변경하지 않는다 — `/api/cases/status`가 `queued`를 노출하지 않으므로 구분해 표시할 실데이터 자체가 없다(REQ-CASE-PROGRESS-004 제거, plan-audit iteration 1 D1/D2).
+- **폴링 응답 전 구간을 포함해 모든 비종료 상태**: `case-pending-indicator`의 기존 고정 문구("처리 중입니다...")는 이 SPEC에서 변경하지 않는다 — `/api/cases/status`가 `queued`를 노출하지 않으므로 구분해 표시할 실데이터 자체가 없다(舊 REQ-CASE-PROGRESS-004 제거, plan-audit iteration 1 D1/D2).
 - **네트워크 예외로 `waitForCaseJob`이 reject되는 경우**: 기존 `catch` 분기(REQ-PILOT-UX-014 계승)가 그대로 동작해야 하며, 이 SPEC이 추가하는 4단계 정적 목록이 이 예외 처리 경로를 방해해서는 안 된다.
 
 ## §C. 품질 게이트 / Definition of Done

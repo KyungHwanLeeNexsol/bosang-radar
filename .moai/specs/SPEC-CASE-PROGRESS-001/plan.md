@@ -12,22 +12,22 @@
 
 ### 결정 2 — aria-live 영역과 정적 목록의 DOM 분리 방식
 
-REQ-CASE-PROGRESS-005는 `case-pending-indicator`(`role="status" aria-live="polite"`) 내부에 반복 안내를 유발하는 목록을 넣지 말라고 요구한다. 구현은 기존 `case-pending-indicator` `<span>`은 기존 고정 요약 텍스트("처리 중입니다...", 변경 없음 — REQ-CASE-PROGRESS-004 제거로 구분 문구 자체가 없어짐)만 담고, REQ-CASE-PROGRESS-001의 4단계 목록은 `case-pending-indicator` 형제 요소로 `case-input-footer` 안에 별도 렌더링하며 `aria-live` 속성을 부여하지 않는다.
+REQ-CASE-PROGRESS-004는 `case-pending-indicator`(`role="status" aria-live="polite"`) 내부에 반복 안내를 유발하는 목록을 넣지 말라고 요구한다. 구현은 기존 `case-pending-indicator` `<span>`은 기존 고정 요약 텍스트("처리 중입니다...", 변경 없음 — iteration 1에서 제거된 舊 queued/processing 구분 요구사항으로 인해 구분 문구 자체가 없어짐)만 담고, REQ-CASE-PROGRESS-001의 4단계 목록은 `case-pending-indicator` 형제 요소로 `case-input-footer` 안에 별도 렌더링하며 `aria-live` 속성을 부여하지 않는다.
 
 - **왜 형제 요소인가**: `aria-live="polite"` 영역 내부의 DOM 변경(또는 최초 마운트 시 텍스트 삽입)은 스크린리더가 전체 서브트리를 다시 읽게 만들 수 있다 — 4단계 목록을 그 바깥에 두면 목록은 마운트 시 한 번만 읽히고, 이후 `aria-live` 영역은 기존과 동일하게 정적으로 유지된다(구분 문구 전환이 없으므로 반복 안내될 변경분 자체가 없다).
 
-> **(구)결정 2 제거 안내**: 최초 계획의 "결정 2 — queued/processing 구분 문구의 전달 경로"(신규 `jobPhase` state 도입안)는 plan-audit iteration 1 D1/D2 결함 반영으로 REQ-CASE-PROGRESS-004와 함께 제거되었다 — `/api/cases/status`가 `queued`를 노출하지 않아 구분할 상태 자체가 없으므로 전달 경로도 불필요하다.
+> **(구)결정 2 제거 안내**: 최초 계획의 "결정 2 — queued/processing 구분 문구의 전달 경로"(신규 `jobPhase` state 도입안)는 plan-audit iteration 1 D1/D2 결함 반영으로 舊 REQ-CASE-PROGRESS-004(queued/processing 구분 표시, iteration 3에서 결번 해소를 위해 ID가 REQ-CASE-PROGRESS-004/005로 재번호되며 현재는 접근성·범위 보존 요구사항을 가리킴 — 이 문단의 대상과는 무관)와 함께 제거되었다 — `/api/cases/status`가 `queued`를 노출하지 않아 구분할 상태 자체가 없으므로 전달 경로도 불필요하다.
 
 ## §B. 마일스톤 (실행 순서)
 
 ### M1 — 공유 상수 모듈 신설
 
 - `lib/cases/analysis-stages.ts` 생성 — `ANALYSIS_STAGES`(4개 라벨, `readonly string[]`) export.
-- `analysis-status-panel.tsx`가 지역 정의 대신 이 모듈을 import하도록 수정 — 렌더링 결과는 기존과 100% 동일해야 한다(REQ-CASE-PROGRESS-006).
+- `analysis-status-panel.tsx`가 지역 정의 대신 이 모듈을 import하도록 수정 — 렌더링 결과는 기존과 100% 동일해야 한다(REQ-CASE-PROGRESS-005).
 
 ### M2 — case-input-form.tsx 대기 Footer 확장
 
-- `case-pending-indicator` 요약 문구는 기존 고정 문구("처리 중입니다...")를 그대로 유지한다(REQ-CASE-PROGRESS-004 제거 — 구분 문구 없음).
+- `case-pending-indicator` 요약 문구는 기존 고정 문구("처리 중입니다...")를 그대로 유지한다(iteration 1에서 제거된 舊 queued/processing 구분 요구사항 — 구분 문구 없음).
 - `case-pending-indicator` 형제로 4단계 정적 목록 렌더링(결정 2 참고), M1의 `ANALYSIS_STAGES` import.
 - 개별 단계에 완료/체크마크/하이라이트를 부여하지 않음(REQ-CASE-PROGRESS-003).
 

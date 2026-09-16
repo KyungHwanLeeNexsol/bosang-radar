@@ -18,7 +18,8 @@ depends_on: [SPEC-UI-MIGRATION-001, SPEC-PILOT-READY-001]
 ## HISTORY
 
 - 2026-09-16: 최초 작성 (manager-spec) — 백로그 항목(`.moai/state/kanban/backlog.json` id "t1", 2026-09-16T02:15:00+09:00)에서 파생. "AI 리서치 시작" 시 진행 상태를 프로그레스바 또는 단계 표시로 보여달라는 요청을, `AC-012`(SPEC-UI-MIGRATION-001)가 확정한 가짜 진행률 금지 원칙과 정합시켜 범위를 확정한다. `app/cases/new/case-input-form.tsx:333-341`(대기 Footer가 단일 텍스트 "처리 중입니다..."만 렌더링), `app/api/cases/status/route.ts`(백엔드가 `queued`/`processing`/`completed`/`failed` 4개 값만 반환하며 단계별 필드나 퍼센트 필드가 전혀 없음), `app/cases/new/analysis-status-panel.tsx`(동일한 가짜 진행률 금지 제약 아래 이미 정적 4단계 목록을 렌더링 중인 선례), `app/cases/new/page.tsx:49-77`(두 컴포넌트가 서버 페이지에서 형제로 조립될 뿐 상태를 공유하지 않음)를 직접 조사해 확정했다.
-- 2026-09-16: plan-audit iteration 1 FAIL(overall 0.75, threshold 0.80) 반영 개정 (manager-spec) — D1/D2 결함: `app/api/cases/status/route.ts:47-53`를 재확인한 결과, 이 엔드포인트는 `completed`/`caseId`, `failed`/`error`, 그리고 그 외 모든 내부 상태(`queued` 포함)에 대해 고정 리터럴 `{"status": "processing"}`을 반환하는 **3가지 응답 형태**만 존재하며, DB 행의 실제 `status`가 `"queued"`여도 JSON 응답에는 결코 노출되지 않는다(최초 작성 시 "4개 상태값 반환"으로 기술한 것은 오류). 이로 인해 REQ-CASE-PROGRESS-004/AC-CASE-PROGRESS-005가 요구하는 queued/processing 구분 표시는 백엔드 데이터 자체가 없어 애초에 충족 불가능했고, 백엔드 미변경 제약(REQ-CASE-PROGRESS-006)과도 내부 모순이었다. 사용자 확정: 백엔드(`route.ts`)는 그대로 두고, queued/processing 구분 요구사항 자체를 제거한다. 이에 따라 REQ-CASE-PROGRESS-004(Group B 전체)와 AC-CASE-PROGRESS-004/AC-CASE-PROGRESS-005를 제거하고, WHY/WHAT의 "4개 상태값" 오기술을 정정했다. REQ-CASE-PROGRESS-005(접근성)·REQ-CASE-PROGRESS-006(범위 보존)의 ID는 유지하며 REQ-CASE-PROGRESS-004는 결번으로 남긴다. 상세 근거: `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-1.md`.
+- 2026-09-16: plan-audit iteration 1 FAIL(overall 0.75, threshold 0.80) 반영 개정 (manager-spec) — D1/D2 결함: `app/api/cases/status/route.ts:47-53`를 재확인한 결과, 이 엔드포인트는 `completed`/`caseId`, `failed`/`error`, 그리고 그 외 모든 내부 상태(`queued` 포함)에 대해 고정 리터럴 `{"status": "processing"}`을 반환하는 **3가지 응답 형태**만 존재하며, DB 행의 실제 `status`가 `"queued"`여도 JSON 응답에는 결코 노출되지 않는다(최초 작성 시 "4개 상태값 반환"으로 기술한 것은 오류). 이로 인해 (당시) REQ-CASE-PROGRESS-004/AC-CASE-PROGRESS-005가 요구하는 queued/processing 구분 표시는 백엔드 데이터 자체가 없어 애초에 충족 불가능했고, 백엔드 미변경 제약(당시 REQ-CASE-PROGRESS-006)과도 내부 모순이었다. 사용자 확정: 백엔드(`route.ts`)는 그대로 두고, queued/processing 구분 요구사항 자체를 제거한다. 이에 따라 (당시) REQ-CASE-PROGRESS-004(Group B 전체)와 AC-CASE-PROGRESS-004/AC-CASE-PROGRESS-005를 제거하고, WHY/WHAT의 "4개 상태값" 오기술을 정정했다. (당시) REQ-CASE-PROGRESS-005(접근성)·REQ-CASE-PROGRESS-006(범위 보존)의 ID는 유지하며 REQ-CASE-PROGRESS-004는 결번으로 남긴다(iteration 3에서 재번호됨 — 아래 참고). 상세 근거: `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-1.md`.
+- 2026-09-16: plan-audit iteration 2 FAIL(overall 0.92, Must-Pass Firewall MP-1 위반) 반영 개정 (manager-spec) — iteration 1→2 개정으로 REQ-CASE-PROGRESS-004를 결번 처리한 결과, 요구사항 번호열이 `001,002,003,[004 결번],005,006`으로 연속성이 끊겨 MP-1(요구사항 번호 연속성)을 위반했다. 사용자 확정(AskUserQuestion): 결번을 예외 처리하지 않고 **재번호**한다 — 舊 REQ-CASE-PROGRESS-005(접근성)를 REQ-CASE-PROGRESS-004로, 舊 REQ-CASE-PROGRESS-006(범위 보존)을 REQ-CASE-PROGRESS-005로 각각 재번호했다. **주의**: 이 재번호로 ID `REQ-CASE-PROGRESS-004`는 iteration 1에서 제거된 舊 queued/processing 구분 요구사항과는 무관한, 접근성 요구사항(§2.C)을 가리키는 새 ID로 재사용된다 — 이 문서 전반의 "舊 REQ-CASE-PROGRESS-004" 표기는 iteration 1에서 제거된 원래의 요구사항을 지칭하며 현재의 REQ-CASE-PROGRESS-004(접근성)와는 다른 대상이다. plan.md/acceptance.md의 상응 교차 참조도 함께 갱신했다. 상세 근거: `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-2.md`.
 
 ## §1. 개요 (Overview)
 
@@ -55,19 +56,19 @@ depends_on: [SPEC-UI-MIGRATION-001, SPEC-PILOT-READY-001]
 
 ### B. 실제 관측 상태 반영 (REMOVED — plan-audit iteration 1 D1/D2)
 
-REQ-CASE-PROGRESS-004는 이 개정에서 제거되었다. `app/api/cases/status/route.ts:47-53`를 직접 재확인한 결과 `"queued"`는 어떤 내부 상태에서도 JSON 응답으로 노출되지 않으며(비종료 상태는 항상 고정 리터럴 `{"status": "processing"}`), 백엔드를 수정하지 않는다는 REQ-CASE-PROGRESS-006의 제약과 함께라면 이 요구사항은 애초에 충족 불가능했다(plan-audit report D1). ID `REQ-CASE-PROGRESS-004`는 결번으로 남기며 재사용하지 않는다 — 상세 경위는 위 HISTORY 참고.
+舊 REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 이 개정에서 제거되었다. `app/api/cases/status/route.ts:47-53`를 직접 재확인한 결과 `"queued"`는 어떤 내부 상태에서도 JSON 응답으로 노출되지 않으며(비종료 상태는 항상 고정 리터럴 `{"status": "processing"}`), 백엔드를 수정하지 않는다는 (당시) REQ-CASE-PROGRESS-006의 제약과 함께라면 이 요구사항은 애초에 충족 불가능했다(plan-audit report D1). iteration 1→2 개정 시점에는 ID `REQ-CASE-PROGRESS-004`를 결번으로 남기고 재사용하지 않기로 했으나, plan-audit iteration 2가 이 결번 자체를 MP-1(요구사항 번호 연속성) 위반으로 지적함에 따라 iteration 3에서 재번호를 진행했다 — **동일 ID `REQ-CASE-PROGRESS-004`는 현재 아래 §2.C(접근성) 요구사항으로 재사용되며, 이 그룹(舊 queued/processing 구분 표시)과는 무관하다.** 상세 경위는 위 HISTORY 참고.
 
 ### C. 접근성 (Accessibility)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-CASE-PROGRESS-005 | Ubiquitous | `case-pending-indicator`(기존 testid, `role="status"` `aria-live="polite"`)는 이름·속성·역할을 그대로 유지해야 하며, REQ-CASE-PROGRESS-001의 4단계 정적 목록은 이 `aria-live` 영역 내부에 배치되어 매 폴링 틱마다 전체 목록이 반복 안내되게 해서는 안 된다 — `aria-live` 영역에는 기존 고정 요약 문구("처리 중입니다...", 변경 없음)만 남기고, 정적 4단계 목록은 그 영역 밖에 배치하거나 스크린리더 반복 안내를 유발하지 않는 방식으로 구성해야 한다. | `case-input-form.tsx:334-341`의 기존 `role="status" aria-live="polite"` 마크업 직접 확인, SPEC-UI-MIGRATION-001 §3 보존 대상 목록(`case-pending-indicator`+`role="status" aria-live="polite"` 명시) |
+| REQ-CASE-PROGRESS-004 | Ubiquitous | `case-pending-indicator`(기존 testid, `role="status"` `aria-live="polite"`)는 이름·속성·역할을 그대로 유지해야 하며, REQ-CASE-PROGRESS-001의 4단계 정적 목록은 이 `aria-live` 영역 내부에 배치되어 매 폴링 틱마다 전체 목록이 반복 안내되게 해서는 안 된다 — `aria-live` 영역에는 기존 고정 요약 문구("처리 중입니다...", 변경 없음)만 남기고, 정적 4단계 목록은 그 영역 밖에 배치하거나 스크린리더 반복 안내를 유발하지 않는 방식으로 구성해야 한다. | `case-input-form.tsx:334-341`의 기존 `role="status" aria-live="polite"` 마크업 직접 확인, SPEC-UI-MIGRATION-001 §3 보존 대상 목록(`case-pending-indicator`+`role="status" aria-live="polite"` 명시) |
 
 ### D. 범위 보존 (Preservation)
 
 | ID | 유형 | 요구사항 | 근거 |
 |----|------|----------|------|
-| REQ-CASE-PROGRESS-006 | Unwanted | 이 SPEC의 구현은 `app/api/cases/status/route.ts`의 응답 스키마, `lib/cases/job-timing.ts`의 폴링 상수(`CLIENT_POLL_INTERVAL_MS`/`CLIENT_POLL_MAX_ATTEMPTS`/`BACKGROUND_LEASE_TTL_SECONDS`), `lib/pipeline/**`, `lib/db/schema.ts`, 어떤 마이그레이션도 수정해서는 안 되며, `analysis-status-panel.tsx`의 제출 전(idle) 상태 시각적 렌더링 결과(모든 단계 "대기" 표시, 정적 진행 바 `w-0`)를 REQ-CASE-PROGRESS-001의 상수 추출 이외의 이유로 변경해서는 안 된다. | 사용자 지시(백엔드 변경 없이 UI 레이어만 개선), `analysis-status-panel.tsx` 전체 소스 확인(현재 렌더링 계약), SPEC-PILOT-READY-001 §Z/§R(폴링 상수의 소유 근거 — 리스 TTL 기반 산정) |
+| REQ-CASE-PROGRESS-005 | Unwanted | 이 SPEC의 구현은 `app/api/cases/status/route.ts`의 응답 스키마, `lib/cases/job-timing.ts`의 폴링 상수(`CLIENT_POLL_INTERVAL_MS`/`CLIENT_POLL_MAX_ATTEMPTS`/`BACKGROUND_LEASE_TTL_SECONDS`), `lib/pipeline/**`, `lib/db/schema.ts`, 어떤 마이그레이션도 수정해서는 안 되며, `analysis-status-panel.tsx`의 제출 전(idle) 상태 시각적 렌더링 결과(모든 단계 "대기" 표시, 정적 진행 바 `w-0`)를 REQ-CASE-PROGRESS-001의 상수 추출 이외의 이유로 변경해서는 안 된다. | 사용자 지시(백엔드 변경 없이 UI 레이어만 개선), `analysis-status-panel.tsx` 전체 소스 확인(현재 렌더링 계약), SPEC-PILOT-READY-001 §Z/§R(폴링 상수의 소유 근거 — 리스 TTL 기반 산정) |
 
 ## §3. 인수 조건 요약
 
@@ -75,7 +76,7 @@ REQ-CASE-PROGRESS-004는 이 개정에서 제거되었다. `app/api/cases/status
 
 ## §4. 요구사항 교차 참조
 
-plan.md §A(결정 사항)는 REQ-CASE-PROGRESS-001의 공유 상수 추출 방식을 다룬다(REQ-CASE-PROGRESS-004는 제거되어 더 이상 결정 사항이 없음). plan.md §B(마일스톤)는 남은 REQ 그룹(A/C/D)을 실행 순서로 분해한다. acceptance.md는 REQ-CASE-PROGRESS-001, 002, 003, 005, 006 각각에 대한 검증 가능한 Given-When-Then 시나리오를 제공한다(REQ-CASE-PROGRESS-004 및 그 하위 AC-CASE-PROGRESS-004/005는 제거됨).
+plan.md §A(결정 사항)는 REQ-CASE-PROGRESS-001의 공유 상수 추출 방식을 다룬다(舊 REQ-CASE-PROGRESS-004는 제거되어 더 이상 결정 사항이 없음). plan.md §B(마일스톤)는 남은 REQ 그룹(A/C/D)을 실행 순서로 분해한다. acceptance.md는 REQ-CASE-PROGRESS-001, 002, 003, 004, 005 각각에 대한 검증 가능한 Given-When-Then 시나리오를 제공한다(舊 REQ-CASE-PROGRESS-004 및 그 하위 舊 AC-CASE-PROGRESS-004/005는 제거되었으며, 현재의 REQ-CASE-PROGRESS-004/005는 iteration 3 재번호로 접근성·범위 보존 요구사항에 재사용된 것으로 이와 무관함).
 
 ## §5. Out of Scope
 
@@ -89,7 +90,7 @@ plan.md §A(결정 사항)는 REQ-CASE-PROGRESS-001의 공유 상수 추출 방�
 
 ### Out of Scope — API/스키마/폴링 상수 변경
 
-- `/api/cases/status`의 응답 스키마 변경, `lib/cases/job-timing.ts`의 폴링 간격·상한·리스 TTL 상수 변경, 신규 폴링 API 라우트 추가는 이 SPEC의 범위가 아니다(REQ-CASE-PROGRESS-006). 이 값들은 SPEC-PILOT-READY-001이 소유한다.
+- `/api/cases/status`의 응답 스키마 변경, `lib/cases/job-timing.ts`의 폴링 간격·상한·리스 TTL 상수 변경, 신규 폴링 API 라우트 추가는 이 SPEC의 범위가 아니다(REQ-CASE-PROGRESS-005). 이 값들은 SPEC-PILOT-READY-001이 소유한다.
 
 ### Out of Scope — 대기열(queued)/진행중(processing) 상태 구분 표시
 
