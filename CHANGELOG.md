@@ -5,6 +5,33 @@
 
 ## [Unreleased]
 
+### Changed — SPEC-SIDEBAR-NAV-001: 사이드바 "전문가 피드백" 항목 아이콘 교체 + aria-label 추가
+
+`app/cases/case-shell-nav.tsx`의 사이드바 "전문가 피드백" nav 항목 아이콘을
+페이지형 `MessageSquare`에서 인페이지 앵커 이동을 암시하는
+`CornerDownRight`(이미 설치된 `lucide-react`, 신규 의존성 없음)로
+교체했습니다. "전문가 피드백"은 `/cases/[caseId]` 리서치 리포트 페이지
+내부의 `#expert-feedback` 섹션으로 스크롤 이동하는 인페이지 앵커일 뿐 별도
+페이지가 아닌데도 "사건 입력"/"리서치 리포트"와 아이콘·스타일이 동일해
+사용자가 오인할 소지가 있어(백로그 t2), 시각적으로 구분했습니다. `NavLink`에
+옵션 `ariaLabel` prop을 추가해 활성 링크 렌더링 분기에만 "전문가 피드백
+섹션으로 이동 (현재 페이지 내)" 안내를 전달하며, 비활성
+`<span aria-disabled>` 분기에는 전달하지 않습니다. `href` 계산 로직·실제
+이동 대상(`/cases/${currentCaseId}#expert-feedback`)·`onNavigate`
+콜백(모바일 드로어 닫힘)·"사건 입력"/"리서치 리포트"/`ComingSoonNavLink`
+2항목은 전혀 수정하지 않은 순수 프레젠테이션 전용 변경입니다. 사이드바
+제거·리포트 내부 이동·URL 해시 기반 active 상태 추적은 검토했으나 이번
+SPEC 범위 밖으로 명시적으로 기각했습니다.
+
+**검증**: AC-001~008 전부 PASS(`case-shell-nav.test.tsx` 신규 단위 테스트
+3건 + 기존 5건, `app-shell-chrome.test.tsx` 드로어 닫힘 케이스 회귀 없음).
+전체 Vitest 477 passed / 18 failed — 실패 18건은 SPEC-CASE-PROGRESS-001
+sync 기록과 동일한 기존 결함(`app-shell-chrome.test.tsx`의 `useRouter`
+mock 누락, 이 SPEC과 무관)이며 이 SPEC이 신규로 추가한 실패는 0건입니다.
+`pnpm lint`/`pnpm build` 모두 exit 0, `git diff --stat`로 확인한 변경
+파일은 정확히 `app/cases/case-shell-nav.tsx`, `app/cases/case-shell-nav.test.tsx`
+2개(+ SPEC 아티팩트)로 한정됩니다.
+
 ### Added — SPEC-CASE-PROGRESS-001: 사건 입력 대기 화면에 정적 4단계 분석 진행 안내 추가
 
 `app/cases/new/case-input-form.tsx`의 제출 대기 Footer에 4단계(쟁점 자동 추출/판례·결정례

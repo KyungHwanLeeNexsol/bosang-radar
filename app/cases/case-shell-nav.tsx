@@ -131,8 +131,9 @@ interface NavLinkProps {
   icon?: ReactNode;
   active?: boolean;
   disabled?: boolean;
-  // SPEC-SIDEBAR-NAV-001 M2 (REQ-003) — 활성 링크 분기에만 사용되는 접근성
-  // 라벨. 비활성(<span aria-disabled>) 분기에는 전달하지 않는다(REQ-004).
+  // @MX:NOTE @MX:SPEC: SPEC-SIDEBAR-NAV-001 — 활성 링크 분기(아래 Link
+  // 렌더링)에만 전달하는 접근성 라벨. 비활성(<span aria-disabled>) 분기에는
+  // 절대 전달하지 않는다(REQ-004) — 두 분기 모두에 전달하면 AC-004가 깨진다.
   ariaLabel?: string;
   onNavigate?: () => void;
 }

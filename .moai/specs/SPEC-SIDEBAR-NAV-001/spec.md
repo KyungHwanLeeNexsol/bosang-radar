@@ -2,7 +2,7 @@
 id: SPEC-SIDEBAR-NAV-001
 title: "사이드바 '전문가 피드백' 메뉴 재검토 — 인페이지 앵커 시각적 구분"
 version: "0.1.0"
-status: in-progress
+status: completed
 created: 2026-09-16
 updated: 2026-09-16
 author: Nexsol

@@ -1,9 +1,13 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-16 (SPEC-CASE-PROGRESS-001 완료(14번째 SPEC) 반영 — 사건
-> 입력 대기 화면에 정적 4단계 분석 진행 안내 추가, `AnalysisStatusPanel`과
-> 라벨 공유 단일 소스(`lib/cases/analysis-stages.ts`)로 추출, 백엔드/폴링
-> 상수 무변경; 이전 개정: 2026-09-15 SPEC-PILOT-OPS-001 문서 현행화 —
+> 최종 수정: 2026-09-16 (SPEC-SIDEBAR-NAV-001 완료(15번째 SPEC) 반영 —
+> 사이드바 "전문가 피드백" 항목 아이콘을 `CornerDownRight`로 교체 + 활성
+> 링크 `aria-label` 추가, 인페이지 앵커 이동임을 시각적으로 구분, 순수
+> 프레젠테이션 전용(href·onNavigate 무변경); 이전 개정: 2026-09-16
+> SPEC-CASE-PROGRESS-001 완료(14번째 SPEC) 반영 — 사건 입력 대기 화면에
+> 정적 4단계 분석 진행 안내 추가, `AnalysisStatusPanel`과 라벨 공유 단일
+> 소스(`lib/cases/analysis-stages.ts`)로 추출, 백엔드/폴링 상수 무변경;
+> 이전 개정: 2026-09-15 SPEC-PILOT-OPS-001 문서 현행화 —
 > SPEC-PILOT-LAUNCH-001 완료(12번째 SPEC, PR #11 main 병합 완료 `bc289ad`,
 > 3-phase close `14a6394`) 반영, Netlify 프로덕션 배포 URL
 > (`https://musical-macaron-82feb3.netlify.app`)·SHA(`381e38d`, 이 시점 기준)
@@ -86,7 +90,7 @@
 그 SPEC들의 현재 상태를 3단계로 분류한 것이다 — 각 항목의 `status:`는
 `.moai/specs/<SPEC-ID>/spec.md`의 frontmatter에서 직접 확인할 수 있다.
 
-### 구현 완료 (14개 SPEC, `status: completed`)
+### 구현 완료 (15개 SPEC, `status: completed`)
 
 - 프로젝트 초기 scaffold 구축 (Next.js App Router + TypeScript strict + Tailwind + shadcn/ui 기본 골격) — SPEC-SCAFFOLD-001
 - 런타임 활성화(DB 연결·마이그레이션·시드·테스터 계정·E2E) — SPEC-RUNTIME-001
@@ -127,6 +131,14 @@
   개별 단계 완료/진행 표시(가짜 진행률)는 추가하지 않는다. 백엔드
   (`/api/cases/status` 응답 스키마, `lib/cases/job-timing.ts` 폴링 상수)는
   전혀 수정하지 않았다 — SPEC-CASE-PROGRESS-001
+- 사이드바 "전문가 피드백" nav 항목의 아이콘을 페이지형 `MessageSquare`에서
+  인페이지 앵커 이동을 암시하는 `CornerDownRight`로 교체하고, 활성 링크
+  렌더링 분기에만 접근성 `aria-label`("전문가 피드백 섹션으로 이동 (현재
+  페이지 내)")을 추가했다 — 이 항목은 별도 페이지가 아닌
+  `/cases/[caseId]#expert-feedback` 인페이지 스크롤 이동일 뿐이라
+  시각적으로 구분했다. `href` 계산 로직·실제 이동 대상·`onNavigate`
+  콜백·"사건 입력"/"리서치 리포트" 두 실 항목은 전혀 수정하지 않은 순수
+  프레젠테이션 전용 변경이다 — SPEC-SIDEBAR-NAV-001
 
 ### 후속 개발 (파일럿 실측 데이터 확보 이후, 순서 있음)
 
