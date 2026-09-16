@@ -91,4 +91,46 @@ describe("app/cases/case-shell-nav — 사이드바 nav 5항목", () => {
     ).find((el) => el.textContent?.includes("전문가 피드백"));
     expect(disabledFeedback?.querySelector("svg")).not.toBeNull();
   });
+
+  // SPEC-SIDEBAR-NAV-001 M1 (REQ-001~002, AC-001) — "전문가 피드백"은 별도
+  // 라우트가 아니라 인페이지 앵커 이동이므로, 페이지형 아이콘(MessageSquare)이
+  // 아닌 인페이지 이동을 암시하는 아이콘(CornerDownRight)을 사용해야 한다.
+  it("AC-001: '전문가 피드백' 링크는 CornerDownRight 아이콘을 포함하고 MessageSquare 아이콘은 포함하지 않는다", () => {
+    ({ container, root } = render("/cases/case-1"));
+    const feedbackLink = container.querySelector<HTMLAnchorElement>(
+      'a[href="/cases/case-1#expert-feedback"]'
+    )!;
+    expect(feedbackLink).not.toBeNull();
+
+    const icon = feedbackLink.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("class")).toContain("lucide-corner-down-right");
+    expect(icon?.getAttribute("class")).not.toContain("lucide-message-square");
+  });
+
+  // SPEC-SIDEBAR-NAV-001 M2 (REQ-003, AC-003) — 활성 "전문가 피드백" 링크는
+  // 새 페이지 이동이 아닌 현재 페이지 내 이동임을 스크린 리더 사용자에게
+  // 전달하는 aria-label을 가져야 한다.
+  it("AC-003: 활성 '전문가 피드백' 링크는 인페이지 이동을 명시하는 aria-label을 가진다", () => {
+    ({ container, root } = render("/cases/case-1"));
+    const feedbackLink = container.querySelector<HTMLAnchorElement>(
+      'a[href="/cases/case-1#expert-feedback"]'
+    )!;
+    expect(feedbackLink).not.toBeNull();
+
+    const ariaLabel = feedbackLink.getAttribute("aria-label");
+    expect(ariaLabel).not.toBeNull();
+    expect(ariaLabel).toContain("전문가 피드백");
+  });
+
+  // SPEC-SIDEBAR-NAV-001 M2 (REQ-004, AC-004) — 비활성(currentCaseId 부재)
+  // "전문가 피드백" <span>에는 REQ-003이 신설하는 aria-label을 추가하지 않는다.
+  it("AC-004: 비활성 '전문가 피드백' <span>에는 aria-label이 존재하지 않는다", () => {
+    ({ container, root } = render("/cases/new"));
+    const disabledFeedback = Array.from(
+      container.querySelectorAll('span[aria-disabled="true"]')
+    ).find((el) => el.textContent?.includes("전문가 피드백"));
+    expect(disabledFeedback).not.toBeUndefined();
+    expect(disabledFeedback?.getAttribute("aria-label")).toBeNull();
+  });
 });

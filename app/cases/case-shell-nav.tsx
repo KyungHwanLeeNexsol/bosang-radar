@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Archive, CircleHelp, FileText, Library, MessageSquare } from "lucide-react";
+import { Archive, CircleHelp, CornerDownRight, FileText, Library } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 nav 3개 항목의 target을
@@ -49,7 +49,10 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
   const navIcon = {
     input: <CircleHelp aria-hidden="true" className="size-4" />,
     report: <FileText aria-hidden="true" className="size-4" />,
-    feedback: <MessageSquare aria-hidden="true" className="size-4" />,
+    // SPEC-SIDEBAR-NAV-001 M1 (REQ-001) — "전문가 피드백"은 별도 페이지가
+    // 아니라 리서치 리포트 내부 섹션으로의 인페이지 앵커 이동이므로,
+    // 페이지형 아이콘 대신 인페이지 이동을 암시하는 아이콘을 사용한다.
+    feedback: <CornerDownRight aria-hidden="true" className="size-4" />,
   };
 
   return (
@@ -77,6 +80,7 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
           href={`/cases/${currentCaseId}#expert-feedback`}
           label={NAV_LABELS.feedback}
           icon={navIcon.feedback}
+          ariaLabel="전문가 피드백 섹션으로 이동 (현재 페이지 내)"
           onNavigate={onNavigate}
         />
       ) : (
@@ -127,10 +131,13 @@ interface NavLinkProps {
   icon?: ReactNode;
   active?: boolean;
   disabled?: boolean;
+  // SPEC-SIDEBAR-NAV-001 M2 (REQ-003) — 활성 링크 분기에만 사용되는 접근성
+  // 라벨. 비활성(<span aria-disabled>) 분기에는 전달하지 않는다(REQ-004).
+  ariaLabel?: string;
   onNavigate?: () => void;
 }
 
-function NavLink({ href, label, icon, active, disabled, onNavigate }: NavLinkProps) {
+function NavLink({ href, label, icon, active, disabled, ariaLabel, onNavigate }: NavLinkProps) {
   const base =
     "flex items-center gap-2 rounded px-3 py-2.5 text-[13px] font-medium transition-colors";
 
@@ -150,6 +157,7 @@ function NavLink({ href, label, icon, active, disabled, onNavigate }: NavLinkPro
     <Link
       href={href}
       onClick={onNavigate}
+      aria-label={ariaLabel}
       className={`${base} ${
         active
           ? "bg-app-sidebar-line text-white"
