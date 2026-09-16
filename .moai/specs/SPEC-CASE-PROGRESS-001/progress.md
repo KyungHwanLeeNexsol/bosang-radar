@@ -78,11 +78,82 @@ next_step: SPEC is PASS and eligible for Implementation Kickoff Approval (plan�
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+cycle_type: tdd (RED-GREEN-REFACTOR)
+
+### AC PASS/FAIL Matrix
+
+| AC | Status | Verification Command | Actual Output |
+|----|--------|----------------------|----------------|
+| AC-CASE-PROGRESS-001 | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx -t "AC-CASE-PROGRESS-001"` | `1 passed` — `case-pending-stages` `<ol>`에 4개 `<li>`가 `ANALYSIS_STAGES` 순서대로 존재, `data-status` 속성 없음 |
+| AC-CASE-PROGRESS-002 | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx -t "AC-CASE-PROGRESS-002"` | `1 passed` — footer 내 `role="progressbar"` 없음, `/\d+%/` 매치 없음, `[data-current]` 없음 |
+| AC-CASE-PROGRESS-003 | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx -t "AC-CASE-PROGRESS-003"` | `1 passed` — case-input-form 렌더 라벨 배열이 `lib/cases/analysis-stages.ts`의 `ANALYSIS_STAGES`와 순서·내용 일치 |
+| AC-CASE-PROGRESS-006 | PASS (기존 회귀 방지) | `npx vitest run app/cases/new/case-input-form.test.tsx -t "202 응답을 받으면"` | `1 passed` — completed/failed 종료 분기 회귀 없음 |
+| AC-CASE-PROGRESS-007 | PASS | `npx vitest run app/cases/new/case-input-form.test.tsx -t "AC-CASE-PROGRESS-007"` | `1 passed` — `case-pending-indicator`의 `role="status"`/`aria-live="polite"` 유지, `case-pending-stages`에 `aria-live` 없음, `indicator.contains(stageList) === false` |
+| AC-CASE-PROGRESS-008 | PASS | `npx vitest run app/cases/new/analysis-status-panel.test.tsx` | `1 passed` — "대기 중" 배지, 4단계 전부 "대기" 라벨, `analysis-status-static-bar`의 `w-0` 정적 바 렌더링 결과 회귀 없음 |
+| AC-CASE-PROGRESS-009 | PASS (기존 회귀 방지) | `npx vitest run app/cases/new/case-input-form.test.tsx -t "AC-001|AC-002"` | `2 passed` — 기존 대기 인디케이터 존재/4필드 disabled 테스트 회귀 없음 |
+
+### RED Evidence (TDD §E8 — GREEN 이전 캡처)
+
+```
+$ npx vitest run app/cases/new/case-input-form.test.tsx
+...
+ FAIL  app/cases/new/case-input-form.test.tsx > ... > AC-CASE-PROGRESS-001: 대기 중에는 4단계 정적 목록이 순서대로 렌더링되고 개별 완료 표시가 없다
+AssertionError: expected null not to be null
+ ❯ app/cases/new/case-input-form.test.tsx:368:27
+    366|
+    367|     const stageList = container.querySelector('[data-testid="case-pend…
+    368|     expect(stageList).not.toBeNull();
+
+ FAIL  ... AC-CASE-PROGRESS-003 ... TypeError: Cannot read properties of null (reading 'querySelectorAll')
+ FAIL  ... AC-CASE-PROGRESS-007 ... TypeError: Cannot read properties of null (reading 'hasAttribute')
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  3 failed | 13 passed (16)
+```
+(RED captured after M1 constant extraction, before M2 footer implementation — `case-pending-stages` testid did not yet exist.)
+
+### Build / Lint / Format / Mechanical checks
+
+```
+$ pnpm build → exit 0 (pre-existing edge-runtime warning in instrumentation.ts, unrelated to this SPEC)
+$ pnpm lint → exit 0 (no output)
+$ pnpm format:check → exit 0, "All matched files use Prettier code style!"
+$ grep -rn 'role="progressbar"' app/cases/new/case-input-form.tsx → exit 1 (0 matches, REQ-CASE-PROGRESS-003 기계적 검증 통과)
+```
+
+### Full test suite (no regression)
+
+```
+$ pnpm test
+ Test Files  1 failed | 70 passed (71)
+      Tests  18 failed | 474 passed (492)
+```
+Baseline (pre-flight, before any change): `Test Files 1 failed | 69 passed (70)` / `Tests 18 failed | 469 passed (487)`.
+The 18 failing tests are 100% pre-existing (`app/cases/app-shell-chrome.test.tsx` — "No 'useRouter' export is defined on the 'next/navigation' mock", unrelated to this SPEC's scope — same failure count before and after this SPEC's changes). This SPEC added 5 new passing tests (474 − 469 = 5: 4 in case-input-form.test.tsx + 1 in analysis-status-panel.test.tsx) with zero new failures.
+
+### PRESERVE list verification
+
+```
+$ git diff --stat -- app/api/cases/status/route.ts lib/cases/job-timing.ts lib/pipeline lib/db/schema.ts db
+(no output — 0 files changed)
+```
+
+### Files changed
+
+- `lib/cases/analysis-stages.ts` (신규) — 4단계 라벨 공유 상수
+- `app/cases/new/analysis-status-panel.tsx` — 지역 상수를 공유 모듈 import로 교체(렌더링 결과 불변)
+- `app/cases/new/case-input-form.tsx` — 대기 Footer에 정적 4단계 목록 추가(`case-pending-indicator` 형제 요소, `aria-live` 없음)
+- `app/cases/new/case-input-form.test.tsx` — AC-CASE-PROGRESS-001/002/003/007 신규 테스트 추가
+- `app/cases/new/analysis-status-panel.test.tsx` (신규) — AC-CASE-PROGRESS-008 회귀 방지 테스트 1건
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+run_complete_at: 2026-09-16
+run_status: complete
+ac_pass_count: 7
+ac_fail_count: 0
+preserve_list_post_run_count: 0 (변경 없음)
+new_warnings_or_lints_introduced: 0
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

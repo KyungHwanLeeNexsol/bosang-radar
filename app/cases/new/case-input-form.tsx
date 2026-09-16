@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
+import { ANALYSIS_STAGES } from "@/lib/cases/analysis-stages";
 
 class CaseSubmissionError extends Error {}
 
@@ -331,14 +332,30 @@ export function CaseInputForm() {
           className="flex flex-col gap-3 bg-app-surface-sub px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
         >
           {isSubmitting ? (
-            <span
-              data-testid="case-pending-indicator"
-              role="status"
-              aria-live="polite"
-              className="text-body-s text-bora-ink-3"
-            >
-              처리 중입니다. 잠시만 기다려 주세요...
-            </span>
+            // SPEC-CASE-PROGRESS-001 REQ-CASE-PROGRESS-001/002/004 — 정적
+            // 4단계 안내 목록을 case-pending-indicator의 형제 요소로 배치한다.
+            // case-pending-indicator(role="status" aria-live="polite")는
+            // 기존 고정 문구만 유지하고, 목록에는 aria-live를 부여하지 않아
+            // 폴링 틱마다 전체 목록이 반복 안내되지 않는다(plan.md 결정 2).
+            // 각 단계에는 완료/진행 표시(체크마크, data-status 등)를 부여하지
+            // 않는다(REQ-CASE-PROGRESS-003, 가짜 진행률 금지).
+            <div data-testid="case-pending-status" className="flex flex-col gap-2">
+              <span
+                data-testid="case-pending-indicator"
+                role="status"
+                aria-live="polite"
+                className="text-body-s text-bora-ink-3"
+              >
+                처리 중입니다. 잠시만 기다려 주세요...
+              </span>
+              <ol data-testid="case-pending-stages" className="flex flex-col gap-1">
+                {ANALYSIS_STAGES.map((stage, index) => (
+                  <li key={stage} className="text-label-s text-bora-ink-4">
+                    {index + 1}. {stage}
+                  </li>
+                ))}
+              </ol>
+            </div>
           ) : (
             // Round4: Pencil 05-사건-입력.png 정합 — 잠금 아이콘 + 비식별 처리 안내 문구
             <span

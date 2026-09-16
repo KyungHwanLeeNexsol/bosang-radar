@@ -2,7 +2,7 @@
 id: SPEC-CASE-PROGRESS-001
 title: "사건 입력 제출 대기 화면 — 정적 4단계 진행 안내 + 실제 관측 상태(대기열/진행 중) 반영"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-09-16
 updated: 2026-09-16
 author: Nexsol

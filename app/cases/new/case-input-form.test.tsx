@@ -5,6 +5,7 @@ import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CaseInputForm } from "./case-input-form";
 import { CLIENT_POLL_INTERVAL_MS, CLIENT_POLL_MAX_ATTEMPTS } from "@/lib/cases/job-timing";
+import { ANALYSIS_STAGES } from "@/lib/cases/analysis-stages";
 
 // SPEC-PILOT-UX-001 M3/M4 — case-input-form.tsx는 client component이므로
 // react-dom/client로 직접 렌더링한다(@testing-library/react 미설치).
@@ -357,6 +358,62 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
   // SPEC-PILOT-LAUNCH-001 M2(REQ-PILOT-LAUNCH-003/004, AC-PILOT-LAUNCH-003/008)
   // — 파일럿 출시 전 사건 입력 화면 하단 안내 문구를 합성/비식별 데이터
   // 전용 지침 + 외부 AI 모델(Gemini) 전송 고지로 교체한다.
+  it("AC-CASE-PROGRESS-001: 대기 중에는 4단계 정적 목록이 순서대로 렌더링되고 개별 완료 표시가 없다", async () => {
+    const { promise } = deferred<Response>();
+    fetchMock.mockReturnValue(promise);
+
+    act(() => submitForm(container));
+
+    const stageList = container.querySelector('[data-testid="case-pending-stages"]');
+    expect(stageList).not.toBeNull();
+    const items = Array.from(stageList!.querySelectorAll("li"));
+    expect(items).toHaveLength(ANALYSIS_STAGES.length);
+    items.forEach((item, index) => {
+      expect(item.textContent).toContain(ANALYSIS_STAGES[index]);
+      expect(item.hasAttribute("data-status")).toBe(false);
+    });
+  });
+
+  it("AC-CASE-PROGRESS-002: 대기 Footer에는 role=progressbar, 숫자 퍼센트, 현재 단계 강조가 없다", async () => {
+    const { promise } = deferred<Response>();
+    fetchMock.mockReturnValue(promise);
+
+    act(() => submitForm(container));
+
+    const footer = container.querySelector('[data-testid="case-input-footer"]')!;
+    expect(footer.querySelector('[role="progressbar"]')).toBeNull();
+    expect(footer.textContent).not.toMatch(/\d+%/);
+    expect(footer.querySelector("[data-current]")).toBeNull();
+  });
+
+  it("AC-CASE-PROGRESS-003: case-input-form의 4단계 라벨이 공유 상수(lib/cases/analysis-stages)와 순서·내용이 동일하다", async () => {
+    const { promise } = deferred<Response>();
+    fetchMock.mockReturnValue(promise);
+
+    act(() => submitForm(container));
+
+    const stageList = container.querySelector('[data-testid="case-pending-stages"]')!;
+    const labels = Array.from(stageList.querySelectorAll("li")).map((li) =>
+      (li.textContent ?? "").replace(/^\d+\.\s*/, "")
+    );
+    expect(labels).toEqual([...ANALYSIS_STAGES]);
+  });
+
+  it("AC-CASE-PROGRESS-007: case-pending-indicator는 role=status/aria-live=polite를 유지하고 4단계 목록은 그 aria-live 영역 밖에 위치한다", async () => {
+    const { promise } = deferred<Response>();
+    fetchMock.mockReturnValue(promise);
+
+    act(() => submitForm(container));
+
+    const indicator = container.querySelector('[data-testid="case-pending-indicator"]')!;
+    expect(indicator.getAttribute("role")).toBe("status");
+    expect(indicator.getAttribute("aria-live")).toBe("polite");
+
+    const stageList = container.querySelector('[data-testid="case-pending-stages"]')!;
+    expect(stageList.hasAttribute("aria-live")).toBe(false);
+    expect(indicator.contains(stageList)).toBe(false);
+  });
+
   it("REQ-PILOT-LAUNCH-003/004: 안내 문구가 합성/비식별 지침과 전송 고지로 교체되고 소요시간 안내는 그대로 유지된다", () => {
     const notice = container.querySelector('[data-testid="case-input-footer-notice"]')!;
     expect(notice.textContent).not.toContain(

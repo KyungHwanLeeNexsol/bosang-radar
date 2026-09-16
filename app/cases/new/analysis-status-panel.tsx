@@ -2,12 +2,10 @@
 // 테이블에 단계별 진행 데이터가 존재하지 않으므로 4단계를 순수 정보성
 // 정적 텍스트로만 렌더링한다 — 개별 완료/진행 상태(체크마크, 진행률 바 등)
 // 는 절대 표시하지 않는다(가짜 진행률 금지).
-const ANALYSIS_STAGES = [
-  "쟁점 자동 추출",
-  "판례·결정례 검색",
-  "약관·법령 대조",
-  "근거 검증 및 반대 논리 생성",
-] as const;
+// SPEC-CASE-PROGRESS-001 REQ-CASE-PROGRESS-001 — 라벨 배열을 case-input-form.tsx와
+// 공유하는 단일 소스(lib/cases/analysis-stages.ts)로 추출했다. 렌더링 결과는
+// 기존과 동일하다(AC-CASE-PROGRESS-008).
+import { ANALYSIS_STAGES } from "@/lib/cases/analysis-stages";
 
 export function AnalysisStatusPanel() {
   return (
