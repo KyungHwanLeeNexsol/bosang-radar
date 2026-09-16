@@ -157,4 +157,13 @@ new_warnings_or_lints_introduced: 0
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_status: sync-complete
+- sync_complete_at: 2026-09-16
+- sync_commit_sha: pending-backfill-self-referential — 이 §E.4를 기록하는 커밋 자신의 SHA는 커밋이 자기 해시를 알 수 없어 표준 관례상 후속 백필 커밋이 필요함(`spec-frontmatter-schema.md` § SHA placeholder backfill exemption). `git log -1 --format=%H -- .moai/specs/SPEC-CASE-PROGRESS-001`로 확인 가능
+- ac_pass_count: 7 (AC-CASE-PROGRESS-001, 002, 003, 006, 007, 008, 009 — §E.2 PASS/FAIL Matrix 참고; AC-CASE-PROGRESS-004/005는 舊 queued/processing 구분 표시 요구사항과 함께 plan-audit iteration 1 D1/D2 결함 반영으로 제거됨, acceptance.md §B 참고)
+- ac_fail_count: 0
+- status transition: spec.md frontmatter `status: in-progress` → `status: completed`(이 sync 커밋으로 3-phase close 완료); `updated:` 2026-09-16 유지(당일 sync 커밋이라 날짜 변경 불필요)
+- changelog: CHANGELOG.md `[Unreleased]` 섹션에 `### Added — SPEC-CASE-PROGRESS-001` 신규 진입 추가(사전 `grep -c 'SPEC-CASE-PROGRESS-001' CHANGELOG.md` 확인 결과 0건 — 중복 없음)
+- docs: README.md(§현재 구현 상태, §구현 완료 목록 2곳) + `.moai/project/product.md`(헤더 날짜/요약, §구현 완료 목록) 갱신 — 13→14개 SPEC 완료로 카운트 반영
+- mx_tags: `app/cases/new/case-input-form.tsx`에 `@MX:NOTE`(+ `@MX:SPEC: SPEC-CASE-PROGRESS-001`) 1건 추가 — case-pending-stages를 aria-live 서브트리 내부로 옮기면 안 된다는 비자명한 불변조건을 기록(§E.2 결정 2 근거)
+- preserve_verification (sync-phase 재확인): `git diff --stat -- app/api/cases/status/route.ts lib/cases/job-timing.ts lib/pipeline lib/db/schema.ts db` → 무출력(0 files changed), run-phase §E.2와 동일 결과 재확인

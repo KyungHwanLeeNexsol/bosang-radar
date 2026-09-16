@@ -339,6 +339,10 @@ export function CaseInputForm() {
             // 폴링 틱마다 전체 목록이 반복 안내되지 않는다(plan.md 결정 2).
             // 각 단계에는 완료/진행 표시(체크마크, data-status 등)를 부여하지
             // 않는다(REQ-CASE-PROGRESS-003, 가짜 진행률 금지).
+            // @MX:NOTE: case-pending-stages를 case-pending-indicator 내부로
+            // 옮기면 안 된다 — aria-live="polite" 서브트리 안에 두면 스크린
+            // 리더가 매 폴링 틱마다 4단계 목록 전체를 반복 안내한다.
+            // @MX:SPEC: SPEC-CASE-PROGRESS-001
             <div data-testid="case-pending-status" className="flex flex-col gap-2">
               <span
                 data-testid="case-pending-indicator"

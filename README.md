@@ -16,7 +16,7 @@
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (13개 SPEC 완료 — SPEC-SCAFFOLD-001 ~ SPEC-PILOT-OPS-001)
+## 현재 구현 상태 (14개 SPEC 완료 — SPEC-SCAFFOLD-001 ~ SPEC-CASE-PROGRESS-001)
 
 최초 프로젝트 scaffold와 MVP 핵심 아키텍처(SPEC-SCAFFOLD-001)에 이어, 실제 로컬 환경에서 DB 연결·마이그레이션·시드·테스터 계정 생성·E2E 검증까지 전 과정을 실행할 수 있는 런타임 활성화 계층(SPEC-RUNTIME-001)이 구축되었고, 여기에 더해 6단계 리서치 파이프라인이 목업이 아니라 evidence-first Gemini 구조화 출력 기반으로 실제 동작하도록 전환한 SPEC-RESEARCH-001, 역할별 모델 분리·호출 배치·rate 페이싱·동시성 제한·재시도 복원력으로 무료 티어 파일럿 안정성을 확보한 SPEC-GEMINI-RUNTIME-001까지 완료되어 있습니다. 이후 근거자료 corpus를 담보×쟁점 기준으로 21건까지 확장하고 쟁점 중심 ranking을 도입한 SPEC-EVIDENCE-001, 리포트 단위 구조화 전문가 피드백 축적 경로를 추가한 SPEC-FEEDBACK-001, 신규 기능 없이 대기 상태 표시·중복 제출 방지·리포트 요약 배너·근거자료 표시·피드백 폼 사용성·명시적 UI 상태를 UI 계층에서만 다듬어 실사용성을 높인 SPEC-PILOT-UX-001, 확정된 Pencil 디자인(`design/claimradar-ui.pen`)을 신규 기능·데이터 변경 없이 사건 입력/Research Report/전문가 피드백 3개 화면에 순수 시각 계층에서만 재현한 SPEC-PILOT-VISUAL-001, Pencil 디자인 전체 화면 확장을 재현한 SPEC-UI-MIGRATION-001, 그리고 Better Auth rate-limit로 인한 flaky를 제거하기 위해 E2E storageState 인증 재사용을 도입한 SPEC-E2E-AUTH-STATE-001까지 완료되었습니다.
 
@@ -25,6 +25,8 @@
 프로덕션 사용자 노출 문구를 정상 서비스 수준으로 정리하고 최초 운영 계정 발급 절차를 문서화한 SPEC-PILOT-LAUNCH-001도 완료됐습니다 — PR #11이 main에 squash 병합(커밋 `bc289ad`)된 뒤 3-phase close(`14a6394`)로 종결됐습니다.
 
 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일 계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표 집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서(`.moai/docs/pilot-ops-launch-plan.md`)를 작성한 SPEC-PILOT-OPS-001도 완료됐습니다 — 코드 변경 없는 문서 전용(documentation-only) SPEC이며, 실제 계정 발급·실 DB 쓰기·실 Gemini 호출·실 배포·실 테스터 초대는 수행하지 않았습니다.
+
+사건 입력 대기 화면에 4단계 정적 분석 진행 안내를 추가한 SPEC-CASE-PROGRESS-001도 완료됐습니다 — `AnalysisStatusPanel`과 라벨을 공유하는 단일 소스(`lib/cases/analysis-stages.ts`)로 추출했을 뿐, 백엔드(`/api/cases/status` 응답 스키마, `lib/cases/job-timing.ts` 폴링 상수)는 전혀 수정하지 않았고 개별 단계 완료/진행 표시(가짜 진행률)도 추가하지 않았습니다.
 
 - Drizzle ORM 스키마(`cases`, `evidence`, `reports`, `feedback`, `allowed_testers`, `reservations`, `case_jobs`) + Turso/libSQL 클라이언트 배선
 - AI provider abstraction(`LLMProvider`) + Gemini adapter(429 지수 백오프 재시도, `responseJsonSchema` 기반 구조화 출력) — 결정론적(deterministic) provider는 테스트/E2E 전용, 프로덕션 경로는 `provider-factory.ts`가 실제 Gemini 호출을 선택
@@ -137,9 +139,9 @@ bosang-radar/
 
 전체 서비스 완성이 아니라 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중해 왔습니다. 남은 작업은 3단계로 분류합니다.
 
-### 구현 완료 (13개 SPEC)
+### 구현 완료 (14개 SPEC)
 
-SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) · SPEC-PILOT-READY-001(파일럿 배포 준비 — Netlify Free 호스팅 확정, Background Function 비동기 전환, Gemini 하이브리드 라우팅, 사용자별 동시 실행 가드, 데이터 취급 고지 정직성 개선; readiness 7개 항목 전부 `READY`·전체 판정 `GO`, PR #10 main 병합 완료) · SPEC-PILOT-LAUNCH-001(프로덕션 사용자 노출 문구 정리, 최초 운영 계정 발급 절차 문서화 — PR #11 main 병합 완료(squash 커밋 `bc289ad`), 3-phase close(`14a6394`)) · SPEC-PILOT-OPS-001(README/product.md 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일 계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표 집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서 `pilot-ops-launch-plan.md` 작성 — 코드 변경 없음) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
+SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) · SPEC-PILOT-READY-001(파일럿 배포 준비 — Netlify Free 호스팅 확정, Background Function 비동기 전환, Gemini 하이브리드 라우팅, 사용자별 동시 실행 가드, 데이터 취급 고지 정직성 개선; readiness 7개 항목 전부 `READY`·전체 판정 `GO`, PR #10 main 병합 완료) · SPEC-PILOT-LAUNCH-001(프로덕션 사용자 노출 문구 정리, 최초 운영 계정 발급 절차 문서화 — PR #11 main 병합 완료(squash 커밋 `bc289ad`), 3-phase close(`14a6394`)) · SPEC-PILOT-OPS-001(README/product.md 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일 계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표 집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서 `pilot-ops-launch-plan.md` 작성 — 코드 변경 없음) · SPEC-CASE-PROGRESS-001(사건 입력 대기 화면에 정적 4단계 분석 진행 안내 추가 — 백엔드/폴링 상수 무변경) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 

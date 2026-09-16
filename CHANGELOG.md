@@ -5,6 +5,27 @@
 
 ## [Unreleased]
 
+### Added — SPEC-CASE-PROGRESS-001: 사건 입력 대기 화면에 정적 4단계 분석 진행 안내 추가
+
+`app/cases/new/case-input-form.tsx`의 제출 대기 Footer에 4단계(쟁점 자동 추출/판례·결정례
+검색/약관·법령 대조/근거 검증 및 반대 논리 생성) 정적 안내 목록을 추가했습니다. 라벨은
+`analysis-status-panel.tsx`와 공유하는 신규 단일 소스(`lib/cases/analysis-stages.ts`)에서
+가져오며, 개별 단계의 완료/진행 표시(체크마크, 퍼센트, `role="progressbar"`)는 전혀
+렌더링하지 않습니다 — `/api/cases/status`가 단계별 데이터를 반환하지 않으므로 가짜
+진행률을 표시하지 않는다는 SPEC-UI-MIGRATION-001 원칙을 그대로 승계합니다. 목록은 기존
+`case-pending-indicator`(`role="status" aria-live="polite"`)의 형제 요소로 배치되어
+`aria-live`가 부여되지 않으므로 폴링 틱마다 반복 안내되지 않습니다. 백엔드
+(`app/api/cases/status/route.ts`, `lib/cases/job-timing.ts`)와 `lib/pipeline/**`, DB
+스키마는 전혀 수정하지 않았습니다.
+
+**검증**: AC-CASE-PROGRESS-001, 002, 003, 006, 007, 008, 009 전부 PASS(TDD RED-GREEN,
+`case-input-form.test.tsx`/`analysis-status-panel.test.tsx` 신규 5건). 전체 Vitest
+474 passed / 18 failed(492건 중) — 실패 18건은 100% 기존 결함(`app-shell-chrome.test.tsx`의
+`useRouter` mock 누락, 이 SPEC과 무관, 변경 전후 동일 건수)이며 이 SPEC이 신규로 추가한
+실패는 0건입니다. `tsc`/`eslint`/`format:check`/`build` 모두 exit 0,
+`grep -rn 'role="progressbar"' app/cases/new/case-input-form.tsx` 0건(REQ-CASE-PROGRESS-003
+기계적 검증).
+
 ### Docs — SPEC-PILOT-OPS-001: 문서 현행화 + 파일럿 운영 개시 계획 신설(코드 변경 없음)
 
 README.md와 `.moai/project/product.md`를 12개 SPEC(SPEC-PILOT-LAUNCH-001까지)에서
