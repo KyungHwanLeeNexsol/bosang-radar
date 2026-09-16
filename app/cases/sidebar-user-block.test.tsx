@@ -9,9 +9,17 @@ import { SidebarUserBlock } from "./sidebar-user-block";
 // 사용한다(app/cases/layout.tsx는 이 파일을 렌더링만 하며 세션을 직접
 // 조회하지 않는다 — AC-005a는 별도의 소스 grep으로 검증한다).
 
-const { useSessionMock } = vi.hoisted(() => ({ useSessionMock: vi.fn() }));
+const { useSessionMock, signOutMock, pushMock, refreshMock } = vi.hoisted(() => ({
+  useSessionMock: vi.fn(),
+  signOutMock: vi.fn(),
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
 vi.mock("@/lib/auth/client", () => ({
-  authClient: { useSession: useSessionMock },
+  authClient: { useSession: useSessionMock, signOut: signOutMock },
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
 function render() {
@@ -58,5 +66,25 @@ describe("app/cases/sidebar-user-block — 실사용자명 + 로딩/미로그인
     ({ container, root } = render());
 
     expect(container.textContent).toContain("사용자");
+  });
+
+  it("로그아웃 버튼 클릭 시 authClient.signOut을 호출하고 성공하면 /login으로 이동한다", async () => {
+    useSessionMock.mockReturnValue({
+      data: { user: { name: "홍길동", id: "user-1" } },
+      isPending: false,
+    });
+    signOutMock.mockImplementation(async ({ fetchOptions }) => {
+      fetchOptions.onSuccess();
+    });
+    ({ container, root } = render());
+
+    const button = container.querySelector('[data-testid="sidebar-logout"]') as HTMLButtonElement;
+    await act(async () => {
+      button.click();
+    });
+
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenCalledWith("/login");
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 });

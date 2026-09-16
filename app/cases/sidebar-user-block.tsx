@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 
 // SPEC-UI-MIGRATION-001 M2 (REQ-005, plan.md §B 결정 2) — 사이드바 하단
@@ -9,11 +11,26 @@ import { authClient } from "@/lib/auth/client";
 // 으로만 수행한다. 로딩 중이거나 세션이 없으면 중립 폴백(이니셜 아이콘 +
 // "사용자")을 표시하며, 하드코딩된 가짜 이름이나 이전 사용자의 잔존 값을
 // 표시하지 않는다. `user` 테이블에 없는 소속/직함 필드는 렌더링하지 않는다.
+//
+// 로그아웃 버튼 — app/login/login-form.tsx의 signIn과 동일한 authClient +
+// useRouter 조합을 재사용한다. 성공 시에만 /login으로 이동한다.
 export function SidebarUserBlock() {
+  const router = useRouter();
   const { data, isPending } = authClient.useSession();
   const user = !isPending ? (data?.user ?? null) : null;
   const displayName = user?.name ?? "사용자";
   const initial = user?.name ? user.name.slice(0, 1) : "?";
+
+  async function handleSignOut() {
+    await authClient.signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push("/login");
+          router.refresh();
+        },
+      },
+    });
+  }
 
   return (
     <div className="flex items-center gap-2.5 border-t border-app-sidebar-line pt-4">
@@ -23,6 +40,15 @@ export function SidebarUserBlock() {
       <div className="flex min-w-0 flex-col">
         <p className="truncate text-[12.5px] font-semibold text-white">{displayName}</p>
       </div>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        aria-label="로그아웃"
+        data-testid="sidebar-logout"
+        className="ml-auto flex size-7 shrink-0 items-center justify-center rounded text-app-sidebar-line transition-colors hover:bg-[#242D38] hover:text-white"
+      >
+        <LogOut aria-hidden="true" className="size-4" />
+      </button>
     </div>
   );
 }
