@@ -22,20 +22,12 @@
 - **When** 두 화면에서 렌더링된 라벨 문자열 배열을 비교함
 - **Then** 두 배열은 순서와 내용이 완전히 동일하다(동일한 `lib/cases/analysis-stages.ts` import 결과이므로)
 
-### Group B — 실제 관측 상태 반영
+### Group B — 회귀 방지 (기존 폴링 종료 분기)
 
-**AC-CASE-PROGRESS-004** (REQ-CASE-PROGRESS-004)
+REQ-CASE-PROGRESS-004(queued/processing 구분 표시)는 plan-audit iteration 1 D1/D2 결함 반영으로 제거되었다 — `app/api/cases/status/route.ts:47-53`가 `"queued"`를 JSON으로 노출하지 않아 애초에 충족 불가능했다. AC-CASE-PROGRESS-004/AC-CASE-PROGRESS-005도 함께 제거되었다(HISTORY 및 `.moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-1.md` 참고). 아래 AC-CASE-PROGRESS-006만 기존 종료 분기 회귀 방지 목적으로 유지한다(특정 REQ에 결부되지 않은 일반 회귀 가드 — AC-CASE-PROGRESS-009와 동일한 성격).
+
+**AC-CASE-PROGRESS-006** (기존 종료 분기 회귀 방지 — REQ 미결부, 일반 회귀 가드)
 - **Given** 사건 입력 폼이 제출되어 `/api/cases`가 `202`+`jobId`를 반환하고, `waitForCaseJob`이 폴링을 시작함
-- **When** `/api/cases/status`가 `{"status": "processing"}`을 반환함
-- **Then** 대기 상태 요약 텍스트(`case-pending-indicator` 안)가 "분석 진행 중"을 의미하는 문구로 표시된다(정확한 워딩은 run-phase 구현자가 결정하되, "대기열"류 문구와 시각적으로 구분되어야 한다)
-
-**AC-CASE-PROGRESS-005** (REQ-CASE-PROGRESS-004 — And 하위 시나리오)
-- **Given** AC-CASE-PROGRESS-004와 동일한 폴링 진행 상태
-- **When** `/api/cases/status`가 `{"status": "queued"}`를 반환함(AC-CASE-PROGRESS-004의 `"processing"`보다 먼저 관측되는 경우)
-- **Then** 대기 상태 요약 텍스트가 "대기열"류 문구로 표시되며, AC-CASE-PROGRESS-004의 "진행 중" 문구와 텍스트 내용이 다르다
-
-**AC-CASE-PROGRESS-006** (REQ-CASE-PROGRESS-004 — 기존 종료 분기 회귀 방지)
-- **Given** AC-CASE-PROGRESS-004와 동일한 폴링 진행 상태
 - **When** `/api/cases/status`가 `{"status": "completed", "caseId": "..."}`를 반환함
 - **Then** 기존과 동일하게 `router.push(`/cases/${caseId}`)`가 호출되며, 이 SPEC이 추가한 어떤 신규 로직도 이 라우팅을 지연시키거나 변경하지 않는다
 - **And When** 대신 `{"status": "failed", "error": "..."}`를 반환하면
@@ -63,9 +55,8 @@
 
 ## §B. 엣지 케이스
 
-- **폴링 최초 응답 이전(첫 2초)**: `jobPhase`가 아직 `null`인 구간에는 REQ-CASE-PROGRESS-004의 구분 문구 대신 기존 고정 문구("처리 중입니다...")가 표시되어야 한다 — 이 구간은 실데이터가 아직 없으므로 침묵/기존 문구 유지가 올바르며, 임의의 값을 추측해 표시해서는 안 된다.
-- **`queued`를 건너뛰고 바로 `processing`이 관측되는 경우**: AC-CASE-PROGRESS-005는 발생하지 않을 수 있으며, 이는 결함이 아니라 실제 타이밍의 정상적인 반영이다(plan.md §D 리스크 2).
-- **네트워크 예외로 `waitForCaseJob`이 reject되는 경우**: 기존 `catch` 분기(REQ-PILOT-UX-014 계승)가 그대로 동작해야 하며, 이 SPEC이 추가한 4단계 목록이나 상태 구분 로직이 이 예외 처리 경로를 방해해서는 안 된다.
+- **폴링 응답 전 구간을 포함해 모든 비종료 상태**: `case-pending-indicator`의 기존 고정 문구("처리 중입니다...")는 이 SPEC에서 변경하지 않는다 — `/api/cases/status`가 `queued`를 노출하지 않으므로 구분해 표시할 실데이터 자체가 없다(REQ-CASE-PROGRESS-004 제거, plan-audit iteration 1 D1/D2).
+- **네트워크 예외로 `waitForCaseJob`이 reject되는 경우**: 기존 `catch` 분기(REQ-PILOT-UX-014 계승)가 그대로 동작해야 하며, 이 SPEC이 추가하는 4단계 정적 목록이 이 예외 처리 경로를 방해해서는 안 된다.
 
 ## §C. 품질 게이트 / Definition of Done
 
@@ -74,4 +65,4 @@
 - `pnpm build` — 종료 코드 0
 - `pnpm format:check` — 이 SPEC이 신규로 도입한 포맷 위반 0건
 - `grep -rn "role=\"progressbar\"" app/cases/new/case-input-form.tsx` — 매치 0건 (REQ-CASE-PROGRESS-003 기계적 검증)
-- 위 §A의 AC-CASE-PROGRESS-001~009 전항목 PASS
+- 위 §A의 AC-CASE-PROGRESS-001, 002, 003, 006, 007, 008, 009 전항목 PASS(AC-CASE-PROGRESS-004/005는 이 개정에서 제거됨 — HISTORY 참고)
