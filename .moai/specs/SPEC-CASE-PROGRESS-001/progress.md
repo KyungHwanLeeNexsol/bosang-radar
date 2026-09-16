@@ -61,6 +61,21 @@ changes:
 verified_directly: 재번호 완료 후 `grep -n "REQ-CASE-PROGRESS-00[3456]"` 를 spec.md/plan.md/acceptance.md/progress.md 전체에 대해 재실행 — 활성 본문(HISTORY 제외)에 잔여 REQ-CASE-PROGRESS-005/006 참조 없음을 확인. spec.md §2 표 헤딩(001~005) 직접 재확인 — 결번 없이 연속.
 next_step: plan-auditor iteration 3 재감사 대기 (Retry Loop Contract, max 3 — 최종 iteration).
 
+### Plan Audit Verdict (Iteration 3 — FINAL)
+
+verdict: PASS
+overall_score: 0.92 (Tier M threshold: 0.80)
+audited_at: 2026-09-16
+report: .moai/reports/plan-audit/SPEC-CASE-PROGRESS-001-review-3.md
+
+Category scores: Clarity 0.75 (unchanged, carried D4 non-blocking), Completeness 1.0, Testability 1.0, Traceability 1.0.
+
+Must-pass: all 7 criteria PASS/N/A. MP-1 RESOLVED — REQ sequence independently re-verified as 001,002,003,004,005 (no gap, no duplicate); renumber propagation into plan.md/acceptance.md cross-references and the disambiguation markers for the deleted original REQ-CASE-PROGRESS-004 (queued/processing) were independently verified directly against the files, not taken on trust. D5 (iteration 2 MP-1 defect) RESOLVED. D6 (AC-ID gap at 004/005) remains an accepted, documented non-blocking scope decision — no regression.
+
+New finding D7 (DEFECT-TITLE-SCOPE-MISMATCH-001, minor, optional, non-blocking): frontmatter `title:` (spec.md:3) still contains "실제 관측 상태(대기열/진행 중) 반영", the exact feature removed in iteration 1 and now listed under Out of Scope. Recommended cleanup: drop that clause from the title at low cost; does not gate this PASS verdict.
+
+next_step: SPEC is PASS and eligible for Implementation Kickoff Approval (plan→run human gate). D7 title cleanup may be applied opportunistically (e.g., at M1 commit) but is not a blocking prerequisite.
+
 ## §E.2 Run-phase Evidence
 
 _<pending run-phase>_
