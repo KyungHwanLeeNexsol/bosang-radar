@@ -80,7 +80,7 @@ new_warnings_or_lints_introduced: 0
 
 - sync_status: sync-complete
 - sync_complete_at: 2026-09-16
-- sync_commit_sha: pending-backfill-sidebar-nav-001 (`docs(SPEC-SIDEBAR-NAV-001): sync-phase artifacts (3-phase close)`, main에 push 완료 후 `spec-frontmatter-schema.md` § SHA placeholder backfill exemption에 따라 후속 커밋에서 채움)
+- sync_commit_sha: ffbf4e8 (`docs(SPEC-SIDEBAR-NAV-001): sync-phase artifacts (3-phase close)`, main에 push 완료 — `spec-frontmatter-schema.md` § SHA placeholder backfill exemption에 따라 이 백필 커밋에서 채움)
 - ac_pass_count: 8 (AC-001~008 — §E.2 PASS/FAIL Matrix 참고)
 - ac_fail_count: 0
 - status transition: spec.md frontmatter `status: in-progress` → `status: completed`(이 sync 커밋으로 3-phase close 완료); `updated:` 2026-09-16 유지(당일 sync 커밋이라 날짜 변경 불필요)
