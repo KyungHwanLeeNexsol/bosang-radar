@@ -45,7 +45,7 @@ export function SidebarUserBlock() {
         onClick={handleSignOut}
         aria-label="로그아웃"
         data-testid="sidebar-logout"
-        className="ml-auto flex size-7 shrink-0 items-center justify-center rounded text-app-sidebar-line transition-colors hover:bg-[#242D38] hover:text-white"
+        className="ml-auto flex size-7 shrink-0 items-center justify-center rounded text-app-sidebar-ink transition-colors hover:bg-app-sidebar-line hover:text-white"
       >
         <LogOut aria-hidden="true" className="size-4" />
       </button>
