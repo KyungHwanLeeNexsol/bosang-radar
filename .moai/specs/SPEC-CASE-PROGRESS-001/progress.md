@@ -159,7 +159,7 @@ new_warnings_or_lints_introduced: 0
 
 - sync_status: sync-complete
 - sync_complete_at: 2026-09-16
-- sync_commit_sha: pending-backfill-self-referential — 이 §E.4를 기록하는 커밋 자신의 SHA는 커밋이 자기 해시를 알 수 없어 표준 관례상 후속 백필 커밋이 필요함(`spec-frontmatter-schema.md` § SHA placeholder backfill exemption). `git log -1 --format=%H -- .moai/specs/SPEC-CASE-PROGRESS-001`로 확인 가능
+- sync_commit_sha: 96e47d1 (`docs(SPEC-CASE-PROGRESS-001): sync-phase artifacts (3-phase close)`, main에 push 완료 — `spec-frontmatter-schema.md` § SHA placeholder backfill exemption에 따라 이 백필 커밋에서 채움)
 - ac_pass_count: 7 (AC-CASE-PROGRESS-001, 002, 003, 006, 007, 008, 009 — §E.2 PASS/FAIL Matrix 참고; AC-CASE-PROGRESS-004/005는 舊 queued/processing 구분 표시 요구사항과 함께 plan-audit iteration 1 D1/D2 결함 반영으로 제거됨, acceptance.md §B 참고)
 - ac_fail_count: 0
 - status transition: spec.md frontmatter `status: in-progress` → `status: completed`(이 sync 커밋으로 3-phase close 완료); `updated:` 2026-09-16 유지(당일 sync 커밋이라 날짜 변경 불필요)
