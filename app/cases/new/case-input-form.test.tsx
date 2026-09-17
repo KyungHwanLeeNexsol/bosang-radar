@@ -358,7 +358,7 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
   // SPEC-PILOT-LAUNCH-001 M2(REQ-PILOT-LAUNCH-003/004, AC-PILOT-LAUNCH-003/008)
   // — 파일럿 출시 전 사건 입력 화면 하단 안내 문구를 합성/비식별 데이터
   // 전용 지침 + 외부 AI 모델(Gemini) 전송 고지로 교체한다.
-  it("AC-CASE-PROGRESS-001: 대기 중에는 4단계 정적 목록이 순서대로 렌더링되고 개별 완료 표시가 없다", async () => {
+  it("SPEC-CASE-PROGRESS-001 AC-CASE-PROGRESS-001 (SPEC-CASE-PROGRESS-002 REQ-014로 반전): 대기 중에는 4단계 정적 목록이 순서대로 렌더링되고, 관측 전(progressStage=0)에는 첫 단계만 진행 중·나머지는 대기다", async () => {
     const { promise } = deferred<Response>();
     fetchMock.mockReturnValue(promise);
 
@@ -370,20 +370,23 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     expect(items).toHaveLength(ANALYSIS_STAGES.length);
     items.forEach((item, index) => {
       expect(item.textContent).toContain(ANALYSIS_STAGES[index]);
-      expect(item.hasAttribute("data-status")).toBe(false);
+      expect(item.getAttribute("data-status")).toBe(index === 0 ? "in-progress" : "pending");
     });
   });
 
-  it("AC-CASE-PROGRESS-002: 대기 Footer에는 role=progressbar, 숫자 퍼센트, 현재 단계 강조가 없다", async () => {
+  it("SPEC-CASE-PROGRESS-001 AC-CASE-PROGRESS-002 (SPEC-CASE-PROGRESS-002 REQ-012로 반전): 대기 Footer에는 실제 신호 기반 role=progressbar가 존재한다", async () => {
     const { promise } = deferred<Response>();
     fetchMock.mockReturnValue(promise);
 
     act(() => submitForm(container));
 
     const footer = container.querySelector('[data-testid="case-input-footer"]')!;
-    expect(footer.querySelector('[role="progressbar"]')).toBeNull();
-    expect(footer.textContent).not.toMatch(/\d+%/);
-    expect(footer.querySelector("[data-current]")).toBeNull();
+    const progressbar = footer.querySelector('[role="progressbar"]');
+    expect(progressbar).not.toBeNull();
+    expect(progressbar!.getAttribute("aria-valuemin")).toBe("0");
+    expect(progressbar!.getAttribute("aria-valuemax")).toBe("100");
+    // 관측된 progressStage가 아직 없는(0) 시점에는 0%다.
+    expect(progressbar!.getAttribute("aria-valuenow")).toBe("0");
   });
 
   it("AC-CASE-PROGRESS-003: case-input-form의 4단계 라벨이 공유 상수(lib/cases/analysis-stages)와 순서·내용이 동일하다", async () => {
@@ -399,7 +402,107 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     expect(labels).toEqual([...ANALYSIS_STAGES]);
   });
 
-  it("AC-CASE-PROGRESS-007: case-pending-indicator는 role=status/aria-live=polite를 유지하고 4단계 목록은 그 aria-live 영역 밖에 위치한다", async () => {
+  it("AC-CASE-PROGRESS-002-012: 폴링 응답의 progressStage로 aria-valuenow(정수 백분율)를 계산한다", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 202,
+        json: () => Promise.resolve({ jobId: "job-progress-012" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: "processing", progressStage: 2 }),
+      } as Response);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CLIENT_POLL_INTERVAL_MS);
+    });
+
+    const progressbar = container.querySelector('[role="progressbar"]')!;
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("50");
+  });
+
+  it("AC-CASE-PROGRESS-002-013: 관측값 사이 시간 경과만으로는 aria-valuenow가 증가하지 않는다", async () => {
+    vi.useFakeTimers();
+    const secondPoll = deferred<Response>();
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 202,
+        json: () => Promise.resolve({ jobId: "job-progress-013" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: "processing", progressStage: 1 }),
+      } as Response)
+      .mockReturnValueOnce(secondPoll.promise);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CLIENT_POLL_INTERVAL_MS);
+    });
+
+    const progressbar = container.querySelector('[role="progressbar"]')!;
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("25");
+
+    // 두 번째 폴링 요청이 이미 나가 응답을 기다리는 동안(아직 resolve되지
+    // 않음) 3초가 더 지나도 값은 마지막 관측값에 고정되어야 한다.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("25");
+  });
+
+  it("AC-CASE-PROGRESS-002-014: progressStage 기준으로 각 단계 항목이 완료/진행 중/대기 상태를 표시한다", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 202,
+        json: () => Promise.resolve({ jobId: "job-progress-014" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: "processing", progressStage: 2 }),
+      } as Response);
+
+    await act(async () => {
+      submitForm(container);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CLIENT_POLL_INTERVAL_MS);
+    });
+
+    const stageList = container.querySelector('[data-testid="case-pending-stages"]')!;
+    const items = Array.from(stageList.querySelectorAll("li"));
+    expect(items[0].getAttribute("data-status")).toBe("completed");
+    expect(items[1].getAttribute("data-status")).toBe("completed");
+    expect(items[2].getAttribute("data-status")).toBe("in-progress");
+    expect(items[3].getAttribute("data-status")).toBe("pending");
+  });
+
+  it("AC-CASE-PROGRESS-002-015: 진행률 바에는 관측값과 무관하게 스스로 반복 재생되는 indeterminate 애니메이션이 없다(너비 전환 transition만 허용)", async () => {
+    const { promise } = deferred<Response>();
+    fetchMock.mockReturnValue(promise);
+
+    act(() => submitForm(container));
+
+    const progressbar = container.querySelector('[role="progressbar"]')!;
+    const fill = progressbar.querySelector("div")!;
+    expect(fill.className).not.toMatch(/animate-(pulse|spin|bounce|ping)/);
+    expect(fill.className).toMatch(/transition/);
+  });
+
+  it("AC-CASE-PROGRESS-007 (SPEC-CASE-PROGRESS-002 REQ-016 포함): case-pending-indicator는 role=status/aria-live=polite를 유지하고, 4단계 목록·progressbar 모두 그 aria-live 영역 밖(형제)에 위치한다", async () => {
     const { promise } = deferred<Response>();
     fetchMock.mockReturnValue(promise);
 
@@ -412,6 +515,9 @@ describe("app/cases/new/case-input-form — 대기 상태 + 단일 흐름 가드
     const stageList = container.querySelector('[data-testid="case-pending-stages"]')!;
     expect(stageList.hasAttribute("aria-live")).toBe(false);
     expect(indicator.contains(stageList)).toBe(false);
+
+    const progressbar = container.querySelector('[role="progressbar"]')!;
+    expect(indicator.contains(progressbar)).toBe(false);
   });
 
   it("REQ-PILOT-LAUNCH-003/004: 안내 문구가 합성/비식별 지침과 전송 고지로 교체되고 소요시간 안내는 그대로 유지된다", () => {
