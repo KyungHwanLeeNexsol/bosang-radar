@@ -273,8 +273,12 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
   // SPEC-PILOT-READY-001 실 Gemini 스모크 — 배포 환경의 비민감 네트워크
   // 관측값을 job에 연결해 저장하는 테이블 마이그레이션.
   const GEMINI_OBSERVATIONS_MIGRATION = "0007_lying_puff_adder.sql";
+  // SPEC-CASE-PROGRESS-002 M1(REQ-CASE-PROGRESS-002-006) — case_jobs에
+  // 실 진행 신호 계측용 progress_stage 정수 컬럼(기본값 0)을 추가하는
+  // 마이그레이션.
+  const PROGRESS_STAGE_MIGRATION = "0008_high_zarda.sql";
 
-  it("db/migrations/에 존재하는 .sql 파일은 baseline부터 Gemini 관측 테이블까지 총 8개뿐이다", () => {
+  it("db/migrations/에 존재하는 .sql 파일은 baseline부터 progress_stage 계측 컬럼까지 총 9개뿐이다", () => {
     const sqlFiles = readdirSync(migrationsDir)
       .filter((name) => name.endsWith(".sql"))
       .sort();
@@ -287,7 +291,8 @@ describe("db/migrations — AC-RUNTIME-017 (3) 스키마 드리프트 보정 마
     expect(sqlFiles).toContain(RESERVATIONS_MIGRATION);
     expect(sqlFiles).toContain(CASE_JOBS_MIGRATION);
     expect(sqlFiles).toContain(GEMINI_OBSERVATIONS_MIGRATION);
-    expect(sqlFiles).toHaveLength(8);
+    expect(sqlFiles).toContain(PROGRESS_STAGE_MIGRATION);
+    expect(sqlFiles).toHaveLength(9);
   });
 
   it("account.issuer 보정 마이그레이션의 내용은 account.issuer 컬럼 추가뿐이다(다른 스키마 변경 없음)", () => {
