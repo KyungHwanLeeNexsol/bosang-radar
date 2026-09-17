@@ -2,9 +2,9 @@
 id: SPEC-ORACLE-HOSTING-001
 title: "Oracle Cloud Always Free VM 호스팅 전환 — M0 인스턴스 프로비저닝 기록 및 M1-M2 배포 계획"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-09-16
-updated: 2026-09-16
+updated: 2026-09-17
 author: Nexsol
 priority: P1
 phase: "v0.9.0 target"
