@@ -11,11 +11,23 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+M1-M6 완료(TDD, cycle_type=tdd), `feature/SPEC-CASE-PROGRESS-002` 브랜치에 6개 커밋:
+- M1: `lib/db/schema.ts`에 `progress_stage` 컬럼 추가, `db/migrations/0008_high_zarda.sql` 생성 및 로컬 Turso DB에 적용 완료
+- M2: `lib/pipeline/index.ts` `RunPipelineOptions.onStageProgress` 추가(선택적, 기존 호출부 무영향), `planQueries()`/`retrieveEvidence()`/`research()` 직후 각각 체크포인트 발화
+- M3: `processCaseJob()`이 콜백 안에서 3중 펜싱(id+leaseId+status) UPDATE로 `progress_stage` 갱신, 실패 시 로그만 남기고 예외 미전파
+- M4: `/api/cases/status`가 `progressStage` 반환, completed 시 항상 4로 클램프
+- M5: `case-input-form.tsx`에 `role="progressbar"`(`aria-live` 서브트리 밖) + 단계별 완료/진행/대기 라벨 추가
+- M6: 4개 파일 신규/확장 테스트, 전체 76개 SPEC 관련 테스트 PASS
+
+AC 검증: 18/18 PASS(각 AC-ID별 verbatim 커맨드+출력은 manager-develop 완료 보고서 §E.1 참고). `npx tsc --noEmit` exit 0, `npm run lint` exit 0. 전체 스위트 회귀 없음(기존에 알려진 무관한 17건 제외).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- run_status: audit-ready
+- run_complete_at: 2026-09-17
+- test_regression_check: 기존(무관) 실패 17건(`app/cases/app-shell-chrome.test.tsx`, useRouter mock 이슈, `git stash`로 이 SPEC과 무관함 확인됨) 외 신규 실패 0건
+- coverage: 터치한 4개 SPEC 테스트 파일 기준 87.32% stmts / 85.84% branch / 87.36% lines
+- db_migration: `db/migrations/0008_high_zarda.sql` 로컬 Turso DB(오라클 배포와 동일 DB, 사용자 확인됨)에 적용 완료 — 추가형(ADD COLUMN, NOT NULL DEFAULT 0) 컬럼이라 기존 데이터/쿼리에 영향 없음
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
