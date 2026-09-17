@@ -696,3 +696,119 @@ describe("PII 비노출 로깅 — pipeline_stage_failed 로그는 사건 입력
     errorSpy.mockRestore();
   });
 });
+
+// SPEC-CASE-PROGRESS-002 M2 (REQ-CASE-PROGRESS-002-001~005, AC-CASE-PROGRESS-002-001~005) —
+// RunPipelineOptions.onStageProgress 계측: 3개 체크포인트(1=QueryPlanner 완료,
+// 2=EvidenceRetriever 완료, 3=Researcher 완료) 순서 + 실패 격리(D8) 검증.
+describe("SPEC-CASE-PROGRESS-002 M2 — onStageProgress 콜백 계측", () => {
+  it("AC-CASE-PROGRESS-002-002/003: 에스컬레이션이 없으면 onStageProgress가 1→2→3 순서로 정확히 1회씩 호출된다", async () => {
+    const { runPipeline } = await import("./index");
+    const stages: number[] = [];
+    const deterministicProvider = createDeterministicLLMProvider();
+
+    await runPipeline(validInput, {
+      providers: { research: deterministicProvider, fast: deterministicProvider },
+      onStageProgress: (stage) => {
+        stages.push(stage);
+      },
+    });
+
+    expect(stages).toEqual([1, 2, 3]);
+  });
+
+  it("AC-CASE-PROGRESS-002-004b (D7): 에스컬레이션이 발생하면 onStageProgress(3)이 정확히 2회(최초+프리미엄) 호출되며 두 번째 호출도 파이프라인을 실패시키지 않는다", async () => {
+    // fast 역할은 항상 구조적으로 무효한 응답을 반환한다 — lite 단계
+    // research()가 findings=[]를 만들어(REQ-004 candidates 존재 시에도
+    // provider가 ok:false를 반환하면 findings 없음 처리, researcher.ts:94-96)
+    // hasMissingFinding=true를 유도하고(selectEscalation "lite_incomplete"),
+    // challenge()/verify()도 findings/candidate가 비어 provider를 호출하지
+    // 않거나(challenge findings.length===0 즉시 [] 반환) fail-closed 경로로
+    // 예외 없이 처리된다(verifier.ts:352-366).
+    const fastProvider: LLMProvider = {
+      async generate() {
+        return { text: "stub" };
+      },
+      async generateStructured() {
+        return { ok: false, reason: "invalid_json", raw: "" };
+      },
+    };
+
+    // research 역할은 프리미엄 재조사(runReview(researchProvider)) 시에만
+    // 실제로 사용된다(lite 단계는 fastProvider를 research에 사용,
+    // index.ts:111-112) — 프롬프트에서 실제 candidate query/evidence ID를
+    // 그대로 추출해 그라운딩 계약을 만족하는 finding 1건을 만든다.
+    const researchProvider: LLMProvider = {
+      async generate() {
+        return { text: "stub" };
+      },
+      async generateStructured(request) {
+        const queryIdMatch = /\[RESEARCH\] 쿼리 ID: (\S+)/.exec(request.prompt);
+        const evidenceIdMatch = /^-\s*\[([^\]\s]+)\]/m.exec(request.prompt);
+        if (!queryIdMatch || !evidenceIdMatch) {
+          return { ok: false, reason: "invalid_json", raw: "" };
+        }
+        const candidate = {
+          findings: [
+            {
+              queryId: queryIdMatch[1],
+              summary: "프리미엄 재조사 소견(테스트)",
+              supportingEvidenceIds: [evidenceIdMatch[1]],
+            },
+          ],
+        };
+        const parsed = request.schema.safeParse(candidate);
+        return parsed.success
+          ? { ok: true, data: parsed.data }
+          : { ok: false, reason: "schema_validation_failed", raw: JSON.stringify(candidate) };
+      },
+    };
+
+    const { runPipeline } = await import("./index");
+    const stages: number[] = [];
+    const report = await runPipeline(validInput, {
+      providers: { research: researchProvider, fast: fastProvider },
+      onStageProgress: (stage) => {
+        stages.push(stage);
+      },
+    });
+
+    expect(stages.filter((stage) => stage === 3)).toHaveLength(2);
+    expect(stages[0]).toBe(1);
+    expect(stages[1]).toBe(2);
+    // 두 번째 onStageProgress(3) 호출도 파이프라인을 실패시키지 않고
+    // ResearchReport가 정상적으로 반환된다.
+    expect(() => new Date(report.generatedAt).toISOString()).not.toThrow();
+  });
+
+  it("AC-CASE-PROGRESS-002-005: onStageProgress가 항상 예외를 던져도 runPipeline은 ResearchReport를 정상 반환하고 실패는 console.error로만 관측된다", async () => {
+    const { runPipeline } = await import("./index");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const deterministicProvider = createDeterministicLLMProvider();
+    const throwingCallback = vi.fn(() => {
+      throw new Error("progress callback boom (test-injected)");
+    });
+
+    const report = await runPipeline(validInput, {
+      providers: { research: deterministicProvider, fast: deterministicProvider },
+      onStageProgress: throwingCallback,
+    });
+
+    expect(report.verifiedClaims.length).toBeGreaterThan(0);
+    expect(throwingCallback).toHaveBeenCalled();
+    const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+    expect(
+      loggedLines.some((line) => line.includes('"event":"pipeline_stage_progress_failed"'))
+    ).toBe(true);
+
+    errorSpy.mockRestore();
+  });
+
+  it("REQ-CASE-PROGRESS-002-018: onStageProgress를 전달하지 않는 기존 호출부는 수정 없이 그대로 동작한다", async () => {
+    const { runPipeline } = await import("./index");
+    const deterministicProvider = createDeterministicLLMProvider();
+    const report = await runPipeline(validInput, {
+      providers: { research: deterministicProvider, fast: deterministicProvider },
+    });
+    expect(report.caseSummary.incidentDescription).toBe(validInput.incidentDescription);
+  });
+});
