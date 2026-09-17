@@ -39,8 +39,34 @@ import { verify } from "./verifier";
 // 전체 파이프라인 실패로 즉시 전파된다.
 // @MX:REASON: 각 단계가 이전 단계의 출력에 의존하는 순차 실행이므로,
 // 병렬화하면 이 순차성 가정이 깨진다(plan.md §F).
+// SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-001 — onStageProgress는
+// 선택적 필드다. 전달하지 않는 기존 호출부(createCase() 동기 경로, 기존
+// 테스트)는 수정 없이 그대로 동작해야 한다(REQ-CASE-PROGRESS-002-018).
+// 3개 체크포인트(1=QueryPlanner 완료, 2=EvidenceRetriever 완료,
+// 3=Researcher 완료 — 에스컬레이션 재실행 시 멱등적으로 2회 호출 가능,
+// design.md §1/§3, plan.md D1/D7)만 발화한다.
 export interface RunPipelineOptions {
   providers?: RoleProviders;
+  onStageProgress?: (stage: 1 | 2 | 3) => void | Promise<void>;
+}
+
+// SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-005, D8, design.md §2 —
+// 진행률 계측은 부가 신호 전달이며, 이 헬퍼 안에서 발생하는 어떤 실패
+// (콜백 예외, reject된 Promise)도 재throw하지 않는다. withStageLogging/
+// withAsyncStageLogging(위 76-96행)과 달리 실패를 삼켜 파이프라인의 나머지
+// 단계 실행과 최종 반환값에 영향을 주지 않는다.
+async function notifyStageProgress(
+  stage: 1 | 2 | 3,
+  onStageProgress: RunPipelineOptions["onStageProgress"]
+): Promise<void> {
+  if (!onStageProgress) return;
+  try {
+    await onStageProgress(stage);
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: "pipeline_stage_progress_failed", stage, ...toSafeErrorMeta(error) })
+    );
+  }
 }
 
 // @MX:NOTE: [AUTO] 동시 사건 제한(design.md §4, REQ-GEMINI-RUNTIME-013/014) —
@@ -103,9 +129,11 @@ export async function runPipeline(
     options.providers ?? getDefaultLLMProviders();
   const caseSummary = withStageLogging("CaseNormalizer", () => normalizeCase(input));
   const queries = withStageLogging("QueryPlanner", () => planQueries(caseSummary));
+  await notifyStageProgress(1, options.onStageProgress);
   const evidence = await withAsyncStageLogging("EvidenceRetriever", () =>
     retrieveEvidence(queries)
   );
+  await notifyStageProgress(2, options.onStageProgress);
   const verification = await withPipelineLock(async () => {
     const initialDecision = selectInitialResearchTier(queries);
     const initialResearchProvider =
@@ -122,6 +150,7 @@ export async function runPipeline(
       const findings = await withAsyncStageLogging("Researcher", () =>
         research(queries, evidence, provider)
       );
+      await notifyStageProgress(3, options.onStageProgress);
       const challenges = await withAsyncStageLogging("Skeptic", () =>
         challenge(findings, evidence, fastProvider)
       );
