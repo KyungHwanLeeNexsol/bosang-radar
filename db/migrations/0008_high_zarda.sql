@@ -1,0 +1,1 @@
+ALTER TABLE `case_jobs` ADD `progress_stage` integer DEFAULT 0 NOT NULL;

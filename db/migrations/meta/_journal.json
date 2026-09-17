@@ -57,6 +57,13 @@
       "when": 1789270412843,
       "tag": "0007_lying_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789619901242,
+      "tag": "0008_high_zarda",
+      "breakpoints": true
     }
   ]
 }
