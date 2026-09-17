@@ -2,7 +2,7 @@
 id: SPEC-CASE-PROGRESS-002
 title: "AI 리서치 대기 화면 — 실 백엔드 진행 신호 기반 퍼센트 진행률 바"
 version: "0.1.0"
-status: draft
+status: completed
 created: 2026-09-17
 updated: 2026-09-17
 author: Nexsol

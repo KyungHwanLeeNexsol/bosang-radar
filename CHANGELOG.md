@@ -5,6 +5,45 @@
 
 ## [Unreleased]
 
+### Added — SPEC-CASE-PROGRESS-002: 실 백엔드 진행 신호 기반 퍼센트 진행률 바
+
+`lib/pipeline/index.ts`의 `runPipeline()`에 선택적 콜백 `onStageProgress`를
+추가해, 내부 6단계 실행 중 사용자 대면 3개 체크포인트(QueryPlanner 완료=1,
+EvidenceRetriever 완료=2, Researcher 완료=3 — 에스컬레이션 재실행 시
+멱등적으로 2회 호출 가능)에서 발화하도록 계측했습니다. `case_jobs` 테이블에
+정수 컬럼 `progress_stage`(기본값 0, NOT NULL)를 추가하는 마이그레이션을
+적용했고, `lib/cases/create-case.ts`의 `processCaseJob()`이 이 콜백에서
+기존 완료 트랜잭션과 동일한 3중 펜싱 조건(id/leaseId/status=processing)으로
+`progress_stage`만 독립적으로 갱신하며, UPDATE 실패는 로그만 남기고 파이프라인
+실행에는 영향을 주지 않습니다(부가 신호). `GET /api/cases/status`가 응답에
+`progressStage` 필드를 추가하되, `status === "completed"`인 경우 저장값과
+무관하게 항상 `ANALYSIS_STAGES.length`(4)를 반환해 계측 누락에 대한
+안전장치를 둡니다. `app/cases/new/case-input-form.tsx` 대기 Footer에 실제
+`role="progressbar"` 요소와 `case-pending-stages` 각 항목의 완료/진행
+중/대기 상태 표시를 추가했으며, 두 요소 모두 서버가 실제로 반환한
+`progressStage` 값에서만 계산되고 관측값 사이를 보간하거나 시간 경과만으로
+자동 증가하는 로직은 포함하지 않습니다.
+
+이 SPEC은 SPEC-CASE-PROGRESS-001이 확정한 "가짜 진행률 금지" 원칙
+(REQ-CASE-PROGRESS-002/003)을 **명시적으로 반전**합니다 — 신규 백엔드
+계측으로 "실제 데이터가 없어 표시할 수 없다"던 전제 자체가 사라졌기
+때문입니다. SPEC-CASE-PROGRESS-001은 `status: completed`를 유지하되
+`partially_superseded_by: [SPEC-CASE-PROGRESS-002]`가 프런트매터에
+추가되었으며, REQ-CASE-PROGRESS-001(공유 상수 단일 소스)·
+REQ-CASE-PROGRESS-004(접근성 배치)·REQ-CASE-PROGRESS-005(무관 범위 보존)는
+그대로 계승됩니다.
+
+**검증**: AC-001~018 전부 PASS(TDD, 18/18 acceptance criteria). 신규 단위
+테스트는 `lib/pipeline/index.test.ts`, `lib/cases/create-case.test.ts`,
+`app/api/cases/status/route.test.ts`, `app/cases/new/case-input-form.test.tsx`
+4개 파일에 추가됐습니다. 이 SPEC이 신규로 추가한 테스트 실패는 0건이며,
+기존에 알려진 `app-shell-chrome.test.tsx`의 `useRouter` mock 누락 실패
+17건(이 SPEC과 무관, `git stash`로 무관성 확인)만 잔존합니다. 변경 파일은
+`lib/db/schema.ts`, `lib/pipeline/index.ts`, `lib/cases/create-case.ts`,
+`app/api/cases/status/route.ts`, `app/cases/new/case-input-form.tsx` 및
+각 테스트 파일, DB 마이그레이션(`db/migrations/0008_high_zarda.sql`)으로
+한정됩니다.
+
 ### Changed — SPEC-SIDEBAR-NAV-001: 사이드바 "전문가 피드백" 항목 아이콘 교체 + aria-label 추가
 
 `app/cases/case-shell-nav.tsx`의 사이드바 "전문가 피드백" nav 항목 아이콘을
