@@ -1,6 +1,6 @@
 # 기술 스택
 
-> 최종 수정: 2026-09-12 (SPEC-PILOT-READY-001 — 배포 플랫폼을 Netlify Free로 갱신)
+> 최종 수정: 2026-09-17 (SPEC-ORACLE-HOSTING-001 — 배포 플랫폼을 Netlify Free에서 Oracle Cloud Always Free VM으로 전환)
 
 ## 개요
 
@@ -10,7 +10,7 @@
 
 ### Next.js (최신 안정 버전) + App Router
 - 프런트엔드와 백엔드(API route handler)를 하나의 코드베이스로 통합해, MVP 단계에서 별도 백엔드 서버를 운영할 필요가 없다.
-- Netlify의 OpenNext 기반 공식 Next.js 어댑터로 단일 애플리케이션을 별도 프런트엔드·백엔드 분리 없이 배포할 수 있다.
+- `output: "standalone"` 빌드 모드로 단일 애플리케이션을 별도 프런트엔드·백엔드 분리 없이, 표준 Linux VM 위에서 그대로 구동할 수 있다.
 - App Router는 서버 컴포넌트 기반으로, 사건 입력·리포트 조회처럼 데이터 흐름이 명확한 화면에 적합하다.
 
 ### TypeScript strict
@@ -29,10 +29,10 @@
 - Gemini를 초기 LLM으로 채택하되, 애플리케이션 로직이 Gemini API에 직접 종속되지 않도록 공통 provider 인터페이스(`lib/ai/provider.ts`) 뒤에 감싼다.
 - Researcher, Skeptic, Verifier 등 파이프라인 단계는 이 인터페이스에만 의존하며, Gemini 전용 SDK를 직접 호출하지 않는다.
 - 이 구조 덕분에 향후 다른 LLM provider를 추가하거나 교체하더라도, 파이프라인 로직 자체는 수정할 필요가 없다.
-- **무료 tier 한도(rate limit/quota) 대응**: Gemini 무료 tier는 분당/일별 요청 한도가 존재한다. Researcher/Skeptic/Verifier 호출을 사건당 3회로 고정하고, 모델별 `RateScheduler`가 프로세스 생애주기 동안 자체 부과 RPM 간격을 유지한다. `lib/pipeline/index.ts`의 프로세스 로컬 Promise 체인이 Gemini 단계의 동시 사건 실행을 1개로 제한하며, `lib/ai/providers/gemini.ts`는 429/503 응답의 재시도 힌트를 반영해 제한된 횟수로 재시도한다. 이 보호는 여러 서버리스 인스턴스 사이에서 공유되는 분산 큐가 아니므로, 실제 Netlify 동시 부하는 readiness 단계에서 별도로 검증한다.
+- **무료 tier 한도(rate limit/quota) 대응**: Gemini 무료 tier는 분당/일별 요청 한도가 존재한다. Researcher/Skeptic/Verifier 호출을 사건당 3회로 고정하고, 모델별 `RateScheduler`가 프로세스 생애주기 동안 자체 부과 RPM 간격을 유지한다. `lib/pipeline/index.ts`의 프로세스 로컬 Promise 체인이 Gemini 단계의 동시 사건 실행을 1개로 제한하며, `lib/ai/providers/gemini.ts`는 429/503 응답의 재시도 힌트를 반영해 제한된 횟수로 재시도한다. 이 보호는 여러 인스턴스 사이에서 공유되는 분산 큐가 아니라 단일 PM2 프로세스 내부 상태이므로, 실제 동시 부하는 readiness 단계에서 별도로 검증한다.
 
 ### Better Auth — 초대 전용 접근 제어
-- 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Netlify + Turso 무료 tier 조합을 대상으로 세션 기반 인증 라이브러리 **Better Auth**를 채택한다.
+- 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Oracle Cloud Always Free VM + Turso 무료 tier 조합을 대상으로 세션 기반 인증 라이브러리 **Better Auth**를 채택한다.
 - 원래는 Auth.js(NextAuth) v5를 검토했으나, plan-phase 조사(`research.md` §4) 결과 Auth.js v5가 여전히 npm `beta` 태그로만 배포 중이고 2025년 9월부터 Better Auth 팀이 유지보수를 인수해 Auth.js는 보안 패치만 하는 유지보수 전용 모드로 전환된 사실을 확인했다. 신규 프로젝트가 유지보수 전용 라이브러리를 채택할 이유가 없으므로, 실제로 개발이 이어지고 있는 Better Auth로 결정을 바꿨다.
 - Credentials(이메일+비밀번호) 또는 매직 링크 provider + 운영자가 미리 등록한 테스터 이메일 allowlist(Drizzle 스키마의 `allowed_testers` 테이블 등)를 조합해, 셀프 가입 없이 지정된 테스터만 로그인할 수 있도록 한다. Better Auth는 Drizzle ORM 어댑터를 공식 지원해 별도 스키마 브리지 없이 기존 DB 계층과 통합된다.
 - 별도 SaaS형 인증 서비스(Auth0, Clerk 등)를 도입하지 않는 이유: 테스터 규모가 10명 내외로 작고, "무료 tier 우선, 불필요한 overengineering 금지" 원칙(`product.md` 원칙 8, 본 문서 개요 참고)에 더 부합하기 때문이다.
@@ -42,10 +42,12 @@
 - 사건 입력 폼/API의 입력 검증 스키마 라이브러리로 Zod를 채택한다. TypeScript strict 모드와 타입 추론이 자연스럽게 통합되고, 별도 런타임 의존성 없이 스키마 기반 검증을 표현할 수 있다.
 - `lib/validation/case-input.ts`에 정의된 스키마가 주민등록번호·전화번호·상세주소·의료기록 원본에 해당하는 필드 형식(정규식/포맷 검사)을 구조적으로 거부하며, 이 검증을 통과하지 못한 요청은 `CaseNormalizer` 이전 단계에서 차단되어 DB나 Gemini API에 도달하지 않는다.
 
-### Netlify (Free tier 배포)
-- SPEC-PILOT-READY-001에서 파일럿 호스팅 대상으로 확정했다. 공식 OpenNext 기반 Next.js 어댑터가 빌드 시 자동 적용되어 현재 단일 Next.js 구조를 유지할 수 있다.
-- PR #10 자동 Deploy Preview에서 Middleware 번들에 `@libsql/client` 네이티브 애드온이 포함되는 문제가 발견됐고, 세션 쿠키 판별 모듈에서 DB 의존성을 분리한 뒤 Preview가 통과했다.
-- 동기 함수의 공식 게시 상한은 60초이며, 이 프로젝트 파이프라인은 로컬 production 환경 측정에서 약 81초가 걸렸다. 따라서 `POST /api/cases`는 `case_jobs`에 작업을 기록하고 202를 반환한 뒤 Netlify Background Function이 처리하는 비동기 구조를 사용한다. 원격 Turso·실 도메인 인증·동시 부하를 포함한 readiness 판정은 실제 Preview 검증 전까지 `NO-GO`다.
+### Oracle Cloud Always Free VM (배포)
+- SPEC-PILOT-READY-001에서 최초 확정한 Netlify Free tier 배포는 무료 크레딧 소진으로 더 이상 사용할 수 없게 되어, SPEC-ORACLE-HOSTING-001에서 Oracle Cloud Always Free VM(`VM.Standard.E2.1.Micro`, 1GB RAM)으로 전환했다. 프레임워크 마이그레이션 없이 기존 Next.js 앱을 `output: "standalone"` 빌드로 표준 Linux VM 위에서 그대로 구동한다.
+- 구성: PM2(프로세스 관리, 크래시 시 자동 재시작) + Nginx(리버스 프록시, Next.js 프로세스는 `127.0.0.1`에만 바인딩) + Certbot/Let's Encrypt(HTTPS 자동 발급·갱신). 도메인은 DuckDNS 무료 서브도메인(`bosang-radar.duckdns.org`)을 사용하며, IP 변경에 대비해 5분 주기 cron으로 자동 갱신한다.
+- Netlify 시절 `POST /api/cases`가 `case_jobs`에 작업을 기록하고 202를 반환한 뒤 Netlify Background Function이 비동기로 처리하던 구조는, PM2가 상시 구동되는 단일 프로세스 서버 환경에서는 불필요해졌다. 별도 서버리스 함수 대신 Next.js `after()`(같은 프로세스 내 백그라운드 실행)로 대체했다.
+- 1GB RAM 제약: TypeScript 빌드 시 V8의 힙 크기 자동 감지가 과도하게 커져 OOM이 발생한 이력이 있어, `NODE_OPTIONS=--max-old-space-size=3072` + 4GB swap 파일로 완화한다.
+- main 브랜치 푸시 시 GitHub Actions(`.github/workflows/deploy.yml`)가 SSH로 접속해 자동으로 최신 코드를 받아 빌드 후 재배포한다(빌드 성공 후에만 재시작해, 빌드 실패가 운영 중인 서비스에 영향을 주지 않는다).
 
 ## 개발 환경 요구사항
 
