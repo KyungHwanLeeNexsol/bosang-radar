@@ -124,6 +124,39 @@ describe("app/api/cases/status GET", () => {
         createdAt: now,
         updatedAt: now,
       },
+      // SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-009~011 —
+      // progressStage 응답 필드 검증 전용 job.
+      {
+        id: "job-processing-stage2",
+        ownerUserId: "owner-1",
+        leaseId: "lease-processing-stage2",
+        input: {},
+        status: "processing",
+        progressStage: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "job-completed-stage-gap",
+        ownerUserId: "owner-1",
+        leaseId: "lease-completed-stage-gap",
+        input: {},
+        status: "completed",
+        caseId: "case-1",
+        progressStage: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "job-queued-stage0",
+        ownerUserId: "owner-1",
+        leaseId: "lease-queued-stage0",
+        input: {},
+        status: "queued",
+        progressStage: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
     ]);
   });
 
@@ -163,30 +196,81 @@ describe("app/api/cases/status GET", () => {
     expect(response.status).toBe(404);
   });
 
-  it.each(["job-queued", "job-processing"])("%s 상태는 processing으로 반환한다", async (jobId) => {
+  it.each(["job-queued", "job-processing"])(
+    "%s 상태는 processing으로 반환하고 progressStage는 저장값(0)을 그대로 반환한다(REQ-CASE-PROGRESS-002-011)",
+    async (jobId) => {
+      getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
+      // 여전히 정상 진행 중인 job은 대응하는 리스가 유효해야 한다 — 그래야
+      // M1 stale 복구 로직이 no-op으로 넘어가고 processing이 그대로 유지된다.
+      await db.insert(schema.reservations).values({
+        ownerUserId: "owner-1",
+        leaseId: jobId === "job-queued" ? "lease-queued" : "lease-processing",
+        expiresAt: new Date(Date.now() + 300_000),
+      });
+      const { GET } = await import("./route");
+
+      const response = await GET(statusRequest(jobId));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ status: "processing", progressStage: 0 });
+    }
+  );
+
+  it("AC-CASE-PROGRESS-002-009: processing job은 저장된 progress_stage 값을 그대로 응답에 포함한다", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
-    // 여전히 정상 진행 중인 job은 대응하는 리스가 유효해야 한다 — 그래야
-    // M1 stale 복구 로직이 no-op으로 넘어가고 processing이 그대로 유지된다.
     await db.insert(schema.reservations).values({
       ownerUserId: "owner-1",
-      leaseId: jobId === "job-queued" ? "lease-queued" : "lease-processing",
+      leaseId: "lease-processing-stage2",
       expiresAt: new Date(Date.now() + 300_000),
     });
     const { GET } = await import("./route");
 
-    const response = await GET(statusRequest(jobId));
+    const response = await GET(statusRequest("job-processing-stage2"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ status: "processing" });
+    await expect(response.json()).resolves.toEqual({ status: "processing", progressStage: 2 });
   });
 
-  it("완료 job은 caseId를 반환한다", async () => {
+  it("AC-CASE-PROGRESS-002-010 (D6): completed job은 저장된 progress_stage와 무관하게 항상 ANALYSIS_STAGES.length(4)를 반환한다", async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
+    const { GET } = await import("./route");
+
+    const response = await GET(statusRequest("job-completed-stage-gap"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "completed",
+      caseId: "case-1",
+      progressStage: 4,
+    });
+  });
+
+  it("AC-CASE-PROGRESS-002-011: queued job(progress_stage=0)은 보정 없이 0을 그대로 반환한다", async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
+    await db.insert(schema.reservations).values({
+      ownerUserId: "owner-1",
+      leaseId: "lease-queued-stage0",
+      expiresAt: new Date(Date.now() + 300_000),
+    });
+    const { GET } = await import("./route");
+
+    const response = await GET(statusRequest("job-queued-stage0"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "processing", progressStage: 0 });
+  });
+
+  it("완료 job은 caseId와 progressStage(ANALYSIS_STAGES.length)를 반환한다", async () => {
     getCurrentSessionMock.mockResolvedValue({ user: { id: "owner-1" } });
     const { GET } = await import("./route");
 
     const response = await GET(statusRequest("job-completed"));
 
-    await expect(response.json()).resolves.toEqual({ status: "completed", caseId: "case-1" });
+    await expect(response.json()).resolves.toEqual({
+      status: "completed",
+      caseId: "case-1",
+      progressStage: 4,
+    });
   });
 
   it("실패 job은 내부 오류를 노출하지 않는 일반 메시지를 반환한다", async () => {
