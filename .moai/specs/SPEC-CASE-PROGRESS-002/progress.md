@@ -21,7 +21,7 @@ _<pending run-phase>_
 
 - sync_status: audit-ready
 - sync_complete_at: 2026-09-17
-- sync_commit_sha: pending-backfill-sync-case-progress-002
+- sync_commit_sha: 1b1146e
 - changelog_entry_position: CHANGELOG.md `[Unreleased]` 최상단(SPEC-SIDEBAR-NAV-001 항목 바로 위)
 - ac_count_check: acceptance.md distinct AC-ID count = 18 (`grep -oE 'AC-([A-Z0-9]+-)*[0-9]+' acceptance.md | sort -u | wc -l`), CHANGELOG entry references AC-001~018 전부 PASS — 일치
 - mx_tags: `lib/cases/create-case.ts` `processCaseJob()` 내 `progress_stage` 펜싱 UPDATE 콜백에 `@MX:NOTE` 추가(기존 완료 트랜잭션의 3중 펜싱 조건을 복제한다는 교차 참조). `lib/pipeline/index.ts`의 `RunPipelineOptions`는 기존 `@MX:ANCHOR`가 이미 계약을 커버하므로 신규 태그 불요(신규 필드는 선택적·하위 호환).
