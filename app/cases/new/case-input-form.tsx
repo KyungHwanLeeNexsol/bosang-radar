@@ -31,6 +31,11 @@ export function CaseInputForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-012~014 — 서버가 실제로
+  // 반환한 가장 최근 progressStage 관측값(0~ANALYSIS_STAGES.length). 폴링
+  // 응답에서만 갱신되며, 관측값 사이를 보간하거나 시간 경과만으로 자동
+  // 증가시키는 로직은 없다(REQ-013).
+  const [progressStage, setProgressStage] = useState(0);
   // SPEC-UI-MIGRATION-001 Post-M8 Round2 (D3.5) — 개인정보 비식별 확인
   // 체크박스. 사용자 확인 UI일 뿐이며 선택 항목이다 — 제출을 막지 않고
   // 서버로 전송되지도 않는다(handleSubmit의 fetch body에 포함되지 않음).
@@ -58,7 +63,13 @@ export function CaseInputForm() {
         status?: string;
         caseId?: string;
         error?: string;
+        progressStage?: number;
       };
+      // SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-013 — 이 폴링 틱에서
+      // 서버가 실제로 반환한 값만 반영한다(보간·자동 증가 없음).
+      if (typeof data.progressStage === "number") {
+        setProgressStage(data.progressStage);
+      }
       if (data.status === "completed" && data.caseId) {
         router.push(`/cases/${data.caseId}`);
         return;
@@ -86,6 +97,7 @@ export function CaseInputForm() {
     submitGuardRef.current = true;
     setFormError(null);
     setFieldErrors({});
+    setProgressStage(0);
     setIsSubmitting(true);
 
     try {
@@ -332,17 +344,16 @@ export function CaseInputForm() {
           className="flex flex-col gap-3 bg-app-surface-sub px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
         >
           {isSubmitting ? (
-            // SPEC-CASE-PROGRESS-001 REQ-CASE-PROGRESS-001/002/004 — 정적
-            // 4단계 안내 목록을 case-pending-indicator의 형제 요소로 배치한다.
-            // case-pending-indicator(role="status" aria-live="polite")는
-            // 기존 고정 문구만 유지하고, 목록에는 aria-live를 부여하지 않아
-            // 폴링 틱마다 전체 목록이 반복 안내되지 않는다(plan.md 결정 2).
-            // 각 단계에는 완료/진행 표시(체크마크, data-status 등)를 부여하지
-            // 않는다(REQ-CASE-PROGRESS-003, 가짜 진행률 금지).
-            // @MX:NOTE: case-pending-stages를 case-pending-indicator 내부로
-            // 옮기면 안 된다 — aria-live="polite" 서브트리 안에 두면 스크린
-            // 리더가 매 폴링 틱마다 4단계 목록 전체를 반복 안내한다.
-            // @MX:SPEC: SPEC-CASE-PROGRESS-001
+            // SPEC-CASE-PROGRESS-001 REQ-CASE-PROGRESS-001/004(당시 번호)의
+            // 접근성 배치 원칙을 SPEC-CASE-PROGRESS-002가 계승·확장한다 —
+            // 진행률 바(role="progressbar")와 단계별 상태 목록 모두
+            // case-pending-indicator(role="status" aria-live="polite")의
+            // 형제 요소로 배치한다. 목록/진행률 바에는 aria-live를 부여하지
+            // 않아 폴링 틱(2초)마다 반복 안내되지 않는다(REQ-CASE-PROGRESS-002-016).
+            // @MX:NOTE: case-pending-stages/case-pending-progressbar를
+            // case-pending-indicator 내부로 옮기면 안 된다 — aria-live="polite"
+            // 서브트리 안에 두면 스크린 리더가 매 폴링 틱마다 반복 안내한다.
+            // @MX:SPEC: SPEC-CASE-PROGRESS-002
             <div data-testid="case-pending-status" className="flex flex-col gap-2">
               <span
                 data-testid="case-pending-indicator"
@@ -352,12 +363,49 @@ export function CaseInputForm() {
               >
                 처리 중입니다. 잠시만 기다려 주세요...
               </span>
+              {(() => {
+                // REQ-CASE-PROGRESS-002-013/015 — aria-valuenow와 시각적
+                // 너비는 오직 이 폴링 틱까지 서버로부터 실제로 관측된
+                // progressStage 값에서만 계산한다(보간·시간 기반 자동
+                // 증가 없음). 너비 전환(transition-[width])은 이미 도달한
+                // 목표값으로의 렌더링 방식일 뿐, 관측값 조작이 아니다.
+                const percent = Math.round((progressStage / ANALYSIS_STAGES.length) * 100);
+                return (
+                  <div
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
+                    data-testid="case-pending-progressbar"
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-app-line"
+                  >
+                    <div
+                      className="h-full rounded-full bg-bora-accent transition-[width] duration-300 ease-out"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                );
+              })()}
               <ol data-testid="case-pending-stages" className="flex flex-col gap-1">
-                {ANALYSIS_STAGES.map((stage, index) => (
-                  <li key={stage} className="text-label-s text-bora-ink-4">
-                    {index + 1}. {stage}
-                  </li>
-                ))}
+                {ANALYSIS_STAGES.map((stage, index) => {
+                  // REQ-CASE-PROGRESS-002-014 — 완료(인덱스 < progressStage)
+                  // / 진행 중(인덱스 === progressStage) / 대기(그 외).
+                  const stageStatus =
+                    index < progressStage
+                      ? "completed"
+                      : index === progressStage
+                        ? "in-progress"
+                        : "pending";
+                  return (
+                    <li
+                      key={stage}
+                      data-status={stageStatus}
+                      className="text-label-s text-bora-ink-4"
+                    >
+                      {index + 1}. {stage}
+                    </li>
+                  );
+                })}
               </ol>
             </div>
           ) : (
