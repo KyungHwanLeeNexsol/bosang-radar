@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Archive, CircleHelp, CornerDownRight, FileText, Library } from "lucide-react";
+import { Archive, CircleHelp, FileText, Library } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 
 // SPEC-PILOT-VISUAL-001 M2 (REQ-006) — 사이드바 nav 3개 항목의 target을
@@ -19,7 +19,6 @@ import { Chip } from "@/components/ui/chip";
 const NAV_LABELS = {
   input: "사건 입력",
   report: "리서치 리포트",
-  feedback: "전문가 피드백",
 } as const;
 
 // "/cases/new"는 문자열 형태상 "/cases/[caseId]"와 동일한 패턴과 매칭되므로
@@ -49,10 +48,6 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
   const navIcon = {
     input: <CircleHelp aria-hidden="true" className="size-4" />,
     report: <FileText aria-hidden="true" className="size-4" />,
-    // SPEC-SIDEBAR-NAV-001 M1 (REQ-001) — "전문가 피드백"은 별도 페이지가
-    // 아니라 리서치 리포트 내부 섹션으로의 인페이지 앵커 이동이므로,
-    // 페이지형 아이콘 대신 인페이지 이동을 암시하는 아이콘을 사용한다.
-    feedback: <CornerDownRight aria-hidden="true" className="size-4" />,
   };
 
   return (
@@ -74,17 +69,6 @@ export function SidebarNavItems({ onNavigate }: SidebarNavItemsProps = {}) {
         />
       ) : (
         <NavLink label={NAV_LABELS.report} icon={navIcon.report} disabled />
-      )}
-      {currentCaseId ? (
-        <NavLink
-          href={`/cases/${currentCaseId}#expert-feedback`}
-          label={NAV_LABELS.feedback}
-          icon={navIcon.feedback}
-          ariaLabel="전문가 피드백 섹션으로 이동 (현재 페이지 내)"
-          onNavigate={onNavigate}
-        />
-      ) : (
-        <NavLink label={NAV_LABELS.feedback} icon={navIcon.feedback} disabled />
       )}
       {/* SPEC-UI-MIGRATION-001 M2 (REQ-004) — 영구 비활성 nav 2항목. href 없음,
           DB/API 조회 없음, "준비 중" Chip만 부착한다. 실제 페이지는 만들지

@@ -245,9 +245,9 @@ describe("app/cases/app-shell-chrome — 모바일 드로어 접근성 계약(RE
 });
 
 // B2(외부 리뷰, P1): 모바일 드로어 nav 링크 클릭 시 닫기. 링크마다 pathname이
-// 달라야 실제 href를 가진 활성 링크가 되므로(리서치 리포트/전문가 피드백은
-// /cases/[caseId] 패턴일 때만 활성), 이 블록은 케이스 상세 경로로 pathname을
-// 오버라이드한 별도 렌더 인스턴스를 사용한다.
+// 달라야 실제 href를 가진 활성 링크가 되므로(리서치 리포트는 /cases/[caseId]
+// 패턴일 때만 활성), 이 블록은 케이스 상세 경로로 pathname을 오버라이드한
+// 별도 렌더 인스턴스를 사용한다.
 describe("app/cases/app-shell-chrome — 모바일 드로어 nav 링크 클릭 시 닫기(B2, 외부 리뷰)", () => {
   let localContainer: HTMLDivElement;
   let localRoot: Root;
@@ -312,20 +312,6 @@ describe("app/cases/app-shell-chrome — 모바일 드로어 nav 링크 클릭 �
 
     expect(localDrawer().className).toMatch(/-translate-x-full/);
     expect(reportLink.getAttribute("href")).toBe("/cases/case-1");
-  });
-
-  it("전문가 피드백(같은 페이지 #expert-feedback 앵커) 링크 클릭 시에도 드로어가 닫힌다", () => {
-    renderWithPathname("/cases/case-1");
-    openLocalDrawer();
-
-    const feedbackLink = localDrawer().querySelector<HTMLAnchorElement>(
-      'a[href="/cases/case-1#expert-feedback"]'
-    )!;
-    expect(feedbackLink).not.toBeNull();
-    act(() => feedbackLink.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    expect(localDrawer().className).toMatch(/-translate-x-full/);
-    expect(feedbackLink.getAttribute("href")).toBe("/cases/case-1#expert-feedback");
   });
 
   it("비활성('준비 중') nav 항목 클릭은 내비게이션도 상태 변경도 일으키지 않는다", () => {
