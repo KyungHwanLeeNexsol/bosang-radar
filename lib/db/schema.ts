@@ -162,6 +162,11 @@ export const caseJobs = sqliteTable("case_jobs", {
   input: text("input", { mode: "json" }).notNull(),
   status: text("status").notNull().default("queued"),
   caseId: text("case_id").references(() => cases.id, { onDelete: "set null" }),
+  // SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-006 — 파이프라인 6단계 중
+  // 사용자 대면 4단계(ANALYSIS_STAGES)에 대응하는 3개 체크포인트(1~3) 완료
+  // 여부. 0=시작 전, 1~3=해당 체크포인트까지 완료. processCaseJob()의
+  // onStageProgress 콜백이 펜싱된 UPDATE로만 갱신한다(design.md §4).
+  progressStage: integer("progress_stage").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
