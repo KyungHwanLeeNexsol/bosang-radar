@@ -390,7 +390,35 @@ export async function processCaseJob(jobId: string): Promise<void> {
   }
 
   try {
-    const report = await runPipeline(job.input as CaseInput);
+    // SPEC-CASE-PROGRESS-002 REQ-CASE-PROGRESS-002-007/008, D8 — 이 콜백은
+    // 기존 완료 트랜잭션(아래)과 동일한 3중 펜싱 조건(id/leaseId/status=
+    // processing)으로 progress_stage만 독립적으로 갱신한다. UPDATE 실패
+    // 또는 0행 매치는 로그만 남기고 예외를 전파하지 않는다 — 진행률 계측은
+    // 부가 신호이며 실제 파이프라인 실행을 절대 막지 않는다(design.md §4).
+    const report = await runPipeline(job.input as CaseInput, {
+      onStageProgress: async (stage) => {
+        try {
+          await db
+            .update(caseJobs)
+            .set({ progressStage: stage })
+            .where(
+              and(
+                eq(caseJobs.id, jobId),
+                eq(caseJobs.leaseId, job.leaseId),
+                eq(caseJobs.status, "processing")
+              )
+            );
+        } catch (progressError) {
+          console.error(
+            JSON.stringify({
+              event: "progress_stage_update_failed",
+              stage,
+              ...toSafeErrorMeta(progressError),
+            })
+          );
+        }
+      },
+    });
     const caseId = randomUUID();
     const now = new Date();
 

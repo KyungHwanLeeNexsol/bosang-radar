@@ -922,3 +922,127 @@ describe("lib/cases/create-case createCase (REQ-SCAFFOLD-016, AC-SCAFFOLD-015)",
     });
   });
 });
+
+// SPEC-CASE-PROGRESS-002 M3 (REQ-CASE-PROGRESS-002-007/008, AC-CASE-PROGRESS-002-007/008) —
+// processCaseJob()이 runPipeline()에 전달하는 onStageProgress 콜백이 펜싱된
+// UPDATE(id/leaseId/status=processing 3중 조건, 기존 완료 트랜잭션과 동일)로
+// progress_stage를 갱신하는지, UPDATE 실패 시 예외를 전파하지 않는지 검증한다.
+describe("SPEC-CASE-PROGRESS-002 M3 — processCaseJob() progress_stage 계측", () => {
+  let client: Client;
+  let db: LibSQLDatabase<typeof schema>;
+  let dir: string;
+
+  beforeEach(async () => {
+    ({ client, db, dir } = await createTestDb());
+    getDbMock.mockReturnValue(db);
+    runPipelineMock.mockReset();
+    process.env.LLM_PROVIDER_MODE = "deterministic";
+    await seedUsers(db, ["owner-progress-1", "owner-progress-fenced", "owner-progress-dbfail"]);
+  });
+
+  afterEach(() => {
+    client.close();
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    } catch {
+      // best-effort cleanup — 무시
+    }
+    vi.useRealTimers();
+  });
+
+  it("AC-CASE-PROGRESS-002-007 (정상 경로): onStageProgress(stage)가 펜싱 조건(id/leaseId/status=processing)을 만족하면 progress_stage를 갱신한다", async () => {
+    const { processCaseJob, startCaseJob } = await import("./create-case");
+    const started = await startCaseJob("owner-progress-1", validInput);
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    const pending = deferred<typeof sampleReport>();
+    runPipelineMock.mockReturnValueOnce(pending.promise);
+
+    const run = processCaseJob(started.jobId);
+    await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+
+    const onStageProgress = runPipelineMock.mock.calls[0]?.[1]?.onStageProgress as
+      | ((stage: 1 | 2 | 3) => Promise<void>)
+      | undefined;
+    expect(typeof onStageProgress).toBe("function");
+
+    await onStageProgress!(2);
+
+    const [job] = await db
+      .select()
+      .from(schema.caseJobs)
+      .where(eq(schema.caseJobs.id, started.jobId));
+    expect(job.progressStage).toBe(2);
+
+    pending.resolve(sampleReport);
+    await run;
+  });
+
+  it("AC-CASE-PROGRESS-002-007 (펜싱): 다른 leaseId로 재획득된 job에 발화된 콜백은 progress_stage를 갱신하지 않는다(0행 매치)", async () => {
+    const { processCaseJob, startCaseJob } = await import("./create-case");
+    const started = await startCaseJob("owner-progress-fenced", validInput);
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    const pending = deferred<typeof sampleReport>();
+    runPipelineMock.mockReturnValueOnce(pending.promise);
+
+    const run = processCaseJob(started.jobId);
+    await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+    const onStageProgress = runPipelineMock.mock.calls[0]?.[1]?.onStageProgress as
+      | ((stage: 1 | 2 | 3) => Promise<void>)
+      | undefined;
+
+    // 다른 실행이 이미 이 job의 leaseId를 재획득했다고 가정한다.
+    await db
+      .update(schema.caseJobs)
+      .set({ leaseId: "lease-reacquired-by-someone-else" })
+      .where(eq(schema.caseJobs.id, started.jobId));
+
+    await onStageProgress!(1);
+
+    const [job] = await db
+      .select()
+      .from(schema.caseJobs)
+      .where(eq(schema.caseJobs.id, started.jobId));
+    expect(job.progressStage).toBe(0);
+    expect(job.leaseId).toBe("lease-reacquired-by-someone-else");
+
+    pending.resolve(sampleReport);
+    await run;
+  });
+
+  it("AC-CASE-PROGRESS-002-008: progress_stage UPDATE 쿼리 자체가 실패해도 예외를 전파하지 않고 로그만 남긴다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { processCaseJob, startCaseJob } = await import("./create-case");
+    const started = await startCaseJob("owner-progress-dbfail", validInput);
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    const pending = deferred<typeof sampleReport>();
+    runPipelineMock.mockReturnValueOnce(pending.promise);
+
+    const run = processCaseJob(started.jobId);
+    await vi.waitFor(() => expect(runPipelineMock).toHaveBeenCalledTimes(1));
+    const onStageProgress = runPipelineMock.mock.calls[0]?.[1]?.onStageProgress as
+      | ((stage: 1 | 2 | 3) => Promise<void>)
+      | undefined;
+
+    const updateSpy = vi.spyOn(db, "update").mockImplementationOnce(() => {
+      throw new Error("progress_stage update boom (test-injected)");
+    });
+
+    await expect(onStageProgress!(1)).resolves.toBeUndefined();
+
+    const loggedLines = errorSpy.mock.calls.map((args) => String(args[0]));
+    expect(
+      loggedLines.some((line) => line.includes('"event":"progress_stage_update_failed"'))
+    ).toBe(true);
+
+    updateSpy.mockRestore();
+    pending.resolve(sampleReport);
+    await run;
+    errorSpy.mockRestore();
+  });
+});
