@@ -11,6 +11,9 @@
 - **And** 각 라벨 항목에는 개별 완료 상태를 나타내는 체크마크/색상 배지/`data-status` 속성이 존재하지 않는다
 
 **AC-CASE-PROGRESS-002** (REQ-CASE-PROGRESS-003)
+
+> ⚠️ **SPEC-CASE-PROGRESS-002로 반전됨(2026-09-17)**: 이 AC는 더 이상 참이 아니다. `role="progressbar"`와 실제 관측 신호 기반 퍼센트가 사용자 요청으로 의도적으로 추가되었다(SPEC-CASE-PROGRESS-002 REQ-012~015). 아래는 반전 이전의 원래 요구사항을 기록으로 보존한다.
+
 - **Given** AC-CASE-PROGRESS-001과 동일한 대기 상태
 - **When** 대기 Footer의 DOM을 검사함
 - **Then** `role="progressbar"` 요소가 존재하지 않는다
@@ -64,5 +67,5 @@
 - `pnpm lint` — 종료 코드 0
 - `pnpm build` — 종료 코드 0
 - `pnpm format:check` — 이 SPEC이 신규로 도입한 포맷 위반 0건
-- `grep -rn "role=\"progressbar\"" app/cases/new/case-input-form.tsx` — 매치 0건 (REQ-CASE-PROGRESS-003 기계적 검증)
+- `grep -rn "role=\"progressbar\"" app/cases/new/case-input-form.tsx` — 매치 0건 (REQ-CASE-PROGRESS-003 기계적 검증) — **SPEC-CASE-PROGRESS-002로 반전됨(2026-09-17)**: 현재는 2건 매치가 정상이다(위 AC-CASE-PROGRESS-002 주석 참고).
 - 위 §A의 AC-CASE-PROGRESS-001, 002, 003, 006, 007, 008, 009 전항목 PASS(AC-CASE-PROGRESS-004/005는 이 개정에서 제거됨 — HISTORY 참고)
