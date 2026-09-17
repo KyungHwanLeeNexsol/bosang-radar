@@ -251,3 +251,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# 테스트 커버리지 리포트 (npm test 시 자동 생성)
+coverage/
