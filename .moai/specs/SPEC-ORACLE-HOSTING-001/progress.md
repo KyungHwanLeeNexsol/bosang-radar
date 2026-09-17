@@ -29,7 +29,17 @@ M1 executed 2026-09-17 (orchestrator-direct interactive SSH deployment, not dele
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending — awaiting user's manual login / case-submission / background-pipeline verification (M1 step 7) before this milestone is marked complete>_
+```yaml
+run_status: audit-ready
+run_complete_at: 2026-09-17
+milestone: M1
+```
+
+M1 step 7 (end-to-end verification) confirmed by user 2026-09-17: login succeeds, case submission returns 202 and completes, Gemini research pipeline runs and produces a report. This closed a real production defect discovered during verification — `app/api/cases/route.ts` called a Netlify-only Background Function path (`/.netlify/functions/process-case-background`, 404 on this host), causing every case submission to fail with a self-issued 502. Fixed by replacing the HTTP round-trip with Next.js `after()` (same-process background execution, appropriate for a persistent PM2 server vs. serverless) — commit `b4aeba8`. M0 remains executed (research.md §5); M2 (Netlify decommission) remains a future, separately-gated milestone per plan.md — not started.
+
+Out-of-band fix bundled into this same deploy session, unrelated to Oracle hosting but discovered during live verification: sidebar "전문가 피드백" nav item removed per explicit user request (reverses SPEC-SIDEBAR-NAV-001's in-page-anchor-retention decision) — commit `5ec78ce`. Tracked here for traceability only; SPEC-SIDEBAR-NAV-001's own artifacts were not amended.
+
+Deferred to a follow-up SPEC (user requested, out of this SPEC's scope): a real (non-fake) percentage progress bar for case analysis, which requires backend instrumentation (case_jobs stage/percent tracking) + API + frontend — to be scoped via `/moai plan`.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
