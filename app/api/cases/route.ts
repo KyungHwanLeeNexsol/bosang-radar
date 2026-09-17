@@ -1,6 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest, after } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
-import { cancelCaseJob, startCaseJob } from "@/lib/cases/create-case";
+import { processCaseJob, startCaseJob } from "@/lib/cases/create-case";
+import { withGeminiFetchObservation } from "@/lib/observability/gemini-fetch-observer";
+import { recordGeminiRequestObservation } from "@/lib/observability/gemini-observation-store";
 import { toSafeErrorMeta } from "@/lib/logging/safe-error";
 
 // 사건 입력 폼(app/cases/new/)이 호출하는 route handler(design.md §2).
@@ -49,30 +51,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const backgroundUrl = new URL("/.netlify/functions/process-case-background", request.url);
-  let enqueued = false;
-  try {
-    const enqueueResponse = await fetch(backgroundUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jobId: result.jobId }),
-    });
-    enqueued = enqueueResponse.ok;
-  } catch (error) {
-    console.error(JSON.stringify({ event: "case_job_enqueue_failed", ...toSafeErrorMeta(error) }));
-  }
-
-  if (!enqueued) {
-    try {
-      await cancelCaseJob(session.user.id, result.jobId);
-    } catch (error) {
-      console.error(JSON.stringify({ event: "case_job_cancel_failed", ...toSafeErrorMeta(error) }));
-    }
-    return NextResponse.json(
-      { error: "분석 작업을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요." },
-      { status: 502 }
-    );
-  }
+  // 자체 호스팅(오라클 VM + PM2)에서는 서버리스와 달리 프로세스가 응답 이후에도
+  // 계속 살아있으므로, Netlify Background Function을 HTTP로 재호출할 필요 없이
+  // Next.js의 after()로 응답 전송 뒤 같은 프로세스 안에서 바로 처리한다.
+  // processCaseJob 자체가 실패를 삼키고 job 상태를 failed로 남기므로(status 폴링이
+  // 실패를 감지), 여기서는 별도 enqueue 실패 분기가 필요 없다.
+  const jobId = result.jobId;
+  after(() =>
+    withGeminiFetchObservation(
+      jobId,
+      (observation) => recordGeminiRequestObservation(jobId, observation),
+      () => processCaseJob(jobId)
+    ).catch((error) => {
+      console.error(JSON.stringify({ event: "case_job_after_failed", ...toSafeErrorMeta(error) }));
+    })
+  );
 
   return NextResponse.json({ jobId: result.jobId, status: "processing" }, { status: 202 });
 }
