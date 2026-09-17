@@ -6767,108 +6767,6 @@
                                   "height": 1
                                 }
                               ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "Fsw1t",
-                              "name": "상담 연결",
-                              "width": "fill_container",
-                              "fill": "$bora-050",
-                              "cornerRadius": 10,
-                              "stroke": "$accent-line",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "gap": 16,
-                              "padding": [
-                                16,
-                                18,
-                                17,
-                                18
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "frame",
-                                  "id": "E6dDQu",
-                                  "name": "L",
-                                  "width": "fill_container",
-                                  "layout": "vertical",
-                                  "gap": 5,
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "OhopS",
-                                      "name": "T",
-                                      "fill": "$accent-deep",
-                                      "content": "내 장해율이 얼마나 나올지 궁금하신가요?",
-                                      "fontFamily": "$font",
-                                      "fontSize": 14.5,
-                                      "fontWeight": "700",
-                                      "letterSpacing": -0.3
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "SnNU8",
-                                      "name": "B",
-                                      "fill": "$ink-2",
-                                      "textGrowth": "fixed-width",
-                                      "width": "fill_container",
-                                      "content": "같은 부상이라도 측정 방법과 진단서 작성에 따라 지급률이 크게 달라집니다. 손해사정사가 무료로 확인해 드립니다.",
-                                      "lineHeight": 1.65,
-                                      "fontFamily": "$font",
-                                      "fontSize": 12.5,
-                                      "fontWeight": "normal"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "ZGfC4",
-                                  "name": "R",
-                                  "gap": 9,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "id": "P1oBgb",
-                                      "type": "ref",
-                                      "ref": "ahZqh",
-                                      "name": "Kakao",
-                                      "padding": [
-                                        12,
-                                        18
-                                      ],
-                                      "descendants": {
-                                        "P6y0q": {
-                                          "icon": "message-circle"
-                                        },
-                                        "EG9v5": {
-                                          "content": "카톡 상담",
-                                          "fontSize": 13.5
-                                        }
-                                      }
-                                    },
-                                    {
-                                      "id": "FBdpP",
-                                      "type": "ref",
-                                      "ref": "HPcVR",
-                                      "name": "Tel",
-                                      "padding": [
-                                        12,
-                                        18
-                                      ],
-                                      "descendants": {
-                                        "L3NF88": {
-                                          "icon": "phone"
-                                        },
-                                        "CH463": {
-                                          "content": "전화 상담",
-                                          "fontSize": 13.5
-                                        }
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
                             }
                           ]
                         },
@@ -7136,7 +7034,7 @@
                           "id": "Kxcig",
                           "name": "T",
                           "fill": "#FFFFFF",
-                          "content": "11가지를 전부 청구하시겠어요?",
+                          "content": "정확한 보상을 안내 받아 보시겠어요?",
                           "fontFamily": "$font",
                           "fontSize": 23,
                           "fontWeight": "700",
@@ -8282,7 +8180,7 @@
                           "id": "ok74I",
                           "name": "N",
                           "fill": "$accent-deep",
-                          "content": "11개 담보 해당",
+                          "content": "3,000만원 ~ 6,000만원",
                           "fontFamily": "$font",
                           "fontSize": 15,
                           "fontWeight": "700"
@@ -8292,7 +8190,7 @@
                           "id": "d4T4HY",
                           "name": "V",
                           "fill": "$ink-4",
-                          "content": "약 300만 ~ 1,200만원",
+                          "content": "개인보험에 따라 다름",
                           "fontFamily": "$font",
                           "fontSize": 12,
                           "fontWeight": "500"
