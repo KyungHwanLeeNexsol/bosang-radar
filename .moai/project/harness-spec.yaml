@@ -1,21 +1,20 @@
 # .moai/project/harness-spec.yaml — machine-readable harness generation input
 # Generated from .moai/project/interview.md (Stage A + Stage B answers).
+# 2026-09-17 재생성 — 디자인 피벗(B2C 보상 진단 퍼널) 반영. 이전 B2B 버전은
+# interview.md 하단 "이전 인터뷰" 섹션 및 git 이력 참고.
 
-domain: "insurance-research-assistant"
-goal: "현직 보험설계사·손해사정사 10명이 실제로 사용해 볼 수 있는, evidence 기반 AI 리서치 보조 도구의 최소 실행 가능 제품(MVP)을 만든다."
+domain: "insurance-coverage-diagnosis-funnel"
+goal: "사고·질병 당사자가 검색 한 줄로 4카테고리(실손의료비/정액담보/후유장해/특별보상) 담보 진단을 받고, 손해사정사 카톡·전화 상담으로 연결되는 B2C 셀프서비스 퍼널을 만든다."
 constraints:
-  - "AI는 보험금 지급 여부/지급 확률을 단정하지 않는다."
-  - "모든 주요 AI 판단은 evidence와 연결되어야 한다."
-  - "개인정보·민감정보 저장 최소화 — 주민번호, 전화번호, 상세주소, 의료기록 원본은 MVP에서 받지 않는다."
-  - "특정 LLM에 application logic이 종속되지 않도록 AI provider abstraction 필요."
-  - "DB는 Drizzle ORM 뒤에 두어 향후 PostgreSQL 이전 가능해야 한다."
-  - "microservice, Kubernetes, 별도 vector DB 등 overengineering 금지."
-  - "무료 tier 인프라 우선."
-scope: "In-scope: 상해후유장해/질병후유장해 리서치 파이프라인, 사건 입력 UI, evidence 기반 리서치 리포트, 전문가 피드백 저장. Out-of-scope (이번 SPEC): 보험금 지급 판단/확률 제공, 대규모 실데이터 수집, 다른 담보 영역, PostgreSQL 마이그레이션 실행, microservice/K8s/vector DB."
+  - "담보 진단 단계(01 질문 입력 · 02 진단 결과)는 비식별 유지 — 이름·전화번호·주민번호 등 PII 입력 필드 없음."
+  - "03 상담 신청 화면(리드 폼)에서만 연락처 수집 허용 — 새로 도입되는 유일한 예외."
+  - "금액 표기는 단정형 금지, 항상 범위로 제시. 면책 문구 필수 노출."
+  - "기존 B2B 코드(사건 리서치 파이프라인·인증·DB)는 이번 문서 라운드에서 건드리지 않았으나, 삭제 방향은 확정됨(2026-09-17, 실사용 테스터 없음 확인) — 실제 삭제 실행은 별도 SPEC."
+scope: "In-scope: product.md/structure.md/tech.md를 새 B2C 흐름(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 기준으로 재작성, 기존 B2B 코드와의 공존 관계를 구조 문서에 명시. Out-of-scope (이번 라운드): 기존 B2B 코드의 실제 재사용/삭제/마이그레이션 실행(코드 변경 없음), 새 화면의 실제 구현."
 
-verification: "Vitest (pnpm test)"
+verification: "기존과 동일 — Vitest(단위) + Playwright(E2E) 유지"
 external_systems:
-  - "Turso/libSQL (DB)"
-  - "Gemini API (LLM)"
+  - "Turso/libSQL (DB) — 재사용 전제, 신규 스키마 설계는 후속 SPEC"
+  - "Gemini API (LLM) — 재사용 전제, 담보 매칭에 쓸지는 후속 SPEC에서 결정"
 ui_surface: "has-ui"
 team_sharing: "solo"
