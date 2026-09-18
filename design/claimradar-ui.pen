@@ -1324,6 +1324,84 @@
             },
             {
               "type": "frame",
+              "id": "iIH0G",
+              "name": "Row / Brand Lockup",
+              "width": "fill_container",
+              "gap": 26,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "o9uhR",
+                  "name": "Brand Lockup",
+                  "reusable": true,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "J2lgZh",
+                      "name": "Icon",
+                      "width": 30,
+                      "height": 30,
+                      "fill": "$accent",
+                      "cornerRadius": 8,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Ms3Wy",
+                          "name": "B",
+                          "fill": "#FFFFFF",
+                          "content": "B",
+                          "lineHeight": 1,
+                          "fontFamily": "$font-mark",
+                          "fontSize": 15.8,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.33
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "a0rod",
+                      "name": "Type",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "R2fJk6",
+                          "name": "Wordmark",
+                          "fill": "$ink",
+                          "content": "BORA",
+                          "lineHeight": 1.1,
+                          "fontFamily": "$font-mark",
+                          "fontSize": 20,
+                          "fontWeight": "800",
+                          "letterSpacing": -0.44
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "T9INB",
+                  "name": "N",
+                  "fill": "$ink-4",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Brand Lockup — 헤더 전용. 공통 01 브랜드 시트의 「라이트 · 기본」 락업에서 아이콘을 40 → 30으로 비례 축소하고 워드마크만 남긴 축약형입니다. 간격은 브랜드 규정(아이콘 크기 × 27%)에 따라 8px. 서체는 Manrope ExtraBold.",
+                  "lineHeight": 1.65,
+                  "fontFamily": "$font",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
               "id": "uIob5",
               "name": "Row / Badges + Buttons",
               "width": "fill_container",
@@ -5188,48 +5266,10 @@
           "alignItems": "center",
           "children": [
             {
-              "type": "frame",
-              "id": "p89uyS",
-              "name": "Brand",
-              "gap": 9,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "SrpgA",
-                  "name": "Mark",
-                  "width": 26,
-                  "height": 26,
-                  "fill": "$accent",
-                  "cornerRadius": 7,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "B4jOrB",
-                      "name": "B",
-                      "fill": "#FFFFFF",
-                      "content": "B",
-                      "lineHeight": 1,
-                      "fontFamily": "$font-mark",
-                      "fontSize": 13.5,
-                      "fontWeight": "800"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "bb2I3",
-                  "name": "Name",
-                  "fill": "$ink",
-                  "content": "보상 레이더",
-                  "fontFamily": "$font",
-                  "fontSize": 15.5,
-                  "fontWeight": "700",
-                  "letterSpacing": -0.3
-                }
-              ]
+              "id": "jI3UH",
+              "type": "ref",
+              "ref": "o9uhR",
+              "name": "Brand"
             },
             {
               "type": "frame",
@@ -7186,48 +7226,10 @@
           "alignItems": "center",
           "children": [
             {
-              "type": "frame",
-              "id": "ZBUvD",
-              "name": "Brand",
-              "gap": 9,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "k7K7yo",
-                  "name": "Mark",
-                  "width": 26,
-                  "height": 26,
-                  "fill": "$accent",
-                  "cornerRadius": 7,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "XqgWw",
-                      "name": "B",
-                      "fill": "#FFFFFF",
-                      "content": "B",
-                      "lineHeight": 1,
-                      "fontFamily": "$font-mark",
-                      "fontSize": 13.5,
-                      "fontWeight": "800"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "vNtND",
-                  "name": "Name",
-                  "fill": "$ink",
-                  "content": "보상 레이더",
-                  "fontFamily": "$font",
-                  "fontSize": 15.5,
-                  "fontWeight": "700",
-                  "letterSpacing": -0.3
-                }
-              ]
+              "id": "qhtbY",
+              "type": "ref",
+              "ref": "o9uhR",
+              "name": "Brand"
             },
             {
               "type": "frame",
@@ -7981,48 +7983,10 @@
           "alignItems": "center",
           "children": [
             {
-              "type": "frame",
-              "id": "hEHqT",
-              "name": "Brand",
-              "gap": 9,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "ACDfY",
-                  "name": "Mark",
-                  "width": 26,
-                  "height": 26,
-                  "fill": "$accent",
-                  "cornerRadius": 7,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "l6tOc4",
-                      "name": "B",
-                      "fill": "#FFFFFF",
-                      "content": "B",
-                      "lineHeight": 1,
-                      "fontFamily": "$font-mark",
-                      "fontSize": 13.5,
-                      "fontWeight": "800"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "h4lkvH",
-                  "name": "Name",
-                  "fill": "$ink",
-                  "content": "보상 레이더",
-                  "fontFamily": "$font",
-                  "fontSize": 15.5,
-                  "fontWeight": "700",
-                  "letterSpacing": -0.3
-                }
-              ]
+              "id": "f1fNe",
+              "type": "ref",
+              "ref": "o9uhR",
+              "name": "Brand"
             },
             {
               "type": "text",
