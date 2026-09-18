@@ -24,34 +24,46 @@
 
 - **AC-B2CDIAG-013**: Given 추가 질문 화면까지 진행한 상태, When 브라우저 새로고침을 실행하면, Then 입력값·동의 상태·응답이 모두 초기화되고 01 초기 화면으로 되돌아간다 — 이는 그 상태가 서버나 DB가 아니라 클라이언트 메모리에만 존재했음을 검증한다. (REQ-B2CDIAG-015, REQ-B2CDIAG-004, REQ-B2CDIAG-021)
 - **AC-B2CDIAG-014**: Given 프로덕션 환경에서 클라이언트 메모리에 선행 상태가 없는 상태, When 진단 중/결과 상태에 해당하는 URL로 직접 접근하면, Then 01 초기 입력 화면으로 리다이렉트된다. (REQ-B2CDIAG-016)
-- **AC-B2CDIAG-015**: Given 프로덕션이 아닌 환경(dev/staging), When 지정된 개발용 쿼리 파라미터로 특정 상태(예: 결과 없음)를 지정해 접근하면, Then 선행 상태 없이도 해당 상태가 강제로 렌더링된다. (REQ-B2CDIAG-017)
-- **AC-B2CDIAG-016**: Given 프로덕션 환경, When 동일한 개발용 쿼리 파라미터로 접근을 시도하면, Then 해당 파라미터는 무시되고 정상적인 상태 판정 로직을 따른다. (REQ-B2CDIAG-016, REQ-B2CDIAG-017)
-- **AC-B2CDIAG-017**: Given 필수 동의를 완료하고 추가 질문 화면까지 진행한 상태, When 동의를 철회(체크 해제)하면, Then 다음 단계 진행이 차단되고, 그 시점까지의 추가 질문 응답은 다음 단계로 전달되지 않는다. (REQ-B2CDIAG-018)
+- **AC-B2CDIAG-015**: Given `ENABLE_DIAGNOSIS_DEV_STATES=true`인 비프로덕션(dev/staging) 환경, When `?devStep=result-none` 또는 `?devStep=error` 쿼리 파라미터로 접근하면, Then 선행 상태 없이도 01-D(결과 없음) 또는 01-E(분석 오류) 상태가 UI 검증 목적으로 강제 렌더링된다. (REQ-B2CDIAG-017)
+- **AC-B2CDIAG-016**: Given `ENABLE_DIAGNOSIS_DEV_STATES`가 unset이거나 `false`(프로덕션 기본값), When `?devStep=` 쿼리 파라미터로 접근을 시도하면, Then 해당 파라미터는 무시되고 정상적인 상태 판정 로직을 따른다 — devStep이 프로덕션에서 무시됨을 검증하는 전용 시나리오다. (REQ-B2CDIAG-016, REQ-B2CDIAG-017)
+- **AC-B2CDIAG-017**: Given 사용자가 필수 동의를 완료하고 추가 질문 화면의 첫 번째 질문(1/3)에 있는 상태, When 사용자가 뒤로 가기(브라우저 뒤로가기 또는 인앱 뒤로가기 동작)를 수행하면, Then 사용자는 동의(01-A2) 오버레이로 재진입하고 이전에 체크했던 동의 체크박스가 여전히 선택된 상태로 표시된다(세션 내 유지, REQ-B2CDIAG-019); When 이 상태에서 사용자가 그 체크박스를 다시 해제하면, Then 최초 미동의 상태와 동일하게 "동의하고 진단하기" CTA를 통한 다음 단계 진행이 다시 차단된다; AND 뒤로 가기 이전에 이미 답변했던 추가 질문 응답은 동의 철회로 인해 삭제되지 않고 클라이언트 상태(React state)에 그대로 남아 있으며, 사용자가 이후 다시 동의하고 진행하면 그 응답이 유지된 채로 이어진다 — 동의 철회는 "다음 단계로의 진행을 차단"하는 것이지 "이미 입력된 클라이언트 상태를 삭제"하는 것이 아니다(design.md §17 "동의 철회 시 데이터 처리" 행 및 §18.1 `questions` 상태 "유지되는 데이터" 행과 일치). (REQ-B2CDIAG-018, REQ-B2CDIAG-019)
 - **AC-B2CDIAG-018**: Given 추가 질문 화면에 있는 상태, When 이전 단계(동의 화면)로 돌아가면, Then 이미 완료했던 필수 동의 체크 상태가 같은 세션 내에서 유지된 채로 표시된다. (REQ-B2CDIAG-019)
 
 ## 입력 검증 · 반응형 · Mock 데이터
 
-- **AC-B2CDIAG-019**: Given 01 검색창에 이름 또는 전화번호 형식 문자열을 입력한 상태, When "보상 진단"을 클릭하면, Then 입력 스키마 검증이 실패하고 동의 화면으로 진행하지 않는다. (REQ-B2CDIAG-020)
+- **AC-B2CDIAG-019**: Given 01 검색창에 휴대전화번호 형식(예: `010-1234-5678` 또는 `01012345678`) 또는 주민등록번호 형식(예: `901231-1234567` 또는 `9012311234567`) 문자열을 입력한 상태, When "보상 진단"을 클릭하면, Then 입력 스키마 검증이 실패하고 동의 화면으로 진행하지 않는다. 이름 형식 문자열(예: "홍길동")은 이 자동 거부 대상이 아니다 — 이름은 정규식으로 신뢰성 있게 판별할 수 없어 오탐(false positive) 없이 자동 거부할 수 없으며, 대신 기존 경고 배너(`notice.tsx`)를 통한 안내만 제공된다(별도 AC로 차단 여부를 검증하지 않음 — `design.md` §4 참고). (REQ-B2CDIAG-020)
 - **AC-B2CDIAG-020**: Given 뷰포트 폭이 1440px(Desktop)와 390px(Mobile) 각각인 상태, When 동일한 진단 플로우를 수행하면, Then 두 폭 모두 동일한 상태 머신과 데이터로 동작하되 레이아웃(Modal vs Bottom Sheet 등)만 다르게 렌더링된다. (REQ-B2CDIAG-022)
-- **AC-B2CDIAG-021**: Given 담보 매칭 엔진이 아직 연결되지 않은 현재 상태, When 진단 결과 화면(01→02 경계)에 도달하면, Then mock 데이터임을 나타내는 표시 없이 실제 결과처럼 보이게 렌더링되지 않는다 — 즉 02 화면 자체가 이 SPEC에서 구현되지 않으므로 mock 결과가 노출될 경로 자체가 존재하지 않는다. (REQ-B2CDIAG-024)
+- **AC-B2CDIAG-021**: Given `ENABLE_DIAGNOSIS_FLOW=false`(프로덕션 기본값) 또는 `DIAGNOSIS_ENGINE_READY=false`(프로덕션 기본값 — 실제 매칭 엔진 연결이 이 SPEC의 Out of Scope이므로 이 SPEC 범위 내내 유지되는 상태) 중 하나 이상이 참인 상태, When 실제 사용자(또는 테스트 실행 환경)가 01 화면이 정상 렌더링되었다면 `<DiagnosisFlow />`가 표시되어야 할 지점에 도달하면, Then `app/page.tsx`는 `<DiagnosisFlow />`를 렌더링하지 않고 기존 placeholder("서비스 준비 중입니다")를 렌더링한다 — 따라서 `loading` 상태를 거쳐 01-D(결과 없음) 또는 01-E(분석 오류)로 자동 분기하는 mock 판정 경로에서 나오는 mock 결과가 실제 프로덕션 사용자에게 표시되지 않는다. 두 플래그 상태 모두 테스트 환경(예: Playwright 테스트 설정, CI 환경 변수)에서 직접 설정·검증 가능하다. (REQ-B2CDIAG-024, REQ-B2CDIAG-025)
 
 ## Edge Cases
 
-- **AC-B2CDIAG-022**: Given 검색창에 200자를 입력해 글자 수 제한에 도달한 상태, When 사용자가 추가 문자를 입력하려 시도하면, Then 입력이 차단되고 글자 수 카운터가 `200 / 200자`로 정확히 표시된다.
-- **AC-B2CDIAG-023**: Given 01/M01 화면이 로드된 상태, When "많이 찾는 사례" 칩(예: 교통사고) 중 하나를 클릭하면, Then 검색창에 해당 칩의 텍스트가 채워지고 "보상 진단" CTA가 활성화된다.
+- **AC-B2CDIAG-022**: Given 검색창에 200자를 입력해 글자 수 제한에 도달한 상태, When 사용자가 추가 문자를 입력하려 시도하면, Then 입력이 차단되고 글자 수 카운터가 `200 / 200자`로 정확히 표시된다. (REQ-B2CDIAG-020)
+- **AC-B2CDIAG-023**: Given 01/M01 화면이 로드된 상태, When "많이 찾는 사례" 칩(예: 교통사고) 중 하나를 클릭하면, Then 검색창에 해당 칩의 텍스트가 채워지고 "보상 진단" CTA가 활성화된다. (REQ-B2CDIAG-005)
 
 ## 배포 정합성
 
-- **AC-B2CDIAG-024**: Given `plan.md` 마일스톤 11(문서·배포 smoke check 갱신)이 정의되어 있는 상태, When run-phase에서 01 화면이 실제로 배포되면, Then `.github/workflows/deploy.yml`의 배포 스모크 체크 문자열이 현재의 "서비스 준비 중입니다" 대신 새 01 화면의 안정적 식별자로 교체되어 있어야 한다. (REQ-B2CDIAG-023)
+- **AC-B2CDIAG-024**: Given `plan.md` 마일스톤 11(b)(배포 smoke check 교체)이 정의되어 있는 상태, When `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 프로덕션에서 실제로 모두 `true`로 전환되면, Then `.github/workflows/deploy.yml`의 배포 스모크 체크 문자열이 현재의 "서비스 준비 중입니다" 대신 새 01 화면의 안정적 식별자로 교체되어 있어야 한다 — 이 교체는 run-phase 코드 완성 시점에 자동으로 이뤄지지 않는다. (REQ-B2CDIAG-023)
+
+  > **참고**: 이 AC는 `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`가 실제 프로덕션에서 활성화되는 시점에 조건부로 검증되며, 이 SPEC 자체의 sync-phase `completed` 전환 조건이 아니다.
+
+## 프로덕션 활성화 게이트
+
+- **AC-B2CDIAG-025**: Given `ENABLE_DIAGNOSIS_FLOW=true`(및 `DIAGNOSIS_ENGINE_READY=true`)로 전환된 환경이라 하더라도, When 사용자가 동의 상세(01-A3/M01-A3) 화면을 열람하면, Then 6개 항목(처리 목적 / 처리하는 건강정보 항목 / 서버 저장 여부 / 보유·이용 기간 / 외부 AI 서비스 전송 여부 / 동의 거부 권리 및 진단 이용 제한) 중 어느 것도 `{}` placeholder 형태로 프로덕션 UI에 노출되지 않는다 — 6개 문구가 모두 확정되기 전까지 `ENABLE_DIAGNOSIS_FLOW` 자체를 `true`로 전환할 수 없으므로, 이 조건은 배포 전 게이트로 검증된다. (REQ-B2CDIAG-025, `plan.md` §B)
 
 ## Definition of Done (이 plan-phase 기준)
 
-- [ ] 위 24개 AC 각각이 후속 run-phase에서 Vitest(단위/컴포넌트) 또는 Playwright(01 범위 E2E)로 매핑됨
-- [ ] `spec.md`의 24개 REQ 전항목이 명시적으로 최소 1개 AC에 인용됨 — REQ-B2CDIAG-001/002/003 → AC-001, REQ-B2CDIAG-004/021 → AC-013, REQ-B2CDIAG-023 → AC-024, 나머지(REQ-005~020, 022, 024)는 §본문의 각 AC에 개별 인용됨
+- [ ] 위 25개 AC(AC-001~AC-025) 각각이 후속 run-phase에서 Vitest(단위/컴포넌트) 또는 Playwright(01 범위 E2E)로 매핑됨 — 구 AC-025b(프로덕션 빌드/Suspense 검증)는 "## Quality Gate 기준" 섹션으로 이관되어 별도 품질 게이트 기준으로 관리된다
+- [ ] `spec.md`의 25개 REQ 전항목이 명시적으로 최소 1개 AC에 인용됨 — REQ-B2CDIAG-001/002/003 → AC-001, REQ-B2CDIAG-004/021 → AC-013, REQ-B2CDIAG-020 → AC-019/AC-022, REQ-B2CDIAG-005 → AC-001/AC-023, REQ-B2CDIAG-023 → AC-024, REQ-B2CDIAG-025 → AC-021/AC-025, 나머지(REQ-006~019, 022, 024)는 §본문의 각 AC에 개별 인용됨
 - [ ] Out of Scope 항목(02/03 구현, E2E 전체, 매칭 엔진)에 대한 테스트가 이 SPEC의 run-phase에 포함되지 않음을 plan-auditor가 확인
+- [ ] AC-021/AC-015/AC-016 검증됨: `ENABLE_DIAGNOSIS_FLOW=false` 또는 `DIAGNOSIS_ENGINE_READY=false`(둘 다 프로덕션 기본값이며, 이 SPEC 범위 내내 유지됨)일 때 실제 사용자는 정상 사용자 플로우를 통해 01-D/01-E에 절대 도달할 수 없음
+- [ ] AC-025 검증됨: 6개 동의 상세 placeholder 문구가 확정되지 않은 한 `ENABLE_DIAGNOSIS_FLOW`가 프로덕션에서 `true`로 전환되지 않음
+- [ ] AC-024는 이 SPEC의 sync-phase `completed` 전환을 막는 블로킹 조건이 아니다 — `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`가 실제 프로덕션에서 활성화되는 시점에 조건부로 검증되는 이연(deferred) 추적 항목이며, "이 SPEC의 모든 AC가 충족되어야 완료" 판정 집합에서 제외된다(`plan.md` M11(b) 참고)
+- [ ] run-phase가 동의 상세 컨테이너(Modal/Bottom Sheet 셸)의 전체 UI 구현을 완료하더라도, 6개 문구가 미확정 상태이면 이 SPEC의 판정은 "코드 구현 완료 / 출시 차단"이며 "완료"로 판정하지 않는다
+- [ ] 이 문서 및 `spec.md`/`plan.md`/`progress.md`에 실제 plan-auditor 검토 결과 없이 "PASS", 구체적 점수, 또는 "완료"를 기재하지 않았음을 확인함(이 개정 세션 기준)
 
 ## Quality Gate 기준
 
 - Vitest 단위 테스트: 신규 zod 스키마·상태 머신 로직 커버리지 85% 이상(프로젝트 `constitution.test_coverage_target` 기준)
 - LSP: run-phase 진입 시 `max_errors: 0, max_type_errors: 0, max_lint_errors: 0`(`.moai/config/sections/quality.yaml`)
 - 접근성: 키보드만으로 01→동의→추가질문→진단중 전체 흐름 완주 가능(마우스 없이)
+- 프로덕션 빌드 검증: `diagnosis-flow.tsx`(Client Component)가 `useSearchParams()`를 호출하는 상태에서 `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트) 성공, `app/page.tsx`가 `<DiagnosisFlow />`를 `<Suspense fallback={...}>`로 감싸고 있음을 전제로 Suspense 경계 누락으로 인한 빌드 오류·경고 없음(`design.md` §2) — Milestone 2/10 완료 조건에 포함

@@ -8,23 +8,18 @@
 - **상태는 `?step=` 쿼리 파라미터로 shallow-route** — 뒤로가기(browser back)가 자연스럽게 이전 단계로 이동하도록 브라우저 히스토리에 단계별 항목을 남긴다.
 - **서버 저장 없음** — 모든 상태(입력값, 동의 여부, 추가 질문 응답)는 React state(클라이언트 메모리)에만 존재한다. 새로고침 시 사라지는 것이 설계 의도다(REQ-B2CDIAG-015, REQ-B2CDIAG-021).
 
-## 1. 미해결 디자인 질문 — M01-D / M01-E 부재
+## 1. 확정된 디자인 결정 — M01-D / M01-E 부재 처리
 
 `design/MIGRATION-PLAN.md` §2④, §9에 따르면 모바일용 결과없음(`M01-D`)·분석오류(`M01-E`) 디자인이 아직 없다. 신규 제작은 이 SPEC의 Out of Scope다.
 
-**[NEEDS CLARIFICATION: M01-D/M01-E 부재 시 처리 원칙]** — 다음 두 방향 중 하나를 후속 run-phase 착수 전 확정해야 한다:
-
-- (A) Desktop 01-D/01-E 컴포넌트를 반응형으로 그대로 재사용(390px 폭에서 세로 스택으로 재배치)한다 — 신규 디자인 없이 기존 컴포넌트의 반응형 breakpoint만 추가.
-- (B) 모바일에서는 결과없음/오류 상태를 별도 화면이 아닌 인라인 배너(01/M01 상단에 노출)로 축소 표현한다.
-
-이 SPEC은 (A)를 잠정 권장안으로 design.md에 기록하되(§13 반응형 전략 참고), 최종 확정은 run-phase 착수 시 사용자 확인을 거친다.
+**결정 (확정)**: Desktop `01-D`/`01-E` 컴포넌트를 반응형으로 그대로 재사용한다 — 768px 미만(Mobile 레이아웃, §13 참고)에서 세로 스택으로 재배치한다. 이는 **기존 Desktop 컴포넌트의 반응형(CSS/Tailwind breakpoint) 재사용**이며, 신규 모바일 디자인 프로덕션(신규 Pencil/Figma 산출물 제작)이 아니다 — 신규 디자인 없이 기존 컴포넌트에 모바일 breakpoint 레이아웃만 추가한다. §13의 브레이크포인트 확정과 함께 이 결정으로 §9의 부재 항목이 해소된다.
 
 ## 2. Route 구조와 Server/Client 컴포넌트 경계
 
 ```
 app/
 ├── layout.tsx          # 변경 없음 (Server Component, 공통 골격)
-├── page.tsx            # [변경] Server Component 래퍼 — <DiagnosisFlow /> 렌더링만 담당
+├── page.tsx            # [변경] Server Component 래퍼 — ENABLE_DIAGNOSIS_FLOW===true && DIAGNOSIS_ENGINE_READY===true일 때만(AND 게이트, §19) <Suspense><DiagnosisFlow /></Suspense> 렌더링, 그 외(기본값)에는 기존 placeholder 유지
 └── globals.css         # 변경 없음
 
 components/
@@ -42,6 +37,8 @@ components/
 ```
 
 **Server/Client 경계**: `app/page.tsx`는 Server Component로 유지한다(기존 관례와 일치, `layout.tsx`/`not-found.tsx`와 동일 패턴). 실제 상태 전이·이벤트 핸들러·`useSearchParams`/`useRouter`/포커스 관리는 모두 브라우저 API에 의존하므로 `diagnosis-flow.tsx`부터 그 하위 전체가 `"use client"` 경계 안에 있다. 이는 `components/ui/popover.tsx`가 이미 따르는 패턴(`"use client"` + Base UI 프리미티브 래퍼)과 동일하다.
+
+**Suspense 경계 (필수)**: `diagnosis-flow.tsx`는 `"use client"` 컴포넌트이면서 `useSearchParams()`를 호출한다. Next.js는 `useSearchParams()`를 호출하는 Client Component가 상위 Server Component에서 `<Suspense>` 경계 없이 정적 렌더링되면 프로덕션 빌드가 실패하거나(또는 페이지 전체가 강제로 dynamic 렌더링되어 정적 최적화를 잃는다) — 따라서 `app/page.tsx`는 `<DiagnosisFlow />`를 반드시 `<Suspense fallback={...}>`로 감싸 렌더링해야 한다(§19 참고, `ENABLE_DIAGNOSIS_FLOW=true`일 때만). fallback은 01 화면의 초기 레이아웃(검색창 + 카테고리 카드 골격)과 유사한 스켈레톤으로 구성해 레이아웃 시프트를 최소화한다는 것이 design-phase 요구사항이며, 정확한 픽셀 스펙은 run-phase 구현 세부사항이다. 이 Suspense 래핑은 Milestone 2(공개 B2C route와 진단 shell)의 산출물이며, run-phase 테스트 계획은 `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트)가 Suspense 경계 누락 오류·경고 없이 성공함을 확인하는 단계를 포함해야 한다(`acceptance.md` "## Quality Gate 기준" — 프로덕션 빌드 검증 항목 참고).
 
 ## 3. 컴포넌트 재사용 맵 (`components/ui/*`)
 
@@ -66,8 +63,9 @@ components/
 `lib/validation/diagnosis-input.ts`(신규):
 
 - 검색어 필드: 문자열, 1~200자(디자인의 `28 / 200자` 카운터와 일치).
-- `lib/validation/case-input.ts`의 PII 정규식 거부 패턴(주민등록번호·휴대전화번호 형식 정규식)을 **참고하여 새로 작성** — 기존 스키마를 import하지 않는다. 이유: `case-input.ts`는 사건 접수용 필드 집합(주소·의료기록 등)을 포함하고 있어 01 화면의 단일 검색어 필드와 스키마 형태가 다르다. `tech.md` § PII 정책 예외에서 이미 "03 리드 폼은 새 스키마가 필요하다"고 명시한 것과 같은 이유로, 01 입력도 독립 스키마로 분리한다.
-- 검증 실패 시 REQ-B2CDIAG-020에 따라 "보상 진단" 클릭이 무효화되고 인라인 오류 메시지를 표시한다(01-D "현재 입력만으로는 보상 가능성을 판단하기 어렵습니다"와는 다른, 입력 형식 자체의 오류 — §18 상태표 "입력 검증 오류" 참고).
+- 검증은 2단계로 구성된다 — REQ-B2CDIAG-020: **(자동 차단)** 휴대전화번호 형식과 주민등록번호(RRN) 형식만 정규식으로 구조적 거부한다 — 이 두 패턴은 구조적으로 신뢰성 있게 식별 가능하다(하이픈 포함/미포함 모두 대응). **(안내만 제공)** 이름·주소 등 그 외 개인식별정보는 구조적으로 거부하지 않는다 — 이름 형식은 정규식으로 신뢰성 있게 판별할 수 없고 오탐(false positive)이 불가피하므로, 기존 경고 배너(`notice.tsx`, §3 참고)를 통한 안내만 제공하며 입력을 차단하지 않는다.
+- `lib/validation/case-input.ts`의 전화번호·주민등록번호 정규식 **패턴 스타일만 참고하여 새로 작성** — 기존 스키마를 import하지 않는다. 이유: `case-input.ts`는 사건 접수용 필드 집합(주소·의료기록 등)을 포함하고 있어 01 화면의 단일 검색어 필드와 스키마 형태가 다르다. `tech.md` § PII 정책 예외에서 이미 "03 리드 폼은 새 스키마가 필요하다"고 명시한 것과 같은 이유로, 01 입력도 독립 스키마(`lib/validation/diagnosis-input.ts`)로 분리하며, 이 신규 스키마가 실제로 구조적 거부를 구현하는 규칙은 전화번호·주민등록번호 두 패턴뿐이다 — 이름 형식에 대한 구조적 거부 규칙은 구현하지 않는다.
+- 검증 실패 시(전화번호·주민등록번호 형식 매칭) REQ-B2CDIAG-020에 따라 "보상 진단" 클릭이 무효화되고 인라인 오류 메시지를 표시한다(01-D "현재 입력만으로는 보상 가능성을 판단하기 어렵습니다"와는 다른, 입력 형식 자체의 오류 — §18 상태표 "입력 검증 오류" 참고).
 
 ## 5. 클라이언트 상태 관리
 
@@ -87,6 +85,8 @@ REQ-B2CDIAG-015에 따라 새로고침 시 모든 React state가 초기화되는
 
 이 SPEC 범위(01 화면)는 **서버 전송이 필요 없다** — 담보 매칭 로직이 미결정(`tech.md`)이므로 01-C "진단 중" 상태는 이 SPEC에서는 실제 분석을 수행하지 않고, 클라이언트 내에서 UI 시뮬레이션(고정 지연 + mock 결과 분기)으로 구현한다(§11 참고). 신규 API 라우트·DB 테이블은 이 SPEC의 Out of Scope이며, 실제 매칭 로직이 결정되는 후속 SPEC이 `app/api/diagnosis/`(구조 제안, `structure.md` § 목표 구조)를 신설한다.
 
+**중요 — 이 mock 시뮬레이션은 로컬/테스트/리뷰 전용이며 프로덕션 동작이 아니다.** `loading` 상태의 고정 지연 + 키워드 기반 mock 판정 분기는 실제 매칭 엔진이 연결되기 전, 실제 프로덕션 사용자에게 자동으로 노출되어서는 안 된다 — 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 실제 "결과 없음" 응답과 사용자 입장에서 구분되지 않으므로, 실제 사용자를 겨냥한 자동 mock 분기 대상이 될 수 없다. 이 mock 자동 분기 로직이 프로덕션에서 도달 가능해지려면 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY` 두 플래그가 모두 `true`여야 하는데(§19의 AND 게이트), 실제 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로 이 SPEC이 전달하는 코드 범위 안에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 존재하지 않는다 — 따라서 이 mock 자동 분기 경로는 이 SPEC이 전달한 코드만으로는 구조적으로 프로덕션에서 도달 불가능하다. 이 원칙의 구체적 게이트 메커니즘(두 플래그의 AND 조건)은 §19를 참고한다.
+
 ## 9. 미래 02 결과 화면과의 인터페이스 경계
 
 01→02 경계에서 전달할 데이터 shape을 **느슨하게** 정의한다(02 자체는 미구현이므로 확정 스키마가 아니라 방향성):
@@ -105,23 +105,40 @@ interface DiagnosisHandoff {
 
 ## 10. 개발·리뷰용 상태별 화면 접근 방법
 
-REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파라미터를 지원하되, `process.env.NODE_ENV === 'production'`일 때는 이 파라미터를 완전히 무시한다(REQ-B2CDIAG-016과 결합). 이는 CI/스테이징 환경에서 Playwright 시각 검증(§16)이 모든 상태를 URL 하나로 진입할 수 있게 하기 위함이며, 동시에 프로덕션에서 실사용자가 결과 화면을 우회 접근하는 경로를 원천 차단한다.
+REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파라미터를 지원한다. 단, 이 파라미터의 유효성은 `process.env.NODE_ENV === 'production'` 판정 **하나만으로는 판단하지 않는다** — 이 프로젝트의 배포 구성상 스테이징 유사 빌드에도 `NODE_ENV=production`이 설정될 수 있어, `NODE_ENV` 단독 판정은 dev/staging/production을 신뢰성 있게 구분하지 못한다.
+
+**가드 메커니즘**: 전용 서버 전용 환경 변수 `ENABLE_DIAGNOSIS_DEV_STATES`(boolean, 기본값 `false`)를 신설한다.
+
+- `app/page.tsx`(Server Component)가 이 플래그를 서버 측에서 읽어 `enableDevStates` boolean prop으로 `<DiagnosisFlow enableDevStates={...} />`에 전달한다 — 클라이언트 컴포넌트는 이 판단을 위해 `process.env`를 직접 읽지 않는다.
+- 기본값은 `false`이며, unset인 경우도 포함해 모든 곳에서 기본값을 유지한다. Oracle 프로덕션에서는 이 플래그를 설정하지 않거나 명시적으로 `false`로 유지한다.
+- `true`로 설정하는 곳은 로컬 개발 환경과 전용 리뷰/스테이징 환경뿐이다 — CI/스테이징 환경에서 Playwright 시각 검증(§16)이 모든 상태를 URL 하나로 진입할 수 있게 하기 위함이며, 동시에 프로덕션에서 실사용자가 결과 화면을 우회 접근하는 경로를 원천 차단한다.
+
+**두 플래그를 혼동하지 말 것**: `ENABLE_DIAGNOSIS_DEV_STATES`(이 절)는 `ENABLE_DIAGNOSIS_FLOW`(§19 — 01 플로우 전체의 프로덕션 활성화 게이트)와 별개의 플래그다. 전자는 이미 활성화된 환경 내에서 `devStep` 강제 진입이 동작하는지를 결정하고, 후자는 01 플로우 자체가 프로덕션에 존재하는지(placeholder vs `<DiagnosisFlow />`)를 결정한다. 두 플래그 모두 기본값 `false`다.
 
 ## 11. mock 데이터와 production 데이터의 구분
 
 - 이 SPEC의 01-C "진단 중" 이후 분기(결과 있음/없음/오류)는 **고정된 mock 판정 로직**(예: 입력 문자열 길이나 특정 키워드로 분기)으로 구현하며, 실제 결과 화면(02)이 없으므로 "결과 있음" 분기는 이 SPEC에서 도달 불가능한 경로로 두거나 콘솔 로그로만 표시한다.
 - 코드 내 mock 로직에는 `@MX:TODO` 또는 `@MX:DEBT`(진행 중 단순화) 주석을 남겨, 실제 매칭 엔진 연결 시 교체 지점을 명시한다(REQ-B2CDIAG-024, `moai-constitution.md` MX Tag Quality Gates).
 
+**production 활성화 원칙 (REQ-B2CDIAG-025) — 반드시 준수:**
+
+1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 자동 분기 로직은 **로컬/테스트/리뷰 전용 시뮬레이션**이며 프로덕션 동작이 아니다.
+2. **01-D/01-E는 프로덕션에서 오직 `devStep` 강제 진입 파라미터(§10)를 통해서만 도달 가능**하며, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된다 — 정상적인 `loading`→자동 분기 경로를 통해서는 절대 도달하지 않는다.
+3. **별개의, 더 상위의 production 활성화 게이트가 존재하며, 이는 독립된 두 서버 전용 환경 변수의 AND 조건이다**: `ENABLE_DIAGNOSIS_FLOW`(01 플로우 자체의 노출 여부, 기본값 `false`)와 `DIAGNOSIS_ENGINE_READY`(실제 담보 매칭 엔진 연결 여부, 기본값 `false`)를 신설하고, `app/page.tsx`(Server Component)가 두 플래그를 `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`라는 하나의 논리곱 조건으로 **한 곳에서만** 읽는다. 이 조건이 거짓(둘 중 하나라도 `false`, 기본값이며 Oracle 프로덕션을 포함해 명시적으로 전환하지 않는 한 유지)일 때는 `app/page.tsx`가 현재와 동일하게 placeholder("서비스 준비 중입니다")를 렌더링한다 — `<DiagnosisFlow />`는 전혀 렌더링되지 않는다. 조건이 참(둘 다 `true`)일 때만 `app/page.tsx`가 `<DiagnosisFlow />`를 렌더링한다(§2의 Suspense 래핑 요구사항 준수). 실제 담보 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로, 이 SPEC이 전달하는 코드에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 없다 — `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하는 것은 실제 엔진을 연결하는 후속 SPEC의 몫이다. 이 두 플래그는 §10의 `ENABLE_DIAGNOSIS_DEV_STATES`(devStep 강제 진입 여부를 게이트)와는 별개다 — `ENABLE_DIAGNOSIS_DEV_STATES`는 이미 활성화된 환경 안에서 devStep 강제 진입이 동작하는지를, `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`는 01 플로우 자체가 프로덕션에 존재하는지를 결정한다.
+4. **"코드 구현 완료"와 "프로덕션에서 활성화해도 안전함"은 서로 다른 상태다.** 이 SPEC의 run-phase는 `ENABLE_DIAGNOSIS_FLOW=false`(및 `DIAGNOSIS_ENGINE_READY=false`)인 채로 01 화면 UI 구현 전체를 완료할 수 있다 — 이는 예상된, 정상적인 결과이며 실패가 아니다.
+5. `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 각각 `true`로 전환되려면 서로 독립된 전제조건이 충족되어야 한다 — 하나의 전환이 다른 하나를 함의하지 않는다: (a) `DIAGNOSIS_ENGINE_READY → true`의 전제조건은 실제 매칭 엔진이 연결되어 `loading`→결과 경로가 mock이 아닌 실제 분석을 반영하는 상태(이 SPEC의 Out of Scope — 후속 SPEC의 몫), (b) `ENABLE_DIAGNOSIS_FLOW → true`의 전제조건은 §17의 동의 상세 문구 확정(6개 placeholder 항목 전체가 실제 확정 문구로 교체)이 완료된 상태다(§19 참고). 두 플래그가 모두 `true`여야만 `<DiagnosisFlow />`가 실제로 프로덕션에 렌더링된다.
+
+§19에서 이 production 활성화 게이트를 별도 섹션으로 다시 정리한다.
+
 ## 12. 오류 및 재시도 처리
 
 - 01-E는 "일시적 오류"를 전제로 문구가 작성되어 있다(`일시적인 오류일 수 있습니다`) — "다시 시도"는 동일 입력값으로 §0의 상태 머신을 `loading`으로 재진입시키고, "입력 내용으로 돌아가기"는 `input` 상태로 되돌아가되 검색어는 보존한다(REQ-B2CDIAG-014).
 - mock 구현 단계에서 "오류" 분기는 실제 네트워크 오류가 없으므로 강제 트리거용 개발 파라미터(§10)로만 재현 가능하다.
 
-## 13. Desktop 1440 / Mobile 390 반응형 전략
+## 13. Desktop 1440 / Mobile 390 반응형 전략 (확정)
 
-- Tailwind 기준 브레이크포인트: 디자인은 1440(Desktop)과 390(Mobile) 두 폭만 존재한다. `md:`(768px) 브레이크포인트를 기준으로 Desktop 레이아웃을 적용하고, 그 미만은 Mobile 레이아웃을 적용하는 2-way 분기로 시작한다.
-- **[NEEDS CLARIFICATION: 391px~767px 구간]** — 두 디자인 사이의 태블릿·소형 노트북 구간은 명시적 디자인이 없다. 이 SPEC은 Mobile 레이아웃을 767px까지 확장 적용(Mobile-first 확장)하는 것을 잠정안으로 기록하되, 최종 확정은 run-phase 착수 시 확인한다.
-- §1의 M01-D/M01-E 부재 문제도 이 브레이크포인트 결정과 연결된다 — Mobile 레이아웃이 Desktop 01-D/01-E를 세로 스택으로 재배치하는 방향(§1 권장안 A)을 기본 전제로 삼는다.
+- Tailwind 기준 브레이크포인트: 디자인은 1440(Desktop)과 390(Mobile) 두 폭만 존재한다. **결정(확정)**: 0px~767px 구간은 Mobile 레이아웃, 768px 이상(`md:` Tailwind 브레이크포인트)은 Desktop 레이아웃을 적용하는 2-way 분기를 최종안으로 확정한다 — 태블릿·소형 노트북 구간(391px~767px)에 대한 별도 디자인 없이 Mobile 레이아웃을 767px까지 확장 적용(Mobile-first 확장)함으로써 이 구간을 해소한다. 추가 확인 절차 없이 이 브레이크포인트로 run-phase가 착수한다.
+- §1의 M01-D/M01-E 부재 문제도 이 브레이크포인트 결정과 연결된다 — Mobile 레이아웃이 Desktop 01-D/01-E를 세로 스택으로 재배치하는 방향(§1)을 최종 결정으로 삼는다. 이는 **반응형 재사용**이며, 새 Pencil/Figma 산출물을 생성하지 않는다 — 기존 Desktop 컴포넌트가 CSS/Tailwind만으로 모바일 breakpoint 레이아웃을 획득한다.
 
 ## 14. Modal과 Bottom Sheet 구현 방식
 
@@ -130,6 +147,8 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 - Desktop 동의 상세(01-A2 "내용 보기", 01-A3 상세): `@base-ui/react/dialog` 기반 `components/ui/dialog.tsx` 신설, `components/ui/popover.tsx`와 동일한 래퍼 컨벤션(`data-slot`, `cn()`, motion 클래스) 적용.
 - Mobile 동의 상세(M01-A2, M01-A3): `@base-ui/react/drawer` 기반 `components/ui/drawer.tsx` 신설, 화면 높이 약 88%까지 올라오는 형태(DEV-ONLY 캡처 기준)로 구현.
 - 두 컴포넌트 모두 포커스 트랩·배경 스크롤 잠금은 Base UI 프리미티브가 기본 제공하는 동작에 의존한다(Base UI Dialog/Drawer는 접근성 프리미티브이므로 커스텀 포커스 관리 로직을 새로 작성하지 않는다 — Enforce Simplicity).
+
+**동의 상세 UI 컨테이너와 6개 문구 법무 확정은 별개 작업이다.** `consent-detail-content.tsx`(01-A3/M01-A3 공용, §2)가 구현하는 것은 Modal/Bottom Sheet **셸**(레이아웃, 스크롤, 포커스 트랩, 닫기 동작)이며, 6개 항목의 실제 문구(§17 참고)는 법무·운영팀의 별도 확정 대상이다. run-phase가 이 컨테이너 구현을 완료하더라도, 6개 문구가 미확정 상태면 그 컨테이너를 `ENABLE_DIAGNOSIS_FLOW=true`(§19)인 프로덕션에 노출할 수 없다 — placeholder 문구(`{처리 목적 확정 문구}` 등)는 어떤 경우에도 프로덕션 UI에 렌더링되어서는 안 된다.
 
 ## 15. 키보드 · 포커스 · 스크린리더 접근성
 
@@ -159,7 +178,8 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 | 이전 단계 이동·재진입 시 동의 상태 | 같은 세션(새로고침 없이) 내에서는 유지 — 추가 질문에서 동의 화면으로 되돌아가도 체크 상태 보존 (REQ-B2CDIAG-019) |
 | 새로고침 시 동의 상태 | 초기화(미동의 상태로 리셋) — REQ-B2CDIAG-015와 일관 |
 | 직접 URL 접근 시 | 동의를 거치지 않고 이후 단계 URL로 직접 진입 시 클라이언트 메모리에 동의 상태가 없으므로 초기 화면으로 리다이렉트 (REQ-B2CDIAG-016) |
-| 동의 철회 시 데이터 처리 | 추가 질문 단계 이후의 진행을 차단하고, 그 시점까지의 응답을 다음 단계(진단 중/결과)로 전달하지 않는다 — 서버 전송 자체가 없으므로 "삭제"가 아니라 "다음 단계로 넘기지 않음"이 정확한 표현 (REQ-B2CDIAG-018) |
+| 동의 철회 시 데이터 처리 | 추가 질문 단계 이후의 진행을 차단하고, 그 시점까지의 응답을 다음 단계(진단 중/결과)로 전달하지 않는다 — 서버 전송 자체가 없으므로 "삭제"가 아니라 "다음 단계로 넘기지 않음"이 정확한 표현이며, 뒤로 가기로 이미 답변한 추가 질문 응답 자체는 클라이언트 상태(React state)에서 지워지지 않는다(§18.1 `questions` 상태의 "유지되는 데이터" 행과 일치, REQ-B2CDIAG-018, `acceptance.md` AC-B2CDIAG-017 참고) |
+| 동의 상세 6개 문구 확정과 프로덕션 노출 | 6개 placeholder 문구(§14 참고)가 모두 실제 확정 문구로 교체되기 전까지 `ENABLE_DIAGNOSIS_FLOW`(§19)를 프로덕션에서 `true`로 전환할 수 없다 — 동의 상세 UI 컨테이너 구현 완료와는 별개의 전제조건이다 (REQ-B2CDIAG-025) |
 
 ## 18. 화면 상태와 전이
 
@@ -229,7 +249,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 |---|---|
 | 진입 조건 | `questions` 완료/스킵 |
 | 사용자 행동 | 대기(입력 불가) |
-| 검증 조건 | mock 판정 로직 실행(§11) |
+| 검증 조건 | mock 판정 로직 실행(§11) — **이 로직은 로컬/테스트/리뷰 전용이다**. `ENABLE_DIAGNOSIS_FLOW=false`(프로덕션 기본값)인 동안 실제 사용자는 `<DiagnosisFlow />` 자체가 렌더링되지 않으므로 이 상태에 도달할 수 없다(§19) |
 | 다음 상태 | mock 로직 결과에 따라 `result-none` 또는 `error`로(이 SPEC 범위에서 "결과 있음"=02는 도달 불가) |
 | 뒤로 가기 동작 | 비활성화 권장(분석 중 이탈 방지) — 브라우저 뒤로가기는 차단하지 않되 `questions`로 돌아가면 분석을 취소한 것으로 간주 |
 | 유지되는 데이터 | 검색어, 동의 상태, 추가 질문 응답 전체 |
@@ -241,7 +261,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 
 | 속성 | 내용 |
 |---|---|
-| 진입 조건 | `loading`에서 mock 판정 결과 0건 |
+| 진입 조건 | `loading`에서 mock 판정 결과 0건. **프로덕션 실제 사용자는 정상 플로우로 이 상태에 도달하지 않는다** — `ENABLE_DIAGNOSIS_FLOW=false`인 동안 도달 불가(§19), 개발·리뷰 목적으로는 `devStep=result-none`(§10, `ENABLE_DIAGNOSIS_DEV_STATES=true` 필요)으로만 강제 진입 |
 | 사용자 행동 | "내용을 수정할게요"(→ `input`) 또는 "손해사정사에게 바로 문의"(03 경계, 이 SPEC에서는 stub) |
 | 검증 조건 | 없음 |
 | 다음 상태 | "내용을 수정할게요" → `input`(검색어 보존) |
@@ -255,7 +275,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 
 | 속성 | 내용 |
 |---|---|
-| 진입 조건 | `loading`에서 mock 판정 결과 오류 |
+| 진입 조건 | `loading`에서 mock 판정 결과 오류. **프로덕션 실제 사용자는 정상 플로우로 이 상태에 도달하지 않는다** — `ENABLE_DIAGNOSIS_FLOW=false`인 동안 도달 불가(§19), 개발·리뷰 목적으로는 `devStep=error`(§10, `ENABLE_DIAGNOSIS_DEV_STATES=true` 필요)으로만 강제 진입 |
 | 사용자 행동 | "다시 시도"(→ `loading` 재진입) 또는 "입력 내용으로 돌아가기"(→ `input`) |
 | 검증 조건 | 없음 |
 | 다음 상태 | REQ-B2CDIAG-014 참고 |
@@ -272,3 +292,26 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 - **직접 URL 접근**: 모든 비-`input` 상태에 공통 적용 — 클라이언트 메모리에 선행 상태가 없으면 `input`으로 리다이렉트(REQ-B2CDIAG-016), 단 §10의 개발용 파라미터는 예외(REQ-B2CDIAG-017).
 - **Desktop·Mobile 반응형 전환**: 상태 머신과 데이터 모델은 두 폭에서 완전히 동일하다 — 오직 `consent` 상태의 오버레이 컴포넌트(Modal vs Bottom Sheet, §14)와 레이아웃만 분기한다.
 - **미래 02 결과 화면으로 넘어가는 경계**: `loading` 상태에서 "결과 있음"으로 판정되는 분기는 이 SPEC에서 UI가 존재하지 않는다 — §9의 `DiagnosisHandoff` 데이터만 정의하고, 실제 라우팅(예: `router.push('/result')`)은 02 SPEC이 구현한다.
+
+## 19. 프로덕션 활성화 게이트 (REQ-B2CDIAG-025)
+
+이 섹션은 §8/§11에서 언급된 production 활성화 원칙을 하나의 게이트 메커니즘으로 정리한다.
+
+### 19.1 원칙
+
+1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 진단 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 mock 자동 분기 로직(§11)은 **로컬/테스트/리뷰 전용 시뮬레이션**이며, 프로덕션 동작이 아니다. 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 사용자 입장에서 실제 "결과 없음" 응답과 구분되지 않으므로, 실제 사용자를 대상으로 하는 자동 mock 분기 목표가 될 수 없다.
+2. **01-D/01-E는 오직 `devStep` 강제 진입 파라미터(§10)로만, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된 상태에서만 도달 가능**하다 — 정상적인 `loading`→자동 분기 경로를 통해 프로덕션에서 도달하는 일은 절대 없다.
+3. **더 상위의 production 활성화 게이트는 두 개의 독립된 서버 전용 환경 변수의 AND 조건이다.** `ENABLE_DIAGNOSIS_FLOW`(신설, 01 플로우 자체의 노출 여부, 기본값 `false`)와 `DIAGNOSIS_ENGINE_READY`(신설, 실제 담보 매칭 엔진 연결 여부, 기본값 `false`) 두 플래그를 신설한다. `app/page.tsx`(Server Component)는 이 두 플래그를 **하나의 논리곱(AND) 조건**으로 **한 곳에서만** 검사한다 — `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`.
+   - 조건이 거짓(둘 중 하나라도 `false`, 기본값이며 Oracle 프로덕션을 포함해 명시적으로 전환하지 않는 한 유지): `app/page.tsx`는 현재와 동일하게 placeholder("서비스 준비 중입니다")를 렌더링한다 — `<DiagnosisFlow />`는 전혀 렌더링되지 않는다.
+   - 조건이 참(둘 다 `true`): `app/page.tsx`는 `<DiagnosisFlow />`를 렌더링한다(§2의 Suspense 래핑 준수).
+   - **이 SPEC이 전달하는 코드 범위 안에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 존재하지 않는다** — 실제 담보 매칭 엔진 연결은 이 SPEC의 명시적 Out of Scope이기 때문이다(`spec.md` §4). 따라서 이 AND 게이트는 `ENABLE_DIAGNOSIS_FLOW`가 어떤 값을 갖든, 이 SPEC이 전달한 코드만으로는 구조적으로 live 플로우를 프로덕션에서 도달 불가능하게 유지한다 — mock 노출 방지가 산문 서술이 아니라 실제 코드 게이트로 존재한다. `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하는 것은 실제 매칭 엔진을 연결하는 후속 SPEC의 몫이다.
+   - 이 두 플래그는 §10의 `ENABLE_DIAGNOSIS_DEV_STATES`(devStep 강제 진입 여부를 게이트)와는 **별개**다 — `ENABLE_DIAGNOSIS_DEV_STATES`는 이미 활성화된 환경 안에서 devStep 강제 진입이 동작하는지를, `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`는 01 플로우 자체가 프로덕션에 존재하는지를 결정한다. 셋을 혼동하지 않는다.
+4. **"코드 구현 완료"와 "프로덕션에서 활성화해도 안전함"은 서로 다른 상태다.** 이 SPEC의 run-phase는 `ENABLE_DIAGNOSIS_FLOW=false`(및 `DIAGNOSIS_ENGINE_READY=false`)인 채로 01 화면 UI 구현 전체를 완료할 수 있다 — 이는 예상된, 정상적인 결과이며 실패가 아니다.
+5. `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 각각 `true`로 전환되려면 아래 전제조건이 충족되어야 한다 — 두 플래그는 서로 독립적으로 전환되며, 하나의 전환이 다른 하나를 자동으로 함의하지 않는다:
+   - `DIAGNOSIS_ENGINE_READY → true`의 전제조건: 실제 담보 매칭 엔진이 연결되어 `loading`→결과 경로가 mock이 아닌 실제 분석을 반영하는 상태. 이 SPEC의 delivered 코드는 이 전환을 수행하지 않는다(후속 SPEC의 몫).
+   - `ENABLE_DIAGNOSIS_FLOW → true`의 전제조건: §17의 동의 상세 6개 placeholder 문구(§14 참고 — 처리 목적 / 처리하는 건강정보 항목 / 서버 저장 여부 / 보유·이용 기간 / 외부 AI 서비스 전송 여부 / 동의 거부 권리 및 진단 이용 제한)가 모두 실제 확정 문구로 교체된 상태.
+   - 두 플래그 모두 `true`가 되어야 `<DiagnosisFlow />`가 실제로 프로덕션에 렌더링된다(§19.1 원칙 3의 AND 조건).
+
+### 19.2 검증 매핑
+
+`acceptance.md` AC-B2CDIAG-021(두 플래그 중 하나라도 false이면 정상 사용자 플로우로 mock 도달 불가), AC-B2CDIAG-015/016(devStep 게이트), AC-B2CDIAG-025(placeholder 문구 미노출)가 이 게이트를 검증한다.

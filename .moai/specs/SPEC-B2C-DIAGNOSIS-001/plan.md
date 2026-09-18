@@ -5,7 +5,7 @@
 아래 마일스톤은 실행 순서(의존성 기반)로 정렬되어 있다. 그중 **되돌리기 어렵거나 다른 결정에 가장 큰 영향을 주는 결정**은 다음 세 가지이며, 리뷰 시 이 세 가지를 가장 먼저 확인할 것을 권장한다.
 
 1. **M2 — Route 구조 결정** (단일 route + client 상태 머신 vs 화면별 개별 route): 이후 모든 화면의 데이터 흐름과 "직접 URL 접근" 처리 방식을 좌우한다 (`design.md` §2).
-2. **M2 — 개발·리뷰용 상태 강제 진입 방법** (쿼리 파라미터 + 프로덕션 가드): REQ-B2CDIAG-017의 안전장치이자, mock 결과가 실제 사용자에게 노출되지 않도록 막는 유일한 장치다.
+2. **M2 — 개발·리뷰용 상태 강제 진입 방법** (`ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 플래그 + `?devStep=` 쿼리 파라미터): REQ-B2CDIAG-017의 안전장치다. 이 플래그는 `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`(REQ-B2CDIAG-025 — 01 플로우 전체를 프로덕션에 노출할지 결정하는 상위 게이트, 두 플래그의 AND 조건)와는 별개다 — 전자(`ENABLE_DIAGNOSIS_DEV_STATES`)는 devStep 강제 진입 여부를, 후자(`ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`)는 01 플로우 자체의 프로덕션 존재 여부를 결정하며, 실제 사용자에게 mock 결과가 노출되지 않도록 막는 장치는 후자다 — 특히 `DIAGNOSIS_ENGINE_READY`는 이 SPEC이 전달하는 코드에서 `true`로 전환되는 지점이 없으므로(실제 매칭 엔진 연결은 Out of Scope), 이 SPEC 범위 내내 mock 노출 차단이 코드 레벨에서 구조적으로 보장된다.
 3. **M4 — 동의 상세 Modal/Bottom Sheet 구현 방식** (`@base-ui/react/dialog` + `drawer` 재사용): 신규 의존성 추가 여부를 결정하며, 접근성(포커스 트랩·ESC·배경 클릭) 구현 전체가 이 선택 위에 놓인다.
 
 ## §A. Context
@@ -21,9 +21,10 @@
 |---|---|---|
 | 담보 매칭 로직(정적 규칙 vs AI) | 미결정 (`tech.md`) | 이 SPEC은 02 화면 자체를 구현하지 않으므로 직접 영향 없음. 01→02 인터페이스 경계만 정의 |
 | `lib/pipeline/` 재사용 여부 | 미결정 (REQ-B2CFOUND-007) | 이 SPEC은 관여하지 않음 |
-| M01-D/M01-E 모바일 디자인 부재 | 미해결 — `design.md` §1 참고 | 신규 제작은 Out of Scope, 처리 원칙만 design.md에 기록 |
-| DEV-ONLY 동의 상세 6개 문구 placeholder | 법무 확정 전 | 그대로 `{}` 형태 유지, 실제 화면에 노출 금지 |
-| 반응형 브레이크포인트 정확한 전환 지점(391px~767px 구간) | NEEDS CLARIFICATION | `design.md` §13 참고 |
+| M01-D/M01-E 모바일 디자인 부재 | **결정됨** — Desktop `01-D`/`01-E` 컴포넌트를 반응형으로 재사용(신규 디자인 제작 없음) | `design.md` §1, §13 참고 |
+| 반응형 브레이크포인트 전환 지점 | **결정됨** — 0~767px = Mobile, 768px 이상 = Desktop(2-way 분기, `md:` 브레이크포인트) | `design.md` §1, §13 참고 |
+| DEV-ONLY 동의 상세 6개 문구 placeholder — 법무 확정 전 | 법무 확정 전, 6개 항목 모두 미결정 | ① `{처리 목적 확정 문구}` ② `{처리 항목 확정 문구}`(처리하는 건강정보 항목) ③ `{저장 여부 확정 문구}`(서버 저장 여부) ④ `{보유·이용 기간 확정 문구}` ⑤ `{외부 AI 전송 여부 확정 문구}` ⑥ `{동의 거부 및 제한 확정 문구}`(동의 거부 권리 및 진단 이용 제한). 6개 모두 그대로 `{}` 형태 유지, 실제 화면(프로덕션)에 노출 금지 — `ENABLE_DIAGNOSIS_FLOW=true`로 전환되더라도 예외 없음(REQ-B2CDIAG-025). 동의 상세 UI 컨테이너(Modal/Bottom Sheet 셸, `design.md` §14/§17) 구현과 6개 문구의 법무 확정은 별개 작업이며, 컨테이너 구현이 완료되어도 6개 문구가 미확정이면 이 SPEC의 상태는 "코드 구현 완료 / 출시 차단"이지 "완료"가 아니다 |
+| `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY` 프로덕션 활성화 | 미결정 (run-phase 이후 별도 판단) | REQ-B2CDIAG-025 — 두 플래그의 AND 조건. `DIAGNOSIS_ENGINE_READY=true` 전환(실제 매칭 엔진 연결)은 이 SPEC 범위 밖(후속 SPEC), `ENABLE_DIAGNOSIS_FLOW=true` 전환은 6개 동의 상세 문구 확정이 전제조건. 이 SPEC이 전달하는 코드는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하지 않으므로, 이 SPEC 범위 내내 두 플래그 모두 `false`로 유지된다 |
 
 ## §C. Pre-flight
 
@@ -34,14 +35,18 @@
 
 ## §D. Constraints
 
-- 신규 코드는 `app/`, `components/`, `lib/validation/` 범위 내에서만 추가한다 — `lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`는 손대지 않는다(REQ-B2CFOUND-007 decision gate 유지).
-- 신규 의존성 추가 없이 기존 `@base-ui/react`(dialog, drawer, popover) + `zod` + shadcn 스타일 `components/ui/*`로 구현한다.
+이 SPEC의 run-phase 산출물 범위는 4갈래로 나뉜다 — 아래 블랑킷 제약("신규 코드는 …")은 ①(프로덕션 애플리케이션 코드)에만 적용되며, Milestone 10(Playwright/e2e)과 Milestone 11(배포 워크플로 갱신)은 ②·④ 범위로 별도 제약을 따른다.
+
+- **① 프로덕션 애플리케이션 코드**: `app/`, `components/`, `lib/validation/` 범위 내에서만 추가한다 — `lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`는 손대지 않는다(REQ-B2CFOUND-007 decision gate 유지). 신규 의존성 추가 없이 기존 `@base-ui/react`(dialog, drawer, popover) + `zod` + shadcn 스타일 `components/ui/*`로 구현한다.
+- **② 테스트**: 위 프로덕션 코드에 대응하는 단위·컴포넌트 테스트(코드 인접 배치 또는 이 프로젝트의 기존 `__tests__/` 관례를 따름) 및 Playwright `e2e/` 스펙(Milestone 10) — e2e 테스트는 ①의 3개 디렉터리 제약 밖에 위치한다.
+- **③ 문서**: `.moai/` SPEC 산출물 및 프로젝트 문서(`README`/`structure.md`/`tech.md` 등, Milestone 11의 문서 동기화 부분).
+- **④ 배포**: `.github/workflows/deploy.yml` — `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 프로덕션에서 실제로 모두 `true`로 전환되는 시점에만 수정한다(Milestone 11 참고) — run-phase 코드 완성 시점에 자동으로 수정하지 않는다.
 - DB·서버 영구 저장 없음 — 클라이언트 상태(React state) + 세션 동안만 유지되는 URL 쿼리 파라미터로 상태 전이를 표현한다.
 - `design/claimradar-ui.pen`, `design/exports/`, `design/internal/`은 읽기 전용 참고 자료다 — 수정하지 않는다.
 
 ## §E. Self-Verification (plan-phase)
 
-- [x] GEARS 표기 요구사항 24건 작성, Tier L 상한(25) 이내
+- [x] GEARS 표기 요구사항 25건 작성, Tier L 상한(25) 충족 (운영자 검토 반영으로 24건 → 25건, 상한 도달 — REQ-B2CDIAG-025는 mock 노출 차단·동의 문구 확정을 하나의 프로덕션 활성화 게이트 요구사항으로 통합해 상한 초과를 피했다)
 - [x] Out of Scope 섹션에 6개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(app/, components/, lib/, package.json, node_modules) 완료 — `research.md`
 - [x] 디자인 export 10개 + DEV ONLY 2개 직접 열람 완료
@@ -52,16 +57,16 @@
 아래 마일스톤은 모두 **후속 run-phase가 실행할 계획**이며, 이번 plan-phase는 문서만 작성한다.
 
 1. **기준선 및 디자인 프레임 조사** — 10개 export PNG + 2개 DEV ONLY PNG 재확인, `components/ui/*` 재사용 범위 최종 확정, `@base-ui/react` dialog/drawer API 시그니처 확인.
-2. **공개 B2C route와 진단 shell** — `app/page.tsx`를 진단 플로우 Client Component 셸로 교체(Server Component 래퍼 유지), `?step=` 쿼리 파라미터 기반 상태 전이 라우팅 구현, 개발용 상태 강제 진입 파라미터(프로덕션 가드 포함) 구현.
-3. **기본 진단 정보 입력** — 01/M01 검색창 + "많이 찾는 사례" 칩, `lib/validation/diagnosis-input.ts` zod 스키마(PII 정규식 거부) 작성 및 단위 테스트.
+2. **공개 B2C route와 진단 shell** — `app/page.tsx`(Server Component)가 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY` 두 플래그를 읽어 `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`인 경우에만(하나의 AND 조건, 한 곳에서만 검사 — `design.md` §19) `<DiagnosisFlow />`를 `<Suspense fallback={...}>`로 감싸 렌더링하고(그 외에는 현재의 placeholder 유지), fallback은 01 화면의 초기 레이아웃과 유사한 스켈레톤으로 레이아웃 시프트를 최소화한다(`useSearchParams()`를 호출하는 Client Component가 Suspense 경계 없이 정적 빌드되면 빌드 실패/강제 dynamic 렌더링이 발생하므로 필수, `design.md` §2). `?step=` 쿼리 파라미터 기반 상태 전이 라우팅 구현, `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 플래그 + `?devStep=` 개발용 상태 강제 진입 파라미터 구현(`ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`와는 별개 플래그 — §결정 우선순위 #2 참고).
+3. **기본 진단 정보 입력** — 01/M01 검색창 + "많이 찾는 사례" 칩, `lib/validation/diagnosis-input.ts` zod 스키마(전화번호·주민등록번호 자동 차단 / 이름 등은 안내만 제공, REQ-B2CDIAG-020) 작성 및 단위 테스트. 테스트 계획에 전화번호·주민등록번호 각각 하이픈 포함/미포함 케이스를 모두 포함한다(예: `010-1234-5678`/`01012345678`, `901231-1234567`/`9012311234567`).
 4. **필수 민감정보 동의** — 01-A2/M01-A2 동의 화면, Desktop Modal(`@base-ui/react/dialog`) + Mobile Bottom Sheet(`@base-ui/react/drawer`) 구현, CTA 비활성화 조건, 내용 보기 열람 시 체크 자동 선택 금지, 닫기/ESC/배경클릭/포커스 복귀.
 5. **추가 질문** — 01-B/M01-B 3문항 순차 진행, 건너뛰기 링크, 답변의 클라이언트 상태 보존.
-6. **분석 중 · 결과 없음 · 오류 · 재시도 상태** — 01-C/M01-C 로딩 단계 표시, 01-D 결과 없음, 01-E 분석 오류 + 재시도/입력으로 돌아가기, mock 데이터 명시적 구분(REQ-B2CDIAG-024).
+6. **분석 중 · 결과 없음 · 오류 · 재시도 상태** — 01-C/M01-C 로딩 단계 표시, 01-D 결과 없음, 01-E 분석 오류 + 재시도/입력으로 돌아가기, mock 데이터 명시적 구분(REQ-B2CDIAG-024). `loading` 상태의 고정 지연·키워드 기반 mock 판정 로직은 로컬/테스트/리뷰 전용 시뮬레이션이며, `ENABLE_DIAGNOSIS_FLOW=false` 또는 `DIAGNOSIS_ENGINE_READY=false`(둘 다 프로덕션 기본값 — 실제 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로 이 SPEC이 전달하는 코드 범위 내내 `DIAGNOSIS_ENGINE_READY`는 `false`로 유지된다)일 때는 실제 사용자가 이 자동 분기 경로에 도달하지 않는다(REQ-B2CDIAG-025, `design.md` §19).
 7. **Mobile 반응형 및 bottom sheet** — 390px 기준 레이아웃, Desktop/Mobile 공용 상태 머신 검증, M01-D/M01-E 부재에 대한 처리 원칙 적용.
 8. **접근성** — 키보드 내비게이션, 포커스 트랩·복귀, 스크린리더 label 연결, `prefers-reduced-motion` 대응.
-9. **unit/component 테스트** — 입력 스키마, 상태 전이, 동의 검증, modal/bottom sheet 동작에 대한 Vitest 테스트.
-10. **01 Playwright 및 시각 정합성 검증** — `pnpm test:e2e` 대상 시나리오 신규 작성(01 범위 한정), `design/exports/` PNG와 구현 화면의 수동 비교 절차 수행(`design.md` §16).
-11. **문서·배포 smoke check 갱신** — `structure.md`/`tech.md` 반영, `.github/workflows/deploy.yml`의 "서비스 준비 중입니다" 스모크 체크를 새 01 화면의 안정적 식별자로 교체(실제 워크플로 수정은 이 마일스톤의 run-phase 실행 시점에 처리).
+9. **unit/component 테스트** — 입력 스키마, 상태 전이, 동의 검증, modal/bottom sheet 동작에 대한 Vitest 테스트. `ENABLE_DIAGNOSIS_DEV_STATES`가 unset이거나 `false`(프로덕션 기본값)인 상태에서 `?devStep=`이 무시되고 정상 상태 판정 로직이 적용되는지 검증하는 전용 테스트를 포함한다(AC-B2CDIAG-016).
+10. **01 Playwright 및 시각 정합성 검증** — `pnpm test:e2e` 대상 시나리오 신규 작성(01 범위 한정), `design/exports/` PNG와 구현 화면의 수동 비교 절차 수행(`design.md` §16). 프로덕션 빌드 검증(`next build` — 또는 `package.json`이 정의한 동등 빌드 스크립트) 단계를 run-phase 테스트 계획에 추가해, `useSearchParams()` 사용 시 Suspense 경계 누락으로 인한 빌드 오류·경고가 없음을 확인한다(`acceptance.md` "## Quality Gate 기준" — 프로덕션 빌드 검증 항목 참고).
+11. **문서 동기화 + 배포 smoke check 갱신 (독립적인 두 하위 작업, 완료 시점이 다름)** — (a) **문서 동기화**(블로킹, 이 SPEC 자체의 sync-phase 완료 조건): `structure.md`/`tech.md`에 이 SPEC의 구현 결과를 반영한다. (b) **배포 smoke check 교체**(비블로킹, 이 SPEC의 sync-phase `completed` 전환 조건이 **아님**): `.github/workflows/deploy.yml`의 "서비스 준비 중입니다" 스모크 체크 문자열을 새 01 화면의 안정적 식별자로 교체한다 — 이 교체는 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 프로덕션에서 실제로 **모두** `true`로 전환되는 시점에만 처리하며, 이는 이 SPEC의 통제 범위 밖의 미래 이벤트(실제 매칭 엔진 연결을 다루는 후속 SPEC의 완료 이후)이므로 이 SPEC의 run-phase 코드 완성 마일스톤이나 sync-phase 완료 시점에 자동으로 처리하지 않는다. (b)가 미처리 상태로 남아 있는 것은 이 SPEC이 `status: completed`로 전환되는 데 지장을 주지 않는다(`acceptance.md` AC-B2CDIAG-024 참고).
 
 ## §G. Anti-Patterns (이 SPEC에서 피해야 할 것)
 
@@ -69,6 +74,8 @@
 - `lib/pipeline/`을 담보 매칭에 재사용 가능한지 이 SPEC에서 판단하지 않는다.
 - DEV-ONLY 플레이스홀더 문구(`{처리 목적 확정 문구}` 등)를 임의로 확정해서 사용자 화면에 노출하지 않는다.
 - mock 진단 결과를 실제 결과처럼 보이게 스타일링하지 않는다(REQ-B2CDIAG-024).
+- `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`를 run-phase 코드 완성 시점에 자동으로 `true`로 전환하지 않는다 — 각 플래그는 독립된 전제조건(전자는 6개 동의 상세 문구 확정, 후자는 실제 매칭 엔진 연결)이 충족되기 전까지 프로덕션에서는 `false`로 유지한다(REQ-B2CDIAG-025). 특히 `DIAGNOSIS_ENGINE_READY`는 이 SPEC이 전달하는 코드에서 `true`로 설정하는 지점 자체를 만들지 않는다 — 그 전환은 후속 SPEC의 몫이다.
+- DEV-ONLY placeholder 문구를 run-phase에서 임의로 "그럴듯한" 문구로 대체해 넘어가지 않는다 — 법무 확정 없이는 `{}` 형태를 그대로 유지한다.
 - `pnpm test:e2e` 0개 상태를 억지로 통과시키기 위한 빈 placeholder 테스트를 추가하지 않는다.
 
 ## §H. Cross-References

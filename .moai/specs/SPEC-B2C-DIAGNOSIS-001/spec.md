@@ -1,7 +1,7 @@
 ---
 id: SPEC-B2C-DIAGNOSIS-001
 title: "01 진단 플로우 — 질문 입력 · 동의 · 추가 질문 · 진단 중 (Plan-Phase)"
-version: "0.1.0"
+version: "0.1.2"
 status: draft
 created: 2026-09-18
 updated: 2026-09-18
@@ -18,6 +18,8 @@ related_specs: [SPEC-B2C-FOUNDATION-001]
 ## HISTORY
 
 - 2026-09-18: 최초 작성 (Nexsol) — SPEC-B2C-FOUNDATION-001이 B2B 코드를 정리하고 `app/`을 B2C 최소 공개 진입점(placeholder)으로 전환했다. 이 SPEC은 그 다음 단계로, B2C 3단계 퍼널(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 중 **① 질문 입력 및 진단** 흐름(01/01-A2/01-B/01-C/01-D/01-E, 모바일 M01/M01-A2/M01-B/M01-C)의 **plan-phase 문서만** 작성한다. 실제 화면·컴포넌트·API 구현은 후속 `/moai run SPEC-B2C-DIAGNOSIS-001`의 범위이며, 이번 커밋에는 코드 변경이 포함되지 않는다. 디자인 SSOT는 `design/MIGRATION-PLAN.md`(2026-09-18 최종 갱신)이다.
+- 2026-09-18: plan-phase 문서 9건 보정 (운영자 검토) — 프로덕션 mock 결과 자동 노출 방지를 위한 `ENABLE_DIAGNOSIS_FLOW` 게이트 신설(REQ-025), 동의 상세 6개 placeholder 문구 확정 전 출시 차단 명시, `useSearchParams()` Suspense 경계 요구사항 추가, PII 검증을 2단계(자동 차단: 전화번호·주민등록번호 / 안내만: 이름 등)로 재정의, `devStep` 가드를 `NODE_ENV` 단독 판정에서 전용 서버 플래그 `ENABLE_DIAGNOSIS_DEV_STATES`로 교체, M01-D/M01-E 반응형 재사용 및 768px 브레이크포인트 분기를 최종 확정, `plan.md` §D 범위 제약을 4갈래(프로덕션 코드/테스트/문서/배포)로 명확화. 이 개정은 plan-phase 문서 보정이며, 이 세션 이전에 디스크에 영속된 plan-auditor 검토 결과는 없다 — 독립 plan-auditor 재검토가 여전히 필요하다(`progress.md` §G 참고).
+- 2026-09-18: plan-auditor iteration 1(FAIL, 종합 0.80, must-pass 7/7 PASS, `.moai/reports/plan-audit/SPEC-B2C-DIAGNOSIS-001-review-1.md`) 지적사항 D1-D5 반영 — (D2, 최우선) `ENABLE_DIAGNOSIS_FLOW`의 조기 전환에 대한 기계적 가드가 없던 문제를 해소하기 위해 서버 전용 플래그 `DIAGNOSIS_ENGINE_READY`(기본값 `false`)를 신설하고, 프로덕션 활성화를 `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`라는 단일 AND 게이트(REQ-025, `design.md` §19)로 재정의했다 — 실제 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로 이 SPEC이 전달하는 코드에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 없다. (D1) `acceptance.md` AC-B2CDIAG-021의 Given절을 두 플래그 모두 기계적으로 테스트 가능한 조건으로 재작성. (D3) `plan.md` Milestone 11을 문서 동기화(블로킹)와 배포 smoke check 교체(비블로킹, sync-phase 완료 조건 아님)로 분리 명시, `acceptance.md`에 AC-024 조건부 검증 안내 추가. (D4) `acceptance.md` AC-022/AC-023에 REQ 인용 추가(REQ-020, REQ-005), REQ-020에 1~200자 길이 제한 명시. (D5) `acceptance.md` AC-B2CDIAG-025b(프로덕션 빌드 검증)를 "Quality Gate 기준" 섹션으로 이관하고 AC-B2CDIAG-025a를 AC-B2CDIAG-025로 정리해 Tier L 상한(25)에 맞춤. D6(REQ 본문의 구현 세부사항 완화)은 다른 문서의 교차 참조 안정성 리스크 대비 이익이 작다고 판단해 미착수. 실제 plan-auditor 재검토는 이 세션 이후 별도로 필요하다(`progress.md` §G 참고).
 
 ---
 
@@ -50,6 +52,8 @@ DEV ONLY 참고 자료(구현 대상 아님, 자리표시자 상태로 보존): 
 
 `spec.md`(본 문서) · `plan.md` · `acceptance.md` · `design.md` · `research.md` · `progress.md`. 코드, 스키마, API, E2E 테스트는 포함하지 않는다 — 모두 후속 run-phase 산출물이다.
 
+후속 run-phase의 산출물 범위는 4갈래로 나뉜다 — ① 프로덕션 애플리케이션 코드(`app/`, `components/`, `lib/validation/`), ② 테스트(단위·컴포넌트 테스트 및 `e2e/`), ③ 문서(`.moai/` SPEC 산출물 및 프로젝트 문서), ④ 배포(`.github/workflows/deploy.yml`, `ENABLE_DIAGNOSIS_FLOW` 전환 시점에만 수정). 아래 `module:` frontmatter 필드는 이 중 ①(프로덕션 코드) 범위만을 가리키며, 전체 4갈래 범위는 `plan.md` §D를 참고한다.
+
 ## 3. 요구사항 (GEARS)
 
 ### 3.1 제품 원칙 (Ubiquitous)
@@ -61,7 +65,7 @@ DEV ONLY 참고 자료(구현 대상 아님, 자리표시자 상태로 보존): 
 
 ### 3.2 동의 플로우 — 01-A2 / M01-A2 (Event-driven / State-driven)
 
-- **REQ-B2CDIAG-005** (When): 사용자가 01 화면에서 검색어를 입력하고 "보상 진단" 버튼을 클릭할 때, 시스템은 민감정보 처리 동의 화면(01-A2/M01-A2)을 표시한다.
+- **REQ-B2CDIAG-005** (When): 사용자가 01 화면에서 검색창에 검색어를 직접 입력하거나 "많이 찾는 사례" 칩을 클릭해 검색창을 채운 뒤 "보상 진단" 버튼을 클릭할 때, 시스템은 민감정보 처리 동의 화면(01-A2/M01-A2)을 표시한다. 두 입력 경로(직접 입력 / 칩 클릭)는 검색창을 채우는 동등한 대체 수단이며, 그 이후의 "보상 진단" 클릭 → 동의 화면 표시 흐름은 입력 경로와 무관하게 동일하다.
 - **REQ-B2CDIAG-006** (While): 필수 동의 체크박스가 선택되지 않은 동안, 시스템은 "동의하고 진단하기" CTA를 비활성화 상태로 유지한다.
 - **REQ-B2CDIAG-007** (When): 사용자가 "내용 보기"를 클릭할 때, 시스템은 Desktop에서는 Modal을, Mobile에서는 Bottom Sheet를 열어 동의 상세 내용을 표시하며, 이 동작만으로 동의 체크박스를 자동 선택하지 않는다.
 - **REQ-B2CDIAG-008** (When): 사용자가 동의 상세 보기에서 닫기 버튼, ESC 키, 배경(Dim) 클릭 중 하나를 수행할 때, 시스템은 상세 보기를 닫고 포커스를 "내용 보기" 트리거로 되돌린다.
@@ -79,20 +83,21 @@ DEV ONLY 참고 자료(구현 대상 아님, 자리표시자 상태로 보존): 
 
 - **REQ-B2CDIAG-015** (When): 사용자가 진단 플로우 화면을 새로고침할 때, 시스템은 입력값·동의 상태·추가 질문 응답을 모두 초기화하고 01 초기 입력 화면으로 되돌린다.
 - **REQ-B2CDIAG-016** (When): 프로덕션 환경에서 중간 상태(동의 완료 이후·추가 질문·진단 중·결과)에 해당하는 URL로 직접 접근할 때, 시스템은 선행 상태가 클라이언트 메모리에 없으면 01 초기 입력 화면으로 되돌린다.
-- **REQ-B2CDIAG-017** (Where): 개발·리뷰 목적의 지정된 쿼리 파라미터가 프로덕션이 아닌 환경에서 사용되는 경우, 시스템은 선행 상태 없이도 지정된 상태(동의 상세/진단 중/결과 없음/오류)를 강제로 렌더링한다.
+- **REQ-B2CDIAG-017** (Where): `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 환경 변수(기본값 `false`)가 `true`로 설정된 비프로덕션 환경에서, 시스템은 `?devStep=` 쿼리 파라미터를 통해 선행 상태 없이도 지정된 상태(동의 상세/진단 중/결과 없음/오류)를 강제로 렌더링한다. `app/page.tsx`(Server Component)가 이 플래그를 서버 측에서 읽어 `enableDevStates` boolean prop으로 `<DiagnosisFlow />`에 전달하며, 클라이언트 컴포넌트는 `process.env`를 직접 읽지 않는다. Oracle 프로덕션에서는 이 플래그를 설정하지 않거나 명시적으로 `false`로 유지한다. `ENABLE_DIAGNOSIS_DEV_STATES`는 REQ-B2CDIAG-025의 `ENABLE_DIAGNOSIS_FLOW`(01 플로우 전체의 프로덕션 활성화 게이트)와는 별개의 플래그다 — 전자는 devStep 강제 진입 여부를, 후자는 01 플로우 자체가 프로덕션에 존재하는지를 결정한다.
 - **REQ-B2CDIAG-018** (When): 사용자가 동의 완료 이후 필수 동의를 철회할 때, 시스템은 다음 단계로의 진행을 차단하고 그 시점까지 입력된 데이터를 다음 단계로 전달하지 않는다.
 - **REQ-B2CDIAG-019** (When): 사용자가 추가 질문 화면에서 이전 단계(동의 화면)로 돌아갈 때, 시스템은 이미 완료된 필수 동의 상태를 같은 세션 내에서는 유지한다.
 
 ### 3.5 기술 원칙 (Ubiquitous)
 
-- **REQ-B2CDIAG-020**: 시스템은 01 진단 입력을 스키마 기반으로 검증하며, 이름·전화번호·주민등록번호 형식에 해당하는 입력을 구조적으로 거부한다.
+- **REQ-B2CDIAG-020**: 시스템은 01 진단 입력을 스키마 기반으로 검증한다 — 검색어 필드는 1~200자 길이 제한을 가지며(200자 초과 입력은 차단), 그 범위 안에서 PII 검증을 2단계로 적용한다: (자동 차단) 휴대전화번호 형식과 주민등록번호(RRN) 형식처럼 구조적으로 신뢰성 있게 식별 가능한 패턴은 정규식으로 구조적으로 거부한다. (안내만 제공) 이름·주소 등 그 외 개인식별정보는 구조적으로 거부하지 않으며, 기존 경고 배너(`notice.tsx`)를 통한 안내만 제공한다 — 이름 형식은 정규식으로 신뢰성 있게 판별할 수 없고 오탐(false positive)이 불가피하므로 자동 거부 대상에서 제외한다.
 - **REQ-B2CDIAG-021**: 시스템은 진단 플로우 상태를 클라이언트 메모리(컴포넌트 상태) 안에서만 관리하며, 서버 세션이나 DB에 상태를 저장하지 않는다.
 - **REQ-B2CDIAG-022**: 시스템은 Desktop(1440px 기준)과 Mobile(390px 기준) 두 반응형 레이아웃을 제공하며, 동일한 상태 머신과 데이터 모델을 공유한다.
-- **REQ-B2CDIAG-023**: 시스템은 01 화면 구현이 배포되어 `/` 경로의 placeholder를 대체하는 시점에 맞춰 배포 스모크 체크를 갱신해야 한다 — 이 갱신 작업 자체는 이 SPEC의 run-phase 마일스톤(`plan.md` M11)에 포함되며, 실제 워크플로 파일 수정은 이번 plan-phase 문서 작성 시점이 아니라 후속 run-phase 실행 시점에 이뤄진다.
+- **REQ-B2CDIAG-023**: 시스템은 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 프로덕션에서 실제로 모두 `true`로 전환되는 시점에 맞춰 배포 스모크 체크를 갱신해야 한다 — 이 전환 시점은 "01 화면 코드가 merge됨" 또는 "run-phase 마일스톤 완료" 시점과 다르다(REQ-B2CDIAG-025 참고). 갱신 작업 자체는 이 SPEC의 run-phase 마일스톤(`plan.md` M11)에 문서화되어 있으나, 실제 워크플로 파일(`.github/workflows/deploy.yml`) 수정은 두 플래그가 실제로 모두 `true`로 전환되는 시점에만 이뤄지는 비블로킹 후속 작업이며 — 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(`plan.md` M11, `acceptance.md` AC-B2CDIAG-024 참고).
 
-### 3.6 금지 사항 (Unwanted — shall not)
+### 3.6 금지 사항 및 프로덕션 활성화 게이트 (Unwanted — shall not)
 
 - **REQ-B2CDIAG-024**: 시스템은 실제 담보 매칭 엔진이 연결되지 않은 현재 상태에서, mock 진단 결과를 실제 진단 결과처럼 사용자에게 제시해서는 안 된다.
+- **REQ-B2CDIAG-025**: 시스템은 두 개의 독립된 서버 전용 환경 변수로 프로덕션 활성화를 게이트한다 — `ENABLE_DIAGNOSIS_FLOW`(01 플로우 자체의 노출 여부, 기본값 `false`)와 `DIAGNOSIS_ENGINE_READY`(실제 담보 매칭 엔진 연결 여부, 기본값 `false`). `app/page.tsx`는 이 두 플래그를 하나의 논리곱(AND) 조건 — `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true` — 으로 **한 곳에서만** 검사하며, 이 조건이 거짓인 동안 실제 사용자에게 `<DiagnosisFlow />`를 전혀 렌더링해서는 안 되고 현재의 "서비스 준비 중입니다" placeholder를 계속 렌더링한다. 실제 담보 매칭 엔진 연결은 이 SPEC의 명시적 Out of Scope이므로(§4), 이 SPEC이 전달하는 코드 자체에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 존재하지 않는다 — 따라서 이 AND 게이트는 `ENABLE_DIAGNOSIS_FLOW`의 값과 무관하게, 이 SPEC이 전달한 코드 범위 안에서는 구조적으로 live 플로우를 프로덕션에서 도달 불가능하게 유지한다. `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하는 것은 실제 매칭 엔진을 연결하는 후속 SPEC의 몫이다. 이와 별개로, `ENABLE_DIAGNOSIS_FLOW`를 `true`로 전환하려면 동의 상세 화면의 6개 placeholder 문구(§4 참고)가 모두 실제 확정 문구로 교체된 상태여야 한다. 이 SPEC의 run-phase가 01 화면 UI 구현을 완료하더라도 두 플래그가 프로덕션에서 `false`로 유지되는 것은 정상적인 결과이며 실패가 아니다 — "코드가 구현됨"과 "프로덕션에서 활성화해도 안전함"은 서로 다른 상태다.
 
 ## 4. Out of Scope
 
@@ -117,12 +122,12 @@ DEV ONLY 참고 자료(구현 대상 아님, 자리표시자 상태로 보존): 
 ### Out of Scope — 법률·확정 문구
 
 - 법률·보험 자문처럼 보이는 확정적 결과 문구
-- `design/internal/`의 `{처리 목적 확정 문구}` 등 6개 placeholder 항목의 실제 문구 확정
+- `design/internal/`의 6개 placeholder 항목(처리 목적 / 처리하는 건강정보 항목 / 서버 저장 여부 / 보유·이용 기간 / 외부 AI 서비스 전송 여부 / 동의 거부 권리 및 진단 이용 제한)의 실제 문구 확정 — 전체 목록은 `plan.md` §B "미결정 사항" 참고. 동의 상세 UI 컨테이너(Modal/Bottom Sheet 셸) 구현은 이 6개 문구의 법무 확정과 별개이며, `ENABLE_DIAGNOSIS_FLOW`는 6개 문구가 모두 확정되기 전까지 프로덕션에서 `true`로 전환할 수 없다(REQ-B2CDIAG-025)
 - Pencil 디자인 원본(`design/claimradar-ui.pen`, `design/exports/`, `design/internal/`) 수정
 
 ### Out of Scope — 디자인 신규 제작
 
-- `M01-D`/`M01-E`(모바일 결과없음/분석오류) 디자인 신규 제작 — 현재 디자인에 부재하며, 이 SPEC은 그 부재를 `design.md`의 미해결 질문으로 기록만 한다
+- `M01-D`/`M01-E`(모바일 결과없음/분석오류) 디자인 신규 제작 — 현재 디자인에 부재하며, 이 SPEC은 Desktop `01-D`/`01-E` 컴포넌트를 반응형으로 재사용하기로 확정했다(`design.md` §1, §13) — 신규 Pencil/Figma 산출물은 제작하지 않는다
 
 ### Out of Scope — 테스트
 
