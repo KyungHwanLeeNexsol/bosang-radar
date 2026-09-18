@@ -24,8 +24,18 @@
 
 - **AC-B2CDIAG-013**: Given 추가 질문 화면까지 진행한 상태, When 브라우저 새로고침을 실행하면, Then 입력값·동의 상태·응답이 모두 초기화되고 01 초기 화면으로 되돌아간다 — 이는 그 상태가 서버나 DB가 아니라 클라이언트 메모리에만 존재했음을 검증한다. (REQ-B2CDIAG-015, REQ-B2CDIAG-004, REQ-B2CDIAG-021)
 - **AC-B2CDIAG-014**: Given 프로덕션 환경에서 클라이언트 메모리에 선행 상태가 없는 상태, When 진단 중/결과 상태에 해당하는 URL로 직접 접근하면, Then 01 초기 입력 화면으로 리다이렉트된다. (REQ-B2CDIAG-016)
-- **AC-B2CDIAG-015**: Given `ENABLE_DIAGNOSIS_DEV_STATES=true`인 비프로덕션(dev/staging) 환경, When `?devStep=result-none` 또는 `?devStep=error` 쿼리 파라미터로 접근하면, Then 선행 상태 없이도 01-D(결과 없음) 또는 01-E(분석 오류) 상태가 UI 검증 목적으로 강제 렌더링된다. (REQ-B2CDIAG-017)
-- **AC-B2CDIAG-016**: Given `ENABLE_DIAGNOSIS_DEV_STATES`가 unset이거나 `false`(프로덕션 기본값), When `?devStep=` 쿼리 파라미터로 접근을 시도하면, Then 해당 파라미터는 무시되고 정상적인 상태 판정 로직을 따른다 — devStep이 프로덕션에서 무시됨을 검증하는 전용 시나리오다. (REQ-B2CDIAG-016, REQ-B2CDIAG-017)
+- **AC-B2CDIAG-015**: Given `ENABLE_DIAGNOSIS_DEV_STATES=true`(reviewEnabled=true)인 비프로덕션(dev/staging) 환경 — `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`(productionReady 구성 요소)가 `false`/`false`, `true`/`false`, `false`/`true`, `true`/`true` 중 어느 조합이든 무관하게, When `?devStep=result-none` 또는 `?devStep=error` 쿼리 파라미터로 접근하면, Then `shouldRenderDiagnosis = productionReady || reviewEnabled`가 참이 되어 `<DiagnosisFlow />`가 렌더링되고, 선행 상태 없이도 01-D(결과 없음) 또는 01-E(분석 오류) 상태가 UI 검증 목적으로 강제 렌더링된다 — `reviewEnabled` 경로가 `productionReady` 값과 무관하게 독립 동작함을 검증한다. (REQ-B2CDIAG-017, REQ-B2CDIAG-025)
+- **AC-B2CDIAG-016**: Given `ENABLE_DIAGNOSIS_DEV_STATES`가 unset이거나 `false`(reviewEnabled=false, 프로덕션 기본값)이고 `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`도 production 기본값인 `false`/`false`인 상태, When `?devStep=` 쿼리 파라미터로 접근을 시도하면, Then `shouldRenderDiagnosis = productionReady || reviewEnabled`가 거짓이므로 `<DiagnosisFlow />`는 렌더링되지 않고 placeholder가 유지되며 `?devStep=`은 무시된다 — devStep이 production 기본 조합에서 무시됨을 검증하는 전용 시나리오다. 아래 행렬은 run-phase 테스트 계획이 기계적으로(Vitest/Playwright) 검증해야 할 전체 조합을 정의한다:
+
+  | `ENABLE_DIAGNOSIS_FLOW` | `DIAGNOSIS_ENGINE_READY` | `ENABLE_DIAGNOSIS_DEV_STATES` | `productionReady` | `reviewEnabled` | `shouldRenderDiagnosis` | 결과 |
+  |---|---|---|---|---|---|---|
+  | false | false | false | false | false | false | placeholder (production 기본값) |
+  | true | false | false | false | false | false | placeholder |
+  | false | true | false | false | false | false | placeholder |
+  | true | true | false | true | false | true | 실제 DiagnosisFlow |
+  | false | false | true | false | true | true | review용 DiagnosisFlow |
+
+  (REQ-B2CDIAG-016, REQ-B2CDIAG-017, REQ-B2CDIAG-025)
 - **AC-B2CDIAG-017**: Given 사용자가 필수 동의를 완료하고 추가 질문 화면의 첫 번째 질문(1/3)에 있는 상태, When 사용자가 뒤로 가기(브라우저 뒤로가기 또는 인앱 뒤로가기 동작)를 수행하면, Then 사용자는 동의(01-A2) 오버레이로 재진입하고 이전에 체크했던 동의 체크박스가 여전히 선택된 상태로 표시된다(세션 내 유지, REQ-B2CDIAG-019); When 이 상태에서 사용자가 그 체크박스를 다시 해제하면, Then 최초 미동의 상태와 동일하게 "동의하고 진단하기" CTA를 통한 다음 단계 진행이 다시 차단된다; AND 뒤로 가기 이전에 이미 답변했던 추가 질문 응답은 동의 철회로 인해 삭제되지 않고 클라이언트 상태(React state)에 그대로 남아 있으며, 사용자가 이후 다시 동의하고 진행하면 그 응답이 유지된 채로 이어진다 — 동의 철회는 "다음 단계로의 진행을 차단"하는 것이지 "이미 입력된 클라이언트 상태를 삭제"하는 것이 아니다(design.md §17 "동의 철회 시 데이터 처리" 행 및 §18.1 `questions` 상태 "유지되는 데이터" 행과 일치). (REQ-B2CDIAG-018, REQ-B2CDIAG-019)
 - **AC-B2CDIAG-018**: Given 추가 질문 화면에 있는 상태, When 이전 단계(동의 화면)로 돌아가면, Then 이미 완료했던 필수 동의 체크 상태가 같은 세션 내에서 유지된 채로 표시된다. (REQ-B2CDIAG-019)
 
@@ -33,7 +43,7 @@
 
 - **AC-B2CDIAG-019**: Given 01 검색창에 휴대전화번호 형식(예: `010-1234-5678` 또는 `01012345678`) 또는 주민등록번호 형식(예: `901231-1234567` 또는 `9012311234567`) 문자열을 입력한 상태, When "보상 진단"을 클릭하면, Then 입력 스키마 검증이 실패하고 동의 화면으로 진행하지 않는다. 이름 형식 문자열(예: "홍길동")은 이 자동 거부 대상이 아니다 — 이름은 정규식으로 신뢰성 있게 판별할 수 없어 오탐(false positive) 없이 자동 거부할 수 없으며, 대신 기존 경고 배너(`notice.tsx`)를 통한 안내만 제공된다(별도 AC로 차단 여부를 검증하지 않음 — `design.md` §4 참고). (REQ-B2CDIAG-020)
 - **AC-B2CDIAG-020**: Given 뷰포트 폭이 1440px(Desktop)와 390px(Mobile) 각각인 상태, When 동일한 진단 플로우를 수행하면, Then 두 폭 모두 동일한 상태 머신과 데이터로 동작하되 레이아웃(Modal vs Bottom Sheet 등)만 다르게 렌더링된다. (REQ-B2CDIAG-022)
-- **AC-B2CDIAG-021**: Given `ENABLE_DIAGNOSIS_FLOW=false`(프로덕션 기본값) 또는 `DIAGNOSIS_ENGINE_READY=false`(프로덕션 기본값 — 실제 매칭 엔진 연결이 이 SPEC의 Out of Scope이므로 이 SPEC 범위 내내 유지되는 상태) 중 하나 이상이 참인 상태, When 실제 사용자(또는 테스트 실행 환경)가 01 화면이 정상 렌더링되었다면 `<DiagnosisFlow />`가 표시되어야 할 지점에 도달하면, Then `app/page.tsx`는 `<DiagnosisFlow />`를 렌더링하지 않고 기존 placeholder("서비스 준비 중입니다")를 렌더링한다 — 따라서 `loading` 상태를 거쳐 01-D(결과 없음) 또는 01-E(분석 오류)로 자동 분기하는 mock 판정 경로에서 나오는 mock 결과가 실제 프로덕션 사용자에게 표시되지 않는다. 두 플래그 상태 모두 테스트 환경(예: Playwright 테스트 설정, CI 환경 변수)에서 직접 설정·검증 가능하다. (REQ-B2CDIAG-024, REQ-B2CDIAG-025)
+- **AC-B2CDIAG-021**: Given `ENABLE_DIAGNOSIS_FLOW=false`(프로덕션 기본값) 또는 `DIAGNOSIS_ENGINE_READY=false`(프로덕션 기본값 — 실제 매칭 엔진 연결이 이 SPEC의 Out of Scope이므로 이 SPEC 범위 내내 유지되는 상태) 중 하나 이상이 참이고, 동시에 `ENABLE_DIAGNOSIS_DEV_STATES=false`(reviewEnabled=false, 프로덕션 기본값)인 상태 — 즉 `shouldRenderDiagnosis = productionReady || reviewEnabled`가 거짓인 프로덕션 조합, When 실제 사용자(또는 테스트 실행 환경)가 01 화면이 정상 렌더링되었다면 `<DiagnosisFlow />`가 표시되어야 할 지점에 도달하면, Then `app/page.tsx`는 `<DiagnosisFlow />`를 렌더링하지 않고 기존 placeholder("서비스 준비 중입니다")를 렌더링한다 — 따라서 `loading` 상태를 거쳐 01-D(결과 없음) 또는 01-E(분석 오류)로 자동 분기하는 mock 판정 경로에서 나오는 mock 결과가 실제 프로덕션 사용자에게 표시되지 않는다. 세 플래그 상태 모두 테스트 환경(예: Playwright 테스트 설정, CI 환경 변수)에서 직접 설정·검증 가능하다. (REQ-B2CDIAG-024, REQ-B2CDIAG-025)
 
 ## Edge Cases
 
@@ -55,11 +65,11 @@
 - [ ] 위 25개 AC(AC-001~AC-025) 각각이 후속 run-phase에서 Vitest(단위/컴포넌트) 또는 Playwright(01 범위 E2E)로 매핑됨 — 구 AC-025b(프로덕션 빌드/Suspense 검증)는 "## Quality Gate 기준" 섹션으로 이관되어 별도 품질 게이트 기준으로 관리된다
 - [ ] `spec.md`의 25개 REQ 전항목이 명시적으로 최소 1개 AC에 인용됨 — REQ-B2CDIAG-001/002/003 → AC-001, REQ-B2CDIAG-004/021 → AC-013, REQ-B2CDIAG-020 → AC-019/AC-022, REQ-B2CDIAG-005 → AC-001/AC-023, REQ-B2CDIAG-023 → AC-024, REQ-B2CDIAG-025 → AC-021/AC-025, 나머지(REQ-006~019, 022, 024)는 §본문의 각 AC에 개별 인용됨
 - [ ] Out of Scope 항목(02/03 구현, E2E 전체, 매칭 엔진)에 대한 테스트가 이 SPEC의 run-phase에 포함되지 않음을 plan-auditor가 확인
-- [ ] AC-021/AC-015/AC-016 검증됨: `ENABLE_DIAGNOSIS_FLOW=false` 또는 `DIAGNOSIS_ENGINE_READY=false`(둘 다 프로덕션 기본값이며, 이 SPEC 범위 내내 유지됨)일 때 실제 사용자는 정상 사용자 플로우를 통해 01-D/01-E에 절대 도달할 수 없음
+- [ ] AC-021/AC-015/AC-016 검증됨: production 기본값 조합(`productionReady`=false, `reviewEnabled`=false)에서 실제 사용자는 정상 사용자 플로우를 통해 01-D/01-E에 절대 도달할 수 없으며, `reviewEnabled` 경로는 `productionReady` 값과 무관하게 독립적으로 UI 검증·Playwright 목적에만 동작함이 AC-016의 5행 동작 행렬로 확인됨
 - [ ] AC-025 검증됨: 6개 동의 상세 placeholder 문구가 확정되지 않은 한 `ENABLE_DIAGNOSIS_FLOW`가 프로덕션에서 `true`로 전환되지 않음
 - [ ] AC-024는 이 SPEC의 sync-phase `completed` 전환을 막는 블로킹 조건이 아니다 — `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`가 실제 프로덕션에서 활성화되는 시점에 조건부로 검증되는 이연(deferred) 추적 항목이며, "이 SPEC의 모든 AC가 충족되어야 완료" 판정 집합에서 제외된다(`plan.md` M11(b) 참고)
 - [ ] run-phase가 동의 상세 컨테이너(Modal/Bottom Sheet 셸)의 전체 UI 구현을 완료하더라도, 6개 문구가 미확정 상태이면 이 SPEC의 판정은 "코드 구현 완료 / 출시 차단"이며 "완료"로 판정하지 않는다
-- [ ] 이 문서 및 `spec.md`/`plan.md`/`progress.md`에 실제 plan-auditor 검토 결과 없이 "PASS", 구체적 점수, 또는 "완료"를 기재하지 않았음을 확인함(이 개정 세션 기준)
+- [x] 이 문서 및 `spec.md`/`plan.md`/`progress.md`에 기재된 plan-auditor PASS 판정(iteration 3, 0.92, 감사 대상 커밋 `a2d6c69`)은 실제 plan-auditor 호출 결과이며 `progress.md` §G에 근거(must-pass 결과, 로컬 보고서 경로가 참고용·`.gitignore` 대상이라는 사실)와 함께 기록되어 있음을 확인함 — 이번 렌더링 게이트(productionReady/reviewEnabled) 정정에 따른 iteration 4 재감사 결과가 나오기 전까지, 이 개정판 문서 세트에 대해 run-phase 착수 가능이라고 주장하지 않는다
 
 ## Quality Gate 기준
 

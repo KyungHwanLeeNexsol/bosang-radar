@@ -5,13 +5,13 @@
 아래 마일스톤은 실행 순서(의존성 기반)로 정렬되어 있다. 그중 **되돌리기 어렵거나 다른 결정에 가장 큰 영향을 주는 결정**은 다음 세 가지이며, 리뷰 시 이 세 가지를 가장 먼저 확인할 것을 권장한다.
 
 1. **M2 — Route 구조 결정** (단일 route + client 상태 머신 vs 화면별 개별 route): 이후 모든 화면의 데이터 흐름과 "직접 URL 접근" 처리 방식을 좌우한다 (`design.md` §2).
-2. **M2 — 개발·리뷰용 상태 강제 진입 방법** (`ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 플래그 + `?devStep=` 쿼리 파라미터): REQ-B2CDIAG-017의 안전장치다. 이 플래그는 `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`(REQ-B2CDIAG-025 — 01 플로우 전체를 프로덕션에 노출할지 결정하는 상위 게이트, 두 플래그의 AND 조건)와는 별개다 — 전자(`ENABLE_DIAGNOSIS_DEV_STATES`)는 devStep 강제 진입 여부를, 후자(`ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`)는 01 플로우 자체의 프로덕션 존재 여부를 결정하며, 실제 사용자에게 mock 결과가 노출되지 않도록 막는 장치는 후자다 — 특히 `DIAGNOSIS_ENGINE_READY`는 이 SPEC이 전달하는 코드에서 `true`로 전환되는 지점이 없으므로(실제 매칭 엔진 연결은 Out of Scope), 이 SPEC 범위 내내 mock 노출 차단이 코드 레벨에서 구조적으로 보장된다.
+2. **M2 — 개발·리뷰용 상태 강제 진입 방법** (`ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 플래그 + `?devStep=` 쿼리 파라미터): REQ-B2CDIAG-017의 안전장치이자 REQ-B2CDIAG-025의 `reviewEnabled` 경로를 구성하는 유일한 입력이다. `app/page.tsx`는 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`와 `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES`를 독립적으로 계산한 뒤 `shouldRenderDiagnosis = productionReady || reviewEnabled`로 렌더링 여부를 결정한다(REQ-B2CDIAG-025, `design.md` §19) — `reviewEnabled`는 UI 검증·Playwright 전용이며 실제 엔진 준비를 의미하지 않는다. `DIAGNOSIS_ENGINE_READY`는 이 SPEC이 전달하는 코드에서 `true`로 전환되는 지점이 없으므로(실제 매칭 엔진 연결은 Out of Scope), `productionReady`는 이 SPEC의 코드 범위 안에서 구조적으로 항상 거짓이다 — 따라서 프로덕션에서 mock 노출이 발생할 수 있는 유일한 경로는 `reviewEnabled`(비프로덕션 전용, Oracle 프로덕션에서는 unset/false 유지)뿐이며, 이 경로는 §19의 동작 행렬로 기계적으로 검증된다.
 3. **M4 — 동의 상세 Modal/Bottom Sheet 구현 방식** (`@base-ui/react/dialog` + `drawer` 재사용): 신규 의존성 추가 여부를 결정하며, 접근성(포커스 트랩·ESC·배경 클릭) 구현 전체가 이 선택 위에 놓인다.
 
 ## §A. Context
 
 - 선행 SPEC: SPEC-B2C-FOUNDATION-001(완료) — `app/page.tsx`는 현재 정적 placeholder("서비스 준비 중입니다")이며 세션/인증 의존성이 없다.
-- 배포 기준선: PR #16(`f7bdae7`)이 `bosang-radar.duckdns.org`에 배포·검증 완료. 이 SPEC의 run-phase가 완료되면 `/`의 placeholder를 실제 01 화면으로 교체하게 된다(M11에서 배포 스모크 체크 갱신 필요성을 기록).
+- 배포 기준선: PR #16(`f7bdae7`)이 `bosang-radar.duckdns.org`에 배포·검증 완료. **run-phase 완료는 UI 코드 구현 완료를 의미하며, 프로덕션 placeholder 교체와는 별개의 사건이다.** `/`의 placeholder를 실제 01 화면으로 교체하는 시점은 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 모두 `true`로 전환되고 동시에 동의 상세 6개 문구가 모두 확정된 시점뿐이다 — 그 시점에 배포 스모크 체크도 함께 변경한다(M11 참고). run-phase 코드 완성이 이 활성화 시점을 자동으로 앞당기지 않는다.
 - 기존 재사용 가능 자산: `components/ui/*` 11종(shadcn 스타일), `lib/validation/case-input.ts`의 PII 정규식 거부 패턴(그대로 재사용은 불가하나 패턴은 참고 가능), `zod` 4.4.3(이미 의존성에 존재), `@base-ui/react` 1.7.0(dialog·drawer·popover 등 프리미티브 전체 포함 확인됨 — `research.md` §2).
 - 디자인 SSOT: `design/MIGRATION-PLAN.md` + `design/exports/`(10개 대상 화면) + `design/internal/`(2개 DEV ONLY 참고 자료, 구현 대상 아님).
 
@@ -24,7 +24,7 @@
 | M01-D/M01-E 모바일 디자인 부재 | **결정됨** — Desktop `01-D`/`01-E` 컴포넌트를 반응형으로 재사용(신규 디자인 제작 없음) | `design.md` §1, §13 참고 |
 | 반응형 브레이크포인트 전환 지점 | **결정됨** — 0~767px = Mobile, 768px 이상 = Desktop(2-way 분기, `md:` 브레이크포인트) | `design.md` §1, §13 참고 |
 | DEV-ONLY 동의 상세 6개 문구 placeholder — 법무 확정 전 | 법무 확정 전, 6개 항목 모두 미결정 | ① `{처리 목적 확정 문구}` ② `{처리 항목 확정 문구}`(처리하는 건강정보 항목) ③ `{저장 여부 확정 문구}`(서버 저장 여부) ④ `{보유·이용 기간 확정 문구}` ⑤ `{외부 AI 전송 여부 확정 문구}` ⑥ `{동의 거부 및 제한 확정 문구}`(동의 거부 권리 및 진단 이용 제한). 6개 모두 그대로 `{}` 형태 유지, 실제 화면(프로덕션)에 노출 금지 — `ENABLE_DIAGNOSIS_FLOW=true`로 전환되더라도 예외 없음(REQ-B2CDIAG-025). 동의 상세 UI 컨테이너(Modal/Bottom Sheet 셸, `design.md` §14/§17) 구현과 6개 문구의 법무 확정은 별개 작업이며, 컨테이너 구현이 완료되어도 6개 문구가 미확정이면 이 SPEC의 상태는 "코드 구현 완료 / 출시 차단"이지 "완료"가 아니다 |
-| `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY` 프로덕션 활성화 | 미결정 (run-phase 이후 별도 판단) | REQ-B2CDIAG-025 — 두 플래그의 AND 조건. `DIAGNOSIS_ENGINE_READY=true` 전환(실제 매칭 엔진 연결)은 이 SPEC 범위 밖(후속 SPEC), `ENABLE_DIAGNOSIS_FLOW=true` 전환은 6개 동의 상세 문구 확정이 전제조건. 이 SPEC이 전달하는 코드는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하지 않으므로, 이 SPEC 범위 내내 두 플래그 모두 `false`로 유지된다 |
+| `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY` 프로덕션 활성화 (`productionReady`) | 미결정 (run-phase 이후 별도 판단) | REQ-B2CDIAG-025 — `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`. `DIAGNOSIS_ENGINE_READY=true` 전환(실제 매칭 엔진 연결)은 이 SPEC 범위 밖(후속 SPEC), `ENABLE_DIAGNOSIS_FLOW=true` 전환은 6개 동의 상세 문구 확정이 전제조건. 이 SPEC이 전달하는 코드는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하지 않으므로, `productionReady`는 이 SPEC 범위 내내 항상 거짓이다. `reviewEnabled`(`ENABLE_DIAGNOSIS_DEV_STATES`)는 이와 독립된 별도 경로다 — `design.md` §19 참고 |
 
 ## §C. Pre-flight
 
@@ -50,14 +50,14 @@
 - [x] Out of Scope 섹션에 6개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(app/, components/, lib/, package.json, node_modules) 완료 — `research.md`
 - [x] 디자인 export 10개 + DEV ONLY 2개 직접 열람 완료
-- [ ] plan-auditor 검토 대기
+- [x] plan-auditor 독립 재검토 완료 — iteration 3 PASS(0.92), Tier L 임계값(0.85) 충족, must-pass 7/7 PASS(`progress.md` §G 참고, 감사 대상 커밋 `a2d6c69`). 이번 개정(§A 배포 문구 정정, M2 렌더링 게이트를 productionReady/reviewEnabled 이원화로 정정)은 렌더링 게이트의 실질 변경이므로 plan-auditor iteration 4 재감사를 진행 중이다(`progress.md` §G 참고, 표준 3회 한도를 넘는 재감사는 사용자 명시 승인됨) — iteration 4 최종 PASS 전에는 이 SPEC을 run-phase 착수 가능으로 간주하지 않는다
 
 ## §F. Milestones (후속 `/moai run SPEC-B2C-DIAGNOSIS-001`의 실행 계획)
 
 아래 마일스톤은 모두 **후속 run-phase가 실행할 계획**이며, 이번 plan-phase는 문서만 작성한다.
 
 1. **기준선 및 디자인 프레임 조사** — 10개 export PNG + 2개 DEV ONLY PNG 재확인, `components/ui/*` 재사용 범위 최종 확정, `@base-ui/react` dialog/drawer API 시그니처 확인.
-2. **공개 B2C route와 진단 shell** — `app/page.tsx`(Server Component)가 `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY` 두 플래그를 읽어 `ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`인 경우에만(하나의 AND 조건, 한 곳에서만 검사 — `design.md` §19) `<DiagnosisFlow />`를 `<Suspense fallback={...}>`로 감싸 렌더링하고(그 외에는 현재의 placeholder 유지), fallback은 01 화면의 초기 레이아웃과 유사한 스켈레톤으로 레이아웃 시프트를 최소화한다(`useSearchParams()`를 호출하는 Client Component가 Suspense 경계 없이 정적 빌드되면 빌드 실패/강제 dynamic 렌더링이 발생하므로 필수, `design.md` §2). `?step=` 쿼리 파라미터 기반 상태 전이 라우팅 구현, `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 플래그 + `?devStep=` 개발용 상태 강제 진입 파라미터 구현(`ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`와는 별개 플래그 — §결정 우선순위 #2 참고).
+2. **공개 B2C route와 진단 shell** — `app/page.tsx`(Server Component)가 세 플래그(`ENABLE_DIAGNOSIS_FLOW`, `DIAGNOSIS_ENGINE_READY`, `ENABLE_DIAGNOSIS_DEV_STATES`)를 읽어 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`와 `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES`를 독립적으로 계산하고, `shouldRenderDiagnosis = productionReady || reviewEnabled`인 경우에만(한 곳에서만 검사 — `design.md` §19) `<DiagnosisFlow />`를 `<Suspense fallback={...}>`로 감싸 렌더링하고(그 외에는 현재의 placeholder 유지), fallback은 01 화면의 초기 레이아웃과 유사한 스켈레톤으로 레이아웃 시프트를 최소화한다(`useSearchParams()`를 호출하는 Client Component가 Suspense 경계 없이 정적 빌드되면 빌드 실패/강제 dynamic 렌더링이 발생하므로 필수, `design.md` §2). `reviewEnabled` 경로는 UI 검증·Playwright 시각 회귀 테스트 전용이며 실제 엔진 준비를 의미하지 않는다 — `DIAGNOSIS_ENGINE_READY`를 테스트 편의를 위해 거짓으로 `true` 설정하지 않는다. `?step=` 쿼리 파라미터 기반 상태 전이 라우팅 구현, `?devStep=` 개발용 상태 강제 진입 파라미터는 `reviewEnabled`가 참일 때만 유효하다(§결정 우선순위 #2, `acceptance.md` AC-B2CDIAG-015/016 참고).
 3. **기본 진단 정보 입력** — 01/M01 검색창 + "많이 찾는 사례" 칩, `lib/validation/diagnosis-input.ts` zod 스키마(전화번호·주민등록번호 자동 차단 / 이름 등은 안내만 제공, REQ-B2CDIAG-020) 작성 및 단위 테스트. 테스트 계획에 전화번호·주민등록번호 각각 하이픈 포함/미포함 케이스를 모두 포함한다(예: `010-1234-5678`/`01012345678`, `901231-1234567`/`9012311234567`).
 4. **필수 민감정보 동의** — 01-A2/M01-A2 동의 화면, Desktop Modal(`@base-ui/react/dialog`) + Mobile Bottom Sheet(`@base-ui/react/drawer`) 구현, CTA 비활성화 조건, 내용 보기 열람 시 체크 자동 선택 금지, 닫기/ESC/배경클릭/포커스 복귀.
 5. **추가 질문** — 01-B/M01-B 3문항 순차 진행, 건너뛰기 링크, 답변의 클라이언트 상태 보존.
