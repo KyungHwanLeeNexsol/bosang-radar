@@ -10838,7 +10838,7 @@
       "name": "03 · 상담 신청 · 손해사정사 연결 (1440)",
       "clip": true,
       "width": 1440,
-      "height": 1563,
+      "height": 1426,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -11663,166 +11663,9 @@
                                   "name": "I",
                                   "width": 12,
                                   "height": 12,
-                                  "icon": "chevron-up",
+                                  "icon": "chevron-down",
                                   "library": "lucide",
                                   "fill": "$ink-3"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "pCw1u",
-                          "name": "Expanded",
-                          "width": "fill_container",
-                          "fill": "$surface-sub",
-                          "layout": "vertical",
-                          "gap": 9,
-                          "padding": [
-                            14,
-                            16,
-                            16,
-                            44
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "u463tV",
-                              "name": "수집 항목",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "PzdlH",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "수집 항목",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "AHe7L",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "hEYKu",
-                              "name": "이용 목적",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "BzcW6",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "이용 목적",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "KyYq7",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "상담 신청 접수 및 연락",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "budh8",
-                              "name": "보유 · 이용 기간",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "euBTK",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "보유 · 이용 기간",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "sUbdh",
-                                  "name": "V",
-                                  "fill": "$ink-4",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "운영 정책 확정 후 기재",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "RTMYO",
-                              "name": "거부 권리",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "eg4LZ",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "거부 권리",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "SuwkK",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "동의를 거부할 수 있으며, 거부 시 상담 신청이 제한됩니다.",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -13741,7 +13584,7 @@
       "name": "03-A2 · 상담 신청 · 전화 선택 (1440)",
       "clip": true,
       "width": 1440,
-      "height": 1563,
+      "height": 1426,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -14566,166 +14409,9 @@
                                   "name": "I",
                                   "width": 12,
                                   "height": 12,
-                                  "icon": "chevron-up",
+                                  "icon": "chevron-down",
                                   "library": "lucide",
                                   "fill": "$ink-3"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "BhlaG",
-                          "name": "Expanded",
-                          "width": "fill_container",
-                          "fill": "$surface-sub",
-                          "layout": "vertical",
-                          "gap": 9,
-                          "padding": [
-                            14,
-                            16,
-                            16,
-                            44
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "Hkug9",
-                              "name": "수집 항목",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "aF8UJ",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "수집 항목",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "va85j",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "UQEi8",
-                              "name": "이용 목적",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "ee0PX",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "이용 목적",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "RruHI",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "상담 신청 접수 및 연락",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "tDrid",
-                              "name": "보유 · 이용 기간",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "tLBZE",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "보유 · 이용 기간",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "dsodY",
-                                  "name": "V",
-                                  "fill": "$ink-4",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "운영 정책 확정 후 기재",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "X0c3J",
-                              "name": "거부 권리",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "b0Vou",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "거부 권리",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "j0GdSn",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "동의를 거부할 수 있으며, 거부 시 상담 신청이 제한됩니다.",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -20900,7 +20586,7 @@
           "fill": "$ink-2",
           "textGrowth": "fixed-width",
           "width": "fill_container",
-          "content": "이 영역은 개발·운영 준비용 주석입니다. 어떤 화면 프레임에도 포함되어 있지 않으므로 사용자 화면과 Export 이미지에 노출되지 않습니다.",
+          "content": "이 영역은 개발·운영 준비용 주석입니다. 어떤 사용자 화면 프레임에도 포함되어 있지 않으므로 사용자 화면과 Export 이미지에 노출되지 않습니다. Export 제외 대상 : 이 프레임 + 「DEV ONLY · 상담 신청 동의 상세 구조」 + 「DEV ONLY · 01-A3 …」 + 「DEV ONLY · M01-A3 …」.",
           "lineHeight": 1.7,
           "fontFamily": "$font",
           "fontSize": 13,
@@ -21452,7 +21138,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "• 처리 목적 : (미확정)\n• 처리하는 건강정보 항목 : (미확정 — 사고 · 질병 · 치료 내용 중 실제 처리 범위)\n• 서버 저장 여부 : (미확정 — 저장 / 미저장 / 일시 처리 후 폐기)\n• 보유 · 이용 기간 : (미확정)\n• 외부 AI 서비스 전송 여부 : (미확정 — 전송 시 수탁사 · 전송 항목 · 국외 이전 여부 포함)\n• 동의 거부 시 진단 이용 제한 : (미확정 — 거부 시 진단 불가 여부)",
+              "content": "상세 UI 구조는 별도 프레임으로 분리했습니다 — 데스크톱 「DEV ONLY · 01-A3 · 건강정보 동의 상세 · Desktop」 / 모바일 「DEV ONLY · M01-A3 · 건강정보 동의 상세 · Mobile」.\n필수 6개 항목 : 처리 목적 / 처리하는 건강정보 항목 / 서버 저장 여부 / 보유 · 이용 기간 / 외부 AI 서비스 전송 여부 / 동의 거부 권리 및 진단 이용 제한. 모두 { } 빈 슬롯 상태입니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -21465,7 +21151,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "위 6개 항목이 모두 확정된 뒤 상세 레이어 문구를 작성합니다. 확정 전에는 링크만 노출합니다.",
+              "content": "연결 규칙 — Desktop : 01-A2 「내용 보기」 → 01-A3 구조를 실제 정책 문구로 채운 상세 Modal (중앙 Modal · 배경 Dim 유지 · 우측 상단 X · 본문 세로 스크롤 · 하단 확인 버튼). Mobile : M01-A2 「내용 보기」 → M01-A3 구조를 채운 상세 Bottom Sheet (화면 높이 약 88% · 드래그 핸들 + 우측 상단 X 44×44 · 본문 세로 스크롤 · 하단 고정 확인 버튼 · Safe Area 34px).\n두 화면 모두 「확인」은 읽음 확인이며 동의 체크박스를 자동 선택하지 않습니다. 닫으면 각각 01-A2 / M01-A2 로 돌아갑니다.\n실제 정책 문구가 확정되기 전에는 01-A3 · M01-A3 프레임을 사용자용 Export 목록에 포함하지 않습니다. 외부 AI 서비스명은 추정해서 적지 않습니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -21557,7 +21243,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "보유 · 이용 기간은 화면에 「운영 정책 확정 후 기재」로 표기해 두었습니다. 실제 기간이 확정되면 해당 값을 교체하고 이 주석을 삭제합니다.",
+              "content": "보유 · 이용 기간을 포함한 상세 문구가 확정되기 전까지 사용자용 화면 · Export 에서는 상담 동의 3항목을 모두 닫힌 상태로만 노출합니다. 상세 구조는 「DEV ONLY · 상담 신청 동의 상세 구조」 프레임에서 관리하며, 확정 문구를 슬롯에 채운 뒤 펼침 상태와 Export를 생성합니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -32844,6 +32530,4373 @@
                       "fontFamily": "$font",
                       "fontSize": 14.5,
                       "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Fzd4f",
+      "x": 13700,
+      "y": 9432,
+      "name": "DEV ONLY · 상담 신청 동의 상세 구조",
+      "width": 860,
+      "fill": "#FFF8E1",
+      "cornerRadius": 16,
+      "stroke": "#E8D4A8",
+      "strokeWidth": 2,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 28,
+      "children": [
+        {
+          "type": "frame",
+          "id": "y5Cu1",
+          "name": "Head",
+          "width": "fill_container",
+          "gap": 9,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Qmwqa",
+              "name": "Badge",
+              "fill": "#8A5A12",
+              "cornerRadius": 5,
+              "padding": [
+                3,
+                7
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "IHhwJ",
+                  "name": "T",
+                  "fill": "#FFFFFF",
+                  "content": "DEV ONLY",
+                  "fontFamily": "$font",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Qa6QZ",
+              "name": "T",
+              "fill": "#8A5A12",
+              "content": "상담 신청 동의 상세 구조",
+              "fontFamily": "$font",
+              "fontSize": 19,
+              "fontWeight": "700",
+              "letterSpacing": -0.4
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "olqpo",
+          "name": "D",
+          "fill": "$ink-2",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "03 · 03-A2 · M03 상담 동의 항목의 「자세히 보기」 상세 내용입니다. 확정 문구가 채워지기 전까지 사용자용 화면과 Export 에서는 3항목 모두 닫힌 상태로만 노출합니다. 아래 { } 토큰은 개발용 빈 슬롯이며 사용자 화면에 넣지 않습니다.",
+          "lineHeight": 1.7,
+          "fontFamily": "$font",
+          "fontSize": 12.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "aHSt3",
+          "name": "상담 신청을 위한 개인정보 수집 · 이용 동의",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": [
+            16,
+            18,
+            18,
+            18
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "R81IBm",
+              "name": "H",
+              "width": "fill_container",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Y6N5sz",
+                  "name": "Tag",
+                  "fill": "$accent-soft",
+                  "cornerRadius": 4,
+                  "padding": [
+                    3,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "WyKFo",
+                      "name": "T",
+                      "fill": "$accent-deep",
+                      "content": "필수",
+                      "fontFamily": "$font",
+                      "fontSize": 10.5,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "W475A",
+                  "name": "T",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "상담 신청을 위한 개인정보 수집 · 이용 동의",
+                  "lineHeight": 1.5,
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.3
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yrAQi",
+              "name": "Fields",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$surface-sub",
+              "cornerRadius": 8,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "O2cwj2",
+                  "name": "수집 항목",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LLNk2",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "수집 항목",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "L34ptW",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "이름 · 휴대폰 번호 · 연락 희망 시간",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Bgp8r",
+                  "name": "이용 목적",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FED1g",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "이용 목적",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "tS7uD",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "상담 신청 접수 및 연락",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LzMTr",
+                  "name": "보유 · 이용 기간",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HWtuf",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "보유 · 이용 기간",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hIBMy",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "w6cMia",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{보유·이용 기간 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "odS8Z",
+                  "name": "동의 거부 권리 및 불이익",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ooQXM",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "동의 거부 권리 및 불이익",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Z3SzZ",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "동의를 거부할 수 있으며, 거부 시 상담 신청이 제한됩니다.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "GH6kJ",
+          "name": "진단 결과 등 건강정보의 상담 이용 동의",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": [
+            16,
+            18,
+            18,
+            18
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "L7TdSb",
+              "name": "H",
+              "width": "fill_container",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "nM2wt",
+                  "name": "Tag",
+                  "fill": "$accent-soft",
+                  "cornerRadius": 4,
+                  "padding": [
+                    3,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pjJ9k",
+                      "name": "T",
+                      "fill": "$accent-deep",
+                      "content": "필수",
+                      "fontFamily": "$font",
+                      "fontSize": 10.5,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "HrYBu",
+                  "name": "T",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "진단 결과 등 건강정보의 상담 이용 동의",
+                  "lineHeight": 1.5,
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.3
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wYetl",
+              "name": "Fields",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$surface-sub",
+              "cornerRadius": 8,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JPpMK",
+                  "name": "이용 항목",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HHi4p",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "이용 항목",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SLaMB",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "사용자가 입력한 사고 · 질병 · 치료 내용과 진단 결과",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IOwsJ",
+                  "name": "이용 목적",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "o0CXl",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "이용 목적",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "a2zqb7",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "손해사정 상담 및 필요 서류 안내",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "v4d8v",
+                  "name": "보유 · 이용 기간",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pa7Pf",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "보유 · 이용 기간",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h37Bm",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "JSOBx",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{보유·이용 기간 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Lpzx3",
+                  "name": "동의 거부 권리 및 불이익",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "H2AYFe",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "동의 거부 권리 및 불이익",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "MwZGe",
+                      "name": "V",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "동의를 거부할 수 있으며, 거부 시 상담 신청이 제한됩니다.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "M3qP3X",
+          "name": "보상 관련 정보 및 마케팅 안내 수신 동의",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": [
+            16,
+            18,
+            18,
+            18
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "K35o3y",
+              "name": "H",
+              "width": "fill_container",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Lk8o4",
+                  "name": "Tag",
+                  "fill": "$surface-inset",
+                  "cornerRadius": 4,
+                  "padding": [
+                    3,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tV4jj",
+                      "name": "T",
+                      "fill": "$ink-3",
+                      "content": "선택",
+                      "fontFamily": "$font",
+                      "fontSize": 10.5,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "CRf0t",
+                  "name": "T",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
+                  "lineHeight": 1.5,
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.3
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xhl33",
+              "name": "Fields",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$surface-sub",
+              "cornerRadius": 8,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "KEwHi",
+                  "name": "수신 정보",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TSTNH",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "수신 정보",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "In9Wc",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "SGSHX",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{수신 정보 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rDsql",
+                  "name": "이용 목적",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "B9gR1",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "이용 목적",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hkwNT",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xv44T",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{이용 목적 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "dZIUT",
+                  "name": "수신 방법",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RyXhp",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "수신 방법",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "H1PrJm",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "G3MNQs",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{수신 방법 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vQugL",
+                  "name": "보유 · 이용 기간",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pF7Px",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "보유 · 이용 기간",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "AZRuI",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "DwsfP",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{보유·이용 기간 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "QhFOZ",
+                  "name": "동의 철회 방법",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 14,
+                  "padding": [
+                    11,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QLuYe",
+                      "name": "K",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": 150,
+                      "content": "동의 철회 방법",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bgHeu",
+                      "name": "Slot",
+                      "width": "fill_container",
+                      "fill": "#FFF3D4",
+                      "cornerRadius": 5,
+                      "stroke": "#E8D4A8",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        5,
+                        9
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "DIQoc",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "{동의 철회 방법 확정 문구}",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "iJz1k",
+          "name": "R",
+          "fill": "#8A5A12",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "운영 전 처리 — { } 슬롯에 확정 문구를 채운 뒤에만 03 · 03-A2 · M03 의 「자세히 보기」 펼침 상태와 Export를 생성합니다. 그 전까지 이 프레임은 사용자용 Export 목록에서 제외합니다.",
+          "lineHeight": 1.7,
+          "fontFamily": "$font",
+          "fontSize": 12,
+          "fontWeight": "600"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Vg6BC",
+      "x": 14700,
+      "y": 9432,
+      "name": "DEV ONLY · 01-A3 · 건강정보 동의 상세 · Desktop",
+      "width": 1500,
+      "fill": "#FFF8E1",
+      "cornerRadius": 16,
+      "stroke": "#E8D4A8",
+      "strokeWidth": 2,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 14,
+      "padding": [
+        24,
+        30,
+        30,
+        30
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "lQ75f",
+          "name": "Head",
+          "width": "fill_container",
+          "gap": 9,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "eseDJ",
+              "name": "Badge",
+              "fill": "#8A5A12",
+              "cornerRadius": 5,
+              "padding": [
+                3,
+                7
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "eNHh1",
+                  "name": "T",
+                  "fill": "#FFFFFF",
+                  "content": "DEV ONLY",
+                  "fontFamily": "$font",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "l2xzIP",
+              "name": "T",
+              "fill": "#8A5A12",
+              "content": "01-A3 · 건강정보 동의 상세 · Desktop",
+              "fontFamily": "$font",
+              "fontSize": 19,
+              "fontWeight": "700",
+              "letterSpacing": -0.4
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "QQOGr",
+          "name": "D",
+          "fill": "$ink-2",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "01-A2 의 「내용 보기」를 눌렀을 때 열리는 상세 Modal 구조입니다. 기존 배경 Dim 과 진단 동의 모달 위에 중앙 Modal 로 겹쳐 표시되고, 닫으면 01-A2 로 돌아갑니다. 「확인」은 읽음 확인일 뿐 동의 체크박스를 자동 선택하지 않습니다. { } 토큰은 개발용 빈 슬롯이며 확정 문구로 교체한 뒤에만 사용자용 Export를 만듭니다.",
+          "lineHeight": 1.7,
+          "fontFamily": "$font",
+          "fontSize": 12.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "HGEQz",
+          "name": "Mock · 1440",
+          "clip": true,
+          "width": 1440,
+          "height": 940,
+          "fill": "$surface",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "R6tja",
+              "name": "Topbar",
+              "width": "fill_container",
+              "height": 64,
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "strokeAlignment": "inner",
+              "padding": [
+                0,
+                40
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "yKj4J",
+                  "type": "ref",
+                  "ref": "o9uhR",
+                  "name": "Brand"
+                },
+                {
+                  "type": "frame",
+                  "id": "R6jxst",
+                  "name": "R",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J0BULj",
+                      "name": "S",
+                      "fill": "$ink-4",
+                      "content": "사고 · 질병 보상 진단",
+                      "fontFamily": "$font",
+                      "fontSize": 12.5,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "id": "f0GRMz",
+                      "type": "ref",
+                      "ref": "HPcVR",
+                      "name": "Kakao",
+                      "padding": [
+                        9,
+                        14
+                      ],
+                      "descendants": {
+                        "L3NF88": {
+                          "icon": "message-circle"
+                        },
+                        "CH463": {
+                          "content": "카톡 상담",
+                          "fontSize": 13
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "A2GZsh",
+              "name": "Page",
+              "width": "fill_container",
+              "height": "fill_container",
+              "padding": [
+                86,
+                0,
+                0,
+                0
+              ],
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "b7ong",
+                  "name": "Col",
+                  "width": 760,
+                  "layout": "vertical",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "W1viF",
+                      "name": "Eyebrow",
+                      "fill": "$accent",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "놓치기 쉬운 보상 항목을 확인해 보세요",
+                      "textAlign": "center",
+                      "fontFamily": "$font",
+                      "fontSize": 13.5,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BmusL",
+                      "name": "G1",
+                      "width": "fill_container",
+                      "height": 14
+                    },
+                    {
+                      "type": "text",
+                      "id": "dbdn9",
+                      "name": "H1",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "이거, 보상 받을 수 있나요?",
+                      "lineHeight": 1.35,
+                      "textAlign": "center",
+                      "fontFamily": "$font",
+                      "fontSize": 40,
+                      "fontWeight": "700",
+                      "letterSpacing": -1.6
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UIE2J",
+                      "name": "G2",
+                      "width": "fill_container",
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "t4FAx8",
+                      "name": "Sub",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로\n실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.",
+                      "lineHeight": 1.75,
+                      "textAlign": "center",
+                      "fontFamily": "$font",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "RXyMb",
+                      "name": "G3",
+                      "width": "fill_container",
+                      "height": 28
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oLjri",
+                      "name": "Search Meta",
+                      "width": "fill_container",
+                      "gap": 16,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "VJ1xe",
+                          "name": "회원가입 없이 약 1분",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "UyIzl",
+                              "name": "I",
+                              "width": 13,
+                              "height": 13,
+                              "icon": "timer",
+                              "library": "lucide",
+                              "fill": "$ink-3"
+                            },
+                            {
+                              "type": "text",
+                              "id": "J8mXY5",
+                              "name": "T",
+                              "fill": "$ink-3",
+                              "content": "회원가입 없이 약 1분",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "HDSXz",
+                          "name": "입력 내용은 보상 가능성 분석에만 사용됩니다",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "NI2T2",
+                              "name": "I",
+                              "width": 13,
+                              "height": 13,
+                              "icon": "lock",
+                              "library": "lucide",
+                              "fill": "$ink-3"
+                            },
+                            {
+                              "type": "text",
+                              "id": "jfyn0",
+                              "name": "T",
+                              "fill": "$ink-3",
+                              "content": "입력 내용은 보상 가능성 분석에만 사용됩니다",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gHAvU",
+                      "name": "G-meta",
+                      "width": "fill_container",
+                      "height": 14
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EMWEX",
+                      "name": "Search Bar",
+                      "clip": true,
+                      "width": "fill_container",
+                      "height": 64,
+                      "fill": "$surface",
+                      "cornerRadius": 12,
+                      "stroke": "$accent",
+                      "strokeWidth": 2,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#6C47FF1F",
+                        "offset": {
+                          "x": 0,
+                          "y": 2
+                        },
+                        "blur": 14
+                      },
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "zIYe9",
+                          "name": "Input",
+                          "width": "fill_container",
+                          "height": "fill_container",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            22
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "H5vrxa",
+                              "name": "I",
+                              "width": 19,
+                              "height": 19,
+                              "icon": "search",
+                              "library": "lucide",
+                              "fill": "$ink-4"
+                            },
+                            {
+                              "type": "text",
+                              "id": "P5ENUy",
+                              "name": "P",
+                              "fill": "$ink-4",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요",
+                              "fontFamily": "$font",
+                              "fontSize": 15.5,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "x4etf",
+                          "name": "Btn",
+                          "width": 148,
+                          "height": "fill_container",
+                          "fill": "$accent",
+                          "gap": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "fx2tS",
+                              "name": "T",
+                              "fill": "#FFFFFF",
+                              "content": "보상 진단",
+                              "fontFamily": "$font",
+                              "fontSize": 16,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kC5rU",
+                      "name": "Counter",
+                      "width": "fill_container",
+                      "padding": [
+                        0,
+                        2,
+                        0,
+                        0
+                      ],
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "p7w4W",
+                          "name": "T",
+                          "fill": "$ink-3",
+                          "content": "28 / 200자",
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "B83Ju",
+                      "name": "G4",
+                      "width": "fill_container",
+                      "height": 20
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PzppV",
+                      "name": "PII Warn",
+                      "width": "fill_container",
+                      "fill": "$warn-soft",
+                      "cornerRadius": 8,
+                      "stroke": "$warn-line",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "gap": 9,
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Q4JH0",
+                          "name": "I",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "shield-alert",
+                          "library": "lucide",
+                          "fill": "$warn"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ZAfCK",
+                          "name": "T",
+                          "fill": "$warn",
+                          "content": "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지 마세요",
+                          "fontFamily": "$font",
+                          "fontSize": 12.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bMOwp",
+                      "name": "Examples",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uSLdN",
+                          "name": "L",
+                          "fill": "$ink-4",
+                          "content": "많이 찾는 사례",
+                          "fontFamily": "$font",
+                          "fontSize": 12.5,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "l6QZK",
+                          "name": "교통사고",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "pb9I7",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "교통사고",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "l9khs",
+                          "name": "계단에서 낙상",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "P9FNoL",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "계단에서 낙상",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "srzmX",
+                          "name": "운동 중 부상",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "jAnLg",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "운동 중 부상",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "VkgDr",
+                          "name": "허리 디스크",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "P7atH",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "허리 디스크",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Xq7UV",
+                          "name": "어깨 회전근개",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Xrq22",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "어깨 회전근개",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "pbX5F",
+                          "name": "암 진단",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 20,
+                          "padding": [
+                            8,
+                            13
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "lP1wQ",
+                              "name": "T",
+                              "fill": "$ink-2",
+                              "content": "암 진단",
+                              "fontFamily": "$font",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UTVRU",
+                      "name": "G5",
+                      "width": "fill_container",
+                      "height": 46
+                    },
+                    {
+                      "type": "frame",
+                      "id": "x5qbvb",
+                      "name": "Preview",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "t6wExj",
+                          "name": "실손 의료비",
+                          "width": "fill_container",
+                          "fill": "$surface-sub",
+                          "cornerRadius": 10,
+                          "stroke": "$line",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 9,
+                          "padding": [
+                            15,
+                            14,
+                            16,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "DWtvZ",
+                              "name": "H",
+                              "width": "fill_container",
+                              "gap": 7,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "bfjmo",
+                                  "name": "I",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "stethoscope",
+                                  "library": "lucide",
+                                  "fill": "$accent"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "rYAwf",
+                                  "name": "N",
+                                  "fill": "$ink-4",
+                                  "content": "1",
+                                  "fontFamily": "$font",
+                                  "fontSize": 11,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "VgXty",
+                              "name": "T",
+                              "fill": "$ink",
+                              "content": "실손 의료비",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.3
+                            },
+                            {
+                              "type": "text",
+                              "id": "coBhU",
+                              "name": "S",
+                              "fill": "$ink-3",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "실제 지출한 병원비",
+                              "lineHeight": 1.6,
+                              "fontFamily": "$font",
+                              "fontSize": 11.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Yx3k1",
+                          "name": "정액 담보",
+                          "width": "fill_container",
+                          "fill": "$surface-sub",
+                          "cornerRadius": 10,
+                          "stroke": "$line",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 9,
+                          "padding": [
+                            15,
+                            14,
+                            16,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "ZP17R",
+                              "name": "H",
+                              "width": "fill_container",
+                              "gap": 7,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "sV4y9",
+                                  "name": "I",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "layers",
+                                  "library": "lucide",
+                                  "fill": "$accent"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "Pcz41",
+                                  "name": "N",
+                                  "fill": "$ink-4",
+                                  "content": "2",
+                                  "fontFamily": "$font",
+                                  "fontSize": 11,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "wPsIJ",
+                              "name": "T",
+                              "fill": "$ink",
+                              "content": "정액 담보",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.3
+                            },
+                            {
+                              "type": "text",
+                              "id": "wYwCH",
+                              "name": "S",
+                              "fill": "$ink-3",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "진단 · 수술 · 입원별 가입 담보",
+                              "lineHeight": 1.6,
+                              "fontFamily": "$font",
+                              "fontSize": 11.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "u3e44",
+                          "name": "후유장해",
+                          "width": "fill_container",
+                          "fill": "$surface-sub",
+                          "cornerRadius": 10,
+                          "stroke": "$line",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 9,
+                          "padding": [
+                            15,
+                            14,
+                            16,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "xdNZr",
+                              "name": "H",
+                              "width": "fill_container",
+                              "gap": 7,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "SUA7n",
+                                  "name": "I",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "trending-up",
+                                  "library": "lucide",
+                                  "fill": "$accent"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "ndiDn",
+                                  "name": "N",
+                                  "fill": "$ink-4",
+                                  "content": "3",
+                                  "fontFamily": "$font",
+                                  "fontSize": 11,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "mP9KI",
+                              "name": "T",
+                              "fill": "$ink",
+                              "content": "후유장해",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.3
+                            },
+                            {
+                              "type": "text",
+                              "id": "z7cuq3",
+                              "name": "S",
+                              "fill": "$ink-3",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "치료 후 남은 장해 상태",
+                              "lineHeight": 1.6,
+                              "fontFamily": "$font",
+                              "fontSize": 11.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "AV8w3",
+                          "name": "특별 보상",
+                          "width": "fill_container",
+                          "fill": "$surface-sub",
+                          "cornerRadius": 10,
+                          "stroke": "$line",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 9,
+                          "padding": [
+                            15,
+                            14,
+                            16,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "zRCfC",
+                              "name": "H",
+                              "width": "fill_container",
+                              "gap": 7,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "tWVin",
+                                  "name": "I",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "shield",
+                                  "library": "lucide",
+                                  "fill": "$accent"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "nrNyl",
+                                  "name": "N",
+                                  "fill": "$ink-4",
+                                  "content": "4",
+                                  "fontFamily": "$font",
+                                  "fontSize": 11,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "UZcJh",
+                              "name": "T",
+                              "fill": "$ink",
+                              "content": "특별 보상",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.3
+                            },
+                            {
+                              "type": "text",
+                              "id": "jGJfA",
+                              "name": "S",
+                              "fill": "$ink-3",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "시설 · 단체 · 상대방 보험 등",
+                              "lineHeight": 1.6,
+                              "fontFamily": "$font",
+                              "fontSize": 11.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "pzdbX",
+                      "name": "G6",
+                      "width": "fill_container",
+                      "height": 24
+                    },
+                    {
+                      "type": "text",
+                      "id": "ExF4s",
+                      "x": 0,
+                      "y": 566,
+                      "name": "Legal",
+                      "enabled": false,
+                      "fill": "$ink-4",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container(760)",
+                      "content": "진단 결과는 참고용 안내이며 보상 여부와 금액을 보장하지 않습니다.",
+                      "lineHeight": 1.7,
+                      "textAlign": "center",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "K3OShe",
+                      "name": "G-foot",
+                      "width": "fill_container",
+                      "height": 30
+                    },
+                    {
+                      "id": "CwhJ4",
+                      "type": "ref",
+                      "ref": "T3mH6",
+                      "name": "Footer",
+                      "width": "fill_container"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "r45bV",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0,
+              "name": "Dim · 스크림 #111820 62%",
+              "opacity": 0.62,
+              "fill": "#111820",
+              "width": 1440,
+              "height": 940
+            },
+            {
+              "type": "frame",
+              "id": "orUEq",
+              "layoutPosition": "absolute",
+              "x": 440,
+              "y": 335,
+              "name": "Consent Modal",
+              "opacity": 0.45,
+              "width": 560,
+              "fill": "$surface",
+              "cornerRadius": 16,
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#11182040",
+                "offset": {
+                  "x": 0,
+                  "y": 18
+                },
+                "blur": 48
+              },
+              "layout": "vertical",
+              "padding": [
+                26,
+                28,
+                28,
+                28
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "SwoFD",
+                  "name": "Head",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Buc1N",
+                      "name": "T",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "LVRG0",
+                          "name": "H",
+                          "fill": "$ink",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "건강정보 처리에 동의해 주세요",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$font",
+                          "fontSize": 20,
+                          "fontWeight": "700",
+                          "letterSpacing": -0.5
+                        },
+                        {
+                          "type": "text",
+                          "id": "ZJTUd",
+                          "name": "S",
+                          "fill": "$ink-3",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+                          "lineHeight": 1.65,
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "tYMNI",
+                      "name": "Close",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "x",
+                      "library": "lucide",
+                      "fill": "$ink-3"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mnumr",
+                  "name": "G1",
+                  "width": "fill_container",
+                  "height": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "S806k3",
+                  "name": "필수 동의",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 10,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    4,
+                    16,
+                    6,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "id": "hIxLX",
+                      "type": "ref",
+                      "ref": "Jz9z4",
+                      "name": "건강정보 등 민감정보 처리 동의",
+                      "width": "fill_container",
+                      "descendants": {
+                        "lCpBp": {
+                          "content": "건강정보 등 민감정보 처리 동의"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jjpSk",
+                  "name": "G3",
+                  "width": "fill_container",
+                  "height": 20
+                },
+                {
+                  "id": "P0Hu5",
+                  "type": "ref",
+                  "ref": "uFKNx",
+                  "name": "CTA (비활성)",
+                  "width": "fill_container",
+                  "descendants": {
+                    "Vvqy9": {
+                      "content": "동의하고 진단하기"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "Z58CJc",
+                  "name": "G4",
+                  "width": "fill_container",
+                  "height": 10
+                },
+                {
+                  "type": "frame",
+                  "id": "sKo0o",
+                  "name": "Helper",
+                  "width": "fill_container",
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "id": "f5L4dE",
+                      "type": "ref",
+                      "ref": "nJDFG",
+                      "name": "안내",
+                      "descendants": {
+                        "XhmQb": {
+                          "content": "필수 동의 후 진단을 시작할 수 있습니다."
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Od0kA",
+              "layoutPosition": "absolute",
+              "x": 410,
+              "y": 131,
+              "name": "Detail Modal · 건강정보 동의 상세",
+              "clip": true,
+              "width": 620,
+              "fill": "$surface",
+              "cornerRadius": 16,
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#11182040",
+                "offset": {
+                  "x": 0,
+                  "y": 18
+                },
+                "blur": 48
+              },
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Q8dNI",
+                  "name": "Head",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "gap": 12,
+                  "padding": [
+                    22,
+                    24,
+                    18,
+                    24
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "f581ca",
+                      "name": "T",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "건강정보 등 민감정보 처리 동의",
+                      "lineHeight": 1.4,
+                      "fontFamily": "$font",
+                      "fontSize": 18,
+                      "fontWeight": "700",
+                      "letterSpacing": -0.4
+                    },
+                    {
+                      "type": "icon",
+                      "id": "ZRXYg",
+                      "name": "Close",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "x",
+                      "library": "lucide",
+                      "fill": "$ink-3"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nh12A",
+                  "name": "Body (세로 스크롤)",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "padding": [
+                    18,
+                    10,
+                    18,
+                    24
+                  ],
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "yoMkK",
+                      "name": "Fields",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 14,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "U8x6Cm",
+                          "name": "처리 목적",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "UpfXJ",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "처리 목적",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ucBbb",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "FNJ7k",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{처리 목적 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "wmLMc",
+                          "name": "처리하는 건강정보 항목",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "gLtlm",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "처리하는 건강정보 항목",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "S5xkA0",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "lg5rt",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{처리 항목 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "aBo1U",
+                          "name": "서버 저장 여부",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "h6ZkC",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "서버 저장 여부",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "eisDj",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "e2dAmA",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{저장 여부 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "SO8WD",
+                          "name": "보유 · 이용 기간",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "n8Sxwj",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "보유 · 이용 기간",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "jBK4V",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "NQ8Mf",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{보유·이용 기간 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "h2jKup",
+                          "name": "외부 AI 서비스 전송 여부",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "qh0kt",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "외부 AI 서비스 전송 여부",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "b7ZNNR",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "qiDyO",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{외부 AI 전송 여부 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "rItgQ",
+                          "name": "동의 거부 권리 및 진단 이용 제한",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "gAfhS",
+                              "name": "K",
+                              "fill": "$ink",
+                              "content": "동의 거부 권리 및 진단 이용 제한",
+                              "fontFamily": "$font",
+                              "fontSize": 13.5,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "l6euGh",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                10,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "QSLtZ",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{동의 거부 및 제한 확정 문구}",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Q03IRt",
+                      "name": "Scrollbar",
+                      "clip": true,
+                      "width": 4,
+                      "height": 466,
+                      "fill": "$surface-inset",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 2,
+                          "id": "YHuCy",
+                          "name": "Thumb",
+                          "fill": "$line-strong",
+                          "width": 4,
+                          "height": 256
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "j9KV6Y",
+                  "name": "Footer",
+                  "width": "fill_container",
+                  "fill": "$surface",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 9,
+                  "padding": [
+                    16,
+                    24,
+                    20,
+                    24
+                  ],
+                  "children": [
+                    {
+                      "id": "s7fTlz",
+                      "type": "ref",
+                      "ref": "ahZqh",
+                      "name": "확인",
+                      "width": "fill_container",
+                      "padding": [
+                        14,
+                        20
+                      ],
+                      "cornerRadius": 10,
+                      "descendants": {
+                        "P6y0q": {
+                          "icon": "check"
+                        },
+                        "EG9v5": {
+                          "content": "확인",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h2nOjE",
+                      "name": "Note",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "CcQxt",
+                          "name": "I",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "info",
+                          "library": "lucide",
+                          "fill": "$ink-3"
+                        },
+                        {
+                          "type": "text",
+                          "id": "NxmXA",
+                          "name": "T",
+                          "fill": "$ink-3",
+                          "content": "확인해도 동의 체크박스는 자동 선택되지 않습니다",
+                          "fontFamily": "$font",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "w8KFZ",
+      "x": 16340,
+      "y": 9432,
+      "name": "DEV ONLY · M01-A3 · 건강정보 동의 상세 · Mobile",
+      "width": 500,
+      "fill": "#FFF8E1",
+      "cornerRadius": 16,
+      "stroke": "#E8D4A8",
+      "strokeWidth": 2,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 14,
+      "padding": [
+        24,
+        30,
+        30,
+        30
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Q8ZtKL",
+          "name": "Head",
+          "width": "fill_container",
+          "gap": 9,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ustYE",
+              "name": "Badge",
+              "fill": "#8A5A12",
+              "cornerRadius": 5,
+              "padding": [
+                3,
+                7
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "o9D8G",
+                  "name": "T",
+                  "fill": "#FFFFFF",
+                  "content": "DEV ONLY",
+                  "fontFamily": "$font",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "E6eQI",
+              "name": "T",
+              "fill": "#8A5A12",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "M01-A3 · 건강정보 동의 상세 · Mobile",
+              "lineHeight": 1.4,
+              "fontFamily": "$font",
+              "fontSize": 17,
+              "fontWeight": "700",
+              "letterSpacing": -0.4
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "yooSj",
+          "name": "D",
+          "fill": "$ink-2",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "M01-A2 의 「내용 보기」를 눌렀을 때 화면 높이의 약 88% 로 올라오는 상세 Bottom Sheet 구조입니다. 닫기 또는 확인 후 M01-A2 로 돌아가며, 「확인」은 읽음 확인일 뿐 필수 동의 체크박스를 자동 선택하지 않습니다.",
+          "lineHeight": 1.7,
+          "fontFamily": "$font",
+          "fontSize": 12.5,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "cS5eZ",
+          "name": "Mock · 390",
+          "clip": true,
+          "width": 390,
+          "height": 1110,
+          "fill": "$bg",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "l3dtlB",
+              "name": "Topbar",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "$surface",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "strokeAlignment": "inner",
+              "padding": [
+                0,
+                18
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "EElzV",
+                  "type": "ref",
+                  "ref": "o9uhR",
+                  "name": "Brand"
+                },
+                {
+                  "type": "frame",
+                  "id": "H7d5Q",
+                  "name": "Kakao",
+                  "width": 44,
+                  "height": 44,
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "NyWWc",
+                      "name": "I",
+                      "width": 19,
+                      "height": 19,
+                      "icon": "message-circle",
+                      "library": "lucide",
+                      "fill": "$ink-2"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "m5QeO",
+              "name": "Body",
+              "width": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                26,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FrIDu",
+                  "name": "Eyebrow",
+                  "fill": "$accent",
+                  "content": "놓치기 쉬운 보상 항목을 확인해 보세요",
+                  "fontFamily": "$font",
+                  "fontSize": 12.5,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "i1UwN",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 10
+                },
+                {
+                  "type": "text",
+                  "id": "c2gLBj",
+                  "name": "H1",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "이거, 보상 받을 수\n있나요?",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$font",
+                  "fontSize": 28,
+                  "fontWeight": "700",
+                  "letterSpacing": -1.2
+                },
+                {
+                  "type": "frame",
+                  "id": "FHTCQ",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 12
+                },
+                {
+                  "type": "text",
+                  "id": "DftIg",
+                  "name": "Sub",
+                  "fill": "$ink-3",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다.",
+                  "lineHeight": 1.75,
+                  "fontFamily": "$font",
+                  "fontSize": 13.5,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "K2jyl",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 22
+                },
+                {
+                  "type": "frame",
+                  "id": "HvmZ8",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "height": 96,
+                  "fill": "$surface",
+                  "cornerRadius": 10,
+                  "stroke": "$accent",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner",
+                  "gap": 10,
+                  "padding": 14,
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "NDoLI",
+                      "name": "I",
+                      "width": 17,
+                      "height": 17,
+                      "icon": "search",
+                      "library": "lucide",
+                      "fill": "$ink-3"
+                    },
+                    {
+                      "type": "text",
+                      "id": "LoUwk",
+                      "name": "P",
+                      "fill": "$ink-4",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 14.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "CFzps",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 7
+                },
+                {
+                  "type": "frame",
+                  "id": "CZmOX",
+                  "name": "Counter",
+                  "width": "fill_container",
+                  "justifyContent": "end",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MXW71",
+                      "name": "T",
+                      "fill": "$ink-3",
+                      "content": "28 / 200자",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "E6yuMO",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 10
+                },
+                {
+                  "type": "frame",
+                  "id": "GivQq",
+                  "name": "Btn",
+                  "width": "fill_container",
+                  "height": 52,
+                  "fill": "$accent",
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iGdUW",
+                      "name": "T",
+                      "fill": "#FFFFFF",
+                      "content": "보상 진단",
+                      "fontFamily": "$font",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rQui5",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 14
+                },
+                {
+                  "type": "frame",
+                  "id": "okVjL",
+                  "name": "PII",
+                  "width": "fill_container",
+                  "fill": "$warn-soft",
+                  "cornerRadius": 8,
+                  "stroke": "$warn-line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 8,
+                  "padding": [
+                    11,
+                    13
+                  ],
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "t9uQrz",
+                      "name": "I",
+                      "width": 14,
+                      "height": 14,
+                      "icon": "shield-alert",
+                      "library": "lucide",
+                      "fill": "$warn"
+                    },
+                    {
+                      "type": "text",
+                      "id": "V0VAAf",
+                      "name": "T",
+                      "fill": "$warn",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지 마세요",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "gPnp0",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 10
+                },
+                {
+                  "type": "frame",
+                  "id": "s3jz9",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "qxN7g",
+                      "name": "I",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "timer",
+                      "library": "lucide",
+                      "fill": "$ink-3"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SttBb",
+                      "name": "T",
+                      "fill": "$ink-3",
+                      "content": "회원가입 없이 약 1분 · 분석 목적으로만 사용",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eX5IU",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 20
+                },
+                {
+                  "type": "text",
+                  "id": "rE2B6",
+                  "name": "EL",
+                  "fill": "$ink-3",
+                  "content": "많이 찾는 사례",
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "d92mQ",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 9
+                },
+                {
+                  "type": "frame",
+                  "id": "SWvBO",
+                  "name": "Chips",
+                  "width": "fill_container",
+                  "gap": 7,
+                  "children": [
+                    {
+                      "id": "t7YOrG",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "교통사고",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "교통사고"
+                        }
+                      }
+                    },
+                    {
+                      "id": "PXQE4",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "계단에서 낙상",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "계단에서 낙상"
+                        }
+                      }
+                    },
+                    {
+                      "id": "Ozl6H",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "운동 중 부상",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "운동 중 부상"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GwJoj",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 7
+                },
+                {
+                  "type": "frame",
+                  "id": "Q8FN7",
+                  "name": "Chips",
+                  "width": "fill_container",
+                  "gap": 7,
+                  "children": [
+                    {
+                      "id": "KMthY",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "허리 디스크",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "허리 디스크"
+                        }
+                      }
+                    },
+                    {
+                      "id": "sveYD",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "어깨 회전근개",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "어깨 회전근개"
+                        }
+                      }
+                    },
+                    {
+                      "id": "w74uW",
+                      "type": "ref",
+                      "ref": "Flwep",
+                      "name": "암 진단",
+                      "descendants": {
+                        "Cl8Z9": {
+                          "content": "암 진단"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "d03epG",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 7
+                },
+                {
+                  "type": "frame",
+                  "id": "BnQ7q",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 14
+                },
+                {
+                  "type": "frame",
+                  "id": "fmRMl",
+                  "name": "실손 의료비",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 9,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 11,
+                  "padding": [
+                    13,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "iJhC4",
+                      "name": "I",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "stethoscope",
+                      "library": "lucide",
+                      "fill": "$accent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "O8mXfI",
+                      "name": "T",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jKrrM",
+                          "name": "A",
+                          "fill": "$ink",
+                          "content": "실손 의료비",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "g744Y",
+                          "name": "B",
+                          "fill": "$ink-3",
+                          "content": "실제 지출한 병원비",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ASouT",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "mC5Yz",
+                  "name": "정액 담보",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 9,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 11,
+                  "padding": [
+                    13,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "TAEUd",
+                      "name": "I",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "layers",
+                      "library": "lucide",
+                      "fill": "$accent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DAsbq",
+                      "name": "T",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "e7V2J",
+                          "name": "A",
+                          "fill": "$ink",
+                          "content": "정액 담보",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "W06rRM",
+                          "name": "B",
+                          "fill": "$ink-3",
+                          "content": "진단 · 수술 · 입원별 가입 담보",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XaBtd",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "WrcGz",
+                  "name": "후유장해",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 9,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 11,
+                  "padding": [
+                    13,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "xEwA5",
+                      "name": "I",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "trending-up",
+                      "library": "lucide",
+                      "fill": "$accent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z48V3u",
+                      "name": "T",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "InPnp",
+                          "name": "A",
+                          "fill": "$ink",
+                          "content": "후유장해",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "o7Ss0X",
+                          "name": "B",
+                          "fill": "$ink-3",
+                          "content": "치료 후 남은 장해 상태",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "j5WhH",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "x7PQy",
+                  "name": "특별 보상",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 9,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 11,
+                  "padding": [
+                    13,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "LZ4xO",
+                      "name": "I",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "shield",
+                      "library": "lucide",
+                      "fill": "$accent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GzMRf",
+                      "name": "T",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "k9UaK",
+                          "name": "A",
+                          "fill": "$ink",
+                          "content": "특별 보상",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "rPtz5",
+                          "name": "B",
+                          "fill": "$ink-3",
+                          "content": "시설 · 단체 · 상대방 보험 등",
+                          "fontFamily": "$font",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "SqUOU",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "FBRjK",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 14
+                },
+                {
+                  "type": "frame",
+                  "id": "Y1qquq",
+                  "name": "Footer",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    22,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Tc6a9",
+                      "name": "Links",
+                      "width": "fill_container",
+                      "gap": 14,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "sK9Yd",
+                          "name": "개인정보처리방침",
+                          "fill": "$ink-2",
+                          "content": "개인정보처리방침",
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Q38zj",
+                          "name": "이용약관",
+                          "fill": "$ink-2",
+                          "content": "이용약관",
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "SKVT2",
+                          "name": "고객 문의",
+                          "fill": "$ink-2",
+                          "content": "고객 문의",
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "T7zCdn",
+                      "name": "L",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "진단 결과는 참고용 안내이며 보상 여부와 금액을 보장하지 않습니다.",
+                      "lineHeight": 1.75,
+                      "fontFamily": "$font",
+                      "fontSize": 10.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "ksTcV",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0,
+              "name": "Dim · 스크림 #111820 62%",
+              "opacity": 0.62,
+              "fill": "#111820",
+              "width": 390,
+              "height": 1110
+            },
+            {
+              "type": "frame",
+              "id": "H2K2TE",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 762,
+              "name": "Consent Bottom Sheet",
+              "enabled": false,
+              "width": 390,
+              "fill": "$surface",
+              "cornerRadius": [
+                20,
+                20,
+                0,
+                0
+              ],
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#11182033",
+                "offset": {
+                  "x": 0,
+                  "y": -8
+                },
+                "blur": 32
+              },
+              "layout": "vertical",
+              "padding": [
+                6,
+                16,
+                22,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "BRpBE",
+                  "name": "Sheet Head",
+                  "width": "fill_container",
+                  "padding": [
+                    0,
+                    0,
+                    10,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "zpxZg",
+                      "name": "Spacer (닫기 버튼 대칭)",
+                      "width": 44,
+                      "height": 44
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kEfO1",
+                      "name": "Grabber",
+                      "width": "fill_container",
+                      "height": 44,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 2,
+                          "id": "rYsbh",
+                          "name": "Bar",
+                          "fill": "$line-strong",
+                          "width": 40,
+                          "height": 4
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "R59r3",
+                      "name": "Close · 동의 창 닫기 (44×44)",
+                      "width": 44,
+                      "height": 44,
+                      "cornerRadius": 22,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "XUNKk",
+                          "name": "I",
+                          "width": 21,
+                          "height": 21,
+                          "icon": "x",
+                          "library": "lucide",
+                          "fill": "$ink-2"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "U9bSHc",
+                  "name": "H",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "건강정보 처리에\n동의해 주세요",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$font",
+                  "fontSize": 19,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.5
+                },
+                {
+                  "type": "frame",
+                  "id": "wwRoy",
+                  "name": "G1",
+                  "width": "fill_container",
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "njHo5",
+                  "name": "S",
+                  "fill": "$ink-3",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+                  "lineHeight": 1.65,
+                  "fontFamily": "$font",
+                  "fontSize": 12.5,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "MninG",
+                  "name": "G2",
+                  "width": "fill_container",
+                  "height": 16
+                },
+                {
+                  "type": "frame",
+                  "id": "m9F4X",
+                  "name": "필수 동의",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 10,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    4,
+                    14,
+                    6,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "id": "oZB5N",
+                      "type": "ref",
+                      "ref": "Jz9z4",
+                      "name": "건강정보 등 민감정보 처리 동의",
+                      "width": "fill_container",
+                      "descendants": {
+                        "lCpBp": {
+                          "content": "건강정보 등 민감정보 처리 동의"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kpPrH",
+                  "name": "G4",
+                  "width": "fill_container",
+                  "height": 16
+                },
+                {
+                  "id": "gjBUR",
+                  "type": "ref",
+                  "ref": "uFKNx",
+                  "name": "CTA (비활성)",
+                  "width": "fill_container",
+                  "padding": [
+                    15,
+                    20
+                  ],
+                  "cornerRadius": 10,
+                  "descendants": {
+                    "Vvqy9": {
+                      "content": "동의하고 진단하기",
+                      "fontSize": 15
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "jDmfT",
+                  "name": "G5",
+                  "width": "fill_container",
+                  "height": 10
+                },
+                {
+                  "type": "frame",
+                  "id": "gRxHu",
+                  "name": "Helper",
+                  "width": "fill_container",
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "id": "I3NrL",
+                      "type": "ref",
+                      "ref": "nJDFG",
+                      "name": "안내",
+                      "descendants": {
+                        "XhmQb": {
+                          "content": "필수 동의 후 진단을 시작할 수 있습니다."
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "W7Iry",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 133,
+              "name": "Detail Bottom Sheet · 건강정보 동의 상세 (88%)",
+              "clip": true,
+              "width": 390,
+              "height": 977,
+              "fill": "$surface",
+              "cornerRadius": [
+                20,
+                20,
+                0,
+                0
+              ],
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#11182033",
+                "offset": {
+                  "x": 0,
+                  "y": -8
+                },
+                "blur": 32
+              },
+              "layout": "vertical",
+              "padding": [
+                0,
+                20
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "nUa2M",
+                  "name": "Sheet Head",
+                  "width": "fill_container",
+                  "padding": [
+                    6,
+                    0,
+                    0,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "F3Gmk3",
+                      "name": "Spacer (닫기 버튼 대칭)",
+                      "width": 44,
+                      "height": 44
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bInnl",
+                      "name": "Grabber",
+                      "width": "fill_container",
+                      "height": 44,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 2,
+                          "id": "LjYs6",
+                          "name": "Bar",
+                          "fill": "$line-strong",
+                          "width": 40,
+                          "height": 4
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "k5rUcx",
+                      "name": "Close · 상세 닫기 (44×44)",
+                      "width": 44,
+                      "height": 44,
+                      "cornerRadius": 22,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "yiMLF",
+                          "name": "I",
+                          "width": 21,
+                          "height": 21,
+                          "icon": "x",
+                          "library": "lucide",
+                          "fill": "$ink-2"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ti60l",
+                  "name": "Title",
+                  "fill": "$ink",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "건강정보 등 민감정보 처리 동의",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$font",
+                  "fontSize": 18,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.4
+                },
+                {
+                  "type": "frame",
+                  "id": "p2P6Ws",
+                  "name": "G",
+                  "width": "fill_container",
+                  "height": 14
+                },
+                {
+                  "type": "frame",
+                  "id": "KrtYg",
+                  "name": "Body (세로 스크롤)",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "eOemf",
+                      "name": "Fields",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 14,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "zCaF7",
+                          "name": "처리 목적",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "O93T0",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "처리 목적",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "kzxE1",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "r3OyL",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{처리 목적 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xmSFY",
+                          "name": "처리하는 건강정보 항목",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "VG9SL",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "처리하는 건강정보 항목",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "t9KFN",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "l22wRM",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{처리 항목 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "f63tV",
+                          "name": "서버 저장 여부",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "kUAP2",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "서버 저장 여부",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "fYYzx",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "h8XGc",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{저장 여부 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LBUFe",
+                          "name": "보유 · 이용 기간",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "H6alOU",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "보유 · 이용 기간",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "pCmST",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "W7nQHQ",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{보유·이용 기간 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "njRwo",
+                          "name": "외부 AI 서비스 전송 여부",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "E8I9k",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "외부 AI 서비스 전송 여부",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "F34mQW",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "FdZcH",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{외부 AI 전송 여부 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "C2Lh4F",
+                          "name": "동의 거부 권리 및 진단 이용 제한",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "TZtZ6",
+                              "name": "K",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "동의 거부 권리 및 진단 이용 제한",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$font",
+                              "fontSize": 13,
+                              "fontWeight": "700",
+                              "letterSpacing": -0.2
+                            },
+                            {
+                              "type": "frame",
+                              "id": "JvxKg",
+                              "name": "Slot",
+                              "width": "fill_container",
+                              "fill": "#FFF3D4",
+                              "cornerRadius": 6,
+                              "stroke": "#E8D4A8",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                9,
+                                11
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "NnJXi",
+                                  "name": "T",
+                                  "fill": "#8A5A12",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "{동의 거부 및 제한 확정 문구}",
+                                  "lineHeight": 1.55,
+                                  "fontFamily": "$font",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gYRsW",
+                      "name": "Scrollbar",
+                      "clip": true,
+                      "width": 4,
+                      "height": "fill_container",
+                      "fill": "$surface-inset",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 2,
+                          "id": "a3fYrk",
+                          "name": "Thumb",
+                          "fill": "$line-strong",
+                          "width": 4,
+                          "height": 455
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "D1o79B",
+                  "name": "Footer (하단 고정)",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": [
+                    14,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "id": "KniFb",
+                      "type": "ref",
+                      "ref": "ahZqh",
+                      "name": "확인",
+                      "width": "fill_container",
+                      "padding": [
+                        15,
+                        20
+                      ],
+                      "cornerRadius": 10,
+                      "descendants": {
+                        "P6y0q": {
+                          "icon": "check"
+                        },
+                        "EG9v5": {
+                          "content": "확인",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UnCxi",
+                      "name": "Note",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "JKyOh",
+                          "name": "I",
+                          "width": 12,
+                          "height": 12,
+                          "icon": "info",
+                          "library": "lucide",
+                          "fill": "$ink-3"
+                        },
+                        {
+                          "type": "text",
+                          "id": "BVICk",
+                          "name": "T",
+                          "fill": "$ink-3",
+                          "content": "확인해도 동의 체크박스는 자동 선택되지 않습니다",
+                          "fontFamily": "$font",
+                          "fontSize": 11.5,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "s4Gnk",
+                      "name": "Safe Area (34px)",
+                      "width": "fill_container",
+                      "height": 34
                     }
                   ]
                 }
