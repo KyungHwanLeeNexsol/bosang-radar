@@ -61,14 +61,48 @@ jobs:
             pm2 restart "$PM2_APP"
             pm2 save
 
-            echo "== smoke check =="
-            sleep 3
-            curl -fsS -o /dev/null http://127.0.0.1:3000/login && echo "OK: /login responded 2xx"
-
-            echo "== smoke check: static asset actually served (catches missing standalone copy) =="
-            CSS_PATH=$(curl -fsS http://127.0.0.1:3000/login | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1)
-            if [ -z "$CSS_PATH" ]; then
-              echo "ERROR: no CSS chunk reference found in /login HTML"
+            echo "== smoke check: public entry point (/) — bounded retry, no blind sleep =="
+            # B2C 전환(SPEC-B2C-FOUNDATION-001)으로 /login은 삭제됐다. 배포 직후
+            # Next.js가 아직 요청을 받을 준비가 안 됐을 수 있으므로, 무한정 기다리는
+            # 대신 최대 10회 x 2초(20초) 재시도 후 실패로 확정한다.
+            SMOKE_URL="http://127.0.0.1:3000/"
+            HTTP_CODE="000"
+            for attempt in $(seq 1 10); do
+              HTTP_CODE=$(curl -s -o /tmp/smoke-body.html -w "%{http_code}" --max-time 5 "$SMOKE_URL" || echo "000")
+              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                break
+              fi
+              echo "  attempt ${attempt}/10: GET ${SMOKE_URL} -> HTTP ${HTTP_CODE} (retry in 2s)"
+              sleep 2
+            done
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "ERROR: smoke check failed — GET ${SMOKE_URL} did not return 2xx after 10 attempts (last status: ${HTTP_CODE})"
               exit 1
             fi
-            curl -fsS -o /dev/null "http://127.0.0.1:3000${CSS_PATH}" && echo "OK: ${CSS_PATH} responded 2xx"
+            echo "OK: GET ${SMOKE_URL} responded ${HTTP_CODE}"
+
+            echo "== smoke check: placeholder page content =="
+            if ! grep -q "서비스 준비 중입니다" /tmp/smoke-body.html; then
+              echo "ERROR: smoke check failed — expected text '서비스 준비 중입니다' not found in ${SMOKE_URL} HTML"
+              exit 1
+            fi
+            echo "OK: placeholder text present in ${SMOKE_URL}"
+
+            echo "== smoke check: static asset actually served (catches missing standalone copy) =="
+            CSS_PATH=$(grep -oE '/_next/static/chunks/[^"]+\.css' /tmp/smoke-body.html | head -1)
+            if [ -z "$CSS_PATH" ]; then
+              echo "ERROR: smoke check failed — no CSS chunk reference found in ${SMOKE_URL} HTML"
+              exit 1
+            fi
+            CSS_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000${CSS_PATH}")
+            if [ "$CSS_CODE" -lt 200 ] || [ "$CSS_CODE" -ge 300 ]; then
+              echo "ERROR: smoke check failed — GET ${CSS_PATH} returned HTTP ${CSS_CODE} (expected 2xx)"
+              exit 1
+            fi
+            echo "OK: GET ${CSS_PATH} responded ${CSS_CODE}"
+
+            echo "== informational only: confirm removed B2B routes stay gone (does NOT fail deploy) =="
+            for removed_path in /login /cases/new; do
+              REMOVED_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000${removed_path}")
+              echo "  GET ${removed_path} -> HTTP ${REMOVED_CODE} (expected 404; informational, not a deploy gate)"
+            done

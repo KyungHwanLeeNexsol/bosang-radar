@@ -14,8 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "보상레이더",
-  description:
-    "비식별 보험 사건 정보를 조사해 추가로 검토할 담보·근거자료·반대 논리를 제공하는 리서치 어시스턴트",
+  description: "간단한 진단을 통해 놓치고 있는 보험 보상 가능성을 확인하는 서비스",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

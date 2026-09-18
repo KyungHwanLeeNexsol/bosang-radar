@@ -97,7 +97,7 @@ pnpm exec playwright install --with-deps chromium   # 최초 1회
 pnpm test:e2e
 ```
 
-로그인·사건입력·피드백·테넌트 격리 시나리오를 실제 Chromium으로 검증합니다. 매 실행마다 로컬 파일 DB를 초기화하고 마이그레이션·시드·테스터 계정을 자동으로 재구성하므로, 원격 Turso 인스턴스나 `.env.local`로 설정한 개발용 DB에는 영향을 주지 않습니다.
+> **2026-09-18 현재**: SPEC-B2C-FOUNDATION-001에서 B2B 전용 E2E 시나리오(로그인·사건입력·피드백·테넌트 격리)를 `e2e/` 디렉터리째 삭제했습니다. B2C 01/02/03 화면이 아직 구현되지 않아 `e2e/`에는 테스트가 0개이며, 지금 `pnpm test:e2e`를 실행하면 Playwright가 "No tests found"로 종료합니다(`playwright.config.ts` 주석 참고). 01 화면을 구현할 때 01 전용 시나리오부터 다시 작성하며, 그 전까지 `test:e2e`는 배포 필수 게이트로 취급하지 않습니다.
 
 ## 사용 가능한 스크립트
 
