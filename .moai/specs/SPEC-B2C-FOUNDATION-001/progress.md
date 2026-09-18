@@ -153,6 +153,8 @@ manager-lead가 직접 수행(코드 변경 없음, 순수 검증). M1 baseline�
 
 fold-at: 2026-09-18T14:50:00Z | evidence: manager-lead 직접 실행(`.moai/state/verify/manager-lead-b2cfound001/M7.*`) | 회귀: 0건 | AC: 15/15 PASS(불변)
 
+**Post-review 후속 수정 (sync 이후)**: sync-phase 종료 후 코드 리뷰에서 `playwright.config.ts`가 M5(`b095b09`)에서 삭제된 `e2e/` 디렉터리 전체와 그 안의 개별 spec 파일(`auth.setup.ts`, `case-input-mobile-layout.spec.ts`, `tenant-isolation.spec.ts`)을 여전히 `projects` 배열의 `testMatch`/`testIgnore`로 참조하고 있음이 발견됨 — `pnpm test:e2e`(`pnpm exec playwright test`)가 항상 exit 1로 실패(`Error: No tests found`)하는 상태였다. `ls e2e` → "No such file or directory"로 디렉터리 부재 재확인 후, `projects` 배열 전체(setup/chromium/chromium-authed의 storageState 인증 재사용 구조, SPEC-E2E-AUTH-STATE-001 M4 산출물)와 그에 딸린 Better Auth rate-limit/loginAsTester 관련 주석을 제거하고, `retries`/`workers` 설정은 향후 B2C E2E 재작성 시를 대비한 보수적 기본값 주석으로 대체(devices import 제거 포함). B2C 화면이 아직 없어 `e2e/`를 재생성하지 않음 — 이 SPEC 범위 밖(REQ-B2CFOUND-009와 동일한 판단). 검증: `npx tsc --noEmit` — `app/layout.tsx`의 `LayoutProps` 에러 1건은 수정 전/후 동일(pre-existing, 이 수정과 무관 — `git stash`로 격리 재확인). `pnpm build` exit 0(기존과 동일한 1개 pre-existing warning). `pnpm test`(vitest) 41 files/282 tests 전부 PASS. `pnpm exec playwright test --list` exit 1 → "No tests found, Total: 0 tests in 0 files" — config 자체는 정상 파싱되며, 실패 사유가 파싱 오류가 아니라 "테스트가 0개"라는 정직한 상태로 전환됨(수정 전에는 동일한 실패가 dangling 참조 때문이었음).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 run_status: audit-ready
