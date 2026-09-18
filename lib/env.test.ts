@@ -58,14 +58,14 @@ describe("lib/env — validateEnv (AC-RUNTIME-003, AC-RUNTIME-010, AC-RUNTIME-01
   });
 
   describe("AC-RUNTIME-019 — 누락 변수 전량 열거 (첫 번째에서 중단하지 않는다)", () => {
-    it("provision 스코프에서 2개 이상 누락되면 전부 열거한다", () => {
+    it("e2e 스코프에서 2개 이상 누락되면 전부 열거한다", () => {
       try {
-        validateEnv("provision", {});
+        validateEnv("e2e", {});
         expect.unreachable("검증이 실패해야 한다");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         expect(message).toContain("TURSO_DATABASE_URL");
-        expect(message).toContain("BETTER_AUTH_SECRET");
+        expect(message).toContain("TESTER_PASSWORD");
       }
     });
   });
@@ -75,21 +75,12 @@ describe("lib/env — validateEnv (AC-RUNTIME-003, AC-RUNTIME-010, AC-RUNTIME-01
       expect(() => validateEnv("db", {})).toThrow();
     });
 
-    it("(양성 2) provision 스코프에서 BETTER_AUTH_SECRET 누락 시 실패한다", () => {
-      expect(() =>
-        validateEnv("provision", {
-          TURSO_DATABASE_URL: "file:./.tmp/x.db",
-        })
-      ).toThrow();
+    it("(양성 2) provision 스코프에서 TURSO_DATABASE_URL 누락 시 실패한다", () => {
+      expect(() => validateEnv("provision", {})).toThrow();
     });
 
-    it("(양성 3) app 스코프에서 BETTER_AUTH_URL 누락 시 실패한다", () => {
-      expect(() =>
-        validateEnv("app", {
-          TURSO_DATABASE_URL: "file:./.tmp/x.db",
-          BETTER_AUTH_SECRET: "secret",
-        })
-      ).toThrow();
+    it("(양성 3) app 스코프에서 TURSO_DATABASE_URL 누락 시 실패한다", () => {
+      expect(() => validateEnv("app", {})).toThrow();
     });
 
     it("(음성 1) db 스코프는 BETTER_AUTH_SECRET·BETTER_AUTH_URL이 모두 없어도 통과한다", () => {

@@ -1,12 +1,19 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-18 (문서 정합성 보정 — 디자인 현황(사용자용 화면
+> 최종 수정: 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6 — B2B 전용 코드
+> 삭제 실행 결과를 문서에 반영. `lib/auth/`·`app/cases/*`·`app/login/`·
+> `app/api/**`·`components/evidence-item.*`·`proxy.ts`·B2B 전용
+> E2E 13개·Better Auth 의존성은 삭제 완료됐고, `lib/pipeline/`(+
+> 관련 observability/seed 파일)만 담보 매칭 알고리즘 decision gate로
+> 보존 중이다 — 계획 대비 편차로 `lib/validation/case-input.ts`도 함께
+> 보존됐다. 상세: §이전 방향, `structure.md` § 현재 구조. 이전 개정:
+> 2026-09-18 문서 정합성 보정 — 디자인 현황(사용자용 화면
 > 24개 + DEV ONLY 내부 자료 4개)과 B2B 폐기 결정 표현을 문서 전체에서
 > 모순 없이 통일. B2C가 유일한 목표 제품이며, B2B 전용 코드
 > (`lib/pipeline/`, Better Auth, `/cases/*`)는 **폐기가 결정됐지만
 > 저장소에는 아직 남아 있다** — 실제 삭제 작업만 별도 SPEC으로 유보된
 > 상태다(§구조·공존 관계 참고). 새 B2C 화면(01/02/03, Desktop+Mobile
-> 24개)은 디자인만 확정됐을 뿐 코드 구현은 아직 없다. 이전 개정:
+> 24개)은 디자인만 확정됐을 뿐 코드 구현은 아직 없다. 그 이전 개정:
 > 2026-09-17 디자인 피벗 반영 — B2B 손해사정사 워크스페이스 기획을
 > 폐기하고 `design/MIGRATION-PLAN.md` 기준 B2C 보상 진단 퍼널로 제품
 > 방향 전환(문서 재작성만 수행, 코드 미변경); 2026-09-16
@@ -155,7 +162,7 @@ B2C 대상 서비스이므로 단정형 금액 제시는 표시광고법·보험
   Reproduction-First 절차를 거쳐 진행하며, 이번 문서 재작성 라운드에서는
   코드를 건드리지 않았다 — 삭제 전 코드는 git 이력으로 항상 복구 가능하다.
 
-## 이전 방향 (레거시, 코드는 유지됨)
+## 이전 방향 (레거시, 코드 대부분 삭제 완료)
 
 이번 피벗 이전, 보상레이더는 **B2B AI Research Assistant**로 기획되어
 15개 SPEC이 완료되었다. 아래는 그 요약이다 — 전체 상세는 git 이력과
@@ -178,13 +185,29 @@ B2C 대상 서비스이므로 단정형 금액 제시는 표시광고법·보험
   SPEC-UI-MIGRATION-001, SPEC-E2E-AUTH-STATE-001, SPEC-PILOT-READY-001,
   SPEC-PILOT-LAUNCH-001, SPEC-PILOT-OPS-001, SPEC-CASE-PROGRESS-001,
   SPEC-SIDEBAR-NAV-001 (+ 배포 전환 SPEC-ORACLE-HOSTING-001).
-- **이 코드가 아직 저장소에 남아 있는 이유**: `lib/pipeline/`,
-  `lib/auth/`(Better Auth), `app/cases/*`, `app/login/`, Turso DB 스키마
-  등은 모두 실제 운영 중인 구현체다. B2B 제품 폐기와 이 전용 코드의
-  삭제는 **위 §구조·공존 관계에서 이미 결정됐다** — 다만 실제
-  삭제·마이그레이션 실행은 Reproduction-First 절차를 거쳐야 하므로 별도
-  SPEC으로 유보된 상태이며, 그 SPEC이 착수되기 전까지는 코드가 그대로
-  남아 있다.
+- **코드 삭제 현황 (SPEC-B2C-FOUNDATION-001, 2026-09-18 M1-M5 완료)**: 위
+  §구조·공존 관계에서 확정된 삭제 결정은 SPEC-B2C-FOUNDATION-001의
+  M1-M5에서 대부분 실행됐다.
+  - **삭제 완료**: `app/cases/*`, `app/login/*`,
+    `app/api/auth/[...all]/route.ts`, `app/api/cases/**`, `lib/auth/**`
+    (Better Auth 기반 접근 제어), `lib/cases/**`, `lib/feedback/**`,
+    `components/evidence-item.*`, `proxy.ts`(인증 가드), B2B 전용 E2E
+    시나리오 13개(`e2e/` 디렉터리 전체), Better Auth 테스터 프로비저닝
+    스크립트(`scripts/provision-tester.ts` 등), `package.json`의
+    `better-auth` 의존성과 `tester:add` 스크립트.
+  - **보존(별도 decision gate, 삭제 아님)**: `lib/pipeline/`(6단계
+    리서치 파이프라인) + `db/seed/evidence*` +
+    `lib/observability/gemini-fetch-observer.*`/`gemini-observation-store.ts`는
+    담보 매칭 알고리즘 결정 전까지 재사용/삭제 여부가 정해지지 않아
+    의도적으로 손대지 않았다(§ 담보 매칭 로직 — 미결정 사항, `tech.md`
+    참고) — 후속 SPEC이 재검토한다.
+  - **보존(계획 대비 편차)**: `lib/validation/case-input.ts`+test는
+    design.md 작성 시점에는 삭제 대상으로 분류됐으나, `lib/pipeline/types.ts`가
+    이 파일의 `CaseInput` 타입을 import하는 실제 의존성이 M4 실행
+    중에 발견되어 — `lib/pipeline/` 보존 결정을 위반하지 않기 위해
+    함께 보존됐다. `lib/pipeline/` decision gate가 해소될 때 함께
+    재검토 대상이다(상세: `.moai/specs/SPEC-B2C-FOUNDATION-001/progress.md`
+    M4).
 - **왜 폐기되었나**: 손해사정사 워크스페이스(사이드바·사건 관리·리서치
   리포트·전문가 피드백·증빙 서류·후유장해 트래커 등, "사용자=전문가"
   전제)는 `design/MIGRATION-PLAN.md` §5에서 폐기 이력으로 명시됐다 — 상세
@@ -214,11 +237,13 @@ SPEC 문서를 생성하지 않는다:
 - **공통 00 Design System 정리** — 더 이상 쓰지 않는 컴포넌트(App
   Sidebar·Nav Item·App Topbar·Evidence Item 등) 정리 및 `Coverage
   Item`으로 편입.
-- **기존 B2B 코드 삭제 (결정됨, 실행은 별도 SPEC)** — 2026-09-17 재확인으로
-  방향이 확정됐다: B2C가 유일한 제품, B2B 전용 코드(`lib/pipeline/`,
-  `lib/auth/`, `app/cases/*`, `app/login/` 등)는 삭제한다. 아래 화면
-  구현 항목들에 **선행**해서 진행하는 편이 좋다 — 라우트 구조가 정리된
-  뒤에 새 화면을 만들면 "신규 라우트 그룹 vs 기존 대체" 고민이 사라진다.
+- **`lib/pipeline/` 보존 여부 최종 결정 (decision gate, 기존 B2B 코드
+  삭제의 마지막 조각)** — `lib/auth/`·`app/cases/*`·`app/login/`·Better
+  Auth 의존성 등 나머지 B2B 전용 코드는 SPEC-B2C-FOUNDATION-001
+  (2026-09-18, M1-M5)에서 삭제 완료했다(§이전 방향 참고). `lib/pipeline/`
+  (+ 관련 observability/seed 파일)은 담보 매칭 알고리즘이 정적 규칙
+  기반인지 이 파이프라인/Gemini 재활용인지 결정되기 전까지 의도적으로
+  보존 중이며, 이 decision gate 해소는 여전히 후속 SPEC 범위다.
 
 ### B. 구현 완료 (레거시 B2B, 15개 SPEC, `status: completed`)
 

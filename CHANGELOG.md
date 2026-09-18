@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### Removed — SPEC-B2C-FOUNDATION-001: B2B 코드 정리 및 B2C 공개 퍼널 기반 전환 (M1-M7)
+
+제품 방향이 B2C 보상 진단 퍼널로 전환됨에 따라(`.moai/project/product.md` §구조·공존 관계), 실제 동작하던 B2B 전용 구현체를 회귀 없이 순차 제거했습니다. `app/page.tsx`를 인증 세션 의존 리다이렉트에서 정적 "서비스 준비 중" placeholder로 먼저 교체한 뒤(M2, REQ-B2CFOUND-002/003/013 — 라우트 제거와 신규 진입점 마련의 순서 보장), B2B 라우트·인증 표면 `app/cases/**`(27개)·`app/login/*`(5개)·`app/api/auth/[...all]/route.ts`·`app/api/cases/**`(4개)·`lib/auth/**`(Better Auth, 7개)·`components/evidence-item.*`·`proxy.ts`(보호 경로 전부 소멸에 따라 파일 자체 삭제)를 제거했습니다(M3). 이어서 미사용 B2B 코드 `lib/cases/**`(9개)·`lib/feedback/**`(4개)를 제거했고(M4), `e2e/` 전체(13개)와 `scripts/`의 Better Auth 전용 파일(`provision-tester.ts`+test, `e2e-tester-emails.ts`, `scripts/measure/capture-login.mjs`·`login-pixel-compare.mjs`) 및 `lib/env.ts`의 `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` 요구 사항, `package.json`의 `better-auth` 의존성과 `tester:add` 스크립트를 제거했습니다(M5) — 삭제 사유·대체 검증 여부는 `progress.md` §M5에 시나리오별로 기록했습니다.
+
+**계획 대비 편차**: `lib/validation/case-input.ts`(+test)는 design.md에서 삭제 분류였으나, 삭제 전 필수 cross-reference grep에서 `lib/pipeline/types.ts`가 이 파일의 `CaseInput` 타입을 실제로 import·재export하는 의존을 발견했습니다. 삭제를 완료하려면 `lib/pipeline/types.ts` 수정이 필요한데, 이는 REQ-B2CFOUND-007("`lib/pipeline/`을 삭제·추출·수정하지 않고 그대로 보존")을 직접 위반하므로, 이 SPEC에서는 `case-input.ts`를 삭제하지 않고 보존했습니다(후속 SPEC에서 `lib/pipeline/` decision gate와 함께 재검토 대상).
+
+`.moai/project/product.md`/`structure.md`/`tech.md`를 M1-M5 실제 코드 상태에 맞춰 갱신했습니다(M6). `.github/workflows/deploy.yml`은 이 SPEC의 어떤 milestone에서도 수정하지 않았으며(REQ-B2CFOUND-011), 기존 11개 DB 테이블·마이그레이션 이력은 전혀 손대지 않았습니다(REQ-B2CFOUND-006). `lib/pipeline/`·`lib/ai/`·`lib/db/`는 재사용 여부 미결정 상태로 그대로 보존됩니다(REQ-B2CFOUND-007).
+
+**검증**: M1 baseline 대비 M7 재검증 결과 회귀 0건 — `pnpm test`(41/41 files, 282/282 tests, PASS — M1에서 실패하던 `app-shell-chrome.test.tsx`는 파일 자체가 M3에서 삭제되어 소멸), `pnpm lint`(PASS), `npx tsc --noEmit`(PASS), `pnpm build`(PASS, 라우트가 `/`+`/_not-found`로 축소), `pnpm format:check`(pre-existing 3건만 잔존, PRESERVE 대상 — 오히려 3건 개선). `PROTECTED_PATH_PATTERNS`/`isProtectedPath` 잔존 0건(`proxy.ts` 삭제로 완전 해소). 총 6개 커밋(`4351f53`/`eaa4d53`/`c890d15`/`b095b09`/`b67aae4`/`05e9a13`), 93개 파일 변경(+391/-12309). acceptance.md AC 15/15 PASS — 전부 plan-phase 산출물 자체를 검증 대상으로 하며 run-phase에서 그 5개 파일을 수정하지 않아 불변.
+
 ### Added — SPEC-CASE-PROGRESS-002: 실 백엔드 진행 신호 기반 퍼센트 진행률 바
 
 `lib/pipeline/index.ts`의 `runPipeline()`에 선택적 콜백 `onStageProgress`를

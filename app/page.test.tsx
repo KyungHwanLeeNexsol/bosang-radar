@@ -1,45 +1,46 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import Home from "./page";
 
-// app/page.tsx는 이제 별도 랜딩 UI를 렌더링하지 않고, 로그인 세션 여부에
-// 따라 /cases/new 또는 /login으로 즉시 리다이렉트하는 서버 컴포넌트다.
-// app/cases/new/page.test.tsx와 동일한 리다이렉트 검증 패턴을 사용한다.
+// SPEC-B2C-FOUNDATION-001 M2 — app/page.tsx는 더 이상 로그인 세션에 따른
+// 리다이렉트를 수행하지 않는다. B2C 01 화면이 구현되기 전까지 사용할
+// 최소 정적 placeholder를 렌더링하며, 세션·인증 의존성이 전혀 없다.
+// react-dom/client로 직접 렌더링한다(@testing-library/react 미설치 —
+// app/cases/new/case-input-form.test.tsx와 동일한 패턴).
 
-const { getCurrentSessionMock, redirectMock } = vi.hoisted(() => ({
-  getCurrentSessionMock: vi.fn(),
-  redirectMock: vi.fn(() => {
-    throw new Error("NEXT_REDIRECT");
-  }),
-}));
+describe("app/page — 최소 B2C 공개 진입점 placeholder", () => {
+  let container: HTMLDivElement;
+  let root: Root;
 
-vi.mock("@/lib/auth/session", () => ({
-  getCurrentSession: getCurrentSessionMock,
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: redirectMock,
-}));
-
-describe("app/page — 루트 진입점 리다이렉트", () => {
   beforeEach(() => {
-    vi.resetModules();
-    getCurrentSessionMock.mockReset();
-    redirectMock.mockClear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
   });
 
-  it("로그인 세션이 있으면 /cases/new로 리다이렉트한다", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    const { default: Home } = await import("./page");
-
-    await expect(Home()).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirectMock).toHaveBeenCalledWith("/cases/new");
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
   });
 
-  it("로그인 세션이 없으면 /login으로 리다이렉트한다", async () => {
-    getCurrentSessionMock.mockResolvedValue(null);
-    const { default: Home } = await import("./page");
+  it("크래시 없이 렌더링되고 준비 중 안내 문구를 표시한다", () => {
+    act(() => {
+      root.render(<Home />);
+    });
 
-    await expect(Home()).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirectMock).toHaveBeenCalledWith("/login");
+    expect(container.textContent).toContain("서비스 준비 중입니다");
+  });
+
+  it("이름·연락처 등 PII 입력 필드를 포함하지 않는다", () => {
+    act(() => {
+      root.render(<Home />);
+    });
+
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelector("form")).toBeNull();
   });
 });
