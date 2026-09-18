@@ -23,7 +23,7 @@
 | `lib/pipeline/` 재사용 여부 | 미결정 (REQ-B2CFOUND-007) | 이 SPEC은 관여하지 않음 |
 | M01-D/M01-E 모바일 디자인 부재 | 미해결 — `design.md` §1 참고 | 신규 제작은 Out of Scope, 처리 원칙만 design.md에 기록 |
 | DEV-ONLY 동의 상세 6개 문구 placeholder | 법무 확정 전 | 그대로 `{}` 형태 유지, 실제 화면에 노출 금지 |
-| 반응형 브레이크포인트 정확한 전환 지점(391px~1439px 구간) | NEEDS CLARIFICATION | `design.md` §11 참고 |
+| 반응형 브레이크포인트 정확한 전환 지점(391px~767px 구간) | NEEDS CLARIFICATION | `design.md` §13 참고 |
 
 ## §C. Pre-flight
 
@@ -60,7 +60,7 @@
 7. **Mobile 반응형 및 bottom sheet** — 390px 기준 레이아웃, Desktop/Mobile 공용 상태 머신 검증, M01-D/M01-E 부재에 대한 처리 원칙 적용.
 8. **접근성** — 키보드 내비게이션, 포커스 트랩·복귀, 스크린리더 label 연결, `prefers-reduced-motion` 대응.
 9. **unit/component 테스트** — 입력 스키마, 상태 전이, 동의 검증, modal/bottom sheet 동작에 대한 Vitest 테스트.
-10. **01 Playwright 및 시각 정합성 검증** — `pnpm test:e2e` 대상 시나리오 신규 작성(01 범위 한정), `design/exports/` PNG와 구현 화면의 수동 비교 절차 수행(`design.md` §12).
+10. **01 Playwright 및 시각 정합성 검증** — `pnpm test:e2e` 대상 시나리오 신규 작성(01 범위 한정), `design/exports/` PNG와 구현 화면의 수동 비교 절차 수행(`design.md` §16).
 11. **문서·배포 smoke check 갱신** — `structure.md`/`tech.md` 반영, `.github/workflows/deploy.yml`의 "서비스 준비 중입니다" 스모크 체크를 새 01 화면의 안정적 식별자로 교체(실제 워크플로 수정은 이 마일스톤의 run-phase 실행 시점에 처리).
 
 ## §G. Anti-Patterns (이 SPEC에서 피해야 할 것)
