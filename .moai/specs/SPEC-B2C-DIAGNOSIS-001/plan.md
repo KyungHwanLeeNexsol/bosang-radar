@@ -50,7 +50,7 @@
 - [x] Out of Scope 섹션에 6개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(app/, components/, lib/, package.json, node_modules) 완료 — `research.md`
 - [x] 디자인 export 10개 + DEV ONLY 2개 직접 열람 완료
-- [x] plan-auditor 독립 재검토 완료 — iteration 3 PASS(0.92), Tier L 임계값(0.85) 충족, must-pass 7/7 PASS(`progress.md` §G 참고, 감사 대상 커밋 `a2d6c69`). 이번 개정(§A 배포 문구 정정, M2 렌더링 게이트를 productionReady/reviewEnabled 이원화로 정정)은 렌더링 게이트의 실질 변경이므로 plan-auditor iteration 4 재감사를 실행했다 — **결과: FAIL(0.91), STOP 신호**(`progress.md` §G 참고). design.md 3개 지점(§2 Suspense 문단, §8/§11/§19의 절대적 안전 단정, §18.1 loading 상태표)에 blocking 결함이 남아 있어 아직 최종 PASS에 도달하지 못했다 — 이 SPEC은 run-phase 착수 가능 상태가 아니다. 표준 3회 한도를 이미 초과했으므로 추가 수정·재감사(iteration 5)는 별도의 명시적 사용자 승인이 필요하다
+- [x] plan-auditor 독립 재검토 완료 — iteration 5 **PASS**(0.95, Tier L 임계값 0.85 이상, must-pass 7/7 PASS, `progress.md` §G 참고, 감사 대상 커밋 `700f9e7`). iteration 3 PASS(0.92) 이후 렌더링 게이트를 productionReady/reviewEnabled 이원화로 정정하면서 실행한 iteration 4 재감사가 FAIL(0.91)했으나, 지적된 design.md 결함 3건을 모두 수정하고 iteration 5로 재감사해 최종 PASS를 받았다. optional 결함 3건(design.md:264/278, plan.md:64 자체, design.md:126/303 — `progress.md` §G 참고)은 재감사 없이 run-phase에서 문서 touch-up으로 처리하기로 결정했다. plan-audit 게이트는 통과했으나 Implementation Kickoff Approval(사용자의 run-phase 착수 최종 승인)은 별도로 필요하다
 
 ## §F. Milestones (후속 `/moai run SPEC-B2C-DIAGNOSIS-001`의 실행 계획)
 
