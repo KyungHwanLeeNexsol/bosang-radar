@@ -164,7 +164,7 @@ M1-M7 전체 완료. 6개 커밋(`4351f53`/`eaa4d53`/`c890d15`/`b095b09`/`b67aae
 
 sync_status: audit-ready
 sync_complete_at: 2026-09-18T15:20:00Z
-sync_commit_sha: pending-backfill-b2cfound001-sync
+sync_commit_sha: d58b2347ef2f387953e268ffc403f7481d813b24
 
 manager-docs가 sync-phase 재검증(M1-M7 완료 후 독립 재실행)을 수행함. `git status --porcelain` → 빈 출력(재검증 시작 시 clean 확인). M7 baseline과 동일한 5개 명령을 재실행:
 
