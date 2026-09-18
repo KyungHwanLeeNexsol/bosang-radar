@@ -50,7 +50,7 @@
 - [x] Out of Scope 섹션에 6개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(app/, components/, lib/, package.json, node_modules) 완료 — `research.md`
 - [x] 디자인 export 10개 + DEV ONLY 2개 직접 열람 완료
-- [x] plan-auditor 독립 재검토 완료 — iteration 3 PASS(0.92), Tier L 임계값(0.85) 충족, must-pass 7/7 PASS(`progress.md` §G 참고, 감사 대상 커밋 `a2d6c69`). 이번 개정(§A 배포 문구 정정, M2 렌더링 게이트를 productionReady/reviewEnabled 이원화로 정정)은 렌더링 게이트의 실질 변경이므로 plan-auditor iteration 4 재감사를 진행 중이다(`progress.md` §G 참고, 표준 3회 한도를 넘는 재감사는 사용자 명시 승인됨) — iteration 4 최종 PASS 전에는 이 SPEC을 run-phase 착수 가능으로 간주하지 않는다
+- [x] plan-auditor 독립 재검토 완료 — iteration 3 PASS(0.92), Tier L 임계값(0.85) 충족, must-pass 7/7 PASS(`progress.md` §G 참고, 감사 대상 커밋 `a2d6c69`). 이번 개정(§A 배포 문구 정정, M2 렌더링 게이트를 productionReady/reviewEnabled 이원화로 정정)은 렌더링 게이트의 실질 변경이므로 plan-auditor iteration 4 재감사를 실행했다 — **결과: FAIL(0.91), STOP 신호**(`progress.md` §G 참고). design.md 3개 지점(§2 Suspense 문단, §8/§11/§19의 절대적 안전 단정, §18.1 loading 상태표)에 blocking 결함이 남아 있어 아직 최종 PASS에 도달하지 못했다 — 이 SPEC은 run-phase 착수 가능 상태가 아니다. 표준 3회 한도를 이미 초과했으므로 추가 수정·재감사(iteration 5)는 별도의 명시적 사용자 승인이 필요하다
 
 ## §F. Milestones (후속 `/moai run SPEC-B2C-DIAGNOSIS-001`의 실행 계획)
 

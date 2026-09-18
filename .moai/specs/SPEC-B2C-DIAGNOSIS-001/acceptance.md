@@ -69,7 +69,7 @@
 - [ ] AC-025 검증됨: 6개 동의 상세 placeholder 문구가 확정되지 않은 한 `ENABLE_DIAGNOSIS_FLOW`가 프로덕션에서 `true`로 전환되지 않음
 - [ ] AC-024는 이 SPEC의 sync-phase `completed` 전환을 막는 블로킹 조건이 아니다 — `ENABLE_DIAGNOSIS_FLOW`+`DIAGNOSIS_ENGINE_READY`가 실제 프로덕션에서 활성화되는 시점에 조건부로 검증되는 이연(deferred) 추적 항목이며, "이 SPEC의 모든 AC가 충족되어야 완료" 판정 집합에서 제외된다(`plan.md` M11(b) 참고)
 - [ ] run-phase가 동의 상세 컨테이너(Modal/Bottom Sheet 셸)의 전체 UI 구현을 완료하더라도, 6개 문구가 미확정 상태이면 이 SPEC의 판정은 "코드 구현 완료 / 출시 차단"이며 "완료"로 판정하지 않는다
-- [x] 이 문서 및 `spec.md`/`plan.md`/`progress.md`에 기재된 plan-auditor PASS 판정(iteration 3, 0.92, 감사 대상 커밋 `a2d6c69`)은 실제 plan-auditor 호출 결과이며 `progress.md` §G에 근거(must-pass 결과, 로컬 보고서 경로가 참고용·`.gitignore` 대상이라는 사실)와 함께 기록되어 있음을 확인함 — 이번 렌더링 게이트(productionReady/reviewEnabled) 정정에 따른 iteration 4 재감사 결과가 나오기 전까지, 이 개정판 문서 세트에 대해 run-phase 착수 가능이라고 주장하지 않는다
+- [x] 이 문서 및 `spec.md`/`plan.md`/`progress.md`에 기재된 plan-auditor PASS 판정(iteration 3, 0.92, 감사 대상 커밋 `a2d6c69`)은 실제 plan-auditor 호출 결과이며 `progress.md` §G에 근거(must-pass 결과, 로컬 보고서 경로가 참고용·`.gitignore` 대상이라는 사실)와 함께 기록되어 있음을 확인함 — 렌더링 게이트(productionReady/reviewEnabled) 정정에 따라 실행한 iteration 4 재감사는 **FAIL(0.91)**로 판정되었으며(`progress.md` §G 참고), design.md의 blocking 결함 3건이 해소되고 재감사에서 PASS를 받기 전까지 이 SPEC은 run-phase 착수 가능 상태가 아니다
 
 ## Quality Gate 기준
 
