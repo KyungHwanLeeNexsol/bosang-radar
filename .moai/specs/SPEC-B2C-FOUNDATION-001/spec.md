@@ -2,7 +2,7 @@
 id: SPEC-B2C-FOUNDATION-001
 title: "B2B 코드 정리 및 B2C 공개 퍼널 기반 전환"
 version: "0.1.0"
-status: in-progress
+status: completed
 created: 2026-09-18
 updated: 2026-09-18
 author: Nexsol

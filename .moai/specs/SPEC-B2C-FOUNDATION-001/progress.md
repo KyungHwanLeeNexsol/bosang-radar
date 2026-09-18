@@ -162,7 +162,27 @@ M1-M7 전체 완료. 6개 커밋(`4351f53`/`eaa4d53`/`c890d15`/`b095b09`/`b67aae
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+sync_status: audit-ready
+sync_complete_at: 2026-09-18T15:20:00Z
+sync_commit_sha: pending-backfill-b2cfound001-sync
+
+manager-docs가 sync-phase 재검증(M1-M7 완료 후 독립 재실행)을 수행함. `git status --porcelain` → 빈 출력(재검증 시작 시 clean 확인). M7 baseline과 동일한 5개 명령을 재실행:
+
+| 명령 | M7 결과 (참고) | sync-phase 재검증 결과 | 일치 여부 |
+|---|---|---|---|
+| `pnpm test` | PASS — 41/41 files, 282/282 tests | **PASS** — 41/41 files, 282/282 tests, exit=0 | 일치 |
+| `pnpm lint` | PASS | **PASS**, exit=0 | 일치 |
+| `pnpm format:check` | FAIL(3개 파일, PRESERVE 대상) | **FAIL**(동일 3개 파일 — `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`), exit=1 | 일치(예상된 pre-existing) |
+| `npx tsc --noEmit` | PASS | **PASS**, exit=0 | 일치 |
+| `pnpm build` | PASS(1 pre-existing warning) | **PASS**, exit=0(동일한 1개 pre-existing warning) | 일치 |
+
+MX 태그 검증: M1-M7 diff(`git diff e38fe0b..HEAD --name-status`, 93개 파일)는 거의 전량 삭제(D)이며, 유일한 신규 콘텐츠 파일은 `app/page.tsx`(M2, 이미 REQ-B2CFOUND-002/003/013 인용 주석 보유 — fan_in 없는 단일 route 엔트리포인트, 복잡도·goroutine 없음이라 @MX:ANCHOR/@MX:WARN 불필요). `proxy.ts` 삭제 시 그 파일의 `@MX:ANCHOR` 태그도 코드와 함께 이미 M3에서 폐기됨(progress.md §E.2 M3 기록). 추가로 필요한 @MX 어노테이션 없음.
+
+문서 동기화: `CHANGELOG.md` `[Unreleased]`에 SPEC-B2C-FOUNDATION-001 섹션 신설(사전 `grep -c 'SPEC-B2C-FOUNDATION-001' CHANGELOG.md` → 0, 중복 아님 확인). `README.md` 상단 배너(B2B→B2C 전환 안내)와 "현재 구현 상태" 절 진입부를 실제 코드 상태(B2B 코드 삭제 완료, placeholder 1화면만 존재)에 맞춰 갱신 — 이후 SPEC 이력 서술(SPEC-SCAFFOLD-001~SPEC-CASE-PROGRESS-002)은 삭제 이전 시점의 과거 기록으로 명시하고 본문은 보존(대규모 재작성은 이 SPEC 범위 밖, 실제 B2C 화면 구현 SPEC에서 재작성 예정). `.moai/project/product.md`/`structure.md`/`tech.md`는 M6에서 이미 M1-M5 실측에 맞춰 갱신되었음을 재확인(`git diff e38fe0b..HEAD` 대상 3파일 모두 M6 단일 커밋 `05e9a13`에 포함, sync-phase에서 추가 수정 없음).
+
+frontmatter 전이: spec.md `status: in-progress → completed`(`updated:` 2026-09-18 유지 — sync 당일과 동일). plan.md/acceptance.md/design.md/research.md는 frontmatter 자체가 없음(본 SPEC 작성 관례) — 전이 대상 없음. spec.md/plan.md/acceptance.md 본문(body) 내용은 수정하지 않음(SPEC Frontmatter Schema 소유권 경계 준수).
+
+fold-at: 2026-09-18T15:20:00Z | evidence: manager-docs 독립 재실행(sync-phase) + M1-M7 §E.2/§E.3 기록 | AC: 15/15 PASS(불변) | 회귀: 0건
 
 ## §F Phase 4 Mode Selection
 
