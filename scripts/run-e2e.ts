@@ -7,24 +7,18 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootstrapCli } from "./cli-bootstrap.ts";
 import { runMigrations } from "./db-migrate.ts";
 import { runSeed } from "./db-seed.ts";
-import { provisionTester } from "./provision-tester.ts";
-import { TESTER_A_EMAIL, TESTER_B_EMAIL } from "./e2e-tester-emails.ts";
 
 // @MX:ANCHOR: [AUTO] pnpm test:e2e의 실제 진입점 — E2E 전 과정(시크릿 생성 →
-// env 조립 → 스코프 검증 → DB 초기화·마이그레이션·시드·테스터 프로비저닝 →
+// env 조립 → 스코프 검증 → DB 초기화·마이그레이션·시드 →
 // Playwright 러너 spawn)을 이 파일이 전부 소유한다.
 // @MX:REASON: e2e/global-setup.ts를 만들지 않기로 한 설계 결정(design.md §3.3)의
 // 직접적 결과 — 훅 순서 대신 프로세스 계보(이 스크립트 → Playwright 러너 →
 // Next.js 서버, 모두 같은 조상 프로세스의 env를 상속)에 시크릿 일치를 위임한다.
+// SPEC-B2C-FOUNDATION-001 M5: Better Auth 전용 테스터 프로비저닝
+// (provision-tester.ts, e2e-tester-emails.ts)은 삭제됐다 — B2B 전용
+// 시나리오였고, 대체 검증은 이 SPEC 범위 밖이다(REQ-B2CFOUND-009).
 
 export type SpawnFn = typeof nodeSpawn;
-
-// e2e/*.spec.ts는 이 파일이 아니라 ./e2e-tester-emails.ts에서 직접
-// import한다(Playwright spec 번들러가 CJS로 변환하므로, 이 파일처럼
-// import.meta.url을 쓰는 모듈을 spec이 간접 import하면 실패한다 — 상세는
-// e2e-tester-emails.ts 상단 주석 및 progress.md §E.2 M5 참고). 여기서는
-// 진입점 자신이 쓰기 위해 재수출만 한다(SSOT는 여전히 하나).
-export { TESTER_A_EMAIL, TESTER_B_EMAIL };
 
 function resolveProjectRoot(): string {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -121,15 +115,14 @@ function resetE2EDatabase(): void {
   mkdirSync(tmpDir, { recursive: true });
 }
 
-async function prepareE2EDatabase(assembled: AssembledE2EEnv): Promise<void> {
+async function prepareE2EDatabase(): Promise<void> {
   resetE2EDatabase();
-  // db-migrate/db-seed/provision-tester의 함수를 in-process 재사용한다
-  // (design.md §3.3 — 서브프로세스 호출은 env 전달 경계가 하나 더 생겨
-  // file: 격리가 새는 지점이 된다).
+  // db-migrate/db-seed의 함수를 in-process 재사용한다(design.md §3.3 —
+  // 서브프로세스 호출은 env 전달 경계가 하나 더 생겨 file: 격리가 새는
+  // 지점이 된다). 테스터 프로비저닝(provision-tester.ts)은 SPEC-B2C-
+  // FOUNDATION-001 M5에서 Better Auth와 함께 삭제됐다.
   await runMigrations();
   await runSeed();
-  await provisionTester({ email: TESTER_A_EMAIL, password: assembled.TESTER_PASSWORD });
-  await provisionTester({ email: TESTER_B_EMAIL, password: assembled.TESTER_PASSWORD });
 }
 
 interface RunPlaywrightResult {
@@ -355,12 +348,12 @@ export async function runE2E(
   specFilter?: string,
   workers?: number
 ): Promise<number> {
-  const assembled = await assembleE2EEnv();
+  await assembleE2EEnv();
   // 로드 → 검증(design.md §3.2.2). 이미 조립된 값이 process.env에 있으므로
   // .env.local이 디스크에 존재하더라도(AC-RUNTIME-015 sentinel 시나리오)
   // 상속된 값이 덮이지 않는다(research.md §0.2 결론 2).
   bootstrapCli("e2e");
-  await prepareE2EDatabase(assembled);
+  await prepareE2EDatabase();
   const port = Number(process.env.E2E_PORT);
   const { exitCode } = await spawnPlaywrightRunner(spawnFn, port, specFilter, workers);
   return exitCode;

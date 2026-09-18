@@ -23,9 +23,9 @@ interface VarInfo {
 // 어떤 스코프에서도 필수가 될 수 없다 — 의도적으로 이 검증 대상에서 제외한다.
 const REQUIRED_BY_SCOPE: Record<EnvScope, readonly string[]> = {
   db: ["TURSO_DATABASE_URL"],
-  provision: ["TURSO_DATABASE_URL", "BETTER_AUTH_SECRET"],
-  app: ["TURSO_DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL"],
-  e2e: ["TURSO_DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "TESTER_PASSWORD"],
+  provision: ["TURSO_DATABASE_URL"],
+  app: ["TURSO_DATABASE_URL"],
+  e2e: ["TURSO_DATABASE_URL", "TESTER_PASSWORD"],
 };
 
 const VAR_INFO: Record<string, VarInfo> = {
