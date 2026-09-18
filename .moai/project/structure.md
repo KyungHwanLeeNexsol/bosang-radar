@@ -1,10 +1,17 @@
 # 프로젝트 구조
 
-> 최종 수정: 2026-09-18 (문서 정합성 보정 — "3화면"으로 남아 있던 표현을
+> 최종 수정: 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6 — § 현재 구조를
+> M1-M5 삭제 실행 결과에 맞춰 재작성. `app/cases/*`·`app/login/*`·
+> `app/api/**`·`lib/auth/`·`lib/cases/`·`lib/feedback/`·
+> `components/evidence-item.*`·`proxy.ts`·`e2e/`는 삭제되어 트리에서
+> 제거했고, `lib/pipeline/`(+observability/seed)은 decision gate 보존,
+> `lib/validation/case-input.ts`는 편차로 보존 상태임을 명시했다. §
+> 목표 구조(제안, 미구현)와 § 공존 관계 요약 표도 함께 갱신했다. 이전
+> 개정: 2026-09-18 문서 정합성 보정 — "3화면"으로 남아 있던 표현을
 > 실제 디자인 현황에 맞게 정정. 큰 제품 흐름은 01/02/03 3단계 퍼널이
 > 맞지만, 실제 사용자용 디자인은 상태 변형을 포함해 Desktop 12개 +
 > Mobile 12개 = 24개이며, 사용자 화면이 아닌 DEV ONLY 내부 자료가
-> 4개 별도로 존재한다 — 상세: `design/MIGRATION-PLAN.md`. 이전 개정:
+> 4개 별도로 존재한다 — 상세: `design/MIGRATION-PLAN.md`. 그 이전 개정:
 > 2026-09-17 디자인 피벗 반영 — 이 문서는 더 이상 "제안 — Greenfield
 > Plan"이 아니다. 아래 § 현재 구조(실측)는 실제 코드베이스를 Glob/Read로
 > 관찰한 결과다. B2C 새 화면(01/02/03)에 해당하는 코드는 아직 존재하지
@@ -29,43 +36,39 @@
 
 ```
 bosang-radar/
-├── app/                        # Next.js App Router 라우트 (B2B 흐름)
+├── app/                        # Next.js App Router — B2C 최소 공개 진입점(placeholder)
 │   ├── layout.tsx
-│   ├── page.tsx                # 랜딩/사건 입력 진입점
-│   ├── login/                  # 초대받은 테스터 로그인 화면
-│   ├── cases/
-│   │   ├── new/                # 사건 입력 폼
-│   │   └── [caseId]/           # 사건 상세 + 리서치 리포트 뷰
-│   └── api/
-│       ├── auth/                # 인증 콜백/세션 관련 route handler
-│       └── cases/              # 사건 생성/파이프라인 트리거 route handler
-├── proxy.ts                    # 비로그인 사용자를 /login으로 리다이렉트하는 인증 가드
+│   ├── page.tsx                # B2C 정적 placeholder("서비스 준비 중") — 로그인/세션 의존성 없음
+│   ├── page.test.tsx
+│   ├── not-found.tsx
+│   ├── not-found.test.tsx
+│   ├── globals.css
+│   ├── favicon.ico
+│   └── api/                    # 라우트 핸들러 전부 삭제 — 빈 디렉터리로만 남음
 │
 ├── components/
+│   ├── exception-panel.tsx
 │   └── ui/                     # shadcn/ui 기반 컴포넌트
 │
 ├── lib/
-│   ├── auth/                   # 인증/세션/allowlist 로직 (Better Auth)
-│   ├── validation/              # 입력 검증 스키마 (PII 차단 강제 지점, B2B 전용)
+│   ├── validation/              # case-input.ts — 계획 대비 편차로 보존(§lib/validation/ 참고)
 │   ├── ai/
 │   │   └── providers/           # AI provider abstraction + Gemini adapter
 │   ├── db/                     # Turso/libSQL 클라이언트 + Drizzle 스키마
-│   ├── pipeline/                # 리서치 파이프라인 6단계 (B2B 전용)
-│   ├── cases/                  # 사건 상태·진행 표시 관련 헬퍼(analysis-stages.ts 등)
-│   ├── feedback/                # 전문가 피드백 저장 로직
+│   ├── pipeline/                # 리서치 파이프라인 6단계 — decision gate로 보존
 │   ├── logging/                 # 구조적 로깅
-│   └── observability/           # 운영 관측(장애 대응 등)
+│   ├── observability/           # gemini-fetch-observer·gemini-observation-store — 보존
+│   ├── env.ts                   # 환경변수 검증(BETTER_AUTH_* 요구 제거)
+│   └── utils.ts
 │
 ├── db/
-│   ├── migrations/              # Drizzle Kit 마이그레이션 (meta/ 포함)
-│   └── seed/                    # seed evidence 데이터
+│   ├── migrations/              # Drizzle Kit 마이그레이션 (meta/ 포함) — 변경 없음
+│   └── seed/                    # seed evidence 데이터 — 보존
 │
-├── scripts/                     # 런타임 활성화 CLI
+├── scripts/                     # 런타임 활성화 CLI (B2B 전용 스크립트 삭제됨)
 │   ├── cli-bootstrap.ts
-│   ├── db-migrate.ts / db-seed.ts / provision-tester.ts / run-e2e.ts
-│   └── measure/                 # 운영 측정용 스크립트
-│
-├── e2e/                         # Playwright E2E 시나리오
+│   ├── db-migrate.ts / db-seed.ts / run-e2e.ts
+│   └── env-local-safety.ts
 │
 ├── public/                      # 정적 자산
 │
@@ -82,54 +85,68 @@ bosang-radar/
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── tsconfig.json                 # strict 모드
-├── package.json
-└── .env.local                    # Turso/Gemini/Auth 시크릿 (커밋 금지)
+├── package.json                  # better-auth 의존성·tester:add 스크립트 제거됨
+└── .env.local                    # Turso/Gemini 시크릿 (커밋 금지)
 ```
+
+> `app/cases/`·`app/login/`·`app/api/auth/`·`app/api/cases/`·`lib/auth/`·
+> `lib/cases/`·`lib/feedback/`·`components/evidence-item.*`·`proxy.ts`·
+> `e2e/`는 SPEC-B2C-FOUNDATION-001 M1-M5에서 삭제되어 이 트리에 더 이상
+> 없다 — 상세는 § 삭제된 디렉터리·파일 참고.
 
 ## § 디렉터리별 목적 (현재 구조)
 
-### `app/` + `proxy.ts` — B2B 라우트
-Next.js App Router 기반 라우트 트리. 사건 입력 폼(`cases/new`), 사건 상세
-및 리서치 리포트 조회(`cases/[caseId]`), 파이프라인을 트리거하는 API route
-handler(`api/cases`), 로그인 화면(`login/`)으로 구성된다. `proxy.ts`가
-모든 `cases/*` 및 `api/cases/*` 요청에 대해 로그인 세션을 확인하고,
-비로그인 요청은 `/login`으로 리다이렉트한다.
+### `app/` — B2C 최소 공개 진입점 (placeholder)
+Next.js App Router 라우트 트리. 현재 실질적인 라우트는 `app/page.tsx`
+하나뿐이며, SPEC-B2C-FOUNDATION-001 M2에서 기존 B2B 세션 리다이렉트를
+정적 placeholder("서비스 준비 중")로 교체했다 — 세션/인증 의존성이 없는
+서버 컴포넌트다. `app/api/`는 라우트 핸들러가 전부 삭제되어 빈
+디렉터리로만 남아 있다. `app/layout.tsx`·`app/not-found.tsx`는
+B2B/B2C 어느 쪽에도 종속되지 않는 공통 골격이라 이번 SPEC에서 변경하지
+않았다.
 
-### `lib/auth/` — 접근 제어 (B2B 전용, 삭제 결정됨)
-비공개 파일럿(테스터 10명 내외) 규모에 맞춘 초대 전용 인증. Better Auth +
-allowlist 검증. 모든 사건 레코드는 `owner_user_id`로 생성 사용자에게
-귀속된다. **B2C 흐름은 로그인을 요구하지 않으므로, 이 모듈은 B2C 새
-화면과 직접 관련이 없다** — **삭제 결정됨**(2026-09-17, § 공존 관계 요약
-참고). 실행은 `SPEC-B2C-FOUNDATION-001`.
-
-### `lib/validation/` — PII 입력 차단 (B2B 전용, 그대로 유지)
-사건 입력 폼/`app/api/cases/` 공용 Zod 스키마가 주민등록번호·전화번호·
-상세주소·의료기록 원본 형식을 구조적으로 거부한다. B2C 03 화면(상담
-신청)은 의도적으로 연락처를 수집하므로, 이 스키마를 그대로 재사용할 수
-없다 — 새 스키마가 필요하다(§ 목표 구조, `tech.md` 참고).
+### `lib/validation/` — PII 입력 차단 (계획 대비 편차로 보존)
+`case-input.ts`는 design.md §1에서 삭제 대상으로 분류됐으나,
+`lib/pipeline/types.ts`가 이 파일의 `CaseInput` 타입을 import하는
+실제 의존성이 M4 실행 중 발견되어 — `lib/pipeline/` 보존 결정
+(REQ-B2CFOUND-007)을 위반하지 않기 위해 함께 보존됐다(상세:
+`.moai/specs/SPEC-B2C-FOUNDATION-001/progress.md` M4). B2C 03
+화면(상담 신청)은 이 스키마를 그대로 재사용할 수 없으므로 새 스키마가
+필요하다(§ 목표 구조, `tech.md` 참고).
 
 ### `lib/ai/` — AI Provider Abstraction
 `lib/ai/provider.ts`에 공통 인터페이스, `lib/ai/providers/gemini.ts`가
 구현체. B2C 02 화면의 담보 매칭 로직이 이 인터페이스를 재사용할지는
-미결정(`tech.md` § 담보 매칭 로직 — 미결정 사항 참고).
+미결정(`tech.md` § 담보 매칭 로직 — 미결정 사항 참고). 변경 없음.
 
 ### `lib/db/` + `db/` — DB 계층
 Drizzle ORM을 유일한 DB 접근 경로로 둔다. Turso/libSQL 클라이언트
-초기화(`lib/db/client.ts`)와 스키마 정의(`lib/db/schema.ts`). B2C
+초기화(`lib/db/client.ts`)와 스키마 정의(`lib/db/schema.ts`). 이번
+SPEC은 스키마를 전혀 변경하지 않았다(REQ-B2CFOUND-006). B2C
 흐름(리드 데이터, 담보 매칭 데이터)이 새 테이블을 필요로 할 가능성이
 높으나, 스키마 설계는 후속 SPEC 범위다.
 
-### `lib/pipeline/` — 리서치 파이프라인 (B2B 전용, 그대로 유지)
+### `lib/pipeline/` + `lib/observability/` + `db/seed/` — 보존 (decision gate)
 사건 입력 → CaseNormalizer → QueryPlanner → Evidence Retriever →
-Researcher → Skeptic → Verifier → Research Report의 6단계. B2C 02 화면의
-"담보 매칭"은 이 파이프라인과 성격이 다르다(사건 리서치가 아니라 규칙/AI
-매칭) — 직접 재사용을 가정하지 않는다.
+Researcher → Skeptic → Verifier → Research Report의 6단계 리서치
+파이프라인과 그 관측(`gemini-fetch-observer.*`,
+`gemini-observation-store.ts`), seed evidence 데이터(`db/seed/evidence*`)는
+담보 매칭 알고리즘이 정적 규칙 기반인지 이 파이프라인/Gemini
+재활용인지 결정되기 전까지 의도적으로 손대지 않는다(REQ-B2CFOUND-007,
+design.md §4 decision gate) — 후속 SPEC이 재검토한다. B2C 02 화면의
+"담보 매칭"은 사건 리서치가 아니라 규칙/AI 매칭이라 성격이 다르므로,
+직접 재사용을 가정하지 않는다.
 
-### `scripts/` + `e2e/` — 런타임 활성화 계층
+### `scripts/` — 런타임 활성화 계층 (B2B 전용 스크립트 삭제됨)
 `scripts/`는 Next.js 서버 프로세스 바깥에서 독립 실행되는 CLI(DB
-마이그레이션/시드/테스터 프로비저닝/E2E 구동). `e2e/`는 Playwright
-시나리오. B2C 새 화면이 구현되면 이 계층에 신규 시나리오가 추가될
-것으로 예상되나, 현재는 B2B 시나리오만 존재한다.
+마이그레이션/시드/E2E 구동)만 남았다. Better Auth 테스터 프로비저닝
+스크립트(`provision-tester.ts`, `e2e-tester-emails.ts`)와 로그인 화면
+시각 측정 스크립트(`measure/`)는 M5에서 삭제됐다(대상 기능인 Better
+Auth·로그인 화면이 이미 삭제됐기 때문) — `scripts/run-e2e.ts`에 남아
+있던 이 스크립트들에 대한 참조(import·`provisionTester(...)` 호출)도
+함께 제거했다. `e2e/` 디렉터리는 Playwright 시나리오 13개 전체가
+삭제되어 더 이상 존재하지 않는다. B2C 새 화면이 구현되면 신규
+시나리오가 추가될 것으로 예상되나, 현재는 아무 시나리오도 없다.
 
 ### `design/` — B2C 디자인 소스 (신규, 이번 피벗에서 추가)
 `design/claimradar-ui.pen`이 새 B2C 3단계 퍼널(01/02/03)과 그 24개
@@ -139,7 +156,18 @@ Researcher → Skeptic → Verifier → Research Report의 6단계. B2C 02 화�
 자료다. `design/internal/*.png`(4개)는 사용자 화면이 아닌 DEV ONLY
 내부 자료(운영 전 확정 필요 항목, 동의 상세 구조)이며 구현 대상이
 아니다. `design/MIGRATION-PLAN.md`가 디자인 언어·레이아웃·컴포넌트
-토큰·폐기 이력을 담은 문서 SSOT다.
+토큰·폐기 이력을 담은 문서 SSOT다. 변경 없음.
+
+### 삭제된 디렉터리·파일 (SPEC-B2C-FOUNDATION-001 M1-M5 완료)
+`app/cases/**`, `app/login/*`, `app/api/auth/[...all]/route.ts`,
+`app/api/cases/**`, `lib/auth/**`(Better Auth 기반 접근 제어),
+`lib/cases/**`, `lib/feedback/**`, `components/evidence-item.*`,
+`proxy.ts`(인증 가드), `e2e/`(Playwright B2B 시나리오 13개 전체),
+`scripts/provision-tester.ts`·`scripts/e2e-tester-emails.ts`·
+`scripts/measure/`는 전부 삭제 완료됐다. `package.json`의
+`better-auth` 의존성과 `tester:add` 스크립트도 함께 제거됐다.
+삭제 사유·대체 검증 상세는
+`.moai/specs/SPEC-B2C-FOUNDATION-001/progress.md` M3-M5를 참고한다.
 
 ## § 목표 구조 (제안, B2C 방향, 미구현)
 
@@ -197,14 +225,14 @@ db/
 
 | 구분 | B2B (현재 구조) | B2C (목표 구조) |
 |---|---|---|
-| 상태 | 구현 완료, 15개 SPEC | 디자인만 확정, 코드 없음 |
-| 인증 | Better Auth 필수(`proxy.ts` 가드) | 불필요(공개 접근 전제) |
-| PII | 전면 차단(`lib/validation/case-input.ts`) | 01/02 차단, 03만 예외 허용 |
-| 핵심 로직 | `lib/pipeline/` 6단계 리서치 | [미결정] `lib/coverage/` 담보 매칭 |
-| DB | 기존 Turso/Drizzle 스키마(cases 등) | [미결정] 신규 테이블 필요 여부 |
-| 재사용/폐기 | **삭제 결정됨** (2026-09-17) — 실사용 테스터 없음 확인, B2C 완전 대체. 실행은 별도 SPEC | — |
+| 상태 | 대부분 삭제 완료(§ 삭제된 디렉터리·파일 참고), `lib/pipeline/`만 decision gate로 보존 | 디자인만 확정, 코드 없음 |
+| 인증 | 삭제 완료(Better Auth·`proxy.ts` 가드 모두 제거) | 불필요(공개 접근 전제) |
+| PII | `lib/validation/case-input.ts` — 계획 대비 편차로 보존(§lib/validation/ 참고) | 01/02 차단, 03만 예외 허용 |
+| 핵심 로직 | `lib/pipeline/` 6단계 리서치 — decision gate로 보존 | [미결정] `lib/coverage/` 담보 매칭 |
+| DB | 기존 Turso/Drizzle 스키마(cases 등) — 변경 없음(REQ-B2CFOUND-006) | [미결정] 신규 테이블 필요 여부 |
+| 재사용/폐기 | **대부분 삭제 완료**(SPEC-B2C-FOUNDATION-001 M1-M5, 2026-09-18) — `lib/pipeline/`은 담보 매칭 알고리즘 결정 전까지 decision gate로 보존 | — |
 
-## 설계 메모 (B2B, 유지)
+## 설계 메모 (보존 중인 B2B 코드에 한정)
 
 - **AI provider abstraction은 필수 경계다.** `lib/ai/provider.ts`의
   인터페이스를 벗어나 Gemini 전용 SDK를 직접 import하는 것을 금지한다.
@@ -212,5 +240,7 @@ db/
   사용한다.
 - **overengineering 방지.** microservice, Kubernetes, 별도 vector DB를
   도입하지 않는다.
-- **접근 제어는 `proxy.ts` + `lib/auth/`로 일원화한다** (B2B 흐름 한정).
-- **PII 검증은 파이프라인 진입 이전 단계에서 종료한다** (B2B 흐름 한정).
+- **PII 검증은 파이프라인 진입 이전 단계에서 종료한다** (`lib/pipeline/`
+  decision gate가 유지되는 동안 한정).
+- ~~접근 제어는 `proxy.ts` + `lib/auth/`로 일원화한다~~ — 두 파일 모두
+  SPEC-B2C-FOUNDATION-001 M3에서 삭제됐다(§ 삭제된 디렉터리·파일 참고).

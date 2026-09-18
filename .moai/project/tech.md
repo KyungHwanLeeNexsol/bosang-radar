@@ -1,9 +1,14 @@
 # 기술 스택
 
-> 최종 수정: 2026-09-17 (디자인 피벗 반영 — B2C 보상 진단 퍼널 방향으로
+> 최종 수정: 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6 — Better Auth/E2E
+> 섹션을 M1-M5 삭제 실행 결과에 맞춰 갱신. Better Auth·`lib/auth/`는
+> 삭제 완료로 레거시 표기, B2B 전용 E2E 시나리오 13개 삭제 반영,
+> `tester:add` 스크립트 참조 제거. 그 외 스택(Next.js/TypeScript/
+> Tailwind/Turso·Drizzle/Gemini/Zod)은 변경 없음. 이전 개정: 2026-09-17
+> 디자인 피벗 반영 — B2C 보상 진단 퍼널 방향으로
 > 문서 재작성. 아래 스택은 모두 **기존 B2B 구현에서 그대로 재사용 가능**
 > 하다는 전제로 유지한다 — 이번 개정은 기술 선택을 바꾸지 않았고, PII
-> 정책 예외와 담보 매칭 로직 미결정 사항만 새로 추가했다. 이전 개정:
+> 정책 예외와 담보 매칭 로직 미결정 사항만 새로 추가했다. 그 이전 개정:
 > 2026-09-17 SPEC-ORACLE-HOSTING-001 — 배포 플랫폼을 Netlify Free에서
 > Oracle Cloud Always Free VM으로 전환)
 
@@ -41,12 +46,11 @@
 - 이 구조 덕분에 향후 다른 LLM provider를 추가하거나 교체하더라도, 파이프라인 로직 자체는 수정할 필요가 없다.
 - **무료 tier 한도(rate limit/quota) 대응**: Gemini 무료 tier는 분당/일별 요청 한도가 존재한다. Researcher/Skeptic/Verifier 호출을 사건당 3회로 고정하고, 모델별 `RateScheduler`가 프로세스 생애주기 동안 자체 부과 RPM 간격을 유지한다. `lib/pipeline/index.ts`의 프로세스 로컬 Promise 체인이 Gemini 단계의 동시 사건 실행을 1개로 제한하며, `lib/ai/providers/gemini.ts`는 429/503 응답의 재시도 힌트를 반영해 제한된 횟수로 재시도한다. 이 보호는 여러 인스턴스 사이에서 공유되는 분산 큐가 아니라 단일 PM2 프로세스 내부 상태이므로, 실제 동시 부하는 readiness 단계에서 별도로 검증한다.
 
-### Better Auth — 초대 전용 접근 제어
-- 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Oracle Cloud Always Free VM + Turso 무료 tier 조합을 대상으로 세션 기반 인증 라이브러리 **Better Auth**를 채택한다.
+### Better Auth — 초대 전용 접근 제어 (레거시, 삭제 완료)
+- **B2B 파일럿 당시 채택**: 비공개 파일럿(테스터 10명 내외) 규모에 맞춰, Oracle Cloud Always Free VM + Turso 무료 tier 조합을 대상으로 세션 기반 인증 라이브러리 **Better Auth**를 채택했다. Credentials(이메일+비밀번호) 또는 매직 링크 provider + 운영자가 미리 등록한 테스터 이메일 allowlist(Drizzle 스키마의 `allowed_testers` 테이블 등)를 조합해, 셀프 가입 없이 지정된 테스터만 로그인할 수 있도록 했다. Better Auth는 Drizzle ORM 어댑터를 공식 지원해 별도 스키마 브리지 없이 기존 DB 계층과 통합됐다.
 - 원래는 Auth.js(NextAuth) v5를 검토했으나, plan-phase 조사(`research.md` §4) 결과 Auth.js v5가 여전히 npm `beta` 태그로만 배포 중이고 2025년 9월부터 Better Auth 팀이 유지보수를 인수해 Auth.js는 보안 패치만 하는 유지보수 전용 모드로 전환된 사실을 확인했다. 신규 프로젝트가 유지보수 전용 라이브러리를 채택할 이유가 없으므로, 실제로 개발이 이어지고 있는 Better Auth로 결정을 바꿨다.
-- Credentials(이메일+비밀번호) 또는 매직 링크 provider + 운영자가 미리 등록한 테스터 이메일 allowlist(Drizzle 스키마의 `allowed_testers` 테이블 등)를 조합해, 셀프 가입 없이 지정된 테스터만 로그인할 수 있도록 한다. Better Auth는 Drizzle ORM 어댑터를 공식 지원해 별도 스키마 브리지 없이 기존 DB 계층과 통합된다.
-- 별도 SaaS형 인증 서비스(Auth0, Clerk 등)를 도입하지 않는 이유: 테스터 규모가 10명 내외로 작고, "무료 tier 우선, 불필요한 overengineering 금지" 원칙(`product.md` 원칙 8, 본 문서 개요 참고)에 더 부합하기 때문이다.
-- 세션 정보는 `lib/auth/session.ts`를 통해서만 조회하며, `app/api/cases/` 및 `lib/pipeline/`은 이 세션의 사용자 ID로 사건 데이터를 스코프한다.
+- 별도 SaaS형 인증 서비스(Auth0, Clerk 등)를 도입하지 않았던 이유: 테스터 규모가 10명 내외로 작고, "무료 tier 우선, 불필요한 overengineering 금지" 원칙(`product.md` 원칙 8, 본 문서 개요 참고)에 더 부합했기 때문이다.
+- **삭제 완료 (SPEC-B2C-FOUNDATION-001 M3, 2026-09-18)**: B2C 흐름은 로그인을 요구하지 않으므로, `lib/auth/**`(`session.ts` 포함), `app/login/*`, `app/api/auth/[...all]/route.ts`, `proxy.ts` 인증 가드, `package.json`의 `better-auth` 의존성을 전부 삭제했다. 이 섹션은 왜 Better Auth가 선택됐는지에 대한 역사적 기록으로만 남긴다 — 현재 코드베이스에 Better Auth 관련 파일은 존재하지 않는다.
 
 ### Zod — 입력 검증 (PII 차단 강제)
 - 사건 입력 폼/API의 입력 검증 스키마 라이브러리로 Zod를 채택한다. TypeScript strict 모드와 타입 추론이 자연스럽게 통합되고, 별도 런타임 의존성 없이 스키마 기반 검증을 표현할 수 있다.
@@ -68,11 +72,11 @@
 
 - **Vitest** — 단위/통합 테스트 프레임워크. `pnpm test` 명령으로 실행한다.
 - 리서치 파이프라인의 각 단계(CaseNormalizer, QueryPlanner 등)는 독립적으로 테스트 가능하도록 설계하며, seed evidence 데이터를 활용한 end-to-end 파이프라인 테스트도 Vitest로 작성한다.
-- **`@playwright/test`**(SPEC-RUNTIME-001) — 실제 Chromium 브라우저 기반 E2E 테스트 프레임워크. Next.js 앱을 `webServer`로 직접 구동해 로그인·사건입력·피드백·테넌트 격리 시나리오를 검증한다. `pnpm test:e2e`(`scripts/run-e2e.ts`)가 진입점이며, `vitest.config.ts`에서 `e2e/**`를 명시적으로 제외해 Vitest 단위 테스트 스위트와 실행 경로를 분리한다.
+- **`@playwright/test`**(SPEC-RUNTIME-001) — 실제 Chromium 브라우저 기반 E2E 테스트 프레임워크. 진입점(`pnpm test:e2e` → `scripts/run-e2e.ts`)과 `vitest.config.ts`의 `e2e/**` 제외 설정은 유지되나, 로그인·사건입력·피드백·테넌트 격리 등 B2B 전용 시나리오 13개는 대상 기능(Better Auth, `app/cases/*`)과 함께 SPEC-B2C-FOUNDATION-001 M5에서 삭제됐다 — `e2e/` 디렉터리 자체가 더 이상 존재하지 않는다. B2C 01/02/03 화면이 아직 미구현이라 대체 시나리오도 아직 없다(대체 검증 상세: `progress.md` M5).
 
 ## 런타임 활성화 도구 (SPEC-RUNTIME-001)
 
-- **`@next/env`** — Next.js가 내부적으로 사용하는 것과 동일한 `.env.local` 로더를, `pnpm db:migrate`/`pnpm db:seed`/`pnpm tester:add` 같은 독립 CLI 스크립트(Next.js 서버 프로세스 바깥에서 실행)에서도 재사용하기 위해 채택했다. 이 세 CLI는 `scripts/cli-bootstrap.ts`를 통해 셸 `export` 없이 `.env.local` 파일을 직접 로드하며, 이는 Next.js 자체가 환경변수를 로드하는 것과 동일한 방식(우선순위·오버라이드 규칙)을 CLI 스크립트에서도 그대로 재현하기 위함이다.
+- **`@next/env`** — Next.js가 내부적으로 사용하는 것과 동일한 `.env.local` 로더를, `pnpm db:migrate`/`pnpm db:seed` 같은 독립 CLI 스크립트(Next.js 서버 프로세스 바깥에서 실행)에서도 재사용하기 위해 채택했다. 이 CLI들은 `scripts/cli-bootstrap.ts`를 통해 셸 `export` 없이 `.env.local` 파일을 직접 로드하며, 이는 Next.js 자체가 환경변수를 로드하는 것과 동일한 방식(우선순위·오버라이드 규칙)을 CLI 스크립트에서도 그대로 재현하기 위함이다. (`pnpm tester:add`는 Better Auth 테스터 프로비저닝용이었으나, 대상 스크립트 `scripts/provision-tester.ts`와 함께 SPEC-B2C-FOUNDATION-001 M5에서 삭제됐다.)
 
 ## 린트 / 포맷터
 
