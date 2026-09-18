@@ -38,7 +38,7 @@ components/
 
 **Server/Client 경계**: `app/page.tsx`는 Server Component로 유지한다(기존 관례와 일치, `layout.tsx`/`not-found.tsx`와 동일 패턴). 실제 상태 전이·이벤트 핸들러·`useSearchParams`/`useRouter`/포커스 관리는 모두 브라우저 API에 의존하므로 `diagnosis-flow.tsx`부터 그 하위 전체가 `"use client"` 경계 안에 있다. 이는 `components/ui/popover.tsx`가 이미 따르는 패턴(`"use client"` + Base UI 프리미티브 래퍼)과 동일하다.
 
-**Suspense 경계 (필수)**: `diagnosis-flow.tsx`는 `"use client"` 컴포넌트이면서 `useSearchParams()`를 호출한다. Next.js는 `useSearchParams()`를 호출하는 Client Component가 상위 Server Component에서 `<Suspense>` 경계 없이 정적 렌더링되면 프로덕션 빌드가 실패하거나(또는 페이지 전체가 강제로 dynamic 렌더링되어 정적 최적화를 잃는다) — 따라서 `app/page.tsx`는 `<DiagnosisFlow />`를 반드시 `<Suspense fallback={...}>`로 감싸 렌더링해야 한다(§19 참고, `ENABLE_DIAGNOSIS_FLOW=true`일 때만). fallback은 01 화면의 초기 레이아웃(검색창 + 카테고리 카드 골격)과 유사한 스켈레톤으로 구성해 레이아웃 시프트를 최소화한다는 것이 design-phase 요구사항이며, 정확한 픽셀 스펙은 run-phase 구현 세부사항이다. 이 Suspense 래핑은 Milestone 2(공개 B2C route와 진단 shell)의 산출물이며, run-phase 테스트 계획은 `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트)가 Suspense 경계 누락 오류·경고 없이 성공함을 확인하는 단계를 포함해야 한다(`acceptance.md` "## Quality Gate 기준" — 프로덕션 빌드 검증 항목 참고).
+**Suspense 경계 (필수)**: `diagnosis-flow.tsx`는 `"use client"` 컴포넌트이면서 `useSearchParams()`를 호출한다. Next.js는 `useSearchParams()`를 호출하는 Client Component가 상위 Server Component에서 `<Suspense>` 경계 없이 정적 렌더링되면 프로덕션 빌드가 실패하거나(또는 페이지 전체가 강제로 dynamic 렌더링되어 정적 최적화를 잃는다) — 따라서 `app/page.tsx`는 `<DiagnosisFlow />`를 반드시 `<Suspense fallback={...}>`로 감싸 렌더링해야 한다(§19 참고 — `shouldRenderDiagnosis`가 참일 때만). fallback은 01 화면의 초기 레이아웃(검색창 + 카테고리 카드 골격)과 유사한 스켈레톤으로 구성해 레이아웃 시프트를 최소화한다는 것이 design-phase 요구사항이며, 정확한 픽셀 스펙은 run-phase 구현 세부사항이다. 이 Suspense 래핑은 Milestone 2(공개 B2C route와 진단 shell)의 산출물이며, run-phase 테스트 계획은 `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트)가 Suspense 경계 누락 오류·경고 없이 성공함을 확인하는 단계를 포함해야 한다(`acceptance.md` "## Quality Gate 기준" — 프로덕션 빌드 검증 항목 참고).
 
 ## 3. 컴포넌트 재사용 맵 (`components/ui/*`)
 
@@ -85,7 +85,7 @@ REQ-B2CDIAG-015에 따라 새로고침 시 모든 React state가 초기화되는
 
 이 SPEC 범위(01 화면)는 **서버 전송이 필요 없다** — 담보 매칭 로직이 미결정(`tech.md`)이므로 01-C "진단 중" 상태는 이 SPEC에서는 실제 분석을 수행하지 않고, 클라이언트 내에서 UI 시뮬레이션(고정 지연 + mock 결과 분기)으로 구현한다(§11 참고). 신규 API 라우트·DB 테이블은 이 SPEC의 Out of Scope이며, 실제 매칭 로직이 결정되는 후속 SPEC이 `app/api/diagnosis/`(구조 제안, `structure.md` § 목표 구조)를 신설한다.
 
-**중요 — 이 mock 시뮬레이션은 로컬/테스트/리뷰 전용이며 프로덕션 동작이 아니다.** `loading` 상태의 고정 지연 + 키워드 기반 mock 판정 분기는 실제 매칭 엔진이 연결되기 전, 실제 프로덕션 사용자에게 자동으로 노출되어서는 안 된다 — 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 실제 "결과 없음" 응답과 사용자 입장에서 구분되지 않으므로, 실제 사용자를 겨냥한 자동 mock 분기 대상이 될 수 없다. 이 mock 자동 분기 로직이 프로덕션의 정상 사용자 플로우에서 도달 가능해지려면 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`가 참이어야 하는데, 실제 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로 이 SPEC이 전달하는 코드 범위 안에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 존재하지 않는다 — 따라서 `productionReady`는 이 SPEC이 전달한 코드만으로는 구조적으로 항상 거짓이며, 이 mock 자동 분기 경로는 정상 사용자 플로우로는 프로덕션에서 도달 불가능하다. `reviewEnabled`(`ENABLE_DIAGNOSIS_DEV_STATES`) 경로는 이와 독립적이며, 비프로덕션 UI 검증 전용으로 §19에서 별도로 게이트된다. 이 원칙의 구체적 게이트 메커니즘(productionReady/reviewEnabled 논리합)은 §19를 참고한다.
+**중요 — 이 mock 시뮬레이션은 로컬/테스트/리뷰 전용이며 프로덕션 동작이 아니다.** `loading` 상태의 고정 지연 + 키워드 기반 mock 판정 분기는 실제 매칭 엔진이 연결되기 전, 실제 프로덕션 사용자에게 자동으로 노출되어서는 안 된다 — 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 실제 "결과 없음" 응답과 사용자 입장에서 구분되지 않으므로, 실제 사용자를 겨냥한 자동 mock 분기 대상이 될 수 없다. 이 mock 자동 분기 로직이 프로덕션의 정상 사용자 플로우에서 도달 가능해지려면 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`가 참이어야 하는데, 실제 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로 이 SPEC이 전달하는 코드 범위 안에는 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 존재하지 않는다 — 따라서 `productionReady`는 이 SPEC이 전달한 코드만으로는 구조적으로 항상 거짓이다 — 이 mock 자동 분기 경로는 `productionReady`와 `reviewEnabled`가 모두 거짓인 프로덕션 기본 조합에서는 도달 불가능하지만, `ENABLE_DIAGNOSIS_DEV_STATES`가 프로덕션에서 실수로 `true`로 설정되면 `reviewEnabled`가 참이 되어 정상 사용자 플로우(검색 → 동의 → 추가 질문 → 분석 진행)로도 이 mock 자동 분기 경로에 도달할 수 있다. 이 차단은 코드 구조만으로 보장되지 않으며, `reviewEnabled` 경로에 한해서는 Oracle 프로덕션에서 `ENABLE_DIAGNOSIS_DEV_STATES`를 unset/false로 유지하는 배포 설정 규율에 의존한다. 이 원칙의 구체적 게이트 메커니즘(productionReady/reviewEnabled 논리합)은 §19를 참고한다.
 
 ## 9. 미래 02 결과 화면과의 인터페이스 경계
 
@@ -123,7 +123,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 **production 활성화 원칙 (REQ-B2CDIAG-025) — 반드시 준수:**
 
 1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 자동 분기 로직은 **로컬/테스트/리뷰 전용 시뮬레이션**이며 프로덕션 동작이 아니다.
-2. **01-D/01-E는 프로덕션에서 오직 `devStep` 강제 진입 파라미터(§10)를 통해서만 도달 가능**하며, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된다 — 정상적인 `loading`→자동 분기 경로를 통해서는 절대 도달하지 않는다.
+2. **01-D/01-E는 프로덕션에서 오직 `devStep` 강제 진입 파라미터(§10)를 통해서만 도달 가능**하며, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된다 — 정상적인 `loading`→자동 분기 경로를 통해서는, `productionReady`와 `reviewEnabled`가 모두 거짓인 프로덕션 기본 조합에서는 도달하지 않는다. 단, `ENABLE_DIAGNOSIS_DEV_STATES`가 프로덕션에서 `true`로 설정되면(`reviewEnabled`=참) 이 경로도 정상 사용자 플로우로 도달 가능해지므로, 이 차단은 코드 구조가 아니라 해당 플래그를 프로덕션에서 unset/false로 유지하는 배포 설정 규율에 의존한다(§19 참고).
 3. **production 활성화 게이트는 두 개의 독립 경로 — `productionReady`와 `reviewEnabled` — 의 논리합(OR)으로 결정된다.** 상세 메커니즘, 각 경로의 정의, 그리고 5행 동작 행렬은 §19를 참고한다 — 요약하면 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`(둘 다 신설, 기본값 `false`)이고 `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES`(§10, 기본값 `false`)이며, `app/page.tsx`는 `shouldRenderDiagnosis = productionReady || reviewEnabled`를 **한 곳에서만** 계산한다. 실제 담보 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로, `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 이 SPEC의 코드에는 없다 — 따라서 `productionReady`는 이 SPEC 범위 내내 구조적으로 항상 거짓이며, mock 노출이 발생할 수 있는 유일한 경로는 `reviewEnabled`(비프로덕션 전용)뿐이다.
 4. **"코드 구현 완료"와 "프로덕션에서 활성화해도 안전함"은 서로 다른 상태다.** 이 SPEC의 run-phase는 `ENABLE_DIAGNOSIS_FLOW=false`(및 `DIAGNOSIS_ENGINE_READY=false`)인 채로 01 화면 UI 구현 전체를 완료할 수 있다 — 이는 예상된, 정상적인 결과이며 실패가 아니다.
 5. `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 각각 `true`로 전환되려면 서로 독립된 전제조건이 충족되어야 한다 — 하나의 전환이 다른 하나를 함의하지 않는다: (a) `DIAGNOSIS_ENGINE_READY → true`의 전제조건은 실제 매칭 엔진이 연결되어 `loading`→결과 경로가 mock이 아닌 실제 분석을 반영하는 상태(이 SPEC의 Out of Scope — 후속 SPEC의 몫), (b) `ENABLE_DIAGNOSIS_FLOW → true`의 전제조건은 §17의 동의 상세 문구 확정(6개 placeholder 항목 전체가 실제 확정 문구로 교체)이 완료된 상태다(§19 참고). 두 플래그가 모두 `true`여야만 `<DiagnosisFlow />`가 실제로 프로덕션에 렌더링된다.
@@ -249,7 +249,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 |---|---|
 | 진입 조건 | `questions` 완료/스킵 |
 | 사용자 행동 | 대기(입력 불가) |
-| 검증 조건 | mock 판정 로직 실행(§11) — **이 로직은 로컬/테스트/리뷰 전용이다**. `productionReady=false`(프로덕션 기본값)인 동안 프로덕션 실제 사용자는 정상 사용자 플로우로 이 상태에 도달할 수 없다 — `shouldRenderDiagnosis`가 `reviewEnabled`로만 참이 되는 것은 비프로덕션 리뷰 환경 전용이다(§19) |
+| 검증 조건 | mock 판정 로직 실행(§11) — **이 로직은 로컬/테스트/리뷰 전용이다**. `shouldRenderDiagnosis=false`(즉 `productionReady`와 `reviewEnabled` 모두 거짓인 프로덕션 기본 조합)인 동안 프로덕션 실제 사용자는 정상 사용자 플로우로 이 상태에 도달할 수 없다 — `reviewEnabled`가 프로덕션에서 실수로 참이 되면 이 차단은 깨지므로, `ENABLE_DIAGNOSIS_DEV_STATES`를 프로덕션에서 unset/false로 유지하는 배포 설정 규율에 의존한다(§19) |
 | 다음 상태 | mock 로직 결과에 따라 `result-none` 또는 `error`로(이 SPEC 범위에서 "결과 있음"=02는 도달 불가) |
 | 뒤로 가기 동작 | 비활성화 권장(분석 중 이탈 방지) — 브라우저 뒤로가기는 차단하지 않되 `questions`로 돌아가면 분석을 취소한 것으로 간주 |
 | 유지되는 데이터 | 검색어, 동의 상태, 추가 질문 응답 전체 |
@@ -300,7 +300,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 ### 19.1 원칙
 
 1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 진단 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 mock 자동 분기 로직(§11)은 **로컬/테스트/리뷰 전용 시뮬레이션**이며, 프로덕션 동작이 아니다. 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 사용자 입장에서 실제 "결과 없음" 응답과 구분되지 않으므로, 실제 사용자를 대상으로 하는 자동 mock 분기 목표가 될 수 없다.
-2. **01-D/01-E는 오직 `devStep` 강제 진입 파라미터(§10)로만, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된 상태에서만 도달 가능**하다 — 정상적인 `loading`→자동 분기 경로를 통해 프로덕션에서 도달하는 일은 절대 없다.
+2. **01-D/01-E는 오직 `devStep` 강제 진입 파라미터(§10)로만, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된 상태에서만 도달 가능**하다 — 정상적인 `loading`→자동 분기 경로를 통해, `productionReady`와 `reviewEnabled`가 모두 거짓인 프로덕션 기본 조합에서는 도달하지 않는다. `ENABLE_DIAGNOSIS_DEV_STATES`가 프로덕션에서 `true`로 설정되면(`reviewEnabled`=참) 이 경로도 정상 사용자 플로우로 도달 가능해지므로, 이 차단은 코드 구조가 아니라 해당 플래그를 프로덕션에서 unset/false로 유지하는 배포 설정 규율에 의존한다.
 3. **렌더링 여부는 두 개의 독립 경로 — `productionReady`와 `reviewEnabled` — 를 논리합(OR)으로 합성해 결정한다.**
    - `productionReady = ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`(기존 AND 게이트 — 두 플래그 모두 신설, 기본값 `false`).
    - `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES === true`(§10의 개발·리뷰 전용 플래그, 기본값 `false`).
