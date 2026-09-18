@@ -5,7 +5,7 @@
       "type": "frame",
       "id": "A0TsNW",
       "x": 0,
-      "y": 3900,
+      "y": 3100,
       "name": "공통 · 00 · Design System",
       "clip": true,
       "width": 1440,
@@ -4634,116 +4634,216 @@
             {
               "type": "frame",
               "id": "h0FJD",
-              "name": "Row / Consent",
+              "name": "Row / Consent — 목적별 분리",
               "width": "fill_container",
-              "gap": 16,
-              "alignItems": "center",
+              "layout": "vertical",
+              "gap": 18,
               "children": [
                 {
                   "type": "frame",
-                  "id": "Jz9z4",
-                  "name": "Consent Row",
-                  "reusable": true,
-                  "width": 520,
-                  "fill": "#FFFFFF00",
-                  "gap": 10,
-                  "padding": [
-                    10,
-                    0
-                  ],
+                  "id": "idS4r",
+                  "name": "Base",
+                  "width": "fill_container",
+                  "gap": 14,
                   "alignItems": "center",
                   "children": [
                     {
                       "type": "frame",
-                      "id": "KEwSV",
-                      "name": "Box",
-                      "width": 18,
-                      "height": 18,
-                      "fill": "$surface",
-                      "cornerRadius": 4,
-                      "stroke": "$line-strong",
-                      "strokeWidth": 1.4,
-                      "strokeAlignment": "inner",
-                      "justifyContent": "center",
+                      "id": "Jz9z4",
+                      "name": "Consent Row",
+                      "reusable": true,
+                      "width": 520,
+                      "fill": "#FFFFFF00",
+                      "gap": 10,
+                      "padding": [
+                        10,
+                        0
+                      ],
                       "alignItems": "center",
                       "children": [
                         {
-                          "type": "icon",
-                          "id": "J0ipn",
-                          "x": 0,
-                          "y": 0,
-                          "name": "Check",
-                          "enabled": false,
-                          "width": 12,
-                          "height": 12,
-                          "icon": "check",
-                          "library": "lucide",
-                          "fill": "#FFFFFF"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "jEAh2",
-                      "name": "Badge",
-                      "fill": "$accent-soft",
-                      "cornerRadius": 5,
-                      "padding": [
-                        3,
-                        7
-                      ],
-                      "children": [
+                          "type": "frame",
+                          "id": "KEwSV",
+                          "name": "Box",
+                          "width": 18,
+                          "height": 18,
+                          "fill": "$surface",
+                          "cornerRadius": 4,
+                          "stroke": "$line-strong",
+                          "strokeWidth": 1.4,
+                          "strokeAlignment": "inner",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "J0ipn",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Check",
+                              "enabled": false,
+                              "width": 12,
+                              "height": 12,
+                              "icon": "check",
+                              "library": "lucide",
+                              "fill": "#FFFFFF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "jEAh2",
+                          "name": "Badge",
+                          "fill": "$accent-soft",
+                          "cornerRadius": 5,
+                          "padding": [
+                            3,
+                            7
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "plebD",
+                              "name": "T",
+                              "fill": "$accent-deep",
+                              "content": "필수",
+                              "fontFamily": "$font",
+                              "fontSize": 10.5,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
                         {
                           "type": "text",
-                          "id": "plebD",
-                          "name": "T",
-                          "fill": "$accent-deep",
-                          "content": "필수",
+                          "id": "lCpBp",
+                          "name": "Label",
+                          "fill": "$ink",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "개인정보 수집 · 이용 동의",
+                          "lineHeight": 1.5,
                           "fontFamily": "$font",
-                          "fontSize": 10.5,
-                          "fontWeight": "700"
+                          "fontSize": 13.5,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "J36Ex",
+                          "name": "View",
+                          "gap": 3,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "E4JkgH",
+                              "name": "T",
+                              "fill": "$ink-3",
+                              "content": "내용 보기",
+                              "fontFamily": "$font",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "dE6Up",
+                              "name": "I",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-right",
+                              "library": "lucide",
+                              "fill": "$ink-3"
+                            }
+                          ]
                         }
                       ]
                     },
                     {
                       "type": "text",
-                      "id": "lCpBp",
-                      "name": "Label",
-                      "fill": "$ink",
+                      "id": "OjmG8",
+                      "name": "N",
+                      "fill": "$ink-4",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "개인정보 수집 · 이용 동의",
-                      "lineHeight": 1.5,
+                      "content": "Consent Row (base) — 체크박스 + 필수/선택 배지 + 라벨 + 내용 보기. 아래 모든 동의 항목은 이 컴포넌트의 인스턴스이며, 목적별로 라벨만 달라집니다.",
+                      "lineHeight": 1.6,
                       "fontFamily": "$font",
-                      "fontSize": 13.5,
-                      "fontWeight": "600"
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Cz1bQ",
+                  "name": "진단 단계 · Diagnosis Sensitive Data Consent",
+                  "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 10,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": [
+                    14,
+                    16,
+                    16,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jUDYu",
+                      "name": "H",
+                      "fill": "$ink",
+                      "content": "진단 단계 · Diagnosis Sensitive Data Consent",
+                      "fontFamily": "$font",
+                      "fontSize": 13,
+                      "fontWeight": "700",
+                      "letterSpacing": -0.2
+                    },
+                    {
+                      "type": "text",
+                      "id": "FDkah",
+                      "name": "D",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "진단 시작 전 동의. 필수 1개만 사용합니다. 데스크톱 Modal(01-A2) · 모바일 Bottom Sheet(M01-A2) 공용. 일반 개인정보 · 마케팅 동의는 이 단계에서 받지 않습니다.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
-                      "id": "J36Ex",
-                      "name": "View",
-                      "gap": 3,
-                      "alignItems": "center",
+                      "id": "BjZ8g",
+                      "name": "Card",
+                      "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 8,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        2,
+                        12,
+                        4,
+                        12
+                      ],
                       "children": [
                         {
-                          "type": "text",
-                          "id": "E4JkgH",
-                          "name": "T",
-                          "fill": "$ink-3",
-                          "content": "내용 보기",
-                          "fontFamily": "$font",
-                          "fontSize": 12,
-                          "fontWeight": "600"
-                        },
-                        {
-                          "type": "icon",
-                          "id": "dE6Up",
-                          "name": "I",
-                          "width": 12,
-                          "height": 12,
-                          "icon": "chevron-right",
-                          "library": "lucide",
-                          "fill": "$ink-3"
+                          "id": "IXfUT",
+                          "type": "ref",
+                          "ref": "Jz9z4",
+                          "name": "건강정보 등 민감정보 처리 동의",
+                          "width": "fill_container",
+                          "descendants": {
+                            "lCpBp": {
+                              "content": "건강정보 등 민감정보 처리 동의"
+                            }
+                          }
                         }
                       ]
                     }
@@ -4751,64 +4851,273 @@
                 },
                 {
                   "type": "frame",
-                  "id": "I1JEB",
-                  "name": "States",
+                  "id": "zdyXy",
+                  "name": "상담 단계 · Consultation Consents",
                   "width": "fill_container",
+                  "fill": "$surface-sub",
+                  "cornerRadius": 10,
+                  "stroke": "$line",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
                   "layout": "vertical",
-                  "gap": 6,
+                  "gap": 8,
+                  "padding": [
+                    14,
+                    16,
+                    16,
+                    16
+                  ],
                   "children": [
                     {
-                      "id": "xY5Q5",
-                      "type": "ref",
-                      "ref": "Jz9z4",
-                      "name": "체크됨",
-                      "width": "fill_container",
-                      "descendants": {
-                        "KEwSV": {
-                          "fill": "$accent",
-                          "stroke": "$accent"
-                        },
-                        "J0ipn": {
-                          "enabled": true
-                        },
-                        "lCpBp": {
-                          "content": "건강정보 등 민감정보 수집 · 이용 동의"
-                        }
-                      }
-                    },
-                    {
-                      "id": "gVQRJ",
-                      "type": "ref",
-                      "ref": "Jz9z4",
-                      "name": "선택 동의",
-                      "width": "fill_container",
-                      "descendants": {
-                        "jEAh2": {
-                          "fill": "$surface-inset"
-                        },
-                        "plebD": {
-                          "content": "선택",
-                          "fill": "$ink-3"
-                        },
-                        "lCpBp": {
-                          "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                          "fill": "$ink-2",
-                          "fontWeight": "500"
-                        }
-                      }
+                      "type": "text",
+                      "id": "eDQQa",
+                      "name": "H",
+                      "fill": "$ink",
+                      "content": "상담 단계 · Consultation Consents",
+                      "fontFamily": "$font",
+                      "fontSize": 13,
+                      "fontWeight": "700",
+                      "letterSpacing": -0.2
                     },
                     {
                       "type": "text",
-                      "id": "F1PFcN",
-                      "name": "N",
-                      "fill": "$ink-4",
+                      "id": "JWzAE",
+                      "name": "D",
+                      "fill": "$ink-3",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "Consent Row — 필수 동의는 기본 미체크. 필수/선택 배지로 구분하고 선택 동의는 필수와 시각적으로 분리해 배치합니다.",
+                      "content": "상담 신청(03 · 03-A2 · M03) 전용. 필수 2개 + 선택 1개. 필수 2개가 모두 체크될 때만 신청 버튼이 활성화되고, 마케팅 동의는 활성화 조건에 포함하지 않습니다.",
                       "lineHeight": 1.6,
                       "fontFamily": "$font",
                       "fontSize": 11.5,
                       "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oL8MU",
+                      "name": "Card / 필수",
+                      "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 8,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        2,
+                        12,
+                        4,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "G7RkSw",
+                          "type": "ref",
+                          "ref": "Jz9z4",
+                          "name": "Consultation Personal Data Consent",
+                          "width": "fill_container",
+                          "descendants": {
+                            "lCpBp": {
+                              "content": "상담 신청을 위한 개인정보 수집 · 이용 동의"
+                            }
+                          }
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "fdwCY",
+                          "name": "Div",
+                          "fill": "$line",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "id": "DBQBE",
+                          "type": "ref",
+                          "ref": "Jz9z4",
+                          "name": "Consultation Sensitive Data Consent",
+                          "width": "fill_container",
+                          "descendants": {
+                            "lCpBp": {
+                              "content": "진단 결과 등 건강정보의 상담 이용 동의"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "bYX78",
+                      "name": "OL",
+                      "fill": "$ink-4",
+                      "content": "선택 동의 — 필수와 분리해 가장 아래 배치",
+                      "fontFamily": "$font",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Kb66y",
+                      "name": "Card / 선택",
+                      "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 8,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        2,
+                        12,
+                        4,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "ApPzg",
+                          "type": "ref",
+                          "ref": "Jz9z4",
+                          "name": "Optional Marketing Consent",
+                          "width": "fill_container",
+                          "descendants": {
+                            "jEAh2": {
+                              "fill": "$surface-inset"
+                            },
+                            "plebD": {
+                              "content": "선택",
+                              "fill": "$ink-3"
+                            },
+                            "lCpBp": {
+                              "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
+                              "fill": "$ink-2",
+                              "fontWeight": "500"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "E9hnB7",
+                  "name": "Conditional Third-party Consent · DEV ONLY",
+                  "width": "fill_container",
+                  "fill": "#FFF8E1",
+                  "cornerRadius": 10,
+                  "stroke": "#E8D4A8",
+                  "strokeWidth": 1.5,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": [
+                    14,
+                    16,
+                    16,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "d23Khz",
+                      "name": "H",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "oN6T6",
+                          "name": "Badge",
+                          "fill": "#8A5A12",
+                          "cornerRadius": 5,
+                          "padding": [
+                            3,
+                            7
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "EkqR2",
+                              "name": "T",
+                              "fill": "#FFFFFF",
+                              "content": "DEV ONLY",
+                              "fontFamily": "$font",
+                              "fontSize": 10,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "mt7wf",
+                          "name": "T",
+                          "fill": "#8A5A12",
+                          "content": "Conditional Third-party Consent · 외부 상담 법인 제3자 제공 동의",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700",
+                          "letterSpacing": -0.2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "oBEGd",
+                      "name": "D",
+                      "fill": "$ink-2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "기본 사용자 화면에는 표시하지 않습니다. 외부 손해사정 법인 · 제휴 법인에 정보를 제공하는 구조가 도입될 때만 활성화합니다. 같은 운영 법인 소속 담당자는 제3자가 아니므로 이 동의를 사용하지 않습니다.",
+                      "lineHeight": 1.65,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LXmXw",
+                      "name": "Card (비활성 · 참고용)",
+                      "opacity": 0.55,
+                      "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 8,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "padding": [
+                        2,
+                        12,
+                        4,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "NgTpX",
+                          "type": "ref",
+                          "ref": "Jz9z4",
+                          "name": "외부 상담 법인 제3자 제공 동의",
+                          "width": "fill_container",
+                          "descendants": {
+                            "lCpBp": {
+                              "content": "외부 상담 법인 제3자 제공 동의"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "y16N0",
+                      "name": "R",
+                      "fill": "#8A5A12",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "활성화 전 확정 필요 — 제공받는 실제 법인명 / 제공 목적 / 제공 항목 / 보유 · 이용 기간. 「상담 담당자」처럼 주체가 불명확한 명칭은 사용하지 않습니다.",
+                      "lineHeight": 1.65,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
                     }
                   ]
                 }
@@ -4817,96 +5126,267 @@
             {
               "type": "frame",
               "id": "BL6O6",
-              "name": "Row / CTA + Inline",
+              "name": "Row / CTA 상태 + Inline",
               "width": "fill_container",
-              "gap": 14,
-              "alignItems": "center",
+              "layout": "vertical",
+              "gap": 12,
               "children": [
                 {
                   "type": "frame",
-                  "id": "uFKNx",
-                  "name": "Button / Disabled",
-                  "reusable": true,
-                  "fill": "$surface-inset",
-                  "cornerRadius": 4,
-                  "stroke": "$line-strong",
-                  "strokeWidth": 1,
-                  "strokeAlignment": "inner",
-                  "gap": 8,
-                  "padding": [
-                    12,
-                    20
-                  ],
-                  "justifyContent": "center",
+                  "id": "FMyS8",
+                  "name": "Base",
+                  "width": "fill_container",
+                  "gap": 14,
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon",
-                      "id": "haoz5",
-                      "name": "Icon",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "lock",
-                      "library": "lucide",
-                      "fill": "$ink-4"
+                      "type": "frame",
+                      "id": "uFKNx",
+                      "name": "Button / Disabled",
+                      "reusable": true,
+                      "fill": "$surface-inset",
+                      "cornerRadius": 4,
+                      "stroke": "$line-strong",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        12,
+                        20
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "haoz5",
+                          "name": "Icon",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "lock",
+                          "library": "lucide",
+                          "fill": "$ink-4"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Vvqy9",
+                          "name": "Label",
+                          "fill": "$ink-4",
+                          "content": "동의하고 진단 시작",
+                          "fontFamily": "$font",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        }
+                      ]
                     },
                     {
-                      "type": "text",
-                      "id": "Vvqy9",
-                      "name": "Label",
-                      "fill": "$ink-4",
-                      "content": "동의하고 진단 시작",
-                      "fontFamily": "$font",
-                      "fontSize": 14,
-                      "fontWeight": "600"
+                      "type": "frame",
+                      "id": "nJDFG",
+                      "name": "Inline Message",
+                      "reusable": true,
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "F2OlV",
+                          "name": "I",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "info",
+                          "library": "lucide",
+                          "fill": "$ink-3"
+                        },
+                        {
+                          "type": "text",
+                          "id": "XhmQb",
+                          "name": "T",
+                          "fill": "$ink-3",
+                          "content": "필수 동의 후 진단을 시작할 수 있습니다",
+                          "fontFamily": "$font",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "TM1Ag",
+                      "type": "ref",
+                      "ref": "nJDFG",
+                      "name": "오류",
+                      "descendants": {
+                        "F2OlV": {
+                          "icon": "alert-circle",
+                          "fill": "$danger"
+                        },
+                        "XhmQb": {
+                          "content": "신청이 접수되지 않았습니다",
+                          "fill": "$danger"
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ZRzfW",
+                      "name": "Sp",
+                      "width": "fill_container",
+                      "height": 1
                     }
                   ]
                 },
                 {
                   "type": "frame",
-                  "id": "nJDFG",
-                  "name": "Inline Message",
-                  "reusable": true,
-                  "gap": 6,
+                  "id": "MSWdl",
+                  "name": "진단 단계",
+                  "width": "fill_container",
+                  "gap": 12,
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon",
-                      "id": "F2OlV",
-                      "name": "I",
-                      "width": 13,
-                      "height": 13,
-                      "icon": "info",
-                      "library": "lucide",
-                      "fill": "$ink-3"
+                      "type": "text",
+                      "id": "ZD6RH",
+                      "name": "L",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": 104,
+                      "content": "진단 단계",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "700"
                     },
                     {
-                      "type": "text",
-                      "id": "XhmQb",
-                      "name": "T",
-                      "fill": "$ink-3",
-                      "content": "필수 동의 후 진단을 시작할 수 있습니다",
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "600"
+                      "id": "os51R",
+                      "type": "ref",
+                      "ref": "uFKNx",
+                      "name": "미동의 (비활성)",
+                      "padding": [
+                        12,
+                        18
+                      ],
+                      "descendants": {
+                        "haoz5": {
+                          "icon": "lock"
+                        },
+                        "Vvqy9": {
+                          "content": "동의하고 진단하기"
+                        }
+                      }
+                    },
+                    {
+                      "id": "NIo3T",
+                      "type": "ref",
+                      "ref": "ahZqh",
+                      "name": "동의 완료 (활성)",
+                      "padding": [
+                        12,
+                        18
+                      ],
+                      "descendants": {
+                        "P6y0q": {
+                          "icon": "radar"
+                        },
+                        "EG9v5": {
+                          "content": "동의하고 진단하기"
+                        }
+                      }
+                    },
+                    {
+                      "id": "vJpF2",
+                      "type": "ref",
+                      "ref": "nJDFG",
+                      "name": "안내",
+                      "descendants": {
+                        "XhmQb": {
+                          "content": "필수 동의 후 진단을 시작할 수 있습니다."
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fNmZR",
+                      "name": "Sp",
+                      "width": "fill_container",
+                      "height": 1
                     }
                   ]
                 },
                 {
-                  "id": "TM1Ag",
-                  "type": "ref",
-                  "ref": "nJDFG",
-                  "name": "오류",
-                  "descendants": {
-                    "F2OlV": {
-                      "icon": "alert-circle",
-                      "fill": "$danger"
+                  "type": "frame",
+                  "id": "AUmpP",
+                  "name": "상담 단계",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "BwVRr",
+                      "name": "L",
+                      "fill": "$ink-3",
+                      "textGrowth": "fixed-width",
+                      "width": 104,
+                      "content": "상담 단계",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "700"
                     },
-                    "XhmQb": {
-                      "content": "신청이 접수되지 않았습니다",
-                      "fill": "$danger"
+                    {
+                      "id": "VoJyQ",
+                      "type": "ref",
+                      "ref": "uFKNx",
+                      "name": "미동의 (비활성)",
+                      "padding": [
+                        12,
+                        18
+                      ],
+                      "descendants": {
+                        "haoz5": {
+                          "icon": "lock"
+                        },
+                        "Vvqy9": {
+                          "content": "카카오톡 상담 신청하기"
+                        }
+                      }
+                    },
+                    {
+                      "id": "M87JZL",
+                      "type": "ref",
+                      "ref": "ahZqh",
+                      "name": "동의 완료 (활성)",
+                      "padding": [
+                        12,
+                        18
+                      ],
+                      "descendants": {
+                        "P6y0q": {
+                          "icon": "message-circle"
+                        },
+                        "EG9v5": {
+                          "content": "카카오톡 상담 신청하기"
+                        }
+                      }
+                    },
+                    {
+                      "id": "I1ufOU",
+                      "type": "ref",
+                      "ref": "nJDFG",
+                      "name": "안내",
+                      "descendants": {
+                        "XhmQb": {
+                          "content": "필수 동의 후 상담을 신청할 수 있습니다."
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QcRVH",
+                      "name": "Sp",
+                      "width": "fill_container",
+                      "height": 1
                     }
-                  }
+                  ]
                 }
               ]
             },
@@ -4973,6 +5453,32 @@
                   "fontFamily": "$font",
                   "fontSize": 12,
                   "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "xqNTC",
+                  "name": "L4",
+                  "fill": "$ink-3",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "동의 컴포넌트 폐기 (v3) — ① 진단 전 일반 개인정보 수집 · 이용 동의 : 진단 단계에서 이름 · 연락처를 수집하지 않으므로 제거. ② 진단 전 마케팅 안내 수신 동의 : 진단 단계에서 제거하고 상담 단계 선택 동의로만 사용. ③ 「상담 담당자에게 진단 결과 및 연락처 제공 동의」 : 같은 운영 법인 소속 내부 담당자는 제3자가 아니므로 제거(외부 법인용은 Conditional Third-party Consent · DEV ONLY로 대체). ④ 「진단 결과는 저장되어 있습니다」 등 서버 저장을 확정하는 안내 문구 : 저장 위치 · 보유 기간 미확정이므로 제거.",
+                  "lineHeight": 1.7,
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "WCXrI",
+                  "name": "L5",
+                  "fill": "$ink-3",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "진단용 동의와 상담용 동의는 목적이 다르므로 같은 컴포넌트 인스턴스라도 라벨 · 상세 내용을 공유하지 않습니다. 진단 = 건강정보 분석 목적 1건, 상담 = 개인정보 수집 + 건강정보 상담 이용 2건 + 선택 마케팅 1건.",
+                  "lineHeight": 1.7,
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 }
               ]
             }
@@ -4984,7 +5490,7 @@
       "type": "frame",
       "id": "PTsGI",
       "x": 1640,
-      "y": 3900,
+      "y": 3100,
       "name": "공통 · 01 · Brand · BORA",
       "width": 1160,
       "fill": "$bg",
@@ -10332,7 +10838,7 @@
       "name": "03 · 상담 신청 · 손해사정사 연결 (1440)",
       "clip": true,
       "width": 1440,
-      "height": 1560,
+      "height": 1563,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -10526,7 +11032,7 @@
                             {
                               "type": "frame",
                               "id": "tRHEg",
-                              "name": "추가 정보 필요 3개",
+                              "name": "추가 정보 필요 6개",
                               "fill": "$warn-soft",
                               "cornerRadius": 16,
                               "stroke": "$warn-line",
@@ -10542,7 +11048,7 @@
                                   "id": "ZV8eG",
                                   "name": "T",
                                   "fill": "$warn",
-                                  "content": "추가 정보 필요 3개",
+                                  "content": "추가 정보 필요 6개",
                                   "fontFamily": "$font",
                                   "fontSize": 12,
                                   "fontWeight": "700"
@@ -10587,7 +11093,7 @@
                           "id": "vMQNz",
                           "name": "T",
                           "fill": "$ink-3",
-                          "content": "보험증권 확인 전 참고 결과입니다",
+                          "content": "가능성 낮음 1개를 포함해 총 15개 담보를 분석했습니다 · 보험증권 확인 전 참고 결과",
                           "fontFamily": "$font",
                           "fontSize": 12.5,
                           "fontWeight": "500"
@@ -11053,7 +11559,7 @@
                     {
                       "type": "frame",
                       "id": "bz0aA",
-                      "name": "개인정보 수집 · 이용 동의",
+                      "name": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                       "width": "fill_container",
                       "layout": "vertical",
                       "children": [
@@ -11128,7 +11634,7 @@
                               "fill": "$ink-2",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "개인정보 수집 · 이용 동의",
+                              "content": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                               "lineHeight": 1.6,
                               "fontFamily": "$font",
                               "fontSize": 13,
@@ -11207,7 +11713,7 @@
                                   "fill": "$ink-3",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간 · 입력하신 사고 내용",
+                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -11242,42 +11748,7 @@
                                   "fill": "$ink-3",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "보상 가능성 상담 및 안내",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "mb6yc",
-                              "name": "제공받는 자",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "A2poml",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "제공받는 자",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "hCRhQ",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "상담 담당 손해사정사 (운영 법인 소속)",
+                                  "content": "상담 신청 접수 및 연락",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -11309,10 +11780,10 @@
                                   "type": "text",
                                   "id": "sUbdh",
                                   "name": "V",
-                                  "fill": "$ink-3",
+                                  "fill": "$ink-4",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "상담 종료 후 3개월 (관계 법령에 따른 보존 기간은 예외)",
+                                  "content": "운영 정책 확정 후 기재",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -11362,7 +11833,7 @@
                     {
                       "type": "frame",
                       "id": "QXz7m",
-                      "name": "건강 관련 민감정보 처리 동의",
+                      "name": "진단 결과 등 건강정보의 상담 이용 동의",
                       "width": "fill_container",
                       "stroke": "$line",
                       "strokeWidth": {
@@ -11442,7 +11913,7 @@
                               "fill": "$ink-2",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "건강 관련 민감정보 처리 동의",
+                              "content": "진단 결과 등 건강정보의 상담 이용 동의",
                               "lineHeight": 1.6,
                               "fontFamily": "$font",
                               "fontSize": 13,
@@ -11480,229 +11951,152 @@
                           ]
                         }
                       ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bk5We",
+                  "name": "선택 동의",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": [
+                    14,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kcatZ",
+                      "name": "L",
+                      "fill": "$ink-4",
+                      "content": "선택 동의 — 동의하지 않아도 상담 신청은 가능합니다",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
                     },
                     {
                       "type": "frame",
-                      "id": "OWZK1",
-                      "name": "상담 담당자에게 진단 결과 및 연락처 제공 동의",
+                      "id": "L2d1K",
+                      "name": "Card",
                       "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 10,
                       "stroke": "$line",
-                      "strokeWidth": {
-                        "top": 1
-                      },
+                      "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "layout": "vertical",
                       "children": [
                         {
                           "type": "frame",
-                          "id": "zwY8f",
-                          "name": "Row",
+                          "id": "L8QG2",
+                          "name": "보상 관련 정보 및 마케팅 안내 수신 동의",
                           "width": "fill_container",
-                          "gap": 10,
-                          "padding": [
-                            14,
-                            16
-                          ],
-                          "alignItems": "center",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "top": 1
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "shGsg",
-                              "name": "Box",
-                              "width": 18,
-                              "height": 18,
-                              "fill": "$surface",
-                              "cornerRadius": 5,
-                              "stroke": "$line-strong",
-                              "strokeWidth": 1.4,
-                              "strokeAlignment": "inner",
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "icon",
-                                  "id": "xZQT3",
-                                  "x": 3.5,
-                                  "y": 3.5,
-                                  "name": "C",
-                                  "enabled": false,
-                                  "width": 11,
-                                  "height": 11,
-                                  "icon": "check",
-                                  "library": "lucide",
-                                  "fill": "#FFFFFF"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "r1uxf",
-                              "name": "Tag",
-                              "fill": "$danger-soft",
-                              "cornerRadius": 4,
-                              "padding": [
-                                3,
-                                7
-                              ],
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "H1l1ni",
-                                  "name": "T",
-                                  "fill": "$danger",
-                                  "content": "필수",
-                                  "fontFamily": "$font",
-                                  "fontSize": 10.5,
-                                  "fontWeight": "700"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "text",
-                              "id": "fAFEG",
-                              "name": "T",
-                              "fill": "$ink-2",
-                              "textGrowth": "fixed-width",
+                              "id": "tfEbi",
+                              "name": "Row",
                               "width": "fill_container",
-                              "content": "상담 담당자에게 진단 결과 및 연락처 제공 동의",
-                              "lineHeight": 1.6,
-                              "fontFamily": "$font",
-                              "fontSize": 13,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "hnNVU",
-                              "name": "More",
-                              "gap": 4,
+                              "gap": 10,
+                              "padding": [
+                                14,
+                                16
+                              ],
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "r532n",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "자세히 보기",
-                                  "fontFamily": "$font",
-                                  "fontSize": 11.5,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "ybF8x",
+                                  "name": "Box",
+                                  "width": 18,
+                                  "height": 18,
+                                  "fill": "$surface",
+                                  "cornerRadius": 5,
+                                  "stroke": "$line-strong",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "justifyContent": "center",
+                                  "alignItems": "center"
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "R0G2c",
-                                  "name": "I",
-                                  "width": 12,
-                                  "height": 12,
-                                  "icon": "chevron-down",
-                                  "library": "lucide",
-                                  "fill": "$ink-3"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "L8QG2",
-                      "name": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                      "width": "fill_container",
-                      "stroke": "$line",
-                      "strokeWidth": {
-                        "top": 1
-                      },
-                      "strokeAlignment": "inner",
-                      "layout": "vertical",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "tfEbi",
-                          "name": "Row",
-                          "width": "fill_container",
-                          "gap": 10,
-                          "padding": [
-                            14,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "ybF8x",
-                              "name": "Box",
-                              "width": 18,
-                              "height": 18,
-                              "fill": "$surface",
-                              "cornerRadius": 5,
-                              "stroke": "$line-strong",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "justifyContent": "center",
-                              "alignItems": "center"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "B1lwhp",
-                              "name": "Tag",
-                              "fill": "$surface-inset",
-                              "cornerRadius": 4,
-                              "padding": [
-                                3,
-                                7
-                              ],
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "t9xai",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "선택",
-                                  "fontFamily": "$font",
-                                  "fontSize": 10.5,
-                                  "fontWeight": "700"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "text",
-                              "id": "XYkgZ",
-                              "name": "T",
-                              "fill": "$ink-2",
-                              "textGrowth": "fixed-width",
-                              "width": "fill_container",
-                              "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                              "lineHeight": 1.6,
-                              "fontFamily": "$font",
-                              "fontSize": 13,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "zHTdi",
-                              "name": "More",
-                              "gap": 4,
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "uE9HC",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "자세히 보기",
-                                  "fontFamily": "$font",
-                                  "fontSize": 11.5,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "B1lwhp",
+                                  "name": "Tag",
+                                  "fill": "$surface-inset",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    3,
+                                    7
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "t9xai",
+                                      "name": "T",
+                                      "fill": "$ink-3",
+                                      "content": "선택",
+                                      "fontFamily": "$font",
+                                      "fontSize": 10.5,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "jJwJv",
-                                  "name": "I",
-                                  "width": 12,
-                                  "height": 12,
-                                  "icon": "chevron-down",
-                                  "library": "lucide",
-                                  "fill": "$ink-3"
+                                  "type": "text",
+                                  "id": "XYkgZ",
+                                  "name": "T",
+                                  "fill": "$ink-2",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "zHTdi",
+                                  "name": "More",
+                                  "gap": 4,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "uE9HC",
+                                      "name": "T",
+                                      "fill": "$ink-3",
+                                      "content": "자세히 보기",
+                                      "fontFamily": "$font",
+                                      "fontSize": 11.5,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "icon",
+                                      "id": "jJwJv",
+                                      "name": "I",
+                                      "width": 12,
+                                      "height": 12,
+                                      "icon": "chevron-down",
+                                      "library": "lucide",
+                                      "fill": "$ink-3"
+                                    }
+                                  ]
                                 }
                               ]
                             }
@@ -13347,7 +13741,7 @@
       "name": "03-A2 · 상담 신청 · 전화 선택 (1440)",
       "clip": true,
       "width": 1440,
-      "height": 1560,
+      "height": 1563,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -13557,7 +13951,7 @@
                                   "id": "EhMo6",
                                   "name": "T",
                                   "fill": "$warn",
-                                  "content": "추가 정보 필요 3개",
+                                  "content": "추가 정보 필요 6개",
                                   "fontFamily": "$font",
                                   "fontSize": 12,
                                   "fontWeight": "700"
@@ -13602,7 +13996,7 @@
                           "id": "ldYqu",
                           "name": "T",
                           "fill": "$ink-3",
-                          "content": "보험증권 확인 전 참고 결과입니다",
+                          "content": "가능성 낮음 1개를 포함해 총 15개 담보를 분석했습니다 · 보험증권 확인 전 참고 결과",
                           "fontFamily": "$font",
                           "fontSize": 12.5,
                           "fontWeight": "500"
@@ -14068,7 +14462,7 @@
                     {
                       "type": "frame",
                       "id": "o5G28",
-                      "name": "개인정보 수집 · 이용 동의",
+                      "name": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                       "width": "fill_container",
                       "layout": "vertical",
                       "children": [
@@ -14143,7 +14537,7 @@
                               "fill": "$ink-2",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "개인정보 수집 · 이용 동의",
+                              "content": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                               "lineHeight": 1.6,
                               "fontFamily": "$font",
                               "fontSize": 13,
@@ -14222,7 +14616,7 @@
                                   "fill": "$ink-3",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간 · 입력하신 사고 내용",
+                                  "content": "이름 · 휴대폰 번호 · 연락 희망 시간",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -14257,42 +14651,7 @@
                                   "fill": "$ink-3",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "보상 가능성 상담 및 안내",
-                                  "lineHeight": 1.65,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "hvZXp",
-                              "name": "제공받는 자",
-                              "width": "fill_container",
-                              "gap": 12,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "l9EXKc",
-                                  "name": "K",
-                                  "fill": "$ink-2",
-                                  "textGrowth": "fixed-width",
-                                  "width": 110,
-                                  "content": "제공받는 자",
-                                  "lineHeight": 1.6,
-                                  "fontFamily": "$font",
-                                  "fontSize": 12,
-                                  "fontWeight": "700"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "e9tf8",
-                                  "name": "V",
-                                  "fill": "$ink-3",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "상담 담당 손해사정사 (운영 법인 소속)",
+                                  "content": "상담 신청 접수 및 연락",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -14324,10 +14683,10 @@
                                   "type": "text",
                                   "id": "dsodY",
                                   "name": "V",
-                                  "fill": "$ink-3",
+                                  "fill": "$ink-4",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "상담 종료 후 3개월 (관계 법령에 따른 보존 기간은 예외)",
+                                  "content": "운영 정책 확정 후 기재",
                                   "lineHeight": 1.65,
                                   "fontFamily": "$font",
                                   "fontSize": 12,
@@ -14377,7 +14736,7 @@
                     {
                       "type": "frame",
                       "id": "USH40",
-                      "name": "건강 관련 민감정보 처리 동의",
+                      "name": "진단 결과 등 건강정보의 상담 이용 동의",
                       "width": "fill_container",
                       "stroke": "$line",
                       "strokeWidth": {
@@ -14457,7 +14816,7 @@
                               "fill": "$ink-2",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "건강 관련 민감정보 처리 동의",
+                              "content": "진단 결과 등 건강정보의 상담 이용 동의",
                               "lineHeight": 1.6,
                               "fontFamily": "$font",
                               "fontSize": 13,
@@ -14495,229 +14854,152 @@
                           ]
                         }
                       ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "T3NCDh",
+                  "name": "선택 동의",
+                  "width": "fill_container",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "top": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": [
+                    14,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "OolHX",
+                      "name": "L",
+                      "fill": "$ink-4",
+                      "content": "선택 동의 — 동의하지 않아도 상담 신청은 가능합니다",
+                      "fontFamily": "$font",
+                      "fontSize": 11.5,
+                      "fontWeight": "600"
                     },
                     {
                       "type": "frame",
-                      "id": "tv9dd",
-                      "name": "상담 담당자에게 진단 결과 및 연락처 제공 동의",
+                      "id": "rAYBM",
+                      "name": "Card",
                       "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 10,
                       "stroke": "$line",
-                      "strokeWidth": {
-                        "top": 1
-                      },
+                      "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "layout": "vertical",
                       "children": [
                         {
                           "type": "frame",
-                          "id": "zGRtr",
-                          "name": "Row",
+                          "id": "jDji7",
+                          "name": "보상 관련 정보 및 마케팅 안내 수신 동의",
                           "width": "fill_container",
-                          "gap": 10,
-                          "padding": [
-                            14,
-                            16
-                          ],
-                          "alignItems": "center",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "top": 1
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "WAXuz",
-                              "name": "Box",
-                              "width": 18,
-                              "height": 18,
-                              "fill": "$surface",
-                              "cornerRadius": 5,
-                              "stroke": "$line-strong",
-                              "strokeWidth": 1.4,
-                              "strokeAlignment": "inner",
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "icon",
-                                  "id": "S3Skw",
-                                  "x": 3.5,
-                                  "y": 3.5,
-                                  "name": "C",
-                                  "enabled": false,
-                                  "width": 11,
-                                  "height": 11,
-                                  "icon": "check",
-                                  "library": "lucide",
-                                  "fill": "#FFFFFF"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "kDP8a",
-                              "name": "Tag",
-                              "fill": "$danger-soft",
-                              "cornerRadius": 4,
-                              "padding": [
-                                3,
-                                7
-                              ],
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "hLfBO",
-                                  "name": "T",
-                                  "fill": "$danger",
-                                  "content": "필수",
-                                  "fontFamily": "$font",
-                                  "fontSize": 10.5,
-                                  "fontWeight": "700"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "text",
-                              "id": "k8pPN2",
-                              "name": "T",
-                              "fill": "$ink-2",
-                              "textGrowth": "fixed-width",
+                              "id": "PO0m9",
+                              "name": "Row",
                               "width": "fill_container",
-                              "content": "상담 담당자에게 진단 결과 및 연락처 제공 동의",
-                              "lineHeight": 1.6,
-                              "fontFamily": "$font",
-                              "fontSize": 13,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "AHyBH",
-                              "name": "More",
-                              "gap": 4,
+                              "gap": 10,
+                              "padding": [
+                                14,
+                                16
+                              ],
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "ABeYJ",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "자세히 보기",
-                                  "fontFamily": "$font",
-                                  "fontSize": 11.5,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "BtwNE",
+                                  "name": "Box",
+                                  "width": 18,
+                                  "height": 18,
+                                  "fill": "$surface",
+                                  "cornerRadius": 5,
+                                  "stroke": "$line-strong",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "justifyContent": "center",
+                                  "alignItems": "center"
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "GIor1",
-                                  "name": "I",
-                                  "width": 12,
-                                  "height": 12,
-                                  "icon": "chevron-down",
-                                  "library": "lucide",
-                                  "fill": "$ink-3"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "jDji7",
-                      "name": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                      "width": "fill_container",
-                      "stroke": "$line",
-                      "strokeWidth": {
-                        "top": 1
-                      },
-                      "strokeAlignment": "inner",
-                      "layout": "vertical",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "PO0m9",
-                          "name": "Row",
-                          "width": "fill_container",
-                          "gap": 10,
-                          "padding": [
-                            14,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "BtwNE",
-                              "name": "Box",
-                              "width": 18,
-                              "height": 18,
-                              "fill": "$surface",
-                              "cornerRadius": 5,
-                              "stroke": "$line-strong",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "justifyContent": "center",
-                              "alignItems": "center"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "amZlO",
-                              "name": "Tag",
-                              "fill": "$surface-inset",
-                              "cornerRadius": 4,
-                              "padding": [
-                                3,
-                                7
-                              ],
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "PI5pI",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "선택",
-                                  "fontFamily": "$font",
-                                  "fontSize": 10.5,
-                                  "fontWeight": "700"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "text",
-                              "id": "wWeMx",
-                              "name": "T",
-                              "fill": "$ink-2",
-                              "textGrowth": "fixed-width",
-                              "width": "fill_container",
-                              "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                              "lineHeight": 1.6,
-                              "fontFamily": "$font",
-                              "fontSize": 13,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "TteO5",
-                              "name": "More",
-                              "gap": 4,
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "x8lN4m",
-                                  "name": "T",
-                                  "fill": "$ink-3",
-                                  "content": "자세히 보기",
-                                  "fontFamily": "$font",
-                                  "fontSize": 11.5,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "amZlO",
+                                  "name": "Tag",
+                                  "fill": "$surface-inset",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    3,
+                                    7
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "PI5pI",
+                                      "name": "T",
+                                      "fill": "$ink-3",
+                                      "content": "선택",
+                                      "fontFamily": "$font",
+                                      "fontSize": 10.5,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "jfcoN",
-                                  "name": "I",
-                                  "width": 12,
-                                  "height": 12,
-                                  "icon": "chevron-down",
-                                  "library": "lucide",
-                                  "fill": "$ink-3"
+                                  "type": "text",
+                                  "id": "wWeMx",
+                                  "name": "T",
+                                  "fill": "$ink-2",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
+                                  "lineHeight": 1.6,
+                                  "fontFamily": "$font",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "TteO5",
+                                  "name": "More",
+                                  "gap": 4,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "x8lN4m",
+                                      "name": "T",
+                                      "fill": "$ink-3",
+                                      "content": "자세히 보기",
+                                      "fontFamily": "$font",
+                                      "fontSize": 11.5,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "icon",
+                                      "id": "jfcoN",
+                                      "name": "I",
+                                      "width": 12,
+                                      "height": 12,
+                                      "icon": "chevron-down",
+                                      "library": "lucide",
+                                      "fill": "$ink-3"
+                                    }
+                                  ]
                                 }
                               ]
                             }
@@ -19302,7 +19584,7 @@
       "name": "M03 · 상담 신청 (390)",
       "clip": true,
       "width": 390,
-      "height": 1240,
+      "height": 1244,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -19476,7 +19758,7 @@
                           "id": "Qs64P",
                           "name": "T",
                           "fill": "$warn",
-                          "content": "추가 정보 필요 3개",
+                          "content": "추가 정보 필요 6개",
                           "fontFamily": "$font",
                           "fontSize": 11.5,
                           "fontWeight": "700"
@@ -19490,7 +19772,7 @@
                   "id": "KLRkL",
                   "name": "N",
                   "fill": "$ink-3",
-                  "content": "보험증권 확인 전 참고 결과입니다",
+                  "content": "가능성 낮음 1개 포함 총 15개 담보 분석 · 보험증권 확인 전 참고 결과",
                   "fontFamily": "$font",
                   "fontSize": 11.5,
                   "fontWeight": "500"
@@ -19839,7 +20121,7 @@
                 {
                   "type": "frame",
                   "id": "Wx8sU",
-                  "name": "개인정보 수집 · 이용 동의",
+                  "name": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                   "width": "fill_container",
                   "gap": 9,
                   "padding": [
@@ -19907,7 +20189,7 @@
                       "fill": "$ink-2",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "개인정보 수집 · 이용 동의",
+                      "content": "상담 신청을 위한 개인정보 수집 · 이용 동의",
                       "lineHeight": 1.55,
                       "fontFamily": "$font",
                       "fontSize": 12,
@@ -19928,7 +20210,7 @@
                 {
                   "type": "frame",
                   "id": "IaHIv",
-                  "name": "건강 관련 민감정보 처리 동의",
+                  "name": "진단 결과 등 건강정보의 상담 이용 동의",
                   "width": "fill_container",
                   "stroke": "$line",
                   "strokeWidth": {
@@ -20001,7 +20283,7 @@
                       "fill": "$ink-2",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "건강 관련 민감정보 처리 동의",
+                      "content": "진단 결과 등 건강정보의 상담 이용 동의",
                       "lineHeight": 1.55,
                       "fontFamily": "$font",
                       "fontSize": 12,
@@ -20018,177 +20300,128 @@
                       "fill": "$ink-3"
                     }
                   ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wk7eF",
+              "name": "선택 동의",
+              "width": "fill_container",
+              "stroke": "$line",
+              "strokeWidth": {
+                "top": 1
+              },
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 6,
+              "padding": [
+                12,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ejf9a",
+                  "name": "L",
+                  "fill": "$ink-4",
+                  "content": "선택 동의 — 동의하지 않아도 상담 신청은 가능합니다",
+                  "fontFamily": "$font",
+                  "fontSize": 11,
+                  "fontWeight": "600"
                 },
                 {
                   "type": "frame",
-                  "id": "s4hwaU",
-                  "name": "진단 결과 · 연락처 제공 동의",
+                  "id": "ob3cW",
+                  "name": "Card",
                   "width": "fill_container",
+                  "fill": "$surface",
+                  "cornerRadius": 10,
                   "stroke": "$line",
-                  "strokeWidth": {
-                    "top": 1
-                  },
+                  "strokeWidth": 1,
                   "strokeAlignment": "inner",
-                  "gap": 9,
-                  "padding": [
-                    13,
-                    14
-                  ],
-                  "alignItems": "center",
+                  "layout": "vertical",
                   "children": [
                     {
                       "type": "frame",
-                      "id": "dBxhl",
-                      "name": "Box",
-                      "width": 18,
-                      "height": 18,
-                      "fill": "$surface",
-                      "cornerRadius": 5,
-                      "stroke": "$line-strong",
-                      "strokeWidth": 1.4,
+                      "id": "z4rDIA",
+                      "name": "마케팅 안내 수신 동의",
+                      "width": "fill_container",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "top": 1
+                      },
                       "strokeAlignment": "inner",
-                      "justifyContent": "center",
+                      "gap": 9,
+                      "padding": [
+                        13,
+                        14
+                      ],
                       "alignItems": "center",
                       "children": [
                         {
+                          "type": "frame",
+                          "id": "wL2Ef",
+                          "name": "Box",
+                          "width": 18,
+                          "height": 18,
+                          "fill": "$surface",
+                          "cornerRadius": 5,
+                          "stroke": "$line-strong",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "justifyContent": "center",
+                          "alignItems": "center"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "E8TEO",
+                          "name": "Tag",
+                          "fill": "$surface-inset",
+                          "cornerRadius": 4,
+                          "padding": [
+                            3,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Og4jP",
+                              "name": "T",
+                              "fill": "$ink-3",
+                              "content": "선택",
+                              "fontFamily": "$font",
+                              "fontSize": 10,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "TzERL",
+                          "name": "T",
+                          "fill": "$ink-2",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "마케팅 안내 수신 동의",
+                          "lineHeight": 1.55,
+                          "fontFamily": "$font",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
                           "type": "icon",
-                          "id": "yLjSt",
-                          "x": 3.5,
-                          "y": 3.5,
-                          "name": "C",
-                          "enabled": false,
-                          "width": 11,
-                          "height": 11,
-                          "icon": "check",
+                          "id": "iDbfn",
+                          "name": "I",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "chevron-down",
                           "library": "lucide",
-                          "fill": "#FFFFFF"
+                          "fill": "$ink-3"
                         }
                       ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "jGbzR",
-                      "name": "Tag",
-                      "fill": "$danger-soft",
-                      "cornerRadius": 4,
-                      "padding": [
-                        3,
-                        6
-                      ],
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "PtOMa",
-                          "name": "T",
-                          "fill": "$danger",
-                          "content": "필수",
-                          "fontFamily": "$font",
-                          "fontSize": 10,
-                          "fontWeight": "700"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "B5463",
-                      "name": "T",
-                      "fill": "$ink-2",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "진단 결과 · 연락처 제공 동의",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "type": "icon",
-                      "id": "HilR9",
-                      "name": "I",
-                      "width": 13,
-                      "height": 13,
-                      "icon": "chevron-down",
-                      "library": "lucide",
-                      "fill": "$ink-3"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "z4rDIA",
-                  "name": "마케팅 안내 수신 동의",
-                  "width": "fill_container",
-                  "stroke": "$line",
-                  "strokeWidth": {
-                    "top": 1
-                  },
-                  "strokeAlignment": "inner",
-                  "gap": 9,
-                  "padding": [
-                    13,
-                    14
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "wL2Ef",
-                      "name": "Box",
-                      "width": 18,
-                      "height": 18,
-                      "fill": "$surface",
-                      "cornerRadius": 5,
-                      "stroke": "$line-strong",
-                      "strokeWidth": 1,
-                      "strokeAlignment": "inner",
-                      "justifyContent": "center",
-                      "alignItems": "center"
-                    },
-                    {
-                      "type": "frame",
-                      "id": "E8TEO",
-                      "name": "Tag",
-                      "fill": "$surface-inset",
-                      "cornerRadius": 4,
-                      "padding": [
-                        3,
-                        6
-                      ],
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "Og4jP",
-                          "name": "T",
-                          "fill": "$ink-3",
-                          "content": "선택",
-                          "fontFamily": "$font",
-                          "fontSize": 10,
-                          "fontWeight": "700"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "TzERL",
-                      "name": "T",
-                      "fill": "$ink-2",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "마케팅 안내 수신 동의",
-                      "lineHeight": 1.55,
-                      "fontFamily": "$font",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "type": "icon",
-                      "id": "iDbfn",
-                      "name": "I",
-                      "width": 13,
-                      "height": 13,
-                      "icon": "chevron-down",
-                      "library": "lucide",
-                      "fill": "$ink-3"
                     }
                   ]
                 }
@@ -20784,7 +21017,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "집계 규칙 : 담보 1건은 정확히 하나의 상태에만 포함됩니다. 세 상태의 합 = 분석한 전체 담보 수(현재 예시 8 + 6 + 1 = 15).",
+              "content": "집계 규칙 : 담보 1건은 정확히 하나의 상태에만 포함됩니다. 세 상태의 합 = 분석한 전체 담보 수(현재 예시 8 + 6 + 1 = 15). 03 · 03-A2 · M03 상담 신청 화면의 「진단 결과 요약」 Pill(검토 대상 8개 · 추가 정보 필요 6개)과 보조 문구(총 15개)도 화면별 하드코딩이 아니라 동일한 분석 결과 데이터에서 렌더링합니다 — 결과 화면과 숫자가 어긋나면 안 됩니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -20903,7 +21136,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "데스크톱 : 01 「보상 진단」 클릭 → 01-A2 동의 모달 → (필수 2개 모두 체크) → 01-C 진단 중.",
+              "content": "데스크톱 : 01 「보상 진단」 클릭 → 01-A2 동의 모달 → (필수 1건 체크) → 01-C 진단 중.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -20916,7 +21149,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "모바일 : M01 「보상 진단」 탭 → M01-A2 Bottom Sheet → (필수 2개 모두 체크) → M01-C 진단 중.",
+              "content": "모바일 : M01 「보상 진단」 탭 → M01-A2 Bottom Sheet → (필수 1건 체크) → M01-C 진단 중.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -20929,7 +21162,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "필수 동의는 기본 미체크. 필수 2개가 모두 체크되기 전까지 「동의하고 진단 시작」 버튼은 Disabled CTA 컴포넌트로 표시하고, 버튼 아래에 Inline Message로 사유를 안내합니다.",
+              "content": "진단 단계 필수 동의는 「건강정보 등 민감정보 처리 동의」 1건뿐입니다. 기본 미체크이며, 체크 전까지 「동의하고 진단하기」는 Disabled CTA + Inline Message로 사유를 안내합니다. 진단 단계에서는 이름 · 연락처를 수집하지 않으므로 일반 개인정보 동의를 받지 않고, 마케팅 동의도 이 단계에서 받지 않습니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -20942,7 +21175,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "선택 동의(마케팅)는 구분선 아래 별도 영역에 두고 「선택」 배지를 붙여 필수처럼 보이지 않게 합니다. 각 항목의 「내용 보기」는 약관 전문 레이어로 연결합니다.",
+              "content": "모바일 Bottom Sheet 닫기 — 우측 상단 X 버튼(터치 영역 44×44, 접근성 라벨 「동의 창 닫기」). 드래그 핸들 유지. 배경(Dim) 터치와 시스템 뒤로 가기로도 닫히며, 닫아도 사용자가 01 화면에 입력한 진단 문장은 유지합니다(초기화 금지). 데스크톱 모달은 기존 X 버튼 유지.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -21008,7 +21241,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "03-C / M03-C 중복 신청 — clock-3 아이콘(warn). 성공과 같은 체크 아이콘을 쓰지 않습니다. 오류 톤(danger) 금지. CTA는 「기존 신청 상태 확인」 + 「진단 결과로 돌아가기」.",
+              "content": "03-C / M03-C 중복 신청 — clock-3 아이콘(warn). 성공과 같은 체크 아이콘을 쓰지 않고 오류 톤(danger)도 사용하지 않습니다. CTA는 「기존 신청 상태 확인」 + 「진단 결과로 돌아가기」. 연락처 마스킹 · 접수일 · 처리 상태 표기를 유지하며, 접수일(예시 2026-09-17)은 서버 응답값이 들어가는 동적 영역입니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -21021,7 +21254,7 @@
               "fill": "$ink-2",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "03-D / M03-D 신청 실패 — triangle-alert 아이콘(danger). 입력값이 유지된다는 사실을 카드 안에 「입력 내용 : 그대로 유지됨」으로 명시하고, CTA는 「다시 시도하기」 + 「이전 화면으로 돌아가기」. 대체 채널 안내 포함.",
+              "content": "03-D / M03-D 신청 실패 — triangle-alert 아이콘(danger). 입력값이 유지된다는 사실을 카드 「입력 내용 : 유지됨」과 안내 문구로 명시하고, CTA는 「다시 시도하기」 + 「이전 화면으로 돌아가기」. 서버 저장 · 보유 기간을 단정하는 표현(「저장되어 있습니다」)은 사용 금지 — 「현재 화면에서 입력 내용이 유지됩니다」처럼 위치 · 기간을 단정하지 않는 표현만 사용합니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -21167,6 +21400,230 @@
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "상담 담당자 카드의 「등록정보 확인」 링크는 실제 손해사정사 등록정보 페이지가 준비된 뒤 노출합니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "OCXrO",
+          "name": "⑧ 진단 단계 동의 「내용 보기」 — 확정 필요 (현재 사용자 화면에 문구 없음)",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "SNslE",
+              "name": "H",
+              "fill": "$ink",
+              "content": "⑧ 진단 단계 동의 「내용 보기」 — 확정 필요 (현재 사용자 화면에 문구 없음)",
+              "fontFamily": "$font",
+              "fontSize": 15,
+              "fontWeight": "700",
+              "letterSpacing": -0.3
+            },
+            {
+              "type": "text",
+              "id": "K3RzU2",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "01-A2 / M01-A2 의 「내용 보기」를 눌렀을 때 보여줄 상세 항목 구조입니다. 값이 확정되기 전까지 사용자 화면에 예시 문구를 넣지 않습니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "s8M6L",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "• 처리 목적 : (미확정)\n• 처리하는 건강정보 항목 : (미확정 — 사고 · 질병 · 치료 내용 중 실제 처리 범위)\n• 서버 저장 여부 : (미확정 — 저장 / 미저장 / 일시 처리 후 폐기)\n• 보유 · 이용 기간 : (미확정)\n• 외부 AI 서비스 전송 여부 : (미확정 — 전송 시 수탁사 · 전송 항목 · 국외 이전 여부 포함)\n• 동의 거부 시 진단 이용 제한 : (미확정 — 거부 시 진단 불가 여부)",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "V9ICgu",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "위 6개 항목이 모두 확정된 뒤 상세 레이어 문구를 작성합니다. 확정 전에는 링크만 노출합니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "szGQV",
+          "name": "⑨ 상담 단계 동의 2건 — 상세 구조 및 확정 필요 항목",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "hqpgI",
+              "name": "H",
+              "fill": "$ink",
+              "content": "⑨ 상담 단계 동의 2건 — 상세 구조 및 확정 필요 항목",
+              "fontFamily": "$font",
+              "fontSize": 15,
+              "fontWeight": "700",
+              "letterSpacing": -0.3
+            },
+            {
+              "type": "text",
+              "id": "aMTb7",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "필수 ① 상담 신청을 위한 개인정보 수집 · 이용 동의 — 수집 항목 : 이름 · 휴대폰 번호 · 연락 희망 시간 / 이용 목적 : 상담 신청 접수 및 연락 / 보유 · 이용 기간 : (미확정) / 거부 권리 : 거부 가능, 거부 시 상담 신청 제한.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "J7lBK0",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "필수 ② 진단 결과 등 건강정보의 상담 이용 동의 — 이용 항목 : 사용자가 입력한 사고 · 질병 · 치료 내용과 진단 결과 / 이용 목적 : 손해사정 상담 및 필요 서류 안내 / 보유 · 이용 기간 : (미확정) / 거부 권리 : 거부 가능, 거부 시 상담 신청 제한. 화면에서는 03 · 03-A2 의 필수 ① 블록만 펼친 예시로 노출하고, 나머지는 「자세히 보기」로 접어 둡니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "u9Igq",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "선택 ③ 보상 관련 정보 및 마케팅 안내 수신 동의 — 필수와 분리해 가장 아래, 중립색 「선택」 배지. 기본 미체크이며 버튼 활성화 조건에 포함하지 않습니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "iYcwS",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "버튼 활성화 조건 = 필수 ① AND 필수 ② (마케팅 제외).",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "oEeAB",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "보유 · 이용 기간은 화면에 「운영 정책 확정 후 기재」로 표기해 두었습니다. 실제 기간이 확정되면 해당 값을 교체하고 이 주석을 삭제합니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "K1X67",
+          "name": "⑩ 제3자 제공 동의 — 현재 미사용",
+          "width": "fill_container",
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "msvZ7",
+              "name": "H",
+              "fill": "$ink",
+              "content": "⑩ 제3자 제공 동의 — 현재 미사용",
+              "fontFamily": "$font",
+              "fontSize": 15,
+              "fontWeight": "700",
+              "letterSpacing": -0.3
+            },
+            {
+              "type": "text",
+              "id": "c8rXCv",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "상담 예정 손해사정사가 같은 운영 법인 소속이라는 전제이므로 「상담 담당자에게 진단 결과 및 연락처 제공 동의」는 03 · 03-A2 · M03 에서 제거했습니다. 내부 담당자는 제3자가 아닌 내부 상담 담당자로 처리합니다.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "AX4TO",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "외부 손해사정사 · 제휴 법인 연결 구조가 생기면 Design System 의 「Conditional Third-party Consent · DEV ONLY」를 활성화합니다. 활성화 전 확정 필요 : 제공받는 실제 법인명 / 제공 목적 / 제공 항목 / 보유 · 이용 기간.",
+              "lineHeight": 1.7,
+              "fontFamily": "$font",
+              "fontSize": 12.5,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "w2eVI",
+              "name": "L",
+              "fill": "$ink-2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "「상담 담당자」처럼 제공 주체가 불명확한 명칭은 사용하지 않습니다.",
               "lineHeight": 1.7,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -22106,7 +22563,7 @@
           "id": "q4cBg",
           "layoutPosition": "absolute",
           "x": 440,
-          "y": 150,
+          "y": 335,
           "name": "Consent Modal",
           "width": 560,
           "fill": "$surface",
@@ -22151,7 +22608,7 @@
                       "fill": "$ink",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "진단을 시작하기 전에 동의가 필요합니다",
+                      "content": "건강정보 처리에 동의해 주세요",
                       "lineHeight": 1.4,
                       "fontFamily": "$font",
                       "fontSize": 20,
@@ -22165,7 +22622,7 @@
                       "fill": "$ink-3",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "입력하신 사고 내용과 건강 관련 정보는 보상 가능성 분석에만 사용됩니다.",
+                      "content": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
                       "lineHeight": 1.65,
                       "fontFamily": "$font",
                       "fontSize": 13,
@@ -22205,95 +22662,21 @@
               "layout": "vertical",
               "gap": 2,
               "padding": [
-                6,
+                4,
                 16,
-                8,
+                6,
                 16
               ],
               "children": [
                 {
-                  "id": "uEmsa",
-                  "type": "ref",
-                  "ref": "Jz9z4",
-                  "name": "개인정보 수집 · 이용 동의",
-                  "width": "fill_container"
-                },
-                {
-                  "type": "rectangle",
-                  "id": "LDO6f",
-                  "name": "Div",
-                  "fill": "$line",
-                  "width": "fill_container",
-                  "height": 1
-                },
-                {
                   "id": "aaJkm",
                   "type": "ref",
                   "ref": "Jz9z4",
-                  "name": "민감정보 수집 · 이용 동의",
+                  "name": "건강정보 등 민감정보 처리 동의",
                   "width": "fill_container",
                   "descendants": {
                     "lCpBp": {
-                      "content": "건강정보 등 민감정보 수집 · 이용 동의"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "QXRG6",
-              "name": "G2",
-              "width": "fill_container",
-              "height": 14
-            },
-            {
-              "type": "frame",
-              "id": "oseLQ",
-              "name": "선택 동의",
-              "width": "fill_container",
-              "stroke": "$line",
-              "strokeWidth": {
-                "top": 1
-              },
-              "strokeAlignment": "inner",
-              "layout": "vertical",
-              "gap": 4,
-              "padding": [
-                12,
-                0,
-                0,
-                0
-              ],
-              "children": [
-                {
-                  "type": "text",
-                  "id": "mkqHl",
-                  "name": "L",
-                  "fill": "$ink-4",
-                  "content": "선택 동의 — 동의하지 않아도 진단은 진행됩니다",
-                  "fontFamily": "$font",
-                  "fontSize": 11.5,
-                  "fontWeight": "600"
-                },
-                {
-                  "id": "G7f91",
-                  "type": "ref",
-                  "ref": "Jz9z4",
-                  "name": "마케팅 수신 동의",
-                  "width": "fill_container",
-                  "descendants": {
-                    "jEAh2": {
-                      "fill": "$surface-inset"
-                    },
-                    "plebD": {
-                      "content": "선택",
-                      "fill": "$ink-3"
-                    },
-                    "lCpBp": {
-                      "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                      "fill": "$ink-2",
-                      "fontWeight": "500"
+                      "content": "건강정보 등 민감정보 처리 동의"
                     }
                   }
                 }
@@ -22311,7 +22694,12 @@
               "type": "ref",
               "ref": "uFKNx",
               "name": "CTA (비활성)",
-              "width": "fill_container"
+              "width": "fill_container",
+              "descendants": {
+                "Vvqy9": {
+                  "content": "동의하고 진단하기"
+                }
+              }
             },
             {
               "type": "frame",
@@ -22331,7 +22719,12 @@
                   "id": "OudVF",
                   "type": "ref",
                   "ref": "nJDFG",
-                  "name": "안내"
+                  "name": "안내",
+                  "descendants": {
+                    "XhmQb": {
+                      "content": "필수 동의 후 진단을 시작할 수 있습니다."
+                    }
+                  }
                 }
               ]
             }
@@ -23141,7 +23534,7 @@
           "id": "pTk6I",
           "layoutPosition": "absolute",
           "x": 0,
-          "y": 629,
+          "y": 762,
           "name": "Consent Bottom Sheet",
           "width": 390,
           "fill": "$surface",
@@ -23163,7 +23556,7 @@
           },
           "layout": "vertical",
           "padding": [
-            10,
+            6,
             16,
             22,
             16
@@ -23171,25 +23564,65 @@
           "children": [
             {
               "type": "frame",
-              "id": "BiENQ",
-              "name": "Grabber",
+              "id": "KTaa1",
+              "name": "Sheet Head",
               "width": "fill_container",
               "padding": [
                 0,
                 0,
-                14,
+                10,
                 0
               ],
-              "justifyContent": "center",
+              "alignItems": "center",
               "children": [
                 {
-                  "type": "rectangle",
-                  "cornerRadius": 2,
-                  "id": "fmKEq",
-                  "name": "Bar",
-                  "fill": "$line-strong",
-                  "width": 40,
-                  "height": 4
+                  "type": "frame",
+                  "id": "fXROe",
+                  "name": "Spacer (닫기 버튼 대칭)",
+                  "width": 44,
+                  "height": 44
+                },
+                {
+                  "type": "frame",
+                  "id": "mCrPT",
+                  "name": "Grabber",
+                  "width": "fill_container",
+                  "height": 44,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 2,
+                      "id": "fmKEq",
+                      "name": "Bar",
+                      "fill": "$line-strong",
+                      "width": 40,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "SK57T",
+                  "name": "Close · 동의 창 닫기 (44×44)",
+                  "width": 44,
+                  "height": 44,
+                  "cornerRadius": 22,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "W1xVC",
+                      "name": "I",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "x",
+                      "library": "lucide",
+                      "fill": "$ink-2"
+                    }
+                  ]
                 }
               ]
             },
@@ -23200,7 +23633,7 @@
               "fill": "$ink",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "진단을 시작하기 전에\n동의가 필요합니다",
+              "content": "건강정보 처리에\n동의해 주세요",
               "lineHeight": 1.4,
               "fontFamily": "$font",
               "fontSize": 19,
@@ -23221,7 +23654,7 @@
               "fill": "$ink-3",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "입력하신 사고 내용과 건강 관련 정보는 보상 가능성 분석에만 사용됩니다.",
+              "content": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
               "lineHeight": 1.65,
               "fontFamily": "$font",
               "fontSize": 12.5,
@@ -23254,88 +23687,14 @@
               ],
               "children": [
                 {
-                  "id": "NtFcl",
-                  "type": "ref",
-                  "ref": "Jz9z4",
-                  "name": "개인정보 수집 · 이용 동의",
-                  "width": "fill_container"
-                },
-                {
-                  "type": "rectangle",
-                  "id": "n3sUGT",
-                  "name": "Div",
-                  "fill": "$line",
-                  "width": "fill_container",
-                  "height": 1
-                },
-                {
                   "id": "nyYKJ",
                   "type": "ref",
                   "ref": "Jz9z4",
-                  "name": "민감정보 수집 · 이용 동의",
+                  "name": "건강정보 등 민감정보 처리 동의",
                   "width": "fill_container",
                   "descendants": {
                     "lCpBp": {
-                      "content": "건강정보 등 민감정보 수집 · 이용 동의"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "VzE8i",
-              "name": "G3",
-              "width": "fill_container",
-              "height": 12
-            },
-            {
-              "type": "frame",
-              "id": "be743",
-              "name": "선택 동의",
-              "width": "fill_container",
-              "stroke": "$line",
-              "strokeWidth": {
-                "top": 1
-              },
-              "strokeAlignment": "inner",
-              "layout": "vertical",
-              "gap": 2,
-              "padding": [
-                10,
-                0,
-                0,
-                0
-              ],
-              "children": [
-                {
-                  "type": "text",
-                  "id": "y4t0G",
-                  "name": "L",
-                  "fill": "$ink-4",
-                  "content": "선택 동의 — 동의하지 않아도 진단은 진행됩니다",
-                  "fontFamily": "$font",
-                  "fontSize": 11,
-                  "fontWeight": "600"
-                },
-                {
-                  "id": "IM24g",
-                  "type": "ref",
-                  "ref": "Jz9z4",
-                  "name": "마케팅 수신 동의",
-                  "width": "fill_container",
-                  "descendants": {
-                    "jEAh2": {
-                      "fill": "$surface-inset"
-                    },
-                    "plebD": {
-                      "content": "선택",
-                      "fill": "$ink-3"
-                    },
-                    "lCpBp": {
-                      "content": "보상 관련 정보 및 마케팅 안내 수신 동의",
-                      "fill": "$ink-2",
-                      "fontWeight": "500"
+                      "content": "건강정보 등 민감정보 처리 동의"
                     }
                   }
                 }
@@ -23361,7 +23720,7 @@
               "cornerRadius": 10,
               "descendants": {
                 "Vvqy9": {
-                  "content": "동의하고 진단 시작",
+                  "content": "동의하고 진단하기",
                   "fontSize": 15
                 }
               }
@@ -23387,7 +23746,7 @@
                   "name": "안내",
                   "descendants": {
                     "XhmQb": {
-                      "content": "필수 동의 후 진단을 시작할 수 있습니다"
+                      "content": "필수 동의 후 진단을 시작할 수 있습니다."
                     }
                   }
                 }
@@ -23842,7 +24201,7 @@
       "name": "03-D · 상담 신청 실패 (1440)",
       "clip": true,
       "width": 1440,
-      "height": 920,
+      "height": 899,
       "fill": "$bg",
       "layout": "vertical",
       "children": [
@@ -23962,7 +24321,7 @@
                   "fill": "$ink-3",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "일시적인 오류로 접수가 완료되지 않았습니다.\n입력하신 내용은 그대로 남아 있으니 다시 시도해 주세요.",
+                  "content": "일시적인 오류로 접수가 완료되지 않았습니다.\n입력하신 내용은 다시 입력하지 않아도 됩니다.",
                   "lineHeight": 1.75,
                   "textAlign": "center",
                   "fontFamily": "$font",
@@ -24107,7 +24466,7 @@
                     {
                       "type": "frame",
                       "id": "o4ZlE",
-                      "name": "상담 예정 전문가",
+                      "name": "입력 내용 유지됨",
                       "width": "fill_container",
                       "stroke": "$line",
                       "strokeWidth": {
@@ -24137,7 +24496,7 @@
                           "id": "K1fhp",
                           "name": "V",
                           "fill": "$ok",
-                          "content": "그대로 유지됨",
+                          "content": "유지됨",
                           "fontFamily": "$font",
                           "fontSize": 13.5,
                           "fontWeight": "700"
@@ -24186,7 +24545,7 @@
                       "fill": "$ink-2",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "다시 시도해도 접수되지 않으면 카카오톡 채널 상담으로 문의해 주세요. 진단 결과는 그대로 저장되어 있어 처음부터 다시 입력하지 않으셔도 됩니다.",
+                      "content": "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요. 현재 화면에서 입력 내용이 유지됩니다.",
                       "lineHeight": 1.7,
                       "fontFamily": "$font",
                       "fontSize": 12.5,
@@ -24801,7 +25160,7 @@
               "fill": "$ink-3",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "일시적인 오류로 접수가 완료되지 않았습니다. 입력하신 내용은 그대로 남아 있습니다.",
+              "content": "일시적인 오류로 접수가 완료되지 않았습니다. 입력하신 내용은 다시 입력하지 않아도 됩니다.",
               "lineHeight": 1.72,
               "textAlign": "center",
               "fontFamily": "$font",
@@ -24946,7 +25305,7 @@
                 {
                   "type": "frame",
                   "id": "oOtuj",
-                  "name": "입력 내용",
+                  "name": "입력 내용 유지됨",
                   "width": "fill_container",
                   "stroke": "$line",
                   "strokeWidth": {
@@ -24976,7 +25335,7 @@
                       "id": "mJB6H",
                       "name": "V",
                       "fill": "$ok",
-                      "content": "그대로 유지됨",
+                      "content": "유지됨",
                       "fontFamily": "$font",
                       "fontSize": 12.5,
                       "fontWeight": "700"
@@ -25025,7 +25384,7 @@
                   "fill": "$ink-2",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "계속 실패하면 카카오톡 채널 상담으로 문의해 주세요. 진단 결과는 저장되어 있습니다.",
+                  "content": "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요. 현재 화면에서 입력 내용이 유지됩니다.",
                   "lineHeight": 1.65,
                   "fontFamily": "$font",
                   "fontSize": 11.5,
