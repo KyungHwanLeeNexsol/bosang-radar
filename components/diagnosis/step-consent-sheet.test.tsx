@@ -1,0 +1,152 @@
+// @vitest-environment jsdom
+import * as React from "react";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { StepConsentSheet } from "./step-consent-sheet";
+
+// SPEC-B2C-DIAGNOSIS-001 M4 (design.md §14, §17; acceptance.md
+// AC-B2CDIAG-001~006) — M01-A2 Mobile 필수 민감정보 동의 Bottom Sheet.
+// StepConsentModal(Desktop)과 동일한 controlled 계약을 공유한다(design.md
+// §5) — 이 마일스톤에서는 diagnosis-flow.tsx에 배선하지 않고(TODO(M7):
+// 768px 분기 전환) 독립적으로만 검증한다.
+
+function Harness({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [consentGiven, setConsentGiven] = React.useState(false);
+  return (
+    <StepConsentSheet
+      consentGiven={consentGiven}
+      onConsentChange={setConsentGiven}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+function findButtonByText(text: string): HTMLButtonElement {
+  const button = Array.from(document.querySelectorAll("button")).find((btn) =>
+    btn.textContent?.includes(text)
+  );
+  if (!button) {
+    throw new Error(`button with text "${text}" not found`);
+  }
+  return button;
+}
+
+async function tick() {
+  await act(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
+describe("components/diagnosis/StepConsentSheet — AC-B2CDIAG-001~006", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("AC-001: 체크박스 1개만 존재하고 다른 입력 필드는 없다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    expect(document.querySelectorAll('input[type="checkbox"]').length).toBe(1);
+    expect(document.querySelector('input[type="text"]')).toBeNull();
+  });
+
+  it("AC-002/006: 체크박스 선택 여부에 따라 CTA 활성화 상태가 바뀌고, 클릭 시 onConfirm이 호출된다", () => {
+    const onConfirm = vi.fn();
+    act(() => {
+      root.render(<Harness onConfirm={onConfirm} onCancel={vi.fn()} />);
+    });
+
+    expect(findButtonByText("동의하고 진단하기").disabled).toBe(true);
+
+    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    act(() => {
+      checkbox.click();
+    });
+
+    expect(findButtonByText("동의하고 진단하기").disabled).toBe(false);
+
+    act(() => {
+      findButtonByText("동의하고 진단하기").click();
+    });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC-003: '내용 보기'를 열어도 동의 체크박스는 자동 선택되지 않는다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    act(() => {
+      findButtonByText("내용 보기").click();
+    });
+
+    expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
+    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("AC-004: 상세보기를 확인 버튼으로 닫으면 포커스가 '내용 보기' 트리거로 복귀한다", async () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const detailTrigger = findButtonByText("내용 보기");
+    act(() => {
+      detailTrigger.click();
+    });
+    await tick();
+
+    act(() => {
+      findButtonByText("확인").click();
+    });
+    await tick();
+
+    expect(document.activeElement).toBe(detailTrigger);
+  });
+
+  it("AC-005: 체크박스가 aria-describedby로 설명 텍스트와 연결된다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const describedById = checkbox.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+    expect(document.getElementById(describedById as string)).not.toBeNull();
+  });
+
+  it("닫기(ESC)로 시트를 닫으면 onCancel이 호출된다", () => {
+    const onCancel = vi.fn();
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={onCancel} />);
+    });
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    expect(onCancel).toHaveBeenCalled();
+  });
+});
