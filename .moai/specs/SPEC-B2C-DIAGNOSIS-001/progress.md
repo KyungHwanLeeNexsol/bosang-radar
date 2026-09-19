@@ -11,6 +11,38 @@
 
 ## §E.2 Run-phase Evidence
 
+### M1~M9 — 기준선 확인부터 커버리지 보강까지 (manager-lead 통합 정리)
+
+#### Claim
+
+Milestone 1~9(plan.md §F)이 순차 위임으로 구현 완료되었다 — 공개 라우트/진단 shell(플래그 게이트, M2), 기본 진단 입력(M3), 필수 동의 Modal/Bottom Sheet(M4), 추가 질문(M5), 진단중/결과없음/오류 상태(M6), 모바일 반응형(M7), 접근성(M8), Vitest 커버리지 보강(M9). 커밋: `4de3d41`(M2) → `6bd0220`(M3) → `11d1350`(M4) → `869dcea`(M5) → `777226b`(M6+M7) → `791c926`(M8) → `5fe7eeb`(M9), 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`.
+
+#### Evidence
+
+- Vitest 전체 스위트: manager-lead가 이 세션에서 Node v22.23.2로 독립 재실행(`node node_modules/vitest/vitest.mjs run`) → `Test Files 52 passed (52)` / `Tests 361 passed (361)`. Node v20.19.6에서는 `undici`/`jsdom@30` 비호환(`webidl.util.markAsUncloneable is not a function`)으로 jsdom 환경 테스트 12개 파일이 로드 자체에 실패함을 직접 재현 확인 — SPEC 코드 결함이 아니라 워크트리 Node 버전 환경 문제(각 milestone leaf worker의 보고와 일치).
+- 프로덕션 빌드: manager-lead가 이 세션에서 Node v22.23.2로 독립 재실행(`node node_modules/next/dist/bin/next build`, 기본 env — 플래그 unset) → `/` 라우트 `○ (Static)` prerender, Suspense 경계 관련 오류·경고 없음(유일한 경고는 SPEC과 무관한 기존 `instrumentation.ts` Edge Runtime 경고).
+- 플래그 안전성 최종 grep(manager-lead 직접 실행): `grep -rn 'ENABLE_DIAGNOSIS_FLOW\|DIAGNOSIS_ENGINE_READY' app/ components/` → 전부 `=== "true"` 비교문 또는 주석뿐, 대입문 없음.
+- 범위 경계 최종 확인(manager-lead 직접 실행): `git diff --stat e66f2a9..f84672e -- . ':!app' ':!components' ':!lib/validation' ':!e2e' ':!.moai' ':!playwright.config.ts'` → 출력 없음(0 files) — `lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`은 run-phase 전체(M1~M10)에서 전혀 변경되지 않았다.
+- `app/page.tsx` 기본 출력 불변성: `git diff e66f2a9 -- app/page.tsx`에서 기존 placeholder(`서비스 준비 중입니다` 블록) 문구가 그대로 유지되고, 플래그 계산 + `shouldRenderDiagnosis` 분기만 앞에 추가되었음(M2 leaf worker 보고 + manager-lead grep 재확인).
+- M1 문서 touch-up(plan-auditor iteration 5 optional debt 3건, design.md:264/278, plan.md:64, design.md:126/303): leaf worker가 재검토한 결과 모두 이미 해당 qualifier가 존재하는 false alarm으로 확인 — no-op 처리(edit 없음).
+- 각 milestone의 RED→GREEN 캡처, 개별 `tsc --noEmit`/eslint clean 결과, MX 태그(`@MX:DEBT`/`@MX:CEILING`/`@MX:UPGRADE`, `step-loading.tsx`의 mock 판정 로직), mock 구분 마커(`step-result-none.tsx`/`step-error.tsx`의 "이 화면은 데모/검토용 목업입니다")는 각 커밋 메시지 및 이 세션의 위임 응답에 기록되어 있다.
+
+#### Baseline-attribution
+
+워크트리 `C:\Users\zuge3\Documents\workspace\bosang-radar\.claude\worktrees\spec-b2c-diagnosis-001`(브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`) 안에서, plan-audit PASS 대상 커밋 `700f9e7` 이후 문서 정리 커밋(`ae32313`, `7ce5531`, `e66f2a9`)을 base로 진행. manager-lead 자신의 재검증은 HEAD `f84672e`에 대해 직접 실행한 명령(위 Evidence에 병기)이며, milestone별 세부 명령·출력은 각 leaf worker 위임 응답에 귀속된다.
+
+#### Gaps
+
+- 커버리지 실수치 미측정 — 이 워크트리·OS(Windows) 조합에서 `@vitest/coverage-v8`가 0/0을 산출하는 환경 결함이 확인됨(M9 leaf worker가 4가지 실행 경로로 재현). 85% 목표 대비 코드 리뷰 수준의 대체 확인만 있고 도구 측정치는 없다.
+- 질문 3문항(M5) 실제 문구는 design export PNG 참고 placeholder — 담보 매칭 로직이 결정되는 후속 SPEC에서 교체될 수 있다.
+- 동의 상세 6개 문구는 여전히 법무 미확정 `{}` placeholder 그대로 남아있다 — 결함이 아니라 이 SPEC의 명시적 제약(plan.md §B, §D).
+
+#### Residual-risk
+
+- `productionReady`는 이 run-phase가 전달한 코드 범위 내내 구조적으로 항상 거짓이다 — `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점은 코드 어디에도 없다(의도된 설계, design.md §19). 실제 매칭 엔진 연결 시 `step-loading.tsx`의 mock 판정 로직 교체가 필요하다.
+- Base UI Dialog/Drawer의 requestAnimationFrame 지연 포커스 타이밍에 의존하는 M4 테스트는 향후 Base UI 업그레이드 시 조정이 필요할 수 있다.
+- reducer의 `CONSENT_CONFIRM` 미동의 방어 분기는 UI로 도달 불가능한 방어 코드로 커버리지 갭이 남아있으나 실질 위험은 낮다.
+
 ### M10 — Playwright e2e 및 시각 정합성·프로덕션 빌드 검증
 
 - 기존 Playwright 인프라 확인: `playwright.config.ts`(webServer가 `scripts/run-e2e.ts` 자식으로 `pnpm build && pnpm start` 자동 기동, `testDir: "./e2e"`) + `scripts/run-e2e.ts`(env 조립·DB 초기화·러너 spawn 오너) — 신규 의존성 추가 없이 기존 `@playwright/test` 재사용.
@@ -24,7 +56,11 @@
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- run_status: audit-ready
+- run_complete_at: 2026-09-19
+- 전체 10개 마일스톤(M1~M10) 완료, 최종 커밋 `f84672e`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push
+- 프로덕션 안전 불변식 재확인 완료(manager-lead 독립 재검증): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`) 전혀 미변경, Vitest 52/52 파일·361/361 테스트 통과, `next build` 기본 env에서 `/` Static prerender 성공
+- Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
