@@ -229,6 +229,150 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
   });
 });
 
+// SPEC-B2C-DIAGNOSIS-001 M9 — reducer 분기 커버리지 보강. 위 테스트들은 모두
+// questionIndex 0(첫 질문)에서의 QUESTIONS_PREV(→consent 전이)와
+// QUESTIONS_SKIP(→loading 전이)만 검증했다. 실제 "다음" 버튼을 통한
+// questionIndex 증가(QUESTIONS_NEXT의 non-terminal 분기)와, 증가된 인덱스에서
+// "이전"을 눌렀을 때의 questionIndex 감소(QUESTIONS_PREV의 non-zero 분기)는
+// 별도로 검증되지 않았다 — reducer.tsx의 두 분기 모두 실제 UI 조작으로
+// 도달 가능한 정상 경로이므로 이 갭을 닫는다. 또한 CONSENT_CANCEL(ESC로
+// 동의 오버레이 닫기)이 diagnosis-flow 통합 레벨에서 실제로 step을
+// "input"으로 되돌리고, 이후 재진입 시 consentGiven이 유지되는지도
+// (design.md §18.1 consent 상태 "뒤로 가기 동작") 통합 테스트가 없었다.
+describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보강 (M9)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function setInputValue(input: HTMLInputElement, value: string) {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function findButton(text: string): HTMLButtonElement {
+    const button = Array.from(document.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes(text)
+    );
+    if (!button) {
+      throw new Error(`button with text "${text}" not found`);
+    }
+    return button;
+  }
+
+  async function reachQuestionsStep() {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    act(() => {
+      setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
+    });
+    act(() => {
+      (container.querySelector("button") as HTMLButtonElement).click();
+    });
+    act(() => {
+      (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      findButton("동의하고 진단하기").click();
+    });
+  }
+
+  it("QUESTIONS_NEXT(비-마지막 질문)가 questionIndex를 1 증가시키고, 그 뒤 QUESTIONS_PREV(비-0 인덱스)가 다시 1 감소시킨다 — consent로 되돌아가지 않는다", async () => {
+    await reachQuestionsStep();
+
+    let progress = container.querySelector('[data-testid="diagnosis-question-progress"]');
+    expect(progress?.textContent).toContain("1 / 3");
+
+    // 질문 1 응답 후 "다음"(마지막 질문이 아니므로 QUESTIONS_NEXT는
+    // step을 바꾸지 않고 questionIndex만 증가시킨다).
+    act(() => {
+      (container.querySelector('input[type="radio"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      findButton("다음").click();
+    });
+
+    let flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("questions");
+    progress = container.querySelector('[data-testid="diagnosis-question-progress"]');
+    expect(progress?.textContent).toContain("2 / 3");
+
+    // questionIndex가 0이 아니므로 "이전"은 consent로 전이하지 않고
+    // questionIndex만 1 감소시킨다(QUESTIONS_PREV non-zero 분기).
+    act(() => {
+      findButton("이전").click();
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("questions");
+    progress = container.querySelector('[data-testid="diagnosis-question-progress"]');
+    expect(progress?.textContent).toContain("1 / 3");
+  });
+
+  it("CONSENT_CANCEL(ESC): 동의 오버레이를 닫으면 input 단계로 돌아가고, 재진입 시 동의 체크는 유지된다(design.md §18.1)", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    act(() => {
+      setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
+    });
+    act(() => {
+      (container.querySelector("button") as HTMLButtonElement).click();
+    });
+
+    let flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+
+    act(() => {
+      (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    });
+
+    // ESC → CONSENT_CANCEL → step이 input으로 되돌아간다(검색어는 보존).
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("input");
+    const inputAfterCancel = container.querySelector("input") as HTMLInputElement;
+    expect(inputAfterCancel.value).toBe("계단에서 넘어져 발목을 다쳤어요");
+
+    // 다시 제출해 consent로 재진입하면, 이전에 선택했던 동의 체크박스가
+    // 여전히 선택된 상태로 표시된다(consentGiven은 CONSENT_CANCEL로
+    // 초기화되지 않음 — REQ-B2CDIAG-019).
+    act(() => {
+      (container.querySelector("button") as HTMLButtonElement).click();
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+    const consentCheckboxAgain = document.querySelector(
+      'input[type="checkbox"]'
+    ) as HTMLInputElement;
+    expect(consentCheckboxAgain.checked).toBe(true);
+  });
+});
+
 // SPEC-B2C-DIAGNOSIS-001 M6 (design.md §11/§12/§18.1; acceptance.md
 // AC-B2CDIAG-011/012) — loading의 mock 판정 완료 → error/result-none 전이,
 // "다시 시도"의 동일 입력값 재진입, "돌아가기" 계열의 검색어 보존을
