@@ -133,7 +133,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 ## 12. 오류 및 재시도 처리
 
 - 01-E는 "일시적 오류"를 전제로 문구가 작성되어 있다(`일시적인 오류일 수 있습니다`) — "다시 시도"는 동일 입력값으로 §0의 상태 머신을 `loading`으로 재진입시키고, "입력 내용으로 돌아가기"는 `input` 상태로 되돌아가되 검색어는 보존한다(REQ-B2CDIAG-014).
-- mock 구현 단계에서 "오류" 분기는 실제 네트워크 오류가 없으므로 강제 트리거용 개발 파라미터(§10)로만 재현 가능하다.
+- 이 단계의 "오류"는 실제 네트워크 오류가 아니라 테스트용 시뮬레이션이다. 비프로덕션 리뷰 환경(`reviewEnabled=true`)에서는 정상 사용자 플로우의 mock 오류 판정 또는 `devStep=error`(§10) 직접 진입으로 재현할 수 있다. 프로덕션 기본 조합(`productionReady=false`, `reviewEnabled=false`)에서는 `DiagnosisFlow`가 렌더링되지 않아 오류 상태에 도달할 수 없으며, 향후 `productionReady=true`인 프로덕션에서는 mock이 아니라 실제 매칭 엔진의 오류 응답으로 진입한다(§19).
 
 ## 13. Desktop 1440 / Mobile 390 반응형 전략 (확정)
 
