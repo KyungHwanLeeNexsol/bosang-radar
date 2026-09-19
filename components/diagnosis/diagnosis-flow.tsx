@@ -5,7 +5,12 @@ import { useSearchParams } from "next/navigation";
 
 import { StepInput } from "./step-input";
 import { StepConsentModal } from "./step-consent-modal";
+import { StepConsentSheet } from "./step-consent-sheet";
 import { StepQuestions } from "./step-questions";
+import { StepLoading } from "./step-loading";
+import { StepResultNone } from "./step-result-none";
+import { StepError } from "./step-error";
+import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
 
 // SPEC-B2C-DIAGNOSIS-001 M2 (design.md §0, §2, §5, §10) — 01/01-A2/01-B/01-C/
 // 01-D/01-E 6단계 상태 머신의 오너. useSearchParams()를 호출하므로 이
@@ -17,6 +22,19 @@ import { StepQuestions } from "./step-questions";
 // 이 reducer 한 곳에만 존재한다(design.md §5 Enforce Simplicity) — consent
 // 상태를 questions와 오가도 동의 체크·응답이 유지되는 이유(REQ-B2CDIAG-019,
 // AC-B2CDIAG-017/018)가 바로 이 단일 상태 소유 구조다.
+//
+// M6 (design.md §11, §12, §18.1 loading/result-none/error 상태) — loading의
+// mock 판정 완료, "다시 시도", "내용을 수정할게요", "입력 내용으로
+// 돌아가기"는 모두 기존 FORCE_STEP 액션을 재사용한다 — 넷 다 "step만 바꾸고
+// 나머지 상태는 그대로 둔다"는 동일한 의미이므로 새 액션을 추가하지 않는다
+// (Enforce Simplicity). 이 재사용 덕분에 "다시 시도"가 동일 입력값을
+// 자동으로 보존하고(REQ-B2CDIAG-014), "돌아가기" 계열이 검색어·동의·응답을
+// 그대로 보존한다(design.md §18.1 result-none/error 상태 "유지되는 데이터"
+// 행).
+//
+// M7 (design.md §13, §18.2) — consent 오버레이는 useMediaQuery(768px)로
+// Desktop Modal/Mobile Bottom Sheet 중 하나를 렌더링한다. 상태 머신과
+// 데이터는 두 폭에서 완전히 동일하며, 오버레이 컴포넌트 선택만 분기한다.
 
 export type DiagnosisStep = "input" | "consent" | "questions" | "loading" | "result-none" | "error";
 
@@ -113,6 +131,7 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
   const searchParams = useSearchParams();
   const [state, dispatch] = React.useReducer(reducer, initialState);
   const appliedDevStepRef = React.useRef(false);
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
 
   React.useEffect(() => {
     // AC-B2CDIAG-016 — enableDevStates=false(프로덕션 기본값)면 ?devStep=은
@@ -147,16 +166,24 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           onValidSubmit={() => dispatch({ type: "SUBMIT_INPUT" })}
         />
       ) : state.step === "consent" ? (
-        // TODO(M7): 768px 분기 전환 — Mobile 뷰포트에서는 StepConsentSheet
-        // (M01-A2 Bottom Sheet)를 렌더링해야 한다. 이 마일스톤(M4)에서는
-        // Desktop Modal만 배선한다(plan.md M4 범위, M7이 반응형 브레이크포인트
-        // 전환을 담당). StepConsentSheet는 독립적으로 구현·테스트되어 있다.
-        <StepConsentModal
-          consentGiven={state.consentGiven}
-          onConsentChange={(checked) => dispatch({ type: "SET_CONSENT", payload: checked })}
-          onConfirm={() => dispatch({ type: "CONSENT_CONFIRM" })}
-          onCancel={() => dispatch({ type: "CONSENT_CANCEL" })}
-        />
+        // M7 (design.md §13) — 0~767px Mobile은 Bottom Sheet, 768px 이상
+        // Desktop은 Modal. 두 컴포넌트는 동일한 controlled 계약을 공유한다
+        // (design.md §18.2 "Desktop·Mobile 반응형 전환").
+        isDesktop ? (
+          <StepConsentModal
+            consentGiven={state.consentGiven}
+            onConsentChange={(checked) => dispatch({ type: "SET_CONSENT", payload: checked })}
+            onConfirm={() => dispatch({ type: "CONSENT_CONFIRM" })}
+            onCancel={() => dispatch({ type: "CONSENT_CANCEL" })}
+          />
+        ) : (
+          <StepConsentSheet
+            consentGiven={state.consentGiven}
+            onConsentChange={(checked) => dispatch({ type: "SET_CONSENT", payload: checked })}
+            onConfirm={() => dispatch({ type: "CONSENT_CONFIRM" })}
+            onCancel={() => dispatch({ type: "CONSENT_CANCEL" })}
+          />
+        )
       ) : state.step === "questions" ? (
         <StepQuestions
           questionIndex={state.questionIndex}
@@ -168,11 +195,18 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           onPrev={() => dispatch({ type: "QUESTIONS_PREV" })}
           onSkip={() => dispatch({ type: "QUESTIONS_SKIP" })}
         />
+      ) : state.step === "loading" ? (
+        <StepLoading
+          input={state.input}
+          onDone={(step) => dispatch({ type: "FORCE_STEP", payload: step })}
+        />
+      ) : state.step === "result-none" ? (
+        <StepResultNone onEditInput={() => dispatch({ type: "FORCE_STEP", payload: "input" })} />
       ) : (
-        // M6 이후 마일스톤이 나머지 단계(loading/result-none/error)의 실제
-        // UI를 구현한다. 이 SPEC의 M4/M5 범위에서는 devStep 강제 진입·reducer
-        // 전이 자체가 정상 동작함만 검증하면 되므로 placeholder로 둔다.
-        <div data-testid={`diagnosis-step-${state.step}`} />
+        <StepError
+          onRetry={() => dispatch({ type: "FORCE_STEP", payload: "loading" })}
+          onBackToInput={() => dispatch({ type: "FORCE_STEP", payload: "input" })}
+        />
       )}
     </div>
   );

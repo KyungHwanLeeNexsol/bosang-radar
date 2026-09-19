@@ -23,10 +23,8 @@ import { ConsentDetailContent } from "./consent-detail-content";
 // 오버레이 닫힘 시 트리거로의 포커스 복귀는 Base UI Drawer의 기본 동작에
 // 의존한다(REQ-B2CDIAG-008, Enforce Simplicity).
 //
-// TODO(M7): 768px 분기 전환 — diagnosis-flow.tsx가 뷰포트 폭에 따라 이
-// 컴포넌트와 StepConsentModal 중 하나를 렌더링하도록 배선해야 한다. 이
-// 마일스톤에서는 독립적으로 구현·테스트만 하고 배선하지 않는다(plan.md M4
-// 범위, M7이 반응형 브레이크포인트 전환을 담당).
+// M7 — diagnosis-flow.tsx가 useMediaQuery(768px)로 이 컴포넌트와
+// StepConsentModal 중 하나를 렌더링하도록 배선한다(design.md §13).
 
 const CONSENT_DESCRIPTION_ID = "diagnosis-consent-sheet-description";
 const CONSENT_CHECKBOX_ID = "diagnosis-consent-sheet-checkbox";
