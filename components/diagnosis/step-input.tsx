@@ -19,12 +19,7 @@ const MAX_LENGTH = 200;
 const SEARCH_ERROR_ID = "diagnosis-search-error";
 
 // design.md §3 — "많이 찾는 사례" 칩 예시 목록.
-const FREQUENT_CASES = [
-  "교통사고",
-  "계단에서 낙상",
-  "실손 진단서 반려",
-  "후유장해 등급",
-] as const;
+const FREQUENT_CASES = ["교통사고", "계단에서 낙상", "실손 진단서 반려", "후유장해 등급"] as const;
 
 interface StepInputProps {
   value: string;
@@ -34,6 +29,14 @@ interface StepInputProps {
 
 export function StepInput({ value, onChange, onValidSubmit }: StepInputProps) {
   const [error, setError] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    // M8 (design.md §18.1 input 상태 "접근성 요구사항" — 검색창에 초기
+    // 포커스) — 키보드 전용 플로우의 시작점이 마운트 직후 검색창이 되도록
+    // 명시적으로 포커스를 이동한다.
+    inputRef.current?.focus();
+  }, []);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     // AC-B2CDIAG-022 — 네이티브 maxLength는 사용자 타이핑에만 적용되고
@@ -71,6 +74,7 @@ export function StepInput({ value, onChange, onValidSubmit }: StepInputProps) {
 
       <div className="flex flex-col gap-1.5">
         <Input
+          ref={inputRef}
           value={value}
           onChange={handleChange}
           maxLength={MAX_LENGTH}

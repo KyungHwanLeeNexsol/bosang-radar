@@ -12,13 +12,7 @@ import { StepConsentSheet } from "./step-consent-sheet";
 // §5) — 이 마일스톤에서는 diagnosis-flow.tsx에 배선하지 않고(TODO(M7):
 // 768px 분기 전환) 독립적으로만 검증한다.
 
-function Harness({
-  onConfirm,
-  onCancel,
-}: {
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
+function Harness({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [consentGiven, setConsentGiven] = React.useState(false);
   return (
     <StepConsentSheet
@@ -148,5 +142,18 @@ describe("components/diagnosis/StepConsentSheet — AC-B2CDIAG-001~006", () => {
     });
 
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it("M8 포커스 트랩 회귀 테스트: Base UI Drawer가 포커스 가드 경계(data-base-ui-focus-guard)를 렌더링해 Tab 순환이 시트 밖으로 벗어나지 않게 한다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    // Base UI(floating-ui-react FloatingFocusManager)는 모달 오버레이가
+    // 열려 있는 동안 popup 앞뒤에 숨김 포커스 가드 sentinel을 렌더링해
+    // Tab/Shift+Tab이 popup 내부에서만 순환하도록 만든다. 이 sentinel의
+    // 존재 자체가 포커스 트랩이 활성화되어 있다는 증거다.
+    const focusGuards = document.querySelectorAll("[data-base-ui-focus-guard]");
+    expect(focusGuards.length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -119,4 +119,13 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
     expect(onValidSubmit).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
+
+  it("M8: 마운트 시 검색창에 초기 포커스가 위치한다(키보드 전용 플로우의 시작점)", () => {
+    act(() => {
+      root.render(<Harness onValidSubmit={vi.fn()} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+  });
 });
