@@ -11,7 +11,16 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### M10 — Playwright e2e 및 시각 정합성·프로덕션 빌드 검증
+
+- 기존 Playwright 인프라 확인: `playwright.config.ts`(webServer가 `scripts/run-e2e.ts` 자식으로 `pnpm build && pnpm start` 자동 기동, `testDir: "./e2e"`) + `scripts/run-e2e.ts`(env 조립·DB 초기화·러너 spawn 오너) — 신규 의존성 추가 없이 기존 `@playwright/test` 재사용.
+- `playwright.config.ts` `webServer.env`에 `ENABLE_DIAGNOSIS_DEV_STATES: "true"`만 추가(design.md §19.1a 5행 행렬의 다섯 번째 행). `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`는 건드리지 않음(기본값 `false` 유지) — 4개 시크릿 키(`BETTER_AUTH_SECRET`/`TESTER_PASSWORD`/`TURSO_DATABASE_URL`/`BETTER_AUTH_URL`) 재선언 금지 제약(`scripts/playwright-config-static.test.ts`)과 무충돌 확인.
+- 신설 `e2e/diagnosis-flow-01.spec.ts`(6 테스트, 01 화면 범위 한정): Desktop(1440x900) happy path, Mobile(390x844) happy path(Bottom Sheet 확인), `?devStep=result-none`/`?devStep=error` 직접 진입(AC-B2CDIAG-015), 새로고침 상태 초기화(AC-B2CDIAG-013), 오류 재시도 입력값 보존(AC-B2CDIAG-012). 전체 6/6 PASS(`pnpm test:e2e -- --spec=diagnosis-flow-01`, 5.0m, 실제 Chromium 실행 — 환경 차단 없음).
+- AC-B2CDIAG-021(production 기본 조합에서 devStep 무시)은 이 webServer 하나로 검증 불가(webServer.env는 프로세스 시작 시 고정) — `app/page.test.tsx`의 "플래그 기반 shouldRenderDiagnosis 5행 동작 행렬" Vitest describe 블록이 이미 AC-015/016/021을 포함한 5행 전체를 기계적으로 검증하므로 별도 Playwright 프로젝트를 신설하지 않고 그 커버리지를 그대로 인정함(diagnosis-flow-01.spec.ts 상단 주석에 근거 기록).
+- 시각 정합성 수동 비교(design.md §16 절차): 임시 스펙(`e2e/_visual-capture.spec.ts`, 캡처 후 삭제)으로 6개 상태 × 2폭(1440/390) 스크린샷 12장을 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/`에 캡처. 비교 결과는 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`에 기록 — 레이아웃 폭·텍스트는 전 화면 일치, **Primary 색상 토큰이 `app/globals.css`의 무채색(`oklch(0.205 0 0)`) 값으로 디자인의 보라 계열과 다르게 렌더링됨을 발견**(레이아웃/상태 전이에는 영향 없음, M2-M9 산출물의 기존 상태 — 이번 M10에서 임의 수정하지 않고 잔여 위험으로만 기록).
+- 프로덕션 빌드 검증(Quality Gate 기준): `next build`를 기본 env(플래그 미설정, `/` → `○ Static`)와 `ENABLE_DIAGNOSIS_DEV_STATES=true`(`/` → `○ Static`, DiagnosisFlow 포함) 두 조합으로 각각 실행 — 둘 다 Suspense 경계 관련 오류·경고 0건(사전 존재하던 `instrumentation.ts` Edge Runtime 무관 경고 1건만 공통 출력, M10 변경과 무관).
+- Vitest 전체 스위트 재확인: `pnpm test` → 52 files / 361 tests 전부 PASS(회귀 없음).
+- 변경 범위: `playwright.config.ts`(webServer.env 1줄 추가 + 주석), `e2e/diagnosis-flow-01.spec.ts`(신규), `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/**`(신규). `app/`/`components/`/`lib/validation/`은 이 마일스톤에서 손대지 않음(plan.md §D ① 범위 밖 — e2e는 ② 범위).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
