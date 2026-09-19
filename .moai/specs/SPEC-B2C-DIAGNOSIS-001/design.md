@@ -123,7 +123,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 **production 활성화 원칙 (REQ-B2CDIAG-025) — 반드시 준수:**
 
 1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 자동 분기 로직은 **로컬/테스트/리뷰 전용 시뮬레이션**이며 프로덕션 동작이 아니다.
-2. **01-D/01-E는 프로덕션에서 오직 `devStep` 강제 진입 파라미터(§10)를 통해서만 도달 가능**하며, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된다 — 정상적인 `loading`→자동 분기 경로를 통해서는, `productionReady`와 `reviewEnabled`가 모두 거짓인 프로덕션 기본 조합에서는 도달하지 않는다. 단, `ENABLE_DIAGNOSIS_DEV_STATES`가 프로덕션에서 `true`로 설정되면(`reviewEnabled`=참) 이 경로도 정상 사용자 플로우로 도달 가능해지므로, 이 차단은 코드 구조가 아니라 해당 플래그를 프로덕션에서 unset/false로 유지하는 배포 설정 규율에 의존한다(§19 참고).
+2. **01-D/01-E 도달 경로는 환경에 따라 세 갈래로 나뉜다.** 프로덕션 기본 조합(`productionReady=false`, `reviewEnabled=false`)에서는 `DiagnosisFlow` 자체가 렌더링되지 않으므로(§19) 01-D/01-E에 도달할 수 없다. 비프로덕션 리뷰 환경(`reviewEnabled=true`, 즉 `ENABLE_DIAGNOSIS_DEV_STATES=true`)에서는 `devStep` 강제 진입 파라미터(§10)로 직접 진입할 수 있을 뿐 아니라, 정상 입력→동의→추가 질문→`loading`→mock 판정의 정상 사용자 플로우를 통해서도 도달 가능하다. 향후 실제 매칭 엔진이 연결되어 `productionReady=true`가 되면, mock이 아닌 실제 엔진의 결과 없음/오류 응답을 통해 01-D/01-E에 도달한다(§19 참고).
 3. **production 활성화 게이트는 두 개의 독립 경로 — `productionReady`와 `reviewEnabled` — 의 논리합(OR)으로 결정된다.** 상세 메커니즘, 각 경로의 정의, 그리고 5행 동작 행렬은 §19를 참고한다 — 요약하면 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`(둘 다 신설, 기본값 `false`)이고 `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES`(§10, 기본값 `false`)이며, `app/page.tsx`는 `shouldRenderDiagnosis = productionReady || reviewEnabled`를 **한 곳에서만** 계산한다. 실제 담보 매칭 엔진 연결은 이 SPEC의 Out of Scope이므로, `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점이 이 SPEC의 코드에는 없다 — 따라서 `productionReady`는 이 SPEC 범위 내내 구조적으로 항상 거짓이며, mock 노출이 발생할 수 있는 유일한 경로는 `reviewEnabled`(비프로덕션 전용)뿐이다.
 4. **"코드 구현 완료"와 "프로덕션에서 활성화해도 안전함"은 서로 다른 상태다.** 이 SPEC의 run-phase는 `ENABLE_DIAGNOSIS_FLOW=false`(및 `DIAGNOSIS_ENGINE_READY=false`)인 채로 01 화면 UI 구현 전체를 완료할 수 있다 — 이는 예상된, 정상적인 결과이며 실패가 아니다.
 5. `ENABLE_DIAGNOSIS_FLOW`와 `DIAGNOSIS_ENGINE_READY`가 각각 `true`로 전환되려면 서로 독립된 전제조건이 충족되어야 한다 — 하나의 전환이 다른 하나를 함의하지 않는다: (a) `DIAGNOSIS_ENGINE_READY → true`의 전제조건은 실제 매칭 엔진이 연결되어 `loading`→결과 경로가 mock이 아닌 실제 분석을 반영하는 상태(이 SPEC의 Out of Scope — 후속 SPEC의 몫), (b) `ENABLE_DIAGNOSIS_FLOW → true`의 전제조건은 §17의 동의 상세 문구 확정(6개 placeholder 항목 전체가 실제 확정 문구로 교체)이 완료된 상태다(§19 참고). 두 플래그가 모두 `true`여야만 `<DiagnosisFlow />`가 실제로 프로덕션에 렌더링된다.
@@ -261,7 +261,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 
 | 속성 | 내용 |
 |---|---|
-| 진입 조건 | `loading`에서 mock 판정 결과 0건. **프로덕션 실제 사용자는 정상 플로우로 이 상태에 도달하지 않는다** — `productionReady=false`인 프로덕션 기본 조합에서는 도달 불가(§19), 개발·리뷰 목적으로는 `devStep=result-none`(§10, `reviewEnabled=true` 즉 `ENABLE_DIAGNOSIS_DEV_STATES=true` 필요)으로만 강제 진입 |
+| 진입 조건 | 세 갈래로 도달한다 — ① 비프로덕션 리뷰 환경(`reviewEnabled=true`)에서 `loading`의 mock 판정 결과 0건, ② `devStep=result-none`(§10, `reviewEnabled=true` 필요)으로 직접 진입, ③ 향후 실제 매칭 엔진 연결 후(`productionReady=true`) 실제 엔진의 결과 0건 응답. 프로덕션 기본 조합(`productionReady=false`, `reviewEnabled=false`)에서는 `DiagnosisFlow` 자체가 렌더링되지 않으므로 도달 불가(§19) |
 | 사용자 행동 | "내용을 수정할게요"(→ `input`) 또는 "손해사정사에게 바로 문의"(03 경계, 이 SPEC에서는 stub) |
 | 검증 조건 | 없음 |
 | 다음 상태 | "내용을 수정할게요" → `input`(검색어 보존) |
@@ -275,7 +275,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 
 | 속성 | 내용 |
 |---|---|
-| 진입 조건 | `loading`에서 mock 판정 결과 오류. **프로덕션 실제 사용자는 정상 플로우로 이 상태에 도달하지 않는다** — `productionReady=false`인 프로덕션 기본 조합에서는 도달 불가(§19), 개발·리뷰 목적으로는 `devStep=error`(§10, `reviewEnabled=true` 즉 `ENABLE_DIAGNOSIS_DEV_STATES=true` 필요)으로만 강제 진입 |
+| 진입 조건 | 세 갈래로 도달한다 — ① 비프로덕션 리뷰 환경(`reviewEnabled=true`)에서 `loading`의 mock 오류 판정, ② `devStep=error`(§10, `reviewEnabled=true` 필요)로 직접 진입, ③ 향후 실제 매칭 엔진 연결 후(`productionReady=true`) 실제 엔진 오류 응답. 프로덕션 기본 조합(`productionReady=false`, `reviewEnabled=false`)에서는 `DiagnosisFlow` 자체가 렌더링되지 않으므로 도달 불가(§19) |
 | 사용자 행동 | "다시 시도"(→ `loading` 재진입) 또는 "입력 내용으로 돌아가기"(→ `input`) |
 | 검증 조건 | 없음 |
 | 다음 상태 | REQ-B2CDIAG-014 참고 |
@@ -300,7 +300,7 @@ REQ-B2CDIAG-017: `?devStep=consent-detail|loading|result-none|error` 쿼리 파�
 ### 19.1 원칙
 
 1. **실제 매칭 엔진이 연결되기 전, 프로덕션은 실제 사용자에게 mock 진단 결과를 자동 노출해서는 안 된다.** `loading` 상태의 고정 지연/키워드 기반 mock 자동 분기 로직(§11)은 **로컬/테스트/리뷰 전용 시뮬레이션**이며, 프로덕션 동작이 아니다. 01-D("현재 입력만으로는 보상 가능성을 판단하기 어렵습니다")는 사용자 입장에서 실제 "결과 없음" 응답과 구분되지 않으므로, 실제 사용자를 대상으로 하는 자동 mock 분기 목표가 될 수 없다.
-2. **01-D/01-E는 오직 `devStep` 강제 진입 파라미터(§10)로만, `ENABLE_DIAGNOSIS_DEV_STATES` 플래그(§10)로 게이트된 상태에서만 도달 가능**하다 — 정상적인 `loading`→자동 분기 경로를 통해, `productionReady`와 `reviewEnabled`가 모두 거짓인 프로덕션 기본 조합에서는 도달하지 않는다. `ENABLE_DIAGNOSIS_DEV_STATES`가 프로덕션에서 `true`로 설정되면(`reviewEnabled`=참) 이 경로도 정상 사용자 플로우로 도달 가능해지므로, 이 차단은 코드 구조가 아니라 해당 플래그를 프로덕션에서 unset/false로 유지하는 배포 설정 규율에 의존한다.
+2. **01-D/01-E 도달 경로는 환경에 따라 세 갈래로 나뉜다.** 프로덕션 기본 조합(`productionReady=false`, `reviewEnabled=false`)에서는 `<DiagnosisFlow />` 자체가 렌더링되지 않으므로(본 절 원칙 3) 01-D/01-E에 도달할 수 없다. 비프로덕션 리뷰 환경(`reviewEnabled=true`, 즉 `ENABLE_DIAGNOSIS_DEV_STATES=true`)에서는 `devStep` 강제 진입 파라미터(§10)로 직접 진입할 수 있을 뿐 아니라, 정상 입력→동의→추가 질문→`loading`→mock 판정의 정상 사용자 플로우를 통해서도 도달 가능하다. 향후 실제 매칭 엔진이 연결되어 `productionReady=true`가 되면, mock이 아닌 실제 엔진의 결과 없음/오류 응답을 통해 01-D/01-E에 도달한다.
 3. **렌더링 여부는 두 개의 독립 경로 — `productionReady`와 `reviewEnabled` — 를 논리합(OR)으로 합성해 결정한다.**
    - `productionReady = ENABLE_DIAGNOSIS_FLOW === true && DIAGNOSIS_ENGINE_READY === true`(기존 AND 게이트 — 두 플래그 모두 신설, 기본값 `false`).
    - `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES === true`(§10의 개발·리뷰 전용 플래그, 기본값 `false`).

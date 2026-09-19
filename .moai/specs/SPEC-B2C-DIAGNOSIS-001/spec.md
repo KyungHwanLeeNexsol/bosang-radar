@@ -31,7 +31,7 @@ related_specs: [SPEC-B2C-FOUNDATION-001]
 
 `design/MIGRATION-PLAN.md`가 정의한 B2C 3단계 퍼널 중 사용자가 가장 먼저 만나는 진입점이 01 흐름이다. 회원가입 없이 사고·질병 경위를 한 줄로 입력하면, 건강정보 등 민감정보 처리 동의를 받은 뒤 몇 가지 추가 질문으로 정확도를 높이고, 분석이 끝나면 (미구현 상태인) 02 보상 진단 결과 화면으로 이어진다. 이 흐름은 로그인 없는 완전 공개 플로우이므로, 회원가입/PII 수집을 요구하는 순간 이탈이 발생한다 — `product.md`의 "이것도 되고 저것도 되고, 이만큼이나 나온다"는 핵심 메시지에 도달하기 전에 사용자를 잃지 않는 것이 이 SPEC의 존재 이유다.
 
-SPEC-B2C-FOUNDATION-001은 `app/page.tsx`를 "서비스 준비 중입니다" placeholder로 남겨 두었다(PR #16 배포·검증 완료, `f7bdae7`). 이 SPEC의 후속 run-phase가 그 placeholder를 실제 01 화면으로 교체하는 첫 SPEC이 된다.
+SPEC-B2C-FOUNDATION-001은 `app/page.tsx`를 "서비스 준비 중입니다" placeholder로 남겨 두었다(PR #16 배포·검증 완료, `f7bdae7`). 이 SPEC의 후속 run-phase는 01 화면 UI 코드를 feature gate(`ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`) 뒤에 추가하는 단계이며, run-phase 완료 자체가 프로덕션 placeholder 교체를 의미하지 않는다. 프로덕션 placeholder가 실제로 교체되는 시점은 다음 조건을 모두 충족한 뒤다 — (1) 동의 상세 6개 문구 확정, (2) `ENABLE_DIAGNOSIS_FLOW=true`, (3) 실제 매칭 엔진 연결 완료, (4) `DIAGNOSIS_ENGINE_READY=true`.
 
 ## 2. 범위 (Scope)
 
