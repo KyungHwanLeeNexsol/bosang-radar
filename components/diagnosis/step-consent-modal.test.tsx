@@ -16,17 +16,22 @@ import { StepConsentModal } from "./step-consent-modal";
 function Harness({
   onConfirm,
   onCancel,
+  initialDetailOpen = false,
 }: {
   onConfirm: () => void;
   onCancel: () => void;
+  initialDetailOpen?: boolean;
 }) {
   const [consentGiven, setConsentGiven] = React.useState(false);
+  const [detailOpen, setDetailOpen] = React.useState(initialDetailOpen);
   return (
     <StepConsentModal
       consentGiven={consentGiven}
       onConsentChange={setConsentGiven}
       onConfirm={onConfirm}
       onCancel={onCancel}
+      detailOpen={detailOpen}
+      onDetailOpenChange={setDetailOpen}
     />
   );
 }
@@ -168,5 +173,35 @@ describe("components/diagnosis/StepConsentModal — AC-B2CDIAG-001~006", () => {
     });
 
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  // SPEC-B2C-DIAGNOSIS-001 M-fix-2 (design/exports/01-A2) — 캡처에 있는
+  // 우측 상단 닫기(X) 버튼이 실제로 렌더링되고, onCancel로 라우팅된다.
+  it("M-fix-2: 우측 상단 닫기(X) 버튼을 클릭하면 onCancel이 호출된다", () => {
+    const onCancel = vi.fn();
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={onCancel} />);
+    });
+
+    const closeButton = document.querySelector('button[aria-label="닫기"]') as HTMLButtonElement;
+    expect(closeButton).not.toBeNull();
+
+    act(() => {
+      closeButton.click();
+    });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  // SPEC-B2C-DIAGNOSIS-001 M-fix-5 — detailOpen이 부모(diagnosis-flow.tsx)로
+  // controlled prop으로 끌어올려졌으므로, 초기값 true로 렌더링하면 상세
+  // 오버레이가 마운트 즉시 열려 있어야 한다(?devStep=consent-detail 강제
+  // 진입의 전제 조건).
+  it("M-fix-5: detailOpen=true로 렌더링하면 상세 오버레이가 즉시 열려 있다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} initialDetailOpen />);
+    });
+
+    expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
   });
 });

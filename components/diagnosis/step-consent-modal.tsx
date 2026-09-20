@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -21,6 +22,16 @@ import { ConsentDetailContent } from "./consent-detail-content";
 // 동작하며 자체 동의 상태를 갖지 않는다. 포커스 트랩·ESC/배경클릭 닫기·
 // 상세 오버레이 닫힘 시 트리거로의 포커스 복귀는 모두 Base UI Dialog의
 // 기본 동작에 의존한다(REQ-B2CDIAG-008, Enforce Simplicity).
+//
+// M-fix-2 — detailOpen은 더 이상 이 컴포넌트가 내부 useState로 소유하지
+// 않는다. ?devStep=consent-detail(dev 전용)이 상세 오버레이를 강제로 열어야
+// 하는데, 그 트리거는 diagnosis-flow.tsx에만 존재하므로 상태를 부모로
+// 끌어올려(lift) controlled로 전달받는다(design.md §5 단일 상태 소유 원칙과
+// 동일한 이유).
+//
+// M-fix-2 — design/exports/01-A2 캡처에는 우측 상단에 닫기(X) 버튼이
+// 있으나 기존 구현에는 없었다. DialogClose는 클릭 시 동일한 onOpenChange
+// 콜백을 통해 onCancel로 라우팅되므로 별도 핸들러를 추가하지 않는다.
 
 const CONSENT_DESCRIPTION_ID = "diagnosis-consent-description";
 const CONSENT_CHECKBOX_ID = "diagnosis-consent-checkbox";
@@ -30,6 +41,8 @@ interface StepConsentModalProps {
   onConsentChange: (checked: boolean) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  detailOpen: boolean;
+  onDetailOpenChange: (open: boolean) => void;
 }
 
 export function StepConsentModal({
@@ -37,8 +50,9 @@ export function StepConsentModal({
   onConsentChange,
   onConfirm,
   onCancel,
+  detailOpen,
+  onDetailOpenChange,
 }: StepConsentModalProps) {
-  const [detailOpen, setDetailOpen] = React.useState(false);
   const detailTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   return (
@@ -53,6 +67,13 @@ export function StepConsentModal({
       }}
     >
       <DialogContent>
+        <DialogClose
+          aria-label="닫기"
+          className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </DialogClose>
+
         <DialogTitle>건강정보 처리에 동의해 주세요</DialogTitle>
         <DialogDescription id={CONSENT_DESCRIPTION_ID}>
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
@@ -76,7 +97,7 @@ export function StepConsentModal({
             </span>
           </label>
 
-          <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <Dialog open={detailOpen} onOpenChange={onDetailOpenChange}>
             <DialogTrigger
               ref={detailTriggerRef}
               className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
@@ -98,7 +119,7 @@ export function StepConsentModal({
           </Dialog>
         </div>
 
-        <Button type="button" disabled={!consentGiven} onClick={onConfirm}>
+        <Button type="button" variant="diagnosis" disabled={!consentGiven} onClick={onConfirm}>
           동의하고 진단하기
         </Button>
 

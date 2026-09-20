@@ -12,14 +12,25 @@ import { StepConsentSheet } from "./step-consent-sheet";
 // §5) — 이 마일스톤에서는 diagnosis-flow.tsx에 배선하지 않고(TODO(M7):
 // 768px 분기 전환) 독립적으로만 검증한다.
 
-function Harness({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+function Harness({
+  onConfirm,
+  onCancel,
+  initialDetailOpen = false,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  initialDetailOpen?: boolean;
+}) {
   const [consentGiven, setConsentGiven] = React.useState(false);
+  const [detailOpen, setDetailOpen] = React.useState(initialDetailOpen);
   return (
     <StepConsentSheet
       consentGiven={consentGiven}
       onConsentChange={setConsentGiven}
       onConfirm={onConfirm}
       onCancel={onCancel}
+      detailOpen={detailOpen}
+      onDetailOpenChange={setDetailOpen}
     />
   );
 }
@@ -155,5 +166,35 @@ describe("components/diagnosis/StepConsentSheet — AC-B2CDIAG-001~006", () => {
     // 존재 자체가 포커스 트랩이 활성화되어 있다는 증거다.
     const focusGuards = document.querySelectorAll("[data-base-ui-focus-guard]");
     expect(focusGuards.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // SPEC-B2C-DIAGNOSIS-001 M-fix-2 (design/exports/M01-A2) — 캡처에 있는
+  // 우측 상단 닫기(X) 버튼이 실제로 렌더링되고, onCancel로 라우팅된다.
+  it("M-fix-2: 우측 상단 닫기(X) 버튼을 클릭하면 onCancel이 호출된다", () => {
+    const onCancel = vi.fn();
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={onCancel} />);
+    });
+
+    const closeButton = document.querySelector('button[aria-label="닫기"]') as HTMLButtonElement;
+    expect(closeButton).not.toBeNull();
+
+    act(() => {
+      closeButton.click();
+    });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  // SPEC-B2C-DIAGNOSIS-001 M-fix-5 — detailOpen을 부모로 끌어올린
+  // controlled prop이므로, 초기값 true로 렌더링하면 상세 오버레이가 마운트
+  // 즉시 열려 있어야 한다(?devStep=consent-detail Mobile 강제 진입의 전제
+  // 조건).
+  it("M-fix-5: detailOpen=true로 렌더링하면 상세 오버레이가 즉시 열려 있다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} initialDetailOpen />);
+    });
+
+    expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
   });
 });

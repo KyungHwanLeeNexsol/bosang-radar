@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -25,6 +26,9 @@ import { ConsentDetailContent } from "./consent-detail-content";
 //
 // M7 — diagnosis-flow.tsx가 useMediaQuery(768px)로 이 컴포넌트와
 // StepConsentModal 중 하나를 렌더링하도록 배선한다(design.md §13).
+//
+// M-fix-2 — detailOpen을 부모로 끌어올린 이유와 닫기(X) 버튼 추가 이유는
+// step-consent-modal.tsx 상단 주석과 동일하다(design/exports/M01-A2).
 
 const CONSENT_DESCRIPTION_ID = "diagnosis-consent-sheet-description";
 const CONSENT_CHECKBOX_ID = "diagnosis-consent-sheet-checkbox";
@@ -34,6 +38,8 @@ interface StepConsentSheetProps {
   onConsentChange: (checked: boolean) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  detailOpen: boolean;
+  onDetailOpenChange: (open: boolean) => void;
 }
 
 export function StepConsentSheet({
@@ -41,8 +47,9 @@ export function StepConsentSheet({
   onConsentChange,
   onConfirm,
   onCancel,
+  detailOpen,
+  onDetailOpenChange,
 }: StepConsentSheetProps) {
-  const [detailOpen, setDetailOpen] = React.useState(false);
   const detailTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   return (
@@ -57,6 +64,13 @@ export function StepConsentSheet({
       }}
     >
       <DrawerContent>
+        <DrawerClose
+          aria-label="닫기"
+          className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </DrawerClose>
+
         <DrawerTitle>건강정보 처리에 동의해 주세요</DrawerTitle>
         <DrawerDescription id={CONSENT_DESCRIPTION_ID}>
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
@@ -80,7 +94,7 @@ export function StepConsentSheet({
             </span>
           </label>
 
-          <Drawer open={detailOpen} onOpenChange={setDetailOpen}>
+          <Drawer open={detailOpen} onOpenChange={onDetailOpenChange}>
             <DrawerTrigger
               ref={detailTriggerRef}
               className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
@@ -101,7 +115,7 @@ export function StepConsentSheet({
           </Drawer>
         </div>
 
-        <Button type="button" disabled={!consentGiven} onClick={onConfirm}>
+        <Button type="button" variant="diagnosis" disabled={!consentGiven} onClick={onConfirm}>
           동의하고 진단하기
         </Button>
 
