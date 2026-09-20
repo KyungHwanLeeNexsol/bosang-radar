@@ -153,6 +153,22 @@ D1(HEAD `718dd7d`) — `diagnosis-flow.tsx`의 URL→state 동기화 effect가 "
 
 - run_status: audit-ready
 - run_complete_at: 2026-09-20 (D1/D2 두 번째 원격 결함 수정 재검증 완료 — 이 세션에서 직접 재검증)
+
+**독립 재검증 (별도 세션, 2026-09-20, append-only 추가 기록):** 오케스트레이터가 별도 세션에서 동일한 D1/D2 원격 결함 수정 요청을 받아, 위 커밋(`34f2c10`/`63ba97f`/`df61936`)이 이미 브랜치에 존재하며 origin과 동기화되어 있음을 발견했다. 아래 항목을 처음부터 직접 재실행해 독립적으로 재확인했다(이전 세션의 보고를 그대로 신뢰하지 않음):
+- `diagnosis-flow.tsx` 코드 직접 읽기 — `VALID_STEPS` 런타임 가드(라인 74-81, 244)와 "첫 실행 이후 ?step= 소실 시 input 동기화"(라인 262-265, `skipNextPushRef` 루프 방지 포함)가 요구사항과 정확히 일치함을 확인
+- `pnpm test` → `Test Files 52 passed (52)` / `Tests 380 passed (380)`(동일)
+- `pnpm tsc --noEmit` → 출력 없음(0 errors)
+- `pnpm eslint .` → 출력 없음(0 errors, 0 warnings)
+- `pnpm test:e2e -- --spec=diagnosis-flow-01` → `16 passed (5.0m)`(D1 뒤로가기 2회·`?step=garbage` 직접 진입 테스트 포함, 동일)
+- `pnpm vitest run --coverage` → `All files 0 0 0 0`(0/0) — 기존에 기록된 Windows 워크트리 환경 갭 재현(신규 원인 없음)
+- `next build`(플래그 unset) / `ENABLE_DIAGNOSIS_DEV_STATES=true next build` 둘 다 `/` → `○ Static` 성공, `instrumentation.ts` 무관 경고 1건만
+- `git diff --check` → 출력 없음(공백 오류 0건)
+- `grep -rn 'ENABLE_DIAGNOSIS_FLOW\|DIAGNOSIS_ENGINE_READY' app/ components/` → 전부 비교문·주석·테스트 전용 할당뿐, 프로덕션 대입 없음
+- `git diff --stat 718dd7d..HEAD -- design/` 및 `-- '*.pen'` → 둘 다 출력 없음(변경 없음, SSOT 보존 확인)
+- `01-B-questions.png`/`01-D-result-none.png`를 `design/exports/01-B-추가-질문.png`/`01-D-결과-없음.png`와 직접 이미지 대조 — 확인 배지·진행률 바·아이콘·안내 박스 구조 일치, comparison.md에 기록된 "허용된 차이"(이전/다음 버튼, mock 배지, 03 버튼 생략)도 실제로 근거가 타당함을 확인
+- `git diff origin/plan/SPEC-B2C-DIAGNOSIS-001 HEAD` → 출력 없음(이미 push 완료 상태 확인)
+
+이전 세션의 보고와 독립 재검증 결과가 모두 일치했다 — 새로운 결함이나 불일치는 발견하지 않았다.
 - 전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 + 오케스트레이터 후속 CTA 색상 수정 + D1/D2 두 번째 원격 결함 수정 2건 완료, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push(오케스트레이터가 별도 위임)
 - 프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 "D1/D2" Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·380/380 테스트 통과(M-fix 시점 378 대비 +2), Playwright e2e 16/16 통과(M-fix 시점 14 대비 +2), `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린
 - **부분 미해결 항목(§E.2 "D1/D2" Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: vitest coverage-v8 0/0 환경 갭이 이번 라운드에서도 재현되며 근본 원인 미규명(M9/M-fix가 이미 기록한 동일 계열 — CI/비-Windows 실측치를 신뢰해야 함). D1/D2 자체의 블로킹 결함은 모두 해소했다.
