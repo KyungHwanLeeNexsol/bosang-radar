@@ -35,7 +35,7 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       // 627px로 실측돼(가장 넓은 요소) 3차의 720px는 과대였다 — 630px로
       // 좁힌다. 제목 블록 ink-height가 24px로 측정돼(text-h1/26px가 아니라
       // text-h2/19px 쪽에 더 가까움) 제목 크기를 text-h2로 되돌린다.
-      className="flex w-full max-w-md flex-col items-center gap-4 pt-[31px] text-center md:max-w-[630px] md:pt-[111px]"
+      className="flex w-full max-w-md flex-col items-center gap-4 pt-[31px] text-center md:max-w-[630px] md:gap-0 md:pt-[111px]"
     >
       <span
         aria-hidden="true"
@@ -46,15 +46,19 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       {/* text-h1(26px)은 이 화면 제목의 실측 ink-height(24px, 01-B
           제목의 28px보다 작음)를 초과한다. 정확한 값은 `.pen` 미접근으로
           확정 못 하지만(잔여 위험), 실측값에 더 가까운 21px로 보정한다 —
-          h2(19px)와 h1(26px) 사이 보간값. */}
-      <h1 className="text-[21px] font-bold text-bora-ink">
+          h2(19px)와 h1(26px) 사이 보간값.
+          D2(5차 재작업) — 아이콘 top은 디자인과 정확히 일치했지만
+          제목/설명/안내 패널 간격은 균일 gap-4(16px)와 디자인 실측
+          간격(28/17/16px)이 달라 아래로 처짐이 확인됐다. 화면별
+          개별 margin-top으로 대체한다. */}
+      <h1 className="text-[21px] font-bold text-bora-ink md:mt-[28px]">
         현재 입력만으로는 보상 가능성을 판단하기 어렵습니다
       </h1>
-      <p className="text-body text-bora-ink-3 md:text-base">
+      <p className="text-body text-bora-ink-3 md:mt-[17px] md:text-base">
         진단명, 치료 여부 또는 사고 장소를 조금 더 구체적으로 적어주세요.
       </p>
 
-      <div className="w-full rounded-[10px] bg-app-surface-inset p-4 text-left md:p-5">
+      <div className="w-full rounded-[10px] bg-app-surface-inset p-4 text-left md:mt-[16px] md:p-5">
         <p className="text-sm font-bold text-bora-ink md:text-base">이렇게 적어주시면 좋아요</p>
         <ul className="mt-2 flex flex-col gap-1 text-body-s text-bora-ink-3 md:text-body">
           {INPUT_GUIDANCE_EXAMPLES.map((example) => (
@@ -67,7 +71,7 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
           혼동되지 않도록 종속적인(subordinate) 위치에 목업 표기를 유지한다.
           design/exports/01-D는 이 배지를 보여주지 않지만(허용된 차이 —
           REQ-B2CDIAG-024 근거) 실제/mock 결과 혼동 방지가 우선한다. */}
-      <p data-testid="diagnosis-mock-badge" className="text-meta text-bora-ink-4">
+      <p data-testid="diagnosis-mock-badge" className="text-meta text-bora-ink-4 md:mt-[8px]">
         이 화면은 데모/검토용 목업입니다
       </p>
 
@@ -77,7 +81,7 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       <Button
         type="button"
         variant="diagnosis"
-        className="md:h-11 md:rounded-[12px] md:px-7 md:text-base"
+        className="md:mt-[8px] md:h-11 md:rounded-[12px] md:px-7 md:text-base"
         onClick={onEditInput}
       >
         내용을 수정할게요

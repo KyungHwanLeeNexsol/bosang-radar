@@ -96,7 +96,13 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
       {/* D2(3차) — text-h2(19px)는 디자인보다 작다. 01 입력 화면과 동일한
           text-h1(26px) 위계를 재사용한다(전역 토큰 변경 없음). */}
       <h1 className="text-h1 font-bold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
-      <p className="text-body text-bora-ink-3">
+      {/* D2(5차 재작업) — design/exports/M01-C 설명 세그먼트는 폭 138px
+          짜리 한 줄뿐이라 Desktop의 전체 문장("보통 10~20초 정도
+          걸립니다. 창을 닫지 말고...")이 그대로 들어갈 수 없다 — Mobile은
+          더 짧은 문구를 쓴다(반응형으로 표시만 분리, 스크린리더에서
+          숨기지 않음 — 두 <p> 모두 항상 DOM에 존재). */}
+      <p className="text-body text-bora-ink-3 md:hidden">잠시만 기다려 주세요</p>
+      <p className="hidden text-body text-bora-ink-3 md:block">
         보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.
       </p>
       <ul aria-live="polite" className="flex w-full flex-col gap-2.5 text-left">
@@ -107,8 +113,11 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
             <li
               key={label}
               data-testid={`diagnosis-loading-stage-${index}`}
+              // D2(5차 재작업) — design/exports/01-C·M01-C 단계 행 실측
+              // 높이는 47px(Desktop)/44px(Mobile)인데 기존 py-3.5/py-4는
+              // 58px/50px로 과대했다. py-3으로 좁혀 디자인에 근접시킨다.
               className={cn(
-                "flex items-center justify-between rounded-[10px] border px-4 py-3.5 text-sm md:px-5 md:py-4 md:text-base",
+                "flex items-center justify-between rounded-[10px] border px-4 py-3 text-sm md:px-5 md:py-3 md:text-base",
                 isCurrent && "border-bora-accent bg-bora-accent-soft font-medium text-bora-accent",
                 isCompleted && "border-app-line text-bora-ink",
                 !isCompleted && !isCurrent && "border-app-line text-bora-ink-4"

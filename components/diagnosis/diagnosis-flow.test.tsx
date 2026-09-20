@@ -33,6 +33,28 @@ function findCtaButton(container: HTMLElement): HTMLButtonElement {
   return button;
 }
 
+// D2(5차 재작업) — 검색창이 <input>에서 <textarea>로 바뀌었다(design/exports/
+// M01의 2줄 wrap 재현). querySelector("input")은 더 이상 검색창을 찾지
+// 못하므로 의미 기반 selector(data-testid="diagnosis-search-textbox")로
+// 리팩터링한다 — D1 상태/히스토리 로직과 무관한 selector 리팩터링일 뿐이며,
+// 아래 각 테스트의 시나리오·기대값은 그대로 유지한다. 체크박스/라디오
+// selector(`input[type="checkbox"]`/`input[type="radio"]`)는 검색창과
+// 무관하므로 변경하지 않는다.
+function getSearchTextbox(container: HTMLElement): HTMLTextAreaElement {
+  const el = container.querySelector('[data-testid="diagnosis-search-textbox"]');
+  if (!el) {
+    throw new Error("검색창(diagnosis-search-textbox)을 찾을 수 없습니다.");
+  }
+  return el as HTMLTextAreaElement;
+}
+
+function fillSearchTextbox(container: HTMLElement, value: string): void {
+  const input = getSearchTextbox(container);
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 beforeEach(() => {
   routerMock.push.mockClear();
   routerMock.replace.mockClear();
@@ -64,7 +86,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
 
     const flow = container.querySelector('[data-testid="diagnosis-flow"]');
     expect(flow?.getAttribute("data-step")).toBe("input");
-    expect(container.querySelector("input")).not.toBeNull();
+    expect(getSearchTextbox(container)).not.toBeNull();
   });
 
   it("AC-B2CDIAG-016: enableDevStates=false면 ?devStep=error가 있어도 무시하고 input 단계를 유지한다", async () => {
@@ -121,11 +143,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
 
     const button = findCtaButton(container);
@@ -144,11 +163,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
     });
 
     // input -> consent
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -211,11 +227,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -274,12 +287,6 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
     container.remove();
   });
 
-  function setInputValue(input: HTMLInputElement, value: string) {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-    setter?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
   function findButton(text: string): HTMLButtonElement {
     const button = Array.from(document.querySelectorAll("button")).find((btn) =>
       btn.textContent?.includes(text)
@@ -296,9 +303,8 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
     act(() => {
-      setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -349,9 +355,8 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
     act(() => {
-      setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -371,7 +376,7 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
 
     flow = container.querySelector('[data-testid="diagnosis-flow"]');
     expect(flow?.getAttribute("data-step")).toBe("input");
-    const inputAfterCancel = container.querySelector("input") as HTMLInputElement;
+    const inputAfterCancel = getSearchTextbox(container);
     expect(inputAfterCancel.value).toBe("계단에서 넘어져 발목을 다쳤어요");
 
     // 다시 제출해 consent로 재진입하면, 이전에 선택했던 동의 체크박스가
@@ -428,12 +433,6 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
     container.remove();
   });
 
-  function setInputValue(input: HTMLInputElement, value: string) {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-    setter?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
   function findButton(text: string): HTMLButtonElement {
     const button = Array.from(document.querySelectorAll("button")).find((btn) =>
       btn.textContent?.includes(text)
@@ -452,9 +451,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
     });
 
     // input -> consent -> questions(건너뛰기) -> loading
-    const input = container.querySelector("input") as HTMLInputElement;
     act(() => {
-      setInputValue(input, SEARCH_TEXT);
+      fillSearchTextbox(container, SEARCH_TEXT);
     });
     act(() => {
       findCtaButton(container).click();
@@ -496,7 +494,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
     });
     flow = container.querySelector('[data-testid="diagnosis-flow"]');
     expect(flow?.getAttribute("data-step")).toBe("input");
-    const inputAfterBack = container.querySelector("input") as HTMLInputElement;
+    const inputAfterBack = getSearchTextbox(container);
     expect(inputAfterBack.value).toBe(SEARCH_TEXT);
   });
 
@@ -507,9 +505,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
     act(() => {
-      setInputValue(input, SEARCH_TEXT);
+      fillSearchTextbox(container, SEARCH_TEXT);
     });
     act(() => {
       findCtaButton(container).click();
@@ -535,7 +532,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
 
     flow = container.querySelector('[data-testid="diagnosis-flow"]');
     expect(flow?.getAttribute("data-step")).toBe("input");
-    const inputAfterEdit = container.querySelector("input") as HTMLInputElement;
+    const inputAfterEdit = getSearchTextbox(container);
     expect(inputAfterEdit.value).toBe(SEARCH_TEXT);
   });
 });
@@ -583,11 +580,8 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-020 (반응형 conse
     act(() => {
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -639,11 +633,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-2 (consent 오버레이 �
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -653,7 +644,7 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-2 (consent 오버레이 �
     expect(flow?.getAttribute("data-step")).toBe("consent");
 
     // 배경 검색창이 언마운트되지 않고 값이 그대로 남아 있다.
-    const backgroundInput = container.querySelector("input") as HTMLInputElement;
+    const backgroundInput = getSearchTextbox(container);
     expect(backgroundInput).not.toBeNull();
     expect(backgroundInput.value).toBe("계단에서 넘어져 발목을 다쳤어요");
 
@@ -670,11 +661,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-2 (consent 오버레이 �
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -688,7 +676,7 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-2 (consent 오버레이 �
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
 
-    const backgroundInput = container.querySelector("input") as HTMLInputElement;
+    const backgroundInput = getSearchTextbox(container);
     expect(document.activeElement).not.toBe(backgroundInput);
   });
 });
@@ -721,11 +709,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", ()
       root.render(<DiagnosisFlow enableDevStates={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -771,11 +756,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", ()
     });
 
     // input -> consent
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -824,11 +806,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", ()
     });
 
     // input -> consent (첫 URL 동기화 effect가 이미 1회 실행됨)
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();
@@ -858,11 +837,8 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", ()
     });
 
     // input -> consent (첫 URL 동기화 이후 상태로 만든다)
-    const input = container.querySelector("input") as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
     act(() => {
-      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
       findCtaButton(container).click();

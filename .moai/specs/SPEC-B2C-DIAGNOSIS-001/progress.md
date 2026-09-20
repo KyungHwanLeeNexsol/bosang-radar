@@ -337,6 +337,114 @@ Desktop 8px/Mobile 4px 허용 오차 이내로 수렴했으나, 아래 2건이 �
   audit-ready로 전환하지 않는다 — 사용자 지시: "허용 오차를 벗어난 항목이
   남아 있다면 PASS로 포장하지 말고 그대로 보고")
 
+### D2 5차 재작업 착수 (2026-09-20, 5차 외부 재검토)
+
+5차 외부 재검토는 4차가 상단 기준점·프로덕션 캡처 전환·개발 도구 배지
+제거는 잘 처리했지만, 화면당 대표 요소 1~2개(배지 top, 아이콘 top 등)만
+측정하고 "미해결 2건만 남음"이라고 결론 내린 것이 불완전하다고 지적했다
+— 각 화면 **내부** 구성 요소(제목·설명·행/카드·CTA·하단 안내문 등)의
+크기·배치·줄바꿈 차이를 다수 놓쳤다. 또한 01-A2 모달 높이 수정 방향이
+반대였다(구현 260px < 디자인 270px이므로 늘려야 하는데 4차 문서는
+"더 줄이면 답답하다"고 적어 방향을 착각했다). 검색창 단일 행 유지를
+"허용된 차이"로 분류한 것도 SPEC/AC 근거가 없어 무효라고 지적했다 —
+이번 라운드에서는 D1 로직은 그대로 두되 D1 테스트의 DOM selector를
+의미 기반으로 리팩터링하는 것을 허용해 `<textarea>` 전환을 다시
+시도한다.
+
+- run_status: **in-progress**(5차 재작업 착수 — 화면별 전체 요소 실측 및
+  조정, textarea 전환, 모바일 카드 재구성 완료 후에만 audit-ready 재검토)
+
+**[REVOKED — 2026-09-20 (5차)]** 위 "5차 재작업 착수" 절은 완료되지
+않은 채 다음 절로 대체된다. 아래는 실제 수정·재측정 결과다.
+
+### D2 5차 재작업 완료 보고 (2026-09-20)
+
+#### Claim
+
+5차 외부 재검토가 지적한 10개 항목을 화면당 대표 요소가 아니라 내부
+요소 전체(제목·설명·행/카드·CTA·하단 안내문) bounding box 단위로
+재측정하고, 실제로 수정한 뒤 재측정해 개선을 확인했다. 검색창을
+`<textarea>`로 전환하며 D1 테스트의 DOM selector를 의미 기반으로
+리팩터링했다(시나리오/기대값 불변).
+
+#### Evidence
+
+- **01-A2 모달 높이**: 260px → **270px**(디자인과 정확히 일치, Δ0).
+  방향 오류(4차 "더 줄이면 답답하다")를 정정해 하단 패딩을 10px
+  늘렸다(top 위치·폭 불변).
+- **M01 모바일 카드**: 3단(80px+) → 2단 구조(아이콘+제목 한 행/설명
+  한 행, ~66px), 번호 숨김. 푸터 초과가 79px → **10px**로 개선(87%).
+- **검색창 textarea 전환**: `<input>` → `<textarea>`(`rows=2`,
+  `[field-sizing:fixed]`, Mobile 95px 2줄). D1 테스트
+  `querySelector("input")` → `data-testid="diagnosis-search-textbox"`
+  리팩터링(`diagnosis-flow.test.tsx`, `step-input.test.tsx`) — 380/380
+  Vitest 통과로 시나리오 불변 확인.
+- **Desktop 01 검색+CTA 결합 + 세로 리듬**: 검색창/CTA가 완전히
+  맞닿음(오른쪽 968=버튼 왼쪽 968). 안내 배너/칩 행/카드 그리드 top이
+  균일 gap-8 대신 개별 margin-top으로 재계산돼 디자인과 전부 Δ1px
+  이내로 수렴.
+- **M01-A2 제목 2줄 wrap**: `max-w-[230px]`로 디자인과 동일하게
+  줄바꿈(높이 60px=30px×2).
+- **01-B 옵션 행 1**: 디자인 top328과 **정확히 일치**(Δ0, 4차 Δ4에서
+  개선). 제목 자체는 line-height 박스 구조적 차이로 Δ12 잔여.
+- **01-C/M01-C**: 단계 행 높이 47/44px 목표에 50/46px로 근접(4차
+  58/50px에서 개선). Mobile 전용 짧은 설명 문구로 Desktop/Mobile 카피
+  분리(스크린리더에서 숨기지 않음).
+- **01-D/01-E**: 제목·설명·안내 패널이 전부 Δ1px 이내로 일치(4차
+  Δ10~20px에서 개선).
+- **모바일 배경색**: `#f8fafb`(오답) → 이미 존재하던 `app-bg` 토큰
+  (`#f4f6f8`, 디자인과 정확히 일치)로 교체 — 새 토큰 추가 불필요.
+- 상세 bounding box 표는 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`
+  (5차 재검증) 참고.
+
+#### Baseline-attribution
+
+- `pnpm tsc --noEmit`(이 워크트리, 이번 실행): 출력 없음(0 errors)
+- `pnpm test`(이 워크트리, 이번 실행): `Test Files 52 passed (52)` /
+  `Tests 380 passed (380)`
+- `pnpm eslint .`(`pnpm lint`, 이번 실행): 출력 없음(0 errors, 0 warnings)
+- `pnpm test:e2e`(이번 실행): `16 passed (5.0m)` — D1 전용
+  `?step=` 뒤로가기 2회, `?step=garbage` 정리 포함 전부 통과
+- `pnpm build`(플래그 unset, 이번 실행): `/` → `○ Static`, 기존
+  `instrumentation.ts` 무관 경고 1건만
+- `ENABLE_DIAGNOSIS_DEV_STATES=true pnpm build`(이번 실행): 동일 결과.
+  **주의**: `/`가 정적 프리렌더되므로 이 플래그는 **빌드 시점**에
+  설정해야 반영된다(재현 시 유의 — 이번 라운드 재측정 중 직접 확인).
+- `git diff --check`(이번 실행): 출력 없음(0건)
+- `git diff components/diagnosis/diagnosis-flow.tsx`(이번 실행):
+  배경색 클래스 교체 1곳만(7 insertions/1 deletion) — D1
+  `?step=`/history 로직 무변경 확인
+
+#### Gaps (미검증)
+
+- **overlay/diff 이미지 생성 미완료** — 50% 정규화 디자인 vs 구현
+  캡처의 픽셀 overlay/diff 이미지를 이번 라운드에서 생성하지 못했다.
+- 10개 화면 전체를 다시 정식 캡처해 `design/exports/` 옆에 나란히
+  저장하는 작업은 하지 않았다(측정은 Playwright DOM 실측으로
+  대체했다).
+- M01-B(Mobile) 내부 세부 간격은 이번 라운드에서 추가로 튜닝하지
+  않았다(Desktop만 정밀 조정).
+- `.pen` 원본 미접근으로 01-B/C/D/E 제목 font-size 정확값은 여전히
+  추정값이다.
+
+#### Residual-risk
+
+- **허용 오차 초과 항목 4건이 남아 있다**: M01 푸터(10px), M01-A2
+  시트 높이(30px, 제목 2줄 wrap의 부수 효과), 01-B 제목(12px,
+  ink-box vs line-height-box 구조적 차이), 01-E 버튼 그룹(11px, mock
+  배지 부수 효과). 상세는 comparison.md §허용 오차 초과 항목 참고.
+- 디자인 세그먼트 스캔(ink-only)과 DOM 측정(line-height 박스)의
+  구조적 차이가 일부 잔여 오차의 근본 원인이며, `.pen` 원본 접근
+  없이는 완전히 제거하기 어렵다.
+
+- run_status: **in-progress** — 위 4건이 허용 오차를 벗어난 채 남아
+  있으므로 `audit-ready`로 전환하지 않는다(사용자 지시: "하나라도
+  초과하면 현재처럼 in-progress로 정직하게 유지"). 4차 대비 초과
+  항목 개수·크기는 크게 줄었다(01-A2 10px→0px, M01 79px→10px, 01-D/E
+  대부분 1px 이내로 수렴)지만 0건은 아니다.
+- 새로운 plan-auditor 감사는 이번 라운드에서도 실행하지 않는다.
+- 진행 상황은 이 섹션에 append-only로 계속 기록한다.
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

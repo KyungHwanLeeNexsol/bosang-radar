@@ -356,7 +356,12 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           지적). 세로 중앙 정렬을 폐기하고 각 Step 컴포넌트가 design/exports
           실측 상단 여백을 자신의 pt-*로 직접 갖도록 바꾼다 — 공통 wrapper는
           더 이상 세로 위치를 책임지지 않는다. */}
-      <div className="flex flex-1 flex-col items-center gap-3 bg-app-surface-sub px-4 md:bg-app-surface">
+      {/* D2(5차 재작업) — design/exports Mobile 평면 배경을 재실측하니
+          #f4f6f8로, 기존에 쓰던 app-surface-sub(#f8fafb)와는 실제로
+          다른 색이었다(안티앨리어싱 오차 아님). 새 토큰을 추가할 필요
+          없이 이미 존재하던 app-bg(#f4f6f8, globals.css)가 정확히
+          일치해 그 토큰으로 교체한다. */}
+      <div className="flex flex-1 flex-col items-center gap-3 bg-app-bg px-4 md:bg-app-surface">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}

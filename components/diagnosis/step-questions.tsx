@@ -101,7 +101,12 @@ export function StepQuestions({
     // 이제 이 화면의 세로 위치를 전적으로 책임진다.
     // Mobile 간격을 gap-3(12px)로 좁혀 옵션 4개+설명+건너뛰기 링크가
     // 390×672 프레임 안에 들어오게 한다(gap-5=20px 유지 시 하단이 잘림).
-    <div className="flex w-full max-w-md flex-col gap-3 pt-[19px] md:max-w-[710px] md:gap-5 md:pt-[81px]">
+    // D2(5차 재작업) — Desktop 균일 gap-5(20px)가 디자인 실측 간격(확인
+    // 배지→진행 표시 23px/진행 표시→부제 19px/부제→제목 21px/제목→옵션
+    // 36px)과 달라 옵션 행이 디자인보다 위로 붙어 보였다. Desktop만
+    // 개별 margin-top으로 대체(Mobile은 4차에서 이미 390×672 프레임에
+    // 맞춰 튜닝돼 있어 이번엔 건드리지 않는다 — 잔여 위험으로 남긴다).
+    <div className="flex w-full max-w-md flex-col gap-3 pt-[19px] md:max-w-[710px] md:gap-0 md:pt-[81px]">
       {/* D2(second remediation round, design/exports/01-B/M01-B) — "입력
           내용을 확인했어요" 확인 배지. 사용자가 01에서 제출한 입력이
           유효하게 넘어왔음을 알려준다. */}
@@ -113,7 +118,7 @@ export function StepQuestions({
       <div
         data-testid="diagnosis-question-progress"
         aria-live="polite"
-        className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
+        className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 md:mt-[23px]"
       >
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-body-s font-bold text-bora-accent">
@@ -131,7 +136,7 @@ export function StepQuestions({
         ) : null}
       </div>
 
-      <p className="text-center text-body-s text-bora-ink-3">
+      <p className="text-center text-body-s text-bora-ink-3 md:mt-[19px]">
         정확한 확인을 위해 3가지만 여쭤볼게요
       </p>
 
@@ -141,12 +146,21 @@ export function StepQuestions({
         // D2(3차 원격 결함 재작업) — design/exports 제목이 text-h2(19px)보다
         // 뚜렷이 크다(01 입력 화면의 h1과 동일한 text-h1/26px 위계 재사용 —
         // 전역 토큰은 건드리지 않고 이 컴포넌트에서만 큰 클래스를 선택).
-        className="text-h1 font-bold text-bora-ink outline-none"
+        className="text-h1 font-bold text-bora-ink outline-none md:mt-[21px]"
       >
         {question.text}
       </h1>
 
-      <div role="radiogroup" aria-label={question.text} className="flex flex-col gap-3">
+      {/* D2(5차 재작업) — 디자인 세그먼트 간 간격(36px)을 그대로 쓰면
+          위쪽 요소들의 line-height 박스가 디자인의 ink-only 박스보다
+          이미 커진 만큼 누적돼(제목 하단이 디자인보다 23px 아래) 옵션
+          행이 오히려 더 아래로 밀렸다(351 vs 목표 328). 실측 제목 하단
+          기준으로 역산한 값(13px)을 대신 사용한다. */}
+      <div
+        role="radiogroup"
+        aria-label={question.text}
+        className="flex flex-col gap-3 md:mt-[13px]"
+      >
         {question.options.map((option) => (
           <label
             key={option}
@@ -172,7 +186,7 @@ export function StepQuestions({
         ))}
       </div>
 
-      <p className="text-center text-meta text-bora-ink-4">
+      <p className="text-center text-meta text-bora-ink-4 md:mt-[22px]">
         이 답변은 수술비ㆍ후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고,
         답변하신 내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.
       </p>
@@ -181,7 +195,7 @@ export function StepQuestions({
         <button
           type="button"
           onClick={onSkip}
-          className="text-center text-sm font-medium text-bora-accent underline-offset-4 hover:underline"
+          className="text-center text-sm font-medium text-bora-accent underline-offset-4 hover:underline md:mt-[9px]"
         >
           건너뛰고 결과 보기
         </button>
@@ -190,8 +204,10 @@ export function StepQuestions({
       {/* design/exports/01-B/M01-B에는 이전/다음 버튼이 노출되지 않지만,
           AC-B2CDIAG-007~009의 이전/다음/건너뛰기 기능은 계속 필요하다
           (D2 지시사항 — 기능 제거 금지). 시각적 위계에서는 눈에 덜 띄도록
-          작은 크기로 아래쪽에 배치한다. */}
-      <div className="flex items-center justify-between gap-2">
+          작은 크기로 아래쪽에 배치한다(디자인 기준 프레임을 침범하지 않는
+          종속 위치 — design/exports에는 없는 요소라 정확한 목표값이 없어
+          기존 20px 간격을 유지한다). */}
+      <div className="flex items-center justify-between gap-2 md:mt-5">
         <Button type="button" variant="ghost" size="sm" onClick={onPrev}>
           이전
         </Button>

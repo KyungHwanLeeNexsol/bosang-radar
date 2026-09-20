@@ -69,8 +69,12 @@ export function StepConsentModal({
       {/* D2(4차 재작업) — 흰 박스 vs 어두운 backdrop 밝기 임계값으로
           재실측한 결과 모달 실제 폭은 559px, 높이 270px다(3차의 620px는
           과대 추정이었다 — 그때는 backdrop 뒤로 비치는 원 페이지 요소가
-          측정에 섞여 들어갔다). 560px로 좁히고 패딩도 줄인다. */}
-      <DialogContent className="max-w-[560px] gap-3 p-6">
+          측정에 섞여 들어갔다). 560px로 좁히고 패딩도 줄인다.
+          D2(5차 재작업) — 4차 실측이 방향을 착각했다: 구현이 260px로
+          디자인(270px)보다 10px 작았다(더 줄일 게 아니라 늘려야 했다).
+          top 위치·폭은 그대로 두고 하단 패딩만 10px 늘려 총 높이를
+          맞춘다. */}
+      <DialogContent className="max-w-[560px] gap-3 p-6 pb-[34px]">
         <DialogClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"

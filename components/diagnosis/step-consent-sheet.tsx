@@ -81,7 +81,12 @@ export function StepConsentSheet({
           <X className="size-4" aria-hidden="true" />
         </DrawerClose>
 
-        <DrawerTitle className="text-[20px] font-bold">건강정보 처리에 동의해 주세요</DrawerTitle>
+        {/* D2(5차 재작업) — design/exports/M01-A2는 제목이 2줄로
+            줄바꿈된다(전체 시트 폭 그대로 두면 1줄에 다 들어가 버림) —
+            제목 요소에만 폭 제한을 둬 줄바꿈 지점을 재현한다. */}
+        <DrawerTitle className="max-w-[230px] text-[20px] font-bold">
+          건강정보 처리에 동의해 주세요
+        </DrawerTitle>
         <DrawerDescription id={CONSENT_DESCRIPTION_ID} className="text-sm">
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>

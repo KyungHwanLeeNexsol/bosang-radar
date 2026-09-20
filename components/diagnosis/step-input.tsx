@@ -6,8 +6,8 @@ import { Clock, Layers, Lock, Search, ShieldCheck, Stethoscope, TrendingUp } fro
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { Textarea } from "@/components/ui/textarea";
 import { validateDiagnosisInput } from "@/lib/validation/diagnosis-input";
 
 // SPEC-B2C-DIAGNOSIS-001 M3/M-fix-1 (design.md §2, §4; design/exports/01-*.png,
@@ -66,7 +66,7 @@ interface StepInputProps {
 
 export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInputProps) {
   const [error, setError] = React.useState<string | null>(null);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
     // M8 (design.md §18.1 input 상태 "접근성 요구사항" — 검색창에 초기
@@ -78,7 +78,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
     }
   }, [autoFocus]);
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     // AC-B2CDIAG-022 — 네이티브 maxLength는 사용자 타이핑에만 적용되고
     // 프로그램적 value 대입에는 적용되지 않으므로, 여기서도 명시적으로
     // 200자로 자른다.
@@ -87,6 +87,17 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
       setError(null);
     }
     onChange(next);
+  };
+
+  // D2(5차 재작업) — design/exports/M01의 검색창은 실제로 2줄 높이(약
+  // 95px)이고 placeholder도 줄바꿈된다. "한 줄로 적어주세요" 안내
+  // 문구와의 의미 일치를 위해 Enter 키로 줄바꿈이 생기지 않도록 막는다
+  // (제출은 기존처럼 버튼 클릭만 — Enter-투-submit은 이전에도 없었으므로
+  // 새로 추가하지 않는다).
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+    }
   };
 
   const handleChipClick = (text: string) => {
@@ -113,11 +124,13 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
     // 콘텐츠(부제) 상단 y≈154(헤더 63px 기준 pt-[91px]). M01(390×1110)은
     // y≈82(헤더 59px 기준 pt-[23px]). 폭(max-w-3xl=768px)은 실측 p90(758)과
     // 이미 근접해 유지한다.
-    // D2(4차 재작업) — M01 실측 결과 콘텐츠 총 높이가 디자인보다 훨씬
-    // 커서(footer가 1110 프레임을 크게 벗어남) 화면 간 간격을 Mobile에서
-    // 더 좁힌다(gap-7→gap-5). Desktop도 footer가 940 프레임을 6px
-    // 초과해 gap-9→gap-8로 소폭 좁힌다.
-    <div className="flex w-full max-w-3xl flex-col items-center gap-5 pt-[23px] text-center md:gap-8 md:pt-[91px]">
+    // D2(5차 재작업) — 4차의 균일한 gap(mobile gap-5/desktop gap-8)은
+    // 디자인의 실제 요소 간 간격(17~55px로 요소쌍마다 크게 다름)과
+    // 맞지 않아 안내 배너/칩 행/카드 행/푸터가 디자인보다 수십 px
+    // 아래로 처짐이 확인됐다(_tmp-full-measure-result.json vs
+    // _tmp-design-blocks.json 실측 대조). 부모 gap을 없애고 자식마다
+    // 디자인 세그먼트 간격에서 역산한 개별 margin-top으로 대체한다.
+    <div className="flex w-full max-w-3xl flex-col items-center pt-[23px] text-center md:pt-[91px]">
       <div className="flex flex-col items-center gap-3 md:gap-4">
         <p className="text-body-s font-semibold text-bora-accent md:text-base">
           놓치기 쉬운 보상 항목을 확인해 보세요
@@ -130,7 +143,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
       </div>
 
       {/* Desktop — Clock/Lock 2개 항목이 검색창 위에 별도로 표시된다. */}
-      <div className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:flex">
+      <div className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:mt-[31px] md:flex">
         <span className="flex items-center gap-1.5">
           <Clock className="size-3.5 shrink-0" aria-hidden="true" />
           회원가입 없이 약 1분
@@ -141,38 +154,44 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         </span>
       </div>
 
-      <div className="flex w-full flex-col gap-1.5 text-left">
-        <div className="flex w-full flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
+      <div className="mt-5 flex w-full flex-col gap-1.5 text-left md:mt-[9px]">
+        {/* D2(5차 재작업) — design/exports/01은 검색 영역과 CTA가 하나의
+            결합된 컨트롤처럼 보인다(간격 없이 맞닿고, 바깥쪽 모서리만
+            radius). Desktop에서 md:gap-0 + 안쪽 모서리 radius 제거로
+            재현한다. Mobile은 세로 스택 유지(디자인도 세로 배치). */}
+        <div className="flex w-full flex-col gap-2 md:flex-row md:items-stretch md:gap-0">
           <div className="relative flex-1">
             <Search
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-bora-ink-4"
+              className="pointer-events-none absolute top-3.5 left-3.5 size-4 text-bora-ink-4 md:top-4"
               aria-hidden="true"
             />
-            {/* D2(4차 재작업) — design/exports/M01의 검색창은 ~95px 높이
-                (2줄 placeholder가 줄바꿈되어 보이는 박스)다. Textarea로
-                교체하는 방안을 검토했으나, 그러면 `<input>` 전제로 짜인
-                기존 D1 테스트(diagnosis-flow.test.tsx)의 querySelector("input")
-                호출 40여 곳이 전부 깨진다 — "D1 코드/테스트를 건드리지
-                않는다"는 이번 라운드 범위 제약과 정면으로 충돌해 되돌렸다.
-                Input을 유지한 채 세로 패딩으로 높이만 ~92px까지 키운다 —
-                placeholder가 2줄로 줄바꿈되지는 않는(단일 행 유지) 허용된
-                차이로 남긴다(comparison.md에 근거 기록). */}
-            <Input
+            {/* D2(5차 재작업) — design/exports/M01의 검색창은 실제로 2줄
+                높이(~95px)이고 placeholder도 줄바꿈된다. `<textarea>`로
+                교체해 재현한다(4차에서 D1 테스트 충돌로 보류했던 사항 —
+                이번 라운드는 "D1 테스트 selector를 의미 기반으로
+                리팩터링하는 것은 허용"이라는 명시적 지시에 따라 재시도).
+                data-testid로 테스트에서 안정적으로 조회한다. */}
+            <Textarea
               ref={inputRef}
+              data-testid="diagnosis-search-textbox"
               value={value}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               maxLength={MAX_LENGTH}
+              rows={2}
               placeholder="예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요"
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? SEARCH_ERROR_ID : undefined}
-              className="h-[92px] rounded-[12px] border-app-line pl-10 text-sm focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:text-base"
+              // field-sizing-content(Textarea 기본, 콘텐츠에 맞춰 자동
+              // 높이 조절)를 꺼서 고정 높이가 실제로 적용되게 한다.
+              className="h-[95px] resize-none rounded-[12px] rounded-b-none border-app-line pt-3.5 pl-10 text-sm [field-sizing:fixed] focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:rounded-b-[12px] md:rounded-r-none md:border-r-0 md:py-5 md:pt-5 md:text-base"
             />
           </div>
           <Button
             variant="diagnosis"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="h-12 w-full rounded-[12px] px-6 text-sm md:h-16 md:w-auto md:px-8 md:text-base"
+            className="h-12 w-full rounded-[12px] rounded-t-none px-6 text-sm md:h-16 md:w-auto md:rounded-t-[12px] md:rounded-l-none md:px-8 md:text-base"
           >
             보상 진단
           </Button>
@@ -187,17 +206,20 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         ) : null}
       </div>
 
-      <Notice title="입력 시 주의해 주세요" className="w-full text-left md:px-5 md:py-4">
+      <Notice
+        title="입력 시 주의해 주세요"
+        className="mt-5 w-full text-left md:mt-[13px] md:px-5 md:py-4"
+      >
         이름·전화번호·주민등록번호 등 개인 식별정보는 입력하지 마세요.
       </Notice>
 
       {/* Mobile — Clock 항목 1개(결합 문구)가 안내 배너 아래로 이동한다. */}
-      <span className="flex items-center gap-1.5 self-start text-meta text-bora-ink-3 md:hidden">
+      <span className="mt-5 flex items-center gap-1.5 self-start text-meta text-bora-ink-3 md:hidden">
         <Clock className="size-3.5 shrink-0" aria-hidden="true" />
         회원가입 없이 약 1분 · 분석 목적으로만 사용
       </span>
 
-      <div className="flex w-full flex-col items-start gap-2 md:flex-row md:items-center md:justify-center md:gap-2.5">
+      <div className="mt-5 flex w-full flex-col items-start gap-2 md:mt-[19px] md:flex-row md:items-center md:justify-center md:gap-2.5">
         <span className="shrink-0 text-body-s text-bora-ink-3 md:text-base">많이 찾는 사례</span>
         <div className="flex flex-wrap gap-2 md:gap-2.5">
           {FREQUENT_CASES.map((text) => (
@@ -208,23 +230,41 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         </div>
       </div>
 
-      {/* D2(4차 재작업) — design/exports/01 카드 행 실측 높이 102px(Desktop
-          단일 행), M01 카드는 개당 62px(Mobile 4개 세로 스택). 기본
-          --card-spacing(4)=16px도 M01에서는 여전히 높아 Mobile 전용으로
-          --spacing(2)=8px까지 줄이고 CardHeader 내부 gap도 좁힌다
-          (Desktop은 기본 패딩 유지 — 102px 실측과 이미 근접). */}
-      <div className="grid w-full grid-cols-1 gap-2 text-left sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+      {/* D2(5차 재작업) — design/exports/01(Desktop) 카드는 아이콘+번호
+          행/제목/설명 3단 구조(102px 실측)지만, design/exports/M01
+          (Mobile) 카드는 아이콘+제목이 같은 첫 행, 설명이 둘째 행인 2단
+          구조(62px 실측)로 구조 자체가 다르다 — 번호(index)도 Mobile
+          export에는 보이지 않는다. 반응형 클래스만으로는 이 구조 차이를
+          표현할 수 없어 Mobile 전용 마크업을 별도로 둔다(Desktop 구조는
+          기존 그대로 유지). */}
+      {/* Mobile 전용 — 아이콘+제목 한 행, 설명 다음 행, 번호 숨김. */}
+      <div className="mt-5 flex w-full flex-col gap-2 text-left md:hidden">
+        {CATEGORY_PREVIEWS.map(({ icon: Icon, title, description }) => (
+          <div
+            key={title}
+            className="flex flex-col gap-0.5 rounded-xl bg-card px-4 py-3 text-card-foreground ring-1 ring-app-line"
+          >
+            <span className="flex items-center gap-2 text-bora-ink">
+              <Icon className="size-4 shrink-0 text-bora-accent" aria-hidden="true" />
+              <span className="text-sm font-semibold">{title}</span>
+            </span>
+            <p className="text-body-s text-bora-ink-3">{description}</p>
+          </div>
+        ))}
+      </div>
+      {/* Desktop 전용 — 기존 아이콘+번호/제목/설명 3단 구조 유지. */}
+      <div className="hidden w-full grid-cols-4 gap-4 text-left md:mt-[48px] md:grid">
         {CATEGORY_PREVIEWS.map(({ index, icon: Icon, title, description }) => (
-          <Card key={title} className="ring-app-line [--card-spacing:--spacing(2)] md:[--card-spacing:--spacing(4)]">
-            <CardHeader className="gap-1 md:gap-2">
+          <Card key={title} className="ring-app-line">
+            <CardHeader className="gap-2">
               <span className="flex items-center gap-2 text-bora-accent">
-                <Icon className="size-4 shrink-0 md:size-5" aria-hidden="true" />
+                <Icon className="size-5 shrink-0" aria-hidden="true" />
                 <span className="text-meta font-medium text-bora-ink-4">{index}</span>
               </span>
-              <CardTitle className="text-sm font-semibold text-bora-ink md:text-base">{title}</CardTitle>
+              <CardTitle className="text-base font-semibold text-bora-ink">{title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-body-s text-bora-ink-3 md:text-body">{description}</p>
+              <p className="text-body text-bora-ink-3">{description}</p>
             </CardContent>
           </Card>
         ))}

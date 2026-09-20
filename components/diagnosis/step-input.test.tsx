@@ -10,9 +10,26 @@ import { StepInput } from "./step-input";
 // 직접 렌더링하고(@testing-library/react 미설치), jsdom 네이티브 값 세터로
 // controlled input 값을 설정한 뒤 input 이벤트를 dispatch한다
 // (app/page.test.tsx와 동일한 프로젝트 관례).
+//
+// D2(5차 재작업) — 검색창이 <input>에서 <textarea>로 바뀌었다(design/exports/
+// M01의 2줄 wrap 재현). querySelector("input")은 더 이상 검색창을 찾지
+// 못하므로 의미 기반 selector(data-testid="diagnosis-search-textbox")로
+// 리팩터링한다 — 이 변경은 D1 상태/히스토리 로직과 무관한 selector
+// 리팩터링일 뿐이며, 아래 각 테스트의 시나리오·기대값은 그대로 유지한다.
 
-function setNativeInputValue(element: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+function getSearchTextbox(container: HTMLElement): HTMLTextAreaElement {
+  const el = container.querySelector('[data-testid="diagnosis-search-textbox"]');
+  if (!el) {
+    throw new Error("검색창(diagnosis-search-textbox)을 찾을 수 없습니다.");
+  }
+  return el as HTMLTextAreaElement;
+}
+
+function setNativeTextareaValue(element: HTMLTextAreaElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value"
+  )?.set;
   setter?.call(element, value);
   element.dispatchEvent(new Event("input", { bubbles: true }));
 }
@@ -73,9 +90,9 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     act(() => {
-      setNativeInputValue(input, "가".repeat(250));
+      setNativeTextareaValue(input, "가".repeat(250));
     });
 
     expect(input.value.length).toBe(200);
@@ -87,7 +104,7 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     expect(input.value).toBe("");
 
     const button = findButtonByText(container, "보상 진단");
@@ -112,9 +129,9 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={onValidSubmit} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     act(() => {
-      setNativeInputValue(input, "010-1234-5678");
+      setNativeTextareaValue(input, "010-1234-5678");
     });
 
     const button = findButtonByText(container, "보상 진단");
@@ -135,9 +152,9 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={onValidSubmit} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     act(() => {
-      setNativeInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
+      setNativeTextareaValue(input, "계단에서 넘어져 발목을 다쳤어요");
     });
 
     const button = findButtonByText(container, "보상 진단");
@@ -154,7 +171,7 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     expect(document.activeElement).toBe(input);
   });
 
@@ -166,7 +183,7 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} autoFocus={false} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     expect(document.activeElement).not.toBe(input);
   });
 
@@ -178,7 +195,7 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     const chip = findButtonByText(container, "계단에서 낙상");
     act(() => {
       chip.focus();
@@ -204,7 +221,7 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       root.render(<Harness onValidSubmit={vi.fn()} />);
     });
 
-    const input = container.querySelector("input") as HTMLInputElement;
+    const input = getSearchTextbox(container);
     const chip = findButtonByText(container, "운동 중 부상");
     act(() => {
       chip.focus();
