@@ -60,7 +60,12 @@ import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
 
 export type DiagnosisStep = "input" | "consent" | "questions" | "loading" | "result-none" | "error";
 
-const URL_RESTORABLE_STEPS = new Set<DiagnosisStep>(["input", "consent"]);
+// AC-B2CDIAG-013 — 새로고침은 consent를 포함해 항상 input으로 완전히
+// 초기화되어야 한다(REQ-B2CDIAG-016 "URL만으로 상태를 재구성하지 않는다"는
+// 예외 없이 모든 비-input 스텝에 적용된다). "input"만 첫 마운트에서 그대로
+// 두어도 안전한 유일한 값이다 — 이미 initialState.step === "input"이므로
+// 별도 dispatch 없이 URL만 맞으면 그대로 둔다.
+const URL_RESTORABLE_STEPS = new Set<DiagnosisStep>(["input"]);
 
 interface DiagnosisState {
   step: DiagnosisStep;

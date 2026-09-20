@@ -29,7 +29,7 @@ const RESULT_NONE_INPUT = "무릎 골절로 수술을 받았어요";
 const ERROR_INPUT = "분석 중 오류가 발생했어요";
 
 async function submitDiagnosisInput(page: Page, text: string): Promise<void> {
-  await page.getByPlaceholder("예: 계단에서 넘어져 발목을 다쳤어요").fill(text);
+  await page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요").fill(text);
   await page.getByRole("button", { name: "보상 진단" }).click();
 }
 
@@ -162,7 +162,9 @@ test.describe("01 화면 — 새로고침 시 상태 초기화 (AC-B2CDIAG-013)"
     await page.reload();
 
     await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
-    await expect(page.getByPlaceholder("예: 계단에서 넘어져 발목을 다쳤어요")).toHaveValue("");
+    await expect(
+      page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요")
+    ).toHaveValue("");
   });
 });
 
@@ -190,5 +192,140 @@ test.describe("01 화면 — 분석 오류 재시도 시 입력값 보존 (AC-B2
     const secondOutcome = await waitForLoadingOutcome(page);
     expect(secondOutcome).toBe("error");
     await expect(page.getByTestId("diagnosis-error")).toBeVisible();
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-4 (design.md §0 "?step= shallow-route";
+// AC-B2CDIAG-017) — 단계 전이마다 ?step=이 갱신되고, 실제 브라우저 뒤로가기로
+// 이전 단계에 자연스럽게 복귀한다. URL만으로 상태를 재구성하지 않으므로
+// (REQ-B2CDIAG-016) 직접 진입/새로고침은 input으로 정리된다.
+test.describe("01 화면 — ?step= 브라우저 히스토리 (M-fix-4)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("input → consent → questions 단계 전이마다 ?step=이 갱신되고, 뒤로가기로 consent에 복귀하면 답변이 보존된다", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await submitDiagnosisInput(page, RESULT_NONE_INPUT);
+    await expect(page).toHaveURL(/step=consent/);
+
+    await checkConsentAndConfirm(page);
+    await expect(page).toHaveURL(/step=questions/);
+    await expect(page.getByTestId("diagnosis-question-progress")).toContainText("질문 1 / 3");
+
+    // AC-B2CDIAG-017 — 첫 질문에 응답한 뒤 뒤로가기를 수행한다.
+    await page.getByRole("radio").first().check();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/step=consent/);
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "consent");
+    // 동의 체크박스는 세션 내 유지된다(REQ-B2CDIAG-019).
+    await expect(page.getByRole("checkbox")).toBeChecked();
+
+    // 다시 동의하고 진단하기 → questions로 복귀, 이전 응답이 그대로 유지된다.
+    await page.getByRole("button", { name: "동의하고 진단하기" }).click();
+    await expect(page.getByRole("radio").first()).toBeChecked();
+  });
+
+  test("?step=questions로 직접 진입하면 input으로 정리되고 URL의 ?step=이 제거된다", async ({
+    page,
+  }) => {
+    await page.goto("/?step=questions");
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
+    await expect(page).not.toHaveURL(/step=/);
+  });
+
+  test("새로고침 시 ?step=이 정리된다(직접 진입과 동일 규칙 — REQ-B2CDIAG-016)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await submitDiagnosisInput(page, RESULT_NONE_INPUT);
+    await checkConsentAndConfirm(page);
+    await expect(page).toHaveURL(/step=questions/);
+
+    await page.reload();
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
+    await expect(page).not.toHaveURL(/step=/);
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-5 — ?devStep=consent-detail은 동의 오버레이뿐
+// 아니라 그 위의 상세 오버레이까지 선행 동작 없이 즉시 열려 있어야 한다.
+test.describe("01 화면 — ?devStep=consent-detail Desktop (M-fix-5)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("동의 상세 Modal이 선행 동작 없이 즉시 열려 있다", async ({ page }) => {
+    await page.goto("/?devStep=consent-detail");
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "consent");
+    await expect(page.getByText("{처리 목적 확정 문구}")).toBeVisible();
+    // 바깥 동의 Modal + 안쪽 상세 Modal 2개가 동시에 열려 있다.
+    await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(2);
+  });
+});
+
+test.describe("01 화면 — ?devStep=consent-detail Mobile (M-fix-5)", () => {
+  test.use({ viewport: MOBILE_VIEWPORT });
+
+  test("동의 상세 Bottom Sheet이 선행 동작 없이 즉시 열려 있다", async ({ page }) => {
+    await page.goto("/?devStep=consent-detail");
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "consent");
+    await expect(page.getByText("{처리 목적 확정 문구}")).toBeVisible();
+    // 바깥 동의 Sheet + 안쪽 상세 Sheet 2개가 동시에 열려 있다.
+    await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(2);
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-2 (design/exports/01-A2) — 캡처에 있는 우측
+// 상단 닫기(X) 버튼이 실제로 동작하고, 닫은 뒤에도 배경(01 화면) 검색어가
+// 보존된다(배경이 언마운트되지 않는다는 방증).
+test.describe("01 화면 — 동의 오버레이 닫기(X) 버튼 (M-fix-2)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("우측 상단 닫기(X) 버튼을 클릭하면 input으로 돌아가고 배경 검색어는 유지된다", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await submitDiagnosisInput(page, RESULT_NONE_INPUT);
+    await expect(page.locator('[data-slot="dialog-content"]')).toBeVisible();
+
+    await page.getByRole("button", { name: "닫기" }).click();
+
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
+    await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(0);
+    await expect(
+      page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요")
+    ).toHaveValue(RESULT_NONE_INPUT);
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-6 — Chip이 네이티브 <button>이 되어 Tab
+// 포커스 + Enter/Space가 클릭과 동일하게 동작한다(실제 브라우저에서만
+// 검증 가능 — jsdom은 이 네이티브 키보드 활성화를 구현하지 않는다).
+test.describe("01 화면 — 칩 키보드 접근성 (M-fix-6)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("Tab으로 칩에 포커스한 뒤 Enter를 누르면 검색창이 채워지고 CTA가 활성화된다", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const chip = page.getByRole("button", { name: "교통사고", exact: true });
+    await chip.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(
+      page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요")
+    ).toHaveValue("교통사고");
+    await expect(page.getByRole("button", { name: "보상 진단" })).toBeEnabled();
+  });
+
+  test("Tab으로 칩에 포커스한 뒤 Space를 누르면 검색창이 채워진다", async ({ page }) => {
+    await page.goto("/");
+    const chip = page.getByRole("button", { name: "계단에서 낙상", exact: true });
+    await chip.focus();
+    await page.keyboard.press("Space");
+
+    await expect(
+      page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요")
+    ).toHaveValue("계단에서 낙상");
   });
 });
