@@ -109,13 +109,16 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
   const canSubmit = value.trim().length > 0;
 
   return (
-    <div className="flex w-full max-w-3xl flex-col items-center gap-6 text-center md:gap-7">
-      <div className="flex flex-col items-center gap-3">
-        <p className="text-body-s font-semibold text-bora-accent">
+    // D2(3차 원격 결함 재작업) — design/exports/01 측정치(p90 콘텐츠 폭
+    // ≈758px)는 기존 max-w-3xl(768px)과 이미 근접해 폭 자체는 유지하고,
+    // 세로 간격만 디자인 수준으로 넓힌다(gap-6/7 → gap-7/9).
+    <div className="flex w-full max-w-3xl flex-col items-center gap-7 text-center md:gap-9">
+      <div className="flex flex-col items-center gap-3 md:gap-4">
+        <p className="text-body-s font-semibold text-bora-accent md:text-base">
           놓치기 쉬운 보상 항목을 확인해 보세요
         </p>
-        <h1 className="text-h1 font-bold text-bora-ink">이거, 보상 받을 수 있나요?</h1>
-        <p className="max-w-xl text-body text-bora-ink-2">
+        <h1 className="text-h1 font-bold text-bora-ink md:text-[32px]">이거, 보상 받을 수 있나요?</h1>
+        <p className="max-w-xl text-body text-bora-ink-2 md:text-base">
           사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손·정액
           담보·후유장해·배상책임에서 검토해 볼 보상 항목을 알려드립니다.
         </p>
@@ -148,14 +151,14 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
               placeholder="예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요"
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? SEARCH_ERROR_ID : undefined}
-              className="h-12 rounded-[12px] border-app-line pl-10 text-sm focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-14"
+              className="h-12 rounded-[12px] border-app-line pl-10 text-sm focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:text-base"
             />
           </div>
           <Button
             variant="diagnosis"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="h-12 w-full rounded-[12px] px-6 text-sm md:h-14 md:w-auto"
+            className="h-12 w-full rounded-[12px] px-6 text-sm md:h-16 md:w-auto md:px-8 md:text-base"
           >
             보상 진단
           </Button>
@@ -170,7 +173,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         ) : null}
       </div>
 
-      <Notice title="입력 시 주의해 주세요" className="w-full text-left">
+      <Notice title="입력 시 주의해 주세요" className="w-full text-left md:px-5 md:py-4">
         이름·전화번호·주민등록번호 등 개인 식별정보는 입력하지 마세요.
       </Notice>
 
@@ -181,28 +184,28 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
       </span>
 
       <div className="flex w-full flex-col items-start gap-2 md:flex-row md:items-center md:justify-center md:gap-2.5">
-        <span className="shrink-0 text-body-s text-bora-ink-3">많이 찾는 사례</span>
-        <div className="flex flex-wrap gap-2">
+        <span className="shrink-0 text-body-s text-bora-ink-3 md:text-base">많이 찾는 사례</span>
+        <div className="flex flex-wrap gap-2 md:gap-2.5">
           {FREQUENT_CASES.map((text) => (
-            <Chip key={text} onClick={() => handleChipClick(text)}>
+            <Chip key={text} className="md:px-3 md:py-1.5 md:text-sm" onClick={() => handleChipClick(text)}>
               {text}
             </Chip>
           ))}
         </div>
       </div>
 
-      <div className="grid w-full grid-cols-1 gap-3 text-left sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid w-full grid-cols-1 gap-3 text-left sm:grid-cols-2 md:grid-cols-4 md:gap-4">
         {CATEGORY_PREVIEWS.map(({ index, icon: Icon, title, description }) => (
-          <Card key={title} className="ring-app-line">
+          <Card key={title} className="ring-app-line md:[--card-spacing:--spacing(5)]">
             <CardHeader className="gap-2">
               <span className="flex items-center gap-2 text-bora-accent">
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
+                <Icon className="size-4 shrink-0 md:size-5" aria-hidden="true" />
                 <span className="text-meta font-medium text-bora-ink-4">{index}</span>
               </span>
-              <CardTitle className="text-sm font-semibold text-bora-ink">{title}</CardTitle>
+              <CardTitle className="text-sm font-semibold text-bora-ink md:text-base">{title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-body-s text-bora-ink-3">{description}</p>
+              <p className="text-body-s text-bora-ink-3 md:text-body">{description}</p>
             </CardContent>
           </Card>
         ))}

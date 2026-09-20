@@ -73,7 +73,9 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
   return (
     <div
       data-testid="diagnosis-loading"
-      className="flex w-full max-w-md flex-col items-center gap-4 py-16 text-center"
+      // D2(3차 원격 결함 재작업) — 01-C 측정치(중앙값/p90 콘텐츠 폭
+      // ≈690-710px)에 맞춰 Desktop 폭을 확대한다(01-B와 동일 폭 재사용).
+      className="flex w-full max-w-md flex-col items-center gap-5 py-16 text-center md:max-w-[720px]"
     >
       {/* D2(second remediation round, design/exports/01-C) — 단순 회색
           테두리 스피너 대신 BORA 퍼플 "C" 형태의 스피너로 교체한다: 옅은
@@ -81,13 +83,15 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
           재현한다. */}
       <span
         aria-hidden="true"
-        className="size-9 animate-spin rounded-full border-[3px] border-bora-accent-soft border-t-bora-accent motion-reduce:animate-none"
+        className="size-9 animate-spin rounded-full border-[3px] border-bora-accent-soft border-t-bora-accent motion-reduce:animate-none md:size-11"
       />
-      <h1 className="text-h2 font-bold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
+      {/* D2(3차) — text-h2(19px)는 디자인보다 작다. 01 입력 화면과 동일한
+          text-h1(26px) 위계를 재사용한다(전역 토큰 변경 없음). */}
+      <h1 className="text-h1 font-bold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
       <p className="text-body text-bora-ink-3">
         보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.
       </p>
-      <ul aria-live="polite" className="flex w-full flex-col gap-2 text-left">
+      <ul aria-live="polite" className="flex w-full flex-col gap-2.5 text-left">
         {STAGES.map((label, index) => {
           const isCompleted = index < stageIndex;
           const isCurrent = index === stageIndex;
@@ -96,7 +100,7 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
               key={label}
               data-testid={`diagnosis-loading-stage-${index}`}
               className={cn(
-                "flex items-center justify-between rounded-[10px] border px-4 py-3.5 text-sm",
+                "flex items-center justify-between rounded-[10px] border px-4 py-3.5 text-sm md:px-5 md:py-4 md:text-base",
                 isCurrent && "border-bora-accent bg-bora-accent-soft font-medium text-bora-accent",
                 isCompleted && "border-app-line text-bora-ink",
                 !isCompleted && !isCurrent && "border-app-line text-bora-ink-4"

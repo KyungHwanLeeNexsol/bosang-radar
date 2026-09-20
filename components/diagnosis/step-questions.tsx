@@ -27,12 +27,18 @@ interface Question {
   options: string[];
 }
 
+// D2(3차 원격 결함 재작업) — Q1은 design/exports/01-B/M01-B의 대표
+// placeholder("무릎 골절로 수술을 받으셨나요?" + 선택지 4개)로 교체한다.
+// 이 질문 자체는 매칭 엔진 연결과 무관한 placeholder 문구 선택일 뿐이므로
+// 범위 위반이 아니다. 아래 "이 답변은 수술비ㆍ후유장해 담보 검토에
+// 사용됩니다" 안내 문구가 Q1과 의미상 맞물리도록 Q1도 수술 여부 질문으로
+// 맞춘다(이전 "치료 여부" 질문과의 의미 충돌 제거).
 const QUESTIONS: readonly Question[] = [
   {
-    id: "treatment-status",
-    text: "현재 치료를 받고 계신가요?",
-    shortLabel: "치료 여부",
-    options: ["치료 중이에요", "치료가 끝났어요", "아직 병원에 가지 않았어요", "잘 모르겠어요"],
+    id: "surgery-status",
+    text: "무릎 골절로 수술을 받으셨나요?",
+    shortLabel: "수술 여부",
+    options: ["수술을 받았어요", "받지 않았어요", "수술 예정입니다", "잘 모르겠어요"],
   },
   {
     id: "hospitalization",
@@ -71,8 +77,15 @@ export function StepQuestions({
   const headingRef = React.useRef<HTMLHeadingElement>(null);
   const selected = answers[question.id];
   const isLastQuestion = questionIndex === TOTAL_QUESTIONS - 1;
-  const nextQuestion = QUESTIONS[questionIndex + 1];
   const progressPercent = ((questionIndex + 1) / TOTAL_QUESTIONS) * 100;
+  // D2(3차 원격 결함 재작업) — 힌트 라벨은 "현재 질문 → 다음 질문"이
+  // 아니라 "현재 질문 다음에 남은 질문들의 순서"를 보여준다(design/exports/
+  // 01-B: Q1에서 "다음 질문 · 입원 여부 → 사고 장소" — 이는 Q2→Q3 순서를
+  // 미리 보여주는 것이지 Q1→Q2가 아니다). 남은 질문이 하나뿐이면 화살표
+  // 없이 그 질문만 보여준다.
+  const upcomingLabel = QUESTIONS.slice(questionIndex + 1)
+    .map((q) => q.shortLabel)
+    .join(" → ");
 
   React.useEffect(() => {
     // design.md §15 — 질문 전환 시 포커스가 새 질문의 제목으로 이동해
@@ -81,7 +94,11 @@ export function StepQuestions({
   }, [questionIndex]);
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-4">
+    // D2(3차 원격 결함 재작업) — Desktop 콘텐츠 폭을 448px(max-w-md)에서
+    // design/exports/01-B 측정치(중앙값 콘텐츠 폭 ≈700-720px)에 맞춰
+    // 확대한다. Mobile은 max-w-md가 뷰포트(390px)보다 항상 넓어 실질적으로
+    // w-full로 렌더링되므로 이 변경의 영향을 받지 않는다.
+    <div className="flex w-full max-w-md flex-col gap-5 md:max-w-[720px]">
       {/* D2(second remediation round, design/exports/01-B/M01-B) — "입력
           내용을 확인했어요" 확인 배지. 사용자가 01에서 제출한 입력이
           유효하게 넘어왔음을 알려준다. */}
@@ -106,10 +123,8 @@ export function StepQuestions({
             />
           </div>
         </div>
-        {!isLastQuestion && nextQuestion ? (
-          <span className="text-meta text-bora-ink-4 sm:ml-auto">
-            다음 질문 · {question.shortLabel} → {nextQuestion.shortLabel}
-          </span>
+        {!isLastQuestion && upcomingLabel ? (
+          <span className="text-meta text-bora-ink-4 sm:ml-auto">다음 질문 · {upcomingLabel}</span>
         ) : null}
       </div>
 
@@ -120,17 +135,20 @@ export function StepQuestions({
       <h1
         ref={headingRef}
         tabIndex={-1}
-        className="text-h2 font-bold text-bora-ink outline-none"
+        // D2(3차 원격 결함 재작업) — design/exports 제목이 text-h2(19px)보다
+        // 뚜렷이 크다(01 입력 화면의 h1과 동일한 text-h1/26px 위계 재사용 —
+        // 전역 토큰은 건드리지 않고 이 컴포넌트에서만 큰 클래스를 선택).
+        className="text-h1 font-bold text-bora-ink outline-none"
       >
         {question.text}
       </h1>
 
-      <div role="radiogroup" aria-label={question.text} className="flex flex-col gap-2">
+      <div role="radiogroup" aria-label={question.text} className="flex flex-col gap-3">
         {question.options.map((option) => (
           <label
             key={option}
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-5 text-sm text-bora-ink",
+              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-5 text-sm text-bora-ink md:px-6 md:py-6 md:text-base",
               "has-[:checked]:border-bora-accent"
             )}
           >

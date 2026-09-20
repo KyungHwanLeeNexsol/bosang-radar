@@ -66,7 +66,11 @@ export function StepConsentModal({
         }
       }}
     >
-      <DialogContent>
+      {/* D2(3차 원격 결함 재작업) — design/exports/01-A2 측정치(콘텐츠 폭
+          중앙값 578px~p90 666px)에 맞춰 기본 max-w-md(448px)보다 넓힌다.
+          DialogContent는 className을 twMerge로 병합하므로 이 값이 기본
+          max-w-md를 대체한다(전역 Dialog 프리미티브 자체는 그대로 둠). */}
+      <DialogContent className="max-w-[620px] p-7">
         <DialogClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -79,7 +83,7 @@ export function StepConsentModal({
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DialogDescription>
 
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3.5 md:px-5 md:py-4">
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
@@ -119,7 +123,13 @@ export function StepConsentModal({
           </Dialog>
         </div>
 
-        <Button type="button" variant="diagnosis" disabled={!consentGiven} onClick={onConfirm}>
+        <Button
+          type="button"
+          variant="diagnosis"
+          disabled={!consentGiven}
+          className="h-10 rounded-[12px] text-base"
+          onClick={onConfirm}
+        >
           동의하고 진단하기
         </Button>
 

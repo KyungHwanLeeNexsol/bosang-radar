@@ -338,11 +338,19 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
     )
   ) : null;
 
+  // D2(3차 원격 결함 재작업) — design/exports 전 화면 대조 결과 Mobile
+  // 본문 배경은 연한 회색 surface(app-surface-sub)이고 Desktop은 흰색을
+  // 유지한다(헤더는 두 폭 모두 흰색 그대로). 01-B/01-C/01-D/01-E 및 대응
+  // Mobile 단계에는 디자인 프레임에 푸터가 없으므로 input(및 그 위의 동의
+  // 오버레이) 단계에서만 렌더링한다 — backgroundStep이 이미 이 둘을
+  // "input"으로 통합해 주므로 별도 분기 없이 그대로 재사용한다.
+  const showFooter = backgroundStep === "input";
+
   return (
     <div data-testid="diagnosis-flow" data-step={state.step} className="flex flex-1 flex-col">
       <DiagnosisHeader />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-app-surface-sub px-4 py-16 md:bg-app-surface">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}
@@ -378,7 +386,7 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
 
       {consentOverlay}
 
-      <DiagnosisFooter />
+      {showFooter ? <DiagnosisFooter /> : null}
     </div>
   );
 }

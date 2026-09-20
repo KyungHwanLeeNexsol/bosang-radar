@@ -63,7 +63,13 @@ export function StepConsentSheet({
         }
       }}
     >
-      <DrawerContent>
+      {/* D2(3차 원격 결함 재작업) — design/exports/M01-A2는 화면 위쪽까지
+          거의 꽉 채우는 h-[88vh] 고정 높이가 아니라 콘텐츠 크기에 맞춰
+          시작 위치가 아래로 내려온 min-height 구조다. h-[88vh]를
+          max-h-[85vh]로 바꿔 실제 콘텐츠 높이만큼만 차오르게 하고, 콘텐츠가
+          길어지는 예외 상황을 대비해 최대 높이만 유지한다(DrawerContent는
+          className을 twMerge로 병합하므로 기본 h-[88vh]를 대체한다). */}
+      <DrawerContent className="h-auto max-h-[85vh]">
         <DrawerClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"

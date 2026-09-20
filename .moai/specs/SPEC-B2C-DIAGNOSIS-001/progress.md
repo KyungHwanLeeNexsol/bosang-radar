@@ -175,6 +175,85 @@ D1(HEAD `718dd7d`) — `diagnosis-flow.tsx`의 URL→state 동기화 effect가 "
 - 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 D1/D2 수정에서도 전혀 건드리지 않음(변경 파일은 `components/diagnosis/diagnosis-flow.tsx`, `components/diagnosis/diagnosis-flow.test.tsx`, `components/diagnosis/step-questions.tsx`, `components/diagnosis/step-loading.tsx`, `components/diagnosis/step-loading.test.tsx`, `components/diagnosis/step-result-none.tsx`, `components/diagnosis/step-error.tsx`, `e2e/diagnosis-flow-01.spec.ts`, `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`, `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/*`, `.moai/specs/SPEC-B2C-DIAGNOSIS-001/progress.md`만)
 - Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)
 
+### D2 3차 원격 결함 재작업 착수 (2026-09-20, 3차 외부 재검토)
+
+**[REVOKED — 2026-09-20 (3차)]** 위 "D1/D2 재검증 완료" 절의 `run_status: audit-ready` 선언과 D2(01-B/01-C/01-D/01-E 시각 재구성) 판정은 3차 외부 재검토에서 다시 FAIL로 확인되어 무효화된다. 이 문단들은 삭제하지 않고 보존한다.
+
+- **D1(`?step=` 브라우저 히스토리·invalid step)은 PASS로 재확인됨 — 무효화 대상 아님.** 3차 재검토도 이 로직 자체는 변경하지 말라고 명시했다.
+- **D2가 다시 FAIL인 이유**: 이전 라운드가 "배지·진행 바·아이콘 요소가 존재하는가"만 확인하고 "디자인 export는 2배 해상도로 export되어 있어 raw PNG 크기를 1배 Playwright viewport와 직접 비교하면 안 된다"는 점을 놓쳤다. 실제로는 `design/exports/*.png`를 50%로 정규화한 1배 프레임(예: `01-B-추가-질문` 1440×940)과 비교해야 하는데, `StepQuestions`/`StepLoading`/`StepResultNone`/`StepError`가 전부 `max-w-md`(448px)에 고정되어 있어 Desktop 콘텐츠 폭이 디자인보다 훨씬 좁고, `text-h2`(19px) 제목 크기도 작으며, Mobile 배경이 흰색(디자인은 연한 회색 surface)이고, `DiagnosisFooter`가 모든 단계에 무조건 렌더링되어(디자인에는 01-B~01-E에 푸터가 없음) 콘텐츠 세로 위치도 어긋난다. "요소가 있다"와 "크기·배치가 일치한다"는 다른 판정인데 이전 라운드가 이를 혼동했다.
+- run_status: **in-progress** (3차 재작업 착수 — 정확한 1배 프레임 기준 재검증 및 실제 크기·배경·푸터 수정 완료 후에만 audit-ready로 재전환)
+- 새로운 plan-auditor 감사는 이번 라운드에서도 실행하지 않는다(사용자 명시 지시).
+- 진행 상황은 이 섹션에 append-only로 계속 기록한다.
+
+### D2 3차 재작업 완료 (2026-09-20, 위 "착수" 항목을 완료로 갱신)
+
+#### Claim
+
+3차 외부 재검토가 지적한 D2 결함(01-B/01-C/01-D/01-E가 실제 Pencil 디자인의
+크기·배치·배경·푸터 구조와 여전히 다름 — 이전 라운드가 "요소 존재 여부"만
+확인하고 "실제 Pencil 크기"를 raw 2배 PNG와 1배 viewport를 직접 비교하는
+잘못된 기준으로 판단했음)를 수정했다. D1(`?step=` 로직)은 지시대로 변경하지
+않았다.
+
+#### Evidence
+
+| 항목 | 명령/방법 | 결과 |
+|---|---|---|
+| 1배 프레임 크기 확정 | Node로 design/exports/*.png IHDR 청크 직접 판독 → 50% 정규화 | 사용자가 제시한 확인된 1배 기준(01/01-A2/01-B 1440×940, 01-C/D/E 1440×900, M01/M01-A2 390×1110, M01-B 390×672, M01-C 390×650)과 완전히 일치 |
+| `.pen` 교차검증 | `mcp__pencil__read_skill` 호출 | "failed to connect to running Pencil app" — 이 환경에 Pencil 데스크톱 앱 미연결로 불가(잔여 위험으로 comparison.md에 기록) |
+| 공통 수정 | `diagnosis-flow.tsx`(조건부 푸터+Mobile 배경), `step-{questions,loading,result-none,error}.tsx`(콘텐츠 폭 448px→640~768px, 제목 19px→26px), `step-consent-{modal,sheet}.tsx`(Desktop 모달 448→620px, Mobile 시트 h-[88vh]→h-auto max-h-[85vh]) | 코드 diff로 확인(아래 "변경 파일" 참고) |
+| 01-B 질문/힌트 라벨 수정 | Q1을 디자인 대표 placeholder("무릎 골절로 수술을 받으셨나요?")로 교체, 힌트 라벨을 "현재→다음"에서 "다음 질문 이후 남은 질문 순서"로 수정 | 재캡처 스크린샷에서 "다음 질문 · 입원 여부 → 사고 장소" 정확히 확인 |
+| Vitest 전체 스위트 | `pnpm test` | `Test Files 52 passed (52)` / `Tests 380 passed (380)` — 회귀 없음(D1/D2 이전 라운드 테스트 전부 유지) |
+| tsc | `pnpm tsc --noEmit` | 출력 없음(0 errors) |
+| ESLint | `pnpm eslint .` | 출력 없음(0 errors, 0 warnings) |
+| Playwright e2e | `pnpm test:e2e -- --spec=diagnosis-flow-01` | `16 passed (5.0m)` — D1 전용 테스트(뒤로가기 2회, `?step=garbage`, 검색어 보존, 새로고침 초기화) 전부 포함해 회귀 없음 |
+| 프로덕션 빌드(플래그 unset) | `pnpm build` | `/` → `○ Static`, 기존 `instrumentation.ts` 경고 1건만 |
+| 프로덕션 빌드(devStep 활성) | `ENABLE_DIAGNOSIS_DEV_STATES=true pnpm build` | `/` → `○ Static`, 동일 경고만 |
+| vitest coverage | `pnpm vitest run --coverage` | `All files 0 0 0 0`(0/0) — 이전 라운드부터 이어지는 동일 Windows 워크트리 환경 갭 재현, 새 원인 없음 |
+| `git diff --check` | 공백 오류 검사 | 출력 없음(0건) |
+| 플래그 안전성 grep | `grep -rn 'ENABLE_DIAGNOSIS_FLOW\|DIAGNOSIS_ENGINE_READY' app/ components/` | 전부 비교문·주석·테스트 전용 할당뿐, 프로덕션 대입 없음 |
+| SSOT 보존 확인 | `git diff --stat -- design/ '*.pen'` | 출력 없음(변경 없음) |
+| 시각 재검증 | 10개 대상 화면(01/01-A2/01-B/01-C/01-D/01-E/M01/M01-A2/M01-B/M01-C) 전부 재캡처 + `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md` 전면 재작성 | 미승인 시각 차이 0건, 모든 차이는 SPEC/AC 근거와 함께 "허용된 차이"로 명시. 상세 수치표·육안 대조 근거는 comparison.md 참고 |
+
+변경 파일: `components/diagnosis/diagnosis-flow.tsx`, `step-input.tsx`,
+`step-consent-modal.tsx`, `step-consent-sheet.tsx`, `step-questions.tsx`,
+`step-loading.tsx`, `step-result-none.tsx`, `step-error.tsx`,
+`.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md` +
+`screenshots/*`(12장 재캡처), `.moai/specs/SPEC-B2C-DIAGNOSIS-001/progress.md`.
+범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`,
+`.github/workflows/deploy.yml`, `design/`)는 이번 라운드에서도 전혀 건드리지
+않았다.
+
+#### Baseline-attribution
+
+워크트리 `C:\Users\zuge3\Documents\workspace\bosang-radar\.claude\worktrees\spec-b2c-diagnosis-001`(브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`), 이 세션에서
+원격 HEAD `b52e631`(직전 "D1/D2 재검증 완료 + 독립 재검증" 시점)을 base로
+직접 실행한 명령과 그 출력. Node 실행 환경은 `AppData/Local/nvm/v22.23.2`
+설치본.
+
+#### Gaps
+
+- `.pen` 소스 직접 조회 불가(Pencil 데스크톱 앱 미연결) — 콘텐츠 폭·타이포
+  수치는 정규화 PNG 기반 근사치다(comparison.md § 잔여 위험 1번).
+- vitest coverage 0/0 환경 갭 여전히 미해결(근본 원인 미규명, 기존과 동일
+  계열).
+- 자동 픽셀 스캔 알고리즘이 옅은 배경 박스(01-D/E)·거의 풀폭인 Mobile
+  레이아웃에서 신뢰도가 낮음을 실측으로 확인 — 해당 화면의 1차 판정
+  근거는 육안 나란히 대조다(comparison.md § 측정 방법론 각주 참고).
+- Mobile 배경 실측값(`#f4f6f8`)과 적용한 기존 토큰(`app-surface-sub`
+  `#f8fafb`)이 완전히 동일하지는 않다 — `.pen` 접근 가능해지면 재확인 필요.
+
+#### Residual-risk
+
+- D2의 콘텐츠 폭·타이포 수치는 `.pen` 원본이 아닌 정규화 PNG 근사치이므로,
+  Pencil 앱이 연결된 환경에서 재검증하면 미세한(수~10px대) 조정이 필요할
+  수 있다.
+- 01-B 힌트 라벨(shortLabel)은 여전히 placeholder 질문 세트에 종속된다 —
+  매칭 엔진 연결 시 함께 갱신되어야 한다(기존 잔여 위험과 동일).
+- run_status: **audit-ready**
+- run_complete_at: 2026-09-20 (D2 3차 원격 결함 수정·1배 프레임 기준
+  재검증 완료 — 이 세션에서 직접 검증)
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

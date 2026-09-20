@@ -30,24 +30,27 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
   return (
     <div
       data-testid="diagnosis-result-none"
-      className="flex w-full max-w-md flex-col items-center gap-3 py-16 text-center"
+      // D2(3차, 재조정) — 640px에서는 제목이 "습니다"를 갈라 2줄로 접혀
+      // 디자인의 1줄 레이아웃과 달라졌다(실측 캡처로 확인). 01-B/01-C와
+      // 동일한 720px로 넓혀 제목이 1줄에 들어가도록 맞춘다.
+      className="flex w-full max-w-md flex-col items-center gap-4 py-16 text-center md:max-w-[720px]"
     >
       <span
         aria-hidden="true"
-        className="flex size-14 items-center justify-center rounded-full bg-app-surface-inset text-bora-ink-3"
+        className="flex size-14 items-center justify-center rounded-full bg-app-surface-inset text-bora-ink-3 md:size-16"
       >
-        <SearchX className="size-6" />
+        <SearchX className="size-6 md:size-7" />
       </span>
-      <h1 className="text-h2 font-bold text-bora-ink">
+      <h1 className="text-h1 font-bold text-bora-ink">
         현재 입력만으로는 보상 가능성을 판단하기 어렵습니다
       </h1>
-      <p className="text-body text-bora-ink-3">
+      <p className="text-body text-bora-ink-3 md:text-base">
         진단명, 치료 여부 또는 사고 장소를 조금 더 구체적으로 적어주세요.
       </p>
 
-      <div className="w-full rounded-[10px] bg-app-surface-inset p-4 text-left">
-        <p className="text-sm font-bold text-bora-ink">이렇게 적어주시면 좋아요</p>
-        <ul className="mt-2 flex flex-col gap-1 text-body-s text-bora-ink-3">
+      <div className="w-full rounded-[10px] bg-app-surface-inset p-4 text-left md:p-5">
+        <p className="text-sm font-bold text-bora-ink md:text-base">이렇게 적어주시면 좋아요</p>
+        <ul className="mt-2 flex flex-col gap-1 text-body-s text-bora-ink-3 md:text-body">
           {INPUT_GUIDANCE_EXAMPLES.map((example) => (
             <li key={example}>· {example}</li>
           ))}
@@ -65,7 +68,12 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       {/* design/exports/01-D는 "손해사정사에게 바로 문의" 버튼도 함께
           보여주지만, 03 상담 플로우는 이 SPEC의 Out of Scope다(plan.md §G).
           "내용을 수정할게요" 단독 버튼만 유지한다(허용된 차이). */}
-      <Button type="button" variant="diagnosis" onClick={onEditInput}>
+      <Button
+        type="button"
+        variant="diagnosis"
+        className="md:h-11 md:rounded-[12px] md:px-7 md:text-base"
+        onClick={onEditInput}
+      >
         내용을 수정할게요
       </Button>
     </div>
