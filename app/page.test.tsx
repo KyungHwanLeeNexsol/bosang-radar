@@ -29,6 +29,8 @@ const { searchParamsMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsMock.current,
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/",
 }));
 
 const ENV_KEYS = [

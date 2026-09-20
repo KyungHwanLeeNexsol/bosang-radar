@@ -9,13 +9,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // 서버에서 계산해 내려주는 값이며, 이 컴포넌트는 절대 process.env를 직접
 // 읽지 않는다(design.md §10).
 
-const { searchParamsMock } = vi.hoisted(() => ({
+const { searchParamsMock, routerMock } = vi.hoisted(() => ({
   searchParamsMock: { current: new URLSearchParams() },
+  routerMock: { push: vi.fn(), replace: vi.fn() },
 }));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsMock.current,
+  useRouter: () => routerMock,
+  usePathname: () => "/",
 }));
+
+// M-fix-1 — diagnosis-header.tsx가 "카톡 상담" 버튼을 StepInput의 CTA보다
+// DOM상 먼저 렌더링하므로, 첫 번째 <button>을 가정하던 기존 헬퍼는 더 이상
+// CTA를 가리키지 않는다. 모든 "01 화면 CTA 클릭" 의도는 텍스트로 조회한다.
+function findCtaButton(container: HTMLElement): HTMLButtonElement {
+  const button = Array.from(container.querySelectorAll("button")).find((btn) =>
+    btn.textContent?.includes("보상 진단")
+  );
+  if (!button) {
+    throw new Error('CTA button "보상 진단" not found');
+  }
+  return button;
+}
+
+beforeEach(() => {
+  routerMock.push.mockClear();
+  routerMock.replace.mockClear();
+});
 
 describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
   let container: HTMLDivElement;
@@ -107,7 +128,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
-    const button = container.querySelector("button") as HTMLButtonElement;
+    const button = findCtaButton(container);
     act(() => {
       button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -130,9 +151,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      findCtaButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     // consent: 체크박스 선택 후 확인 -> questions
@@ -199,9 +218,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-015/016", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      findCtaButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     const consentCheckbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -284,7 +301,7 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
       setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
     act(() => {
       (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
@@ -337,7 +354,7 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
       setInputValue(input, "계단에서 넘어져 발목을 다쳤어요");
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
 
     let flow = container.querySelector('[data-testid="diagnosis-flow"]');
@@ -361,7 +378,7 @@ describe("components/diagnosis/DiagnosisFlow — reducer 분기 커버리지 보
     // 여전히 선택된 상태로 표시된다(consentGiven은 CONSENT_CANCEL로
     // 초기화되지 않음 — REQ-B2CDIAG-019).
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
 
     flow = container.querySelector('[data-testid="diagnosis-flow"]');
@@ -440,7 +457,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
       setInputValue(input, SEARCH_TEXT);
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
     act(() => {
       (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
@@ -495,7 +512,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-011/012 (loading →
       setInputValue(input, SEARCH_TEXT);
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
     act(() => {
       (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
@@ -573,7 +590,7 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-020 (반응형 conse
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     act(() => {
-      (container.querySelector("button") as HTMLButtonElement).click();
+      findCtaButton(container).click();
     });
   }
 
@@ -591,5 +608,250 @@ describe("components/diagnosis/DiagnosisFlow — AC-B2CDIAG-020 (반응형 conse
 
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-2 (design/exports/01-A2, M01-A2) — 01-A2는
+// 01 "위에" 뜨는 오버레이이지 별도의 빈 화면이 아니다. consent 스텝에서도
+// StepInput(배경)이 계속 마운트되어 있어야 하고, 배경의 검색창은 오버레이의
+// 포커스 트랩과 경쟁하지 않도록 자동 포커스를 받지 않아야 한다.
+describe("components/diagnosis/DiagnosisFlow — M-fix-2 (consent 오버레이 배경)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("consent 스텝에서도 배경의 검색창(StepInput)이 입력값을 유지한 채 계속 렌더링된다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+
+    // 배경 검색창이 언마운트되지 않고 값이 그대로 남아 있다.
+    const backgroundInput = container.querySelector("input") as HTMLInputElement;
+    expect(backgroundInput).not.toBeNull();
+    expect(backgroundInput.value).toBe("계단에서 넘어져 발목을 다쳤어요");
+
+    // 오버레이(Modal/Sheet)도 동시에 DOM에 존재한다.
+    const overlay =
+      document.querySelector('[data-slot="dialog-content"]') ??
+      document.querySelector('[data-slot="drawer-content"]');
+    expect(overlay).not.toBeNull();
+  });
+
+  it("consent 스텝 진입 시 배경 검색창은 자동 포커스를 받지 않는다(오버레이 포커스 트랩과 경쟁 방지)", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    // Base UI Dialog/Drawer의 초기 포커스 이동은 requestAnimationFrame
+    // 이후 적용된다(step-consent-modal.test.tsx의 tick()과 동일한 이유) —
+    // 이 tick을 기다리지 않으면 배경 검색창이 (오버레이가 아직 포커스를
+    // 가져가기 전이라) 여전히 이전 포커스를 들고 있는 것처럼 보일 수 있다.
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+
+    const backgroundInput = container.querySelector("input") as HTMLInputElement;
+    expect(document.activeElement).not.toBe(backgroundInput);
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-4 (design.md §0 "?step= shallow-route";
+// AC-B2CDIAG-017) — router.push/replace 모킹을 스파이로 사용해 URL 동기화
+// 로직을 검증한다. 실제 브라우저 히스토리 왕복(page.goBack())은
+// e2e/diagnosis-flow-01.spec.ts(Playwright)에서 별도로 검증한다.
+describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("input → consent 전이 시 router.push가 ?step=consent로 호출된다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    expect(routerMock.push).toHaveBeenCalledWith(
+      expect.stringContaining("step=consent"),
+      expect.objectContaining({ scroll: false })
+    );
+  });
+
+  it("직접 진입: ?step=questions로 마운트하면 input으로 남고(state는 이미 input 기본값) router.replace로 잘못된 ?step=을 정리한다", async () => {
+    searchParamsMock.current = new URLSearchParams("step=questions");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("input");
+    expect(routerMock.replace).toHaveBeenCalledWith(
+      expect.not.stringContaining("step="),
+      expect.objectContaining({ scroll: false })
+    );
+  });
+
+  it("직접 진입: ?step=error로 마운트해도 input으로 남고 router.replace로 정리한다", async () => {
+    searchParamsMock.current = new URLSearchParams("step=error");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("input");
+    expect(routerMock.replace).toHaveBeenCalled();
+  });
+
+  it("popstate 시뮬레이션: consent에서 questions로 진행한 뒤 URL이 ?step=consent로 바뀌면(뒤로가기) consent로 되돌아가고 답변은 보존된다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    // input -> consent
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    // consent -> questions
+    act(() => {
+      (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      (
+        Array.from(document.querySelectorAll("button")).find((btn) =>
+          btn.textContent?.includes("동의하고 진단하기")
+        ) as HTMLButtonElement
+      ).click();
+    });
+
+    let flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("questions");
+
+    // 브라우저 뒤로가기 시뮬레이션 — searchParams가 이전 히스토리 항목
+    // (step=consent)로 바뀌었다고 가정하고 재렌더링한다.
+    act(() => {
+      searchParamsMock.current = new URLSearchParams("step=consent");
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+
+    // AC-B2CDIAG-017 — 동의 체크박스는 여전히 선택되어 있다(세션 내 유지).
+    const consentCheckbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(consentCheckbox.checked).toBe(true);
+  });
+});
+
+// SPEC-B2C-DIAGNOSIS-001 M-fix-5 — ?devStep=consent-detail은 동의
+// 오버레이뿐 아니라 그 위의 상세 오버레이까지 마운트 즉시 열려 있어야
+// 한다(dev 전용, Playwright e2e에서 Desktop/Mobile 각각 재검증).
+describe("components/diagnosis/DiagnosisFlow — M-fix-5 (devStep=consent-detail)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams("devStep=consent-detail");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("enableDevStates=true이면 동의 상세 오버레이({처리 목적 확정 문구} 등)가 마운트 즉시 열려 있다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={true} />);
+    });
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+    expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
+  });
+
+  it("AC-B2CDIAG-016: enableDevStates=false이면 ?devStep=consent-detail은 무시되고 input 단계를 유지한다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("input");
+    expect(document.body.textContent).not.toContain("{처리 목적 확정 문구}");
   });
 });
