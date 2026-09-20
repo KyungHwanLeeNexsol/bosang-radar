@@ -9,6 +9,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // SPEC-B2C-DIAGNOSIS-001 M-fix-3 — 01/M01 CTA는 전역 --primary(achromatic
+        // gray)가 아니라 BORA 브랜드 퍼플이어야 한다(design/exports/01-A2 CTA 색
+        // 대비 확인). 전역 --primary 토큰은 다른 화면에 영향을 주므로 건드리지
+        // 않고, 이미 SPEC-PILOT-VISUAL-001에서 정의된 --color-bora-accent 계열
+        // 토큰(app/globals.css)만 재사용하는 진단 플로우 전용 variant를 추가한다.
+        diagnosis:
+          "bg-bora-accent text-white shadow-[0_2px_8px_-2px_rgba(108,71,255,0.55)] hover:bg-bora-accent-deep",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
