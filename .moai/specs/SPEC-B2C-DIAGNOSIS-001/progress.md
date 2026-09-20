@@ -50,16 +50,55 @@ Milestone 1~9(plan.md §F)이 순차 위임으로 구현 완료되었다 — 공
 - 신설 `e2e/diagnosis-flow-01.spec.ts`(6 테스트, 01 화면 범위 한정): Desktop(1440x900) happy path, Mobile(390x844) happy path(Bottom Sheet 확인), `?devStep=result-none`/`?devStep=error` 직접 진입(AC-B2CDIAG-015), 새로고침 상태 초기화(AC-B2CDIAG-013), 오류 재시도 입력값 보존(AC-B2CDIAG-012). 전체 6/6 PASS(`pnpm test:e2e -- --spec=diagnosis-flow-01`, 5.0m, 실제 Chromium 실행 — 환경 차단 없음).
 - AC-B2CDIAG-021(production 기본 조합에서 devStep 무시)은 이 webServer 하나로 검증 불가(webServer.env는 프로세스 시작 시 고정) — `app/page.test.tsx`의 "플래그 기반 shouldRenderDiagnosis 5행 동작 행렬" Vitest describe 블록이 이미 AC-015/016/021을 포함한 5행 전체를 기계적으로 검증하므로 별도 Playwright 프로젝트를 신설하지 않고 그 커버리지를 그대로 인정함(diagnosis-flow-01.spec.ts 상단 주석에 근거 기록).
 - 시각 정합성 수동 비교(design.md §16 절차): 임시 스펙(`e2e/_visual-capture.spec.ts`, 캡처 후 삭제)으로 6개 상태 × 2폭(1440/390) 스크린샷 12장을 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/`에 캡처. 비교 결과는 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`에 기록 — 레이아웃 폭·텍스트는 전 화면 일치, **Primary 색상 토큰이 `app/globals.css`의 무채색(`oklch(0.205 0 0)`) 값으로 디자인의 보라 계열과 다르게 렌더링됨을 발견**(레이아웃/상태 전이에는 영향 없음, M2-M9 산출물의 기존 상태 — 이번 M10에서 임의 수정하지 않고 잔여 위험으로만 기록).
+  - **[REVOKED — 2026-09-20]** 이 M10 문단의 "레이아웃 폭·텍스트는 전 화면 일치" 주장은 외부 코드 리뷰에서 실제 구현과 불일치하는 것으로 확인되었다(01/M01 화면에 헤더·푸터·헤드라인·4카드가 없었고, "많이 찾는 사례" 칩이 4개로 축소되어 있었으며, comparison.md의 "design.md 범위 내 재량" 판단은 승인 근거가 없는 주장이었다). 이 M10 문단 자체는 당시 실행한 명령과 그 시점 캡처를 정직하게 기록한 것이므로 삭제하지 않고 보존하되, 그 결론은 아래 "M-fix" 재검증 절로 대체·정정한다.
 - 프로덕션 빌드 검증(Quality Gate 기준): `next build`를 기본 env(플래그 미설정, `/` → `○ Static`)와 `ENABLE_DIAGNOSIS_DEV_STATES=true`(`/` → `○ Static`, DiagnosisFlow 포함) 두 조합으로 각각 실행 — 둘 다 Suspense 경계 관련 오류·경고 0건(사전 존재하던 `instrumentation.ts` Edge Runtime 무관 경고 1건만 공통 출력, M10 변경과 무관).
 - Vitest 전체 스위트 재확인: `pnpm test` → 52 files / 361 tests 전부 PASS(회귀 없음).
 - 변경 범위: `playwright.config.ts`(webServer.env 1줄 추가 + 주석), `e2e/diagnosis-flow-01.spec.ts`(신규), `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/**`(신규). `app/`/`components/`/`lib/validation/`은 이 마일스톤에서 손대지 않음(plan.md §D ① 범위 밖 — e2e는 ② 범위).
 
+### M-fix — 외부 코드 리뷰 결함 8건 원격 수정 (2026-09-20)
+
+#### Claim
+
+외부 코드 리뷰가 M10에서 주장한 "레이아웃 폭·텍스트는 전 화면 일치"가 실제 구현과 불일치함을 지적한 8개 결함(01/M01 화면 레이아웃 미복원, 동의 오버레이 배경 미유지, Primary 색상 미적용, `?step=` 라우팅 미구현, `devStep=consent-detail`이 상세 오버레이를 열지 않음, 칩 키보드 접근성 부재, vitest coverage.include 누락, comparison.md의 근거 없는 판단)을 모두 수정했다. 커밋 7개, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`: `f937eb2`(M-fix-1/3/6) → `2665943`(M-fix-2 X버튼) → `055094b`(M-fix-2/4/5 배경 유지·라우팅·devStep) → `3283905`(vitest coverage.include) → `1575589`(URL_RESTORABLE_STEPS 회귀 수정 + e2e) → `ef0bcfa`(확인 버튼 색상) → `5d4532b`(comparison.md 재작성).
+
+#### Evidence
+
+| 항목 | 명령 | 결과 |
+|---|---|---|
+| Vitest 전체 스위트 | `pnpm test` (HEAD `5d4532b`) | `Test Files 52 passed (52)` / `Tests 378 passed (378)` — M10 시점 361개 대비 신규 17개 추가(M-fix-1/2/4/5/6 전용 테스트) |
+| tsc | `pnpm tsc --noEmit` | 출력 없음(0 errors) |
+| ESLint | `pnpm eslint .` | 출력 없음(0 errors, 0 warnings) — `react-hooks/set-state-in-effect` 신규 규칙 위반 1건을 `OPEN_CONSENT_DETAIL` reducer 액션 통합으로 해소 |
+| Playwright e2e | `pnpm exec tsx scripts/run-e2e.ts --spec=e2e/diagnosis-flow-01.spec.ts` | `14 passed (5.0m)` — 기존 6개 + M-fix-2/4/5/6 신규 8개 전부 PASS. 최초 실행에서 기존 AC-B2CDIAG-013("새로고침 시 input으로 초기화") 테스트가 3회(재시도 포함) 전부 실패해 M-fix-4 구현의 `URL_RESTORABLE_STEPS`가 `consent`까지 잘못 허용한 회귀를 실측으로 발견·수정함(1575589) |
+| 프로덕션 빌드(플래그 unset) | `pnpm build`(env 기본값) | `/` → `○ Static`, 기존 placeholder 불변, 기존 `instrumentation.ts` 경고 1건만(SPEC 무관) |
+| 프로덕션 빌드(devStep 활성) | `ENABLE_DIAGNOSIS_DEV_STATES=true pnpm build` | `/` → `○ Static`, DiagnosisFlow 포함, 동일 경고만 |
+| 플래그 안전성 grep | `grep -rn 'ENABLE_DIAGNOSIS_FLOW\|DIAGNOSIS_ENGINE_READY' app/ components/` | 전부 비교문(`=== "true"`)·주석·테스트 전용 할당(`app/page.test.tsx`)뿐, 프로덕션 코드 경로에 대입문 없음 |
+| `git diff --check` | `git diff --check c1c22515e HEAD` | 출력 없음(공백 오류 0건) |
+| 시각 재검증 | Playwright 임시 스펙으로 14개 스크린샷 재캡처 후 삭제 | `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md` 전면 재작성 — 칩 6개 전체 원본과 일치 확인(이전 "축소" 판단 철회), 동의 오버레이 배경 유지 확인(스크린샷), BORA 퍼플 CTA 적용 확인 |
+
+#### Baseline-attribution
+
+워크트리 `C:\Users\zuge3\Documents\workspace\bosang-radar\.claude\worktrees\spec-b2c-diagnosis-001`(브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`), 이 세션에서 HEAD `5d4532b`(직전 M10 종료 시점 커밋 `c1c22515e` 대비 신규 커밋 7개)에 대해 직접 실행한 명령과 그 출력. Node 실행 환경은 nvm 설치본 v22.23.2(워크트리 셸 기본 PATH에는 v20.19.6/미설치 상태였으나 `pnpm`/코어리지 v8 계측기가 Node 22.13+를 요구해 전환).
+
+#### Gaps
+
+- **vitest coverage 실수치 여전히 미측정.** `vitest.config.ts`의 `coverage.include` 누락을 수정했으나(3283905), 이 특정 워크트리+Windows+Node 22.23.2 조합에서는 수정 후에도 `pnpm vitest run --coverage`가 `All files 0 0 0 0`(0/0)을 그대로 산출함을 직접 재현 확인했다 — `coverage-summary.json`도 `"total":0` 그대로다. `--pool=forks`/`--no-file-parallelism`/legacy config loader로도 재현 결과 동일. M9가 이미 기록한 "이 워크트리·OS 조합에서 coverage-v8이 0/0을 산출하는 환경 결함"과 동일 계열이며, `coverage.include` 누락이 근본 원인이라는 외부 리뷰의 가설은 이 워크트리에서는 반증되었다(수정 후에도 재현) — 더 깊은 Windows/워크트리 특이적 v8 계측 문제로 추정되나 확정 원인은 규명하지 못했다. Linux/mac 실행(M9가 인용한 95%/88%/92%/96%)은 이 결함의 영향을 받지 않는 것으로 보이므로, 실측 커버리지는 CI/비-Windows 환경 결과를 신뢰해야 한다.
+- **`step-questions.tsx`/`step-result-none.tsx`/`step-error.tsx`의 자체 CTA는 여전히 achromatic이다.** 이번 원격 수정 지시가 명시한 대상 파일 목록(step-input.tsx/diagnosis-flow.tsx/step-consent-modal.tsx/step-consent-sheet.tsx/chip.tsx/button.tsx)에 이 3개 파일이 없어 Scope Discipline에 따라 손대지 않았다. 완전한 시각적 일관성을 원하면 별도 후속 작업이 필요하다.
+- 질문 3문항(M5) 문구와 동의 상세 6개 placeholder는 M9/M10과 동일하게 의도된 미확정 상태로 유지된다(변경 없음).
+
+#### Residual-risk
+
+- `URL_RESTORABLE_STEPS`를 `{"input"}`으로 좁힌 것은 기존 AC-B2CDIAG-013(새로고침 시 완전 초기화)과의 회귀를 해소하기 위함이지만, `consent`로의 popstate 동기화 자체는(같은 세션 내 뒤로가기) 별도 경로로 계속 허용된다 — 두 경로(마운트 시 직접 진입 reset vs 세션 중 popstate sync)가 분리되어 있다는 전제가 무너지면(예: Next.js 라우터 동작 변경) 재검토가 필요하다.
+- 시각 비교는 여전히 수동 리뷰다(자동 픽셀 diff 미도입, design.md §16 결정 유지) — 미세한 여백/폰트 렌더링 차이는 육안 검토 범위를 벗어날 수 있다.
+- 이번 수정은 push하지 않았다 — 오케스트레이터가 별도로 push를 위임한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - run_status: audit-ready
-- run_complete_at: 2026-09-19
-- 전체 10개 마일스톤(M1~M10) 완료, 최종 커밋 `f84672e`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push
-- 프로덕션 안전 불변식 재확인 완료(manager-lead 독립 재검증): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`) 전혀 미변경, Vitest 52/52 파일·361/361 테스트 통과, `next build` 기본 env에서 `/` Static prerender 성공
+- run_complete_at: 2026-09-20 (M-fix 원격 수정 재검증 완료 — 2026-09-19 시점의 이전 `audit-ready`는 외부 코드 리뷰가 지적한 8개 결함으로 인해 무효화되었고, 이번 재검증으로 다시 정당하게 설정한다)
+- 전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 완료, 최종 커밋 `5d4532b`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push
+- 프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 M-fix Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·378/378 테스트 통과(M10 시점 361 대비 +17), Playwright e2e 14/14 통과, `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린
+- **부분 미해결 항목(§E.2 M-fix Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: 이 워크트리+Windows+Node 22.23.2 조합에서 vitest coverage-v8 실측이 `coverage.include` 수정 후에도 0/0을 산출하는 환경 결함이 재현되며 근본 원인을 규명하지 못함(M9가 이미 기록한 기존 환경 결함과 동일 계열, CI/비-Windows 실측치를 신뢰해야 함); step-questions.tsx/step-result-none.tsx/step-error.tsx의 자체 CTA는 이번 원격 수정 대상 파일 목록 밖이라 achromatic으로 남아 있음(Scope Discipline)
+- 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 M-fix 수정에서도 전혀 건드리지 않음(커밋 diff로 확인 가능 — 7개 커밋 모두 `app/`, `components/diagnosis/`, `components/ui/`, `e2e/`, `.moai/reports/`, `vitest.config.ts`, `eslint.config.mjs`, `.moai/specs/` 범위 내)
 - Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)
 
 ## §E.4 Sync-phase Audit-Ready Signal
