@@ -123,7 +123,7 @@ export function StepQuestions({
         <Button type="button" variant="ghost" onClick={onPrev}>
           이전
         </Button>
-        <Button type="button" disabled={!selected} onClick={onNext}>
+        <Button type="button" variant="diagnosis" disabled={!selected} onClick={onNext}>
           {questionIndex === TOTAL_QUESTIONS - 1 ? "결과 보기" : "다음"}
         </Button>
       </div>

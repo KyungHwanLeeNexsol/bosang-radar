@@ -82,8 +82,9 @@ Milestone 1~9(plan.md §F)이 순차 위임으로 구현 완료되었다 — 공
 #### Gaps
 
 - **vitest coverage 실수치 여전히 미측정.** `vitest.config.ts`의 `coverage.include` 누락을 수정했으나(3283905), 이 특정 워크트리+Windows+Node 22.23.2 조합에서는 수정 후에도 `pnpm vitest run --coverage`가 `All files 0 0 0 0`(0/0)을 그대로 산출함을 직접 재현 확인했다 — `coverage-summary.json`도 `"total":0` 그대로다. `--pool=forks`/`--no-file-parallelism`/legacy config loader로도 재현 결과 동일. M9가 이미 기록한 "이 워크트리·OS 조합에서 coverage-v8이 0/0을 산출하는 환경 결함"과 동일 계열이며, `coverage.include` 누락이 근본 원인이라는 외부 리뷰의 가설은 이 워크트리에서는 반증되었다(수정 후에도 재현) — 더 깊은 Windows/워크트리 특이적 v8 계측 문제로 추정되나 확정 원인은 규명하지 못했다. Linux/mac 실행(M9가 인용한 95%/88%/92%/96%)은 이 결함의 영향을 받지 않는 것으로 보이므로, 실측 커버리지는 CI/비-Windows 환경 결과를 신뢰해야 한다.
-- **`step-questions.tsx`/`step-result-none.tsx`/`step-error.tsx`의 자체 CTA는 여전히 achromatic이다.** 이번 원격 수정 지시가 명시한 대상 파일 목록(step-input.tsx/diagnosis-flow.tsx/step-consent-modal.tsx/step-consent-sheet.tsx/chip.tsx/button.tsx)에 이 3개 파일이 없어 Scope Discipline에 따라 손대지 않았다. 완전한 시각적 일관성을 원하면 별도 후속 작업이 필요하다.
 - 질문 3문항(M5) 문구와 동의 상세 6개 placeholder는 M9/M10과 동일하게 의도된 미확정 상태로 유지된다(변경 없음).
+
+**오케스트레이터 후속 수정(같은 세션)**: manager-develop이 원래 명시했던 대상 파일 목록(step-input.tsx/diagnosis-flow.tsx/step-consent-modal.tsx/step-consent-sheet.tsx/chip.tsx/button.tsx)에는 없었지만, 사용자 요청의 "진단 플로우 CTA" 범위가 `step-questions.tsx`(다음/결과 보기)·`step-result-none.tsx`(내용을 수정할게요)·`step-error.tsx`(다시 시도) 3개 파일의 주요 액션 버튼도 포함한다고 판단해, 오케스트레이터가 직접 `variant="diagnosis"`를 추가로 적용했다("이전"/"입력 내용으로 돌아가기" 같은 보조 버튼은 outline/ghost 유지). 재검증: `tsc --noEmit`(0 errors) / `eslint .`(0 errors) / `pnpm test`(52 files / 378 tests 전부 PASS, 회귀 없음) / flag-safety grep 동일 결과 / `git diff --check` 클린. `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`도 이 수정을 반영해 갱신했다. 이로써 위 Gaps의 "잔여 CTA achromatic" 항목은 해소되었다.
 
 #### Residual-risk
 
@@ -97,7 +98,7 @@ Milestone 1~9(plan.md §F)이 순차 위임으로 구현 완료되었다 — 공
 - run_complete_at: 2026-09-20 (M-fix 원격 수정 재검증 완료 — 2026-09-19 시점의 이전 `audit-ready`는 외부 코드 리뷰가 지적한 8개 결함으로 인해 무효화되었고, 이번 재검증으로 다시 정당하게 설정한다)
 - 전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 완료, 최종 커밋 `5d4532b`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push
 - 프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 M-fix Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·378/378 테스트 통과(M10 시점 361 대비 +17), Playwright e2e 14/14 통과, `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린
-- **부분 미해결 항목(§E.2 M-fix Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: 이 워크트리+Windows+Node 22.23.2 조합에서 vitest coverage-v8 실측이 `coverage.include` 수정 후에도 0/0을 산출하는 환경 결함이 재현되며 근본 원인을 규명하지 못함(M9가 이미 기록한 기존 환경 결함과 동일 계열, CI/비-Windows 실측치를 신뢰해야 함); step-questions.tsx/step-result-none.tsx/step-error.tsx의 자체 CTA는 이번 원격 수정 대상 파일 목록 밖이라 achromatic으로 남아 있음(Scope Discipline)
+- **부분 미해결 항목(§E.2 M-fix Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: 이 워크트리+Windows+Node 22.23.2 조합에서 vitest coverage-v8 실측이 `coverage.include` 수정 후에도 0/0을 산출하는 환경 결함이 재현되며 근본 원인을 규명하지 못함(M9가 이미 기록한 기존 환경 결함과 동일 계열, CI/비-Windows 실측치를 신뢰해야 함). step-questions.tsx/step-result-none.tsx/step-error.tsx의 주요 CTA achromatic 잔여 갭은 오케스트레이터가 같은 세션에서 후속 수정(§E.2 M-fix Gaps 하단 참고)해 해소했다.
 - 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 M-fix 수정에서도 전혀 건드리지 않음(커밋 diff로 확인 가능 — 7개 커밋 모두 `app/`, `components/diagnosis/`, `components/ui/`, `e2e/`, `.moai/reports/`, `vitest.config.ts`, `eslint.config.mjs`, `.moai/specs/` 범위 내)
 - Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)
 

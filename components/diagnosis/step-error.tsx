@@ -35,7 +35,7 @@ export function StepError({ onRetry, onBackToInput }: StepErrorProps) {
         이 화면은 데모/검토용 목업입니다
       </p>
       <div className="flex items-center gap-2">
-        <Button type="button" onClick={onRetry}>
+        <Button type="button" variant="diagnosis" onClick={onRetry}>
           다시 시도
         </Button>
         <Button type="button" variant="outline" onClick={onBackToInput}>

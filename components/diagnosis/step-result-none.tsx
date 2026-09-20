@@ -36,7 +36,7 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       <p data-testid="diagnosis-mock-badge" className="text-meta text-bora-ink-4">
         이 화면은 데모/검토용 목업입니다
       </p>
-      <Button type="button" onClick={onEditInput}>
+      <Button type="button" variant="diagnosis" onClick={onEditInput}>
         내용을 수정할게요
       </Button>
     </div>
