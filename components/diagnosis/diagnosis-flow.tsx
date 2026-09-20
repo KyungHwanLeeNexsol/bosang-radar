@@ -67,6 +67,19 @@ export type DiagnosisStep = "input" | "consent" | "questions" | "loading" | "res
 // 별도 dispatch 없이 URL만 맞으면 그대로 둔다.
 const URL_RESTORABLE_STEPS = new Set<DiagnosisStep>(["input"]);
 
+// D1(second remediation round) — ?step=의 런타임 가드. searchParams.get()은
+// 항상 string | null을 반환하므로 "as DiagnosisStep" 캐스팅만으로는 잘못된
+// 값(?step=garbage)이 그대로 FORCE_STEP 액션의 payload가 되어 버린다. 이
+// Set에 없는 값은 "step 파라미터가 없는 것"과 동일하게 취급한다.
+const VALID_STEPS: ReadonlySet<DiagnosisStep> = new Set([
+  "input",
+  "consent",
+  "questions",
+  "loading",
+  "result-none",
+  "error",
+]);
+
 interface DiagnosisState {
   step: DiagnosisStep;
   input: string;
@@ -222,11 +235,34 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
     // "input"이므로 dispatch 없이 URL만 정리한다(REQ-B2CDIAG-016 — URL만으로
     // 상태를 재구성하지 않는다). 첫 실행 이후에는 이 컴포넌트가 언마운트된
     // 적이 없으므로(같은 세션) 모든 step 값을 그대로 신뢰해 동기화한다.
-    const urlStep = searchParams.get("step") as DiagnosisStep | null;
+    const rawStep = searchParams.get("step");
     const isFirstRun = isFirstUrlSyncRef.current;
     isFirstUrlSyncRef.current = false;
 
+    // D1 — VALID_STEPS에 없는 값(예: ?step=garbage)은 "step이 없는 것"과
+    // 동일하게 취급한다. urlStep은 검증을 통과한 값만 담는다.
+    const urlStep = rawStep !== null && VALID_STEPS.has(rawStep as DiagnosisStep)
+      ? (rawStep as DiagnosisStep)
+      : null;
+
     if (!urlStep) {
+      // rawStep이 유효하지 않은 값(garbage)이었다면 URL에서 제거한다. rawStep이
+      // 아예 없었다면(정상적인 "step 없음") URL은 이미 깨끗하므로 손대지 않는다.
+      if (rawStep !== null) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("step");
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      }
+
+      // D1 — 첫 실행이면 state가 이미 "input"이므로 아무것도 하지 않는다
+      // (AC-B2CDIAG-013/016, 기존 동작 유지). 첫 실행 이후 ?step=이
+      // 사라지면(팝스테이트로 뒤로 가기 등) state를 input으로 동기화한다.
+      // 이미 input이면 중복 dispatch를 피한다.
+      if (!isFirstRun && state.step !== "input") {
+        skipNextPushRef.current = true;
+        dispatch({ type: "FORCE_STEP", payload: "input" });
+      }
       return;
     }
 

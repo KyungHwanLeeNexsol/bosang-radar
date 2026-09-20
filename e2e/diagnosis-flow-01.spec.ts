@@ -247,6 +247,48 @@ test.describe("01 화면 — ?step= 브라우저 히스토리 (M-fix-4)", () => 
     await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
     await expect(page).not.toHaveURL(/step=/);
   });
+
+  // D1(second remediation round) — input → consent → questions까지 실제
+  // UI 조작으로 진행한 뒤 뒤로가기를 두 번 반복하면, 두 번째 뒤로가기에서
+  // URL이 ?step= 자체가 없는 "/"로 돌아온다. 첫 URL 동기화 effect가 이미
+  // 한 번 실행된 뒤에 발생하는 이 상황에서 React state가 계속 consent에
+  // 머물던 회귀(첫 리미디에이션 라운드에서 발견)를 재검증한다.
+  test("D1: 뒤로가기를 두 번 반복하면 input까지 도달하고, 배경이 다시 상호작용 가능해지며 검색어가 보존된다", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await submitDiagnosisInput(page, RESULT_NONE_INPUT);
+    await expect(page).toHaveURL(/step=consent/);
+
+    await checkConsentAndConfirm(page);
+    await expect(page).toHaveURL(/step=questions/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/step=consent/);
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "consent");
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/step=/);
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
+
+    // 배경(01 화면)이 다시 상호작용 가능해야 한다(consent에 갇혀 있지 않음).
+    const searchInput = page.getByPlaceholder(
+      "예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요"
+    );
+    await expect(searchInput).toBeVisible();
+    await expect(searchInput).toHaveValue(RESULT_NONE_INPUT);
+    await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(0);
+  });
+
+  // D1 — ?step=garbage로 직접 진입하면 6단계 상태 머신 밖의 값이 그대로
+  // 렌더링되어서는 안 된다. input으로 정리되고 URL에서도 제거되어야 한다.
+  test("D1: ?step=garbage로 직접 진입하면 input으로 정리되고 URL의 ?step=garbage가 제거된다", async ({
+    page,
+  }) => {
+    await page.goto("/?step=garbage");
+    await expect(page.getByTestId("diagnosis-flow")).toHaveAttribute("data-step", "input");
+    await expect(page).not.toHaveURL(/step=garbage/);
+  });
 });
 
 // SPEC-B2C-DIAGNOSIS-001 M-fix-5 — ?devStep=consent-detail은 동의 오버레이뿐

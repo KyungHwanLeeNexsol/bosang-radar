@@ -810,6 +810,82 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-4 (?step= 동기화)", ()
     const consentCheckbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
     expect(consentCheckbox.checked).toBe(true);
   });
+
+  // D1(second remediation round) — ?step=이 완전히 사라지는 popstate(뒤로
+  // 가기를 계속해 히스토리 맨 앞으로 돌아온 경우)를 첫 실행 이후에 겪으면,
+  // 기존 코드는 "urlStep이 없다"는 이유로 조기 return해 React state가 URL과
+  // 어긋난 채로 남았다(state는 consent인데 URL은 /). 이 테스트는 첫 URL
+  // 동기화가 이미 한 번 일어난 뒤(consent 진입) ?step=이 사라지는 상황을
+  // 재현해 state가 input으로 동기화되는지 검증한다.
+  it("D1: 첫 URL 동기화 이후 ?step=이 사라지면(팝스테이트) state를 input으로 동기화한다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    // input -> consent (첫 URL 동기화 effect가 이미 1회 실행됨)
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    let flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+
+    // 팝스테이트로 히스토리 맨 앞(?step= 없는 "/")까지 되돌아갔다고 가정.
+    act(() => {
+      searchParamsMock.current = new URLSearchParams();
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("input");
+  });
+
+  // D1 — searchParams가 VALID_STEPS에 없는 값을 들고 있을 때, 그 값이
+  // FORCE_STEP dispatch의 payload로 그대로 흘러가면 data-step 자체가
+  // "garbage"가 되어 6단계 상태 머신 밖의 값을 렌더링하게 된다. 런타임
+  // 가드가 이 값을 "step 없음"과 동일하게 처리하는지 검증한다.
+  it("D1: 유효하지 않은 ?step= 값(garbage)은 FORCE_STEP에 전달되지 않고 input으로 정리된다", async () => {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    // input -> consent (첫 URL 동기화 이후 상태로 만든다)
+    const input = container.querySelector("input") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "계단에서 넘어져 발목을 다쳤어요");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    let flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("consent");
+
+    // ?step=garbage로 바뀌었다고 가정(직접 URL 조작 등).
+    act(() => {
+      searchParamsMock.current = new URLSearchParams("step=garbage");
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    // "garbage"는 6단계 중 어느 것도 아니므로 절대 data-step에 나타나면 안 된다.
+    expect(flow?.getAttribute("data-step")).not.toBe("garbage");
+    expect(flow?.getAttribute("data-step")).toBe("input");
+    expect(routerMock.replace).toHaveBeenCalledWith(
+      expect.not.stringContaining("step="),
+      expect.objectContaining({ scroll: false })
+    );
+  });
 });
 
 // SPEC-B2C-DIAGNOSIS-001 M-fix-5 — ?devStep=consent-detail은 동의
