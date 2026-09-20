@@ -445,6 +445,117 @@ Desktop 8px/Mobile 4px 허용 오차 이내로 수렴했으나, 아래 2건이 �
 - 새로운 plan-auditor 감사는 이번 라운드에서도 실행하지 않는다.
 - 진행 상황은 이 섹션에 append-only로 계속 기록한다.
 
+**[REVOKED — 2026-09-20 (6차)]** 위 5차 절의 `run_status: in-progress`
+판정은 유효했으나, 6차 외부 재검토가 그 근거(측정 방법론)에 결함이
+있었음을 지적해 아래 절로 대체된다.
+
+### D2 6차 재작업 완료 보고 (2026-09-20)
+
+#### Claim
+
+6차 외부 재검토가 지적한 3가지 방법론 결함(스크린샷 미커밋, ink/DOM
+혼합 비교, M01 푸터 목표값 완화)을 모두 해결하고, 10개 화면을 동일
+ink-pixel 좌표계로 재측정해 다수의 항목을 허용 오차 이내로
+수정했다. overlay/diff 이미지 10쌍을 생성해 커밋했다.
+
+#### Evidence
+
+- **스크린샷 10개 실제 커밋**: `git diff --stat`으로 10개 파일 전부
+  바이트 단위 변경 확인(0 insertions/deletions는 바이너리 파일
+  특성 — Bin 크기 변화로 실제 변경 확인, `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md` §캡처 증거 참고).
+- **동일 좌표계 비교**: 디자인 PNG 50% 정규화 + 구현 프로덕션
+  캡처(동일 1배 크기)에 동일 ink-pixel 세그먼트 함수 적용. 01-A2/
+  M01-A2는 반투명 backdrop bleed-through 문제를 밝기 임계값 크롭
+  + 좌우 테두리 인셋으로 해결.
+- **overlay/diff 10쌍 커밋**: `normalized-design/`, `overlays/`,
+  `diffs/` 3개 디렉터리, 각 10개 PNG — comparison.md § Overlay/Diff
+  인덱스에 경로 연결.
+- **M01 푸터 목표 정정**: "1110 프레임 이내"에서 디자인 실측 좌표
+  y≈1054로 정정. `diagnosis-flow.tsx`의 wrapper `flex-1` 제거로
+  콘텐츠~푸터 간 비정상 간격(54px)을 해소, 최종 푸터 하단 Δ3px 달성.
+- **01-B 제목 12px 판정 재검증**: 동일 좌표계 재측정 결과 실제로
+  Δ20px였음을 재확인(허위 판정 철회 아님 — 실제 결함이었음이
+  확인됨). 제목 margin과 radiogroup margin을 독립 재계산해 제목
+  Δ5px, 옵션1 Δ0px로 정정.
+- **M01-A2 시트 높이**: 377px→342px(목표347px, Δ6px)로 30px 초과의
+  대부분을 해소. 제목 2줄 wrap 유지 확인(DOM height=60=30px×2).
+- **M01-C 문구 복원**: "보통 10~20초 정도 걸립니다."로 정정,
+  `screenshots/M01-C-loading.png`에서 직접 확인.
+- **M01-B 전체 측정**: 확인 배지·진행 문구·진행률 트랙·다음 질문
+  안내·부제·제목(2줄 wrap 달성)·옵션 4개·답변 안내·건너뛰기
+  링크·이전/다음 버튼 전부 측정 완료(이전 "미측정" 모순 해소).
+  진행률 트랙을 `w-24`(96px)에서 `w-[180px]`로 확장.
+- **01-D/01-E mock 배지 재배치**: 배지를 CTA/버튼 그룹 뒤로 옮겨
+  "배지 추가는 허용, 배지로 인한 다른 요소 위치 이동은 불허" 원칙을
+  실제로 지킴(01-D CTA Δ0px, 01-E 버튼 그룹 Δ4px).
+- **01/01-C 신규 발견 항목 정정**: 동일 좌표계 재측정 과정에서
+  새로 드러난 01 제목 Δ9px, 01-C 제목/설명/단계행 Δ10~20px를 모두
+  Δ0~6px로 수정(01-C는 화면 전체 PASS).
+- `pnpm tsc --noEmit`(이번 실행): 출력 없음(0 errors)
+- `pnpm test`(이번 실행): `Test Files 52 passed (52)` /
+  `Tests 380 passed (380)`
+- `pnpm eslint .`(이번 실행): 실제 코드 0 errors/0 warnings(임시
+  검증 스크립트의 unused-var 경고 2건은 커밋 전 삭제됨)
+- `pnpm build`(플래그 unset, 이번 실행): `/` → `○ Static`, 기존
+  `instrumentation.ts` 무관 경고 1건만
+- `ENABLE_DIAGNOSIS_DEV_STATES=true pnpm build`(이번 실행): 동일
+  결과(이 플래그는 빌드 시점에 설정해야 반영됨 — `/`가 정적
+  프리렌더되므로)
+- `pnpm test:e2e`(이번 실행): `16 passed (5.0m)` — D1 전용 `?step=`
+  뒤로가기 2회, `?step=garbage` 정리 포함 전부 통과
+- `git diff --check`(이번 실행): 출력 없음(0건)
+- `git diff -- components/diagnosis/diagnosis-flow.tsx`(이번 실행):
+  wrapper `flex-1` 제거 1곳만(7 insertions/1 deletion) — `?step=`
+  히스토리/invalid-step 로직(`VALID_STEPS`, `skipNextPushRef`,
+  `useEffect` 동기화 블록) 무변경 확인
+
+#### Baseline-attribution
+
+이 라운드의 모든 측정·overlay/diff·스크린샷은 이 워크트리에서 이번
+세션 중 `pnpm build && pnpm start`(포트 3611)로 기동한 프로덕션
+서버를 대상으로, 이번 커밋 직전 작업 트리 상태에서 직접 캡처·측정한
+결과다(임시 검증 스크립트 `_tmp-visual-verify.mjs`,
+`_tmp-visual-verify-overlay.mjs`는 커밋 전 삭제).
+
+#### Gaps (미검증)
+
+- **01-B 옵션 2~4/답변 안내/건너뛰기 링크**: 옵션 행 자체 높이(57px
+  vs 디자인 54px)로 인한 누적 편차(5~23px)를 이번 라운드에서
+  해소하지 못했다 — padding을 더 줄이면 클릭 영역이 좁아져 접근성과
+  상충할 위험이 있어 보류했다.
+- **M01/M01-C 제목 2줄 wrap**: M01-B/M01-A2에는 적용했지만 M01/M01-C
+  제목("이거, 보상 받을 수 있나요?" / "입력하신 내용을 확인하고
+  있습니다")에는 미적용 — 이번 라운드 지시사항에 명시적으로 포함되지
+  않아 범위에서 제외했다.
+- **M01-A2 내부 요소 상대 위치**: 외곽 시트 높이(347px 목표, Δ6px
+  달성)를 우선하느라 제목/설명/CTA/하단 안내문의 시트 내 상대 위치는
+  9~37px 편차가 남아 있다 — 패딩을 늘리면 시트 높이가 다시 초과된다.
+- **01-B/C/D/E 제목 font-size 정확값**: `.pen` 미접근으로 여전히
+  추정값.
+- **M01-B 진행률 트랙 정확 px**: 트랙이 배경과 저대비라 ink
+  세그먼트로 측정 불가 — 육안 확인 기반 추정 확장치.
+
+#### Residual-risk
+
+- **Desktop 8px/Mobile 4px 초과 항목이 0건이 아니다**: 01 푸터,
+  01-B 옵션 2~4 이하, M01 설명, M01-A2 내부 요소, M01-B 확인 배지/
+  제목/답변 안내, M01-C 제목/설명/단계행/스켈레톤이 여전히 초과
+  상태다(comparison.md §허용 오차 초과 항목 참고).
+- **ink-pixel 세그먼트 자체의 측정 한계**: 회전 애니메이션 요소
+  (01-C 스피너)는 캡처 시점마다 ink 높이가 요동치고, 저대비 배경
+  요소(M01-B 배지, 진행률 트랙)는 세그먼트가 텍스트만 감지하거나
+  아예 미검출된다 — 이런 경우 절대 좌표 직접 겨냥 또는 DOM 보조
+  측정으로 우회했다(comparison.md § 방법론에 명시).
+
+- run_status: **in-progress** — 위 항목들이 허용 오차를 벗어난 채
+  남아 있으므로 `audit-ready`로 전환하지 않는다. 5차 대비 개선 폭은
+  크다(M01-B 옵션 Δ85px→8px, M01 푸터 66px 초과→3px, M01-A2 시트
+  30px 초과→6px, 01-B 제목 20px→5px, 01-D/E mock 배지 편차
+  20px/11px→0px/4px, **01-C 화면 전체 PASS**)만, 신규 발견 항목을
+  포함해 초과 항목이 0건은 아니다(사용자 지시: "하나라도 충족되지
+  않으면 현재처럼 in-progress를 유지하고 정확한 수치와 원인을
+  보고").
+
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_

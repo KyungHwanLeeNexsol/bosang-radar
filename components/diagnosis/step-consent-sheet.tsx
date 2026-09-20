@@ -69,11 +69,14 @@ export function StepConsentSheet({
           max-h-[85vh]로 바꿔 실제 콘텐츠 높이만큼만 차오르게 하고, 콘텐츠가
           길어지는 예외 상황을 대비해 최대 높이만 유지한다(DrawerContent는
           className을 twMerge로 병합하므로 기본 h-[88vh]를 대체한다). */}
-      {/* D2(4차 재작업) — DOM 실측 결과 시트 높이가 디자인(347px)보다
-          28px 낮고(319px) 상단 위치도 그만큼 아래로 처짐(허용 오차
-          Mobile 4px 초과) — 패딩을 p-6(24px)에서 p-7(28px)로, 요소 간격을
-          gap-4(기본)에서 gap-5로 살짝 늘려 높이를 보정한다. */}
-      <DrawerContent className="h-auto max-h-[85vh] gap-5 p-7">
+      {/* D2(6차 재작업) — 동일 ink-pixel 좌표계로 재측정한 결과 시트
+          높이가 디자인(347px, 기준: 시트-top~화면-bottom)보다 30px
+          컸다(377px) — 5차에서 늘린 p-7/gap-5가 과했다. p-6로 되돌리고
+          gap을 요소쌍별 실측 간격으로 대체한다. 제목 2줄 wrap은 유지.
+          (잔여 위험: 제목 자체의 시트 내 상대 위치가 디자인보다 이르게
+          측정되나, 상단 패딩을 늘리면 전체 높이 예산을 다시 초과하게
+          돼 외곽 높이 일치를 우선했다.) */}
+      <DrawerContent className="h-auto max-h-[85vh] gap-0 p-6">
         <DrawerClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -87,11 +90,11 @@ export function StepConsentSheet({
         <DrawerTitle className="max-w-[230px] text-[20px] font-bold">
           건강정보 처리에 동의해 주세요
         </DrawerTitle>
-        <DrawerDescription id={CONSENT_DESCRIPTION_ID} className="text-sm">
+        <DrawerDescription id={CONSENT_DESCRIPTION_ID} className="mt-[17px] text-sm">
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>
 
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3">
+        <div className="mt-[35px] flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-2">
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
@@ -135,6 +138,7 @@ export function StepConsentSheet({
           variant="diagnosis"
           disabled={!consentGiven}
           className={cn(
+            "mt-[17px]",
             !consentGiven &&
               "bg-app-surface-inset text-bora-ink-4 shadow-none disabled:opacity-100 hover:bg-app-surface-inset"
           )}
@@ -144,7 +148,7 @@ export function StepConsentSheet({
           동의하고 진단하기
         </Button>
 
-        <p className="text-center text-meta text-bora-ink-3">
+        <p className="mt-[13px] text-center text-meta text-bora-ink-3">
           필수 동의 후 진단을 시작할 수 있습니다.
         </p>
       </DrawerContent>

@@ -131,7 +131,10 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
     // _tmp-design-blocks.json 실측 대조). 부모 gap을 없애고 자식마다
     // 디자인 세그먼트 간격에서 역산한 개별 margin-top으로 대체한다.
     <div className="flex w-full max-w-3xl flex-col items-center pt-[23px] text-center md:pt-[91px]">
-      <div className="flex flex-col items-center gap-3 md:gap-4">
+      {/* D2(6차 재작업) — 동일 ink-pixel 좌표계 재측정에서 Desktop
+          제목 top이 디자인보다 9px 아래로(203 vs 194) 처져 있었다.
+          부제/제목/설명 간 균일 gap-4(16px)를 조금 좁힌다. */}
+      <div className="flex flex-col items-center gap-3 md:gap-[13px]">
         <p className="text-body-s font-semibold text-bora-accent md:text-base">
           놓치기 쉬운 보상 항목을 확인해 보세요
         </p>
@@ -154,7 +157,16 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         </span>
       </div>
 
-      <div className="mt-5 flex w-full flex-col gap-1.5 text-left md:mt-[9px]">
+      {/* D2(6차 재작업) — 디자인·구현 캡처를 동일 크기로 맞춰 동일
+          ink-pixel 세그먼트로 직접 비교한 결과, Mobile(M01)의 검색
+          영역~카드~푸터 사이 모든 간격이 균일 mt-5(20px)로는 디자인과
+          맞지 않았다(검색창 y=253 vs 목표266, 카드 top 누적 Δ21~26,
+          푸터 하단이 디자인(y≈1054)보다 66px 아래). 개별 값으로
+          재조정한다. 카운터도 디자인처럼 검색창 바로 아래·CTA 위에
+          위치하도록 DOM 순서를 옮긴다(Desktop은 결합 컨트롤 유지를
+          위해 md:hidden으로 접고, 기존 위치의 desktop 전용 카운터를
+          별도로 둔다). */}
+      <div className="mt-[33px] flex w-full flex-col gap-1.5 text-left md:mt-[9px]">
         {/* D2(5차 재작업) — design/exports/01은 검색 영역과 CTA가 하나의
             결합된 컨트롤처럼 보인다(간격 없이 맞닿고, 바깥쪽 모서리만
             radius). Desktop에서 md:gap-0 + 안쪽 모서리 radius 제거로
@@ -187,16 +199,25 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
               className="h-[95px] resize-none rounded-[12px] rounded-b-none border-app-line pt-3.5 pl-10 text-sm [field-sizing:fixed] focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:rounded-b-[12px] md:rounded-r-none md:border-r-0 md:py-5 md:pt-5 md:text-base"
             />
           </div>
+          {/* D2(6차 재작업) — Mobile 전용 카운터: 디자인은 검색창과 CTA
+              사이에 카운터가 위치한다. Desktop은 결합 컨트롤(검색창+CTA가
+              한 행)을 유지해야 하므로 이 위치의 카운터는 md:hidden으로
+              접고, 기존 desktop 카운터(행 바깥)를 그대로 둔다. */}
+          {/* D2(6차 재작업 2차 보정) — 1차 시도(mt-11)는 CTA가 디자인보다
+              27px 아래로 처지게 만들었다(실측 기반 재조정). */}
+          <span aria-live="polite" className="self-end text-meta text-bora-ink-3 md:hidden">
+            {value.length} / {MAX_LENGTH}자
+          </span>
           <Button
             variant="diagnosis"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="h-12 w-full rounded-[12px] rounded-t-none px-6 text-sm md:h-16 md:w-auto md:rounded-t-[12px] md:rounded-l-none md:px-8 md:text-base"
+            className="-mt-[3px] h-12 w-full rounded-[12px] rounded-t-none px-6 text-sm md:mt-0 md:h-16 md:w-auto md:rounded-t-[12px] md:rounded-l-none md:px-8 md:text-base"
           >
             보상 진단
           </Button>
         </div>
-        <span aria-live="polite" className="self-end text-meta text-bora-ink-3">
+        <span aria-live="polite" className="hidden self-end text-meta text-bora-ink-3 md:inline">
           {value.length} / {MAX_LENGTH}자
         </span>
         {error ? (
@@ -208,18 +229,18 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
 
       <Notice
         title="입력 시 주의해 주세요"
-        className="mt-5 w-full text-left md:mt-[13px] md:px-5 md:py-4"
+        className="mt-[15px] w-full text-left md:mt-[13px] md:px-5 md:py-4"
       >
         이름·전화번호·주민등록번호 등 개인 식별정보는 입력하지 마세요.
       </Notice>
 
       {/* Mobile — Clock 항목 1개(결합 문구)가 안내 배너 아래로 이동한다. */}
-      <span className="mt-5 flex items-center gap-1.5 self-start text-meta text-bora-ink-3 md:hidden">
+      <span className="mt-[14px] flex items-center gap-1.5 self-start text-meta text-bora-ink-3 md:hidden">
         <Clock className="size-3.5 shrink-0" aria-hidden="true" />
         회원가입 없이 약 1분 · 분석 목적으로만 사용
       </span>
 
-      <div className="mt-5 flex w-full flex-col items-start gap-2 md:mt-[19px] md:flex-row md:items-center md:justify-center md:gap-2.5">
+      <div className="-mt-[3px] flex w-full flex-col items-start gap-2 md:mt-[19px] md:flex-row md:items-center md:justify-center md:gap-2.5">
         <span className="shrink-0 text-body-s text-bora-ink-3 md:text-base">많이 찾는 사례</span>
         <div className="flex flex-wrap gap-2 md:gap-2.5">
           {FREQUENT_CASES.map((text) => (
@@ -238,11 +259,11 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
           표현할 수 없어 Mobile 전용 마크업을 별도로 둔다(Desktop 구조는
           기존 그대로 유지). */}
       {/* Mobile 전용 — 아이콘+제목 한 행, 설명 다음 행, 번호 숨김. */}
-      <div className="mt-5 flex w-full flex-col gap-2 text-left md:hidden">
+      <div className="mt-[19px] flex w-full flex-col gap-2 text-left md:hidden">
         {CATEGORY_PREVIEWS.map(({ icon: Icon, title, description }) => (
           <div
             key={title}
-            className="flex flex-col gap-0.5 rounded-xl bg-card px-4 py-3 text-card-foreground ring-1 ring-app-line"
+            className="flex flex-col gap-0.5 rounded-xl bg-card px-4 py-2.5 text-card-foreground ring-1 ring-app-line"
           >
             <span className="flex items-center gap-2 text-bora-ink">
               <Icon className="size-4 shrink-0 text-bora-accent" aria-hidden="true" />

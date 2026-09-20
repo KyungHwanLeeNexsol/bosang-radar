@@ -361,7 +361,13 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           다른 색이었다(안티앨리어싱 오차 아님). 새 토큰을 추가할 필요
           없이 이미 존재하던 app-bg(#f4f6f8, globals.css)가 정확히
           일치해 그 토큰으로 교체한다. */}
-      <div className="flex flex-1 flex-col items-center gap-3 bg-app-bg px-4 md:bg-app-surface">
+      {/* D2(6차 재작업) — flex-1이 뷰포트 남은 공간을 전부 채워 콘텐츠가
+          실제로 끝나는 지점보다 한참 아래에 푸터가 배치되는 문제가
+          있었다(M01: 콘텐츠~푸터 사이 실측 54px, 디자인은 23px).
+          input 스텝(M01)은 콘텐츠 높이만큼만 차지하면 되므로 flex-1을
+          제거한다 — 다른 스텝(01-C/D/E)은 짧은 프레임에서도 배경색이
+          시각적으로 페이지 배경과 같아 flex-1 제거의 영향이 없다. */}
+      <div className="flex flex-col items-center gap-3 bg-app-bg px-4 md:bg-app-surface">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}

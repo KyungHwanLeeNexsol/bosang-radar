@@ -9,9 +9,13 @@
 const FOOTER_LINKS = ["개인정보처리방침", "이용약관", "고객 문의"] as const;
 
 export function DiagnosisFooter() {
+  // D2(6차 재작업) — Mobile 푸터 실측: 디자인 푸터는 상단 테두리부터
+  // 하단 면책 문구까지 총 65px(y≈989→1054)인데 구현은 py-6+gap-4로
+  // 그보다 훨씬 커 전체 화면이 1110 프레임을 66px 초과했다. Mobile만
+  // 패딩/간격을 좁힌다(Desktop은 기존 값 유지, 별도 편차 보고 없음).
   return (
-    <footer className="flex w-full flex-col gap-4 border-t border-app-line px-4 py-6 md:px-8 md:py-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <footer className="flex w-full flex-col gap-2 border-t border-app-line px-4 py-4 md:gap-4 md:px-8 md:py-8">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
         <nav className="flex flex-wrap gap-x-5 gap-y-1.5 text-body-s font-medium text-bora-ink-2">
           {FOOTER_LINKS.map((label) => (
             <a key={label} href="#" className="hover:text-bora-ink">

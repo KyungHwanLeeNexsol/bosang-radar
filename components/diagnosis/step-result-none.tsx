@@ -67,6 +67,23 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
         </ul>
       </div>
 
+      {/* design/exports/01-D는 "손해사정사에게 바로 문의" 버튼도 함께
+          보여주지만, 03 상담 플로우는 이 SPEC의 Out of Scope다(plan.md §G).
+          "내용을 수정할게요" 단독 버튼만 유지한다(허용된 차이). */}
+      {/* D2(6차 재작업) — 동일 ink-pixel 좌표계 재측정에서 mock 배지가
+          CTA를 20px 아래로 밀고 있었다(REQ-B2CDIAG-024는 배지 자체의
+          존재만 허용하지, 다른 요소 위치 변화까지 허용하지 않는다는
+          지시) — 배지를 CTA "다음"으로 옮겨 CTA margin이 배지와
+          무관하게 디자인 좌표(491)를 직접 겨냥하도록 한다. */}
+      <Button
+        type="button"
+        variant="diagnosis"
+        className="md:mt-[14px] md:h-11 md:rounded-[12px] md:px-7 md:text-base"
+        onClick={onEditInput}
+      >
+        내용을 수정할게요
+      </Button>
+
       {/* REQ-B2CDIAG-024 — 이 화면은 항상 mock 판정 결과이므로 실제 결과와
           혼동되지 않도록 종속적인(subordinate) 위치에 목업 표기를 유지한다.
           design/exports/01-D는 이 배지를 보여주지 않지만(허용된 차이 —
@@ -74,18 +91,6 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       <p data-testid="diagnosis-mock-badge" className="text-meta text-bora-ink-4 md:mt-[8px]">
         이 화면은 데모/검토용 목업입니다
       </p>
-
-      {/* design/exports/01-D는 "손해사정사에게 바로 문의" 버튼도 함께
-          보여주지만, 03 상담 플로우는 이 SPEC의 Out of Scope다(plan.md §G).
-          "내용을 수정할게요" 단독 버튼만 유지한다(허용된 차이). */}
-      <Button
-        type="button"
-        variant="diagnosis"
-        className="md:mt-[8px] md:h-11 md:rounded-[12px] md:px-7 md:text-base"
-        onClick={onEditInput}
-      >
-        내용을 수정할게요
-      </Button>
     </div>
   );
 }

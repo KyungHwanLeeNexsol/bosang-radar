@@ -79,7 +79,7 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
       // pt-[28px]. 콘텐츠 폭은 707px 실측(pt-[]는 반응형, 폭은 710px로
       // 707에 근접). py-16(상하 64px 공통 중앙정렬용)은 제거 — 상단은
       // pt-*가, 하단은 gap만으로 충분하다.
-      className="flex w-full max-w-md flex-col items-center gap-4 pt-[28px] text-center md:max-w-[710px] md:pt-[82px]"
+      className="flex w-full max-w-md flex-col items-center gap-4 pt-[28px] text-center md:max-w-[710px] md:gap-0 md:pt-[82px]"
     >
       {/* D2(second remediation round, design/exports/01-C) — 단순 회색
           테두리 스피너 대신 BORA 퍼플 "C" 형태의 스피너로 교체한다: 옅은
@@ -95,17 +95,22 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
       />
       {/* D2(3차) — text-h2(19px)는 디자인보다 작다. 01 입력 화면과 동일한
           text-h1(26px) 위계를 재사용한다(전역 토큰 변경 없음). */}
-      <h1 className="text-h1 font-bold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
-      {/* D2(5차 재작업) — design/exports/M01-C 설명 세그먼트는 폭 138px
-          짜리 한 줄뿐이라 Desktop의 전체 문장("보통 10~20초 정도
-          걸립니다. 창을 닫지 말고...")이 그대로 들어갈 수 없다 — Mobile은
-          더 짧은 문구를 쓴다(반응형으로 표시만 분리, 스크린리더에서
-          숨기지 않음 — 두 <p> 모두 항상 DOM에 존재). */}
-      <p className="text-body text-bora-ink-3 md:hidden">잠시만 기다려 주세요</p>
-      <p className="hidden text-body text-bora-ink-3 md:block">
+      {/* D2(6차 2차 보정) — 스피너는 회전 애니메이션 중이라 캡처
+          시점의 호(arc) 위치에 따라 ink 높이가 요동친다(측정 시
+          17~36px로 불안정). 스피너 하단 기준 gap이 아니라 제목의
+          절대 목표 위치(192)를 직접 겨냥한다. */}
+      <h1 className="text-h1 font-bold text-bora-ink md:mt-[3px]">입력하신 내용을 확인하고 있습니다</h1>
+      {/* D2(6차 재작업) — 5차에서 "잠시만 기다려 주세요"로 창작한 문구는
+          디자인 원문이 아니었다(사용자 지적) — design/exports/M01-C의
+          실제 문구인 "보통 10~20초 정도 걸립니다."로 복원한다. Desktop은
+          기존 전체 문장을 유지(반응형으로 표시만 분리). `hidden`
+          클래스는 `display:none`이라 두 <p> 모두 항상 DOM에 있어도
+          접근성 트리에는 현재 보이는 한쪽만 노출된다(중복 노출 없음). */}
+      <p className="text-body text-bora-ink-3 md:hidden">보통 10~20초 정도 걸립니다.</p>
+      <p className="hidden text-body text-bora-ink-3 md:mt-[9px] md:block">
         보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.
       </p>
-      <ul aria-live="polite" className="flex w-full flex-col gap-2.5 text-left">
+      <ul aria-live="polite" className="flex w-full flex-col gap-2.5 text-left md:mt-[30px]">
         {STAGES.map((label, index) => {
           const isCompleted = index < stageIndex;
           const isCurrent = index === stageIndex;
@@ -159,7 +164,7 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
       {/* D2(second remediation round, design/exports/01-C/M01-C) — 진행 중
           뼈대(skeleton) 카드. 실제 결과 미리보기가 아니라 로딩 상태를 암시하는
           정적 placeholder다(02 실제 결과 화면은 이 SPEC의 Out of Scope). */}
-      <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid w-full grid-cols-1 gap-3 md:mt-[20px] md:grid-cols-3">
         {Array.from({ length: SKELETON_CARD_COUNT }, (_, cardIndex) => (
           <div
             key={cardIndex}
