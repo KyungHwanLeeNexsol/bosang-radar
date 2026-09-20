@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "coverage/**",
     "next-env.d.ts",
     // MoAI-ADK scaffold + isolated agent worktrees — never app source.
     ".claude/**",
