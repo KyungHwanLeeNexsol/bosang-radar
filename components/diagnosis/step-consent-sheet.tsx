@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { X } from "lucide-react";
+import { Lock, X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -69,7 +69,11 @@ export function StepConsentSheet({
           max-h-[85vh]로 바꿔 실제 콘텐츠 높이만큼만 차오르게 하고, 콘텐츠가
           길어지는 예외 상황을 대비해 최대 높이만 유지한다(DrawerContent는
           className을 twMerge로 병합하므로 기본 h-[88vh]를 대체한다). */}
-      <DrawerContent className="h-auto max-h-[85vh]">
+      {/* D2(4차 재작업) — DOM 실측 결과 시트 높이가 디자인(347px)보다
+          28px 낮고(319px) 상단 위치도 그만큼 아래로 처짐(허용 오차
+          Mobile 4px 초과) — 패딩을 p-6(24px)에서 p-7(28px)로, 요소 간격을
+          gap-4(기본)에서 gap-5로 살짝 늘려 높이를 보정한다. */}
+      <DrawerContent className="h-auto max-h-[85vh] gap-5 p-7">
         <DrawerClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -77,12 +81,12 @@ export function StepConsentSheet({
           <X className="size-4" aria-hidden="true" />
         </DrawerClose>
 
-        <DrawerTitle>건강정보 처리에 동의해 주세요</DrawerTitle>
-        <DrawerDescription id={CONSENT_DESCRIPTION_ID}>
+        <DrawerTitle className="text-[20px] font-bold">건강정보 처리에 동의해 주세요</DrawerTitle>
+        <DrawerDescription id={CONSENT_DESCRIPTION_ID} className="text-sm">
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>
 
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3">
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
@@ -121,7 +125,17 @@ export function StepConsentSheet({
           </Drawer>
         </div>
 
-        <Button type="button" variant="diagnosis" disabled={!consentGiven} onClick={onConfirm}>
+        <Button
+          type="button"
+          variant="diagnosis"
+          disabled={!consentGiven}
+          className={cn(
+            !consentGiven &&
+              "bg-app-surface-inset text-bora-ink-4 shadow-none disabled:opacity-100 hover:bg-app-surface-inset"
+          )}
+          onClick={onConfirm}
+        >
+          {!consentGiven ? <Lock aria-hidden="true" className="size-4" /> : null}
           동의하고 진단하기
         </Button>
 

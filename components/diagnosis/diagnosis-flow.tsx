@@ -350,7 +350,13 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
     <div data-testid="diagnosis-flow" data-step={state.step} className="flex flex-1 flex-col">
       <DiagnosisHeader />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-app-surface-sub px-4 py-16 md:bg-app-surface">
+      {/* D2(4차 재작업) — 3차 라운드까지 justify-center + py-16을 공통으로
+          써서 짧은 화면(01-D/E 등)일수록 콘텐츠가 프레임 세로 중앙으로
+          쏠려 디자인보다 100~180px 아래로 밀렸다(4차 외부 재검토 실측
+          지적). 세로 중앙 정렬을 폐기하고 각 Step 컴포넌트가 design/exports
+          실측 상단 여백을 자신의 pt-*로 직접 갖도록 바꾼다 — 공통 wrapper는
+          더 이상 세로 위치를 책임지지 않는다. */}
+      <div className="flex flex-1 flex-col items-center gap-3 bg-app-surface-sub px-4 md:bg-app-surface">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}

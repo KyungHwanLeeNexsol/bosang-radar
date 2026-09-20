@@ -22,8 +22,9 @@ export function StepError({ onRetry, onBackToInput }: StepErrorProps) {
   return (
     <div
       data-testid="diagnosis-error"
-      // D2(3차, 재조정) — 01-D와 동일 이유로 720px로 넓힌다(제목 1줄 유지).
-      className="flex w-full max-w-md flex-col items-center gap-4 py-16 text-center md:max-w-[720px]"
+      // D2(4차 재작업) — 01-D와 동일 근거(아이콘 상단 y≈174, 헤더 기준
+      // pt-[111px]; 자매 화면이라 동일 폭 630px 적용).
+      className="flex w-full max-w-md flex-col items-center gap-4 pt-[31px] text-center md:max-w-[630px] md:pt-[111px]"
     >
       <span
         aria-hidden="true"
@@ -31,7 +32,8 @@ export function StepError({ onRetry, onBackToInput }: StepErrorProps) {
       >
         <TriangleAlert className="size-6 md:size-7" />
       </span>
-      <h1 className="text-h1 font-bold text-bora-ink">진단 중 문제가 발생했습니다</h1>
+      {/* 01-D와 동일 근거로 text-h1(26px) 대신 실측에 가까운 21px 사용. */}
+      <h1 className="text-[21px] font-bold text-bora-ink">진단 중 문제가 발생했습니다</h1>
       <p role="alert" className="text-body text-bora-ink-3 md:text-base">
         일시적인 오류일 수 있습니다. 입력하신 내용은 그대로 남아 있으니 다시 시도해 주세요.
       </p>

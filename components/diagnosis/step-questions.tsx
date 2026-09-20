@@ -94,11 +94,14 @@ export function StepQuestions({
   }, [questionIndex]);
 
   return (
-    // D2(3차 원격 결함 재작업) — Desktop 콘텐츠 폭을 448px(max-w-md)에서
-    // design/exports/01-B 측정치(중앙값 콘텐츠 폭 ≈700-720px)에 맞춰
-    // 확대한다. Mobile은 max-w-md가 뷰포트(390px)보다 항상 넓어 실질적으로
-    // w-full로 렌더링되므로 이 변경의 영향을 받지 않는다.
-    <div className="flex w-full max-w-md flex-col gap-5 md:max-w-[720px]">
+    // D2(4차 재작업) — design/exports/01-B(1440×940)·M01-B(390×672)를
+    // 세그먼트 단위로 재실측: 확인 배지 상단 Desktop y≈144 / Mobile y≈78 —
+    // 헤더(63px/59px) 기준 pt-[81px]/pt-[19px]. 옵션 행 폭은 707px 실측
+    // (710px로 근접). 공통 wrapper의 justify-center 제거에 맞춰 이 pt가
+    // 이제 이 화면의 세로 위치를 전적으로 책임진다.
+    // Mobile 간격을 gap-3(12px)로 좁혀 옵션 4개+설명+건너뛰기 링크가
+    // 390×672 프레임 안에 들어오게 한다(gap-5=20px 유지 시 하단이 잘림).
+    <div className="flex w-full max-w-md flex-col gap-3 pt-[19px] md:max-w-[710px] md:gap-5 md:pt-[81px]">
       {/* D2(second remediation round, design/exports/01-B/M01-B) — "입력
           내용을 확인했어요" 확인 배지. 사용자가 01에서 제출한 입력이
           유효하게 넘어왔음을 알려준다. */}
@@ -147,8 +150,12 @@ export function StepQuestions({
         {question.options.map((option) => (
           <label
             key={option}
+            // D2(4차 재작업) — 01-B 옵션 행 높이 실측 54px(Desktop)/
+            // 51px(Mobile). 이전 라운드의 md:px-6 md:py-6는 실측보다
+            // 과도하게 커서(약 68px+) px-5 py-4로 되돌린다 — 두 폭이
+            // 서로 크게 다르지 않으므로 반응형 분기를 없애고 공통값을 쓴다.
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-5 text-sm text-bora-ink md:px-6 md:py-6 md:text-base",
+              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-4 text-sm text-bora-ink md:text-base",
               "has-[:checked]:border-bora-accent"
             )}
           >

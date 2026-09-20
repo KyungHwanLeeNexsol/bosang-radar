@@ -30,10 +30,12 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
   return (
     <div
       data-testid="diagnosis-result-none"
-      // D2(3차, 재조정) — 640px에서는 제목이 "습니다"를 갈라 2줄로 접혀
-      // 디자인의 1줄 레이아웃과 달라졌다(실측 캡처로 확인). 01-B/01-C와
-      // 동일한 720px로 넓혀 제목이 1줄에 들어가도록 맞춘다.
-      className="flex w-full max-w-md flex-col items-center gap-4 py-16 text-center md:max-w-[720px]"
+      // D2(4차 재작업) — 4차 외부 재검토 실측: design/exports/01-D
+      // 아이콘 상단 y≈174(헤더 63px 기준 pt-[111px]), 안내 박스 폭이
+      // 627px로 실측돼(가장 넓은 요소) 3차의 720px는 과대였다 — 630px로
+      // 좁힌다. 제목 블록 ink-height가 24px로 측정돼(text-h1/26px가 아니라
+      // text-h2/19px 쪽에 더 가까움) 제목 크기를 text-h2로 되돌린다.
+      className="flex w-full max-w-md flex-col items-center gap-4 pt-[31px] text-center md:max-w-[630px] md:pt-[111px]"
     >
       <span
         aria-hidden="true"
@@ -41,7 +43,11 @@ export function StepResultNone({ onEditInput }: StepResultNoneProps) {
       >
         <SearchX className="size-6 md:size-7" />
       </span>
-      <h1 className="text-h1 font-bold text-bora-ink">
+      {/* text-h1(26px)은 이 화면 제목의 실측 ink-height(24px, 01-B
+          제목의 28px보다 작음)를 초과한다. 정확한 값은 `.pen` 미접근으로
+          확정 못 하지만(잔여 위험), 실측값에 더 가까운 21px로 보정한다 —
+          h2(19px)와 h1(26px) 사이 보간값. */}
+      <h1 className="text-[21px] font-bold text-bora-ink">
         현재 입력만으로는 보상 가능성을 판단하기 어렵습니다
       </h1>
       <p className="text-body text-bora-ink-3 md:text-base">

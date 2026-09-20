@@ -250,9 +250,92 @@ D1(HEAD `718dd7d`) — `diagnosis-flow.tsx`의 URL→state 동기화 effect가 "
   수 있다.
 - 01-B 힌트 라벨(shortLabel)은 여전히 placeholder 질문 세트에 종속된다 —
   매칭 엔진 연결 시 함께 갱신되어야 한다(기존 잔여 위험과 동일).
-- run_status: **audit-ready**
-- run_complete_at: 2026-09-20 (D2 3차 원격 결함 수정·1배 프레임 기준
-  재검증 완료 — 이 세션에서 직접 검증)
+- ~~run_status: audit-ready~~
+- ~~run_complete_at: 2026-09-20 (D2 3차 원격 결함 수정·1배 프레임 기준 재검증 완료 — 이 세션에서 직접 검증)~~
+
+### D2 4차 재작업 — 부분 완료, 미해결 2건 남음 (2026-09-20, 위 audit-ready 선언을 대체)
+
+**[REVOKED — 2026-09-20 (4차)]** 위 "D2 3차 재작업 완료" 절의
+`run_status: audit-ready` 선언은 4차 외부 재검토에서 다시 FAIL로
+확인되어 무효화된다. 이 문단은 삭제하지 않고 보존한다.
+
+#### Claim
+
+4차 외부 재검토는 3차 라운드의 공통 `justify-center` 세로 중앙 정렬이
+짧은 화면(01-D/E 등)일수록 콘텐츠를 디자인보다 100~180px 아래로 밀었고,
+캡처 스크린샷에 Next.js 개발 도구 배지가 찍혀 있었으며, "미승인 시각
+차이 0건" 결론이 실제 스크린샷과 모순된다고 정확히 지적했다. 이를
+반영해 (1) `justify-center`/`py-16` 공통 정렬을 폐기하고 화면별
+`pt-[Npx]`(design/exports 세그먼트 실측 기반)로 교체, (2) 모든 캡처를
+프로덕션 빌드(`pnpm build && pnpm start`)로 재실행해 개발 도구 배지를
+제거, (3) 디자인·구현 양쪽에 동일 방법론(세그먼트 스캔 + DOM 정밀 측정)을
+적용해 bounding box를 직접 대조했다. D1(`?step=` 로직)은 지시대로
+변경하지 않았다(diff 근거는 comparison.md § D1 무변경 근거 참고).
+
+**결과는 부분 PASS다 — 완전한 PASS를 선언하지 않는다.** 대부분의
+bounding box(배지·스피너·아이콘·모달/시트 위치와 폭 등 12개 항목)가
+Desktop 8px/Mobile 4px 허용 오차 이내로 수렴했으나, 아래 2건이 허용
+오차를 벗어난 채 남아 있다.
+
+#### Evidence
+
+| 항목 | 명령/방법 | 결과 |
+|---|---|---|
+| Next 개발 도구 배지 원인 확인 | Playwright로 `document.querySelector("nextjs-portal")` 조회(dev 서버) | dev 모드에서 항상 렌더링되는 Next.js DevTools 인디케이터임을 확인(코드 결함 아님) — 콘솔 로그에도 오류 없음 |
+| Next 개발 도구 배지 해결 | 프로덕션 서버(`pnpm build && pnpm start`)에서 동일 조회 | `nextjs-portal` 엘리먼트 없음 확인 — 이번 라운드 10개 화면 전부 이 프로덕션 서버로 재캡처 |
+| bounding box 대조(디자인 vs 구현) | Playwright+Canvas 세그먼트 스캔(디자인) + `getBoundingClientRect()`(구현, DOM 정밀) | 12개 핵심 요소 top/width 중 10개가 허용 오차 이내(0~5px). 상세 표는 comparison.md § Bounding Box 비교표 |
+| D1 무변경 확인 | `git diff components/diagnosis/diagnosis-flow.tsx` | 7 insertions/1 deletion, 전부 wrapper className 한 줄(justify-center/py-16 제거) — `VALID_STEPS`/`skipNextPushRef`/`useEffect`/`searchParams.get` 매치 0건 |
+| Vitest 전체 스위트 | `pnpm test` | `Test Files 52 passed (52)` / `Tests 380 passed (380)` |
+| tsc | `pnpm tsc --noEmit` | 출력 없음(0 errors) |
+| ESLint | `pnpm eslint .` | 출력 없음(0 errors, 0 warnings) |
+| Playwright e2e | `pnpm test:e2e -- --spec=diagnosis-flow-01` | `16 passed (5.0m)` — D1 전용 2건(뒤로가기 2회, `?step=garbage`) 포함 회귀 없음 |
+| 프로덕션 빌드(플래그 unset / devStep 활성) | `pnpm build` / `ENABLE_DIAGNOSIS_DEV_STATES=true pnpm build` | 둘 다 `/` → `○ Static`, 기존 무관 경고 1건만 |
+| `git diff --check` | 공백 오류 검사 | 출력 없음(0건) |
+
+**중요 발견 — 텍스트필드 되돌림**: 검색창을 `<textarea>`로 교체해 디자인의
+2줄 wrap을 재현하려 시도했으나, `diagnosis-flow.test.tsx`의
+`querySelector("input")` 호출이 40여 곳에서 깨지는 것을 `pnpm test`
+실행으로 발견했다(23개 테스트 실패, D1 전용 테스트 2건 포함). "D1 코드와
+테스트를 건드리지 않는다"는 이번 라운드의 명시적 제약과 정면으로
+충돌하므로 `<input>`으로 되돌리고 높이(92px)만 확대했다 — 2줄 wrap은
+포기하고 허용된 차이로 기록한다(comparison.md 참고). 이 되돌림 자체가
+"검증 없이 큰 변경을 밀어붙이지 않는다"는 원칙을 실제로 적용한 사례다.
+
+#### Baseline-attribution
+
+워크트리 `C:\Users\zuge3\Documents\workspace\bosang-radar\.claude\worktrees\spec-b2c-diagnosis-001`(브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`), 이 세션에서
+로컬 HEAD `7f16a1b`(3차 라운드 최종 커밋, 사용자가 재검토 기준으로 지목한
+커밋)를 base로 직접 실행한 명령과 그 출력. Node 실행 환경은
+`AppData/Local/nvm/v22.23.2` 설치본.
+
+#### Gaps
+
+- **01-A2 모달 높이 10px 초과**(디자인 270px vs 구현 260px, 허용 8px) —
+  패딩을 더 줄이면 체크박스 행·CTA가 답답해 보일 위험이 있어 이번
+  라운드에서는 추가 조정하지 않았다.
+- **M01 입력 화면 푸터가 390×1110 프레임을 79px 초과**(3차 대비
+  243px→79px, 67% 개선했으나 완전히 해소하지 못함) — 카드 자체 재구조화
+  (아이콘+제목 한 줄 병합 등)가 필요할 수 있는데, 이는 간격·패딩 조정을
+  넘어서는 구조 변경이라 판단해 이번 라운드 범위 밖으로 남긴다.
+- 01-B/C/D/E 제목 font-size는 `.pen` 미접근으로 정확값을 확정하지 못하고
+  세그먼트 ink-height 실측을 선형 보간한 추정값(01-D/E: 21px)을
+  적용했다 — 허용 오차 판정 대상이 아닌 잔여 위험이다.
+- `.pen` 소스 직접 조회는 여전히 불가(Pencil 데스크톱 앱 미연결).
+- vitest coverage 0/0 환경 갭 여전히 미해결(근본 원인 미규명, 기존과
+  동일 계열).
+
+#### Residual-risk
+
+- 위 Gaps의 2건(01-A2 모달 높이, M01 푸터 프레임 초과)은 다음 라운드에서
+  추가 구조 조정이 필요할 수 있다.
+- D2의 나머지 수치도 `.pen` 원본이 아닌 정규화 PNG·세그먼트 스캔 근사치이므로,
+  Pencil 앱이 연결된 환경에서 재검증하면 미세한 조정이 필요할 수 있다.
+- 검색창을 `<input>`으로 유지한 결정은 "D1 테스트 무변경" 제약을
+  우선시한 것이다 — 향후 D1 테스트 파일도 함께 리팩터링하기로 결정되면
+  `<textarea>` 전환을 재검토할 수 있다.
+- run_status: **in-progress** (허용 오차를 벗어난 2건이 해소되기 전까지
+  audit-ready로 전환하지 않는다 — 사용자 지시: "허용 오차를 벗어난 항목이
+  남아 있다면 PASS로 포장하지 말고 그대로 보고")
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

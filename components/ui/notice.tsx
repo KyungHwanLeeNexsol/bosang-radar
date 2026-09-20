@@ -19,14 +19,23 @@ interface NoticeProps extends Omit<React.ComponentProps<"div">, "title"> {
 export function Notice({ title, icon, children, className, ...props }: NoticeProps) {
   return (
     <div
-      className={cn("flex gap-2.5 rounded-[4px] bg-bora-warn-soft px-3.5 py-[13px]", className)}
+      // SPEC-B2C-DIAGNOSIS-001 D2(4차 재작업) — design/exports/01의 안내
+      // 배너는 41px 높이 1개 행으로, 아이콘·제목·본문이 한 줄에 나란히
+      // 배치된다(Desktop). Mobile은 좁은 폭 탓에 design/exports/M01처럼
+      // 제목/본문이 각각 줄바꿈되므로 기존 세로 스택을 유지한다. 이
+      // 컴포넌트의 유일한 소비자(step-input.tsx)가 이 화면뿐이라 안전하게
+      // 반응형 분기를 추가한다.
+      className={cn(
+        "flex items-start gap-2.5 rounded-[4px] bg-bora-warn-soft px-3.5 py-[13px] md:items-center",
+        className
+      )}
       {...props}
     >
-      <span aria-hidden="true" className="mt-0.5 shrink-0 text-bora-warn">
+      <span aria-hidden="true" className="mt-0.5 shrink-0 text-bora-warn md:mt-0">
         {icon ?? <AlertTriangle className="size-4" />}
       </span>
-      <div className="flex flex-col gap-1">
-        <p className="text-[12.5px] font-semibold text-bora-warn">{title}</p>
+      <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:gap-1.5">
+        <p className="text-[12.5px] font-semibold text-nowrap text-bora-warn">{title}</p>
         <div className="text-meta font-normal text-bora-ink-2">{children}</div>
       </div>
     </div>

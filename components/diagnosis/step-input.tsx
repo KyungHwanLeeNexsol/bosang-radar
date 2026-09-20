@@ -109,10 +109,15 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
   const canSubmit = value.trim().length > 0;
 
   return (
-    // D2(3차 원격 결함 재작업) — design/exports/01 측정치(p90 콘텐츠 폭
-    // ≈758px)는 기존 max-w-3xl(768px)과 이미 근접해 폭 자체는 유지하고,
-    // 세로 간격만 디자인 수준으로 넓힌다(gap-6/7 → gap-7/9).
-    <div className="flex w-full max-w-3xl flex-col items-center gap-7 text-center md:gap-9">
+    // D2(4차 재작업) — design/exports/01(1440×940) 세그먼트 재실측: 첫
+    // 콘텐츠(부제) 상단 y≈154(헤더 63px 기준 pt-[91px]). M01(390×1110)은
+    // y≈82(헤더 59px 기준 pt-[23px]). 폭(max-w-3xl=768px)은 실측 p90(758)과
+    // 이미 근접해 유지한다.
+    // D2(4차 재작업) — M01 실측 결과 콘텐츠 총 높이가 디자인보다 훨씬
+    // 커서(footer가 1110 프레임을 크게 벗어남) 화면 간 간격을 Mobile에서
+    // 더 좁힌다(gap-7→gap-5). Desktop도 footer가 940 프레임을 6px
+    // 초과해 gap-9→gap-8로 소폭 좁힌다.
+    <div className="flex w-full max-w-3xl flex-col items-center gap-5 pt-[23px] text-center md:gap-8 md:pt-[91px]">
       <div className="flex flex-col items-center gap-3 md:gap-4">
         <p className="text-body-s font-semibold text-bora-accent md:text-base">
           놓치기 쉬운 보상 항목을 확인해 보세요
@@ -143,6 +148,15 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
               className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-bora-ink-4"
               aria-hidden="true"
             />
+            {/* D2(4차 재작업) — design/exports/M01의 검색창은 ~95px 높이
+                (2줄 placeholder가 줄바꿈되어 보이는 박스)다. Textarea로
+                교체하는 방안을 검토했으나, 그러면 `<input>` 전제로 짜인
+                기존 D1 테스트(diagnosis-flow.test.tsx)의 querySelector("input")
+                호출 40여 곳이 전부 깨진다 — "D1 코드/테스트를 건드리지
+                않는다"는 이번 라운드 범위 제약과 정면으로 충돌해 되돌렸다.
+                Input을 유지한 채 세로 패딩으로 높이만 ~92px까지 키운다 —
+                placeholder가 2줄로 줄바꿈되지는 않는(단일 행 유지) 허용된
+                차이로 남긴다(comparison.md에 근거 기록). */}
             <Input
               ref={inputRef}
               value={value}
@@ -151,7 +165,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
               placeholder="예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요"
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? SEARCH_ERROR_ID : undefined}
-              className="h-12 rounded-[12px] border-app-line pl-10 text-sm focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:text-base"
+              className="h-[92px] rounded-[12px] border-app-line pl-10 text-sm focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:text-base"
             />
           </div>
           <Button
@@ -194,10 +208,15 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         </div>
       </div>
 
-      <div className="grid w-full grid-cols-1 gap-3 text-left sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+      {/* D2(4차 재작업) — design/exports/01 카드 행 실측 높이 102px(Desktop
+          단일 행), M01 카드는 개당 62px(Mobile 4개 세로 스택). 기본
+          --card-spacing(4)=16px도 M01에서는 여전히 높아 Mobile 전용으로
+          --spacing(2)=8px까지 줄이고 CardHeader 내부 gap도 좁힌다
+          (Desktop은 기본 패딩 유지 — 102px 실측과 이미 근접). */}
+      <div className="grid w-full grid-cols-1 gap-2 text-left sm:grid-cols-2 md:grid-cols-4 md:gap-4">
         {CATEGORY_PREVIEWS.map(({ index, icon: Icon, title, description }) => (
-          <Card key={title} className="ring-app-line md:[--card-spacing:--spacing(5)]">
-            <CardHeader className="gap-2">
+          <Card key={title} className="ring-app-line [--card-spacing:--spacing(2)] md:[--card-spacing:--spacing(4)]">
+            <CardHeader className="gap-1 md:gap-2">
               <span className="flex items-center gap-2 text-bora-accent">
                 <Icon className="size-4 shrink-0 md:size-5" aria-hidden="true" />
                 <span className="text-meta font-medium text-bora-ink-4">{index}</span>

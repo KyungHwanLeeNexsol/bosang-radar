@@ -73,17 +73,25 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
   return (
     <div
       data-testid="diagnosis-loading"
-      // D2(3차 원격 결함 재작업) — 01-C 측정치(중앙값/p90 콘텐츠 폭
-      // ≈690-710px)에 맞춰 Desktop 폭을 확대한다(01-B와 동일 폭 재사용).
-      className="flex w-full max-w-md flex-col items-center gap-5 py-16 text-center md:max-w-[720px]"
+      // D2(4차 재작업) — design/exports/01-C(1440×900)·M01-C(390×650)를
+      // 세그먼트 단위로 재실측(header 이후 quiet-gap 분리): 스피너 상단
+      // Desktop y≈145 / Mobile y≈87 — 헤더(각 63px/59px) 기준 pt-[82px]/
+      // pt-[28px]. 콘텐츠 폭은 707px 실측(pt-[]는 반응형, 폭은 710px로
+      // 707에 근접). py-16(상하 64px 공통 중앙정렬용)은 제거 — 상단은
+      // pt-*가, 하단은 gap만으로 충분하다.
+      className="flex w-full max-w-md flex-col items-center gap-4 pt-[28px] text-center md:max-w-[710px] md:pt-[82px]"
     >
       {/* D2(second remediation round, design/exports/01-C) — 단순 회색
           테두리 스피너 대신 BORA 퍼플 "C" 형태의 스피너로 교체한다: 옅은
           퍼플 트랙 위에 진한 퍼플 호(arc)만 회전시켜 export의 열린-원 형태를
           재현한다. */}
+      {/* D2(4차 재작업) — md:size-11(44px)로 키웠던 3차 변경이 스피너
+          자체의 렌더링 높이를 늘려 제목 상단이 design/exports/01-C
+          실측(y≈192)보다 16px 이상 아래로 밀렸다(DOM 실측으로 확인).
+          size-9(36px)로 되돌리고 간격도 gap-5→gap-4로 좁혀 보정한다. */}
       <span
         aria-hidden="true"
-        className="size-9 animate-spin rounded-full border-[3px] border-bora-accent-soft border-t-bora-accent motion-reduce:animate-none md:size-11"
+        className="size-9 animate-spin rounded-full border-[3px] border-bora-accent-soft border-t-bora-accent motion-reduce:animate-none"
       />
       {/* D2(3차) — text-h2(19px)는 디자인보다 작다. 01 입력 화면과 동일한
           text-h1(26px) 위계를 재사용한다(전역 토큰 변경 없음). */}

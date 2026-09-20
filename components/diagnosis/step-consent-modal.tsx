@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { X } from "lucide-react";
+import { Lock, X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -66,11 +66,11 @@ export function StepConsentModal({
         }
       }}
     >
-      {/* D2(3차 원격 결함 재작업) — design/exports/01-A2 측정치(콘텐츠 폭
-          중앙값 578px~p90 666px)에 맞춰 기본 max-w-md(448px)보다 넓힌다.
-          DialogContent는 className을 twMerge로 병합하므로 이 값이 기본
-          max-w-md를 대체한다(전역 Dialog 프리미티브 자체는 그대로 둠). */}
-      <DialogContent className="max-w-[620px] p-7">
+      {/* D2(4차 재작업) — 흰 박스 vs 어두운 backdrop 밝기 임계값으로
+          재실측한 결과 모달 실제 폭은 559px, 높이 270px다(3차의 620px는
+          과대 추정이었다 — 그때는 backdrop 뒤로 비치는 원 페이지 요소가
+          측정에 섞여 들어갔다). 560px로 좁히고 패딩도 줄인다. */}
+      <DialogContent className="max-w-[560px] gap-3 p-6">
         <DialogClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -78,12 +78,14 @@ export function StepConsentModal({
           <X className="size-4" aria-hidden="true" />
         </DialogClose>
 
-        <DialogTitle>건강정보 처리에 동의해 주세요</DialogTitle>
-        <DialogDescription id={CONSENT_DESCRIPTION_ID}>
+        {/* design/exports/01-A2 제목은 DialogTitle 기본(text-h3=15px)보다
+            뚜렷이 크다 — 이 모달에 한정해 20px로 키운다. */}
+        <DialogTitle className="text-[20px] font-bold">건강정보 처리에 동의해 주세요</DialogTitle>
+        <DialogDescription id={CONSENT_DESCRIPTION_ID} className="text-sm">
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DialogDescription>
 
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3.5 md:px-5 md:py-4">
+        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3">
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
@@ -123,13 +125,23 @@ export function StepConsentModal({
           </Dialog>
         </div>
 
+        {/* D2(4차 재작업) — design/exports/01-A2는 미동의 상태 CTA를
+            단순히 흐리게(opacity) 하지 않고, 밝은 회색 배경·회색 텍스트·
+            자물쇠 아이콘으로 명확히 "잠김" 상태를 표시한다. Button의 기본
+            disabled:opacity-50은 보라색을 옅게만 만들어 이 차이를
+            재현하지 못하므로, 미동의일 때 색상 클래스를 직접 덮어쓴다. */}
         <Button
           type="button"
           variant="diagnosis"
           disabled={!consentGiven}
-          className="h-10 rounded-[12px] text-base"
+          className={cn(
+            "h-10 rounded-[12px] text-base",
+            !consentGiven &&
+              "bg-app-surface-inset text-bora-ink-4 shadow-none disabled:opacity-100 hover:bg-app-surface-inset"
+          )}
           onClick={onConfirm}
         >
+          {!consentGiven ? <Lock aria-hidden="true" className="size-4" /> : null}
           동의하고 진단하기
         </Button>
 
