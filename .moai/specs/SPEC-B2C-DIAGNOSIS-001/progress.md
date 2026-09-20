@@ -92,14 +92,71 @@ Milestone 1~9(plan.md §F)이 순차 위임으로 구현 완료되었다 — 공
 - 시각 비교는 여전히 수동 리뷰다(자동 픽셀 diff 미도입, design.md §16 결정 유지) — 미세한 여백/폰트 렌더링 차이는 육안 검토 범위를 벗어날 수 있다.
 - 이번 수정은 push하지 않았다 — 오케스트레이터가 별도로 push를 위임한다.
 
+### D1/D2 — 외부 리뷰 후속 블로킹 결함 2건 원격 수정 (2026-09-20, second remediation round)
+
+**[REVOKED — 2026-09-20]** 아래 §E.3의 `run_status: audit-ready`(2026-09-20, M-fix 8건 재검증 시점)는 이 절이 다루는 후속 외부 리뷰에서 발견된 2건의 블로킹 결함으로 인해 재차 무효화된다. 그 2건(D1: `?step=` 브라우저 히스토리 desync, D2: 01-B/01-C/01-D/01-E 시각 재구성 미흡)을 이 절에서 수정하고 재검증한다.
+
+#### Claim
+
+D1(HEAD `718dd7d`) — `diagnosis-flow.tsx`의 URL→state 동기화 effect가 "첫 실행이 아닌 이후"(팝스테이트로 `?step=`이 완전히 사라지는 경우)를 처리하지 않아 React state가 URL과 어긋난 채 남는 결함, 그리고 `searchParams.get("step") as DiagnosisStep`의 런타임 미검증 캐스팅으로 `?step=garbage` 같은 값이 그대로 `FORCE_STEP` payload가 될 수 있던 결함을 수정했다. D2 — `step-questions.tsx`/`step-loading.tsx`/`step-result-none.tsx`/`step-error.tsx` 4개 화면이 `design/exports/`의 실제 export와 구조적으로 다르던(확인 배지·진행률 바·완료/진행 상태 구분·스켈레톤 카드·아이콘 부재) 결함을 export PNG 직접 대조로 수정했다.
+
+#### Evidence
+
+| 항목 | 명령 | 결과 |
+|---|---|---|
+| D1 Vitest 신규 2건 | `node node_modules/vitest/dist/cli.js run components/diagnosis/diagnosis-flow.test.tsx` | `24 passed (24)` — 기존 22개 + D1 신규 2개("첫 URL 동기화 이후 ?step= 소실 시 input 동기화", "유효하지 않은 ?step=garbage는 FORCE_STEP에 전달되지 않음") |
+| D1 Playwright 신규 2건 + 전체 | `node node_modules/tsx/dist/cli.mjs scripts/run-e2e.ts --spec=diagnosis-flow-01` | `16 passed (5.0m)` — 기존 14개 + D1 신규 2개("뒤로가기 2회 반복 → input 도달, 배경 상호작용 가능, 검색어 보존", "`?step=garbage` 직접 진입 → input 정리") |
+| D2 시각 재검증 | `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`(전면 재작성) | 4개 변경 화면(01-B/01-C/01-D/01-E, Desktop+Mobile 8장) 전부 export와 구조적으로 **일치** 확인. 차이는 전부 근거를 명시한 **허용된 차이**(AC-B2CDIAG-007~009 이전/다음 기능 유지, REQ-B2CDIAG-024 mock 배지, plan.md §G 03 상담 Out of Scope) — **미해결** 0건 |
+| step-loading.test.tsx 색상 단언 갱신 | 동일 파일 diff | 기존 `text-primary`(achromatic) 단언을 `text-bora-accent`(실제 BORA 퍼플)로 교체 — 색상 정정 자체가 D2의 일부이므로 함께 갱신. 완료 단계의 녹색(`text-bora-ink`/`bg-green-600`) 구분 단언 신규 추가 |
+| Vitest 전체 스위트 | `node node_modules/vitest/dist/cli.js run` | `Test Files 52 passed (52)` / `Tests 380 passed (380)` — M-fix 시점 378 대비 D1 신규 2건 추가(D2는 기존 테스트 재사용, 신규 테스트 없음 — 시각 요소만 변경) |
+| tsc | `node node_modules/typescript/bin/tsc --noEmit` | 출력 없음(0 errors) |
+| ESLint | `node node_modules/eslint/bin/eslint.js .` | 출력 없음(0 errors, 0 warnings) |
+| 프로덕션 빌드(플래그 unset) | `node node_modules/next/dist/bin/next build`(env 기본값) | `/` → `○ Static`, 기존 `instrumentation.ts` 경고 1건만(SPEC 무관) |
+| 프로덕션 빌드(devStep 활성) | `ENABLE_DIAGNOSIS_DEV_STATES=true node node_modules/next/dist/bin/next build` | `/` → `○ Static`, 동일 경고만 |
+| `git diff --check` | `git diff --check` | 출력 없음(공백 오류 0건) |
+| 플래그 안전성 grep | `grep -rn 'ENABLE_DIAGNOSIS_FLOW\|DIAGNOSIS_ENGINE_READY' app/ components/` | 전부 비교문(`=== "true"`)·주석·MX 태그 언급·테스트 전용 할당(`app/page.test.tsx`)뿐, 대입문 없음 |
+| vitest coverage | `node node_modules/vitest/dist/cli.js run --coverage` | `All files 0 0 0 0`(0/0) — 첫 번째 리미디에이션 라운드가 이미 기록한 동일 계열의 Windows 워크트리 환경 갭 재현. 이번 라운드에서 새로운 원인을 발견하지 못했으므로 새로 고친 것으로 주장하지 않는다 |
+
+스크린샷 재캡처 목록(전부 `page.screenshot()` 뷰포트 캡처, fullPage 미지정 — PNG IHDR 청크로 실측 픽셀 크기 확인):
+- `screenshots/01-B-questions.png`(1440x900), `01-C-loading.png`(1440x900), `01-D-result-none.png`(1440x900), `01-E-error.png`(1440x900)
+- `screenshots/M01-B-questions.png`(390x844), `M01-C-loading.png`(390x844), `M01-D-result-none-responsive.png`(390x844), `M01-E-error-responsive.png`(390x844)
+
+01-C/M01-C 캡처 시점: `?devStep=loading` 진입 후 300ms 대기(STAGE_DELAY_MS=200ms 기준 stage1이 "진행 중"으로 표시되는 200~400ms 구간) — export와 동일하게 "1단계 완료·2단계 진행 중" 프레이밍으로 캡처했다. 임시 캡처 스펙(`e2e/_visual-capture.spec.ts`)은 comparison.md의 기존 관례대로 캡처 직후 삭제했다(커밋 대상 아님).
+
+#### Baseline-attribution
+
+워크트리 `C:\Users\zuge3\Documents\workspace\bosang-radar\.claude\worktrees\spec-b2c-diagnosis-001`(브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`), M-fix 8건 원격 수정 이후 문서 정리 커밋 `718dd7d`(직전 §E.3 `audit-ready` 시점 최종 커밋)를 base로, 이 세션에서 D1/D2 커밋을 새로 추가했다. Node 실행 환경은 nvm 설치본 v22.23.2.
+
+#### Gaps
+
+- vitest coverage 0/0 환경 갭은 여전히 미해결(위 Evidence 표 참고) — 근본 원인 미규명, 기존 기록과 동일 계열.
+- 질문 3문항(01-B) 문구와 동의 상세 6개 placeholder는 계속 의도된 미확정 상태로 유지(변경 없음). "다음 질문" 힌트 라벨도 이 placeholder 질문 세트에 종속된다.
+
+#### Residual-risk
+
+- D2의 진행률 힌트 텍스트("다음 질문 · X → Y")는 질문 3문항이 실제 매칭 엔진 문구로 교체될 때 shortLabel도 함께 갱신되어야 한다 — 별도 트리거 없이 방치되면 라벨이 실제 질문과 불일치할 수 있다.
+- 이번 수정도 push하지 않았다 — 오케스트레이터가 별도로 push를 위임한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
+**[REVOKED — 2026-09-20]** 아래 항목(`run_complete_at: 2026-09-20`, M-fix 8건 재검증 시점)은 후속 외부 코드 리뷰가 지적한 2건의 블로킹 결함(D1 `?step=` 브라우저 히스토리 desync, D2 01-B/01-C/01-D/01-E 시각 재구성 미흡 — §E.2 "D1/D2 — 외부 리뷰 후속 블로킹 결함 2건 원격 수정" 절 참고)으로 인해 무효화되었다. 이 문단은 삭제하지 않고 보존하며, 그 아래 새 항목("D1/D2 재검증 완료" 절)으로 대체·정정한다.
+
+- ~~run_status: audit-ready~~
+- ~~run_complete_at: 2026-09-20 (M-fix 원격 수정 재검증 완료 — 2026-09-19 시점의 이전 `audit-ready`는 외부 코드 리뷰가 지적한 8개 결함으로 인해 무효화되었고, 이번 재검증으로 다시 정당하게 설정한다)~~
+- ~~전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 + 오케스트레이터 후속 CTA 색상 수정 완료, 최종 커밋 `295cac5`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push~~
+- ~~프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 M-fix Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·378/378 테스트 통과(M10 시점 361 대비 +17), Playwright e2e 14/14 통과, `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린~~
+- ~~**부분 미해결 항목(§E.2 M-fix Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: 이 워크트리+Windows+Node 22.23.2 조합에서 vitest coverage-v8 실측이 `coverage.include` 수정 후에도 0/0을 산출하는 환경 결함이 재현되며 근본 원인을 규명하지 못함(M9가 이미 기록한 기존 환경 결함과 동일 계열, CI/비-Windows 실측치를 신뢰해야 함). step-questions.tsx/step-result-none.tsx/step-error.tsx의 주요 CTA achromatic 잔여 갭은 오케스트레이터가 같은 세션에서 후속 수정(§E.2 M-fix Gaps 하단 참고)해 해소했다.~~
+- ~~범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 M-fix 수정에서도 전혀 건드리지 않음(커밋 diff로 확인 가능 — 7개 커밋 모두 `app/`, `components/diagnosis/`, `components/ui/`, `e2e/`, `.moai/reports/`, `vitest.config.ts`, `eslint.config.mjs`, `.moai/specs/` 범위 내)~~
+- ~~Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)~~
+
+### D1/D2 재검증 완료 (2026-09-20, 위 REVOKED 항목을 대체)
+
 - run_status: audit-ready
-- run_complete_at: 2026-09-20 (M-fix 원격 수정 재검증 완료 — 2026-09-19 시점의 이전 `audit-ready`는 외부 코드 리뷰가 지적한 8개 결함으로 인해 무효화되었고, 이번 재검증으로 다시 정당하게 설정한다)
-- 전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 + 오케스트레이터 후속 CTA 색상 수정 완료, 최종 커밋 `295cac5`, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push
-- 프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 M-fix Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·378/378 테스트 통과(M10 시점 361 대비 +17), Playwright e2e 14/14 통과, `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린
-- **부분 미해결 항목(§E.2 M-fix Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: 이 워크트리+Windows+Node 22.23.2 조합에서 vitest coverage-v8 실측이 `coverage.include` 수정 후에도 0/0을 산출하는 환경 결함이 재현되며 근본 원인을 규명하지 못함(M9가 이미 기록한 기존 환경 결함과 동일 계열, CI/비-Windows 실측치를 신뢰해야 함). step-questions.tsx/step-result-none.tsx/step-error.tsx의 주요 CTA achromatic 잔여 갭은 오케스트레이터가 같은 세션에서 후속 수정(§E.2 M-fix Gaps 하단 참고)해 해소했다.
-- 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 M-fix 수정에서도 전혀 건드리지 않음(커밋 diff로 확인 가능 — 7개 커밋 모두 `app/`, `components/diagnosis/`, `components/ui/`, `e2e/`, `.moai/reports/`, `vitest.config.ts`, `eslint.config.mjs`, `.moai/specs/` 범위 내)
+- run_complete_at: 2026-09-20 (D1/D2 두 번째 원격 결함 수정 재검증 완료 — 이 세션에서 직접 재검증)
+- 전체 10개 마일스톤(M1~M10) + M-fix 원격 수정 8건 + 오케스트레이터 후속 CTA 색상 수정 + D1/D2 두 번째 원격 결함 수정 2건 완료, 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, 미push(오케스트레이터가 별도 위임)
+- 프로덕션 안전 불변식 재확인 완료(이 세션에서 직접 재검증, §E.2 "D1/D2" Evidence 표): `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 둘 다 코드 어디에서도 `"true"`로 대입되지 않음, `app/page.tsx` 기본 출력(플래그 unset)은 기존 placeholder와 동일, Vitest 52/52 파일·380/380 테스트 통과(M-fix 시점 378 대비 +2), Playwright e2e 16/16 통과(M-fix 시점 14 대비 +2), `next build` 두 조합(플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true`) 모두 성공, tsc/ESLint 0 errors, `git diff --check` 클린
+- **부분 미해결 항목(§E.2 "D1/D2" Gaps에 상술, audit-ready를 막지 않는 것으로 판단)**: vitest coverage-v8 0/0 환경 갭이 이번 라운드에서도 재현되며 근본 원인 미규명(M9/M-fix가 이미 기록한 동일 계열 — CI/비-Windows 실측치를 신뢰해야 함). D1/D2 자체의 블로킹 결함은 모두 해소했다.
+- 범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `.github/workflows/deploy.yml`, `design/`)는 D1/D2 수정에서도 전혀 건드리지 않음(변경 파일은 `components/diagnosis/diagnosis-flow.tsx`, `components/diagnosis/diagnosis-flow.test.tsx`, `components/diagnosis/step-questions.tsx`, `components/diagnosis/step-loading.tsx`, `components/diagnosis/step-loading.test.tsx`, `components/diagnosis/step-result-none.tsx`, `components/diagnosis/step-error.tsx`, `e2e/diagnosis-flow-01.spec.ts`, `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/comparison.md`, `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/*`, `.moai/specs/SPEC-B2C-DIAGNOSIS-001/progress.md`만)
 - Milestone 11(문서 동기화 + 배포 smoke check 갱신)은 이 run-phase의 범위 밖이며 sync-phase(manager-docs)의 몫이다 — 특히 11(b) 배포 smoke check 교체는 이 SPEC의 sync-phase `completed` 전환 조건이 아니다(plan.md §F 11, acceptance.md AC-024)
 
 ## §E.4 Sync-phase Audit-Ready Signal
