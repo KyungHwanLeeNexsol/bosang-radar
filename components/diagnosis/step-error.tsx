@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ArrowLeft, RotateCw, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -26,8 +27,10 @@ export function StepError({ onRetry, onBackToInput }: StepErrorProps) {
       <span
         aria-hidden="true"
         className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive"
-      />
-      <h1 className="text-h2 font-semibold text-bora-ink">진단 중 문제가 발생했습니다</h1>
+      >
+        <TriangleAlert className="size-6" />
+      </span>
+      <h1 className="text-h2 font-bold text-bora-ink">진단 중 문제가 발생했습니다</h1>
       <p role="alert" className="text-body text-bora-ink-3">
         일시적인 오류일 수 있습니다. 입력하신 내용은 그대로 남아 있으니 다시 시도해 주세요.
       </p>
@@ -36,9 +39,11 @@ export function StepError({ onRetry, onBackToInput }: StepErrorProps) {
       </p>
       <div className="flex items-center gap-2">
         <Button type="button" variant="diagnosis" onClick={onRetry}>
+          <RotateCw aria-hidden="true" />
           다시 시도
         </Button>
         <Button type="button" variant="outline" onClick={onBackToInput}>
+          <ArrowLeft aria-hidden="true" />
           입력 내용으로 돌아가기
         </Button>
       </div>

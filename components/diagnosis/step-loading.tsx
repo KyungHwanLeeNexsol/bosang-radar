@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,15 @@ import { cn } from "@/lib/utils";
 // (design.md §18.2).
 
 const STAGES = ["사고 내용 확인 중", "관련 보상 유형 탐색 중", "확인할 담보 정리 중"] as const;
+
+// D2(second remediation round, design/exports/01-C/M01-C) — 진행 상태 아래
+// 뼈대(skeleton) 카드. Desktop 3개(가로 배치)/Mobile 2개(세로 나열)로
+// 노출되는 개수 자체가 다르므로 JS 뷰포트 판정 대신 세 번째 카드에만
+// `hidden md:flex`를 붙이는 순수 CSS 방식으로 구현한다(design.md §5 —
+// 이미 useMediaQuery가 있는 diagnosis-flow.tsx 밖에서 새 매체 질의 상태를
+// 만들지 않는다).
+const SKELETON_CARD_COUNT = 3;
+const SKELETON_BAR_WIDTHS = ["100%", "70%", "85%"] as const;
 
 // UI 시뮬레이션 전용 고정 지연(design.md §11 "고정 지연") — 실제 분석
 // 소요 시간과 무관한 값이며, 테스트가 느려지지 않도록 짧게 유지한다.
@@ -65,33 +75,90 @@ export function StepLoading({ input, onDone }: StepLoadingProps) {
       data-testid="diagnosis-loading"
       className="flex w-full max-w-md flex-col items-center gap-4 py-16 text-center"
     >
+      {/* D2(second remediation round, design/exports/01-C) — 단순 회색
+          테두리 스피너 대신 BORA 퍼플 "C" 형태의 스피너로 교체한다: 옅은
+          퍼플 트랙 위에 진한 퍼플 호(arc)만 회전시켜 export의 열린-원 형태를
+          재현한다. */}
       <span
         aria-hidden="true"
-        className="size-8 animate-spin rounded-full border-2 border-app-line border-t-primary motion-reduce:animate-none"
+        className="size-9 animate-spin rounded-full border-[3px] border-bora-accent-soft border-t-bora-accent motion-reduce:animate-none"
       />
-      <h1 className="text-h2 font-semibold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
+      <h1 className="text-h2 font-bold text-bora-ink">입력하신 내용을 확인하고 있습니다</h1>
       <p className="text-body text-bora-ink-3">
         보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.
       </p>
       <ul aria-live="polite" className="flex w-full flex-col gap-2 text-left">
-        {STAGES.map((label, index) => (
-          <li
-            key={label}
-            data-testid={`diagnosis-loading-stage-${index}`}
+        {STAGES.map((label, index) => {
+          const isCompleted = index < stageIndex;
+          const isCurrent = index === stageIndex;
+          return (
+            <li
+              key={label}
+              data-testid={`diagnosis-loading-stage-${index}`}
+              className={cn(
+                "flex items-center justify-between rounded-[10px] border px-4 py-3.5 text-sm",
+                isCurrent && "border-bora-accent bg-bora-accent-soft font-medium text-bora-accent",
+                isCompleted && "border-app-line text-bora-ink",
+                !isCompleted && !isCurrent && "border-app-line text-bora-ink-4"
+              )}
+            >
+              <span className="flex items-center gap-2.5">
+                {isCompleted ? (
+                  <span
+                    aria-hidden="true"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-green-600 text-white"
+                  >
+                    <Check className="size-2.5" strokeWidth={3} />
+                  </span>
+                ) : isCurrent ? (
+                  <span
+                    aria-hidden="true"
+                    className="size-4 shrink-0 animate-spin rounded-full border-2 border-bora-accent-line border-t-bora-accent motion-reduce:animate-none"
+                  />
+                ) : (
+                  <span aria-hidden="true" className="size-4 shrink-0 rounded-full border-2 border-app-line" />
+                )}
+                <span>{label}</span>
+              </span>
+              <span
+                className={cn(
+                  "text-meta font-medium",
+                  isCompleted && "text-green-600",
+                  isCurrent && "text-bora-accent",
+                  !isCompleted && !isCurrent && "text-bora-ink-4"
+                )}
+              >
+                {isCompleted ? "완료" : isCurrent ? "진행 중" : "대기"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* D2(second remediation round, design/exports/01-C/M01-C) — 진행 중
+          뼈대(skeleton) 카드. 실제 결과 미리보기가 아니라 로딩 상태를 암시하는
+          정적 placeholder다(02 실제 결과 화면은 이 SPEC의 Out of Scope). */}
+      <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+        {Array.from({ length: SKELETON_CARD_COUNT }, (_, cardIndex) => (
+          <div
+            key={cardIndex}
+            aria-hidden="true"
             className={cn(
-              "flex items-center justify-between rounded-[10px] border px-4 py-3.5 text-sm",
-              index === stageIndex
-                ? "border-primary font-medium text-primary"
-                : "border-app-line text-bora-ink-3"
+              "flex flex-col gap-2 rounded-[10px] border border-app-line bg-app-surface p-4",
+              // Mobile은 카드 2개만 세로로 나열한다(design/exports/M01-C).
+              cardIndex === SKELETON_CARD_COUNT - 1 && "hidden md:flex"
             )}
           >
-            <span>{label}</span>
-            <span className="text-meta">
-              {index < stageIndex ? "완료" : index === stageIndex ? "진행 중" : "대기"}
-            </span>
-          </li>
+            {SKELETON_BAR_WIDTHS.map((width, barIndex) => (
+              <span
+                key={barIndex}
+                className="h-3 animate-pulse rounded-full bg-app-surface-inset"
+                style={{ width }}
+              />
+            ))}
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

@@ -78,12 +78,24 @@ describe("components/diagnosis/StepLoading — AC-B2CDIAG-009", () => {
       await wait(300);
     });
 
+    // D2(second remediation round, design/exports/01-C) — 진행 중 단계는
+    // 전역 achromatic --primary가 아니라 BORA 퍼플(bora-accent)로
+    // 표시되어야 한다(디자인 export의 보라색 강조와 일치).
     expect(
       container.querySelector('[data-testid="diagnosis-loading-stage-1"]')?.className
-    ).toContain("text-primary");
+    ).toContain("text-bora-accent");
     expect(
       container.querySelector('[data-testid="diagnosis-loading-stage-0"]')?.textContent
     ).toContain("완료");
+    // D2 — 완료된 단계는 진행 중 단계와 구분되는 초록색 처리를 받아야 한다
+    // (이전에는 완료/대기가 같은 muted 스타일을 공유해 구분되지 않았다).
+    expect(
+      container.querySelector('[data-testid="diagnosis-loading-stage-0"]')?.className
+    ).toContain("text-bora-ink");
+    const stage0Spans = container.querySelectorAll('[data-testid="diagnosis-loading-stage-0"] span');
+    expect(Array.from(stage0Spans).some((span) => span.className.includes("bg-green-600"))).toBe(
+      true
+    );
   });
 
   it("모든 단계가 끝나면 mock 판정 결과로 onDone을 호출한다(결과 없음 분기)", async () => {

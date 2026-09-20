@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,10 @@ import { cn } from "@/lib/utils";
 interface Question {
   id: string;
   text: string;
+  // D2(second remediation round, design/exports/01-B) — 진행 바 오른쪽 힌트
+  // "다음 질문 · <현재> → <다음>"에 쓰이는 짧은 라벨. 질문 본문(text)과 달리
+  // 한두 단어로 축약한다.
+  shortLabel: string;
   options: string[];
 }
 
@@ -26,16 +31,19 @@ const QUESTIONS: readonly Question[] = [
   {
     id: "treatment-status",
     text: "현재 치료를 받고 계신가요?",
+    shortLabel: "치료 여부",
     options: ["치료 중이에요", "치료가 끝났어요", "아직 병원에 가지 않았어요", "잘 모르겠어요"],
   },
   {
     id: "hospitalization",
     text: "입원한 적이 있나요?",
+    shortLabel: "입원 여부",
     options: ["입원했어요", "통원 치료만 받았어요", "입원 예정이에요", "잘 모르겠어요"],
   },
   {
     id: "accident-location",
     text: "사고나 증상이 발생한 장소는 어디인가요?",
+    shortLabel: "사고 장소",
     options: ["직장·학교", "집", "도로·교통수단", "잘 모르겠어요"],
   },
 ] as const;
@@ -62,6 +70,9 @@ export function StepQuestions({
   const question = QUESTIONS[questionIndex] ?? QUESTIONS[0];
   const headingRef = React.useRef<HTMLHeadingElement>(null);
   const selected = answers[question.id];
+  const isLastQuestion = questionIndex === TOTAL_QUESTIONS - 1;
+  const nextQuestion = QUESTIONS[questionIndex + 1];
+  const progressPercent = ((questionIndex + 1) / TOTAL_QUESTIONS) * 100;
 
   React.useEffect(() => {
     // design.md §15 — 질문 전환 시 포커스가 새 질문의 제목으로 이동해
@@ -71,18 +82,45 @@ export function StepQuestions({
 
   return (
     <div className="flex w-full max-w-md flex-col gap-4">
-      <p
+      {/* D2(second remediation round, design/exports/01-B/M01-B) — "입력
+          내용을 확인했어요" 확인 배지. 사용자가 01에서 제출한 입력이
+          유효하게 넘어왔음을 알려준다. */}
+      <div className="flex items-center gap-1.5 self-center rounded-full bg-green-50 px-3 py-1.5 text-meta font-medium text-green-700">
+        <Check className="size-3.5 shrink-0" aria-hidden="true" />
+        입력 내용을 확인했어요
+      </div>
+
+      <div
         data-testid="diagnosis-question-progress"
         aria-live="polite"
-        className="text-center text-meta text-bora-ink-3"
+        className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
       >
-        질문 {questionIndex + 1} / {TOTAL_QUESTIONS}
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-body-s font-bold text-bora-accent">
+            질문 {questionIndex + 1} / {TOTAL_QUESTIONS}
+          </span>
+          <div className="h-1.5 w-24 shrink-0 rounded-full bg-app-surface-inset">
+            <div
+              className="h-full rounded-full bg-bora-accent transition-[width]"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+        {!isLastQuestion && nextQuestion ? (
+          <span className="text-meta text-bora-ink-4 sm:ml-auto">
+            다음 질문 · {question.shortLabel} → {nextQuestion.shortLabel}
+          </span>
+        ) : null}
+      </div>
+
+      <p className="text-center text-body-s text-bora-ink-3">
+        정확한 확인을 위해 3가지만 여쭤볼게요
       </p>
 
       <h1
         ref={headingRef}
         tabIndex={-1}
-        className="text-h2 font-semibold text-bora-ink outline-none"
+        className="text-h2 font-bold text-bora-ink outline-none"
       >
         {question.text}
       </h1>
@@ -92,8 +130,8 @@ export function StepQuestions({
           <label
             key={option}
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-4 py-3.5 text-sm text-bora-ink",
-              "has-[:checked]:border-primary"
+              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-5 text-sm text-bora-ink",
+              "has-[:checked]:border-bora-accent"
             )}
           >
             <input
@@ -102,29 +140,38 @@ export function StepQuestions({
               value={option}
               checked={selected === option}
               onChange={() => onAnswer(question.id, option)}
-              className="size-4 shrink-0 accent-primary"
+              className="size-4 shrink-0 accent-bora-accent"
             />
             {option}
           </label>
         ))}
       </div>
 
+      <p className="text-center text-meta text-bora-ink-4">
+        이 답변은 수술비ㆍ후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고,
+        답변하신 내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.
+      </p>
+
       {questionIndex === 0 ? (
         <button
           type="button"
           onClick={onSkip}
-          className="text-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="text-center text-sm font-medium text-bora-accent underline-offset-4 hover:underline"
         >
           건너뛰고 결과 보기
         </button>
       ) : null}
 
+      {/* design/exports/01-B/M01-B에는 이전/다음 버튼이 노출되지 않지만,
+          AC-B2CDIAG-007~009의 이전/다음/건너뛰기 기능은 계속 필요하다
+          (D2 지시사항 — 기능 제거 금지). 시각적 위계에서는 눈에 덜 띄도록
+          작은 크기로 아래쪽에 배치한다. */}
       <div className="flex items-center justify-between gap-2">
-        <Button type="button" variant="ghost" onClick={onPrev}>
+        <Button type="button" variant="ghost" size="sm" onClick={onPrev}>
           이전
         </Button>
-        <Button type="button" variant="diagnosis" disabled={!selected} onClick={onNext}>
-          {questionIndex === TOTAL_QUESTIONS - 1 ? "결과 보기" : "다음"}
+        <Button type="button" variant="diagnosis" size="sm" disabled={!selected} onClick={onNext}>
+          {isLastQuestion ? "결과 보기" : "다음"}
         </Button>
       </div>
     </div>
