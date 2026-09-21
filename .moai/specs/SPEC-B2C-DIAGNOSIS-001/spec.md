@@ -2,7 +2,7 @@
 id: SPEC-B2C-DIAGNOSIS-001
 title: "01 진단 플로우 — 질문 입력 · 동의 · 추가 질문 · 진단 중 (Plan-Phase)"
 version: "0.1.2"
-status: implemented
+status: completed
 created: 2026-09-18
 updated: 2026-09-21
 author: Nexsol
