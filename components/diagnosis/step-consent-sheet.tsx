@@ -79,7 +79,12 @@ export function StepConsentSheet({
       {/* D2(7차) — design/exports/M01-A2의 시트 내부 여백은 16px다(제목·동의
           행·CTA가 모두 x=16에서 시작, CTA 폭 358 = 390−16×2). p-6(24px)은
           8px 과했다. */}
-      <DrawerContent className="h-auto max-h-[85vh] gap-0 px-4 pt-[51px] pb-[20px]">
+      {/* D2(8차) — 시트는 bottom 고정 + 높이 auto라, 제목 위쪽 여백을 늘려도
+          시트가 위로 자랄 뿐 제목의 절대 위치는 그대로다. 제목을 아래로
+          내리려면 제목 "아래" 간격을 줄여야 한다(설명의 mt-[5px]→0). 그렇게
+          줄어든 5px와 핸들이 flow에서 빠지며 사라진 4px를 pt로 되돌려
+          시트 상단(762)과 높이(348)를 그대로 유지한다. */}
+      <DrawerContent className="h-auto max-h-[85vh] gap-0 px-4 pt-[60px] pb-[20px]">
         <DrawerClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -92,16 +97,26 @@ export function StepConsentSheet({
             제목 요소에만 폭 제한을 둬 줄바꿈 지점을 재현한다. */}
         {/* D2(7차) — design/exports/M01-A2는 "건강정보 처리에" / "동의해
             주세요"로 끊긴다(기존 폭 제한은 "…동의해" / "주세요"로 끊었다). */}
+        {/* D2(8차) — 7차는 줄 "수"만 검사해서 실제로는 "건강정보 처리에 동의" /
+            "해 주세요"로 단어 한가운데가 끊기고 있던 것을 통과시켰다. CSS
+            기본값은 한글을 글자 단위로 끊으므로 폭 제한만으로는 어절 경계를
+            보장할 수 없다 — break-keep(word-break: keep-all)으로 어절 단위
+            줄바꿈을 강제한다. */}
         <DrawerTitle
           data-testid="diagnosis-consent-title"
-          className="max-w-[130px] text-[15px] leading-[30px] font-bold"
+          // D2(8차) — 줄바꿈을 바로잡자 글자 크기 오차가 드러났다. 7차는
+          // "건강정보 처리에 동의"라는 잘못 끊긴 첫 줄이 디자인 폭(122)과
+          // 우연히 맞아떨어져 15px를 통과시켰다. 올바른 첫 줄("건강정보
+          // 처리에")로 재면 15px에서 94px이므로 디자인 122px에 맞는 크기는
+          // 19.5px다. max-w는 어절 하나가 더 붙지 않을 만큼만 넓힌다.
+          className="max-w-[150px] text-[19.5px] leading-[30px] font-bold break-keep"
         >
           건강정보 처리에 동의해 주세요
         </DrawerTitle>
         <DrawerDescription
           id={CONSENT_DESCRIPTION_ID}
           data-testid="diagnosis-consent-description"
-          className="mt-[5px] text-sm"
+          className="text-sm"
         >
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>

@@ -145,9 +145,15 @@ export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
       >
         보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.
       </p>
+      {/* D2(8차) — 7차는 M01-C의 구현 배경을 #ffffff로 잘못 잡은 채(흰 카드
+          면적이 회색 배경을 눌러 최빈색이 뒤집혔다) 잉크 박스를 재서, 흰
+          카드가 배경과 같은 색 취급을 받아 단계 행 높이가 44px로 측정됐다.
+          배경을 제대로 잡고 다시 재니 실제 잉크 높이는 40px이고 디자인은
+          45px이다. 행 높이를 +5px 하고 행 간격을 13px→8px로 줄여 디자인
+          피치(53px)를 그대로 유지한다. Desktop(01-C)은 md: 값으로 불변. */}
       <ul
         aria-live="polite"
-        className="mt-[26px] flex w-full flex-col gap-[13px] text-left md:mt-[30px] md:gap-2.5"
+        className="mt-[26px] flex w-full flex-col gap-[8px] text-left md:mt-[30px] md:gap-2.5"
       >
         {STAGES.map((label, index) => {
           const isCompleted = index < stageIndex;
@@ -163,7 +169,7 @@ export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
               // 옅은 회색으로 채워져 있고(Desktop), design/exports/M01-C는
               // 회색 페이지 배경 위의 흰 카드다(Mobile).
               className={cn(
-                "flex items-center justify-between rounded-[10px] border px-4 py-[9px] text-sm md:px-5 md:py-[11px] md:text-base",
+                "flex items-center justify-between rounded-[10px] border px-4 py-[11.5px] text-sm md:px-5 md:py-[11px] md:text-base",
                 isCurrent && "border-bora-accent bg-bora-accent-soft font-medium text-bora-accent",
                 isCompleted &&
                   "border-app-line bg-app-surface text-bora-ink md:border-transparent md:bg-app-surface-sub",
@@ -214,14 +220,20 @@ export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
           정적 placeholder다(02 실제 결과 화면은 이 SPEC의 Out of Scope). */}
       <div
         data-testid="diagnosis-loading-skeleton"
-        className="mt-[27px] grid w-full grid-cols-1 gap-3 md:mt-[18px] md:grid-cols-3"
+        // D2(8차) — 같은 배경색 정정의 결과. design/exports/M01-C의 스켈레톤은
+        // 카드 80px + 간격 9px + 카드 80px = 169px인데 구현은 76+12+76=164px
+        // 이었다. 카드 패딩 +2px, 세로 간격 12→9px로 맞춘다. 단계 행이 5px
+        // 커진 만큼 상단 여백은 27→24px로 줄여 디자인 top(415)을 유지한다.
+        // Desktop(01-C)은 카드가 가로 3열이라 gap이 열 간격이므로 md:gap-3로
+        // 기존 값을 고정한다.
+        className="mt-[24px] grid w-full grid-cols-1 gap-[9px] md:mt-[18px] md:grid-cols-3 md:gap-3"
       >
         {Array.from({ length: SKELETON_CARD_COUNT }, (_, cardIndex) => (
           <div
             key={cardIndex}
             aria-hidden="true"
             className={cn(
-              "flex flex-col gap-2 rounded-[10px] border border-app-line bg-app-surface p-[11px] md:p-4",
+              "flex flex-col gap-2 rounded-[10px] border border-app-line bg-app-surface p-[13px] md:p-4",
               // Mobile은 카드 2개만 세로로 나열한다(design/exports/M01-C).
               cardIndex === SKELETON_CARD_COUNT - 1 && "hidden md:flex"
             )}

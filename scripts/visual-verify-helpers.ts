@@ -56,6 +56,51 @@ export const HELPERS_SOURCE = String.raw`
     return { r: (bestKey >> 16) & 255, g: (bestKey >> 8) & 255, b: bestKey & 255 };
   }
 
+  // ── 가장자리 배경 프로브 ───────────────────────────────────────────
+  // D2(8차) — 화면 전체의 최빈색은 "배경색"의 대리값으로 못 쓴다. 흰 카드
+  // 면적과 회색 페이지 배경 면적이 비슷해지면 실제 배경이 그대로여도 최빈색
+  // 판정이 뒤집히고(7차 M01-C가 이 경우였다), 반대로 콘텐츠 아래쪽이 통째로
+  // 다른 색이어도 최빈색은 그대로일 수 있다.
+  //
+  // 그래서 콘텐츠가 절대 침범하지 않는 좌우 가장자리 세로 띠만 샘플링하고,
+  // 최빈색과 **그 색이 띠에서 차지하는 비율(균일도)** 을 함께 돌려준다.
+  // 색만으로는 못 잡는 "아래쪽 절반만 흰색" 결함을 균일도가 잡는다.
+  function edgeBackground(imageData, opts) {
+    const { width, height, data } = imageData;
+    const stripWidth = opts.stripWidth ?? 8;
+    const top = Math.max(0, Math.floor(opts.top ?? 0));
+    const bottom = Math.min(height, Math.ceil(opts.bottom ?? height));
+    const counts = new Map();
+    let total = 0;
+    for (let y = top; y < bottom; y++) {
+      for (let strip = 0; strip < 2; strip++) {
+        const x0 = strip === 0 ? 0 : width - stripWidth;
+        for (let x = x0; x < x0 + stripWidth; x++) {
+          const i = (y * width + x) * 4;
+          const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+          total++;
+        }
+      }
+    }
+    let best = 0;
+    let bestKey = 0xffffff;
+    for (const [key, n] of counts) {
+      if (n > best) {
+        best = n;
+        bestKey = key;
+      }
+    }
+    return {
+      r: (bestKey >> 16) & 255,
+      g: (bestKey >> 8) & 255,
+      b: bestKey & 255,
+      coverage: total > 0 ? best / total : 0,
+      sampled: total,
+      region: { top: top, bottom: bottom, stripWidth: stripWidth },
+    };
+  }
+
   function isInk(data, i, bg, threshold) {
     return (
       Math.abs(data[i] - bg.r) > threshold ||
@@ -288,6 +333,7 @@ export const HELPERS_SOURCE = String.raw`
   window.__vv = {
     loadImageData,
     dominantColor,
+    edgeBackground,
     segmentBands,
     tightBox,
     findBrightBox,

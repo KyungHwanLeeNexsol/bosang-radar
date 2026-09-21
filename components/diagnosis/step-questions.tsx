@@ -227,9 +227,15 @@ export function StepQuestions({
       {/* D2(7차) — design/exports/M01-B의 답변 안내는 Desktop(01-B)보다
           짧은 2줄이다. 같은 문구를 좁은 폭에 넣으면 3줄이 되어 건너뛰기
           링크가 아래로 밀린다. */}
+      {/* D2(8차) — 7차는 줄 "수"만 검사해서 줄바꿈 지점이 디자인과 다른 것을
+          통과시켰다: 구현은 "…「추가 질문" / "답변」에…"로, 디자인은 "…「추가" /
+          "질문 답변」에…"로 끊긴다. 원인은 줄바꿈이 아니라 글자 크기다 —
+          디자인은 같은 346px 폭에 " 질문" 없이 한 줄을 채우는데 구현은 12px라
+          그 두 글자가 더 들어갔다. 실측 비율로 역산한 13.1px로 맞추면 줄바꿈
+          지점과 폭이 함께 수렴한다. */}
       <p
         data-testid="diagnosis-answer-guide"
-        className="mt-[22px] text-left text-meta text-bora-ink-4 md:hidden"
+        className="mt-[22px] text-left text-[13.1px] text-bora-ink-4 md:hidden"
       >
         이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에
         그대로 표시됩니다.
@@ -247,7 +253,7 @@ export function StepQuestions({
           type="button"
           data-testid="diagnosis-skip-link"
           onClick={onSkip}
-          className="mt-[14px] self-start text-sm font-medium text-bora-accent underline-offset-4 hover:underline md:mt-[36px] md:self-center"
+          className="mt-[7px] self-start text-sm font-medium text-bora-accent underline-offset-4 hover:underline md:mt-[36px] md:self-center"
         >
           건너뛰고 결과 보기
         </button>

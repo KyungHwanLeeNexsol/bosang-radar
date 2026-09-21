@@ -167,12 +167,22 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
           사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·
           <br /> 후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다.
         </p>
+        {/* D2(8차) — 7차는 줄 "수"(2줄)만 검사해서, 실제 줄바꿈 지점이
+            "…바탕으로 실손 · 정액 담보 · 후유" / "장해 · …"로 단어 한가운데가
+            끊기고 있던 것을 통과시켰다. design/exports/01은 "…바탕으로" 뒤에서
+            끊긴다 — Mobile 설명과 같은 방식으로 명시적 줄바꿈을 둔다. */}
+        {/* D2(8차) — 글자 크기도 함께 틀려 있었다. 7차는 이 문단이
+            max-w-[496px]에 꽉 차서 폭이 디자인(496)과 "우연히" 일치했고,
+            그 일치가 글자 크기 오차를 가렸다. 명시적 줄바꿈으로 폭 고정이
+            풀리자 둘째 줄 실측이 432px로 드러났다 — 디자인 496px에 맞추려면
+            14px가 아니라 16.07px다. max-w는 줄바꿈을 br이 책임지므로 폭을
+            다시 고정하지 않도록 넉넉히 둔다. */}
         <p
           data-testid="diagnosis-hero-description"
-          className="hidden text-bora-ink-2 md:mt-[15px] md:block md:max-w-[496px] md:text-[14px]"
+          className="hidden text-bora-ink-2 md:mt-[15px] md:block md:max-w-[560px] md:text-[16.07px]"
         >
-          사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손 · 정액 담보 ·
-          후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.
+          사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로
+          <br /> 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.
         </p>
       </div>
 

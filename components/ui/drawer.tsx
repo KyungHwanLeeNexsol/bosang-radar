@@ -32,7 +32,8 @@ function DrawerOverlay({
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 transition-opacity duration-150 motion-reduce:transition-none",
+        // D2(8차) — dialog.tsx의 backdrop과 동일한 근거로 bora-ink 62%.
+        "fixed inset-0 z-50 bg-[rgb(17_24_32_/_62%)] transition-opacity duration-150 motion-reduce:transition-none",
         "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
         className
       )}
@@ -60,9 +61,15 @@ function DrawerContent({
         )}
         {...props}
       >
+        {/* D2(8차) — 그랩 핸들이 flow 첫 자식이라 시트의 상단 패딩(pt) 아래,
+            즉 제목 바로 위에 놓여 있었다. design/exports/M01-A2에서 핸들은
+            시트 최상단(y≈788~792, 닫기 X와 같은 높이)에 있다. 위치가 틀렸을
+            뿐 아니라, 제목의 잉크 측정 영역까지 침범해 제목 폭이 172px로
+            잘못 측정되게 만들고 있었다 — 닫기 버튼과 같은 방식으로 flow에서
+            빼내 시트 상단에 고정한다. */}
         <span
           aria-hidden="true"
-          className="mx-auto h-1 w-9 shrink-0 rounded-full bg-app-line"
+          className="absolute top-[26px] left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-app-line"
         />
         {children}
       </DrawerPrimitive.Popup>

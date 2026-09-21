@@ -357,7 +357,18 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
   const showFooter = backgroundStep === "input";
 
   return (
-    <div data-testid="diagnosis-flow" data-step={state.step} className="flex flex-1 flex-col">
+    // D2(8차) — 페이지 배경은 콘텐츠 블록이 아니라 이 루트가 소유한다.
+    // 7차까지는 콘텐츠 래퍼에만 bg-app-bg가 있어, 콘텐츠가 뷰포트보다
+    // 짧은 화면(M01-C: 콘텐츠 끝 y≈577 / 프레임 650)에서 그 아래가 body
+    // 흰색으로 노출됐다 — design/exports/M01-C는 좌우 가장자리가 y=642
+    // (프레임 바닥)까지 #f4f6f8로, 흰 띠가 존재하지 않는다. 루트에는 이미
+    // flex-1이 있어 뷰포트를 채우므로 배경 소유자를 여기로 올리면 해결되고,
+    // 페인트만 바뀌므로 어떤 요소의 레이아웃도 움직이지 않는다.
+    <div
+      data-testid="diagnosis-flow"
+      data-step={state.step}
+      className="flex flex-1 flex-col bg-app-bg md:bg-app-surface"
+    >
       <DiagnosisHeader />
 
       {/* D2(4차 재작업) — 3차 라운드까지 justify-center + py-16을 공통으로
@@ -379,7 +390,8 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           시각적으로 페이지 배경과 같아 flex-1 제거의 영향이 없다. */}
       {/* D2(7차) — design/exports의 Mobile 좌우 여백은 16px(px-4)이 아니라
           20px다(부제·칩·푸터 문구가 모두 x≈20에서 시작). */}
-      <div className="flex flex-col items-center gap-3 bg-app-bg px-5 md:bg-app-surface md:px-4">
+      {/* D2(8차) — 배경은 루트가 소유하므로 여기서는 제거한다(중복 페인트). */}
+      <div className="flex flex-col items-center gap-3 px-5 md:px-4">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}

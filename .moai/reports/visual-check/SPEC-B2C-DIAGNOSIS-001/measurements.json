@@ -1,5 +1,24 @@
 {
-  "generatedAt": "2026-09-21T03:11:59.493Z",
+  "generatedAt": "2026-09-21T04:47:42.325Z",
+  "canonical": true,
+  "run": {
+    "screenIds": [
+      "01",
+      "01-A2",
+      "01-B",
+      "01-C",
+      "01-D",
+      "01-E",
+      "M01",
+      "M01-A2",
+      "M01-B",
+      "M01-C"
+    ],
+    "totalScreens": 10,
+    "visualOnly": null,
+    "skipBuild": false,
+    "externalBaseURL": null
+  },
   "tolerance": {
     "desktop": 8,
     "mobile": 4
@@ -556,9 +575,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -634,23 +664,33 @@
           "impl": {
             "left": 472,
             "top": 261,
-            "width": 496,
-            "height": 34
+            "width": 495,
+            "height": 39
           },
           "delta": {
             "left": 0,
             "top": 0,
-            "width": 0,
-            "height": 7
+            "width": 1,
+            "height": 2
           },
           "lines": {
             "expected": 2,
             "actual": 2
           },
+          "lineTexts": {
+            "expected": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로",
+              "실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다."
+            ],
+            "actual": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로",
+              "실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다."
+            ]
+          },
           "text": "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
-          "fontSize": "14px",
-          "lineHeight": "21px",
+          "fontSize": "16.07px",
+          "lineHeight": "24.105px",
           "pass": true
         },
         {
@@ -664,13 +704,13 @@
           },
           "impl": {
             "left": 524,
-            "top": 337,
+            "top": 343,
             "width": 392,
             "height": 14
           },
           "delta": {
             "left": 0,
-            "top": 0,
+            "top": 6,
             "width": 1,
             "height": 1
           },
@@ -694,13 +734,13 @@
           },
           "impl": {
             "left": 337,
-            "top": 364,
+            "top": 370,
             "width": 766,
             "height": 80
           },
           "delta": {
             "left": 1,
-            "top": 0,
+            "top": 6,
             "width": 2,
             "height": 0
           },
@@ -724,13 +764,13 @@
           },
           "impl": {
             "left": 339,
-            "top": 467,
+            "top": 473,
             "width": 762,
             "height": 41
           },
           "delta": {
             "left": 1,
-            "top": 0,
+            "top": 6,
             "width": 2,
             "height": 1
           },
@@ -754,13 +794,13 @@
           },
           "impl": {
             "left": 406,
-            "top": 537,
+            "top": 543,
             "width": 629,
             "height": 32
           },
           "delta": {
             "left": 2,
-            "top": 0,
+            "top": 6,
             "width": 4,
             "height": 2
           },
@@ -784,13 +824,13 @@
           },
           "impl": {
             "left": 338,
-            "top": 617,
+            "top": 623,
             "width": 764,
             "height": 105
           },
           "delta": {
             "left": 2,
-            "top": 0,
+            "top": 6,
             "width": 4,
             "height": 2
           },
@@ -814,13 +854,13 @@
           },
           "impl": {
             "left": 344,
-            "top": 810,
+            "top": 816,
             "width": 222,
             "height": 13
           },
           "delta": {
             "left": 3,
-            "top": 0,
+            "top": 6,
             "width": 5,
             "height": 0
           },
@@ -844,19 +884,29 @@
           },
           "impl": {
             "left": 344,
-            "top": 850,
+            "top": 856,
             "width": 744,
             "height": 29
           },
           "delta": {
             "left": 4,
-            "top": 0,
+            "top": 6,
             "width": 4,
             "height": 3
           },
           "lines": {
             "expected": 2,
             "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사",
+              "결과에 따릅니다."
+            ],
+            "actual": [
+              "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사",
+              "결과에 따릅니다."
+            ]
           },
           "text": "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사 결과에 따릅니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
@@ -866,7 +916,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 7,
+      "maxDelta": 6,
       "pass": true
     },
     {
@@ -1096,9 +1146,20 @@
           "height": 4
         }
       },
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#6c7075",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#6c7075",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -1664,9 +1725,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -2276,9 +2348,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -2725,9 +2808,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -3078,9 +3172,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -3874,9 +3979,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#f4f6f8",
-        "impl": "#f4f6f8"
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 1110,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -3934,6 +4050,16 @@
             "expected": 2,
             "actual": 2
           },
+          "lineTexts": {
+            "expected": [
+              "이거, 보상 받을 수",
+              "있나요?"
+            ],
+            "actual": [
+              "이거, 보상 받을 수",
+              "있나요?"
+            ]
+          },
           "text": "이거, 보상 받을 수 있나요?",
           "backgroundColor": "rgba(0, 0, 0, 0)",
           "fontSize": "28px",
@@ -3964,6 +4090,16 @@
           "lines": {
             "expected": 2,
             "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·",
+              "후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다."
+            ],
+            "actual": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·",
+              "후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다."
+            ]
           },
           "text": "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
@@ -4101,16 +4237,16 @@
             "height": 276
           },
           "impl": {
-            "left": 18,
+            "left": 19,
             "top": 691,
-            "width": 354,
-            "height": 273
+            "width": 352,
+            "height": 272
           },
           "delta": {
-            "left": 2,
+            "left": 1,
             "top": 0,
-            "width": 4,
-            "height": 3
+            "width": 2,
+            "height": 4
           },
           "lines": {
             "actual": 8
@@ -4371,9 +4507,20 @@
           "height": 0
         }
       },
-      "dominantBackground": {
-        "design": "#ffffff",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 730,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#676d72",
+          "coverage": 0.9992469879518072
+        },
+        "impl": {
+          "color": "#686d72",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -4387,23 +4534,33 @@
           },
           "impl": {
             "left": 16,
-            "top": 825,
-            "width": 123,
-            "height": 44
+            "top": 828,
+            "width": 122,
+            "height": 48
           },
           "delta": {
             "left": 0,
-            "top": 3,
-            "width": 1,
-            "height": 1
+            "top": 0,
+            "width": 0,
+            "height": 3
           },
           "lines": {
             "expected": 2,
             "actual": 2
           },
+          "lineTexts": {
+            "expected": [
+              "건강정보 처리에",
+              "동의해 주세요"
+            ],
+            "actual": [
+              "건강정보 처리에",
+              "동의해 주세요"
+            ]
+          },
           "text": "건강정보 처리에 동의해 주세요",
           "backgroundColor": "rgba(0, 0, 0, 0)",
-          "fontSize": "15px",
+          "fontSize": "19.5px",
           "lineHeight": "30px",
           "pass": true
         },
@@ -5029,9 +5186,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#f4f6f8",
-        "impl": "#f4f6f8"
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 672,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -5357,23 +5525,33 @@
           "impl": {
             "left": 20,
             "top": 553,
-            "width": 344,
-            "height": 30
+            "width": 350,
+            "height": 33
           },
           "delta": {
             "left": 1,
             "top": 3,
-            "width": 2,
-            "height": 1
+            "width": 4,
+            "height": 2
           },
           "lines": {
             "expected": 2,
             "actual": 2
           },
+          "lineTexts": {
+            "expected": [
+              "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가",
+              "질문 답변」에 그대로 표시됩니다."
+            ],
+            "actual": [
+              "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가",
+              "질문 답변」에 그대로 표시됩니다."
+            ]
+          },
           "text": "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
-          "fontSize": "12px",
-          "lineHeight": "18px",
+          "fontSize": "13.1px",
+          "lineHeight": "19.65px",
           "pass": true
         },
         {
@@ -5387,13 +5565,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 604,
+            "top": 601,
             "width": 103,
             "height": 12
           },
           "delta": {
             "left": 0,
-            "top": 3,
+            "top": 0,
             "width": 2,
             "height": 1
           },
@@ -5408,7 +5586,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 3,
+      "maxDelta": 4,
       "pass": true
     },
     {
@@ -5690,9 +5868,20 @@
           ]
         }
       ],
-      "dominantBackground": {
-        "design": "#f4f6f8",
-        "impl": "#ffffff"
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 650,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
       },
       "elements": [
         {
@@ -5705,16 +5894,16 @@
             "height": 18
           },
           "impl": {
-            "left": 186,
-            "top": 87,
-            "width": 18,
-            "height": 18
+            "left": 188,
+            "top": 89,
+            "width": 14,
+            "height": 14
           },
           "delta": {
-            "left": 0,
-            "top": 0,
+            "left": 2,
+            "top": 2,
             "width": 2,
-            "height": 0
+            "height": 4
           },
           "lines": {
             "actual": 0
@@ -5778,13 +5967,13 @@
           "impl": {
             "left": 117,
             "top": 198,
-            "width": 156,
+            "width": 155,
             "height": 12
           },
           "delta": {
             "left": 0,
             "top": 4,
-            "width": 1,
+            "width": 0,
             "height": 0
           },
           "lines": {
@@ -5806,16 +5995,16 @@
             "height": 45
           },
           "impl": {
-            "left": 18,
-            "top": 238,
-            "width": 354,
-            "height": 44
+            "left": 20,
+            "top": 240,
+            "width": 350,
+            "height": 45
           },
           "delta": {
-            "left": 2,
-            "top": 4,
-            "width": 4,
-            "height": 1
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 2
@@ -5836,16 +6025,16 @@
             "height": 45
           },
           "impl": {
-            "left": 18,
-            "top": 291,
-            "width": 354,
-            "height": 44
+            "left": 20,
+            "top": 293,
+            "width": 350,
+            "height": 45
           },
           "delta": {
-            "left": 2,
-            "top": 4,
-            "width": 4,
-            "height": 1
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 2
@@ -5866,16 +6055,16 @@
             "height": 45
           },
           "impl": {
-            "left": 18,
-            "top": 344,
-            "width": 354,
-            "height": 44
+            "left": 20,
+            "top": 346,
+            "width": 350,
+            "height": 45
           },
           "delta": {
-            "left": 2,
-            "top": 4,
-            "width": 4,
-            "height": 1
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 2
@@ -5896,16 +6085,16 @@
             "height": 169
           },
           "impl": {
-            "left": 18,
-            "top": 411,
-            "width": 354,
-            "height": 166
+            "left": 20,
+            "top": 415,
+            "width": 350,
+            "height": 169
           },
           "delta": {
-            "left": 2,
-            "top": 4,
-            "width": 4,
-            "height": 3
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 0

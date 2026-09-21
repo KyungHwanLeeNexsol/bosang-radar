@@ -14,7 +14,10 @@ import { MessageCircle } from "lucide-react";
 
 export function DiagnosisHeader() {
   return (
-    <header className="flex w-full items-center justify-between border-b border-app-line px-4 py-3.5 md:px-8">
+    // D2(8차) — 루트가 Mobile 배경을 #f4f6f8로 칠하게 되면서 헤더도 그 색을
+    // 물려받게 됐다. design/exports/M01-*는 헤더 띠만 흰색(y≤50 구간 #ffffff)
+    // 이므로 헤더가 자기 배경을 명시적으로 소유한다.
+    <header className="flex w-full items-center justify-between border-b border-app-line bg-app-surface px-4 py-3.5 md:px-8">
       <div className="flex items-center gap-2">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] bg-bora-accent text-sm font-bold text-white">
           B

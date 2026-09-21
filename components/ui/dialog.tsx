@@ -33,7 +33,12 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 transition-opacity duration-150 motion-reduce:transition-none",
+        // D2(8차) — design/exports/01-A2·M01-A2의 backdrop은 순수 검정 50%가
+        // 아니다. 서로 다른 바탕색 두 곳에서 합성 결과를 실측해 역산했다:
+        // 흰 바탕(01-A2) 위 #6c7075, 회색(#f4f6f8) 바탕(M01-A2) 위 #676d72 —
+        // 두 값 모두 bora-ink(#111820) 62%로 정확히 설명된다(bg-black/50은
+        // 흰 바탕에서 #7f7f7f라 디자인보다 밝고 색조가 없다).
+        "fixed inset-0 z-50 bg-[rgb(17_24_32_/_62%)] transition-opacity duration-150 motion-reduce:transition-none",
         "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
         className
       )}
