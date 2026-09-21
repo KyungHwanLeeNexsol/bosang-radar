@@ -133,3 +133,88 @@ describe("components/diagnosis/StepLoading — AC-B2CDIAG-009", () => {
     expect(spinner?.className).toContain("motion-reduce:animate-none");
   });
 });
+
+// D2(8차) — 7차가 도입한 단계 고정(pinnedStage) 동작에는 테스트가 없었다.
+// 시각 검증 스크립트가 design/exports와 같은 단계 상태를 결정론적으로
+// 캡처하려면 이 고정이 (a) 지정한 단계에서 멈추고 (b) 시간이 지나도
+// 진행하지 않으며 (c) onDone을 부르지 않아야 한다 — 셋 다 검증한다.
+describe("components/diagnosis/StepLoading — ?devStage= 단계 고정(design.md §10)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function stageStatuses(): string[] {
+    return [0, 1, 2].map((index) =>
+      (
+        container.querySelector(`[data-testid="diagnosis-loading-stage-${index}-status"]`)
+          ?.textContent ?? ""
+      ).trim()
+    );
+  }
+
+  it("pinnedStage=1이면 '완료 / 진행 중 / 대기'로 고정되고, 자동 진행 시간이 지나도 그대로다", async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(
+        <StepLoading input="계단에서 넘어져 발목을 다쳤어요" onDone={onDone} pinnedStage={1} />
+      );
+    });
+
+    expect(stageStatuses()).toEqual(["완료", "진행 중", "대기"]);
+
+    // 고정이 없었다면 3단계를 모두 지나 onDone까지 갔을 시간(STAGE_DELAY_MS
+    // 200ms × 3단계 = 600ms)의 두 배를 기다린다.
+    await waitInTicks(1200);
+
+    expect(stageStatuses()).toEqual(["완료", "진행 중", "대기"]);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("마지막 단계(pinnedStage=2)로 고정해도 onDone이 호출되지 않는다", async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(
+        <StepLoading input="계단에서 넘어져 발목을 다쳤어요" onDone={onDone} pinnedStage={2} />
+      );
+    });
+
+    expect(stageStatuses()).toEqual(["완료", "완료", "진행 중"]);
+
+    // 마지막 단계는 자동 진행이었다면 onDone을 호출하는 단계다 — 고정
+    // 상태에서는 타이머 자체가 등록되지 않아야 한다.
+    await waitInTicks(1200);
+
+    expect(stageStatuses()).toEqual(["완료", "완료", "진행 중"]);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("pinnedStage가 없으면 기존대로 자동 진행해 onDone을 호출한다(고정이 기본 동작을 바꾸지 않는다)", async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(
+        <StepLoading
+          input="계단에서 넘어져 발목을 다쳤어요"
+          onDone={onDone}
+          pinnedStage={undefined}
+        />
+      );
+    });
+
+    await waitInTicks(1200);
+
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith("result-none");
+  });
+});

@@ -907,3 +907,143 @@ describe("components/diagnosis/DiagnosisFlow — M-fix-5 (devStep=consent-detail
     expect(document.body.textContent).not.toContain("{처리 목적 확정 문구}");
   });
 });
+
+// D2(8차) — ?devStage=의 쿼리 파라미터 계약. ?devStep=과 동일하게
+// enableDevStates가 참일 때만 동작하고, 범위를 벗어난 값은 조용히 무시돼
+// 정상 자동 진행으로 되돌아가야 한다(design.md §10, AC-B2CDIAG-016과 동일
+// 계약). 7차에 이 파생 로직이 들어왔지만 테스트가 없었다.
+describe("components/diagnosis/DiagnosisFlow — ?devStage= 단계 고정 계약(design.md §10)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function stageStatuses(): string[] {
+    return [0, 1, 2].map((index) =>
+      (
+        container.querySelector(`[data-testid="diagnosis-loading-stage-${index}-status"]`)
+          ?.textContent ?? ""
+      ).trim()
+    );
+  }
+
+  function findButton(text: string): HTMLButtonElement {
+    const button = Array.from(document.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes(text)
+    );
+    if (!button) {
+      throw new Error(`button with text "${text}" not found`);
+    }
+    return button;
+  }
+
+  it("enableDevStates=true + ?devStage=1이면 진단 중 화면이 1단계 완료 상태로 고정되고 자동 전이하지 않는다", async () => {
+    searchParamsMock.current = new URLSearchParams("devStep=loading&devStage=1");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={true} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("loading");
+    expect(stageStatuses()).toEqual(["완료", "진행 중", "대기"]);
+
+    await waitInTicks(1200);
+
+    // 고정이 없었다면 이미 result-none으로 전이했을 시간이다.
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("loading");
+    expect(stageStatuses()).toEqual(["완료", "진행 중", "대기"]);
+  });
+
+  it("enableDevStates=true여도 범위를 벗어난 ?devStage=9면 무시하고 정상 자동 진행한다", async () => {
+    searchParamsMock.current = new URLSearchParams("devStep=loading&devStage=9");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={true} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("loading");
+
+    await waitInTicks(1200);
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("result-none");
+  });
+
+  it("enableDevStates=true여도 숫자가 아닌 ?devStage=abc면 무시하고 정상 자동 진행한다", async () => {
+    searchParamsMock.current = new URLSearchParams("devStep=loading&devStage=abc");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={true} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("loading");
+
+    await waitInTicks(1200);
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("result-none");
+  });
+
+  it("enableDevStates=false면 ?devStage=1은 완전히 무시된다 — 실제 사용자 흐름으로 도달한 진단 중 화면이 그대로 자동 진행한다", async () => {
+    // ?devStep=도 함께 무시되므로 input에서 시작해 사용자 조작으로
+    // loading까지 도달시킨다 — 그래야 "devStage만 무시되는지"를 볼 수 있다.
+    searchParamsMock.current = new URLSearchParams("devStep=loading&devStage=1");
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("input");
+
+    act(() => {
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+    act(() => {
+      (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      findButton("동의하고 진단하기").click();
+    });
+    act(() => {
+      findButton("건너뛰고 결과 보기").click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("loading");
+
+    await waitInTicks(1200);
+
+    // devStage=1이 적용됐다면 loading에 멈춰 있었을 것이다.
+    expect(
+      container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
+    ).toBe("result-none");
+  });
+});
