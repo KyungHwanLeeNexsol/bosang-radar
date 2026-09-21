@@ -661,9 +661,22 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "notice",
-        label: "안내 배너",
+        label: "안내 배너(2줄)",
         locate: (p) => vis(p,"diagnosis-notice"),
         designTopHint: 462,
+        // D2(9차) — 8차까지 이 요소는 줄 "수"조차 검사하지 않았다(8차
+        // comparison.md §7은 "줄 수만 검증"으로 적었으나 실제 설정에는
+        // expectLines 자체가 없었다). design/exports/M01-A2에서 읽은 실제
+        // 줄 구성으로 지점까지 고정한다.
+        // mergeBands는 두지 않는다 — 이 배너의 두 줄은 줄 간격이 좁아
+        // 디자인 쪽에서 이미 한 밴드로 잡힌다(2를 주면 아래 시계 행까지
+        // 끌어와 높이가 84로 부풀었다). 줄 검사는 DOM 기반이라 밴드 병합과
+        // 무관하게 동작한다.
+        expectLines: 2,
+        expectLineTexts: [
+          "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
+          "마세요",
+        ],
       },
       {
         key: "chipRow",
@@ -718,9 +731,20 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "description",
-        label: "설명",
+        label: "설명(2줄)",
         locate: (p) => vis(p,"diagnosis-consent-description"),
         designTopHint: 889,
+        // D2(9차) — 8차는 줄 수만 검사했다. design/exports/M01-A2의 실제
+        // 줄바꿈은 "…처리됩니" / "다."로, 어절이 아니라 글자 단위에서
+        // 끊긴다(한글 CSS 기본 동작). 제목(break-keep)과 달리 이 문단은
+        // 디자인 자체가 글자 단위로 끊으므로 그대로 고정한다.
+        // 안내 배너와 같은 이유로 mergeBands는 두지 않는다(2를 주면 아래
+        // 동의 행까지 병합돼 높이가 104로 부푼다).
+        expectLines: 2,
+        expectLineTexts: [
+          "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니",
+          "다.",
+        ],
       },
       {
         key: "consentRow",
