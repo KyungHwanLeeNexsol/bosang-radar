@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Lock, X } from "lucide-react";
+import { ChevronRight, Lock, X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -94,9 +94,16 @@ export function StepConsentModal({
         <DialogDescription
           id={CONSENT_DESCRIPTION_ID}
           data-testid="diagnosis-consent-description"
-          className="text-[14.35px]"
+          // D2(9차) — 7차가 역산한 14.35px은 가운뎃점 앞뒤 공백이 빠진
+          // 문자열로 잰 값이었다(문구 결함이 글자 크기 값까지 오염시켰다).
+          // 디자인과 같은 공백 있는 문자열로 다시 재면 디자인 잉크 폭 371px에
+          // 맞는 크기는 13.83px다(14.35px 구현 385px → 14.35 × 371/385).
+          className="text-[13.83px]"
         >
-          입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
+          {/* D2(9차) — design/exports/01-A2의 가운뎃점은 앞뒤에 공백이 있다
+              (`사고 · 질병 · 치료`). 이 화면의 다른 문구(안내 배너 제목, 히어로
+              설명)도 모두 같은 표기를 쓴다 — 여기만 공백이 빠져 있었다. */}
+          입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DialogDescription>
 
         <div
@@ -124,9 +131,16 @@ export function StepConsentModal({
           <Dialog open={detailOpen} onOpenChange={onDetailOpenChange}>
             <DialogTrigger
               ref={detailTriggerRef}
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+              // D2(9차) — Mobile 시트와 같은 이유(design/exports/01-A2도
+              // 꺾쇠가 동의 행 안쪽 오른쪽 끝에 붙는다).
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}
             >
+              {/* D2(9차) — design/exports/01-A2는 "내용 보기" 뒤에 오른쪽
+                  꺾쇠가 붙는다. 크기·간격은 sm 사이즈 변형이 이미 주는 값
+                  (svg size-3.5 + gap-1)이 디자인 실측(꺾쇠 높이 ≈7px, 글자와의
+                  간격 ≈7px)과 맞아 별도 클래스를 두지 않는다. */}
               내용 보기
+              <ChevronRight aria-hidden="true" />
             </DialogTrigger>
             {/* AC-B2CDIAG-004 — 상세 오버레이 닫힘 시 포커스가 이 트리거로
                 복귀해야 하므로 finalFocus를 명시적으로 지정한다(Base UI

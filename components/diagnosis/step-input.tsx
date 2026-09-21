@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Clock, Layers, Lock, Search, ShieldCheck, Stethoscope, TrendingUp } from "lucide-react";
+import {
+  Clock,
+  Layers,
+  Lock,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Stethoscope,
+  TrendingUp,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -279,8 +288,14 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
           주세요"라는 제목 줄이 없다. 강조(앰버·굵게)되는 부분은 문장 앞
           절("이름 · 전화번호 · 주민등록번호 등")이고 나머지가 본문이다 —
           Notice의 title/children 슬롯을 디자인 그대로 나눠 쓴다. */}
+      {/* D2(9차) — design/exports/01·M01의 주의 배너 아이콘은 Notice 기본값인
+          삼각형 경고(AlertTriangle)가 아니라 느낌표가 들어간 방패
+          (ShieldAlert)다. Notice는 이 화면 밖에서도 쓰이는 공유 컴포넌트라
+          기본 아이콘은 그대로 두고, 진단 호출부에서 icon prop으로만
+          덮어쓴다(다른 소비자에게 영향 없음). */}
       <Notice
         data-testid="diagnosis-notice"
+        icon={<ShieldAlert className="size-4" />}
         title="이름 · 전화번호 · 주민등록번호 등"
         className="mt-[17px] w-full text-left md:mt-[1px] md:px-5 md:py-[11px]"
       >

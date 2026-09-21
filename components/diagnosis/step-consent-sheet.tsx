@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Lock, X } from "lucide-react";
+import { ChevronRight, Lock, X } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -116,14 +116,32 @@ export function StepConsentSheet({
         <DrawerDescription
           id={CONSENT_DESCRIPTION_ID}
           data-testid="diagnosis-consent-description"
-          className="text-sm"
+          // D2(9차) — 8차는 이 문단의 줄 "수"조차 검사하지 않았다. 지점까지
+          // 검사하자 text-sm(14px)에서는 "…처리됩" / "니다."로 디자인보다 한
+          // 글자 일찍 끊기는 것이 드러났다. 동일 문자열의 잉크 폭으로 역산한
+          // 디자인 글자 크기는 13.3px다(디자인 잉크 341.5px, 14px 구현
+          // 359.25px → 13.31px). 다만 그 값은 문장 전체가 한 줄에 들어가
+          // 버리는 쪽 경계(13.33px)보다 0.02px 낮다 — 디자인 도구와 브라우저의
+          // 글자 배치 차이(1px 미만)가 그대로 드러나는 구간이다. 줄바꿈이
+          // 디자인과 같아지는 구간(13.34~13.91px)과 폭 오차가 허용치 안에
+          // 들어오는 구간(13.13~13.44px)이 겹치는 곳의 가운데인 13.4px를
+          // 쓴다(폭 오차 2.8px, 줄바꿈 여유 1.9px). 행간은 디자인 실측 줄
+          // 간격 21px로 고정한다 — 임의 크기를 쓰면 Tailwind text-sm의 기본
+          // 행간 20px이 사라지기 때문이다.
+          // 행간을 21px로 잡으면서 이 문단의 박스가 2px 자라 설명이 디자인보다
+          // 5px 위에 놓였다. 시트는 아래쪽 고정 + 높이 auto라 위쪽 여백만
+          // 늘리면 시트가 그만큼 위로 자라 제목이 따라 올라간다 — 설명 위에
+          // 5px을 더하고 아래(동의 행)에서 같은 5px을 빼 전체 높이를 유지한다.
+          className="mt-[5px] text-[13.4px] leading-[21px]"
         >
-          입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
+          {/* D2(9차) — Desktop 모달과 동일한 정정(가운뎃점 앞뒤 공백).
+              design/exports/M01-A2 기준. */}
+          입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>
 
         <div
           data-testid="diagnosis-consent-row"
-          className="mt-[17px] flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-[10px]"
+          className="mt-[12px] flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-[10px]"
         >
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
@@ -146,9 +164,20 @@ export function StepConsentSheet({
           <Drawer open={detailOpen} onOpenChange={onDetailOpenChange}>
             <DrawerTrigger
               ref={detailTriggerRef}
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+              // D2(9차) — design/exports/M01-A2에서 꺾쇠는 동의 행 안쪽
+              // 오른쪽 끝(x=358)에 딱 붙는다. ghost sm 변형의 좌우 여백
+              // 10px을 그대로 두면 꺾쇠가 12px 안쪽으로 들어가고, 트리거가
+              // 그만큼 넓어져 왼쪽 라벨이 두 줄로 접히면서 행 높이가
+              // 디자인(51px)보다 11px 커진다. 행은 justify-between이라
+              // 트리거가 오른쪽에 붙으므로 좌측 여백은 눈에 보이는 위치를
+              // 바꾸지 않고 폭만 잡아먹는다 — 양쪽 모두 없앤다. 글자와
+              // 꺾쇠 사이 간격은 변형이 주는 gap-1(+아이콘 자체 여백)이
+              // 디자인 실측 8.5px와 이미 일치해 건드리지 않는다.
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}
             >
+              {/* D2(9차) — Desktop 모달과 동일(design/exports/M01-A2). */}
               내용 보기
+              <ChevronRight aria-hidden="true" />
             </DrawerTrigger>
             {/* AC-B2CDIAG-004 — 상세 오버레이 닫힘 시 포커스가 이 트리거로
                 복귀해야 하므로 finalFocus를 명시적으로 지정한다(중첩 Drawer
