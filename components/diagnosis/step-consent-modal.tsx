@@ -149,7 +149,9 @@ export function StepConsentModal({
             <DialogContent finalFocus={detailTriggerRef}>
               <DialogTitle>건강정보 등 민감정보 처리 동의</DialogTitle>
               <ConsentDetailContent />
-              <DialogClose className={cn(buttonVariants({ variant: "diagnosis" }))}>확인</DialogClose>
+              <DialogClose className={cn(buttonVariants({ variant: "diagnosis" }))}>
+                확인
+              </DialogClose>
               <p className="text-center text-meta text-bora-ink-3">
                 확인해도 동의 체크박스는 자동 선택되지 않습니다
               </p>
@@ -180,7 +182,10 @@ export function StepConsentModal({
           동의하고 진단하기
         </Button>
 
-        <p data-testid="diagnosis-consent-note" className="mt-[9px] text-center text-[13.9px] text-bora-ink-3">
+        <p
+          data-testid="diagnosis-consent-note"
+          className="mt-[9px] text-center text-[13.9px] text-bora-ink-3"
+        >
           필수 동의 후 진단을 시작할 수 있습니다.
         </p>
       </DialogContent>

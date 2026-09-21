@@ -92,7 +92,9 @@ describe("components/diagnosis/StepLoading — AC-B2CDIAG-009", () => {
     expect(
       container.querySelector('[data-testid="diagnosis-loading-stage-0"]')?.className
     ).toContain("text-bora-ink");
-    const stage0Spans = container.querySelectorAll('[data-testid="diagnosis-loading-stage-0"] span');
+    const stage0Spans = container.querySelectorAll(
+      '[data-testid="diagnosis-loading-stage-0"] span'
+    );
     expect(Array.from(stage0Spans).some((span) => span.className.includes("bg-green-600"))).toBe(
       true
     );

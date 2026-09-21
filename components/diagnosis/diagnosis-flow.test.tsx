@@ -50,7 +50,10 @@ function getSearchTextbox(container: HTMLElement): HTMLTextAreaElement {
 
 function fillSearchTextbox(container: HTMLElement, value: string): void {
   const input = getSearchTextbox(container);
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+  const setter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value"
+  )?.set;
   setter?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }

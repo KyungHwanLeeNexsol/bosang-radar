@@ -17,13 +17,7 @@ import { StepQuestions } from "./step-questions";
 // controlled prop이다(design.md §5) — 테스트는 부모 상태를 흉내 내는
 // stateful harness로 감싼다.
 
-function Harness({
-  onSkip,
-  initialIndex = 0,
-}: {
-  onSkip: () => void;
-  initialIndex?: number;
-}) {
+function Harness({ onSkip, initialIndex = 0 }: { onSkip: () => void; initialIndex?: number }) {
   const [questionIndex, setQuestionIndex] = React.useState(initialIndex);
   const [answers, setAnswers] = React.useState<Record<string, string>>({});
   const [prevCalls, setPrevCalls] = React.useState(0);
@@ -34,9 +28,7 @@ function Harness({
       <StepQuestions
         questionIndex={questionIndex}
         answers={answers}
-        onAnswer={(questionId, value) =>
-          setAnswers((prev) => ({ ...prev, [questionId]: value }))
-        }
+        onAnswer={(questionId, value) => setAnswers((prev) => ({ ...prev, [questionId]: value }))}
         onNext={() => setQuestionIndex((index) => index + 1)}
         onPrev={() => {
           setPrevCalls((count) => count + 1);
@@ -70,9 +62,9 @@ describe("components/diagnosis/StepQuestions — AC-B2CDIAG-007~009/017", () => 
       root.render(<Harness onSkip={vi.fn()} />);
     });
 
-    expect(container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent).toContain(
-      "1 / 3"
-    );
+    expect(
+      container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent
+    ).toContain("1 / 3");
   });
 
   it("질문 2에서는 진행 표시가 '질문 2 / 3'으로 바뀐다", () => {
@@ -80,9 +72,9 @@ describe("components/diagnosis/StepQuestions — AC-B2CDIAG-007~009/017", () => 
       root.render(<Harness onSkip={vi.fn()} initialIndex={1} />);
     });
 
-    expect(container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent).toContain(
-      "2 / 3"
-    );
+    expect(
+      container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent
+    ).toContain("2 / 3");
   });
 
   it("질문 3에서는 진행 표시가 '질문 3 / 3'으로 바뀐다", () => {
@@ -90,9 +82,9 @@ describe("components/diagnosis/StepQuestions — AC-B2CDIAG-007~009/017", () => 
       root.render(<Harness onSkip={vi.fn()} initialIndex={2} />);
     });
 
-    expect(container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent).toContain(
-      "3 / 3"
-    );
+    expect(
+      container.querySelector('[data-testid="diagnosis-question-progress"]')?.textContent
+    ).toContain("3 / 3");
   });
 
   it("AC-008: 질문 1에만 '건너뛰고 결과 보기' 링크가 있고 클릭하면 onSkip이 호출된다", () => {
@@ -196,8 +188,8 @@ describe("components/diagnosis/StepQuestions — AC-B2CDIAG-007~009/017", () => 
       root.render(<Harness onSkip={vi.fn()} initialIndex={2} />);
     });
 
-    const lastButton = Array.from(container.querySelectorAll("button")).find((btn) =>
-      btn.textContent?.includes("결과 보기") && !btn.textContent?.includes("건너뛰고")
+    const lastButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("결과 보기") && !btn.textContent?.includes("건너뛰고")
     );
     expect(lastButton).toBeDefined();
   });

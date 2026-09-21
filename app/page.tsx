@@ -26,10 +26,28 @@ export const metadata: Metadata = {
 
 // "true" 문자열만 참으로 취급한다 — unset을 포함한 그 외 모든 값은 거짓
 // (design.md §19.1a 5행 동작 행렬).
+//
+// @MX:ANCHOR: [AUTO] 아래 게이트의 세 플래그를 모두 이 함수 하나로 판정한다
+// (호출 3곳: ENABLE_DIAGNOSIS_FLOW / DIAGNOSIS_ENGINE_READY /
+// ENABLE_DIAGNOSIS_DEV_STATES).
+// @MX:REASON: 판정을 느슨하게(예: truthy 검사, "1"·"yes" 허용) 바꾸면 세
+// 플래그가 동시에 느슨해져 Home()의 프로덕션 안전 불변식이 한 번에 무너진다.
 function isFlagEnabled(value: string | undefined): boolean {
   return value === "true";
 }
 
+// @MX:ANCHOR: [AUTO] SPEC-B2C-DIAGNOSIS-001 REQ-B2CDIAG-025 (design.md §19) —
+// 진단 플로우가 일반 사용자에게 노출되는지를 결정하는 유일한 게이트.
+// shouldRenderDiagnosis = productionReady(ENABLE_DIAGNOSIS_FLOW &&
+// DIAGNOSIS_ENGINE_READY) || reviewEnabled(ENABLE_DIAGNOSIS_DEV_STATES) 이
+// 한 줄이 프로덕션 안전 불변식 전체이며, 이 계산은 다른 어디에도 복제되어
+// 있지 않다.
+// @MX:REASON: 담보 매칭 엔진이 아직 없어 진단 판정은 키워드 기반 mock이다
+// (step-loading.tsx @MX:DEBT). 이 게이트가 느슨해지는 순간 그 mock 결과가
+// 실제 사용자에게 보상 진단으로 제시된다 — 세 플래그의 조합·기본값·OR/AND
+// 배치 중 무엇을 바꾸든 반드시 app/page.test.tsx의 5행 동작 행렬
+// (design.md §19.1a)을 함께 갱신해야 한다. 그 행렬이 이 불변식의 회귀
+// 테스트다.
 export default function Home() {
   // 이 SPEC이 전달하는 코드에는 DIAGNOSIS_ENGINE_READY를 true로 설정하는
   // 지점이 없으므로 productionReady는 이 SPEC 범위 내내 구조적으로 항상

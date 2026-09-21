@@ -187,6 +187,29 @@ interface DiagnosisFlowProps {
   enableDevStates: boolean;
 }
 
+// @MX:ANCHOR: [AUTO] SPEC-B2C-DIAGNOSIS-001 (design.md §0, §5, §18.1) — 01
+// 화면 6단계 상태 머신의 단일 소유자. step·input·consentGiven·answers·
+// questionIndex·detailOpen이 오직 이 컴포넌트의 reducer에만 존재하고, 9개
+// 자식(StepInput/StepConsentModal/StepConsentSheet/StepQuestions/StepLoading/
+// StepResultNone/StepError/DiagnosisHeader/DiagnosisFooter)은 모두 무상태로
+// prop을 받아 쓴다.
+// @MX:REASON: 자식 중 하나라도 자기 상태를 따로 들고 있게 바꾸면
+// REQ-B2CDIAG-019(consent↔questions를 오가도 동의·응답 유지)와
+// AC-B2CDIAG-017/018이 즉시 깨진다 — 이 단일 소유 구조 자체가 그 계약의
+// 구현이다. prop 시그니처를 바꿀 때는 diagnosis-flow.test.tsx의 30여 개
+// 렌더 케이스가 함께 갱신되어야 한다.
+//
+// @MX:WARN: [AUTO] 아래 3개 useEffect가 3개의 mutable ref
+// (isFirstUrlSyncRef / skipNextPushRef / prevStepRef)를 통해 서로 결합되어
+// 있다. 특히 skipNextPushRef는 "URL→state 동기화가 유발한 전이"와 "사용자
+// 조작이 유발한 전이"를 구분하는 유일한 수단이며, React state가 아니라 ref인
+// 이유는 이 값이 리렌더를 유발해서는 안 되기 때문이다.
+// @MX:REASON: 이 ref들의 set/clear 순서를 바꾸거나 effect를 합치면 뒤로가기
+// 1회가 정방향 히스토리 항목을 다시 쌓아 버튼이 계속 앞으로 튕기는 무한
+// 루프가 재발한다(D1 ?step=/history desync 결함의 원인). VALID_STEPS 가드를
+// 제거하면 ?step=garbage가 그대로 FORCE_STEP payload가 된다. 이 함수를 수정할
+// 때는 diagnosis-flow.test.tsx의 "M-fix-4 (?step= 동기화)" describe 블록을
+// 반드시 함께 실행해 회귀를 확인할 것.
 export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -241,9 +264,10 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
 
     // D1 — VALID_STEPS에 없는 값(예: ?step=garbage)은 "step이 없는 것"과
     // 동일하게 취급한다. urlStep은 검증을 통과한 값만 담는다.
-    const urlStep = rawStep !== null && VALID_STEPS.has(rawStep as DiagnosisStep)
-      ? (rawStep as DiagnosisStep)
-      : null;
+    const urlStep =
+      rawStep !== null && VALID_STEPS.has(rawStep as DiagnosisStep)
+        ? (rawStep as DiagnosisStep)
+        : null;
 
     if (!urlStep) {
       // rawStep이 유효하지 않은 값(garbage)이었다면 URL에서 제거한다. rawStep이
@@ -324,7 +348,8 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
   // 계속 보여준다. 다른 스텝(questions/loading/...)에는 배경 개념이 없다.
   const backgroundStep = isConsentOpen ? "input" : state.step;
 
-  const onDetailOpenChange = (open: boolean) => dispatch({ type: "SET_DETAIL_OPEN", payload: open });
+  const onDetailOpenChange = (open: boolean) =>
+    dispatch({ type: "SET_DETAIL_OPEN", payload: open });
 
   const consentOverlay = isConsentOpen ? (
     isDesktop ? (

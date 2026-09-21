@@ -237,15 +237,15 @@ export function StepQuestions({
         data-testid="diagnosis-answer-guide"
         className="mt-[22px] text-left text-[13px] text-bora-ink-4 md:hidden"
       >
-        이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에
-        그대로 표시됩니다.
+        이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에 그대로
+        표시됩니다.
       </p>
       <p
         data-testid="diagnosis-answer-guide"
         className="hidden text-center text-[12.35px] text-bora-ink-4 md:mt-[19px] md:block"
       >
-        이 답변은 수술비 · 후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고,
-        답변하신 내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.
+        이 답변은 수술비 · 후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고, 답변하신
+        내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.
       </p>
 
       {questionIndex === 0 ? (

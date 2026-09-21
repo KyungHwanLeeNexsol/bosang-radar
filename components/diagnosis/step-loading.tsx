@@ -192,7 +192,10 @@ export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
                     className="size-4 shrink-0 animate-spin rounded-full border-2 border-bora-accent-line border-t-bora-accent motion-reduce:animate-none"
                   />
                 ) : (
-                  <span aria-hidden="true" className="size-4 shrink-0 rounded-full border-2 border-app-line" />
+                  <span
+                    aria-hidden="true"
+                    className="size-4 shrink-0 rounded-full border-2 border-app-line"
+                  />
                 )}
                 <span>{label}</span>
               </span>

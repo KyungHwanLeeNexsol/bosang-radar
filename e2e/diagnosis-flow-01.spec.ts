@@ -29,7 +29,9 @@ const RESULT_NONE_INPUT = "무릎 골절로 수술을 받았어요";
 const ERROR_INPUT = "분석 중 오류가 발생했어요";
 
 async function submitDiagnosisInput(page: Page, text: string): Promise<void> {
-  await page.getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요").fill(text);
+  await page
+    .getByPlaceholder("예) 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요")
+    .fill(text);
   await page.getByRole("button", { name: "보상 진단" }).click();
 }
 
@@ -152,9 +154,7 @@ test.describe("01 화면 — devStep 직접 URL 접근 (AC-B2CDIAG-015)", () => 
 test.describe("01 화면 — 새로고침 시 상태 초기화 (AC-B2CDIAG-013)", () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
-  test("동의 단계까지 진행한 뒤 새로고침하면 입력 화면으로 완전히 초기화된다", async ({
-    page,
-  }) => {
+  test("동의 단계까지 진행한 뒤 새로고침하면 입력 화면으로 완전히 초기화된다", async ({ page }) => {
     await page.goto("/");
     await submitDiagnosisInput(page, RESULT_NONE_INPUT);
     await expect(page.locator('[data-slot="dialog-content"]')).toBeVisible();

@@ -185,7 +185,9 @@ export function StepConsentSheet({
             <DrawerContent finalFocus={detailTriggerRef}>
               <DrawerTitle>건강정보 등 민감정보 처리 동의</DrawerTitle>
               <ConsentDetailContent />
-              <DrawerClose className={cn(buttonVariants({ variant: "diagnosis" }))}>확인</DrawerClose>
+              <DrawerClose className={cn(buttonVariants({ variant: "diagnosis" }))}>
+                확인
+              </DrawerClose>
               <p className="text-center text-meta text-bora-ink-3">
                 확인해도 동의 체크박스는 자동 선택되지 않습니다
               </p>

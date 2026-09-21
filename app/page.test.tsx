@@ -116,11 +116,41 @@ describe("app/page — 플래그 기반 shouldRenderDiagnosis 5행 동작 행렬
   });
 
   it.each([
-    { flow: undefined, engine: undefined, devStates: undefined, expected: false, label: "false/false/false → placeholder" },
-    { flow: "true" as const, engine: undefined, devStates: undefined, expected: false, label: "true/false/false → placeholder" },
-    { flow: undefined, engine: "true" as const, devStates: undefined, expected: false, label: "false/true/false → placeholder" },
-    { flow: "true" as const, engine: "true" as const, devStates: undefined, expected: true, label: "true/true/false → productionReady DiagnosisFlow" },
-    { flow: undefined, engine: undefined, devStates: "true" as const, expected: true, label: "false/false/true → reviewEnabled DiagnosisFlow" },
+    {
+      flow: undefined,
+      engine: undefined,
+      devStates: undefined,
+      expected: false,
+      label: "false/false/false → placeholder",
+    },
+    {
+      flow: "true" as const,
+      engine: undefined,
+      devStates: undefined,
+      expected: false,
+      label: "true/false/false → placeholder",
+    },
+    {
+      flow: undefined,
+      engine: "true" as const,
+      devStates: undefined,
+      expected: false,
+      label: "false/true/false → placeholder",
+    },
+    {
+      flow: "true" as const,
+      engine: "true" as const,
+      devStates: undefined,
+      expected: true,
+      label: "true/true/false → productionReady DiagnosisFlow",
+    },
+    {
+      flow: undefined,
+      engine: undefined,
+      devStates: "true" as const,
+      expected: true,
+      label: "false/false/true → reviewEnabled DiagnosisFlow",
+    },
   ])("$label", ({ flow, engine, devStates, expected }) => {
     setDiagnosisEnv(flow, engine, devStates);
 

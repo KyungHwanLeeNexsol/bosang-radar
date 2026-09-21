@@ -159,7 +159,9 @@ interface ScreenSpec {
   prepare: (page: Page, baseURL: string) => Promise<void>;
   elements: readonly ElementSpec[];
   /** 텍스트/순서 등 픽셀이 아닌 의미 검증. 위반은 허용 오차와 무관하게 FAIL. */
-  semanticChecks?: (page: Page) => Promise<Array<{ label: string; expected: string; actual: string }>>;
+  semanticChecks?: (
+    page: Page
+  ) => Promise<Array<{ label: string; expected: string; actual: string }>>;
 }
 
 // ── 공통 조작 ────────────────────────────────────────────────────────
@@ -249,7 +251,9 @@ async function expectStageTexts(page: Page, expected: readonly string[]) {
 async function stageTexts(page: Page) {
   const out: string[] = [];
   for (let i = 0; i < 3; i++) {
-    out.push(((await page.getByTestId(`diagnosis-loading-stage-${i}-status`).textContent()) ?? "").trim());
+    out.push(
+      ((await page.getByTestId(`diagnosis-loading-stage-${i}-status`).textContent()) ?? "").trim()
+    );
   }
   return out;
 }
@@ -268,20 +272,20 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "subtitle",
         label: "부제",
-        locate: (p) => vis(p,"diagnosis-hero-subtitle"),
+        locate: (p) => vis(p, "diagnosis-hero-subtitle"),
         designTopHint: 154,
       },
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-hero-title"),
+        locate: (p) => vis(p, "diagnosis-hero-title"),
         designTopHint: 194,
         expectLines: 1,
       },
       {
         key: "description",
         label: "설명(2줄)",
-        locate: (p) => vis(p,"diagnosis-hero-description"),
+        locate: (p) => vis(p, "diagnosis-hero-description"),
         designTopHint: 261,
         mergeBands: 2,
         expectLines: 2,
@@ -293,37 +297,37 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "trustRow",
         label: "시계/자물쇠 행",
-        locate: (p) => vis(p,"diagnosis-trust-row"),
+        locate: (p) => vis(p, "diagnosis-trust-row"),
         designTopHint: 337,
       },
       {
         key: "searchRow",
         label: "검색 + CTA 결합 행",
-        locate: (p) => vis(p,"diagnosis-search-row"),
+        locate: (p) => vis(p, "diagnosis-search-row"),
         designTopHint: 366,
       },
       {
         key: "notice",
         label: "안내 배너",
-        locate: (p) => vis(p,"diagnosis-notice"),
+        locate: (p) => vis(p, "diagnosis-notice"),
         designTopHint: 467,
       },
       {
         key: "chipRow",
         label: "칩 행",
-        locate: (p) => vis(p,"diagnosis-chip-row"),
+        locate: (p) => vis(p, "diagnosis-chip-row"),
         designTopHint: 537,
       },
       {
         key: "cardGrid",
         label: "카드 그리드",
-        locate: (p) => vis(p,"diagnosis-card-grid"),
+        locate: (p) => vis(p, "diagnosis-card-grid"),
         designTopHint: 617,
       },
       {
         key: "footerLinks",
         label: "푸터 링크 행",
-        locate: (p) => vis(p,"diagnosis-footer-links"),
+        locate: (p) => vis(p, "diagnosis-footer-links"),
         designTopHint: 800,
         // 디자인 푸터 행은 링크 3개(열 0~2)와 우측 BORA 로고(열 3)가 한
         // 밴드로 묶인다 — 링크 3개만 합쳐 nav 요소에 대응시킨다.
@@ -332,7 +336,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "footerDisclaimer",
         label: "푸터 면책 문구",
-        locate: (p) => vis(p,"diagnosis-footer-disclaimer"),
+        locate: (p) => vis(p, "diagnosis-footer-disclaimer"),
         designTopHint: 850,
         mergeBands: 2,
         expectLines: 2,
@@ -361,32 +365,32 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-consent-title"),
+        locate: (p) => vis(p, "diagnosis-consent-title"),
         designTopHint: 365,
         expectLines: 1,
       },
       {
         key: "description",
         label: "설명",
-        locate: (p) => vis(p,"diagnosis-consent-description"),
+        locate: (p) => vis(p, "diagnosis-consent-description"),
         designTopHint: 402,
       },
       {
         key: "consentRow",
         label: "동의 행",
-        locate: (p) => vis(p,"diagnosis-consent-row"),
+        locate: (p) => vis(p, "diagnosis-consent-row"),
         designTopHint: 436,
       },
       {
         key: "cta",
         label: "CTA",
-        locate: (p) => vis(p,"diagnosis-consent-cta"),
+        locate: (p) => vis(p, "diagnosis-consent-cta"),
         designTopHint: 507,
       },
       {
         key: "note",
         label: "하단 안내문",
-        locate: (p) => vis(p,"diagnosis-consent-note"),
+        locate: (p) => vis(p, "diagnosis-consent-note"),
         designTopHint: 563,
       },
     ],
@@ -403,62 +407,62 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "badge",
         label: "확인 배지",
-        locate: (p) => vis(p,"diagnosis-confirm-badge"),
+        locate: (p) => vis(p, "diagnosis-confirm-badge"),
         designTopHint: 144,
       },
       {
         key: "progress",
         label: "진행 표시 행",
-        locate: (p) => vis(p,"diagnosis-question-progress"),
+        locate: (p) => vis(p, "diagnosis-question-progress"),
         designTopHint: 198,
       },
       {
         key: "subtitle",
         label: "부제",
-        locate: (p) => vis(p,"diagnosis-question-subtitle"),
+        locate: (p) => vis(p, "diagnosis-question-subtitle"),
         designTopHint: 230,
       },
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-question-title"),
+        locate: (p) => vis(p, "diagnosis-question-title"),
         designTopHint: 264,
         expectLines: 1,
       },
       {
         key: "option0",
         label: "옵션 1",
-        locate: (p) => vis(p,"diagnosis-option-0"),
+        locate: (p) => vis(p, "diagnosis-option-0"),
         designTopHint: 328,
       },
       {
         key: "option1",
         label: "옵션 2",
-        locate: (p) => vis(p,"diagnosis-option-1"),
+        locate: (p) => vis(p, "diagnosis-option-1"),
         designTopHint: 393,
       },
       {
         key: "option2",
         label: "옵션 3",
-        locate: (p) => vis(p,"diagnosis-option-2"),
+        locate: (p) => vis(p, "diagnosis-option-2"),
         designTopHint: 458,
       },
       {
         key: "option3",
         label: "옵션 4",
-        locate: (p) => vis(p,"diagnosis-option-3"),
+        locate: (p) => vis(p, "diagnosis-option-3"),
         designTopHint: 523,
       },
       {
         key: "answerGuide",
         label: "답변 안내",
-        locate: (p) => vis(p,"diagnosis-answer-guide"),
+        locate: (p) => vis(p, "diagnosis-answer-guide"),
         designTopHint: 599,
       },
       {
         key: "skip",
         label: "건너뛰기 링크",
-        locate: (p) => vis(p,"diagnosis-skip-link"),
+        locate: (p) => vis(p, "diagnosis-skip-link"),
         designTopHint: 654,
       },
     ],
@@ -475,44 +479,44 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "spinner",
         label: "스피너",
-        locate: (p) => vis(p,"diagnosis-loading-spinner"),
+        locate: (p) => vis(p, "diagnosis-loading-spinner"),
         designTopHint: 145,
       },
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-loading-title"),
+        locate: (p) => vis(p, "diagnosis-loading-title"),
         designTopHint: 192,
         expectLines: 1,
       },
       {
         key: "description",
         label: "설명",
-        locate: (p) => vis(p,"diagnosis-loading-description"),
+        locate: (p) => vis(p, "diagnosis-loading-description"),
         designTopHint: 237,
       },
       {
         key: "stage0",
         label: "단계 행 1",
-        locate: (p) => vis(p,"diagnosis-loading-stage-0"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-0"),
         designTopHint: 285,
       },
       {
         key: "stage1",
         label: "단계 행 2",
-        locate: (p) => vis(p,"diagnosis-loading-stage-1"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-1"),
         designTopHint: 343,
       },
       {
         key: "stage2",
         label: "단계 행 3",
-        locate: (p) => vis(p,"diagnosis-loading-stage-2"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-2"),
         designTopHint: 401,
       },
       {
         key: "skeleton",
         label: "스켈레톤 카드",
-        locate: (p) => vis(p,"diagnosis-loading-skeleton"),
+        locate: (p) => vis(p, "diagnosis-loading-skeleton"),
         designTopHint: 469,
       },
     ],
@@ -539,31 +543,31 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "icon",
         label: "아이콘",
-        locate: (p) => vis(p,"diagnosis-state-icon"),
+        locate: (p) => vis(p, "diagnosis-state-icon"),
         designTopHint: 174,
       },
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-state-title"),
+        locate: (p) => vis(p, "diagnosis-state-title"),
         designTopHint: 266,
       },
       {
         key: "description",
         label: "설명",
-        locate: (p) => vis(p,"diagnosis-state-description"),
+        locate: (p) => vis(p, "diagnosis-state-description"),
         designTopHint: 315,
       },
       {
         key: "panel",
         label: "안내 패널",
-        locate: (p) => vis(p,"diagnosis-state-panel"),
+        locate: (p) => vis(p, "diagnosis-state-panel"),
         designTopHint: 355,
       },
       {
         key: "cta",
         label: "CTA",
-        locate: (p) => vis(p,"diagnosis-state-cta"),
+        locate: (p) => vis(p, "diagnosis-state-cta"),
         designTopHint: 491,
         // 허용된 차이(plan.md §G): 디자인은 "손해사정사에게 바로 문의" 버튼을
         // 함께 보여주지만 03 상담 플로우는 이 SPEC의 Out of Scope다. 버튼이
@@ -588,25 +592,25 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "icon",
         label: "아이콘",
-        locate: (p) => vis(p,"diagnosis-state-icon"),
+        locate: (p) => vis(p, "diagnosis-state-icon"),
         designTopHint: 174,
       },
       {
         key: "title",
         label: "제목",
-        locate: (p) => vis(p,"diagnosis-state-title"),
+        locate: (p) => vis(p, "diagnosis-state-title"),
         designTopHint: 266,
       },
       {
         key: "description",
         label: "설명",
-        locate: (p) => vis(p,"diagnosis-state-description"),
+        locate: (p) => vis(p, "diagnosis-state-description"),
         designTopHint: 315,
       },
       {
         key: "buttons",
         label: "버튼 그룹",
-        locate: (p) => vis(p,"diagnosis-state-cta"),
+        locate: (p) => vis(p, "diagnosis-state-cta"),
         designTopHint: 361,
       },
     ],
@@ -623,13 +627,13 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "subtitle",
         label: "부제",
-        locate: (p) => vis(p,"diagnosis-hero-subtitle"),
+        locate: (p) => vis(p, "diagnosis-hero-subtitle"),
         designTopHint: 82,
       },
       {
         key: "title",
         label: "제목(2줄)",
-        locate: (p) => vis(p,"diagnosis-hero-title"),
+        locate: (p) => vis(p, "diagnosis-hero-title"),
         designTopHint: 114,
         mergeBands: 2,
         expectLines: 2,
@@ -638,7 +642,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "description",
         label: "설명(2줄)",
-        locate: (p) => vis(p,"diagnosis-hero-description"),
+        locate: (p) => vis(p, "diagnosis-hero-description"),
         designTopHint: 202,
         mergeBands: 2,
         expectLines: 2,
@@ -650,19 +654,19 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "searchBox",
         label: "검색창",
-        locate: (p) => vis(p,"diagnosis-search-textbox"),
+        locate: (p) => vis(p, "diagnosis-search-textbox"),
         designTopHint: 266,
       },
       {
         key: "cta",
         label: "CTA",
-        locate: (p) => vis(p,"diagnosis-submit-cta"),
+        locate: (p) => vis(p, "diagnosis-submit-cta"),
         designTopHint: 396,
       },
       {
         key: "notice",
         label: "안내 배너(2줄)",
-        locate: (p) => vis(p,"diagnosis-notice"),
+        locate: (p) => vis(p, "diagnosis-notice"),
         designTopHint: 462,
         // D2(9차) — 8차까지 이 요소에는 expectLines도 expectLineTexts도
         // 없었다(8차 comparison.md §7은 "줄 수만 검증"으로 적었으나 실제
@@ -675,29 +679,26 @@ const SCREENS: readonly ScreenSpec[] = [
         // 끌어와 높이가 84로 부풀었다). 줄 검사는 DOM 기반이라 밴드 병합과
         // 무관하게 동작한다.
         expectLines: 2,
-        expectLineTexts: [
-          "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
-          "마세요",
-        ],
+        expectLineTexts: ["이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지", "마세요"],
       },
       {
         key: "chipRow",
         label: "칩 영역(라벨 + 칩 2행)",
-        locate: (p) => vis(p,"diagnosis-chip-row"),
+        locate: (p) => vis(p, "diagnosis-chip-row"),
         designTopHint: 573,
         mergeBands: 3,
       },
       {
         key: "cardList",
         label: "카드 목록(4장)",
-        locate: (p) => vis(p,"diagnosis-card-grid"),
+        locate: (p) => vis(p, "diagnosis-card-grid"),
         designTopHint: 691,
         mergeBands: 4,
       },
       {
         key: "footerDisclaimer",
         label: "푸터 면책 문구",
-        locate: (p) => vis(p,"diagnosis-footer-disclaimer"),
+        locate: (p) => vis(p, "diagnosis-footer-disclaimer"),
         designTopHint: 1035,
       },
     ],
@@ -725,7 +726,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "title",
         label: "제목(2줄)",
-        locate: (p) => vis(p,"diagnosis-consent-title"),
+        locate: (p) => vis(p, "diagnosis-consent-title"),
         // 시트 제목 2줄은 줄 간격이 좁아 디자인에서도 한 밴드로 잡힌다.
         designTopHint: 828,
         expectLines: 2,
@@ -734,7 +735,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "description",
         label: "설명(2줄)",
-        locate: (p) => vis(p,"diagnosis-consent-description"),
+        locate: (p) => vis(p, "diagnosis-consent-description"),
         designTopHint: 889,
         // D2(9차) — 8차까지 이 요소에도 expectLines도 expectLineTexts도
         // 없었다. 줄 수는 출력에 기록만 됐을 뿐 판정에 쓰이지 않았고,
@@ -754,19 +755,19 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "consentRow",
         label: "동의 행",
-        locate: (p) => vis(p,"diagnosis-consent-row"),
+        locate: (p) => vis(p, "diagnosis-consent-row"),
         designTopHint: 942,
       },
       {
         key: "cta",
         label: "CTA",
-        locate: (p) => vis(p,"diagnosis-consent-cta"),
+        locate: (p) => vis(p, "diagnosis-consent-cta"),
         designTopHint: 1009,
       },
       {
         key: "note",
         label: "하단 안내문",
-        locate: (p) => vis(p,"diagnosis-consent-note"),
+        locate: (p) => vis(p, "diagnosis-consent-note"),
         designTopHint: 1073,
       },
     ],
@@ -786,7 +787,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "badge",
         label: "확인 배지",
-        locate: (p) => vis(p,"diagnosis-confirm-badge"),
+        locate: (p) => vis(p, "diagnosis-confirm-badge"),
         designTopHint: 78,
       },
       {
@@ -794,13 +795,13 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "진행 표시 행(라벨 + 트랙)",
         // Mobile은 "다음 질문 안내"가 아랫줄로 내려가므로 바깥 컨테이너가
         // 아니라 라벨+트랙 한 행만 대응시킨다.
-        locate: (p) => vis(p,"diagnosis-progress-row"),
+        locate: (p) => vis(p, "diagnosis-progress-row"),
         designTopHint: 127,
       },
       {
         key: "progressTrack",
         label: "진행률 트랙",
-        locate: (p) => vis(p,"diagnosis-progress-track"),
+        locate: (p) => vis(p, "diagnosis-progress-track"),
         // 트랙 자체가 배경과 저대비라 ink 세그먼트로 top을 잡기 어렵다 —
         // 진행 표시 행과 같은 밴드 안의 우측 열로 지정해 폭을 실측한다.
         designTopHint: 127,
@@ -810,19 +811,19 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "upcoming",
         label: "다음 질문 안내",
-        locate: (p) => vis(p,"diagnosis-question-upcoming"),
+        locate: (p) => vis(p, "diagnosis-question-upcoming"),
         designTopHint: 151,
       },
       {
         key: "subtitle",
         label: "부제",
-        locate: (p) => vis(p,"diagnosis-question-subtitle"),
+        locate: (p) => vis(p, "diagnosis-question-subtitle"),
         designTopHint: 180,
       },
       {
         key: "title",
         label: "제목(2줄)",
-        locate: (p) => vis(p,"diagnosis-question-title"),
+        locate: (p) => vis(p, "diagnosis-question-title"),
         designTopHint: 209,
         mergeBands: 2,
         expectLines: 2,
@@ -831,31 +832,31 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "option0",
         label: "옵션 1",
-        locate: (p) => vis(p,"diagnosis-option-0"),
+        locate: (p) => vis(p, "diagnosis-option-0"),
         designTopHint: 293,
       },
       {
         key: "option1",
         label: "옵션 2",
-        locate: (p) => vis(p,"diagnosis-option-1"),
+        locate: (p) => vis(p, "diagnosis-option-1"),
         designTopHint: 354,
       },
       {
         key: "option2",
         label: "옵션 3",
-        locate: (p) => vis(p,"diagnosis-option-2"),
+        locate: (p) => vis(p, "diagnosis-option-2"),
         designTopHint: 415,
       },
       {
         key: "option3",
         label: "옵션 4",
-        locate: (p) => vis(p,"diagnosis-option-3"),
+        locate: (p) => vis(p, "diagnosis-option-3"),
         designTopHint: 476,
       },
       {
         key: "answerGuide",
         label: "답변 안내(2줄)",
-        locate: (p) => vis(p,"diagnosis-answer-guide"),
+        locate: (p) => vis(p, "diagnosis-answer-guide"),
         designTopHint: 549,
         mergeBands: 2,
         expectLines: 2,
@@ -867,7 +868,7 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "skip",
         label: "건너뛰기 링크",
-        locate: (p) => vis(p,"diagnosis-skip-link"),
+        locate: (p) => vis(p, "diagnosis-skip-link"),
         designTopHint: 601,
       },
     ],
@@ -884,13 +885,13 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "spinner",
         label: "스피너",
-        locate: (p) => vis(p,"diagnosis-loading-spinner"),
+        locate: (p) => vis(p, "diagnosis-loading-spinner"),
         designTopHint: 87,
       },
       {
         key: "title",
         label: "제목(2줄)",
-        locate: (p) => vis(p,"diagnosis-loading-title"),
+        locate: (p) => vis(p, "diagnosis-loading-title"),
         designTopHint: 130,
         mergeBands: 2,
         expectLines: 2,
@@ -899,32 +900,32 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         key: "description",
         label: "설명",
-        locate: (p) => vis(p,"diagnosis-loading-description"),
+        locate: (p) => vis(p, "diagnosis-loading-description"),
         designTopHint: 202,
         expectText: "보통 10~20초 정도 걸립니다.",
       },
       {
         key: "stage0",
         label: "단계 행 1",
-        locate: (p) => vis(p,"diagnosis-loading-stage-0"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-0"),
         designTopHint: 242,
       },
       {
         key: "stage1",
         label: "단계 행 2",
-        locate: (p) => vis(p,"diagnosis-loading-stage-1"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-1"),
         designTopHint: 295,
       },
       {
         key: "stage2",
         label: "단계 행 3",
-        locate: (p) => vis(p,"diagnosis-loading-stage-2"),
+        locate: (p) => vis(p, "diagnosis-loading-stage-2"),
         designTopHint: 348,
       },
       {
         key: "skeleton",
         label: "스켈레톤(2장)",
-        locate: (p) => vis(p,"diagnosis-loading-skeleton"),
+        locate: (p) => vis(p, "diagnosis-loading-skeleton"),
         designTopHint: 415,
         mergeBands: 2,
       },
@@ -1206,7 +1207,10 @@ async function verifyScreen(
     const domInfos = new Map<string, DomInfo | null>();
     for (const element of spec.elements) {
       const locator = element.locate(page);
-      domInfos.set(element.key, (await locator.count()) > 0 ? await readDom(locator.first()) : null);
+      domInfos.set(
+        element.key,
+        (await locator.count()) > 0 ? await readDom(locator.first()) : null
+      );
     }
 
     const semantic: ScreenResult["semantic"] = [];
@@ -1250,7 +1254,8 @@ async function verifyScreen(
     writeDataUrl(
       path.join(DIR_DIFFS, `${spec.id}.png`),
       await analysis.evaluate(
-        ([d, i, w, h]) => window.__vv.composeDiff(d as string, i as string, w as number, h as number),
+        ([d, i, w, h]) =>
+          window.__vv.composeDiff(d as string, i as string, w as number, h as number),
         [designUrl, implUrl, width, height] as const
       )
     );
@@ -1285,7 +1290,9 @@ async function verifyScreen(
 
         // 모달/시트 내부는 좌우 테두리와 상단 모서리 그림자를 제외한다.
         const inset = (b: Box | undefined) =>
-          b ? { left: b.left + 6, top: b.top + 16, width: b.width - 12, height: b.height - 16 } : undefined;
+          b
+            ? { left: b.left + 6, top: b.top + 16, width: b.width - 12, height: b.height - 16 }
+            : undefined;
 
         const bandOpts = {
           bg: designBg,
@@ -1622,7 +1629,10 @@ async function main() {
   const onlyRaw = process.env.VISUAL_ONLY;
   let screens = SCREENS;
   if (onlyRaw !== undefined) {
-    const ids = onlyRaw.split(",").map((s) => s.trim()).filter(Boolean);
+    const ids = onlyRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (ids.length === 0) {
       console.error(
         `[visual-verify] VISUAL_ONLY가 설정됐지만 화면 id가 하나도 없습니다(값: ${JSON.stringify(onlyRaw)}).`
@@ -1682,7 +1692,12 @@ async function main() {
         // 한 화면이 실패해도 나머지 화면의 측정 결과는 남긴다 — 실패 자체는
         // 위반으로 기록되므로 종료 코드는 1이 된다.
         const message = error instanceof Error ? error.message : String(error);
-        findings.push({ screen: spec.id, element: "(화면 전체)", kind: "missing", detail: message });
+        findings.push({
+          screen: spec.id,
+          element: "(화면 전체)",
+          kind: "missing",
+          detail: message,
+        });
         console.log(`ERROR — ${message.split("\n")[0]}`);
       }
     }

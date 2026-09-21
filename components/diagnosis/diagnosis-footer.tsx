@@ -20,43 +20,43 @@ export function DiagnosisFooter() {
   return (
     <footer className="mt-[36px] flex w-full justify-center px-5 md:mt-[57px] md:px-8">
       <div className="flex w-full max-w-[752px] flex-col gap-2 border-t border-app-line py-4 md:gap-0 md:py-[26px]">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
-        <nav
-          data-testid="diagnosis-footer-links"
-          className="flex flex-wrap gap-x-5 gap-y-1.5 text-body-s font-medium text-bora-ink-2"
-        >
-          {FOOTER_LINKS.map((label) => (
-            <a key={label} href="#" className="hover:text-bora-ink">
-              {label}
-            </a>
-          ))}
-        </nav>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
+          <nav
+            data-testid="diagnosis-footer-links"
+            className="flex flex-wrap gap-x-5 gap-y-1.5 text-body-s font-medium text-bora-ink-2"
+          >
+            {FOOTER_LINKS.map((label) => (
+              <a key={label} href="#" className="hover:text-bora-ink">
+                {label}
+              </a>
+            ))}
+          </nav>
 
-        <div className="hidden items-center gap-1.5 md:flex">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-bora-accent text-xs font-bold text-white">
-            B
-          </span>
-          <span className="text-sm font-extrabold tracking-tight text-bora-ink">BORA</span>
+          <div className="hidden items-center gap-1.5 md:flex">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-bora-accent text-xs font-bold text-white">
+              B
+            </span>
+            <span className="text-sm font-extrabold tracking-tight text-bora-ink">BORA</span>
+          </div>
         </div>
-      </div>
 
-      {/* D2(7차) — design/exports/01의 푸터 면책 문구 상단은 y≈850, 링크
+        {/* D2(7차) — design/exports/01의 푸터 면책 문구 상단은 y≈850, 링크
           행(y≈800)과의 간격이 50px다. 부모 gap-4(16px)만으로는 11px 짧아
           면책 문구가 위로 붙었다(6차 미해결 항목) — Desktop만 명시적인
           mt로 디자인 간격을 재현한다. */}
-      <p
-        data-testid="diagnosis-footer-disclaimer"
-        className="hidden text-meta text-bora-ink-4 md:mt-[18px] md:block"
-      >
-        본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을
-        보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사 결과에 따릅니다.
-      </p>
-      <p
-        data-testid="diagnosis-footer-disclaimer"
-        className="text-label-s text-bora-ink-4 md:hidden"
-      >
-        진단 결과는 참고용 안내이며 보상 여부와 금액을 보장하지 않습니다.
-      </p>
+        <p
+          data-testid="diagnosis-footer-disclaimer"
+          className="hidden text-meta text-bora-ink-4 md:mt-[18px] md:block"
+        >
+          본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을
+          보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사 결과에 따릅니다.
+        </p>
+        <p
+          data-testid="diagnosis-footer-disclaimer"
+          className="text-label-s text-bora-ink-4 md:hidden"
+        >
+          진단 결과는 참고용 안내이며 보상 여부와 금액을 보장하지 않습니다.
+        </p>
       </div>
     </footer>
   );
