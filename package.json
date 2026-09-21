@@ -11,6 +11,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:e2e": "tsx scripts/run-e2e.ts",
+    "visual:verify": "tsx scripts/visual-verify.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:seed": "tsx scripts/db-seed.ts"
