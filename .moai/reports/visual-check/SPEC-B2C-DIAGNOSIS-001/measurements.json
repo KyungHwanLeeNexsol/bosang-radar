@@ -1,0 +1,6144 @@
+{
+  "generatedAt": "2026-09-21T06:39:15.825Z",
+  "canonical": true,
+  "run": {
+    "screenIds": [
+      "01",
+      "01-A2",
+      "01-B",
+      "01-C",
+      "01-D",
+      "01-E",
+      "M01",
+      "M01-A2",
+      "M01-B",
+      "M01-C"
+    ],
+    "totalScreens": 10,
+    "visualOnly": null,
+    "skipBuild": false,
+    "externalBaseURL": null
+  },
+  "tolerance": {
+    "desktop": 8,
+    "mobile": 4
+  },
+  "results": [
+    {
+      "id": "01",
+      "label": "01 보상 진단 질문 입력 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 940
+      },
+      "designExport": "01-보상-진단-질문-입력.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 154,
+          "left": 613,
+          "width": 214,
+          "height": 14,
+          "cols": [
+            {
+              "left": 613,
+              "top": 154,
+              "width": 214,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 194,
+          "left": 517,
+          "width": 410,
+          "height": 43,
+          "cols": [
+            {
+              "left": 517,
+              "top": 194,
+              "width": 410,
+              "height": 43
+            }
+          ]
+        },
+        {
+          "top": 261,
+          "left": 512,
+          "width": 416,
+          "height": 15,
+          "cols": [
+            {
+              "left": 512,
+              "top": 261,
+              "width": 416,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 287,
+          "left": 472,
+          "width": 496,
+          "height": 15,
+          "cols": [
+            {
+              "left": 472,
+              "top": 287,
+              "width": 496,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 337,
+          "left": 524,
+          "width": 393,
+          "height": 13,
+          "cols": [
+            {
+              "left": 524,
+              "top": 337,
+              "width": 125,
+              "height": 13
+            },
+            {
+              "left": 666,
+              "top": 337,
+              "width": 251,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 366,
+          "left": 340,
+          "width": 760,
+          "height": 78,
+          "cols": [
+            {
+              "left": 340,
+              "top": 366,
+              "width": 760,
+              "height": 78
+            }
+          ]
+        },
+        {
+          "top": 467,
+          "left": 340,
+          "width": 760,
+          "height": 42,
+          "cols": [
+            {
+              "left": 340,
+              "top": 467,
+              "width": 760,
+              "height": 42
+            }
+          ]
+        },
+        {
+          "top": 549,
+          "left": 404,
+          "width": 619,
+          "height": 13,
+          "cols": [
+            {
+              "left": 404,
+              "top": 549,
+              "width": 73,
+              "height": 12
+            },
+            {
+              "left": 500,
+              "top": 549,
+              "width": 45,
+              "height": 13
+            },
+            {
+              "left": 581,
+              "top": 549,
+              "width": 71,
+              "height": 13
+            },
+            {
+              "left": 687,
+              "top": 549,
+              "width": 63,
+              "height": 13
+            },
+            {
+              "left": 785,
+              "top": 549,
+              "width": 60,
+              "height": 13
+            },
+            {
+              "left": 880,
+              "top": 549,
+              "width": 71,
+              "height": 13
+            },
+            {
+              "left": 986,
+              "top": 549,
+              "width": 37,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 617,
+          "left": 340,
+          "width": 760,
+          "height": 103,
+          "cols": [
+            {
+              "left": 340,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 533,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 726,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 919,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            }
+          ]
+        },
+        {
+          "top": 774,
+          "left": 340,
+          "width": 760,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 800,
+          "left": 340,
+          "width": 759,
+          "height": 30,
+          "cols": [
+            {
+              "left": 341,
+              "top": 810,
+              "width": 90,
+              "height": 13
+            },
+            {
+              "left": 454,
+              "top": 810,
+              "width": 45,
+              "height": 13
+            },
+            {
+              "left": 520,
+              "top": 810,
+              "width": 48,
+              "height": 13
+            },
+            {
+              "left": 1008,
+              "top": 800,
+              "width": 91,
+              "height": 30
+            }
+          ]
+        },
+        {
+          "top": 850,
+          "left": 340,
+          "width": 748,
+          "height": 12,
+          "cols": [
+            {
+              "left": 341,
+              "top": 850,
+              "width": 747,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 871,
+          "left": 341,
+          "width": 78,
+          "height": 11,
+          "cols": [
+            {
+              "left": 341,
+              "top": 871,
+              "width": 78,
+              "height": 11
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 154,
+          "left": 613,
+          "width": 214,
+          "height": 14,
+          "cols": [
+            {
+              "left": 613,
+              "top": 154,
+              "width": 214,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 194,
+          "left": 517,
+          "width": 410,
+          "height": 43,
+          "cols": [
+            {
+              "left": 517,
+              "top": 194,
+              "width": 410,
+              "height": 43
+            }
+          ]
+        },
+        {
+          "top": 261,
+          "left": 512,
+          "width": 416,
+          "height": 15,
+          "cols": [
+            {
+              "left": 512,
+              "top": 261,
+              "width": 416,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 287,
+          "left": 472,
+          "width": 496,
+          "height": 15,
+          "cols": [
+            {
+              "left": 472,
+              "top": 287,
+              "width": 496,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 337,
+          "left": 524,
+          "width": 393,
+          "height": 13,
+          "cols": [
+            {
+              "left": 524,
+              "top": 337,
+              "width": 125,
+              "height": 13
+            },
+            {
+              "left": 666,
+              "top": 337,
+              "width": 251,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 364,
+          "left": 336,
+          "width": 768,
+          "height": 80,
+          "cols": [
+            {
+              "left": 336,
+              "top": 364,
+              "width": 768,
+              "height": 80
+            }
+          ]
+        },
+        {
+          "top": 467,
+          "left": 340,
+          "width": 760,
+          "height": 42,
+          "cols": [
+            {
+              "left": 340,
+              "top": 467,
+              "width": 760,
+              "height": 42
+            }
+          ]
+        },
+        {
+          "top": 537,
+          "left": 404,
+          "width": 633,
+          "height": 34,
+          "cols": [
+            {
+              "left": 404,
+              "top": 537,
+              "width": 633,
+              "height": 34
+            }
+          ]
+        },
+        {
+          "top": 617,
+          "left": 340,
+          "width": 760,
+          "height": 103,
+          "cols": [
+            {
+              "left": 340,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 533,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 726,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            },
+            {
+              "left": 919,
+              "top": 617,
+              "width": 181,
+              "height": 103
+            }
+          ]
+        },
+        {
+          "top": 774,
+          "left": 340,
+          "width": 760,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 800,
+          "left": 340,
+          "width": 760,
+          "height": 30,
+          "cols": [
+            {
+              "left": 340,
+              "top": 810,
+              "width": 91,
+              "height": 13
+            },
+            {
+              "left": 454,
+              "top": 810,
+              "width": 45,
+              "height": 13
+            },
+            {
+              "left": 520,
+              "top": 810,
+              "width": 48,
+              "height": 13
+            },
+            {
+              "left": 1008,
+              "top": 800,
+              "width": 91,
+              "height": 30
+            }
+          ]
+        },
+        {
+          "top": 850,
+          "left": 340,
+          "width": 748,
+          "height": 12,
+          "cols": [
+            {
+              "left": 341,
+              "top": 850,
+              "width": 747,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 871,
+          "left": 340,
+          "width": 79,
+          "height": 11,
+          "cols": [
+            {
+              "left": 341,
+              "top": 871,
+              "width": 78,
+              "height": 11
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "subtitle",
+          "label": "부제",
+          "design": {
+            "left": 613,
+            "top": 154,
+            "width": 214,
+            "height": 14
+          },
+          "impl": {
+            "left": 615,
+            "top": 154,
+            "width": 210,
+            "height": 12
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 4,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "놓치기 쉬운 보상 항목을 확인해 보세요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 517,
+            "top": 194,
+            "width": 410,
+            "height": 43
+          },
+          "impl": {
+            "left": 514,
+            "top": 194,
+            "width": 412,
+            "height": 41
+          },
+          "delta": {
+            "left": 3,
+            "top": 0,
+            "width": 2,
+            "height": 2
+          },
+          "lines": {
+            "expected": 1,
+            "actual": 1
+          },
+          "text": "이거, 보상 받을 수 있나요?",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "40px",
+          "lineHeight": "60px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명(2줄)",
+          "design": {
+            "left": 472,
+            "top": 261,
+            "width": 496,
+            "height": 41
+          },
+          "impl": {
+            "left": 472,
+            "top": 261,
+            "width": 495,
+            "height": 39
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 2
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로",
+              "실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다."
+            ],
+            "actual": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로",
+              "실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다."
+            ]
+          },
+          "text": "사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16.07px",
+          "lineHeight": "24.105px",
+          "pass": true
+        },
+        {
+          "key": "trustRow",
+          "label": "시계/자물쇠 행",
+          "design": {
+            "left": 524,
+            "top": 337,
+            "width": 393,
+            "height": 13
+          },
+          "impl": {
+            "left": 524,
+            "top": 337,
+            "width": 392,
+            "height": 14
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "회원가입 없이 약 1분입력 내용은 보상 가능성 분석에만 사용됩니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "pass": true
+        },
+        {
+          "key": "searchRow",
+          "label": "검색 + CTA 결합 행",
+          "design": {
+            "left": 336,
+            "top": 364,
+            "width": 768,
+            "height": 80
+          },
+          "impl": {
+            "left": 337,
+            "top": 364,
+            "width": 766,
+            "height": 80
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "0 / 200자보상 진단",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "notice",
+          "label": "안내 배너",
+          "design": {
+            "left": 340,
+            "top": 467,
+            "width": 760,
+            "height": 42
+          },
+          "impl": {
+            "left": 339,
+            "top": 467,
+            "width": 762,
+            "height": 41
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지 마세요",
+          "backgroundColor": "rgb(251, 243, 227)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "chipRow",
+          "label": "칩 행",
+          "design": {
+            "left": 404,
+            "top": 537,
+            "width": 633,
+            "height": 34
+          },
+          "impl": {
+            "left": 406,
+            "top": 537,
+            "width": 629,
+            "height": 32
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 4,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "많이 찾는 사례교통사고계단에서 낙상운동 중 부상허리 디스크어깨 회전근개암 진단",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "cardGrid",
+          "label": "카드 그리드",
+          "design": {
+            "left": 340,
+            "top": 617,
+            "width": 760,
+            "height": 103
+          },
+          "impl": {
+            "left": 338,
+            "top": 617,
+            "width": 764,
+            "height": 105
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 4,
+            "height": 2
+          },
+          "lines": {
+            "actual": 3
+          },
+          "text": "1실손 의료비실제 지출한 병원비2정액 담보진단·수술·입원별 가입 담보3후유장해치료 후 남은 장해 상태4특별 보상시설·단체·상대방 보험 등",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "footerLinks",
+          "label": "푸터 링크 행",
+          "design": {
+            "left": 341,
+            "top": 810,
+            "width": 227,
+            "height": 13
+          },
+          "impl": {
+            "left": 344,
+            "top": 810,
+            "width": 222,
+            "height": 13
+          },
+          "delta": {
+            "left": 3,
+            "top": 0,
+            "width": 5,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "개인정보처리방침이용약관고객 문의",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "pass": true
+        },
+        {
+          "key": "footerDisclaimer",
+          "label": "푸터 면책 문구",
+          "design": {
+            "left": 340,
+            "top": 850,
+            "width": 748,
+            "height": 32
+          },
+          "impl": {
+            "left": 344,
+            "top": 850,
+            "width": 744,
+            "height": 29
+          },
+          "delta": {
+            "left": 4,
+            "top": 0,
+            "width": 4,
+            "height": 3
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사",
+              "결과에 따릅니다."
+            ],
+            "actual": [
+              "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사",
+              "결과에 따릅니다."
+            ]
+          },
+          "text": "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사 결과에 따릅니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 5,
+      "pass": true
+    },
+    {
+      "id": "01-A2",
+      "label": "01-A2 진단 시작 동의 (Desktop Modal)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 940
+      },
+      "designExport": "01-A2-진단-시작-동의.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 365,
+          "left": 469,
+          "width": 499,
+          "height": 21,
+          "cols": [
+            {
+              "left": 469,
+              "top": 367,
+              "width": 244,
+              "height": 19
+            },
+            {
+              "left": 956,
+              "top": 365,
+              "width": 12,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 402,
+          "left": 469,
+          "width": 371,
+          "height": 12,
+          "cols": [
+            {
+              "left": 469,
+              "top": 402,
+              "width": 371,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 436,
+          "left": 468,
+          "width": 504,
+          "height": 51,
+          "cols": [
+            {
+              "left": 468,
+              "top": 436,
+              "width": 504,
+              "height": 51
+            }
+          ]
+        },
+        {
+          "top": 507,
+          "left": 468,
+          "width": 504,
+          "height": 44,
+          "cols": [
+            {
+              "left": 468,
+              "top": 507,
+              "width": 504,
+              "height": 44
+            }
+          ]
+        },
+        {
+          "top": 563,
+          "left": 612,
+          "width": 215,
+          "height": 13,
+          "cols": [
+            {
+              "left": 612,
+              "top": 563,
+              "width": 215,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 602,
+          "left": 446,
+          "width": 548,
+          "height": 4,
+          "cols": [
+            {
+              "left": 446,
+              "top": 602,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "left": 990,
+              "top": 602,
+              "width": 4,
+              "height": 4
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 365,
+          "left": 469,
+          "width": 499,
+          "height": 21,
+          "cols": [
+            {
+              "left": 469,
+              "top": 367,
+              "width": 244,
+              "height": 19
+            },
+            {
+              "left": 956,
+              "top": 365,
+              "width": 12,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 402,
+          "left": 469,
+          "width": 372,
+          "height": 12,
+          "cols": [
+            {
+              "left": 469,
+              "top": 402,
+              "width": 371,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 436,
+          "left": 468,
+          "width": 504,
+          "height": 51,
+          "cols": [
+            {
+              "left": 468,
+              "top": 436,
+              "width": 504,
+              "height": 51
+            }
+          ]
+        },
+        {
+          "top": 507,
+          "left": 468,
+          "width": 504,
+          "height": 44,
+          "cols": [
+            {
+              "left": 468,
+              "top": 507,
+              "width": 504,
+              "height": 44
+            }
+          ]
+        },
+        {
+          "top": 563,
+          "left": 612,
+          "width": 215,
+          "height": 13,
+          "cols": [
+            {
+              "left": 612,
+              "top": 563,
+              "width": 215,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 602,
+          "left": 446,
+          "width": 548,
+          "height": 4,
+          "cols": [
+            {
+              "left": 446,
+              "top": 602,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "left": 990,
+              "top": 602,
+              "width": 4,
+              "height": 4
+            }
+          ]
+        }
+      ],
+      "cropBox": {
+        "design": {
+          "left": 440,
+          "top": 335,
+          "width": 560,
+          "height": 271
+        },
+        "impl": {
+          "left": 441,
+          "top": 333,
+          "width": 558,
+          "height": 274
+        },
+        "delta": {
+          "left": 1,
+          "top": 2,
+          "width": 2,
+          "height": 3
+        }
+      },
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#6c7075",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#6c7075",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 469,
+            "top": 365,
+            "width": 499,
+            "height": 21
+          },
+          "impl": {
+            "left": 469,
+            "top": 359,
+            "width": 496,
+            "height": 24
+          },
+          "delta": {
+            "left": 0,
+            "top": 6,
+            "width": 3,
+            "height": 3
+          },
+          "lines": {
+            "expected": 1,
+            "actual": 1
+          },
+          "text": "건강정보 처리에 동의해 주세요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "18.8px",
+          "lineHeight": "28.2px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명",
+          "design": {
+            "left": 469,
+            "top": 402,
+            "width": 371,
+            "height": 12
+          },
+          "impl": {
+            "left": 469,
+            "top": 405,
+            "width": 371,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 3,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.83px",
+          "lineHeight": "20.745px",
+          "pass": true
+        },
+        {
+          "key": "consentRow",
+          "label": "동의 행",
+          "design": {
+            "left": 468,
+            "top": 436,
+            "width": 504,
+            "height": 51
+          },
+          "impl": {
+            "left": 469,
+            "top": 434,
+            "width": 502,
+            "height": 54
+          },
+          "delta": {
+            "left": 1,
+            "top": 2,
+            "width": 2,
+            "height": 3
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "필수건강정보 등 민감정보 처리 동의내용 보기",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "cta",
+          "label": "CTA",
+          "design": {
+            "left": 468,
+            "top": 507,
+            "width": 504,
+            "height": 44
+          },
+          "impl": {
+            "left": 470,
+            "top": 501,
+            "width": 500,
+            "height": 38
+          },
+          "delta": {
+            "left": 2,
+            "top": 6,
+            "width": 4,
+            "height": 6
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "동의하고 진단하기",
+          "backgroundColor": "rgb(239, 242, 245)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "note",
+          "label": "하단 안내문",
+          "design": {
+            "left": 612,
+            "top": 563,
+            "width": 215,
+            "height": 13
+          },
+          "impl": {
+            "left": 612,
+            "top": 565,
+            "width": 216,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 2,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "필수 동의 후 진단을 시작할 수 있습니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.9px",
+          "lineHeight": "20.85px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 6,
+      "pass": true
+    },
+    {
+      "id": "01-B",
+      "label": "01-B 추가 질문 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 940
+      },
+      "designExport": "01-B-추가-질문.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 144,
+          "left": 637,
+          "width": 166,
+          "height": 32,
+          "cols": [
+            {
+              "left": 637,
+              "top": 144,
+              "width": 166,
+              "height": 32
+            }
+          ]
+        },
+        {
+          "top": 198,
+          "left": 540,
+          "width": 359,
+          "height": 14,
+          "cols": [
+            {
+              "left": 541,
+              "top": 198,
+              "width": 100,
+              "height": 14
+            },
+            {
+              "left": 730,
+              "top": 198,
+              "width": 168,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 230,
+          "left": 607,
+          "width": 226,
+          "height": 14,
+          "cols": [
+            {
+              "left": 607,
+              "top": 230,
+              "width": 226,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 264,
+          "left": 533,
+          "width": 376,
+          "height": 29,
+          "cols": [
+            {
+              "left": 533,
+              "top": 264,
+              "width": 375,
+              "height": 29
+            }
+          ]
+        },
+        {
+          "top": 328,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 328,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 393,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 393,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 458,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 458,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 523,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 523,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 599,
+          "left": 364,
+          "width": 712,
+          "height": 13,
+          "cols": [
+            {
+              "left": 364,
+              "top": 599,
+              "width": 560,
+              "height": 13
+            },
+            {
+              "left": 936,
+              "top": 599,
+              "width": 140,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 620,
+          "left": 690,
+          "width": 60,
+          "height": 12,
+          "cols": [
+            {
+              "left": 690,
+              "top": 620,
+              "width": 60,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 654,
+          "left": 669,
+          "width": 101,
+          "height": 13,
+          "cols": [
+            {
+              "left": 670,
+              "top": 654,
+              "width": 100,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 144,
+          "left": 636,
+          "width": 168,
+          "height": 32,
+          "cols": [
+            {
+              "left": 636,
+              "top": 144,
+              "width": 168,
+              "height": 32
+            }
+          ]
+        },
+        {
+          "top": 198,
+          "left": 540,
+          "width": 359,
+          "height": 14,
+          "cols": [
+            {
+              "left": 541,
+              "top": 198,
+              "width": 358,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 230,
+          "left": 607,
+          "width": 226,
+          "height": 14,
+          "cols": [
+            {
+              "left": 607,
+              "top": 230,
+              "width": 226,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 264,
+          "left": 533,
+          "width": 376,
+          "height": 29,
+          "cols": [
+            {
+              "left": 533,
+              "top": 264,
+              "width": 376,
+              "height": 29
+            }
+          ]
+        },
+        {
+          "top": 328,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 328,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 393,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 393,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 458,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 458,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 523,
+          "left": 360,
+          "width": 720,
+          "height": 55,
+          "cols": [
+            {
+              "left": 360,
+              "top": 523,
+              "width": 720,
+              "height": 55
+            }
+          ]
+        },
+        {
+          "top": 599,
+          "left": 364,
+          "width": 712,
+          "height": 13,
+          "cols": [
+            {
+              "left": 364,
+              "top": 599,
+              "width": 560,
+              "height": 13
+            },
+            {
+              "left": 936,
+              "top": 599,
+              "width": 140,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 620,
+          "left": 690,
+          "width": 60,
+          "height": 12,
+          "cols": [
+            {
+              "left": 690,
+              "top": 620,
+              "width": 60,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 654,
+          "left": 669,
+          "width": 101,
+          "height": 13,
+          "cols": [
+            {
+              "left": 670,
+              "top": 654,
+              "width": 100,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 940,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "badge",
+          "label": "확인 배지",
+          "design": {
+            "left": 636,
+            "top": 144,
+            "width": 168,
+            "height": 32
+          },
+          "impl": {
+            "left": 636,
+            "top": 144,
+            "width": 168,
+            "height": 30
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "입력 내용을 확인했어요",
+          "backgroundColor": "lab(98.1563 -5.60117 2.75913)",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "pass": true
+        },
+        {
+          "key": "progress",
+          "label": "진행 표시 행",
+          "design": {
+            "left": 540,
+            "top": 198,
+            "width": 359,
+            "height": 14
+          },
+          "impl": {
+            "left": 541,
+            "top": 195,
+            "width": 359,
+            "height": 13
+          },
+          "delta": {
+            "left": 1,
+            "top": 3,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "질문 1 / 3다음 질문 · 입원 여부 → 사고 장소",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "subtitle",
+          "label": "부제",
+          "design": {
+            "left": 607,
+            "top": 230,
+            "width": 226,
+            "height": 14
+          },
+          "impl": {
+            "left": 605,
+            "top": 227,
+            "width": 231,
+            "height": 13
+          },
+          "delta": {
+            "left": 2,
+            "top": 3,
+            "width": 5,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "정확한 확인을 위해 3가지만 여쭤볼게요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "15px",
+          "lineHeight": "22.5px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 533,
+            "top": 264,
+            "width": 376,
+            "height": 29
+          },
+          "impl": {
+            "left": 533,
+            "top": 263,
+            "width": 373,
+            "height": 27
+          },
+          "delta": {
+            "left": 0,
+            "top": 1,
+            "width": 3,
+            "height": 2
+          },
+          "lines": {
+            "expected": 1,
+            "actual": 1
+          },
+          "text": "무릎 골절로 수술을 받으셨나요?",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "30px",
+          "lineHeight": "45px",
+          "pass": true
+        },
+        {
+          "key": "option0",
+          "label": "옵션 1",
+          "design": {
+            "left": 360,
+            "top": 328,
+            "width": 720,
+            "height": 55
+          },
+          "impl": {
+            "left": 360,
+            "top": 328,
+            "width": 720,
+            "height": 54
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "수술을 받았어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "option1",
+          "label": "옵션 2",
+          "design": {
+            "left": 360,
+            "top": 393,
+            "width": 720,
+            "height": 55
+          },
+          "impl": {
+            "left": 360,
+            "top": 393,
+            "width": 720,
+            "height": 54
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "받지 않았어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "option2",
+          "label": "옵션 3",
+          "design": {
+            "left": 360,
+            "top": 458,
+            "width": 720,
+            "height": 55
+          },
+          "impl": {
+            "left": 360,
+            "top": 458,
+            "width": 720,
+            "height": 54
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "수술 예정입니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "option3",
+          "label": "옵션 4",
+          "design": {
+            "left": 360,
+            "top": 523,
+            "width": 720,
+            "height": 55
+          },
+          "impl": {
+            "left": 360,
+            "top": 523,
+            "width": 720,
+            "height": 54
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "잘 모르겠어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "answerGuide",
+          "label": "답변 안내",
+          "design": {
+            "left": 364,
+            "top": 599,
+            "width": 712,
+            "height": 13
+          },
+          "impl": {
+            "left": 364,
+            "top": 599,
+            "width": 712,
+            "height": 13
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "이 답변은 수술비 · 후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고, 답변하신 내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12.35px",
+          "lineHeight": "18.525px",
+          "pass": true
+        },
+        {
+          "key": "skip",
+          "label": "건너뛰기 링크",
+          "design": {
+            "left": 669,
+            "top": 654,
+            "width": 101,
+            "height": 13
+          },
+          "impl": {
+            "left": 669,
+            "top": 654,
+            "width": 102,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "건너뛰고 결과 보기",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 5,
+      "pass": true
+    },
+    {
+      "id": "01-C",
+      "label": "01-C 진단 중 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "designExport": "01-C-진단-중.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 145,
+          "left": 711,
+          "width": 16,
+          "height": 18,
+          "cols": [
+            {
+              "left": 711,
+              "top": 145,
+              "width": 16,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 192,
+          "left": 541,
+          "width": 360,
+          "height": 25,
+          "cols": [
+            {
+              "left": 541,
+              "top": 192,
+              "width": 360,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 237,
+          "left": 541,
+          "width": 357,
+          "height": 13,
+          "cols": [
+            {
+              "left": 541,
+              "top": 237,
+              "width": 357,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 285,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 285,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 343,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 343,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 401,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 401,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 469,
+          "left": 360,
+          "width": 720,
+          "height": 87,
+          "cols": [
+            {
+              "left": 360,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            },
+            {
+              "left": 604,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            },
+            {
+              "left": 848,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 145,
+          "left": 711,
+          "width": 16,
+          "height": 18,
+          "cols": [
+            {
+              "left": 711,
+              "top": 145,
+              "width": 16,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 192,
+          "left": 541,
+          "width": 360,
+          "height": 25,
+          "cols": [
+            {
+              "left": 541,
+              "top": 192,
+              "width": 360,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 237,
+          "left": 541,
+          "width": 357,
+          "height": 13,
+          "cols": [
+            {
+              "left": 541,
+              "top": 237,
+              "width": 357,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 285,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 285,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 343,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 343,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 401,
+          "left": 360,
+          "width": 720,
+          "height": 48,
+          "cols": [
+            {
+              "left": 360,
+              "top": 401,
+              "width": 720,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "top": 469,
+          "left": 360,
+          "width": 720,
+          "height": 87,
+          "cols": [
+            {
+              "left": 360,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            },
+            {
+              "left": 604,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            },
+            {
+              "left": 848,
+              "top": 469,
+              "width": 232,
+              "height": 87
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "spinner",
+          "label": "스피너",
+          "design": {
+            "left": 711,
+            "top": 145,
+            "width": 16,
+            "height": 18
+          },
+          "impl": {
+            "left": 713,
+            "top": 145,
+            "width": 14,
+            "height": 14
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 2,
+            "height": 4
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 541,
+            "top": 192,
+            "width": 360,
+            "height": 25
+          },
+          "impl": {
+            "left": 543,
+            "top": 188,
+            "width": 355,
+            "height": 24
+          },
+          "delta": {
+            "left": 2,
+            "top": 4,
+            "width": 5,
+            "height": 1
+          },
+          "lines": {
+            "expected": 1,
+            "actual": 1
+          },
+          "text": "입력하신 내용을 확인하고 있습니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "26px",
+          "lineHeight": "39px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명",
+          "design": {
+            "left": 541,
+            "top": 237,
+            "width": 357,
+            "height": 13
+          },
+          "impl": {
+            "left": 542,
+            "top": 233,
+            "width": 356,
+            "height": 12
+          },
+          "delta": {
+            "left": 1,
+            "top": 4,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "보통 10~20초 정도 걸립니다. 창을 닫지 말고 잠시 기다려 주세요.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "23.8px",
+          "pass": true
+        },
+        {
+          "key": "stage0",
+          "label": "단계 행 1",
+          "design": {
+            "left": 360,
+            "top": 285,
+            "width": 720,
+            "height": 48
+          },
+          "impl": {
+            "left": 360,
+            "top": 281,
+            "width": 720,
+            "height": 48
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "사고 내용 확인 중완료",
+          "backgroundColor": "rgb(248, 250, 251)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "stage1",
+          "label": "단계 행 2",
+          "design": {
+            "left": 360,
+            "top": 343,
+            "width": 720,
+            "height": 48
+          },
+          "impl": {
+            "left": 360,
+            "top": 339,
+            "width": 720,
+            "height": 48
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "관련 보상 유형 탐색 중진행 중",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "stage2",
+          "label": "단계 행 3",
+          "design": {
+            "left": 360,
+            "top": 401,
+            "width": 720,
+            "height": 48
+          },
+          "impl": {
+            "left": 360,
+            "top": 397,
+            "width": 720,
+            "height": 48
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "확인할 담보 정리 중대기",
+          "backgroundColor": "rgb(248, 250, 251)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "skeleton",
+          "label": "스켈레톤 카드",
+          "design": {
+            "left": 360,
+            "top": 469,
+            "width": 720,
+            "height": 87
+          },
+          "impl": {
+            "left": 360,
+            "top": 463,
+            "width": 720,
+            "height": 86
+          },
+          "delta": {
+            "left": 0,
+            "top": 6,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        }
+      ],
+      "semantic": [
+        {
+          "label": "단계 상태 문구(완료/진행 중/대기)",
+          "expected": "완료 / 진행 중 / 대기",
+          "actual": "완료 / 진행 중 / 대기",
+          "pass": true
+        }
+      ],
+      "maxDelta": 6,
+      "pass": true
+    },
+    {
+      "id": "01-D",
+      "label": "01-D 결과 없음 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "designExport": "01-D-결과-없음.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 193,
+          "left": 708,
+          "width": 24,
+          "height": 24,
+          "cols": [
+            {
+              "left": 708,
+              "top": 193,
+              "width": 24,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 444,
+          "width": 554,
+          "height": 25,
+          "cols": [
+            {
+              "left": 444,
+              "top": 266,
+              "width": 554,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 315,
+          "left": 529,
+          "width": 382,
+          "height": 15,
+          "cols": [
+            {
+              "left": 529,
+              "top": 315,
+              "width": 382,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 355,
+          "left": 400,
+          "width": 640,
+          "height": 108,
+          "cols": [
+            {
+              "left": 400,
+              "top": 355,
+              "width": 640,
+              "height": 108
+            }
+          ]
+        },
+        {
+          "top": 491,
+          "left": 517,
+          "width": 406,
+          "height": 49,
+          "cols": [
+            {
+              "left": 517,
+              "top": 491,
+              "width": 406,
+              "height": 49
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 174,
+          "left": 689,
+          "width": 62,
+          "height": 62,
+          "cols": [
+            {
+              "left": 689,
+              "top": 174,
+              "width": 62,
+              "height": 62
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 444,
+          "width": 555,
+          "height": 25,
+          "cols": [
+            {
+              "left": 444,
+              "top": 266,
+              "width": 555,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 315,
+          "left": 529,
+          "width": 382,
+          "height": 15,
+          "cols": [
+            {
+              "left": 529,
+              "top": 315,
+              "width": 382,
+              "height": 15
+            }
+          ]
+        },
+        {
+          "top": 355,
+          "left": 400,
+          "width": 640,
+          "height": 108,
+          "cols": [
+            {
+              "left": 400,
+              "top": 355,
+              "width": 640,
+              "height": 108
+            }
+          ]
+        },
+        {
+          "top": 491,
+          "left": 517,
+          "width": 406,
+          "height": 49,
+          "cols": [
+            {
+              "left": 517,
+              "top": 491,
+              "width": 406,
+              "height": 49
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "icon",
+          "label": "아이콘",
+          "design": {
+            "left": 689,
+            "top": 174,
+            "width": 62,
+            "height": 62
+          },
+          "impl": {
+            "left": 688,
+            "top": 174,
+            "width": 64,
+            "height": 64
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 2
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgb(239, 242, 245)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 444,
+            "top": 266,
+            "width": 554,
+            "height": 25
+          },
+          "impl": {
+            "left": 446,
+            "top": 266,
+            "width": 548,
+            "height": 24
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 6,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "현재 입력만으로는 보상 가능성을 판단하기 어렵습니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "26px",
+          "lineHeight": "39px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명",
+          "design": {
+            "left": 529,
+            "top": 315,
+            "width": 382,
+            "height": 15
+          },
+          "impl": {
+            "left": 525,
+            "top": 315,
+            "width": 390,
+            "height": 16
+          },
+          "delta": {
+            "left": 4,
+            "top": 0,
+            "width": 8,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "진단명, 치료 여부 또는 사고 장소를 조금 더 구체적으로 적어주세요.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "15px",
+          "lineHeight": "25.5px",
+          "pass": true
+        },
+        {
+          "key": "panel",
+          "label": "안내 패널",
+          "design": {
+            "left": 400,
+            "top": 355,
+            "width": 640,
+            "height": 108
+          },
+          "impl": {
+            "left": 400,
+            "top": 355,
+            "width": 640,
+            "height": 108
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 3
+          },
+          "text": "이렇게 적어주시면 좋아요· 3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요· 어제부터 허리가 아파서 병원에서 디스크 진단을 받았어요",
+          "backgroundColor": "rgb(239, 242, 245)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "cta",
+          "label": "CTA",
+          "design": {
+            "left": 517,
+            "top": 491,
+            "width": 406,
+            "height": 49
+          },
+          "impl": {
+            "left": 631,
+            "top": 491,
+            "width": 177,
+            "height": 47
+          },
+          "delta": {
+            "left": 114,
+            "top": 0,
+            "width": 229,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "내용을 수정할게요",
+          "backgroundColor": "rgb(108, 71, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 8,
+      "pass": true
+    },
+    {
+      "id": "01-E",
+      "label": "01-E 분석 오류 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "designExport": "01-E-분석-오류.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 193,
+          "left": 707,
+          "width": 26,
+          "height": 24,
+          "cols": [
+            {
+              "left": 707,
+              "top": 193,
+              "width": 26,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 576,
+          "width": 291,
+          "height": 25,
+          "cols": [
+            {
+              "left": 576,
+              "top": 266,
+              "width": 291,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 315,
+          "left": 474,
+          "width": 492,
+          "height": 14,
+          "cols": [
+            {
+              "left": 474,
+              "top": 315,
+              "width": 492,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 361,
+          "left": 551,
+          "width": 338,
+          "height": 49,
+          "cols": [
+            {
+              "left": 551,
+              "top": 361,
+              "width": 338,
+              "height": 49
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 174,
+          "left": 689,
+          "width": 62,
+          "height": 62,
+          "cols": [
+            {
+              "left": 689,
+              "top": 174,
+              "width": 62,
+              "height": 62
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 576,
+          "width": 291,
+          "height": 25,
+          "cols": [
+            {
+              "left": 576,
+              "top": 266,
+              "width": 291,
+              "height": 25
+            }
+          ]
+        },
+        {
+          "top": 315,
+          "left": 474,
+          "width": 492,
+          "height": 14,
+          "cols": [
+            {
+              "left": 474,
+              "top": 315,
+              "width": 492,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 361,
+          "left": 551,
+          "width": 338,
+          "height": 49,
+          "cols": [
+            {
+              "left": 551,
+              "top": 361,
+              "width": 338,
+              "height": 49
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 900,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#ffffff",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#ffffff",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "icon",
+          "label": "아이콘",
+          "design": {
+            "left": 689,
+            "top": 174,
+            "width": 62,
+            "height": 62
+          },
+          "impl": {
+            "left": 688,
+            "top": 174,
+            "width": 64,
+            "height": 64
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 2
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "oklab(0.57701 0.217634 0.112472 / 0.1)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목",
+          "design": {
+            "left": 576,
+            "top": 266,
+            "width": 291,
+            "height": 25
+          },
+          "impl": {
+            "left": 577,
+            "top": 266,
+            "width": 287,
+            "height": 24
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 4,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "진단 중 문제가 발생했습니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "26px",
+          "lineHeight": "39px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명",
+          "design": {
+            "left": 474,
+            "top": 315,
+            "width": 492,
+            "height": 14
+          },
+          "impl": {
+            "left": 474,
+            "top": 315,
+            "width": 492,
+            "height": 13
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "일시적인 오류일 수 있습니다. 입력하신 내용은 그대로 남아 있으니 다시 시도해 주세요.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14.7px",
+          "lineHeight": "24.99px",
+          "pass": true
+        },
+        {
+          "key": "buttons",
+          "label": "버튼 그룹",
+          "design": {
+            "left": 551,
+            "top": 361,
+            "width": 338,
+            "height": 49
+          },
+          "impl": {
+            "left": 547,
+            "top": 360,
+            "width": 344,
+            "height": 48
+          },
+          "delta": {
+            "left": 4,
+            "top": 1,
+            "width": 6,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "다시 시도입력 내용으로 돌아가기",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 6,
+      "pass": true
+    },
+    {
+      "id": "M01",
+      "label": "M01 질문 입력 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 1110
+      },
+      "designExport": "M01-질문-입력.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 82,
+          "left": 20,
+          "width": 198,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 82,
+              "width": 197,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 114,
+          "left": 21,
+          "width": 195,
+          "height": 30,
+          "cols": [
+            {
+              "left": 22,
+              "top": 114,
+              "width": 194,
+              "height": 30
+            }
+          ]
+        },
+        {
+          "top": 153,
+          "left": 21,
+          "width": 86,
+          "height": 27,
+          "cols": [
+            {
+              "left": 21,
+              "top": 153,
+              "width": 86,
+              "height": 27
+            }
+          ]
+        },
+        {
+          "top": 203,
+          "left": 20,
+          "width": 332,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 203,
+              "width": 331,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 227,
+          "left": 20,
+          "width": 314,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 227,
+              "width": 313,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 20,
+          "width": 350,
+          "height": 96,
+          "cols": [
+            {
+              "left": 20,
+              "top": 266,
+              "width": 350,
+              "height": 96
+            }
+          ]
+        },
+        {
+          "top": 372,
+          "left": 316,
+          "width": 53,
+          "height": 11,
+          "cols": [
+            {
+              "left": 316,
+              "top": 372,
+              "width": 53,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 396,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 396,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 462,
+          "left": 20,
+          "width": 350,
+          "height": 60,
+          "cols": [
+            {
+              "left": 20,
+              "top": 462,
+              "width": 350,
+              "height": 60
+            }
+          ]
+        },
+        {
+          "top": 535,
+          "left": 21,
+          "width": 228,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 535,
+              "width": 228,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 573,
+          "left": 21,
+          "width": 70,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 573,
+              "width": 70,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 607,
+          "left": 33,
+          "width": 248,
+          "height": 13,
+          "cols": [
+            {
+              "left": 33,
+              "top": 607,
+              "width": 46,
+              "height": 13
+            },
+            {
+              "left": 114,
+              "top": 607,
+              "width": 71,
+              "height": 13
+            },
+            {
+              "left": 218,
+              "top": 607,
+              "width": 63,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 648,
+          "left": 33,
+          "width": 236,
+          "height": 13,
+          "cols": [
+            {
+              "left": 33,
+              "top": 648,
+              "width": 60,
+              "height": 13
+            },
+            {
+              "left": 127,
+              "top": 648,
+              "width": 71,
+              "height": 13
+            },
+            {
+              "left": 232,
+              "top": 648,
+              "width": 37,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 708,
+          "left": 34,
+          "width": 111,
+          "height": 31,
+          "cols": [
+            {
+              "left": 34,
+              "top": 708,
+              "width": 111,
+              "height": 31
+            }
+          ]
+        },
+        {
+          "top": 779,
+          "left": 34,
+          "width": 164,
+          "height": 31,
+          "cols": [
+            {
+              "left": 34,
+              "top": 779,
+              "width": 163,
+              "height": 31
+            }
+          ]
+        },
+        {
+          "top": 850,
+          "left": 34,
+          "width": 126,
+          "height": 31,
+          "cols": [
+            {
+              "left": 35,
+              "top": 850,
+              "width": 125,
+              "height": 31
+            }
+          ]
+        },
+        {
+          "top": 921,
+          "left": 35,
+          "width": 153,
+          "height": 31,
+          "cols": [
+            {
+              "left": 35,
+              "top": 928,
+              "width": 13,
+              "height": 15
+            },
+            {
+              "left": 60,
+              "top": 921,
+              "width": 128,
+              "height": 31
+            }
+          ]
+        },
+        {
+          "top": 1014,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1014,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 120,
+              "top": 1014,
+              "width": 41,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 1014,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 1045,
+          "left": 21,
+          "width": 291,
+          "height": 10,
+          "cols": [
+            {
+              "left": 21,
+              "top": 1045,
+              "width": 290,
+              "height": 10
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 0,
+          "left": 0,
+          "width": 390,
+          "height": 52,
+          "cols": [
+            {
+              "left": 0,
+              "top": 0,
+              "width": 390,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 82,
+          "left": 20,
+          "width": 198,
+          "height": 13,
+          "cols": [
+            {
+              "left": 20,
+              "top": 82,
+              "width": 198,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 114,
+          "left": 21,
+          "width": 195,
+          "height": 30,
+          "cols": [
+            {
+              "left": 21,
+              "top": 114,
+              "width": 195,
+              "height": 30
+            }
+          ]
+        },
+        {
+          "top": 153,
+          "left": 21,
+          "width": 86,
+          "height": 27,
+          "cols": [
+            {
+              "left": 21,
+              "top": 153,
+              "width": 86,
+              "height": 27
+            }
+          ]
+        },
+        {
+          "top": 202,
+          "left": 20,
+          "width": 332,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 202,
+              "width": 331,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 226,
+          "left": 20,
+          "width": 315,
+          "height": 13,
+          "cols": [
+            {
+              "left": 20,
+              "top": 226,
+              "width": 314,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 266,
+          "left": 20,
+          "width": 350,
+          "height": 96,
+          "cols": [
+            {
+              "left": 20,
+              "top": 266,
+              "width": 350,
+              "height": 96
+            }
+          ]
+        },
+        {
+          "top": 372,
+          "left": 316,
+          "width": 53,
+          "height": 11,
+          "cols": [
+            {
+              "left": 316,
+              "top": 372,
+              "width": 53,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 396,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 396,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 462,
+          "left": 20,
+          "width": 350,
+          "height": 60,
+          "cols": [
+            {
+              "left": 20,
+              "top": 462,
+              "width": 350,
+              "height": 60
+            }
+          ]
+        },
+        {
+          "top": 535,
+          "left": 21,
+          "width": 228,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 535,
+              "width": 228,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 573,
+          "left": 20,
+          "width": 71,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 573,
+              "width": 71,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 607,
+          "left": 33,
+          "width": 248,
+          "height": 13,
+          "cols": [
+            {
+              "left": 33,
+              "top": 607,
+              "width": 46,
+              "height": 13
+            },
+            {
+              "left": 113,
+              "top": 607,
+              "width": 72,
+              "height": 13
+            },
+            {
+              "left": 218,
+              "top": 607,
+              "width": 63,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 648,
+          "left": 33,
+          "width": 236,
+          "height": 13,
+          "cols": [
+            {
+              "left": 33,
+              "top": 648,
+              "width": 60,
+              "height": 13
+            },
+            {
+              "left": 127,
+              "top": 648,
+              "width": 71,
+              "height": 13
+            },
+            {
+              "left": 232,
+              "top": 648,
+              "width": 37,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 691,
+          "left": 20,
+          "width": 350,
+          "height": 63,
+          "cols": [
+            {
+              "left": 20,
+              "top": 691,
+              "width": 350,
+              "height": 63
+            }
+          ]
+        },
+        {
+          "top": 762,
+          "left": 20,
+          "width": 350,
+          "height": 63,
+          "cols": [
+            {
+              "left": 20,
+              "top": 762,
+              "width": 350,
+              "height": 63
+            }
+          ]
+        },
+        {
+          "top": 833,
+          "left": 20,
+          "width": 350,
+          "height": 63,
+          "cols": [
+            {
+              "left": 20,
+              "top": 833,
+              "width": 350,
+              "height": 63
+            }
+          ]
+        },
+        {
+          "top": 904,
+          "left": 20,
+          "width": 350,
+          "height": 63,
+          "cols": [
+            {
+              "left": 20,
+              "top": 904,
+              "width": 350,
+              "height": 63
+            }
+          ]
+        },
+        {
+          "top": 989,
+          "left": 20,
+          "width": 350,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 1014,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1014,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 119,
+              "top": 1014,
+              "width": 42,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 1014,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 1045,
+          "left": 20,
+          "width": 292,
+          "height": 10,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1045,
+              "width": 292,
+              "height": 10
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 1110,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "subtitle",
+          "label": "부제",
+          "design": {
+            "left": 20,
+            "top": 82,
+            "width": 198,
+            "height": 13
+          },
+          "impl": {
+            "left": 20,
+            "top": 82,
+            "width": 196,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 2,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "놓치기 쉬운 보상 항목을 확인해 보세요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목(2줄)",
+          "design": {
+            "left": 21,
+            "top": 114,
+            "width": 195,
+            "height": 66
+          },
+          "impl": {
+            "left": 20,
+            "top": 114,
+            "width": 196,
+            "height": 68
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 1,
+            "height": 2
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "이거, 보상 받을 수",
+              "있나요?"
+            ],
+            "actual": [
+              "이거, 보상 받을 수",
+              "있나요?"
+            ]
+          },
+          "text": "이거, 보상 받을 수 있나요?",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "28px",
+          "lineHeight": "42px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명(2줄)",
+          "design": {
+            "left": 20,
+            "top": 203,
+            "width": 332,
+            "height": 36
+          },
+          "impl": {
+            "left": 20,
+            "top": 202,
+            "width": 332,
+            "height": 37
+          },
+          "delta": {
+            "left": 0,
+            "top": 1,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·",
+              "후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다."
+            ],
+            "actual": [
+              "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·",
+              "후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다."
+            ]
+          },
+          "text": "사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 · 후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14.35px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "searchBox",
+          "label": "검색창",
+          "design": {
+            "left": 20,
+            "top": 266,
+            "width": 350,
+            "height": 96
+          },
+          "impl": {
+            "left": 18,
+            "top": 266,
+            "width": 354,
+            "height": 99
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 4,
+            "height": 3
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "cta",
+          "label": "CTA",
+          "design": {
+            "left": 20,
+            "top": 396,
+            "width": 350,
+            "height": 52
+          },
+          "impl": {
+            "left": 18,
+            "top": 396,
+            "width": 354,
+            "height": 50
+          },
+          "delta": {
+            "left": 2,
+            "top": 0,
+            "width": 4,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "보상 진단",
+          "backgroundColor": "rgb(108, 71, 255)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "notice",
+          "label": "안내 배너(2줄)",
+          "design": {
+            "left": 20,
+            "top": 462,
+            "width": 350,
+            "height": 60
+          },
+          "impl": {
+            "left": 20,
+            "top": 462,
+            "width": 350,
+            "height": 58
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 2
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
+              "마세요"
+            ],
+            "actual": [
+              "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
+              "마세요"
+            ]
+          },
+          "text": "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지 마세요",
+          "backgroundColor": "rgb(251, 243, 227)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "chipRow",
+          "label": "칩 영역(라벨 + 칩 2행)",
+          "design": {
+            "left": 20,
+            "top": 573,
+            "width": 261,
+            "height": 88
+          },
+          "impl": {
+            "left": 20,
+            "top": 573,
+            "width": 265,
+            "height": 85
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 4,
+            "height": 3
+          },
+          "lines": {
+            "actual": 3
+          },
+          "text": "많이 찾는 사례교통사고계단에서 낙상운동 중 부상허리 디스크어깨 회전근개암 진단",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "cardList",
+          "label": "카드 목록(4장)",
+          "design": {
+            "left": 20,
+            "top": 691,
+            "width": 350,
+            "height": 276
+          },
+          "impl": {
+            "left": 19,
+            "top": 691,
+            "width": 352,
+            "height": 272
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 4
+          },
+          "lines": {
+            "actual": 8
+          },
+          "text": "실손 의료비실제 지출한 병원비정액 담보진단·수술·입원별 가입 담보후유장해치료 후 남은 장해 상태특별 보상시설·단체·상대방 보험 등",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "footerDisclaimer",
+          "label": "푸터 면책 문구",
+          "design": {
+            "left": 21,
+            "top": 1045,
+            "width": 291,
+            "height": 10
+          },
+          "impl": {
+            "left": 20,
+            "top": 1045,
+            "width": 291,
+            "height": 10
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "진단 결과는 참고용 안내이며 보상 여부와 금액을 보장하지 않습니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "11px",
+          "lineHeight": "16.5px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 4,
+      "pass": true
+    },
+    {
+      "id": "M01-A2",
+      "label": "M01-A2 진단 시작 동의 (Mobile Bottom Sheet)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 1110
+      },
+      "designExport": "M01-A2-진단-시작-동의.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 784,
+          "left": 175,
+          "width": 183,
+          "height": 12,
+          "cols": [
+            {
+              "left": 175,
+              "top": 788,
+              "width": 40,
+              "height": 4
+            },
+            {
+              "left": 346,
+              "top": 784,
+              "width": 12,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 828,
+          "left": 16,
+          "width": 122,
+          "height": 45,
+          "cols": [
+            {
+              "left": 16,
+              "top": 828,
+              "width": 122,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 889,
+          "left": 17,
+          "width": 342,
+          "height": 33,
+          "cols": [
+            {
+              "left": 17,
+              "top": 889,
+              "width": 342,
+              "height": 33
+            }
+          ]
+        },
+        {
+          "top": 942,
+          "left": 16,
+          "width": 358,
+          "height": 51,
+          "cols": [
+            {
+              "left": 16,
+              "top": 942,
+              "width": 358,
+              "height": 51
+            }
+          ]
+        },
+        {
+          "top": 1009,
+          "left": 16,
+          "width": 358,
+          "height": 52,
+          "cols": [
+            {
+              "left": 16,
+              "top": 1009,
+              "width": 358,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 1073,
+          "left": 87,
+          "width": 215,
+          "height": 13,
+          "cols": [
+            {
+              "left": 87,
+              "top": 1073,
+              "width": 215,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 783,
+          "left": 175,
+          "width": 184,
+          "height": 14,
+          "cols": [
+            {
+              "left": 175,
+              "top": 788,
+              "width": 40,
+              "height": 4
+            },
+            {
+              "left": 345,
+              "top": 783,
+              "width": 14,
+              "height": 14
+            }
+          ]
+        },
+        {
+          "top": 828,
+          "left": 16,
+          "width": 122,
+          "height": 45,
+          "cols": [
+            {
+              "left": 16,
+              "top": 828,
+              "width": 122,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 889,
+          "left": 16,
+          "width": 343,
+          "height": 33,
+          "cols": [
+            {
+              "left": 17,
+              "top": 889,
+              "width": 342,
+              "height": 33
+            }
+          ]
+        },
+        {
+          "top": 942,
+          "left": 16,
+          "width": 358,
+          "height": 51,
+          "cols": [
+            {
+              "left": 16,
+              "top": 942,
+              "width": 358,
+              "height": 51
+            }
+          ]
+        },
+        {
+          "top": 1009,
+          "left": 16,
+          "width": 358,
+          "height": 52,
+          "cols": [
+            {
+              "left": 16,
+              "top": 1009,
+              "width": 358,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 1073,
+          "left": 87,
+          "width": 215,
+          "height": 13,
+          "cols": [
+            {
+              "left": 87,
+              "top": 1073,
+              "width": 215,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "cropBox": {
+        "design": {
+          "left": 0,
+          "top": 762,
+          "width": 390,
+          "height": 348
+        },
+        "impl": {
+          "left": 0,
+          "top": 760,
+          "width": 390,
+          "height": 350
+        },
+        "delta": {
+          "left": 0,
+          "top": 2,
+          "width": 0,
+          "height": 2
+        }
+      },
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 730,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#676d72",
+          "coverage": 0.9992469879518072
+        },
+        "impl": {
+          "color": "#686d72",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "title",
+          "label": "제목(2줄)",
+          "design": {
+            "left": 16,
+            "top": 828,
+            "width": 122,
+            "height": 45
+          },
+          "impl": {
+            "left": 16,
+            "top": 826,
+            "width": 122,
+            "height": 48
+          },
+          "delta": {
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 3
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "건강정보 처리에",
+              "동의해 주세요"
+            ],
+            "actual": [
+              "건강정보 처리에",
+              "동의해 주세요"
+            ]
+          },
+          "text": "건강정보 처리에 동의해 주세요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "19.5px",
+          "lineHeight": "30px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명(2줄)",
+          "design": {
+            "left": 17,
+            "top": 889,
+            "width": 342,
+            "height": 33
+          },
+          "impl": {
+            "left": 16,
+            "top": 889,
+            "width": 344,
+            "height": 33
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 0
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니",
+              "다."
+            ],
+            "actual": [
+              "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니",
+              "다."
+            ]
+          },
+          "text": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.4px",
+          "lineHeight": "21px",
+          "pass": true
+        },
+        {
+          "key": "consentRow",
+          "label": "동의 행",
+          "design": {
+            "left": 16,
+            "top": 942,
+            "width": 358,
+            "height": 51
+          },
+          "impl": {
+            "left": 16,
+            "top": 939,
+            "width": 358,
+            "height": 50
+          },
+          "delta": {
+            "left": 0,
+            "top": 3,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "필수건강정보 등 민감정보 처리 동의내용 보기",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "cta",
+          "label": "CTA",
+          "design": {
+            "left": 16,
+            "top": 1009,
+            "width": 358,
+            "height": 52
+          },
+          "impl": {
+            "left": 17,
+            "top": 1006,
+            "width": 356,
+            "height": 50
+          },
+          "delta": {
+            "left": 1,
+            "top": 3,
+            "width": 2,
+            "height": 2
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "동의하고 진단하기",
+          "backgroundColor": "rgb(239, 242, 245)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "note",
+          "label": "하단 안내문",
+          "design": {
+            "left": 87,
+            "top": 1073,
+            "width": 215,
+            "height": 13
+          },
+          "impl": {
+            "left": 87,
+            "top": 1073,
+            "width": 216,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "필수 동의 후 진단을 시작할 수 있습니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.9px",
+          "lineHeight": "20.85px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 3,
+      "pass": true
+    },
+    {
+      "id": "M01-B",
+      "label": "M01-B 추가 질문 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 672
+      },
+      "designExport": "M01-B-추가-질문.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 30,
+              "height": 30
+            },
+            {
+              "left": 57,
+              "top": 19,
+              "width": 52,
+              "height": 16
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 87,
+          "left": 32,
+          "width": 133,
+          "height": 12,
+          "cols": [
+            {
+              "left": 33,
+              "top": 89,
+              "width": 8,
+              "height": 7
+            },
+            {
+              "left": 49,
+              "top": 87,
+              "width": 116,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 127,
+          "left": 20,
+          "width": 128,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 127,
+              "width": 48,
+              "height": 12
+            },
+            {
+              "left": 78,
+              "top": 129,
+              "width": 70,
+              "height": 5
+            }
+          ]
+        },
+        {
+          "top": 151,
+          "left": 21,
+          "width": 162,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 151,
+              "width": 43,
+              "height": 11
+            },
+            {
+              "left": 70,
+              "top": 151,
+              "width": 51,
+              "height": 11
+            },
+            {
+              "left": 131,
+              "top": 151,
+              "width": 52,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 180,
+          "left": 21,
+          "width": 209,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 180,
+              "width": 209,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 209,
+          "left": 21,
+          "width": 178,
+          "height": 24,
+          "cols": [
+            {
+              "left": 21,
+              "top": 209,
+              "width": 178,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 243,
+          "left": 21,
+          "width": 116,
+          "height": 24,
+          "cols": [
+            {
+              "left": 21,
+              "top": 243,
+              "width": 116,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 293,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 293,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 354,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 354,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 415,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 415,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 476,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 476,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 550,
+          "left": 21,
+          "width": 346,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 550,
+              "width": 80,
+              "height": 11
+            },
+            {
+              "left": 108,
+              "top": 555,
+              "width": 1,
+              "height": 2
+            },
+            {
+              "left": 116,
+              "top": 550,
+              "width": 213,
+              "height": 12
+            },
+            {
+              "left": 340,
+              "top": 550,
+              "width": 26,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 570,
+          "left": 21,
+          "width": 165,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 570,
+              "width": 50,
+              "height": 11
+            },
+            {
+              "left": 79,
+              "top": 570,
+              "width": 85,
+              "height": 11
+            },
+            {
+              "left": 170,
+              "top": 570,
+              "width": 16,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 601,
+          "left": 20,
+          "width": 101,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 601,
+              "width": 100,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 0,
+          "left": 0,
+          "width": 390,
+          "height": 52,
+          "cols": [
+            {
+              "left": 0,
+              "top": 0,
+              "width": 390,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 78,
+          "left": 20,
+          "width": 156,
+          "height": 29,
+          "cols": [
+            {
+              "left": 20,
+              "top": 78,
+              "width": 156,
+              "height": 29
+            }
+          ]
+        },
+        {
+          "top": 127,
+          "left": 20,
+          "width": 128,
+          "height": 12,
+          "cols": [
+            {
+              "left": 20,
+              "top": 127,
+              "width": 49,
+              "height": 12
+            },
+            {
+              "left": 78,
+              "top": 129,
+              "width": 70,
+              "height": 5
+            }
+          ]
+        },
+        {
+          "top": 151,
+          "left": 21,
+          "width": 162,
+          "height": 11,
+          "cols": [
+            {
+              "left": 21,
+              "top": 151,
+              "width": 162,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 180,
+          "left": 20,
+          "width": 210,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 180,
+              "width": 209,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 209,
+          "left": 21,
+          "width": 178,
+          "height": 24,
+          "cols": [
+            {
+              "left": 21,
+              "top": 209,
+              "width": 178,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 243,
+          "left": 21,
+          "width": 116,
+          "height": 24,
+          "cols": [
+            {
+              "left": 21,
+              "top": 243,
+              "width": 116,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "top": 293,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 293,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 354,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 354,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 415,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 415,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 476,
+          "left": 20,
+          "width": 350,
+          "height": 52,
+          "cols": [
+            {
+              "left": 20,
+              "top": 476,
+              "width": 350,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 549,
+          "left": 21,
+          "width": 346,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 550,
+              "width": 81,
+              "height": 11
+            },
+            {
+              "left": 108,
+              "top": 550,
+              "width": 221,
+              "height": 12
+            },
+            {
+              "left": 340,
+              "top": 549,
+              "width": 27,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 570,
+          "left": 20,
+          "width": 166,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 570,
+              "width": 51,
+              "height": 11
+            },
+            {
+              "left": 79,
+              "top": 570,
+              "width": 107,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 601,
+          "left": 20,
+          "width": 101,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 601,
+              "width": 100,
+              "height": 13
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 672,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "badge",
+          "label": "확인 배지",
+          "design": {
+            "left": 20,
+            "top": 78,
+            "width": 156,
+            "height": 29
+          },
+          "impl": {
+            "left": 20,
+            "top": 78,
+            "width": 158,
+            "height": 30
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 2,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "입력 내용을 확인했어요",
+          "backgroundColor": "lab(98.1563 -5.60117 2.75913)",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "pass": true
+        },
+        {
+          "key": "progressLabel",
+          "label": "진행 표시 행(라벨 + 트랙)",
+          "design": {
+            "left": 20,
+            "top": 127,
+            "width": 128,
+            "height": 12
+          },
+          "impl": {
+            "left": 20,
+            "top": 127,
+            "width": 129,
+            "height": 13
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "질문 1 / 3",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "progressTrack",
+          "label": "진행률 트랙",
+          "design": {
+            "left": 78,
+            "top": 129,
+            "width": 70,
+            "height": 5
+          },
+          "impl": {
+            "left": 79,
+            "top": 131,
+            "width": 70,
+            "height": 6
+          },
+          "delta": {
+            "left": 1,
+            "top": 2,
+            "width": 0,
+            "height": 1
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgb(239, 242, 245)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "upcoming",
+          "label": "다음 질문 안내",
+          "design": {
+            "left": 21,
+            "top": 151,
+            "width": 162,
+            "height": 11
+          },
+          "impl": {
+            "left": 20,
+            "top": 151,
+            "width": 160,
+            "height": 11
+          },
+          "delta": {
+            "left": 1,
+            "top": 0,
+            "width": 2,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "다음 질문 · 입원 여부 → 사고 장소",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "pass": true
+        },
+        {
+          "key": "subtitle",
+          "label": "부제",
+          "design": {
+            "left": 21,
+            "top": 180,
+            "width": 209,
+            "height": 12
+          },
+          "impl": {
+            "left": 20,
+            "top": 181,
+            "width": 209,
+            "height": 12
+          },
+          "delta": {
+            "left": 1,
+            "top": 1,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "정확한 확인을 위해 3가지만 여쭤볼게요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.5px",
+          "lineHeight": "20.25px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목(2줄)",
+          "design": {
+            "left": 21,
+            "top": 209,
+            "width": 178,
+            "height": 58
+          },
+          "impl": {
+            "left": 20,
+            "top": 208,
+            "width": 179,
+            "height": 59
+          },
+          "delta": {
+            "left": 1,
+            "top": 1,
+            "width": 1,
+            "height": 1
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "무릎 골절로 수술을",
+              "받으셨나요?"
+            ],
+            "actual": [
+              "무릎 골절로 수술을",
+              "받으셨나요?"
+            ]
+          },
+          "text": "무릎 골절로 수술을 받으셨나요?",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "24.2px",
+          "lineHeight": "36.3px",
+          "pass": true
+        },
+        {
+          "key": "option0",
+          "label": "옵션 1",
+          "design": {
+            "left": 20,
+            "top": 293,
+            "width": 350,
+            "height": 52
+          },
+          "impl": {
+            "left": 20,
+            "top": 293,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "수술을 받았어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "option1",
+          "label": "옵션 2",
+          "design": {
+            "left": 20,
+            "top": 354,
+            "width": 350,
+            "height": 52
+          },
+          "impl": {
+            "left": 20,
+            "top": 354,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "받지 않았어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "option2",
+          "label": "옵션 3",
+          "design": {
+            "left": 20,
+            "top": 415,
+            "width": 350,
+            "height": 52
+          },
+          "impl": {
+            "left": 20,
+            "top": 415,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "수술 예정입니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "option3",
+          "label": "옵션 4",
+          "design": {
+            "left": 20,
+            "top": 476,
+            "width": 350,
+            "height": 52
+          },
+          "impl": {
+            "left": 20,
+            "top": 476,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "잘 모르겠어요",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "answerGuide",
+          "label": "답변 안내(2줄)",
+          "design": {
+            "left": 21,
+            "top": 550,
+            "width": 346,
+            "height": 31
+          },
+          "impl": {
+            "left": 20,
+            "top": 553,
+            "width": 347,
+            "height": 33
+          },
+          "delta": {
+            "left": 1,
+            "top": 3,
+            "width": 1,
+            "height": 2
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가",
+              "질문 답변」에 그대로 표시됩니다."
+            ],
+            "actual": [
+              "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가",
+              "질문 답변」에 그대로 표시됩니다."
+            ]
+          },
+          "text": "이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "pass": true
+        },
+        {
+          "key": "skip",
+          "label": "건너뛰기 링크",
+          "design": {
+            "left": 20,
+            "top": 601,
+            "width": 101,
+            "height": 13
+          },
+          "impl": {
+            "left": 20,
+            "top": 600,
+            "width": 103,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 1,
+            "width": 2,
+            "height": 1
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "건너뛰고 결과 보기",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 3,
+      "pass": true
+    },
+    {
+      "id": "M01-C",
+      "label": "M01-C 진단 중 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 650
+      },
+      "designExport": "M01-C-진단-중.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 87,
+          "left": 186,
+          "width": 16,
+          "height": 18,
+          "cols": [
+            {
+              "left": 186,
+              "top": 87,
+              "width": 16,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 130,
+          "left": 126,
+          "width": 140,
+          "height": 21,
+          "cols": [
+            {
+              "left": 126,
+              "top": 130,
+              "width": 140,
+              "height": 21
+            }
+          ]
+        },
+        {
+          "top": 161,
+          "left": 116,
+          "width": 160,
+          "height": 21,
+          "cols": [
+            {
+              "left": 116,
+              "top": 161,
+              "width": 160,
+              "height": 21
+            }
+          ]
+        },
+        {
+          "top": 202,
+          "left": 117,
+          "width": 155,
+          "height": 12,
+          "cols": [
+            {
+              "left": 118,
+              "top": 202,
+              "width": 154,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 255,
+          "left": 35,
+          "width": 122,
+          "height": 19,
+          "cols": [
+            {
+              "left": 35,
+              "top": 255,
+              "width": 19,
+              "height": 19
+            },
+            {
+              "left": 66,
+              "top": 259,
+              "width": 91,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 295,
+          "left": 20,
+          "width": 350,
+          "height": 45,
+          "cols": [
+            {
+              "left": 20,
+              "top": 295,
+              "width": 350,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 365,
+          "left": 65,
+          "width": 104,
+          "height": 12,
+          "cols": [
+            {
+              "left": 65,
+              "top": 365,
+              "width": 104,
+              "height": 12
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 0,
+          "left": 0,
+          "width": 390,
+          "height": 52,
+          "cols": [
+            {
+              "left": 0,
+              "top": 0,
+              "width": 390,
+              "height": 52
+            }
+          ]
+        },
+        {
+          "top": 87,
+          "left": 186,
+          "width": 16,
+          "height": 18,
+          "cols": [
+            {
+              "left": 186,
+              "top": 87,
+              "width": 16,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 130,
+          "left": 126,
+          "width": 140,
+          "height": 21,
+          "cols": [
+            {
+              "left": 126,
+              "top": 130,
+              "width": 140,
+              "height": 21
+            }
+          ]
+        },
+        {
+          "top": 161,
+          "left": 116,
+          "width": 160,
+          "height": 21,
+          "cols": [
+            {
+              "left": 116,
+              "top": 161,
+              "width": 160,
+              "height": 21
+            }
+          ]
+        },
+        {
+          "top": 202,
+          "left": 117,
+          "width": 156,
+          "height": 12,
+          "cols": [
+            {
+              "left": 117,
+              "top": 202,
+              "width": 155,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 242,
+          "left": 20,
+          "width": 350,
+          "height": 45,
+          "cols": [
+            {
+              "left": 20,
+              "top": 242,
+              "width": 350,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 295,
+          "left": 20,
+          "width": 350,
+          "height": 45,
+          "cols": [
+            {
+              "left": 20,
+              "top": 295,
+              "width": 350,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 348,
+          "left": 20,
+          "width": 350,
+          "height": 45,
+          "cols": [
+            {
+              "left": 20,
+              "top": 348,
+              "width": 350,
+              "height": 45
+            }
+          ]
+        },
+        {
+          "top": 415,
+          "left": 20,
+          "width": 350,
+          "height": 80,
+          "cols": [
+            {
+              "left": 20,
+              "top": 415,
+              "width": 350,
+              "height": 80
+            }
+          ]
+        },
+        {
+          "top": 504,
+          "left": 20,
+          "width": 350,
+          "height": 80,
+          "cols": [
+            {
+              "left": 20,
+              "top": 504,
+              "width": 350,
+              "height": 80
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 650,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        }
+      },
+      "elements": [
+        {
+          "key": "spinner",
+          "label": "스피너",
+          "design": {
+            "left": 186,
+            "top": 87,
+            "width": 16,
+            "height": 18
+          },
+          "impl": {
+            "left": 188,
+            "top": 89,
+            "width": 14,
+            "height": 14
+          },
+          "delta": {
+            "left": 2,
+            "top": 2,
+            "width": 2,
+            "height": 4
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        },
+        {
+          "key": "title",
+          "label": "제목(2줄)",
+          "design": {
+            "left": 116,
+            "top": 130,
+            "width": 160,
+            "height": 52
+          },
+          "impl": {
+            "left": 116,
+            "top": 126,
+            "width": 158,
+            "height": 53
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 2,
+            "height": 1
+          },
+          "lines": {
+            "expected": 2,
+            "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "입력하신 내용을",
+              "확인하고 있습니다"
+            ],
+            "actual": [
+              "입력하신 내용을",
+              "확인하고 있습니다"
+            ]
+          },
+          "text": "입력하신 내용을 확인하고 있습니다",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "22px",
+          "lineHeight": "33px",
+          "pass": true
+        },
+        {
+          "key": "description",
+          "label": "설명",
+          "design": {
+            "left": 117,
+            "top": 202,
+            "width": 155,
+            "height": 12
+          },
+          "impl": {
+            "left": 117,
+            "top": 198,
+            "width": 155,
+            "height": 12
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "보통 10~20초 정도 걸립니다.",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "13.4px",
+          "lineHeight": "20.1px",
+          "pass": true
+        },
+        {
+          "key": "stage0",
+          "label": "단계 행 1",
+          "design": {
+            "left": 20,
+            "top": 242,
+            "width": 350,
+            "height": 45
+          },
+          "impl": {
+            "left": 20,
+            "top": 240,
+            "width": 350,
+            "height": 45
+          },
+          "delta": {
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 2
+          },
+          "text": "사고 내용 확인 중완료",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "stage1",
+          "label": "단계 행 2",
+          "design": {
+            "left": 20,
+            "top": 295,
+            "width": 350,
+            "height": 45
+          },
+          "impl": {
+            "left": 20,
+            "top": 293,
+            "width": 350,
+            "height": 45
+          },
+          "delta": {
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 2
+          },
+          "text": "관련 보상 유형 탐색 중진행 중",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "stage2",
+          "label": "단계 행 3",
+          "design": {
+            "left": 20,
+            "top": 348,
+            "width": 350,
+            "height": 45
+          },
+          "impl": {
+            "left": 20,
+            "top": 346,
+            "width": 350,
+            "height": 45
+          },
+          "delta": {
+            "left": 0,
+            "top": 2,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 2
+          },
+          "text": "확인할 담보 정리 중대기",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "14px",
+          "lineHeight": "20px",
+          "pass": true
+        },
+        {
+          "key": "skeleton",
+          "label": "스켈레톤(2장)",
+          "design": {
+            "left": 20,
+            "top": 415,
+            "width": 350,
+            "height": 169
+          },
+          "impl": {
+            "left": 20,
+            "top": 415,
+            "width": 350,
+            "height": 169
+          },
+          "delta": {
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 0
+          },
+          "lines": {
+            "actual": 0
+          },
+          "text": "",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        }
+      ],
+      "semantic": [
+        {
+          "label": "단계 상태 문구(완료/진행 중/대기)",
+          "expected": "완료 / 진행 중 / 대기",
+          "actual": "완료 / 진행 중 / 대기",
+          "pass": true
+        }
+      ],
+      "maxDelta": 4,
+      "pass": true
+    }
+  ],
+  "findings": []
+}

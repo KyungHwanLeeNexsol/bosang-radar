@@ -9,6 +9,15 @@ import { defineConfig } from "@playwright/test";
 // scripts/run-e2e.ts가 조립해 자기 자신의 process.env에 설정한 뒤 자식으로
 // 상속시키며, 여기서 재선언하면 SSOT가 두 곳으로 갈라진다(design.md §3.4).
 //
+// SPEC-B2C-DIAGNOSIS-001 M10 — ENABLE_DIAGNOSIS_DEV_STATES=true를 이
+// webServer.env에만 설정한다(design.md §10/§19 — reviewEnabled 경로).
+// ENABLE_DIAGNOSIS_FLOW/DIAGNOSIS_ENGINE_READY는 여기서 설정하지 않는다 —
+// 두 플래그는 여전히 기본값 false이며(6개 동의 상세 문구 미확정, 실제
+// 매칭 엔진 미연결), reviewEnabled 단독 경로만으로 <DiagnosisFlow />가
+// 렌더링된다(design.md §19.1a 5행 행렬의 5번째 행과 일치). 이 값은 이
+// Playwright 전용 webServer 프로세스에만 주입되며 .env.example 등 프로덕션
+// 기본값 파일에는 반영하지 않는다.
+//
 // 구현 시 확정 항목 — 포트(고정 3000 대신 실행 시점 빈 포트, progress.md
 // §E.2 M5 참고): scripts/run-e2e.ts가 findFreePort()로 빈 포트를 확보해
 // E2E_PORT로 자신의 process.env에 설정하고 그 값을 상속시킨다. 이 config는
@@ -26,11 +35,13 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: false,
   // SPEC-B2C-FOUNDATION-001 M5 — e2e/ 디렉터리 전체(구 B2B/Better Auth
-  // 시나리오)를 삭제했다(progress.md §E.2 M5). B2C 화면이 아직 없어 현재
-  // 이 디렉터리에는 테스트가 0개다. retries/workers는 향후 B2C E2E를
-  // 다시 작성할 때를 대비한 보수적 기본값 — 공유 SQLite 파일(.tmp/e2e.db)을
-  // 여러 spec이 동시에 쓰면 충돌할 수 있으므로 단일 워커로 직렬 실행하고,
-  // 실패한 테스트는 최대 2회 재시도한다.
+  // 시나리오)를 삭제했다(progress.md §E.2 M5). SPEC-B2C-DIAGNOSIS-001 M10이
+  // e2e/diagnosis-flow-01.spec.ts로 01 화면 범위의 첫 B2C E2E 스펙을
+  // 신설한다. retries/workers는 공유 SQLite 파일(.tmp/e2e.db)을 여러 spec이
+  // 동시에 쓰면 충돌할 수 있으므로 단일 워커로 직렬 실행하고, 실패한
+  // 테스트는 최대 2회 재시도하는 보수적 기본값을 그대로 유지한다 — 01
+  // 화면은 DB에 쓰지 않지만(design.md §7/§8), 이 config는 앞으로 DB에
+  // 쓰는 스펙과도 공유된다.
   retries: 2,
   workers: 1,
   reporter: "list",
@@ -43,6 +54,6 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { PORT: String(port) },
+    env: { PORT: String(port), ENABLE_DIAGNOSIS_DEV_STATES: "true" },
   },
 });

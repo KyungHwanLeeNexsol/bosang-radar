@@ -211,6 +211,14 @@ secret-*.*
 !.moai/reports/plan-audit/.gitkeep
 
 # ===========================================
+# Visual-verify partial runs (SPEC-B2C-DIAGNOSIS-001 D2 8차)
+# audit-ready 근거인 measurements.json만 추적한다. 부분/비정규 실행
+# (VISUAL_ONLY / VISUAL_SKIP_BUILD / VISUAL_BASE_URL)의 산출물은 디버깅용
+# 스크래치이므로 추적하지 않는다.
+# ===========================================
+.moai/reports/visual-check/**/measurements.partial.json
+
+# ===========================================
 # Evolution Telemetry (local-only usage data)
 # Learnings and new-skills are git-tracked for team sharing.
 # ===========================================

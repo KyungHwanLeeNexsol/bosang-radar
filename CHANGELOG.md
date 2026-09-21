@@ -5,6 +5,20 @@
 
 ## [Unreleased]
 
+### Added — SPEC-B2C-DIAGNOSIS-001: B2C 01 진단 플로우 (질문 입력 · 동의 · 추가 질문 · 진단 중), 플래그 게이트 뒤 구현
+
+SPEC-B2C-FOUNDATION-001이 `app/page.tsx`를 "서비스 준비 중" placeholder로 남겨 둔 자리에, B2C 3단계 퍼널의 첫 진입점인 01 흐름을 **기능 플래그 뒤에** 구현했습니다. 로그인·회원가입 없이 검색 한 줄을 입력하면 민감정보 처리 동의 1건을 받고, 추가 질문으로 정확도를 높인 뒤 분석 상태를 보여 주는 경로이며, 화면은 Desktop 6개(01 질문 입력 / 01-A2 동의 / 01-B 추가 질문 / 01-C 진단 중 / 01-D 결과 없음 / 01-E 분석 오류) + Mobile 4개(M01 / M01-A2 / M01-B / M01-C) 총 10개입니다.
+
+**프로덕션 노출은 기본적으로 차단됩니다.** `app/page.tsx`의 렌더링 조건은 `productionReady = ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY`와 `reviewEnabled = ENABLE_DIAGNOSIS_DEV_STATES`를 OR로 합성한 `shouldRenderDiagnosis`입니다. 이 SPEC이 전달하는 코드 어디에도 두 서버 전용 플래그를 `"true"`로 대입하는 지점이 없어(grep 확인), 플래그를 설정하지 않은 기본 빌드의 `/` 출력은 기존 placeholder와 동일합니다. 실제 담보 매칭 엔진 연결은 이 SPEC의 Out of Scope이며, `step-loading.tsx`의 `@MX:DEBT`/`@MX:CEILING`/`@MX:UPGRADE` 주석이 그 경계(결과 있음=02 화면 분기 미구현)를 코드에 명시합니다.
+
+개인정보는 수집하지 않습니다 — 일반 개인정보 수집·이용 동의를 요구하지 않고 건강정보 등 민감정보 처리 동의 1건만 필수로 받으며, `lib/validation/diagnosis-input.ts`가 전화번호·주민등록번호를 자동 차단하고 이름 등은 안내만 하는 2단계 Zod 검증을 수행합니다. 동의 상세는 768px 브레이크포인트(`use-media-query.ts`)로 Desktop은 Modal(`step-consent-modal.tsx`), Mobile은 Bottom Sheet(`step-consent-sheet.tsx`)로 분기하며, 상세 보기를 여는 것만으로 동의 체크박스가 자동 선택되지 않고 닫기·ESC·배경 클릭 어느 경로로 닫아도 포커스가 "내용 보기" 트리거로 돌아갑니다. 동의 체크박스와 설명 텍스트는 스크린리더가 한 항목으로 읽도록 접근성 속성으로 연결했습니다. 단계 전환은 `diagnosis-flow.tsx`가 `?step=` 쿼리로 동기화하되 `VALID_STEPS` 런타임 가드로 임의 값 진입을 막고, `skipNextPushRef`로 뒤로가기 시 히스토리 desync가 생기지 않도록 했습니다.
+
+**시각 정합성은 결정론적 도구로 게이트했습니다.** `scripts/visual-verify.ts`(+`visual-verify-helpers.ts`)를 신규 작성해 `pnpm visual:verify`로 `design/exports/`의 2배 PNG를 1배로 정규화한 프레임과 실제 렌더를 대조합니다 — 배경색·글자 크기·요소 폭뿐 아니라 줄바꿈 **지점**까지 10건 대조하며, 측정값이 없으면 조용히 통과하지 않고 exit 1로 실패합니다. 9차에 걸친 하드닝 과정에서 이 게이트가 실제 결함(M01-A2 설명이 디자인보다 한 글자 일찍 끊김, 동의 문구 가운뎃점 공백 누락, "내용 보기" 꺾쇠 누락, 배너 아이콘이 삼각형)을 잡아 exit 1을 낸 뒤 수정해 exit 0이 된 경로를 실증했습니다. 결과물(`measurements.json` `canonical: true`, 스크린샷·overlay·diff)은 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/`에 커밋되어 있습니다.
+
+**검증**(sync-phase에서 직접 재실행): `pnpm test` → 53 files / 394 tests 전부 PASS(exit 0), `pnpm lint` → 무출력(exit 0), `pnpm exec tsc --noEmit` → 무출력(exit 0). run-phase 기록 기준 Playwright `diagnosis-flow-01.spec.ts` 16/16 PASS, `next build`는 플래그 unset / `ENABLE_DIAGNOSIS_DEV_STATES=true` 두 조합 모두 성공, `pnpm visual:verify` 10/10 화면 exit 0(findings 0). acceptance.md 기준 AC-B2CDIAG-001~025 **25/25**. 회귀 테스트는 통과만 확인하지 않고 구현을 일부러 되돌려 실패를 본 뒤 복구하는 방식으로 5건을 검증했습니다. 커버리지는 실측했습니다 — `pnpm vitest run --coverage` 기준 전체 Lines **89.35%**(865/968, Statements 88.86% · Branches 82.56% · Functions 84.52%)이고, 이 SPEC이 추가한 `components/diagnosis/` 디렉터리는 Lines **95.13%**입니다. 앞서 0/0이 산출되던 `@vitest/coverage-v8` 결함은 **그 워크트리 체크아웃에 국한된 것으로 범위를 좁힙니다** — 메인 체크아웃에서는 재현되지 않았습니다. (`coverage.include` 누락을 고친 커밋 `3283905`가 이를 해소했다고 주장하지는 않습니다. 해당 커밋 메시지 자체가 "fix를 적용한 뒤에도 이 특정 worktree에서는 여전히 0/0이 관측된다"고 기록하고 있으며, 근본 원인은 규명되지 않은 채 남아 있습니다.)
+
+범위 밖 디렉터리(`lib/pipeline/`, `lib/ai/`, `lib/db/`, `db/`, `design/`, `.github/workflows/deploy.yml`)는 전혀 수정하지 않았고, 공유 프리미티브(`components/ui/notice.tsx`의 기본 아이콘 등)의 기본값도 보존한 채 호출부에서만 교체했습니다.
+
 ### Removed — SPEC-B2C-FOUNDATION-001: B2B 코드 정리 및 B2C 공개 퍼널 기반 전환 (M1-M7)
 
 제품 방향이 B2C 보상 진단 퍼널로 전환됨에 따라(`.moai/project/product.md` §구조·공존 관계), 실제 동작하던 B2B 전용 구현체를 회귀 없이 순차 제거했습니다. `app/page.tsx`를 인증 세션 의존 리다이렉트에서 정적 "서비스 준비 중" placeholder로 먼저 교체한 뒤(M2, REQ-B2CFOUND-002/003/013 — 라우트 제거와 신규 진입점 마련의 순서 보장), B2B 라우트·인증 표면 `app/cases/**`(27개)·`app/login/*`(5개)·`app/api/auth/[...all]/route.ts`·`app/api/cases/**`(4개)·`lib/auth/**`(Better Auth, 7개)·`components/evidence-item.*`·`proxy.ts`(보호 경로 전부 소멸에 따라 파일 자체 삭제)를 제거했습니다(M3). 이어서 미사용 B2B 코드 `lib/cases/**`(9개)·`lib/feedback/**`(4개)를 제거했고(M4), `e2e/` 전체(13개)와 `scripts/`의 Better Auth 전용 파일(`provision-tester.ts`+test, `e2e-tester-emails.ts`, `scripts/measure/capture-login.mjs`·`login-pixel-compare.mjs`) 및 `lib/env.ts`의 `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` 요구 사항, `package.json`의 `better-auth` 의존성과 `tester:add` 스크립트를 제거했습니다(M5) — 삭제 사유·대체 검증 여부는 `progress.md` §M5에 시나리오별로 기록했습니다.
