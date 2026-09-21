@@ -189,7 +189,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
       {/* Desktop — Clock/Lock 2개 항목이 검색창 위에 별도로 표시된다. */}
       <div
         data-testid="diagnosis-trust-row"
-        className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:mt-[36px] md:flex"
+        className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:mt-[30px] md:flex"
       >
         <span className="flex items-center gap-1.5">
           <Clock className="size-3.5 shrink-0" aria-hidden="true" />

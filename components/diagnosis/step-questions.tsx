@@ -235,7 +235,7 @@ export function StepQuestions({
           지점과 폭이 함께 수렴한다. */}
       <p
         data-testid="diagnosis-answer-guide"
-        className="mt-[22px] text-left text-[13.1px] text-bora-ink-4 md:hidden"
+        className="mt-[22px] text-left text-[13px] text-bora-ink-4 md:hidden"
       >
         이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에
         그대로 표시됩니다.
