@@ -1139,6 +1139,115 @@ sync-phase에서 네 번째 검증으로 `pnpm format:check`를 돌린 결과 **
   frontmatter 블록 자체가 없어 전환 대상이 아니다.
 - mx_validation: GAP — 4건 누락 후보 식별, 위임 제약에 따라 미적용(위 참고)
 
+### 2026-09-21 추가 — HEAD `3c8caa9` 기준 정정 (append-only)
+
+sync-auditor 독립 감사의 F1 지적을 반영한다. 위 `44c8f65` 기준 기록은 한 글자도
+고치지 않고 그대로 두고, 후속 폴리시 커밋 `3c8caa9`가 바꾼 사실만 여기에
+덧붙인다 — `3c8caa9`가 포맷 부채를 해소하고 MX 태그를 적용했음에도 이 문서와
+`CHANGELOG.md`가 갱신되지 않아, 위 서술이 3개 커밋 이전 상태를 현재형으로
+주장하고 있었다.
+
+#### Evidence — 이 세션에서 직접 재실행한 검증 2건
+
+**① `pnpm format:check` — 이 브랜치가 유발한 14건 전부 해소**
+
+```
+$ pnpm format:check
+$ prettier --check .
+Checking formatting...
+[warn] db/migrations/meta/_journal.json
+[warn] db/migrations/meta/0008_snapshot.json
+[warn] design/MIGRATION-PLAN.md
+[warn] Code style issues found in 3 files. Run Prettier with --write to fix.
+[ELIFECYCLE] Command failed with exit code 1.
+```
+
+exit 1 자체는 유지되지만 **17건 → 3건**으로 줄었고, 잔존 3건은 전부 `main`에도
+존재하는 기존 결함(`db/migrations/meta/_journal.json`,
+`db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`)이며 이
+SPEC과 무관하다. 위 "브랜치 유발 14건" 절이 열거한 14개 파일은 경고 목록에서
+전부 사라졌다 — 즉 위 절의 "이번 커밋에서 수정하지 않았다"는 `44c8f65`
+시점에는 참이었으나 `3c8caa9` 이후로는 해소된 항목이다.
+
+**② 커버리지 실측 — 위 Gaps의 "실측치 없음"이 이 체크아웃에서는 해소**
+
+```
+$ pnpm vitest run --coverage
+ Test Files  53 passed (53)
+      Tests  394 passed (394)
+All files          |   88.86 |    82.56 |   84.52 |   89.35 |
+ ...ents/diagnosis |   94.78 |    89.93 |   89.85 |   95.13 |
+Statements   : 88.86% ( 902/1015 )
+Branches     : 82.56% ( 464/562 )
+Functions    : 84.52% ( 273/323 )
+Lines        : 89.35% ( 865/968 )
+```
+
+전체 Lines **89.35%**, 이 SPEC이 추가한 `components/diagnosis/` 디렉터리는
+Lines **95.13%**다. 위 Gaps 절이 기록한 `@vitest/coverage-v8` 0/0 산출 결함은
+이 체크아웃(`C:\Users\Nexsol\Documents\bosang-radar`, 브랜치
+`plan/SPEC-B2C-DIAGNOSIS-001`)에서 **재현되지 않았다**.
+
+**결함 귀속을 좁혀 기록한다** — `coverage.include` 누락을 고친 커밋 `3283905`의
+커밋 메시지 본문은 "이 fix를 적용한 뒤에도 이 특정 worktree 체크아웃에서는
+여전히 0/0이 관측된다"고 명시한다. 따라서 `3283905`가 0/0을 해소했다고
+주장하지 않는다. 관측 가능한 사실은 두 가지뿐이다: (a) 당시 그 워크트리에서는
+include 수정 후에도 0/0이었고, (b) 이 메인 체크아웃에서는 정상 계측된다.
+결함은 OS·도구 조합 전반이 아니라 **그 워크트리에 국한된 것으로 범위를
+좁히고**, 원인 자체는 규명하지 않은 채 남긴다.
+
+**③ MX 태그 — 2건 적용, 2건 미해당 판정(GAP 아님)**
+
+`3c8caa9`가 위 4건 누락 후보 중 2건을 적용했다.
+
+| 파일 | 적용된 태그 | 판정 |
+|---|---|---|
+| `app/page.tsx` | `@MX:ANCHOR` ×2 (`isFlagEnabled`, 렌더 게이트 불변식) | 적용 완료 |
+| `components/diagnosis/diagnosis-flow.tsx` | `@MX:ANCHOR` + `@MX:WARN` | 적용 완료 |
+| `lib/validation/diagnosis-input.ts` | (ANCHOR 후보) | **미해당** — 프로덕션 호출부 1곳, fan_in ≥ 3 미충족 |
+| `components/diagnosis/use-media-query.ts` | (NOTE 후보) | **미해당** — 프로덕션 호출부 1곳, fan_in ≥ 3 미충족 |
+
+나머지 2건은 sync-auditor가 독립 판단으로 **필수 아님**으로 평가했다 — 각각
+프로덕션 소비자가 정확히 1곳뿐이라
+`.claude/rules/moai/core/moai-constitution.md` § MX Tag Quality Gates의
+"fan_in >= 3 functions: MUST have @MX:ANCHOR" 임계값에 미달한다. 따라서 위
+"갭 발견" 절의 4건 중 2건은 갭이 아니라 **임계값 미달로 인한 정상적 미적용**
+이며, 열린 GAP으로 남기지 않는다.
+
+#### Baseline-attribution
+
+- 측정 시점 tree: 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, HEAD **`3c8caa9`**,
+  working tree clean (이 정정 커밋 직전)
+- 위 §E.4 본문의 baseline(`44c8f65`)을 대체하지 않고 **후속 baseline으로
+  추가**한다. `sync_commit_sha` 필드는 era 분류 파서가 읽는 필드라 중복
+  방출을 피해 재기재하지 않는다 — 아래 `post_sync_polish_sha`로 구분해 기록.
+
+#### Gaps (이 정정에서도 검증하지 않은 것)
+
+- Playwright · `next build` · `pnpm visual:verify`는 이번에도 재실행하지
+  않았다. 위 §E.4 Gaps의 해당 항목은 그대로 유효하다.
+- `@vitest/coverage-v8` 0/0의 **근본 원인**은 규명하지 않았다. 이 체크아웃에서
+  재현되지 않았다는 사실만 관측했다.
+- 잔존 `format:check` 3건은 수정하지 않았다(PRESERVE — `main` 기존 결함).
+- `.moai/project/` 문서는 이번에도 갱신하지 않았다.
+
+#### Residual risk
+
+- 커버리지 수치는 **이 체크아웃 기준**이다. CI 러너나 다른 워크트리에서 같은
+  수치가 재현된다는 보장은 이 관측으로 얻어지지 않는다.
+- `status: implemented`는 여전히 병합 전 상태다. `completed` 전환 조건은
+  위 §E.4 Residual risk와 동일하게 유지된다.
+
+<!-- 아래 3개 신호는 위 §E.4 말미 신호 블록을 이 시점 기준으로 갱신한 값이다.
+     위 원본 라인은 append-only 원칙에 따라 삭제하지 않고 보존한다. -->
+
+- post_sync_polish_sha: 3c8caa9
+- format_check_status: 이 브랜치 유발 14건 해소 (17→3건, 잔존 3건은 `main` 기존 결함)
+- coverage_measured: Lines 89.35% (전체) / 95.13% (`components/diagnosis`) — `pnpm vitest run --coverage` 직접 관측
+- mx_validation: RESOLVED — 후보 4건 중 2건 적용(`app/page.tsx`,
+  `components/diagnosis/diagnosis-flow.tsx`), 2건은 fan_in ≥ 3 임계값 미달로
+  미해당 판정. 열린 GAP 없음 (위 `mx_validation: GAP` 라인을 대체하는 현행 값)
+
 ## §G Plan-Auditor Iteration Log
 
 이 표는 실제 plan-auditor 호출 결과만 기록한다 — 이 세션의 9건 운영자 검토 보정 작업 자체는 plan-auditor 호출이 아니므로 행을 추가하지 않는다.
