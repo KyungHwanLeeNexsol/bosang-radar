@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T05:04:25.067Z",
+  "generatedAt": "2026-09-21T06:39:15.825Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -1137,13 +1137,13 @@
           "left": 441,
           "top": 333,
           "width": 558,
-          "height": 275
+          "height": 274
         },
         "delta": {
           "left": 1,
           "top": 2,
           "width": 2,
-          "height": 4
+          "height": 3
         }
       },
       "background": {
@@ -1173,15 +1173,15 @@
           },
           "impl": {
             "left": 469,
-            "top": 358,
+            "top": 359,
             "width": 496,
-            "height": 25
+            "height": 24
           },
           "delta": {
             "left": 0,
-            "top": 7,
+            "top": 6,
             "width": 3,
-            "height": 4
+            "height": 3
           },
           "lines": {
             "expected": 1,
@@ -1205,22 +1205,22 @@
           "impl": {
             "left": 469,
             "top": 405,
-            "width": 370,
-            "height": 14
+            "width": 371,
+            "height": 12
           },
           "delta": {
             "left": 0,
             "top": 3,
-            "width": 1,
-            "height": 2
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 1
           },
-          "text": "입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+          "text": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
-          "fontSize": "14.35px",
-          "lineHeight": "21.525px",
+          "fontSize": "13.83px",
+          "lineHeight": "20.745px",
           "pass": true
         },
         {
@@ -1236,13 +1236,13 @@
             "left": 469,
             "top": 434,
             "width": 502,
-            "height": 55
+            "height": 54
           },
           "delta": {
             "left": 1,
             "top": 2,
             "width": 2,
-            "height": 4
+            "height": 3
           },
           "lines": {
             "actual": 1
@@ -1264,13 +1264,13 @@
           },
           "impl": {
             "left": 470,
-            "top": 502,
+            "top": 501,
             "width": 500,
             "height": 38
           },
           "delta": {
             "left": 2,
-            "top": 5,
+            "top": 6,
             "width": 4,
             "height": 6
           },
@@ -1294,13 +1294,13 @@
           },
           "impl": {
             "left": 612,
-            "top": 566,
+            "top": 565,
             "width": 216,
             "height": 12
           },
           "delta": {
             "left": 0,
-            "top": 3,
+            "top": 2,
             "width": 1,
             "height": 1
           },
@@ -1315,7 +1315,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 7,
+      "maxDelta": 6,
       "pass": true
     },
     {
@@ -4169,7 +4169,7 @@
         },
         {
           "key": "notice",
-          "label": "안내 배너",
+          "label": "안내 배너(2줄)",
           "design": {
             "left": 20,
             "top": 462,
@@ -4189,7 +4189,18 @@
             "height": 2
           },
           "lines": {
+            "expected": 2,
             "actual": 2
+          },
+          "lineTexts": {
+            "expected": [
+              "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
+              "마세요"
+            ],
+            "actual": [
+              "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지",
+              "마세요"
+            ]
           },
           "text": "이름 · 전화번호 · 주민등록번호 등 개인 식별정보는 입력하지 마세요",
           "backgroundColor": "rgb(251, 243, 227)",
@@ -4496,15 +4507,15 @@
         },
         "impl": {
           "left": 0,
-          "top": 762,
+          "top": 760,
           "width": 390,
-          "height": 348
+          "height": 350
         },
         "delta": {
           "left": 0,
-          "top": 0,
+          "top": 2,
           "width": 0,
-          "height": 0
+          "height": 2
         }
       },
       "background": {
@@ -4534,13 +4545,13 @@
           },
           "impl": {
             "left": 16,
-            "top": 828,
+            "top": 826,
             "width": 122,
             "height": 48
           },
           "delta": {
             "left": 0,
-            "top": 0,
+            "top": 2,
             "width": 0,
             "height": 3
           },
@@ -4566,7 +4577,7 @@
         },
         {
           "key": "description",
-          "label": "설명",
+          "label": "설명(2줄)",
           "design": {
             "left": 17,
             "top": 889,
@@ -4575,23 +4586,34 @@
           },
           "impl": {
             "left": 16,
-            "top": 886,
-            "width": 345,
-            "height": 32
+            "top": 889,
+            "width": 344,
+            "height": 33
           },
           "delta": {
             "left": 1,
-            "top": 3,
-            "width": 3,
-            "height": 1
+            "top": 0,
+            "width": 2,
+            "height": 0
           },
           "lines": {
+            "expected": 2,
             "actual": 2
           },
-          "text": "입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
+          "lineTexts": {
+            "expected": [
+              "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니",
+              "다."
+            ],
+            "actual": [
+              "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니",
+              "다."
+            ]
+          },
+          "text": "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다.",
           "backgroundColor": "rgba(0, 0, 0, 0)",
-          "fontSize": "14px",
-          "lineHeight": "20px",
+          "fontSize": "13.4px",
+          "lineHeight": "21px",
           "pass": true
         },
         {
