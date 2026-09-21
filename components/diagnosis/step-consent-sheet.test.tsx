@@ -221,9 +221,7 @@ describe("components/diagnosis/StepConsentSheet — AC-B2CDIAG-001~006", () => {
     const chevron = trigger.querySelector("svg");
     expect(chevron).not.toBeNull();
     expect(chevron?.getAttribute("class")).toContain("chevron-right");
-    expect(
-      trigger.firstChild?.compareDocumentPosition(chevron as Node) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+    expect(trigger.lastElementChild).toBe(chevron);
+    expect(trigger.textContent?.trim()).toBe("내용 보기");
   });
 });

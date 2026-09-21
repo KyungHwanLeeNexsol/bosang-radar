@@ -232,10 +232,9 @@ describe("components/diagnosis/StepConsentModal — AC-B2CDIAG-001~006", () => {
     const chevron = trigger.querySelector("svg");
     expect(chevron).not.toBeNull();
     expect(chevron?.getAttribute("class")).toContain("chevron-right");
-    // 텍스트 노드가 아이콘보다 앞에 온다.
-    expect(
-      trigger.firstChild?.compareDocumentPosition(chevron as Node) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+    // 아이콘이 마지막 자식이고 트리거의 글자는 그대로다 — 즉 아이콘은
+    // 텍스트 "뒤"에 온다.
+    expect(trigger.lastElementChild).toBe(chevron);
+    expect(trigger.textContent?.trim()).toBe("내용 보기");
   });
 });
