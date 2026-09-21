@@ -204,4 +204,38 @@ describe("components/diagnosis/StepConsentModal — AC-B2CDIAG-001~006", () => {
 
     expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
   });
+
+  // D2(9차) — design/exports/01-A2의 설명 문구는 가운뎃점 앞뒤에 공백이
+  // 있다. 7차까지 공백 없이 렌더링하고 있었고, 그 잘못된 문자열로 역산한
+  // 값이 글자 크기(14.35px)까지 오염시켰다. 한 글자라도 어긋나면 실패하도록
+  // 전체 문자열을 그대로 비교한다.
+  it("D2(9차): 설명 문구가 디자인과 글자 단위로 일치한다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const description = document.querySelector('[data-testid="diagnosis-consent-description"]');
+    expect(description?.textContent?.trim()).toBe(
+      "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다."
+    );
+  });
+
+  // D2(9차) — design/exports/01-A2는 "내용 보기" 뒤에 오른쪽 꺾쇠가 붙는다.
+  // 텍스트 "뒤"라는 순서까지 고정해, 아이콘만 있고 위치가 바뀌는 경우도
+  // 잡아낸다.
+  it("D2(9차): '내용 보기' 트리거 텍스트 뒤에 꺾쇠 아이콘이 있다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const trigger = findButtonByText("내용 보기");
+    const chevron = trigger.querySelector("svg");
+    expect(chevron).not.toBeNull();
+    expect(chevron?.getAttribute("class")).toContain("chevron-right");
+    // 텍스트 노드가 아이콘보다 앞에 온다.
+    expect(
+      trigger.firstChild?.compareDocumentPosition(chevron as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });

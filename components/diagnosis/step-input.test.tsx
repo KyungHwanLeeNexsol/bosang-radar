@@ -261,4 +261,21 @@ describe("components/diagnosis/StepInput — AC-B2CDIAG-019/022/023", () => {
       expect(container.textContent).toContain(title);
     }
   });
+
+  // D2(9차) — design/exports/01·M01의 주의 배너 아이콘은 느낌표가 들어간
+  // 방패다. 구현은 Notice의 기본값인 삼각형 경고를 쓰고 있었다. 기본값으로
+  // 되돌아가면 실패하도록 두 방향을 모두 단정한다(방패가 있을 것 + 삼각형이
+  // 아닐 것). Notice 자체의 기본값이 그대로인지는 notice.test.tsx가 지킨다.
+  it("D2(9차): 주의 배너가 방패형 경고 아이콘을 쓴다(삼각형 기본값이 아니다)", () => {
+    act(() => {
+      root.render(<Harness onValidSubmit={vi.fn()} />);
+    });
+
+    const notice = container.querySelector('[data-testid="diagnosis-notice"]');
+    expect(notice).not.toBeNull();
+
+    const iconClass = notice?.querySelector("svg")?.getAttribute("class") ?? "";
+    expect(iconClass).toContain("shield-alert");
+    expect(iconClass).not.toContain("triangle-alert");
+  });
 });

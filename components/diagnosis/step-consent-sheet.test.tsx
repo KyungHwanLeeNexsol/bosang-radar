@@ -197,4 +197,33 @@ describe("components/diagnosis/StepConsentSheet — AC-B2CDIAG-001~006", () => {
 
     expect(document.body.textContent).toContain("{처리 목적 확정 문구}");
   });
+
+  // D2(9차) — Desktop 모달과 같은 문구를 쓴다(step-consent-modal.test.tsx의
+  // 같은 이름 테스트와 쌍). 두 곳이 따로 드리프트하는 것을 막는다.
+  it("D2(9차): 설명 문구가 디자인과 글자 단위로 일치한다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const description = document.querySelector('[data-testid="diagnosis-consent-description"]');
+    expect(description?.textContent?.trim()).toBe(
+      "입력한 사고 · 질병 · 치료 정보는 보상 가능성 분석을 위해 처리됩니다."
+    );
+  });
+
+  // D2(9차) — design/exports/M01-A2도 "내용 보기" 뒤에 꺾쇠가 붙는다.
+  it("D2(9차): '내용 보기' 트리거 텍스트 뒤에 꺾쇠 아이콘이 있다", () => {
+    act(() => {
+      root.render(<Harness onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    });
+
+    const trigger = findButtonByText("내용 보기");
+    const chevron = trigger.querySelector("svg");
+    expect(chevron).not.toBeNull();
+    expect(chevron?.getAttribute("class")).toContain("chevron-right");
+    expect(
+      trigger.firstChild?.compareDocumentPosition(chevron as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });
