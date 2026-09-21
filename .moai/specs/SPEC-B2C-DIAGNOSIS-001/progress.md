@@ -1119,7 +1119,9 @@ sync-phase에서 네 번째 검증으로 `pnpm format:check`를 돌린 결과 **
 
 - sync_status: audit-ready
 - sync_complete_at: 2026-09-21
-- sync_commit_sha: pending-backfill-sync
+- sync_commit_sha: 9ee0707 (이 항목은 커밋이 자기 해시를 알 수 없어 후속
+  커밋에서 backfill됨 — `spec-frontmatter-schema.md` § SHA placeholder
+  backfill exemption)
 - changelog_entry_position: `CHANGELOG.md` `[Unreleased]` 최상단
   (`### Added — SPEC-B2C-DIAGNOSIS-001`)
 - b12_self_test_a (사전 중복 grep): PASS — `grep -c` = 0, 중복 없음
