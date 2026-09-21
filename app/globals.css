@@ -1,13 +1,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* SPEC-B2C-DIAGNOSIS-001 D2(7차) — 디자인 export는 Pretendard로 조판됐지만
+   이 CSS는 `--font-sans: var(--font-sans)`라는 순환 정의만 갖고 있어 한글이
+   OS 기본 폰트(Windows는 맑은 고딕)로 폴백 렌더링되고 있었다. 그 결과
+   (a) 같은 문자열의 글자 폭·잉크 높이가 디자인과 어긋났고, (b) 줄바꿈
+   지점이 캡처 머신에 설치된 폰트에 따라 달라져 시각 검증 자체가 재현
+   불가능했다. `pretendard`는 이미 의존성으로 설치돼 있었으므로(신규 의존성
+   추가 없음) 실제로 로드해 연결한다. */
+@import "pretendard/dist/web/variable/pretendardvariable.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: "Pretendard Variable", Pretendard, var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);

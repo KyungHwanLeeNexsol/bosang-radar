@@ -309,6 +309,16 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.step]);
 
+  // design.md §10 — ?devStage=<0|1|2>는 진단 중 화면의 단계 진행을 고정한다.
+  // 진단 중 화면은 200ms마다 자동으로 다음 단계로 넘어가므로 디자인 export가
+  // 보여주는 "1단계 완료 / 2단계 진행 중 / 3단계 대기" 상태를 스크린샷으로
+  // 안정적으로 잡을 수 없었다(D2 6차까지의 캡처가 1단계를 "진행 중"으로 찍은
+  // 원인). ?devStep=과 동일하게 enableDevStates가 참일 때만 동작하며,
+  // 프로덕션 기본 조합에서는 완전히 무시된다(AC-B2CDIAG-016과 동일 계약).
+  const rawDevStage = enableDevStates ? searchParams.get("devStage") : null;
+  const pinnedStage =
+    rawDevStage !== null && /^[0-2]$/.test(rawDevStage) ? Number(rawDevStage) : undefined;
+
   const isConsentOpen = state.step === "consent";
   // M-fix-2 — consent 오버레이가 열려 있는 동안 배경은 01/M01(StepInput)을
   // 계속 보여준다. 다른 스텝(questions/loading/...)에는 배경 개념이 없다.
@@ -367,7 +377,9 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           input 스텝(M01)은 콘텐츠 높이만큼만 차지하면 되므로 flex-1을
           제거한다 — 다른 스텝(01-C/D/E)은 짧은 프레임에서도 배경색이
           시각적으로 페이지 배경과 같아 flex-1 제거의 영향이 없다. */}
-      <div className="flex flex-col items-center gap-3 bg-app-bg px-4 md:bg-app-surface">
+      {/* D2(7차) — design/exports의 Mobile 좌우 여백은 16px(px-4)이 아니라
+          20px다(부제·칩·푸터 문구가 모두 x≈20에서 시작). */}
+      <div className="flex flex-col items-center gap-3 bg-app-bg px-5 md:bg-app-surface md:px-4">
         {backgroundStep === "input" ? (
           <StepInput
             value={state.input}
@@ -389,6 +401,7 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
         ) : backgroundStep === "loading" ? (
           <StepLoading
             input={state.input}
+            pinnedStage={pinnedStage}
             onDone={(step) => dispatch({ type: "FORCE_STEP", payload: step })}
           />
         ) : backgroundStep === "result-none" ? (
