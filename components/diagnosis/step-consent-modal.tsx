@@ -74,25 +74,39 @@ export function StepConsentModal({
           디자인(270px)보다 10px 작았다(더 줄일 게 아니라 늘려야 했다).
           top 위치·폭은 그대로 두고 하단 패딩만 10px 늘려 총 높이를
           맞춘다. */}
-      <DialogContent className="max-w-[560px] gap-3 p-6 pb-[34px]">
+      {/* D2(7차) — 모달 안쪽 여백은 24px(p-6)이 아니라 28px다(디자인 실측:
+          제목 좌측 x=469 = 모달 좌측 440 + 29, 닫기 버튼 우측 인셋 32px). */}
+      <DialogContent className="max-w-[560px] gap-3 p-7 pb-[25px]">
         <DialogClose
           aria-label="닫기"
-          className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="absolute top-4 right-[25px] inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <X className="size-4" aria-hidden="true" />
         </DialogClose>
 
         {/* design/exports/01-A2 제목은 DialogTitle 기본(text-h3=15px)보다
             뚜렷이 크다 — 이 모달에 한정해 20px로 키운다. */}
-        <DialogTitle className="text-[20px] font-bold">건강정보 처리에 동의해 주세요</DialogTitle>
-        <DialogDescription id={CONSENT_DESCRIPTION_ID} className="text-sm">
+        {/* D2(7차) — 동일 문자열의 잉크 폭으로 역산한 디자인 글자 크기:
+            제목 19.6px, 설명 14.35px, 하단 안내문 13.9px. */}
+        <DialogTitle data-testid="diagnosis-consent-title" className="text-[18.8px] font-bold">
+          건강정보 처리에 동의해 주세요
+        </DialogTitle>
+        <DialogDescription
+          id={CONSENT_DESCRIPTION_ID}
+          data-testid="diagnosis-consent-description"
+          className="text-[14.35px]"
+        >
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DialogDescription>
 
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3">
+        <div
+          data-testid="diagnosis-consent-row"
+          className="flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-3"
+        >
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
+              data-testid="diagnosis-consent-checkbox"
               type="checkbox"
               checked={consentGiven}
               onChange={(event) => onConsentChange(event.target.checked)}
@@ -136,10 +150,13 @@ export function StepConsentModal({
             재현하지 못하므로, 미동의일 때 색상 클래스를 직접 덮어쓴다. */}
         <Button
           type="button"
+          data-testid="diagnosis-consent-cta"
           variant="diagnosis"
           disabled={!consentGiven}
+          // D2(7차) — design/exports/01-A2의 CTA는 모달 안쪽 폭을 꽉 채운다
+          // (실측 504px, 모달 내부 폭 511px). 기존 auto 폭은 134px였다.
           className={cn(
-            "h-10 rounded-[12px] text-base",
+            "h-10 w-full rounded-[12px] text-base",
             !consentGiven &&
               "bg-app-surface-inset text-bora-ink-4 shadow-none disabled:opacity-100 hover:bg-app-surface-inset"
           )}
@@ -149,7 +166,7 @@ export function StepConsentModal({
           동의하고 진단하기
         </Button>
 
-        <p className="text-center text-meta text-bora-ink-3">
+        <p data-testid="diagnosis-consent-note" className="mt-[9px] text-center text-[13.9px] text-bora-ink-3">
           필수 동의 후 진단을 시작할 수 있습니다.
         </p>
       </DialogContent>

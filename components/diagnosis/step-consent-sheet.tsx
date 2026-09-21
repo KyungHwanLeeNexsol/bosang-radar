@@ -76,7 +76,10 @@ export function StepConsentSheet({
           (잔여 위험: 제목 자체의 시트 내 상대 위치가 디자인보다 이르게
           측정되나, 상단 패딩을 늘리면 전체 높이 예산을 다시 초과하게
           돼 외곽 높이 일치를 우선했다.) */}
-      <DrawerContent className="h-auto max-h-[85vh] gap-0 p-6">
+      {/* D2(7차) — design/exports/M01-A2의 시트 내부 여백은 16px다(제목·동의
+          행·CTA가 모두 x=16에서 시작, CTA 폭 358 = 390−16×2). p-6(24px)은
+          8px 과했다. */}
+      <DrawerContent className="h-auto max-h-[85vh] gap-0 px-4 pt-[51px] pb-[20px]">
         <DrawerClose
           aria-label="닫기"
           className="absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-full text-bora-ink-3 outline-none transition-colors hover:bg-app-surface-inset hover:text-bora-ink focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -87,17 +90,30 @@ export function StepConsentSheet({
         {/* D2(5차 재작업) — design/exports/M01-A2는 제목이 2줄로
             줄바꿈된다(전체 시트 폭 그대로 두면 1줄에 다 들어가 버림) —
             제목 요소에만 폭 제한을 둬 줄바꿈 지점을 재현한다. */}
-        <DrawerTitle className="max-w-[230px] text-[20px] font-bold">
+        {/* D2(7차) — design/exports/M01-A2는 "건강정보 처리에" / "동의해
+            주세요"로 끊긴다(기존 폭 제한은 "…동의해" / "주세요"로 끊었다). */}
+        <DrawerTitle
+          data-testid="diagnosis-consent-title"
+          className="max-w-[130px] text-[15px] leading-[30px] font-bold"
+        >
           건강정보 처리에 동의해 주세요
         </DrawerTitle>
-        <DrawerDescription id={CONSENT_DESCRIPTION_ID} className="mt-[17px] text-sm">
+        <DrawerDescription
+          id={CONSENT_DESCRIPTION_ID}
+          data-testid="diagnosis-consent-description"
+          className="mt-[5px] text-sm"
+        >
           입력한 사고·질병·치료 정보는 보상 가능성 분석을 위해 처리됩니다.
         </DrawerDescription>
 
-        <div className="mt-[35px] flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-2">
+        <div
+          data-testid="diagnosis-consent-row"
+          className="mt-[17px] flex items-center justify-between gap-3 rounded-[10px] border border-app-line px-4 py-[10px]"
+        >
           <label htmlFor={CONSENT_CHECKBOX_ID} className="flex items-center gap-2.5">
             <input
               id={CONSENT_CHECKBOX_ID}
+              data-testid="diagnosis-consent-checkbox"
               type="checkbox"
               checked={consentGiven}
               onChange={(event) => onConsentChange(event.target.checked)}
@@ -135,10 +151,11 @@ export function StepConsentSheet({
 
         <Button
           type="button"
+          data-testid="diagnosis-consent-cta"
           variant="diagnosis"
           disabled={!consentGiven}
           className={cn(
-            "mt-[17px]",
+            "mt-[16px] h-[52px] w-full",
             !consentGiven &&
               "bg-app-surface-inset text-bora-ink-4 shadow-none disabled:opacity-100 hover:bg-app-surface-inset"
           )}
@@ -148,7 +165,10 @@ export function StepConsentSheet({
           동의하고 진단하기
         </Button>
 
-        <p className="mt-[13px] text-center text-meta text-bora-ink-3">
+        <p
+          data-testid="diagnosis-consent-note"
+          className="mt-[12px] text-center text-[13.9px] text-bora-ink-3"
+        >
           필수 동의 후 진단을 시작할 수 있습니다.
         </p>
       </DrawerContent>

@@ -130,23 +130,57 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
     // 아래로 처짐이 확인됐다(_tmp-full-measure-result.json vs
     // _tmp-design-blocks.json 실측 대조). 부모 gap을 없애고 자식마다
     // 디자인 세그먼트 간격에서 역산한 개별 margin-top으로 대체한다.
-    <div className="flex w-full max-w-3xl flex-col items-center pt-[23px] text-center md:pt-[91px]">
-      {/* D2(6차 재작업) — 동일 ink-pixel 좌표계 재측정에서 Desktop
-          제목 top이 디자인보다 9px 아래로(203 vs 194) 처져 있었다.
-          부제/제목/설명 간 균일 gap-4(16px)를 조금 좁힌다. */}
-      <div className="flex flex-col items-center gap-3 md:gap-[13px]">
-        <p className="text-body-s font-semibold text-bora-accent md:text-base">
+    // D2(7차) — design/exports/M01은 히어로(부제·제목·설명)가 화면 좌측에
+    // 정렬돼 있다(x≈20). 6차까지는 Desktop의 중앙 정렬을 Mobile에도 그대로
+    // 적용해 부제 좌표가 디자인보다 78px 어긋나 있었다.
+    <div className="flex w-full max-w-md flex-col items-start pt-[20px] text-left md:max-w-[762px] md:items-center md:pt-[87px] md:text-center">
+      {/* D2(7차) — 히어로 3요소의 간격은 폭마다 다르므로 공통 gap 대신
+          요소별 margin-top으로 디자인 실측 간격을 직접 재현한다. */}
+      <div className="flex flex-col items-start gap-0 md:items-center">
+        <p
+          data-testid="diagnosis-hero-subtitle"
+          className="text-body-s font-semibold text-bora-accent md:text-[14px]"
+        >
           놓치기 쉬운 보상 항목을 확인해 보세요
         </p>
-        <h1 className="text-h1 font-bold text-bora-ink md:text-[32px]">이거, 보상 받을 수 있나요?</h1>
-        <p className="max-w-xl text-body text-bora-ink-2 md:text-base">
-          사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손·정액
-          담보·후유장해·배상책임에서 검토해 볼 보상 항목을 알려드립니다.
+        {/* D2(7차) — Pretendard를 실제로 로드한 뒤 동일 문자열의 잉크 폭을
+            재측정해 디자인의 글자 크기를 역산했다(Desktop 제목 40px). Mobile은
+            design/exports/M01처럼 "이거, 보상 받을 수" / "있나요?"로 2줄
+            줄바꿈되도록 폭을 제한한다. */}
+        <h1
+          data-testid="diagnosis-hero-title"
+          className="mt-[7px] max-w-[200px] text-[28px] font-bold text-bora-ink md:mt-[11px] md:max-w-none md:text-[40px]"
+        >
+          이거, 보상 받을 수 있나요?
+        </h1>
+        {/* D2(7차) — design/exports/M01의 설명 문구는 Desktop(01)보다 짧다
+            ("입력하신 내용을 바탕으로"·"보상"이 빠진 2줄). 같은 문구를 좁은
+            폭에 넣으면 3줄이 되어 이후 요소가 전부 아래로 밀린다. 로딩 화면
+            설명과 동일한 반응형 분리 방식을 쓴다(`hidden`은 display:none
+            이므로 접근성 트리에는 보이는 쪽만 노출된다). */}
+        <p
+          data-testid="diagnosis-hero-description"
+          className="mt-[7px] text-[14.35px] leading-[24px] text-bora-ink-2 md:hidden"
+        >
+          {/* 줄바꿈 지점은 디자인과 정확히 일치해야 하므로 자동 줄바꿈에
+              맡기지 않고 명시적으로 끊는다. */}
+          사고 경위나 진단명을 한 줄로 적어주세요. 실손 · 정액 담보 ·
+          <br /> 후유장해 · 배상책임에서 검토해 볼 항목을 알려드립니다.
+        </p>
+        <p
+          data-testid="diagnosis-hero-description"
+          className="hidden text-bora-ink-2 md:mt-[15px] md:block md:max-w-[496px] md:text-[14px]"
+        >
+          사고 경위나 진단명을 한 줄로 적어주세요. 입력하신 내용을 바탕으로 실손 · 정액 담보 ·
+          후유장해 · 배상책임에서 검토해 볼 보상 항목을 알려드립니다.
         </p>
       </div>
 
       {/* Desktop — Clock/Lock 2개 항목이 검색창 위에 별도로 표시된다. */}
-      <div className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:mt-[31px] md:flex">
+      <div
+        data-testid="diagnosis-trust-row"
+        className="hidden items-center gap-4 text-body-s text-bora-ink-3 md:mt-[36px] md:flex"
+      >
         <span className="flex items-center gap-1.5">
           <Clock className="size-3.5 shrink-0" aria-hidden="true" />
           회원가입 없이 약 1분
@@ -166,12 +200,15 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
           위치하도록 DOM 순서를 옮긴다(Desktop은 결합 컨트롤 유지를
           위해 md:hidden으로 접고, 기존 위치의 desktop 전용 카운터를
           별도로 둔다). */}
-      <div className="mt-[33px] flex w-full flex-col gap-1.5 text-left md:mt-[9px]">
+      <div className="mt-[24px] flex w-full flex-col gap-1.5 text-left md:mt-[12px]">
         {/* D2(5차 재작업) — design/exports/01은 검색 영역과 CTA가 하나의
             결합된 컨트롤처럼 보인다(간격 없이 맞닿고, 바깥쪽 모서리만
             radius). Desktop에서 md:gap-0 + 안쪽 모서리 radius 제거로
             재현한다. Mobile은 세로 스택 유지(디자인도 세로 배치). */}
-        <div className="flex w-full flex-col gap-2 md:flex-row md:items-stretch md:gap-0">
+        <div
+          data-testid="diagnosis-search-row"
+          className="flex w-full flex-col gap-2 md:flex-row md:items-stretch md:gap-0"
+        >
           <div className="relative flex-1">
             <Search
               className="pointer-events-none absolute top-3.5 left-3.5 size-4 text-bora-ink-4 md:top-4"
@@ -196,7 +233,7 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
               aria-describedby={error ? SEARCH_ERROR_ID : undefined}
               // field-sizing-content(Textarea 기본, 콘텐츠에 맞춰 자동
               // 높이 조절)를 꺼서 고정 높이가 실제로 적용되게 한다.
-              className="h-[95px] resize-none rounded-[12px] rounded-b-none border-app-line pt-3.5 pl-10 text-sm [field-sizing:fixed] focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-16 md:rounded-b-[12px] md:rounded-r-none md:border-r-0 md:py-5 md:pt-5 md:text-base"
+              className="h-[95px] resize-none rounded-[12px] rounded-b-none border-app-line pt-3.5 pl-10 text-sm [field-sizing:fixed] focus-visible:border-bora-accent-line focus-visible:ring-bora-accent-line/25 md:h-[76px] md:rounded-b-[12px] md:rounded-r-none md:border-r-0 md:py-5 md:pt-5 md:text-base"
             />
           </div>
           {/* D2(6차 재작업) — Mobile 전용 카운터: 디자인은 검색창과 CTA
@@ -209,10 +246,11 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
             {value.length} / {MAX_LENGTH}자
           </span>
           <Button
+            data-testid="diagnosis-submit-cta"
             variant="diagnosis"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="-mt-[3px] h-12 w-full rounded-[12px] rounded-t-none px-6 text-sm md:mt-0 md:h-16 md:w-auto md:rounded-t-[12px] md:rounded-l-none md:px-8 md:text-base"
+            className="-mt-[1px] h-12 w-full rounded-[12px] rounded-t-none px-6 text-sm md:mt-0 md:h-[76px] md:w-auto md:rounded-t-[12px] md:rounded-l-none md:px-8 md:text-base"
           >
             보상 진단
           </Button>
@@ -227,11 +265,16 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         ) : null}
       </div>
 
+      {/* D2(7차) — design/exports/01·M01의 주의 배너에는 "입력 시 주의해
+          주세요"라는 제목 줄이 없다. 강조(앰버·굵게)되는 부분은 문장 앞
+          절("이름 · 전화번호 · 주민등록번호 등")이고 나머지가 본문이다 —
+          Notice의 title/children 슬롯을 디자인 그대로 나눠 쓴다. */}
       <Notice
-        title="입력 시 주의해 주세요"
-        className="mt-[15px] w-full text-left md:mt-[13px] md:px-5 md:py-4"
+        data-testid="diagnosis-notice"
+        title="이름 · 전화번호 · 주민등록번호 등"
+        className="mt-[17px] w-full text-left md:mt-[1px] md:px-5 md:py-[11px]"
       >
-        이름·전화번호·주민등록번호 등 개인 식별정보는 입력하지 마세요.
+        개인 식별정보는 입력하지 마세요
       </Notice>
 
       {/* Mobile — Clock 항목 1개(결합 문구)가 안내 배너 아래로 이동한다. */}
@@ -240,11 +283,18 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         회원가입 없이 약 1분 · 분석 목적으로만 사용
       </span>
 
-      <div className="-mt-[3px] flex w-full flex-col items-start gap-2 md:mt-[19px] md:flex-row md:items-center md:justify-center md:gap-2.5">
+      <div
+        data-testid="diagnosis-chip-row"
+        className="mt-[18px] flex w-full flex-col items-start gap-2 md:mt-[29px] md:flex-row md:items-center md:justify-center md:gap-2.5"
+      >
         <span className="shrink-0 text-body-s text-bora-ink-3 md:text-base">많이 찾는 사례</span>
         <div className="flex flex-wrap gap-2 md:gap-2.5">
           {FREQUENT_CASES.map((text) => (
-            <Chip key={text} className="md:px-3 md:py-1.5 md:text-sm" onClick={() => handleChipClick(text)}>
+            <Chip
+              key={text}
+              className="px-[7px] py-[8px] text-[10.5px] md:px-2.5 md:py-1.5 md:text-[13.5px]"
+              onClick={() => handleChipClick(text)}
+            >
               {text}
             </Chip>
           ))}
@@ -259,7 +309,10 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
           표현할 수 없어 Mobile 전용 마크업을 별도로 둔다(Desktop 구조는
           기존 그대로 유지). */}
       {/* Mobile 전용 — 아이콘+제목 한 행, 설명 다음 행, 번호 숨김. */}
-      <div className="mt-[19px] flex w-full flex-col gap-2 text-left md:hidden">
+      <div
+        data-testid="diagnosis-card-grid"
+        className="mt-[23px] flex w-full flex-col gap-2 text-left md:hidden"
+      >
         {CATEGORY_PREVIEWS.map(({ icon: Icon, title, description }) => (
           <div
             key={title}
@@ -274,18 +327,21 @@ export function StepInput({ value, onChange, onValidSubmit, autoFocus }: StepInp
         ))}
       </div>
       {/* Desktop 전용 — 기존 아이콘+번호/제목/설명 3단 구조 유지. */}
-      <div className="hidden w-full grid-cols-4 gap-4 text-left md:mt-[48px] md:grid">
+      <div
+        data-testid="diagnosis-card-grid"
+        className="hidden w-full grid-cols-4 gap-4 text-left md:mt-[49px] md:grid"
+      >
         {CATEGORY_PREVIEWS.map(({ index, icon: Icon, title, description }) => (
-          <Card key={title} className="ring-app-line">
-            <CardHeader className="gap-2">
+          <Card key={title} className="gap-1.5 py-4 ring-app-line [--card-spacing:14px]">
+            <CardHeader className="gap-1.5">
               <span className="flex items-center gap-2 text-bora-accent">
                 <Icon className="size-5 shrink-0" aria-hidden="true" />
                 <span className="text-meta font-medium text-bora-ink-4">{index}</span>
               </span>
-              <CardTitle className="text-base font-semibold text-bora-ink">{title}</CardTitle>
+              <CardTitle className="text-[15px] font-semibold text-bora-ink">{title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-body text-bora-ink-3">{description}</p>
+              <p className="text-[12px] text-bora-ink-3">{description}</p>
             </CardContent>
           </Card>
         ))}

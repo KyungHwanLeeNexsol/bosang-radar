@@ -26,7 +26,7 @@ export function Notice({ title, icon, children, className, ...props }: NoticePro
       // 컴포넌트의 유일한 소비자(step-input.tsx)가 이 화면뿐이라 안전하게
       // 반응형 분기를 추가한다.
       className={cn(
-        "flex items-start gap-2.5 rounded-[4px] bg-bora-warn-soft px-3.5 py-[13px] md:items-center",
+        "flex items-start gap-2.5 rounded-[4px] bg-bora-warn-soft px-3.5 py-[11px] md:items-center",
         className
       )}
       {...props}
@@ -34,10 +34,14 @@ export function Notice({ title, icon, children, className, ...props }: NoticePro
       <span aria-hidden="true" className="mt-0.5 shrink-0 text-bora-warn md:mt-0">
         {icon ?? <AlertTriangle className="size-4" />}
       </span>
-      <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:gap-1.5">
-        <p className="text-[12.5px] font-semibold text-nowrap text-bora-warn">{title}</p>
-        <div className="text-meta font-normal text-bora-ink-2">{children}</div>
-      </div>
+      {/* SPEC-B2C-DIAGNOSIS-001 D2(7차) — 제목과 본문은 별도 블록이 아니라
+          한 문단 안에서 이어지는 인라인 흐름이다(디자인은 강조 절 뒤로
+          본문이 같은 줄에서 계속되고 폭이 부족할 때만 줄바꿈된다). 블록
+          분리 구조는 좁은 폭에서 제목이 항상 독립된 줄을 차지해 배너
+          높이가 디자인보다 커졌다. */}
+      <p className="text-meta font-normal text-bora-ink-2">
+        <strong className="text-[12.5px] font-semibold text-bora-warn">{title}</strong> {children}
+      </p>
     </div>
   );
 }

@@ -113,11 +113,17 @@ export function StepQuestions({
     // D2(6차 재작업) — M01-B(Mobile) 내부 간격을 이번에 처음으로 전부
     // 동일 ink-pixel 좌표계로 측정했다(5차는 "미측정"으로 남겨뒀던
     // 부분). 균일 gap-3(12px) 대신 디자인 실측 간격으로 대체한다.
-    <div className="flex w-full max-w-md flex-col gap-0 pt-[19px] md:max-w-[710px] md:pt-[81px]">
+    // D2(7차) — 옵션 행 폭 실측이 디자인 720px, 구현 710px로 10px 좁았다.
+    <div className="flex w-full max-w-md flex-col gap-0 pt-[19px] md:max-w-[720px] md:pt-[81px]">
       {/* D2(second remediation round, design/exports/01-B/M01-B) — "입력
           내용을 확인했어요" 확인 배지. 사용자가 01에서 제출한 입력이
           유효하게 넘어왔음을 알려준다. */}
-      <div className="flex items-center gap-1.5 self-center rounded-full bg-green-50 px-3 py-1.5 text-meta font-medium text-green-700">
+      {/* D2(7차) — design/exports/M01-B는 배지·진행 표시·부제·제목·답변
+          안내·건너뛰기가 전부 좌측 정렬이다(01-B Desktop만 중앙 정렬). */}
+      <div
+        data-testid="diagnosis-confirm-badge"
+        className="flex items-center gap-1.5 self-start rounded-full bg-green-50 px-3.5 py-1.5 text-meta font-medium text-green-700 md:self-center md:px-[19px]"
+      >
         <Check className="size-3.5 shrink-0" aria-hidden="true" />
         입력 내용을 확인했어요
       </div>
@@ -125,9 +131,9 @@ export function StepQuestions({
       <div
         data-testid="diagnosis-question-progress"
         aria-live="polite"
-        className="mt-[7px] flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 md:mt-[18px] md:gap-1.5"
+        className="mt-[16px] flex w-full flex-col gap-1 md:mt-[18px] md:flex-row md:items-center md:justify-center md:gap-3"
       >
-        <div className="flex items-center gap-2">
+        <div data-testid="diagnosis-progress-row" className="flex items-center gap-2">
           <span className="shrink-0 text-body-s font-bold text-bora-accent">
             질문 {questionIndex + 1} / {TOTAL_QUESTIONS}
           </span>
@@ -135,7 +141,13 @@ export function StepQuestions({
               고정 96px보다 훨씬 길게(콘텐츠 폭 대부분) 뻗어 있다.
               Mobile만 넓히고 Desktop은 기존 96px(w-24)을 유지한다
               (Desktop은 별도 편차 보고 없음). */}
-          <div className="h-1.5 w-[180px] shrink-0 rounded-full bg-app-surface-inset md:w-24">
+          {/* D2(7차) — design/exports/M01-B의 진행률 트랙은 고정 폭이 아니라
+              라벨 오른쪽의 남은 폭을 전부 채운다(우측 끝이 콘텐츠 우측
+              경계와 일치). Desktop은 중앙 정렬된 짧은 트랙을 유지한다. */}
+          <div
+            data-testid="diagnosis-progress-track"
+            className="h-1.5 w-[210px] shrink-0 rounded-full bg-app-surface-inset md:w-[129px]"
+          >
             <div
               className="h-full rounded-full bg-bora-accent transition-[width]"
               style={{ width: `${progressPercent}%` }}
@@ -143,16 +155,22 @@ export function StepQuestions({
           </div>
         </div>
         {!isLastQuestion && upcomingLabel ? (
-          <span className="text-meta text-bora-ink-4 sm:ml-auto">다음 질문 · {upcomingLabel}</span>
+          <span data-testid="diagnosis-question-upcoming" className="text-meta text-bora-ink-4">
+            다음 질문 · {upcomingLabel}
+          </span>
         ) : null}
       </div>
 
-      <p className="mt-[11px] text-center text-body-s text-bora-ink-3 md:mt-[12px]">
+      <p
+        data-testid="diagnosis-question-subtitle"
+        className="mt-[11px] text-left text-[13.5px] text-bora-ink-3 md:mt-[12px] md:text-center md:text-[15px]"
+      >
         정확한 확인을 위해 3가지만 여쭤볼게요
       </p>
 
       <h1
         ref={headingRef}
+        data-testid="diagnosis-question-title"
         tabIndex={-1}
         // D2(3차 원격 결함 재작업) — design/exports 제목이 text-h2(19px)보다
         // 뚜렷이 크다(01 입력 화면의 h1과 동일한 text-h1/26px 위계 재사용 —
@@ -161,7 +179,7 @@ export function StepQuestions({
         // 줄바꿈된다("무릎 골절로 수술을" / "받으셨나요?") — Mobile 폭
         // 제한으로 줄바꿈 지점을 재현한다(질문마다 문구 길이가 달라
         // 다른 질문은 줄바꿈 지점이 다를 수 있음 — 잔여 위험).
-        className="mt-[5px] max-w-[230px] text-h1 font-bold text-bora-ink outline-none md:mt-[8px] md:max-w-none"
+        className="mt-[5px] max-w-[190px] text-[24.2px] font-bold text-bora-ink outline-none md:mt-[8px] md:max-w-none md:text-center md:text-[30px]"
       >
         {question.text}
       </h1>
@@ -174,17 +192,22 @@ export function StepQuestions({
       <div
         role="radiogroup"
         aria-label={question.text}
-        className="mt-[15px] flex flex-col gap-3 md:mt-[38px]"
+        className="mt-[19px] flex flex-col gap-[9px] md:mt-[29px] md:gap-[11px]"
       >
-        {question.options.map((option) => (
+        {question.options.map((option, optionIndex) => (
           <label
             key={option}
-            // D2(4차 재작업) — 01-B 옵션 행 높이 실측 54px(Desktop)/
-            // 51px(Mobile). 이전 라운드의 md:px-6 md:py-6는 실측보다
-            // 과도하게 커서(약 68px+) px-5 py-4로 되돌린다 — 두 폭이
-            // 서로 크게 다르지 않으므로 반응형 분기를 없애고 공통값을 쓴다.
+            data-testid={`diagnosis-option-${optionIndex}`}
+            // D2(7차) — 옵션 행 높이를 디자인 실측값에 정확히 맞춘다.
+            // Desktop: 테두리 2 + line-height 24(text-base) + padding 28
+            //          = 54px(디자인 실측), 행 간격 11px → pitch 65px.
+            // Mobile:  테두리 2 + line-height 20(text-sm) + padding 26
+            //          = 48px, 행 간격 13px → pitch 61px(디자인 실측).
+            // 6차까지는 py-4(행 57px)로 4행 누적 편차가 하단 요소까지
+            // 밀어냈다. 54px는 44px 최소 터치 타깃보다 크므로 접근성과
+            // 상충하지 않는다.
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-4 text-sm text-bora-ink md:text-base",
+              "flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-app-line px-5 py-[15px] text-sm text-bora-ink md:py-[14px] md:text-base",
               "has-[:checked]:border-bora-accent"
             )}
           >
@@ -201,16 +224,30 @@ export function StepQuestions({
         ))}
       </div>
 
-      <p className="mt-[22px] text-center text-meta text-bora-ink-4 md:mt-[22px]">
-        이 답변은 수술비ㆍ후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고,
+      {/* D2(7차) — design/exports/M01-B의 답변 안내는 Desktop(01-B)보다
+          짧은 2줄이다. 같은 문구를 좁은 폭에 넣으면 3줄이 되어 건너뛰기
+          링크가 아래로 밀린다. */}
+      <p
+        data-testid="diagnosis-answer-guide"
+        className="mt-[22px] text-left text-meta text-bora-ink-4 md:hidden"
+      >
+        이 답변은 수술비 · 후유장해 담보 검토에 사용되며, 결과 화면의 「추가 질문 답변」에
+        그대로 표시됩니다.
+      </p>
+      <p
+        data-testid="diagnosis-answer-guide"
+        className="hidden text-center text-[12.35px] text-bora-ink-4 md:mt-[19px] md:block"
+      >
+        이 답변은 수술비 · 후유장해 담보 검토에 사용됩니다. 한 번에 하나씩만 여쭤보고,
         답변하신 내용은 결과 화면의 「추가 질문 답변」에 그대로 표시됩니다.
       </p>
 
       {questionIndex === 0 ? (
         <button
           type="button"
+          data-testid="diagnosis-skip-link"
           onClick={onSkip}
-          className="mt-[21px] text-center text-sm font-medium text-bora-accent underline-offset-4 hover:underline md:mt-[9px]"
+          className="mt-[14px] self-start text-sm font-medium text-bora-accent underline-offset-4 hover:underline md:mt-[36px] md:self-center"
         >
           건너뛰고 결과 보기
         </button>
