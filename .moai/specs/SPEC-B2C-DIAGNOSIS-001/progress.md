@@ -991,7 +991,151 @@ diff이며, 위 표의 수치는 그 `measurements.json`에서 나온다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+### Claim
+
+sync-phase 문서 동기화(CHANGELOG · README) + frontmatter 상태 정정 + MX 태그
+검증 패스를 수행했다. 구현 코드 · 테스트 · 시각 검증 도구는 일절 수정하지
+않았다(sync-phase는 문서 전용).
+
+### Evidence — 이 세션에서 직접 재실행한 검증 4건
+
+run-phase 기록(§E.2/§E.3)의 수치를 그대로 신뢰하지 않고 다시 실행했다.
+
+| 명령 | exit | 관측 출력 |
+|---|---|---|
+| `pnpm test` | 0 | `Test Files 53 passed (53)` / `Tests 394 passed (394)` |
+| `pnpm lint` | 0 | `$ eslint .` 외 출력 없음 |
+| `pnpm exec tsc --noEmit` | 0 | 출력 없음 |
+| `pnpm format:check` | **1** | `Code style issues found in 17 files.` — 아래 별도 절 참고 |
+
+원본 로그: `.moai/state/verify/b2c-diagnosis-sync/{1-test,2-lint,3-tsc}.log`
+(로컬 전용 · `.gitignore` 대상). 앞 세 수치는 D2 9차 기록(394/394, 무출력,
+무출력)과 일치했다 — 불일치 0건. 네 번째(`format:check`)는 run-phase가 한
+번도 실행하지 않은 게이트라 대조할 기록 자체가 없었고, 실행하자 실패했다.
+
+### Baseline-attribution
+
+- 측정 시점 tree: 브랜치 `plan/SPEC-B2C-DIAGNOSIS-001`, HEAD `44c8f65`,
+  working tree clean (이 sync 커밋 직전)
+- 대조 기준: §E.3 "D2 9차" 항목의 `run_status: audit-ready`
+  (`run_complete_at: 2026-09-21`)
+
+### 수행한 변경
+
+| 항목 | 내용 |
+|---|---|
+| `CHANGELOG.md` | `[Unreleased]` 최상단에 `### Added — SPEC-B2C-DIAGNOSIS-001` 항목 신규 추가. 사전 `grep -c 'SPEC-B2C-DIAGNOSIS-001' CHANGELOG.md` = **0**(중복 없음, 신규 emission 확정). 본문에 인용한 파일 경로 14건 전부 `ls` 존재 확인. |
+| `README.md` | ① 머리말의 "B2C 01/02/03 화면의 실제 구현은 아직 없습니다" 단정 정정(01은 플래그 뒤 구현됨), ② "현재 구현 상태"에 `### B2C 방향 (현행)` 절 신설 + 기존 B2B 서술을 `### B2B 버전 개발 기록`으로 분리, ③ E2E 절의 "`e2e/`에는 테스트가 0개" 정정(16건 존재), ④ 스크립트 표에 `pnpm visual:verify` 추가, ⑤ SPEC 완료 개수 정정(실측 17개 완료). |
+| `spec.md` frontmatter | `status: draft` → `implemented`, `updated: 2026-09-18` → `2026-09-21`. 본문(§HISTORY 포함) 무변경. |
+
+**frontmatter 이력 주의**: 이 SPEC은 run-phase 전체가 완료됐음에도
+`status: draft`로 남아 있었다 — manager-develop이 소유하는
+`draft → in-progress` 전환(`spec-frontmatter-schema.md` § Status Transition
+Ownership Matrix)이 M1 최초 커밋에서 누락됐고 이후 라운드에서도 보정되지
+않았다. 이번 sync에서 `implemented`로 직접 정정했으므로, git 이력상
+`in-progress` 상태를 거친 커밋은 존재하지 않는다. 이 사실을 은폐하지 않고
+여기에 기록한다.
+
+### MX 태그 검증 결과 — 갭 발견, 이번 커밋에서 수정하지 않음
+
+`@MX:` 스캔 결과 이 SPEC이 추가한 구현 파일 15개 중 태그가 있는 파일은
+`components/diagnosis/step-loading.tsx` 1개뿐이다(`@MX:DEBT` +
+`@MX:CEILING` + `@MX:UPGRADE` 3줄 — 담보 매칭 엔진 미연결 경계를 명시).
+
+`moai-constitution.md` § MX Tag Quality Gates 기준으로 다음 4건이 누락
+후보다:
+
+| 파일 | 누락 후보 | 근거 |
+|---|---|---|
+| `app/page.tsx` | `@MX:ANCHOR` + `@MX:WARN` | `shouldRenderDiagnosis = productionReady \|\| reviewEnabled` 는 이 SPEC 전체의 프로덕션 안전 불변식이다. 플래그 오설정이 곧 mock 결과 노출이므로 danger zone에 해당한다. |
+| `components/diagnosis/diagnosis-flow.tsx` | `@MX:ANCHOR` + `@MX:WARN` | 7개 step 컴포넌트를 소비하는 상태 머신(fan_in ≥ 3). `?step=` 동기화의 `VALID_STEPS` 가드와 `skipNextPushRef` 루프 방지는 외부 리뷰가 실제로 지적했던 D1 결함(히스토리 desync)의 수정 지점이다. |
+| `lib/validation/diagnosis-input.ts` | `@MX:ANCHOR` | PII 2단계 차단(전화번호·주민등록번호 자동 차단 / 이름 등 안내)은 보안 경계 계약이다. |
+| `components/diagnosis/use-media-query.ts` | `@MX:NOTE` | 768px 분기가 Modal/Bottom Sheet 선택을 결정하는 유일한 지점이다. |
+
+**이번 커밋에서 태그를 추가하지 않은 이유**: sync-phase 위임 제약이 "구현
+코드·테스트·시각 검증 도구를 수정하지 말 것"을 명시했다. 주석 추가는 동작을
+바꾸지 않지만 §E.2가 기록한 범위 확인 근거(예: "공유 프리미티브 무변경 —
+diff 0줄", "변경 파일은 8개뿐")를 무효화하고, PR 직전에 미검토 편집을 구현
+파일 4개에 유입시킨다. 검증(validate)은 위임 범위 안이고 구현 파일 편집은
+범위 밖이므로, 갭을 여기에 기록하고 오케스트레이터에 보고하는 것으로
+갈음한다 — 후속 처리는 별도 판단이 필요하다.
+
+### `pnpm format:check` 미통과 — 이 브랜치가 유발한 미수정 결함 14건
+
+sync-phase에서 네 번째 검증으로 `pnpm format:check`를 돌린 결과 **exit 1**,
+17개 파일이 Prettier 스타일을 위반한다. 그중 **14건이 이 브랜치가 새로
+추가한 파일**이다(나머지 3건 `db/migrations/meta/_journal.json`,
+`db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`는
+`main`에도 존재하는 기존 결함).
+
+브랜치 유발 14건:
+`app/page.test.tsx`, `components/diagnosis/diagnosis-flow.tsx`,
+`diagnosis-flow.test.tsx`, `diagnosis-footer.tsx`, `step-consent-modal.tsx`,
+`step-consent-sheet.tsx`, `step-loading.tsx`, `step-loading.test.tsx`,
+`step-questions.tsx`, `step-questions.test.tsx`, `components/ui/dialog.tsx`,
+`components/ui/drawer.tsx`, `e2e/diagnosis-flow-01.spec.ts`,
+`scripts/visual-verify.ts`.
+
+**이 결함이 여태 드러나지 않은 이유**: §E.2/§E.3의 run-phase 자기검증이
+`pnpm test`·`tsc --noEmit`·`eslint`·`next build`·`visual:verify`는 매 라운드
+실행했지만 `pnpm format:check`는 한 번도 실행하지 않았다. 9차에 걸친 하드닝
+내내 이 게이트가 관측 대상 밖에 있었다.
+
+**이번 커밋에서 수정하지 않았다.** `pnpm format --write`는 구현 파일 14개를
+재작성하므로 위임 제약("구현 코드·테스트·시각 검증 도구 수정 금지")에
+정면으로 걸린다. sync-phase가 단독으로 판단할 사안이 아니라 PR 전에
+오케스트레이터 결정이 필요한 항목이라 보고 대상으로 올린다.
+
+참고로 이 sync가 수정한 4개 문서(`CHANGELOG.md`, `README.md`, `spec.md`,
+`progress.md`)는 전부 `prettier --check` 통과를 확인했다 — 신규 포맷 부채를
+추가하지는 않았다(README 표 열 너비는 `prettier --write README.md`로 해당
+파일만 정렬).
+
+### Gaps (이번 sync에서 검증하지 않은 것)
+
+- **Playwright · `next build` · `pnpm visual:verify`를 이 세션에서 재실행하지
+  않았다.** 16/16, 빌드 2종 exit 0, 10/10 화면 exit 0 수치는 §E.2/§E.3의
+  run-phase 기록을 인용한 것이며 sync-phase 직접 관측이 아니다. 인용임을
+  CHANGELOG 본문에도 "run-phase 기록 기준"으로 명시했다.
+- **커버리지 실측치는 이번에도 없다** — `@vitest/coverage-v8`가 이 OS 조합에서
+  0/0을 산출하는 기존 환경 결함(M9 이래 동일 계열)이 해소되지 않았다.
+- **`.moai/project/` 문서(product/structure/tech.md)는 갱신하지 않았다.**
+  위임 범위가 CHANGELOG · README로 한정됐다.
+- **README의 잔존 `pnpm tester:add` 참조 3건**(라인 54·60·95) 중 라인 95는
+  과거 기록이 아니라 현행 설치 절차 안에 있어 오해 소지가 있다. 이는
+  SPEC-B2C-FOUNDATION-001이 해당 스크립트를 제거할 때 남은 기존 결함이며 이
+  SPEC이 유발한 것이 아니므로 건드리지 않았다(스크립트 표의 행은 같은 표를
+  편집하는 김에 제거했다). 보고 대상으로 남긴다.
+
+### Residual risk
+
+- `status: implemented`는 **병합 전** 상태다. Route B(Tier L) 기준 close
+  트리거는 sync PR의 main 병합이므로, `completed` 전환은 병합 이후 별도로
+  수행해야 한다. 지금 `completed`로 두면 병합되지 않은 SPEC이 종결된 것으로
+  보인다.
+- `sync_commit_sha`는 커밋이 자기 해시를 알 수 없는 구조적 제약 때문에 이
+  커밋에서 placeholder로 두고 후속 커밋에서 backfill한다
+  (`spec-frontmatter-schema.md` § SHA placeholder backfill exemption).
+
+- sync_status: audit-ready
+- sync_complete_at: 2026-09-21
+- sync_commit_sha: pending-backfill-sync
+- changelog_entry_position: `CHANGELOG.md` `[Unreleased]` 최상단
+  (`### Added — SPEC-B2C-DIAGNOSIS-001`)
+- b12_self_test_a (사전 중복 grep): PASS — `grep -c` = 0, 중복 없음
+- b12_self_test_b (AC 개수 일치): PASS — `acceptance.md`의 정식 AC 식별자는
+  `AC-B2CDIAG-001`~`025` **25건**(Tier L 상한 25와 일치)이며 CHANGELOG에
+  "AC-B2CDIAG-001~025 25/25"로 동일하게 인용했다. 정규식 전수 추출은 35건을
+  반환하지만 그 차 10건(`AC-001`·`AC-013`·`AC-015`·`AC-016`·`AC-019`·
+  `AC-021`~`025`)은 본문 산문에서 쓰인 축약 상호참조이지 별도 AC가 아니다 —
+  0건이 아니므로 vacuous PASS가 아니다.
+- b12_self_test_c (파일 경로 실재): PASS — CHANGELOG가 인용한 경로 14건 전부
+  `ls` 존재 확인(MISS 0건)
+- frontmatter_status_transitions: `spec.md` `draft → implemented`
+  (`in-progress` 경유 커밋 없음 — 위 "frontmatter 이력 주의" 참고).
+  `plan.md`/`acceptance.md`/`design.md`/`research.md`/`progress.md`는
+  frontmatter 블록 자체가 없어 전환 대상이 아니다.
+- mx_validation: GAP — 4건 누락 후보 식별, 위임 제약에 따라 미적용(위 참고)
 
 ## §G Plan-Auditor Iteration Log
 
