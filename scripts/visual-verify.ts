@@ -664,10 +664,12 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "안내 배너(2줄)",
         locate: (p) => vis(p,"diagnosis-notice"),
         designTopHint: 462,
-        // D2(9차) — 8차까지 이 요소는 줄 "수"조차 검사하지 않았다(8차
-        // comparison.md §7은 "줄 수만 검증"으로 적었으나 실제 설정에는
-        // expectLines 자체가 없었다). design/exports/M01-A2에서 읽은 실제
-        // 줄 구성으로 지점까지 고정한다.
+        // D2(9차) — 8차까지 이 요소에는 expectLines도 expectLineTexts도
+        // 없었다(8차 comparison.md §7은 "줄 수만 검증"으로 적었으나 실제
+        // 설정에는 둘 다 없었다). 검증기가 실제 줄 수를 출력에 기록하긴
+        // 했지만 판정에 쓰이는 값은 아니었다. 9차에 두 게이트를 함께 넣어
+        // design/exports/M01-질문-입력에서 읽은 실제 줄 구성으로 지점까지
+        // 고정한다.
         // mergeBands는 두지 않는다 — 이 배너의 두 줄은 줄 간격이 좁아
         // 디자인 쪽에서 이미 한 밴드로 잡힌다(2를 주면 아래 시계 행까지
         // 끌어와 높이가 84로 부풀었다). 줄 검사는 DOM 기반이라 밴드 병합과
@@ -734,7 +736,10 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "설명(2줄)",
         locate: (p) => vis(p,"diagnosis-consent-description"),
         designTopHint: 889,
-        // D2(9차) — 8차는 줄 수만 검사했다. design/exports/M01-A2의 실제
+        // D2(9차) — 8차까지 이 요소에도 expectLines도 expectLineTexts도
+        // 없었다. 줄 수는 출력에 기록만 됐을 뿐 판정에 쓰이지 않았고,
+        // 9차에 두 게이트를 함께 넣자마자 한 글자 어긋남이 드러났다.
+        // design/exports/M01-A2의 실제
         // 줄바꿈은 "…처리됩니" / "다."로, 어절이 아니라 글자 단위에서
         // 끊긴다(한글 CSS 기본 동작). 제목(break-keep)과 달리 이 문단은
         // 디자인 자체가 글자 단위로 끊으므로 그대로 고정한다.
