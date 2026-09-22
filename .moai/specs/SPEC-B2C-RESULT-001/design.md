@@ -102,6 +102,10 @@ export type BenefitDisplay =
   | { kind: "formula"; label: string; displayText: string }
   | { kind: "conditional"; label: string; displayText: string }
   | { kind: "unavailable"; label: string; displayText: string };
+// 런타임 파싱은 `lib/validation/diagnosis-result.ts`의 `BenefitDisplaySchema`
+// (`z.discriminatedUnion("kind", [...])`, kind별 5개 zod object 분기)가 맡는다
+// — AC-B2CRESULT-006 추가 시나리오("kind: range인데 min/max 없음"을
+// `safeParse`가 거부)가 검증하는 스키마가 바로 이것이다(run-phase가 작성).
 
 // CoverageItem은 status로 판별되는 discriminated union이다 — REQ-B2CRESULT-005가
 // 요구하는 "가능성 낮음은 reasonNote 필수"를 타입 체크 시점에 강제하기 위해,
