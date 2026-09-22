@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
 
 // SPEC-B2C-DIAGNOSIS-001 M6 (design.md §11, §18.1 loading 상태;
 // acceptance.md AC-B2CDIAG-009) — 01-C/M01-C 진단 중 화면. 순차 진행 단계를
@@ -33,24 +34,53 @@ const STAGE_DELAY_MS = 200;
 // app/page.tsx의 마운트 게이트(productionReady || reviewEnabled)가 프로덕션
 // 기본 조합에서 <DiagnosisFlow />를 렌더링하지 않으므로, 실제 프로덕션
 // 사용자는 정상 사용자 플로우로 이 분기에 도달할 수 없다.
-// @MX:CEILING: "결과 있음"(02 화면)으로의 분기는 구현하지 않는다 —
-// result-none/error 두 갈래만 존재한다.
+// @MX:CEILING: reviewEnabled=false(프로덕션 기본값)에서는 여전히
+// result-none/error 두 갈래만 도달 가능하다 — SPEC-B2C-RESULT-001 M2가
+// 추가한 "result" 분기는 reviewEnabled=true이고 입력이 FRACTURE_FIXTURE_INPUT
+// 과 정확히 일치할 때만 트리거되는 review 전용 fixture이며, 실제 담보 매칭
+// 결과가 아니다(REQ-B2CRESULT-009).
 // @MX:UPGRADE: 실제 담보 매칭 엔진이 연결되어 DIAGNOSIS_ENGINE_READY=true로
 // 전환되는 후속 SPEC에서 이 함수 전체를 실제 분석 API 호출로 교체한다.
-export function mockJudge(input: string): "result-none" | "error" {
+//
+// SPEC-B2C-RESULT-001 M2 (design.md §4, REQ-B2CRESULT-009/010/011) —
+// reviewEnabled는 명시적 boolean 게이트다: <DiagnosisFlow />가 마운트되었다는
+// 사실(productionReady || reviewEnabled)만으로는 fixture를 허용하지 않고,
+// 이 함수(또는 그 호출부)가 reviewEnabled 값을 직접 전달받아 판정한다 —
+// productionReady=true AND reviewEnabled=false 조합에서도 이 boolean 게이트가
+// fixture 분기 실행을 독립적으로 차단한다(defense-in-depth). 판정 순서:
+// ① reviewEnabled && 정확 일치 → "result", ② "오류" 포함 → "error",
+// ③ 그 외 → "result-none"(기존 두 갈래 동작은 reviewEnabled 값과 무관하게
+// 그대로 유지된다, REQ-B2CRESULT-011).
+export function mockJudge(
+  input: string,
+  reviewEnabled: boolean
+): "result-none" | "error" | "result" {
+  if (reviewEnabled && input === FRACTURE_FIXTURE_INPUT) {
+    return "result";
+  }
   return input.includes("오류") ? "error" : "result-none";
 }
 
 interface StepLoadingProps {
   input: string;
-  onDone: (step: "result-none" | "error") => void;
+  onDone: (step: "result-none" | "error" | "result") => void;
   // design.md §10 — ?devStage=로 전달되는 개발·리뷰 전용 단계 고정값.
   // 지정되면 자동 진행 타이머를 돌리지 않고 그 단계에서 멈춘다(시각 검증
   // 스크립트가 디자인과 같은 단계 상태를 결정론적으로 캡처하기 위함).
   pinnedStage?: number;
+  // SPEC-B2C-RESULT-001 M2 (design.md §4) — DiagnosisFlow가 이미 prop으로
+  // 받는 enableDevStates를 그대로 전달(prop drilling)한 값이다. StepLoading은
+  // process.env를 직접 읽거나 다른 상태로부터 이 값을 추론하지 않는다.
+  // 미전달 시 false로 안전하게 저하된다(REQ-B2CRESULT-009 defense-in-depth).
+  reviewEnabled?: boolean;
 }
 
-export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
+export function StepLoading({
+  input,
+  onDone,
+  pinnedStage,
+  reviewEnabled = false,
+}: StepLoadingProps) {
   const [autoStageIndex, setAutoStageIndex] = React.useState(0);
   const stageIndex = pinnedStage ?? autoStageIndex;
   const onDoneRef = React.useRef(onDone);
@@ -70,13 +100,13 @@ export function StepLoading({ input, onDone, pinnedStage }: StepLoadingProps) {
     const isLastStage = autoStageIndex >= STAGES.length - 1;
     const timer = setTimeout(() => {
       if (isLastStage) {
-        onDoneRef.current(mockJudge(input));
+        onDoneRef.current(mockJudge(input, reviewEnabled));
       } else {
         setAutoStageIndex((current) => current + 1);
       }
     }, STAGE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [autoStageIndex, input, pinnedStage]);
+  }, [autoStageIndex, input, pinnedStage, reviewEnabled]);
 
   return (
     <div

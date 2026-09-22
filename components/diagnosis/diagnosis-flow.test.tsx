@@ -2,6 +2,12 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// SPEC-B2C-RESULT-001 M2 (design.md §3/§4, REQ-B2CRESULT-009/010/016(a)) —
+// 골절 fixture handoff 인계 + defense-in-depth 게이트 + 새 진단 시작 시
+// clearDiagnosisHandoff() 검증에 사용.
+import { readDiagnosisHandoff, writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
+import { FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
+import { DIAGNOSIS_SCHEMA_VERSION, type DiagnosisResult } from "@/lib/diagnosis/types";
 
 // SPEC-B2C-DIAGNOSIS-001 M2 (design.md §2, §5, §10) — DiagnosisFlow는
 // "use client" 상태 머신 오너다. useSearchParams()에 의존하므로
@@ -1048,5 +1054,120 @@ describe("components/diagnosis/DiagnosisFlow — ?devStage= 단계 고정 계약
     expect(
       container.querySelector('[data-testid="diagnosis-flow"]')?.getAttribute("data-step")
     ).toBe("result-none");
+  });
+});
+
+// SPEC-B2C-RESULT-001 M2 (design.md §3/§4, REQ-B2CRESULT-009/010/016(a)) —
+// 골절 fixture 정확 일치 입력이 handoff에 기록되고 /result로 이동하는지,
+// reviewEnabled=false에서 defense-in-depth 게이트가 차단하는지, 새 진단
+// 제출 시 이전 handoff가 clearDiagnosisHandoff로 제거되는지 검증한다.
+describe("components/diagnosis/DiagnosisFlow — M2 골절 fixture 인계(REQ-B2CRESULT-009/010/016(a))", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    searchParamsMock.current = new URLSearchParams();
+    window.sessionStorage.clear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    window.sessionStorage.clear();
+  });
+
+  function findButton(text: string): HTMLButtonElement {
+    const button = Array.from(document.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes(text)
+    );
+    if (!button) {
+      throw new Error(`button with text "${text}" not found`);
+    }
+    return button;
+  }
+
+  async function reachLoadingWith(searchText: string, enableDevStates: boolean) {
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={enableDevStates} />);
+    });
+
+    act(() => {
+      fillSearchTextbox(container, searchText);
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+    act(() => {
+      (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      findButton("동의하고 진단하기").click();
+    });
+    act(() => {
+      findButton("건너뛰고 결과 보기").click();
+    });
+  }
+
+  it("enableDevStates=true이고 골절 fixture 입력과 정확히 일치하면 handoff를 기록하고 /result로 이동한다", async () => {
+    await reachLoadingWith(FRACTURE_FIXTURE_INPUT, true);
+
+    await waitInTicks(1200);
+
+    expect(routerMock.push).toHaveBeenCalledWith("/result");
+    const read = readDiagnosisHandoff();
+    expect(read.status).toBe("valid");
+    expect(read.status === "valid" && read.result.rawInput).toBe(FRACTURE_FIXTURE_INPUT);
+  });
+
+  it("enableDevStates=false이면 골절 fixture 입력과 정확히 일치해도 result-none으로 판정하고 /result로 이동하지 않는다(defense-in-depth)", async () => {
+    await reachLoadingWith(FRACTURE_FIXTURE_INPUT, false);
+
+    await waitInTicks(1200);
+
+    const flow = container.querySelector('[data-testid="diagnosis-flow"]');
+    expect(flow?.getAttribute("data-step")).toBe("result-none");
+    expect(routerMock.push).not.toHaveBeenCalledWith("/result");
+    expect(readDiagnosisHandoff()).toEqual({ status: "empty" });
+  });
+
+  it("새 입력을 제출하면(새 진단 시작) 이전 handoff가 clearDiagnosisHandoff로 제거된다(REQ-B2CRESULT-016(a))", async () => {
+    const staleResult: DiagnosisResult = {
+      resultId: "stale-result",
+      schemaVersion: DIAGNOSIS_SCHEMA_VERSION,
+      rawInput: "이전 세션의 진단 입력",
+      answers: {},
+      inputSummary: {
+        title: "이전 진단",
+        when: { label: "언제", value: "어제" },
+        where: { label: "어디서", value: "집" },
+        mechanism: { label: "어떻게", value: "넘어짐" },
+        bodyPart: { label: "어디를", value: "발목" },
+      },
+      priorityChecks: [],
+      items: [],
+      generatedAt: "2026-09-21T00:00:00Z",
+    };
+    writeDiagnosisHandoff(staleResult);
+    expect(readDiagnosisHandoff().status).toBe("valid");
+
+    const { DiagnosisFlow } = await import("./diagnosis-flow");
+    act(() => {
+      root.render(<DiagnosisFlow enableDevStates={false} />);
+    });
+
+    act(() => {
+      fillSearchTextbox(container, "계단에서 넘어져 발목을 다쳤어요");
+    });
+    act(() => {
+      findCtaButton(container).click();
+    });
+
+    expect(readDiagnosisHandoff()).toEqual({ status: "empty" });
   });
 });

@@ -13,6 +13,8 @@ import { StepError } from "./step-error";
 import { DiagnosisHeader } from "./diagnosis-header";
 import { DiagnosisFooter } from "./diagnosis-footer";
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
+import { clearDiagnosisHandoff, writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
+import { buildFractureResult } from "@/lib/diagnosis/fixtures/fracture-case";
 
 // SPEC-B2C-DIAGNOSIS-001 M2 (design.md §0, §2, §5, §10) — 01/01-A2/01-B/01-C/
 // 01-D/01-E 6단계 상태 머신의 오너. useSearchParams()를 호출하므로 이
@@ -421,7 +423,13 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           <StepInput
             value={state.input}
             onChange={(value) => dispatch({ type: "SET_INPUT", payload: value })}
-            onValidSubmit={() => dispatch({ type: "SUBMIT_INPUT" })}
+            onValidSubmit={() => {
+              // SPEC-B2C-RESULT-001 M2 (design.md §3/§4, REQ-B2CRESULT-016(a))
+              // — "새 진단 시작" 트리거: 새 입력을 제출해 새로운 loading
+              // 사이클이 시작되는 시점에 이전 세션의 handoff를 제거한다.
+              clearDiagnosisHandoff();
+              dispatch({ type: "SUBMIT_INPUT" });
+            }}
             autoFocus={state.step === "input"}
           />
         ) : backgroundStep === "questions" ? (
@@ -439,7 +447,21 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
           <StepLoading
             input={state.input}
             pinnedStage={pinnedStage}
-            onDone={(step) => dispatch({ type: "FORCE_STEP", payload: step })}
+            reviewEnabled={enableDevStates}
+            onDone={(step) => {
+              if (step === "result") {
+                // SPEC-B2C-RESULT-001 M2 (design.md §4, REQ-B2CRESULT-010) —
+                // "결과 있음"은 6단계 상태 머신의 값이 아니라 사이드 이펙트다:
+                // 완전한 DiagnosisResult를 구성해 handoff에 기록하고 /result로
+                // 이동한다. FORCE_STEP dispatch(state.step 전이)는 사용하지
+                // 않는다 — DiagnosisStep 유니언에 "result"를 추가하지 않는다.
+                const result = buildFractureResult(state.input, state.answers);
+                writeDiagnosisHandoff(result);
+                router.push("/result");
+                return;
+              }
+              dispatch({ type: "FORCE_STEP", payload: step });
+            }}
           />
         ) : backgroundStep === "result-none" ? (
           <StepResultNone onEditInput={() => dispatch({ type: "FORCE_STEP", payload: "input" })} />
