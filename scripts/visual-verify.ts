@@ -275,6 +275,62 @@ async function gotoResultFixtureTab(page: Page, baseURL: string, category: strin
   await page.getByTestId(`coverage-section-${category}`).waitFor();
 }
 
+// SPEC-B2C-RESULT-001 D3(리뷰) — 02/M02 계열 5화면은 상단 3~4개 레이아웃
+// 요소만 픽셀 비교하고 semanticChecks가 하나도 없어서, 하단 위젯(가입 세대
+// 선택·면책 문구·푸터·최종 CTA)이 통째로 사라져도 통과했다. 아래 헬퍼는
+// 모두 "존재/부재"만 판정하며, semanticChecks의 판정식이 `expected ===
+// actual`(문자열 등가)이므로 boolean·개수 모두 문자열로 변환해 반환한다.
+
+/** data-testid 요소가 페이지 안에 하나 이상 있는지 "true"/"false"로 반환한다. */
+async function testIdExists(page: Page, testId: string): Promise<string> {
+  return String((await page.locator(`[data-testid="${testId}"]`).count()) > 0);
+}
+
+/** parentTestId 요소 안에 data-testid가 childPrefix로 시작하는 자손이 하나 이상 있는지 반환한다. */
+async function descendantWithPrefixExists(
+  page: Page,
+  parentTestId: string,
+  childPrefix: string
+): Promise<string> {
+  return String(
+    (
+      await page
+        .locator(`[data-testid="${parentTestId}"] [data-testid^="${childPrefix}"]`)
+        .count()
+    ) > 0
+  );
+}
+
+/**
+ * 현재 DOM에 마운트된 카테고리 섹션(coverage-section-*) 개수. Mobile은
+ * activeCategory 하나만 렌더링하므로(result-view.tsx), 값이 1이면 비활성
+ * 탭의 섹션이 숨겨진 채 남아있는 게 아니라 DOM에서 아예 빠졌다는 뜻이다.
+ *
+ * [HARD] `<section>` 태그로 스코프를 좁힌다 — `coverage-category-section.tsx`
+ * 는 같은 접두어를 공유하는 `<p data-testid="coverage-section-description-
+ * ${category}">`도 렌더링하므로, 태그 없이 `[data-testid^="coverage-section-"]`
+ * 만 쓰면 섹션 1개당 2개(섹션 자체 + 그 설명 문단)로 이중 계산돼 "비활성
+ * 탭이 제거됐다"는 이 체크의 목적과 무관한 오탐(실측: count=2)이 난다.
+ */
+async function coverageSectionCount(page: Page): Promise<string> {
+  return String(await page.locator('section[data-testid^="coverage-section-"]').count());
+}
+
+/** 카테고리 탭의 aria-selected 값("true"/"false"). 탭이 없으면 "missing". */
+async function tabAriaSelected(page: Page, category: string): Promise<string> {
+  return (
+    (await page.locator(`[data-testid="category-tab-${category}"]`).getAttribute("aria-selected")) ??
+    "missing"
+  );
+}
+
+/** 하단 고정 CTA 바(result-cta-final)의 계산된 CSS position 값. 없으면 "missing". */
+async function finalCtaPosition(page: Page): Promise<string> {
+  const locator = page.locator('[data-testid="result-cta-final"]');
+  if ((await locator.count()) === 0) return "missing";
+  return locator.first().evaluate((el) => window.getComputedStyle(el).position);
+}
+
 // ── 15개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
 // 기존 10개(SPEC-B2C-DIAGNOSIS-001) + SPEC-B2C-RESULT-001 M6이 추가하는
 // 5개(02/M02/M02-B/M02-C/M02-D) — 기존 10개 항목은 절대 수정하지 않는다
@@ -1001,6 +1057,76 @@ const SCREENS: readonly ScreenSpec[] = [
         designTopHint: 578,
       },
     ],
+    // SPEC-B2C-RESULT-001 D3(리뷰) — 상단 3요소만 좌표 비교하던 이 화면에
+    // 하단 위젯(가입 세대 선택·면책 문구·후유장해 중간 CTA·최종 CTA·푸터)과
+    // 4개 카테고리 섹션의 존재를 semanticChecks로 추가한다. "장해 중간 페이지
+    // CTA"는 리뷰가 언급한 항목인데, result-cta-bar.tsx의
+    // ResultDisabilitySectionCta(`data-testid="result-cta-disability"`)로
+    // 실제 존재하며 Desktop은 4카테고리가 전부 펼쳐지므로 항상 렌더링된다
+    // (result-view.tsx category === "disability" 분기) — 존재하는 요소이므로
+    // 여기 포함한다.
+    semanticChecks: async (page) => [
+      {
+        label: "입력 요약 카드 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-summary"),
+      },
+      {
+        label: "집계 배너 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-aggregate-banner"),
+      },
+      {
+        label: "먼저 확인할 항목 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-priority-checklist"),
+      },
+      {
+        label: "실손 의료비 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-reimbursement"),
+      },
+      {
+        label: "정액 담보 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-fixed"),
+      },
+      {
+        label: "후유장해 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-disability"),
+      },
+      {
+        label: "특별 보상 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-special"),
+      },
+      {
+        label: "실손 가입 세대 선택 위젯 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-generation-selector"),
+      },
+      {
+        label: "면책 문구 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-disclaimer"),
+      },
+      {
+        label: "후유장해 섹션 중간 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-disability"),
+      },
+      {
+        label: "최종 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-final"),
+      },
+      {
+        label: "푸터 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-footer"),
+      },
+    ],
   },
   {
     id: "M02",
@@ -1048,6 +1174,57 @@ const SCREENS: readonly ScreenSpec[] = [
         designTopHint: 923,
       },
     ],
+    // SPEC-B2C-RESULT-001 D3(리뷰) — Mobile 기본 탭(실손 의료비): 탭 활성
+    // 상태 + 담보 카드 마운트 + 비활성 탭 미마운트(coverageSectionCount===1,
+    // result-view.tsx는 activeCategory 하나만 렌더링해 다른 3개 카테고리
+    // 섹션은 숨김이 아니라 DOM에서 아예 빠진다) + 하단 고정 위젯을 검증한다.
+    semanticChecks: async (page) => [
+      {
+        label: "실손 의료비 탭 활성 상태(aria-selected)",
+        expected: "true",
+        actual: await tabAriaSelected(page, "reimbursement"),
+      },
+      {
+        label: "실손 의료비 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-reimbursement"),
+      },
+      {
+        label: "실손 의료비 담보 카드 1개 이상 존재",
+        expected: "true",
+        actual: await descendantWithPrefixExists(page, "coverage-section-reimbursement", "coverage-item-"),
+      },
+      {
+        label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+        expected: "1",
+        actual: await coverageSectionCount(page),
+      },
+      {
+        label: "실손 가입 세대 선택 위젯 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-generation-selector"),
+      },
+      {
+        label: "면책 문구 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-disclaimer"),
+      },
+      {
+        label: "푸터 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-footer"),
+      },
+      {
+        label: "하단 고정 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-final"),
+      },
+      {
+        label: "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+        expected: "sticky",
+        actual: await finalCtaPosition(page),
+      },
+    ],
   },
   {
     id: "M02-B",
@@ -1082,6 +1259,50 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
         designTopHint: 924,
+      },
+    ],
+    // SPEC-B2C-RESULT-001 D3(리뷰) — M02와 동일한 패턴. 정액 담보 탭에는
+    // 실손 전용 위젯(result-generation-selector)이 없으므로 그 항목만 뺀다.
+    semanticChecks: async (page) => [
+      {
+        label: "정액 담보 탭 활성 상태(aria-selected)",
+        expected: "true",
+        actual: await tabAriaSelected(page, "fixed"),
+      },
+      {
+        label: "정액 담보 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-fixed"),
+      },
+      {
+        label: "정액 담보 카드 1개 이상 존재",
+        expected: "true",
+        actual: await descendantWithPrefixExists(page, "coverage-section-fixed", "coverage-item-"),
+      },
+      {
+        label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+        expected: "1",
+        actual: await coverageSectionCount(page),
+      },
+      {
+        label: "면책 문구 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-disclaimer"),
+      },
+      {
+        label: "푸터 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-footer"),
+      },
+      {
+        label: "하단 고정 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-final"),
+      },
+      {
+        label: "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+        expected: "sticky",
+        actual: await finalCtaPosition(page),
       },
     ],
   },
@@ -1120,6 +1341,49 @@ const SCREENS: readonly ScreenSpec[] = [
         designTopHint: 923,
       },
     ],
+    // SPEC-B2C-RESULT-001 D3(리뷰) — M02와 동일한 패턴(실손 전용 위젯 제외).
+    semanticChecks: async (page) => [
+      {
+        label: "후유장해 탭 활성 상태(aria-selected)",
+        expected: "true",
+        actual: await tabAriaSelected(page, "disability"),
+      },
+      {
+        label: "후유장해 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-disability"),
+      },
+      {
+        label: "후유장해 카드 1개 이상 존재",
+        expected: "true",
+        actual: await descendantWithPrefixExists(page, "coverage-section-disability", "coverage-item-"),
+      },
+      {
+        label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+        expected: "1",
+        actual: await coverageSectionCount(page),
+      },
+      {
+        label: "면책 문구 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-disclaimer"),
+      },
+      {
+        label: "푸터 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-footer"),
+      },
+      {
+        label: "하단 고정 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-final"),
+      },
+      {
+        label: "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+        expected: "sticky",
+        actual: await finalCtaPosition(page),
+      },
+    ],
   },
   {
     id: "M02-D",
@@ -1154,6 +1418,49 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
         designTopHint: 923,
+      },
+    ],
+    // SPEC-B2C-RESULT-001 D3(리뷰) — M02와 동일한 패턴(실손 전용 위젯 제외).
+    semanticChecks: async (page) => [
+      {
+        label: "특별 보상 탭 활성 상태(aria-selected)",
+        expected: "true",
+        actual: await tabAriaSelected(page, "special"),
+      },
+      {
+        label: "특별 보상 섹션 존재",
+        expected: "true",
+        actual: await testIdExists(page, "coverage-section-special"),
+      },
+      {
+        label: "특별 보상 카드 1개 이상 존재",
+        expected: "true",
+        actual: await descendantWithPrefixExists(page, "coverage-section-special", "coverage-item-"),
+      },
+      {
+        label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+        expected: "1",
+        actual: await coverageSectionCount(page),
+      },
+      {
+        label: "면책 문구 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-disclaimer"),
+      },
+      {
+        label: "푸터 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-footer"),
+      },
+      {
+        label: "하단 고정 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-cta-final"),
+      },
+      {
+        label: "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+        expected: "sticky",
+        actual: await finalCtaPosition(page),
       },
     ],
   },

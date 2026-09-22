@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T07:27:45.616Z",
+  "generatedAt": "2026-09-22T09:00:58.740Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -6381,7 +6381,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.6730705531632991
+          "coverage": 0.748675057966214
         }
       },
       "elements": [
@@ -6476,7 +6476,80 @@
           "pass": true
         }
       ],
-      "semantic": [],
+      "semantic": [
+        {
+          "label": "입력 요약 카드 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "집계 배너 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "먼저 확인할 항목 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "실손 의료비 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "정액 담보 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "후유장해 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "특별 보상 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "실손 가입 세대 선택 위젯 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "면책 문구 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "후유장해 섹션 중간 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "최종 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "푸터 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        }
+      ],
       "maxDelta": 45,
       "pass": false
     },
@@ -6838,7 +6911,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.6660823838737949
+          "coverage": 0.7669807186678352
         }
       },
       "elements": [
@@ -6963,7 +7036,62 @@
           "pass": false
         }
       ],
-      "semantic": [],
+      "semantic": [
+        {
+          "label": "실손 의료비 탭 활성 상태(aria-selected)",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "실손 의료비 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "실손 의료비 담보 카드 1개 이상 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+          "expected": "1",
+          "actual": "1",
+          "pass": true
+        },
+        {
+          "label": "실손 가입 세대 선택 위젯 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "면책 문구 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "푸터 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+          "expected": "sticky",
+          "actual": "sticky",
+          "pass": true
+        }
+      ],
       "maxDelta": 182,
       "pass": false
     },
@@ -7292,7 +7420,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.5546245568804383
+          "coverage": 0.5650177247824686
         }
       },
       "elements": [
@@ -7417,7 +7545,56 @@
           "pass": false
         }
       ],
-      "semantic": [],
+      "semantic": [
+        {
+          "label": "정액 담보 탭 활성 상태(aria-selected)",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "정액 담보 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "정액 담보 카드 1개 이상 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+          "expected": "1",
+          "actual": "1",
+          "pass": true
+        },
+        {
+          "label": "면책 문구 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "푸터 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+          "expected": "sticky",
+          "actual": "sticky",
+          "pass": true
+        }
+      ],
       "maxDelta": 182,
       "pass": false
     },
@@ -7765,7 +7942,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7441480675013609
+          "coverage": 0.7617038649972782
         }
       },
       "elements": [
@@ -7890,7 +8067,56 @@
           "pass": false
         }
       ],
-      "semantic": [],
+      "semantic": [
+        {
+          "label": "후유장해 탭 활성 상태(aria-selected)",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "후유장해 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "후유장해 카드 1개 이상 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+          "expected": "1",
+          "actual": "1",
+          "pass": true
+        },
+        {
+          "label": "면책 문구 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "푸터 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+          "expected": "sticky",
+          "actual": "sticky",
+          "pass": true
+        }
+      ],
       "maxDelta": 182,
       "pass": false
     },
@@ -8224,7 +8450,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.6734581497797357
+          "coverage": 0.6917676211453745
         }
       },
       "elements": [
@@ -8349,7 +8575,56 @@
           "pass": false
         }
       ],
-      "semantic": [],
+      "semantic": [
+        {
+          "label": "특별 보상 탭 활성 상태(aria-selected)",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "특별 보상 섹션 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "특별 보상 카드 1개 이상 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
+          "expected": "1",
+          "actual": "1",
+          "pass": true
+        },
+        {
+          "label": "면책 문구 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "푸터 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA 존재",
+          "expected": "true",
+          "actual": "true",
+          "pass": true
+        },
+        {
+          "label": "하단 고정 CTA sticky 포지션 적용(md 미만 뷰포트)",
+          "expected": "sticky",
+          "actual": "sticky",
+          "pass": true
+        }
+      ],
       "maxDelta": 182,
       "pass": false
     }
@@ -8359,7 +8634,7 @@
       "screen": "02",
       "element": "배경 프로브(y 70~3089, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 67.31% < 기준 99.00% (배경이 아닌 색이 32.69% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 74.87% < 기준 99.00% (배경이 아닌 색이 25.13% 섞여 있습니다)."
     },
     {
       "screen": "02",
@@ -8403,7 +8678,7 @@
       "screen": "M02",
       "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 66.61% < 기준 99.00% (배경이 아닌 색이 33.39% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 76.70% < 기준 99.00% (배경이 아닌 색이 23.30% 섞여 있습니다)."
     },
     {
       "screen": "M02",
@@ -8479,7 +8754,7 @@
       "screen": "M02-B",
       "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 55.46% < 기준 99.00% (배경이 아닌 색이 44.54% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 56.50% < 기준 99.00% (배경이 아닌 색이 43.50% 섞여 있습니다)."
     },
     {
       "screen": "M02-B",
@@ -8555,7 +8830,7 @@
       "screen": "M02-C",
       "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 74.41% < 기준 99.00% (배경이 아닌 색이 25.59% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 76.17% < 기준 99.00% (배경이 아닌 색이 23.83% 섞여 있습니다)."
     },
     {
       "screen": "M02-C",
@@ -8631,7 +8906,7 @@
       "screen": "M02-D",
       "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 67.35% < 기준 99.00% (배경이 아닌 색이 32.65% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 69.18% < 기준 99.00% (배경이 아닌 색이 30.82% 섞여 있습니다)."
     },
     {
       "screen": "M02-D",
