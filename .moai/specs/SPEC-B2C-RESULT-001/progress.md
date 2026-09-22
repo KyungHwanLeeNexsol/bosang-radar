@@ -142,11 +142,17 @@
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: audit-ready-with-debt`
-- `run_complete_at: 2026-09-22`
-- 요약: 6개 마일스톤(M1~M6) 전부 완료. 유닛 테스트 504/504 통과, 타입체크/린트 clean, e2e 20/20 통과(agent 보고), 25개 REQ 중 24개 완전 충족 + REQ-B2CRESULT-025는 사용자 승인 PASS-WITH-DEBT(위 §E.2 결정 참고).
-- 커밋 이력(plan/SPEC-B2C-RESULT-001, M1~후속 튜닝): `2dccd9d`(M1) → `0a80647`/`b342df5`(M2) → `8843714`(M3) → `2b5ef0e`+`3cc5766`(M4+경계수정) → `1de06e6`(M5) → `83d39a8`(M6) → `a1d2e30`(visual-verify 튜닝) + 각 milestone별 progress.md 증거 커밋.
-- 다음 단계: `/moai sync SPEC-B2C-RESULT-001` (문서 동기화 + PR).
+- `run_status: review-fixes-pending` — **직전의 `audit-ready-with-debt` 주장은 철회한다.** 독립 검토(2026-09-22)에서 실제 결함(D1 Fact Chip questionId 불일치)과 계약 위반(D4 use-media-query.ts 범위 위반) 및 디자인 대비 UI 누락(D2, 사용자 미승인)이 확인됐다. 이 신호는 D1~D6 수정이 전부 완료되고 재검증될 때까지 `audit-ready-with-debt`로 재전환되지 않는다.
+- 허용되는 debt는 사용자가 명시적으로 승인한 다음 2건뿐이다: ① fixture 담보 7개 유지(15개로 확장 안 함), ② `priorityChecklist` 카드형 유지(컴팩트 목록으로 되돌리지 않음). 그 외 모든 누락·위반은 debt가 아니라 수정 대상이다.
+
+### 후속 수정 — D1(Fact Chip questionId) + D4(use-media-query.ts 범위 위반) (2026-09-22)
+
+- **Claim**: `lib/diagnosis/fixtures/fracture-case.ts`의 잘못된 질문 ID(`surgery`→`surgery-status`, `accidentLocation`→`accident-location`)를 실제 01-B ID(`step-questions.tsx`에서 직접 확인)와 일치시켰다 — 이 버그로 인해 실제 01→02 플로우에서 수술 여부·사고 장소 응답이 있어도 Fact Chip이 표시되지 않고 있었다. `use-media-query.ts`/`use-media-query.test.ts`(M5가 범위를 벗어나 수정했던 기존 01 파일)를 pre-M5 상태로 완전히 원복하고, `REDUCED_MOTION_MEDIA_QUERY` 상수는 `components/result/result-view.tsx` 내부 지역 상수로 이동했다(기존 제네릭 `useMediaQuery` 훅은 그대로 재사용, 새 훅 미생성).
+- **Evidence**: `npx vitest run`(전체 스위트) → `Test Files 66 passed (66)` / `Tests 503 passed (503)`(커밋 `3b031d1`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인, 504→503은 relocate된 회귀 테스트 1건 제외분); `npx tsc --noEmit` → 0 errors; `npx eslint components/diagnosis lib/diagnosis components/result e2e` → 0 errors, 0 warnings(orchestrator 직접 재확인). `git diff 2c53ace -- components/diagnosis/use-media-query.ts components/diagnosis/use-media-query.test.ts` → 빈 출력(pre-M5 baseline과 완전 동일 확인, orchestrator 직접 재확인). e2e `diagnosis-flow-02.spec.ts` 4/4 통과(agent 보고, 실제 01→02 플로우에서 3개 응답 질문 전부 Fact Chip 노출 확인 — 이 수정의 핵심 증거).
+- **Baseline-attribution**: 커밋 `3b031d1`(plan/SPEC-B2C-RESULT-001, cherry-pick from `a8d26c1`, 충돌 없음). `npx vitest run`/`npx tsc --noEmit`/`npx eslint`/`git diff` zero-diff 확인은 이 커밋 기준 orchestrator가 직접 재실행. e2e 4/4는 agent 워크트리 실행 결과 인용(동일 diff, cherry-pick 무충돌로 동일성 확인).
+- **Gaps**: D2(디자인 UI 누락 8종)/D3(visual-verify semantic gate)/D5(커버리지·포맷)/D6(main 병합·PR 갱신)는 아직 미착수 — 후속 커밋에서 순차 진행.
+
+- 다음 단계: D2(디자인 누락 UI)부터 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
