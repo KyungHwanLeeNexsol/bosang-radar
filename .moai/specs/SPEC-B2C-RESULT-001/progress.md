@@ -122,6 +122,15 @@
   4. 이 브랜치는 main의 `SPEC-B2C-DIAGNOSIS-001` 문서 동기화 커밋(`ad4e2de`)이 랜딩되기 전에 분기되었다는 점을 agent가 지적함 — `product.md`/`structure.md`의 병합 시점 충돌 가능성은 sync-phase(또는 병합 전)에서 별도 확인이 필요하다.
 - **Residual-risk**: 신규 5화면의 시각 검증 실패가 실제 UI 결함(레이아웃이 디자인과 다름)인지, 아니면 `visual-verify.ts` 도구의 measurement 튜닝 부족(카드 그리드 요소 미포함, `designTopHint` 추정치 부정확)인지는 완전히 분리되지 않았다 — agent는 후자로 진단했으나(배경색 버그 1건은 실제 발견·수정됨), 사람의 눈으로 실제 브라우저에서 `/result` 화면을 직접 열어 디자인과 육안 대조하는 확인이 아직 없다.
 
+### Milestone 6 후속 — visual-verify.ts 픽셀 정합성 튜닝 (2026-09-22)
+
+- **Claim**: `designTopHint` 추정치를 눈대중이 아니라 `segmentBands()`/`dominantColor()` 실제 측정 로직을 그대로 실행하는 디버그 스크립트(커밋에는 미포함)로 직접 측정해 M02/M02-B/M02-C/M02-D의 4개 요소(`inputSummary`/`aggregateBanner`/`priorityChecklist`/`categoryTabs`) 값을 참값으로 정정했다. `BOX_LIKE_KEYS` 편입 시도는 M02 maxΔ를 45px→1916px로 악화시켜 되돌렸다(전체 페이지가 하나의 band로 병합되는 부작용 확인). `02`(Desktop)는 기존 값이 이미 정확해 변경 없음.
+- **Evidence**: `pnpm visual:verify`(전체 15화면, agent 보고) → 기존 10화면 byte-identical maxΔ로 PASS 유지(회귀 없음, `git diff`로 기존 항목 미변경 확인됨). 신규 5화면은 여전히 전부 FAIL이나 수치가 "정직해졌다" — 튜닝 전 M02-B(76px)/M02-D(78px)는 4개 요소 중 3개가 `design: null`(band 미탐지)로 조용히 maxΔ 계산에서 빠진 결과였고, 튜닝 후 4개 전부가 실제 band에 매칭되면서 진짜 최대 편차(182px, priorityChecklist)가 드러남. `npx vitest run` → 504/504 유지(orchestrator가 plan 브랜치에서 직접 재실행 확인); `npx tsc --noEmit` → 0 errors(orchestrator 직접 재확인).
+- **Baseline-attribution**: 커밋 `a1d2e30`(plan/SPEC-B2C-RESULT-001, cherry-pick from `a795d0f`, 충돌 없음). `npx vitest run`/`npx tsc --noEmit`은 이 커밋 기준 orchestrator가 plan 브랜치에서 직접 재실행. `pnpm visual:verify`의 per-screen maxΔ 수치는 agent가 자신의 워크트리(동일 diff)에서 실행한 결과를 인용(전체 `next build` 소요 비용 고려, cherry-pick 무충돌로 diff 동일성 확인하는 선에서 갈음 — M6 본체와 동일한 attribution 한계).
+- **핵심 발견 — 이것은 도구 버그가 아니라 디자인·데이터 불일치다**: overlay/diff 이미지와 소스를 직접 대조한 결과, 잔여 편차의 원인은 (1) **집계 총계 불일치** — `design/exports/M02-*.png` 목업은 "15개 담보 분석"(검토대상8·정보필요6·낮음1)을 보여주는데 `lib/diagnosis/fixtures/fracture-case.ts`의 `buildItems()`는 실제로 7개 항목(4·2·1)만 반환한다. (2) **priorityChecklist 스타일 불일치** — 디자인 목업은 "먼저 확인할 항목"을 번호 원 + 제목 + 화살표만 있는 한 줄짜리 컴팩트 리스트로 그리는데, `result-priority-checklist.tsx`는 Desktop/Mobile 모두 설명 문구가 포함된 테두리 카드로 렌더링하며 Mobile은 1열 그리드라 3개 카드가 세로로 쌓여 이 편차의 최대 기여 요소(182px)가 된다.
+- **Gaps**: 이 발견에 따른 후속 결정은 이 milestone의 범위 밖이다(fixture 데이터를 15개 항목 시나리오로 확장할지, 디자인 export를 7개 항목 기준으로 갱신할지, priorityChecklist에 Mobile 전용 컴팩트 variant를 추가할지는 design/product 판단이 필요 — orchestrator가 사용자에게 별도로 묻는다). REQ-B2CRESULT-025의 "신규 5화면 PASS" 절은 이 결정이 내려지고 반영되기 전까지 계속 미충족 상태로 남는다.
+- **Residual-risk**: 도구 튜닝 자체는 완료되어 더 이상 신뢰할 수 없는 측정치(누락된 band로 인한 인위적으로 낮은 maxΔ)는 없다 — 남은 FAIL은 전부 실제 콘텐츠/컴포넌트 차이를 정확히 반영한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
