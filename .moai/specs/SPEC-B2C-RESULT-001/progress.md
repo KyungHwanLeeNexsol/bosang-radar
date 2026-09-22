@@ -75,6 +75,14 @@
 - **Gaps**: `handoff.ts`/`flags.ts`/`fixtures/`/`app/result/`/`components/result/`/`e2e/diagnosis-flow-02.spec.ts`는 범위 밖(Milestone 2-6). 라인/브랜치 커버리지 %는 별도 측정하지 않음 — 28개 테스트가 모든 스키마 분기와 두 집계 함수를 실행하나 커버리지 도구는 미실행.
 - **Residual-risk**: `reasonNote?: never`는 TS 컴파일 타임 강제일 뿐이며, 런타임 강제(strictObject 미지 키 거부)는 `review`/`needs-info` 두 분기 각각에 대해 개별 테스트됨. `z.iso.datetime({ offset: true })`는 대표 포맷 2종(`+09:00`, `Z`)만 테스트했고 전체 RFC 3339 오프셋 공간은 다루지 않음.
 
+### Milestone 2 — 01→02 인계 채널 + 01 최소 확장 (2026-09-22)
+
+- **Claim**: `lib/diagnosis/handoff.ts`(writeDiagnosisHandoff/readDiagnosisHandoff 3갈래 판별 유니언/clearDiagnosisHandoff) · `lib/diagnosis/fixtures/fracture-case.ts`(FRACTURE_FIXTURE_INPUT + buildFractureResult) 신규 작성. `step-loading.tsx`의 `mockJudge`를 `reviewEnabled` boolean 매개변수 기반 3갈래(`result-none`/`error`/`result`)로 확장하고, `diagnosis-flow.tsx`에 `"result"` 수신 시 `buildFractureResult → writeDiagnosisHandoff → router.push('/result')` 콜백 및 새 진단 시작 시 `clearDiagnosisHandoff()` 호출을 추가했다(REQ-B2CRESULT-007~012/016/017).
+- **Evidence**: `npx vitest run`(전체 스위트) → `Test Files 57 passed (57)` / `Tests 448 passed (448)`(커밋 `b342df5`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인, 기존 420개 전부 회귀 없음 포함); `npx tsc --noEmit -p tsconfig.json` → 0 errors; sessionStorage 키는 `"bosang-radar:diagnosis-handoff-v1"`(코드 주석에 기록).
+- **Baseline-attribution**: 커밋 `b342df5`(plan/SPEC-B2C-RESULT-001, cherry-pick from `c7a5102`), 이 커밋 기준 `npx vitest run` 전체 재실행 + `npx tsc --noEmit` 재실행으로 확인.
+- **Gaps**: `flags.ts`/`app/result/`/`components/result/`/`e2e/diagnosis-flow-02.spec.ts`는 범위 밖(Milestone 3-6). eslint/prettier는 격리 워크트리에서만 실행됨(clean 보고) — plan 브랜치 cherry-pick 후 재실행하지 않음(코드 diff 자체는 변경 없이 그대로 적용됨).
+- **Residual-risk**: `mockJudge`의 exact-match fixture 게이팅은 단일 고정 문자열(`FRACTURE_FIXTURE_INPUT`)에 대해서만 테스트됨 — 향후 fixture가 늘어나면 각각 개별 exact-match 테스트가 필요. `reviewEnabled` prop은 `diagnosis-flow.tsx`에서 `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 env로부터 파생되는 `enableDevStates`를 그대로 전달하는데, 이 파생 경로 자체(`lib/diagnosis/flags.ts`)는 Milestone 3에서 아직 존재하지 않아 현재는 diagnosis-flow.tsx 자체 로컬 계산에 의존 — Milestone 3에서 `flags.ts` 공유 헬퍼로 전환 시 회귀 테스트 필요.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
