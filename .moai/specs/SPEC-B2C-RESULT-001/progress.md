@@ -2,9 +2,9 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: audit-ready` (plan-auditor iteration 5/3, PASS 종합 0.95, must-pass 7/7, 감사 대상 커밋 `ad31b24` — strict Zod 스키마·`readDiagnosisHandoff()` 3분기 계약 amendment(3차) 이후 재확인 완료. 상세: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-5.md`, §G.)
+- `plan_status: amended-pending-reaudit` (2026-09-22 4차 amendment — `DiagnosisResultSchema` 의미 검증 강화(`.min(1)`/`schemaVersion` 리터럴/`generatedAt` ISO-8601 형식 검증) + `reasonNote`의 `"review"`/`"needs-info"` 분기 취급을 "선택"에서 "금지"(`reasonNote?: never`)로 명확화 + `design.md` 인계 채널 비교표 stale 문구 정정 + `lib/diagnosis/` 파일 트리 `schema.ts` 항목 보완 — plan-auditor 재검토(iteration 6)가 완료되기 전까지 `audit-ready`로 재확인되지 않는다. iteration 5(PASS 0.95, 대상 커밋 `ad31b24`)의 verdict 및 그 이전 전체 이력은 §G 참고.)
 - `plan_complete_at: 2026-09-22`
-- `amended_at: 2026-09-22` (총 2차례 amendment — ① review 피드백 6항목 반영: spec.md/plan.md/acceptance.md/design.md 본문 수정, ② 디자인 화면(02/M02/M02-B/M02-C/M02-D) 재대조: `DiagnosisResult`/`CoverageItem` 계약을 badges/benefit/priorityChecks/inputSummary/FactChip 구조로 확장. 두 amendment 모두 기존 REQ/AC ID의 본문만 수정, 신규 ID 없음)
+- `amended_at: 2026-09-22` (총 3차례 amendment — ① review 피드백 6항목 반영: spec.md/plan.md/acceptance.md/design.md 본문 수정, ② 디자인 화면(02/M02/M02-B/M02-C/M02-D) 재대조: `DiagnosisResult`/`CoverageItem` 계약을 badges/benefit/priorityChecks/inputSummary/FactChip 구조로 확장, ③ strict Zod 전체 스키마 설계 + `readDiagnosisHandoff()` 3갈래 handoff 계약 재설계(대상 커밋 `ad31b24`) — `design.md` §1b `DiagnosisResultSchema` 전체(모든 분기 `z.strictObject`)를 신설하고 스키마 경로를 `lib/diagnosis/schema.ts`로 통일했으며, `DiagnosisHandoffReadResult`(`"empty"`/`"valid"`/`"invalid"` 3갈래 판별 유니언)를 도입했다. 세 amendment 모두 기존 REQ/AC ID의 본문만 수정, 신규 ID 없음. 이후 4차 amendment(위 `plan_status` 참고)가 추가로 있었다.)
 - Tier: **L**(5-artifact set: spec.md + plan.md + acceptance.md + design.md + research.md) — LOC/파일 수 추정(신규 `app/result/page.tsx` 1 + `components/result/*` 8개 + `lib/diagnosis/*` 5개 + 기존 파일 최소 확장 3개 + 대응 테스트 다수 + `e2e/diagnosis-flow-02.spec.ts` 신규 + `scripts/visual-verify.ts` 확장, 총 영향 파일 > 15, 예상 LOC > 1000)로 Tier L 확정 — 선행 SPEC-B2C-DIAGNOSIS-001과 동일한 등급.
 - 요구사항 25건(Tier L 상한 25 충족, 초과 없음) / acceptance.md AC 25건(Tier L 상한 25 충족, 초과 없음) — 4건(AC-002/003/011/013)은 부모 AC 안에 "추가 시나리오" Given/When/Then을 병합해 REQ 대비 1:1 이상 커버리지를 유지한다(plan-auditor D1 반영, 2026-09-22). 2026-09-22 review-feedback amendment 이후에도 REQ/AC 개수는 25/25로 불변 — 이번 amendment는 기존 ID(REQ-001/005/006/009/010/013/016/023, AC-001/005/006/009/010/013/016/023)의 본문을 확장하거나 "추가 시나리오"를 더 얹었을 뿐 신규 ID를 도입하지 않았다.
 - Out of Scope 섹션: `### Out of Scope —` H3 하위 제목 5개(각 `-` bullet 포함) — `OutOfScopeRule` lint 요건 충족.
@@ -53,7 +53,13 @@
 
 이 변경들은 iteration 4가 감사한 `design.md` §1/§3 및 `acceptance.md` AC-014의 상당 부분을 대체하므로, iteration 4의 PASS 0.857 verdict는 이 시점 기준 **stale**이다.
 
-**plan-auditor는 이미 표준 3-iteration 예산(iteration 1/2/3)에 더해 명시적으로 승인된 iteration 4까지 소진했다.** 이 SPEC에 대한 추가 재검토(iteration 5)는 plan-auditor Retry Loop Contract상 표준 상한을 다시 넘는 예외적 선택이며, orchestrator/user의 명시적 승인 없이 자동으로 실행되어서는 안 된다 — 이는 orchestrator가 판단할 사안이지 manager-spec이 임의로 결정할 사안이 아니다. 그 승인이 나기 전까지 `plan_status`는 `audit-ready`로 설정하지 않는다(위 §E.1 참고).
+> **아래 문단은 iteration 5 실행 전 — 즉 바로 다음 "Iteration 5 — 완료" 항목이 기록되기 전 — 작성된 대기 상태 서술이며, 과거 시점을 기술한다.** 이후 orchestrator/user가 명시적으로 iteration 5 실행을 승인했고, iteration 5는 실제로 실행·완료됐다(상세는 아래 "Iteration 5 — 완료" 항목 참고). 이 문단을 현재 상태로 읽어서는 안 된다.
+>
+> plan-auditor는 이미 표준 3-iteration 예산(iteration 1/2/3)에 더해 명시적으로 승인된 iteration 4까지 소진했다. 이 SPEC에 대한 추가 재검토(iteration 5)는 plan-auditor Retry Loop Contract상 표준 상한을 다시 넘는 예외적 선택이며, orchestrator/user의 명시적 승인 없이 자동으로 실행되어서는 안 된다 — 이는 orchestrator가 판단할 사안이지 manager-spec이 임의로 결정할 사안이 아니다. 그 승인이 나기 전까지 `plan_status`는 `audit-ready`로 설정하지 않는다.
+
+**Iteration 5 — 완료(표준 3-iteration 예산을 다시 넘는 예외적 재검토, orchestrator/user 명시적 승인 하에 실행)**: PASS, 종합 점수 **0.95**, must-pass 7/7, 감사 대상 커밋 `ad31b24`(위 3차 amendment의 7개 변경사항 전체를 포함해 전체 구조 재감사). 보고서: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-5.md`. 신규 blocking 결함 없음 — D1(REQ-019 "적절한" 약한 표현)/D2(REQ-023 Unwanted/Ubiquitous 혼합 어투)는 iteration 3/4부터 이월된 non-blocking·optional 문구 debt로, 이번 iteration도 수정을 요구하지 않고 재확인만 됐다. 점수 추이: 0.92 → 0.97 → 0.96 → 0.857 → **0.95**(직전 iteration 4 대비 상승 — 회귀 아님). 이 verdict를 근거로 `plan_status`는 `audit-ready`로 확인됐다(확인 커밋 `c9da103`).
+
+**재감사 필요(iteration 6 대기, 2026-09-22 4차 amendment)** — iteration 5(대상 커밋 `ad31b24`, PASS 0.95)가 감사한 `design.md` §1/§1b 내용을, 이번 스키마 의미 검증 강화 라운드가 다시 실질적으로 변경했다: `DiagnosisResultSchema`에 `.min(1)` 의미 검증(`resultId`/`rawInput`/사고 요약·배지·확인 우선순위·담보 카드·보장 방식 표시 등의 문자열 필드)과 `schemaVersion` 리터럴 강제(`DIAGNOSIS_SCHEMA_VERSION`), `generatedAt` ISO-8601 형식 검증(`z.iso.datetime({ offset: true })`)을 추가했고(REQ-B2CRESULT-001/014, AC-B2CRESULT-014 추가 시나리오), `CoverageItem`의 `reasonNote`를 `"review"`/`"needs-info"` 분기에서 "선택(optional)"이 아니라 `reasonNote?: never`로 명시적으로 금지하도록 타입·zod 서술을 정정했다(REQ-B2CRESULT-005, AC-B2CRESULT-005 추가 시나리오). 이 외에 `design.md` §3 인계 채널 대안 비교표의 stale한 "새로고침 후 재방문 시 재사용 불가" 문구를 현행 탭 세션 유지 정책과 일치하도록 정정했고, `lib/diagnosis/` 파일 트리에 누락돼 있던 `schema.ts` 항목을 추가했다. REQ/AC 개수는 25/25로 불변(신규 ID 없음). 따라서 iteration 5의 PASS 0.95 verdict는 이 시점 기준 **stale**이며, `plan_status`는 다시 `amended-pending-reaudit`로 되돌아간다(위 §E.1 참고) — 새로운 plan-auditor 재검토(iteration 6)가 완료되기 전까지 `audit-ready`로 재확인되지 않는다.
 
 ## §E.2 Run-phase Evidence
 

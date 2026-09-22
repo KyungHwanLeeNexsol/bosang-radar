@@ -62,7 +62,7 @@ Then 그 항목이 숨겨지지 않고 카드로 표시되며, `reasonNote` 텍�
 추가 시나리오 — 타입 수준 강제:
 Given `CoverageItem` 타입 정의(status별 discriminated union)를 검사할 때
 When status가 `"low-likelihood"`인 분기를 확인하면
-Then `reasonNote` 필드가 선택(optional)이 아닌 필수 필드로 선언되어 있다(그 값 없이는 타입 체크를 통과할 수 없다) — status가 `"review"`/`"needs-info"`인 분기에서는 `reasonNote`가 선택 필드다.
+Then `reasonNote` 필드가 선택(optional)이 아닌 필수 필드로 선언되어 있다(그 값 없이는 타입 체크를 통과할 수 없다) — status가 `"review"`/`"needs-info"`인 분기에서는 `reasonNote` 필드 자체가 금지된다(`reasonNote?: never`로 선언되어, 그 필드에 값을 채워 넣으면 타입 체크가 실패한다). 대응하는 zod strict 스키마(`CoverageItemSchema`)에서도 `"review"`/`"needs-info"` 분기 객체에 `reasonNote` 키가 존재하면 `safeParse`가 `success: false`를 반환한다(알 수 없는 키 거부).
 
 추가 시나리오 — `benefit` 필드는 status와 무관하게 항상 필수:
 Given `DiagnosisResult.items` 중 status가 `"low-likelihood"`인 항목("5대 골절 진단비" 등)이 있을 때
@@ -159,6 +159,11 @@ Then 콘솔 예외로 애플리케이션이 중단되지 않고 02 전용 오류
 Given `sessionStorage`의 handoff 값이 구문적으로는 유효한 JSON이지만(`JSON.parse` 성공) `DiagnosisResultSchema`(`design.md` §1b)의 필수 필드가 누락되었거나 타입이 맞지 않아 `safeParse`가 `success: false`를 반환할 때
 When `/result`가 마운트되면
 Then `readDiagnosisHandoff()`가 `{ status: "invalid", reason }`을 반환하고(`design.md` §3), 그 값이 `sessionStorage`에서 그대로 유지된 채(제거되지 않음) 02 전용 오류 상태가 표시된다 — `{ status: "empty" }`(핸드오프 데이터 부재, AC-B2CRESULT-013)로 오인되어 02 전용 "결과 없음" 상태로 잘못 전환되지 않는다.
+
+추가 시나리오 — 필드별 의미 검증 위반(빈 resultId·미지원 schemaVersion·비-ISO-8601 generatedAt):
+Given `sessionStorage`의 handoff 값이 구문적으로 유효한 JSON이며 다음 세 경우 중 하나에 해당할 때 — (a) `resultId`가 빈 문자열(`""`)이거나, (b) `schemaVersion`이 `DIAGNOSIS_SCHEMA_VERSION`(`"1"`)과 다른 값이거나, (c) `generatedAt`이 ISO-8601 형식이 아닌 문자열일 때
+When `DiagnosisResultSchema.safeParse`를 실행하면
+Then 세 경우 모두 `success: false`를 반환하고, `readDiagnosisHandoff()`는 `{ status: "invalid", reason }`을 반환한다(빈 문자열/버전 불일치/형식 오류 각각이 독립적으로 거부 사유가 된다).
 
 **AC-B2CRESULT-015** (REQ-B2CRESULT-015)
 Given `/result`가 클라이언트 데이터 읽기를 아직 완료하지 않았을 때

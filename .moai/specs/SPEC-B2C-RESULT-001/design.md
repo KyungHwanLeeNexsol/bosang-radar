@@ -130,27 +130,40 @@ interface CoverageItemBase {
 }
 
 export type CoverageItem =
-  | (CoverageItemBase & { status: "review" })
-  | (CoverageItemBase & { status: "needs-info" })
+  | (CoverageItemBase & { status: "review"; reasonNote?: never })
+  | (CoverageItemBase & { status: "needs-info"; reasonNote?: never })
   | (CoverageItemBase & { status: "low-likelihood"; reasonNote: string });
 // ↑ "low-likelihood" 분기에서만 reasonNote가 필수 필드다(REQ-B2CRESULT-005,
-// AC-B2CRESULT-005 추가 시나리오) — 다른 두 분기는 reasonNote를 갖지 않는다.
+// AC-B2CRESULT-005 추가 시나리오) — "review"/"needs-info" 분기는 reasonNote가
+// "선택(optional)"이 아니라 `reasonNote?: never`로 명시적으로 금지된다(그 필드에
+// 값을 채우면 타입 체크가 실패한다). 런타임에도 동일한 금지가 적용된다 — §1b
+// CoverageItemSchema의 review/needs-info 분기는 z.strictObject로 선언되어
+// reasonNote 키가 존재하는 객체를 거부한다(알 수 없는 키 거부).
 // amount?: CoverageAmount 같은 status별 optional 분기는 더 이상 없다 — benefit은
 // base의 공통 필수 필드이기 때문이다(위 CoverageItemBase 참고).
 
+// 이 계약의 버전 상수 — 03 SPEC 등 후속 소비자가 형태 변화를 감지하는 기준값이다.
+// DiagnosisResult.schemaVersion은 이 리터럴 타입으로 고정되며(런타임 zod 대응은
+// §1b DiagnosisResultSchema의 z.literal(DIAGNOSIS_SCHEMA_VERSION)), 계약이
+// 바뀌면(스키마 버전 업) 이 상수를 갱신하고 이전 버전과의 호환 처리는 후속
+// SPEC이 결정한다.
+export const DIAGNOSIS_SCHEMA_VERSION = "1" as const;
+
 export interface DiagnosisResult {
-  resultId: string;                    // 결과 인스턴스 식별자(REQ-B2CRESULT-001) — run-phase가 UUID 등으로 생성
-  schemaVersion: string;                // 이 계약의 버전(예: "1"). 03 SPEC 등 후속 소비자가 형태 변화를 감지하기 위함
+  resultId: string;                    // 결과 인스턴스 식별자(REQ-B2CRESULT-001) — run-phase가 UUID 등으로 생성, 빈 문자열 불가(§1b DiagnosisResultSchema resultId: z.string().min(1))
+  schemaVersion: typeof DIAGNOSIS_SCHEMA_VERSION; // 이 계약의 버전 — 런타임에는 §1b DiagnosisResultSchema가 z.literal(DIAGNOSIS_SCHEMA_VERSION)으로 강제한다
   rawInput: string;
   answers: Record<string, string>;
   inputSummary: InputAccidentSummary;   // 사고 내용 구조화 요약 — title + 4개 AccidentSummaryFact
   priorityChecks: PriorityCheck[];      // "확인 우선순위" — id/title/description/targetCategory 구조체 배열
   items: CoverageItem[];
-  generatedAt: string; // ISO 8601 — DiagnosisResult 전체가 sessionStorage에 기록되는
-                        // 대상이므로(§3 writeDiagnosisHandoff), generatedAt도 그
+  generatedAt: string; // ISO 8601(offset 포함) — DiagnosisResult 전체가 sessionStorage에
+                        // 기록되는 대상이므로(§3 writeDiagnosisHandoff), generatedAt도 그
                         // 왕복(write → read)에 그대로 포함되어 보존된다 — 표시 전용
                         // "이면서 저장되지 않는" 필드가 아니라, 저장되는 객체의
-                        // 일부로서 표시에 쓰이는 필드다.
+                        // 일부로서 표시에 쓰이는 필드다. 런타임에는 §1b
+                        // DiagnosisResultSchema가 z.iso.datetime({ offset: true })로
+                        // 형식을 검증한다.
 }
 ```
 
@@ -167,6 +180,7 @@ export interface DiagnosisResult {
 ```ts
 // [설계 의도 — run-phase가 실제 코드로 작성한다, lib/diagnosis/schema.ts]
 import { z } from "zod";
+import { DIAGNOSIS_SCHEMA_VERSION } from "./types";
 
 export const CoverageCategorySchema = z.enum([
   "reimbursement", "fixed", "disability", "special",
@@ -175,12 +189,12 @@ export const CoverageCategorySchema = z.enum([
 export const CoverageStatusSchema = z.enum(["review", "needs-info", "low-likelihood"]);
 
 export const AccidentSummaryFactSchema = z.strictObject({
-  label: z.string(),
-  value: z.string(),
+  label: z.string().min(1),
+  value: z.string().min(1),
 });
 
 export const InputAccidentSummarySchema = z.strictObject({
-  title: z.string(),
+  title: z.string().min(1),
   when: AccidentSummaryFactSchema,
   where: AccidentSummaryFactSchema,
   mechanism: AccidentSummaryFactSchema,
@@ -189,17 +203,20 @@ export const InputAccidentSummarySchema = z.strictObject({
 
 // §1의 FactChip은 AccidentSummaryFact를 TS interface extends로 상속하지만,
 // zod strictObject는 상속을 그대로 반영하지 않으므로 필드 집합을 questionId와
-// 함께 다시 나열한다(구조는 AccidentSummaryFactSchema + questionId와 동일).
+// 함께 다시 나열한다(구조는 AccidentSummaryFactSchema + questionId와 동일) —
+// label/value에는 AccidentSummaryFactSchema와 동일한 .min(1) 의미 검증을
+// 적용한다(동일 TS 타입을 상속하므로 두 스키마의 빈 문자열 허용 여부가 어긋나서는
+// 안 된다). questionId는 식별자이며 별도 의미 검증 대상으로 지정되지 않았다.
 export const FactChipSchema = z.strictObject({
   questionId: z.string(),
-  label: z.string(),
-  value: z.string(),
+  label: z.string().min(1),
+  value: z.string().min(1),
 });
 
 export const PriorityCheckSchema = z.strictObject({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().min(1),
   targetCategory: CoverageCategorySchema,
 });
 
@@ -210,31 +227,34 @@ export const CoverageBadgeKindSchema = z.enum([
 ]);
 
 export const CoverageBadgeSchema = z.strictObject({
-  id: z.string(),
-  label: z.string(),
+  id: z.string().min(1),
+  label: z.string().min(1),
   kind: CoverageBadgeKindSchema,
 });
 
 // 5분기 모두 strictObject — kind별로 허용되는 필드 집합이 다르므로(range/fixed만
 // min/max/value를 갖는다), AC-B2CRESULT-006 추가 시나리오("kind: range인데
 // min/max 없음"을 safeParse가 거부)가 검증하는 대상이 바로 이 discriminatedUnion이다.
+// label/displayText는 모든 분기 공통으로 카드에 그대로 표시되는 문구이므로
+// .min(1)로 빈 문자열을 거부한다.
 export const BenefitDisplaySchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("range"), label: z.string(), min: z.number(), max: z.number(), displayText: z.string() }),
-  z.strictObject({ kind: z.literal("fixed"), label: z.string(), value: z.number(), displayText: z.string() }),
-  z.strictObject({ kind: z.literal("formula"), label: z.string(), displayText: z.string() }),
-  z.strictObject({ kind: z.literal("conditional"), label: z.string(), displayText: z.string() }),
-  z.strictObject({ kind: z.literal("unavailable"), label: z.string(), displayText: z.string() }),
+  z.strictObject({ kind: z.literal("range"), label: z.string().min(1), min: z.number(), max: z.number(), displayText: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("fixed"), label: z.string().min(1), value: z.number(), displayText: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("formula"), label: z.string().min(1), displayText: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("conditional"), label: z.string().min(1), displayText: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("unavailable"), label: z.string().min(1), displayText: z.string().min(1) }),
 ]);
 
 // CoverageItemBase(§1)의 공통 필수 필드 — status discriminatedUnion의 세 분기가
 // 스프레드로 재사용해 중복 나열을 피한다. 필드 목록은 §1 CoverageItemBase와
-// 1:1로 대응한다.
+// 1:1로 대응한다. id/name/description/whyCheck는 카드에 그대로 표시되는
+// 식별자·문구이므로 .min(1)로 빈 문자열을 거부한다.
 const CoverageItemCommonFields = {
-  id: z.string(),
+  id: z.string().min(1),
   category: CoverageCategorySchema,
-  name: z.string(),
-  description: z.string(),
-  whyCheck: z.string(),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  whyCheck: z.string().min(1),
   badges: z.array(CoverageBadgeSchema),
   benefit: BenefitDisplaySchema,
   factChips: z.array(FactChipSchema),
@@ -245,26 +265,39 @@ const CoverageItemCommonFields = {
 
 // status: "low-likelihood" 분기만 reasonNote를 요구한다 — §1 TS 타입 정의가
 // 컴파일 시점에 강제하는 것과 동일한 강제를 런타임에도 재현한다
-// (REQ-B2CRESULT-005, AC-B2CRESULT-005 추가 시나리오).
+// (REQ-B2CRESULT-005, AC-B2CRESULT-005 추가 시나리오). reasonNote는 빈
+// 문자열이면 "사유"로서 의미가 없으므로 .min(1)을 적용한다. "review"/
+// "needs-info" 분기는 CoverageItemCommonFields에 reasonNote 필드가 없고
+// z.strictObject이므로, reasonNote 키를 가진 객체가 주어지면 safeParse가
+// 거부한다(§1의 `reasonNote?: never` TS 금지와 동일한 강제를 런타임에 재현) —
+// 별도의 스키마 수정 없이 strictObject의 미지 키 거부 동작이 그대로 이 금지를
+// 구현한다.
 export const CoverageItemSchema = z.discriminatedUnion("status", [
   z.strictObject({ ...CoverageItemCommonFields, status: z.literal("review") }),
   z.strictObject({ ...CoverageItemCommonFields, status: z.literal("needs-info") }),
-  z.strictObject({ ...CoverageItemCommonFields, status: z.literal("low-likelihood"), reasonNote: z.string() }),
+  z.strictObject({ ...CoverageItemCommonFields, status: z.literal("low-likelihood"), reasonNote: z.string().min(1) }),
 ]);
 
 // DiagnosisResult 전체 계약 — 01→02 인계 채널(§3)이 sessionStorage에서 읽은
 // 원시 JSON을 이 스키마로 safeParse해 유효성을 판정한다.
 // readDiagnosisHandoff()(§3)의 "invalid" 분기는 이 safeParse 실패
-// (JSON.parse 실패를 포함)를 근거로 판정된다.
+// (JSON.parse 실패를 포함)를 근거로 판정된다. resultId/rawInput은 .min(1)로
+// 빈 문자열을, schemaVersion은 z.literal(DIAGNOSIS_SCHEMA_VERSION)로 계약
+// 버전 불일치를, generatedAt은 z.iso.datetime({ offset: true })로 ISO-8601
+// 형식 위반을 각각 safeParse 실패로 거부한다(AC-B2CRESULT-014 추가 시나리오 —
+// 빈 resultId·미지원 schemaVersion·비-ISO-8601 generatedAt 3가지 모두
+// "invalid"). 프로젝트의 zod 버전(4.4.3)은 z.iso 네임스페이스(z.iso.datetime
+// 등)를 제공하므로 이 형태를 사용한다 — 구버전 zod에서는 동등한
+// z.string().datetime({ offset: true })로 대체한다.
 export const DiagnosisResultSchema = z.strictObject({
-  resultId: z.string(),
-  schemaVersion: z.string(),
-  rawInput: z.string(),
+  resultId: z.string().min(1),
+  schemaVersion: z.literal(DIAGNOSIS_SCHEMA_VERSION),
+  rawInput: z.string().min(1),
   answers: z.record(z.string(), z.string()),
   inputSummary: InputAccidentSummarySchema,
   priorityChecks: z.array(PriorityCheckSchema),
   items: z.array(CoverageItemSchema),
-  generatedAt: z.string(),
+  generatedAt: z.iso.datetime({ offset: true }),
 });
 
 export type DiagnosisResultParsed = z.infer<typeof DiagnosisResultSchema>;
@@ -304,7 +337,7 @@ export function collectAnsweredFacts(items: readonly CoverageItem[]): FactChip[]
 | 대안 | 장점 | 단점 | 채택 여부 |
 |---|---|---|---|
 | URL 쿼리 파라미터(base64 JSON) | 새로고침·북마크 가능, 서버 미경유 | `answers` 확장 시 URL 길이 관리 필요, 인코딩/디코딩 로직 추가 | 미채택 |
-| `sessionStorage` | 서버 미경유, 라우트 전환에도 생존, 구현 단순 | 새로고침 후 재방문 시 재사용 불가(단, 이는 REQ-B2CDIAG-015의 "새로고침 시 초기화" 원칙과 오히려 정합) | **채택** |
+| `sessionStorage` | 서버 미경유, 라우트 전환에도 생존, 구현 단순 | 동일 탭에서는 새로고침·뒤로가기 후에도 재사용 가능하며, 탭 종료 시 브라우저가 정리함 | **채택** |
 | 서버 API 왕복(임시 세션 레코드) | 데이터 크기 제약 없음 | REQ-B2CDIAG-021/REQ-B2CFOUND 원칙(서버 영구 저장 없음)과 충돌, 신규 API 라우트 필요(Out of Scope) | 미채택 |
 
 **결정 (확정)**: `sessionStorage`. 저장·조회·삭제를 3개의 분리된 함수로 노출한다 — 어떤 함수도 "읽으면서 동시에 지운다"는 암묵적 부수효과를 갖지 않는다(review 피드백 반영: 이전 초안의 read-once-then-clear 설계는 새로고침 시 결과가 사라지는 문제가 있어 철회한다).
@@ -407,6 +440,7 @@ components/
 lib/
 └── diagnosis/        # [신규]
     ├── types.ts
+    ├── schema.ts                    # DiagnosisResultSchema 전체(§1b, 모든 하위 타입을 미러링하는 zod 스키마) — 모든 분기 z.strictObject
     ├── aggregate.ts
     ├── handoff.ts
     ├── flags.ts                     # computeDiagnosisFlags() — app/page.tsx도 이 함수로 리팩터
