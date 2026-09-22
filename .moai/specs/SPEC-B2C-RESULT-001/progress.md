@@ -2,7 +2,7 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: amended-pending-reaudit` (2026-09-22 디자인 화면 재대조 amendment(2차) 이후 — plan-auditor 재검토가 완료되기 전까지 `audit-ready`로 재확인되지 않는다. §G 참고.)
+- `plan_status: audit-ready` (plan-auditor iteration 5/3, PASS 종합 0.95, must-pass 7/7, 감사 대상 커밋 `ad31b24` — strict Zod 스키마·`readDiagnosisHandoff()` 3분기 계약 amendment(3차) 이후 재확인 완료. 상세: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-5.md`, §G.)
 - `plan_complete_at: 2026-09-22`
 - `amended_at: 2026-09-22` (총 2차례 amendment — ① review 피드백 6항목 반영: spec.md/plan.md/acceptance.md/design.md 본문 수정, ② 디자인 화면(02/M02/M02-B/M02-C/M02-D) 재대조: `DiagnosisResult`/`CoverageItem` 계약을 badges/benefit/priorityChecks/inputSummary/FactChip 구조로 확장. 두 amendment 모두 기존 REQ/AC ID의 본문만 수정, 신규 ID 없음)
 - Tier: **L**(5-artifact set: spec.md + plan.md + acceptance.md + design.md + research.md) — LOC/파일 수 추정(신규 `app/result/page.tsx` 1 + `components/result/*` 8개 + `lib/diagnosis/*` 5개 + 기존 파일 최소 확장 3개 + 대응 테스트 다수 + `e2e/diagnosis-flow-02.spec.ts` 신규 + `scripts/visual-verify.ts` 확장, 총 영향 파일 > 15, 예상 LOC > 1000)로 Tier L 확정 — 선행 SPEC-B2C-DIAGNOSIS-001과 동일한 등급.
