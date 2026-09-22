@@ -160,7 +160,15 @@
 - **Gaps**: `result-view.tsx`는 이번 수정 허용 범위 밖이었으므로, 항목 ②③④(면책·Footer·입력조건 공개)는 자연스러운 삽입 지점이 없어 `ResultFinalCta` 호출부(Fragment로 확장) 안에 함께 묶여 배치됐다 — 구조적으로는 `result-input-summary.tsx` 인접이 더 적합할 수 있어 후속 milestone에서 재배치 검토가 필요하다. 항목 ④(입력 조건 공개)는 `readDiagnosisHandoff()`를 독립적으로 재호출하며(읽기 전용, 여러 번 호출해도 안전), `?devFixture=fracture` review 전용 진입 경로에서는 sessionStorage가 채워지지 않아 조용히 렌더링되지 않는다 — review 전용 진입에서도 입력 조건을 보여줄지는 별도 판단이 필요하다. D3(visual-verify semantic gate)/D5(커버리지·포맷)/D6(main 병합·PR 갱신)는 아직 미착수.
 - **Residual-risk**: 위 Gaps의 배치 구조는 기능적으로는 동작하나(테스트로 확인됨) UI 계층 구조상 이상적이지 않을 수 있다 — 실제 브라우저 렌더링 결과의 시각적 순서는 아직 육안 확인되지 않았다.
 
-- 다음 단계: D3(visual-verify semantic gate 확장)으로 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
+### 후속 수정 — D3(visual-verify semantic gate 확장) (2026-09-22)
+
+- **Claim**: `scripts/visual-verify.ts`의 신규 5화면(`02`/`M02`/`M02-B`/`M02-C`/`M02-D`)에 존재/부재 기반 `semanticChecks`를 추가했다(기존 픽셀 좌표 측정 3~4개 요소만으로는 하단 위젯이 통째로 사라져도 통과하던 사각지대 해소). Desktop `02` 12건(입력요약·집계배너·우선순위체크리스트·4개 카테고리 섹션·가입세대 위젯·면책안내·후유장해 중간 CTA·최종CTA·Footer), Mobile 각 화면 8~9건(활성 탭·해당 카테고리 섹션과 카드·비활성 카테고리 섹션의 DOM 실제 부재·면책안내·Footer·sticky 최종CTA와 그 `position: sticky` 계산값). 신규 컴포넌트에는 D2에서 이미 testid가 부여돼 있어 추가 테스트id 삽입 불필요.
+- **Evidence**: `npx vitest run`(전체 스위트) → `Test Files 71 passed (71)` / `Tests 527 passed (527)`(커밋 `328648d`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인); `npx tsc --noEmit` → 0 errors; `npx eslint scripts/visual-verify.ts` → 0 errors, 0 warnings(모두 orchestrator 직접 재확인). `pnpm visual:verify` 4분리 보고(agent 실행 결과 인용): ① 기존 10화면 회귀 — PASS(maxΔ byte-identical); ② 신규 화면 필수 요소 semantic gate — **PASS 45/45**(0 fail); ③ 사용자 승인 시각 부채 — fixture 7개 vs 목업 15개 집계 불일치, priorityChecklist 카드형 유지, 이 커밋으로 새로 발생한 편차 없음; ④ 종합 — **PASS-WITH-DEBT**(부채 2건 제외 미추적 편차 없음).
+- **Baseline-attribution**: 커밋 `328648d`(plan/SPEC-B2C-RESULT-001, cherry-pick from `7d2c6c6`, 충돌 없음). `git show 328648d --stat` + 제거 라인 수 grep으로 `scripts/visual-verify.ts`가 순수 추가(307 insertions, 0 deletions)임을 orchestrator가 직접 확인 — 기존 10화면 항목이 정말 손대지 않았음을 재확인.
+- **핵심 발견**: 리뷰가 언급한 "후유장해 중간 페이지 CTA"는 실제로 존재하는 컴포넌트(`result-cta-disability`, D2에서 이미 구현)로 확인돼 체크에 포함됐다. "입력 조건 공개"(`result-input-condition-disclosure`)는 review 전용 `?devFixture=fracture` 진입 경로에서 sessionStorage를 읽지 않아 이 시각 검증 5화면 전부에서 항상 렌더링되지 않는다는 사실이 재확인됐다(D2 Gaps에 이미 기록) — 이번 요청 범위 밖이라 semantic check는 추가하지 않았다(존재하지 않는 이유로 항상 실패하는 체크를 만드는 안티패턴 회피).
+- **Gaps**: D5(커버리지 85%+·prettier·build)/D6(main 병합·PR 갱신)는 아직 미착수.
+
+- 다음 단계: D5(품질 게이트 보완)로 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
