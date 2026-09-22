@@ -67,7 +67,13 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### Milestone 1 — `DiagnosisResult` 데이터 타입 SSOT (2026-09-22)
+
+- **Claim**: `lib/diagnosis/types.ts` · `schema.ts` · `aggregate.ts`(신규) 및 `schema.test.ts` · `aggregate.test.ts`(신규)를 `design.md` §1/§1b/§2, `plan.md` §F Milestone 1대로 작성했다.
+- **Evidence**: `npx vitest run lib/diagnosis` → `Test Files 2 passed (2)` / `Tests 28 passed (28)`(커밋 `2dccd9d` 기준, plan/SPEC-B2C-RESULT-001 브랜치에서 재실행 확인); `npx tsc --noEmit -p tsconfig.json` → `lib/diagnosis/`에는 0 errors(기존 무관 파일 `app/layout.tsx`의 1건 pre-existing 오류는 이 마일스톤 범위 밖); `npx eslint lib/diagnosis` → 0 errors, 0 warnings.
+- **Baseline-attribution**: 커밋 `2dccd9d`(plan/SPEC-B2C-RESULT-001, cherry-pick from `d4eedb8`), 이 커밋의 `lib/diagnosis/` 트리에 대해 `npx vitest run lib/diagnosis` 재실행으로 확인.
+- **Gaps**: `handoff.ts`/`flags.ts`/`fixtures/`/`app/result/`/`components/result/`/`e2e/diagnosis-flow-02.spec.ts`는 범위 밖(Milestone 2-6). 라인/브랜치 커버리지 %는 별도 측정하지 않음 — 28개 테스트가 모든 스키마 분기와 두 집계 함수를 실행하나 커버리지 도구는 미실행.
+- **Residual-risk**: `reasonNote?: never`는 TS 컴파일 타임 강제일 뿐이며, 런타임 강제(strictObject 미지 키 거부)는 `review`/`needs-info` 두 분기 각각에 대해 개별 테스트됨. `z.iso.datetime({ offset: true })`는 대표 포맷 2종(`+09:00`, `Z`)만 테스트했고 전체 RFC 3339 오프셋 공간은 다루지 않음.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -76,3 +82,17 @@ _<pending run-phase>_
 ## §E.4 Sync-phase Audit-Ready Signal
 
 _<pending sync-phase>_
+
+## §F Phase 4 Mode Selection
+
+- **Input parameters**: tier=L, scope≈20+ new files across `lib/diagnosis/`·`app/result/`·`components/result/`·`e2e/` + 3 minimal-touch existing files, domain count=1(frontend UI, no cross-domain fan-out), concurrency benefit=LOW(coding-heavy, milestones are sequentially dependent — M2 consumes M1's types, M3 consumes M2's flags/handoff, M4 consumes M3's route shell, etc.)
+- **Mode evaluation**:
+  | Mode | Selected? | Rationale |
+  |------|-----------|-----------|
+  | direct | No | Non-trivial multi-file, multi-milestone scope |
+  | serial | **Selected** | Coding-heavy + strictly sequential milestone dependency chain — each milestone's code imports/consumes the previous milestone's output |
+  | fanout | No | Not research-heavy; not multi-domain (single frontend domain) |
+  | sweep | No | Not a uniform mechanical transform; semantic new-code work |
+  | agent-team / manager-lead | No | Milestones are serially dependent, not independently parallelizable across domains — the manager-lead Tier L threshold (≥3 milestones AND ≥10 files AND cross-domain fan-out) is met on file/milestone count but fails the cross-domain fan-out condition (single frontend domain, sequential chain) |
+- **Decision**: serial
+- **Justification**: Per Anthropic's coding-task parallelism caveat, coding-heavy work is not well-suited to parallel fan-out. This SPEC's 6 milestones form a strict dependency chain (types → handoff → route shell → components → a11y/tests → e2e), so sequential `manager-develop` (cycle_type=tdd) delegation per milestone, with progress folded into `progress.md` §E.2 between milestones, is the correct mode.
