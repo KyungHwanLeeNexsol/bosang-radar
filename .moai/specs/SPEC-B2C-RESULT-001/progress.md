@@ -91,6 +91,14 @@
 - **Gaps**: `components/result/`의 나머지 8개 컴포넌트(`result-input-summary`/`result-priority-checklist`/`coverage-category-section`/`coverage-item-card`/`result-aggregate-banner`/`result-category-tabs`/`result-cta-bar`/`result-no-data`/`result-error`)는 Milestone 4 범위. `app/result/page.tsx`용 Next.js Server Component 전용 테스트 컨벤션이 이 저장소에 없어, 기존 `app/page.test.tsx`의 순수 함수 컴포넌트 렌더링 패턴을 재사용했다 — async 데이터 페칭이 추가되는 Milestone 4 이후에는 이 패턴의 한계를 재검토 필요.
 - **Residual-risk**: 게이트 계산이 `app/page.tsx`와 `app/result/page.tsx` 양쪽에서 동일 `computeDiagnosisFlags(process.env)` 호출로 이뤄지는지는 코드 리뷰로 확인했으나, 두 라우트를 동시에 렌더링하는 통합 테스트는 없음(각 라우트가 독립적으로 테스트됨).
 
+### Milestone 4 — Desktop/Mobile 결과 컴포넌트 (2026-09-22)
+
+- **Claim**: `components/result/`에 `result-view.tsx`(M3 stub 교체, 3갈래 분기 + Desktop/Mobile 미디어쿼리 분기) 및 `result-input-summary`/`result-priority-checklist`/`coverage-category-section`/`coverage-item-card`/`result-aggregate-banner`/`result-category-tabs`/`result-cta-bar`/`result-no-data`/`result-error`(전부 신규) + 케이스 무관 고정 문구를 모으는 `labels.ts`(신규, plan.md §F 목록엔 없으나 design.md의 하드코딩 금지 조항 충족을 위해 추가)를 작성했다(REQ-B2CRESULT-001~006/019~023).
+- **Evidence**: `npx vitest run`(전체 스위트) → cherry-pick 직후 1차 실행에서 `app/result/page.test.tsx`의 2개 테스트가 실패(아래 Gap 참고) → 수정 커밋 `3cc5766` 이후 재실행 → `Test Files 64 passed (64)` / `Tests 486 passed (486)`(커밋 `3cc5766`, plan/SPEC-B2C-RESULT-001 브랜치 기준); `npx tsc --noEmit -p tsconfig.json` → 0 errors; `npx eslint components/result app/result` → 0 errors, 0 warnings.
+- **Baseline-attribution**: 커밋 `3cc5766`(plan/SPEC-B2C-RESULT-001, M4 cherry-pick `2b5ef0e` + 경계 수정 커밋), 이 커밋 기준 `npx vitest run` 전체 재실행 + `npx tsc --noEmit` + `npx eslint` 재실행으로 확인.
+- **Gaps (M3/M4 경계 회귀 — orchestrator가 직접 수정)**: M4 cherry-pick 직후 `app/result/page.test.tsx`(M3 산출물)의 2개 테스트가 실패했다 — 원인은 (a) M3 시점엔 `result-view.tsx`가 정적 placeholder였으나 M4가 실제 구현으로 교체하면서 게이트-참 분기가 `sessionStorage`에 handoff 데이터가 없는 테스트 환경에서 `<ResultNoData/>`까지 렌더링하게 됐고, `ResultNoData`가 `next/navigation`의 `useRouter()`를 쓰는데 이 테스트 파일엔 App Router 컨텍스트가 없어 예외가 발생(`diagnosis-flow.test.tsx`가 이미 쓰는 `next/navigation` 모킹 관례를 적용해 해결), (b) 더 이상 존재하지 않는 `data-testid="result-view-placeholder"` 어서션을 실제 렌더 결과인 `data-testid="result-no-data"`로 정정. `components/result/*`의 M4 자체 테스트(22건)는 cherry-pick 전부터 이미 통과 상태였음. `app/result/page.tsx`용 Server Component 전용 테스트 컨벤션은 여전히 이 저장소에 없음(M3부터 이어지는 Gap). Design DNA/Figma `.pen` 원본 대비 픽셀 단위 검증은 하지 않았고 스크린샷 3/5장만 열람함(M02-B/M02-D 미열람) — 시각 정합성 검증은 Milestone 6의 `pnpm visual:verify` 확장 범위.
+- **Residual-risk**: reduced-motion/정확한 포커스 순서 접근성 폴리시는 Milestone 5로 의도적으로 이연됨(현재 `scrollIntoView`/`.focus()` 호출은 `prefers-reduced-motion` 미확인). "왜 확인해야 하나요?" 접힘 UI는 네이티브 `<details>/<summary>`로 구현됐는데 디자인 목업과 픽셀 단위 상호작용 일치는 미검증. 모바일 탭 전환 시 포커스 이동 로직이 `result-view.tsx`에 중앙화되어 있어 `result-category-tabs.tsx` 자체 테스트만으로는 이 이동을 완전히 커버하지 못할 수 있음 — Milestone 5의 접근성 테스트에서 통합 시나리오로 재검증 필요.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
