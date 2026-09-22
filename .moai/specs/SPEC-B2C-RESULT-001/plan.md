@@ -53,7 +53,7 @@
 - [x] Out of Scope 섹션에 5개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(app/, components/diagnosis/, lib/, scripts/visual-verify.ts, e2e/) 완료 — `research.md`
 - [x] 디자인 export 5개 직접 열람 완료(파일 존재 확인)
-- [x] plan-auditor 최종 독립 재검토 완료 — iteration 5 PASS 0.95, must-pass 7/7
+- [x] plan-auditor 최종 독립 재검토 완료 — iteration 6 PASS 0.96, must-pass 5/7 PASS + 2/7 N/A, 감사 대상 커밋 `3dc7ae7`(iteration 5 PASS 0.95는 이후 4차 amendment로 stale화됐으며, 이 iteration 6이 그 대체 결과다)
 
 ## §F. Milestones (후속 `/moai run SPEC-B2C-RESULT-001`의 실행 계획)
 
