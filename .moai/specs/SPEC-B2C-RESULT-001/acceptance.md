@@ -155,6 +155,11 @@ Given `sessionStorage`의 handoff 값이 유효하지 않은 JSON일 때
 When `/result`가 마운트되면
 Then 콘솔 예외로 애플리케이션이 중단되지 않고 02 전용 오류 상태가 표시된다.
 
+추가 시나리오 — 구문은 유효하나 스키마와 불일치하는 JSON:
+Given `sessionStorage`의 handoff 값이 구문적으로는 유효한 JSON이지만(`JSON.parse` 성공) `DiagnosisResultSchema`(`design.md` §1b)의 필수 필드가 누락되었거나 타입이 맞지 않아 `safeParse`가 `success: false`를 반환할 때
+When `/result`가 마운트되면
+Then `readDiagnosisHandoff()`가 `{ status: "invalid", reason }`을 반환하고(`design.md` §3), 그 값이 `sessionStorage`에서 그대로 유지된 채(제거되지 않음) 02 전용 오류 상태가 표시된다 — `{ status: "empty" }`(핸드오프 데이터 부재, AC-B2CRESULT-013)로 오인되어 02 전용 "결과 없음" 상태로 잘못 전환되지 않는다.
+
 **AC-B2CRESULT-015** (REQ-B2CRESULT-015)
 Given `/result`가 클라이언트 데이터 읽기를 아직 완료하지 않았을 때
 When 초기 렌더가 일어나면

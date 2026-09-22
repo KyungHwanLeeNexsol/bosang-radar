@@ -31,15 +31,29 @@
 3. `plan.md` §D의 "기존 파일 중 정확히 3개만 최소 확장" 제약이 run-phase에서 실제로 지켜지는지 — `step-loading.tsx`/`diagnosis-flow.tsx`/`app/page.tsx` 외 파일 변경이 발생하면 PRESERVE 위반이다.
 4. `sessionStorage` 키 네이밍(`design.md` §3의 예시 `"bosang-radar:diagnosis-handoff-v1"`)은 예시일 뿐 확정 값이 아니다 — run-phase가 실제 값을 정하고 AC-B2CRESULT-017 검증에 반영해야 한다.
 
-**Iteration 3 — 완료(이전에 본 §G에 기록되지 않았던 결과를 사후 보정)**: PASS, 종합 점수 **0.96**, must-pass 7/7, 감사 대상 커밋 `d274161`(위 재감사 대기 항목 1~4를 포함해 전체 구조 재감사). 보고서: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-3.md`. LEAN 회귀 신호(0.97→0.96, D1 신규 발견 — `design.md`의 존재하지 않는 `REQ-B2CRESULT-003b` 인용) 기록됨; 표준 3회 재시도 상한(iteration 3/3)에 도달했으므로 PASS-with-debt 권고. **D1 수정** — 커밋 `0d10516`(`design.md:213`의 `REQ-B2CRESULT-003b` → `REQ-B2CRESULT-003` 정정). D2(REQ-023 Unwanted 어투)/D3(REQ 본문 내 구현 세부사항)/D4(REQ-019 "적절한" 약한 표현)는 optional/informational로 남음(수정 불요). **이 iteration 3 결과는 이 progress.md에 이제야 기록된다** — 완료 당시(커밋 `0d10516`) progress.md §G가 갱신되지 않은 채 방치되어 있었음을 git 이력(`git show --stat 0d10516`, `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-3.md` 파일 존재)으로 직접 확인 후 사후 보정한다.
+**Iteration 3 — 완료(이전에 본 §G에 기록되지 않았던 결과를 사후 보정)**: PASS, 종합 점수 **0.96**, must-pass 7/7, 감사 대상 커밋 `d274161`(위 재감사 대기 항목 1~4를 포함해 전체 구조 재감사). 보고서: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-3.md`. LEAN 회귀 신호(0.97→0.96, D1 신규 발견 — `design.md`가 존재하지 않는 REQ 번호에 알파벳 접미사가 붙은 형태의 잘못된 참조를 인용) 기록됨; 표준 3회 재시도 상한(iteration 3/3)에 도달했으므로 PASS-with-debt 권고. **D1 수정** — 커밋 `0d10516`(`design.md:213`의 해당 잘못된 하위-문자 접미사 참조를 상위 REQ 본번호를 가리키도록 정정). D2(REQ-023 Unwanted 어투)/D3(REQ 본문 내 구현 세부사항)/D4(REQ-019 "적절한" 약한 표현)는 optional/informational로 남음(수정 불요). **이 iteration 3 결과는 이 progress.md에 이제야 기록된다** — 완료 당시(커밋 `0d10516`) progress.md §G가 갱신되지 않은 채 방치되어 있었음을 git 이력(`git show --stat 0d10516`, `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-3.md` 파일 존재)으로 직접 확인 후 사후 보정한다.
 
 **재감사 필요(iteration 4 대기, 2026-09-22 두 번째 amendment)** — iteration 3(PASS 0.96, 대상 커밋 `d274161`)이 감사한 artifact 내용을, 이번 디자인 화면(02/M02/M02-B/M02-C/M02-D) 5종 재대조 amendment가 다시 실질적으로 대체했다 — `DiagnosisResult`/`CoverageItem` 계약이 `AccidentSummaryFact`/`PriorityCheck`/`CoverageBadge`/`BenefitDisplay`로 확장되고 `FactChip`이 결합 문자열에서 `{questionId, label, value}` 구조로 바뀌었다(spec.md HISTORY 2번째 bullet 참고). 따라서 iteration 3의 PASS 0.96 verdict는 이 시점 기준 **stale**이다.
 
-**plan-auditor는 이미 표준 3-iteration 예산(iteration 1/2/3)을 전부 소진했다.** 이 SPEC에 대한 추가 재검토(iteration 4)는 plan-auditor Retry Loop Contract상 "표준 상한을 넘는" 예외적 선택이며, orchestrator/user의 명시적 승인 없이 자동으로 실행되어서는 안 된다 — 이는 orchestrator가 판단할 사안이지 manager-spec이 임의로 결정할 사안이 아니다. 그 승인이 나기 전까지 `plan_status`는 `audit-ready`로 설정하지 않는다(위 §E.1 참고). 승인이 나면, 재검토 시 우선 확인이 권장되는 항목:
+**Iteration 4 — 완료(표준 3-iteration 예산을 넘는 예외적 재검토, orchestrator/user 명시적 승인 하에 실행)**: PASS, 종합 점수 **0.857**(Tier L 임계값 0.85 대비 근소하게 상회, margin 0.007), must-pass 7/7, 감사 대상 커밋 `c364f82`(위 우선 확인 항목 5~7을 포함해 전체 구조 재감사). 보고서: `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-4.md`. LEAN 회귀 신호(0.96→0.857)가 기록되었으나, 새로 깨진 구조적 내용은 없다 — must-pass 7/7 PASS/N-A, Completeness/Traceability는 iteration 3과 동일하게 1.0. 회귀는 (a) iteration 2/3부터 이월되어 두 차례 독립 감사자가 이미 non-blocking debt로 수용한 D2~D4(문구·표현 수준)에 이번 iteration이 Clarity/Testability 루브릭을 더 엄격히 적용한 결과, (b) 신규 D5(아래) 하나의 조합이다. 권고는 5차 재시도가 아니라 **PASS-with-debt**.
 
-5. `benefit: BenefitDisplay`가 실제 `lib/diagnosis/types.ts` 구현에서 `status` discriminated union과 독립적인 `CoverageItemBase`의 공통 필수 필드로 선언되는지 — "가능성 낮음" 분기에서도 `benefit` 필드 자체가 optional로 후퇴하지 않아야 한다.
-6. `collectAnsweredFacts(items)`가 실제로 `items[].factChips`만을 입력으로 사용하고 `answers`/`rawInput`을 직접 참조하지 않는지 — SSOT 위반(이중 데이터 경로) 여부.
-7. `buildFractureResult`가 반환하는 `CoverageBadge.kind` 값이 `design.md` §7이 정의한 라벨→kind 매핑(가입 확인 필요→subscription-check/generation-check, 보험증권 확인 필요→policy-type-check, 시설 가입 여부 확인→facility-check, 단체보험 가입 여부 확인→group-insurance-check)과 실제로 일치하는지.
+**D5 (신규, `UNDESIGNED-ZOD-SCHEMA-FOR-TESTED-BEHAVIOR`, severity: minor, class: optional)** — `acceptance.md:82-85`(AC-B2CRESULT-006의 zod `safeParse` 추가 시나리오)는 `BenefitDisplay`의 kind-조건부 필드 강제를 검증하는 zod 스키마의 존재를 전제하지만, 감사 시점의 `design.md` §1은 `BenefitDisplay`를 TypeScript 타입으로만 정의하고 그 스키마의 이름·모듈·형태를 전혀 명시하지 않았다 — AC가 전제하는 설계 산출물이 design.md에 없는 간극. Kickoff Approval을 막지 않는 optional 등급.
+
+**D5 수정** — 커밋 `b2252f9`(`design.md` §1에 `BenefitDisplaySchema`의 소재(`lib/validation/diagnosis-result.ts`)를 명시하는 한 문장 보완).
+
+**이번 라운드(D5 수정 이후 추가 amendment) — 재감사 필요**: iteration 4(대상 커밋 `c364f82`) 및 D5 수정(`b2252f9`) 이후, 다음 변경이 추가로 도입되었다:
+
+1. D5가 가리켰던 한 문장짜리 스키마 참조를 `DiagnosisResult` 전체 계약(모든 하위 타입 미러링)을 아우르는 `design.md` §1b 전체 zod 설계 섹션으로 확장했다 — 모든 분기 `z.strictObject`(알 수 없는 키 거부)로 선언.
+2. 스키마 파일 경로를 D5 수정이 가리켰던 `lib/validation/diagnosis-result.ts`에서 `lib/diagnosis/schema.ts`로 통일했다(`lib/validation/`은 01 전용 입력 스키마가 이미 점유).
+3. `readDiagnosisHandoff()`의 반환 타입을 `DiagnosisResult | null`에서 `DiagnosisHandoffReadResult`(`"empty"`/`"valid"`/`"invalid"` 3갈래 판별 유니언, `DiagnosisResultSchema.safeParse`로 판정)로 재설계했다(`design.md` §3, `plan.md` Milestone 2/4).
+4. `acceptance.md` AC-B2CRESULT-014에 "구문은 유효하나 스키마와 불일치하는 JSON" 추가 시나리오를 병합했다(신규 AC ID 없음, AC 개수 25건 불변).
+5. `plan.md` §B의 stale "마운트 시 1회 읽고 즉시 제거" 문구를 REQ-B2CRESULT-016 현행 정책(탭 세션 유지)과 일치하도록 정정했다.
+6. `plan.md` §B의 fixture 판정 순서 서술에 `reviewEnabled &&` boolean 표현을 명시적으로 반영했다(REQ-B2CRESULT-009 defense-in-depth와의 일치).
+7. `design.md` §1의 `generatedAt` 주석("표시 전용, 저장되지 않음")을 정정했다 — `DiagnosisResult` 전체가 `sessionStorage`에 저장되는 객체이므로 `generatedAt`도 그 왕복에 포함된다.
+
+이 변경들은 iteration 4가 감사한 `design.md` §1/§3 및 `acceptance.md` AC-014의 상당 부분을 대체하므로, iteration 4의 PASS 0.857 verdict는 이 시점 기준 **stale**이다.
+
+**plan-auditor는 이미 표준 3-iteration 예산(iteration 1/2/3)에 더해 명시적으로 승인된 iteration 4까지 소진했다.** 이 SPEC에 대한 추가 재검토(iteration 5)는 plan-auditor Retry Loop Contract상 표준 상한을 다시 넘는 예외적 선택이며, orchestrator/user의 명시적 승인 없이 자동으로 실행되어서는 안 된다 — 이는 orchestrator가 판단할 사안이지 manager-spec이 임의로 결정할 사안이 아니다. 그 승인이 나기 전까지 `plan_status`는 `audit-ready`로 설정하지 않는다(위 §E.1 참고).
 
 ## §E.2 Run-phase Evidence
 

@@ -102,10 +102,12 @@ export type BenefitDisplay =
   | { kind: "formula"; label: string; displayText: string }
   | { kind: "conditional"; label: string; displayText: string }
   | { kind: "unavailable"; label: string; displayText: string };
-// 런타임 파싱은 `lib/validation/diagnosis-result.ts`의 `BenefitDisplaySchema`
-// (`z.discriminatedUnion("kind", [...])`, kind별 5개 zod object 분기)가 맡는다
-// — AC-B2CRESULT-006 추가 시나리오("kind: range인데 min/max 없음"을
-// `safeParse`가 거부)가 검증하는 스키마가 바로 이것이다(run-phase가 작성).
+// 런타임 파싱은 `lib/diagnosis/schema.ts`의 `BenefitDisplaySchema`
+// (`z.discriminatedUnion("kind", [...])`, kind별 5개 `z.strictObject` 분기 —
+// 알 수 없는 키는 거부한다)가 맡는다 — AC-B2CRESULT-006 추가 시나리오
+// ("kind: range인데 min/max 없음"을 `safeParse`가 거부)가 검증하는 스키마가
+// 바로 이것이다. `DiagnosisResult` 전체 계약의 zod 대응은 아래 "1b. 런타임
+// 검증 스키마" 참고(run-phase가 최종 구현을 작성한다).
 
 // CoverageItem은 status로 판별되는 discriminated union이다 — REQ-B2CRESULT-005가
 // 요구하는 "가능성 낮음은 reasonNote 필수"를 타입 체크 시점에 강제하기 위해,
@@ -144,13 +146,129 @@ export interface DiagnosisResult {
   inputSummary: InputAccidentSummary;   // 사고 내용 구조화 요약 — title + 4개 AccidentSummaryFact
   priorityChecks: PriorityCheck[];      // "확인 우선순위" — id/title/description/targetCategory 구조체 배열
   items: CoverageItem[];
-  generatedAt: string; // ISO 8601 — 표시 전용, 저장되지 않음
+  generatedAt: string; // ISO 8601 — DiagnosisResult 전체가 sessionStorage에 기록되는
+                        // 대상이므로(§3 writeDiagnosisHandoff), generatedAt도 그
+                        // 왕복(write → read)에 그대로 포함되어 보존된다 — 표시 전용
+                        // "이면서 저장되지 않는" 필드가 아니라, 저장되는 객체의
+                        // 일부로서 표시에 쓰이는 필드다.
 }
 ```
 
 **결정 (확정)**: 카테고리·상태·배지 kind는 문자열 리터럴 union으로 고정하며 `string` 타입으로 느슨화하지 않는다(REQ-B2CRESULT-001) — TypeScript strict 모드가 정의되지 않은 값 추가를 컴파일 시점에 차단하는 것이 목적이다. `CoverageItem`은 `status`로 판별되는 discriminated union이며, `reasonNote`의 필수/선택 여부는 (zod refine 같은 런타임 검증이 아니라) 타입 정의 자체에서 결정된다 — 컴파일 시점에 "가능성 낮음인데 reasonNote 누락"을 차단하는 것이 목적이다. `benefit`은 `status` 판별과 무관하게 `CoverageItemBase`가 요구하는 공통 필수 필드이며, `BenefitDisplay`는 `kind`로 판별되는 별도의 5분기 discriminated union이다 — 두 판별 유니언은 서로 독립적이다(예: `status: "low-likelihood"` 이면서 `benefit.kind: "range"`인 조합도 타입상 허용된다 — 실제로는 fixture가 low-likelihood 항목에 `"unavailable"`/`"conditional"`을 선택하지만, 타입 레벨의 강제는 아니다).
 
 **하드코딩 문구 금지 (REQ-B2CRESULT-001, AC-B2CRESULT-006 추가 시나리오)**: `components/result/*` 컴포넌트는 사고 요약·확인 우선순위·카테고리 설명·whyCheck·배지 라벨·보장 방식 문구 등 케이스별로 달라지는 문구를 절대 리터럴로 직접 작성하지 않는다 — 모든 동적 문구는 위 `DiagnosisResult`/`CoverageItem`/`PriorityCheck`/`CoverageBadge`/`BenefitDisplay` 필드에서 오거나(케이스별 값), 상태 pill 라벨("검토 대상"/"추가 정보 필요"/"가능성 낮음") 같은 케이스 무관 고정 문구는 `lib/diagnosis/labels.ts` 같은 공용 상수 모듈 하나에서만 온다.
+
+## 1b. 런타임 검증 스키마 (`lib/diagnosis/schema.ts`, 신규)
+
+§1의 `DiagnosisResult` TypeScript 계약은 컴파일 시점 강제만 제공한다 — `sessionStorage`에서 읽은 값(§3)은 컴파일러가 보증하지 않는 외부 입력이므로, 동일한 계약을 런타임에도 강제하는 zod 스키마가 필요하다(REQ-B2CRESULT-014, AC-B2CRESULT-006/014). 파일 위치는 `lib/diagnosis/`(신규 디렉터리) 하위로 통일한다 — `lib/validation/`은 01 전용 입력 스키마(`lib/validation/diagnosis-input.ts`, `research.md` §2)가 이미 점유한 디렉터리이므로, 02의 결과 계약 스키마는 타입 정의와 같은 `lib/diagnosis/` 아래(`types.ts`와 나란히)에 둔다.
+
+**엄격성 결정 (확정)**: 모든 분기는 `z.strictObject(...)`(또는 동등한 `.object({...}).strict()`)로 선언하며, `z.object`(느슨한 기본 동작 — 알 수 없는 키를 무시하고 통과시킴)를 사용하지 않는다. 이유: 01 응답이 `factChips`/`badges` 등 배열 요소로 그대로 흘러 들어오는 구조이므로, 오염된 키(예: 오래된 스키마 버전의 잔여 필드, 다른 모듈이 실수로 병합한 값)가 known-key 검증만으로는 조용히 통과해 화면에 반영되지 않는 죽은 데이터로 남을 수 있다 — `safeParse` 단계에서 미지 키를 명시적으로 거부해야 그런 오염을 구조 불일치로 즉시 표면화할 수 있다.
+
+```ts
+// [설계 의도 — run-phase가 실제 코드로 작성한다, lib/diagnosis/schema.ts]
+import { z } from "zod";
+
+export const CoverageCategorySchema = z.enum([
+  "reimbursement", "fixed", "disability", "special",
+]);
+
+export const CoverageStatusSchema = z.enum(["review", "needs-info", "low-likelihood"]);
+
+export const AccidentSummaryFactSchema = z.strictObject({
+  label: z.string(),
+  value: z.string(),
+});
+
+export const InputAccidentSummarySchema = z.strictObject({
+  title: z.string(),
+  when: AccidentSummaryFactSchema,
+  where: AccidentSummaryFactSchema,
+  mechanism: AccidentSummaryFactSchema,
+  bodyPart: AccidentSummaryFactSchema,
+});
+
+// §1의 FactChip은 AccidentSummaryFact를 TS interface extends로 상속하지만,
+// zod strictObject는 상속을 그대로 반영하지 않으므로 필드 집합을 questionId와
+// 함께 다시 나열한다(구조는 AccidentSummaryFactSchema + questionId와 동일).
+export const FactChipSchema = z.strictObject({
+  questionId: z.string(),
+  label: z.string(),
+  value: z.string(),
+});
+
+export const PriorityCheckSchema = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  targetCategory: CoverageCategorySchema,
+});
+
+export const CoverageBadgeKindSchema = z.enum([
+  "subscription-check", "generation-check", "policy-type-check",
+  "hospital-type-check", "facility-check", "group-insurance-check",
+  "individual-check", "multi-match", "custom",
+]);
+
+export const CoverageBadgeSchema = z.strictObject({
+  id: z.string(),
+  label: z.string(),
+  kind: CoverageBadgeKindSchema,
+});
+
+// 5분기 모두 strictObject — kind별로 허용되는 필드 집합이 다르므로(range/fixed만
+// min/max/value를 갖는다), AC-B2CRESULT-006 추가 시나리오("kind: range인데
+// min/max 없음"을 safeParse가 거부)가 검증하는 대상이 바로 이 discriminatedUnion이다.
+export const BenefitDisplaySchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("range"), label: z.string(), min: z.number(), max: z.number(), displayText: z.string() }),
+  z.strictObject({ kind: z.literal("fixed"), label: z.string(), value: z.number(), displayText: z.string() }),
+  z.strictObject({ kind: z.literal("formula"), label: z.string(), displayText: z.string() }),
+  z.strictObject({ kind: z.literal("conditional"), label: z.string(), displayText: z.string() }),
+  z.strictObject({ kind: z.literal("unavailable"), label: z.string(), displayText: z.string() }),
+]);
+
+// CoverageItemBase(§1)의 공통 필수 필드 — status discriminatedUnion의 세 분기가
+// 스프레드로 재사용해 중복 나열을 피한다. 필드 목록은 §1 CoverageItemBase와
+// 1:1로 대응한다.
+const CoverageItemCommonFields = {
+  id: z.string(),
+  category: CoverageCategorySchema,
+  name: z.string(),
+  description: z.string(),
+  whyCheck: z.string(),
+  badges: z.array(CoverageBadgeSchema),
+  benefit: BenefitDisplaySchema,
+  factChips: z.array(FactChipSchema),
+  evidenceRefs: z.array(z.string()).optional(),
+  additionalInfoNote: z.string().optional(),
+  requiredDocuments: z.array(z.string()).optional(),
+};
+
+// status: "low-likelihood" 분기만 reasonNote를 요구한다 — §1 TS 타입 정의가
+// 컴파일 시점에 강제하는 것과 동일한 강제를 런타임에도 재현한다
+// (REQ-B2CRESULT-005, AC-B2CRESULT-005 추가 시나리오).
+export const CoverageItemSchema = z.discriminatedUnion("status", [
+  z.strictObject({ ...CoverageItemCommonFields, status: z.literal("review") }),
+  z.strictObject({ ...CoverageItemCommonFields, status: z.literal("needs-info") }),
+  z.strictObject({ ...CoverageItemCommonFields, status: z.literal("low-likelihood"), reasonNote: z.string() }),
+]);
+
+// DiagnosisResult 전체 계약 — 01→02 인계 채널(§3)이 sessionStorage에서 읽은
+// 원시 JSON을 이 스키마로 safeParse해 유효성을 판정한다.
+// readDiagnosisHandoff()(§3)의 "invalid" 분기는 이 safeParse 실패
+// (JSON.parse 실패를 포함)를 근거로 판정된다.
+export const DiagnosisResultSchema = z.strictObject({
+  resultId: z.string(),
+  schemaVersion: z.string(),
+  rawInput: z.string(),
+  answers: z.record(z.string(), z.string()),
+  inputSummary: InputAccidentSummarySchema,
+  priorityChecks: z.array(PriorityCheckSchema),
+  items: z.array(CoverageItemSchema),
+  generatedAt: z.string(),
+});
+
+export type DiagnosisResultParsed = z.infer<typeof DiagnosisResultSchema>;
+```
 
 ## 2. 집계 함수 (`lib/diagnosis/aggregate.ts`, 신규)
 
@@ -194,11 +312,31 @@ export function collectAnsweredFacts(items: readonly CoverageItem[]): FactChip[]
 ```ts
 // [설계 의도]
 export function writeDiagnosisHandoff(result: DiagnosisResult): void { /* ... */ }
-export function readDiagnosisHandoff(): DiagnosisResult | null { /* 읽기만 하며, 제거하지 않는다 */ }
+
+// readDiagnosisHandoff()는 3갈래 판별 유니언으로 반환한다 — sessionStorage에
+// 값이 아예 없는 경우("empty")와, 값은 있으나 DiagnosisResultSchema(§1b)의
+// safeParse가 거부하는 경우("invalid")를 서로 다른 상태로 구분해야
+// result-view.tsx(§5)가 02 전용 "결과 없음"(REQ-B2CRESULT-013)과 "오류"
+// (REQ-B2CRESULT-014) 상태를 혼동 없이 갈라 렌더링할 수 있다 — boolean 반환이나
+// 예외 throw로는 이 세 상태를 하나의 호출 결과로 구분해 전달할 수 없다.
+export type DiagnosisHandoffReadResult =
+  | { status: "empty" }
+  | { status: "valid"; result: DiagnosisResult }
+  | { status: "invalid"; reason: string };
+
+export function readDiagnosisHandoff(): DiagnosisHandoffReadResult {
+  /* 읽기만 하며, 어떤 분기에서도 sessionStorage를 변경하지 않는다.
+     1) sessionStorage에 키가 없으면            → { status: "empty" }
+     2) 값은 있으나 JSON.parse가 실패하거나,
+        DiagnosisResultSchema.safeParse(§1b)가
+        success: false를 반환하면                → { status: "invalid", reason }
+     3) safeParse가 success: true를 반환하면      → { status: "valid", result: data } */
+}
+
 export function clearDiagnosisHandoff(): void { /* 명시적 트리거에서만 호출 */ }
 ```
 
-`writeDiagnosisHandoff(result: DiagnosisResult)`는 진단 중 단계가 `"result"`로 완료되는 시점에 `buildFractureResult(rawInput, answers)`가 구성한 **완전한** `DiagnosisResult`를 1회 기록한다(§4) — `rawInput`/`answers`만 저장하고 결과 구성을 `/result` 쪽으로 미루지 않는다(REQ-B2CRESULT-010). `/result` 마운트 시 `readDiagnosisHandoff()`가 값을 읽어 렌더링하며, 이 호출은 `sessionStorage`를 변경하지 않는다(REQ-B2CRESULT-016, AC-B2CRESULT-016). SSR 환경(`typeof window === "undefined"`)에서는 세 함수 모두 안전하게 `null`/no-op을 반환한다. 키는 프로젝트 네임스페이스를 포함한 전용 문자열을 사용한다(REQ-B2CRESULT-017, 예: `"bosang-radar:diagnosis-handoff-v1"`— 실제 값은 run-phase가 확정).
+`writeDiagnosisHandoff(result: DiagnosisResult)`는 진단 중 단계가 `"result"`로 완료되는 시점에 `buildFractureResult(rawInput, answers)`가 구성한 **완전한** `DiagnosisResult`를 1회 기록한다(§4) — `rawInput`/`answers`만 저장하고 결과 구성을 `/result` 쪽으로 미루지 않는다(REQ-B2CRESULT-010). `/result` 마운트 시 `readDiagnosisHandoff()`가 `DiagnosisHandoffReadResult`(위 3갈래)를 반환하며, `result-view.tsx`(§5)는 이 값을 그대로 분기한다 — `"empty"`이면 02 전용 "결과 없음" 상태(REQ-B2CRESULT-013), `"invalid"`이면 02 전용 오류 상태(REQ-B2CRESULT-014, "구문적으로 유효한 JSON이지만 스키마 불일치"인 경우도 포함), `"valid"`이면 `result` 필드를 렌더링한다. 세 경우 모두 이 호출은 `sessionStorage`를 변경하지 않는다(REQ-B2CRESULT-016, AC-B2CRESULT-016). SSR 환경(`typeof window === "undefined"`)에서는 `readDiagnosisHandoff()`가 안전하게 `{ status: "empty" }`를 반환하고, `writeDiagnosisHandoff`/`clearDiagnosisHandoff`는 no-op이다. 키는 프로젝트 네임스페이스를 포함한 전용 문자열을 사용한다(REQ-B2CRESULT-017, 예: `"bosang-radar:diagnosis-handoff-v1"`— 실제 값은 run-phase가 확정).
 
 **왜 탭 세션 동안 유지하는가(수명 정책, REQ-B2CRESULT-016)**: 이전 초안의 "1회 읽고 즉시 삭제" 설계는 새로고침·뒤로가기 시 결과가 사라지는 부작용이 있었다(review 피드백 — 사용자가 결과를 다시 보려고 새로고침하면 "결과 없음" 상태로 튕기는 것은 좋은 경험이 아니다). 새 설계는 데이터를 동일 탭 세션 동안 유지하고, `clearDiagnosisHandoff()`를 아래 세 경우에만 명시적으로 호출한다:
 
