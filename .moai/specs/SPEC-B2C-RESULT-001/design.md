@@ -210,7 +210,7 @@ lib/
 `result-view.tsx`가 `useMediaQuery(DESKTOP_MEDIA_QUERY)`(`components/diagnosis/use-media-query.ts` 재사용, 복제하지 않음)로 분기한다:
 
 - **Desktop**: `items`를 4개 카테고리로 `groupBy` 한 뒤 `coverage-category-section.tsx`를 4번(카테고리 순서 고정) 렌더링 — 전부 동시에 DOM에 존재.
-- **Mobile**: `result-category-tabs.tsx`가 선택된 카테고리 하나만 `coverage-category-section.tsx`에 전달 — 나머지 3개는 렌더 트리에서 제외(REQ-B2CRESULT-003b, "한 번에 하나만"이 디자인 의도이므로 `hidden` CSS가 아니라 조건부 렌더링).
+- **Mobile**: `result-category-tabs.tsx`가 선택된 카테고리 하나만 `coverage-category-section.tsx`에 전달 — 나머지 3개는 렌더 트리에서 제외(REQ-B2CRESULT-003, "한 번에 하나만"이 디자인 의도이므로 `hidden` CSS가 아니라 조건부 렌더링).
 
 두 분기 모두 `coverage-category-section.tsx`/`coverage-item-card.tsx`를 그대로 재사용하며, 이 SPEC은 Desktop 전용·Mobile 전용 카드 컴포넌트를 별도로 만들지 않는다(REQ-B2CRESULT-004, Enforce Simplicity).
 
