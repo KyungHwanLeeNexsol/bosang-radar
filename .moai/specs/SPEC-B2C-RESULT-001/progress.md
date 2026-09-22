@@ -5,7 +5,7 @@
 - `plan_status: audit-ready`
 - `plan_complete_at: 2026-09-22`
 - Tier: **L**(5-artifact set: spec.md + plan.md + acceptance.md + design.md + research.md) — LOC/파일 수 추정(신규 `app/result/page.tsx` 1 + `components/result/*` 8개 + `lib/diagnosis/*` 5개 + 기존 파일 최소 확장 3개 + 대응 테스트 다수 + `e2e/diagnosis-flow-02.spec.ts` 신규 + `scripts/visual-verify.ts` 확장, 총 영향 파일 > 15, 예상 LOC > 1000)로 Tier L 확정 — 선행 SPEC-B2C-DIAGNOSIS-001과 동일한 등급.
-- 요구사항 25건(Tier L 상한 25 충족, 초과 없음) / acceptance.md AC 25건 + 하위 변형 3건(AC-002b, AC-003b, AC-011b, AC-013b — REQ 인용 기반 세부 시나리오, REQ 대비 1:1 이상 커버리지).
+- 요구사항 25건(Tier L 상한 25 충족, 초과 없음) / acceptance.md AC 25건(Tier L 상한 25 충족, 초과 없음) — 4건(AC-002/003/011/013)은 부모 AC 안에 "추가 시나리오" Given/When/Then을 병합해 REQ 대비 1:1 이상 커버리지를 유지한다(plan-auditor D1 반영, 2026-09-22).
 - Out of Scope 섹션: `### Out of Scope —` H3 하위 제목 5개(각 `-` bullet 포함) — `OutOfScopeRule` lint 요건 충족.
 - 작성된 산출물 경로:
   - `.moai/specs/SPEC-B2C-RESULT-001/spec.md`

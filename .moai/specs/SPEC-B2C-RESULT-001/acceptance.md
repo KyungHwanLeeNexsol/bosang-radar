@@ -14,7 +14,7 @@ Given `computeAggregate(items)`가 5개 항목(검토 대상 2 · 추가 정보 
 When 함수를 호출하면
 Then `{ total: 5, review: 2, needsInfo: 2, lowLikelihood: 1 }`을 반환한다.
 
-**AC-B2CRESULT-002b** (REQ-B2CRESULT-002)
+추가 시나리오 — 하드코딩 방지 검증:
 Given 동일한 `computeAggregate`에 항목 1개를 추가한(6개) 고정 배열을 전달했을 때
 When 두 호출 결과를 비교하면
 Then `total`이 5에서 6으로, 그리고 추가한 항목의 상태에 대응하는 필드가 함께 바뀐다 — 숫자가 상수로 고정되어 있지 않음을 증명한다.
@@ -24,7 +24,7 @@ Given 뷰포트가 1440px(Desktop)일 때
 When `/result` 페이지를 렌더링하면
 Then 4개 카테고리 섹션이 모두 동시에 DOM에 표시된다.
 
-**AC-B2CRESULT-003b** (REQ-B2CRESULT-003)
+추가 시나리오 — Mobile 뷰포트:
 Given 뷰포트가 390px(Mobile)일 때
 When `/result` 페이지를 렌더링하면
 Then 실손 의료비 탭이 기본 선택 상태로 표시되고, 다른 3개 카테고리는 선택되기 전까지 표시되지 않는다.
@@ -73,7 +73,7 @@ Given `ENABLE_DIAGNOSIS_DEV_STATES=true`일 때
 When 입력값이 정확히 "무릎 골절로 수술을 받았어요"(`e2e/diagnosis-flow-01.spec.ts`의 `RESULT_NONE_INPUT`, `FRACTURE_FIXTURE_INPUT`과 다른 문자열)이면
 Then 기존과 동일하게 `result-none` 상태로 전이하며 `/result`로 이동하지 않는다.
 
-**AC-B2CRESULT-011b** (REQ-B2CRESULT-011)
+추가 시나리오 — error 상태 분기:
 Given `ENABLE_DIAGNOSIS_DEV_STATES=true`일 때
 When 입력값이 정확히 "분석 중 오류가 발생했어요"(`ERROR_INPUT`)이면
 Then 기존과 동일하게 `error` 상태로 전이한다.
@@ -90,7 +90,7 @@ Given `sessionStorage`에 handoff 데이터가 없는 상태에서
 When 사용자가 `/result`에 직접 접근하면
 Then 02 전용 "결과 없음" 안내와 01 입력 화면으로 돌아가는 CTA가 표시되며, 01의 `result-none`(01-D) 문구와는 다른 문구를 사용한다.
 
-**AC-B2CRESULT-013b** (REQ-B2CRESULT-013)
+추가 시나리오 — 새로고침 후 재현:
 Given 정상적으로 `/result`에 도착해 결과가 표시된 상태에서
 When 페이지를 새로고침하면
 Then handoff가 이미 1회 소비되어 제거되었으므로 위와 동일한 02 전용 "결과 없음" 상태로 전환된다.
