@@ -52,9 +52,7 @@ function coverageHeadingId(category: CoverageCategory): string {
   return `coverage-heading-${category}`;
 }
 
-function groupByCategory(
-  items: readonly CoverageItem[]
-): Record<CoverageCategory, CoverageItem[]> {
+function groupByCategory(items: readonly CoverageItem[]): Record<CoverageCategory, CoverageItem[]> {
   const grouped: Record<CoverageCategory, CoverageItem[]> = {
     reimbursement: [],
     fixed: [],
@@ -187,7 +185,10 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
       // Desktop은 4카테고리 섹션이 모두 이미 DOM에 있으므로 anchor scroll +
       // 포커스 이동만 수행한다(design.md §6).
       const heading = document.getElementById(coverageHeadingId(category));
-      heading?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+      heading?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
       heading?.focus();
       return;
     }

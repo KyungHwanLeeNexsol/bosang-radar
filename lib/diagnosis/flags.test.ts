@@ -56,14 +56,14 @@ describe("computeDiagnosisFlags — shouldRenderDiagnosis 5행 동작 행렬(REQ
 });
 
 describe("computeDiagnosisFlags — productionReady", () => {
-  it("ENABLE_DIAGNOSIS_FLOW와 DIAGNOSIS_ENGINE_READY가 모두 \"true\"일 때만 참이다", () => {
+  it('ENABLE_DIAGNOSIS_FLOW와 DIAGNOSIS_ENGINE_READY가 모두 "true"일 때만 참이다', () => {
     expect(
       computeDiagnosisFlags({ ENABLE_DIAGNOSIS_FLOW: "true", DIAGNOSIS_ENGINE_READY: "true" })
         .productionReady
     ).toBe(true);
   });
 
-  it("하나만 \"true\"이면 거짓이다(AND 결합)", () => {
+  it('하나만 "true"이면 거짓이다(AND 결합)', () => {
     expect(
       computeDiagnosisFlags({ ENABLE_DIAGNOSIS_FLOW: "true", DIAGNOSIS_ENGINE_READY: undefined })
         .productionReady
@@ -80,10 +80,8 @@ describe("computeDiagnosisFlags — productionReady", () => {
 });
 
 describe("computeDiagnosisFlags — reviewEnabled", () => {
-  it("ENABLE_DIAGNOSIS_DEV_STATES가 \"true\"일 때만 참이다", () => {
-    expect(computeDiagnosisFlags({ ENABLE_DIAGNOSIS_DEV_STATES: "true" }).reviewEnabled).toBe(
-      true
-    );
+  it('ENABLE_DIAGNOSIS_DEV_STATES가 "true"일 때만 참이다', () => {
+    expect(computeDiagnosisFlags({ ENABLE_DIAGNOSIS_DEV_STATES: "true" }).reviewEnabled).toBe(true);
   });
 
   it("unset이면 거짓이다", () => {
@@ -92,7 +90,7 @@ describe("computeDiagnosisFlags — reviewEnabled", () => {
 });
 
 describe('computeDiagnosisFlags — "true" 문자열만 참으로 취급(design.md §19.1a)', () => {
-  it("\"1\"·\"yes\" 등 다른 truthy 문자열은 거짓으로 취급한다", () => {
+  it('"1"·"yes" 등 다른 truthy 문자열은 거짓으로 취급한다', () => {
     expect(
       computeDiagnosisFlags({ ENABLE_DIAGNOSIS_FLOW: "1", DIAGNOSIS_ENGINE_READY: "yes" })
         .productionReady

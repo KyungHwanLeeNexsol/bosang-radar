@@ -39,7 +39,10 @@ export function CoverageItemCard({ item }: CoverageItemCardProps) {
     <div
       data-testid={`coverage-item-${item.id}`}
       data-status={item.status}
-      className={cn("flex flex-col gap-2.5 rounded-[10px] border p-4", STATUS_CARD_STYLE[item.status])}
+      className={cn(
+        "flex flex-col gap-2.5 rounded-[10px] border p-4",
+        STATUS_CARD_STYLE[item.status]
+      )}
     >
       <h3 className="text-body-s font-bold text-bora-ink">{item.name}</h3>
 

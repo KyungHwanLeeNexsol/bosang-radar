@@ -293,11 +293,9 @@ async function descendantWithPrefixExists(
   childPrefix: string
 ): Promise<string> {
   return String(
-    (
-      await page
-        .locator(`[data-testid="${parentTestId}"] [data-testid^="${childPrefix}"]`)
-        .count()
-    ) > 0
+    (await page
+      .locator(`[data-testid="${parentTestId}"] [data-testid^="${childPrefix}"]`)
+      .count()) > 0
   );
 }
 
@@ -319,8 +317,9 @@ async function coverageSectionCount(page: Page): Promise<string> {
 /** 카테고리 탭의 aria-selected 값("true"/"false"). 탭이 없으면 "missing". */
 async function tabAriaSelected(page: Page, category: string): Promise<string> {
   return (
-    (await page.locator(`[data-testid="category-tab-${category}"]`).getAttribute("aria-selected")) ??
-    "missing"
+    (await page
+      .locator(`[data-testid="category-tab-${category}"]`)
+      .getAttribute("aria-selected")) ?? "missing"
   );
 }
 
@@ -1192,7 +1191,11 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         label: "실손 의료비 담보 카드 1개 이상 존재",
         expected: "true",
-        actual: await descendantWithPrefixExists(page, "coverage-section-reimbursement", "coverage-item-"),
+        actual: await descendantWithPrefixExists(
+          page,
+          "coverage-section-reimbursement",
+          "coverage-item-"
+        ),
       },
       {
         label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
@@ -1356,7 +1359,11 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         label: "후유장해 카드 1개 이상 존재",
         expected: "true",
-        actual: await descendantWithPrefixExists(page, "coverage-section-disability", "coverage-item-"),
+        actual: await descendantWithPrefixExists(
+          page,
+          "coverage-section-disability",
+          "coverage-item-"
+        ),
       },
       {
         label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
@@ -1435,7 +1442,11 @@ const SCREENS: readonly ScreenSpec[] = [
       {
         label: "특별 보상 카드 1개 이상 존재",
         expected: "true",
-        actual: await descendantWithPrefixExists(page, "coverage-section-special", "coverage-item-"),
+        actual: await descendantWithPrefixExists(
+          page,
+          "coverage-section-special",
+          "coverage-item-"
+        ),
       },
       {
         label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",

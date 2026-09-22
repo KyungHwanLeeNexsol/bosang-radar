@@ -54,9 +54,9 @@ describe("components/result/ResultInputConditionDisclosure", () => {
     const details = container.querySelector('[data-testid="result-input-condition-disclosure"]');
     expect(details?.tagName).toBe("DETAILS");
     expect(details?.querySelector("summary")?.textContent).toBe("입력 조건 더보기");
-    expect(
-      container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent
-    ).toBe(FRACTURE_FIXTURE_INPUT);
+    expect(container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent).toBe(
+      FRACTURE_FIXTURE_INPUT
+    );
   });
 
   it("추가 질문 응답(answers)을 함께 노출한다", () => {
@@ -80,6 +80,8 @@ describe("components/result/ResultInputConditionDisclosure", () => {
       root.render(<ResultInputConditionDisclosure />);
     });
 
-    expect(container.querySelector('[data-testid="result-input-condition-disclosure"] a')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="result-input-condition-disclosure"] a')
+    ).toBeNull();
   });
 });

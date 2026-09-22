@@ -59,9 +59,9 @@ describe("components/result/ResultAggregateBanner — REQ-B2CRESULT-002", () => 
       root.render(<ResultAggregateBanner aggregate={aggregate} />);
     });
 
-    expect(container.querySelector('[data-testid="result-aggregate-review"]')?.textContent).toContain(
-      "2개"
-    );
+    expect(
+      container.querySelector('[data-testid="result-aggregate-review"]')?.textContent
+    ).toContain("2개");
     expect(
       container.querySelector('[data-testid="result-aggregate-needs-info"]')?.textContent
     ).toContain("1개");
@@ -83,8 +83,8 @@ describe("components/result/ResultAggregateBanner — REQ-B2CRESULT-002", () => 
       root.render(<ResultAggregateBanner aggregate={computeAggregate(moreItems)} />);
     });
     expect(container.textContent).toContain("3개 담보를 분석했습니다");
-    expect(container.querySelector('[data-testid="result-aggregate-review"]')?.textContent).toContain(
-      "3개"
-    );
+    expect(
+      container.querySelector('[data-testid="result-aggregate-review"]')?.textContent
+    ).toContain("3개");
   });
 });

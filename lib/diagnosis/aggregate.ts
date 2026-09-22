@@ -23,7 +23,7 @@ export function computeAggregate(items: readonly CoverageItem[]): DiagnosisAggre
       else acc.lowLikelihood += 1;
       return acc;
     },
-    { total: items.length, review: 0, needsInfo: 0, lowLikelihood: 0 },
+    { total: items.length, review: 0, needsInfo: 0, lowLikelihood: 0 }
   );
 }
 

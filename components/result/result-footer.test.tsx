@@ -31,10 +31,7 @@ describe("components/result/ResultFooter", () => {
     });
 
     const links = container.querySelectorAll('[data-testid="result-footer-links"] a');
-    expect(Array.from(links).map((el) => el.textContent)).toEqual([
-      "개인정보처리방침",
-      "이용약관",
-    ]);
+    expect(Array.from(links).map((el) => el.textContent)).toEqual(["개인정보처리방침", "이용약관"]);
   });
 
   it("고객 문의 안내를 렌더링한다", () => {

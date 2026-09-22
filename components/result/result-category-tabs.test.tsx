@@ -31,9 +31,7 @@ describe("components/result/ResultCategoryTabs — ARIA roles(REQ-B2CRESULT-019)
 
   it("role=tablist와 4개의 role=tab이 렌더링된다", () => {
     act(() => {
-      root.render(
-        <ResultCategoryTabs active="reimbursement" onChange={vi.fn()} counts={counts} />
-      );
+      root.render(<ResultCategoryTabs active="reimbursement" onChange={vi.fn()} counts={counts} />);
     });
 
     expect(container.querySelector('[role="tablist"]')).not.toBeNull();
@@ -54,7 +52,9 @@ describe("components/result/ResultCategoryTabs — ARIA roles(REQ-B2CRESULT-019)
   it("탭 클릭 시 onChange가 해당 카테고리와 함께 호출된다", () => {
     const onChange = vi.fn();
     act(() => {
-      root.render(<ResultCategoryTabs active="reimbursement" onChange={onChange} counts={counts} />);
+      root.render(
+        <ResultCategoryTabs active="reimbursement" onChange={onChange} counts={counts} />
+      );
     });
 
     act(() => {
@@ -66,9 +66,7 @@ describe("components/result/ResultCategoryTabs — ARIA roles(REQ-B2CRESULT-019)
 
   it("각 탭은 aria-controls로 대응하는 담보 카테고리 섹션 id를 가리킨다", () => {
     act(() => {
-      root.render(
-        <ResultCategoryTabs active="reimbursement" onChange={vi.fn()} counts={counts} />
-      );
+      root.render(<ResultCategoryTabs active="reimbursement" onChange={vi.fn()} counts={counts} />);
     });
 
     const tab = container.querySelector('[data-testid="category-tab-fixed"]');

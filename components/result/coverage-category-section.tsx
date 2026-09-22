@@ -69,7 +69,10 @@ export function CoverageCategorySection({
         <span className="shrink-0 text-label-s text-bora-ink-3">{items.length}개 담보 검토</span>
       </div>
 
-      <p data-testid={`coverage-section-description-${category}`} className="text-label-s text-bora-ink-3">
+      <p
+        data-testid={`coverage-section-description-${category}`}
+        className="text-label-s text-bora-ink-3"
+      >
         {CATEGORY_DESCRIPTION[category]}
       </p>
 

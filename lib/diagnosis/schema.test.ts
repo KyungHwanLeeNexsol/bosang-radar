@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  BenefitDisplaySchema,
-  CoverageItemSchema,
-  DiagnosisResultSchema,
-} from "./schema";
+import { BenefitDisplaySchema, CoverageItemSchema, DiagnosisResultSchema } from "./schema";
 import { DIAGNOSIS_SCHEMA_VERSION, type CoverageItem, type DiagnosisResult } from "./types";
 
 // SPEC-B2C-RESULT-001 M1 — DiagnosisResultSchema 및 하위 스키마의 런타임
@@ -129,7 +125,10 @@ describe("DiagnosisResultSchema — REQ-B2CRESULT-001/005/006/014", () => {
   it("담보 배지 id/label이 빈 문자열이면 거부한다", () => {
     const input = buildValidDiagnosisResult();
     const [firstItem, ...rest] = input.items;
-    input.items = [{ ...firstItem, badges: [{ id: "", label: "가입 확인 필요", kind: "subscription-check" }] }, ...rest];
+    input.items = [
+      { ...firstItem, badges: [{ id: "", label: "가입 확인 필요", kind: "subscription-check" }] },
+      ...rest,
+    ];
     expect(DiagnosisResultSchema.safeParse(input).success).toBe(false);
   });
 
@@ -144,7 +143,10 @@ describe("DiagnosisResultSchema — REQ-B2CRESULT-001/005/006/014", () => {
     const input = buildValidDiagnosisResult();
     const [firstItem, ...rest] = input.items;
     input.items = [
-      { ...firstItem, benefit: { ...firstItem.benefit, displayText: "" } as CoverageItem["benefit"] },
+      {
+        ...firstItem,
+        benefit: { ...firstItem.benefit, displayText: "" } as CoverageItem["benefit"],
+      },
       ...rest,
     ];
     expect(DiagnosisResultSchema.safeParse(input).success).toBe(false);
@@ -206,7 +208,11 @@ describe("BenefitDisplaySchema — kind별 discriminated union(REQ-B2CRESULT-006
   });
 
   it("kind: unavailable은 min/max/value 없이 통과한다", () => {
-    const input = { kind: "unavailable", label: "현재 정보상", displayText: "현재 정보상 / 가능성 낮음" };
+    const input = {
+      kind: "unavailable",
+      label: "현재 정보상",
+      displayText: "현재 정보상 / 가능성 낮음",
+    };
     expect(BenefitDisplaySchema.safeParse(input).success).toBe(true);
   });
 });

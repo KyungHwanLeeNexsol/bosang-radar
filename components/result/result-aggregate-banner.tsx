@@ -32,9 +32,7 @@ export function ResultAggregateBanner({ aggregate }: ResultAggregateBannerProps)
           className="rounded-[10px] bg-bora-warn-soft p-3"
         >
           <p className="text-label-s text-bora-warn">추가 정보 필요</p>
-          <p className="text-h3 font-bold text-bora-warn md:text-[22px]">
-            {aggregate.needsInfo}개
-          </p>
+          <p className="text-h3 font-bold text-bora-warn md:text-[22px]">{aggregate.needsInfo}개</p>
         </div>
         <div
           data-testid="result-aggregate-low-likelihood"

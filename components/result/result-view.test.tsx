@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ResultView } from "./result-view";
 import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
-import { buildFractureResult, FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
+import {
+  buildFractureResult,
+  FRACTURE_FIXTURE_INPUT,
+} from "@/lib/diagnosis/fixtures/fracture-case";
 
 // SPEC-B2C-RESULT-001 M4 (design.md §5, REQ-B2CRESULT-013/014/016) —
 // ResultView의 3갈래 분기(empty/invalid/valid → 올바른 자식 렌더링)를
@@ -264,7 +267,9 @@ describe("components/result/ResultView — prefers-reduced-motion 대응(REQ-B2C
       root.render(<ResultView />);
     });
 
-    const fixedTab = container.querySelector<HTMLButtonElement>('[data-testid="category-tab-fixed"]');
+    const fixedTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="category-tab-fixed"]'
+    );
     act(() => {
       fixedTab?.click();
     });

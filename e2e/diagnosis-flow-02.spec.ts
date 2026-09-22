@@ -111,9 +111,7 @@ test.describe("02 화면 — 01→02 전체 플로우 (Desktop, 1440x900)", () =
         .getByTestId("coverage-fact-chips")
     ).toBeVisible();
     await expect(
-      page
-        .getByTestId("coverage-item-item-disability-knee")
-        .getByTestId("coverage-fact-chips")
+      page.getByTestId("coverage-item-item-disability-knee").getByTestId("coverage-fact-chips")
     ).toBeVisible();
   });
 });

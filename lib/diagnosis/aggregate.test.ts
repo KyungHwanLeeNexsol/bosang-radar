@@ -44,10 +44,20 @@ describe("computeAggregate — REQ-B2CRESULT-002", () => {
       makeItem({ id: "b", status: "needs-info" }),
       makeItem({ id: "c", status: "low-likelihood" }),
     ];
-    expect(computeAggregate(items)).toEqual({ total: 3, review: 1, needsInfo: 1, lowLikelihood: 1 });
+    expect(computeAggregate(items)).toEqual({
+      total: 3,
+      review: 1,
+      needsInfo: 1,
+      lowLikelihood: 1,
+    });
 
     const moreItems: CoverageItem[] = [...items, makeItem({ id: "d", status: "review" })];
-    expect(computeAggregate(moreItems)).toEqual({ total: 4, review: 2, needsInfo: 1, lowLikelihood: 1 });
+    expect(computeAggregate(moreItems)).toEqual({
+      total: 4,
+      review: 2,
+      needsInfo: 1,
+      lowLikelihood: 1,
+    });
   });
 
   it("status별로 정확히 분류한다", () => {
@@ -56,7 +66,12 @@ describe("computeAggregate — REQ-B2CRESULT-002", () => {
       makeItem({ id: "b", status: "review" }),
       makeItem({ id: "c", status: "needs-info" }),
     ];
-    expect(computeAggregate(items)).toEqual({ total: 3, review: 2, needsInfo: 1, lowLikelihood: 0 });
+    expect(computeAggregate(items)).toEqual({
+      total: 3,
+      review: 2,
+      needsInfo: 1,
+      lowLikelihood: 0,
+    });
   });
 });
 
@@ -81,7 +96,11 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
     ];
     const result = collectAnsweredFacts(items);
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" });
+    expect(result[0]).toEqual({
+      questionId: "surgery-status",
+      label: "수술 여부",
+      value: "수술 받음",
+    });
   });
 
   it("먼저 발견된 순서(items 배열 순서, 각 item의 factChips 순서)를 유지한다", () => {
@@ -101,7 +120,11 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
       }),
     ];
     const result = collectAnsweredFacts(items);
-    expect(result.map((chip) => chip.questionId)).toEqual(["hospitalization", "surgery-status", "location"]);
+    expect(result.map((chip) => chip.questionId)).toEqual([
+      "hospitalization",
+      "surgery-status",
+      "location",
+    ]);
   });
 
   it("응답이 없는 질문 ID는 factChips 자체에 없으므로 결과에서 제외된다(REQ-B2CRESULT-008)", () => {

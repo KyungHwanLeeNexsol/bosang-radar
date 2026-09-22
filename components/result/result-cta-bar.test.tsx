@@ -26,7 +26,7 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     container.remove();
   });
 
-  it("네이티브 disabled 속성이 아니라 aria-disabled=\"true\"를 사용해 포커스 가능 상태를 유지한다", () => {
+  it('네이티브 disabled 속성이 아니라 aria-disabled="true"를 사용해 포커스 가능 상태를 유지한다', () => {
     act(() => {
       root.render(<ResultFinalCta total={5} />);
     });
@@ -44,17 +44,17 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     const button = container.querySelector<HTMLButtonElement>(
       '[data-testid="result-cta-disability-button"]'
     );
-    expect(container.querySelector('[data-testid="result-cta-disability-notice"]')?.textContent).toBe(
-      ""
-    );
+    expect(
+      container.querySelector('[data-testid="result-cta-disability-notice"]')?.textContent
+    ).toBe("");
 
     act(() => {
       button?.click();
     });
 
-    expect(container.querySelector('[data-testid="result-cta-disability-notice"]')?.textContent).toContain(
-      "준비"
-    );
+    expect(
+      container.querySelector('[data-testid="result-cta-disability-notice"]')?.textContent
+    ).toContain("준비");
   });
 
   it("키보드 Enter 활성화도 동일한 no-op 안내를 표시한다", () => {
@@ -112,8 +112,6 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     // sessionStorage가 비어 있는 테스트 환경에서는 입력 조건 disclosure는
     // 스스로 렌더링을 건너뛴다(result-input-condition-disclosure.test.tsx가
     // 값이 있을 때의 렌더링을 별도로 검증한다).
-    expect(
-      container.querySelector('[data-testid="result-input-condition-disclosure"]')
-    ).toBeNull();
+    expect(container.querySelector('[data-testid="result-input-condition-disclosure"]')).toBeNull();
   });
 });
