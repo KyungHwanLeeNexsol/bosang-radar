@@ -152,7 +152,15 @@
 - **Baseline-attribution**: 커밋 `3b031d1`(plan/SPEC-B2C-RESULT-001, cherry-pick from `a8d26c1`, 충돌 없음). `npx vitest run`/`npx tsc --noEmit`/`npx eslint`/`git diff` zero-diff 확인은 이 커밋 기준 orchestrator가 직접 재실행. e2e 4/4는 agent 워크트리 실행 결과 인용(동일 diff, cherry-pick 무충돌로 동일성 확인).
 - **Gaps**: D2(디자인 UI 누락 8종)/D3(visual-verify semantic gate)/D5(커버리지·포맷)/D6(main 병합·PR 갱신)는 아직 미착수 — 후속 커밋에서 순차 진행.
 
-- 다음 단계: D2(디자인 누락 UI)부터 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
+### 후속 수정 — D2(디자인 대비 누락 UI 8종) (2026-09-22)
+
+- **Claim**: 8개 항목 전부 신규 구현(기존 부분 구현 없음) — ① 실손 가입세대 선택 위젯(`result-generation-selector.tsx`, 로컬 state만, `DiagnosisResult` 미변경), ② 필수 면책 안내(`result-disclaimer.tsx`, 항상 노출·아이콘+텍스트, 조건부 표현), ③ 결과 Footer(`result-footer.tsx`, 신규 파일, 기존 01 Footer 미수정), ④ 입력 조건 `<details>` 공개(`result-input-condition-disclosure.tsx`), ⑤ 카테고리 한 줄 설명(`labels.ts`의 `CATEGORY_DESCRIPTION` 4종 + `coverage-category-section.tsx` 렌더링), ⑥ 최종 CTA sticky를 Mobile 전용으로 정정(`sticky bottom-0 md:static`, orchestrator가 직접 grep으로 확인), ⑦ 카카오톡 상담 버튼에 `aria-label="카카오톡 상담"` 추가(Mobile에서 텍스트 숨김에도 접근 가능한 이름 확보, orchestrator가 직접 grep으로 확인), ⑧ `/result` metadata를 `generateMetadata()`로 전환해 게이트 열림 시 "보상 진단 결과", 닫힘 시 "서비스 준비 중"으로 분기(orchestrator가 직접 grep으로 확인).
+- **Evidence**: `npx vitest run`(전체 스위트) → `Test Files 71 passed (71)` / `Tests 527 passed (527)`(커밋 `4be0469`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인, D2 대비 +5파일/+24건); `npx tsc --noEmit` → 0 errors; `npx eslint components/result app/result` → 0 errors, 0 warnings(모두 orchestrator 직접 재확인). 핵심 수정 3건(sticky 클래스, aria-label, generateMetadata 분기)은 orchestrator가 grep으로 코드 자체를 직접 열람해 재확인함.
+- **Baseline-attribution**: 커밋 `4be0469`(plan/SPEC-B2C-RESULT-001, cherry-pick from `c38c438`, 충돌 없음). 전체 검증(vitest/tsc/eslint) + 3건 grep 재확인 모두 orchestrator가 이 커밋 기준 직접 실행.
+- **Gaps**: `result-view.tsx`는 이번 수정 허용 범위 밖이었으므로, 항목 ②③④(면책·Footer·입력조건 공개)는 자연스러운 삽입 지점이 없어 `ResultFinalCta` 호출부(Fragment로 확장) 안에 함께 묶여 배치됐다 — 구조적으로는 `result-input-summary.tsx` 인접이 더 적합할 수 있어 후속 milestone에서 재배치 검토가 필요하다. 항목 ④(입력 조건 공개)는 `readDiagnosisHandoff()`를 독립적으로 재호출하며(읽기 전용, 여러 번 호출해도 안전), `?devFixture=fracture` review 전용 진입 경로에서는 sessionStorage가 채워지지 않아 조용히 렌더링되지 않는다 — review 전용 진입에서도 입력 조건을 보여줄지는 별도 판단이 필요하다. D3(visual-verify semantic gate)/D5(커버리지·포맷)/D6(main 병합·PR 갱신)는 아직 미착수.
+- **Residual-risk**: 위 Gaps의 배치 구조는 기능적으로는 동작하나(테스트로 확인됨) UI 계층 구조상 이상적이지 않을 수 있다 — 실제 브라우저 렌더링 결과의 시각적 순서는 아직 육안 확인되지 않았다.
+
+- 다음 단계: D3(visual-verify semantic gate 확장)으로 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
