@@ -247,4 +247,4 @@ Then SPEC-B2C-DIAGNOSIS-001의 기존 10화면이 여전히 PASS하고, 이 SPEC
 
 - **프로덕션 빌드 검증**: `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트)가 `/result` 라우트를 포함해 오류·경고 없이 성공해야 한다.
 - **커버리지**: 신규 `lib/diagnosis/`, `components/result/` 대상 85% 이상(TRUST 5 Tested 기준, `moai-constitution.md`).
-- **회귀 게이트**: `e2e/diagnosis-flow-01.spec.ts`와 기존 `pnpm visual:verify` 10화면이 이 SPEC의 run-phase 완료 후에도 계속 PASS해야 한다(AC-B2CRESULT-011/011b/025의 상위 조건).
+- **회귀 게이트**: `e2e/diagnosis-flow-01.spec.ts`와 기존 `pnpm visual:verify` 10화면이 이 SPEC의 run-phase 완료 후에도 계속 PASS해야 한다(AC-B2CRESULT-011(및 그 추가 시나리오)·AC-B2CRESULT-025의 상위 조건).
