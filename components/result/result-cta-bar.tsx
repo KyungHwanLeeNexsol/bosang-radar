@@ -3,6 +3,10 @@
 import * as React from "react";
 import { MessageCircle, Phone } from "lucide-react";
 
+import { ResultDisclaimer } from "./result-disclaimer";
+import { ResultFooter } from "./result-footer";
+import { ResultInputConditionDisclosure } from "./result-input-condition-disclosure";
+
 // SPEC-B2C-RESULT-001 M4 (design.md §8, MIGRATION-PLAN.md §4 "상담 CTA
 // 배치(3곳)", REQ-B2CRESULT-023) — 03 상담 신청 화면이 아직 존재하지
 // 않는 이 SPEC 범위 안에서, 3곳(상단 탑바/후유장해 섹션/하단 최종)의
@@ -11,6 +15,13 @@ import { MessageCircle, Phone } from "lucide-react";
 // "준비 중" 안내로 렌더링한다 — 실제 페이지 이동을 절대 시도하지 않는다.
 // 세 CTA 모두 동일한 no-op 핸들러(usePreparingNotice)를 공유해 동작을
 // 한 곳에서만 정의한다(Enforce Simplicity).
+//
+// SPEC-B2C-RESULT-001 D2 — 이 파일은 이번 리뷰의 수정 허용 파일이므로,
+// result-view.tsx를 건드리지 않고 하단 고정 영역에 입력 조건
+// disclosure/면책 문구/푸터를 배치하기 위해 ResultFinalCta가 Fragment로
+// 그 세 컴포넌트 + 기존 sticky CTA 바를 함께 반환한다 — result-view.tsx는
+// 이미 `<ResultFinalCta total={...} />` 한 번만 호출하므로 그 호출 지점을
+// 그대로 재사용한다.
 
 const PREPARING_MESSAGE = "상담 신청 기능은 아직 준비 중입니다.";
 
@@ -84,6 +95,7 @@ export function ResultTopBarCta() {
       <div className="flex flex-col items-end gap-1">
         <button
           {...buttonProps}
+          aria-label="카카오톡 상담"
           data-testid="result-cta-top"
           className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1.5 text-body-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
         >
@@ -143,37 +155,42 @@ export function ResultFinalCta({ total }: { total: number }) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
-    <div
-      data-testid="result-cta-final"
-      className="sticky bottom-0 flex w-full flex-col items-center gap-2 bg-app-sidebar px-5 py-4 text-center md:flex-row md:justify-between md:px-8"
-    >
-      <p className="text-body font-semibold text-white">{total}가지를 전부 청구하시겠어요?</p>
-      <div className="flex items-center gap-2">
-        <button
-          {...buttonProps}
-          data-testid="result-cta-final-kakao"
-          className="flex items-center gap-1.5 rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
-        >
-          <MessageCircle className="size-4" aria-hidden="true" />
-          카카오톡으로 상담
-        </button>
-        <button
-          {...buttonProps}
-          data-testid="result-cta-final-phone"
-          className="flex items-center gap-1.5 rounded-full border border-app-sidebar-line px-4 py-2 text-body-s font-semibold text-white"
-        >
-          <Phone className="size-4" aria-hidden="true" />
-          전화 상담
-        </button>
-      </div>
-      <span
-        role="status"
-        aria-live="polite"
-        data-testid="result-cta-final-notice"
-        className="text-label-s text-amber-200"
+    <>
+      <ResultInputConditionDisclosure />
+      <ResultDisclaimer />
+      <ResultFooter />
+      <div
+        data-testid="result-cta-final"
+        className="sticky bottom-0 flex w-full flex-col items-center gap-2 bg-app-sidebar px-5 py-4 text-center md:static md:flex-row md:justify-between md:px-8"
       >
-        {message ?? ""}
-      </span>
-    </div>
+        <p className="text-body font-semibold text-white">{total}가지를 전부 청구하시겠어요?</p>
+        <div className="flex items-center gap-2">
+          <button
+            {...buttonProps}
+            data-testid="result-cta-final-kakao"
+            className="flex items-center gap-1.5 rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
+          >
+            <MessageCircle className="size-4" aria-hidden="true" />
+            카카오톡으로 상담
+          </button>
+          <button
+            {...buttonProps}
+            data-testid="result-cta-final-phone"
+            className="flex items-center gap-1.5 rounded-full border border-app-sidebar-line px-4 py-2 text-body-s font-semibold text-white"
+          >
+            <Phone className="size-4" aria-hidden="true" />
+            전화 상담
+          </button>
+        </div>
+        <span
+          role="status"
+          aria-live="polite"
+          data-testid="result-cta-final-notice"
+          className="text-label-s text-amber-200"
+        >
+          {message ?? ""}
+        </span>
+      </div>
+    </>
   );
 }

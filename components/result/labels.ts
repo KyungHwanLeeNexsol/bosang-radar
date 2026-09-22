@@ -32,5 +32,16 @@ export const CATEGORY_LABEL: Record<CoverageCategory, string> = {
   special: "특별 보상",
 };
 
+// SPEC-B2C-RESULT-001 D2 (MIGRATION-PLAN.md §4 "4카테고리 고정 프레임" 표의
+// 설명 칸) — 카테고리별 한 줄 설명. 케이스와 무관한 고정 문구이므로 이
+// 공용 모듈에 두고 coverage-category-section.tsx가 category prop으로 직접
+// 조회한다.
+export const CATEGORY_DESCRIPTION: Record<CoverageCategory, string> = {
+  reimbursement: "병원에 낸 돈을 돌려받는 담보예요",
+  fixed: "진단·수술·입원마다 따로 지급되는, 가장 많이 놓치는 담보예요",
+  disability: "치료가 끝난 후 판단하는, 금액이 가장 큰 담보예요",
+  special: "배상책임·단체보험 등 내 보험이 아닌 곳에서 받는 보상이에요",
+};
+
 /** Mobile 진입 시 기본 활성 탭(design.md §0, REQ-B2CRESULT-003). */
 export const DEFAULT_MOBILE_CATEGORY: CoverageCategory = "reimbursement";

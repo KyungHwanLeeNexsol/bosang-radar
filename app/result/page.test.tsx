@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ResultPage from "./page";
+import ResultPage, { generateMetadata } from "./page";
 
 // SPEC-B2C-RESULT-001 M3 (REQ-B2CRESULT-012/015) — app/result/page.tsx는
 // app/page.tsx와 동일한 computeDiagnosisFlags 헬퍼로 게이트를 계산하고,
@@ -97,5 +97,29 @@ describe("app/result/page — 게이트 기반 라우트 셸(REQ-B2CRESULT-012/0
     });
 
     expect(container.querySelector('[data-testid="result-no-data"]')).not.toBeNull();
+  });
+
+  // SPEC-B2C-RESULT-001 D2 — 정적 metadata는 게이트 상태와 무관하게 항상
+  // "서비스 준비 중"이었다. generateMetadata()가 게이트 상태에 따라 제목을
+  // 올바르게 분기하는지 검증한다.
+  it("게이트가 거짓이면 generateMetadata()의 title은 '서비스 준비 중'이다", async () => {
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe("서비스 준비 중");
+  });
+
+  it("게이트가 참(productionReady)이면 generateMetadata()의 title이 결과 화면 제목으로 바뀐다", async () => {
+    process.env.ENABLE_DIAGNOSIS_FLOW = "true";
+    process.env.DIAGNOSIS_ENGINE_READY = "true";
+
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe("보상 진단 결과");
+    expect(metadata.title).not.toBe("서비스 준비 중");
+  });
+
+  it("게이트가 참(reviewEnabled)이면 generateMetadata()의 title이 결과 화면 제목으로 바뀐다", async () => {
+    process.env.ENABLE_DIAGNOSIS_DEV_STATES = "true";
+
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe("보상 진단 결과");
   });
 });

@@ -81,4 +81,39 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
 
     expect(container.textContent).toContain("7가지를 전부 청구하시겠어요?");
   });
+
+  it("상단 CTA는 Mobile(텍스트 숨김)에서도 aria-label로 접근 가능한 이름을 갖는다(D2)", () => {
+    act(() => {
+      root.render(<ResultTopBarCta />);
+    });
+
+    const button = container.querySelector('[data-testid="result-cta-top"]');
+    expect(button?.getAttribute("aria-label")).toBe("카카오톡 상담");
+  });
+
+  it("하단 최종 CTA 바는 sticky이면서 md: 이상에서는 static으로 전환되는 클래스를 갖는다(D2)", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={3} />);
+    });
+
+    const bar = container.querySelector('[data-testid="result-cta-final"]');
+    expect(bar?.className).toContain("sticky");
+    expect(bar?.className).toContain("bottom-0");
+    expect(bar?.className).toContain("md:static");
+  });
+
+  it("하단 최종 CTA와 함께 입력 조건 disclosure/면책 문구/푸터가 렌더링된다(D2)", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={3} />);
+    });
+
+    expect(container.querySelector('[data-testid="result-disclaimer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-footer"]')).not.toBeNull();
+    // sessionStorage가 비어 있는 테스트 환경에서는 입력 조건 disclosure는
+    // 스스로 렌더링을 건너뛴다(result-input-condition-disclosure.test.tsx가
+    // 값이 있을 때의 렌더링을 별도로 검증한다).
+    expect(
+      container.querySelector('[data-testid="result-input-condition-disclosure"]')
+    ).toBeNull();
+  });
 });

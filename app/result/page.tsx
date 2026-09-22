@@ -22,9 +22,18 @@ import { ResultView } from "@/components/result/result-view";
 // boolean 게이트와 동일한 `reviewEnabled`이며, 이 라우트가 별도의 게이트
 // 로직을 다시 계산하지 않는다(REQ-B2CRESULT-012). app/page.tsx가
 // enableDevStates를 <DiagnosisFlow />에 내려주는 것과 동일한 패턴이다.
-export const metadata: Metadata = {
-  title: "서비스 준비 중",
-};
+//
+// SPEC-B2C-RESULT-001 D2 — 정적 `metadata`는 게이트 상태와 무관하게 항상
+// "서비스 준비 중"을 반환했다(shouldRenderDiagnosis=true여도 탭 제목이
+// 그대로였음). generateMetadata()로 전환해 동일한 computeDiagnosisFlags()
+// 결과로 분기한다 — 게이트가 닫힌 화면 본문의 "서비스 준비 중" 문구는
+// 사용자 요청에 따라 그대로 유지한다.
+export async function generateMetadata(): Promise<Metadata> {
+  const { shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
+  return {
+    title: shouldRenderDiagnosis ? "보상 진단 결과" : "서비스 준비 중",
+  };
+}
 
 export default function ResultPage() {
   const { reviewEnabled, shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
