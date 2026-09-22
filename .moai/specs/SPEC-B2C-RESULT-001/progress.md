@@ -107,6 +107,21 @@
 - **Gaps**: `app/result/page.tsx`용 Server Component 전용 테스트 컨벤션은 여전히 부재(M3부터 이어지는 Gap, Milestone 6까지 미해결 예정). "왜 확인해야 하나요?" 접힘 UI의 디자인 목업 대비 픽셀 단위 검증은 Milestone 6의 `pnpm visual:verify` 확장으로 이연.
 - **Residual-risk**: 키보드 탐색(`ArrowLeft`/`ArrowRight`/`Home`/`End`)이 WAI-ARIA Tabs 패턴을 따르는지는 코드 리뷰와 유닛 테스트로 확인했으나 실제 스크린리더(NVDA/VoiceOver)로 수동 검증하지는 않음 — 이 SPEC 범위에서 자동화된 스크린리더 테스트 도구는 사용하지 않기로 함(design.md에 명시된 범위 밖).
 
+### Milestone 6 — E2E + 시각 정합성 확장 + 문서 동기화 (2026-09-22, SPEC 최종 마일스톤)
+
+- **Claim**: `e2e/diagnosis-flow-02.spec.ts` 신규(01→02 전체 플로우, Mobile 탭 전환, 직접 접근 no-data, `?devFixture=fracture` review 전용 직접 진입 — REQ-B2CRESULT-002/003/007/008/009/010/012/013). `scripts/visual-verify.ts`에 5개 신규 화면(`02`/`M02`/`M02-B`/`M02-C`/`M02-D`) 등록(기존 10개 배열 항목은 수정 없이 그대로 유지 확인됨 — 아래 검증 참고). `product.md`/`structure.md` Roadmap을 02 완료로 갱신. 부수적으로 `result-view.tsx`에서 배경색 누락 실버그(`bg-app-bg` 부재로 흰 배경 렌더링)를 시각 검증 과정에서 발견·수정.
+- **Evidence**:
+  - `npx vitest run`(전체 스위트) → `Test Files 66 passed (66)` / `Tests 504 passed (504)`(커밋 `83d39a8`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인, M5 대비 +3건 devFixture 테스트); `npx tsc --noEmit` → 0 errors; `npx eslint` → 0 errors, 0 warnings.
+  - `npx tsx scripts/run-e2e.ts`(Playwright, 01+02 전체) → **20 passed, 0 failed**(agent 보고, 브랜치 재실행은 하지 않음 — 아래 Gaps 참고). 기존 `diagnosis-flow-01.spec.ts`의 16개 테스트 전부 수정 없이 통과 포함(REQ-B2CRESULT-011 회귀 없음).
+  - `pnpm visual:verify`(15화면 전체, agent 보고) → **기존 10화면 전부 PASS(회귀 없음, REQ-B2CRESULT-025의 "기존 10화면 유지" 절 충족)**. **신규 5화면(02/M02/M02-B/M02-C/M02-D)은 전부 FAIL**(maxΔ 45px~281px, 허용 오차 4~8px 초과) — 화면은 정상 등록·렌더링되고 스크린샷/오버레이/diff 산출물은 생성되나 픽셀 위치 허용치에 수렴하지 못함. 이 저장소의 `scripts/visual-verify.ts` SCREENS 배열에 15개 id(01/01-A2/01-B/01-C/01-D/01-E/M01/M01-A2/M01-B/M01-C/02/M02/M02-B/M02-C/M02-D) 전부 존재함을 orchestrator가 직접 grep으로 재확인함(기존 10개 미삭제 확인).
+- **Baseline-attribution**: 커밋 `83d39a8`(plan/SPEC-B2C-RESULT-001, cherry-pick from `93c38a4`, 충돌 없음). `npx vitest run`/`npx tsc`/`npx eslint`/SCREENS id grep은 이 커밋 기준 orchestrator가 직접 재실행·확인. `npx tsx scripts/run-e2e.ts`(20/20)와 `pnpm visual:verify`(10 PASS + 5 FAIL) 수치는 agent가 자신의 워크트리(동일 diff, 커밋 `93c38a4`)에서 실행한 결과를 인용한 것이며, orchestrator가 plan 브랜치에서 재실행하지는 않았다(각각 ~5분/`next build` 소요로 비용이 커서 diff가 byte-identical함을 cherry-pick 무충돌로 확인하는 선에서 갈음함) — 이는 완전한 attribution이 아니라 **Gap**으로 명시한다.
+- **Gaps**:
+  1. **REQ-B2CRESULT-025는 부분 충족이다** — "기존 10화면 PASS 유지" 절은 충족되었으나 "신규 5화면 PASS" 절은 미충족(5/5 FAIL, 허용 오차 초과). AC-B2CRESULT-025의 Given-When-Then은 두 절 모두를 요구하므로, 이 AC는 **미완료(open)** 상태로 남는다 — 후속 조치가 필요하다(디자인 픽셀 좌표 재측정을 통한 `designTopHint` 정밀 튜닝, 또는 카드 그리드 요소를 측정 범위에 포함하는 로직 보강, 또는 시각 정합성 허용 기준을 담당자가 명시적으로 재검토).
+  2. e2e(20/20)와 visual-verify(10 PASS/5 FAIL) 수치는 orchestrator가 plan 브랜치에서 직접 재실행하지 않고 agent 워크트리 실행 결과를 인용했다(위 baseline-attribution 참고) — `npx tsc`/`npx vitest`/`npx eslint`/SCREENS 배열 구조만 plan 브랜치에서 직접 재확인함.
+  3. `app/result/page.tsx`용 Server Component 전용 테스트 컨벤션은 SPEC 전체에 걸쳐 끝내 도입되지 않음(M3부터 이어진 Gap, 기존 `react-dom/client` 직접 렌더링 패턴 재사용으로 갈음).
+  4. 이 브랜치는 main의 `SPEC-B2C-DIAGNOSIS-001` 문서 동기화 커밋(`ad4e2de`)이 랜딩되기 전에 분기되었다는 점을 agent가 지적함 — `product.md`/`structure.md`의 병합 시점 충돌 가능성은 sync-phase(또는 병합 전)에서 별도 확인이 필요하다.
+- **Residual-risk**: 신규 5화면의 시각 검증 실패가 실제 UI 결함(레이아웃이 디자인과 다름)인지, 아니면 `visual-verify.ts` 도구의 measurement 튜닝 부족(카드 그리드 요소 미포함, `designTopHint` 추정치 부정확)인지는 완전히 분리되지 않았다 — agent는 후자로 진단했으나(배경색 버그 1건은 실제 발견·수정됨), 사람의 눈으로 실제 브라우저에서 `/result` 화면을 직접 열어 디자인과 육안 대조하는 확인이 아직 없다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
