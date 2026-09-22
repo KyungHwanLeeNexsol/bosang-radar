@@ -1,0 +1,170 @@
+# Acceptance Criteria — SPEC-B2C-RESULT-001
+
+Given-When-Then 형식. 각 AC는 대응하는 REQ를 인용한다.
+
+## 데이터 계약 · 집계
+
+**AC-B2CRESULT-001** (REQ-B2CRESULT-001)
+Given `lib/diagnosis/types.ts`가 정의되어 있을 때
+When `CoverageCategory` 타입을 검사하면
+Then 정확히 4개 값(실손 의료비/정액 담보/후유장해/특별 보상에 대응하는 리터럴)만 허용하고, 5번째 값을 추가하면 타입 체크가 실패한다.
+
+**AC-B2CRESULT-002** (REQ-B2CRESULT-002)
+Given `computeAggregate(items)`가 5개 항목(검토 대상 2 · 추가 정보 필요 2 · 가능성 낮음 1)을 받았을 때
+When 함수를 호출하면
+Then `{ total: 5, review: 2, needsInfo: 2, lowLikelihood: 1 }`을 반환한다.
+
+**AC-B2CRESULT-002b** (REQ-B2CRESULT-002)
+Given 동일한 `computeAggregate`에 항목 1개를 추가한(6개) 고정 배열을 전달했을 때
+When 두 호출 결과를 비교하면
+Then `total`이 5에서 6으로, 그리고 추가한 항목의 상태에 대응하는 필드가 함께 바뀐다 — 숫자가 상수로 고정되어 있지 않음을 증명한다.
+
+**AC-B2CRESULT-003** (REQ-B2CRESULT-003)
+Given 뷰포트가 1440px(Desktop)일 때
+When `/result` 페이지를 렌더링하면
+Then 4개 카테고리 섹션이 모두 동시에 DOM에 표시된다.
+
+**AC-B2CRESULT-003b** (REQ-B2CRESULT-003)
+Given 뷰포트가 390px(Mobile)일 때
+When `/result` 페이지를 렌더링하면
+Then 실손 의료비 탭이 기본 선택 상태로 표시되고, 다른 3개 카테고리는 선택되기 전까지 표시되지 않는다.
+
+**AC-B2CRESULT-004** (REQ-B2CRESULT-004)
+Given 동일한 `DiagnosisResult` 데이터가 주어졌을 때
+When Desktop 렌더링 결과와 Mobile 렌더링 결과(카테고리별로 순회)를 비교하면
+Then 두 렌더링이 참조하는 담보 항목 집합이 완전히 동일하다(별도 fetch·가공 없음).
+
+**AC-B2CRESULT-005** (REQ-B2CRESULT-005)
+Given `DiagnosisResult.items`에 상태가 "가능성 낮음"인 항목이 포함되어 있을 때
+When 결과 화면을 렌더링하면
+Then 그 항목이 숨겨지지 않고 카드로 표시되며, `reasonNote` 텍스트가 함께 렌더링된다.
+
+**AC-B2CRESULT-006** (REQ-B2CRESULT-006)
+Given `CoverageItem.amount`가 `{ kind: "range", min: 3000000, max: 12000000 }`로 주어졌을 때
+When 카드를 렌더링하면
+Then 화면에 표시되는 금액 문자열이 그 min/max 값을 그대로 사용하며, 코드 내 어떤 산술 연산도 그 값을 변경하지 않는다(소스 코드 정적 검사: 렌더 경로에 `+`/`*` 등 산술 연산자가 금액 필드에 적용되지 않음).
+
+## Fact Chip
+
+**AC-B2CRESULT-007** (REQ-B2CRESULT-007)
+Given 01-B 질문 "수술 여부"에 대한 응답이 `answers`에 존재하고, 대응하는 담보 카드에 그 질문 ID가 매핑되어 있을 때
+When 카드를 렌더링하면
+Then 그 응답 값을 담은 Fact Chip이 카드 위에 표시된다.
+
+**AC-B2CRESULT-008** (REQ-B2CRESULT-008)
+Given 특정 질문에 대한 응답이 `answers`에 없을 때(건너뛰기)
+When 카드를 렌더링하면
+Then 그 질문에 대응하는 Fact Chip이 생성되지 않는다(DOM에 부재).
+
+## 01→02 연결 — review 전용 fixture
+
+**AC-B2CRESULT-009** (REQ-B2CRESULT-009)
+Given `ENABLE_DIAGNOSIS_DEV_STATES=false`(프로덕션 기본값)일 때
+When 정확히 `FRACTURE_FIXTURE_INPUT` 문자열을 입력하고 진단 플로우를 완주해도
+Then `<DiagnosisFlow />` 자체가 마운트되지 않으므로(기존 01 게이트) 이 fixture 분기에 도달할 수 없다.
+
+**AC-B2CRESULT-010** (REQ-B2CRESULT-010)
+Given `ENABLE_DIAGNOSIS_DEV_STATES=true`인 review 환경에서 입력값이 정확히 `FRACTURE_FIXTURE_INPUT`일 때
+When 동의 → 추가 질문(응답 포함) → 진단 중 단계를 완주하면
+Then `sessionStorage`에 `rawInput`과 `answers`를 포함한 handoff 데이터가 기록되고, 브라우저가 `/result`로 이동한다.
+
+**AC-B2CRESULT-011** (REQ-B2CRESULT-011)
+Given `ENABLE_DIAGNOSIS_DEV_STATES=true`일 때
+When 입력값이 정확히 "무릎 골절로 수술을 받았어요"(`e2e/diagnosis-flow-01.spec.ts`의 `RESULT_NONE_INPUT`, `FRACTURE_FIXTURE_INPUT`과 다른 문자열)이면
+Then 기존과 동일하게 `result-none` 상태로 전이하며 `/result`로 이동하지 않는다.
+
+**AC-B2CRESULT-011b** (REQ-B2CRESULT-011)
+Given `ENABLE_DIAGNOSIS_DEV_STATES=true`일 때
+When 입력값이 정확히 "분석 중 오류가 발생했어요"(`ERROR_INPUT`)이면
+Then 기존과 동일하게 `error` 상태로 전이한다.
+
+**AC-B2CRESULT-012** (REQ-B2CRESULT-012)
+Given `app/page.tsx`와 `app/result/page.tsx` 소스 코드가 존재할 때
+When 두 파일을 정적으로 검사하면
+Then `productionReady`/`reviewEnabled`/`shouldRenderDiagnosis` 계산 로직이 `lib/diagnosis/flags.ts`의 단일 함수 호출로만 나타나며, 각 파일 안에 그 계산식이 인라인으로 중복 작성되어 있지 않다.
+
+## 02 전용 상태 계약
+
+**AC-B2CRESULT-013** (REQ-B2CRESULT-013)
+Given `sessionStorage`에 handoff 데이터가 없는 상태에서
+When 사용자가 `/result`에 직접 접근하면
+Then 02 전용 "결과 없음" 안내와 01 입력 화면으로 돌아가는 CTA가 표시되며, 01의 `result-none`(01-D) 문구와는 다른 문구를 사용한다.
+
+**AC-B2CRESULT-013b** (REQ-B2CRESULT-013)
+Given 정상적으로 `/result`에 도착해 결과가 표시된 상태에서
+When 페이지를 새로고침하면
+Then handoff가 이미 1회 소비되어 제거되었으므로 위와 동일한 02 전용 "결과 없음" 상태로 전환된다.
+
+**AC-B2CRESULT-014** (REQ-B2CRESULT-014)
+Given `sessionStorage`의 handoff 값이 유효하지 않은 JSON일 때
+When `/result`가 마운트되면
+Then 콘솔 예외로 애플리케이션이 중단되지 않고 02 전용 오류 상태가 표시된다.
+
+**AC-B2CRESULT-015** (REQ-B2CRESULT-015)
+Given `/result`가 클라이언트 데이터 읽기를 아직 완료하지 않았을 때
+When 초기 렌더가 일어나면
+Then `<Suspense fallback>`으로 지정된 스켈레톤이 표시되고, `<nextjs-portal>` 등 개발 서버 전용 DOM 없이 프로덕션 빌드에서 정상 동작한다.
+
+## 저장 정책
+
+**AC-B2CRESULT-016** (REQ-B2CRESULT-016)
+Given `/result`가 handoff를 성공적으로 읽었을 때
+When 읽기 직후의 `sessionStorage` 상태를 검사하면
+Then 해당 키가 제거되어 있다(1회 소비 후 즉시 삭제).
+
+**AC-B2CRESULT-017** (REQ-B2CRESULT-017)
+Given `lib/diagnosis/handoff.ts`의 `sessionStorage` 키 상수를 검사할 때
+When 다른 기존 키 사용처(코드베이스 전체 grep)와 비교하면
+Then 프로젝트 네임스페이스가 붙은 전용 키이며 다른 기능과 충돌하지 않는다.
+
+## 반응형
+
+**AC-B2CRESULT-018** (REQ-B2CRESULT-018)
+Given 뷰포트 폭이 767px와 768px 각각일 때
+When `/result`를 렌더링하면
+Then 767px는 Mobile 탭 레이아웃, 768px는 Desktop 전체 펼침 레이아웃이 적용된다(SPEC-B2C-DIAGNOSIS-001과 동일한 분기점).
+
+## 접근성
+
+**AC-B2CRESULT-019** (REQ-B2CRESULT-019)
+Given Mobile 뷰포트에서 카테고리 탭 그룹이 렌더링되었을 때
+When 접근성 트리를 검사하면
+Then 탭 컨테이너가 `tablist` 역할을, 각 탭이 `tab` 역할과 `aria-selected` 상태를, 콘텐츠 영역이 `tabpanel` 역할을 갖는다.
+
+**AC-B2CRESULT-020** (REQ-B2CRESULT-020)
+Given 담보 카드의 상태 pill이 렌더링되었을 때
+When 그 요소의 텍스트 콘텐츠를 읽으면
+Then "검토 대상"/"추가 정보 필요"/"가능성 낮음" 중 하나의 텍스트가 항상 존재한다(색상에만 의존하지 않음).
+
+**AC-B2CRESULT-021** (REQ-B2CRESULT-021)
+Given Mobile에서 "정액 담보" 탭을 클릭했을 때
+When 포커스 대상을 확인하면
+Then 포커스가 전환된 패널의 제목(카테고리 헤더) 요소로 이동해 있다.
+
+## 금지 사항
+
+**AC-B2CRESULT-022** (REQ-B2CRESULT-022)
+Given 이 SPEC이 작성한 모든 UI 문구 소스 파일을 검사할 때
+When "받으실 수 있습니다" 등 단정형 확정 문구 패턴을 검색하면
+Then 매칭 결과가 0건이다.
+
+**AC-B2CRESULT-023** (REQ-B2CRESULT-023)
+Given 02/M02 화면의 상담 CTA 버튼을 클릭했을 때
+When 브라우저 네비게이션을 관찰하면
+Then 실제 페이지 이동이 발생하지 않는다(비활성 상태이거나, 클릭 핸들러가 no-op/안내 표시로만 동작).
+
+**AC-B2CRESULT-024** (REQ-B2CRESULT-024)
+Given 이 SPEC이 전달하는 전체 코드 diff를 검사할 때
+When `DIAGNOSIS_ENGINE_READY`를 `true`로 대입하는 코드 지점을 검색하면
+Then 매칭 결과가 0건이다.
+
+**AC-B2CRESULT-025** (REQ-B2CRESULT-025)
+Given `pnpm visual:verify`를 이 SPEC의 run-phase 구현 완료 후 전체 실행할 때
+When 결과를 확인하면
+Then SPEC-B2C-DIAGNOSIS-001의 기존 10화면이 여전히 PASS하고, 이 SPEC이 추가한 5화면(02/M02/M02-B/M02-C/M02-D)도 PASS한다(총 15화면).
+
+## Quality Gate 기준
+
+- **프로덕션 빌드 검증**: `next build`(또는 `package.json`이 정의한 동등 빌드 스크립트)가 `/result` 라우트를 포함해 오류·경고 없이 성공해야 한다.
+- **커버리지**: 신규 `lib/diagnosis/`, `components/result/` 대상 85% 이상(TRUST 5 Tested 기준, `moai-constitution.md`).
+- **회귀 게이트**: `e2e/diagnosis-flow-01.spec.ts`와 기존 `pnpm visual:verify` 10화면이 이 SPEC의 run-phase 완료 후에도 계속 PASS해야 한다(AC-B2CRESULT-011/011b/025의 상위 조건).

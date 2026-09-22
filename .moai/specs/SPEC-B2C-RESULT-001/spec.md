@@ -1,0 +1,122 @@
+---
+id: SPEC-B2C-RESULT-001
+title: "02 보상 진단 결과 (Plan-Phase)"
+version: "0.1.0"
+status: draft
+created: 2026-09-22
+updated: 2026-09-22
+author: Nexsol
+priority: P1
+phase: "v0.18.0 target"
+module: "app/result/, components/result/, lib/diagnosis/"
+lifecycle: spec-anchored
+tags: "b2c-result, coverage-grid, funnel-02, fact-chip, accessibility, plan-only"
+tier: L
+related_specs: [SPEC-B2C-DIAGNOSIS-001]
+---
+
+## HISTORY
+
+- 2026-09-22: 최초 작성 (Nexsol) — B2C 3단계 퍼널(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 중 **① 질문 입력 및 진단**(SPEC-B2C-DIAGNOSIS-001, `status: completed`)에 이어 **② 보상 진단 결과** 화면의 plan-phase 문서만 작성한다. 실제 화면·컴포넌트·API 구현은 후속 `/moai run SPEC-B2C-RESULT-001`의 범위이며, 이번 커밋에는 코드 변경이 포함되지 않는다. 디자인 SSOT는 `design/MIGRATION-PLAN.md`(§2 ②, §4)이다.
+
+---
+
+## 1. 배경 (Why)
+
+`design/MIGRATION-PLAN.md`가 정의한 B2C 3단계 퍼널에서, 01 화면(질문 입력 → 동의 → 추가 질문 → 진단 중)은 이미 기능 플래그 뒤에 구현이 완료됐다(SPEC-B2C-DIAGNOSIS-001). 그러나 01의 "진단 중" 상태 다음에 오는 실제 결과 화면(02)은 존재하지 않는다 — 01 SPEC은 "결과 있음" 분기를 의도적으로 Out of Scope로 남겨두었다(`design.md` §18.2: "미래 02 결과 화면으로 넘어가는 경계 … 실제 라우팅(예: `router.push('/result')`)은 02 SPEC이 구현한다").
+
+`product.md`의 핵심 메시지 "이것도 되고 저것도 되고, 이만큼이나 나온다"는 02 화면에서 완성된다 — 사용자가 놓치고 있던 담보를 4카테고리 그리드로 전부 펼쳐 보여주는 것이 이 SPEC의 존재 이유다. 이 SPEC은 **데이터 계약(DiagnosisResult 타입)과 UI만** 정의한다 — 실제 담보 매칭 엔진(정적 규칙 vs Gemini vs 하이브리드, `tech.md` § 담보 매칭 로직 — 미결정 사항)은 여전히 미결정이며, 이 SPEC의 범위 밖이다.
+
+## 2. 범위 (Scope)
+
+### 포함 화면 (Desktop 1 + Mobile 4 = 5개, `design/exports/` 기준)
+
+| 화면 | 노드 ID | Export 파일 |
+|---|---|---|
+| 02 · 보상 진단 결과 (Desktop, 4카테고리 전체 펼침) | `A1oCfT` | `02-보상-진단-결과.png` |
+| M02 · 보상 진단 결과 (Mobile, 실손의료비 탭 기본) | `OMjpE` | `M02-보상-진단-결과.png` |
+| M02-B · 결과 정액 담보 탭 | `nkNMP` | `M02-B-결과-정액-담보-탭.png` |
+| M02-C · 결과 후유장해 탭 | `WyBBk` | `M02-C-결과-후유장해-탭.png` |
+| M02-D · 결과 특별 보상 탭 | `RboYG` | `M02-D-결과-특별-보상-탭.png` |
+
+### 산출물 (이번 plan-phase)
+
+`spec.md`(본 문서) · `plan.md` · `acceptance.md` · `design.md` · `research.md` · `progress.md`. 코드, 스키마, API, E2E 테스트는 포함하지 않는다 — 모두 후속 run-phase 산출물이다.
+
+후속 run-phase의 산출물 범위는 4갈래로 나뉜다 — ① 프로덕션 애플리케이션 코드(`app/result/`, `components/result/`, `lib/diagnosis/` 신설 + `app/page.tsx`/`components/diagnosis/step-loading.tsx`/`components/diagnosis/diagnosis-flow.tsx` 최소 확장), ② 테스트(단위·컴포넌트 테스트 및 `e2e/` 신규 파일 + `scripts/visual-verify.ts` 확장), ③ 문서(`.moai/` SPEC 산출물 및 프로젝트 문서), ④ 배포(이 SPEC은 배포 워크플로를 수정하지 않는다 — `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY` 전환은 여전히 이 SPEC의 Out of Scope). 아래 `module:` frontmatter 필드는 이 중 ①(프로덕션 코드) 범위만을 가리키며, 전체 4갈래 범위는 `plan.md` §D를 참고한다.
+
+## 3. 요구사항 (GEARS)
+
+### 3.1 데이터 계약 · 제품 원칙 (Ubiquitous)
+
+- **REQ-B2CRESULT-001**: 시스템은 `DiagnosisResult` 타입(`lib/diagnosis/types.ts`)을 02 화면 데이터의 단일 SSOT로 정의하며, 담보 카테고리는 정확히 4개(실손 의료비 · 정액 담보 · 후유장해 · 특별 보상)로 고정한다 — 카테고리 집합은 케이스별로 확장되지 않는다.
+- **REQ-B2CRESULT-002**: 시스템은 상단 집계 배너의 네 숫자(전체 분석 담보 · 검토 대상 · 추가 정보 필요 · 가능성 낮음)를 `DiagnosisResult.items` 배열로부터 렌더링·계산 시점에 매번 동적으로 산출하며, 어떤 예시 숫자도(예: 디자인 목업의 15/8/6/1) 코드에 상수로 고정하지 않는다.
+- **REQ-B2CRESULT-003**: 시스템은 Desktop에서 4카테고리 전체를 한 페이지에 펼쳐 렌더링하고, Mobile에서는 카테고리 단일 선택 탭(기본 탭: 실손 의료비)으로 한 번에 하나만 렌더링한다.
+- **REQ-B2CRESULT-004**: 시스템은 Desktop과 Mobile 두 레이아웃이 완전히 동일한 `DiagnosisResult` 데이터 원본을 사용하도록 보장한다 — 레이아웃별로 데이터를 별도 가공·재요청하지 않는다.
+- **REQ-B2CRESULT-005**: 시스템은 각 담보 카드에 3톤 상태(검토 대상 / 추가 정보 필요 / 가능성 낮음)를 표시하며, "가능성 낮음" 상태의 담보도 숨기지 않고 사유(reason note)와 함께 항상 노출한다.
+- **REQ-B2CRESULT-006**: 시스템은 담보 카드의 금액을 `DiagnosisResult` 데이터가 제공하는 값 그대로 렌더링하며, 클라이언트에서 금액을 재계산·재합산하지 않는다.
+
+### 3.2 Fact Chip 연동 — 01→02 데이터 흐름 (Event-driven)
+
+- **REQ-B2CRESULT-007** (When): 01-B 추가 질문에 대한 사용자 응답이 결과 데이터에 존재할 때, 시스템은 해당 응답을 대응하는 담보 카드 위에 Fact Chip UI 요소로 표시한다.
+- **REQ-B2CRESULT-008** (When): 특정 추가 질문에 대한 응답이 없을 때(건너뛰기 등), 시스템은 그 질문에 대응하는 Fact Chip을 생성하지 않는다.
+
+### 3.3 01→02 연결 — review 전용 골절 사례 fixture (Where / Event-driven)
+
+- **REQ-B2CRESULT-009** (Where): `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 환경 변수(REQ-B2CDIAG-017, 기본값 `false`)가 `true`인 비프로덕션 환경에서, 시스템은 01 진단 중(`loading`) 단계의 mock 판정 로직에 "골절 사례 fixture" 분기를 추가로 제공한다 — 이 분기는 `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하지 않으며, 이 SPEC이 전달하는 코드에는 그 지점이 존재하지 않는다.
+- **REQ-B2CRESULT-010** (When): 사용자 입력이 지정된 골절 사례 fixture 입력 문자열과 정확히 일치할 때(부분 문자열 매칭이 아님), 시스템은 01-B 추가 질문 응답을 포함한 진단 인계 데이터(handoff data)를 세션 저장소(`sessionStorage`)에 기록하고 `/result` 라우트로 이동한다.
+- **REQ-B2CRESULT-011**: 시스템은 기존 01 mock 판정 분기(정확 문자열 "오류" 포함 시 `error`, 그 외 기본값 `result-none`)의 동작을 이 SPEC의 확장 이후에도 그대로 유지한다 — `e2e/diagnosis-flow-01.spec.ts`의 `RESULT_NONE_INPUT`("무릎 골절로 수술을 받았어요")과 `ERROR_INPUT`("분석 중 오류가 발생했어요")은 계속 각각 `result-none`/`error`로 판정되어야 한다.
+- **REQ-B2CRESULT-012**: 시스템은 `/result` 페이지의 프로덕션 활성화 게이트 계산(`productionReady`/`reviewEnabled`/`shouldRenderDiagnosis`)을 `app/page.tsx`와 공유하는 단일 헬퍼 함수(`lib/diagnosis/flags.ts`)로 통합하며, 두 라우트 어디에도 게이트 계산 로직을 중복 작성하지 않는다.
+
+### 3.4 결과 상태 계약 — 02 전용 (Event-driven)
+
+- **REQ-B2CRESULT-013** (When): 사용자가 진단 인계 데이터 없이 `/result`에 직접 접근하거나 새로고침할 때(즉 `sessionStorage`에 유효한 handoff가 없을 때), 시스템은 02 전용 "결과 없음" 안내 상태를 표시하고 01 입력 화면으로 돌아가는 경로를 제공한다 — 이는 01의 `result-none`(01-D) 상태와는 별개의, 02 자체의 데이터 부재 상태다.
+- **REQ-B2CRESULT-014** (When): `sessionStorage`에 기록된 진단 인계 데이터가 파싱 불가능하거나 스키마와 불일치할 때, 시스템은 애플리케이션을 중단시키지 않고 02 전용 오류 상태를 표시한다.
+- **REQ-B2CRESULT-015**: 시스템은 `/result` 페이지가 `useSearchParams()` 또는 클라이언트 전용 데이터 읽기를 수행하는 동안 스켈레톤 로딩 상태(`<Suspense fallback>`)를 렌더링해 레이아웃 시프트를 최소화한다.
+
+### 3.5 기술 원칙 · 저장 정책 (Ubiquitous)
+
+- **REQ-B2CRESULT-016**: 시스템은 01→02 진단 인계 데이터를 서버에 영구 저장하지 않는다 — `sessionStorage`에만 일시 기록하며, `/result` 마운트 시 1회 읽은 뒤 즉시 제거한다.
+- **REQ-B2CRESULT-017**: 시스템은 `sessionStorage` 키를 프로젝트 네임스페이스가 붙은 전용 키로 사용하며, 다른 기능과 키 충돌이 없도록 한다.
+- **REQ-B2CRESULT-018**: 시스템은 Desktop(1440px 기준)과 Mobile(390px 기준) 두 반응형 레이아웃을 제공하며, SPEC-B2C-DIAGNOSIS-001이 확정한 768px 2-way 브레이크포인트(`md:`)를 그대로 재사용한다.
+
+### 3.6 접근성 (Ubiquitous)
+
+- **REQ-B2CRESULT-019**: 시스템은 Mobile 카테고리 탭 전환 시 스크린리더가 탭 목록/선택 상태를 인지할 수 있도록 적절한 ARIA 역할(`tablist`/`tab`/`tabpanel` 또는 동등 패턴)을 부여한다.
+- **REQ-B2CRESULT-020**: 시스템은 담보 카드의 3톤 상태를 색상 단독으로 전달하지 않는다 — pill 텍스트 라벨(검토 대상/추가 정보 필요/가능성 낮음)을 항상 함께 표기한다.
+- **REQ-B2CRESULT-021**: 시스템은 Mobile 탭 전환 시 포커스를 전환된 카테고리 패널의 제목 요소로 이동시켜 진행 상황을 인지 가능하게 한다.
+
+### 3.7 금지 사항 (Unwanted — shall not)
+
+- **REQ-B2CRESULT-022**: 시스템은 이 SPEC이 작성하는 UI 문구 어디에서도 단정형 보상 확정 문구(예: "받으실 수 있습니다")를 사용해서는 안 된다 — `design/MIGRATION-PLAN.md` §5의 조건부 표현(청구 가능/가능성) 정책을 그대로 따른다.
+- **REQ-B2CRESULT-023**: 시스템은 03 상담 신청 화면(및 그 라우팅)이 아직 존재하지 않는 이 SPEC의 범위 안에서, 02/M02 화면의 상담 CTA 버튼을 실제 페이지 이동 없이 비활성 또는 명시적 stub 상태로만 렌더링해야 한다 — 존재하지 않는 라우트로 이동을 시도해서는 안 된다.
+- **REQ-B2CRESULT-024**: 시스템은 이 SPEC이 전달하는 코드 범위 안에서 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점을 만들어서는 안 된다 — 실제 담보 매칭 엔진 연결은 후속 SPEC의 몫이다.
+- **REQ-B2CRESULT-025**: 시스템은 기존 `pnpm visual:verify`의 SPEC-B2C-DIAGNOSIS-001 10화면 커버리지를 깨뜨려서는 안 된다 — 이 SPEC이 추가하는 5화면은 기존 화면 정의를 대체가 아니라 추가하는 방식으로만 확장한다.
+
+## 4. Out of Scope
+
+### Out of Scope — 후속 퍼널 단계
+
+- 03 상담 신청 · 손해사정사 연결 화면(및 M03 계열)의 실제 구현, 이름·전화번호 수집, 상담 접수 처리
+
+### Out of Scope — 매칭·AI·데이터
+
+- 보험 가입 여부의 실제 외부 조회
+- 보상 가능성 매칭 엔진의 실제 구현(정적 규칙 vs AI, `tech.md` § 담보 매칭 로직 — 미결정 사항 참고) — 이 SPEC은 `DiagnosisResult` 데이터 계약과 UI만 정의하며, 실제 엔진이 그 계약을 어떻게 채울지는 결정하지 않는다
+- Gemini 등 외부 AI의 실제 호출
+- `lib/pipeline/` 재사용 여부 결정 (담보 매칭 로직 결정과 함께 판단할 후속 SPEC의 몫)
+- 신규 DB 영구 저장 구조 설계·마이그레이션
+- 02 담보 데이터 확장 — 골절 외 암·뇌혈관·심장·디스크 등 케이스별 담보 세트 데이터 설계(`product.md` §Roadmap A) — 이 SPEC은 골절 사례 1종의 review 전용 fixture만 제공한다
+
+### Out of Scope — 배포·활성화
+
+- `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`를 프로덕션에서 실제로 `true`로 전환하는 작업, 배포 워크플로(`.github/workflows/deploy.yml`) 수정
+
+### Out of Scope — 법률·확정 문구
+
+- 법률·보험 자문처럼 보이는 확정적 결과 문구
+- 01-A2/03의 동의 상세 문구 확정(`design/internal/`의 6개 placeholder) — 이 SPEC은 동의 화면을 다루지 않는다
+
+### Out of Scope — 테스트
+
+- 03 상담 신청 테스트, 01→02→03 전체 E2E, 실제 매칭 엔진 검증, 실제 상담 접수 검증
