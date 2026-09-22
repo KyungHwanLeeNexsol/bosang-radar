@@ -1015,25 +1015,37 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "inputSummary",
         label: "입력하신 사고 내용 카드",
         locate: (p) => vis(p, "result-input-summary"),
-        designTopHint: 56,
+        // visual-verify 튜닝 — scripts/_debug-dump-bands.ts로 정규화된
+        // design/exports/M02-보상-진단-결과.png의 실제 segmentBands(기본
+        // 임계값 18) 출력을 직접 측정해 얻은 참값이다(이전 값 56은 카드
+        // 상단 테두리 한 줄이 quietGap으로 분리된 1px 밴드(top=51)에 더
+        // 가까워 오매칭됐었다 — 실제 카드 본문 밴드는 top=72).
+        designTopHint: 72,
       },
       {
         key: "aggregateBanner",
         label: "집계 배너",
         locate: (p) => vis(p, "result-aggregate-banner"),
-        designTopHint: 288,
+        // 참값 — 이전 값 288은 실제 밴드(top=448)에서 160px 떨어져 있어
+        // dist<=30 매칭 조건을 넘겨 "밴드를 찾지 못함"으로 처리됐었다.
+        designTopHint: 448,
       },
       {
         key: "priorityChecklist",
         label: "먼저 확인할 항목",
         locate: (p) => vis(p, "result-priority-checklist"),
-        designTopHint: 411,
+        // 참값(top=693) — 4개 탭 변형(M02/M02-B/M02-C/M02-D) 모두 이 세
+        // 섹션(입력 요약/집계 배너/먼저 확인할 항목)의 디자인 좌표가
+        // 동일하다 — 탭별로 달라지는 담보 콘텐츠는 이 섹션들 아래에서만
+        // 갈린다.
+        designTopHint: 693,
       },
       {
         key: "categoryTabs",
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
-        designTopHint: 562,
+        // 참값(top=923).
+        designTopHint: 923,
       },
     ],
   },
@@ -1050,25 +1062,26 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "inputSummary",
         label: "입력하신 사고 내용 카드",
         locate: (p) => vis(p, "result-input-summary"),
-        designTopHint: 76,
+        // visual-verify 튜닝 — 참값(top=73, M02와 동일 섹션).
+        designTopHint: 73,
       },
       {
         key: "aggregateBanner",
         label: "집계 배너",
         locate: (p) => vis(p, "result-aggregate-banner"),
-        designTopHint: 333,
+        designTopHint: 449,
       },
       {
         key: "priorityChecklist",
         label: "먼저 확인할 항목",
         locate: (p) => vis(p, "result-priority-checklist"),
-        designTopHint: 483,
+        designTopHint: 693,
       },
       {
         key: "categoryTabs",
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
-        designTopHint: 658,
+        designTopHint: 924,
       },
     ],
   },
@@ -1085,25 +1098,26 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "inputSummary",
         label: "입력하신 사고 내용 카드",
         locate: (p) => vis(p, "result-input-summary"),
-        designTopHint: 90,
+        // visual-verify 튜닝 — 참값(top=72, M02와 동일 섹션).
+        designTopHint: 72,
       },
       {
         key: "aggregateBanner",
         label: "집계 배너",
         locate: (p) => vis(p, "result-aggregate-banner"),
-        designTopHint: 466,
+        designTopHint: 448,
       },
       {
         key: "priorityChecklist",
         label: "먼저 확인할 항목",
         locate: (p) => vis(p, "result-priority-checklist"),
-        designTopHint: 670,
+        designTopHint: 693,
       },
       {
         key: "categoryTabs",
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
-        designTopHint: 936,
+        designTopHint: 923,
       },
     ],
   },
@@ -1120,25 +1134,26 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "inputSummary",
         label: "입력하신 사고 내용 카드",
         locate: (p) => vis(p, "result-input-summary"),
-        designTopHint: 89,
+        // visual-verify 튜닝 — 참값(top=72, M02와 동일 섹션).
+        designTopHint: 72,
       },
       {
         key: "aggregateBanner",
         label: "집계 배너",
         locate: (p) => vis(p, "result-aggregate-banner"),
-        designTopHint: 461,
+        designTopHint: 448,
       },
       {
         key: "priorityChecklist",
         label: "먼저 확인할 항목",
         locate: (p) => vis(p, "result-priority-checklist"),
-        designTopHint: 658,
+        designTopHint: 693,
       },
       {
         key: "categoryTabs",
         label: "카테고리 탭",
         locate: (p) => vis(p, "result-category-tabs"),
-        designTopHint: 926,
+        designTopHint: 923,
       },
     ],
   },

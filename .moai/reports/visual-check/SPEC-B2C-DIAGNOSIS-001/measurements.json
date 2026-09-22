@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T06:59:29.588Z",
+  "generatedAt": "2026-09-22T07:27:45.616Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -6846,10 +6846,10 @@
           "key": "inputSummary",
           "label": "입력하신 사고 내용 카드",
           "design": {
-            "left": 0,
-            "top": 51,
-            "width": 390,
-            "height": 1
+            "left": 20,
+            "top": 72,
+            "width": 350,
+            "height": 360
           },
           "impl": {
             "left": 20,
@@ -6858,10 +6858,10 @@
             "height": 282
           },
           "delta": {
-            "left": 20,
-            "top": 36,
-            "width": 40,
-            "height": 281
+            "left": 0,
+            "top": 15,
+            "width": 0,
+            "height": 78
           },
           "lines": {
             "actual": 7
@@ -6875,14 +6875,24 @@
         {
           "key": "aggregateBanner",
           "label": "집계 배너",
-          "design": null,
+          "design": {
+            "left": 20,
+            "top": 448,
+            "width": 350,
+            "height": 229
+          },
           "impl": {
             "left": 20,
             "top": 385,
             "width": 350,
             "height": 168
           },
-          "delta": {},
+          "delta": {
+            "left": 0,
+            "top": 63,
+            "width": 0,
+            "height": 61
+          },
           "lines": {
             "actual": 5
           },
@@ -6895,14 +6905,24 @@
         {
           "key": "priorityChecklist",
           "label": "먼저 확인할 항목",
-          "design": null,
+          "design": {
+            "left": 20,
+            "top": 693,
+            "width": 350,
+            "height": 214
+          },
           "impl": {
             "left": 20,
             "top": 569,
             "width": 350,
             "height": 396
           },
-          "delta": {},
+          "delta": {
+            "left": 0,
+            "top": 124,
+            "width": 0,
+            "height": 182
+          },
           "lines": {
             "actual": 11
           },
@@ -6915,14 +6935,24 @@
         {
           "key": "categoryTabs",
           "label": "카테고리 탭",
-          "design": null,
+          "design": {
+            "left": 20,
+            "top": 923,
+            "width": 350,
+            "height": 40
+          },
           "impl": {
             "left": 20,
             "top": 993,
             "width": 350,
             "height": 31
           },
-          "delta": {},
+          "delta": {
+            "left": 0,
+            "top": 70,
+            "width": 0,
+            "height": 9
+          },
           "lines": {
             "actual": 1
           },
@@ -6934,7 +6964,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 281,
+      "maxDelta": 182,
       "pass": false
     },
     {
@@ -7299,14 +7329,24 @@
         {
           "key": "aggregateBanner",
           "label": "집계 배너",
-          "design": null,
+          "design": {
+            "left": 21,
+            "top": 449,
+            "width": 348,
+            "height": 227
+          },
           "impl": {
             "left": 20,
             "top": 385,
             "width": 350,
             "height": 168
           },
-          "delta": {},
+          "delta": {
+            "left": 1,
+            "top": 64,
+            "width": 2,
+            "height": 59
+          },
           "lines": {
             "actual": 5
           },
@@ -7319,14 +7359,24 @@
         {
           "key": "priorityChecklist",
           "label": "먼저 확인할 항목",
-          "design": null,
+          "design": {
+            "left": 20,
+            "top": 693,
+            "width": 350,
+            "height": 214
+          },
           "impl": {
             "left": 20,
             "top": 569,
             "width": 350,
             "height": 396
           },
-          "delta": {},
+          "delta": {
+            "left": 0,
+            "top": 124,
+            "width": 0,
+            "height": 182
+          },
           "lines": {
             "actual": 11
           },
@@ -7339,14 +7389,24 @@
         {
           "key": "categoryTabs",
           "label": "카테고리 탭",
-          "design": null,
+          "design": {
+            "left": 21,
+            "top": 924,
+            "width": 348,
+            "height": 38
+          },
           "impl": {
             "left": 20,
             "top": 993,
             "width": 350,
             "height": 31
           },
-          "delta": {},
+          "delta": {
+            "left": 1,
+            "top": 69,
+            "width": 2,
+            "height": 7
+          },
           "lines": {
             "actual": 1
           },
@@ -7358,7 +7418,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 76,
+      "maxDelta": 182,
       "pass": false
     },
     {
@@ -8231,14 +8291,24 @@
         {
           "key": "priorityChecklist",
           "label": "먼저 확인할 항목",
-          "design": null,
+          "design": {
+            "left": 20,
+            "top": 693,
+            "width": 350,
+            "height": 214
+          },
           "impl": {
             "left": 20,
             "top": 569,
             "width": 350,
             "height": 396
           },
-          "delta": {},
+          "delta": {
+            "left": 0,
+            "top": 124,
+            "width": 0,
+            "height": 182
+          },
           "lines": {
             "actual": 11
           },
@@ -8280,7 +8350,7 @@
         }
       ],
       "semantic": [],
-      "maxDelta": 78,
+      "maxDelta": 182,
       "pass": false
     }
   ],
@@ -8339,51 +8409,65 @@
       "screen": "M02",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "left 디자인 0 vs 구현 20",
-      "delta": 20,
+      "detail": "top 디자인 72 vs 구현 87",
+      "delta": 15,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "top 디자인 51 vs 구현 87",
-      "delta": 36,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "width 디자인 390 vs 구현 350",
-      "delta": 40,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "height 디자인 1 vs 구현 282",
-      "delta": 281,
+      "detail": "height 디자인 360 vs 구현 282",
+      "delta": 78,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "집계 배너",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈288 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+      "kind": "metric",
+      "detail": "top 디자인 448 vs 구현 385",
+      "delta": 63,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "height 디자인 229 vs 구현 168",
+      "delta": 61,
+      "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "먼저 확인할 항목",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈411 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+      "kind": "metric",
+      "detail": "top 디자인 693 vs 구현 569",
+      "delta": 124,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "먼저 확인할 항목",
+      "kind": "metric",
+      "detail": "height 디자인 214 vs 구현 396",
+      "delta": 182,
+      "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "카테고리 탭",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈562 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+      "kind": "metric",
+      "detail": "top 디자인 923 vs 구현 993",
+      "delta": 70,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "height 디자인 40 vs 구현 31",
+      "delta": 9,
+      "tolerance": 4
     },
     {
       "screen": "M02-B",
@@ -8416,20 +8500,50 @@
     {
       "screen": "M02-B",
       "element": "집계 배너",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈333 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=449)."
+      "kind": "metric",
+      "detail": "top 디자인 449 vs 구현 385",
+      "delta": 64,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-B",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "height 디자인 227 vs 구현 168",
+      "delta": 59,
+      "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "먼저 확인할 항목",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈483 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=449)."
+      "kind": "metric",
+      "detail": "top 디자인 693 vs 구현 569",
+      "delta": 124,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-B",
+      "element": "먼저 확인할 항목",
+      "kind": "metric",
+      "detail": "height 디자인 214 vs 구현 396",
+      "delta": 182,
+      "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "카테고리 탭",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈658 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=693)."
+      "kind": "metric",
+      "detail": "top 디자인 924 vs 구현 993",
+      "delta": 69,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-B",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "height 디자인 38 vs 구현 31",
+      "delta": 7,
+      "tolerance": 4
     },
     {
       "screen": "M02-C",
@@ -8554,8 +8668,18 @@
     {
       "screen": "M02-D",
       "element": "먼저 확인할 항목",
-      "kind": "missing",
-      "detail": "디자인 이미지에서 top≈658 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=693)."
+      "kind": "metric",
+      "detail": "top 디자인 693 vs 구현 569",
+      "delta": 124,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "먼저 확인할 항목",
+      "kind": "metric",
+      "detail": "height 디자인 214 vs 구현 396",
+      "delta": 182,
+      "tolerance": 4
     },
     {
       "screen": "M02-D",
