@@ -23,9 +23,9 @@ describe("buildFractureResult — DiagnosisResultSchema 통과(REQ-B2CRESULT-001
 
   it("응답이 있을 때도 스키마를 통과한다", () => {
     const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {
-      surgery: "수술 받음",
+      "surgery-status": "수술 받음",
       hospitalization: "입원함",
-      accidentLocation: "헬스장",
+      "accident-location": "헬스장",
     });
     const parsed = DiagnosisResultSchema.safeParse(result);
     expect(parsed.success).toBe(true);
@@ -65,10 +65,10 @@ describe("buildFractureResult — DiagnosisResultSchema 통과(REQ-B2CRESULT-001
   });
 
   it("응답이 있는 질문 ID는 매핑된 카드의 factChips에 나타난다(REQ-B2CRESULT-007)", () => {
-    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { surgery: "수술 받음" });
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
     const allChipQuestionIds = result.items.flatMap((item) =>
       item.factChips.map((chip) => chip.questionId)
     );
-    expect(allChipQuestionIds).toContain("surgery");
+    expect(allChipQuestionIds).toContain("surgery-status");
   });
 });

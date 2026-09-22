@@ -94,15 +94,12 @@ test.describe("02 화면 — 01→02 전체 플로우 (Desktop, 1440x900)", () =
     await expect(page.getByTestId("coverage-section-disability")).toBeVisible();
     await expect(page.getByTestId("coverage-section-special")).toBeVisible();
 
-    // Fact Chip 존재/부재(REQ-B2CRESULT-007/008) — 골절 fixture의 factChip
-    // 매핑 테이블은 fixture 내부 전용 질문 ID("hospitalization"/"surgery"/
-    // "accidentLocation")를 쓰며, 실제 01-B 질문 ID와는 "hospitalization"
-    // 하나만 우연히 일치한다(design.md §7 — 실제 매칭 엔진 연결 전까지는
-    // 일반화하지 않는 fixture 내부 전용 규칙). 따라서 3문항을 모두 응답해도
-    // "입원 여부" 응답만 실제로 매핑되어 Chip이 붙고, "수술 여부" 응답은
-    // fixture 쪽 매핑 키("surgery")가 달라 이 카드에는 Chip이 생성되지
-    // 않는다 — REQ-B2CRESULT-008이 규정하는 "매핑되는 응답이 없으면 Chip을
-    // 만들지 않는다"는 메커니즘을 실제 카드로 그대로 보여준다.
+    // Fact Chip 존재(REQ-B2CRESULT-007) — 골절 fixture의 factChip 매핑
+    // 테이블은 실제 01-B 질문 ID("surgery-status"/"hospitalization"/
+    // "accident-location", step-questions.tsx와 동일)를 그대로 쓴다(design.md
+    // §7). 01 플로우에서 3문항을 모두 응답하므로 세 질문 모두 매핑된 카드에
+    // Chip이 붙는다 — "입원 여부"(통원 실손), "수술 여부"(골절수술비),
+    // "사고 장소"(후유장해) 순으로 각각 확인한다.
     await expect(
       page
         .getByTestId("coverage-item-item-reimbursement-outpatient")
@@ -112,7 +109,12 @@ test.describe("02 화면 — 01→02 전체 플로우 (Desktop, 1440x900)", () =
       page
         .getByTestId("coverage-item-item-fixed-fracture-surgery")
         .getByTestId("coverage-fact-chips")
-    ).toHaveCount(0);
+    ).toBeVisible();
+    await expect(
+      page
+        .getByTestId("coverage-item-item-disability-knee")
+        .getByTestId("coverage-fact-chips")
+    ).toBeVisible();
   });
 });
 
@@ -172,8 +174,8 @@ test.describe("02 화면 — review 전용 ?devFixture=fracture 직접 진입 (d
       /사고 내용으로 [1-9]\d*개 담보를 분석했습니다/
     );
 
-    // FRACTURE_FIXTURE_DEV_ANSWERS = { surgery, hospitalization } —
-    // accidentLocation은 의도적으로 비워 둔다(REQ-B2CRESULT-007/008).
+    // FRACTURE_FIXTURE_DEV_ANSWERS = { "surgery-status", hospitalization } —
+    // accident-location은 의도적으로 비워 둔다(REQ-B2CRESULT-007/008).
     await expect(
       page
         .getByTestId("coverage-item-item-fixed-fracture-surgery")

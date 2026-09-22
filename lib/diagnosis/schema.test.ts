@@ -24,7 +24,7 @@ function buildReviewItem() {
       max: 500000,
       displayText: "30만~50만원",
     },
-    factChips: [{ questionId: "surgery", label: "수술 여부", value: "수술 받음" }],
+    factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
     status: "review",
   } satisfies CoverageItem;
 }
@@ -53,7 +53,7 @@ function buildValidDiagnosisResult(): DiagnosisResult {
     resultId: "result-1",
     schemaVersion: DIAGNOSIS_SCHEMA_VERSION,
     rawInput: "3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요",
-    answers: { surgery: "수술 받음" },
+    answers: { "surgery-status": "수술 받음" },
     inputSummary: {
       title: "무릎·아래다리의 골절",
       when: { label: "언제", value: "3일 전" },

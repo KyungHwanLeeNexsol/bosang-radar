@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { DESKTOP_MEDIA_QUERY, REDUCED_MOTION_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
+import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
 
 // SPEC-B2C-DIAGNOSIS-001 M7 (design.md §13) — 0~767px Mobile / 768px 이상
 // Desktop 2-way 반응형 분기 훅. jsdom에는 실제 뷰포트가 없으므로
@@ -79,20 +79,6 @@ describe("components/diagnosis/useMediaQuery", () => {
 
     expect(container.querySelector('[data-testid="probe"]')?.getAttribute("data-matches")).toBe(
       "false"
-    );
-  });
-
-  // SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) — 이미 존재하는
-  // 제네릭 훅을 REDUCED_MOTION_MEDIA_QUERY 쿼리로도 재사용할 수 있는지 확인한다
-  // (새 훅을 만들지 않았다는 것의 회귀 테스트).
-  it("REDUCED_MOTION_MEDIA_QUERY로도 동일한 훅이 동작한다(prefers-reduced-motion: reduce)", () => {
-    mockMatchMedia(true);
-    act(() => {
-      root.render(React.createElement(Probe, { query: REDUCED_MOTION_MEDIA_QUERY }));
-    });
-
-    expect(container.querySelector('[data-testid="probe"]')?.getAttribute("data-matches")).toBe(
-      "true"
     );
   });
 });

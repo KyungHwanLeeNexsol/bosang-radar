@@ -71,17 +71,17 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
       makeItem({
         id: "a",
         status: "review",
-        factChips: [{ questionId: "surgery", label: "수술 여부", value: "수술 받음" }],
+        factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
       }),
       makeItem({
         id: "b",
         status: "needs-info",
-        factChips: [{ questionId: "surgery", label: "수술 여부", value: "수술 받음" }],
+        factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
       }),
     ];
     const result = collectAnsweredFacts(items);
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ questionId: "surgery", label: "수술 여부", value: "수술 받음" });
+    expect(result[0]).toEqual({ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" });
   });
 
   it("먼저 발견된 순서(items 배열 순서, 각 item의 factChips 순서)를 유지한다", () => {
@@ -91,7 +91,7 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
         status: "review",
         factChips: [
           { questionId: "hospitalization", label: "입원 여부", value: "입원함" },
-          { questionId: "surgery", label: "수술 여부", value: "수술 받음" },
+          { questionId: "surgery-status", label: "수술 여부", value: "수술 받음" },
         ],
       }),
       makeItem({
@@ -101,7 +101,7 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
       }),
     ];
     const result = collectAnsweredFacts(items);
-    expect(result.map((chip) => chip.questionId)).toEqual(["hospitalization", "surgery", "location"]);
+    expect(result.map((chip) => chip.questionId)).toEqual(["hospitalization", "surgery-status", "location"]);
   });
 
   it("응답이 없는 질문 ID는 factChips 자체에 없으므로 결과에서 제외된다(REQ-B2CRESULT-008)", () => {
@@ -109,7 +109,7 @@ describe("collectAnsweredFacts — REQ-B2CRESULT-001/007/008", () => {
       makeItem({
         id: "a",
         status: "review",
-        factChips: [{ questionId: "surgery", label: "수술 여부", value: "수술 받음" }],
+        factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
       }),
     ];
     const result = collectAnsweredFacts(items);

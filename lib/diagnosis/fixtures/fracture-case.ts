@@ -15,22 +15,23 @@ export const FRACTURE_FIXTURE_INPUT = "3일 전에 헬스장에서 벤치프레�
 
 // SPEC-B2C-RESULT-001 M6 (design.md §9, REQ-B2CRESULT-009) — review 전용
 // `?devFixture=fracture` 직접 진입 경로가 01 플로우를 거치지 않고
-// buildFractureResult()를 호출할 때 쓰는 고정 answers 표본. "surgery"/
+// buildFractureResult()를 호출할 때 쓰는 고정 answers 표본. "surgery-status"/
 // "hospitalization"은 응답이 있어 해당 담보 카드에 Fact Chip이 표시되고
-// (REQ-B2CRESULT-007), "accidentLocation"은 의도적으로 비워 두어 그
+// (REQ-B2CRESULT-007), "accident-location"은 의도적으로 비워 두어 그
 // 질문에 대응하는 카드(후유장해·특별 보상)에는 Chip이 생성되지 않음을
 // 보여준다(REQ-B2CRESULT-008).
 export const FRACTURE_FIXTURE_DEV_ANSWERS: Record<string, string> = {
-  surgery: "수술 받음",
+  "surgery-status": "수술 받음",
   hospitalization: "입원 치료 있음",
 };
 
-// 01-B 질문 ID → 화면에 표시되는 라벨. fixture 내부 전용 매핑 테이블이며
-// 실제 매칭 엔진이 결정되기 전까지는 일반화하지 않는다(design.md §7).
+// 01-B 질문 ID(step-questions.tsx와 동일한 실제 질문 ID) → 화면에 표시되는
+// 라벨. fixture 내부 전용 매핑 테이블이며 실제 매칭 엔진이 결정되기
+// 전까지는 일반화하지 않는다(design.md §7).
 const QUESTION_LABELS: Record<string, string> = {
-  surgery: "수술 여부",
+  "surgery-status": "수술 여부",
   hospitalization: "입원 여부",
-  accidentLocation: "사고 장소",
+  "accident-location": "사고 장소",
 };
 
 /**
@@ -147,7 +148,7 @@ function buildItems(answers: Record<string, string>): CoverageItem[] {
         max: 500000,
         displayText: "30만~50만원",
       },
-      factChips: buildFactChips(answers, ["surgery"]),
+      factChips: buildFactChips(answers, ["surgery-status"]),
       status: "review",
     },
     {
@@ -164,7 +165,7 @@ function buildItems(answers: Record<string, string>): CoverageItem[] {
         max: 400000,
         displayText: "20만~40만원",
       },
-      factChips: buildFactChips(answers, ["surgery"]),
+      factChips: buildFactChips(answers, ["surgery-status"]),
       status: "review",
     },
     {
@@ -175,7 +176,7 @@ function buildItems(answers: Record<string, string>): CoverageItem[] {
       whyCheck: "무릎 골절은 치료 후 운동 범위 제한이 남을 수 있기 때문입니다.",
       badges: [],
       benefit: { kind: "formula", label: "보장 방식", displayText: "가입금액 × 장해지급률" },
-      factChips: buildFactChips(answers, ["accidentLocation"]),
+      factChips: buildFactChips(answers, ["accident-location"]),
       additionalInfoNote: "치료 종결 후 장해진단서로 정확한 지급률을 확인합니다.",
       status: "needs-info",
     },
@@ -194,7 +195,7 @@ function buildItems(answers: Record<string, string>): CoverageItem[] {
         },
       ],
       benefit: { kind: "conditional", label: "보장 방식", displayText: "상대방 보험 · 별도 산정" },
-      factChips: buildFactChips(answers, ["accidentLocation"]),
+      factChips: buildFactChips(answers, ["accident-location"]),
       status: "review",
     },
   ];

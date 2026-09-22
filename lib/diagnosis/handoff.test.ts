@@ -13,7 +13,7 @@ function buildValidDiagnosisResult(): DiagnosisResult {
     resultId: "result-1",
     schemaVersion: DIAGNOSIS_SCHEMA_VERSION,
     rawInput: "3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요",
-    answers: { surgery: "수술 받음" },
+    answers: { "surgery-status": "수술 받음" },
     inputSummary: {
       title: "무릎·아래다리의 골절",
       when: { label: "언제", value: "3일 전" },
@@ -38,7 +38,7 @@ function buildValidDiagnosisResult(): DiagnosisResult {
         whyCheck: "통원 치료를 받았기 때문입니다.",
         badges: [],
         benefit: { kind: "formula", label: "보장 방식", displayText: "자기부담금 차감 후 보상" },
-        factChips: [{ questionId: "surgery", label: "수술 여부", value: "수술 받음" }],
+        factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
         status: "review",
       },
     ],

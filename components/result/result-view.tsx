@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 
-import { DESKTOP_MEDIA_QUERY, REDUCED_MOTION_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
+import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
 import { collectAnsweredFacts, computeAggregate } from "@/lib/diagnosis/aggregate";
 import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import {
@@ -36,10 +36,13 @@ import { ResultTopBarCta, ResultDisabilitySectionCta, ResultFinalCta } from "./r
 // SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) — 카테고리
 // 앵커 스크롤(우선순위 카드 선택·탭 전환)은 useMediaQuery(REDUCED_MOTION_
 // MEDIA_QUERY)로 prefers-reduced-motion을 확인해 scrollIntoView의
-// behavior를 "smooth"/"auto"로 분기한다 — 기존 diagnosis-flow.tsx의
-// useMediaQuery(DESKTOP_MEDIA_QUERY) 패턴을 그대로 재사용한다(새 훅을
-// 만들지 않음). 포커스 이동(.focus())은 애니메이션이 아니므로 이 분기의
-// 영향을 받지 않고 항상 수행된다.
+// behavior를 "smooth"/"auto"로 분기한다 — 기존 use-media-query.ts의 제네릭
+// useMediaQuery(query) 훅을 그대로 재사용한다(새 훅을 만들지 않음, Enforce
+// Simplicity). 이 쿼리는 02 화면에서만 쓰이므로 상수는 use-media-query.ts가
+// 아니라 이 파일에 로컬로 둔다(plan.md §D EXTEND 범위 — 기존 파일 3개
+// 외 수정 금지 준수). 포커스 이동(.focus())은 애니메이션이 아니므로 이
+// 분기의 영향을 받지 않고 항상 수행된다.
+const REDUCED_MOTION_MEDIA_QUERY = "(prefers-reduced-motion: reduce)";
 
 function coverageSectionId(category: CoverageCategory): string {
   return `coverage-section-${category}`;
