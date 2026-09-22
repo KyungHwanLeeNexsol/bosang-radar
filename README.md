@@ -11,14 +11,14 @@
 - **프레임워크**: Next.js (App Router) + TypeScript strict
 - **UI**: Tailwind CSS + shadcn/ui
 - **DB**: Turso/libSQL + Drizzle ORM (stable 0.45.x 계열)
-- **인증**: Better Auth — 초대 전용(allowlist) 접근 제어, 셀프 가입 없음
+- **인증**: 없음 — B2C 진단·상담 플로우는 로그인 없이 완전 공개로 동작합니다. Better Auth 기반 초대 전용 인증은 B2B 방향과 함께 SPEC-B2C-FOUNDATION-001에서 삭제 완료됐습니다(레거시 기록: [`.moai/project/tech.md`](.moai/project/tech.md) § Better Auth)
 - **AI**: `lib/ai/provider.ts` 공통 인터페이스 뒤에 Gemini adapter(`@google/genai`)를 배치 — 특정 LLM에 종속되지 않는 구조
 - **검증**: Zod (PII 형식 입력 구조적 차단)
 - **테스트/린트/포맷**: Vitest / ESLint 9 flat config / Prettier
 
 기술 선택 근거는 [`.moai/project/tech.md`](.moai/project/tech.md), 디렉터리 구조는 [`.moai/project/structure.md`](.moai/project/structure.md)를 참고하세요.
 
-## 현재 구현 상태 (17개 SPEC 완료 + SPEC-B2C-DIAGNOSIS-001 구현 완료·병합 대기)
+## 현재 구현 상태 (18개 SPEC 완료)
 
 ### B2C 방향 (현행)
 
@@ -84,18 +84,16 @@ cp .env.local.example .env.local
 
 - `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` — Turso/libSQL 연결 정보
 - `GEMINI_API_KEY` — Gemini API 키 (`LLM_PROVIDER_MODE`가 `deterministic`이 아닌 정상 앱 기동 시 필수 — 테스트/E2E처럼 결정론적 provider로 돌릴 때는 필요 없음)
-- `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` — 인증 세션 서명 키 및 base URL
 - `GEMINI_RESEARCH_MODEL`, `GEMINI_FAST_MODEL`, `GEMINI_RESEARCH_RPM_BUDGET`, `GEMINI_FAST_RPM_BUDGET` — 전부 선택 사항(코드 기본값 존재). Researcher/Skeptic·Verifier 역할별 모델과 자체 부과 RPM 페이싱 예산을 각각 오버라이드할 때만 설정 — 자세한 기본값과 근거는 `.env.local.example` 주석 참고
 
-### DB 마이그레이션·시드·테스터 계정 생성
+### DB 마이그레이션·시드
 
 ```bash
 pnpm db:migrate                                   # 스키마 적용 (재실행 안전)
 pnpm db:seed                                       # 초기 evidence 데이터 적재
-pnpm tester:add -- --email tester@example.com       # 초대 전용 테스터 계정 생성
 ```
 
-셸에 환경변수를 `export`할 필요 없이 `.env.local` 파일만 채워두면 위 세 명령이 직접 읽어 들입니다. 전체 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요.
+셸에 환경변수를 `export`할 필요 없이 `.env.local` 파일만 채워두면 위 두 명령이 직접 읽어 들입니다. 전체 절차는 [`.moai/docs/runtime-runbook.md`](.moai/docs/runtime-runbook.md)를 참고하세요. (`pnpm tester:add`는 Better Auth 테스터 프로비저닝용이었으나 SPEC-B2C-FOUNDATION-001에서 대상 스크립트와 함께 삭제됐습니다 — B2C 플로우는 로그인이 없어 테스터 계정이 필요 없습니다.)
 
 ### 개발 서버 실행
 
@@ -160,11 +158,11 @@ bosang-radar/
 
 전체 서비스 완성이 아니라 근거자료 기반으로 실제 동작하는 상태를 만드는 데 집중해 왔습니다. 남은 작업은 3단계로 분류합니다.
 
-### 구현 완료 (완료 17개 SPEC + 병합 대기 1개)
+### 구현 완료 (완료 18개 SPEC)
 
 SPEC-SCAFFOLD-001(scaffold + 핵심 아키텍처) · SPEC-RUNTIME-001(런타임 활성화) · SPEC-RESEARCH-001(evidence-first 파이프라인 전환) · SPEC-GEMINI-RUNTIME-001(무료 티어 파일럿 안정화 — 역할별 모델 분리·rate 페이싱·재시도 복원력) · SPEC-EVIDENCE-001(근거자료 21건 확장 + 쟁점 ranking) · SPEC-FEEDBACK-001(구조화 전문가 피드백 축적) · SPEC-PILOT-UX-001(UI 사용성 다듬기) · SPEC-PILOT-VISUAL-001(Pencil 디자인 시각 재현) · SPEC-UI-MIGRATION-001(전체 화면 확장 재현) · SPEC-E2E-AUTH-STATE-001(E2E 인증 flaky 제거) · SPEC-PILOT-READY-001(파일럿 배포 준비 — Netlify Free 호스팅 확정, Background Function 비동기 전환, Gemini 하이브리드 라우팅, 사용자별 동시 실행 가드, 데이터 취급 고지 정직성 개선; readiness 7개 항목 전부 `READY`·전체 판정 `GO`, PR #10 main 병합 완료) · SPEC-PILOT-LAUNCH-001(프로덕션 사용자 노출 문구 정리, 최초 운영 계정 발급 절차 문서화 — PR #11 main 병합 완료(squash 커밋 `bc289ad`), 3-phase close(`14a6394`)) · SPEC-PILOT-OPS-001(README/product.md 문서 현행화, 최초 운영 계정 발급 계획, 프로덕션 단일 계정 스모크 체크리스트 + 테넌트 격리 게이트, 파일럿 3단계 롤아웃 + 성공지표 집계 계약, Gemini 하이브리드 라우팅 쿼터 운영 계획을 담은 신규 운영 문서 `pilot-ops-launch-plan.md` 작성 — 코드 변경 없음) · SPEC-CASE-PROGRESS-001(사건 입력 대기 화면에 정적 4단계 분석 진행 안내 추가 — 백엔드/폴링 상수 무변경) · SPEC-SIDEBAR-NAV-001(사이드바 "전문가 피드백" 항목 아이콘을 `CornerDownRight`로 교체 + 활성 링크 `aria-label` 추가 — 인페이지 앵커 이동임을 시각적으로 구분, 순수 프레젠테이션 전용) — 모두 `.moai/specs/<SPEC-ID>/spec.md`의 `status: completed`로 확인 가능합니다.
 
-B2C 전환 이후로는 SPEC-B2C-FOUNDATION-001(B2B 코드 정리 + `app/`을 B2C 최소 공개 진입점으로 전환 — PR #15 main 병합, `status: completed`)이 완료됐고, SPEC-B2C-DIAGNOSIS-001(01 진단 플로우 10화면 구현 + 결정론적 시각 정합성 게이트 — 플래그 뒤 구현, 기본 출력은 placeholder 유지)은 구현·검증을 마치고 `status: implemented` 상태로 main 병합을 기다리고 있습니다. 병합 후 `completed`로 전환됩니다.
+B2C 전환 이후로는 SPEC-B2C-FOUNDATION-001(B2B 코드 정리 + `app/`을 B2C 최소 공개 진입점으로 전환 — PR #15 main 병합, `status: completed`)과 SPEC-B2C-DIAGNOSIS-001(01 진단 플로우 10화면 구현 + 결정론적 시각 정합성 게이트 — 플래그 뒤 구현, 기본 출력은 placeholder 유지 — PR #17 구현 병합 + PR #18 3-phase close, `status: completed`)이 모두 완료됐습니다.
 
 ### 후속 개발 (파일럿 데이터 확보 이후)
 
