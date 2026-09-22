@@ -75,3 +75,117 @@ describe("components/result/ResultCategoryTabs — ARIA roles(REQ-B2CRESULT-019)
     expect(tab?.getAttribute("aria-controls")).toBe("coverage-section-fixed");
   });
 });
+
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-019) — 방향키(←/→)
+// 및 Home/End 키보드 탭 이동. roving tabindex(selected ? 0 : -1)를 전제로,
+// 활성 탭에서 ArrowRight/ArrowLeft/Home/End를 누르면 onChange가 호출된다.
+describe("components/result/ResultCategoryTabs — 키보드 탭 이동(REQ-B2CRESULT-019, M5)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  const counts = { reimbursement: 3, fixed: 8, disability: 2, special: 2 };
+
+  function dispatchKey(target: Element, key: string) {
+    act(() => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    });
+  }
+
+  it("ArrowRight는 다음 카테고리로 onChange를 호출한다(reimbursement → fixed)", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(
+        <ResultCategoryTabs active="reimbursement" onChange={onChange} counts={counts} />
+      );
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-reimbursement"]')!;
+    dispatchKey(activeTab, "ArrowRight");
+
+    expect(onChange).toHaveBeenCalledWith("fixed");
+  });
+
+  it("ArrowLeft는 이전 카테고리로 onChange를 호출한다(fixed → reimbursement)", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(<ResultCategoryTabs active="fixed" onChange={onChange} counts={counts} />);
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-fixed"]')!;
+    dispatchKey(activeTab, "ArrowLeft");
+
+    expect(onChange).toHaveBeenCalledWith("reimbursement");
+  });
+
+  it("ArrowRight는 마지막 카테고리(special)에서 첫 카테고리(reimbursement)로 순환한다", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(<ResultCategoryTabs active="special" onChange={onChange} counts={counts} />);
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-special"]')!;
+    dispatchKey(activeTab, "ArrowRight");
+
+    expect(onChange).toHaveBeenCalledWith("reimbursement");
+  });
+
+  it("ArrowLeft는 첫 카테고리(reimbursement)에서 마지막 카테고리(special)로 순환한다", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(
+        <ResultCategoryTabs active="reimbursement" onChange={onChange} counts={counts} />
+      );
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-reimbursement"]')!;
+    dispatchKey(activeTab, "ArrowLeft");
+
+    expect(onChange).toHaveBeenCalledWith("special");
+  });
+
+  it("Home은 항상 첫 카테고리(reimbursement)로 이동한다", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(<ResultCategoryTabs active="disability" onChange={onChange} counts={counts} />);
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-disability"]')!;
+    dispatchKey(activeTab, "Home");
+
+    expect(onChange).toHaveBeenCalledWith("reimbursement");
+  });
+
+  it("End는 항상 마지막 카테고리(special)로 이동한다", () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(
+        <ResultCategoryTabs active="reimbursement" onChange={onChange} counts={counts} />
+      );
+    });
+
+    const activeTab = container.querySelector('[data-testid="category-tab-reimbursement"]')!;
+    dispatchKey(activeTab, "End");
+
+    expect(onChange).toHaveBeenCalledWith("special");
+  });
+});
+
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) — 통합
+// 시나리오: 실제 탭 전환의 포커스 이동 로직은 result-view.tsx에 중앙화되어
+// 있으므로(진단 M4 잔여 위험 항목 #3), 이 파일의 단위 테스트만으로는
+// "탭 전환 시 새 패널 제목으로 포커스가 이동한다"는 계약을 완전히 검증하지
+// 못한다 — 그 통합 시나리오는 result-view.test.tsx에서 부모(ResultView)를
+// 렌더링해 검증한다.

@@ -41,6 +41,30 @@ export function ResultCategoryTabs({ active, onChange, counts }: ResultCategoryT
             tabIndex={selected ? 0 : -1}
             data-testid={`category-tab-${category}`}
             onClick={() => onChange(category)}
+            onKeyDown={(event) => {
+              // SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-019) —
+              // WAI-ARIA Tabs 패턴의 방향키 탭 이동. roving tabindex는 이미
+              // 위 tabIndex={selected ? 0 : -1}로 구성되어 있으므로, 여기서는
+              // 활성 탭의 인덱스를 기준으로 이전/다음 카테고리로 onChange만
+              // 호출한다 — 포커스 이동은 아래 useEffect가 담당한다(탭 자체가
+              // DOM에서 이동하지 않고 active prop만 바뀌므로, 새로 active가
+              // 된 탭 버튼에 focus()를 명시적으로 옮겨야 roving tabindex
+              // 계약이 완성된다).
+              const currentIndex = CATEGORY_ORDER.indexOf(active);
+              if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                event.preventDefault();
+                const delta = event.key === "ArrowRight" ? 1 : -1;
+                const nextIndex =
+                  (currentIndex + delta + CATEGORY_ORDER.length) % CATEGORY_ORDER.length;
+                onChange(CATEGORY_ORDER[nextIndex]);
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                onChange(CATEGORY_ORDER[0]);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                onChange(CATEGORY_ORDER[CATEGORY_ORDER.length - 1]);
+              }
+            }}
             className={cn(
               "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-body-s font-semibold transition-colors",
               selected

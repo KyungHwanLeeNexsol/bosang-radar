@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
+import { DESKTOP_MEDIA_QUERY, REDUCED_MOTION_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
 import { collectAnsweredFacts, computeAggregate } from "@/lib/diagnosis/aggregate";
 import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import type { CoverageCategory, CoverageItem, DiagnosisResult } from "@/lib/diagnosis/types";
@@ -26,6 +26,14 @@ import { ResultTopBarCta, ResultDisabilitySectionCta, ResultFinalCta } from "./r
 // useMediaQuery(DESKTOP_MEDIA_QUERY)로 Desktop(4카테고리 전체 펼침) vs
 // Mobile(단일 탭)을 분기한다. Desktop/Mobile 모두 동일한 DiagnosisResult
 // 데이터 원본을 소비한다 — 레이아웃별 재요청·재가공이 없다(REQ-B2CRESULT-004).
+//
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) — 카테고리
+// 앵커 스크롤(우선순위 카드 선택·탭 전환)은 useMediaQuery(REDUCED_MOTION_
+// MEDIA_QUERY)로 prefers-reduced-motion을 확인해 scrollIntoView의
+// behavior를 "smooth"/"auto"로 분기한다 — 기존 diagnosis-flow.tsx의
+// useMediaQuery(DESKTOP_MEDIA_QUERY) 패턴을 그대로 재사용한다(새 훅을
+// 만들지 않음). 포커스 이동(.focus())은 애니메이션이 아니므로 이 분기의
+// 영향을 받지 않고 항상 수행된다.
 
 function coverageSectionId(category: CoverageCategory): string {
   return `coverage-section-${category}`;
@@ -100,6 +108,7 @@ function useDiagnosisHandoffState(): ViewState {
 export function ResultView() {
   const state = useDiagnosisHandoffState();
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_MEDIA_QUERY);
   const [activeCategory, setActiveCategory] =
     React.useState<CoverageCategory>(DEFAULT_MOBILE_CATEGORY);
   const isFirstCategoryRenderRef = React.useRef(true);
@@ -113,9 +122,9 @@ export function ResultView() {
       return;
     }
     const heading = document.getElementById(coverageHeadingId(activeCategory));
-    heading?.scrollIntoView({ behavior: "smooth", block: "start" });
+    heading?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
     heading?.focus();
-  }, [activeCategory]);
+  }, [activeCategory, prefersReducedMotion]);
 
   if (state.kind === "loading") {
     return <ResultSkeleton />;
@@ -143,7 +152,7 @@ export function ResultView() {
       // Desktop은 4카테고리 섹션이 모두 이미 DOM에 있으므로 anchor scroll +
       // 포커스 이동만 수행한다(design.md §6).
       const heading = document.getElementById(coverageHeadingId(category));
-      heading?.scrollIntoView({ behavior: "smooth", block: "start" });
+      heading?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
       heading?.focus();
       return;
     }

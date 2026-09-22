@@ -14,6 +14,16 @@ import * as React from "react";
 
 export const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) — 02 화면의
+// anchor-scroll/탭 전환이 `prefers-reduced-motion`을 존중하도록, 이미 존재하는
+// 이 제네릭 useMediaQuery(query) 훅을 새 쿼리 문자열로 재사용한다(diagnosis-
+// flow.tsx가 DESKTOP_MEDIA_QUERY로 이미 쓰고 있는 것과 동일한 패턴 — 새 훅을
+// 만들지 않는다, Enforce Simplicity). CSS 애니메이션(스피너 등)의 기존 패턴은
+// Tailwind `motion-reduce:` 변형(step-loading.tsx, popover.tsx)이며, 이
+// 쿼리는 JS로 트리거되는 scrollIntoView({behavior:"smooth"})처럼 CSS
+// variant만으로는 제어할 수 없는 동작을 위한 것이다.
+export const REDUCED_MOTION_MEDIA_QUERY = "(prefers-reduced-motion: reduce)";
+
 function isMatchMediaSupported(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function";
 }

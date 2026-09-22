@@ -95,3 +95,191 @@ describe("components/result/ResultView — 3갈래 분기(REQ-B2CRESULT-013/014/
     expect(container.querySelector('[data-testid="result-category-tabs"]')).not.toBeNull();
   });
 });
+
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021) —
+// prefers-reduced-motion 대응: 탭 전환/우선순위 선택으로 인한 anchor
+// scroll이 reduced-motion 환경에서는 behavior: "auto"로, 그 외에는
+// behavior: "smooth"로 호출되는지 검증한다. jsdom은 scrollIntoView를
+// 구현하지 않으므로 Element.prototype.scrollIntoView를 스텁한다.
+describe("components/result/ResultView — prefers-reduced-motion 대응(REQ-B2CRESULT-021, M5)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+
+  function mockMatchMedia({
+    desktop,
+    reducedMotion,
+  }: {
+    desktop: boolean;
+    reducedMotion: boolean;
+  }) {
+    window.matchMedia = ((query: string) => {
+      const matches = query.includes("prefers-reduced-motion") ? reducedMotion : desktop;
+      return {
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      };
+    }) as unknown as typeof window.matchMedia;
+  }
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    scrollIntoViewMock = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewMock as unknown as Element["scrollIntoView"];
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    window.sessionStorage.clear();
+    // @ts-expect-error — 다음 테스트 파일에 영향을 주지 않도록 원복
+    delete window.matchMedia;
+  });
+
+  it("reduced-motion이 아니면 Desktop 우선순위 선택 시 scrollIntoView가 behavior: smooth로 호출된다", () => {
+    mockMatchMedia({ desktop: true, reducedMotion: false });
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    const priorityButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid^="result-priority-check-"]'
+    );
+    act(() => {
+      priorityButton?.click();
+    });
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "smooth" })
+    );
+  });
+
+  it("reduced-motion이면 Desktop 우선순위 선택 시 scrollIntoView가 behavior: auto로 호출된다", () => {
+    mockMatchMedia({ desktop: true, reducedMotion: true });
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    const priorityButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid^="result-priority-check-"]'
+    );
+    act(() => {
+      priorityButton?.click();
+    });
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith(expect.objectContaining({ behavior: "auto" }));
+  });
+
+  it("reduced-motion이면 Mobile 탭 전환 시에도 scrollIntoView가 behavior: auto로 호출된다", () => {
+    mockMatchMedia({ desktop: false, reducedMotion: true });
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    const fixedTab = container.querySelector<HTMLButtonElement>('[data-testid="category-tab-fixed"]');
+    act(() => {
+      fixedTab?.click();
+    });
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith(expect.objectContaining({ behavior: "auto" }));
+  });
+});
+
+// SPEC-B2C-RESULT-001 M5 (design.md §10, REQ-B2CRESULT-021, 진단 M4
+// Residual-risk 항목 #3 해소) — Mobile 탭 전환 시 포커스 이동 로직은
+// result-view.tsx에 중앙화되어 있어(activeCategory 변경 감지 useEffect),
+// result-category-tabs.test.tsx 자체의 단위 테스트만으로는 "탭을
+// 키보드로 전환하면 새 패널 제목으로 포커스가 이동한다"는 계약을 완전히
+// 검증하지 못한다. 이 통합 테스트는 실제 부모(ResultView)를 "valid,
+// mobile" 상태로 렌더링해 그 갭을 닫는다.
+describe("components/result/ResultView — 키보드 탭 전환 시 포커스 이동 통합(REQ-B2CRESULT-021, M5)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    // Mobile 레이아웃(탭 렌더링)을 강제하기 위해 matchMedia가 false를
+    // 반환하도록 둔다(jsdom 기본값 — mockMatchMedia 불필요).
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    window.sessionStorage.clear();
+  });
+
+  it("ArrowRight로 탭을 전환하면 새로 활성화된 카테고리 패널의 제목(h2)으로 포커스가 이동한다", () => {
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    // 기본 활성 탭은 reimbursement(design.md §0, DEFAULT_MOBILE_CATEGORY).
+    const activeTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="category-tab-reimbursement"]'
+    );
+    expect(activeTab).not.toBeNull();
+
+    act(() => {
+      activeTab!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })
+      );
+    });
+
+    // ArrowRight: reimbursement → fixed(CATEGORY_ORDER 순서). 새 탭패널의
+    // 제목(coverage-heading-fixed)으로 포커스가 이동해야 한다.
+    const newHeading = container.querySelector("#coverage-heading-fixed");
+    expect(newHeading).not.toBeNull();
+    expect(document.activeElement).toBe(newHeading);
+  });
+
+  it("우선순위 카드 선택으로 인한 탭 전환도 동일한 포커스 이동 메커니즘을 탄다(design.md §6)", () => {
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    // priorityChecks[1]의 targetCategory는 fixture 정의상 "fixed"
+    // (fracture-case.ts PRIORITY_CHECKS priority-2).
+    const priorityButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="result-priority-check-priority-2"]'
+    );
+    expect(priorityButton).not.toBeNull();
+
+    act(() => {
+      priorityButton?.click();
+    });
+
+    const newHeading = container.querySelector("#coverage-heading-fixed");
+    expect(document.activeElement).toBe(newHeading);
+  });
+});
