@@ -14,6 +14,21 @@ Given `DiagnosisResult` 인스턴스가 생성되었을 때
 When `resultId`·`schemaVersion` 필드를 검사하면
 Then 둘 다 비어있지 않은 문자열이며, 서로 다른 두 번의 진단 실행에서 생성된 두 `DiagnosisResult`의 `resultId`는 서로 다르다.
 
+추가 시나리오 — `inputSummary` 4-fact 독립 렌더링 · rawInput 재파싱 금지:
+Given `DiagnosisResult.inputSummary`가 `{ title, when, where, mechanism, bodyPart }`(각 when/where/mechanism/bodyPart는 `{ label, value }`)로 주어졌을 때
+When "입력하신 사고 내용" 카드를 렌더링하면
+Then 4개 값이 각각 대응하는 필드에서 독립적으로 렌더링되며(라벨 톤과 값 톤이 분리 표시됨), `components/result/result-input-summary.tsx` 소스 코드 안에 `rawInput`을 정규식·문자열 분리 등으로 재파싱해 4개 값 중 하나라도 도출하는 로직이 존재하지 않는다(정적 검사).
+
+추가 시나리오 — `priorityChecks` 구조체 렌더링 · 선택 시 이동:
+Given `DiagnosisResult.priorityChecks`가 `{ id, title, description, targetCategory }` 구조의 항목 3개로 주어졌을 때
+When "먼저 확인할 항목" 카드를 렌더링하면
+Then 각 행이 `title`과 `description`을 함께 표시하며(문자열 하나가 아니라 두 필드가 별도로 렌더링됨), 그중 한 행을 선택하면 `targetCategory`가 가리키는 카테고리 섹션(Desktop) 또는 탭(Mobile)으로 이동한다(`design.md` §6).
+
+추가 시나리오 — 배지 배열 데이터 계약 검증:
+Given 서로 다른 `kind`(`"subscription-check"`/`"policy-type-check"`/`"facility-check"`/`"group-insurance-check"` 등)를 가진 `CoverageBadge` 항목들이 여러 `CoverageItem.badges`에 흩어져 주어졌을 때
+When 각 카드를 렌더링하면
+Then 모든 카드가 동일한 `badges: CoverageBadge[]` 배열 계약 하나로 렌더링되며, `multiMatch`/`subscriptionGenBadge` 같은 카드별 단일 목적 optional 필드에 의존하는 렌더링 분기가 소스 코드에 존재하지 않는다(정적 검사).
+
 **AC-B2CRESULT-002** (REQ-B2CRESULT-002)
 Given `computeAggregate(items)`가 5개 항목(검토 대상 2 · 추가 정보 필요 2 · 가능성 낮음 1)을 받았을 때
 When 함수를 호출하면
@@ -49,14 +64,29 @@ Given `CoverageItem` 타입 정의(status별 discriminated union)를 검사할 �
 When status가 `"low-likelihood"`인 분기를 확인하면
 Then `reasonNote` 필드가 선택(optional)이 아닌 필수 필드로 선언되어 있다(그 값 없이는 타입 체크를 통과할 수 없다) — status가 `"review"`/`"needs-info"`인 분기에서는 `reasonNote`가 선택 필드다.
 
+추가 시나리오 — `benefit` 필드는 status와 무관하게 항상 필수:
+Given `DiagnosisResult.items` 중 status가 `"low-likelihood"`인 항목("5대 골절 진단비" 등)이 있을 때
+When 그 항목의 `benefit` 필드를 검사하면
+Then `benefit`이 `undefined`가 아니라 항상 존재하며, `benefit.kind`가 `"unavailable"` 또는 `"conditional"`로 "산정 시도 자체를 하지 않음"/"확인 전 판단 불가"를 표현한다 — 옛 설계의 `amount?: CoverageAmount`처럼 status별로 필드 자체가 생략되는 optional 패턴은 타입 정의에 존재하지 않는다(`CoverageItemBase`가 `benefit`을 공통 필수 필드로 선언).
+
 **AC-B2CRESULT-006** (REQ-B2CRESULT-006)
-Given `CoverageItem.amount`가 `{ kind: "range", min: 3000000, max: 12000000, displayText: "300만 원~1,200만 원" }`로 주어졌을 때
+Given `CoverageItem.benefit`이 `{ kind: "range", label: "일반적인 가입금액 예시", min: 300000, max: 500000, displayText: "30만~50만원" }`로 주어졌을 때
 When 카드를 렌더링하면
-Then 화면에 표시되는 금액 문자열이 `displayText` 값과 정확히 일치하며(단위 변환 없음), 코드 내 어떤 산술 연산도 `min`/`max`/`displayText` 값을 변경하지 않는다(소스 코드 정적 검사: 렌더 경로의 금액 필드에 `+`/`*` 등 산술 연산자가 적용되지 않음).
+Then 화면에 표시되는 문자열이 `displayText` 값과 정확히 일치하며(단위 변환 없음), 코드 내 어떤 산술 연산도 `min`/`max`/`displayText` 값을 변경하지 않는다(소스 코드 정적 검사: 렌더 경로의 `benefit` 값 필드에 `+`/`*` 등 산술 연산자가 적용되지 않음).
+
+추가 시나리오 — `benefit.label`과 `benefit.displayText` 동시 렌더링:
+Given `CoverageItem.benefit`이 `{ kind: "formula", label: "보장 방식", displayText: "가입금액 × 장해지급률" }`로 주어졌을 때
+When 카드를 렌더링하면
+Then `label`("보장 방식")과 `displayText`("가입금액 × 장해지급률")가 화면에 각각 대응하는 위치(라벨 행 / 값 행)에 함께 표시되며, 어느 한쪽만 렌더링되거나 두 값이 하나의 문자열로 합쳐져 렌더링되지 않는다.
+
+추가 시나리오 — `BenefitDisplay` 5분기 discriminated union의 타입/스키마 수준 강제:
+Given `BenefitDisplay` 타입 정의(`kind: "range" | "fixed" | "formula" | "conditional" | "unavailable"`로 판별되는 discriminated union)와 그 런타임 파싱에 쓰이는 zod 스키마를 검사할 때
+When `kind: "range"`이면서 `min`/`max`가 없는 객체, 또는 `kind: "formula"`이면서 `min`/`max`가 존재하는 객체를 각각 타입 체크·zod `safeParse`에 통과시키면
+Then 타입 체크는 컴파일 시점에 실패하고, zod `safeParse`는 런타임에 `success: false`를 반환한다 — 유효하지 않은 kind-필드 조합이 타입 레벨과 스키마 레벨 양쪽에서 거부된다.
 
 추가 시나리오 — 하드코딩 문구 금지 검증:
 Given `components/result/` 하위 컴포넌트 소스 파일 전체를 검사할 때
-When 카테고리 설명·whyCheck·배지 등 동적 문구에 해당하는 리터럴 한글 문자열 패턴을 찾으면
+When 카테고리 설명·whyCheck·배지 라벨(`CoverageBadge.label`)·보장 방식 문구(`benefit.label`/`benefit.displayText`)·확인 우선순위 문구(`PriorityCheck.title`/`description`) 등 동적 문구에 해당하는 리터럴 한글 문자열 패턴을 찾으면
 Then 그 문구는 `DiagnosisResult` 페이로드 필드 참조이거나 `lib/diagnosis/` 공용 상수 모듈 참조이며, 특정 케이스 전용 리터럴로 컴포넌트에 직접 하드코딩되어 있지 않다.
 
 ## Fact Chip
