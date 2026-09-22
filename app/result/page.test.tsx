@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ResultPage from "./page";
 
 // SPEC-B2C-RESULT-001 M3 (REQ-B2CRESULT-012/015) — app/result/page.tsx는
@@ -11,6 +11,15 @@ import ResultPage from "./page";
 // 테스트 컨벤션이 없다(Gap) — app/page.test.tsx가 이미 쓰고 있는
 // react-dom/client 직접 렌더링 패턴을, async 데이터 페칭이 없는 이
 // Server Component에도 그대로 재사용한다.
+
+// SPEC-B2C-RESULT-001 M4 — 게이트가 참이면 실제 <ResultView/>가 마운트되고,
+// sessionStorage에 handoff 데이터가 없을 때(이 테스트 스위트의 기본 상태)
+// <ResultNoData/>가 렌더링된다. ResultNoData는 next/navigation의 useRouter()
+// 를 사용하므로, diagnosis-flow.test.tsx가 이미 쓰는 것과 동일한 관례로
+// App Router 컨텍스트 없이도 렌더링 가능하도록 모킹한다(M2/M3 경계 회귀 수정).
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
 
 const ENV_KEYS = [
   "ENABLE_DIAGNOSIS_FLOW",
@@ -46,7 +55,7 @@ describe("app/result/page — 게이트 기반 라우트 셸(REQ-B2CRESULT-012/0
     });
 
     expect(container.textContent).toContain("서비스 준비 중입니다");
-    expect(container.querySelector('[data-testid="result-view-placeholder"]')).toBeNull();
+    expect(container.querySelector('[data-testid="result-no-data"]')).toBeNull();
   });
 
   it("ENABLE_DIAGNOSIS_FLOW/DIAGNOSIS_ENGINE_READY가 모두 true이면 ResultView를 렌더링한다(productionReady)", () => {
@@ -57,7 +66,11 @@ describe("app/result/page — 게이트 기반 라우트 셸(REQ-B2CRESULT-012/0
       root.render(<ResultPage />);
     });
 
-    expect(container.querySelector('[data-testid="result-view-placeholder"]')).not.toBeNull();
+    // M4 — sessionStorage에 handoff 데이터가 없으므로 ResultView는
+    // "empty" 분기를 타 <ResultNoData/>를 렌더링한다(REQ-B2CRESULT-013).
+    // 이 테스트의 목적은 게이트가 참일 때 ResultView 트리 자체가 마운트되는지
+    // 확인하는 것이지 handoff 상태 분기 자체가 아니다(그건 result-view.test.tsx).
+    expect(container.querySelector('[data-testid="result-no-data"]')).not.toBeNull();
     expect(container.textContent).not.toContain("서비스 준비 중입니다");
   });
 
@@ -78,6 +91,6 @@ describe("app/result/page — 게이트 기반 라우트 셸(REQ-B2CRESULT-012/0
       root.render(<ResultPage />);
     });
 
-    expect(container.querySelector('[data-testid="result-view-placeholder"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-no-data"]')).not.toBeNull();
   });
 });
