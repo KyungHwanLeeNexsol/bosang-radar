@@ -2,7 +2,7 @@
 id: SPEC-B2C-RESULT-001
 title: "02 보상 진단 결과 (Plan-Phase)"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-09-22
 updated: 2026-09-22
 author: Nexsol

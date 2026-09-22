@@ -131,9 +131,22 @@
 - **Gaps**: 이 발견에 따른 후속 결정은 이 milestone의 범위 밖이다(fixture 데이터를 15개 항목 시나리오로 확장할지, 디자인 export를 7개 항목 기준으로 갱신할지, priorityChecklist에 Mobile 전용 컴팩트 variant를 추가할지는 design/product 판단이 필요 — orchestrator가 사용자에게 별도로 묻는다). REQ-B2CRESULT-025의 "신규 5화면 PASS" 절은 이 결정이 내려지고 반영되기 전까지 계속 미충족 상태로 남는다.
 - **Residual-risk**: 도구 튜닝 자체는 완료되어 더 이상 신뢰할 수 없는 측정치(누락된 band로 인한 인위적으로 낮은 maxΔ)는 없다 — 남은 FAIL은 전부 실제 콘텐츠/컴포넌트 차이를 정확히 반영한다.
 
+### 사용자 결정 — REQ-B2CRESULT-025 PASS-WITH-DEBT 확정 (2026-09-22)
+
+위 두 항목(집계 총계 불일치·priorityChecklist 카드 스타일)에 대해 orchestrator가 AskUserQuestion으로 확인한 결과, 사용자는 **둘 다 현재 상태 그대로 두고 보류**하기로 결정했다:
+
+- 담보 개수 불일치: 이 SPEC은 계약상 골절 사례 1종만 다루므로(spec.md Out of Scope) 7개 항목이 자연스러울 수 있다는 근거로 보류 — fixture를 15개로 확장하지 않는다.
+- priorityChecklist 카드 스타일: 설명 문구가 있는 카드 형태를 유지 — Mobile 전용 컴팩트 variant를 만들지 않는다.
+
+**결론**: REQ-B2CRESULT-025의 "신규 5화면 PASS" 절은 사용자 승인 하에 **PASS-WITH-DEBT**로 확정한다 — 기존 10화면 PASS 유지(충족) + 신규 5화면은 시각 정합성 허용 오차 미충족(사용자 승인 보류, 결함 아님 — 실제 UI/기능 결함이 아니라 디자인 시안과의 의도적 불일치로 확인됨). 이 결정을 뒤집으려면 이 항목을 다시 열어 fixture 또는 컴포넌트를 수정해야 한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- `run_status: audit-ready-with-debt`
+- `run_complete_at: 2026-09-22`
+- 요약: 6개 마일스톤(M1~M6) 전부 완료. 유닛 테스트 504/504 통과, 타입체크/린트 clean, e2e 20/20 통과(agent 보고), 25개 REQ 중 24개 완전 충족 + REQ-B2CRESULT-025는 사용자 승인 PASS-WITH-DEBT(위 §E.2 결정 참고).
+- 커밋 이력(plan/SPEC-B2C-RESULT-001, M1~후속 튜닝): `2dccd9d`(M1) → `0a80647`/`b342df5`(M2) → `8843714`(M3) → `2b5ef0e`+`3cc5766`(M4+경계수정) → `1de06e6`(M5) → `83d39a8`(M6) → `a1d2e30`(visual-verify 튜닝) + 각 milestone별 progress.md 증거 커밋.
+- 다음 단계: `/moai sync SPEC-B2C-RESULT-001` (문서 동기화 + PR).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
