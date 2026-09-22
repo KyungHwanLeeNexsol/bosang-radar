@@ -18,6 +18,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001]
 ## HISTORY
 
 - 2026-09-22: 최초 작성 (Nexsol) — B2C 3단계 퍼널(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 중 **① 질문 입력 및 진단**(SPEC-B2C-DIAGNOSIS-001, `status: completed`)에 이어 **② 보상 진단 결과** 화면의 plan-phase 문서만 작성한다. 실제 화면·컴포넌트·API 구현은 후속 `/moai run SPEC-B2C-RESULT-001`의 범위이며, 이번 커밋에는 코드 변경이 포함되지 않는다. 디자인 SSOT는 `design/MIGRATION-PLAN.md`(§2 ②, §4)이다.
+- 2026-09-22: review 피드백 반영 amendment(같은 plan-phase, 재감사 전) — ① fixture 안전 게이트를 명시적 boolean 매개변수 기반으로 재정의(REQ-B2CRESULT-009), ② `DiagnosisResult`/`CoverageItem` 계약을 resultId·schemaVersion·구조화 필드·discriminated union으로 확장(REQ-B2CRESULT-001/005/006), ③ 01→02 인계 채널을 "완전히 구성된 `DiagnosisResult` 저장" 단일 흐름으로 통일(REQ-B2CRESULT-010), ④ `sessionStorage` 수명 정책을 "1회 읽고 즉시 삭제"에서 "탭 세션 동안 유지 + 명시적 트리거로만 삭제"로 변경(REQ-B2CRESULT-013/016), ⑤ 상담 CTA stub 형태를 `aria-disabled` 기반으로 확정(REQ-B2CRESULT-023). REQ/AC 개수는 각각 25건으로 불변(기존 ID의 본문만 수정, 신규 ID 없음). plan-auditor iteration 3 재검토가 이 amendment 이후 필요하다(`progress.md` §G 참고).
 
 ---
 
@@ -49,12 +50,12 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001]
 
 ### 3.1 데이터 계약 · 제품 원칙 (Ubiquitous)
 
-- **REQ-B2CRESULT-001**: 시스템은 `DiagnosisResult` 타입(`lib/diagnosis/types.ts`)을 02 화면 데이터의 단일 SSOT로 정의하며, 담보 카테고리는 정확히 4개(실손 의료비 · 정액 담보 · 후유장해 · 특별 보상)로 고정한다 — 카테고리 집합은 케이스별로 확장되지 않는다.
+- **REQ-B2CRESULT-001**: 시스템은 `DiagnosisResult` 타입(`lib/diagnosis/types.ts`)을 02 화면 데이터의 단일 SSOT로 정의하며, 담보 카테고리는 정확히 4개(실손 의료비 · 정액 담보 · 후유장해 · 특별 보상)로 고정한다 — 카테고리 집합은 케이스별로 확장되지 않는다. `DiagnosisResult`는 `resultId`·`schemaVersion`으로 각 결과 인스턴스를 식별·버전화하며, 사고 내용 구조화 요약·확인 우선순위·카테고리별 설명·확인이 필요한 이유(whyCheck)·근거·추가 정보 필요 안내·필요 서류 등 02/M02 화면이 실제로 렌더링하는 모든 동적 문구를 데이터로 포함한다 — 컴포넌트 소스 코드에 케이스 특정 문구를 하드코딩하지 않으며, 모든 동적 문구는 이 데이터 또는 `lib/diagnosis/` 공용 상수 모듈에서만 온다.
 - **REQ-B2CRESULT-002**: 시스템은 상단 집계 배너의 네 숫자(전체 분석 담보 · 검토 대상 · 추가 정보 필요 · 가능성 낮음)를 `DiagnosisResult.items` 배열로부터 렌더링·계산 시점에 매번 동적으로 산출하며, 어떤 예시 숫자도(예: 디자인 목업의 15/8/6/1) 코드에 상수로 고정하지 않는다.
 - **REQ-B2CRESULT-003**: 시스템은 Desktop에서 4카테고리 전체를 한 페이지에 펼쳐 렌더링하고, Mobile에서는 카테고리 단일 선택 탭(기본 탭: 실손 의료비)으로 한 번에 하나만 렌더링한다.
 - **REQ-B2CRESULT-004**: 시스템은 Desktop과 Mobile 두 레이아웃이 완전히 동일한 `DiagnosisResult` 데이터 원본을 사용하도록 보장한다 — 레이아웃별로 데이터를 별도 가공·재요청하지 않는다.
-- **REQ-B2CRESULT-005**: 시스템은 각 담보 카드에 3톤 상태(검토 대상 / 추가 정보 필요 / 가능성 낮음)를 표시하며, "가능성 낮음" 상태의 담보도 숨기지 않고 사유(reason note)와 함께 항상 노출한다.
-- **REQ-B2CRESULT-006**: 시스템은 담보 카드의 금액을 `DiagnosisResult` 데이터가 제공하는 값 그대로 렌더링하며, 클라이언트에서 금액을 재계산·재합산하지 않는다.
+- **REQ-B2CRESULT-005**: 시스템은 각 담보 카드에 3톤 상태(검토 대상 / 추가 정보 필요 / 가능성 낮음)를 표시하며, "가능성 낮음" 상태의 담보도 숨기지 않고 사유(reason note)와 함께 항상 노출한다. `reasonNote`는 `CoverageItem` 타입 수준에서 status별 discriminated union으로 강제되는 필드다 — status가 "가능성 낮음"인 분기에서는 필수(non-optional)이며, 그 외 분기에서는 선택(optional)이다.
+- **REQ-B2CRESULT-006**: 시스템은 담보 카드의 금액을 `DiagnosisResult` 데이터가 제공하는 `displayText` 문자열 그대로 렌더링하며(단위 변환 없음), 클라이언트에서 금액을 재계산·재합산하지 않는다 — 렌더 경로의 금액 필드에는 어떤 산술 연산자도 적용하지 않는다.
 
 ### 3.2 Fact Chip 연동 — 01→02 데이터 흐름 (Event-driven)
 
@@ -63,20 +64,20 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001]
 
 ### 3.3 01→02 연결 — review 전용 골절 사례 fixture (Where / Event-driven)
 
-- **REQ-B2CRESULT-009** (Where): `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 환경 변수(REQ-B2CDIAG-017, 기본값 `false`)가 `true`인 비프로덕션 환경에서, 시스템은 01 진단 중(`loading`) 단계의 mock 판정 로직에 "골절 사례 fixture" 분기를 추가로 제공한다 — 이 분기는 `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하지 않으며, 이 SPEC이 전달하는 코드에는 그 지점이 존재하지 않는다.
-- **REQ-B2CRESULT-010** (When): 사용자 입력이 지정된 골절 사례 fixture 입력 문자열과 정확히 일치할 때(부분 문자열 매칭이 아님), 시스템은 01-B 추가 질문 응답을 포함한 진단 인계 데이터(handoff data)를 세션 저장소(`sessionStorage`)에 기록하고 `/result` 라우트로 이동한다.
+- **REQ-B2CRESULT-009** (Where): `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 환경 변수(REQ-B2CDIAG-017, 기본값 `false`)가 `true`인 비프로덕션 환경에서, 시스템은 01 진단 중(`loading`) 단계의 mock 판정 로직에 "골절 사례 fixture" 분기를 추가로 제공한다 — 이 분기는 `DIAGNOSIS_ENGINE_READY`를 `true`로 전환하지 않으며, 이 SPEC이 전달하는 코드에는 그 지점이 존재하지 않는다. 이 분기를 구동하는 함수(또는 그 호출부)는 `reviewEnabled` 상태를 나타내는 **명시적 boolean 매개변수**를 전달받아 판정하며, `<DiagnosisFlow />`가 마운트되었는지 여부 등 다른 상태로부터의 암묵적 추론에 의존하지 않는다 — `productionReady=true AND reviewEnabled=false` 조합(즉 `<DiagnosisFlow />`는 마운트되었으나 review 플래그는 꺼진 상태)에서도 이 boolean 게이트가 fixture 분기 실행을 독립적으로 차단한다. §9의 review 전용 직접 진입 파라미터(`?devFixture=fracture`)도 동일한 boolean 게이트를 재사용하며 `reviewEnabled=false`에서는 무시된다.
+- **REQ-B2CRESULT-010** (When): 사용자 입력이 지정된 골절 사례 fixture 입력 문자열과 정확히 일치할 때(부분 문자열 매칭이 아님), 시스템은 `buildFractureResult(rawInput, answers)`로 완전히 구성한 `DiagnosisResult` 객체(01-B 추가 질문 응답을 포함)를 세션 저장소(`sessionStorage`)에 기록하고 `/result` 라우트로 이동한다 — `rawInput`과 `answers`만 저장하고 결과 구성을 `/result` 쪽으로 미루지 않는다.
 - **REQ-B2CRESULT-011**: 시스템은 기존 01 mock 판정 분기(정확 문자열 "오류" 포함 시 `error`, 그 외 기본값 `result-none`)의 동작을 이 SPEC의 확장 이후에도 그대로 유지한다 — `e2e/diagnosis-flow-01.spec.ts`의 `RESULT_NONE_INPUT`("무릎 골절로 수술을 받았어요")과 `ERROR_INPUT`("분석 중 오류가 발생했어요")은 계속 각각 `result-none`/`error`로 판정되어야 한다.
 - **REQ-B2CRESULT-012**: 시스템은 `/result` 페이지의 프로덕션 활성화 게이트 계산(`productionReady`/`reviewEnabled`/`shouldRenderDiagnosis`)을 `app/page.tsx`와 공유하는 단일 헬퍼 함수(`lib/diagnosis/flags.ts`)로 통합하며, 두 라우트 어디에도 게이트 계산 로직을 중복 작성하지 않는다.
 
 ### 3.4 결과 상태 계약 — 02 전용 (Event-driven)
 
-- **REQ-B2CRESULT-013** (When): 사용자가 진단 인계 데이터 없이 `/result`에 직접 접근하거나 새로고침할 때(즉 `sessionStorage`에 유효한 handoff가 없을 때), 시스템은 02 전용 "결과 없음" 안내 상태를 표시하고 01 입력 화면으로 돌아가는 경로를 제공한다 — 이는 01의 `result-none`(01-D) 상태와는 별개의, 02 자체의 데이터 부재 상태다.
+- **REQ-B2CRESULT-013** (When): `sessionStorage`에 유효한 진단 결과 데이터가 없는 상태에서 사용자가 `/result`에 접근할 때(직접 접근, 또는 이 탭 세션에서 한 번도 01→02 흐름을 거치지 않은 경우), 시스템은 02 전용 "결과 없음" 안내 상태를 표시하고 01 입력 화면으로 돌아가는 경로를 제공한다 — 이는 01의 `result-none`(01-D) 상태와는 별개의, 02 자체의 데이터 부재 상태다. `sessionStorage`에 유효한 데이터가 이미 있는 상태의 새로고침·뒤로가기는 이 상태를 트리거하지 않는다(REQ-B2CRESULT-016 참고).
 - **REQ-B2CRESULT-014** (When): `sessionStorage`에 기록된 진단 인계 데이터가 파싱 불가능하거나 스키마와 불일치할 때, 시스템은 애플리케이션을 중단시키지 않고 02 전용 오류 상태를 표시한다.
 - **REQ-B2CRESULT-015**: 시스템은 `/result` 페이지가 `useSearchParams()` 또는 클라이언트 전용 데이터 읽기를 수행하는 동안 스켈레톤 로딩 상태(`<Suspense fallback>`)를 렌더링해 레이아웃 시프트를 최소화한다.
 
 ### 3.5 기술 원칙 · 저장 정책 (Ubiquitous)
 
-- **REQ-B2CRESULT-016**: 시스템은 01→02 진단 인계 데이터를 서버에 영구 저장하지 않는다 — `sessionStorage`에만 일시 기록하며, `/result` 마운트 시 1회 읽은 뒤 즉시 제거한다.
+- **REQ-B2CRESULT-016**: 시스템은 01→02 진단 인계 데이터를 서버에 영구 저장하지 않는다 — `sessionStorage`에만 기록하며, 동일 탭 세션 동안 유지한다(새로고침·뒤로가기 후에도 동일한 결과가 다시 표시된다). 저장된 데이터는 다음 세 경우에만 제거된다: (a) 사용자가 새 진단을 시작할 때, (b) 상담 신청을 완료할 때(03 상담 신청 SPEC의 범위 — 이 SPEC은 초기화 트리거 지점만 예약하며 실제 03 연동은 구현하지 않는다), (c) 사용자가 명시적으로 초기화를 요청할 때.
 - **REQ-B2CRESULT-017**: 시스템은 `sessionStorage` 키를 프로젝트 네임스페이스가 붙은 전용 키로 사용하며, 다른 기능과 키 충돌이 없도록 한다.
 - **REQ-B2CRESULT-018**: 시스템은 Desktop(1440px 기준)과 Mobile(390px 기준) 두 반응형 레이아웃을 제공하며, SPEC-B2C-DIAGNOSIS-001이 확정한 768px 2-way 브레이크포인트(`md:`)를 그대로 재사용한다.
 
@@ -89,7 +90,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001]
 ### 3.7 금지 사항 (Unwanted — shall not)
 
 - **REQ-B2CRESULT-022**: 시스템은 이 SPEC이 작성하는 UI 문구 어디에서도 단정형 보상 확정 문구(예: "받으실 수 있습니다")를 사용해서는 안 된다 — `design/MIGRATION-PLAN.md` §5의 조건부 표현(청구 가능/가능성) 정책을 그대로 따른다.
-- **REQ-B2CRESULT-023**: 시스템은 03 상담 신청 화면(및 그 라우팅)이 아직 존재하지 않는 이 SPEC의 범위 안에서, 02/M02 화면의 상담 CTA 버튼을 실제 페이지 이동 없이 비활성 또는 명시적 stub 상태로만 렌더링해야 한다 — 존재하지 않는 라우트로 이동을 시도해서는 안 된다.
+- **REQ-B2CRESULT-023**: 시스템은 03 상담 신청 화면(및 그 라우팅)이 아직 존재하지 않는 이 SPEC의 범위 안에서, 02/M02 화면의 상담 CTA 버튼을 `aria-disabled="true"` 상태로 렌더링하고, 클릭 또는 키보드 활성화(Enter/Space) 시 실제 페이지 이동 없이 "준비 중" 안내만 표시해야 한다 — 존재하지 않는 라우트로 이동을 시도해서는 안 되며, 버튼은 네이티브 `disabled` 속성으로 포커스 불가능하게 만들지 않고 키보드 포커스·스크린리더 접근이 항상 가능한 상태를 유지해야 한다.
 - **REQ-B2CRESULT-024**: 시스템은 이 SPEC이 전달하는 코드 범위 안에서 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점을 만들어서는 안 된다 — 실제 담보 매칭 엔진 연결은 후속 SPEC의 몫이다.
 - **REQ-B2CRESULT-025**: 시스템은 기존 `pnpm visual:verify`의 SPEC-B2C-DIAGNOSIS-001 10화면 커버리지를 깨뜨려서는 안 된다 — 이 SPEC이 추가하는 5화면은 기존 화면 정의를 대체가 아니라 추가하는 방식으로만 확장한다.
 

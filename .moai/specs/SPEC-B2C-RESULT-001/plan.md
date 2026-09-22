@@ -25,7 +25,7 @@
 | **기존 `mockJudge()` 키워드("골절")와 신규 fixture 트리거의 충돌 위험** | **결정됨** — 부분 문자열이 아닌 정확 문자열 일치(exact match)로 신규 fixture를 판정해 기존 `RESULT_NONE_INPUT`("무릎 골절로 수술을 받았어요")과의 충돌을 원천 차단한다. 판정 순서: ① `input === FRACTURE_FIXTURE_INPUT` → `"result"`, ② `input.includes("오류")` → `"error"`, ③ 그 외 → `"result-none"`(기존 동작 그대로) | `design.md` §4, `research.md` §3 참고 |
 | 01→02 인계 데이터 채널 방식(URL 쿼리 vs `sessionStorage` vs 서버 왕복) | **결정됨** — `sessionStorage`, 마운트 시 1회 읽고 즉시 제거 | 근거: 서버 미경유(REQ-B2CDIAG-021 원칙의 자연스러운 연장), URL 인코딩 복잡도 회피, 라우트 전환 시 React state 소실 문제 해결. `design.md` §3 참고 |
 | 02 담보 데이터 확장(암·뇌혈관 등) | 후속 SPEC 범위, 이 SPEC의 Out of Scope | `product.md` §Roadmap A |
-| 03 상담 CTA의 정확한 stub 형태(비활성 버튼 vs 미노출) | 미결정 — run-phase 착수 시 디자인 대조로 확정 | `design.md` §9에서 두 옵션을 기술, run-phase가 선택 |
+| 03 상담 CTA의 정확한 stub 형태 | **결정됨** — `aria-disabled="true"`(네이티브 `disabled` 아님) + 클릭/키보드(Enter·Space) 공통 no-op 핸들러 + 스크린리더가 인지 가능한 "준비 중" 안내. 키보드 포커스·접근성 트리 노출을 유지한다 | `design.md` §8(확정), `acceptance.md` AC-B2CRESULT-023(키보드 조작성·스크린리더 시맨틱 추가 시나리오) |
 
 ## §C. Pre-flight
 
@@ -43,7 +43,8 @@
 - **② 테스트**: 위 프로덕션 코드에 대응하는 단위·컴포넌트 테스트 및 Playwright `e2e/diagnosis-flow-02.spec.ts`(신규) — 기존 `e2e/diagnosis-flow-01.spec.ts`는 수정하지 않는다(회귀 검증 대상으로만 재실행). `scripts/visual-verify.ts`의 `SCREENS` 배열에 5개 항목을 **추가**한다(기존 10개 항목은 수정하지 않는다).
 - **③ 문서**: `.moai/` SPEC 산출물 및 프로젝트 문서(`product.md`/`structure.md` Roadmap 갱신, Milestone 6).
 - **④ 배포**: 이 SPEC은 배포 워크플로를 수정하지 않는다 — `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`는 손대지 않는다.
-- `sessionStorage` 외 DB·서버 영구 저장 없음.
+- `sessionStorage` 외 DB·서버 영구 저장 없음. `sessionStorage`는 탭 세션 동안 유지하며(REQ-B2CRESULT-016), 명시적 트리거(새 진단 시작/상담 신청 완료/사용자 초기화) 없이는 제거하지 않는다 — 마운트 시 자동으로 지우는 "읽으면 사라지는" 구현은 이 제약 위반이다.
+- `components/result/*` 컴포넌트 소스에 케이스 특정 동적 문구(카테고리 설명·whyCheck·배지 등)를 리터럴로 하드코딩하지 않는다 — 모든 동적 문구는 `DiagnosisResult`/`CoverageItem` 데이터 또는 `lib/diagnosis/` 공용 상수 모듈에서만 온다(REQ-B2CRESULT-001, AC-B2CRESULT-006 추가 시나리오).
 - `design/claimradar-ui.pen`, `design/exports/`, `design/internal/`은 읽기 전용 참고 자료다 — 수정하지 않는다.
 
 ## §E. Self-Verification (plan-phase)
@@ -58,10 +59,10 @@
 
 아래 마일스톤은 모두 **후속 run-phase가 실행할 계획**이며, 이번 plan-phase는 문서만 작성한다.
 
-1. **`DiagnosisResult` 데이터 타입 SSOT** — `lib/diagnosis/types.ts`에 `CoverageCategory`(4값 enum) · `CoverageStatus`(3값 enum) · `FactChip` · `CoverageItem`(id/category/name/status/reasonNote/amount/factChips) · `DiagnosisResult`(rawInput/answers/items/generatedAt) 정의. `lib/diagnosis/aggregate.ts`에 `computeAggregate(items): { total, review, needsInfo, lowLikelihood }` 순수 함수 작성 + 단위 테스트(항목 개수를 바꾸면 집계 숫자도 바뀜을 증명하는 테스트 포함, REQ-B2CRESULT-002).
-2. **01→02 인계 채널 + 기존 01 최소 확장** — `lib/diagnosis/handoff.ts`(`writeDiagnosisHandoff`/`readAndClearDiagnosisHandoff`, `sessionStorage` 래퍼, SSR 가드, 프로젝트 네임스페이스 키). `lib/diagnosis/fixtures/fracture-case.ts`(`FRACTURE_FIXTURE_INPUT` 상수 + `buildFractureResult(answers): DiagnosisResult`, review 전용). `step-loading.tsx`의 `mockJudge`를 `"result-none" | "error" | "result"` 3갈래로 확장(§B의 정확 일치 판정 순서 그대로 구현, 기존 두 갈래 동작 회귀 없음을 단위 테스트로 증명 — REQ-B2CRESULT-011). `diagnosis-flow.tsx`에 loading 완료 시 `"result"` 결과를 받아 handoff를 기록하고 `useRouter().push('/result')`를 호출하는 콜백 추가(기존 `FORCE_STEP` 액션·상태 도형은 변경하지 않는다).
+1. **`DiagnosisResult` 데이터 타입 SSOT** — `lib/diagnosis/types.ts`에 `CoverageCategory`(4값 enum) · `CoverageStatus`(3값 enum) · `FactChip` · `CoverageAmount`(kind별 판별 유니언, `displayText` 필수) · `CoverageItem`(status별 discriminated union — `"low-likelihood"` 분기만 `reasonNote` 필수, 그 외에는 `amount` 필수) · `InputAccidentSummary` · `DiagnosisResult`(resultId/schemaVersion/rawInput/answers/inputSummary/priorityChecks/items/generatedAt) 정의(`design.md` §1). `lib/diagnosis/aggregate.ts`에 `computeAggregate(items): { total, review, needsInfo, lowLikelihood }` 순수 함수 작성 + 단위 테스트(항목 개수를 바꾸면 집계 숫자도 바뀜을 증명하는 테스트 포함, REQ-B2CRESULT-002).
+2. **01→02 인계 채널 + 기존 01 최소 확장** — `lib/diagnosis/handoff.ts`(`writeDiagnosisHandoff(result: DiagnosisResult)` / `readDiagnosisHandoff(): DiagnosisResult | null`(읽기 전용, 제거하지 않음) / `clearDiagnosisHandoff()`(새 진단 시작 시 호출 + 상담 신청 완료용 트리거 지점 예약), `sessionStorage` 래퍼, SSR 가드, 프로젝트 네임스페이스 키, `design.md` §3). `lib/diagnosis/fixtures/fracture-case.ts`(`FRACTURE_FIXTURE_INPUT` 상수 + `buildFractureResult(rawInput, answers): DiagnosisResult`, review 전용, resultId/schemaVersion/inputSummary/priorityChecks까지 포함한 완전한 결과를 반환). `step-loading.tsx`의 `mockJudge(input, reviewEnabled)`를 `"result-none" | "error" | "result"` 3갈래로 확장하며 `reviewEnabled` boolean 인자로 fixture 분기를 명시적으로 게이트한다(§B의 정확 일치 판정 순서 그대로 구현, 기존 두 갈래 동작 회귀 없음을 단위 테스트로 증명 — REQ-B2CRESULT-011, defense-in-depth boolean 게이트는 REQ-B2CRESULT-009). `diagnosis-flow.tsx`에 loading 완료 시 `"result"` 결과를 받아 `buildFractureResult` → `writeDiagnosisHandoff` → `useRouter().push('/result')` 순으로 호출하는 콜백을 추가하고, 새 진단 시작 액션에서 `clearDiagnosisHandoff()`를 호출하는 분기를 추가한다(기존 `FORCE_STEP` 액션·상태 도형은 변경하지 않는다).
 3. **게이트 공유 리팩터 + `/result` 라우트 셸** — `lib/diagnosis/flags.ts`에 `computeDiagnosisFlags(env)` 추출(REQ-B2CRESULT-012), `app/page.tsx`가 이 헬퍼를 사용하도록 최소 리팩터(동작 변경 없음, `app/page.test.tsx`의 5행 동작 행렬이 계속 PASS함을 확인). `app/result/page.tsx`(Server Component) 신설 — 동일 헬퍼로 `shouldRenderDiagnosis` 계산, 거짓이면 기존 placeholder와 동일한 문구, 참이면 `<Suspense fallback={<ResultSkeleton />}><ResultView /></Suspense>`.
-4. **Desktop/Mobile 결과 컴포넌트** — `components/result/result-view.tsx`("use client", 마운트 시 handoff 1회 읽기 → 없으면 no-data 상태(REQ-B2CRESULT-013), 파싱 실패 시 error 상태(REQ-B2CRESULT-014) → 있으면 `useMediaQuery(DESKTOP_MEDIA_QUERY)`로 Desktop 전체 펼침 vs Mobile 탭 분기). `coverage-category-section.tsx`(카테고리 헤더 + 담보 카드 목록). `coverage-item-card.tsx`(3톤 상태 pill + 텍스트 라벨(REQ-B2CRESULT-020) + 금액 as-is 렌더링(REQ-B2CRESULT-006) + Fact Chip 목록 + 가능성 낮음 사유). `result-aggregate-banner.tsx`(computeAggregate 소비). `result-category-tabs.tsx`(Mobile 전용, `tablist`/`tab`/`tabpanel` ARIA + 탭 전환 시 패널 제목으로 포커스 이동, REQ-B2CRESULT-019/021). `result-cta-bar.tsx`(3곳 CTA 배치는 MIGRATION-PLAN §4 그대로, 03 라우트 부재로 클릭 시 실제 이동 없는 비활성/stub, REQ-B2CRESULT-023). `result-no-data.tsx`/`result-error.tsx`(02 전용 상태, REQ-B2CRESULT-013/014).
+4. **Desktop/Mobile 결과 컴포넌트** — `components/result/result-view.tsx`("use client", 마운트 시 `readDiagnosisHandoff()`(제거하지 않는 읽기)로 handoff 조회 → 없으면 no-data 상태(REQ-B2CRESULT-013), 파싱 실패 시 error 상태(REQ-B2CRESULT-014) → 있으면 `useMediaQuery(DESKTOP_MEDIA_QUERY)`로 Desktop 전체 펼침 vs Mobile 탭 분기; 새로고침·뒤로가기 후 재마운트에도 동일한 결과가 다시 보이는지 컴포넌트 테스트로 검증, REQ-B2CRESULT-016). `coverage-category-section.tsx`(카테고리 헤더 + 담보 카드 목록). `coverage-item-card.tsx`(3톤 상태 pill + 텍스트 라벨(REQ-B2CRESULT-020) + `amount.displayText` as-is 렌더링(REQ-B2CRESULT-006) + `description`/`whyCheck`/`evidenceRefs`/`requiredDocuments`/`multiMatch` 배지 등 데이터 기반 동적 문구 렌더링(하드코딩 금지, `plan.md` §D) + Fact Chip 목록 + 가능성 낮음 사유(`reasonNote`, 타입이 필수를 보장)). `result-aggregate-banner.tsx`(computeAggregate 소비). `result-category-tabs.tsx`(Mobile 전용, `tablist`/`tab`/`tabpanel` ARIA + 탭 전환 시 패널 제목으로 포커스 이동, REQ-B2CRESULT-019/021). `result-cta-bar.tsx`(3곳 CTA 배치는 MIGRATION-PLAN §4 그대로, `aria-disabled="true"` + 클릭·키보드 공통 no-op + "준비 중" 안내, 네이티브 `disabled` 미사용, REQ-B2CRESULT-023 — 결정 확정, `design.md` §8). `result-no-data.tsx`/`result-error.tsx`(02 전용 상태, REQ-B2CRESULT-013/014).
 5. **접근성 · 반응형 · unit/component 테스트** — 키보드 탭 전환, `prefers-reduced-motion` 대응(기존 `diagnosis-flow.tsx` 패턴 재사용). Vitest: 타입/집계 함수, Fact Chip 매핑(응답 있음/없음 각 케이스), 탭 전환 상태, no-data/error 상태, `mockJudge` 3갈래 회귀 테스트(REQ-B2CRESULT-011).
 6. **E2E + 시각 정합성 확장 + 문서 동기화** — `e2e/diagnosis-flow-02.spec.ts` 신규(01 전체 플로우 → 골절 fixture 입력 → `/result` 도착 → 집계 배너 검증 → Desktop 4카테고리 전부 표시 → Mobile 탭 전환 → Fact Chip 존재/부재 검증 → 직접 `/result` 접근 시 no-data 상태). `scripts/visual-verify.ts`의 `SCREENS` 배열에 5개 화면 정의 추가(기존 10개 배열 항목은 수정 금지) — review 전용 직접 진입 파라미터(예: `/result?devFixture=fracture`, `ENABLE_DIAGNOSIS_DEV_STATES` 게이트 재사용)로 결정론적 캡처를 지원한다. `pnpm visual:verify` 실행해 기존 10화면 PASS 유지 + 신규 5화면 PASS 확인. `product.md`/`structure.md` Roadmap 갱신(02 완료 반영).
 
@@ -70,9 +71,12 @@
 - 03 화면을 "겸사겸사" 함께 구현하지 않는다 — CTA는 stub까지만.
 - 담보 매칭 엔진의 실제 구현 방식을 이 SPEC에서 판단하지 않는다.
 - 기존 `mockJudge()`의 키워드 판정을 부분 문자열 방식으로 확장하지 않는다 — 반드시 정확 문자열 일치로 신규 fixture를 격리한다(§B 참고, 기존 `RESULT_NONE_INPUT`과의 충돌 방지).
+- fixture 실행 여부를 `<DiagnosisFlow />` 마운트 여부 같은 다른 상태로부터 암묵적으로 추론하지 않는다 — `mockJudge`(또는 그 호출부)는 반드시 명시적 `reviewEnabled` boolean 인자를 받아 게이트한다(REQ-B2CRESULT-009, defense-in-depth).
 - 집계 배너 숫자를 디자인 목업 값(15/8/6/1)으로 하드코딩하지 않는다 — 항상 `computeAggregate(items)`에서 도출한다.
 - "가능성 낮음" 담보를 숨기거나 필터링하지 않는다.
-- 금액을 클라이언트에서 재계산·합산하지 않는다.
+- 금액을 클라이언트에서 재계산·합산하지 않는다 — `amount.displayText`를 그대로 출력한다.
+- `components/result/*`에 케이스 전용 동적 문구(카테고리 설명·whyCheck·배지 등)를 리터럴로 하드코딩하지 않는다 — `DiagnosisResult` 데이터 또는 공용 상수 모듈에서만 가져온다.
+- `sessionStorage` handoff를 읽자마자(또는 마운트 시) 자동으로 지우지 않는다 — 새 진단 시작/상담 신청 완료/사용자 초기화 3가지 명시적 트리거에서만 `clearDiagnosisHandoff()`를 호출한다.
 - `DIAGNOSIS_ENGINE_READY`를 이 SPEC의 코드에서 `true`로 전환하지 않는다.
 - `app/page.tsx`와 `app/result/page.tsx`에 게이트 계산 로직을 각각 따로 작성하지 않는다 — 반드시 `lib/diagnosis/flags.ts` 공유 헬퍼를 통한다.
 - 기존 `e2e/diagnosis-flow-01.spec.ts`와 `scripts/visual-verify.ts`의 기존 10개 화면 정의를 수정하지 않는다 — 오직 추가만 한다.

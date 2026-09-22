@@ -9,6 +9,11 @@ Given `lib/diagnosis/types.ts`가 정의되어 있을 때
 When `CoverageCategory` 타입을 검사하면
 Then 정확히 4개 값(실손 의료비/정액 담보/후유장해/특별 보상에 대응하는 리터럴)만 허용하고, 5번째 값을 추가하면 타입 체크가 실패한다.
 
+추가 시나리오 — 식별·버전 필드 검증:
+Given `DiagnosisResult` 인스턴스가 생성되었을 때
+When `resultId`·`schemaVersion` 필드를 검사하면
+Then 둘 다 비어있지 않은 문자열이며, 서로 다른 두 번의 진단 실행에서 생성된 두 `DiagnosisResult`의 `resultId`는 서로 다르다.
+
 **AC-B2CRESULT-002** (REQ-B2CRESULT-002)
 Given `computeAggregate(items)`가 5개 항목(검토 대상 2 · 추가 정보 필요 2 · 가능성 낮음 1)을 받았을 때
 When 함수를 호출하면
@@ -39,10 +44,20 @@ Given `DiagnosisResult.items`에 상태가 "가능성 낮음"인 항목이 포�
 When 결과 화면을 렌더링하면
 Then 그 항목이 숨겨지지 않고 카드로 표시되며, `reasonNote` 텍스트가 함께 렌더링된다.
 
+추가 시나리오 — 타입 수준 강제:
+Given `CoverageItem` 타입 정의(status별 discriminated union)를 검사할 때
+When status가 `"low-likelihood"`인 분기를 확인하면
+Then `reasonNote` 필드가 선택(optional)이 아닌 필수 필드로 선언되어 있다(그 값 없이는 타입 체크를 통과할 수 없다) — status가 `"review"`/`"needs-info"`인 분기에서는 `reasonNote`가 선택 필드다.
+
 **AC-B2CRESULT-006** (REQ-B2CRESULT-006)
-Given `CoverageItem.amount`가 `{ kind: "range", min: 3000000, max: 12000000 }`로 주어졌을 때
+Given `CoverageItem.amount`가 `{ kind: "range", min: 3000000, max: 12000000, displayText: "300만 원~1,200만 원" }`로 주어졌을 때
 When 카드를 렌더링하면
-Then 화면에 표시되는 금액 문자열이 그 min/max 값을 그대로 사용하며, 코드 내 어떤 산술 연산도 그 값을 변경하지 않는다(소스 코드 정적 검사: 렌더 경로에 `+`/`*` 등 산술 연산자가 금액 필드에 적용되지 않음).
+Then 화면에 표시되는 금액 문자열이 `displayText` 값과 정확히 일치하며(단위 변환 없음), 코드 내 어떤 산술 연산도 `min`/`max`/`displayText` 값을 변경하지 않는다(소스 코드 정적 검사: 렌더 경로의 금액 필드에 `+`/`*` 등 산술 연산자가 적용되지 않음).
+
+추가 시나리오 — 하드코딩 문구 금지 검증:
+Given `components/result/` 하위 컴포넌트 소스 파일 전체를 검사할 때
+When 카테고리 설명·whyCheck·배지 등 동적 문구에 해당하는 리터럴 한글 문자열 패턴을 찾으면
+Then 그 문구는 `DiagnosisResult` 페이로드 필드 참조이거나 `lib/diagnosis/` 공용 상수 모듈 참조이며, 특정 케이스 전용 리터럴로 컴포넌트에 직접 하드코딩되어 있지 않다.
 
 ## Fact Chip
 
@@ -59,14 +74,24 @@ Then 그 질문에 대응하는 Fact Chip이 생성되지 않는다(DOM에 부�
 ## 01→02 연결 — review 전용 fixture
 
 **AC-B2CRESULT-009** (REQ-B2CRESULT-009)
-Given `ENABLE_DIAGNOSIS_DEV_STATES=false`(프로덕션 기본값)일 때
+Given `productionReady=false AND reviewEnabled=false`(프로덕션 기본값 조합)일 때
 When 정확히 `FRACTURE_FIXTURE_INPUT` 문자열을 입력하고 진단 플로우를 완주해도
-Then `<DiagnosisFlow />` 자체가 마운트되지 않으므로(기존 01 게이트) 이 fixture 분기에 도달할 수 없다.
+Then `<DiagnosisFlow />` 자체가 마운트되지 않으므로(`productionReady || reviewEnabled` 게이트) 이 fixture 분기에 도달할 수 없다.
+
+추가 시나리오 — `productionReady=true` 단독 조합(defense-in-depth):
+Given `productionReady=true AND reviewEnabled=false`일 때(즉 `<DiagnosisFlow />`는 마운트되지만 review 플래그는 꺼진 상태)
+When 정확히 `FRACTURE_FIXTURE_INPUT` 문자열을 입력하고 진단 플로우를 완주하면
+Then `mockJudge`(또는 그 호출부)가 전달받은 명시적 `reviewEnabled` boolean 인자가 `false`이므로 fixture 분기가 실행되지 않고, 기존 `result-none`/`error` 판정 로직만 적용된다.
+
+추가 시나리오 — 직접 진입 파라미터 무시:
+Given `reviewEnabled=false`일 때
+When `/result?devFixture=fracture`로 직접 접근하면
+Then `devFixture` 파라미터가 동일한 boolean 게이트에 의해 무시되고(§9 재사용), `sessionStorage`에 유효한 handoff가 없으므로 02 전용 "결과 없음" 상태(AC-B2CRESULT-013)가 표시된다.
 
 **AC-B2CRESULT-010** (REQ-B2CRESULT-010)
 Given `ENABLE_DIAGNOSIS_DEV_STATES=true`인 review 환경에서 입력값이 정확히 `FRACTURE_FIXTURE_INPUT`일 때
 When 동의 → 추가 질문(응답 포함) → 진단 중 단계를 완주하면
-Then `sessionStorage`에 `rawInput`과 `answers`를 포함한 handoff 데이터가 기록되고, 브라우저가 `/result`로 이동한다.
+Then `sessionStorage`에 `buildFractureResult(rawInput, answers)`로 구성된 완전한 `DiagnosisResult`(`items`·`resultId`·`schemaVersion`·`generatedAt` 포함)가 기록되고, 브라우저가 `/result`로 이동한다.
 
 **AC-B2CRESULT-011** (REQ-B2CRESULT-011)
 Given `ENABLE_DIAGNOSIS_DEV_STATES=true`일 때
@@ -90,10 +115,10 @@ Given `sessionStorage`에 handoff 데이터가 없는 상태에서
 When 사용자가 `/result`에 직접 접근하면
 Then 02 전용 "결과 없음" 안내와 01 입력 화면으로 돌아가는 CTA가 표시되며, 01의 `result-none`(01-D) 문구와는 다른 문구를 사용한다.
 
-추가 시나리오 — 새로고침 후 재현:
+추가 시나리오 — 새로고침·뒤로가기 후 재현:
 Given 정상적으로 `/result`에 도착해 결과가 표시된 상태에서
-When 페이지를 새로고침하면
-Then handoff가 이미 1회 소비되어 제거되었으므로 위와 동일한 02 전용 "결과 없음" 상태로 전환된다.
+When 페이지를 새로고침하거나 브라우저 뒤로가기 후 다시 `/result`로 진입하면
+Then `sessionStorage`의 handoff 데이터가 여전히 존재하므로 동일한 `DiagnosisResult`(동일 `resultId`)가 다시 표시된다 — 02 전용 "결과 없음" 상태로 전환되지 않는다.
 
 **AC-B2CRESULT-014** (REQ-B2CRESULT-014)
 Given `sessionStorage`의 handoff 값이 유효하지 않은 JSON일 때
@@ -108,9 +133,14 @@ Then `<Suspense fallback>`으로 지정된 스켈레톤이 표시되고, `<nextj
 ## 저장 정책
 
 **AC-B2CRESULT-016** (REQ-B2CRESULT-016)
-Given `/result`가 handoff를 성공적으로 읽었을 때
+Given `/result`가 handoff를 성공적으로 읽어 결과를 표시했을 때
 When 읽기 직후의 `sessionStorage` 상태를 검사하면
-Then 해당 키가 제거되어 있다(1회 소비 후 즉시 삭제).
+Then 해당 키가 그대로 유지되어 있다(읽기만으로는 제거되지 않는다).
+
+추가 시나리오 — 명시적 초기화 트리거:
+Given `/result`에 결과가 표시된 상태에서
+When 사용자가 01 입력 화면으로 돌아가 새 진단을 시작하면(신규 입력 제출)
+Then 이전 `sessionStorage` handoff 데이터가 제거되고, 새 진단 완료 시 새로운 `resultId`를 가진 데이터로 교체된다. (상담 신청 완료 시 초기화 트리거는 03 SPEC 범위이며, 이 SPEC은 `clearDiagnosisHandoff()` 호출 지점만 예약한다.)
 
 **AC-B2CRESULT-017** (REQ-B2CRESULT-017)
 Given `lib/diagnosis/handoff.ts`의 `sessionStorage` 키 상수를 검사할 때
@@ -149,9 +179,19 @@ When "받으실 수 있습니다" 등 단정형 확정 문구 패턴을 검색�
 Then 매칭 결과가 0건이다.
 
 **AC-B2CRESULT-023** (REQ-B2CRESULT-023)
-Given 02/M02 화면의 상담 CTA 버튼을 클릭했을 때
+Given 02/M02 화면의 상담 CTA 버튼(`aria-disabled="true"`)을 클릭했을 때
 When 브라우저 네비게이션을 관찰하면
-Then 실제 페이지 이동이 발생하지 않는다(비활성 상태이거나, 클릭 핸들러가 no-op/안내 표시로만 동작).
+Then 실제 페이지 이동이 발생하지 않으며 "준비 중" 안내가 표시된다.
+
+추가 시나리오 — 키보드 조작성:
+Given 상담 CTA 버튼이 렌더링되었을 때
+When `Tab` 키로 포커스를 이동하면
+Then 버튼이 포커스를 받으며(tabindex로 배제되지 않음), `Enter` 또는 `Space`로 활성화하면 클릭과 동일하게 페이지 이동 없이 "준비 중" 안내만 표시된다.
+
+추가 시나리오 — 스크린리더 시맨틱:
+Given 상담 CTA 버튼의 접근성 트리를 검사할 때
+When `aria-disabled` 속성과 접근 가능한 이름을 확인하면
+Then `aria-disabled="true"`가 노출되고, "준비 중" 상태가 스크린리더에 인지 가능한 텍스트(`aria-live` 안내 또는 접근 가능한 이름/설명)로 전달된다.
 
 **AC-B2CRESULT-024** (REQ-B2CRESULT-024)
 Given 이 SPEC이 전달하는 전체 코드 diff를 검사할 때
