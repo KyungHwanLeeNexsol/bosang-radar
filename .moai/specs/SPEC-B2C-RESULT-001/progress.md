@@ -83,6 +83,14 @@
 - **Gaps**: `flags.ts`/`app/result/`/`components/result/`/`e2e/diagnosis-flow-02.spec.ts`는 범위 밖(Milestone 3-6). eslint/prettier는 격리 워크트리에서만 실행됨(clean 보고) — plan 브랜치 cherry-pick 후 재실행하지 않음(코드 diff 자체는 변경 없이 그대로 적용됨).
 - **Residual-risk**: `mockJudge`의 exact-match fixture 게이팅은 단일 고정 문자열(`FRACTURE_FIXTURE_INPUT`)에 대해서만 테스트됨 — 향후 fixture가 늘어나면 각각 개별 exact-match 테스트가 필요. `reviewEnabled` prop은 `diagnosis-flow.tsx`에서 `ENABLE_DIAGNOSIS_DEV_STATES` 서버 전용 env로부터 파생되는 `enableDevStates`를 그대로 전달하는데, 이 파생 경로 자체(`lib/diagnosis/flags.ts`)는 Milestone 3에서 아직 존재하지 않아 현재는 diagnosis-flow.tsx 자체 로컬 계산에 의존 — Milestone 3에서 `flags.ts` 공유 헬퍼로 전환 시 회귀 테스트 필요.
 
+### Milestone 3 — 게이트 공유 리팩터 + `/result` 라우트 셸 (2026-09-22)
+
+- **Claim**: `lib/diagnosis/flags.ts`(신규, `computeDiagnosisFlags(env)`)로 `app/page.tsx`의 인라인 게이트 계산(`productionReady`/`reviewEnabled`/`shouldRenderDiagnosis`)을 동작 무변경으로 추출·리팩터했다(REQ-B2CRESULT-012). `app/result/page.tsx`(Server Component) 신설 — 동일 헬퍼로 게이트 계산, 거짓이면 `app/page.tsx`와 동일한 placeholder, 참이면 `<Suspense fallback={<ResultSkeleton />}><ResultView /></Suspense>`(REQ-B2CRESULT-013~015 대비 최소 셸). `components/result/result-skeleton.tsx`·`result-view.tsx`(최소 placeholder, Milestone 4에서 실제 구현으로 교체 예정)도 함께 신설.
+- **Evidence**: `npx vitest run`(전체 스위트) → `Test Files 59 passed (59)` / `Tests 464 passed (464)`(커밋 `8843714`, plan/SPEC-B2C-RESULT-001 브랜치 기준 재실행 확인); `npx tsc --noEmit -p tsconfig.json` → 0 errors(clean). `app/page.test.tsx`의 기존 5행 동작 행렬은 한 글자도 수정되지 않았고 전체 스위트 통과에 포함되어 회귀 없음을 확인.
+- **Baseline-attribution**: 커밋 `8843714`(plan/SPEC-B2C-RESULT-001, cherry-pick from `8350d81`), 이 커밋 기준 `npx vitest run` 전체 재실행 + `npx tsc --noEmit` 재실행으로 확인.
+- **Gaps**: `components/result/`의 나머지 8개 컴포넌트(`result-input-summary`/`result-priority-checklist`/`coverage-category-section`/`coverage-item-card`/`result-aggregate-banner`/`result-category-tabs`/`result-cta-bar`/`result-no-data`/`result-error`)는 Milestone 4 범위. `app/result/page.tsx`용 Next.js Server Component 전용 테스트 컨벤션이 이 저장소에 없어, 기존 `app/page.test.tsx`의 순수 함수 컴포넌트 렌더링 패턴을 재사용했다 — async 데이터 페칭이 추가되는 Milestone 4 이후에는 이 패턴의 한계를 재검토 필요.
+- **Residual-risk**: 게이트 계산이 `app/page.tsx`와 `app/result/page.tsx` 양쪽에서 동일 `computeDiagnosisFlags(process.env)` 호출로 이뤄지는지는 코드 리뷰로 확인했으나, 두 라우트를 동시에 렌더링하는 통합 테스트는 없음(각 라우트가 독립적으로 테스트됨).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
