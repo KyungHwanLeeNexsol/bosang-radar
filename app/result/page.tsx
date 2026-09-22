@@ -15,12 +15,19 @@ import { ResultView } from "@/components/result/result-view";
 // (Milestone 4) 그동안 <ResultSkeleton />을 보여 레이아웃 시프트를
 // 최소화한다(REQ-B2CRESULT-015). ResultView/ResultSkeleton은 이 milestone
 // 에서는 최소 placeholder이며, Milestone 4가 내부를 교체한다.
+//
+// SPEC-B2C-RESULT-001 M6 (design.md §9, REQ-B2CRESULT-009/012) — review
+// 전용 `?devFixture=fracture` 결정론적 진입점을 위해 `reviewEnabled`를
+// <ResultView />에 `enableDevFixture`로 내려준다. 이 값은 §4의 mockJudge
+// boolean 게이트와 동일한 `reviewEnabled`이며, 이 라우트가 별도의 게이트
+// 로직을 다시 계산하지 않는다(REQ-B2CRESULT-012). app/page.tsx가
+// enableDevStates를 <DiagnosisFlow />에 내려주는 것과 동일한 패턴이다.
 export const metadata: Metadata = {
   title: "서비스 준비 중",
 };
 
 export default function ResultPage() {
-  const { shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
+  const { reviewEnabled, shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
 
   if (!shouldRenderDiagnosis) {
     return (
@@ -35,7 +42,7 @@ export default function ResultPage() {
 
   return (
     <Suspense fallback={<ResultSkeleton />}>
-      <ResultView />
+      <ResultView enableDevFixture={reviewEnabled} />
     </Suspense>
   );
 }

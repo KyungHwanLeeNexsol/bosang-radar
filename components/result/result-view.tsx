@@ -1,10 +1,16 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 
 import { DESKTOP_MEDIA_QUERY, REDUCED_MOTION_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
 import { collectAnsweredFacts, computeAggregate } from "@/lib/diagnosis/aggregate";
 import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
+import {
+  buildFractureResult,
+  FRACTURE_FIXTURE_DEV_ANSWERS,
+  FRACTURE_FIXTURE_INPUT,
+} from "@/lib/diagnosis/fixtures/fracture-case";
 import type { CoverageCategory, CoverageItem, DiagnosisResult } from "@/lib/diagnosis/types";
 
 import { CATEGORY_LABEL, CATEGORY_ORDER, DEFAULT_MOBILE_CATEGORY } from "./labels";
@@ -64,7 +70,20 @@ type ViewState =
   | { kind: "invalid" }
   | { kind: "valid"; result: DiagnosisResult };
 
-function classifyHandoff(): ViewState {
+function classifyHandoff(useDevFixture: boolean): ViewState {
+  // SPEC-B2C-RESULT-001 M6 (design.md §9, REQ-B2CRESULT-009/012) — review
+  // 전용 `?devFixture=fracture` 직접 진입 경로. sessionStorage를 전혀
+  // 읽지 않고 buildFractureResult()의 고정 데이터를 즉시 "valid"로
+  // 반환한다 — pnpm visual:verify가 01 플로우를 매번 완주하지 않고도
+  // 5개 신규 화면을 결정론적으로 캡처하기 위한 전용 진입점이다. 호출부
+  // (ResultView)가 이미 enableDevFixture(=reviewEnabled)로 게이트했으므로
+  // 이 함수 자체는 별도의 게이트를 다시 계산하지 않는다.
+  if (useDevFixture) {
+    return {
+      kind: "valid",
+      result: buildFractureResult(FRACTURE_FIXTURE_INPUT, FRACTURE_FIXTURE_DEV_ANSWERS),
+    };
+  }
   const handoff = readDiagnosisHandoff();
   if (handoff.status === "empty") {
     return { kind: "empty" };
@@ -90,23 +109,36 @@ function getServerSnapshot(): ViewState {
  * "effect 본문에서의 동기 setState는 계단식 리렌더를 유발한다"는
  * react-hooks/set-state-in-effect 권고를 따르기 위함이다.
  */
-function useDiagnosisHandoffState(): ViewState {
+function useDiagnosisHandoffState(useDevFixture: boolean): ViewState {
   const snapshotRef = React.useRef<ViewState | null>(null);
 
   const getSnapshot = React.useCallback((): ViewState => {
     if (snapshotRef.current === null) {
-      snapshotRef.current = classifyHandoff();
+      snapshotRef.current = classifyHandoff(useDevFixture);
     }
     return snapshotRef.current;
-  }, []);
+  }, [useDevFixture]);
 
   const subscribe = React.useCallback(() => () => {}, []);
 
   return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-export function ResultView() {
-  const state = useDiagnosisHandoffState();
+export interface ResultViewProps {
+  /**
+   * 서버(app/result/page.tsx)가 계산한 reviewEnabled 값(REQ-B2CRESULT-012
+   * 공유 게이트) — 이 컴포넌트는 절대 process.env를 직접 읽지 않는다.
+   * true이고 URL에 `?devFixture=fracture`가 있을 때만 review 전용 결정론적
+   * fixture로 렌더링한다(design.md §9). 기본값 false — 기존 M1-M5 동작과
+   * 100% 동일(호출부가 prop을 생략해도 회귀 없음).
+   */
+  enableDevFixture?: boolean;
+}
+
+export function ResultView({ enableDevFixture = false }: ResultViewProps) {
+  const searchParams = useSearchParams();
+  const useDevFixture = enableDevFixture && searchParams.get("devFixture") === "fracture";
+  const state = useDiagnosisHandoffState(useDevFixture);
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_MEDIA_QUERY);
   const [activeCategory, setActiveCategory] =
@@ -161,7 +193,13 @@ export function ResultView() {
   }
 
   return (
-    <div data-testid="result-view" className="flex w-full flex-col">
+    // SPEC-B2C-RESULT-001 M6 — pnpm visual:verify로 실측한 배경색 결함
+    // 수정: design/exports/02·M02 계열은 Desktop·Mobile 모두 회색 페이지
+    // 배경(#f4f6f8, bg-app-bg) 위에 흰 카드가 떠 있는 레이아웃이다(01의
+    // diagnosis-flow.tsx가 Desktop에서 흰 배경(md:bg-app-surface)으로
+    // 갈라지는 것과 다른 지점 — 02는 md: 분기 없이 항상 bg-app-bg다).
+    // 이 루트에 배경이 없어 흰 body가 그대로 비쳤다.
+    <div data-testid="result-view" className="flex w-full flex-col bg-app-bg">
       <ResultTopBarCta />
 
       <main className="flex w-full flex-col items-center px-5 py-6 md:px-8 md:py-10">

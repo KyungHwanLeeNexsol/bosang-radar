@@ -258,7 +258,27 @@ async function stageTexts(page: Page) {
   return out;
 }
 
-// ── 10개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
+// SPEC-B2C-RESULT-001 M6 (design.md §9, REQ-B2CRESULT-009/012) — review
+// 전용 `?devFixture=fracture` 직접 진입점으로 02/M02 계열 5화면을
+// 결정론적으로 캡처한다. startProductionServer()가 이미
+// ENABLE_DIAGNOSIS_DEV_STATES=true로 서버를 띄우므로(design.md §9의
+// reviewEnabled 게이트) 여기서는 URL 쿼리만 지정하면 된다 — 01 플로우를
+// 매번 완주할 필요가 없다.
+async function gotoResultFixture(page: Page, baseURL: string) {
+  await page.goto(baseURL + "/result?devFixture=fracture", { waitUntil: "networkidle" });
+  await page.getByTestId("result-view").waitFor();
+}
+
+async function gotoResultFixtureTab(page: Page, baseURL: string, category: string) {
+  await gotoResultFixture(page, baseURL);
+  await page.getByTestId(`category-tab-${category}`).click();
+  await page.getByTestId(`coverage-section-${category}`).waitFor();
+}
+
+// ── 15개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
+// 기존 10개(SPEC-B2C-DIAGNOSIS-001) + SPEC-B2C-RESULT-001 M6이 추가하는
+// 5개(02/M02/M02-B/M02-C/M02-D) — 기존 10개 항목은 절대 수정하지 않는다
+// (REQ-B2CRESULT-025).
 const SCREENS: readonly ScreenSpec[] = [
   {
     id: "01",
@@ -935,6 +955,190 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "단계 상태 문구(완료/진행 중/대기)",
         expected: "완료 / 진행 중 / 대기",
         actual: (await stageTexts(page)).join(" / "),
+      },
+    ],
+  },
+  // ── SPEC-B2C-RESULT-001 M6 — 신규 5화면 (02/M02/M02-B/M02-C/M02-D) ──
+  // design/exports 1x 치수(2x export ÷ 2)를 뷰포트에 그대로 맞춰 정규화
+  // 시 왜곡이 없게 한다(01/M01과 동일한 관례). 담보 카드 그리드
+  // (coverage-section-*)는 카드 수만큼 밴드가 잘게 쪼개져 mergeBands를
+  // 눈대중으로 맞추기 어려우므로 이번 milestone에서는 측정 대상에서
+  // 제외한다 — 화면 등록·캡처·핵심 3요소(입력 요약/집계 배너/우선순위
+  // 체크리스트) 정합성 확인이 1차 목표다(잔여 위험으로 보고).
+  {
+    id: "02",
+    label: "02 보상 진단 결과 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 3442 },
+    designExport: "02-보상-진단-결과.png",
+    screenshotName: "02-result.png",
+    quietGap: 4,
+    // 하단 전폭 CTA 바(어두운 배경)·푸터가 회색 페이지 배경과 다른 색이라
+    // 프로브 균일도를 깨뜨린다 — M01-A2가 시트를 제외한 것과 같은 방식으로
+    // 담보 카드 콘텐츠 구간까지만 측정한다.
+    backgroundProbe: {
+      bottom: 3089,
+      reason: "하단 전폭 CTA 바(어두운 배경)·푸터는 회색 배경과 다른 색이라 제외",
+    },
+    prepare: gotoResultFixture,
+    elements: [
+      {
+        key: "inputSummary",
+        label: "입력하신 사고 내용 카드",
+        locate: (p) => vis(p, "result-input-summary"),
+        designTopHint: 96,
+      },
+      {
+        key: "aggregateBanner",
+        label: "집계 배너",
+        locate: (p) => vis(p, "result-aggregate-banner"),
+        designTopHint: 334,
+      },
+      {
+        key: "priorityChecklist",
+        label: "먼저 확인할 항목",
+        locate: (p) => vis(p, "result-priority-checklist"),
+        designTopHint: 578,
+      },
+    ],
+  },
+  {
+    id: "M02",
+    label: "M02 보상 진단 결과 — 실손 의료비 탭 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 2348 },
+    designExport: "M02-보상-진단-결과.png",
+    screenshotName: "M02-result.png",
+    prepare: gotoResultFixture,
+    elements: [
+      {
+        key: "inputSummary",
+        label: "입력하신 사고 내용 카드",
+        locate: (p) => vis(p, "result-input-summary"),
+        designTopHint: 56,
+      },
+      {
+        key: "aggregateBanner",
+        label: "집계 배너",
+        locate: (p) => vis(p, "result-aggregate-banner"),
+        designTopHint: 288,
+      },
+      {
+        key: "priorityChecklist",
+        label: "먼저 확인할 항목",
+        locate: (p) => vis(p, "result-priority-checklist"),
+        designTopHint: 411,
+      },
+      {
+        key: "categoryTabs",
+        label: "카테고리 탭",
+        locate: (p) => vis(p, "result-category-tabs"),
+        designTopHint: 562,
+      },
+    ],
+  },
+  {
+    id: "M02-B",
+    label: "M02-B 결과 — 정액 담보 탭 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 3169 },
+    designExport: "M02-B-결과-정액-담보-탭.png",
+    screenshotName: "M02-B-result-fixed.png",
+    prepare: (page, baseURL) => gotoResultFixtureTab(page, baseURL, "fixed"),
+    elements: [
+      {
+        key: "inputSummary",
+        label: "입력하신 사고 내용 카드",
+        locate: (p) => vis(p, "result-input-summary"),
+        designTopHint: 76,
+      },
+      {
+        key: "aggregateBanner",
+        label: "집계 배너",
+        locate: (p) => vis(p, "result-aggregate-banner"),
+        designTopHint: 333,
+      },
+      {
+        key: "priorityChecklist",
+        label: "먼저 확인할 항목",
+        locate: (p) => vis(p, "result-priority-checklist"),
+        designTopHint: 483,
+      },
+      {
+        key: "categoryTabs",
+        label: "카테고리 탭",
+        locate: (p) => vis(p, "result-category-tabs"),
+        designTopHint: 658,
+      },
+    ],
+  },
+  {
+    id: "M02-C",
+    label: "M02-C 결과 — 후유장해 탭 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 1903 },
+    designExport: "M02-C-결과-후유장해-탭.png",
+    screenshotName: "M02-C-result-disability.png",
+    prepare: (page, baseURL) => gotoResultFixtureTab(page, baseURL, "disability"),
+    elements: [
+      {
+        key: "inputSummary",
+        label: "입력하신 사고 내용 카드",
+        locate: (p) => vis(p, "result-input-summary"),
+        designTopHint: 90,
+      },
+      {
+        key: "aggregateBanner",
+        label: "집계 배너",
+        locate: (p) => vis(p, "result-aggregate-banner"),
+        designTopHint: 466,
+      },
+      {
+        key: "priorityChecklist",
+        label: "먼저 확인할 항목",
+        locate: (p) => vis(p, "result-priority-checklist"),
+        designTopHint: 670,
+      },
+      {
+        key: "categoryTabs",
+        label: "카테고리 탭",
+        locate: (p) => vis(p, "result-category-tabs"),
+        designTopHint: 936,
+      },
+    ],
+  },
+  {
+    id: "M02-D",
+    label: "M02-D 결과 — 특별 보상 탭 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 1882 },
+    designExport: "M02-D-결과-특별-보상-탭.png",
+    screenshotName: "M02-D-result-special.png",
+    prepare: (page, baseURL) => gotoResultFixtureTab(page, baseURL, "special"),
+    elements: [
+      {
+        key: "inputSummary",
+        label: "입력하신 사고 내용 카드",
+        locate: (p) => vis(p, "result-input-summary"),
+        designTopHint: 89,
+      },
+      {
+        key: "aggregateBanner",
+        label: "집계 배너",
+        locate: (p) => vis(p, "result-aggregate-banner"),
+        designTopHint: 461,
+      },
+      {
+        key: "priorityChecklist",
+        label: "먼저 확인할 항목",
+        locate: (p) => vis(p, "result-priority-checklist"),
+        designTopHint: 658,
+      },
+      {
+        key: "categoryTabs",
+        label: "카테고리 탭",
+        locate: (p) => vis(p, "result-category-tabs"),
+        designTopHint: 926,
       },
     ],
   },

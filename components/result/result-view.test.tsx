@@ -14,9 +14,19 @@ import { buildFractureResult, FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fix
 // 테스트군과 동일하게 next/navigation을 모킹한다 — app router 컨텍스트가
 // 없는 순수 렌더 테스트에서 "invariant expected app router to be mounted"를
 // 피하기 위함이다.
+//
+// SPEC-B2C-RESULT-001 M6 (design.md §9) — ResultView가 이제
+// useSearchParams()도 호출하므로(review 전용 ?devFixture=fracture 게이트)
+// 함께 모킹한다. 기본값은 빈 URLSearchParams — enableDevFixture prop을
+// 생략하는 아래 기존 테스트들은 devFixture 분기와 무관하게 그대로 통과한다.
+
+const { searchParamsMock } = vi.hoisted(() => ({
+  searchParamsMock: { current: new URLSearchParams() },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => searchParamsMock.current,
 }));
 
 const STORAGE_KEY = "bosang-radar:diagnosis-handoff-v1";
@@ -27,6 +37,7 @@ describe("components/result/ResultView — 3갈래 분기(REQ-B2CRESULT-013/014/
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    searchParamsMock.current = new URLSearchParams();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -93,6 +104,63 @@ describe("components/result/ResultView — 3갈래 분기(REQ-B2CRESULT-013/014/
     });
 
     expect(container.querySelector('[data-testid="result-category-tabs"]')).not.toBeNull();
+  });
+});
+
+// SPEC-B2C-RESULT-001 M6 (design.md §9, REQ-B2CRESULT-009/012) — review
+// 전용 `?devFixture=fracture` 직접 진입 경로. enableDevFixture(=reviewEnabled)
+// 와 URL 쿼리 둘 다 갖춰야만 sessionStorage를 건너뛰고 buildFractureResult()
+// 고정 데이터로 렌더링한다 — 어느 한쪽이라도 없으면 기존 handoff 분기
+// (이 경우 "empty")를 그대로 탄다(defense-in-depth, REQ-B2CRESULT-009와
+// 동일한 boolean 게이트 원칙).
+describe("components/result/ResultView — devFixture 직접 진입(design.md §9)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    searchParamsMock.current = new URLSearchParams();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("enableDevFixture=true + ?devFixture=fracture → sessionStorage 없이도 ResultView 본문이 렌더링된다", () => {
+    searchParamsMock.current = new URLSearchParams("devFixture=fracture");
+
+    act(() => {
+      root.render(<ResultView enableDevFixture={true} />);
+    });
+
+    expect(container.querySelector('[data-testid="result-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-no-data"]')).toBeNull();
+    expect(container.textContent).toContain("무릎·아래다리의 골절");
+  });
+
+  it("enableDevFixture=false(프로덕션 기본값) + ?devFixture=fracture → 무시하고 empty 분기를 유지한다(defense-in-depth)", () => {
+    searchParamsMock.current = new URLSearchParams("devFixture=fracture");
+
+    act(() => {
+      root.render(<ResultView enableDevFixture={false} />);
+    });
+
+    expect(container.querySelector('[data-testid="result-no-data"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-view"]')).toBeNull();
+  });
+
+  it("enableDevFixture=true이지만 ?devFixture= 쿼리가 없으면 기존 handoff 분기(empty)를 유지한다", () => {
+    act(() => {
+      root.render(<ResultView enableDevFixture={true} />);
+    });
+
+    expect(container.querySelector('[data-testid="result-no-data"]')).not.toBeNull();
   });
 });
 

@@ -17,8 +17,13 @@ import ResultPage from "./page";
 // <ResultNoData/>가 렌더링된다. ResultNoData는 next/navigation의 useRouter()
 // 를 사용하므로, diagnosis-flow.test.tsx가 이미 쓰는 것과 동일한 관례로
 // App Router 컨텍스트 없이도 렌더링 가능하도록 모킹한다(M2/M3 경계 회귀 수정).
+//
+// SPEC-B2C-RESULT-001 M6 — <ResultView/>가 useSearchParams()도 호출하므로
+// 함께 모킹한다(빈 URLSearchParams — 이 스위트는 ?devFixture= 분기를
+// 검증하지 않는다, 그건 result-view.test.tsx의 책임).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const ENV_KEYS = [

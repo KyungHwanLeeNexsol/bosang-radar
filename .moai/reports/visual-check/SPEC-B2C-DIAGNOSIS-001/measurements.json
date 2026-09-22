@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T06:39:15.825Z",
+  "generatedAt": "2026-09-22T06:59:29.588Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -12,9 +12,14 @@
       "M01",
       "M01-A2",
       "M01-B",
-      "M01-C"
+      "M01-C",
+      "02",
+      "M02",
+      "M02-B",
+      "M02-C",
+      "M02-D"
     ],
-    "totalScreens": 10,
+    "totalScreens": 15,
     "visualOnly": null,
     "skipBuild": false,
     "externalBaseURL": null
@@ -6138,7 +6143,2435 @@
       ],
       "maxDelta": 4,
       "pass": true
+    },
+    {
+      "id": "02",
+      "label": "02 보상 진단 결과 (Desktop)",
+      "platform": "desktop",
+      "tolerance": 8,
+      "viewport": {
+        "width": 1440,
+        "height": 3442
+      },
+      "designExport": "02-보상-진단-결과.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1176,
+              "top": 27,
+              "width": 108,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 96,
+          "left": 180,
+          "width": 1080,
+          "height": 218,
+          "cols": [
+            {
+              "left": 180,
+              "top": 96,
+              "width": 1080,
+              "height": 218
+            }
+          ]
+        },
+        {
+          "top": 334,
+          "left": 180,
+          "width": 1080,
+          "height": 224,
+          "cols": [
+            {
+              "left": 180,
+              "top": 334,
+              "width": 1080,
+              "height": 224
+            }
+          ]
+        },
+        {
+          "top": 578,
+          "left": 180,
+          "width": 1080,
+          "height": 195,
+          "cols": [
+            {
+              "left": 180,
+              "top": 578,
+              "width": 1080,
+              "height": 195
+            }
+          ]
+        },
+        {
+          "top": 793,
+          "left": 179,
+          "width": 1082,
+          "height": 66,
+          "cols": [
+            {
+              "left": 179,
+              "top": 793,
+              "width": 1082,
+              "height": 66
+            }
+          ]
+        },
+        {
+          "top": 877,
+          "left": 180,
+          "width": 1080,
+          "height": 2212,
+          "cols": [
+            {
+              "left": 180,
+              "top": 877,
+              "width": 1080,
+              "height": 2212
+            }
+          ]
+        },
+        {
+          "top": 3109,
+          "left": 180,
+          "width": 1080,
+          "height": 150,
+          "cols": [
+            {
+              "left": 180,
+              "top": 3109,
+              "width": 1080,
+              "height": 150
+            }
+          ]
+        },
+        {
+          "top": 3279,
+          "left": 180,
+          "width": 1080,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 3305,
+          "left": 180,
+          "width": 1080,
+          "height": 30,
+          "cols": [
+            {
+              "left": 180,
+              "top": 3315,
+              "width": 91,
+              "height": 13
+            },
+            {
+              "left": 294,
+              "top": 3315,
+              "width": 45,
+              "height": 13
+            },
+            {
+              "left": 360,
+              "top": 3315,
+              "width": 48,
+              "height": 13
+            },
+            {
+              "left": 1168,
+              "top": 3305,
+              "width": 91,
+              "height": 30
+            }
+          ]
+        },
+        {
+          "top": 3355,
+          "left": 180,
+          "width": 830,
+          "height": 12,
+          "cols": [
+            {
+              "left": 181,
+              "top": 3355,
+              "width": 829,
+              "height": 12
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 13,
+          "left": 40,
+          "width": 1360,
+          "height": 38,
+          "cols": [
+            {
+              "left": 40,
+              "top": 17,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 1175,
+              "top": 27,
+              "width": 109,
+              "height": 12
+            },
+            {
+              "left": 1298,
+              "top": 13,
+              "width": 102,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 63,
+          "left": 0,
+          "width": 1440,
+          "height": 3379,
+          "cols": [
+            {
+              "left": 0,
+              "top": 63,
+              "width": 1440,
+              "height": 3379
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 70,
+          "bottom": 3089,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 1
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 0.6730705531632991
+        }
+      },
+      "elements": [
+        {
+          "key": "inputSummary",
+          "label": "입력하신 사고 내용 카드",
+          "design": {
+            "left": 180,
+            "top": 96,
+            "width": 1080,
+            "height": 218
+          },
+          "impl": {
+            "left": 180,
+            "top": 107,
+            "width": 1080,
+            "height": 248
+          },
+          "delta": {
+            "left": 0,
+            "top": 11,
+            "width": 0,
+            "height": 30
+          },
+          "lines": {
+            "actual": 6
+          },
+          "text": "입력하신 사고 내용무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "aggregateBanner",
+          "label": "집계 배너",
+          "design": {
+            "left": 180,
+            "top": 334,
+            "width": 1080,
+            "height": 224
+          },
+          "impl": {
+            "left": 180,
+            "top": 379,
+            "width": 1080,
+            "height": 179
+          },
+          "delta": {
+            "left": 0,
+            "top": 45,
+            "width": 0,
+            "height": 45
+          },
+          "lines": {
+            "actual": 4
+          },
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "priorityChecklist",
+          "label": "먼저 확인할 항목",
+          "design": {
+            "left": 180,
+            "top": 578,
+            "width": 1080,
+            "height": 195
+          },
+          "impl": {
+            "left": 180,
+            "top": 582,
+            "width": 1080,
+            "height": 192
+          },
+          "delta": {
+            "left": 0,
+            "top": 4,
+            "width": 0,
+            "height": 3
+          },
+          "lines": {
+            "actual": 5
+          },
+          "text": "먼저 확인할 항목이 세 가지를 확인하면 나머지 판단이 빨라집니다1실손 의료비 가입 세대 확인가입 시기에 따라 자기부담금과 보장 범위가 달라집니다2골절·상해수술비 가입 여부 확인정액 담보는 가입한 특약 수만큼 각각 검토됩니다3치료 후 무릎 운동 범위 확인후유장해는 치료 종결 후에 판단할 수 있습니다",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": true
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 45,
+      "pass": false
+    },
+    {
+      "id": "M02",
+      "label": "M02 보상 진단 결과 — 실손 의료비 탭 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 2348
+      },
+      "designExport": "M02-보상-진단-결과.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 72,
+          "left": 20,
+          "width": 350,
+          "height": 360,
+          "cols": [
+            {
+              "left": 20,
+              "top": 72,
+              "width": 350,
+              "height": 360
+            }
+          ]
+        },
+        {
+          "top": 448,
+          "left": 20,
+          "width": 350,
+          "height": 229,
+          "cols": [
+            {
+              "left": 20,
+              "top": 448,
+              "width": 350,
+              "height": 229
+            }
+          ]
+        },
+        {
+          "top": 693,
+          "left": 20,
+          "width": 350,
+          "height": 214,
+          "cols": [
+            {
+              "left": 20,
+              "top": 693,
+              "width": 350,
+              "height": 214
+            }
+          ]
+        },
+        {
+          "top": 923,
+          "left": 20,
+          "width": 350,
+          "height": 40,
+          "cols": [
+            {
+              "left": 20,
+              "top": 923,
+              "width": 350,
+              "height": 40
+            }
+          ]
+        },
+        {
+          "top": 979,
+          "left": 20,
+          "width": 341,
+          "height": 23,
+          "cols": [
+            {
+              "left": 20,
+              "top": 979,
+              "width": 104,
+              "height": 23
+            },
+            {
+              "left": 323,
+              "top": 986,
+              "width": 38,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1017,
+          "left": 20,
+          "width": 342,
+          "height": 33,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1017,
+              "width": 342,
+              "height": 33
+            }
+          ]
+        },
+        {
+          "top": 1064,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1064,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1289,
+          "left": 20,
+          "width": 350,
+          "height": 194,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1289,
+              "width": 350,
+              "height": 194
+            }
+          ]
+        },
+        {
+          "top": 1493,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1493,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1718,
+          "left": 20,
+          "width": 350,
+          "height": 231,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1718,
+              "width": 350,
+              "height": 231
+            }
+          ]
+        },
+        {
+          "top": 1965,
+          "left": 20,
+          "width": 350,
+          "height": 94,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1965,
+              "width": 350,
+              "height": 94
+            }
+          ]
+        },
+        {
+          "top": 2075,
+          "left": 20,
+          "width": 350,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 2098,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2098,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 119,
+              "top": 2098,
+              "width": 42,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 2098,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 2129,
+          "left": 20,
+          "width": 135,
+          "height": 10,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2129,
+              "width": 135,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 2252,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 2269,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 2269,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 2290,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2290,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 2202,
+          "cols": [
+            {
+              "left": 0,
+              "top": 51,
+              "width": 390,
+              "height": 2202
+            }
+          ]
+        },
+        {
+          "top": 2269,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 2269,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 2290,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2290,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 2348,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 0.957931638913234
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 0.6660823838737949
+        }
+      },
+      "elements": [
+        {
+          "key": "inputSummary",
+          "label": "입력하신 사고 내용 카드",
+          "design": {
+            "left": 0,
+            "top": 51,
+            "width": 390,
+            "height": 1
+          },
+          "impl": {
+            "left": 20,
+            "top": 87,
+            "width": 350,
+            "height": 282
+          },
+          "delta": {
+            "left": 20,
+            "top": 36,
+            "width": 40,
+            "height": 281
+          },
+          "lines": {
+            "actual": 7
+          },
+          "text": "입력하신 사고 내용무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "aggregateBanner",
+          "label": "집계 배너",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 385,
+            "width": 350,
+            "height": 168
+          },
+          "delta": {},
+          "lines": {
+            "actual": 5
+          },
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "priorityChecklist",
+          "label": "먼저 확인할 항목",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 569,
+            "width": 350,
+            "height": 396
+          },
+          "delta": {},
+          "lines": {
+            "actual": 11
+          },
+          "text": "먼저 확인할 항목이 세 가지를 확인하면 나머지 판단이 빨라집니다1실손 의료비 가입 세대 확인가입 시기에 따라 자기부담금과 보장 범위가 달라집니다2골절·상해수술비 가입 여부 확인정액 담보는 가입한 특약 수만큼 각각 검토됩니다3치료 후 무릎 운동 범위 확인후유장해는 치료 종결 후에 판단할 수 있습니다",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "categoryTabs",
+          "label": "카테고리 탭",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 993,
+            "width": 350,
+            "height": 31
+          },
+          "delta": {},
+          "lines": {
+            "actual": 1
+          },
+          "text": "실손 의료비 2정액 담보 3후유장해 1특별 보상 1",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 281,
+      "pass": false
+    },
+    {
+      "id": "M02-B",
+      "label": "M02-B 결과 — 정액 담보 탭 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 3169
+      },
+      "designExport": "M02-B-결과-정액-담보-탭.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 0,
+          "left": 0,
+          "width": 390,
+          "height": 51,
+          "cols": [
+            {
+              "left": 0,
+              "top": 0,
+              "width": 390,
+              "height": 51
+            }
+          ]
+        },
+        {
+          "top": 73,
+          "left": 21,
+          "width": 348,
+          "height": 358,
+          "cols": [
+            {
+              "left": 21,
+              "top": 73,
+              "width": 348,
+              "height": 358
+            }
+          ]
+        },
+        {
+          "top": 449,
+          "left": 21,
+          "width": 348,
+          "height": 227,
+          "cols": [
+            {
+              "left": 21,
+              "top": 449,
+              "width": 348,
+              "height": 227
+            }
+          ]
+        },
+        {
+          "top": 693,
+          "left": 20,
+          "width": 350,
+          "height": 214,
+          "cols": [
+            {
+              "left": 20,
+              "top": 693,
+              "width": 350,
+              "height": 214
+            }
+          ]
+        },
+        {
+          "top": 924,
+          "left": 21,
+          "width": 348,
+          "height": 38,
+          "cols": [
+            {
+              "left": 21,
+              "top": 924,
+              "width": 348,
+              "height": 38
+            }
+          ]
+        },
+        {
+          "top": 979,
+          "left": 20,
+          "width": 341,
+          "height": 23,
+          "cols": [
+            {
+              "left": 20,
+              "top": 979,
+              "width": 91,
+              "height": 23
+            },
+            {
+              "left": 323,
+              "top": 986,
+              "width": 37,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1017,
+          "left": 21,
+          "width": 264,
+          "height": 13,
+          "cols": [
+            {
+              "left": 21,
+              "top": 1017,
+              "width": 263,
+              "height": 13
+            }
+          ]
+        },
+        {
+          "top": 1043,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1043,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1268,
+          "left": 20,
+          "width": 350,
+          "height": 194,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1268,
+              "width": 350,
+              "height": 194
+            }
+          ]
+        },
+        {
+          "top": 1472,
+          "left": 20,
+          "width": 350,
+          "height": 194,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1472,
+              "width": 350,
+              "height": 194
+            }
+          ]
+        },
+        {
+          "top": 1676,
+          "left": 20,
+          "width": 350,
+          "height": 194,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1676,
+              "width": 350,
+              "height": 194
+            }
+          ]
+        },
+        {
+          "top": 1880,
+          "left": 20,
+          "width": 350,
+          "height": 194,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1880,
+              "width": 350,
+              "height": 194
+            }
+          ]
+        },
+        {
+          "top": 2084,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2084,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 2309,
+          "left": 20,
+          "width": 350,
+          "height": 236,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2309,
+              "width": 350,
+              "height": 236
+            }
+          ]
+        },
+        {
+          "top": 2556,
+          "left": 21,
+          "width": 348,
+          "height": 213,
+          "cols": [
+            {
+              "left": 21,
+              "top": 2556,
+              "width": 348,
+              "height": 213
+            }
+          ]
+        },
+        {
+          "top": 2786,
+          "left": 20,
+          "width": 350,
+          "height": 94,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2786,
+              "width": 350,
+              "height": 94
+            }
+          ]
+        },
+        {
+          "top": 2919,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 2919,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 120,
+              "top": 2919,
+              "width": 41,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 2919,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 2950,
+          "left": 21,
+          "width": 134,
+          "height": 10,
+          "cols": [
+            {
+              "left": 21,
+              "top": 2950,
+              "width": 130,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 3074,
+          "left": 0,
+          "width": 390,
+          "height": 95,
+          "cols": [
+            {
+              "left": 0,
+              "top": 3074,
+              "width": 390,
+              "height": 95
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 0,
+          "left": 0,
+          "width": 390,
+          "height": 3169,
+          "cols": [
+            {
+              "left": 0,
+              "top": 0,
+              "width": 390,
+              "height": 3169
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 3169,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 0.969062197873026
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 0.5546245568804383
+        }
+      },
+      "elements": [
+        {
+          "key": "inputSummary",
+          "label": "입력하신 사고 내용 카드",
+          "design": {
+            "left": 21,
+            "top": 73,
+            "width": 348,
+            "height": 358
+          },
+          "impl": {
+            "left": 20,
+            "top": 87,
+            "width": 350,
+            "height": 282
+          },
+          "delta": {
+            "left": 1,
+            "top": 14,
+            "width": 2,
+            "height": 76
+          },
+          "lines": {
+            "actual": 7
+          },
+          "text": "입력하신 사고 내용무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "aggregateBanner",
+          "label": "집계 배너",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 385,
+            "width": 350,
+            "height": 168
+          },
+          "delta": {},
+          "lines": {
+            "actual": 5
+          },
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "priorityChecklist",
+          "label": "먼저 확인할 항목",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 569,
+            "width": 350,
+            "height": 396
+          },
+          "delta": {},
+          "lines": {
+            "actual": 11
+          },
+          "text": "먼저 확인할 항목이 세 가지를 확인하면 나머지 판단이 빨라집니다1실손 의료비 가입 세대 확인가입 시기에 따라 자기부담금과 보장 범위가 달라집니다2골절·상해수술비 가입 여부 확인정액 담보는 가입한 특약 수만큼 각각 검토됩니다3치료 후 무릎 운동 범위 확인후유장해는 치료 종결 후에 판단할 수 있습니다",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "categoryTabs",
+          "label": "카테고리 탭",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 993,
+            "width": 350,
+            "height": 31
+          },
+          "delta": {},
+          "lines": {
+            "actual": 1
+          },
+          "text": "실손 의료비 2정액 담보 3후유장해 1특별 보상 1",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 76,
+      "pass": false
+    },
+    {
+      "id": "M02-C",
+      "label": "M02-C 결과 — 후유장해 탭 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 1903
+      },
+      "designExport": "M02-C-결과-후유장해-탭.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 72,
+          "left": 20,
+          "width": 350,
+          "height": 360,
+          "cols": [
+            {
+              "left": 20,
+              "top": 72,
+              "width": 350,
+              "height": 360
+            }
+          ]
+        },
+        {
+          "top": 448,
+          "left": 20,
+          "width": 350,
+          "height": 229,
+          "cols": [
+            {
+              "left": 20,
+              "top": 448,
+              "width": 350,
+              "height": 229
+            }
+          ]
+        },
+        {
+          "top": 693,
+          "left": 20,
+          "width": 350,
+          "height": 214,
+          "cols": [
+            {
+              "left": 20,
+              "top": 693,
+              "width": 350,
+              "height": 214
+            }
+          ]
+        },
+        {
+          "top": 923,
+          "left": 20,
+          "width": 350,
+          "height": 40,
+          "cols": [
+            {
+              "left": 20,
+              "top": 923,
+              "width": 350,
+              "height": 40
+            }
+          ]
+        },
+        {
+          "top": 979,
+          "left": 20,
+          "width": 341,
+          "height": 23,
+          "cols": [
+            {
+              "left": 20,
+              "top": 979,
+              "width": 87,
+              "height": 23
+            },
+            {
+              "left": 323,
+              "top": 986,
+              "width": 38,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1017,
+          "left": 21,
+          "width": 343,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 1017,
+              "width": 343,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1038,
+          "left": 21,
+          "width": 25,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 1038,
+              "width": 25,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1064,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1064,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1289,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1289,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1520,
+          "left": 20,
+          "width": 350,
+          "height": 94,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1520,
+              "width": 350,
+              "height": 94
+            }
+          ]
+        },
+        {
+          "top": 1630,
+          "left": 20,
+          "width": 350,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 1653,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1653,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 119,
+              "top": 1653,
+              "width": 42,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 1653,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 1684,
+          "left": 20,
+          "width": 135,
+          "height": 10,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1684,
+              "width": 135,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1807,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 1824,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 1824,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1845,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1845,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 1757,
+          "cols": [
+            {
+              "left": 0,
+              "top": 51,
+              "width": 390,
+              "height": 1757
+            }
+          ]
+        },
+        {
+          "top": 1824,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 1824,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1845,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1845,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 1903,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 0.9477408818726184
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 0.7441480675013609
+        }
+      },
+      "elements": [
+        {
+          "key": "inputSummary",
+          "label": "입력하신 사고 내용 카드",
+          "design": {
+            "left": 20,
+            "top": 72,
+            "width": 350,
+            "height": 360
+          },
+          "impl": {
+            "left": 20,
+            "top": 87,
+            "width": 350,
+            "height": 282
+          },
+          "delta": {
+            "left": 0,
+            "top": 15,
+            "width": 0,
+            "height": 78
+          },
+          "lines": {
+            "actual": 7
+          },
+          "text": "입력하신 사고 내용무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "aggregateBanner",
+          "label": "집계 배너",
+          "design": {
+            "left": 20,
+            "top": 448,
+            "width": 350,
+            "height": 229
+          },
+          "impl": {
+            "left": 20,
+            "top": 385,
+            "width": 350,
+            "height": 168
+          },
+          "delta": {
+            "left": 0,
+            "top": 63,
+            "width": 0,
+            "height": 61
+          },
+          "lines": {
+            "actual": 5
+          },
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "priorityChecklist",
+          "label": "먼저 확인할 항목",
+          "design": {
+            "left": 20,
+            "top": 693,
+            "width": 350,
+            "height": 214
+          },
+          "impl": {
+            "left": 20,
+            "top": 569,
+            "width": 350,
+            "height": 396
+          },
+          "delta": {
+            "left": 0,
+            "top": 124,
+            "width": 0,
+            "height": 182
+          },
+          "lines": {
+            "actual": 11
+          },
+          "text": "먼저 확인할 항목이 세 가지를 확인하면 나머지 판단이 빨라집니다1실손 의료비 가입 세대 확인가입 시기에 따라 자기부담금과 보장 범위가 달라집니다2골절·상해수술비 가입 여부 확인정액 담보는 가입한 특약 수만큼 각각 검토됩니다3치료 후 무릎 운동 범위 확인후유장해는 치료 종결 후에 판단할 수 있습니다",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "categoryTabs",
+          "label": "카테고리 탭",
+          "design": {
+            "left": 20,
+            "top": 923,
+            "width": 350,
+            "height": 40
+          },
+          "impl": {
+            "left": 20,
+            "top": 993,
+            "width": 350,
+            "height": 31
+          },
+          "delta": {
+            "left": 0,
+            "top": 70,
+            "width": 0,
+            "height": 9
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "실손 의료비 2정액 담보 3후유장해 1특별 보상 1",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 182,
+      "pass": false
+    },
+    {
+      "id": "M02-D",
+      "label": "M02-D 결과 — 특별 보상 탭 (Mobile)",
+      "platform": "mobile",
+      "tolerance": 4,
+      "viewport": {
+        "width": 390,
+        "height": 1882
+      },
+      "designExport": "M02-D-결과-특별-보상-탭.png",
+      "nextjsPortalCount": 0,
+      "designBands": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 72,
+          "left": 20,
+          "width": 350,
+          "height": 360,
+          "cols": [
+            {
+              "left": 20,
+              "top": 72,
+              "width": 350,
+              "height": 360
+            }
+          ]
+        },
+        {
+          "top": 448,
+          "left": 20,
+          "width": 350,
+          "height": 229,
+          "cols": [
+            {
+              "left": 20,
+              "top": 448,
+              "width": 350,
+              "height": 229
+            }
+          ]
+        },
+        {
+          "top": 693,
+          "left": 20,
+          "width": 350,
+          "height": 214,
+          "cols": [
+            {
+              "left": 20,
+              "top": 693,
+              "width": 350,
+              "height": 214
+            }
+          ]
+        },
+        {
+          "top": 923,
+          "left": 20,
+          "width": 350,
+          "height": 40,
+          "cols": [
+            {
+              "left": 20,
+              "top": 923,
+              "width": 350,
+              "height": 40
+            }
+          ]
+        },
+        {
+          "top": 979,
+          "left": 20,
+          "width": 341,
+          "height": 23,
+          "cols": [
+            {
+              "left": 20,
+              "top": 979,
+              "width": 91,
+              "height": 23
+            },
+            {
+              "left": 323,
+              "top": 986,
+              "width": 38,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1017,
+          "left": 21,
+          "width": 323,
+          "height": 12,
+          "cols": [
+            {
+              "left": 21,
+              "top": 1017,
+              "width": 323,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1043,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1043,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1268,
+          "left": 20,
+          "width": 350,
+          "height": 215,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1268,
+              "width": 350,
+              "height": 215
+            }
+          ]
+        },
+        {
+          "top": 1499,
+          "left": 20,
+          "width": 350,
+          "height": 94,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1499,
+              "width": 350,
+              "height": 94
+            }
+          ]
+        },
+        {
+          "top": 1609,
+          "left": 20,
+          "width": 350,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 1632,
+          "left": 20,
+          "width": 200,
+          "height": 11,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1632,
+              "width": 84,
+              "height": 11
+            },
+            {
+              "left": 119,
+              "top": 1632,
+              "width": 42,
+              "height": 11
+            },
+            {
+              "left": 176,
+              "top": 1632,
+              "width": 44,
+              "height": 11
+            }
+          ]
+        },
+        {
+          "top": 1663,
+          "left": 20,
+          "width": 135,
+          "height": 10,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1663,
+              "width": 135,
+              "height": 10
+            }
+          ]
+        },
+        {
+          "top": 1786,
+          "left": 0,
+          "width": 390,
+          "height": 1,
+          "cols": []
+        },
+        {
+          "top": 1803,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 1803,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1824,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1824,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "designBandsLow": [
+        {
+          "top": 11,
+          "left": 18,
+          "width": 341,
+          "height": 30,
+          "cols": [
+            {
+              "left": 18,
+              "top": 11,
+              "width": 91,
+              "height": 30
+            },
+            {
+              "left": 341,
+              "top": 17,
+              "width": 18,
+              "height": 18
+            }
+          ]
+        },
+        {
+          "top": 51,
+          "left": 0,
+          "width": 390,
+          "height": 1736,
+          "cols": [
+            {
+              "left": 0,
+              "top": 51,
+              "width": 390,
+              "height": 1736
+            }
+          ]
+        },
+        {
+          "top": 1803,
+          "left": 80,
+          "width": 231,
+          "height": 12,
+          "cols": [
+            {
+              "left": 80,
+              "top": 1803,
+              "width": 231,
+              "height": 12
+            }
+          ]
+        },
+        {
+          "top": 1824,
+          "left": 20,
+          "width": 350,
+          "height": 48,
+          "cols": [
+            {
+              "left": 20,
+              "top": 1824,
+              "width": 350,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "background": {
+        "probe": {
+          "top": 66,
+          "bottom": 1882,
+          "minCoverage": 0.99
+        },
+        "design": {
+          "color": "#f4f6f8",
+          "coverage": 0.947136563876652
+        },
+        "impl": {
+          "color": "#f4f6f8",
+          "coverage": 0.6734581497797357
+        }
+      },
+      "elements": [
+        {
+          "key": "inputSummary",
+          "label": "입력하신 사고 내용 카드",
+          "design": {
+            "left": 20,
+            "top": 72,
+            "width": 350,
+            "height": 360
+          },
+          "impl": {
+            "left": 20,
+            "top": 87,
+            "width": 350,
+            "height": 282
+          },
+          "delta": {
+            "left": 0,
+            "top": 15,
+            "width": 0,
+            "height": 78
+          },
+          "lines": {
+            "actual": 7
+          },
+          "text": "입력하신 사고 내용무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "aggregateBanner",
+          "label": "집계 배너",
+          "design": {
+            "left": 20,
+            "top": 448,
+            "width": 350,
+            "height": 229
+          },
+          "impl": {
+            "left": 20,
+            "top": 385,
+            "width": 350,
+            "height": 168
+          },
+          "delta": {
+            "left": 0,
+            "top": 63,
+            "width": 0,
+            "height": 61
+          },
+          "lines": {
+            "actual": 5
+          },
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "priorityChecklist",
+          "label": "먼저 확인할 항목",
+          "design": null,
+          "impl": {
+            "left": 20,
+            "top": 569,
+            "width": 350,
+            "height": 396
+          },
+          "delta": {},
+          "lines": {
+            "actual": 11
+          },
+          "text": "먼저 확인할 항목이 세 가지를 확인하면 나머지 판단이 빨라집니다1실손 의료비 가입 세대 확인가입 시기에 따라 자기부담금과 보장 범위가 달라집니다2골절·상해수술비 가입 여부 확인정액 담보는 가입한 특약 수만큼 각각 검토됩니다3치료 후 무릎 운동 범위 확인후유장해는 치료 종결 후에 판단할 수 있습니다",
+          "backgroundColor": "rgb(237, 231, 255)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        },
+        {
+          "key": "categoryTabs",
+          "label": "카테고리 탭",
+          "design": {
+            "left": 20,
+            "top": 923,
+            "width": 350,
+            "height": 40
+          },
+          "impl": {
+            "left": 20,
+            "top": 993,
+            "width": 350,
+            "height": 31
+          },
+          "delta": {
+            "left": 0,
+            "top": 70,
+            "width": 0,
+            "height": 9
+          },
+          "lines": {
+            "actual": 1
+          },
+          "text": "실손 의료비 2정액 담보 3후유장해 1특별 보상 1",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "pass": false
+        }
+      ],
+      "semantic": [],
+      "maxDelta": 78,
+      "pass": false
     }
   ],
-  "findings": []
+  "findings": [
+    {
+      "screen": "02",
+      "element": "배경 프로브(y 70~3089, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 67.31% < 기준 99.00% (배경이 아닌 색이 32.69% 섞여 있습니다)."
+    },
+    {
+      "screen": "02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "top 디자인 96 vs 구현 107",
+      "delta": 11,
+      "tolerance": 8
+    },
+    {
+      "screen": "02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "height 디자인 218 vs 구현 248",
+      "delta": 30,
+      "tolerance": 8
+    },
+    {
+      "screen": "02",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "top 디자인 334 vs 구현 379",
+      "delta": 45,
+      "tolerance": 8
+    },
+    {
+      "screen": "02",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "height 디자인 224 vs 구현 179",
+      "delta": 45,
+      "tolerance": 8
+    },
+    {
+      "screen": "M02",
+      "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 95.79% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
+    },
+    {
+      "screen": "M02",
+      "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 66.61% < 기준 99.00% (배경이 아닌 색이 33.39% 섞여 있습니다)."
+    },
+    {
+      "screen": "M02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "left 디자인 0 vs 구현 20",
+      "delta": 20,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "top 디자인 51 vs 구현 87",
+      "delta": 36,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "width 디자인 390 vs 구현 350",
+      "delta": 40,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "height 디자인 1 vs 구현 282",
+      "delta": 281,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02",
+      "element": "집계 배너",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈288 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+    },
+    {
+      "screen": "M02",
+      "element": "먼저 확인할 항목",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈411 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+    },
+    {
+      "screen": "M02",
+      "element": "카테고리 탭",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈562 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=448)."
+    },
+    {
+      "screen": "M02-B",
+      "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 96.91% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
+    },
+    {
+      "screen": "M02-B",
+      "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 55.46% < 기준 99.00% (배경이 아닌 색이 44.54% 섞여 있습니다)."
+    },
+    {
+      "screen": "M02-B",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "top 디자인 73 vs 구현 87",
+      "delta": 14,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-B",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "height 디자인 358 vs 구현 282",
+      "delta": 76,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-B",
+      "element": "집계 배너",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈333 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=449)."
+    },
+    {
+      "screen": "M02-B",
+      "element": "먼저 확인할 항목",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈483 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=449)."
+    },
+    {
+      "screen": "M02-B",
+      "element": "카테고리 탭",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈658 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=693)."
+    },
+    {
+      "screen": "M02-C",
+      "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 94.77% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
+    },
+    {
+      "screen": "M02-C",
+      "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 74.41% < 기준 99.00% (배경이 아닌 색이 25.59% 섞여 있습니다)."
+    },
+    {
+      "screen": "M02-C",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "top 디자인 72 vs 구현 87",
+      "delta": 15,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "height 디자인 360 vs 구현 282",
+      "delta": 78,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "top 디자인 448 vs 구현 385",
+      "delta": 63,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "height 디자인 229 vs 구현 168",
+      "delta": 61,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "먼저 확인할 항목",
+      "kind": "metric",
+      "detail": "top 디자인 693 vs 구현 569",
+      "delta": 124,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "먼저 확인할 항목",
+      "kind": "metric",
+      "detail": "height 디자인 214 vs 구현 396",
+      "delta": 182,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "top 디자인 923 vs 구현 993",
+      "delta": 70,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-C",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "height 디자인 40 vs 구현 31",
+      "delta": 9,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 94.71% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
+    },
+    {
+      "screen": "M02-D",
+      "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
+      "kind": "background",
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 67.35% < 기준 99.00% (배경이 아닌 색이 32.65% 섞여 있습니다)."
+    },
+    {
+      "screen": "M02-D",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "top 디자인 72 vs 구현 87",
+      "delta": 15,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "입력하신 사고 내용 카드",
+      "kind": "metric",
+      "detail": "height 디자인 360 vs 구현 282",
+      "delta": 78,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "top 디자인 448 vs 구현 385",
+      "delta": 63,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "집계 배너",
+      "kind": "metric",
+      "detail": "height 디자인 229 vs 구현 168",
+      "delta": 61,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "먼저 확인할 항목",
+      "kind": "missing",
+      "detail": "디자인 이미지에서 top≈658 부근의 밴드를 찾지 못했습니다(가장 가까운 밴드 top=693)."
+    },
+    {
+      "screen": "M02-D",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "top 디자인 923 vs 구현 993",
+      "delta": 70,
+      "tolerance": 4
+    },
+    {
+      "screen": "M02-D",
+      "element": "카테고리 탭",
+      "kind": "metric",
+      "detail": "height 디자인 40 vs 구현 31",
+      "delta": 9,
+      "tolerance": 4
+    }
+  ]
 }

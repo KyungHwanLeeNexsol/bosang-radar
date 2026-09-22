@@ -1,6 +1,16 @@
 # 프로젝트 구조
 
-> 최종 수정: 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6 — § 현재 구조를
+> 최종 수정: 2026-09-22 (SPEC-B2C-RESULT-001 M6 — ② 보상 진단 결과(02)
+> 구현 완료 반영. `app/result/page.tsx`·`components/result/*`(11개
+> 컴포넌트)·`lib/diagnosis/`(types·schema·aggregate·handoff·flags·
+> fixtures/fracture-case)가 신설됐다 — 아래 § 목표 구조가 제안했던
+> `app/(diagnosis)/result/page.tsx`·`lib/coverage/` 경로는 채택되지
+> 않았고, SPEC-B2C-DIAGNOSIS-001(01)이 먼저 확정한 `app/page.tsx`
+> 루트 직속 배치(별도 라우트 그룹 없음) + `lib/diagnosis/` 네이밍을
+> 02가 그대로 이어받았다. § 현재 구조(실측) 트리 자체의 전면 재작성은
+> 이 개정에 포함하지 않는다(잔여 위험 — main 브랜치의
+> SPEC-B2C-DIAGNOSIS-001 문서 동기화와 함께 후속 정리 필요). 이전
+> 개정: 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6) — § 현재 구조를
 > M1-M5 삭제 실행 결과에 맞춰 재작성. `app/cases/*`·`app/login/*`·
 > `app/api/**`·`lib/auth/`·`lib/cases/`·`lib/feedback/`·
 > `components/evidence-item.*`·`proxy.ts`·`e2e/`는 삭제되어 트리에서
@@ -173,6 +183,12 @@ Auth·로그인 화면이 이미 삭제됐기 때문) — `scripts/run-e2e.ts`�
 
 > **주의**: 이 절은 코드가 아니라 **문서 수준 제안**이다. 실제 구현 시
 > 라우트 그룹 이름, 파일 위치는 담당 SPEC에서 재조정될 수 있다.
+> **① 01(질문 입력)·② 02(보상 진단 결과)는 이 제안과 다른 실제 경로로
+> 이미 구현이 완료됐다** — `app/(diagnosis)/` 그룹 없이 `app/page.tsx`·
+> `app/result/page.tsx`를 루트에 직접 두고, `lib/coverage/` 대신
+> `lib/diagnosis/`를 썼다(SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001).
+> 아래 트리는 ③ 03(상담 신청)이 아직 미구현인 부분에 대해서만 유효한
+> 제안으로 남는다.
 > 2026-09-17 재확인으로 기존 B2B 코드(`app/cases/*` 등)는 **삭제(완전
 > 대체)**로 방향이 확정됐다 — 아래는 삭제 이후를 가정한 스케치이며,
 > `(diagnosis)` 같은 별도 라우트 그룹 신설도 삭제 후에는 굳이 필요 없이
