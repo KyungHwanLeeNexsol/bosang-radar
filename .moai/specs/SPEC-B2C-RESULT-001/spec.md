@@ -4,7 +4,7 @@ title: "02 보상 진단 결과 (Plan-Phase)"
 version: "0.1.0"
 status: in-progress
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-09-23
 author: Nexsol
 priority: P1
 phase: "v0.18.0 target"

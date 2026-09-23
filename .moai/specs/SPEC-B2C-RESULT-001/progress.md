@@ -144,6 +144,7 @@
 
 - `run_status: review-fixes-pending` — **직전의 `audit-ready-with-debt` 주장은 철회한다.** 독립 검토(2026-09-22)에서 실제 결함(D1 Fact Chip questionId 불일치)과 계약 위반(D4 use-media-query.ts 범위 위반) 및 디자인 대비 UI 누락(D2, 사용자 미승인)이 확인됐다. 이 신호는 D1~D6 수정이 전부 완료되고 재검증될 때까지 `audit-ready-with-debt`로 재전환되지 않는다.
 - 허용되는 debt는 사용자가 명시적으로 승인한 다음 2건뿐이다: ① fixture 담보 7개 유지(15개로 확장 안 함), ② `priorityChecklist` 카드형 유지(컴팩트 목록으로 되돌리지 않음). 그 외 모든 누락·위반은 debt가 아니라 수정 대상이다.
+- **재확인(2026-09-23)**: 위 철회 이후 D1~D6 전 항목이 수정·재검증 완료됐다(아래 "후속 수정 — D1(Fact Chip questionId) + D4", "D2", "D3", "D5", "D6" 5개 하위 섹션 참고 — 모두 orchestrator가 이 세션에서 직접 또는 manager-git 위임을 통해 재확인). 이 재검증 라운드의 증거를 근거로 `run_status`를 **`audit-ready-with-debt`로 재확인**한다(재확인 대상 커밋 `b0ba9a1`, 이 워크트리 기준). 허용되는 debt는 여전히 위에서 사용자가 명시적으로 승인한 정확히 2건(① fixture 담보 7개 유지, ② `priorityChecklist` 카드형 유지)으로 한정되며, 이번 재검증 라운드에서 이 2건에 명확히 귀속되지 않는 다른 편차는 발견되지 않았다. D5에서 확인된 커버리지 재측정 불가(Windows v8 coverage 0/0 버그)는 이 승인된 debt 범위에 포함되지 않는 별도의 **Gap**이다 — debt로 편입하지 않고 아래 D5 섹션에 Gap으로 명시한다.
 
 ### 후속 수정 — D1(Fact Chip questionId) + D4(use-media-query.ts 범위 위반) (2026-09-22)
 
@@ -168,7 +169,32 @@
 - **핵심 발견**: 리뷰가 언급한 "후유장해 중간 페이지 CTA"는 실제로 존재하는 컴포넌트(`result-cta-disability`, D2에서 이미 구현)로 확인돼 체크에 포함됐다. "입력 조건 공개"(`result-input-condition-disclosure`)는 review 전용 `?devFixture=fracture` 진입 경로에서 sessionStorage를 읽지 않아 이 시각 검증 5화면 전부에서 항상 렌더링되지 않는다는 사실이 재확인됐다(D2 Gaps에 이미 기록) — 이번 요청 범위 밖이라 semantic check는 추가하지 않았다(존재하지 않는 이유로 항상 실패하는 체크를 만드는 안티패턴 회피).
 - **Gaps**: D5(커버리지 85%+·prettier·build)/D6(main 병합·PR 갱신)는 아직 미착수.
 
-- 다음 단계: D5(품질 게이트 보완)로 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시).
+- 다음 단계(2026-09-22 작성 당시 기준 — 이후 아래와 같이 갱신됨): D5(품질 게이트 보완)로 계속 진행. `/moai sync`로 넘어가지 않는다(사용자 명시적 지시). **2026-09-23 갱신**: D5·D6 모두 완료됐다(아래 두 하위 섹션 참고). `/moai sync`는 사용자 명시적 지시에 따라 여전히 미실행 상태이며, PR #19는 병합하지 않고 OPEN 상태로 유지한다.
+
+### 후속 수정 — D5(품질 게이트 재측정: 타입체크·린트·포맷·테스트·빌드·E2E·visual-verify) (2026-09-23)
+
+- **Claim**: 이 워크트리(`C:/Users/Nexsol/Documents/bosang-radar/.claude/worktrees/spec-b2c-result-001-d6-merge`)에서 `pnpm install --frozen-lockfile`로 의존성을 정식 설치한 뒤, 커밋 `b0ba9a1` 기준으로 D5(품질 게이트) 전체 항목을 새로 측정했다. 이전에 있었던, 정식 `pnpm install` 이전 애드혹 `npx` 실행에서 `app/layout.tsx`의 `LayoutProps` 오류 1건이 오탐(false positive)으로 보고된 바 있으나, 이는 의존성이 제대로 해석되지 않은 상태에서 나온 결과였고 이번 정식 측정에는 재현되지 않는다.
+- **Evidence**:
+  - `pnpm exec tsc --noEmit -p tsconfig.json` → exit 0, 0 errors.
+  - `pnpm lint`(eslint) → exit 0, 0 errors.
+  - `pnpm format:check`(prettier) → exit 1이나, 실패 대상은 이 SPEC과 무관한 기존 파일 3개뿐(`db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`) — 이 SPEC이 변경한 파일 중 포맷 실패는 0건.
+  - `pnpm test`(vitest, 전체 스위트) → exit 0, **527/527 passed**, 71개 테스트 파일.
+  - `pnpm build` → exit 0. 사전 존재 경고 1건(`instrumentation.ts:33:7`, Edge Runtime 컨텍스트에서의 `process.exit`) — `git diff origin/main -- instrumentation.ts`가 빈 출력임을 확인해 이 파일이 이 SPEC의 변경 대상이 아니며 이 경고가 이 작업으로 새로 발생한 것이 아님을 orchestrator가 직접 확인했다.
+  - `pnpm test:e2e`(Playwright) → exit 0, **20/20 passed**(01-flow 16건 + 02-flow 4건, 01→02 전체 핸드오프 및 `?devFixture=fracture` review 전용 직접 진입 경로 포함).
+  - `pnpm visual:verify` → `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/measurements.json`(generatedAt 2026-09-23T00:49:46Z)에 기록. semantic gate **45/45 PASS**(신규 5화면 전체, element 존재·탭 aria-selected 상태·비활성 카테고리 섹션 DOM 실제 제거·sticky CTA 포지셔닝 검증 포함, 0 fail). 픽셀/배경 지표 체크는 신규 5화면 전부 FAIL(maxΔ 45~182px, 허용 오차 4~8px 초과)이나 기존 10화면은 전부 PASS(허용 오차 내). 45건의 violation은 전부 `(metric)` 또는 `(background)` 라벨이며 `(semantic)` 라벨은 0건 — 즉 누락된 UI 요소로 인한 실패는 없다. 이 픽셀 편차는 §E.2 "사용자 결정 — REQ-B2CRESULT-025 PASS-WITH-DEBT 확정" 섹션에서 이미 사용자 승인을 받은 2건(fixture 담보 7개 유지, priorityChecklist 카드형 유지)으로 전량 귀속됨을 그 섹션에서 이미 확인한 바 있다.
+  - `grep -rn "DIAGNOSIS_ENGINE_READY=true"` — `app/`, `lib/`, `components/`, env 파일 전체 스캔 결과 실제 프로덕션 할당/설정 지점 0건(모두 `@MX:UPGRADE` 코드 주석 내부 언급뿐).
+  - `git diff --check origin/main HEAD` → exit 0, `origin/main` 대비 이 브랜치 diff 전체에서 공백/잔여 충돌 마커 이슈 없음.
+- **Baseline-attribution**: 커밋 `b0ba9a1`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD), 위 전 항목을 이 커밋 기준으로 orchestrator가 이 세션에서 직접 재실행해 확인했다.
+- **Gaps**: **커버리지를 이 커밋에 대해 직접 재측정하지 못했다.** 이 Windows 환경 체크아웃은 `vitest.config.ts` 자체 코드 주석에 기록된 기존 알려진 도구 버그를 재현한다 — v8 coverage가 include/exclude 설정과 무관하게 OS 자체 사유로 0/0을 반환하며, 해당 주석은 Linux/Mac에서는 정상 측정됨을 명시한다. 이 세션에서 3회(범위 제한 실행, 전체 스위트 실행, `.vite` 캐시 삭제 후 재실행) 재현을 확인했고 WSL 등 Linux 대체 환경은 가용하지 않았다. 가장 최근의 실제 측정치는 이 D6 병합 이전(사전 조사 단계, 커밋 `d63d821`)에 얻어진 것이며 — `lib/diagnosis/`, `components/result/`, `app/result/` 아래 코드는 D6 병합에서 변경되지 않았으므로(D6은 `.moai/project/product.md`/`README.md`/`design/MIGRATION-PLAN.md`만 변경) 이 수치가 여전히 유효할 가능성이 높으나, **이것은 `b0ba9a1`에 대한 직접 재측정이 아니라 이전 커밋에서의 carry-over 수치이므로 Claim이 아닌 Gap으로 명시한다**(참고용 수치: Statements 96.98% / Branches 85.03% / Functions 91.3% / Lines 96.91%, 모두 ≥85%, Branches가 1.56pp 여유로 가장 타이트).
+- **Residual-risk**: 커버리지 Gap은 CI(Linux 환경으로 추정)에서 재측정 시 해소될 가능성이 높으나, 이 워크트리 세션에서는 독립적으로 확인되지 않은 채 남아 있다. `pnpm format:check`의 3개 무관 파일 실패는 이 SPEC 범위 밖이며 이번 작업으로 새로 발생하지 않았음을 확인했으나, 별도로 정리되지 않는 한 계속 실패로 남는다.
+
+### 후속 수정 — D6(main 동기화 + PR 갱신) (2026-09-23)
+
+- **Claim**: 이 SPEC의 격리 워크트리 내에서 manager-git 위임을 통해 `origin/main`(커밋 `ad4e2de`)을 `plan/SPEC-B2C-RESULT-001` 브랜치에 병합했다 — Main-Checkout Branch Guard 원칙에 따라 primary checkout의 브랜치 상태는 전혀 건드리지 않았다. 병합 커밋 `b0ba9a1`. `.moai/project/product.md`에서만 2개 블록이 충돌했다: ① "최종 수정" 헤더 노트, ② §Roadmap A 섹션 — 양쪽 내용을 보존하는 방식으로 해결했다(이 브랜치의 SPEC-B2C-RESULT-001 구현 완료 서사를 주 스레드로 유지하고, origin/main의 SPEC-B2C-DIAGNOSIS-001 문서 동기화 내용을 "이후 main에 별도로 반영된 내용"으로 뒤에 추가; §Roadmap A는 HEAD의 더 최신인 "① + ② 모두 구현 완료" 상태를 origin/main의 stale한 "② plan-phase 진입" 상태보다 우선했다). `README.md`/`design/MIGRATION-PLAN.md`는 충돌 없이 자동 병합됐다. PR #19의 제목/본문을 실제 범위(plan+run-phase 결합, 프로세스 결함을 투명하게 공개, 사용자 승인 debt 2건을 원문 그대로 명시)에 맞춰 갱신했다.
+- **Evidence**: `gh pr view 19`(gh 전체 경로 `"/c/Program Files/GitHub CLI/gh.exe"`) → `state: OPEN`, `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN` — 아직 병합되지 않았음을 확인. `git log`/`git show --stat b0ba9a1`로 병합 커밋과 충돌 해결 diff를 직접 확인했다.
+- **Baseline-attribution**: 커밋 `b0ba9a1`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD), `gh pr view 19` 및 `git log`/`git show`는 orchestrator가 이 세션에서 직접 재실행해 확인했다.
+- **Gaps**: 없음 — 이 항목에 대해 별도로 남은 미검증 사항은 확인되지 않았다.
+- **Residual-risk**: PR #19는 사용자의 명시적 지시에 따라 OPEN 상태로 유지되며 병합하지 않는다. 병합 전까지 이 브랜치와 `origin/main`이 다시 벌어질 가능성은 향후 세션에서 지속적으로 모니터링이 필요한 잔여 위험이다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
