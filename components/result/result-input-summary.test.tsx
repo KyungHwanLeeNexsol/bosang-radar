@@ -69,9 +69,9 @@ describe("components/result/ResultInputSummary", () => {
 
     const disclosure = container.querySelector('[data-testid="result-input-condition-disclosure"]');
     expect(disclosure).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent
-    ).toBe("무릎·아래다리의 골절");
+    expect(container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent).toBe(
+      "무릎·아래다리의 골절"
+    );
   });
 
   it("answeredFacts가 비어도 입력 조건 disclosure는 그대로 표시된다", () => {

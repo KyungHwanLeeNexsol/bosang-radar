@@ -73,7 +73,9 @@ describe("components/result/ResultInputConditionDisclosure", () => {
       root.render(<ResultInputConditionDisclosure rawInput="무릎·아래다리의 골절" answers={{}} />);
     });
 
-    expect(container.querySelector('[data-testid="result-input-condition-disclosure"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="result-input-condition-disclosure"]')
+    ).not.toBeNull();
     expect(container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent).toBe(
       "무릎·아래다리의 골절"
     );

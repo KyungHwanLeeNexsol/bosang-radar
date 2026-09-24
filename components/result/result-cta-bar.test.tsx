@@ -112,8 +112,6 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     // SPEC-B2C-RESULT-001 D3(후속 리뷰) — 입력 조건 disclosure는
     // result-input-summary.tsx로 옮겨졌으므로 이 컴포넌트는 더 이상
     // 렌더링하지 않는다(result-input-summary.test.tsx가 새 위치를 검증한다).
-    expect(
-      container.querySelector('[data-testid="result-input-condition-disclosure"]')
-    ).toBeNull();
+    expect(container.querySelector('[data-testid="result-input-condition-disclosure"]')).toBeNull();
   });
 });
