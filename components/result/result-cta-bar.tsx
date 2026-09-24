@@ -109,21 +109,23 @@ export function ResultTopBarCta() {
         <span className="text-base font-extrabold tracking-tight text-bora-ink">BORA</span>
       </div>
 
-      <div className="flex flex-col items-end gap-1">
+      <div className="relative flex items-center">
         <button
           {...buttonProps}
           aria-label="카카오톡 상담"
           data-testid="result-cta-top"
-          className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1.5 text-body-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
+          className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1 text-label-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
         >
           <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
           <span className="hidden md:inline">카카오톡 상담</span>
         </button>
+        {/* SPEC-B2C-RESULT-001 D3(2차) — absolute로 빼서 메시지 유무와 무관하게
+            탑바 높이(=design.md 02 목업 기준 56px)에 전혀 영향을 주지 않는다. */}
         <span
           role="status"
           aria-live="polite"
           data-testid="result-cta-top-notice"
-          className={noticeClassName(message, "text-label-s text-bora-warn")}
+          className="absolute right-0 top-full mt-1 whitespace-nowrap text-label-s text-bora-warn"
         >
           {message ?? ""}
         </span>

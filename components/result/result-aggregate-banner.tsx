@@ -20,7 +20,8 @@ export function ResultAggregateBanner({ aggregate }: ResultAggregateBannerProps)
         사고 내용으로 {aggregate.total}개 담보를 분석했습니다
       </h2>
       <p className="mt-1 text-label-s text-bora-ink-3 md:text-body-s">
-        세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.
+        세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고
+        결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2 md:gap-3">
         <div data-testid="result-aggregate-review" className="rounded-[10px] bg-bora-ok-soft p-3">

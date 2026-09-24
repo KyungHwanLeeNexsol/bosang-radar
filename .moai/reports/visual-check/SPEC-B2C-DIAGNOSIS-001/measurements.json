@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T04:45:05.356Z",
+  "generatedAt": "2026-09-24T06:33:31.848Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -6381,7 +6381,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7354256376283538
+          "coverage": 0.7380755216959258
         }
       },
       "elements": [
@@ -6396,24 +6396,24 @@
           },
           "impl": {
             "left": 180,
-            "top": 107,
+            "top": 97,
             "width": 1080,
-            "height": 212
+            "height": 226
           },
           "delta": {
             "left": 0,
-            "top": 11,
+            "top": 1,
             "width": 0,
-            "height": 6
+            "height": 8
           },
           "lines": {
             "actual": 17
           },
-          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음",
+          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "aggregateBanner",
@@ -6426,20 +6426,20 @@
           },
           "impl": {
             "left": 180,
-            "top": 343,
+            "top": 347,
             "width": 1080,
-            "height": 180
+            "height": 179
           },
           "delta": {
             "left": 0,
-            "top": 9,
+            "top": 13,
             "width": 0,
-            "height": 44
+            "height": 45
           },
           "lines": {
             "actual": 4
           },
-          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고 결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -6456,13 +6456,13 @@
           },
           "impl": {
             "left": 180,
-            "top": 547,
+            "top": 550,
             "width": 1080,
             "height": 192
           },
           "delta": {
             "left": 0,
-            "top": 31,
+            "top": 28,
             "width": 0,
             "height": 3
           },
@@ -6556,7 +6556,7 @@
           "pass": true
         }
       ],
-      "maxDelta": 44,
+      "maxDelta": 45,
       "pass": false
     },
     {
@@ -6917,7 +6917,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.751205083260298
+          "coverage": 0.7805652936021035
         }
       },
       "elements": [
@@ -6932,20 +6932,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 87,
+            "top": 81,
             "width": 350,
-            "height": 246
+            "height": 303
           },
           "delta": {
             "left": 0,
-            "top": 15,
+            "top": 9,
             "width": 0,
-            "height": 114
+            "height": 57
           },
           "lines": {
-            "actual": 18
+            "actual": 19
           },
-          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음",
+          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -6962,20 +6962,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 349,
+            "top": 400,
             "width": 350,
-            "height": 169
+            "height": 185
           },
           "delta": {
             "left": 0,
-            "top": 99,
+            "top": 48,
             "width": 0,
-            "height": 60
+            "height": 44
           },
           "lines": {
-            "actual": 5
+            "actual": 6
           },
-          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고 결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -6992,13 +6992,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 534,
+            "top": 601,
             "width": 350,
             "height": 396
           },
           "delta": {
             "left": 0,
-            "top": 159,
+            "top": 92,
             "width": 0,
             "height": 182
           },
@@ -7022,13 +7022,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 958,
+            "top": 1025,
             "width": 350,
             "height": 31
           },
           "delta": {
             "left": 0,
-            "top": 35,
+            "top": 102,
             "width": 0,
             "height": 9
           },
@@ -7432,7 +7432,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.5537383177570093
+          "coverage": 0.5753303254914599
         }
       },
       "elements": [
@@ -7447,20 +7447,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 87,
+            "top": 81,
             "width": 350,
-            "height": 246
+            "height": 303
           },
           "delta": {
             "left": 1,
-            "top": 14,
+            "top": 8,
             "width": 2,
-            "height": 112
+            "height": 55
           },
           "lines": {
-            "actual": 18
+            "actual": 19
           },
-          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음",
+          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -7477,20 +7477,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 349,
+            "top": 400,
             "width": 350,
-            "height": 169
+            "height": 185
           },
           "delta": {
             "left": 1,
-            "top": 100,
+            "top": 49,
             "width": 2,
-            "height": 58
+            "height": 42
           },
           "lines": {
-            "actual": 5
+            "actual": 6
           },
-          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고 결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -7507,13 +7507,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 534,
+            "top": 601,
             "width": 350,
             "height": 396
           },
           "delta": {
             "left": 0,
-            "top": 159,
+            "top": 92,
             "width": 0,
             "height": 182
           },
@@ -7537,13 +7537,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 958,
+            "top": 1025,
             "width": 350,
             "height": 31
           },
           "delta": {
             "left": 1,
-            "top": 34,
+            "top": 101,
             "width": 2,
             "height": 7
           },
@@ -7960,7 +7960,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7404735982580294
+          "coverage": 0.7791235710397387
         }
       },
       "elements": [
@@ -7975,20 +7975,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 87,
+            "top": 81,
             "width": 350,
-            "height": 246
+            "height": 303
           },
           "delta": {
             "left": 0,
-            "top": 15,
+            "top": 9,
             "width": 0,
-            "height": 114
+            "height": 57
           },
           "lines": {
-            "actual": 18
+            "actual": 19
           },
-          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음",
+          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -8005,20 +8005,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 349,
+            "top": 400,
             "width": 350,
-            "height": 169
+            "height": 185
           },
           "delta": {
             "left": 0,
-            "top": 99,
+            "top": 48,
             "width": 0,
-            "height": 60
+            "height": 44
           },
           "lines": {
-            "actual": 5
+            "actual": 6
           },
-          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고 결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -8035,13 +8035,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 534,
+            "top": 601,
             "width": 350,
             "height": 396
           },
           "delta": {
             "left": 0,
-            "top": 159,
+            "top": 92,
             "width": 0,
             "height": 182
           },
@@ -8065,13 +8065,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 958,
+            "top": 1025,
             "width": 350,
             "height": 31
           },
           "delta": {
             "left": 0,
-            "top": 35,
+            "top": 102,
             "width": 0,
             "height": 9
           },
@@ -8474,7 +8474,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.6719438325991189
+          "coverage": 0.7088381057268722
         }
       },
       "elements": [
@@ -8489,20 +8489,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 87,
+            "top": 81,
             "width": 350,
-            "height": 246
+            "height": 303
           },
           "delta": {
             "left": 0,
-            "top": 15,
+            "top": 9,
             "width": 0,
-            "height": 114
+            "height": 57
           },
           "lines": {
-            "actual": 18
+            "actual": 19
           },
-          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음",
+          "text": "입력하신 사고 내용사고 내용 수정무릎·아래다리의 골절언제3일 전어디서헬스장어떻게벤치프레스 중어디를무릎 골절추가 질문 답변입력 조건 더보기3일 전에 헬스장에서 벤치프레스 하다가 무릎이 골절됐어요surgery-status수술 받음hospitalization입원 치료 있음입원 여부입원 치료 있음수술 여부수술 받음사고 내용 수정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -8519,20 +8519,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 349,
+            "top": 400,
             "width": 350,
-            "height": 169
+            "height": 185
           },
           "delta": {
             "left": 0,
-            "top": 99,
+            "top": 48,
             "width": 0,
-            "height": 60
+            "height": 44
           },
           "lines": {
-            "actual": 5
+            "actual": 6
           },
-          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권 확인 전 단계의 참고 결과입니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
+          "text": "사고 내용으로 7개 담보를 분석했습니다세 가지 상태의 합계는 분석한 담보 수와 같습니다. 보험증권을 확인하기 전 단계의 참고 결과이며, 실제 가입 여부와 보장 금액은 증권과 약관 확인이 필요합니다.검토 대상4개추가 정보 필요2개가능성 낮음1개",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -8549,13 +8549,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 534,
+            "top": 601,
             "width": 350,
             "height": 396
           },
           "delta": {
             "left": 0,
-            "top": 159,
+            "top": 92,
             "width": 0,
             "height": 182
           },
@@ -8579,13 +8579,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 958,
+            "top": 1025,
             "width": 350,
             "height": 31
           },
           "delta": {
             "left": 0,
-            "top": 35,
+            "top": 102,
             "width": 0,
             "height": 9
           },
@@ -8664,38 +8664,30 @@
       "screen": "02",
       "element": "배경 프로브(y 70~3089, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 73.54% < 기준 99.00% (배경이 아닌 색이 26.46% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 73.81% < 기준 99.00% (배경이 아닌 색이 26.19% 섞여 있습니다)."
     },
     {
       "screen": "02",
-      "element": "입력하신 사고 내용 카드",
+      "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 96 vs 구현 107",
-      "delta": 11,
+      "detail": "top 디자인 334 vs 구현 347",
+      "delta": 13,
       "tolerance": 8
     },
     {
       "screen": "02",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 334 vs 구현 343",
-      "delta": 9,
-      "tolerance": 8
-    },
-    {
-      "screen": "02",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 224 vs 구현 180",
-      "delta": 44,
+      "detail": "height 디자인 224 vs 구현 179",
+      "delta": 45,
       "tolerance": 8
     },
     {
       "screen": "02",
       "element": "먼저 확인할 항목",
       "kind": "metric",
-      "detail": "top 디자인 578 vs 구현 547",
-      "delta": 31,
+      "detail": "top 디자인 578 vs 구현 550",
+      "delta": 28,
       "tolerance": 8
     },
     {
@@ -8708,46 +8700,46 @@
       "screen": "M02",
       "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 75.12% < 기준 99.00% (배경이 아닌 색이 24.88% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 78.06% < 기준 99.00% (배경이 아닌 색이 21.94% 섞여 있습니다)."
     },
     {
       "screen": "M02",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 87",
-      "delta": 15,
+      "detail": "top 디자인 72 vs 구현 81",
+      "delta": 9,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 246",
-      "delta": 114,
+      "detail": "height 디자인 360 vs 구현 303",
+      "delta": 57,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 349",
-      "delta": 99,
+      "detail": "top 디자인 448 vs 구현 400",
+      "delta": 48,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 169",
-      "delta": 60,
+      "detail": "height 디자인 229 vs 구현 185",
+      "delta": 44,
       "tolerance": 4
     },
     {
       "screen": "M02",
       "element": "먼저 확인할 항목",
       "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 534",
-      "delta": 159,
+      "detail": "top 디자인 693 vs 구현 601",
+      "delta": 92,
       "tolerance": 4
     },
     {
@@ -8762,8 +8754,8 @@
       "screen": "M02",
       "element": "카테고리 탭",
       "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 958",
-      "delta": 35,
+      "detail": "top 디자인 923 vs 구현 1025",
+      "delta": 102,
       "tolerance": 4
     },
     {
@@ -8784,46 +8776,46 @@
       "screen": "M02-B",
       "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 55.37% < 기준 99.00% (배경이 아닌 색이 44.63% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 57.53% < 기준 99.00% (배경이 아닌 색이 42.47% 섞여 있습니다)."
     },
     {
       "screen": "M02-B",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "top 디자인 73 vs 구현 87",
-      "delta": 14,
+      "detail": "top 디자인 73 vs 구현 81",
+      "delta": 8,
       "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "height 디자인 358 vs 구현 246",
-      "delta": 112,
+      "detail": "height 디자인 358 vs 구현 303",
+      "delta": 55,
       "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 449 vs 구현 349",
-      "delta": 100,
+      "detail": "top 디자인 449 vs 구현 400",
+      "delta": 49,
       "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "height 디자인 227 vs 구현 169",
-      "delta": 58,
+      "detail": "height 디자인 227 vs 구현 185",
+      "delta": 42,
       "tolerance": 4
     },
     {
       "screen": "M02-B",
       "element": "먼저 확인할 항목",
       "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 534",
-      "delta": 159,
+      "detail": "top 디자인 693 vs 구현 601",
+      "delta": 92,
       "tolerance": 4
     },
     {
@@ -8838,8 +8830,8 @@
       "screen": "M02-B",
       "element": "카테고리 탭",
       "kind": "metric",
-      "detail": "top 디자인 924 vs 구현 958",
-      "delta": 34,
+      "detail": "top 디자인 924 vs 구현 1025",
+      "delta": 101,
       "tolerance": 4
     },
     {
@@ -8860,46 +8852,46 @@
       "screen": "M02-C",
       "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 74.05% < 기준 99.00% (배경이 아닌 색이 25.95% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 77.91% < 기준 99.00% (배경이 아닌 색이 22.09% 섞여 있습니다)."
     },
     {
       "screen": "M02-C",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 87",
-      "delta": 15,
+      "detail": "top 디자인 72 vs 구현 81",
+      "delta": 9,
       "tolerance": 4
     },
     {
       "screen": "M02-C",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 246",
-      "delta": 114,
+      "detail": "height 디자인 360 vs 구현 303",
+      "delta": 57,
       "tolerance": 4
     },
     {
       "screen": "M02-C",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 349",
-      "delta": 99,
+      "detail": "top 디자인 448 vs 구현 400",
+      "delta": 48,
       "tolerance": 4
     },
     {
       "screen": "M02-C",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 169",
-      "delta": 60,
+      "detail": "height 디자인 229 vs 구현 185",
+      "delta": 44,
       "tolerance": 4
     },
     {
       "screen": "M02-C",
       "element": "먼저 확인할 항목",
       "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 534",
-      "delta": 159,
+      "detail": "top 디자인 693 vs 구현 601",
+      "delta": 92,
       "tolerance": 4
     },
     {
@@ -8914,8 +8906,8 @@
       "screen": "M02-C",
       "element": "카테고리 탭",
       "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 958",
-      "delta": 35,
+      "detail": "top 디자인 923 vs 구현 1025",
+      "delta": 102,
       "tolerance": 4
     },
     {
@@ -8936,46 +8928,46 @@
       "screen": "M02-D",
       "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
       "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 67.19% < 기준 99.00% (배경이 아닌 색이 32.81% 섞여 있습니다)."
+      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 70.88% < 기준 99.00% (배경이 아닌 색이 29.12% 섞여 있습니다)."
     },
     {
       "screen": "M02-D",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 87",
-      "delta": 15,
+      "detail": "top 디자인 72 vs 구현 81",
+      "delta": 9,
       "tolerance": 4
     },
     {
       "screen": "M02-D",
       "element": "입력하신 사고 내용 카드",
       "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 246",
-      "delta": 114,
+      "detail": "height 디자인 360 vs 구현 303",
+      "delta": 57,
       "tolerance": 4
     },
     {
       "screen": "M02-D",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 349",
-      "delta": 99,
+      "detail": "top 디자인 448 vs 구현 400",
+      "delta": 48,
       "tolerance": 4
     },
     {
       "screen": "M02-D",
       "element": "집계 배너",
       "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 169",
-      "delta": 60,
+      "detail": "height 디자인 229 vs 구현 185",
+      "delta": 44,
       "tolerance": 4
     },
     {
       "screen": "M02-D",
       "element": "먼저 확인할 항목",
       "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 534",
-      "delta": 159,
+      "detail": "top 디자인 693 vs 구현 601",
+      "delta": 92,
       "tolerance": 4
     },
     {
@@ -8990,8 +8982,8 @@
       "screen": "M02-D",
       "element": "카테고리 탭",
       "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 958",
-      "delta": 35,
+      "detail": "top 디자인 923 vs 구현 1025",
+      "delta": 102,
       "tolerance": 4
     },
     {
