@@ -252,7 +252,7 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
         </div>
       </main>
 
-      <ResultFinalCta total={aggregate.total} />
+      <ResultFinalCta total={aggregate.total} rawInput={result.rawInput} answers={result.answers} />
     </div>
   );
 }

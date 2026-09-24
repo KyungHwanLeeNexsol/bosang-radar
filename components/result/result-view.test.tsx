@@ -147,6 +147,28 @@ describe("components/result/ResultView — devFixture 직접 진입(design.md §
     expect(container.textContent).toContain("무릎·아래다리의 골절");
   });
 
+  // SPEC-B2C-RESULT-001 D1(후속 리뷰) — ResultInputConditionDisclosure가
+  // sessionStorage를 독립적으로 다시 읽던 구버전에서는, devFixture 경로가
+  // sessionStorage를 전혀 쓰지 않으므로 이 위젯만 "empty"로 오판해 자체적으로
+  // 렌더링을 건너뛰었다(ResultView 본문 자체는 정상 렌더링됨에도). 이제
+  // ResultView가 이미 분류한 result.rawInput/answers를 props로 그대로
+  // 내려주므로, devFixture 경로에서도 일반 handoff 경로와 동일하게 렌더링돼야
+  // 한다 — 수정 전에는 이 단언이 실패한다(RED).
+  it("enableDevFixture=true + ?devFixture=fracture → 입력 조건 disclosure도 함께 렌더링된다(D1)", () => {
+    searchParamsMock.current = new URLSearchParams("devFixture=fracture");
+
+    act(() => {
+      root.render(<ResultView enableDevFixture={true} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="result-input-condition-disclosure"]')
+    ).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-input-condition-raw"]')?.textContent).toBe(
+      FRACTURE_FIXTURE_INPUT
+    );
+  });
+
   it("enableDevFixture=false(프로덕션 기본값) + ?devFixture=fracture → 무시하고 empty 분기를 유지한다(defense-in-depth)", () => {
     searchParamsMock.current = new URLSearchParams("devFixture=fracture");
 

@@ -22,6 +22,10 @@ import { ResultInputConditionDisclosure } from "./result-input-condition-disclos
 // 그 세 컴포넌트 + 기존 sticky CTA 바를 함께 반환한다 — result-view.tsx는
 // 이미 `<ResultFinalCta total={...} />` 한 번만 호출하므로 그 호출 지점을
 // 그대로 재사용한다.
+//
+// SPEC-B2C-RESULT-001 D1(후속 리뷰) — ResultInputConditionDisclosure가 더 이상
+// sessionStorage를 자체적으로 읽지 않으므로, ResultView가 이미 분류한
+// rawInput/answers를 이 컴포넌트를 거쳐 그대로 내려준다.
 
 const PREPARING_MESSAGE = "상담 신청 기능은 아직 준비 중입니다.";
 
@@ -151,12 +155,20 @@ export function ResultDisabilitySectionCta() {
  * 숫자(디자인 목업의 11)를 하드코딩하지 않고 result-view.tsx가 넘겨주는
  * aggregate.total을 그대로 사용한다(REQ-B2CRESULT-002와 동일한 원칙).
  */
-export function ResultFinalCta({ total }: { total: number }) {
+export function ResultFinalCta({
+  total,
+  rawInput,
+  answers,
+}: {
+  total: number;
+  rawInput: string;
+  answers: Record<string, string>;
+}) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
     <>
-      <ResultInputConditionDisclosure />
+      <ResultInputConditionDisclosure rawInput={rawInput} answers={answers} />
       <ResultDisclaimer />
       <ResultFooter />
       <div
