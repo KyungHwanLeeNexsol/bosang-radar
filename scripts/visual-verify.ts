@@ -1106,6 +1106,11 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await testIdExists(page, "result-generation-selector"),
       },
       {
+        label: "입력 조건 disclosure 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-condition-disclosure"),
+      },
+      {
         label: "면책 문구 존재",
         expected: "true",
         actual: await testIdExists(page, "result-disclaimer"),
@@ -1208,6 +1213,11 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await testIdExists(page, "result-generation-selector"),
       },
       {
+        label: "입력 조건 disclosure 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-condition-disclosure"),
+      },
+      {
         label: "면책 문구 존재",
         expected: "true",
         actual: await testIdExists(page, "result-disclaimer"),
@@ -1286,6 +1296,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
         expected: "1",
         actual: await coverageSectionCount(page),
+      },
+      {
+        label: "입력 조건 disclosure 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-condition-disclosure"),
       },
       {
         label: "면책 문구 존재",
@@ -1371,6 +1386,11 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await coverageSectionCount(page),
       },
       {
+        label: "입력 조건 disclosure 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-condition-disclosure"),
+      },
+      {
         label: "면책 문구 존재",
         expected: "true",
         actual: await testIdExists(page, "result-disclaimer"),
@@ -1452,6 +1472,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "마운트된 카테고리 섹션 개수(비활성 탭은 DOM에서 제거됨)",
         expected: "1",
         actual: await coverageSectionCount(page),
+      },
+      {
+        label: "입력 조건 disclosure 존재",
+        expected: "true",
+        actual: await testIdExists(page, "result-input-condition-disclosure"),
       },
       {
         label: "면책 문구 존재",

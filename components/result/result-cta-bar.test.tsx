@@ -28,7 +28,7 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
 
   it('네이티브 disabled 속성이 아니라 aria-disabled="true"를 사용해 포커스 가능 상태를 유지한다', () => {
     act(() => {
-      root.render(<ResultFinalCta total={5} rawInput="테스트 입력" answers={{}} />);
+      root.render(<ResultFinalCta total={5} />);
     });
 
     const button = container.querySelector('[data-testid="result-cta-final-kakao"]');
@@ -76,7 +76,7 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
 
   it("하단 최종 CTA는 하드코딩된 숫자가 아니라 전달받은 total을 그대로 표시한다", () => {
     act(() => {
-      root.render(<ResultFinalCta total={7} rawInput="테스트 입력" answers={{}} />);
+      root.render(<ResultFinalCta total={7} />);
     });
 
     expect(container.textContent).toContain("7가지를 전부 청구하시겠어요?");
@@ -93,7 +93,7 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
 
   it("하단 최종 CTA 바는 sticky이면서 md: 이상에서는 static으로 전환되는 클래스를 갖는다(D2)", () => {
     act(() => {
-      root.render(<ResultFinalCta total={3} rawInput="테스트 입력" answers={{}} />);
+      root.render(<ResultFinalCta total={3} />);
     });
 
     const bar = container.querySelector('[data-testid="result-cta-final"]');
@@ -102,18 +102,18 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     expect(bar?.className).toContain("md:static");
   });
 
-  it("하단 최종 CTA와 함께 입력 조건 disclosure/면책 문구/푸터가 렌더링된다(D2)", () => {
+  it("하단 최종 CTA와 함께 면책 문구/푸터가 렌더링된다(D2)", () => {
     act(() => {
-      root.render(<ResultFinalCta total={3} rawInput="테스트 입력" answers={{}} />);
+      root.render(<ResultFinalCta total={3} />);
     });
 
     expect(container.querySelector('[data-testid="result-disclaimer"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="result-footer"]')).not.toBeNull();
-    // SPEC-B2C-RESULT-001 D1(후속 리뷰) — ResultInputConditionDisclosure는
-    // 이제 props로 받은 rawInput/answers를 그대로 렌더링한다(더 이상
-    // sessionStorage 유무로 렌더링 여부가 갈리지 않는다).
+    // SPEC-B2C-RESULT-001 D3(후속 리뷰) — 입력 조건 disclosure는
+    // result-input-summary.tsx로 옮겨졌으므로 이 컴포넌트는 더 이상
+    // 렌더링하지 않는다(result-input-summary.test.tsx가 새 위치를 검증한다).
     expect(
       container.querySelector('[data-testid="result-input-condition-disclosure"]')
-    ).not.toBeNull();
+    ).toBeNull();
   });
 });

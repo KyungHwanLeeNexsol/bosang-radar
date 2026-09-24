@@ -5,7 +5,6 @@ import { MessageCircle, Phone } from "lucide-react";
 
 import { ResultDisclaimer } from "./result-disclaimer";
 import { ResultFooter } from "./result-footer";
-import { ResultInputConditionDisclosure } from "./result-input-condition-disclosure";
 
 // SPEC-B2C-RESULT-001 M4 (design.md §8, MIGRATION-PLAN.md §4 "상담 CTA
 // 배치(3곳)", REQ-B2CRESULT-023) — 03 상담 신청 화면이 아직 존재하지
@@ -17,15 +16,29 @@ import { ResultInputConditionDisclosure } from "./result-input-condition-disclos
 // 한 곳에서만 정의한다(Enforce Simplicity).
 //
 // SPEC-B2C-RESULT-001 D2 — 이 파일은 이번 리뷰의 수정 허용 파일이므로,
-// result-view.tsx를 건드리지 않고 하단 고정 영역에 입력 조건
-// disclosure/면책 문구/푸터를 배치하기 위해 ResultFinalCta가 Fragment로
-// 그 세 컴포넌트 + 기존 sticky CTA 바를 함께 반환한다 — result-view.tsx는
-// 이미 `<ResultFinalCta total={...} />` 한 번만 호출하므로 그 호출 지점을
-// 그대로 재사용한다.
+// result-view.tsx를 건드리지 않고 하단 고정 영역에 면책 문구/푸터를
+// 배치하기 위해 ResultFinalCta가 Fragment로 그 두 컴포넌트 + 기존 sticky
+// CTA 바를 함께 반환한다 — result-view.tsx는 이미 `<ResultFinalCta
+// total={...} />` 한 번만 호출하므로 그 호출 지점을 그대로 재사용한다.
 //
-// SPEC-B2C-RESULT-001 D1(후속 리뷰) — ResultInputConditionDisclosure가 더 이상
-// sessionStorage를 자체적으로 읽지 않으므로, ResultView가 이미 분류한
-// rawInput/answers를 이 컴포넌트를 거쳐 그대로 내려준다.
+// SPEC-B2C-RESULT-001 D3(후속 리뷰) — ResultInputConditionDisclosure는
+// design.md 목업 대조 결과 여기(페이지 최하단)가 아니라 "입력하신 사고
+// 내용" 카드 안에 배치돼야 함이 확인돼 result-input-summary.tsx로 옮겼다.
+// 이 파일은 더 이상 그 위젯을 렌더링하지 않는다.
+//
+// SPEC-B2C-RESULT-001 D3(후속 리뷰) — 세 곳의 role="status" 안내 span은
+// 접근성 라이브 리전이 문서에 항상 존재해야 하므로 조건부로 마운트/해제하지
+// 않는다(REQ-B2CRESULT-023). 그런데 빈 문자열이어도 줄 높이만큼 레이아웃
+// 공간을 차지해, 특히 상단 탑바에서는 이 예약 공간이 design.md 02 목업 대비
+// 페이지 전체 세로 오프셋(약 11px, 신규 5화면 전체에 누적 반영)의 원인이었다.
+// 메시지가 없을 때는 h-0으로 접어 레이아웃 공간을 차지하지 않게 하고,
+// 메시지가 생기면 다시 펼친다 — aria-live 라이브 리전 자체(DOM 노드)는
+// 그대로 유지되므로 접근성 동작은 바뀌지 않는다.
+function noticeClassName(message: string | null, base: string): string {
+  // h-0은 block(또는 inline-block) 요소에만 적용된다 — span은 기본 inline이라
+  // block을 함께 주지 않으면 h-0이 아무 효과가 없다(두 분기 모두 block 필요).
+  return message ? `${base} block` : `${base} block h-0 overflow-hidden`;
+}
 
 const PREPARING_MESSAGE = "상담 신청 기능은 아직 준비 중입니다.";
 
@@ -110,7 +123,7 @@ export function ResultTopBarCta() {
           role="status"
           aria-live="polite"
           data-testid="result-cta-top-notice"
-          className="text-label-s text-bora-warn"
+          className={noticeClassName(message, "text-label-s text-bora-warn")}
         >
           {message ?? ""}
         </span>
@@ -142,7 +155,7 @@ export function ResultDisabilitySectionCta() {
         role="status"
         aria-live="polite"
         data-testid="result-cta-disability-notice"
-        className="mt-1 block text-label-s text-bora-warn"
+        className={noticeClassName(message, "mt-1 text-label-s text-bora-warn")}
       >
         {message ?? ""}
       </span>
@@ -155,20 +168,11 @@ export function ResultDisabilitySectionCta() {
  * 숫자(디자인 목업의 11)를 하드코딩하지 않고 result-view.tsx가 넘겨주는
  * aggregate.total을 그대로 사용한다(REQ-B2CRESULT-002와 동일한 원칙).
  */
-export function ResultFinalCta({
-  total,
-  rawInput,
-  answers,
-}: {
-  total: number;
-  rawInput: string;
-  answers: Record<string, string>;
-}) {
+export function ResultFinalCta({ total }: { total: number }) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
     <>
-      <ResultInputConditionDisclosure rawInput={rawInput} answers={answers} />
       <ResultDisclaimer />
       <ResultFooter />
       <div
@@ -198,7 +202,7 @@ export function ResultFinalCta({
           role="status"
           aria-live="polite"
           data-testid="result-cta-final-notice"
-          className="text-label-s text-amber-200"
+          className={noticeClassName(message, "text-label-s text-amber-200")}
         >
           {message ?? ""}
         </span>

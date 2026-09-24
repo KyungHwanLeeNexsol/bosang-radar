@@ -208,7 +208,12 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
 
       <main className="flex w-full flex-col items-center px-5 py-6 md:px-8 md:py-10">
         <div className="flex w-full max-w-[1080px] flex-col gap-4 md:gap-6">
-          <ResultInputSummary inputSummary={result.inputSummary} answeredFacts={answeredFacts} />
+          <ResultInputSummary
+            inputSummary={result.inputSummary}
+            answeredFacts={answeredFacts}
+            rawInput={result.rawInput}
+            answers={result.answers}
+          />
           <ResultAggregateBanner aggregate={aggregate} />
           <ResultPriorityChecklist
             priorityChecks={result.priorityChecks}
@@ -252,7 +257,7 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
         </div>
       </main>
 
-      <ResultFinalCta total={aggregate.total} rawInput={result.rawInput} answers={result.answers} />
+      <ResultFinalCta total={aggregate.total} />
     </div>
   );
 }
