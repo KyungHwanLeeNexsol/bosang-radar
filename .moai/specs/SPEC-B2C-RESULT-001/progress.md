@@ -155,7 +155,8 @@
   - **최종 귀속 검증**: `pnpm visual:verify` 최종 44건 violation 전부가 이제 4건의 승인된 debt 중 하나로 귀속된다 — ① fixture-7-items: 9건(배경 프로브, 5화면), ② priorityChecklist-card-style: 17건(먼저 확인할 항목·카테고리 탭 top/height 및 cascading, 5화면), ③ aggregate-banner-height: 10건(집계 배너 top/height 및 cascading, 5화면), ④ mobile-input-summary-residual: 8건(Mobile 입력 요약 카드 top/height, 4화면). 9+17+10+8=44, 미분류 편차 **0건**.
   - 이 결정을 근거로 `run_status`를 **`audit-ready-with-debt`로 확정**한다(확정 대상 커밋 — 아래 D6(3차) 참고). 커버리지 미측정(Windows v8 버그)은 여전히 이 debt 범위에 포함되지 않는 별도 **Gap**이며, debt로 편입하지 않는다.
 - **`run_status: audit-ready-with-debt`(최종, 2026-09-24)** — 위 4건 승인 debt 확정을 근거로 한 최종 신호. 이 신호를 재검토할 때는 반드시 이 파일의 "사용자 결정 — 잔여 pixel 편차 2건 추가 승인 debt로 확정" 항목의 44건 귀속 검증(9+17+10+8=44, 미분류 0건)을 재확인할 것 — 이전 두 차례(2026-09-23, 이후 재철회)처럼 귀속 검증 없이 재확인하지 말 것.
-- **재철회(4차, 2026-09-25, PR #19 독립 검토 결과 반영)** — PR #19 원격 HEAD `f2a07bf`(위 §E.3의 `audit-ready-with-debt` 확정 대상 커밋과 동일)를 **Linux 환경에서 독립 측정**한 결과, Statements 97.29%(216/222)·Functions 92.53%(62/67)·Lines 97.24%(212/218)는 85% 기준을 충족했으나 **Branches 84.80%(106/125)는 기준 미달(FAIL)**이었다. 이전까지 이 파일이 기록한 "커버리지 미측정(Windows v8 버그)"은 도구 결함으로 인한 **미측정**이었을 뿐 **PASS를 의미하지 않았다** — 이번 독립 측정으로 실제 수치가 처음으로 확인됐고, 그 결과 4개 지표 중 Branches 1건이 기준에 못 미쳤다. 따라서 `run_status: audit-ready-with-debt`(2026-09-24 확정분)는 이 시점 기준 **재철회한다** — Branches 85% 기준을 충족하는 재측정이 확인되기 전까지 `audit-ready-with-debt`로 재확인하지 않는다. 아래 "후속 수정(4차) — 브랜치 커버리지 보완" 섹션이 이번 라운드의 수정 내역이다.
+- **재철회(4차, 2026-09-25, PR #19 독립 검토 결과 반영)** — PR #19 원격 HEAD `f2a07bf`(위 §E.3의 `audit-ready-with-debt` 확정 대상 커밋과 동일)를 **Linux 환경에서 독립 측정**한 결과, Statements 97.29%(216/222)·Functions 92.53%(62/67)·Lines 97.24%(212/218)는 85% 기준을 충족했으나 **Branches 84.80%(106/125)는 기준 미달(FAIL)**이었다. 이전까지 이 파일이 기록한 "커버리지 미측정(Windows v8 버그)"은 도구 결함으로 인한 **미측정**이었을 뿐 **PASS를 의미하지 않았다** — 이번 독립 측정으로 실제 수치가 처음으로 확인됐고, 그 결과 4개 지표 중 Branches 1건이 기준에 못 미쳤다. 따라서 `run_status: audit-ready-with-debt`(2026-09-24 확정분)는 이 시점 기준 **재철회한다** — Branches 85% 기준을 충족하는 재측정이 확인되기 전까지 `audit-ready-with-debt`로 재확인하지 않는다. 아래 "후속 수정(4차) — 브랜치 커버리지 보완" 섹션이 이번 라운드의 수정 내역이다. **[이 재철회는 그 시점(커버리지 보완 커밋 `509f31a`/`8867927` 이전, PR HEAD `f2a07bf` 기준)의 상태를 기술한 것이며, 아래 "재확인(5차)" 항목으로 해소됐다 — 현재 상태로 읽지 말 것.]**
+- **재확인(5차, 2026-09-25, PR #19 Linux 독립 재측정 결과 반영)** — 커버리지 보완 커밋(`509f31a`) + 문서 정정 커밋(`8867927`)을 반영한 PR #19 원격 HEAD `8867927`를 **Linux 환경에서 독립 재측정**한 결과, Branches가 **84.80%(106/125) → 96.80%(121/125)로 개선**되어 4개 지표 전부(Statements 99.09%/Branches 96.80%/Functions 98.50%/Lines 99.08%) 85% 기준을 충족했다. Windows v8 coverage 0/0 미측정 Gap은 이번 Linux 독립 측정으로 해소됐다(측정 자체가 Linux에서는 정상 동작함을 재확인 — `vitest.config.ts:26-29` 주석의 기존 서술과 일치). 이 재측정 결과를 근거로 `run_status`를 **`audit-ready-with-debt`로 최종 재확정**한다(재확정 대상 커밋 `8867927`, 상세: 아래 "Linux 독립 재측정 — 완료" 섹션). **주의**: 이 재측정치(96.80% 등)는 orchestrator가 이 Windows 세션에서 직접 실행·관측한 수치가 **아니다** — 사용자가 보고한 Linux 독립 측정 결과이며, GitHub API로 교차 검증 가능한 커밋/merge ref 식별자(PR HEAD `8867927`, merge ref `61648654bb11855effe04b6faf901f06c437b4f8`, 부모 `ad4e2de`+`8867927`)는 이 세션이 `https://api.github.com/repos/KyungHwanLeeNexsol/bosang-radar/pulls/19`를 직접 조회해 바이트 단위로 일치함을 확인했다. 승인 debt 4건(①fixture 7개, ②priorityChecklist 카드형, ③집계 배너 height, ④Mobile 입력요약 잔여 height)과 시각 편차 44건 귀속은 변경 없이 그대로 유지한다 — 새 debt나 새 Gap을 추가하지 않았다.
 
 ### 후속 수정 — D1(Fact Chip questionId) + D4(use-media-query.ts 범위 위반) (2026-09-22)
 
@@ -371,6 +372,38 @@
 - **Baseline-attribution**: 커밋 `509f31a`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD), 위 1~11 전 항목을 이 커밋 기준 orchestrator가 이 세션에서 직접 재실행해 확인했다. 재현 환경변수: `TURSO_DATABASE_URL=file:./.tmp/visual-verify.db`, `LLM_PROVIDER_MODE=deterministic`. 이 세션에서 `pnpm install`을 다시 실행하지 않았다 — 워크트리에 이미 정식 설치된 의존성(node_modules, node 22.23.2 + pnpm 11.23.0)을 그대로 사용했다.
 - **Gaps**: 항목 8(커버리지 4개 지표 ≥85%)은 이번 라운드에서도 직접 측정하지 못했다(Windows 환경 v8 도구 버그, WSL/Linux 대체 환경이 이 세션에서 격리 정책상 접근 불가 — `wsl.exe` 호출이 worktree 격리 가드에 의해 차단됨) — `audit-ready-with-debt`로 전환하지 않고 명시적 Gap으로 유지한다.
 - **Residual-risk**: 항목 5(`pnpm format:check` 3개 무관 파일 실패)는 이 브랜치가 main에 병합된 뒤에도 계속 실패로 남는다(이 SPEC 범위 밖, 별도 정리 필요). 커버리지 Gap은 CI(Linux 환경으로 추정) 또는 사용자의 다음 독립 측정에서 재확인이 필요하다.
+
+### Linux 독립 재측정 — 완료 (PR #19 HEAD `8867927` 기준, 2026-09-25)
+
+> **이 섹션의 커버리지 수치는 사용자가 보고한 Linux 독립 측정 결과다 — orchestrator가 이 Windows 세션에서 직접 실행·관측한 것이 아니다.** 이 세션은 동일 커밋에서 같은 명령을 재실행해 여전히 `Unknown% (0/0)`(Windows v8 버그, 위 D4(4차) 섹션과 동일)이 재현됨을 확인했을 뿐이다. 이 구분을 명확히 하기 위해 아래 Evidence는 "사용자 보고" 항목과 "orchestrator 직접 확인" 항목을 분리해서 적는다.
+
+- **Claim**: 커버리지 보완 커밋(`509f31a`) + 문서 정정 커밋(`8867927`)을 반영한 PR #19 원격 HEAD `8867927`를 대상으로 사용자가 Linux 환경에서 아래와 동일한 범위 명령을 재실행한 결과, 4개 지표 전부 85% 기준을 충족했다:
+
+  ```
+  pnpm exec vitest run components/result lib/diagnosis app/result \
+    --coverage \
+    --coverage.include='components/result/**' \
+    --coverage.include='lib/diagnosis/**' \
+    --coverage.include='app/result/**' \
+    --coverage.reporter=text
+  ```
+
+- **Evidence (사용자 보고, Linux)**:
+  - Test Files: **21 passed / 21**
+  - Tests: **142 passed / 142**
+  - Statements: **99.09% (220/222)**
+  - Branches: **96.80% (121/125)** — 직전 측정(84.80%, 106/125) 대비 **+12.00%p, +15건 branch 개선**
+  - Functions: **98.50% (66/67)**
+  - Lines: **99.08% (216/218)**
+  - exit code: 0
+  - 추가 독립 확인(사용자 보고): 관련 테스트 142/142 PASS, ESLint PASS, 신규 변경 파일 Prettier PASS, `git diff --check` PASS.
+  - 분모(Statements 222 / Functions 67 / Lines 218 / Branches 125)가 직전 FAIL 측정과 전부 동일하다 — 이 라운드에서 프로덕션 코드를 전혀 수정하지 않고 테스트만 추가했다는 사실과 정합적이다(분자만 상승, 분모 불변).
+- **Evidence (orchestrator 직접 확인, 이 세션)**:
+  - `git log --stat` — 커밋 `509f31a`(테스트 6개 파일, +328줄)와 `8867927`(progress.md 1개 파일)만 존재, **프로덕션 코드(비-테스트 `.ts`/`.tsx`) 변경 0건**을 직접 확인했다.
+  - `https://api.github.com/repos/KyungHwanLeeNexsol/bosang-radar/pulls/19`(공개 REST API, 인증 없이 200 OK) 직접 조회 — `state: open`, `merged: false`, `mergeable: true`, `mergeable_state: clean`, `head.sha: 8867927c6bbf893c771c8a6fbde284ff76814ef3`, `base.sha: ad4e2de42e1e2753b1d2128615e6b6a442655414`, `merge_commit_sha: 61648654bb11855effe04b6faf901f06c437b4f8` — 사용자가 보고한 PR HEAD/merge ref/부모 식별자와 전부 바이트 단위 일치함을 확인했다.
+- **Baseline-attribution**: 커밋 `8867927`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD). 커버리지 수치 자체의 baseline은 **사용자의 Linux 실행 환경**이고(orchestrator가 재현 불가), 커밋 식별자·PR 상태의 baseline은 **이 세션의 GitHub API 직접 조회**다(orchestrator가 재현·확인).
+- **Gaps**: 커버리지 4개 지표를 orchestrator가 이 Windows 세션에서 직접 관측하는 경로는 여전히 없다(Windows v8 버그, 위 D4(4차) 섹션과 동일 — 해소된 것은 "실제 수치가 85% 미만이다"라는 이전 Gap이지, "Windows에서 직접 잴 수 있다"는 능력이 아니다). 이후 세션이 이 SPEC을 다시 열어 커버리지를 재확인해야 할 경우 여전히 Linux 환경(CI 또는 독립 측정)이 필요하다.
+- **Residual-risk**: 없음(변동) — 승인 debt 4건(9+17+10+8=44, 미분류 0건)과 시각 편차 귀속은 이번 라운드에서 검토·수정하지 않았으므로 위 D3(3차)/사용자 결정 섹션의 내용이 그대로 유효하다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
