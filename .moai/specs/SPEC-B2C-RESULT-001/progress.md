@@ -155,6 +155,7 @@
   - **최종 귀속 검증**: `pnpm visual:verify` 최종 44건 violation 전부가 이제 4건의 승인된 debt 중 하나로 귀속된다 — ① fixture-7-items: 9건(배경 프로브, 5화면), ② priorityChecklist-card-style: 17건(먼저 확인할 항목·카테고리 탭 top/height 및 cascading, 5화면), ③ aggregate-banner-height: 10건(집계 배너 top/height 및 cascading, 5화면), ④ mobile-input-summary-residual: 8건(Mobile 입력 요약 카드 top/height, 4화면). 9+17+10+8=44, 미분류 편차 **0건**.
   - 이 결정을 근거로 `run_status`를 **`audit-ready-with-debt`로 확정**한다(확정 대상 커밋 — 아래 D6(3차) 참고). 커버리지 미측정(Windows v8 버그)은 여전히 이 debt 범위에 포함되지 않는 별도 **Gap**이며, debt로 편입하지 않는다.
 - **`run_status: audit-ready-with-debt`(최종, 2026-09-24)** — 위 4건 승인 debt 확정을 근거로 한 최종 신호. 이 신호를 재검토할 때는 반드시 이 파일의 "사용자 결정 — 잔여 pixel 편차 2건 추가 승인 debt로 확정" 항목의 44건 귀속 검증(9+17+10+8=44, 미분류 0건)을 재확인할 것 — 이전 두 차례(2026-09-23, 이후 재철회)처럼 귀속 검증 없이 재확인하지 말 것.
+- **재철회(4차, 2026-09-25, PR #19 독립 검토 결과 반영)** — PR #19 원격 HEAD `f2a07bf`(위 §E.3의 `audit-ready-with-debt` 확정 대상 커밋과 동일)를 **Linux 환경에서 독립 측정**한 결과, Statements 97.29%(216/222)·Functions 92.53%(62/67)·Lines 97.24%(212/218)는 85% 기준을 충족했으나 **Branches 84.80%(106/125)는 기준 미달(FAIL)**이었다. 이전까지 이 파일이 기록한 "커버리지 미측정(Windows v8 버그)"은 도구 결함으로 인한 **미측정**이었을 뿐 **PASS를 의미하지 않았다** — 이번 독립 측정으로 실제 수치가 처음으로 확인됐고, 그 결과 4개 지표 중 Branches 1건이 기준에 못 미쳤다. 따라서 `run_status: audit-ready-with-debt`(2026-09-24 확정분)는 이 시점 기준 **재철회한다** — Branches 85% 기준을 충족하는 재측정이 확인되기 전까지 `audit-ready-with-debt`로 재확인하지 않는다. 아래 "후속 수정(4차) — 브랜치 커버리지 보완" 섹션이 이번 라운드의 수정 내역이다.
 
 ### 후속 수정 — D1(Fact Chip questionId) + D4(use-media-query.ts 범위 위반) (2026-09-22)
 
@@ -323,6 +324,53 @@
 - **Baseline-attribution**: 커밋 `ab0b9d6`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD), 위 전 항목을 이 커밋 기준 orchestrator가 이 세션에서 직접 재실행해 확인했다.
 - **Gaps**: 커버리지 4개 지표는 여전히 미측정(Gap, 변동 없음). D3(3차)의 "미해결" 항목(집계 배너 height, Mobile 입력 요약 카드 잔여 height)도 미해소 Gap이다.
 - **Residual-risk**: 변동 없음(위 D4(2차) 섹션과 동일).
+
+### 후속 수정(4차) — 브랜치 커버리지 보완 (독립 Linux 측정 기준, 2026-09-25)
+
+- **Claim**: PR #19 원격 HEAD `f2a07bf`(D1~D3 수정 완료, `run_status: audit-ready-with-debt` 확정 대상)를 사용자가 Linux 환경에서 다음 범위로 독립 측정한 결과, Branches 84.80%(106/125)가 85% 기준에 미달했다(Statements 97.29%/Functions 92.53%/Lines 97.24%는 충족):
+
+  ```
+  pnpm exec vitest run components/result lib/diagnosis app/result \
+    --coverage \
+    --coverage.include='components/result/**' \
+    --coverage.include='lib/diagnosis/**' \
+    --coverage.include='app/result/**' \
+    --coverage.reporter=text
+  ```
+
+  **이전 측정 이력 정정**: 이 SPEC의 D4/D4(2차)/D4(3차) 섹션이 반복 기록한 "커버리지 미측정(Windows v8 버그)"은 measurement 자체가 불가능했다는 뜻이며, PASS를 의미한 적이 없다. 2026-09-24 `audit-ready-with-debt` 확정 시점에는 커버리지 4개 지표 중 어느 것도 실제로 관측된 적이 없었다 — 이번 독립 Linux 측정이 이 SPEC 최초의 실측치다. 따라서 이전 progress.md의 "이전 커밋 기준 85.03%" 같은 수치는 이 최신 HEAD의 근거로 재사용하지 않는다(사용자 지시 준수).
+
+  실제 미검증 분기를 코드 직접 열람으로 식별해 다음 테스트를 보완했다(신규 프로덕션 분기·의미 없는 테스트 없음):
+  1. `coverage-item-card.tsx` — `factChips`/`additionalInfoNote` 존재·부재, `hasDisclosure`를 구성하는 `whyCheck`/`evidenceRefs`/`requiredDocuments` 각 분기(전부 없음 → disclosure 자체 미렌더링 포함) 7건.
+  2. `result-cta-bar.tsx` — `handleKeyDown`의 Enter/Space가 아닌 키 입력 시 no-op 유지(비대상 키) 1건.
+  3. `result-priority-checklist.tsx` — 신규 테스트 파일. `priorityChecks` 빈 배열(아무것도 렌더링하지 않음) + 항목 클릭 시 `onSelect`가 `targetCategory`로 호출되는 분기 3건.
+  4. `result-skeleton.tsx` — 신규 테스트 파일. `aria-hidden` 로딩 placeholder 렌더링 1건.
+  5. `result-input-summary.tsx` — "사고 내용 수정" 버튼(Desktop/Mobile 두 인스턴스) 클릭 시 no-op stub이라 카드가 그대로 유지되는 사용자 동작 분기 1건.
+  6. `result-view.tsx` — Desktop은 `CATEGORY_ORDER.map()`으로 4개 카테고리를 전부 순회하므로 `category === "disability"` 분기가 이미 실행되지만, Mobile은 `activeCategory === "disability"`로 상태가 바뀔 때만 타는 별도 삼항 분기라 이전에 true 쪽이 한 번도 실행되지 않았다 — 탭 클릭으로 "disability" 카테고리까지 실제로 전환해 후유장해 섹션 CTA 노출(true)/비노출(false, fixed 탭 예시) 2건을 추가했다.
+
+- **Evidence**: 이 워크트리(Windows)에서 위와 동일한 범위 명령을 재실행하면 이전 세션들이 이미 기록한 것과 동일하게 `@vitest/coverage-v8`의 Windows 전용 known 버그가 재현된다 — `Test Files 21 passed (21)` / `Tests 142 passed (142)`(테스트 자체는 전부 통과)이지만 커버리지 리포트는 `Statements/Branches/Functions/Lines: Unknown% (0/0)`으로 출력된다(`vitest.config.ts:26-29`의 기존 주석 — "동일 커밋의 Linux/mac 실행에서는 95%/88%/92%/96%로 정상 측정됨"이 이번에도 재확인됨). `@vitest/coverage-istanbul` 등 대체 provider는 이 저장소에 설치돼 있지 않으며, 이번 요청 범위(테스트 보완) 밖의 devDependency 추가이므로 새로 설치하지 않았다. 전체 스위트(`pnpm exec vitest run`, 커버리지 없이)는 `Test Files 74 passed (74)` / `Tests 546 passed (546)`로 전부 통과했다(추가 전 72/531 대비 +2파일/+15건).
+- **Baseline-attribution**: 커밋 `509f31a`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD — PR #19 헤드 `f2a07bf` 위에 이번 라운드의 테스트 보완만 추가한 커밋), 위 vitest 실행 전부를 이 커밋 기준 orchestrator가 이 세션에서 직접 재실행해 확인했다.
+- **Gaps**: **Branches를 포함한 4개 지표의 "보완 후" 실측치는 이 세션(Windows)에서 직접 관측하지 못했다** — Windows v8 coverage 도구 버그가 이번 라운드에서도 그대로 재현됐기 때문이다. 새로 추가한 13건의 테스트가 실제로 몇 개의 미검증 분기를 닫았는지, Branches 85% 기준을 실제로 충족하는지는 **Linux 환경(CI 또는 사용자의 다음 독립 측정)에서 커밋 `509f31a` 기준으로 재확인이 필요하다** — 이 Gap이 해소되기 전까지 `run_status`는 `audit-ready-with-debt`로 재확정하지 않는다(위 §E.3 "재철회(4차)" 참고).
+- **Residual-risk**: 코드 직접 열람으로 식별한 6개 분기 외에도, 125개 branch 중 나머지 미분류 분기(19건 미달분 중 위 6개 항목으로 정확히 몇 건이 닫히는지는 Linux 측정 전까지 알 수 없음) — 추가로 미검증 분기가 남아 있을 가능성을 배제하지 않는다. 이번 라운드는 사용자가 지정한 우선 후보 6개 파일을 전부 다뤘으나, 재측정 결과 Branches가 여전히 85% 미만이면 추가 보완 라운드가 필요할 수 있다.
+
+### 후속 수정(4차) — 회귀 재검증 (커밋 `509f31a` 기준, 2026-09-25)
+
+- **Claim**: 위 커버리지 보완 커밋을 반영한 최종 HEAD에서 사용자가 요청한 회귀 검증 항목 전부를 이 워크트리에서 직접 재실행했다.
+- **Evidence**:
+  1. `git diff --check` → exit 0(공백/충돌 마커 이슈 없음).
+  2. `pnpm exec tsc --noEmit -p tsconfig.json` → exit 0, 0 errors.
+  3. `pnpm lint`(`eslint .`) → exit 0, 0 errors/warnings.
+  4. 변경 파일 전용 Prettier 검사(`git diff --name-only origin/main..HEAD -- '*.ts' '*.tsx'` 49개 파일 대상 `prettier --check`) → exit 0, "All matched files use Prettier code style!".
+  5. 전체 `pnpm format:check` → **exit 1**(정직하게 FAIL 보고, 회귀 아님). 실패 대상은 여전히 `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md` 3개뿐이며(D4(2차) 섹션과 동일), 이 브랜치가 세 파일을 전혀 건드리지 않은 상태 그대로다.
+  6. 관련 테스트(`components/result lib/diagnosis app/result` 범위) → `Test Files 21 passed (21)` / `Tests 142 passed (142)`.
+  7. 전체 `pnpm exec vitest run` → `Test Files 74 passed (74)` / `Tests 546 passed (546)`(D4(3차) 대비 +2파일/+15건, 회귀 없음).
+  8. 대상 커버리지 4개 지표 ≥85% — **Windows v8 버그로 이 세션에서는 측정 불가**(위 §E.3 "후속 수정(4차) — 브랜치 커버리지 보완" 섹션의 Gap 참고). Linux 재측정 필요.
+  9. `pnpm build` → exit 0. 사전 존재 경고 1건(`instrumentation.ts:33:7`)만 있으며 이 SPEC의 변경 대상이 아니다.
+  10. `pnpm test:e2e` → exit 0, **20/20 passed, 0 failed**(01-flow 16건 + 02-flow 4건, 회귀 없음).
+  11. `pnpm visual:verify` → exit 1(신규 5화면 여전히 pixel/background FAIL, 예상된 결과). 위반 **44건**을 직접 세어 4건의 승인 debt에 재귀속 검증했다 — ① fixture-7-items(배경 프로브) 9건, ② priorityChecklist-card-style(먼저 확인할 항목·카테고리 탭) 17건, ③ aggregate-banner-height(집계 배너) 10건, ④ mobile-input-summary-residual(Mobile 입력 요약 카드) 8건. 9+17+10+8=44, 미분류 편차 0건 — 2026-09-24 확정 당시와 정확히 동일(변경·회귀 없음). semantic gate는 `.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/measurements.json`의 `results[].semanticChecks`를 직접 읽어 확인 — 신규 5화면(02/M02/M02-B/M02-C/M02-D) semantic 체크 총 50건 중 실패 0건(**50/50 PASS**), 기존 10화면도 실패 0건.
+- **Baseline-attribution**: 커밋 `509f31a`(plan/SPEC-B2C-RESULT-001, 이 워크트리 HEAD), 위 1~11 전 항목을 이 커밋 기준 orchestrator가 이 세션에서 직접 재실행해 확인했다. 재현 환경변수: `TURSO_DATABASE_URL=file:./.tmp/visual-verify.db`, `LLM_PROVIDER_MODE=deterministic`. 이 세션에서 `pnpm install`을 다시 실행하지 않았다 — 워크트리에 이미 정식 설치된 의존성(node_modules, node 22.23.2 + pnpm 11.23.0)을 그대로 사용했다.
+- **Gaps**: 항목 8(커버리지 4개 지표 ≥85%)은 이번 라운드에서도 직접 측정하지 못했다(Windows 환경 v8 도구 버그, WSL/Linux 대체 환경이 이 세션에서 격리 정책상 접근 불가 — `wsl.exe` 호출이 worktree 격리 가드에 의해 차단됨) — `audit-ready-with-debt`로 전환하지 않고 명시적 Gap으로 유지한다.
+- **Residual-risk**: 항목 5(`pnpm format:check` 3개 무관 파일 실패)는 이 브랜치가 main에 병합된 뒤에도 계속 실패로 남는다(이 SPEC 범위 밖, 별도 정리 필요). 커버리지 Gap은 CI(Linux 환경으로 추정) 또는 사용자의 다음 독립 측정에서 재확인이 필요하다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
