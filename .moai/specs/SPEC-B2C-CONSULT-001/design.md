@@ -16,7 +16,8 @@
 | D2 | `MIGRATION-PLAN.md` §7: "중복 판정 기준(동일 진단 결과 ID **또는** 동일 연락처)은 서버에서 내려준다"고 명시(단순 OR). | 미션이 지적한 대로 단순 OR는 과차단 위험이 크다(같은 연락처를 쓰는 가족 구성원이 다른 사고를 접수하는 경우, 동일인이 새 사고로 재상담하는 경우 모두 막힘). **이 SPEC은 §7 서버 판정 로직을 §8 "중복/멱등성" 설계로 대체한다** — `resultId + 정규화 연락처` 복합 조건(AND)을 비즈니스 중복 판정으로, 별도의 `idempotencyKey` UNIQUE 제약을 기술적 멱등성으로 분리한다(상세: §8). 이 편차는 사용자에게도 알림(Open Decision 목록 참고, 차단 목적이 아닌 확인 목적). |
 | D3 | 디자인은 "정하은 손해사정사 · 금융감독원 등록 손해사정사 · 등록정보 확인" 카드로 **특정 담당자**를 미리 배정해 보여준다. | `product.md` §Roadmap A와 이 SPEC의 Out of Scope(§7)가 명시하듯 자동 상담사 배정은 범위 밖이다. 이 SPEC은 이 카드를 **정적 placeholder**("상담 담당자 배정 예정" 수준의 일반 문구, 실명·특정 개인 자격 정보 없이)로 구현한다 — 실제 배정 로직이나 담당자별 데이터 모델은 만들지 않는다. |
 | D4 | 03-B 성공 화면·03-C 중복 화면의 "신청 취소·정보 삭제 문의"/"기존 신청 상태 확인" CTA가 실제 목적지 없이 디자인에만 존재한다. | 기존 `components/result/result-footer.tsx`가 이미 확립한 선례(`href="#"` + "고객 문의: 준비 중")를 그대로 따른다 — 두 CTA 모두 **"준비 중" 스텁**으로 구현하고 죽은 링크(예: 빈 `href="#"`를 실제 이동처럼 보이게 만드는 것)를 만들지 않는다. 실제 신청 상태 조회 기능은 이 SPEC의 범위 밖이다(§7). |
-| D5 | `design/internal/DEV-ONLY-상담-신청-동의-상세-구조.png`의 `{}` 플레이스홀더(보유·이용기간, 수신정보, 이용목적, 수신방법, 동의철회방법)가 사용자 화면에 노출될 위험. | 이 SPEC은 동의 항목의 **구조**(체크박스·필수/선택 라벨·"자세히 보기" 토글 UI 상태)만 구현하고, 상세 펼침 내용의 실제 법무 확정 문구는 구현하지 않는다 — "자세히 보기"를 눌렀을 때 실제 서버가 어떤 문구를 내려줄지는 Open Decision(§9)으로 남기고, run-phase에서는 확정 전까지 상세 펼침 UI 자체를 `productionReady` 조건으로 게이트한다(§4). |
+| D5 | `design/internal/DEV-ONLY-상담-신청-동의-상세-구조.png`의 `{}` 플레이스홀더(보유·이용기간, 수신정보, 이용목적, 수신방법, 동의철회방법)가 사용자 화면에 노출될 위험. | 이 SPEC은 동의 항목의 **구조**(체크박스·필수/선택 라벨·"자세히 보기" 토글 UI 상태)만 구현하고, 상세 펼침 내용의 실제 법무 확정 문구는 구현하지 않는다 — "자세히 보기"를 눌렀을 때 실제 서버가 어떤 문구를 내려줄지는 Open Decision(§9)으로 남기고, run-phase에서는 확정 전까지 상세 펼침 UI 자체를 `CONSULT_POLICY_READY` 조건으로 게이트한다(§4). |
+| D6 | 03-B 성공 화면의 "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다" 문구가 실제 운영 SLA 확정 없이 구체적 시간 약속처럼 읽힐 위험(독립 검토 지적) — 운영 근거 없는 연락 시점 약속은 이 프로젝트가 이미 피하려던 것(§ 원래 D5 해소 근거)과 같은 종류의 문제다. | 문구를 "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"로 교체한다 — 시간 약속을 전혀 하지 않는 중립 표현(§10). API 응답의 `expectedContactWindow` 필드는 제거한다 — 실제 ops SLA가 확정되면 별도 SPEC에서 선택적 필드로 재도입을 검토한다. |
 
 ### 1b. 사용자 결정 필요 (Open Decisions로 이관)
 
@@ -55,7 +56,7 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 | JSON 파싱 실패 | `{status:"invalid"}` → 03 전용 오류 상태(REQ-B2CCONSULT-008, 02의 REQ-B2CRESULT-014와 동형). |
 | 스키마 버전 불일치 | `DiagnosisResultSchema.safeParse`가 이미 `schemaVersion` 리터럴을 강제하므로 `invalid`로 귀결 — 03이 별도 버전 검사를 추가하지 않는다. |
 | 오래된 결과의 사용 가능 여부 | 02가 이미 확립한 "탭 세션 동안 유지, 명시적 트리거 전까지 만료 없음" 정책을 그대로 상속한다 — 03은 별도의 신선도(TTL) 개념을 도입하지 않는다(신규 신선도 게이트를 만드는 것은 02가 이미 내린 결정을 재검토하는 것이므로 이 SPEC의 범위 밖으로 둔다). |
-| 상담 신청 완료 후 핸드오프 삭제 | 제출 성공 시 `clearDiagnosisHandoff()`를 호출한다(REQ-B2CCONSULT-025) — 02 design.md §12가 예약해 둔 트리거 지점을 이 SPEC이 실제로 연결한다. |
+| 상담 신청 완료 후 draft 삭제 | 제출 성공 시 `clearConsultationDraft()`를 호출한다(REQ-B2CCONSULT-025, §2.3) — **`DiagnosisResult` 핸드오프 자체는 삭제하지 않는다.** 이유: 성공·중복·실패 화면 모두 "진단 결과로 돌아가기" CTA를 제공하며(§10), 이 CTA로 `/result`에 복귀했을 때 제출 이전과 동일한 결과가 다시 보여야 한다(REQ-B2CCONSULT-009 원칙의 연장) — 핸드오프를 지우면 이 복귀 경로가 깨진다. `DiagnosisResult` 핸드오프는 아래 행의 기존 정책(새 진단 시작 시 `clearDiagnosisHandoff()`)에 의해서만 계속 제거된다. |
 | 새 진단 시작 시 draft 초기화 | `components/diagnosis/diagnosis-flow.tsx`의 기존 "새 진단 시작" 액션이 이미 `clearDiagnosisHandoff()`를 호출한다 — 이 SPEC은 그 호출 지점에 `clearConsultationDraft()`(§2.3) 호출을 한 줄 추가한다(§5 허용된 기존 파일 확장 목록 참고). |
 
 ### 2.3 상담 폼 draft — `lib/consult/draft.ts`
@@ -63,8 +64,8 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 `lib/diagnosis/handoff.ts`와 동일한 구조(SSR 가드, 프로젝트 네임스페이스 키, 명시적 트리거로만 제거)를 상속하되, **엄격도는 완화**한다 — draft는 사용자 입력 편의를 위한 비결정적 보조 데이터이지 `DiagnosisResult`처럼 무결성이 보장되어야 하는 계약이 아니기 때문이다.
 
 - 키: `bosang-radar:consultation-draft-v1`.
-- 스키마: `ConsultationDraftSchema`(`lib/consult/schema.ts`) — 모든 필드가 `.optional()`인 느슨한 `z.object`(strict 아님, 폼 진화에 유연하게 대응). 저장 필드: `channel`/`name`/`contactRaw`/`preferredCallTime`/`marketingConsent`/`idempotencyKey`. **필수 동의 두 항목의 체크 상태는 draft에 저장하지 않는다** — 새로고침 후에도 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, §3 참고).
-- 파싱 실패(손상된 JSON, 스키마 불일치) 시 02의 `handoff.ts`처럼 `invalid` 오류 상태로 분기하지 **않는다** — 조용히 빈 draft로 폴백한다(폼이 비어있는 것으로 시작할 뿐, 사용자가 진단 결과 자체를 잃는 것이 아니므로 오류 상태로 만들 만큼 치명적이지 않다는 판단, Enforce Simplicity).
+- 스키마: `ConsultationDraftSchema`(`lib/consult/schema.ts`) — **`z.strictObject`**로 정의한다(알 수 없는 키 거부). 명시적 `draftVersion: z.literal(1)`(또는 그 시점의 현재 버전 리터럴) 필드를 필수로 포함하며, 그 외 저장 필드(`channel`/`name`/`contactRaw`/`preferredCallTime`/`marketingConsent`/`idempotencyKey`)는 모두 `.optional()`이다 — strict(알 수 없는 키·구버전 거부) + 개별 필드 optional(폼 진화에 유연 대응) 두 원칙을 동시에 만족한다. **필수 동의 두 항목의 체크 상태는 draft에 저장하지 않는다** — 새로고침 후에도 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, §3 참고).
+- 파싱 실패(손상된 JSON), 스키마 검증 실패(알 수 없는 키 포함), 또는 `draftVersion`이 현재 버전과 다를 때 — 어느 경우든 02의 `handoff.ts`처럼 `invalid` 오류 상태로 분기하지 **않는다** — 오류를 던지지 않고 조용히 빈 draft로 폴백한다(폼이 비어있는 것으로 시작할 뿐, 사용자가 진단 결과 자체를 잃는 것이 아니므로 오류 상태로 만들 만큼 치명적이지 않다는 판단, Enforce Simplicity).
 - 저장 시점: 필드 blur 또는 제출 시도 시(매 keystroke마다 쓰지 않음 — 불필요한 쓰기 최소화).
 - 제거 시점: (a) 상담 신청 성공 시 `clearConsultationDraft()`, (b) 새 진단 시작 시(§2.2).
 - `idempotencyKey`: draft가 최초 생성될 때(폼 마운트 시) `crypto.randomUUID()`로 1회 생성되어 draft에 저장된다 — 실패 후 재시도 시에도 **같은 키**를 재사용한다(§8).
@@ -89,11 +90,30 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 `computeDiagnosisFlags(env)`와 같은 파일에 `computeConsultFlags(env)`를 추가한다(REQ-B2CCONSULT-005, 02의 REQ-B2CRESULT-012 "게이트 계산은 공유 헬퍼 하나로" 원칙의 연장 — 03 전용 신규 파일을 만들지 않는다).
 
 ```
-computeConsultFlags(env) → { shouldRenderConsult: boolean }
+computeConsultFlags(env) → { shouldRenderConsult: boolean; isPolicyReady: boolean }
 shouldRenderConsult = isFlagEnabled(env.ENABLE_CONSULT_FLOW)
+isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 ```
 
-`ENABLE_CONSULT_FLOW`는 `"true"` 문자열만 참으로 취급하는 동일한 판정 함수(`isFlagEnabled`)를 재사용한다. `app/consult/page.tsx`가 `shouldRenderConsult`가 거짓이면 01/02와 동일한 "서비스 준비 중" placeholder를 표시한다. `productionReady`(즉 실제 서비스 오픈 준비 완료 여부, §9 Open Decision과 연결)는 이 플래그와 별개로 §9에서 다룬다 — 이 SPEC의 `ENABLE_CONSULT_FLOW`는 "코드가 배포됐는지"만 게이트하고, "동의 문구가 법무 확정됐는지"는 게이트하지 않는다(두 조건을 혼동하지 않는다).
+두 플래그는 서로 다른 질문에 답하는 **독립된 두 계약**이다 — 하나가 "코드가 배포되어 있는가"를 묻고, 다른 하나가 "실제로 개인정보 수집을 시작해도 되는가"를 묻는다. 이전 초안이 이 둘을 단일 플래그로 뭉뚱그렸던 것(§ 구 `productionReady` 미분화 상태)을 이 SPEC이 명시적으로 분리한다:
+
+- **`ENABLE_CONSULT_FLOW`**: "코드/화면이 배포되어 리뷰 가능한가"만 게이트한다. `"true"` 문자열만 참으로 취급하는 동일한 판정 함수(`isFlagEnabled`)를 재사용한다. `app/consult/page.tsx`가 `shouldRenderConsult`가 거짓이면 01/02와 동일한 "서비스 준비 중" placeholder를 표시한다.
+- **`CONSULT_POLICY_READY`**: "실제로 개인정보 수집을 시작해도 되는가"(법무·운영 확정 여부, §9 Open Decision과 연결)만 게이트한다. `ENABLE_CONSULT_FLOW`가 참이라도 이 값이 거짓이면 03 화면 자체는 렌더링되지만 실제 제출은 불가능하다(아래 조합표, §6.1).
+
+| `ENABLE_CONSULT_FLOW` | `CONSULT_POLICY_READY` | 동작 |
+|---|---|---|
+| `false` | (무관) | 02 CTA는 기존 "준비 중" stub 동작을 그대로 유지한다(REQ-B2CCONSULT-005). |
+| `true` | `false` | 03 화면은 리뷰 가능하지만 실제 제출은 불가능하다 — 클라이언트는 제출 버튼을 실제 제출 대신 안내로 대체하고, 서버는 독립적으로 저장을 거부한다(503/`policy_unavailable`, §6.1, §9.1). |
+| `true` | `true` | 실제 상담 신청 제출이 가능하다. |
+
+이 SPEC의 `ENABLE_CONSULT_FLOW`는 "코드가 배포됐는지"만 게이트하고, "동의 문구가 법무 확정됐는지"는 게이트하지 않는다(두 조건을 혼동하지 않는다) — 후자는 `CONSULT_POLICY_READY`의 몫이다.
+
+### 4.1 리뷰/개발 환경에서 실사용자 PII 오염 방지
+
+이 프로젝트는 Oracle Cloud 단일 VM에 GitHub Actions로 직접 배포하는 구조이며 별도로 격리된 프리뷰 환경이 없다(`tech.md` § Oracle Cloud Always Free VM, `research.md` §6). 이 조건에서 리뷰 산출물(시각 회귀 스크린샷)이 실제 프로덕션 API를 호출해 진짜 레코드를 만들 위험을 두 겹으로 막는다:
+
+1. **1차 방어(클라이언트 설계)**: `pnpm visual:verify`의 `03`/`M03` 스크린샷은 폼을 채우기만 하고 실제로 제출 버튼을 누르지 않는다(§12) — `03-B`/`03-C`/`03-D`(성공/중복/실패) 상태 스크린샷은 `devConsultState` 쿼리 파라미터로 결정론적으로 렌더링되는 **클라이언트 전용 우회 경로**이며 실제 `POST /api/consultations` 호출을 전혀 발생시키지 않는다(§12, 기존 계약 유지).
+2. **2차 방어(서버 자체 검증)**: 리뷰어가 실수로 실제 폼을 수동 제출하더라도, 서버는 클라이언트가 보낸 어떤 값도 신뢰하지 않고 자기 자신의 환경 변수 `CONSULT_POLICY_READY`를 직접 확인한다(§6.1) — 법무 확정 전까지는 프로덕션 환경에서도 이 값을 `false`로 유지하므로, 실제 PII 레코드는 이 값이 명시적으로 `true`로 전환되기 전까지 어떤 경로로도 저장되지 않는다.
 
 ## 5. 신규 파일 트리 + 허용된 기존 파일 확장
 
@@ -160,17 +180,37 @@ ConsultationRequest (POST 페이로드, z.strictObject):
     contact: string                      # 원시 입력(하이픈/공백 허용 포맷), 서버가 정규화
     preferredCallTime?: string           # channel === "phone"일 때만 필수(.refine)
     consent: ConsultationConsent
+    acknowledgedConsentVersion: string (min 1)   # 사용자가 실제로 열람한 동의 문구 버전(§6.1)
     idempotencyKey: string (min 1) }     # draft에서 최초 생성돼 재시도에도 재사용
 
 ConsultationSubmitResult (서버 응답, discriminated union):
-  | { status: "success"; consultationId: string; channel; maskedContact: string;
-      preferredCallTime?: string; expectedContactWindow: string }
+  | { status: "success"; channel; maskedContact: string; preferredCallTime?: string }
   | { status: "duplicate"; receivedAt: string; maskedContact: string; applicationStatus: string }
-  | { status: "error"; code: "validation" | "rate_limited" | "server_error" | "handoff_mismatch";
+  | { status: "error"; code: "validation" | "rate_limited" | "server_error" | "handoff_mismatch"
+      | "policy_unavailable" | "consent_version_mismatch" | "idempotency_conflict";
       message: string; fieldErrors?: Record<string, string[]> }
 ```
 
-**서버가 절대 신뢰하지 않는 클라이언트 값**: `consultationId`(서버 `crypto.randomUUID()` 생성), `createdAt`/`updatedAt`(서버 타임스탬프), `applicationStatus`(서버 초기값 `"received"` 고정), `consent.consentVersion`(클라이언트가 보내지 않는다 — 서버가 자신의 현재 동의 문구 버전 상수로 스탬프한다, §9와 연결). `resultId` 자체는 서버가 대조 검증할 원본 저장소가 없으므로(§ 잔여 위험, §8) 형식(`min(1)`)만 검증하고 opaque 참조로 취급한다.
+**서버가 절대 신뢰하지 않는 클라이언트 값**: `consultationId`(서버 `crypto.randomUUID()` 생성, §9.4에 따라 성공 응답에도 포함하지 않는다), `createdAt`/`updatedAt`(서버 타임스탬프), `applicationStatus`(서버 초기값 `"received"` 고정), 저장되는 `consentVersion`(클라이언트가 보내는 `acknowledgedConsentVersion`을 그대로 복사하지 않는다 — 서버가 활성 정책과 대조 검증한 뒤 자신이 보유한 정책 버전 값으로 스탬프한다, §6.1). `resultId` 자체는 서버가 대조 검증할 원본 저장소가 없으므로(§ 잔여 위험, §8) 형식(`min(1)`)만 검증하고 opaque 참조로 취급한다.
+
+### 6.1 동의 정책(`ConsentPolicy`) 계약
+
+동의 문구·버전은 **서버가 소유하는 정책 계약**이다 — 클라이언트가 값을 선택하거나 생성하지 않는다. 이전 설계는 서버가 클라이언트가 한 번도 보지 못한 버전 상수를 일방적으로 스탬프했는데, 이는 사용자가 실제로 무엇에 동의했는지 사후 검증할 방법이 없어지는 계약이었다 — 아래 계약으로 대체한다.
+
+```
+ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이블로 대체 가능):
+  { version: string       # 예: "2026-09-25-v1", 동의 문구가 바뀔 때마다 사람이 값을 갱신
+    isActive: boolean }   # CONSULT_POLICY_READY 환경 변수에서 파생(§4) — 법무 확정 전에는 false
+```
+
+서버는 요청을 처리하기 전 활성 정책을 조회한다.
+
+- 활성 정책이 없으면(`isActive === false` 또는 정책 미설정) → **503 `policy_unavailable`**(§9.1) — 저장 시도 자체를 하지 않는다. 법무·운영이 동의 문구를 확정하기 전까지는 필수 동의를 적법하게 수집할 수 없으므로, 실제 접수는 구조적으로 열리지 않는다(§4.1 D4).
+- 활성 정책이 있으면 요청의 `acknowledgedConsentVersion`과 정책의 `version`을 비교한다.
+  - **일치** → 저장 시 `consultations.consentVersion` 컬럼에 서버가 보유한 정책의 `version` 값을 쓴다(요청 값을 그대로 복사하지 않고, 검증에 사용한 서버 자신의 값을 쓴다 — 신뢰 경계가 명확하다).
+  - **불일치** → **409 `consent_version_mismatch`** — 저장하지 않는다.
+
+이 계약으로 "사용자가 실제로 무엇에 동의했는지"는 항상 서버 측 검증을 통과한 값으로만 DB에 남는다 — 클라이언트가 임의의 문자열을 보내도 활성 정책과 일치하지 않으면 저장될 수 없다.
 
 **연락처 정규화 vs 표시 포맷 분리(`lib/consult/phone.ts`)**:
 
@@ -202,9 +242,28 @@ ConsultationSubmitResult (서버 응답, discriminated union):
 
 **설계**:
 
-1. **기술적 멱등성**(같은 버튼 재클릭·네트워크 재시도): `consultations.idempotencyKey` 컬럼에 DB UNIQUE 제약. 서버는 `INSERT ... ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`를 시도하고, 0행이 반환되면 **같은 idempotencyKey로 이미 존재하는 레코드**를 조회해 그 레코드의 상태를 그대로 `"success"`로 응답한다(재시도가 원래 요청과 동일하게 취급됨 — 새 레코드를 만들지 않는다).
-2. **비즈니스 중복**(이미 접수된 신청): 위 삽입 시도 이전, 같은 트랜잭션 안에서 `(result_id, contact_normalized)` 복합 UNIQUE 인덱스에 대한 사전 조회를 수행한다 — 일치하는 기존 행이 있고 그 행의 `idempotencyKey`가 이번 요청과 **다르면** `"duplicate"`로 응답하고 새 행을 만들지 않는다(같으면 1번 경로로 처리).
-3. **레이스 안전성**: 두 검사 모두 DB 유니크 제약(트랜잭션 내 원자적 `INSERT`)에 의존한다 — 클라이언트의 사전 체크(예: 폼에 "이미 신청하셨나요?" 안내)는 참고용일 뿐 **권위 있는 판정이 아니다**(REQ-B2CCONSULT-016 추가 시나리오 — 동시 동일 요청 N개가 도착해도 정확히 1개의 신청 레코드만 생성됨을 통합 테스트로 증명).
+1. **기술적 멱등성**(같은 버튼 재클릭·네트워크 재시도): `consultations.idempotencyKey` 컬럼에 DB UNIQUE 제약. 동일 `idempotencyKey`로 이미 존재하는 레코드가 있고 이번 요청의 요청 지문(§8.2)이 그 레코드와 **일치**하면, 새 레코드를 만들지 않고 그 레코드 기준의 `"success"`를 응답한다(재시도가 원래 요청과 동일하게 취급됨). **일치하지 않으면**(같은 키를 다른 내용으로 재사용) 성공으로 처리하지 않고 409/`idempotency_conflict`로 거부한다 — 키 재사용 공격이나 클라이언트 버그를 성공으로 오인하지 않기 위함이다(§8.1 5번/9번).
+2. **비즈니스 중복**(이미 접수된 신청): 위 idempotency 판정에 해당하지 않을 때, 같은 트랜잭션 안에서 `(result_id, contact_normalized)` 복합 UNIQUE 인덱스에 대한 조회를 수행한다 — 일치하는 기존 행이 있으면 `"duplicate"`로 응답하고 새 행을 만들지 않는다.
+3. **레이스 안전성**: 두 검사 모두 DB 유니크 제약(트랜잭션 내 원자적 `INSERT`)에 의존한다 — 클라이언트의 사전 체크(예: 폼에 "이미 신청하셨나요?" 안내)는 참고용일 뿐 **권위 있는 판정이 아니다**(REQ-B2CCONSULT-021 추가 시나리오 — 동시 동일 요청 N개가 도착해도 정확히 1개의 신청 레코드만 생성됨을 통합 테스트로 증명). 정확한 처리 순서와 지문 정의는 §8.1-8.2.
+
+### 8.1 요청 처리 순서 (server-side, 트랜잭션 경계 포함)
+
+1. `ConsultationRequestSchema.safeParse` 실패 → 400/`validation`(연락처 정규화는 이 검증의 일부, §6).
+2. §9.3 Rate limit 판정 — 초과 시 429/`rate_limited`로 여기서 종료(어떤 레코드도 생성하지 않는다).
+3. §6.1 활성 동의 정책 조회·검증 — 정책 없음이면 503/`policy_unavailable`, `acknowledgedConsentVersion` 불일치면 409/`consent_version_mismatch`로 여기서 종료.
+4. `idempotencyKey`로 기존 레코드를 조회한다.
+5. 기존 레코드가 있고 §8.2 요청 지문이 이번 요청과 **일치**하면 → 그 레코드 기준 200/`success`를 반환한다(새 레코드를 만들지 않음).
+6. 기존 레코드가 있지만 요청 지문이 **다르면** → 409/`idempotency_conflict`로 거부한다.
+7. (5/6에 해당하지 않을 때) `(resultId, contactNormalized)` 복합 인덱스로 기존 레코드를 조회한다 — 일치하는 행이 있으면 409/`duplicate`로 거부한다(새 레코드를 만들지 않음).
+8. 위 어느 것에도 해당하지 않으면 신규 `INSERT`를 시도한다(이때 `consentVersion`은 §6.1이 검증한 서버 측 활성 정책 값을, `requestFingerprint`는 §8.2 값을 함께 쓴다).
+9. `INSERT` 시점에 UNIQUE 제약 충돌이 발생하면(동시 요청 레이스) 어느 제약이 충돌했는지 재조회한다.
+10. 충돌한 제약이 `idempotencyKey` UNIQUE였다면 → 5번과 동일하게 처리한다(지문 비교 후 기존 성공 반환 또는 `idempotency_conflict`).
+11. 충돌한 제약이 `(resultId, contactNormalized)` 복합 UNIQUE였다면 → 7번과 동일하게 처리한다(409/`duplicate`).
+12. 그 외 DB 오류는 오직 500/`server_error`로만 응답한다(다른 상태 코드로 오인 매핑하지 않는다).
+
+### 8.2 요청 지문(Request Fingerprint)
+
+요청 지문은 `idempotencyKey` 재사용이 "정말 같은 요청의 재시도"인지 "다른 내용을 같은 키로 보내는 것"인지 구분하는 근거다. 서버는 `{ resultId, channel, name, contactNormalized, preferredCallTime ?? null, consent.piiCollection, consent.healthInfoUse, consent.marketing, acknowledgedConsentVersion }`을 결정론적으로 키 정렬된 JSON으로 직렬화한 뒤 SHA-256 해시를 계산해 `consultations.requestFingerprint` 컬럼(§9.2)에 저장한다. 재시도 요청이 도착하면 같은 방식으로 지문을 계산해 저장된 값과 비교한다 — 원본 PII 값 자체는 어떤 로그에도 남기지 않으며(§9.1), 이 해시 값도 API 응답이나 로그에 노출하지 않고 DB 컬럼으로만 사용한다.
 
 ## 9. 서버 API + 저장소 계약
 
@@ -214,12 +273,15 @@ ConsultationSubmitResult (서버 응답, discriminated union):
 
 | HTTP status | `ConsultationSubmitResult.status`/`code` | 조건 |
 |---|---|---|
-| 201 | `success` | 신규 삽입 성공 또는 동일 idempotencyKey 재시도 |
-| 200 | `success` | (동일 idempotencyKey 재조회 시 — 삽입 없이 기존 행 반환, 201/200 구분은 run-phase가 확정) |
-| 409 | `duplicate` | `resultId`+정규화 연락처 복합 키 충돌 |
+| 201 | `success` | 신규 삽입 성공(§8.1 8번) |
+| 200 | `success` | 동일 idempotencyKey + 지문 일치 재시도(§8.1 5번/10번 — 삽입 없이 기존 행 반환) |
+| 409 | `duplicate` | `resultId`+정규화 연락처 복합 키 충돌(§8.1 7번/11번) |
+| 409 | `idempotency_conflict` | 동일 idempotencyKey, 다른 핵심 페이로드(요청 지문 불일치, §8.1 6번/10번, §8.2) |
+| 409 | `consent_version_mismatch` | 요청의 `acknowledgedConsentVersion`이 활성 동의 정책 버전과 불일치(§6.1) |
+| 503 | `policy_unavailable` | 활성 동의 정책이 없음(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, §6.1) — 저장 시도 자체를 하지 않음 |
 | 400 | `error`/`validation` | `ConsultationRequestSchema.safeParse` 실패(`fieldErrors` 포함) |
-| 429 | `error`/`rate_limited` | 짧은 시간 내 과도한 요청(구체 알고리즘은 §9 Open Decision — run-phase가 IP 또는 `resultId` 기준 경량 카운터로 확정) |
-| 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패 |
+| 429 | `error`/`rate_limited` | 원본 IP HMAC 기반 DB 고정 윈도 카운터 초과(§9.3) |
+| 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패, 또는 rate limit 판정에 필요한 서버 시크릿·신뢰 가능한 IP를 얻을 수 없어 fail closed로 접수를 열지 않은 경우(§9.3) |
 | N/A(서버 미호출) | `error`/`handoff_mismatch` | 제출 직전 클라이언트가 재조회한 `resultId`가 폼 마운트 시점에 읽은 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우) — 서버에 요청을 보내지 않고 클라이언트가 즉시 판정 |
 
 `handoff_mismatch`는 서버가 판정하지 않는다 — §9.2가 명시하듯 서버는 `resultId`를 대조 검증할 원본이 없으므로(잔여 위험), 이 판정은 전적으로 클라이언트가 제출 직전 `readDiagnosisHandoff()`를 재호출해 자체적으로 수행한다(REQ-B2CCONSULT-018).
@@ -241,7 +303,8 @@ consultations
   consentPiiCollection      integer(boolean) NOT NULL
   consentHealthInfoUse      integer(boolean) NOT NULL
   consentMarketing          integer(boolean) NOT NULL
-  consentVersion            text NOT NULL           # 서버가 스탬프(클라이언트 미신뢰)
+  consentVersion            text NOT NULL           # 서버가 §6.1 활성 정책 대조 검증 후 스탬프(클라이언트 미신뢰)
+  requestFingerprint        text NOT NULL           # 요청 지문 SHA-256 해시(§8.2) — idempotencyKey 재사용 시 페이로드 동일성 판정
   applicationStatus         text NOT NULL DEFAULT "received"
   idempotencyKey            text NOT NULL UNIQUE
   createdAt                 integer(timestamp) NOT NULL
@@ -252,11 +315,50 @@ consultations
 
 **PII/진단 데이터 분리 결정**: `DiagnosisResult` 전체(담보 항목·집계 등)는 이 테이블에 **복제하지 않는다** — `resultId`만 opaque 참조로 저장한다. 이유: (a) `DiagnosisResult` 자체가 현재 이 프로젝트 어디에도 서버 영구 저장되지 않는데(02는 `sessionStorage`만 사용), 03에서 처음으로 복제 저장을 시작하면 이 SPEC의 범위를 벗어나 새로운 민감정보(건강정보 인접 데이터) 영구 저장 표면을 여는 셈이 된다. (b) 상담 담당자가 실제로 필요한 것은 연락처·희망 시간·채널이며, 진단 상세는 `resultId`를 매개로 향후(이 SPEC의 범위 밖) 별도 조회 경로가 필요하면 그때 설계한다. **잔여 위험**: `resultId`는 서버가 대조 검증할 원본이 없으므로 클라이언트가 임의의 문자열을 보내도 형식 검사(`min(1)`)만 통과하면 저장된다 — 위변조 방지(서명 등)는 이 SPEC의 범위 밖이며 Open Decision으로 남긴다.
 
+### 9.3 Rate Limiting 알고리즘 (DB 기반 고정 윈도)
+
+이 프로젝트의 실제 배포 대상은 Oracle Cloud 단일 VM 위에서 PM2가 상시 구동하는 단일 프로세스이며, Nginx가 리버스 프록시로서 그 앞을 지킨다(Next.js 프로세스는 `127.0.0.1`에만 바인딩, `tech.md` § Oracle Cloud Always Free VM). 이 조건에서 인메모리 카운터는 PM2 재시작(예: `main` 푸시마다 자동 재배포, `tech.md`)마다 조용히 리셋되어 안전하지 않으므로, DB 기반 고정 윈도 카운터를 채택한다.
+
+```
+consultationRateLimits
+  windowStart      integer(timestamp) NOT NULL   # 고정 윈도 시작 시각(윈도 크기 단위로 내림)
+  ipHmac           text NOT NULL                  # HMAC-SHA256(신뢰 가능한 원본 IP, RATE_LIMIT_HMAC_SECRET) — 원본 IP는 어떤 컬럼에도 저장하지 않는다
+  requestCount     integer NOT NULL DEFAULT 1
+
+  + UNIQUE 복합 인덱스 (windowStart, ipHmac)
+```
+
+상수(run-phase가 실제 값을 트래픽 실측 기반으로 조정할 수 있되, 아래를 plan-phase 기본값으로 확정한다):
+
+```
+RATE_LIMIT_WINDOW_MS = 60_000       # 1분 고정 윈도
+RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시도
+```
+
+알고리즘:
+
+1. Nginx가 리버스 프록시로서 `x-forwarded-for` 헤더에 채우는 원본 클라이언트 IP를 신뢰 가능한 IP로 사용한다 — Next.js 프로세스는 `127.0.0.1`에만 바인딩되어 있어 Nginx를 거치지 않은 요청은 애초에 도달할 수 없다(`tech.md`).
+2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다.
+3. `windowStart = floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS`. `ipHmac = HMAC-SHA256(trustedIp, RATE_LIMIT_HMAC_SECRET)`를 계산한다.
+4. `INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, 1) ON CONFLICT (window_start, ip_hmac) DO UPDATE SET request_count = request_count + 1 RETURNING request_count` 형태의 원자적 upsert를 수행한다.
+5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 파이프라인(동의 정책 검증/idempotency/중복 판정/삽입)을 실행하지 않는다.
+6. 초과하지 않으면 §8.1의 요청 처리 순서(3번부터)로 계속 진행한다.
+
+**보관·정리 정책**: 매 upsert 트랜잭션에서 부가적으로 `DELETE FROM consultation_rate_limits WHERE window_start < :now - RETENTION_MS`(`RETENTION_MS` 기본 1시간)를 함께 실행한다 — `windowStart`가 인덱스 선두 컬럼이라 비용이 낮고, 이 프로젝트가 이미 피하고 있는 별도 cron/백그라운드 잡 인프라(`research.md` §3 — `after()` 패턴만 예외적으로 허용)를 새로 추가하지 않는다.
+
+### 9.4 PII 최소화 계약
+
+- **원시 연락처 미반환**: API는 어떤 응답에서도 원시(마스킹되지 않은) 연락처를 반환하지 않는다 — `maskedContact`만 반환한다(§6 `ConsultationSubmitResult`).
+- **교차 제출 정보 유출 방지**: `duplicate` 응답의 `maskedContact`는 매칭된 기존 레코드의 저장값을 다시 읽어 반환하는 것이 아니라, **이번 요청 자신이 제출한 연락처**를 정규화·마스킹해 생성한다 — 비즈니스 중복 매칭 키 자체가 `contactNormalized` 동일성을 요구하므로 두 값은 정의상 같지만, 이 파생 방식 자체가 향후 매칭 로직 결함이 발생하더라도 다른 제출자의 연락처가 노출될 가능성을 원천 차단한다(REQ-B2CCONSULT-023).
+- **접수 시각 최소 정밀도**: `duplicate` 응답의 `receivedAt`은 시:분:초를 포함하지 않는 날짜 단위 정밀도(`YYYY-MM-DD`)로만 제공한다.
+- **내부 식별자 최소 노출**: 서버가 생성하는 `consultationId`(DB `id` PK)는 이 SPEC의 범위에서 클라이언트가 실제로 사용하는 곳이 없으므로(§4.1 참고 — "기존 신청 상태 확인"은 준비 중 스텁, Open Decision #4) `success`/`duplicate` 응답 어디에도 포함하지 않는다. 이후 실제 상태 조회 기능이 설계되면, 그 SPEC이 필요에 맞는 별도의 클라이언트-안전 참조 토큰을 새로 설계한다(원시 DB PK를 그대로 노출하지 않는다).
+- **로그·분석·시각 검증 fixture**: 어떤 로그 라인·분석 이벤트·시각 회귀 fixture에도 실사용 가능한 PII를 포함하지 않는다 — 이 문서 전체와 `acceptance.md`가 사용하는 예시 값은 명백히 가짜인 값만 사용한다(`acceptance.md` 서두 원칙).
+
 ## 10. 성공/중복/실패 상태 계약
 
 ### 03-B / M03-B (성공)
 
-체크 아이콘 + "상담 신청이 접수되었습니다" + 요약 테이블(상담 방식/연락처(마스킹)/연락 희망 시간(phone일 때만)/상담 예정 전문가(정적 placeholder)) + "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다"(운영 근거 없는 정확한 시각 약속을 하지 않음 — "영업일 기준 1일 이내"라는 디자인 문구는 이미 상대적 표현이라 그대로 채택) + "진단 결과로 돌아가기" + "신청 취소·정보 삭제 문의"(§1 D4, 준비 중 스텁).
+체크 아이콘 + "상담 신청이 접수되었습니다" + 요약 테이블(상담 방식/연락처(마스킹)/연락 희망 시간(phone일 때만)/상담 예정 전문가(정적 placeholder)) + "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"(운영 SLA 확정 없이 구체적 시간을 약속하지 않는 중립 표현 — 원 디자인의 "영업일 기준 1일 이내에…" 문구를 이 SPEC이 대체함, §1 D6) + "진단 결과로 돌아가기" + "신청 취소·정보 삭제 문의"(§1 D4, 준비 중 스텁).
 
 ### 03-C / M03-C (중복)
 
@@ -283,7 +385,7 @@ consultations
 | id | platform | 진입 방법(결정론적) | 픽셀 비교 대상(핵심 3-4요소) | semanticChecks |
 |---|---|---|---|---|
 | `03` | desktop | `/consult?devFixture=fracture&channel=kakao` (review 게이트 재사용) | 요약 카드/채널 선택 행/폼 영역 | 카카오 라디오 `aria-checked=true`, 전화번호 라벨이 "카카오톡 연락에 사용할…"인지, 연락 희망 시간 `required` 부재, 필수 동의 2 + 선택 1 존재, 제출 버튼 `aria-disabled=true`(동의 전) |
-| `03-A2` | desktop | 동일 진입 + 전화 라디오 클릭 | 동일 | 전화 라디오 `aria-checked=true`, "연락 희망 시간" `aria-required=true`, 안내 문구가 "영업일 기준 1일 이내에…" |
+| `03-A2` | desktop | 동일 진입 + 전화 라디오 클릭 | 동일 | 전화 라디오 `aria-checked=true`, "연락 희망 시간" `aria-required=true`, 안내 문구가 "접수 내용을 확인한 뒤…"(§1 D6) |
 | `03-B` | desktop | `?devFixture=fracture&devConsultState=success` | 성공 카드 | 체크 아이콘 존재, 마스킹 연락처 정규식(`\d{3}-\*{4}-\d{4}`) 매칭, 원시 연락처 문자열 DOM 부재 |
 | `03-C` | desktop | `?devFixture=fracture&devConsultState=duplicate` | 중복 카드 | 시계 아이콘 존재, "기존 신청 상태 확인" CTA 존재 |
 | `03-D` | desktop | `?devFixture=fracture&devConsultState=error` | 실패 카드 | 경고 아이콘 존재, "다시 시도하기" CTA 존재, 입력 필드 값 유지(폼 상태 보존) |

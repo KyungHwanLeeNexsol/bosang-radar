@@ -27,8 +27,8 @@
 | `MIGRATION-PLAN.md` §7의 단순 OR 중복 판정 vs 이 SPEC의 AND+멱등성 분리안 | **결정됨(편차 있음, 사용자 확인 요청)** — 단순 OR는 과차단 위험이 커 `resultId`+정규화 연락처 AND로 변경하고 기술적 멱등성을 별도 계층으로 분리한다 | `design.md` §8, Open Decisions |
 | CTA 전달 메커니즘(쿼리 파라미터 vs sessionStorage draft vs 기타) | **결정됨** — URL 쿼리 파라미터(`?channel=`) 단일 메커니즘, 위변조 값은 `kakao` 폴백 | `design.md` §3 |
 | `ENABLE_CONSULT_FLOW` 플래그와 02 게이트의 독립성 | **결정됨** — 02 게이트(`shouldRenderDiagnosis`)와 별개 플래그, 상호 의존 없음 | `design.md` §4 |
-| Rate limiting 구체 알고리즘 | **미결정, run-phase 위임** — 경량 카운터 방식의 존재만 계약(§9.1), IP 또는 `resultId` 기준 세부 구현은 run-phase가 확정 | `spec.md` § Out of Scope |
-| 동의 상세 실제 법무 문구 | **미결정, 이 SPEC 범위 밖** — `{}` 플레이스홀더 구조만 구현, 실제 문구는 법무 검토 후 별도 반영 | `design.md` §1 D5, Open Decisions |
+| Rate limiting 구체 알고리즘 | **결정됨** — DB 기반 고정 윈도(`consultationRateLimits` 테이블, HMAC 처리된 원본 IP, 원자적 upsert)로 plan-phase에서 확정. 실제 윈도 크기·요청 한도 상수의 트래픽 기반 미세 조정만 운영 판단으로 남음 | `design.md` §9.3 |
+| 동의 상세 실제 법무 문구 | **미결정, 이 SPEC 범위 밖** — `{}` 플레이스홀더 구조만 구현, 실제 문구는 법무 검토 후 별도 반영. **다만 이번 세션의 동의 정책/이중 플래그 계약(D3/D4)으로 문구가 미확정인 동안에도 실제 개인정보 수집 자체는 `CONSULT_POLICY_READY=false`로 구조적으로 차단된다** — 차단 위험은 이제 문구 완성이 아니라 서버 계약이 책임진다 | `design.md` §4, §6.1, Open Decisions |
 | "등록정보 확인"·"기존 신청 상태 확인"·"신청 취소·정보 삭제 문의" 실제 목적지 | **결정됨** — 기존 `result-footer.tsx`의 `href="#"` + "준비 중" 선례를 그대로 따름(죽은 링크 방지, 준비 중 명시) | `design.md` §1 D4, §10 |
 
 ## §C. Pre-flight
@@ -50,7 +50,7 @@
 - **④ DB**: `pnpm db:generate`로 신규 마이그레이션 파일 1개(`consultations` 테이블 CREATE + 복합 UNIQUE 인덱스)를 생성한다 — 기존 마이그레이션 파일(`0000`~`0008`)은 수정하지 않는다. 배포 워크플로·환경변수(`ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`)는 손대지 않는다.
 - `DiagnosisResult` 전체를 `consultations` 테이블에 복제 저장하지 않는다 — `resultId`만 opaque 참조로 저장한다(`design.md` §9.2).
 - `components/consult/*` 컴포넌트 소스에 케이스 특정 동적 문구를 리터럴로 하드코딩하지 않는다 — 동의 문구·안내 문구는 `lib/consult/` 공용 상수 모듈에서만 온다.
-- 서버는 클라이언트가 제출한 `consultationId`/`createdAt`/`updatedAt`/`applicationStatus`/`consentVersion`을 신뢰하지 않는다(REQ-B2CCONSULT-017).
+- 서버는 클라이언트가 제출한 `consultationId`/`createdAt`/`updatedAt`/`applicationStatus`를 신뢰하지 않는다. 클라이언트가 보내는 `acknowledgedConsentVersion`도 맹목적으로 신뢰해 그대로 저장하지 않는다 — 활성 동의 정책과 대조 검증한 뒤 서버 자신의 값으로만 `consentVersion`을 스탬프한다(REQ-B2CCONSULT-017, `design.md` §6.1).
 - 클라이언트의 사전 중복 체크를 권위 있는 판정으로 취급하지 않는다 — 모든 중복/멱등성 판정은 DB 제약 기반이다(REQ-B2CCONSULT-020).
 - 로그·오류 응답에 `name`/`contact` 원본 값을 포함하지 않는다(REQ-B2CCONSULT-018).
 - `design/claimradar-ui.pen`, `design/exports/`, `design/internal/`은 읽기 전용 참고 자료다 — 수정하지 않는다.
@@ -69,10 +69,10 @@
 아래 마일스톤은 모두 **후속 run-phase가 실행할 계획**이며, 이번 plan-phase는 문서만 작성한다. 순서는 결정 되돌리기 난이도 기준(데이터 계약 → 서버/DB → UX 흐름 → 조립 → 접근성/테스트 → 검증)이다.
 
 1. **상담 데이터 계약 SSOT** — `lib/consult/types.ts`에 `ConsultationChannel`/`ConsultationConsent`/`ConsultationRequest`/`ConsultationSubmitResult`/`ConsultationDraft` 정의(`design.md` §6). `lib/consult/schema.ts`에 제출용 strict zod 스키마(`ConsultationRequestSchema`, 필수 동의 `z.literal(true)`, `channel`별 `preferredCallTime` 필수 여부 `.refine`)와 draft용 loose 스키마(`ConsultationDraftSchema`)를 정의한다. `lib/consult/phone.ts`에 `normalizePhone`/`formatPhoneDisplay`/`maskPhone` 순수 함수 + 단위 테스트(정규화 실패 케이스 포함, REQ-B2CCONSULT-011).
-2. **DB 스키마 + 서버 API** — `lib/db/schema.ts`에 `consultations` 테이블 추가(id/resultId/channel/name/contactNormalized/preferredCallTime/consent 3종/consentVersion/applicationStatus/idempotencyKey UNIQUE/createdAt/updatedAt + `(resultId, contactNormalized)` 복합 UNIQUE 인덱스, `design.md` §9.2). `pnpm db:generate`로 마이그레이션 생성. `app/api/consultations/route.ts`(`POST` 핸들러) — 요청 검증(`ConsultationRequestSchema.safeParse`) → 비즈니스 중복 사전 조회 → `idempotencyKey` 원자적 삽입(`ON CONFLICT DO NOTHING RETURNING`) → HTTP 상태-응답 매핑(`design.md` §9.1) → PII 없는 구조적 로그(`console.info`, `toSafeErrorMeta`). 통합 테스트: 동시 동일 `idempotencyKey` N개 요청 → 정확히 1개 레코드(REQ-B2CCONSULT-021), 비즈니스 중복 케이스, 검증 실패 케이스, 서버 오류 케이스.
+2. **DB 스키마 + 서버 API** — `lib/db/schema.ts`에 `consultations` 테이블 추가(id/resultId/channel/name/contactNormalized/preferredCallTime/consent 3종/consentVersion/requestFingerprint/applicationStatus/idempotencyKey UNIQUE/createdAt/updatedAt + `(resultId, contactNormalized)` 복합 UNIQUE 인덱스, `design.md` §9.2) 및 `consultationRateLimits` 보조 테이블(windowStart/ipHmac/requestCount + `(windowStart, ipHmac)` 복합 UNIQUE, `design.md` §9.3). `pnpm db:generate`로 마이그레이션 생성. `app/api/consultations/route.ts`(`POST` 핸들러) — §8.1이 정의한 순서(검증 → rate limit → 동의 정책 검증 → `idempotencyKey` 조회·요청 지문 비교 → 비즈니스 중복 조회 → 삽입 → 삽입 시점 UNIQUE 충돌 재조회)를 그대로 구현 → HTTP 상태-응답 매핑(`design.md` §9.1) → PII 없는 구조적 로그(`console.info`, `toSafeErrorMeta`). 통합 테스트: 동시 동일 `idempotencyKey` N개 요청 → 정확히 1개 레코드(REQ-B2CCONSULT-021), 동일 키·다른 페이로드 동시 요청 → `idempotency_conflict`, 비즈니스 중복 케이스, 검증 실패 케이스, rate limit 초과 케이스, 동의 정책 불일치/부재 케이스, 서버 오류 케이스.
 3. **02→03 CTA 활성화 + 핸드오프/draft 채널** — `lib/diagnosis/flags.ts`에 `computeConsultFlags(env)` 추가(`design.md` §4). `components/result/result-cta-bar.tsx`의 4개 stub을 `shouldRenderConsult` 게이트 뒤 실제 `<Link href="/consult?channel=...">`로 전환(플래그 꺼짐 시 기존 stub 동작 유지). `lib/consult/draft.ts`(`writeConsultationDraft`/`readConsultationDraft`/`clearConsultationDraft`, SSR 가드, 손상 시 조용한 빈 draft 폴백, `design.md` §2.3). `components/diagnosis/diagnosis-flow.tsx`에 `clearConsultationDraft()` 호출 한 줄 추가. `app/consult/page.tsx`(Server Component 셸, `computeConsultFlags` 게이트 + `<Suspense>` + `<ConsultView />`).
 4. **채널 선택 · 입력 폼 · 동의 컴포넌트** — `components/consult/consult-view.tsx`(마운트 시 `readDiagnosisHandoff()` + `readConsultationDraft()` 조회 → 3갈래 분기: empty→no-data / invalid→error / valid→폼 표시). `consult-summary-card.tsx`(`computeAggregate` 재사용 요약). `consult-channel-selector.tsx`(라디오, `channel` state). `consult-form.tsx`(이름/연락처/연락 희망 시간, `channel==="phone"` 조건부 필수). `consult-consent-group.tsx`(필수 2 + 선택 1, Desktop Modal/Mobile Bottom Sheet 상세 보기, focus trap). `consult-submit-bar.tsx`(이중 제출 방지, `aria-busy`).
-5. **성공 · 중복 · 실패 상태** — `consult-success.tsx`(03-B/M03-B), `consult-duplicate.tsx`(03-C/M03-C, PII 최소 노출), `consult-failure.tsx`(03-D/M03-D, 저장 여부 미단정 + 동일 idempotencyKey 재시도 + 입력 보존). `consult-no-data.tsx`/`consult-error.tsx`(핸드오프 부재/오류). 제출 성공 시 `clearDiagnosisHandoff()` + `clearConsultationDraft()` 호출(REQ-B2CCONSULT-025).
+5. **성공 · 중복 · 실패 상태** — `consult-success.tsx`(03-B/M03-B), `consult-duplicate.tsx`(03-C/M03-C, PII 최소 노출), `consult-failure.tsx`(03-D/M03-D, 저장 여부 미단정 + 동일 idempotencyKey 재시도 + 입력 보존). `consult-no-data.tsx`/`consult-error.tsx`(핸드오프 부재/오류). 제출 성공 시 `clearConsultationDraft()`만 호출한다(REQ-B2CCONSULT-025) — `DiagnosisResult` 핸드오프는 삭제하지 않으며(`design.md` §2.2), 성공/중복/실패 모든 상태의 "진단 결과로 돌아가기"가 제출 전과 동일한 결과를 표시함을 컴포넌트 테스트로 확인한다.
 6. **접근성 · 반응형 · unit/component 테스트** — Desktop 720px 폼 폭, Mobile sticky 하단 CTA, 오류 요약 + 첫 오류 필드 포커스, `aria-describedby`/`aria-live`, 키보드 전체 조작성, `prefers-reduced-motion`. Vitest: 데이터 계약/전화번호 정규화/draft/CTA 채널 매핑/동의 게이트/폼 검증/상태 컴포넌트별 렌더링.
 7. **E2E + 시각 정합성 확장 + 문서 동기화** — `e2e/consult-flow-03.spec.ts` 신규(02 fixture 경유 → CTA 클릭 → 03 도착 → 채널 전환 → 폼 입력 → 동의 → 제출 → 성공/중복/실패 각 분기 → "진단 결과로 돌아가기"). `scripts/visual-verify.ts`의 `SCREENS` 배열에 9개 화면 정의 추가(기존 15개 항목 수정 금지, `design.md` §12). `pnpm visual:verify` 실행해 기존 15화면 PASS 유지 + 신규 9화면 PASS 확인(총 24화면). `product.md`/`structure.md` Roadmap 갱신(03 완료 반영).
 
@@ -83,7 +83,12 @@
 - 중복 판정을 `MIGRATION-PLAN.md` §7의 단순 OR(`resultId` 또는 연락처)로 구현하지 않는다 — `resultId`+정규화 연락처 AND + 별도 `idempotencyKey` 멱등성 계층으로 구현한다.
 - 클라이언트 사전 중복 체크를 권위 있는 판정으로 취급하지 않는다 — 반드시 DB 제약(트랜잭션 내 원자적 연산)으로 판정한다.
 - `DiagnosisResult` 전체를 `consultations` 테이블에 복제 저장하지 않는다 — `resultId`만 opaque 참조로 저장한다.
-- 클라이언트가 보낸 `consultationId`/`createdAt`/`updatedAt`/`applicationStatus`/`consentVersion`을 신뢰하지 않는다 — 서버가 항상 자체 생성·스탬프한다.
+- 클라이언트가 보낸 `consultationId`/`createdAt`/`updatedAt`/`applicationStatus`를 신뢰하지 않는다 — 서버가 항상 자체 생성·스탬프한다. 클라이언트가 보낸 `acknowledgedConsentVersion`도 맹목적으로 저장하지 않는다 — 활성 정책과 대조 검증한 값만 저장한다(`design.md` §6.1).
+- 상담 신청 성공 시 `DiagnosisResult` 핸드오프를 삭제하지 않는다 — 삭제 대상은 상담 폼 draft뿐이다. 핸드오프를 지우면 성공/중복/실패 화면의 "진단 결과로 돌아가기"가 깨진다(`design.md` §2.2).
+- 동일 `idempotencyKey`로 도착했다는 이유만으로 페이로드를 비교하지 않고 곧장 성공으로 처리하지 않는다 — 요청 지문이 다르면 `idempotency_conflict`로 거부한다(`design.md` §8.1-8.2).
+- Rate limiting을 인메모리 카운터나 프로세스 로컬 상태로 구현하지 않는다 — PM2 재시작마다 조용히 리셋되어 안전하지 않다. DB 기반 고정 윈도 카운터로만 구현한다(`design.md` §9.3).
+- Rate limit 판정에 필요한 서버 시크릿이 없거나 신뢰 가능한 IP를 얻을 수 없을 때 요청을 통과시키지 않는다(fail open 금지) — 반드시 fail closed로 접수를 거부한다(`design.md` §9.3).
+- 성공/중복 응답에 내부 DB 식별자(`consultationId`)나 시:분:초를 포함한 정밀 타임스탬프를 그대로 노출하지 않는다 — 이 SPEC의 범위에서 클라이언트가 실제로 쓰는 곳이 없다(`design.md` §9.4).
 - 마케팅 동의(선택 ③)를 제출 버튼 활성화 조건에 포함하지 않는다.
 - 동의 상세 뷰를 여는 것만으로 체크박스를 자동 체크하지 않는다.
 - 제3자 제공 동의를 활성화 상태로 노출하지 않는다.

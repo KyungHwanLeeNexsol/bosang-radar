@@ -58,6 +58,11 @@ Given `sessionStorage`의 draft 값이 유효하지 않은 JSON일 때
 When `/consult`가 마운트되면
 Then 콘솔 예외로 중단되지 않고 빈 draft(모든 필드 기본값)로 폼이 렌더링되며, 진단 결과 자체(`DiagnosisResult`)는 정상 표시된다(draft 손상이 진단 결과 오류 상태로 오인되지 않음).
 
+추가 시나리오 — 알 수 없는 키·구버전 `draftVersion` 폴백:
+Given `sessionStorage`의 draft 값이 유효한 JSON이지만 `ConsultationDraftSchema`에 정의되지 않은 알 수 없는 키를 포함하거나 `draftVersion`이 현재 버전과 다를 때
+When `/consult`가 마운트되면
+Then `z.strictObject` 검증이 실패해 콘솔 예외 없이 빈 draft로 폴백하며, 진단 결과(`DiagnosisResult`)는 정상 표시된다.
+
 **AC-B2CCONSULT-007** (REQ-B2CCONSULT-007)
 Given `sessionStorage`에 진단 결과 핸드오프가 없는 상태(02를 경유하지 않은 직접 진입 포함)에서
 When 사용자가 `/consult`에 접근하면
@@ -146,15 +151,20 @@ Given `channel: "phone"`이면서 `preferredCallTime`이 없을 때
 When `safeParse`를 실행하면
 Then `success: false`를 반환하며, `channel: "kakao"`이면서 `preferredCallTime`이 없는 동일 조건에서는 `success: true`를 반환한다.
 
+추가 시나리오 — `acknowledgedConsentVersion` 필수:
+Given `acknowledgedConsentVersion` 필드가 없는(또는 빈 문자열인) 페이로드일 때
+When `safeParse`를 실행하면
+Then `success: false`를 반환한다.
+
 **AC-B2CCONSULT-017** (REQ-B2CCONSULT-017)
 Given 클라이언트가 페이로드에 `applicationStatus: "resolved"`(서버 소유 필드에 임의 값)를 포함해 전송했을 때
 When 서버가 이 요청을 처리하면
 Then 저장된 레코드의 `applicationStatus`는 클라이언트가 보낸 값이 아니라 서버 기본값(`"received"`)이다.
 
-추가 시나리오 — `consentVersion` 서버 스탬프:
+추가 시나리오 — `consentVersion`은 서버가 검증 후 스탬프:
 Given `ConsultationRequestSchema`(클라이언트 제출 페이로드) 정의를 검사할 때
-When `consentVersion` 필드의 존재 여부를 확인하면
-Then 이 스키마에 `consentVersion` 필드가 존재하지 않는다(클라이언트가 값을 보낼 방법이 없다) — 저장된 `consultations.consentVersion`은 항상 서버가 자체 상수로 채운다.
+When 필드 목록을 확인하면
+Then `acknowledgedConsentVersion` 필드는 존재하지만 `consentVersion` 필드는 존재하지 않는다 — 클라이언트는 자신이 열람한 버전만 보낼 수 있고, 저장되는 `consultations.consentVersion` 값은 항상 서버가 활성 정책(§6.1)과 대조 검증한 뒤 자신의 값으로 스탬프한다(클라이언트가 보낸 `acknowledgedConsentVersion`을 그대로 복사하지 않는다).
 
 ## 서버 API
 
@@ -176,7 +186,27 @@ Then 클라이언트가 보낸 `name`/`contact` 원본 값이 echo되어 있지 
 추가 시나리오 — 최초 제출 성공 응답 형태:
 Given 유효한 최초 제출 페이로드(중복도 재시도도 아닌 신규 `idempotencyKey`)로 `POST /api/consultations`를 호출했을 때
 When 응답을 확인하면
-Then HTTP 201과 함께 `{status:"success", consultationId, channel, maskedContact, expectedContactWindow}` 형태의 페이로드가 반환되며(`channel === "phone"`이면 `preferredCallTime`도 포함), `consultationId`는 서버가 새로 생성한 값이다 — 동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)와는 구분되는 신규 삽입 경로다.
+Then HTTP 201과 함께 `{status:"success", channel, maskedContact}` 형태의 페이로드가 반환되며(`channel === "phone"`이면 `preferredCallTime`도 포함), 응답 본문에 내부 DB 식별자(`consultationId`)나 구체적 연락 시각 약속(`expectedContactWindow`)은 포함되지 않는다(§9.4) — `consultations` 테이블의 행 수가 요청 전 대비 정확히 1 증가했음으로 신규 삽입임을 확인한다(동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)에서는 행 수가 증가하지 않는다는 점과 대비된다).
+
+추가 시나리오 — 활성 동의 정책 없음(`policy_unavailable`):
+Given `CONSULT_POLICY_READY`가 거짓이거나 활성 정책이 설정되지 않았을 때
+When 유효한 나머지 필드로 `POST /api/consultations`를 호출하면
+Then HTTP 503과 `{status:"error", code:"policy_unavailable"}`가 반환되며 어떤 레코드도 생성되지 않는다.
+
+추가 시나리오 — 동의 버전 불일치(`consent_version_mismatch`):
+Given 활성 정책은 존재하지만 요청의 `acknowledgedConsentVersion`이 활성 정책의 `version`과 다를 때
+When `POST /api/consultations`를 호출하면
+Then HTTP 409와 `{status:"error", code:"consent_version_mismatch"}`가 반환되며 레코드가 생성되지 않는다.
+
+추가 시나리오 — Rate limit 초과:
+Given 같은 신뢰 가능한 IP에서 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LIMIT_MAX_REQUESTS`를 초과하는 요청이 도착했을 때
+When 그다음 요청을 처리하면
+Then HTTP 429와 `{status:"error", code:"rate_limited"}`가 반환되며 동의 정책 검증·idempotency/중복 판정·삽입 로직은 실행되지 않는다.
+
+추가 시나리오 — Rate limit 시크릿 부재 시 fail closed:
+Given `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
+When `POST /api/consultations`를 호출하면
+Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 레코드도 생성되지 않는다.
 
 추가 시나리오 — `handoff_mismatch` 판정:
 Given 폼 마운트 시점에 읽어 둔 `resultId`와 제출 직전 재조회한 `readDiagnosisHandoff()`의 `resultId`가 서로 다를 때(다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우)
@@ -186,7 +216,12 @@ Then 클라이언트는 `POST /api/consultations`를 호출하지 않고 즉시 
 **AC-B2CCONSULT-019** (REQ-B2CCONSULT-019)
 Given `consultations` 테이블 스키마(`lib/db/schema.ts`)를 검사할 때
 When 컬럼 목록을 확인하면
-Then `resultId`/`channel`/`name`/`contactNormalized`/`preferredCallTime`/동의 3종/`consentVersion`/`applicationStatus`/`idempotencyKey`/`createdAt`/`updatedAt`이 존재하며, `DiagnosisResult.items`(담보 항목 배열) 또는 그 축약형을 저장하는 컬럼은 존재하지 않는다.
+Then `resultId`/`channel`/`name`/`contactNormalized`/`preferredCallTime`/동의 3종/`consentVersion`/`requestFingerprint`/`applicationStatus`/`idempotencyKey`/`createdAt`/`updatedAt`이 존재하며, `DiagnosisResult.items`(담보 항목 배열) 또는 그 축약형을 저장하는 컬럼은 존재하지 않는다.
+
+추가 시나리오 — rate limit 보조 테이블에 원본 IP 미저장:
+Given `consultationRateLimits` 테이블 스키마를 검사할 때
+When 컬럼 목록을 확인하면
+Then `windowStart`/`ipHmac`/`requestCount`만 존재하며, 원본 IP 문자열을 평문으로 저장하는 컬럼은 존재하지 않는다.
 
 ## 중복 · 멱등성
 
@@ -205,10 +240,25 @@ Given `resultId`는 동일하지만 정규화 연락처가 서로 다른 두 요
 When 서버가 두 요청을 순차 처리하면
 Then 둘 다 별개의 레코드로 성공 저장된다(과차단되지 않음).
 
+추가 시나리오 — 동일 `idempotencyKey`, 다른 페이로드는 거부:
+Given 이미 성공 처리된 `idempotencyKey`와 동일한 값이지만 이름 또는 연락처 등 핵심 필드가 다른 요청이 도착했을 때
+When 서버가 처리하면
+Then HTTP 409와 `{status:"error", code:"idempotency_conflict"}`가 반환되고 새 레코드가 생성되지 않으며 기존 레코드도 변경되지 않는다.
+
 **AC-B2CCONSULT-021** (REQ-B2CCONSULT-021)
 Given 완전히 동일한 페이로드(같은 `idempotencyKey`)를 가진 요청 5개가 사실상 동시에 도착했을 때
 When 서버가 이 요청들을 병렬 처리하면
-Then `consultations` 테이블에서 해당 `idempotencyKey`를 가진 레코드가 정확히 1개만 존재한다(통합 테스트로 증명).
+Then `consultations` 테이블에서 해당 `idempotencyKey`를 가진 레코드가 정확히 1개만 존재하며(통합 테스트로 증명), 5개 호출 모두 동일한 `{status:"success", ...}` 응답을 받는다(어느 호출도 다른 결과를 관측하지 않는다).
+
+추가 시나리오 — 동일 `idempotencyKey`, 다른 페이로드 동시 도착:
+Given 같은 `idempotencyKey`를 가졌지만 서로 다른 이름 또는 연락처를 담은 요청 여러 개가 사실상 동시에 도착했을 때
+When 서버가 이 요청들을 병렬 처리하면
+Then 정확히 1개의 요청만 원 요청으로 성공 처리되어 레코드가 생성되고, 나머지 모든 요청은 HTTP 409/`idempotency_conflict`를 받는다(통합 테스트로 증명).
+
+추가 시나리오 — 서로 다른 `idempotencyKey`, 같은 `resultId`+연락처 동시 도착:
+Given 서로 다른 `idempotencyKey`를 가졌지만 동일한 `resultId`와 동일한 정규화 연락처를 담은 요청 여러 개가 사실상 동시에 도착했을 때
+When 서버가 이 요청들을 병렬 처리하면
+Then 정확히 1개의 요청만 성공 레코드로 생성되고, 나머지 요청들은 HTTP 409/`duplicate`를 받는다(통합 테스트로 증명).
 
 ## 성공 · 중복 · 실패 상태
 
@@ -226,6 +276,16 @@ Then 위와 동일한 문구·재시도 동작·입력 보존이 적용된다.
 Given 서버가 `{status:"duplicate"}`를 반환했을 때
 When 03-C 화면을 렌더링하면
 Then 마스킹된 연락처(`010-****-1234` 형식)·접수일·처리 상태 라벨만 표시되고, 기존 신청의 내부 `consultationId`나 전체 페이로드는 DOM 어디에도 노출되지 않는다.
+
+추가 시나리오 — 마스킹된 연락처는 요청 자신의 값에서 파생(구현 안전장치, 정적 검사):
+Given 비즈니스 중복(`resultId`+정규화 연락처 일치)으로 판정된 요청을 처리하는 서버 코드를 검사할 때
+When `maskedContact` 값을 계산하는 지점을 확인하면
+Then 이 값은 매칭된 기존 레코드의 저장된 `contactNormalized`를 다시 읽어 마스킹하는 것이 아니라, 이번 요청 자신이 제출한 연락처를 정규화·마스킹해 생성한다 — 두 값은 정의상 동일하지만, 이 파생 방식 자체가 매칭 로직 결함 발생 시에도 다른 제출자의 연락처 노출을 원천 차단한다.
+
+추가 시나리오 — 접수일은 날짜 단위 정밀도만:
+Given 서버가 `{status:"duplicate", receivedAt}`을 반환했을 때
+When `receivedAt` 값의 형식을 확인하면
+Then 시:분:초를 포함하지 않는 `YYYY-MM-DD` 형식이다.
 
 ## 반응형 · 접근성
 
@@ -251,10 +311,20 @@ Given `pnpm visual:verify`를 이 SPEC의 run-phase 구현 완료 후 전체 실
 When 결과를 확인하면
 Then 기존 15화면(01 계열 10 + 02 계열 5)이 여전히 PASS하고, 이 SPEC이 추가한 9화면(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D)도 PASS한다(총 24화면).
 
-추가 시나리오 — 핸드오프 정리:
+추가 시나리오 — draft만 정리, 진단 결과 핸드오프는 유지:
 Given 상담 신청이 성공적으로 접수되었을 때
 When `sessionStorage`를 검사하면
-Then 진단 결과 핸드오프 키와 상담 draft 키가 모두 제거되어 있다.
+Then 상담 draft 키는 제거되어 있고, 진단 결과 핸드오프 키(`DiagnosisResult`)는 여전히 존재한다.
+
+추가 시나리오 — 성공 후 진단 결과로 복귀:
+Given 상담 신청이 성공적으로 접수된 직후
+When 03-B 화면의 "진단 결과로 돌아가기"를 눌러 `/result`로 이동하면
+Then 제출 전과 동일한 `resultId`를 가진 동일한 진단 결과 요약이 다시 표시된다.
+
+추가 시나리오 — 중복/실패 화면에서도 복귀 시 핸드오프 유지:
+Given 서버 응답이 `duplicate` 또는 `error`였을 때
+When 03-C/03-D 화면의 "진단 결과로 돌아가기"를 눌러 `/result`로 이동하면
+Then 제출 시도와 무관하게 동일한 `resultId`의 진단 결과가 그대로 표시된다.
 
 추가 시나리오 — `DIAGNOSIS_ENGINE_READY` 미전환:
 Given 이 SPEC이 전달하는 전체 코드 diff를 검사할 때
