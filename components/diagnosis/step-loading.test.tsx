@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mockJudge, StepLoading } from "./step-loading";
+import { FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
 
 // SPEC-B2C-DIAGNOSIS-001 M6 (design.md §11, §18.1 loading 상태;
 // acceptance.md AC-B2CDIAG-009) — 01-C/M01-C 진단 중 화면. 단계 지연이
@@ -32,13 +33,43 @@ async function waitInTicks(totalMs: number, tickMs = 200) {
 
 describe("components/diagnosis/mockJudge — mock 판정 결정론", () => {
   it("입력에 '오류'가 포함되면 항상 error를 반환한다", () => {
-    expect(mockJudge("오류 테스트 입력")).toBe("error");
-    expect(mockJudge("오류")).toBe("error");
+    expect(mockJudge("오류 테스트 입력", false)).toBe("error");
+    expect(mockJudge("오류", false)).toBe("error");
   });
 
   it("입력에 '오류'가 없으면 항상 result-none을 반환한다", () => {
-    expect(mockJudge("계단에서 넘어져 발목을 다쳤어요")).toBe("result-none");
-    expect(mockJudge("")).toBe("result-none");
+    expect(mockJudge("계단에서 넘어져 발목을 다쳤어요", false)).toBe("result-none");
+    expect(mockJudge("", false)).toBe("result-none");
+  });
+});
+
+// SPEC-B2C-RESULT-001 M2 (design.md §4, REQ-B2CRESULT-009/010/011) —
+// reviewEnabled boolean 게이트 회귀 테스트. 기존 두 갈래("오류" 포함 →
+// error, 그 외 → result-none)는 reviewEnabled 값과 무관하게 동일해야 하고
+// (defense-in-depth boundary), 골절 fixture 정확 일치는 reviewEnabled=true
+// 에서만 "result"를 반환해야 한다.
+describe("components/diagnosis/mockJudge — reviewEnabled 게이트(REQ-B2CRESULT-009/010/011)", () => {
+  it("reviewEnabled=true이고 입력이 FRACTURE_FIXTURE_INPUT과 정확히 일치하면 result를 반환한다", () => {
+    expect(mockJudge(FRACTURE_FIXTURE_INPUT, true)).toBe("result");
+  });
+
+  it("reviewEnabled=false이면 입력이 FRACTURE_FIXTURE_INPUT과 정확히 일치해도 result를 반환하지 않는다(defense-in-depth)", () => {
+    expect(mockJudge(FRACTURE_FIXTURE_INPUT, false)).not.toBe("result");
+    expect(mockJudge(FRACTURE_FIXTURE_INPUT, false)).toBe("result-none");
+  });
+
+  it("reviewEnabled=true여도 부분 일치(정확 일치 아님)로는 result를 반환하지 않는다(부분 문자열 매칭 금지)", () => {
+    expect(mockJudge(`${FRACTURE_FIXTURE_INPUT} 추가 문구`, true)).not.toBe("result");
+  });
+
+  it("기존 '오류' 분기는 reviewEnabled 값과 무관하게 항상 error다(회귀 없음)", () => {
+    expect(mockJudge("오류 테스트 입력", true)).toBe("error");
+    expect(mockJudge("오류 테스트 입력", false)).toBe("error");
+  });
+
+  it("기존 기본 분기는 reviewEnabled 값과 무관하게 항상 result-none이다(회귀 없음)", () => {
+    expect(mockJudge("계단에서 넘어져 발목을 다쳤어요", true)).toBe("result-none");
+    expect(mockJudge("계단에서 넘어져 발목을 다쳤어요", false)).toBe("result-none");
   });
 });
 
@@ -122,6 +153,32 @@ describe("components/diagnosis/StepLoading — AC-B2CDIAG-009", () => {
 
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(onDone).toHaveBeenCalledWith("error");
+  });
+
+  it("reviewEnabled=true이고 입력이 골절 fixture와 정확히 일치하면 onDone을 result로 호출한다(REQ-B2CRESULT-009/010)", async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(
+        <StepLoading input={FRACTURE_FIXTURE_INPUT} onDone={onDone} reviewEnabled={true} />
+      );
+    });
+
+    await waitInTicks(1200);
+
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith("result");
+  });
+
+  it("reviewEnabled이 전달되지 않으면(false로 안전하게 저하) 골절 fixture 입력도 result-none으로 판정한다", async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(<StepLoading input={FRACTURE_FIXTURE_INPUT} onDone={onDone} />);
+    });
+
+    await waitInTicks(1200);
+
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith("result-none");
   });
 
   it("M8: 스피너에 motion-reduce 클래스가 정적으로 적용되어 있다(popover.tsx와 동일한 패턴)", () => {

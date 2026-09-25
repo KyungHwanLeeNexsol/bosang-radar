@@ -1,12 +1,19 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-22 (SPEC-B2C-RESULT-001 plan-phase 진입 전
-> 기준문서 현행화 — SPEC-B2C-DIAGNOSIS-001 완료·병합 반영: "01 질문
-> 입력 및 진단" 흐름이 기능 플래그 뒤에 구현 완료됐고, "B2C 코드는
-> 아직 없다"는 §읽는 법·§구조·공존 관계의 오래된 서술을 정정했다.
-> 담보 카드 3톤 상태 표기를 `design/MIGRATION-PLAN.md`와 동일하게
-> 검토 대상/추가 정보 필요/가능성 낮음으로 통일. 이전 개정:
-> 2026-09-18 (SPEC-B2C-FOUNDATION-001 M6) — B2B 전용 코드
+> 최종 수정: 2026-09-22 (SPEC-B2C-RESULT-001 M6 — **② 보상 진단 결과**
+> 화면 5개(02 Desktop + M02/M02-B/M02-C/M02-D Mobile 탭 4개) 구현 완료.
+> `app/result/`·`components/result/*`·`lib/diagnosis/`가 신설됐고,
+> `lib/diagnosis/handoff.ts`를 통해 ① 질문 입력 및 진단(01)의 골절 사례
+> review 전용 fixture가 sessionStorage로 02에 인계된다. 담보 매칭
+> 엔진은 여전히 미결정(§Roadmap A)이며, 02는 골절 사례 1종의 고정
+> 데이터만 렌더링한다. 같은 브랜치 분기 시점(SPEC-B2C-DIAGNOSIS-001
+> 병합 직후) 이후 main에는 별도로 "SPEC-B2C-DIAGNOSIS-001 완료·병합
+> 반영" 기준문서 현행화가 진행되어 "01 질문 입력 및 진단" 흐름이
+> 기능 플래그 뒤에 구현 완료됐음을 §읽는 법·§구조·공존 관계에 정정
+> 반영했고, 담보 카드 3톤 상태 표기를 `design/MIGRATION-PLAN.md`와
+> 동일하게 검토 대상/추가 정보 필요/가능성 낮음으로 통일했다 — 이번
+> 병합으로 두 changeset이 하나로 합쳐졌다. 이전 개정: 2026-09-18
+> (SPEC-B2C-FOUNDATION-001 M6) — B2B 전용 코드
 > 삭제 실행 결과를 문서에 반영. `lib/auth/`·`app/cases/*`·`app/login/`·
 > `app/api/**`·`components/evidence-item.*`·`proxy.ts`·B2B 전용
 > E2E 13개·Better Auth 의존성은 삭제 완료됐고, `lib/pipeline/`(+
@@ -235,21 +242,23 @@ B2C 대상 서비스이므로 단정형 금액 제시는 표시광고법·보험
 대부분 상태(동의·추가 질문·로딩·에러·성공/중복/실패)를 Desktop+Mobile
 24개로 확장했다 — 단, **모바일의 결과 없음(`M01-D`)·분석 오류(`M01-E`)
 대응 화면은 아직 디자인되지 않았다**(Desktop `01-D`/`01-E`만 존재).
-**① 질문 입력 및 진단**(01 흐름 10화면)은 SPEC-B2C-DIAGNOSIS-001에서
-구현이 완료됐다. **② 보상 진단 결과**는 SPEC-B2C-RESULT-001이
-plan-phase에 진입했다. 아래는 그 외 **아직 디자인·구현 모두 안 된 것**만
-남긴다:
+① 질문 입력 및 진단(01 흐름, Desktop+Mobile)은 SPEC-B2C-DIAGNOSIS-001에서,
+② 보상 진단 결과(02 흐름, Desktop 전체 펼침 + Mobile 4탭)는
+SPEC-B2C-RESULT-001에서 각각 기능 플래그(`ENABLE_DIAGNOSIS_FLOW`/
+`DIAGNOSIS_ENGINE_READY`) 뒤에 구현이 완료됐다 — 02는 골절 사례 1종의
+review 전용 fixture(`buildFractureResult`)로만 채워지며 실제 담보 매칭
+엔진은 여전히 미연결이다. 아래는 그중 **아직 디자인·구현 모두 안 된
+것**만 남긴다. 이번 라운드에서 SPEC 문서를 생성하지 않는다:
 
 - **02 담보 데이터 확장** — 골절 외 암·뇌혈관·심장·디스크 등 케이스별
-  담보 세트 데이터 설계 (현재는 골절 사례 1종만 디자인·문서화됨;
-  SPEC-B2C-RESULT-001 Out of Scope — 후속 SPEC).
-- **③ 상담 신청 및 접수 결과 화면 실제 구현** — 디자인만 존재하는
-  03/M03 계열을 실제 라우트/컴포넌트로 구현 (담보 매칭 로직 방식은
-  미결정, 위 § 참고).
+  담보 세트 데이터 설계 (02 UI·데이터 계약은 구현 완료됐으나, 채워 넣는
+  실데이터는 여전히 골절 사례 1종뿐).
+- **③ 상담 신청 흐름 실제 구현** — 03/03-A2/03-B/03-C/03-D(Desktop+Mobile)
+  디자인만 존재하는 화면 전체를 실제 라우트/컴포넌트로 구현 (이름·연락처
+  수집 API + PII 예외 스키마 신설 포함, 담보 매칭 로직 방식은 미결정,
+  위 § 참고).
 - **모바일 결과없음/분석오류 화면 디자인 없음** — Desktop의
   `01-D`·`01-E`에 대응하는 모바일 화면이 아직 디자인되지 않음.
-- **03 리드 폼 + 검증 스키마** — 이름/연락처를 수집하는 신규 API
-  route + PII 예외를 반영한 Zod 스키마 신설(`tech.md` 참고).
 - **DEV ONLY 정책 문구 확정** — `design/internal/`의 동의 상세 자리표시자
   문구를 법무 검토 후 실제 문구로 교체(`design/MIGRATION-PLAN.md` §3, §9).
 - **공통 00 Design System 정리** — 더 이상 쓰지 않는 컴포넌트(App
