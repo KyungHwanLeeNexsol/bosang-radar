@@ -1,6 +1,14 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-22 (SPEC-B2C-RESULT-001 M6 — **② 보상 진단 결과**
+> 최종 수정: 2026-09-25 (SPEC-B2C-RESULT-001 sync-phase 종료 — PR #19
+> squash 병합(main `e0b5bab`)으로 **② 보상 진단 결과(02)** 의
+> plan/run/sync 3단계가 모두 완료됐다(`status: completed`). 02 화면,
+> 01→02 sessionStorage 인계, strict Zod `DiagnosisResult` 계약,
+> Desktop 4카테고리 전체 펼침·Mobile 단일 탭, 결과 전용 Footer·필수
+> 면책 안내가 구현 완료 상태이며, 상담 CTA는 03 미구현으로
+> `aria-disabled` stub이다. 사용자가 승인한 시각 debt 4건은 결함이
+> 아닌 디자인 개선 후보로 남는다. 이전 개정: 2026-09-22
+> (SPEC-B2C-RESULT-001 M6 — **② 보상 진단 결과**
 > 화면 5개(02 Desktop + M02/M02-B/M02-C/M02-D Mobile 탭 4개) 구현 완료.
 > `app/result/`·`components/result/*`·`lib/diagnosis/`가 신설됐고,
 > `lib/diagnosis/handoff.ts`를 통해 ① 질문 입력 및 진단(01)의 골절 사례
