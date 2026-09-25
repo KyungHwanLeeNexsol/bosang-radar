@@ -2,9 +2,9 @@
 id: SPEC-B2C-RESULT-001
 title: "02 보상 진단 결과 (Plan-Phase)"
 version: "0.1.0"
-status: in-progress
+status: completed
 created: 2026-09-22
-updated: 2026-09-23
+updated: 2026-09-25
 author: Nexsol
 priority: P1
 phase: "v0.18.0 target"
@@ -23,6 +23,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001]
 - 2026-09-22: 3차 amendment(같은 plan-phase, iteration 4 D5 수정(`b2252f9`) 이후) — D5가 가리켰던 한 문장짜리 `BenefitDisplaySchema` 소재 참조를 `DiagnosisResult` 전체 계약을 아우르는 `design.md` §1b 전체 zod 설계 섹션으로 확장한다: ① 모든 분기를 `z.strictObject`로 선언해 미지 키를 거부하고, 스키마 파일 경로를 `lib/validation/diagnosis-result.ts`에서 `lib/diagnosis/schema.ts`로 통일한다(`lib/validation/`은 01 전용 입력 스키마가 이미 점유), ② `readDiagnosisHandoff()`의 반환 타입을 `DiagnosisResult | null`에서 `DiagnosisHandoffReadResult`(`"empty"`/`"valid"`/`"invalid"` 3갈래 판별 유니언, `DiagnosisResultSchema.safeParse`로 판정)로 재설계한다(REQ-B2CRESULT-013/014), ③ acceptance.md AC-B2CRESULT-014에 "구문은 유효하나 스키마와 불일치하는 JSON" 추가 시나리오를 병합한다. REQ/AC 개수는 각각 25건으로 불변(기존 ID의 본문·추가 시나리오만 확장, 신규 ID 없음). 이 amendment(대상 커밋 `ad31b24`)에 대해 plan-auditor **iteration 5**(표준 3회 상한을 다시 넘는 예외적 재검토, orchestrator/user 명시적 승인 하에 실행)가 PASS 종합 0.95, must-pass 7/7로 완료됐다(`.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-5.md`, `progress.md` §G) — 신규 blocking 결함 없음. 이 시점 기준 `plan_status: audit-ready`로 확인됐다(커밋 `c9da103`).
 - 2026-09-22: 4차 amendment(같은 plan-phase, iteration 5 PASS(대상 커밋 `ad31b24`, 확인 커밋 `c9da103`) 이후) — ① `DiagnosisResultSchema`의 의미 검증을 강화한다: `resultId`/`rawInput`/사고 요약(`title`·`label`·`value`)/확인 우선순위(`id`·`title`·`description`)/담보 배지(`id`·`label`)/담보 카드(`id`·`name`·`description`·`whyCheck`)/보장 방식 표시(`label`·`displayText`)/`reasonNote`에 `z.string().min(1)`을 적용하고, `schemaVersion`을 `DIAGNOSIS_SCHEMA_VERSION`(`"1"`) 리터럴 상수로 고정(`z.literal`)하며, `generatedAt`에 ISO-8601 형식 검증(`z.iso.datetime({ offset: true })`)을 추가한다(REQ-B2CRESULT-001/005/014, AC-B2CRESULT-014 추가 시나리오 — 빈 `resultId`·미지원 `schemaVersion`·비-ISO-8601 `generatedAt` 3가지 모두 `safeParse` 실패 → `readDiagnosisHandoff()` `"invalid"` 판정). ② `reasonNote`의 `"review"`/`"needs-info"` 분기 취급을 "선택(optional)"에서 "금지"로 명확화한다(`reasonNote?: never`, zod strictObject가 해당 키 존재 시 거부, REQ-B2CRESULT-005). ③ `design.md`의 인계 채널 대안 비교표에서 stale한 "새로고침 후 재방문 시 재사용 불가" 서술을 현행 탭 세션 유지 정책과 일치하도록 정정한다. ④ `design.md`의 `lib/diagnosis/` 파일 트리에 누락돼 있던 `schema.ts` 항목을 추가한다. REQ/AC 개수는 각각 25건으로 불변(기존 ID의 본문·추가 시나리오만 확장, 신규 ID 없음). 이 amendment는 iteration 5가 감사한 `design.md` §1/§1b 및 `acceptance.md` AC-014의 일부를 대체하므로, iteration 5의 PASS 0.95 verdict는 이 시점 기준 stale이다 — 새로운 plan-auditor 재검토(iteration 6) 전까지 `plan_status`는 `audit-ready`로 재확인되지 않는다(`amended-pending-reaudit`, `progress.md` §G 참고).
 - 2026-09-22: 4차 amendment(대상 커밋 `3dc7ae7`)에 대한 plan-auditor 독립 재검토 — iteration 6이 완료됐다: PASS, 종합 점수 0.96, must-pass 5/7 PASS + 2/7 N/A(0 FAIL), blocking 결함 0건. 신규 발견된 비차단(non-blocking) 결함 1건(D1 — `plan.md` §E 자기검증 체크박스가 이미 stale화된 iteration 5 claim을 그대로 인용하고 있던 documentation-consistency 문제)은 같은 커밋 `a3a0fcb`에서 iteration 6 참조로 정정됐다. 이 verdict를 근거로 `plan_status`는 `audit-ready`로 최종 확인됐다(확인 커밋 `a3a0fcb`). 상세: `progress.md` §G, `.moai/reports/plan-audit/SPEC-B2C-RESULT-001-review-6.md`.
+- 2026-09-25: sync-phase 종료 — PR #19(squash merge)로 병합됐다(main 병합 커밋 `e0b5bab3b7ebfd1a57f3df22f35c4ae1e37d3962`). plan/run/sync 3단계가 모두 완료돼 `status: completed`로 전환한다. 사용자가 승인한 시각 debt 4건(fixture 골절 담보 7개 유지, `priorityChecklist` 카드형 유지, `ResultAggregateBanner` height 편차, Mobile 입력 요약 카드 잔여 height 편차)은 결함이 아닌 디자인 개선 후보로 계속 추적한다. 상세: `progress.md` §E.4.
 
 ---
 

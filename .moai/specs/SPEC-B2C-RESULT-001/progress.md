@@ -407,7 +407,65 @@
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- `sync_status: audit-ready`
+- `sync_complete_at: 2026-09-25`
+- `sync_commit_sha: pending-backfill-sync-commit` (커밋은 자기 SHA를 참조할 수 없으므로 placeholder로 남긴다 — `spec-frontmatter-schema.md` § SHA placeholder backfill exemption. 후속 micro-commit에서 backfill하거나, 이번 라운드에 backfill하지 않으면 이 placeholder를 그대로 유지한다.)
+- `frontmatter_status_transitions`: `spec.md` `status: in-progress → completed`(implemented 경유 병합 전환), `updated: 2026-09-23 → 2026-09-25`
+- 이월 기록(재도출 없이 종료 가시성을 위해 재기술):
+  - `plan_status: audit-ready` (plan-auditor iteration 6, PASS 0.96 — §E.1)
+  - `run_status: audit-ready-with-debt` (최종 재확인, PR #19 HEAD `8867927`, Linux 독립 커버리지 재측정: Statements 99.09% / Branches 96.80% / Functions 98.50% / Lines 99.08%, 전부 ≥85% — §E.3 "Linux 독립 재측정")
+- 병합 기록: PR #19, merge method **squash**, main 병합 커밋 `e0b5bab3b7ebfd1a57f3df22f35c4ae1e37d3962`. PR 구현 HEAD `a7f03e9`는 squash merge 특성상 `main`의 조상이 아니며, 이는 예상된 정상 동작이다(병합 실패가 아님).
+- 3단계 종료 일자: plan 완료 2026-09-22, run 완료(audit-ready-with-debt 최종) 2026-09-25, sync 완료 2026-09-25.
+
+### Claim
+
+SPEC-B2C-RESULT-001의 plan/run/sync 3단계가 모두 종료됐다. 구현 완료 범위(§E.2/§E.3에 기록된 증거 재인용, 신규 수치 없음):
+
+- 02 보상 진단 결과 화면 구현 완료
+- 01→02 sessionStorage handoff 완료
+- `DiagnosisResult` strict Zod 계약 완료
+- Desktop 4카테고리 전체 펼침 표시, Mobile 단일 탭 표시
+- 실손 가입 세대 선택 UI, 입력 조건 disclosure, 필수 면책 안내, 결과 전용 Footer
+- 상담 CTA는 `aria-disabled` stub 유지(03 미구현)
+- dev fixture는 review 게이트 안에서만 활성화
+- `DIAGNOSIS_ENGINE_READY=true`가 프로덕션 설정 어디에도 없음(§E.3 D5에서 grep으로 확인된 사실 재인용)
+
+### Evidence
+
+이 sync-phase에서는 검증 명령을 재실행하지 않았다. 아래 수치는 §E.3 Linux 독립 재측정 및 D4(4차) 섹션에 이미 기록된 결과를 종료 가시성을 위해 재기술한 것이다:
+
+- 관련 테스트 21 files / 142/142 PASS
+- 전체 테스트 74 files / 546 tests PASS
+- E2E 20/20 PASS
+- 신규 5화면 semantic gate 50/50 PASS
+- 커버리지: Statements 99.09% (220/222), Branches 96.80% (121/125), Functions 98.50% (66/67), Lines 99.08% (216/218)
+- 변경 파일 Prettier PASS, TypeScript PASS, ESLint PASS, build PASS, `git diff --check` PASS
+
+승인된 시각 debt 4건(사용자 승인 원문 그대로 재기술, 이번 sync에서 수정·재판단하지 않음):
+
+1. fixture 골절 담보 7개 유지(디자인 예시 15개 아님)
+2. `priorityChecklist` 설명 포함 카드형 유지(컴팩트 행 아님)
+3. `ResultAggregateBanner` height 편차 유지
+4. Mobile 입력 요약 카드 잔여 height 편차 유지
+
+최종 귀속: 위반 총 44건 = fixture-7-items 9 + priorityChecklist-card-style 17 + aggregate-banner-height 10 + mobile-input-summary-residual 8(합계 44, 미분류 0) — §E.3 기록 인용, 재계산하지 않음.
+
+### Baseline-attribution
+
+- 품질 수치: §E.3 "Linux 독립 재측정"(사용자 보고, PR #19 HEAD `8867927`) 및 D4(4차) 섹션(orchestrator 직접 재실행, 커밋 `509f31a`)에 귀속된다. 이 sync-phase가 새로 측정한 값이 아니다.
+- 병합 사실: main 병합 커밋 `e0b5bab3b7ebfd1a57f3df22f35c4ae1e37d3962`(이 sync 브랜치 `sync/SPEC-B2C-RESULT-001`의 분기 기준).
+
+### Gaps
+
+- (a) 변경 파일 Prettier는 PASS다(§E.3 기록).
+- (b) 저장소 전체 `pnpm format:check`는 이 SPEC과 무관한 기존 파일 정확히 3개로 인해 baseline FAIL 상태다: `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`. 이 3개 파일은 이 SPEC이 수정하지 않았으며 이번 sync 범위 밖이므로 고치지 않는다.
+- 커버리지는 이 sync 세션에서도 직접 측정하지 않았다(§E.3 Gap과 동일 — Windows v8 도구 제약, Linux 측정은 사용자 보고).
+- `sync_commit_sha`는 placeholder 상태다(위 참고).
+
+### Residual-risk
+
+- 승인된 시각 debt 4건은 결함이 아닌 디자인 개선 후보로 열린 상태로 남는다. 후속 SPEC에서 다시 다룰 수 있다.
+- 실제 담보 매칭 엔진은 여전히 미연결이며, 02는 골절 사례 1종 fixture만 렌더링한다(`product.md` §Roadmap).
 
 ## §F Phase 4 Mode Selection
 

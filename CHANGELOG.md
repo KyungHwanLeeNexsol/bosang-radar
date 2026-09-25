@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### Added — SPEC-B2C-RESULT-001: B2C 02 보상 진단 결과 화면, 플래그 게이트 뒤 구현
+
+B2C 3단계 퍼널의 두 번째 단계인 02 보상 진단 결과 화면을 구현했습니다(PR #19, squash 병합 `e0b5bab`). 화면은 Desktop 02(4카테고리 전체 펼침) + Mobile M02/M02-B/M02-C/M02-D(카테고리 단일 탭) 5개이며, `app/result/page.tsx`, `components/result/*`, `lib/diagnosis/`(types·schema·aggregate·handoff·flags·fixtures)로 구성됩니다.
+
+01 흐름은 완전히 구성된 `DiagnosisResult`를 sessionStorage로 02에 넘기고, 02는 이를 strict Zod 스키마(`lib/diagnosis/schema.ts`)로 검증한 뒤 `"empty"`/`"valid"`/`"invalid"` 세 갈래로 처리합니다. 실손 가입 세대 선택 UI, 입력 조건 disclosure, 필수 면책 안내, 결과 전용 Footer를 포함하며, 상담 CTA는 03이 아직 없으므로 `aria-disabled` stub으로 둡니다. 골절 사례 fixture는 review 게이트 안에서만 켜지고, 프로덕션 설정 어디에도 `DIAGNOSIS_ENGINE_READY=true`가 없습니다.
+
+**검증**(run-phase 기록 인용): 관련 테스트 21 files / 142 tests PASS, 전체 74 files / 546 tests PASS, E2E 20/20 PASS, 신규 5화면 semantic gate 50/50 PASS, Linux 커버리지 Statements 99.09% · Branches 96.80% · Functions 98.50% · Lines 99.08%. acceptance.md 기준 AC 25건.
+
+**승인된 시각 debt 4건**(결함이 아닌 디자인 개선 후보): fixture 골절 담보 7개 유지, `priorityChecklist` 카드형 유지, `ResultAggregateBanner` height 편차, Mobile 입력 요약 카드 잔여 height 편차 — `pnpm visual:verify` 위반 44건이 전부 이 4건에 귀속됩니다(9+17+10+8, 미분류 0).
+
 ### Added — SPEC-B2C-DIAGNOSIS-001: B2C 01 진단 플로우 (질문 입력 · 동의 · 추가 질문 · 진단 중), 플래그 게이트 뒤 구현
 
 SPEC-B2C-FOUNDATION-001이 `app/page.tsx`를 "서비스 준비 중" placeholder로 남겨 둔 자리에, B2C 3단계 퍼널의 첫 진입점인 01 흐름을 **기능 플래그 뒤에** 구현했습니다. 로그인·회원가입 없이 검색 한 줄을 입력하면 민감정보 처리 동의 1건을 받고, 추가 질문으로 정확도를 높인 뒤 분석 상태를 보여 주는 경로이며, 화면은 Desktop 6개(01 질문 입력 / 01-A2 동의 / 01-B 추가 질문 / 01-C 진단 중 / 01-D 결과 없음 / 01-E 분석 오류) + Mobile 4개(M01 / M01-A2 / M01-B / M01-C) 총 10개입니다.

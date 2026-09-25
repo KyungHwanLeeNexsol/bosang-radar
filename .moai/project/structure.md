@@ -1,6 +1,11 @@
 # 프로젝트 구조
 
-> 최종 수정: 2026-09-22 (SPEC-B2C-RESULT-001 M6 — ② 보상 진단 결과(02)
+> 최종 수정: 2026-09-25 (SPEC-B2C-RESULT-001 sync-phase 종료 — PR #19
+> squash 병합(main `e0b5bab`)으로 02 구현이 main에 반영됐고 SPEC 상태가
+> `completed`로 전환됐다. 구조 변경은 없으며 아래 2026-09-22 개정 내용이
+> 그대로 유효하다. 아래 § 목표 구조(제안) 트리의 02 항목은 실제로는
+> `app/result/page.tsx`에 구현됐다. 이전 개정: 2026-09-22
+> (SPEC-B2C-RESULT-001 M6 — ② 보상 진단 결과(02)
 > 구현 완료 반영. `app/result/page.tsx`·`components/result/*`(11개
 > 컴포넌트)·`lib/diagnosis/`(types·schema·aggregate·handoff·flags·
 > fixtures/fracture-case)가 신설됐다 — 아래 § 목표 구조가 제안했던
