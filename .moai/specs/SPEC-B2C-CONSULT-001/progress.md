@@ -2,7 +2,7 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: audit-ready`
+- `plan_status: amended-pending-reaudit`
 - `plan_complete_at: 2026-09-25T00:00:00Z`
 - plan-auditor 재검증(iteration 2, commit `d0650b1` 기준) 결과 **PASS** — 종합 점수 ≈0.90, Tier L 통과 기준 0.85 상회. 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-1.md`.
 - REQ 25건 / AC 25건, Tier L 상한(25/25) 정확히 충족.
