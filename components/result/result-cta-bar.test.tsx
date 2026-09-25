@@ -74,6 +74,21 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     );
   });
 
+  it("Enter/Space가 아닌 키를 누르면 아무 반응도 하지 않는다(no-op 유지)", () => {
+    act(() => {
+      root.render(<ResultTopBarCta />);
+    });
+
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="result-cta-top"]');
+    act(() => {
+      button?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      );
+    });
+
+    expect(container.querySelector('[data-testid="result-cta-top-notice"]')?.textContent).toBe("");
+  });
+
   it("하단 최종 CTA는 하드코딩된 숫자가 아니라 전달받은 total을 그대로 표시한다", () => {
     act(() => {
       root.render(<ResultFinalCta total={7} />);

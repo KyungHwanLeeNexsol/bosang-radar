@@ -74,6 +74,33 @@ describe("components/result/ResultInputSummary", () => {
     );
   });
 
+  it('"사고 내용 수정" 버튼(Desktop/Mobile 둘 다)을 클릭해도 편집 기능은 no-op stub이라 카드가 그대로 유지된다(plan.md §F M4)', () => {
+    act(() => {
+      root.render(
+        <ResultInputSummary
+          inputSummary={INPUT_SUMMARY}
+          answeredFacts={ANSWERED_FACTS}
+          rawInput="무릎·아래다리의 골절"
+          answers={{ "surgery-status": "수술 받음" }}
+        />
+      );
+    });
+
+    const editButtons = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="result-edit-input"]'
+    );
+    expect(editButtons.length).toBe(2);
+
+    editButtons.forEach((button) => {
+      act(() => {
+        button.click();
+      });
+    });
+
+    expect(container.querySelector('[data-testid="result-input-summary"]')).not.toBeNull();
+    expect(container.textContent).toContain("무릎·아래다리의 골절");
+  });
+
   it("answeredFacts가 비어도 입력 조건 disclosure는 그대로 표시된다", () => {
     act(() => {
       root.render(

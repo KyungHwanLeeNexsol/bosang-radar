@@ -378,3 +378,68 @@ describe("components/result/ResultView — 키보드 탭 전환 시 포커스 �
     expect(document.activeElement).toBe(newHeading);
   });
 });
+
+// SPEC-B2C-RESULT-001 커버리지 보완(2026-09-25) — Desktop은 CATEGORY_ORDER를
+// 전부 .map()하므로 "disability" 카테고리(후유장해 섹션 CTA 삽입 분기)가
+// 항상 실행되지만, Mobile은 activeCategory가 "disability"로 바뀔 때만
+// `activeCategory === "disability" ? <ResultDisabilitySectionCta/> : null`
+// 분기의 true 쪽을 탄다. 기존 테스트는 reimbursement→fixed 전환만
+// 다뤘으므로 이 분기의 true 쪽이 한 번도 실행되지 않았다 — 실제 사용자
+// 동작(탭 클릭으로 "disability" 카테고리까지 이동)으로 검증한다.
+describe("components/result/ResultView — Mobile disability 카테고리 CTA(REQ-B2CRESULT-004)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    window.sessionStorage.clear();
+  });
+
+  it('Mobile에서 "disability" 탭을 선택하면 후유장해 섹션 CTA가 렌더링된다', () => {
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    expect(container.querySelector('[data-testid="result-cta-disability"]')).toBeNull();
+
+    const disabilityTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="category-tab-disability"]'
+    );
+    act(() => {
+      disabilityTab?.click();
+    });
+
+    expect(container.querySelector('[data-testid="result-cta-disability"]')).not.toBeNull();
+  });
+
+  it('Mobile에서 "disability"가 아닌 탭(fixed)로 전환하면 후유장해 섹션 CTA가 렌더링되지 않는다', () => {
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, {});
+    writeDiagnosisHandoff(result);
+
+    act(() => {
+      root.render(<ResultView />);
+    });
+
+    const fixedTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="category-tab-fixed"]'
+    );
+    act(() => {
+      fixedTab?.click();
+    });
+
+    expect(container.querySelector('[data-testid="result-cta-disability"]')).toBeNull();
+  });
+});

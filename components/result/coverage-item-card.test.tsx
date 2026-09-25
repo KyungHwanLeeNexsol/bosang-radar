@@ -118,4 +118,101 @@ describe("components/result/CoverageItemCard — 3톤 상태(REQ-B2CRESULT-005/0
       "보험증권 확인 필요"
     );
   });
+
+  it("factChips: FactChip[]를 렌더링한다(REQ-B2CRESULT-007/008)", () => {
+    act(() => {
+      root.render(
+        <CoverageItemCard
+          item={buildItem({
+            status: "review",
+            factChips: [{ questionId: "surgery-status", label: "수술 여부", value: "수술 받음" }],
+          })}
+        />
+      );
+    });
+
+    expect(container.querySelector('[data-testid="coverage-fact-chips"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="coverage-fact-chips"]')?.textContent).toContain(
+      "수술 받음"
+    );
+  });
+
+  it("factChips가 비어 있으면 fact chips 영역을 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<CoverageItemCard item={buildItem({ status: "review" })} />);
+    });
+
+    expect(container.querySelector('[data-testid="coverage-fact-chips"]')).toBeNull();
+  });
+
+  it("additionalInfoNote가 있으면 안내 문구를 렌더링한다(needs-info)", () => {
+    act(() => {
+      root.render(
+        <CoverageItemCard
+          item={buildItem({
+            status: "needs-info",
+            additionalInfoNote: "증권 확인 필요 안내",
+          })}
+        />
+      );
+    });
+
+    expect(container.querySelector('[data-testid="coverage-additional-info"]')?.textContent).toBe(
+      "증권 확인 필요 안내"
+    );
+  });
+
+  it("additionalInfoNote가 없으면 안내 문구를 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<CoverageItemCard item={buildItem({ status: "review" })} />);
+    });
+
+    expect(container.querySelector('[data-testid="coverage-additional-info"]')).toBeNull();
+  });
+
+  it("whyCheck/evidenceRefs/requiredDocuments가 전부 없으면 disclosure 자체를 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<CoverageItemCard item={buildItem({ status: "review", whyCheck: "" })} />);
+    });
+
+    expect(container.querySelector("details")).toBeNull();
+  });
+
+  it("evidenceRefs가 있으면 disclosure 안에 근거 목록을 렌더링한다", () => {
+    act(() => {
+      root.render(
+        <CoverageItemCard
+          item={buildItem({
+            status: "review",
+            whyCheck: "",
+            evidenceRefs: ["사고 경위서", "진단서"],
+          })}
+        />
+      );
+    });
+
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    expect(details?.textContent).toContain("사고 경위서");
+    expect(details?.textContent).toContain("진단서");
+  });
+
+  it("requiredDocuments가 있으면 disclosure 안에 필요 서류 목록을 렌더링한다", () => {
+    act(() => {
+      root.render(
+        <CoverageItemCard
+          item={buildItem({
+            status: "review",
+            whyCheck: "",
+            requiredDocuments: ["신분증 사본", "보험금 청구서"],
+          })}
+        />
+      );
+    });
+
+    const details = container.querySelector("details");
+    expect(details?.textContent).toContain("필요 서류");
+    expect(details?.textContent).toContain("신분증 사본");
+    expect(details?.textContent).toContain("보험금 청구서");
+  });
 });
