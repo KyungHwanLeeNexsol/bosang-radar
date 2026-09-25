@@ -92,7 +92,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 ### 3.8 서버 API (Event-driven)
 
-- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다.
+- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다. 제출 직전 클라이언트가 `readDiagnosisHandoff()`를 재조회한 `resultId`가 폼 마운트 시점에 읽어 둔 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우), 시스템은 서버에 요청을 보내지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 처리해 03-D 실패 상태로 전환한다.
 - **REQ-B2CCONSULT-019**: 시스템은 `consultations` 저장 스키마(`lib/db/schema.ts` 확장)에 상담 id·`resultId`(opaque 참조)·채널·이름·정규화 연락처·연락 희망 시간·동의 3종 boolean·서버 스탬프 동의 버전·처리 상태·idempotencyKey·생성/수정 시각을 저장하며, `DiagnosisResult`의 담보 항목·집계 등 진단 상세 내용은 이 테이블에 복제하지 않는다.
 
 ### 3.9 중복 · 멱등성 (Event-driven)

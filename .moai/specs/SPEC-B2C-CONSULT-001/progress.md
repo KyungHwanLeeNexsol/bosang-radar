@@ -5,7 +5,7 @@
 - `plan_status: pending-audit` — plan-phase 6개 산출물(spec.md/plan.md/acceptance.md/design.md/research.md/progress.md)이 작성 완료됐으나, 독립 plan-auditor 검토는 아직 실행되지 않았다. `plan_status: audit-ready`는 plan-auditor PASS 확인 이후에만 설정된다(이 SPEC Builder 위임의 범위 밖).
 - `plan_complete_at: 2026-09-25`
 - REQ 25건 / AC 25건, Tier L 상한(25/25) 정확히 충족.
-- Out of Scope 섹션 4개 `### Out of Scope —` 하위 제목 + bullet 작성 확인(`OutOfScopeRule` lint 대응).
+- Out of Scope 섹션 5개 `### Out of Scope —` 하위 제목 + bullet 작성 확인(`OutOfScopeRule` lint 대응).
 - `git diff --check`(공백/충돌 마커 검사) clean 확인 — run-phase 위임 프롬프트가 인용할 근거로 이 문서에 기록한다.
 
 ## §E.2 Run-phase Evidence

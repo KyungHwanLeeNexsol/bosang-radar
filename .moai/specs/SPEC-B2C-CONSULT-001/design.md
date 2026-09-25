@@ -220,6 +220,9 @@ ConsultationSubmitResult (서버 응답, discriminated union):
 | 400 | `error`/`validation` | `ConsultationRequestSchema.safeParse` 실패(`fieldErrors` 포함) |
 | 429 | `error`/`rate_limited` | 짧은 시간 내 과도한 요청(구체 알고리즘은 §9 Open Decision — run-phase가 IP 또는 `resultId` 기준 경량 카운터로 확정) |
 | 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패 |
+| N/A(서버 미호출) | `error`/`handoff_mismatch` | 제출 직전 클라이언트가 재조회한 `resultId`가 폼 마운트 시점에 읽은 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우) — 서버에 요청을 보내지 않고 클라이언트가 즉시 판정 |
+
+`handoff_mismatch`는 서버가 판정하지 않는다 — §9.2가 명시하듯 서버는 `resultId`를 대조 검증할 원본이 없으므로(잔여 위험), 이 판정은 전적으로 클라이언트가 제출 직전 `readDiagnosisHandoff()`를 재호출해 자체적으로 수행한다(REQ-B2CCONSULT-018).
 
 클라이언트 측 타임아웃/네트워크 오류(응답 자체를 받지 못한 경우)는 서버 상태 코드가 없다 — 클라이언트는 이를 03-D 실패 상태로 취급하고, **서버가 실제로 저장했는지 여부를 단정하지 않으며**, 재시도 시 **같은 `idempotencyKey`**를 재사용한다(§8 1번 경로가 재시도를 안전하게 흡수한다 — REQ-B2CCONSULT-022).
 

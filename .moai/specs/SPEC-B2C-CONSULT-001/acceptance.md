@@ -173,6 +173,16 @@ Given 검증 실패로 400 응답이 반환되었을 때
 When 응답 본문을 검사하면
 Then 클라이언트가 보낸 `name`/`contact` 원본 값이 echo되어 있지 않다.
 
+추가 시나리오 — 최초 제출 성공 응답 형태:
+Given 유효한 최초 제출 페이로드(중복도 재시도도 아닌 신규 `idempotencyKey`)로 `POST /api/consultations`를 호출했을 때
+When 응답을 확인하면
+Then HTTP 201과 함께 `{status:"success", consultationId, channel, maskedContact, expectedContactWindow}` 형태의 페이로드가 반환되며(`channel === "phone"`이면 `preferredCallTime`도 포함), `consultationId`는 서버가 새로 생성한 값이다 — 동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)와는 구분되는 신규 삽입 경로다.
+
+추가 시나리오 — `handoff_mismatch` 판정:
+Given 폼 마운트 시점에 읽어 둔 `resultId`와 제출 직전 재조회한 `readDiagnosisHandoff()`의 `resultId`가 서로 다를 때(다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우)
+When 사용자가 제출을 시도하면
+Then 클라이언트는 `POST /api/consultations`를 호출하지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 03-D 실패 상태를 표시한다.
+
 **AC-B2CCONSULT-019** (REQ-B2CCONSULT-019)
 Given `consultations` 테이블 스키마(`lib/db/schema.ts`)를 검사할 때
 When 컬럼 목록을 확인하면

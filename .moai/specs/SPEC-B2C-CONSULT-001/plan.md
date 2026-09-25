@@ -58,7 +58,7 @@
 ## §E. Self-Verification (plan-phase)
 
 - [x] GEARS 표기 요구사항 25건 작성, Tier L 상한(25) 충족
-- [x] Out of Scope 섹션에 4개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
+- [x] Out of Scope 섹션에 5개 `### Out of Scope —` 하위 제목 + 각 bullet 작성
 - [x] 기존 코드베이스 조사(`lib/diagnosis/`, `components/result/`, `lib/db/`, `lib/env.ts`, 삭제된 `app/api/cases/route.ts`, `scripts/visual-verify.ts`) 완료 — `research.md`
 - [x] 디자인 export 9개 + DEV-ONLY 동의 상세 구조 1개 직접 열람 완료
 - [x] AC 25건 작성, REQ-AC 1:1 대응 확인(`acceptance.md`)
