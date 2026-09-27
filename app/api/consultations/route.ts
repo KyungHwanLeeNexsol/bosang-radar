@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db/client";
 import { consultationRateLimits, consultations } from "@/lib/db/schema";
 import { ConsultationRequestSchema } from "@/lib/consult/schema";
 import { maskPhone, normalizePhone } from "@/lib/consult/phone";
+import { CONSENT_POLICY_VERSION } from "@/lib/consult/consent-policy";
 import type { ConsultationChannel, ConsultationSubmitResult } from "@/lib/consult/types";
 import { toSafeErrorMeta } from "@/lib/logging/safe-error";
 
@@ -16,11 +17,6 @@ import { toSafeErrorMeta } from "@/lib/logging/safe-error";
 // 비즈니스 중복 조회 → 삽입 → 삽입 시점 UNIQUE 충돌 재조회.
 
 type DrizzleDb = ReturnType<typeof getDb>;
-
-// 동의 문구·버전은 서버가 소유하는 정책 계약이다(design.md §6.1) — 향후
-// 관리 테이블로 대체 가능한 배포 시점 고정 상수. 문구가 바뀔 때마다
-// 사람이 이 값을 갱신한다.
-const CONSENT_POLICY_VERSION = "2026-09-25-v1";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
