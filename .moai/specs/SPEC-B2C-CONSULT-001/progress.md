@@ -887,6 +887,154 @@ draft.channel이 "kakao"로 남아 URL 폴백보다 우선될 가능성이 이�
 영향 없으나(2회 실측 e2e 모두 통과), 향후 세션에서 draft 동기화까지
 포함할지는 별도 판단이 필요하다.
 
+### M7 후속 — `scripts/visual-verify.ts` 03(상담 신청) 계열 9화면 추가
+
+plan.md §F item 7 / design.md §12가 요구한 대로 `SCREENS` 배열에 03/
+03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D 9개 항목을 **추가만** 했다
+(기존 15개 항목은 순서·내용 모두 불변). 새 헬퍼 함수(진입 경로)·9개
+`ScreenSpec`·`startProductionServer()` env 확장(아래 참고)을 이 파일 한
+곳에만 작성했다 — `e2e/consult-flow-03.spec.ts`는 import하지 않고 동일한
+상수·절차를 이 파일 안에서 독립적으로 재작성했다(01/02 스펙의 기존
+관례).
+
+**Claim 1 — design.md §12가 계획한 `devFixture=fracture&devConsultState=
+success|duplicate|error` review 전용 우회 경로는 실제 구현에 없다.**
+
+**Evidence**:
+```
+$ grep -n "devConsultState" components/consult/consult-view.tsx app/consult/page.tsx
+(0건, exit 1)
+```
+그래서 이 9화면은 design.md가 상정한 경로 대신 실제 동작 경로로
+도달한다 — 03/03-A2는 01→02→03 전체 플로우 완주(`completeFractureFlow
+ToResult` + `gotoConsultMain`/`gotoConsultPhoneChannel`), 03-B/03-C는
+실제 `POST /api/consultations` 제출(`gotoConsultSuccess`/
+`gotoConsultDuplicate`), 03-D는 `consult-view.tsx handleSubmit()`의
+handoff_mismatch 클라이언트 분기(`gotoConsultFailure` — 제출 직전
+sessionStorage의 진단 핸드오프 resultId를 변조해 서버 호출 없이 결정론적
+으로 재현한다. `e2e/consult-flow-03.spec.ts` [환경 노트 2]가 "클라이언트
+에서 결정론적으로 03-D를 유발할 방법이 없다"고 기록한 목록에는
+idempotency_conflict/consent_version_mismatch/rate_limited/RATE_LIMIT_
+HMAC_SECRET 부재 4가지만 있고 이 분기는 없었다).
+
+**Claim 2 — 9화면 모두 목표 상태에 실제로 도달한다(타임아웃/에러 0건).**
+
+**Evidence** (Node v20.19.6에서는 pnpm 자체가 `ERR_UNKNOWN_BUILTIN_MODULE`
+로 기동 불가 — 이전 e2e-tester/manager-develop-m7-fix 델리게이션과 동일한
+Node v22.23.2 PATH 전환 workaround 재사용):
+```
+$ export PATH="/c/Users/zuge3/AppData/Local/nvm/v22.23.2:$PATH"
+$ VISUAL_ONLY="03,03-A2,03-B,03-C,03-D,M03,M03-B,M03-C,M03-D" npx tsx scripts/visual-verify.ts
+
+[visual-verify] pnpm build (ENABLE_DIAGNOSIS_DEV_STATES=true, ENABLE_CONSULT_FLOW=true)
+[visual-verify] pnpm start → http://localhost:64928
+[visual-verify] 03 … FAIL (maxΔ=236px / 허용 8px)
+[visual-verify] 03-A2 … FAIL (maxΔ=235px / 허용 8px)
+[visual-verify] 03-B … FAIL (maxΔ=280px / 허용 8px)
+[visual-verify] 03-C … FAIL (maxΔ=239px / 허용 8px)
+[visual-verify] 03-D … FAIL (maxΔ=264px / 허용 8px)
+[visual-verify] M03 … FAIL (maxΔ=192px / 허용 4px)
+[visual-verify] M03-B … FAIL (maxΔ=202px / 허용 4px)
+[visual-verify] M03-C … FAIL (maxΔ=202px / 허용 4px)
+[visual-verify] M03-D … FAIL (maxΔ=248px / 허용 4px)
+[exit code 1]
+```
+9화면 전부 실행 자체는 성공(에러/타임아웃 0건 — 두 차례 실측으로 고친
+버그 2건: (1) Mobile은 `result-view.tsx`가 activeCategory 하나만
+렌더링해 `result-cta-disability-button`이 기본 탭에서는 DOM에 없다 —
+disability 탭으로 먼저 전환하는 가드 추가. (2) `x-forwarded-for`를 모든
+화면이 `"127.0.0.1"` 고정값으로 공유하면 route.ts의 60초/5회 rate limit
+윈도가 여러 화면에 걸쳐 합산돼 `M03-C`가 `rate_limited`로 떨어져
+`consult-duplicate` 대기가 타임아웃났다 — 화면·제출마다 합성 IP를
+발급하는 카운터로 교체). semanticChecks(카카오/전화 라디오 선택, aria-
+required 유무, aria-disabled, 마스킹 연락처 정규식, 아이콘 존재, CTA
+존재, sticky position 등)는 95건의 findings 중 **0건**이 위반이다 — 전부
+`(metric)`(86건) 또는 `(background)`(9건, 화면당 1건)이며, 상태/문구/
+동작 관련 위반은 없다.
+
+**Claim 3 — 9화면 전부가 8px/4px 허용 오차를 초과해 FAIL한다. 원인은
+`designTopHint` 오차가 아니라 `/consult` 계열이 01/02와 달리 사이트
+헤더(BORA 로고/네비)를 렌더링하지 않는 기존 구현 결함이다.**
+
+**Evidence** — `normalized-design/03.png`·`03-B.png`·`03-C.png`와 실제
+캡처 `screenshots/03-consult.png`·`03-B-consult-success.png`를 직접 열어
+대조했다: 디자인 export 전부(01/02 포함)는 상단에 BORA 헤더(높이≈70px)
+를 포함하지만, `01-input.png`/`02-result.png`(기존 통과 화면)의 실제
+캡처는 그 헤더를 그대로 렌더링하는 반면 `03-consult.png` 등 신규 9화면의
+실제 캡처는 헤더가 전혀 없다(`grep -rln "BORA" components/ app/` — 헤더
+컴포넌트는 `components/diagnosis/diagnosis-header.tsx` 하나뿐이고
+`components/consult/`·`app/consult/`에는 헤더 렌더링 코드가 0건). 화면
+`03`/`03-A2`는 추가로 디자인이 보여주는 페이지 히어로 타이틀("손해사정사
+에게 무료로 물어보세요" + 설명 2줄)도 구현에 없다 — 이 둘은 이 SPEC의
+run-phase 산출물(`components/consult/*.tsx`)을 수정해야 고칠 수 있는
+결함이라 이 delegation 범위 밖이다(스코프: `scripts/visual-verify.ts`만).
+`designTopHint`는 첫 실행의 잘못된 밴드 매칭을 발견해 `normalized-design/
+03.png`을 직접 열어 재측정한 값으로 이미 1회 재조정했다(요약 카드
+116→254, 채널 선택 254→387, 폼 427→584) — 헤더/히어로 결함이 고쳐지면
+추가 조정 없이 바로 8px 이내로 들어올 수 있도록 디자인 밴드 자체는 정확히
+잡아 뒀다. 디자인 목업이 보여주는 "정하은 손해사정사" 카드(폼 화면
+중간)는 design.md §1 D3가 이미 "성공/중복 요약의 텍스트 한 줄로 대체,
+폼 화면 자체에는 렌더링하지 않는다"로 확정한 항목이라 결함이 아니다 —
+측정 대상에서 제외했다.
+
+**Claim 4 — [블로커 아님, 발견 사항] 03 계열을 시각적으로 검증 가능하게
+만드는 과정에서 `startProductionServer()`가 `ENABLE_CONSULT_FLOW`/
+`CONSULT_POLICY_READY`를 처음으로 전역 `true`로 켰고, 이 조합이
+SPEC-B2C-RESULT-001의 02/M02 계열 5화면(이미 PASS로 승인된 기존
+15화면 중 5개)을 FAIL로 떨어뜨린다는 사실을 발견했다 — 그러나 이 5개
+항목은 건드리지 않았고, 그 결과가 반영된 아티팩트도 커밋하지 않았다.**
+
+**Evidence** — `components/result/result-cta-bar.tsx`의 3개 CTA
+컴포넌트(`ResultTopBarCta`/`ResultDisabilitySectionCta`/`ResultFinalCta`)
+는 전부 `shouldRenderConsult` prop(기본값 `false`)으로 "준비 중" 스텁
+렌더와 실제 활성 렌더를 가른다(`app/result/page.tsx`가
+`computeConsultFlags(process.env).shouldRenderConsult` = `ENABLE_CONSULT_
+FLOW === "true"`로 계산해 전달). `startProductionServer()`가 이전에는 이
+플래그를 전혀 설정하지 않아(기본값 false) 02/M02 5화면의 기존
+`designTopHint`는 스텁 렌더 기준으로 보정돼 있다 — 이 SPEC의 M3("02→03
+CTA 활성화")가 이미 `result-cta-bar.tsx`에 활성 렌더 분기를 병합해 뒀기
+때문에, `ENABLE_CONSULT_FLOW=true`인 실제 배포 환경에서는 이미 02/M02가
+활성 렌더로 나오고 있었다 — 다만 `visual-verify.ts`가 이 플래그를 켜고
+전체 24화면을 실행한 것이 이번이 처음이라 이 어긋남이 지금까지 발견되지
+않았을 뿐이다. 무제약 전체 실행(`npx tsx scripts/visual-verify.ts`,
+VISUAL_ONLY 없음)으로 직접 재현했다: `02 … FAIL(maxΔ=45px)`,
+`M02/M02-B/M02-C/M02-D … FAIL(maxΔ=182px)` — `02-result.png`/
+`M02-result.png` 등 5개 스크린샷·오버레이·diff·`measurements.json`이
+실제로 갱신되는 것도 확인했다. **이 5개 파일 전부를 `git restore`로
+원복해 커밋에서 제외했다** — SPEC-B2C-RESULT-001의 승인된 베이스라인을
+이 delegation이 건드리지 않는다.
+
+**Baseline-attribution**: 이번 실행(이 트리), M7 e2e 커밋 `cae447e` +
+M7 버그 수정 커밋 `8bee9d7`에서 계속된 `feat/SPEC-B2C-CONSULT-001`
+브랜치. `scripts/visual-verify.ts`의 이번 변경 외 소스 변경 없음.
+
+**Gaps(미검증)**: (1) 제약 없는 전체 24화면 canonical
+`measurements.json` 갱신은 이번에 수행하지 않았다 — Claim 4의 아키텍처
+충돌(서버 프로세스 하나에 env 하나, 03이 필요로 하는 값과 02/M02가
+전제하는 값이 다름)이 해소되기 전까지는 canonical 파일을 안전하게
+갱신할 방법이 없다(두 가지 후속 옵션: (a) 02/M02 5개 항목의
+`designTopHint`를 현재 프로덕션 동작에 맞춰 별도 SPEC/세션에서
+재보정, (b) `startProductionServer()`를 2-pass 구조로 바꿔 01/02와
+03이 서로 다른 env로 각각 빌드+기동하게 확장 — 둘 다 이 delegation
+스코프(9화면 추가) 밖이라 착수하지 않았다). (2) 03/03-A2/03-B/03-C/
+03-D의 `left`/`width` 축 오차(9~88px)는 top 축만큼 근본 원인을 추적
+하지 않았다 — top 축(헤더·히어로 부재)만큼 확정적이지 않고, 요소별
+padding/margin 차이일 가능성이 있다.
+
+**Residual-risk(잔여 위험)**: (1) 9화면 전부가 현재 FAIL 상태로
+남는다 — `/consult` 헤더 부재·03/03-A2 히어로 텍스트 부재를 고치는
+후속 작업(이 SPEC 또는 별도 SPEC) 전까지는 PASS로 전환되지 않는다.
+(2) Claim 4가 드러낸 02/M02 계열의 스텁-대-활성 렌더 불일치는 이
+delegation이 만든 결함이 아니라 M3 병합 시점부터 존재했던 것이지만,
+지금까지 아무도 감지하지 못했다 — SPEC-B2C-RESULT-001 소유 범위의
+후속 재보정이 필요하다(별도 판단 요청). (3) 02-C 후유장해 탭
+CTA(`result-cta-disability-button`)를 Mobile에서 클릭 가능하게
+만들려고 `category-tab-disability`로 먼저 전환하는 로직을
+`gotoConsultMain`/`gotoConsultDuplicate`에 추가했다 — 이 탭 전환이
+Mobile M02-C 자체 화면 측정에는 영향이 없음(별도 컨텍스트)을
+확인했지만, 향후 result-view.tsx의 탭 전환 애니메이션/로딩 방식이
+바뀌면 이 가드도 함께 갱신이 필요할 수 있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1~M6 완료, run-phase 전체 완료 — sync-phase 인계 대기 중>_

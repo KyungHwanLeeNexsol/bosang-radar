@@ -16,7 +16,8 @@
 // 실패가 하나라도 있으면 1.
 //
 // [HARD] audit-ready 근거가 되는 `measurements.json`은 **제약 없는 전체
-// 10화면 실행**에서만 갱신된다. VISUAL_ONLY로 화면을 고르거나,
+// 24화면 실행**에서만 갱신된다(SPEC-B2C-DIAGNOSIS-001 10 + SPEC-B2C-RESULT-001
+// 5 + SPEC-B2C-CONSULT-001 9). VISUAL_ONLY로 화면을 고르거나,
 // VISUAL_SKIP_BUILD=1로 현재 소스를 빌드하지 않거나, VISUAL_BASE_URL로 외부
 // 서버를 재사용한 실행은 `measurements.partial.json`에 기록되며, 두 파일 모두
 // `canonical` 필드로 스스로를 구분한다.
@@ -34,6 +35,11 @@ import process from "node:process";
 import { chromium, type Browser, type Locator, type Page } from "@playwright/test";
 
 import { HELPERS_SOURCE } from "./visual-verify-helpers";
+// SPEC-B2C-CONSULT-001 M7 — 03-B/03-C(성공/중복)가 실제 POST
+// /api/consultations 제출로 도달해야 해서 DB 마이그레이션이 필요해졌다.
+// scripts/run-e2e.ts와 동일하게 in-process 재사용한다(서브프로세스 호출은
+// env 전달 경계가 하나 더 생긴다는 그 파일의 이유와 동일).
+import { runMigrations } from "./db-migrate";
 
 // tsx(esbuild)는 `keepNames` 옵션 때문에 함수 리터럴마다 `__name(...)` 호출을
 // 덧붙인다. 그 함수를 `page.evaluate`로 브라우저에 보내면 헬퍼가 없어
@@ -330,10 +336,225 @@ async function finalCtaPosition(page: Page): Promise<string> {
   return locator.first().evaluate((el) => window.getComputedStyle(el).position);
 }
 
-// ── 15개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
-// 기존 10개(SPEC-B2C-DIAGNOSIS-001) + SPEC-B2C-RESULT-001 M6이 추가하는
-// 5개(02/M02/M02-B/M02-C/M02-D) — 기존 10개 항목은 절대 수정하지 않는다
-// (REQ-B2CRESULT-025).
+// SPEC-B2C-CONSULT-001 M7 — 03(상담 신청) 계열 9화면 헬퍼.
+//
+// design.md §12는 `?devFixture=fracture&devConsultState=success|duplicate|
+// error` review 전용 우회 경로를 "run-phase가 구체 구현 확정"이라는 전제로
+// 계획했으나, M2~M5 실제 구현(components/consult/consult-view.tsx 전체
+// 확인)에는 devConsultState를 처리하는 코드가 0건이다 — 그 계획은 실제로
+// 채택되지 않았다(plan-vs-actual gap, 아래 보고 참고). 그래서 이 9화면은
+// design.md가 상정한 것과 다른 경로로 도달한다:
+//   - 03/03-A2: 01→02→03 전체 플로우를 실제로 완주한다
+//     (e2e/consult-flow-03.spec.ts의 completeFractureFlowToResult와 동일한
+//     절차를 이 파일 안에 독립적으로 재작성한다 — 그 e2e 파일은 절대
+//     import하지 않는다, 01/02 관례와 동일).
+//   - 03-B/03-C: 실제 POST /api/consultations 제출로 도달한다(x-forwarded-
+//     for 헤더 직접 주입으로 rate limit fail-closed 500 분기를 피한다 —
+//     e2e [환경 노트 1]과 동일한 이유).
+//   - 03-D: 아래 gotoConsultFailure() 주석에서 설명하는 handoff_mismatch
+//     클라이언트 분기로 도달한다(실제 서버 호출 없이 100% 결정론적).
+const CONSULT_NAME = "홍길동";
+// lib/consult/phone.ts KOREAN_MOBILE_PATTERN을 만족하는 유효한 연락처 —
+// normalizePhone("01012345678") === "01012345678", maskPhone(...) ===
+// "010-****-5678"(e2e/consult-flow-03.spec.ts와 동일한 상수 재선언 관례).
+const CONSULT_PHONE = "01012345678";
+const CONSULT_PHONE_MASKED_PATTERN = /\d{3}-\*{4}-\d{4}/;
+const CONSULT_CALL_TIME = "평일 오후 (13시 ~ 18시)";
+
+async function answerAllDiagnosisQuestions(page: Page): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("radio").first().check();
+    await page.getByRole("button", { name: /^(다음|결과 보기)$/ }).click();
+  }
+}
+
+/** 01 전체 플로우(입력 → 동의 → 3문항 응답)를 완주해 /result에 도착한다. */
+async function completeFractureFlowToResult(page: Page, baseURL: string): Promise<void> {
+  await gotoQuestions(page, baseURL);
+  await answerAllDiagnosisQuestions(page);
+  await page.waitForURL("**/result", { timeout: 15_000 });
+  await page.getByTestId("result-view").waitFor();
+}
+
+/**
+ * 02의 후유장해 섹션 중간 CTA로 03에 진입한다(특정 채널을 강요하지 않는
+ * 중립 진입점 — 기본 채널은 카카오톡). Mobile은 result-view.tsx가
+ * activeCategory 하나만 렌더링하므로(M02 semanticChecks 주석 참고)
+ * 기본 활성 탭이 "disability"가 아니면 이 CTA가 DOM에 아예 없다 —
+ * 존재하면 먼저 그 탭으로 전환한다(Desktop은 4카테고리가 전부 펼쳐져
+ * 있어 이 클릭이 no-op).
+ */
+async function clickDisabilityConsultCta(page: Page): Promise<void> {
+  const disabilityTab = page.getByTestId("category-tab-disability");
+  if (await disabilityTab.isVisible().catch(() => false)) {
+    await disabilityTab.click();
+  }
+  await page.getByTestId("result-cta-disability-button").click();
+}
+
+async function gotoConsultMain(page: Page, baseURL: string): Promise<void> {
+  await completeFractureFlowToResult(page, baseURL);
+  await clickDisabilityConsultCta(page);
+  await page.waitForURL("**/consult", { timeout: 10_000 });
+  await page.getByTestId("consult-view").waitFor();
+}
+
+/** 03에 진입한 뒤 전화 채널 라디오를 선택한다(03-A2). */
+async function gotoConsultPhoneChannel(page: Page, baseURL: string): Promise<void> {
+  await gotoConsultMain(page, baseURL);
+  await page.getByRole("radio", { name: /전화 상담/ }).check();
+}
+
+interface ConsultFormInput {
+  name: string;
+  contact: string;
+  preferredCallTime?: string;
+}
+
+async function fillConsultForm(page: Page, input: ConsultFormInput): Promise<void> {
+  await page.getByTestId("consult-name-input").fill(input.name);
+  await page.getByTestId("consult-contact-input").fill(input.contact);
+  if (input.preferredCallTime) {
+    await page.getByTestId("consult-preferred-call-time-input").fill(input.preferredCallTime);
+  }
+}
+
+async function checkRequiredConsents(page: Page): Promise<void> {
+  await page.getByTestId("consult-consent-checkbox-piiCollection").check();
+  await page.getByTestId("consult-consent-checkbox-healthInfoUse").check();
+}
+
+// route.ts 7단계 rate limit(60초 윈도 · IP당 최대 5회)이 x-forwarded-for
+// "127.0.0.1" 고정값을 여러 화면(03-B/03-C/M03-B/M03-C)이 공유하면 같은
+// 윈도 안에서 합산돼 누적 초과할 수 있다(실측 — M03-C가 "다시 시도해도
+// 접수되지 않으면…" rate_limited 03-D로 떨어져 consult-duplicate
+// waitFor가 타임아웃났다). 화면마다, 그리고 03-C/M03-C 내부의 두 제출마다
+// 서로 다른 합성 IP를 주입해 윈도를 분리한다 — 비즈니스 중복 판정
+// (resultId+정규화 연락처)은 IP와 무관하므로 이 조작이 03-C 시나리오
+// 자체에는 영향이 없다.
+let syntheticIpCounter = 0;
+function nextSyntheticIp(): string {
+  syntheticIpCounter += 1;
+  return `127.0.${Math.floor(syntheticIpCounter / 256)}.${syntheticIpCounter % 256}`;
+}
+
+/**
+ * 03-B(성공) — 실제 POST /api/consultations 제출로 도달한다. 전화 채널로
+ * 전환해 연락 희망 시간까지 채운 4행 요약(디자인의 4행 레이아웃과 일치)을
+ * 재현한다. x-forwarded-for를 직접 주입해 신뢰 가능한 IP가 없을 때의
+ * fail-closed 500 분기(design.md §9.3)를 피한다 — startProductionServer()가
+ * 리버스 프록시 없이 next start를 직접 서빙하기 때문에 필요하다
+ * (e2e/consult-flow-03.spec.ts [환경 노트 1]과 동일한 이유).
+ */
+async function gotoConsultSuccess(page: Page, baseURL: string): Promise<void> {
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": nextSyntheticIp() });
+  await gotoConsultPhoneChannel(page, baseURL);
+  await fillConsultForm(page, {
+    name: CONSULT_NAME,
+    contact: CONSULT_PHONE,
+    preferredCallTime: CONSULT_CALL_TIME,
+  });
+  await checkRequiredConsents(page);
+  await page.getByTestId("consult-submit-button").click();
+  await page.getByTestId("consult-success").waitFor({ timeout: 10_000 });
+}
+
+/**
+ * 03-C(중복) — 같은 page 컨텍스트(같은 resultId)에서 성공 제출 1회 후
+ * "진단 결과로 돌아가기" → 03 재진입 → 동일 연락처로 재제출한다. 성공
+ * 시 clearConsultationDraft()가 draft를 지우므로 재진입 시 새
+ * idempotencyKey가 발급되어 idempotencyKey 조회로는 중복이 걸리지 않고,
+ * resultId+정규화 연락처 복합키 조회(route.ts 8번 단계)에서만 중복
+ * 판정된다(e2e/consult-flow-03.spec.ts와 동일한 절차).
+ */
+async function gotoConsultDuplicate(page: Page, baseURL: string): Promise<void> {
+  await gotoConsultSuccess(page, baseURL);
+  await page.getByTestId("consult-success-back-cta").click();
+  await page.waitForURL("**/result", { timeout: 10_000 });
+  await page.getByTestId("result-view").waitFor();
+  await clickDisabilityConsultCta(page);
+  await page.waitForURL("**/consult", { timeout: 10_000 });
+  await page.getByTestId("consult-view").waitFor();
+  await fillConsultForm(page, { name: CONSULT_NAME, contact: CONSULT_PHONE });
+  await checkRequiredConsents(page);
+  await page.getByTestId("consult-submit-button").click();
+  await page.getByTestId("consult-duplicate").waitFor({ timeout: 10_000 });
+}
+
+/**
+ * 03-D(실패) — handoff_mismatch 클라이언트 분기로 도달한다.
+ * consult-view.tsx handleSubmit()은 제출 직전 readDiagnosisHandoff()를 다시
+ * 호출해 마운트 시점에 캡처한 resultId(mountResultIdRef)와 비교하고,
+ * 다르면 서버를 전혀 호출하지 않고 즉시 03-D로 전환한다(다른 탭에서 새
+ * 진단을 시작해 핸드오프가 교체된 경우를 위한 방어 분기, design.md §9.1).
+ * 폼을 채운 뒤 제출 직전 sessionStorage의 핸드오프 resultId를 변조해 이
+ * 분기를 결정론적으로 재현한다 — 실제 서버 호출도, CONSULT_POLICY_READY/
+ * RATE_LIMIT_HMAC_SECRET/DB도 전혀 필요 없다.
+ *
+ * [잔여 위험] e2e/consult-flow-03.spec.ts [환경 노트 2]는 "클라이언트에서
+ * 결정론적으로 03-D를 유발할 방법이 없다"고 기록했지만, 그 문서가 검토한
+ * 것은 idempotency_conflict/consent_version_mismatch(페이로드 변조 필요)·
+ * rate_limited(타이밍 경계)·RATE_LIMIT_HMAC_SECRET 부재(서버 부팅 자체를
+ * 막음) 네 가지뿐이다 — handoff_mismatch 분기는 그 목록에 없었다. 이
+ * 스크립트는 픽셀 검증 목적에 한정해 그 공백을 메운다(e2e의 동작 검증
+ * 커버리지 공백을 대체하지 않는다 — 그 공백은 여전히 알려진 채로 남는다).
+ */
+async function gotoConsultFailure(page: Page, baseURL: string): Promise<void> {
+  await gotoConsultPhoneChannel(page, baseURL);
+  await fillConsultForm(page, {
+    name: CONSULT_NAME,
+    contact: CONSULT_PHONE,
+    preferredCallTime: CONSULT_CALL_TIME,
+  });
+  await checkRequiredConsents(page);
+  await page.evaluate(() => {
+    const KEY = "bosang-radar:diagnosis-handoff-v1";
+    const raw = window.sessionStorage.getItem(KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { resultId?: string };
+    parsed.resultId = `${parsed.resultId}-visual-verify-mismatch`;
+    window.sessionStorage.setItem(KEY, JSON.stringify(parsed));
+  });
+  await page.getByTestId("consult-submit-button").click();
+  await page.getByTestId("consult-failure").waitFor({ timeout: 10_000 });
+}
+
+async function radioChecked(page: Page, name: RegExp): Promise<string> {
+  return String(await page.getByRole("radio", { name }).isChecked());
+}
+
+/** data-testid 요소의 속성값. 요소가 없거나 속성이 없으면 "missing". */
+async function attrValue(page: Page, testId: string, attr: string): Promise<string> {
+  const value = await page.getByTestId(testId).getAttribute(attr);
+  return value ?? "missing";
+}
+
+/** containerTestId 안에 aria-hidden 아이콘(svg)이 있는지 "true"/"false"로 반환한다. */
+async function iconExists(page: Page, containerTestId: string): Promise<string> {
+  return String(
+    (await page
+      .locator(`[data-testid="${containerTestId}"] span[aria-hidden="true"] svg`)
+      .count()) > 0
+  );
+}
+
+/** 상담 동의 체크박스(consult-consent-checkbox-*) 개수. */
+async function consentCheckboxCount(page: Page): Promise<string> {
+  return String(await page.locator('[data-testid^="consult-consent-checkbox-"]').count());
+}
+
+/** data-testid 요소의 계산된 CSS position 값. 없으면 "missing". */
+async function elementPosition(page: Page, testId: string): Promise<string> {
+  const locator = page.locator(`[data-testid="${testId}"]`);
+  if ((await locator.count()) === 0) return "missing";
+  return locator.first().evaluate((el) => window.getComputedStyle(el).position);
+}
+
+// ── 24개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
+// 기존 10개(SPEC-B2C-DIAGNOSIS-001) + SPEC-B2C-RESULT-001 M6이 추가한
+// 5개(02/M02/M02-B/M02-C/M02-D) + SPEC-B2C-CONSULT-001 M7이 추가하는
+// 9개(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D) — 기존 15개 항목은
+// 절대 수정하지 않는다(REQ-B2CRESULT-025, design.md §12).
 const SCREENS: readonly ScreenSpec[] = [
   {
     id: "01",
@@ -1500,6 +1721,459 @@ const SCREENS: readonly ScreenSpec[] = [
       },
     ],
   },
+  // ── SPEC-B2C-CONSULT-001 M7 — 신규 9화면 (03/03-A2/03-B/03-C/03-D,
+  // M03/M03-B/M03-C/M03-D) ──
+  // 진입 경로는 위 "SPEC-B2C-CONSULT-001 M7 — 03(상담 신청) 계열 9화면
+  // 헬퍼" 주석 블록 참고 — design.md §12가 계획한 devFixture/devConsultState
+  // 우회 경로는 실제 구현에 없다. designTopHint 값은 design/exports의 해당
+  // PNG를 1x로 정규화해 segmentBands로 실측한 값이다(첫 실행 시 추가 조정이
+  // 필요할 수 있다 — progress.md §E.2 M7 참고). 디자인 export 1x 치수를
+  // 뷰포트에 그대로 맞춰 정규화 시 왜곡이 없게 한다(01/02와 동일한 관례).
+  {
+    id: "03",
+    label: "03 상담 신청 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 1426 },
+    designExport: "03-상담-신청-손해사정사-연결.png",
+    screenshotName: "03-consult.png",
+    quietGap: 10,
+    prepare: gotoConsultMain,
+    elements: [
+      {
+        key: "summary",
+        label: "진단 결과 요약 카드",
+        // visual-verify 실행(1차) — normalized-design/03.png을 직접 열어
+        // 확인한 실측값. 디자인은 헤더(0~70)+페이지 히어로 타이틀"손해
+        // 사정사에게 무료로 물어보세요"+설명 2줄(116~206)이 요약 카드보다
+        // 먼저 오고, 카드는 그 아래 top=254부터 시작한다.
+        locate: (p) => vis(p, "consult-summary-card"),
+        designTopHint: 254,
+        mergeBands: 2,
+      },
+      {
+        key: "channelSelector",
+        label: "채널 선택",
+        // 실측 — "어떻게 상담받으시겠어요?" 제목(387) + 옵션 2개 행(427) +
+        // 안내 배너(538)까지가 consult-channel-selector.tsx 한 컨테이너다.
+        locate: (p) => vis(p, "consult-channel-selector"),
+        designTopHint: 387,
+        mergeBands: 3,
+      },
+      {
+        key: "form",
+        label: "입력 폼",
+        // 실측 — 이름/연락처 라벨 행(584) + 입력창 행(608) + 연락 희망
+        // 시간 라벨(672) + 입력창(696)까지가 consult-form.tsx다. 디자인은
+        // 이 아래에 "정하은 손해사정사" 카드(782)를 보여주지만, design.md
+        // §1 D3가 이미 이 카드를 **성공/중복 요약의 텍스트 한 줄**로
+        // 대체하기로 확정했다(폼 화면 자체에는 아예 렌더링하지 않는다) —
+        // 그래서 이 요소는 폼(696+46=742)에서 끝나고 그 카드는 측정
+        // 대상에 넣지 않는다.
+        locate: (p) => vis(p, "consult-form"),
+        designTopHint: 584,
+        mergeBands: 4,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "카카오 라디오 선택됨(기본값)",
+        expected: "true",
+        actual: await radioChecked(page, /카카오톡 상담/),
+      },
+      {
+        label: "연락처 라벨 — 카카오톡 연락에 사용할…",
+        expected: "true",
+        actual: String(await page.getByLabel(/카카오톡 연락에 사용할 휴대폰 번호/).isVisible()),
+      },
+      {
+        label: "연락 희망 시간 aria-required 부재(카카오 채널)",
+        expected: "missing",
+        actual: await attrValue(page, "consult-preferred-call-time-input", "aria-required"),
+      },
+      {
+        label: "필수 동의 2 + 선택 1 = 동의 체크박스 3개 존재",
+        expected: "3",
+        actual: await consentCheckboxCount(page),
+      },
+      {
+        label: "제출 버튼 aria-disabled=true(동의 전)",
+        expected: "true",
+        actual: await attrValue(page, "consult-submit-button", "aria-disabled"),
+      },
+    ],
+  },
+  {
+    id: "03-A2",
+    label: "03-A2 상담 신청 — 전화 채널 선택 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 1426 },
+    designExport: "03-A2-상담-신청-전화-선택.png",
+    screenshotName: "03-A2-consult-phone.png",
+    quietGap: 10,
+    prepare: gotoConsultPhoneChannel,
+    elements: [
+      {
+        key: "summary",
+        label: "진단 결과 요약 카드",
+        locate: (p) => vis(p, "consult-summary-card"),
+        designTopHint: 254,
+        mergeBands: 2,
+      },
+      {
+        key: "channelSelector",
+        label: "채널 선택",
+        locate: (p) => vis(p, "consult-channel-selector"),
+        designTopHint: 387,
+        mergeBands: 3,
+      },
+      {
+        key: "form",
+        label: "입력 폼",
+        locate: (p) => vis(p, "consult-form"),
+        designTopHint: 584,
+        mergeBands: 4,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "전화 라디오 선택됨",
+        expected: "true",
+        actual: await radioChecked(page, /전화 상담/),
+      },
+      {
+        label: "연락 희망 시간 aria-required=true(전화 채널)",
+        expected: "true",
+        actual: await attrValue(page, "consult-preferred-call-time-input", "aria-required"),
+      },
+      {
+        label: "안내 문구 — 접수 내용을 확인한 뒤…(§1 D6)",
+        expected: "true",
+        actual: String(
+          await page
+            .locator('[data-testid="consult-channel-selector"] [role="status"]')
+            .filter({ hasText: "접수 내용을 확인한 뒤" })
+            .isVisible()
+        ),
+      },
+    ],
+  },
+  {
+    id: "03-B",
+    label: "03-B 상담 신청 완료 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 805 },
+    designExport: "03-B-상담-신청-완료.png",
+    screenshotName: "03-B-consult-success.png",
+    prepare: gotoConsultSuccess,
+    elements: [
+      {
+        key: "summary",
+        label: "성공 요약",
+        locate: (p) => vis(p, "consult-success-summary"),
+        designTopHint: 325,
+        mergeBands: 4,
+      },
+      {
+        key: "backCta",
+        label: "진단 결과로 돌아가기 CTA",
+        locate: (p) => vis(p, "consult-success-back-cta"),
+        designTopHint: 528,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "체크 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-success"),
+      },
+      {
+        label: "마스킹 연락처 정규식 매칭",
+        expected: "true",
+        actual: String(
+          CONSULT_PHONE_MASKED_PATTERN.test(
+            (await page.getByTestId("consult-success-summary").textContent()) ?? ""
+          )
+        ),
+      },
+      {
+        label: "원시 연락처 문자열 DOM 부재",
+        expected: "false",
+        actual: String(
+          ((await page.getByTestId("consult-success-summary").textContent()) ?? "").includes(
+            CONSULT_PHONE
+          )
+        ),
+      },
+    ],
+  },
+  {
+    id: "03-C",
+    label: "03-C 상담 신청 중복 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 920 },
+    designExport: "03-C-상담-신청-중복.png",
+    screenshotName: "03-C-consult-duplicate.png",
+    prepare: gotoConsultDuplicate,
+    elements: [
+      {
+        key: "summary",
+        label: "중복 요약",
+        locate: (p) => vis(p, "consult-duplicate-summary"),
+        designTopHint: 350,
+        mergeBands: 4,
+      },
+      {
+        key: "backCta",
+        label: "진단 결과로 돌아가기 CTA",
+        locate: (p) => vis(p, "consult-duplicate-back-cta"),
+        designTopHint: 643,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "시계 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-duplicate"),
+      },
+      {
+        label: "기존 신청 상태 확인 CTA(스텁) 존재",
+        expected: "true",
+        actual: await testIdExists(page, "consult-duplicate-status-inquiry"),
+      },
+    ],
+  },
+  {
+    id: "03-D",
+    label: "03-D 상담 신청 실패 (Desktop)",
+    platform: "desktop",
+    viewport: { width: 1440, height: 899 },
+    designExport: "03-D-상담-신청-실패.png",
+    screenshotName: "03-D-consult-failure.png",
+    prepare: gotoConsultFailure,
+    elements: [
+      {
+        key: "summary",
+        label: "실패 요약(입력 보존)",
+        locate: (p) => vis(p, "consult-failure-summary"),
+        designTopHint: 350,
+        mergeBands: 5,
+      },
+      {
+        key: "retry",
+        label: "다시 시도하기",
+        locate: (p) => vis(p, "consult-failure-retry"),
+        designTopHint: 622,
+      },
+      {
+        key: "backCta",
+        label: "이전 화면으로 돌아가기",
+        locate: (p) => vis(p, "consult-failure-back-cta"),
+        designTopHint: 622,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "경고 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-failure"),
+      },
+      {
+        label: "다시 시도하기 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "consult-failure-retry"),
+      },
+      {
+        label: "입력 필드 값 유지(이름) — 폼 상태 보존",
+        expected: "true",
+        actual: String(
+          ((await page.getByTestId("consult-failure-summary").textContent()) ?? "").includes(
+            CONSULT_NAME
+          )
+        ),
+      },
+    ],
+  },
+  {
+    id: "M03",
+    label: "M03 상담 신청 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 1244 },
+    designExport: "M03-상담-신청.png",
+    screenshotName: "M03-consult.png",
+    quietGap: 10,
+    prepare: gotoConsultMain,
+    elements: [
+      {
+        key: "summary",
+        label: "진단 결과 요약 카드",
+        locate: (p) => vis(p, "consult-summary-card"),
+        designTopHint: 80,
+        mergeBands: 4,
+      },
+      {
+        key: "channelSelector",
+        label: "채널 선택",
+        locate: (p) => vis(p, "consult-channel-selector"),
+        designTopHint: 386,
+        mergeBands: 2,
+      },
+      {
+        key: "form",
+        label: "입력 폼",
+        locate: (p) => vis(p, "consult-form"),
+        designTopHint: 584,
+        mergeBands: 3,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "카카오 라디오 선택됨(기본값)",
+        expected: "true",
+        actual: await radioChecked(page, /카카오톡 상담/),
+      },
+      {
+        label: "하단 제출 바 sticky 포지션 적용(md 미만 뷰포트)",
+        expected: "sticky",
+        actual: await elementPosition(page, "consult-submit-bar"),
+      },
+    ],
+  },
+  {
+    id: "M03-B",
+    label: "M03-B 신청 완료 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 605 },
+    designExport: "M03-B-신청-완료.png",
+    screenshotName: "M03-B-consult-success.png",
+    prepare: gotoConsultSuccess,
+    elements: [
+      {
+        key: "summary",
+        label: "성공 요약",
+        locate: (p) => vis(p, "consult-success-summary"),
+        designTopHint: 265,
+        mergeBands: 4,
+      },
+      {
+        key: "backCta",
+        label: "진단 결과로 돌아가기 CTA",
+        locate: (p) => vis(p, "consult-success-back-cta"),
+        designTopHint: 501,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "체크 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-success"),
+      },
+      {
+        label: "마스킹 연락처 정규식 매칭",
+        expected: "true",
+        actual: String(
+          CONSULT_PHONE_MASKED_PATTERN.test(
+            (await page.getByTestId("consult-success-summary").textContent()) ?? ""
+          )
+        ),
+      },
+      {
+        label: "원시 연락처 문자열 DOM 부재",
+        expected: "false",
+        actual: String(
+          ((await page.getByTestId("consult-success-summary").textContent()) ?? "").includes(
+            CONSULT_PHONE
+          )
+        ),
+      },
+    ],
+  },
+  {
+    id: "M03-C",
+    label: "M03-C 신청 중복 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 718 },
+    designExport: "M03-C-신청-중복.png",
+    screenshotName: "M03-C-consult-duplicate.png",
+    prepare: gotoConsultDuplicate,
+    elements: [
+      {
+        key: "summary",
+        label: "중복 요약",
+        locate: (p) => vis(p, "consult-duplicate-summary"),
+        designTopHint: 319,
+        mergeBands: 4,
+      },
+      {
+        key: "backCta",
+        label: "진단 결과로 돌아가기 CTA",
+        locate: (p) => vis(p, "consult-duplicate-back-cta"),
+        designTopHint: 555,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "시계 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-duplicate"),
+      },
+      {
+        label: "기존 신청 상태 확인 CTA(스텁) 존재",
+        expected: "true",
+        actual: await testIdExists(page, "consult-duplicate-status-inquiry"),
+      },
+    ],
+  },
+  {
+    id: "M03-D",
+    label: "M03-D 신청 실패 (Mobile)",
+    platform: "mobile",
+    viewport: { width: 390, height: 737 },
+    designExport: "M03-D-신청-실패.png",
+    screenshotName: "M03-D-consult-failure.png",
+    prepare: gotoConsultFailure,
+    elements: [
+      {
+        key: "summary",
+        label: "실패 요약(입력 보존)",
+        locate: (p) => vis(p, "consult-failure-summary"),
+        designTopHint: 319,
+        mergeBands: 5,
+      },
+      {
+        key: "retry",
+        label: "다시 시도하기",
+        locate: (p) => vis(p, "consult-failure-retry"),
+        designTopHint: 574,
+      },
+      {
+        key: "backCta",
+        label: "이전 화면으로 돌아가기",
+        locate: (p) => vis(p, "consult-failure-back-cta"),
+        designTopHint: 633,
+      },
+    ],
+    semanticChecks: async (page) => [
+      {
+        label: "경고 아이콘 존재",
+        expected: "true",
+        actual: await iconExists(page, "consult-failure"),
+      },
+      {
+        label: "다시 시도하기 CTA 존재",
+        expected: "true",
+        actual: await testIdExists(page, "consult-failure-retry"),
+      },
+      {
+        label: "입력 필드 값 유지(이름) — 폼 상태 보존",
+        expected: "true",
+        actual: String(
+          ((await page.getByTestId("consult-failure-summary").textContent()) ?? "").includes(
+            CONSULT_NAME
+          )
+        ),
+      },
+    ],
+  },
 ];
 
 // ── 서버 기동 ────────────────────────────────────────────────────────
@@ -1530,10 +2204,32 @@ async function waitForServer(url: string, timeoutMs: number) {
 }
 
 async function startProductionServer(): Promise<{ baseURL: string; stop: () => void }> {
-  const env = { ...process.env, ENABLE_DIAGNOSIS_DEV_STATES: "true" };
+  // SPEC-B2C-CONSULT-001 M7 — 03-B/03-C(성공/중복)가 실제 POST
+  // /api/consultations 제출로 도달해야 해서 서버 부팅에 TURSO_DATABASE_URL
+  // (lib/env.ts app 스코프는 항상 필수 — CONSULT_POLICY_READY와 무관)과
+  // 상담 신청 3개 env가 필요해졌다. 기존 값이 이미 있으면(.env.local 등)
+  // 그대로 두고, 없을 때만 이 스크립트 전용 기본값을 채운다 — 다른 세션이
+  // 이미 export해 둔 값을 덮어쓰지 않는다.
+  process.env.TURSO_DATABASE_URL ??= "file:./.tmp/visual-verify.db";
+  process.env.LLM_PROVIDER_MODE ??= "deterministic";
+  fs.mkdirSync(path.join(PROJECT_ROOT, ".tmp"), { recursive: true });
+  await runMigrations();
+
+  const env = {
+    ...process.env,
+    ENABLE_DIAGNOSIS_DEV_STATES: "true",
+    // design.md §4(REQ-B2CCONSULT-005) — ENABLE_CONSULT_FLOW 단독으로
+    // /consult 라우트 게이트가 열린다. CONSULT_POLICY_READY=true는
+    // 03-B/03-C의 실제 제출 성공에 필요하다(route.ts 2단계 정책 검증) —
+    // 03-D는 handoff_mismatch 분기로 도달해 이 값과 무관하게 동작한다.
+    ENABLE_CONSULT_FLOW: "true",
+    CONSULT_POLICY_READY: "true",
+    RATE_LIMIT_HMAC_SECRET:
+      process.env.RATE_LIMIT_HMAC_SECRET ?? "visual-verify-rate-limit-hmac-secret",
+  };
 
   if (process.env.VISUAL_SKIP_BUILD !== "1") {
-    console.log("[visual-verify] pnpm build (ENABLE_DIAGNOSIS_DEV_STATES=true)");
+    console.log("[visual-verify] pnpm build (ENABLE_DIAGNOSIS_DEV_STATES=true, ENABLE_CONSULT_FLOW=true)");
     execSync("pnpm build", { cwd: PROJECT_ROOT, env, stdio: "inherit" });
   }
 
