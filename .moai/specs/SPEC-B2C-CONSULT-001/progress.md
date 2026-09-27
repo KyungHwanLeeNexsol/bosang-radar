@@ -2,7 +2,7 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: amended-pending-reaudit` — 독립 plan-auditor의 **실제 증거로 뒷받침되는** 두 번째 재검증(HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`에 실제로 영속 저장되어 있다. 독립 검토가 발견한 10건(D1-D10, 아래 요약)의 blocking 계약 모순이 이 재검증으로 전부 해소되었음이 확인되었다 — plan-phase의 최종 게이트를 통과했다. **다만 이 PASS 선언 이후 별도의 독립 검토가 D11/D13/D14(D12는 별도 처리) 신규 blocking 계약 모순을 추가로 발견했다 — 이에 따라 `plan_status`를 `amended-pending-reaudit`로 되돌리고, 해당 결함을 수정한 뒤 plan-auditor의 전체 재감사를 다시 받는다.**
+- `plan_status: audit-ready` — 독립 plan-auditor의 세 번째 재검증(iteration 3, HEAD `f180834c4d0c905c93df79e9bdd3a8f9b17b23b7` — D11/D13/D14 수정 커밋 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-3.md`에 실제로 영속 저장되어 있고, **이 SPEC의 감사 이력 중 최초로 `git ls-tree -r HEAD`로 Git 트리에 실제 커밋되어 있음이 감사자 자신에 의해 확인되었다**(로컬 디스크에만 존재한 이전 iteration 3 주장과 다름 — 아래 "iteration 3" 주장 무효화 절 참고). 이 재검증은 D11/D13/D14 3건이 모두 해소되었음을 확인했고, 그 과정에서 별도의 신규 결함 D-NEW-1(경미, `design.md` §9.1 표의 §8.1 단계 번호 참조 2건이 D11 재배열 이후 갱신되지 않은 상태로 남아 있던 문제)을 발견했다 — 감사자 자신의 판정으로 이 D-NEW-1은 **non-blocking**이며(순수 2줄 텍스트 정정, 동작·아키텍처 영향 없음, `§8.1` 자체의 번호 목록은 이미 정확했음) 이 PASS 판정을 저지하지 않는다. D-NEW-1은 이 상태 전환 직전 커밋에서 이미 수정되었다(`design.md` §9.1 두 행의 `§8.1` 참조를 `9번`, `8번/10번`으로 정정). D12(별도 세션의 보고서 영속화 결함)는 이번 세션이 review-3.md를 실제로 git 커밋함으로써 해소된 것으로 감사자가 별도로 확인했다. 이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 전환한다 — plan-phase의 최종 게이트를 통과했다.
 - `plan_complete_at: 2026-09-25T14:55:32Z`
 
 ### "iteration 3" 주장 무효화 — 관측되지 않은 검증 주장이었음 (D-META-1 정정)
@@ -59,6 +59,14 @@
 - D1-D10 내용은 이번 수정에서 전혀 손대지 않았다 — 위 표는 D1-D10 표와 별개의 새 표이며, 기존 표의 행 번호·내용을 재사용·재정의하지 않는다.
 - `git diff --check`(공백/충돌 마커 검사) — 이번 세션의 커밋에 대해 clean 확인(SHA는 커밋 메시지에서 확인).
 - 이 D11/D13/D14 수정 이후, `plan_status`는 여전히 `amended-pending-reaudit`다 — D12(별도 세션 처리) 완료 및 plan-auditor의 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다.
+
+### iteration 3 재검증 완료 — `plan_status: audit-ready` 확정 (이번 세션)
+
+위 문단이 예고한 "plan-auditor의 전체 재감사"가 실제로 수행되었다. 독립 plan-auditor가 HEAD `f180834c4d0c905c93df79e9bdd3a8f9b17b23b7`(D11/D13/D14 수정 커밋 — D12 제외)를 대상으로 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사(diff-only 아님)를 수행했고, **PASS**(종합 점수 **0.92**, Tier L 임계값 0.85 상회)를 반환했다. 이 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-3.md`에 실제로 영속 저장되었으며, `git ls-tree -r HEAD`로 Git 트리에 실제 커밋되어 있음이 감사자 자신에 의해 확인되었다 — 이 SPEC의 감사 이력 중 처음으로 "로컬 디스크에만 존재" 문제 없이 검증 가능한 iteration이다.
+
+이 재검증 과정에서 감사자는 D11/D13/D14 3건이 모두 해소되었음을 확인하는 동시에, 별도의 경미한 신규 결함 D-NEW-1(`design.md` §9.1 HTTP 상태 코드 표의 `§8.1` 단계 번호 참조 2건이 D11 재배열 이후 갱신되지 않은 상태)을 발견했다. 감사자는 D-NEW-1을 **non-blocking**으로 명시적으로 판정했다 — 순수 2줄 텍스트 정정이며 `§8.1` 자신의 번호 목록은 이미 정확했으므로 동작·아키텍처 영향이 없다는 근거다. D-NEW-1은 이 상태 전환 커밋 직전 별도 커밋에서 이미 수정되었다(`design.md` §9.1의 두 행을 `§8.1 9번`, `§8.1 8번/10번`으로 정정).
+
+이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 전환한다. D1-D10/D11-D14 수정 요약 표와 위 "감사 이력 정정" 번호 목록은 이번 전환으로 다시 쓰지 않는다 — 이 절은 그 목록들에 이어 붙는 새 기록일 뿐이다.
 
 ## §E.2 Run-phase Evidence
 
