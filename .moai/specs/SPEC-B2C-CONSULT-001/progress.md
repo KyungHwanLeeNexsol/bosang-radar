@@ -2,12 +2,18 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: audit-ready` — plan-auditor의 **새로운** 공식 재검증(iteration 3, HEAD `5cacad5` 기준 전체 문서 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.97**, Tier L 임계값 0.85 상회). 독립 검토가 발견한 10건(D1-D10, 아래 요약)의 blocking 계약 모순이 이 재검증으로 전부 해소되었음이 확인되었다 — plan-phase의 최종 게이트를 통과했다.
+- `plan_status: audit-ready` — 독립 plan-auditor의 **실제 증거로 뒷받침되는** 두 번째 재검증(HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`에 실제로 영속 저장되어 있다. 독립 검토가 발견한 10건(D1-D10, 아래 요약)의 blocking 계약 모순이 이 재검증으로 전부 해소되었음이 확인되었다 — plan-phase의 최종 게이트를 통과했다.
 - `plan_complete_at: 2026-09-25T14:55:32Z`
 
-### iteration 3 재검증 증거 위치 (투명성 기록)
+### "iteration 3" 주장 무효화 — 관측되지 않은 검증 주장이었음 (D-META-1 정정)
 
-이번 iteration 3 재검증은 HEAD `5cacad5`(본 commit 직전 상태 — D1-D10 수정 + 이전 감사 이력 정정 커밋까지 반영된 트리)를 대상으로 plan-auditor가 6개 plan-phase 산출물 전체를 다시 읽고 수행한 전체 재감사이며, diff-only 재검증이 아니다. 단, `.moai/reports/plan-audit/` 디렉터리에는 여전히 iteration 1(HEAD `435f590` 대상, `Iteration: 1/3`, 점수 ≈0.90)을 기록한 `SPEC-B2C-CONSULT-001-review-1.md` 단 하나만 존재하며, iteration 3을 위한 별도 보고서 파일(`review-2.md`/`review-3.md` 등)은 생성되지 않았고 `review-1.md`도 갱신되지 않았다 — D10.1/D10.2가 정정한 이전 사례(존재하지 않는 보고서를 근거로 삼은 관측되지 않은 검증 주장)를 반복하지 않기 위해, 이 사실을 그대로 기록한다. 이 iteration 3 PASS(점수 0.97)의 유일한 영속 증거는 이 §E.1 항목 자체이며, 디스크상의 이전 iteration 1 감사 보고서(`SPEC-B2C-CONSULT-001-review-1.md`)와는 별개의 감사 실행 결과다.
+이 섹션의 직전 버전은 "plan-auditor의 새로운 공식 재검증(iteration 3, HEAD `5cacad5` 기준, 점수 0.97)"을 근거로 `plan_status: audit-ready`를 선언했다. 이 주장 자체가 정확히 `860ce01`(아래 § 감사 이력 정정 3번)이 저지른 것과 같은 종류의 결함이었다 — 직전 버전의 "iteration 3 재검증 증거 위치" 항목이 스스로 인정했듯, `.moai/reports/plan-audit/` 디렉터리에는 이 iteration 3을 위한 보고서 파일이 전혀 생성된 적이 없었다. 이는 독립 plan-auditor의 새로운 세션이 HEAD `23f129b597132cdfed39fb35879f5c09612746ef`에 대해 fresh from-scratch 전체 재감사를 수행하며 발견한 메타 결함(D-META-1, severity major, 문서/감사이력 분류 — SPEC의 기술적 내용 자체는 이 재감사에서도 별도로 PASS 판정을 받았다)이다. 영속 증거가 없는 감사 주장은 `verification-claim-integrity.md` §1.1 표면 1(관측되지 않은 검증 주장) 위반이며, 감사가 아니다.
+
+"iteration 3, 점수 0.97" 주장은 이제 완전히 폐기한다 — 해당 재검증이 실제로 수행되었는지 여부와 무관하게, 영속 보고서가 없으므로 감사 근거로 인용할 수 없다. `plan_status: audit-ready`가 실제로 근거하는 유일한 두 번째 재검증은 아래 "실제 증거 위치" 항목에 기술된, 실제로 영속 저장된 재검증이다.
+
+### 실제 증거 위치 (두 번째 독립 재검증)
+
+이 두 번째 독립 재검증은 HEAD `23f129b597132cdfed39fb35879f5c09612746ef`(D1-D10 수정 + 이전 감사 이력 정정 커밋 + `plan_status: audit-ready` 확정 커밋까지 반영된 트리)를 대상으로, 별도의 독립 plan-auditor가 6개 plan-phase 산출물 전체를 처음부터 다시 읽고 수행한 완전 재감사(diff-only 아님)이며, **PASS**(종합 점수 **0.92**, Tier L 임계값 0.85 상회)를 반환했다. 이 재검증의 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`에 실제로 영속 저장되어 있다 — 이전 "iteration 3" 주장과 달리, 이번에는 인용 가능한 실제 파일이 존재한다.
 
 ### 감사 이력 정정 (D10.1 / D10.2)
 
@@ -18,6 +24,7 @@
 3. **이전에 잘못 선언된 상태**: 커밋 `860ce01`이 "plan-auditor 재검증 PASS"를 선언하며 `plan_status: audit-ready`로 전환했으나, 위 1-2번 근거로 볼 때 이는 **관측되지 않은 검증 주장**이었다(`verification-claim-integrity.md` §1.1 표면 1 위반 소지) — 실제로 존재하는 증거는 iteration 1(구 커밋 `435f590` 대상)뿐이고, `d0650b1` 이후의 공식 재검증은 수행된 바 없다.
 4. **이번 세션의 조치**: 독립 검토가 D1-D10(아래, 별도 번호 체계) blocking 계약 모순을 발견해 `plan_status`를 `amended-pending-reaudit`로 즉시 전환했고(status 전환 커밋 1건), 이어서 D1-D10을 전부 수정했다(내용 수정 커밋 1건, 아래 SHA 참고). 다음 단계로 plan-auditor의 새로운 공식 재검증이 필요하며, 그 결과가 PASS일 때만 `plan_status: audit-ready`로 전환하기로 했다 — 이 문서가 스스로 그 전환을 선언하지 않는다는 규율을 이번 세션 내내 지켰다.
 5. **재검증 완료(iteration 3) — 이번 세션**: plan-auditor가 HEAD `5cacad5`(D1-D10 수정 반영 트리) 전체를 다시 읽는 전체 재감사(diff-only 아님)를 수행했고, **PASS**(종합 점수 0.97)를 반환했다. 위 4번이 예고한 "다음 단계"가 실제로 수행되었고, 그 결과에 따라 `plan_status: audit-ready`로 전환했다(§E.1 참고) — 3번이 지적한 실수(관측되지 않은 검증 주장)와 달리, 이번 전환은 이번 세션에서 실제로 수행된 재검증 결과에 근거한다. 다만 이번에도 `review-2.md` 같은 별도 보고서 파일은 생성되지 않았다 — §E.1의 "iteration 3 재검증 증거 위치" 항목에 이 사실과 그 이유를 투명하게 기록해 두었다.
+6. **5번 정정 — 이후 세션 재발견(D-META-1)**: 위 5번이 기록한 "재검증 완료(iteration 3, HEAD `5cacad5`, 점수 0.97)"는 독립 plan-auditor의 새로운 fresh from-scratch 재감사(HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 대상)가 발견한 대로, 3번이 지적한 것과 정확히 같은 종류의 결함 — **관측되지 않은 검증 주장**이었다. 5번 스스로 "이번에도 `review-2.md` 같은 별도 보고서 파일은 생성되지 않았다"고 이미 인정했음에도, §E.1은 그 인정과 별개로 이 주장을 근거로 `plan_status: audit-ready`를 선언했다 — 영속 증거 없는 감사 결과를 상태 전환의 근거로 삼은 것 자체가 결함이며, 3번이 정정한 `860ce01`의 실수를 이 세션 내에서 그대로 반복한 것이다(`verification-claim-integrity.md` §1.1 표면 1 위반). 실제로 존재하고 영속 보고서로 뒷받침되는 두 번째 재검증은 HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 대상 **PASS**(종합 점수 0.92, `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`)이며, `plan_status: audit-ready`는 이제 이 재검증에 근거한다(§E.1 참고). `plan_status` 값 자체는 변경하지 않는다 — SPEC 내용에 대한 실제 PASS 판정이 이미 존재하기 때문이며, 이번 정정은 그 판정을 뒷받침하는 증거를 바로잡는 것일 뿐이다.
 
 ### 독립 검토 D1-D10 수정 요약 (이번 세션)
 
