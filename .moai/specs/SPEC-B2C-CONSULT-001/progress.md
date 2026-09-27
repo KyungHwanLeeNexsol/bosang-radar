@@ -548,7 +548,7 @@ M4와 동일한 한계로, 5개 신규 컴포넌트와 `consult-view.tsx`의 응
   정합성만 확인).
 - **E4**: `grep -rn 'AskUserQuestion' components/consult/` → 0건(exit 1).
 - **E5**: `node_modules/.bin/eslint components/consult/consult-{no-data,error,success,duplicate,failure,view}.tsx components/consult/consult-{no-data,error,success,duplicate,failure,view}.test.tsx` → 출력 없음(clean).
-- **E6**: 커밋은 이 세션 종료 직전 1건으로 예정(아래 회귀 절 이후 커밋·푸시 수행).
+- **E6**: 커밋 1건 — `19eeecb`(M5, 성공·중복·실패 상태 화면 + 실제 제출 연결). `git push origin feat/SPEC-B2C-CONSULT-001` → `3ab3098..19eeecb feat/SPEC-B2C-CONSULT-001 -> feat/SPEC-B2C-CONSULT-001` 성공.
 - **E7**: 블로커 없음 — 위 두 건(duplicate 시 draft 미정리, 03-D "돌아가기"
   문구 통일)은 SPEC 문서 간 표현 불일치였을 뿐 상반된 요구사항이 아니었고,
   acceptance.md(더 정밀·테스트 가능한 문서)를 SSOT로 삼아 자체 해소했다.
