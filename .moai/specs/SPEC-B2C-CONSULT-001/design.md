@@ -172,7 +172,7 @@ db/migrations/
 └── 000N_*.sql                            [신규] `pnpm db:generate` 산출물(파일명은 drizzle-kit이 결정)
 ```
 
-**허용된 기존 파일 최소 확장(정확히 7개, `plan.md` §D 제약)**:
+**허용된 기존 파일 최소 확장(정확히 9개, `plan.md` §D 제약)**:
 
 1. `components/result/result-cta-bar.tsx` — 4개 stub 버튼을 실제 `<Link href={...}>` 네비게이션으로 교체(`aria-disabled`/no-op 핸들러 제거, `shouldRenderConsult`가 거짓이면 기존 stub 동작 유지).
 2. `components/diagnosis/diagnosis-flow.tsx` — 새 진단 시작 액션의 기존 `clearDiagnosisHandoff()` 호출 옆에 `clearConsultationDraft()` 호출 한 줄 추가.
@@ -181,6 +181,8 @@ db/migrations/
 5. `lib/db/schema.ts` — `consultations` 테이블 **및** `consultationRateLimits` 보조 테이블 정의 추가(§6, §9.3, 기존 12개 테이블 정의는 수정하지 않는다).
 6. `.env.local.example` — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 변수의 안전한 플레이스홀더 항목 추가(§4.2, 이미 존재하는 설정 템플릿 파일이며 애플리케이션 코드가 아니다).
 7. `lib/env.ts` — `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증 추가(`CONSULT_POLICY_READY === "true"`일 때만 필수, §4.2). **확정된 결정이며 run-phase 전용 작업**이다 — 이 plan-phase 세션은 이 파일을 수정하지 않으며, 여기서는 확정된 7번째 확장 대상으로 기술만 한다.
+8. `app/result/page.tsx` — `computeConsultFlags(process.env).shouldRenderConsult`를 계산해 `<ResultView>`에 prop으로 전달(기존 `enableDevFixture` prop 전달 패턴과 동일, run-phase M3 발견).
+9. `components/result/result-view.tsx` — 전달받은 prop을 3개 CTA 컴포넌트(`ResultTopBarCta`/`ResultDisabilitySectionCta`/`ResultFinalCta`)에 다시 prop으로 전달만 함(run-phase M3 발견).
 
 ## 6. 상담 데이터 계약 (`lib/consult/types.ts` + `schema.ts`)
 

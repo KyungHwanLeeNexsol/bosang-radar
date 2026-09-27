@@ -243,6 +243,16 @@ consultations 15 columns 2 indexes 0 fks
 
 **Residual-risk**: (1) `withIdempotencyLock`의 안전성은 이 프로젝트가 PM2 **단일 프로세스**로 배포된다는 design.md §9.3의 명시적 전제에 의존한다 — 향후 PM2 cluster mode나 다중 인스턴스로 전환되면 이 인-프로세스 락은 더 이상 cross-process 레이스를 막지 못하며(단, DB UNIQUE 제약 기반 삽입 시점 재조회는 cross-process에서도 여전히 정확성을 보장한다 — 락은 "불필요한 429 방지"라는 부가 보장만 제공, 정확성 자체는 DB 제약이 책임진다), 이 경우 별도 SPEC에서 재검토가 필요하다. (2) `CONSENT_POLICY_VERSION` 상수(`"2026-09-25-v1"`)는 배포 시점 고정값이며 클라이언트 M4(폼 컴포넌트)가 동일 값을 `acknowledgedConsentVersion`으로 보내야 실제 제출이 성공한다 — M4에서 이 상수를 어떻게 클라이언트에 노출할지(하드코딩 vs API로 조회)는 아직 미정이며 M3/M4 단계에서 결정 필요. (3) rate limit 윈도·요청 한도 상수(`RATE_LIMIT_WINDOW_MS=60000`, `RATE_LIMIT_MAX_REQUESTS=5`)는 plan-phase가 확정한 plan-phase 기본값이며 실제 트래픽 기반 운영 튜닝은 이 SPEC 범위 밖이다(design.md §9.3, spec.md Out of Scope).
 
+### M3 — 02→03 CTA 활성화 (진행 중) — 클라이언트/서버 env 전달 경계 발견 및 plan/design 정정
+
+M3 구현 도중 `components/result/result-cta-bar.tsx`의 CTA 활성화 게이트를 `computeConsultFlags(process.env).shouldRenderConsult`에 연결하는 과정에서 계약 경계 문제가 발견되었다.
+
+- **문제**: `result-cta-bar.tsx`는 `"use client"` 컴포넌트다. Next.js는 `NEXT_PUBLIC_` 접두사가 없는 일반 서버 환경 변수(`ENABLE_CONSULT_FLOW`)를 클라이언트 번들에 인라인하지 않는다 — 이 컴포넌트 내부에서 `process.env.ENABLE_CONSULT_FLOW`를 직접 읽으면 서버 렌더 시점에는 우연히 값이 맞아도, 클라이언트 하이드레이션 이후 값이 `undefined`로 평가되어 활성화된 CTA가 하이드레이션 후 조용히 비활성 stub으로 되돌아가는 하이드레이션 불일치 버그가 발생한다.
+- **기각한 대안**: `NEXT_PUBLIC_ENABLE_CONSULT_FLOW` 미러 환경 변수 신설 — 동일한 게이트 값을 서버용(`ENABLE_CONSULT_FLOW`)과 클라이언트용(`NEXT_PUBLIC_ENABLE_CONSULT_FLOW`) 두 곳에 유지해야 하는 이중 소스 오브 트루스 유지보수 위험이 있어 기각.
+- **채택한 해법**: `app/result/page.tsx`(Server Component)가 이미 확립한 `computeDiagnosisFlags(process.env)` → `enableDevFixture` prop 전달 패턴을 그대로 재사용한다 — `app/result/page.tsx`가 `computeConsultFlags(process.env).shouldRenderConsult`를 계산해 `<ResultView shouldRenderConsult={...} />`로 prop 전달하고, `components/result/result-view.tsx`(`"use client"`)가 이 prop을 `<ResultTopBarCta>`/`<ResultDisabilitySectionCta>`/`<ResultFinalCta>` 세 CTA 컴포넌트에 다시 prop으로 전달한다. 새 로직 없이 기존 패턴을 그대로 미러링한다.
+- **사용자 승인**: 이 세션에서 사용자에게 Option A(기존 `enableDevFixture` prop 전달 패턴 미러링, 2개 파일 확장)로 직접 확인받아 승인되었다 — `NEXT_PUBLIC_` 미러 변수 대안은 명시적으로 기각.
+- **plan.md/design.md 정정**: 위 승인에 따라 `plan.md` §D 제약 ①과 `design.md` §5 "허용된 기존 파일 최소 확장" 목록을 기존 7개에서 9개로 확장했다 — 8번 `app/result/page.tsx`, 9번 `components/result/result-view.tsx` 추가(이 문서 갱신 커밋 참고). 신규 REQ-ID/AC-ID 발급 없음 — 기존 M3 마일스톤 범위 내 파일 확장 예산 정정이다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1 완료, M2 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
