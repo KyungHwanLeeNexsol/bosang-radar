@@ -54,6 +54,21 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { PORT: String(port), ENABLE_DIAGNOSIS_DEV_STATES: "true" },
+    // SPEC-B2C-CONSULT-001 M7 (design.md §4/§4.2, e2e/consult-flow-03.spec.ts
+    // 상단 [SCOPE EXTENSION] 주석) — 03(상담 신청) 화면 e2e가 실제 제출까지
+    // 도달하려면 ENABLE_CONSULT_FLOW/CONSULT_POLICY_READY 두 플래그가 모두
+    // "true"여야 한다(computeConsultFlags). CONSULT_POLICY_READY="true"는
+    // lib/env.ts의 app 스코프 조건부 게이트를 통해 RATE_LIMIT_HMAC_SECRET을
+    // 요구하므로(instrumentation.ts register()가 부팅 시점에 fail-fast하며,
+    // 없으면 `next start` 프로세스 자체가 종료된다) 반드시 함께 주입한다 — 값
+    // 자체는 IP 해싱 전용 비시크릿 테스트 리터럴이며 실제 배포 시크릿이 아니다.
+    // 01/02 스펙이 쓰는 ENABLE_DIAGNOSIS_DEV_STATES는 그대로 유지한다.
+    env: {
+      PORT: String(port),
+      ENABLE_DIAGNOSIS_DEV_STATES: "true",
+      ENABLE_CONSULT_FLOW: "true",
+      CONSULT_POLICY_READY: "true",
+      RATE_LIMIT_HMAC_SECRET: "e2e-test-rate-limit-hmac-secret",
+    },
   },
 });
