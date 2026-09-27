@@ -291,9 +291,9 @@ ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이�
 
 | HTTP status | `ConsultationSubmitResult.status`/`code` | 조건 |
 |---|---|---|
-| 201 | `success` | 신규 삽입 성공(§8.1 8번) |
+| 201 | `success` | 신규 삽입 성공(§8.1 9번) |
 | 200 | `success` | 동일 idempotencyKey + 지문 일치 재시도(§8.1 5번/10번 — 삽입 없이 기존 행 반환) |
-| 409 | `duplicate` | `resultId`+정규화 연락처 복합 키 충돌(§8.1 7번/11번) |
+| 409 | `duplicate` | `resultId`+정규화 연락처 복합 키 충돌(§8.1 8번/10번) |
 | 409 | `idempotency_conflict` | 동일 idempotencyKey, 다른 핵심 페이로드(요청 지문 불일치, §8.1 6번/10번, §8.2) |
 | 409 | `consent_version_mismatch` | 요청의 `acknowledgedConsentVersion`이 활성 동의 정책 버전과 불일치(§6.1) |
 | 503 | `policy_unavailable` | 활성 동의 정책이 없음(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, §6.1) — 저장 시도 자체를 하지 않음 |
