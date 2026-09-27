@@ -155,8 +155,17 @@ type ConsultSubmitView =
 export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   const handoff = readDiagnosisHandoff();
 
+  // M7 발견 — lazy initializer 실행 시점에 초기 channel이 draft에서 왔는지
+  // resolveInitialChannel() 폴백에서 왔는지를 별도로 기록해 둔다. 아래
+  // 마운트 후 보정 effect가 "draft 복원 값은 절대 덮어쓰지 않는다"는 기존
+  // 우선순위(draft.channel ?? resolveInitialChannel())를 그대로 지키려면
+  // 이 출처 구분이 필요하다 — formState.channel 값만으로는 두 경우가 우연히
+  // 같은 값("kakao")일 수 있어 사후에 구분할 수 없다.
+  const initialChannelFromDraftRef = React.useRef(false);
+
   const [formState, setFormState] = React.useState<ConsultFormState>(() => {
     const draft = readConsultationDraft();
+    initialChannelFromDraftRef.current = draft.channel != null;
     return {
       channel: draft.channel ?? resolveInitialChannel(),
       name: draft.name ?? "",
@@ -167,6 +176,24 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
         draft.idempotencyKey ?? (typeof window !== "undefined" ? crypto.randomUUID() : ""),
     };
   });
+
+  // M7 발견 — Next.js <Link> 클라이언트 사이드 전환 직후 첫 렌더 시점에는
+  // 브라우저 location이 아직 새 URL로 완전히 안정되지 않을 수 있어(경성
+  // 내비게이션에서는 재현되지 않음), 위 lazy initializer 안의
+  // resolveInitialChannel() 호출이 오래된 값을 읽는 경우가 있다. 커밋 이후
+  // 실행되는(location이 안정된 시점) 이 effect에서 한 번 더 읽어 보정한다 —
+  // draft에서 channel을 복원한 경우는 건드리지 않는다(draft 우선순위 유지).
+  React.useEffect(() => {
+    if (initialChannelFromDraftRef.current) {
+      return;
+    }
+    const settledChannel = resolveInitialChannel();
+    setFormState((prev) =>
+      prev.channel === settledChannel ? prev : { ...prev, channel: settledChannel }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 필수 동의 두 항목은 draft에서 절대 복원하지 않는다 — 새로고침 후에도
   // 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, design.md §2.3).
   const [piiCollection, setPiiCollection] = React.useState(false);

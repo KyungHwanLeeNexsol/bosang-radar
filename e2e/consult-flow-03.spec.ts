@@ -208,30 +208,19 @@ test.describe("03 화면 — 02→03 전체 플로우: 성공 → 결과 복귀 
 test.describe("03 화면 — CTA 쿼리 파라미터로 채널 사전 선택 (Desktop, 1440x900)", () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
-  // [버그 발견, 실측 확인됨] 이 테스트는 REQ-B2CCONSULT-004(CTA의
-  // ?channel= 쿼리로 03 진입 시 채널이 미리 선택되어야 한다)를 그대로
-  // 검증하지만, 현재 구현은 이 케이스에서 결정론적으로 실패한다.
+  // [버그 수정 완료] 이 테스트는 REQ-B2CCONSULT-004(CTA의 ?channel= 쿼리로
+  // 03 진입 시 채널이 미리 선택되어야 한다)를 검증한다.
   //
-  // 원인: components/consult/consult-view.tsx의 resolveInitialChannel()은
-  // useState 지연 초기화 함수 안에서 window.location.search를 읽는다.
-  // Next.js <Link>를 통한 클라이언트 사이드 전환(이 테스트처럼 /result에서
-  // 클릭으로 진입하는 실제 사용자 경로)에서는 ConsultView가 마운트되는
-  // 시점에 브라우저 주소창은 이미 "?channel=phone"으로 갱신돼 있지만(직접
-  // page.evaluate(() => window.location.search)로 재확인함), 그 값을 읽는
-  // resolveInitialChannel() 호출은 매번 "kakao"로 귀결된다 — 재현 스크립트로
-  // 별도 확인 결과, 동일한 URL을 page.goto()로 "하드" 진입(전체 페이지
-  // 로드)하면 정상적으로 "phone"이 선택된다. 즉 결함은 Next.js 클라이언트
-  // 전환 특유의 타이밍 문제이며, 이 SPEC의 e2e 테스트 파일 수정 범위 밖의
-  // 애플리케이션 코드(M3/M4 산출물)에 있다 — 이 milestone(M7, e2e 전용)의
-  // 파일 수정 범위(e2e/consult-flow-03.spec.ts, playwright.config.ts)에는
-  // consult-view.tsx가 포함되지 않으므로 여기서 직접 고치지 않는다.
-  //
-  // test.fail()로 "알려진 실패"임을 명시한다 — 이 표시로 테스트는 계속
-  // 실제로 실행되며(스킵되지 않음), 실패가 관측되면 PASS로 보고되고, 만약
-  // 향후 이 버그가 고쳐져 테스트가 뜻밖에 성공하면 Playwright가 그 자체를
-  // 실패로 보고해 이 주석을 제거해야 함을 알려준다(회귀 추적 목적).
-  test.fail();
-
+  // 원인이었던 버그: components/consult/consult-view.tsx의
+  // resolveInitialChannel()은 useState 지연 초기화 함수 안에서
+  // window.location.search를 읽는다. Next.js <Link>를 통한 클라이언트
+  // 사이드 전환(이 테스트처럼 /result에서 클릭으로 진입하는 실제 사용자
+  // 경로)에서는 ConsultView가 마운트되는 시점에 브라우저 주소창은 이미
+  // "?channel=phone"으로 갱신돼 있지만, 그 값을 읽는 resolveInitialChannel()
+  // 호출이 매번 "kakao"로 귀결되던 타이밍 문제였다(하드 내비게이션에서는
+  // 재현되지 않음). consult-view.tsx에 마운트 후 보정 effect를 추가해
+  // 수정했다(M7 후속 수정 — draft 복원 채널이 없을 때만 location을 다시
+  // 읽어 보정).
   test("하단 최종 CTA(전화 상담)로 진입하면 /consult?channel=phone으로 이동하고 전화 채널이 미리 선택되어 있다", async ({
     page,
   }) => {

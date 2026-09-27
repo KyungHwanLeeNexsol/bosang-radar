@@ -809,6 +809,84 @@ M5 종료 시점(`Test Files 49 passed`/`Tests 412 passed`, jsdom 오류
 전혀 실행되지 못했지만, 이는 새 회귀가 아니라 기존과 동일한 환경 결함이
 같은 파일에 계속 적용된 것).
 
+### M7 후속 — CTA 클라이언트 전환 시 `?channel=` 타이밍 버그 발견 및 수정 (`components/consult/consult-view.tsx`, `e2e/consult-flow-03.spec.ts`)
+
+e2e-tester가 실측 Playwright 브라우저로 발견해 `test.fail()`로 커밋한
+실버그("하단 최종 CTA(전화 상담)로 진입하면 /consult?channel=phone으로
+이동하고 전화 채널이 미리 선택되어 있다")를 재현-우선 수정(CLAUDE.md §7
+Rule 4)으로 처리했다.
+
+**근본 원인**: `resolveInitialChannel()`이 `useState` 지연 초기화 함수
+안에서 `window.location.search`를 1회만 읽는다. Next.js `<Link>`
+클라이언트 사이드 전환(이 SPEC M3가 만든 실제 프로덕션 경로 —
+`/result`의 CTA에서 `/consult?channel=phone`으로 이동)에서는
+`ConsultView`의 첫 렌더가 브라우저 `window.location`/history 상태가
+완전히 안정되기 전에 일어날 수 있어, 그 시점에 읽은 값이 오래된 값이
+되어 "kakao"로 잘못 폴백한다. 하드 내비게이션(`page.goto()`)에서는
+재현되지 않는다 — e2e-tester의 격리 재현 스크립트로 확인됨.
+
+**수정**: `next/navigation`의 `useSearchParams()`로 전환하지 않았다(M3
+결정 유지 — `app/consult/page.test.tsx`가 App Router 컨텍스트 없이
+렌더 테스트를 하므로 그 훅에 의존하면 기존 테스트가 깨진다). 대신 (1)
+lazy initializer 실행 시점에 초기 `channel`이 `draft.channel`에서
+왔는지 `resolveInitialChannel()` 폴백에서 왔는지를
+`initialChannelFromDraftRef`(useRef)에 기록하고, (2) 마운트 후(커밋
+이후, location이 안정된 시점) 실행되는 `useEffect`가 `draft.channel`이
+없었을 때만 `resolveInitialChannel()`을 다시 호출해 `formState.channel`을
+보정한다.
+
+**Claim**: 클라이언트 사이드 `<Link>` 전환으로 `/consult?channel=phone`에
+진입해도 "전화 상담" 채널이 라디오에서 미리 선택된다(REQ-B2CCONSULT-004).
+
+**Evidence**:
+```
+$ node_modules/.bin/tsc --noEmit
+(출력 없음 — clean)
+
+$ grep -n "AskUserQuestion" components/consult/consult-view.tsx
+(0건, exit 1)
+
+$ node_modules/.bin/vitest run   # 프로젝트 전체, 회귀 재확인
+ Test Files  49 passed (49)
+      Tests  412 passed (412)
+     Errors  43 errors   # M6 종료 시점과 동일(43) — 신규 파일 없이 기존
+                         # 파일만 수정했으므로 크래시 파일 수 불변
+
+$ # Node v22.23.2로 PATH 전환(v20.19.6/pnpm 버전 불일치 회피 — 이전
+  # e2e-tester 델리게이션이 확인한 것과 동일한 workaround)
+  npx tsx scripts/run-e2e.ts --spec=e2e/consult-flow-03.spec.ts --workers=1
+
+Running 2 tests using 1 worker
+
+  ✓  1 e2e\consult-flow-03.spec.ts:135:7 › ... 성공 → 결과 복귀 → 중복 ... (3.1s)
+  ✓  2 e2e\consult-flow-03.spec.ts:224:7 › ... 하단 최종 CTA(전화 상담)로
+     진입하면 /consult?channel=phone으로 이동하고 전화 채널이 미리
+     선택되어 있다 (1.8s)
+
+  2 passed (4.9m)
+[exited with code 0]
+```
+
+**Baseline-attribution**: 이번 실행(이 트리), M6 HEAD `af6e9d3` + M7 e2e
+커밋 `cae447e`에서 계속된 `feat/SPEC-B2C-CONSULT-001` 브랜치. `vitest
+run`의 43건 jsdom/undici 오류는 M1~M6 §E.2에서 이미 동일 baseline(Node
+v20.19.6 환경 결함)으로 귀속 확인됨 — 이번 수정과 무관.
+
+**Gaps(미검증)**: 없음 — 이전 milestone 대부분이 jsdom 크래시로 코드
+리뷰 대체 검증에 그쳤던 것과 달리, 이번에는 실제 Playwright 브라우저
+실행으로 e2e까지 재확인했다. `test.fail()` → `test()` 전환 후 실제로
+GREEN(2 passed)임을 확인했다.
+
+**Residual-risk(잔여 위험)**: 이 보정 effect는 draft에 channel이 없을
+때 `formState.channel`만 보정하고 draft 자체(`persistDraft`)는 갱신하지
+않는다 — 마운트 시 기존 draft-init effect(`didInitDraftRef`)가 보정 전
+값("kakao")을 먼저 draft에 써 둘 수 있어, "클라이언트 전환 → 보정 발생
+→ 새로고침(하드 내비게이션)" 순서로 진행하면 하드 리로드 시
+draft.channel이 "kakao"로 남아 URL 폴백보다 우선될 가능성이 이론상
+있다. 이 SPEC 범위(REQ-B2CCONSULT-004, CTA 클릭 시점의 선택 상태)에는
+영향 없으나(2회 실측 e2e 모두 통과), 향후 세션에서 draft 동기화까지
+포함할지는 별도 판단이 필요하다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1~M6 완료, run-phase 전체 완료 — sync-phase 인계 대기 중>_
