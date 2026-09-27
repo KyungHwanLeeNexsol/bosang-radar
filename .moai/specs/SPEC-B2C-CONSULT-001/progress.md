@@ -87,6 +87,10 @@
 
 이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 재확정한다.
 
+### D17 신규 blocking 결함 발견으로 재감사 대기 전환 (이번 세션)
+
+별도의 독립 검토가 D17(`RATE_LIMIT_HMAC_SECRET` 부재 시 응답이 §8.1의 확정된 서버 처리 순서와 충돌하는 과잉 일반화 서술 — 정책·동의 검증과 기존 idempotency 판정이 rate limit 판정보다 먼저 실행됨에도, `spec.md` REQ-B2CCONSULT-018과 `acceptance.md` AC-B2CCONSULT-018 일부가 "서버 시크릿이 설정되지 않으면 500"이라는 포괄 표현으로 서술되어 있어 이 우선순위를 반영하지 못함) 1건의 신규 blocking 결함을 발견해, `plan_status`를 다시 `amended-pending-reaudit`로 전환한다 — D17 수정 및 plan-auditor의 새로운 전체 재감사(iteration 5) PASS 전까지 `audit-ready`로 복귀하지 않는다.
+
 ## §E.2 Run-phase Evidence
 
 _<run-phase 대기 중>_
