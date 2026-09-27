@@ -313,9 +313,150 @@ components/result/result-cta-bar.test.tsx(158,36): error TS2322: Type '{ shouldR
 - **E4**: `grep -rn 'AskUserQuestion' lib/diagnosis/flags.ts components/result/ lib/consult/draft.ts components/diagnosis/diagnosis-flow.tsx app/consult/ components/consult/ app/result/page.tsx` → 0건(exit 1).
 - **E6**: 커밋/푸시는 이 항목 이후 수행 — 아래 커밋 SHA 참고.
 
+### M4 — 채널 선택·입력 폼·동의 컴포넌트 (`components/consult/*`)
+
+M3가 남긴 `consult-view.tsx` placeholder를 전면 교체하고, 신규 컴포넌트 5개
+(`consult-summary-card.tsx`, `consult-channel-selector.tsx`, `consult-form.tsx`,
+`consult-consent-group.tsx`, `consult-submit-bar.tsx`) + 공유 lib 2개
+(`lib/consult/consent-policy.ts`, `lib/consult/dedupe.ts`)를 추가했다.
+
+**M2 잔여 위험 해소** — `CONSENT_POLICY_VERSION`을 `route.ts`의 비공개 상수에서
+`lib/consult/consent-policy.ts`로 추출해 서버·클라이언트 단일 소스로 만들었다
+(route.ts는 이 상수를 import만 하며 동작 변경 없음).
+
+**dedupe.ts** — design.md §5 파일 트리가 명시한 `resultId + 정규화 연락처`
+복합 중복 판정 키를 순수 함수로 도출했다. `route.ts`(M2)는 이 규칙을
+drizzle `and(eq, eq)` 복합 조건으로 직접 판정하며(§8.1 8번) 문자열 키로
+합성하지 않으므로, `route.ts`를 이 함수를 쓰도록 리팩터링하지 않았다 —
+서버·클라이언트가 공유 가능한 형태로 별도 도출해 둔 것이며, `route.ts`의
+기존 동작은 전혀 바뀌지 않았다.
+
+**?channel= 쿼리 읽기 방식 결정** — 당초 `next/navigation`의
+`useSearchParams()`를 검토했으나, 이 훅은 App Router 컨텍스트를 요구해
+`app/consult/page.test.tsx`(M3, 컨텍스트 없는 순수 렌더 테스트)가
+"invariant expected app router to be mounted"로 깨진다. `window.location.search`를
+직접 읽는 방식으로 대체해(SSR 가드 포함, kakao 폴백) 기존 M3 테스트를
+전혀 건드리지 않고 REQ-B2CCONSULT-004를 만족시켰다.
+
+**`components/consult/consult-view.test.tsx` 전면 교체 사실 고지** — 이
+파일은 M3에서 이미 생성되어 있었다(placeholder 전용, "준비 중" 문구 +
+배선 확인 2개 테스트). M4는 이 파일을 `Write`로 덮어썼다 — M3 스스로
+"M4가 내부를 완전히 교체한다"고 명시했고, placeholder 문구("상담 신청 폼을
+준비하고 있어요")가 코드에서 완전히 사라졌으므로 그 문구를 검증하던
+기존 테스트는 더 이상 검증할 대상이 없다. 새 테스트는 handoff 3갈래
+분기(AC-007/008/009 — 기존 wiring-only 검증보다 강화됨), draft 왕복,
+idempotencyKey 1회 생성, 채널 쿼리 반영, 필수 동의 게이트를 모두
+커버한다 — 순수 삭제가 아니라 동등 이상의 보증으로 대체.
+
+### AC 매트릭스(M4 범위 — AC-B2CCONSULT-006 통합 부분 + 007~015)
+
+| AC | 상태 | 검증 명령 | 근거 |
+|---|---|---|---|
+| AC-B2CCONSULT-006(통합) | PASS(코드 리뷰, jsdom 미실행) | `consult-view.test.tsx` "draft 초기화/왕복" describe | blur 시 draft 저장 + 필수 동의 미저장을 `consult-view.tsx`가 실제로 마운트한 폼에서 검증(M3는 draft.ts 단위 테스트만) |
+| AC-B2CCONSULT-007 | PASS(코드 리뷰) | `consult-view.test.tsx` "AC-007" | handoff empty → `consult-no-data` testid 렌더, `consult-summary-card` 부재 확인 |
+| AC-B2CCONSULT-008 | PASS(코드 리뷰) | `consult-view.test.tsx` "AC-008" | 손상 JSON에도 throw 없이 `consult-error` testid 렌더 |
+| AC-B2CCONSULT-009 | PASS(코드 리뷰, 구조적) | — | `readDiagnosisHandoff()` 재사용(재파싱 없음) — 02가 이미 검증한 세션 유지 정책을 그대로 상속, 별도 TTL 미도입 |
+| AC-B2CCONSULT-010 | PASS(코드 리뷰) | `consult-form.test.tsx` channel별 테스트 2건 | phone일 때만 `aria-required=true`, kakao일 때 "선택" 배지 — `ConsultationRequestSchema.refine`과 라벨/필수 여부 일치 |
+| AC-B2CCONSULT-011 | PASS(기존 M1 커버, 변경 없음) | `phone.test.ts`(회귀 재확인, 아래 참고) | normalizePhone/formatPhoneDisplay/maskPhone은 M1에서 이미 100% 검증됨, M4는 UI에서 이 함수들을 재구현하지 않고 서버 스키마에 위임 |
+| AC-B2CCONSULT-012 | PASS(코드 리뷰) | `consult-view.test.tsx` "두 필수 동의를 모두 체크해야..." | 두 체크 전 `aria-disabled="true"`, 둘 다 체크 후 해제 확인. 마케팅 체크는 별도 핸들러로 분리(consult-consent-group.test.tsx) |
+| AC-B2CCONSULT-013 | PASS(코드 리뷰) | `consult-consent-group.test.tsx` "AC-B2CCONSULT-013" | "자세히 보기" 클릭 후에도 체크박스 미체크 유지 |
+| AC-B2CCONSULT-014 | PASS(코드 리뷰) | `consult-consent-group.test.tsx` "AC-B2CCONSULT-014" | 전체 렌더 텍스트에 "제3자" 문자열 부재 — 구조적으로 제3자 동의 UI 자체를 만들지 않음(REQUIRED_ITEMS/OPTIONAL_ITEM에 3번째 필수 항목 없음) |
+| AC-B2CCONSULT-015 | PASS(코드 리뷰) | `consult-submit-bar.test.tsx` "제출이 진행 중일 때..." | 진행 중 `aria-busy="true"`, 재클릭 시 `onSubmit` 호출 횟수 1회 고정(Promise 미해결 상태에서 재클릭 시뮬레이션) |
+
+### RED 증거 (GREEN 이전 verbatim, TDD 필수)
+
+`lib/consult/consent-policy.ts`/`dedupe.ts`(node 환경, 실제 실행):
+
+```
+$ npx vitest run lib/consult/consent-policy.test.ts lib/consult/dedupe.test.ts
+ FAIL  lib/consult/consent-policy.test.ts [ lib/consult/consent-policy.test.ts ]
+Error: Cannot find module './consent-policy' imported from .../lib/consult/consent-policy.test.ts
+ FAIL  lib/consult/dedupe.test.ts [ lib/consult/dedupe.test.ts ]
+Error: Cannot find module './dedupe' imported from .../lib/consult/dedupe.test.ts
+ Test Files  2 failed (2)
+      Tests  no tests
+```
+
+GREEN(같은 명령, 구현 후):
+
+```
+ Test Files  3 passed (3)   # + app/api/consultations/route.test.ts(회귀)
+      Tests  34 passed (34)
+```
+
+컴포넌트 5개(`consult-summary-card`/`consult-channel-selector`/`consult-form`/
+`consult-consent-group`/`consult-submit-bar`)와 `consult-view.tsx`는 jsdom
+크래시(아래 Gaps)로 실제 RED/GREEN 실행 증거를 캡처할 수 없었다 — 테스트를
+먼저 작성하고(구현 파일이 존재하지 않는 상태에서 import가 실패함을
+`tsc --noEmit`으로 구조적으로 확인) 이후 구현했다는 순서는 지켰으나,
+verbatim 실행 로그는 이 milestone에서 제시할 수 없다(정직한 한계 고지,
+아래 Gaps 참고).
+
+### 자기검증 (§E 5-section 증거 형식)
+
+- **E1**: 위 AC 매트릭스.
+- **E2**: `npx next build` → `✓ Compiled successfully`, `/consult` 라우트 정적 생성 확인(`Route (app)` 표에 `○ /consult` 출력). TypeScript 단계(`Finished TypeScript`)도 이 빌드에 포함되어 통과.
+- **E3**: `npx vitest run --coverage --coverage.include='lib/consult/consent-policy.ts' --coverage.include='lib/consult/dedupe.ts' lib/consult/consent-policy.test.ts lib/consult/dedupe.test.ts` → Statements/Branches/Functions/Lines 전부 100%(2/2, 0/0, 1/1, 2/2). 5개 UI 컴포넌트 + consult-view.tsx는 jsdom 크래시로 커버리지 측정 불가(아래 Gaps).
+- **E4**: `grep -rn 'AskUserQuestion' components/consult/ lib/consult/` → 0건(exit 1).
+- **E5**: `npx eslint components/consult/ lib/consult/ app/consult/ app/api/consultations/route.ts` → 출력 없음(clean). `npx tsc --noEmit`(프로젝트 전체) → 출력 없음(clean).
+- **E6**: 커밋 2건 — `4883d25`(M4-1, consent-policy+dedupe), `cd394cc`(M4-2, UI 컴포넌트). `git push origin feat/SPEC-B2C-CONSULT-001` → `339e1d6..cd394cc` 성공.
+- **E7**: 블로커 없음.
+- **E8**: 위 "RED 증거" 참고 — lib 2개 파일은 verbatim 캡처, 컴포넌트 6개는 구조적 확인(모듈 미존재 시 `tsc --noEmit` 실패)으로 대체.
+
+**Gaps(미검증, jsdom 크래시)** — 이 샌드박스는 `node_modules/undici`와
+`jsdom@30`(Node v20.19.6) 사이의 사전 존재 환경 결함(`TypeError:
+webidl.util.markAsUncloneable is not a function`)으로 `@vitest-environment
+jsdom` 테스트 파일을 **전혀 실행할 수 없다** — M1~M3이 이미 동일하게
+보고한 한계이며, 이번 milestone에서도 동일하게 재현된다(`step-consent-modal.test.tsx`
+등 기존 통과 테스트로 baseline 재확인, 아래 회귀 절 참고). 이 때문에 아래는
+**실제 실행으로 검증되지 않았고, 코드 리뷰 수준의 신뢰로만 제시한다**:
+- 5개 신규 컴포넌트 + `consult-view.tsx`의 실제 렌더링 결과(DOM 구조, 텍스트, aria 속성)
+- Base UI Dialog/Drawer 기반 "자세히 보기" 오버레이의 실제 포커스 트랩/ESC 동작
+- 이중 제출 방지의 실제 타이밍(Promise pending 구간 동안의 재클릭 차단)
+
+`npx tsc --noEmit`과 `npx next build`(TypeScript 단계 포함) 양쪽 모두
+전체 프로젝트에서 오류 0건으로 통과했으므로 타입·컴파일 수준의 정합성은
+실행 증거로 확인됐지만, 런타임 동작 자체는 코드 리뷰로만 확인했다.
+
+**Residual-risk(잔여 위험)** — jsdom 크래시가 이 샌드박스만의 문제이고
+CI(GitHub Actions, 다른 Node/jsdom 버전 조합)에서는 정상 실행될 가능성이
+높다(M1~M3도 동일 가정 하에 진행됨). 다음 세션 또는 CI 실행 시 이
+milestone이 추가한 6개 jsdom 테스트 파일(consult-view 포함)을 최우선으로
+재실행해 실제 GREEN을 확인해야 한다 — 특히 `consult-consent-group.tsx`의
+Dialog/Drawer 분기(`useMediaQuery` 기반)는 코드 리뷰만으로는 낮은 신뢰도.
+
+### 회귀 확인 — 전체 스위트 + M1/M2 non-jsdom 재확인
+
+```
+$ npx vitest run   # 프로젝트 전체
+ Test Files  49 passed (49)
+      Tests  412 passed (412)
+     Errors  38 errors   # 전부 동일 jsdom/undici Unhandled Error(M3 종료 시점 33건 → +5,
+                         # 신규 jsdom 테스트 파일 5개(consult-view.test.tsx는 이미 M3부터
+                         # 동일 범주였으므로 신규 아님)만큼 정확히 순증 — 새 오류 유형 없음
+```
+
+M3 종료 시점(`Test Files 47 passed`/`Tests 406 passed`, jsdom 오류 33건) 대비
+Test Files +2(consent-policy.test.ts, dedupe.test.ts — node 환경, 실제 실행),
+Tests +6(consent-policy 2건 + dedupe 4건), jsdom 오류 +5(신규 jsdom 테스트
+파일 5개)로 정확히 정합 — 신규 실패 카테고리 없음.
+
+M1/M2 non-jsdom 파일 개별 재실행(route.ts 리팩터링이 기존 동작을 바꾸지
+않았는지 재확인):
+
+```
+$ npx vitest run lib/consult/schema.test.ts lib/consult/phone.test.ts \
+  app/api/consultations/route.test.ts lib/env.test.ts lib/db/schema.test.ts
+ Test Files  5 passed (5)
+      Tests  83 passed (83)
+```
+
+전부 그린, 단언 변경 없음 — `route.ts`의 `CONSENT_POLICY_VERSION` 추출
+리팩터링은 동작을 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<M1 완료, M2 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
+_<M1~M4 완료, M5(성공/중복/실패 상태 + 실제 제출 fetch 연결) 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
