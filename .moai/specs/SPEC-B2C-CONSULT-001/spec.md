@@ -2,7 +2,7 @@
 id: SPEC-B2C-CONSULT-001
 title: "03 상담 신청 및 접수 결과 (Plan-Phase)"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-09-25
 updated: 2026-09-27
 author: Nexsol

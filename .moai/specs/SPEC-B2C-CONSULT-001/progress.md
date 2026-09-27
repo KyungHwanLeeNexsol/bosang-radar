@@ -123,11 +123,37 @@
 
 ## §E.2 Run-phase Evidence
 
-_<run-phase 대기 중>_
+### M1 — 상담 데이터 계약 SSOT (`lib/consult/types.ts` + `schema.ts` + `phone.ts`)
+
+브랜치 `feat/SPEC-B2C-CONSULT-001`(HEAD `f7ef4ec` 기준 분기). TDD RED-GREEN 사이클로 구현 — RED 실패 출력은 아래 §E 자기검증 보고서(별도 위임 응답) 참고.
+
+| AC | 대상 | Status | Verification Command | Actual Output |
+|----|------|--------|----------------------|----------------|
+| AC-B2CCONSULT-011 (본 시나리오) | `normalizePhone`/`formatPhoneDisplay`/`maskPhone` | PASS | `node_modules/.bin/vitest run lib/consult/phone.test.ts` | `Test Files 1 passed (1)` / `Tests 8 passed (8)` |
+| AC-B2CCONSULT-011 (추가 시나리오 — 정규화 실패 거부) | `ConsultationRequestSchema.safeParse({ contact: "12345" })` | PASS | `node_modules/.bin/vitest run lib/consult/schema.test.ts` | `연락처가 정규화 실패 형식이면 거부한다` 케이스 PASS (13건 중 1건) |
+| REQ-B2CCONSULT-016 (strictObject 미지 키 거부) | `ConsultationRequestSchema`/`ConsultationDraftSchema` | PASS | 동일 | 두 스키마 모두 unknown-key 거부 케이스 PASS |
+
+### 자기검증 (§E 5-section 증거 형식)
+
+**Claim**: `lib/consult/{types,schema,phone}.ts` + 대응 테스트가 design.md §6/§2.3 계약을 정확히 구현하며, 기존 코드베이스에 회귀가 없다.
+
+**Evidence**:
+- `node_modules/.bin/vitest run lib/consult/` → `Test Files 2 passed (2)` / `Tests 21 passed (21)`
+- `node_modules/.bin/vitest run --coverage --coverage.include='lib/consult/**'` → `Statements 100% (24/24)`, `Branches 100% (12/12)`, `Functions 100% (5/5)`, `Lines 100% (24/24)`
+- `node_modules/.bin/eslint lib/consult/` → 출력 없음(clean)
+- `grep -rn 'AskUserQuestion' lib/consult/` → exit 1(매치 0건, subagent-boundary 위반 없음)
+- `node_modules/.bin/vitest run`(프로젝트 전체) → `Test Files 46 passed (46)` / `Tests 360 passed (360)` — 30건의 `Unhandled Error`(jsdom/undici `webidl.util.markAsUncloneable is not a function`)는 `git stash` 후 baseline(HEAD `f7ef4ec`)에서도 동일하게 재현되는 **사전 존재 환경 결함**(Node v20.19.6 vs jsdom 30 요구 버전 불일치, `.next/next-env.d.ts` component 테스트 전용) — 이번 M1 변경과 무관, `lib/consult/` 관련 실패 0건.
+- `node_modules/.bin/tsc --noEmit` → `.next/types/validator.ts`의 8건 에러(삭제된 B2B 라우트 `app/cases/*`/`app/login/*` 참조, stale `.next` 빌드 아티팩트) — `lib/consult/*.ts` 관련 에러 0건, 사전 존재.
+
+**Baseline-attribution**: 이번 실행(이 트리), HEAD `f7ef4ec1b9e80c12c80647c15043a0b7ba0e2a50`에서 분기한 `feat/SPEC-B2C-CONSULT-001` 브랜치. jsdom/undici 오류·`.next/types` 오류는 동일 HEAD의 `git stash` 적용 후 재현 확인(사전 존재 baseline 결함으로 귀속).
+
+**Gaps**: pnpm이 이 환경(Node v20.19.6, pnpm 요구 v22.13+)에서 `ERR_UNKNOWN_BUILTIN_MODULE`로 실행 불가 — `node_modules/.bin/{vitest,tsc,eslint}`를 직접 호출해 우회했다(이미 설치된 의존성 사용, 신규 설치 없음). golangci-lint/go vet 등 Go 툴체인은 이 프로젝트(Next.js/TypeScript)에 해당 없음.
+
+**Residual-risk**: M1은 순수 데이터 계약(타입+스키마+순수 함수)만 다루므로 런타임 통합 위험은 낮다. `preferredCallTime` phone-required `.refine`과 `contact` 정규화 `.refine`을 체이닝한 조합이 향후 M2(서버 API)에서 동일하게 재사용될 때 에러 메시지 `path` 매핑이 폼 필드 강조와 정확히 일치하는지는 M4(폼 컴포넌트) 단계에서 재검증 필요.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<run-phase 대기 중>_
+_<M1 완료, M2 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -139,6 +165,13 @@ _<sync-phase 대기 중>_
 
 - **Decision**: `serial`
 - **Justification**: 6개 plan-phase 문서는 서로 강하게 의존한다(spec.md의 REQ가 acceptance.md의 AC와 1:1 대응해야 하고, design.md의 결정이 plan.md의 마일스톤 순서를 결정한다) — 병렬 작성 시 문서 간 정합성이 깨질 위험이 병렬화 이득보다 크다. Anthropic의 코딩 작업 병렬화 caveat("대부분의 코딩 작업은 리서치보다 병렬화 가능한 하위 작업이 적다")과 동일한 원리가 문서 작성에도 적용된다.
+
+### Run-phase M1 위임 — Mode Selection
+
+M1(`lib/consult/types.ts`+`schema.ts`+`phone.ts`) 구현 위임은 `manager-develop` subagent 1개에게 위임한 **단일 에이전트(serial) 위임**이다(입력 파라미터: tier=L, M1 scope=3개 신규 파일, domain count=1(단일 데이터 계약 모듈), concurrency benefit=LOW — TDD RED-GREEN-REFACTOR 사이클은 순차 의존성이 강함). `fanout`/`sweep`/`agent-team`은 후보로 검토되지 않았다 — M1은 하나의 milestone 단위 위임이며 병렬 분해할 독립 하위 작업이 없다.
+
+- **Decision**: `serial`
+- **Justification**: types.ts → schema.ts(types.ts에 의존) → phone.ts(schema.ts의 .refine이 참조) 순으로 강한 순차 의존성이 있다. Anthropic의 코딩 작업 병렬화 caveat와 동일한 원리.
 
 ## Open Decisions for User
 
