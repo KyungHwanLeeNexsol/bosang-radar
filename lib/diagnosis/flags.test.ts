@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDiagnosisFlags } from "./flags";
+import { computeConsultFlags, computeDiagnosisFlags } from "./flags";
 
 // SPEC-B2C-RESULT-001 M3 (REQ-B2CRESULT-012) — computeDiagnosisFlags 단위
 // 테스트. app/page.test.tsx의 "플래그 기반 shouldRenderDiagnosis 5행 동작
@@ -109,5 +109,70 @@ describe("computeDiagnosisFlags — shouldRenderDiagnosis OR 결합", () => {
     expect(flags.productionReady).toBe(true);
     expect(flags.reviewEnabled).toBe(true);
     expect(flags.shouldRenderDiagnosis).toBe(true);
+  });
+});
+
+// SPEC-B2C-CONSULT-001 M3 (design.md §4, REQ-B2CCONSULT-005/018) —
+// computeConsultFlags 단위 테스트. shouldRenderConsult/isPolicyReady는
+// 서로 독립적인 두 플래그이므로(REQ-B2CCONSULT-005), 한쪽이 다른 쪽에
+// 의존하지 않는다는 것을 4가지 조합 모두로 검증한다.
+describe("computeConsultFlags — 두 플래그의 독립성(REQ-B2CCONSULT-005)", () => {
+  it.each([
+    {
+      flow: undefined,
+      policy: undefined,
+      expectedRender: false,
+      expectedPolicy: false,
+      label: "false/false",
+    },
+    {
+      flow: "true" as const,
+      policy: undefined,
+      expectedRender: true,
+      expectedPolicy: false,
+      label: "true/false — 03 화면은 노출되지만 실제 제출은 불가",
+    },
+    {
+      flow: undefined,
+      policy: "true" as const,
+      expectedRender: false,
+      expectedPolicy: true,
+      label: "false/true — 정책은 준비됐지만 03 화면 자체가 비노출",
+    },
+    {
+      flow: "true" as const,
+      policy: "true" as const,
+      expectedRender: true,
+      expectedPolicy: true,
+      label: "true/true — 03 화면 노출 + 실제 제출 가능",
+    },
+  ])("$label", ({ flow, policy, expectedRender, expectedPolicy }) => {
+    const flags = computeConsultFlags({
+      ENABLE_CONSULT_FLOW: flow,
+      CONSULT_POLICY_READY: policy,
+    });
+
+    expect(flags.shouldRenderConsult).toBe(expectedRender);
+    expect(flags.isPolicyReady).toBe(expectedPolicy);
+  });
+});
+
+describe('computeConsultFlags — "true" 문자열만 참으로 취급', () => {
+  it('"1"·"yes" 등 다른 truthy 문자열은 거짓으로 취급한다', () => {
+    const flags = computeConsultFlags({ ENABLE_CONSULT_FLOW: "1", CONSULT_POLICY_READY: "yes" });
+    expect(flags.shouldRenderConsult).toBe(false);
+    expect(flags.isPolicyReady).toBe(false);
+  });
+});
+
+describe("computeConsultFlags — 02의 shouldRenderDiagnosis와 무관하게 독립적이다", () => {
+  it("ENABLE_CONSULT_FLOW만으로 shouldRenderConsult가 결정된다(02 게이트를 참조하지 않는다)", () => {
+    const flags = computeConsultFlags({
+      ENABLE_DIAGNOSIS_FLOW: undefined,
+      DIAGNOSIS_ENGINE_READY: undefined,
+      ENABLE_DIAGNOSIS_DEV_STATES: undefined,
+      ENABLE_CONSULT_FLOW: "true",
+    });
+    expect(flags.shouldRenderConsult).toBe(true);
   });
 });

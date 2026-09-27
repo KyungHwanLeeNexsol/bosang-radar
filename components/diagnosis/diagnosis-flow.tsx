@@ -14,6 +14,7 @@ import { DiagnosisHeader } from "./diagnosis-header";
 import { DiagnosisFooter } from "./diagnosis-footer";
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "./use-media-query";
 import { clearDiagnosisHandoff, writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
+import { clearConsultationDraft } from "@/lib/consult/draft";
 import { buildFractureResult } from "@/lib/diagnosis/fixtures/fracture-case";
 
 // SPEC-B2C-DIAGNOSIS-001 M2 (design.md §0, §2, §5, §10) — 01/01-A2/01-B/01-C/
@@ -428,6 +429,11 @@ export function DiagnosisFlow({ enableDevStates }: DiagnosisFlowProps) {
               // — "새 진단 시작" 트리거: 새 입력을 제출해 새로운 loading
               // 사이클이 시작되는 시점에 이전 세션의 handoff를 제거한다.
               clearDiagnosisHandoff();
+              // SPEC-B2C-CONSULT-001 M3 (design.md §2.2) — 같은 "새 진단
+              // 시작" 트리거에서 이전 세션의 상담 draft도 함께 제거한다.
+              // draft가 이전 진단 결과를 가리키는 채로 새 진단에 남아있으면
+              // 안 된다.
+              clearConsultationDraft();
               dispatch({ type: "SUBMIT_INPUT" });
             }}
             autoFocus={state.step === "input"}
