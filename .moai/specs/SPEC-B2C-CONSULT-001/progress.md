@@ -756,8 +756,9 @@ $ node_modules/.bin/tsc --noEmit -p tsconfig.json
   components/consult/consult-submit-bar.tsx components/consult/consult-
   view.test.tsx components/consult/consult-submit-bar.test.tsx` → 출력
   없음(clean).
-- **E6**: 커밋 예정 — `feat(SPEC-B2C-CONSULT-001): M6 접근성·반응형·테스트
-  보강`(아래 커밋 SHA는 커밋 후 backfill).
+- **E6**: 커밋 `af6e9d3`(M6, 접근성·반응형·테스트 보강). `git push origin
+  feat/SPEC-B2C-CONSULT-001` → `47c1943..af6e9d3
+  feat/SPEC-B2C-CONSULT-001 -> feat/SPEC-B2C-CONSULT-001` 성공.
 - **E7**: 블로커 없음.
 - **E8**: 위 "RED 증거" 절 참고 — 구조적 근거로 대체(jsdom 크래시로
   verbatim 실행 로그 캡처 불가).
