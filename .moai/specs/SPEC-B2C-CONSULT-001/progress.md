@@ -151,6 +151,98 @@
 
 **Residual-risk**: M1은 순수 데이터 계약(타입+스키마+순수 함수)만 다루므로 런타임 통합 위험은 낮다. `preferredCallTime` phone-required `.refine`과 `contact` 정규화 `.refine`을 체이닝한 조합이 향후 M2(서버 API)에서 동일하게 재사용될 때 에러 메시지 `path` 매핑이 폼 필드 강조와 정확히 일치하는지는 M4(폼 컴포넌트) 단계에서 재검증 필요.
 
+### M2 — DB 스키마 + 서버 API (`lib/db/schema.ts` 확장 + `app/api/consultations/route.ts`)
+
+브랜치 `feat/SPEC-B2C-CONSULT-001`(M1 HEAD `f9ad2ce` 기준 계속). 구현 순서: (1) 스키마 확장 + 마이그레이션 생성, (2) `lib/env.ts` 조건부 필수 검증 확장, (3) route.ts 초안 작성 + 전체 시나리오 테스트 작성, (4) 최초 테스트 실행에서 동시성 레이스 버그 2건 발견(RED) → `withIdempotencyLock` 도입으로 수정(GREEN).
+
+| AC | 대상 | Status | Verification Command | Actual Output |
+|----|------|--------|----------------------|----------------|
+| AC-B2CCONSULT-016(계약, M1 재확인) | `ConsultationRequestSchema` | PASS | `vitest run lib/consult/schema.test.ts` | 기존 13건 그대로 PASS(M2가 수정하지 않음) |
+| AC-B2CCONSULT-017 (서버 비신뢰 필드) | route.ts 신규 삽입 로직 | PASS | `vitest run app/api/consultations/route.test.ts -t "최초 제출 성공"` | `applicationStatus`는 항상 서버 기본값 `"received"`; `consentVersion`은 클라이언트 `acknowledgedConsentVersion`을 복사하지 않고 서버 정책값을 스탬프(코드 정적 확인, `toSuccessResult`/insert 경로에 클라이언트 필드 미참조) |
+| AC-B2CCONSULT-018 (검증 실패 400) | route.ts | PASS | 상동 `-t "필수 동의가 false"` | `expected 400` PASS, `fieldErrors` 존재 확인 |
+| AC-B2CCONSULT-018 (로그 PII 부재) | route.ts `console.info` | PASS | 상동 `-t "로그에 PII가 포함되지 않는다"` | 로그 문자열에 `"김보상"`/`"010-0000-0000"` 미포함 확인 |
+| AC-B2CCONSULT-018 (최초 제출 성공, 201) | route.ts | PASS | 상동 `-t "유효한 신규 제출은 201"` | `status 201`, `channel/maskedContact/preferredCallTime` 포함, `consultationId`/`expectedContactWindow` 부재, 행 수 정확히 +1 |
+| AC-B2CCONSULT-018 (policy_unavailable, 503) | route.ts §6.1 | PASS | 상동 `-t "CONSULT_POLICY_READY가 거짓이면 503"` | `503`/`policy_unavailable`, 행 수 불변 |
+| AC-B2CCONSULT-018 (consent_version_mismatch, 409) | route.ts §6.1 | PASS | 상동 `-t "acknowledgedConsentVersion이 활성 정책과 다르면 409"` | `409`/`consent_version_mismatch`, 행 수 불변 |
+| AC-B2CCONSULT-018 (rate_limited, D11 신규 제출에만 적용) | route.ts §9.3 | PASS | 상동 `-t "6번째가 429를 받는다"` | 서로 다른 idempotencyKey 6건 중 6번째만 429 |
+| AC-B2CCONSULT-018 (동일 키 재시도는 429 면제, D11) | route.ts §8.1 | PASS | 상동 `-t "rate limit보다 먼저 처리되어 429로 막히지 않는다"` | 윈도 포화 후에도 재시도는 `200`/success |
+| AC-B2CCONSULT-018 D17 시나리오 (1) 정책 비활성+시크릿 부재→503 | route.ts | PASS | 상동 `-t "\\(1\\) 정책 비활성"` | `503`/`policy_unavailable` |
+| AC-B2CCONSULT-018 D17 시나리오 (2) 동의 불일치+시크릿 부재→409 | route.ts | PASS | 상동 `-t "\\(2\\) 동의 버전 불일치"` | `409`/`consent_version_mismatch` |
+| AC-B2CCONSULT-018 D17 시나리오 (3) 기존 idempotency 일치+시크릿 부재→200 | route.ts | PASS | 상동 `-t "\\(3\\) 기존 idempotency 일치"` | `200`/success |
+| AC-B2CCONSULT-018 D17 시나리오 (4) 기존 idempotency 불일치+시크릿 부재→409 | route.ts | PASS | 상동 `-t "\\(4\\) 기존 idempotency 불일치"` | `409`/`idempotency_conflict` |
+| AC-B2CCONSULT-018 D17 시나리오 (5) 정책·동의 유효+신규+시크릿 부재→500 | route.ts §9.3 | PASS | 상동 `-t "\\(5\\) 정책·동의 유효"` | `500`/`server_error`, 행 수 불변 |
+| AC-B2CCONSULT-018 (신뢰 가능한 IP 부재 fail closed) | route.ts | PASS | 상동 `-t "신뢰 가능한 IP를 얻을 수 없으면"` | `500`/`server_error` |
+| AC-B2CCONSULT-018 (D14 비정상 boolean 문자열) | route.ts + `lib/env.ts` | PASS | 상동 `-t "TRUE.*대문자"` + `vitest run lib/env.test.ts -t "시나리오 4"` | `CONSULT_POLICY_READY="TRUE"` → `503`(false 취급); `lib/env.ts`도 동일하게 `RATE_LIMIT_HMAC_SECRET` 불필요 확인 |
+| AC-B2CCONSULT-019 (컬럼 목록 + 진단 데이터 미복제) | `lib/db/schema.ts` | PASS | `vitest run lib/db/schema.test.ts` | 15개 컬럼 전부 존재, `items`/`coverage` 계열 컬럼 0건, rate-limit 테이블 3컬럼만 존재·원본 IP 컬럼 0건 |
+| AC-B2CCONSULT-020 (비즈니스 중복 409) | route.ts §8 | PASS | 상동 `-t "동일 resultId·동일 정규화 연락처의 두 번째 요청"` | `409`/duplicate, `maskedContact` 마스킹 형식, `receivedAt` YYYY-MM-DD, `consultationId` 부재, 행 수 불변 |
+| AC-B2CCONSULT-020 (동일 키 재시도=성공) | route.ts §8.1 5번 | PASS | 상동 `-t "동일 idempotencyKey 재시도는 성공으로 처리"` | `200`/success, 신규 행 미생성 |
+| AC-B2CCONSULT-020 (다른 연락처는 과차단 없음) | route.ts §8 | PASS | 상동 `-t "과차단 없이 둘 다 성공"` | 두 건 모두 `201` |
+| AC-B2CCONSULT-020 (동일 키·다른 페이로드 거부) | route.ts §8.1 6번 | PASS | 상동 `-t "idempotency_conflict로 거부"` | `409`/`idempotency_conflict`, 기존 레코드 불변 |
+| AC-B2CCONSULT-021 (동시 동일 키·동일 페이로드 5건→정확히 1행) | route.ts `withIdempotencyLock` | PASS | 상동 `-t "동일 idempotencyKey·동일 페이로드 5개 동시 요청"` | 응답 상태 `[200,200,200,200,201]`, 전부 success, 행 수 1 |
+| AC-B2CCONSULT-021 (동일 키·다른 페이로드 동시→1성공+4충돌) | route.ts | PASS | 상동 `-t "동일 idempotencyKey, 다른 페이로드 동시 도착"` | success 1건, `idempotency_conflict` 4건, 행 수 1 |
+| AC-B2CCONSULT-021 (다른 키·동일 비즈니스 키 동시→1성공+4중복) | route.ts | PASS | 상동 `-t "서로 다른 idempotencyKey·같은 resultId"` | success 1건, duplicate 4건, 행 수 1 |
+| AC-B2CCONSULT-021 (D11 동시 요청이 개별 rate limit 초과해도 전부 통과) | route.ts `withIdempotencyLock` | PASS | 상동 `-t "rate limit 윈도를 개별적으로 초과했더라도"` | 8건 동시 요청 중 429 0건, 전부 success, 행 수 1 |
+| AC-B2CCONSULT-023 (duplicate maskedContact는 자기 자신에서 파생) | route.ts `toDuplicateResult` | PASS | 상동 `-t "매칭된 기존 레코드가 아니라 이번 요청"` | `010-****-2222` — 요청 자신의 연락처에서 파생 확인 |
+| `lib/env.ts` 시나리오 1-5 (plan.md §F) | `validateEnv("app", ...)` | PASS | `vitest run lib/env.test.ts -t "RATE_LIMIT_HMAC_SECRET"` | 5개 시나리오 + 보완 시나리오 전부 PASS(7 tests) |
+
+### RED 증거 (GREEN 이전 verbatim, TDD 필수)
+
+route.ts 초안 + 전체 테스트를 최초 실행했을 때 동시성 레이스 조건 버그 2건이 실패로 드러났다(rate limit이 idempotencyKey 조회와 실제 삽입 사이에서 개별 물리 요청 단위로 소비되어, 동일 키를 공유하는 동시 요청 중 일부가 부당하게 429를 받음). 수정: 모듈 레벨 `idempotencyLocks` Map + `withIdempotencyLock()`으로 동일 idempotencyKey를 공유하는 요청 전체를 4-10단계에서 직렬화(이 프로젝트의 실제 배포가 PM2 단일 프로세스이므로 안전, design.md §9.3).
+
+```
+$ node_modules/.bin/vitest run app/api/consultations/route.test.ts lib/db/schema.test.ts lib/env.test.ts lib/consult
+...
+ ❯ app/api/consultations/route.test.ts (26 tests | 2 failed) 180ms
+       × 동일 idempotencyKey·동일 페이로드의 재시도는 rate limit보다 먼저 처리되어 429로 막히지 않는다 18ms
+       × 동일 idempotencyKey·동일 페이로드가 rate limit 윈도를 개별적으로 초과했더라도 전부 429 없이 성공한다(D11) 13ms
+
+ FAIL  app/api/consultations/route.test.ts > ... > 동일 idempotencyKey·동일 페이로드의 재시도는 rate limit보다 먼저 처리되어 429로 막히지 않는다
+AssertionError: expected 429 to be 201 // Object.is equality
+ FAIL  app/api/consultations/route.test.ts > ... > 동일 idempotencyKey·동일 페이로드가 rate limit 윈도를 개별적으로 초과했더라도 전부 429 없이 성공한다(D11)
+AssertionError: expected true to be false // Object.is equality
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  2 failed | 72 passed (74)
+```
+
+GREEN(`withIdempotencyLock` 도입 후, 동일 명령 재실행):
+
+```
+$ node_modules/.bin/vitest run app/api/consultations/route.test.ts lib/db/schema.test.ts lib/env.test.ts lib/consult
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+```
+
+### DB 마이그레이션
+
+```
+$ node_modules/.bin/drizzle-kit generate
+consultation_rate_limits 3 columns 1 indexes 0 fks
+consultations 15 columns 2 indexes 0 fks
+[✓] Your SQL migration file ➜ db\migrations\0009_abnormal_owl.sql 🚀
+```
+
+신규 마이그레이션 파일 정확히 1개(`0009_abnormal_owl.sql`)에 두 테이블 CREATE + 3개 UNIQUE 인덱스(idempotencyKey 단일, (resultId,contactNormalized) 복합, (windowStart,ipHmac) 복합) 전부 포함. 기존 `0000`~`0008`은 `git diff` 대비 무변경(메타 `_journal.json`만 신규 항목 추가로 갱신).
+
+### 자기검증 (§E 5-section 증거 형식)
+
+**Claim**: `lib/db/schema.ts` 확장(`consultations`/`consultationRateLimits`) + `lib/env.ts` 조건부 필수 검증 확장 + `app/api/consultations/route.ts`(신규)가 design.md §8.1/§8.2/§9.1-9.4 계약을 정확히 구현하며, 기존 코드베이스에 회귀가 없다.
+
+**Evidence**:
+- `node_modules/.bin/vitest run app/api/consultations/route.test.ts lib/db/schema.test.ts lib/env.test.ts lib/consult` → `Test Files 5 passed (5)` / `Tests 74 passed (74)`
+- `node_modules/.bin/vitest run --coverage app/api/consultations/route.test.ts lib/env.test.ts lib/db/schema.test.ts` → `route.ts: Statements 91.76% Branches 89.47% Functions 100% Lines 91.76%`(85% 기준 전부 상회); `env.ts: Statements 100% Branches 92.3% Functions 100% Lines 100%`
+- `node_modules/.bin/eslint app/api/consultations/ lib/db/schema.ts lib/db/schema.test.ts lib/env.ts lib/env.test.ts scripts/db-migrate.test.ts` → 출력 없음(clean)
+- `grep -rn 'AskUserQuestion' app/api/consultations/ lib/env.ts lib/db/schema.ts` → exit 1(매치 0건)
+- `TURSO_DATABASE_URL="file:./.tmp/build-check.db" LLM_PROVIDER_MODE=deterministic node_modules/.bin/next build` → `✓ Compiled successfully`, `ƒ /api/consultations` 라우트 등록 확인. 유일한 경고는 `instrumentation.ts`의 기존 `process.exit` Edge Runtime 경고(M2 변경과 무관, 사전 존재)
+- `node_modules/.bin/tsc --noEmit` → M2가 수정한 파일(`route.ts`/`schema.ts`/`env.ts`/각 `.test.ts`) 관련 에러 0건. `.next/types/validator.ts`의 8건은 삭제된 B2B 라우트를 참조하는 gitignore된 stale 빌드 아티팩트(M1 §E.2에서 이미 사전 존재로 귀속됨)
+- `node_modules/.bin/vitest run`(프로젝트 전체, 회귀 재확인) → `Test Files 47 passed (47)` / `Tests 400 passed (400)` — 동일한 30건의 사전 존재 jsdom/undici `Unhandled Error`(M1 §E.2에서 이미 baseline으로 귀속, `webidl.util.markAsUncloneable is not a function`) 외 신규 실패 0건. M2 착수 직전(M1 완료 시점) `Tests 391 passed`였고, M2가 `scripts/db-migrate.test.ts`의 `EXPECTED_TABLES` 상수를 14개 테이블로 갱신(신규 테이블 2개 추가에 따른 필연적 갱신, 실패 없음 확인 후 수정)한 것을 포함해 순증 9건(신규 테스트 파일 3개 + 확장 1개)
+
+**Baseline-attribution**: 이번 실행(이 트리), M1 HEAD `f9ad2ce`에서 계속된 `feat/SPEC-B2C-CONSULT-001` 브랜치. jsdom/undici 오류는 M1 §E.2에서 동일 baseline으로 이미 귀속 확인됨(Node v20.19.6 환경 결함, 이번 M2 변경과 무관).
+
+**Gaps**: pnpm이 이 환경(Node v20.19.6)에서 여전히 `ERR_UNKNOWN_BUILTIN_MODULE`로 실행 불가 — `node_modules/.bin/{drizzle-kit,vitest,tsc,eslint,next}`를 직접 호출해 우회(M1과 동일 패턴, 신규 설치 없음). `route.ts`의 삽입 시점 UNIQUE(idempotencyKey) 충돌 재조회 분기(§8.1 10번, 일치→200 경로)는 `withIdempotencyLock`이 동일 키 요청을 직렬화하는 현재 설계상 실제로는 도달 불가능한 방어 코드(defense in depth)다 — 프로세스 내 락을 우회하는 진짜 DB 레벨 레이스(예: 향후 PM2 cluster mode 전환)가 생기면 이 분기가 비로소 실행 경로가 된다; 현재는 코드 커버리지상 "unreachable-but-correct"로 남는다(잔여 위험 참고).
+
+**Residual-risk**: (1) `withIdempotencyLock`의 안전성은 이 프로젝트가 PM2 **단일 프로세스**로 배포된다는 design.md §9.3의 명시적 전제에 의존한다 — 향후 PM2 cluster mode나 다중 인스턴스로 전환되면 이 인-프로세스 락은 더 이상 cross-process 레이스를 막지 못하며(단, DB UNIQUE 제약 기반 삽입 시점 재조회는 cross-process에서도 여전히 정확성을 보장한다 — 락은 "불필요한 429 방지"라는 부가 보장만 제공, 정확성 자체는 DB 제약이 책임진다), 이 경우 별도 SPEC에서 재검토가 필요하다. (2) `CONSENT_POLICY_VERSION` 상수(`"2026-09-25-v1"`)는 배포 시점 고정값이며 클라이언트 M4(폼 컴포넌트)가 동일 값을 `acknowledgedConsentVersion`으로 보내야 실제 제출이 성공한다 — M4에서 이 상수를 어떻게 클라이언트에 노출할지(하드코딩 vs API로 조회)는 아직 미정이며 M3/M4 단계에서 결정 필요. (3) rate limit 윈도·요청 한도 상수(`RATE_LIMIT_WINDOW_MS=60000`, `RATE_LIMIT_MAX_REQUESTS=5`)는 plan-phase가 확정한 plan-phase 기본값이며 실제 트래픽 기반 운영 튜닝은 이 SPEC 범위 밖이다(design.md §9.3, spec.md Out of Scope).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1 완료, M2 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
