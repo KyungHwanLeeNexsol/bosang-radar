@@ -115,19 +115,21 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 1. **1차 방어(클라이언트 설계)**: `pnpm visual:verify`의 `03`/`M03` 스크린샷은 폼을 채우기만 하고 실제로 제출 버튼을 누르지 않는다(§12) — `03-B`/`03-C`/`03-D`(성공/중복/실패) 상태 스크린샷은 `devConsultState` 쿼리 파라미터로 결정론적으로 렌더링되는 **클라이언트 전용 우회 경로**이며 실제 `POST /api/consultations` 호출을 전혀 발생시키지 않는다(§12, 기존 계약 유지).
 2. **2차 방어(서버 자체 검증)**: 리뷰어가 실수로 실제 폼을 수동 제출하더라도, 서버는 클라이언트가 보낸 어떤 값도 신뢰하지 않고 자기 자신의 환경 변수 `CONSULT_POLICY_READY`를 직접 확인한다(§6.1) — 법무 확정 전까지는 프로덕션 환경에서도 이 값을 `false`로 유지하므로, 실제 PII 레코드는 이 값이 명시적으로 `true`로 전환되기 전까지 어떤 경로로도 저장되지 않는다.
 
-### 4.2 환경 변수 활성화 판정 · `lib/env.ts` 검증 범위 · 배포 체크리스트 (독립 검토 D14)
+### 4.2 환경 변수 활성화 판정 · `lib/env.ts` 검증 범위 · 배포 체크리스트 (독립 검토 D14, D16 확정)
 
-- **활성화 판정(정확히 `"true"`만)**: `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY` 두 boolean 플래그 모두 기존 `isFlagEnabled` 판정 함수를 그대로 재사용하므로, 정확히 문자열 `"true"`일 때만 활성화된다 — 미설정을 포함해 그 외 어떤 값(`"1"`/`"TRUE"`/`"yes"` 등 대소문자·유사값 포함)도 오류가 아니라 `false`로 취급된다(§4).
-- **`RATE_LIMIT_HMAC_SECRET`**: 부재 시 §9.3이 이미 정의한 대로 fail closed(500/`server_error`, 어떤 레코드도 생성하지 않음)로 안전하게 동작한다.
-- **`lib/env.ts` 검증 범위와의 관계**: `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`는 `research.md` §6이 `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`에 대해 이미 확립한 것과 동일한 이유로 `lib/env.ts`의 `REQUIRED_BY_SCOPE`에 추가하지 않는다 — 선택적 기능 플래그이며 미설정 시 단순히 falsy로 게이트가 닫히는 것으로 충분하다.
+- **활성화 판정(정확히 `"true"`만)**: `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY` 두 boolean 플래그 모두 기존 `isFlagEnabled` 판정 함수를 그대로 재사용하므로, 정확히 문자열 `"true"`일 때만 활성화된다 — 미설정을 포함해 그 외 어떤 값(`"1"`/`"TRUE"`/`"yes"` 등 대소문자·유사값 포함)도 오류가 아니라 `false`로 취급된다(§4). 이 규칙은 `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 판정에도 그대로 적용된다 — 판정 기준이 되는 `CONSULT_POLICY_READY`도 정확히 `"true"` 문자열일 때만 참이다(아래).
+- **`lib/env.ts` 검증 범위와의 관계 — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`**: 두 boolean 플래그는 `research.md` §6이 `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`에 대해 이미 확립한 것과 동일한 이유로 `lib/env.ts`의 `REQUIRED_BY_SCOPE`에 추가하지 않는다 — 선택적 기능 플래그이며 미설정 시 단순히 falsy로 게이트가 닫히는 것으로 충분하다.
+- **`lib/env.ts` 확장 — `RATE_LIMIT_HMAC_SECRET`(확정, §5의 7번째 확장 대상)**: `lib/env.ts`를 이 SPEC의 7번째 확장 대상으로 **확정**한다(§5) — 더 이상 "추가 여부"를 판단할 후보가 아니다. `RATE_LIMIT_HMAC_SECRET`은 순수 기능 플래그가 아니라 실제 PII 접수 여부를 좌우하는 시크릿이므로, `GEMINI_API_KEY`가 `LLM_PROVIDER_MODE !== "deterministic"`일 때만 필요한 것과 같은 형태의 **조건부 필수** 변수 패턴(`lib/env.ts` 주석, `research.md` §6)을 적용한다.
 
-  `RATE_LIMIT_HMAC_SECRET`은 이 원칙의 **예외로 판단한다**. 순수 기능 플래그가 아니라 실제 PII 접수 여부를 좌우하는 시크릿이며, 부재 시의 fail-closed 동작은 안전하지만 **요청이 실제로 들어온 뒤에야** 드러난다 — `ENABLE_CONSULT_FLOW=true`로 배포하면서 이 시크릿 설정을 누락하면, 운영자는 앱이 정상 기동됐다고 믿다가 실제 사용자 제출이 전부 500으로 실패하는 것을 사후에야 발견하게 된다. 이는 `GEMINI_API_KEY`가 `LLM_PROVIDER_MODE !== "deterministic"`일 때만 필요한 것과 같은 형태의 **조건부 필수** 변수 패턴이다(`lib/env.ts` 주석, `research.md` §6). 이 SPEC은 `lib/env.ts`에 `RATE_LIMIT_HMAC_SECRET`을 `ENABLE_CONSULT_FLOW === "true"`일 때만 필수로 요구하는 동일한 형태의 조건부 검증을 **추가하는 것이 옳다고 판단**한다 — 다만 이 판단의 실제 코드 반영(`lib/env.ts` 수정)은 이 plan-phase 세션의 범위 밖이며, run-phase 마일스톤(`plan.md` §F)에 별도 작업으로 명시한다. 이 plan-phase 문서 자체는 애플리케이션 코드를 수정하지 않는다.
+  **판정 조건은 `CONSULT_POLICY_READY === "true"`다 — `ENABLE_CONSULT_FLOW`가 아니다.** `ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`는 화면은 노출되지만 서버 계층에서 실제 제출이 전부 차단되는 리뷰/개발 상태다(§6.1의 `policy_unavailable` 게이트) — 이 상태에서는 실제 PII 접수가 애초에 불가능하므로, 앱은 `RATE_LIMIT_HMAC_SECRET` 없이도 정상 기동되어야 한다. `CONSULT_POLICY_READY === "true"`일 때(실제 PII 접수가 실제로 열릴 때)만 이 시크릿이 비로소 필수가 된다 — 그때가 바로 공개 PII 수집 API에 rate limiting이 실질적으로 작동해야 하는 시점이기 때문이다.
+
+  **실패 모드**: `CONSULT_POLICY_READY === "true"`이면서 `RATE_LIMIT_HMAC_SECRET`이 비어 있거나 미설정이면, 애플리케이션 기동 시점 또는 앱 스코프 환경변수 검증 단계에서 명확히 실패해야 한다(run-phase `lib/env.ts` 과제로 구현 — 이 plan-phase 문서는 실제 `lib/env.ts` 코드를 수정하지 않는다) — 첫 실제 사용자 제출이 fail-closed 500 경로에 부딪히는 시점까지 조용히 미뤄지지 않는다. §9.3이 이미 정의한 API 계층의 fail-closed 방어(부재 시 500/`server_error`, 레코드 생성 안 함)는 이와 무관하게 방어의 두 번째 겹(defense in depth)으로 그대로 유지된다 — env 검증 실패가 1차(조기) 방어, API 자체의 fail-closed가 백스톱이다.
 
 **운영 배포 환경 설정 체크리스트**:
 
 - [ ] `ENABLE_CONSULT_FLOW=true` 설정(03 화면·API 배포 활성화).
-- [ ] `CONSULT_POLICY_READY=true`는 법무·운영이 동의 문구를 최종 확정한 **이후에만** 설정한다.
-- [ ] `RATE_LIMIT_HMAC_SECRET`을 실제 배포 전 반드시 실제 비밀값으로 설정한다(빈 값 또는 미설정 시 fail closed로 모든 실제 접수가 500 처리된다) — 이 값 자체는 어떤 저장소·설정 템플릿에도 커밋하지 않는다.
+- [ ] `CONSULT_POLICY_READY=true`는 법무·운영이 동의 문구를 최종 확정한 **이후에만** 설정한다 — 이 값이 `true`로 전환되는 순간부터 `RATE_LIMIT_HMAC_SECRET`이 `lib/env.ts` 조건부 필수 검증 대상이 된다.
+- [ ] `RATE_LIMIT_HMAC_SECRET`을 `CONSULT_POLICY_READY=true`로 전환하기 전 반드시 실제 비밀값으로 설정한다(부재 시 `lib/env.ts` 조건부 필수 검증이 기동 시점에 명확히 실패한다; 설령 검증을 우회해 기동되더라도 §9.3의 API 계층 fail closed로 모든 실제 접수가 500 처리된다) — 이 값 자체는 어떤 저장소·설정 템플릿에도 커밋하지 않는다.
 - [ ] Nginx가 `x-forwarded-for` 헤더를 정확히 전달하는지 확인한다(§9.3) — 이 헤더를 얻지 못하면 rate limit 판정도 fail closed로 접수를 막는다.
 
 ## 5. 신규 파일 트리 + 허용된 기존 파일 확장
@@ -170,7 +172,7 @@ db/migrations/
 └── 000N_*.sql                            [신규] `pnpm db:generate` 산출물(파일명은 drizzle-kit이 결정)
 ```
 
-**허용된 기존 파일 최소 확장(정확히 6개, `plan.md` §D 제약)**:
+**허용된 기존 파일 최소 확장(정확히 7개, `plan.md` §D 제약)**:
 
 1. `components/result/result-cta-bar.tsx` — 4개 stub 버튼을 실제 `<Link href={...}>` 네비게이션으로 교체(`aria-disabled`/no-op 핸들러 제거, `shouldRenderConsult`가 거짓이면 기존 stub 동작 유지).
 2. `components/diagnosis/diagnosis-flow.tsx` — 새 진단 시작 액션의 기존 `clearDiagnosisHandoff()` 호출 옆에 `clearConsultationDraft()` 호출 한 줄 추가.
@@ -178,8 +180,7 @@ db/migrations/
 4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목 수정 금지, §10).
 5. `lib/db/schema.ts` — `consultations` 테이블 **및** `consultationRateLimits` 보조 테이블 정의 추가(§6, §9.3, 기존 12개 테이블 정의는 수정하지 않는다).
 6. `.env.local.example` — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 변수의 안전한 플레이스홀더 항목 추가(§4.2, 이미 존재하는 설정 템플릿 파일이며 애플리케이션 코드가 아니다).
-
-(run-phase 결정 대기 항목: `lib/env.ts`에 `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증을 추가할지 여부는 §4.2가 다루며, 추가하기로 결정되면 이 목록의 7번째 확장 대상이 된다 — 이 plan-phase 세션은 `lib/env.ts`를 수정하지 않는다.)
+7. `lib/env.ts` — `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증 추가(`CONSULT_POLICY_READY === "true"`일 때만 필수, §4.2). **확정된 결정이며 run-phase 전용 작업**이다 — 이 plan-phase 세션은 이 파일을 수정하지 않으며, 여기서는 확정된 7번째 확장 대상으로 기술만 한다.
 
 ## 6. 상담 데이터 계약 (`lib/consult/types.ts` + `schema.ts`)
 
