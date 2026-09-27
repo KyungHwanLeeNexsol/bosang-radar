@@ -115,6 +115,21 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 1. **1차 방어(클라이언트 설계)**: `pnpm visual:verify`의 `03`/`M03` 스크린샷은 폼을 채우기만 하고 실제로 제출 버튼을 누르지 않는다(§12) — `03-B`/`03-C`/`03-D`(성공/중복/실패) 상태 스크린샷은 `devConsultState` 쿼리 파라미터로 결정론적으로 렌더링되는 **클라이언트 전용 우회 경로**이며 실제 `POST /api/consultations` 호출을 전혀 발생시키지 않는다(§12, 기존 계약 유지).
 2. **2차 방어(서버 자체 검증)**: 리뷰어가 실수로 실제 폼을 수동 제출하더라도, 서버는 클라이언트가 보낸 어떤 값도 신뢰하지 않고 자기 자신의 환경 변수 `CONSULT_POLICY_READY`를 직접 확인한다(§6.1) — 법무 확정 전까지는 프로덕션 환경에서도 이 값을 `false`로 유지하므로, 실제 PII 레코드는 이 값이 명시적으로 `true`로 전환되기 전까지 어떤 경로로도 저장되지 않는다.
 
+### 4.2 환경 변수 활성화 판정 · `lib/env.ts` 검증 범위 · 배포 체크리스트 (독립 검토 D14)
+
+- **활성화 판정(정확히 `"true"`만)**: `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY` 두 boolean 플래그 모두 기존 `isFlagEnabled` 판정 함수를 그대로 재사용하므로, 정확히 문자열 `"true"`일 때만 활성화된다 — 미설정을 포함해 그 외 어떤 값(`"1"`/`"TRUE"`/`"yes"` 등 대소문자·유사값 포함)도 오류가 아니라 `false`로 취급된다(§4).
+- **`RATE_LIMIT_HMAC_SECRET`**: 부재 시 §9.3이 이미 정의한 대로 fail closed(500/`server_error`, 어떤 레코드도 생성하지 않음)로 안전하게 동작한다.
+- **`lib/env.ts` 검증 범위와의 관계**: `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`는 `research.md` §6이 `ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`에 대해 이미 확립한 것과 동일한 이유로 `lib/env.ts`의 `REQUIRED_BY_SCOPE`에 추가하지 않는다 — 선택적 기능 플래그이며 미설정 시 단순히 falsy로 게이트가 닫히는 것으로 충분하다.
+
+  `RATE_LIMIT_HMAC_SECRET`은 이 원칙의 **예외로 판단한다**. 순수 기능 플래그가 아니라 실제 PII 접수 여부를 좌우하는 시크릿이며, 부재 시의 fail-closed 동작은 안전하지만 **요청이 실제로 들어온 뒤에야** 드러난다 — `ENABLE_CONSULT_FLOW=true`로 배포하면서 이 시크릿 설정을 누락하면, 운영자는 앱이 정상 기동됐다고 믿다가 실제 사용자 제출이 전부 500으로 실패하는 것을 사후에야 발견하게 된다. 이는 `GEMINI_API_KEY`가 `LLM_PROVIDER_MODE !== "deterministic"`일 때만 필요한 것과 같은 형태의 **조건부 필수** 변수 패턴이다(`lib/env.ts` 주석, `research.md` §6). 이 SPEC은 `lib/env.ts`에 `RATE_LIMIT_HMAC_SECRET`을 `ENABLE_CONSULT_FLOW === "true"`일 때만 필수로 요구하는 동일한 형태의 조건부 검증을 **추가하는 것이 옳다고 판단**한다 — 다만 이 판단의 실제 코드 반영(`lib/env.ts` 수정)은 이 plan-phase 세션의 범위 밖이며, run-phase 마일스톤(`plan.md` §F)에 별도 작업으로 명시한다. 이 plan-phase 문서 자체는 애플리케이션 코드를 수정하지 않는다.
+
+**운영 배포 환경 설정 체크리스트**:
+
+- [ ] `ENABLE_CONSULT_FLOW=true` 설정(03 화면·API 배포 활성화).
+- [ ] `CONSULT_POLICY_READY=true`는 법무·운영이 동의 문구를 최종 확정한 **이후에만** 설정한다.
+- [ ] `RATE_LIMIT_HMAC_SECRET`을 실제 배포 전 반드시 실제 비밀값으로 설정한다(빈 값 또는 미설정 시 fail closed로 모든 실제 접수가 500 처리된다) — 이 값 자체는 어떤 저장소·설정 템플릿에도 커밋하지 않는다.
+- [ ] Nginx가 `x-forwarded-for` 헤더를 정확히 전달하는지 확인한다(§9.3) — 이 헤더를 얻지 못하면 rate limit 판정도 fail closed로 접수를 막는다.
+
 ## 5. 신규 파일 트리 + 허용된 기존 파일 확장
 
 ```
@@ -142,7 +157,7 @@ components/consult/
 
 lib/consult/
 ├── types.ts                              [신규] ConsultationRequest/Channel/Consent/SubmitResult
-├── schema.ts                             [신규] zod 스키마(제출용 strict + draft용 loose)
+├── schema.ts                             [신규] zod 스키마(제출용 strict + draft용도 strict — 알 수 없는 키 거부, 개별 필드는 optional, §2.3 참고)
 ├── draft.ts                              [신규] sessionStorage draft read/write/clear
 ├── phone.ts                              [신규] 연락처 정규화/표시 포맷/마스킹
 ├── dedupe.ts                             [신규] 정규화 연락처 기반 비즈니스 중복 키 도출(순수 함수, 서버·클라이언트 공유 가능)
@@ -155,13 +170,16 @@ db/migrations/
 └── 000N_*.sql                            [신규] `pnpm db:generate` 산출물(파일명은 drizzle-kit이 결정)
 ```
 
-**허용된 기존 파일 최소 확장(정확히 5개, `plan.md` §D 제약)**:
+**허용된 기존 파일 최소 확장(정확히 6개, `plan.md` §D 제약)**:
 
 1. `components/result/result-cta-bar.tsx` — 4개 stub 버튼을 실제 `<Link href={...}>` 네비게이션으로 교체(`aria-disabled`/no-op 핸들러 제거, `shouldRenderConsult`가 거짓이면 기존 stub 동작 유지).
 2. `components/diagnosis/diagnosis-flow.tsx` — 새 진단 시작 액션의 기존 `clearDiagnosisHandoff()` 호출 옆에 `clearConsultationDraft()` 호출 한 줄 추가.
 3. `lib/diagnosis/flags.ts` — `computeConsultFlags(env)` export 함수 추가(§4).
 4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목 수정 금지, §10).
-5. `lib/db/schema.ts` — `consultations` 테이블 정의 추가(§6, 기존 12개 테이블 정의는 수정하지 않는다).
+5. `lib/db/schema.ts` — `consultations` 테이블 **및** `consultationRateLimits` 보조 테이블 정의 추가(§6, §9.3, 기존 12개 테이블 정의는 수정하지 않는다).
+6. `.env.local.example` — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 변수의 안전한 플레이스홀더 항목 추가(§4.2, 이미 존재하는 설정 템플릿 파일이며 애플리케이션 코드가 아니다).
+
+(run-phase 결정 대기 항목: `lib/env.ts`에 `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증을 추가할지 여부는 §4.2가 다루며, 추가하기로 결정되면 이 목록의 7번째 확장 대상이 된다 — 이 plan-phase 세션은 `lib/env.ts`를 수정하지 않는다.)
 
 ## 6. 상담 데이터 계약 (`lib/consult/types.ts` + `schema.ts`)
 
@@ -248,18 +266,18 @@ ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이�
 
 ### 8.1 요청 처리 순서 (server-side, 트랜잭션 경계 포함)
 
+> **순서 재배열(독립 검토 D11)**: idempotency 조회(4-6번)를 rate limit 판정(7번)보다 앞에 둔다 — 첫 요청은 서버에 이미 저장됐지만 응답을 받지 못해 재시도하는 사용자가, rate limit에 의해 부당하게 429로 막히는 것을 막기 위함이다(§9.3). rate limit은 idempotency 조회 결과 기존 레코드가 전혀 없어 이번 제출이 진짜 신규 시도로 판정될 때만 적용된다.
+
 1. `ConsultationRequestSchema.safeParse` 실패 → 400/`validation`(연락처 정규화는 이 검증의 일부, §6).
-2. §9.3 Rate limit 판정 — 초과 시 429/`rate_limited`로 여기서 종료(어떤 레코드도 생성하지 않는다).
-3. §6.1 활성 동의 정책 조회·검증 — 정책 없음이면 503/`policy_unavailable`, `acknowledgedConsentVersion` 불일치면 409/`consent_version_mismatch`로 여기서 종료.
+2. §6.1 활성 동의 정책 조회·검증 — 정책 없음이면 503/`policy_unavailable`, `acknowledgedConsentVersion` 불일치면 409/`consent_version_mismatch`로 여기서 종료.
+3. 정규화된 핵심 페이로드로부터 §8.2 요청 지문(SHA-256)을 계산한다.
 4. `idempotencyKey`로 기존 레코드를 조회한다.
-5. 기존 레코드가 있고 §8.2 요청 지문이 이번 요청과 **일치**하면 → 그 레코드 기준 200/`success`를 반환한다(새 레코드를 만들지 않음).
-6. 기존 레코드가 있지만 요청 지문이 **다르면** → 409/`idempotency_conflict`로 거부한다.
-7. (5/6에 해당하지 않을 때) `(resultId, contactNormalized)` 복합 인덱스로 기존 레코드를 조회한다 — 일치하는 행이 있으면 409/`duplicate`로 거부한다(새 레코드를 만들지 않음).
-8. 위 어느 것에도 해당하지 않으면 신규 `INSERT`를 시도한다(이때 `consentVersion`은 §6.1이 검증한 서버 측 활성 정책 값을, `requestFingerprint`는 §8.2 값을 함께 쓴다).
-9. `INSERT` 시점에 UNIQUE 제약 충돌이 발생하면(동시 요청 레이스) 어느 제약이 충돌했는지 재조회한다.
-10. 충돌한 제약이 `idempotencyKey` UNIQUE였다면 → 5번과 동일하게 처리한다(지문 비교 후 기존 성공 반환 또는 `idempotency_conflict`).
-11. 충돌한 제약이 `(resultId, contactNormalized)` 복합 UNIQUE였다면 → 7번과 동일하게 처리한다(409/`duplicate`).
-12. 그 외 DB 오류는 오직 500/`server_error`로만 응답한다(다른 상태 코드로 오인 매핑하지 않는다).
+5. 기존 레코드가 있고 §8.2 요청 지문이 이번 요청과 **일치**하면 → 그 레코드 기준 200/`success`를 반환한다(새 레코드를 만들지 않음). **이 경로는 rate limit 판정을 거치지 않는다** — 이미 한 번 성공(또는 처리)한 요청의 안전한 재시도이지 새로운 제출 시도가 아니기 때문이다.
+6. 기존 레코드가 있지만 요청 지문이 **다르면** → 409/`idempotency_conflict`로 거부한다. **이 경로도 rate limit 판정을 거치지 않는다** — 키 재사용을 확정적으로 거부하는 것이지 스로틀링 대상인 신규 제출 시도가 아니기 때문이다.
+7. (4번에서 기존 레코드가 전혀 없어, 이번 제출이 진짜 신규 시도로 판정될 때만) §9.3 Rate limit 판정을 수행한다 — 초과 시 429/`rate_limited`로 여기서 종료(어떤 레코드도 생성하지 않는다).
+8. `(resultId, contactNormalized)` 복합 인덱스로 기존 레코드를 조회한다 — 일치하는 행이 있으면 409/`duplicate`로 거부한다(새 레코드를 만들지 않음).
+9. 위 어느 것에도 해당하지 않으면 신규 `INSERT`를 시도한다(이때 `consentVersion`은 §6.1이 검증한 서버 측 활성 정책 값을, `requestFingerprint`는 §8.2 값을 함께 쓴다).
+10. `INSERT` 시점에 UNIQUE 제약 충돌이 발생하면(동시 요청 레이스) 어느 제약이 충돌했는지 재조회한 뒤, 충돌한 제약이 `idempotencyKey` UNIQUE였다면 5-6번과 동일한 규칙(지문 비교 후 기존 성공 반환 또는 `idempotency_conflict`)을, `(resultId, contactNormalized)` 복합 UNIQUE였다면 8번과 동일한 규칙(409/`duplicate`)을 적용한다. 그 외 DB 오류는 오직 500/`server_error`로만 응답한다(다른 상태 코드로 오인 매핑하지 않는다).
 
 ### 8.2 요청 지문(Request Fingerprint)
 
@@ -335,14 +353,14 @@ RATE_LIMIT_WINDOW_MS = 60_000       # 1분 고정 윈도
 RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시도
 ```
 
-알고리즘:
+알고리즘 — **이 판정은 §8.1의 7번 단계에서만, 즉 `idempotencyKey` 조회(§8.1 4번) 결과 기존 레코드가 전혀 없어 이번 제출이 진짜 신규 시도로 판정됐을 때만 호출된다**(독립 검토 D11) — 동일 `idempotencyKey`의 재시도는 지문 일치/불일치 여부와 무관하게(§8.1 5-6번) 이 rate limit 판정 자체를 거치지 않는다:
 
 1. Nginx가 리버스 프록시로서 `x-forwarded-for` 헤더에 채우는 원본 클라이언트 IP를 신뢰 가능한 IP로 사용한다 — Next.js 프로세스는 `127.0.0.1`에만 바인딩되어 있어 Nginx를 거치지 않은 요청은 애초에 도달할 수 없다(`tech.md`).
 2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다.
 3. `windowStart = floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS`. `ipHmac = HMAC-SHA256(trustedIp, RATE_LIMIT_HMAC_SECRET)`를 계산한다.
 4. `INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, 1) ON CONFLICT (window_start, ip_hmac) DO UPDATE SET request_count = request_count + 1 RETURNING request_count` 형태의 원자적 upsert를 수행한다.
-5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 파이프라인(동의 정책 검증/idempotency/중복 판정/삽입)을 실행하지 않는다.
-6. 초과하지 않으면 §8.1의 요청 처리 순서(3번부터)로 계속 진행한다.
+5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 단계(8번 비즈니스 중복 조회, 9번 삽입)를 실행하지 않는다.
+6. 초과하지 않으면 §8.1의 요청 처리 순서 8번(비즈니스 중복 조회)부터 계속 진행한다.
 
 **보관·정리 정책**: 매 upsert 트랜잭션에서 부가적으로 `DELETE FROM consultation_rate_limits WHERE window_start < :now - RETENTION_MS`(`RETENTION_MS` 기본 1시간)를 함께 실행한다 — `windowStart`가 인덱스 선두 컬럼이라 비용이 낮고, 이 프로젝트가 이미 피하고 있는 별도 cron/백그라운드 잡 인프라(`research.md` §3 — `after()` 패턴만 예외적으로 허용)를 새로 추가하지 않는다.
 

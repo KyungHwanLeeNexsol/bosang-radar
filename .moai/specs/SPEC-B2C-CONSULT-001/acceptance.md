@@ -198,10 +198,10 @@ Given 활성 정책은 존재하지만 요청의 `acknowledgedConsentVersion`이
 When `POST /api/consultations`를 호출하면
 Then HTTP 409와 `{status:"error", code:"consent_version_mismatch"}`가 반환되며 레코드가 생성되지 않는다.
 
-추가 시나리오 — Rate limit 초과:
-Given 같은 신뢰 가능한 IP에서 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LIMIT_MAX_REQUESTS`를 초과하는 요청이 도착했을 때
+추가 시나리오 — Rate limit 초과(신규 제출 시도에만 적용, 독립 검토 D11):
+Given 같은 신뢰 가능한 IP에서 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LIMIT_MAX_REQUESTS`를 초과하는 **서로 다른** `idempotencyKey`(각각 신규 제출 시도)의 요청이 도착했을 때
 When 그다음 요청을 처리하면
-Then HTTP 429와 `{status:"error", code:"rate_limited"}`가 반환되며 동의 정책 검증·idempotency/중복 판정·삽입 로직은 실행되지 않는다.
+Then HTTP 429와 `{status:"error", code:"rate_limited"}`가 반환되며 이후 단계인 비즈니스 중복 판정·삽입 로직은 실행되지 않는다. 동일 `idempotencyKey` + 동일 페이로드의 재시도는 rate limit 판정보다 먼저 처리되어 기존 성공 결과를 반환하며 429로 막히지 않는다 — rate limit은 신규 idempotency 레코드가 없는 제출 시도에만 적용된다.
 
 추가 시나리오 — Rate limit 시크릿 부재 시 fail closed:
 Given `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
@@ -212,6 +212,11 @@ Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 
 Given 폼 마운트 시점에 읽어 둔 `resultId`와 제출 직전 재조회한 `readDiagnosisHandoff()`의 `resultId`가 서로 다를 때(다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우)
 When 사용자가 제출을 시도하면
 Then 클라이언트는 `POST /api/consultations`를 호출하지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 03-D 실패 상태를 표시한다.
+
+추가 시나리오 — 비정상 boolean 문자열은 오류가 아니라 false로 취급(독립 검토 D14):
+Given `ENABLE_CONSULT_FLOW` 또는 `CONSULT_POLICY_READY` 환경 변수 값이 `"1"`/`"TRUE"`/`"yes"`처럼 지원되지 않는 형태의 문자열일 때
+When 서버 또는 클라이언트가 `isFlagEnabled`로 이 값을 판정하면
+Then 오류를 던지지 않고 미설정과 동일하게 `false`로 취급한다(정확히 `"true"` 문자열일 때만 `true`).
 
 **AC-B2CCONSULT-019** (REQ-B2CCONSULT-019)
 Given `consultations` 테이블 스키마(`lib/db/schema.ts`)를 검사할 때
@@ -259,6 +264,11 @@ Then 정확히 1개의 요청만 원 요청으로 성공 처리되어 레코드�
 Given 서로 다른 `idempotencyKey`를 가졌지만 동일한 `resultId`와 동일한 정규화 연락처를 담은 요청 여러 개가 사실상 동시에 도착했을 때
 When 서버가 이 요청들을 병렬 처리하면
 Then 정확히 1개의 요청만 성공 레코드로 생성되고, 나머지 요청들은 HTTP 409/`duplicate`를 받는다(통합 테스트로 증명).
+
+추가 시나리오 — 동시 요청이 개별적으로는 rate limit을 초과했더라도 idempotency 경로로 전부 통과(독립 검토 D11):
+Given 완전히 동일한 페이로드(같은 `idempotencyKey`)를 가진 요청이 `RATE_LIMIT_MAX_REQUESTS`를 초과할 만큼 여러 건 사실상 동시에 도착했을 때
+When 서버가 이 요청들을 병렬 처리하면
+Then 어느 요청도 HTTP 429(`rate_limited`)를 받지 않는다 — 최초 1건만 신규 `INSERT`로 성공 저장되고, 나머지는 동일 `idempotencyKey`·동일 지문 재시도로 판정되어 그 성공 레코드 기준의 200/`success`를 받는다(모든 요청이 idempotency 판정 경로를 거치므로 rate limit 판정 자체가 적용되지 않는다, 통합 테스트로 증명).
 
 ## 성공 · 중복 · 실패 상태
 

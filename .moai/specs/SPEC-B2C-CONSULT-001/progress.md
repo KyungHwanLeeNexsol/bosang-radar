@@ -45,6 +45,21 @@
 - Out of Scope 섹션 5개 `### Out of Scope —` 하위 제목 + bullet 작성 확인(`OutOfScopeRule` lint 대응) — 이번 수정에서도 유지(Rate limiting 항목의 서술만 "알고리즘 미확정"에서 "상수 튜닝만 미확정"으로 갱신).
 - `git diff --check`(공백/충돌 마커 검사) — 이번 세션의 두 커밋 각각에 대해 clean 확인(SHA는 커밋 메시지·PR 설명에서 확인).
 
+### 독립 검토 D11/D13/D14 수정 요약 (별도 세션 — D12는 별도 처리, 이 표에 포함하지 않음)
+
+위 `plan_status: audit-ready` 선언(§E.1) 이후, 별도의 독립 검토가 D1-D10과는 다른 번호 체계로 D11-D14 4건의 신규 blocking 계약 모순을 추가로 발견했다. 이 세션은 그중 D12를 제외한 D11/D13/D14 3건을 수정한다 — D12는 별도 세션·별도 에이전트가 처리한다.
+
+| # | 계약 모순 | 반영 |
+|---|---|---|
+| D11 | 서버 처리 순서(`design.md` §8.1/§9.3, `spec.md` REQ-020/021, `acceptance.md`)가 idempotencyKey 조회(4번)보다 rate limit 판정(2번)을 먼저 수행 — 첫 요청은 이미 저장에 성공했지만 응답을 받지 못해 동일 idempotencyKey로 재시도하는 사용자가 rate limit에 의해 부당하게 429로 막힐 수 있는 안전 재시도 계약 위반 | 처리 순서를 검증 → 동의 정책 검증 → 요청 지문 계산 → `idempotencyKey` 조회(일치 시 즉시 200/success 반환·불일치 시 즉시 409/idempotency_conflict, 이 두 경로 모두 rate limit 미적용) → (기존 idempotency 레코드가 전혀 없는 신규 제출 시도일 때만) rate limit 판정 → 비즈니스 중복 조회 → 삽입 → 삽입 시점 UNIQUE 충돌 재조회 순으로 재배열(`design.md` §8.1·§9.3, `spec.md` REQ-B2CCONSULT-020/021, `plan.md` M2, `acceptance.md` AC-B2CCONSULT-018·AC-B2CCONSULT-021에 각각 시나리오 추가/수정 — 신규 AC-ID 발급 없음) |
+| D13 | draft 스키마를 느슨한 스키마로 서술한 두 곳(`design.md` §5 파일 트리, `plan.md` M1)이 이미 §2.3이 확정한 `z.strictObject`(개별 필드 optional) 계약과 자기모순 | 구 표현을 완전히 제거하고 두 곳 모두 draft 스키마도 `z.strictObject`(알 수 없는 키 거부, 개별 필드는 optional, 명시적 `draftVersion` 리터럴 필수)임을 명시하도록 정정(`design.md` §5, `plan.md` M1) — 별도 `rg` 검색으로 구 표현이 SPEC 문서 어디에도 잔존하지 않음을 확인했다 |
+| D14 | (a) `plan.md` §D 제약 ④가 마이그레이션 범위에서 `consultationRateLimits` 보조 테이블(`design.md` §9.3이 이미 정의)을 누락 — 실제로는 한 마이그레이션 파일에 두 테이블이 필요함에도 문서는 `consultations` 하나만 언급. (b) `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 신규 환경 변수가 `.env.local.example`에 전혀 반영되지 않음. (c) `RATE_LIMIT_HMAC_SECRET`이 `lib/env.ts` 필수 변수 검증 범위에 포함되어야 하는지 미결정 | (a) `plan.md` §D 제약 ④를 마이그레이션 파일 1개에 `consultations`(2개 UNIQUE) + `consultationRateLimits`(1개 UNIQUE) 총 3개 UNIQUE 제약이 모두 포함되도록 정정, `design.md` §5 허용 확장 목록 5번도 두 테이블 모두 언급하도록 갱신. (b) `.env.local.example`에 3개 변수를 안전한 빈/false 플레이스홀더로 추가(실제 비밀값은 어디에도 커밋하지 않음). (c) `design.md`에 §4.2 신설 — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`는 기존 `ENABLE_DIAGNOSIS_FLOW` 패턴과 동일하게 `lib/env.ts` 검증 대상에서 제외하되, `RATE_LIMIT_HMAC_SECRET`은 `GEMINI_API_KEY`의 조건부 필수 패턴과 동일하게 `lib/env.ts`에 조건부 필수 검증을 추가하는 것이 옳다고 판단 — 단 실제 `lib/env.ts` 코드 수정은 이 plan-phase 세션 범위 밖이므로 run-phase 과제로 `plan.md` §D 제약 ①에 "7번째 확장 대상 후보"로 명시했다(아래 Open Decisions 갱신 참고) |
+
+- 위 3건 모두 기존 REQ-ID/AC-ID에 하위 시나리오를 추가하거나 기존 문서 서술을 정정하는 방식으로만 반영했다(신규 REQ-ID/AC-ID 발급 없음) — 수정 후에도 REQ 25건/AC 25건 정확히 유지(`grep -c '^\- \*\*REQ-B2CCONSULT-' spec.md` = 25, `grep -c '^\*\*AC-B2CCONSULT-' acceptance.md` = 25로 확인).
+- D1-D10 내용은 이번 수정에서 전혀 손대지 않았다 — 위 표는 D1-D10 표와 별개의 새 표이며, 기존 표의 행 번호·내용을 재사용·재정의하지 않는다.
+- `git diff --check`(공백/충돌 마커 검사) — 이번 세션의 커밋에 대해 clean 확인(SHA는 커밋 메시지에서 확인).
+- 이 D11/D13/D14 수정 이후, `plan_status`는 여전히 `amended-pending-reaudit`다 — D12(별도 세션 처리) 완료 및 plan-auditor의 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다.
+
 ## §E.2 Run-phase Evidence
 
 _<run-phase 대기 중>_
@@ -75,8 +90,10 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 3. **`CONSULT_POLICY_READY` 실제 활성화 시점(구 `productionReady`)** — 이 SPEC은 이제 배포 게이트(`ENABLE_CONSULT_FLOW`)와 실제 개인정보 수집 게이트(`CONSULT_POLICY_READY`)를 명확히 분리된 두 개의 서버 계약으로 확정했다(`design.md` §4, §6.1) — 이전에는 이 분리가 코드 계약이 아니라 문서상의 "이해"에 불과했다. 실제로 `CONSULT_POLICY_READY`를 `true`로 전환하는 시점(법무 확정 + 운영 준비 완료 후)은 여전히 사람의 운영 판단이며, 이 SPEC이 자동으로 결정하지 않는다.
 4. **"기존 신청 상태 확인" 실제 목적지** — 이 SPEC은 "준비 중" 스텁으로 구현했다(§ 디자인 대조 D4). 실제 신청 상태 조회 기능(인증 없는 조회 페이지 등)을 만들 것인지, 만든다면 인증·보안 요구사항이 무엇인지는 별도 제품 결정이 필요하다. (변경 없음)
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
+6. **`lib/env.ts`에 `RATE_LIMIT_HMAC_SECRET` 조건부 필수 검증 추가 여부 — run-phase 결정 대기(독립 검토 D14)**: 이 SPEC은 `RATE_LIMIT_HMAC_SECRET`을 `ENABLE_CONSULT_FLOW === "true"`일 때만 필수로 요구하는 조건부 검증(`GEMINI_API_KEY`의 `LLM_PROVIDER_MODE` 조건부 패턴과 동형)을 `lib/env.ts`에 추가하는 것이 옳다고 **판단**했다(`design.md` §4.2) — 부재 시 이미 fail closed로 안전하지만, 그 사실이 운영자에게 기동 시점이 아니라 사용자 제출 실패 시점에야 드러나기 때문이다. 이 판단은 plan-phase의 설계 권고일 뿐이며, 실제 `lib/env.ts` 코드 반영은 run-phase 과제(`plan.md` §D 제약 ①의 "7번째 확장 대상 후보")로 남긴다 — 이 plan-phase 세션은 `lib/env.ts`를 수정하지 않는다.
 
 ### 이번 세션에서 해소됨
 
-6. **중복 판정 최종안 — 승인 완료(2026-09-25)**: `design/MIGRATION-PLAN.md` §7이 명시한 "동일 진단 결과 ID **또는** 동일 연락처" 단순 OR 판정을 이 SPEC은 "`resultId`+정규화 연락처 AND(비즈니스 중복) + 별도 `idempotencyKey`(기술적 멱등성)" 조합으로 대체했다(`design.md` §8에 5개 후보 비교·권장 근거 기록). 단순 OR의 과차단 위험(가족 간 연락처 공유, 동일인의 새 사고 재상담 모두 차단)을 피하기 위한 결정이며, 이 D1-D10 수정 작업 지시 자체가 사용자 승인으로 간주된다 — `design/MIGRATION-PLAN.md`와의 편차는 최종 승인된 편차이며 더 이상 확인 대기 상태가 아니다.
-7. **Rate limiting 구체 알고리즘·저장소 — 결정 완료(2026-09-25)**: DB 기반 고정 윈도(`consultationRateLimits` 테이블, HMAC 처리된 원본 IP, 원자적 upsert)로 plan-phase에서 확정했다(`design.md` §9.3) — 더 이상 run-phase에 위임된 미결정 항목이 아니다. 실제 윈도 크기·요청 한도 상수 값의 트래픽 기반 미세 조정만 운영 판단으로 남는다.
+7. **중복 판정 최종안 — 승인 완료(2026-09-25)**: `design/MIGRATION-PLAN.md` §7이 명시한 "동일 진단 결과 ID **또는** 동일 연락처" 단순 OR 판정을 이 SPEC은 "`resultId`+정규화 연락처 AND(비즈니스 중복) + 별도 `idempotencyKey`(기술적 멱등성)" 조합으로 대체했다(`design.md` §8에 5개 후보 비교·권장 근거 기록). 단순 OR의 과차단 위험(가족 간 연락처 공유, 동일인의 새 사고 재상담 모두 차단)을 피하기 위한 결정이며, 이 D1-D10 수정 작업 지시 자체가 사용자 승인으로 간주된다 — `design/MIGRATION-PLAN.md`와의 편차는 최종 승인된 편차이며 더 이상 확인 대기 상태가 아니다.
+8. **Rate limiting 구체 알고리즘·저장소 — 결정 완료(2026-09-25)**: DB 기반 고정 윈도(`consultationRateLimits` 테이블, HMAC 처리된 원본 IP, 원자적 upsert)로 plan-phase에서 확정했다(`design.md` §9.3) — 더 이상 run-phase에 위임된 미결정 항목이 아니다. 실제 윈도 크기·요청 한도 상수 값의 트래픽 기반 미세 조정만 운영 판단으로 남는다.
+9. **Rate limiting 판정과 idempotency 조회의 처리 순서 — 결정 완료(2026-09-27, 독립 검토 D11)**: idempotency 조회를 rate limit 판정보다 먼저 수행하도록 재배열했다(`design.md` §8.1·§9.3) — 더 이상 열린 항목이 아니다.
