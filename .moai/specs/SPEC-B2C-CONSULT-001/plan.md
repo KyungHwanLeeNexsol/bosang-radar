@@ -62,7 +62,7 @@
 - [x] 기존 코드베이스 조사(`lib/diagnosis/`, `components/result/`, `lib/db/`, `lib/env.ts`, 삭제된 `app/api/cases/route.ts`, `scripts/visual-verify.ts`) 완료 — `research.md`
 - [x] 디자인 export 9개 + DEV-ONLY 동의 상세 구조 1개 직접 열람 완료
 - [x] AC 25건 작성, REQ-AC 1:1 대응 확인(`acceptance.md`)
-- [ ] plan-auditor 독립 검토 — 이번 plan-phase 커밋 이후 별도 단계에서 실행(이 문서는 그 실행 전 상태)
+- [x] plan-auditor 독립 검토 — iteration 3 완전 재감사(HEAD `f180834`, D11/D13/D14 반영본) PASS 0.92(Tier L 임계값 0.85 상회), 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-3.md`가 `git ls-tree -r HEAD`로 Git 트리 존재 확인됨(`progress.md` §E.1 참고)
 
 ## §F. Milestones (후속 `/moai run SPEC-B2C-CONSULT-001`의 실행 계획)
 
