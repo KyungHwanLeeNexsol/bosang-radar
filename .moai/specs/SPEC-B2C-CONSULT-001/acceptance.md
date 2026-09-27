@@ -203,10 +203,25 @@ Given 같은 신뢰 가능한 IP에서 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LI
 When 그다음 요청을 처리하면
 Then HTTP 429와 `{status:"error", code:"rate_limited"}`가 반환되며 이후 단계인 비즈니스 중복 판정·삽입 로직은 실행되지 않는다. 동일 `idempotencyKey` + 동일 페이로드의 재시도는 rate limit 판정보다 먼저 처리되어 기존 성공 결과를 반환하며 429로 막히지 않는다 — rate limit은 신규 idempotency 레코드가 없는 제출 시도에만 적용된다.
 
-추가 시나리오 — Rate limit 시크릿 부재 시 fail closed:
-Given `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
+추가 시나리오 — Rate limit 시크릿 부재 시 fail closed (신규 제출 한정, D17):
+Given `CONSULT_POLICY_READY=true`이고 활성 동의 정책이 존재하며, 요청의 `acknowledgedConsentVersion`이 그 활성 정책 버전과 일치하고, 동일 `idempotencyKey`의 기존 레코드가 없으며(이번 제출이 진짜 신규 시도), `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
 When `POST /api/consultations`를 호출하면
-Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 레코드도 생성되지 않는다.
+Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 레코드도 생성되지 않는다(rate limit 판정 단계에 도달했으나 시크릿 부재로 안전하게 수행할 수 없기 때문).
+
+추가 시나리오 — 정책 비활성 + 시크릿 부재 (우선순위 검증, D17):
+Given 활성 동의 정책이 없거나 `CONSULT_POLICY_READY`가 거짓이고, `RATE_LIMIT_HMAC_SECRET` 환경 변수도 설정되지 않았을 때
+When `POST /api/consultations`를 호출하면
+Then 정책 검증이 rate limit 판정보다 먼저 실행되므로 HTTP 503과 `{status:"error", code:"policy_unavailable"}`가 반환된다.
+
+추가 시나리오 — 기존 동일 idempotency 요청 + 시크릿 부재 (우선순위 검증, D17):
+Given 활성 동의 정책이 존재하고, 동일 `idempotencyKey`로 이미 존재하는 레코드가 있으며 이번 요청의 요청 지문이 그 레코드와 일치하고, `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
+When `POST /api/consultations`를 호출하면
+Then 이 경로는 rate limit 판정을 거치지 않으므로 HTTP 200과 `{status:"success"}`가 반환된다(새 레코드를 만들지 않음).
+
+추가 시나리오 — 기존 동일 키·다른 지문 + 시크릿 부재 (우선순위 검증, D17):
+Given 활성 동의 정책이 존재하고, 동일 `idempotencyKey`로 이미 존재하는 레코드가 있으나 이번 요청의 요청 지문이 그 레코드와 다르며, `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
+When `POST /api/consultations`를 호출하면
+Then 이 경로도 rate limit 판정을 거치지 않으므로 HTTP 409와 `{status:"error", code:"idempotency_conflict"}`가 반환된다.
 
 추가 시나리오 — `handoff_mismatch` 판정:
 Given 폼 마운트 시점에 읽어 둔 `resultId`와 제출 직전 재조회한 `readDiagnosisHandoff()`의 `resultId`가 서로 다를 때(다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우)

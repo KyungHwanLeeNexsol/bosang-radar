@@ -275,7 +275,7 @@ ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이�
 4. `idempotencyKey`로 기존 레코드를 조회한다.
 5. 기존 레코드가 있고 §8.2 요청 지문이 이번 요청과 **일치**하면 → 그 레코드 기준 200/`success`를 반환한다(새 레코드를 만들지 않음). **이 경로는 rate limit 판정을 거치지 않는다** — 이미 한 번 성공(또는 처리)한 요청의 안전한 재시도이지 새로운 제출 시도가 아니기 때문이다.
 6. 기존 레코드가 있지만 요청 지문이 **다르면** → 409/`idempotency_conflict`로 거부한다. **이 경로도 rate limit 판정을 거치지 않는다** — 키 재사용을 확정적으로 거부하는 것이지 스로틀링 대상인 신규 제출 시도가 아니기 때문이다.
-7. (4번에서 기존 레코드가 전혀 없어, 이번 제출이 진짜 신규 시도로 판정될 때만) §9.3 Rate limit 판정을 수행한다 — 초과 시 429/`rate_limited`로 여기서 종료(어떤 레코드도 생성하지 않는다).
+7. (4번에서 기존 레코드가 전혀 없어, 이번 제출이 진짜 신규 시도로 판정될 때만) §9.3 Rate limit 판정을 수행한다 — 초과 시 429/`rate_limited`로 여기서 종료(어떤 레코드도 생성하지 않는다). 이 단계에서만 서버 시크릿·신뢰 가능한 IP 부재로 인한 500/`server_error` fail closed 응답이 발생할 수 있다(§9.3, D17) — 2-6번 단계에서 이미 종료된 요청(정책 미비 503, 동의 버전 불일치 409, 기존 idempotency 판정 200/409)에는 적용되지 않는다.
 8. `(resultId, contactNormalized)` 복합 인덱스로 기존 레코드를 조회한다 — 일치하는 행이 있으면 409/`duplicate`로 거부한다(새 레코드를 만들지 않음).
 9. 위 어느 것에도 해당하지 않으면 신규 `INSERT`를 시도한다(이때 `consentVersion`은 §6.1이 검증한 서버 측 활성 정책 값을, `requestFingerprint`는 §8.2 값을 함께 쓴다).
 10. `INSERT` 시점에 UNIQUE 제약 충돌이 발생하면(동시 요청 레이스) 어느 제약이 충돌했는지 재조회한 뒤, 충돌한 제약이 `idempotencyKey` UNIQUE였다면 5-6번과 동일한 규칙(지문 비교 후 기존 성공 반환 또는 `idempotency_conflict`)을, `(resultId, contactNormalized)` 복합 UNIQUE였다면 8번과 동일한 규칙(409/`duplicate`)을 적용한다. 그 외 DB 오류는 오직 500/`server_error`로만 응답한다(다른 상태 코드로 오인 매핑하지 않는다).
@@ -300,7 +300,7 @@ ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이�
 | 503 | `policy_unavailable` | 활성 동의 정책이 없음(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, §6.1) — 저장 시도 자체를 하지 않음 |
 | 400 | `error`/`validation` | `ConsultationRequestSchema.safeParse` 실패(`fieldErrors` 포함) |
 | 429 | `error`/`rate_limited` | 원본 IP HMAC 기반 DB 고정 윈도 카운터 초과(§9.3) |
-| 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패, 또는 rate limit 판정에 필요한 서버 시크릿·신뢰 가능한 IP를 얻을 수 없어 fail closed로 접수를 열지 않은 경우(§9.3) |
+| 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패, 또는 (§8.1 7번 — 정책·동의 검증과 기존 idempotency 판정을 통과해 신규 제출로 판정된 요청이 rate limit 판정 단계에 도달했을 때만) 판정에 필요한 서버 시크릿·신뢰 가능한 IP를 얻을 수 없어 fail closed로 접수를 열지 않은 경우(§9.3, D17). 정책 검증(503)·동의 버전 불일치(409)·기존 idempotency 판정(200/409)으로 이미 종료된 요청에는 적용되지 않는다 |
 | N/A(서버 미호출) | `error`/`handoff_mismatch` | 제출 직전 클라이언트가 재조회한 `resultId`가 폼 마운트 시점에 읽은 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우) — 서버에 요청을 보내지 않고 클라이언트가 즉시 판정 |
 
 `handoff_mismatch`는 서버가 판정하지 않는다 — §9.2가 명시하듯 서버는 `resultId`를 대조 검증할 원본이 없으므로(잔여 위험), 이 판정은 전적으로 클라이언트가 제출 직전 `readDiagnosisHandoff()`를 재호출해 자체적으로 수행한다(REQ-B2CCONSULT-018).
@@ -357,7 +357,7 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 알고리즘 — **이 판정은 §8.1의 7번 단계에서만, 즉 `idempotencyKey` 조회(§8.1 4번) 결과 기존 레코드가 전혀 없어 이번 제출이 진짜 신규 시도로 판정됐을 때만 호출된다**(독립 검토 D11) — 동일 `idempotencyKey`의 재시도는 지문 일치/불일치 여부와 무관하게(§8.1 5-6번) 이 rate limit 판정 자체를 거치지 않는다:
 
 1. Nginx가 리버스 프록시로서 `x-forwarded-for` 헤더에 채우는 원본 클라이언트 IP를 신뢰 가능한 IP로 사용한다 — Next.js 프로세스는 `127.0.0.1`에만 바인딩되어 있어 Nginx를 거치지 않은 요청은 애초에 도달할 수 없다(`tech.md`).
-2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다.
+2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다. (D17: 이 판정은 §8.1 7번 단계에서만, 즉 정책·동의 검증과 기존 idempotency 조회를 모두 통과해 신규 제출로 판정된 요청에만 적용된다 — 앞선 단계에서 이미 종료된 요청에는 영향을 주지 않는다.)
 3. `windowStart = floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS`. `ipHmac = HMAC-SHA256(trustedIp, RATE_LIMIT_HMAC_SECRET)`를 계산한다.
 4. `INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, 1) ON CONFLICT (window_start, ip_hmac) DO UPDATE SET request_count = request_count + 1 RETURNING request_count` 형태의 원자적 upsert를 수행한다.
 5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 단계(8번 비즈니스 중복 조회, 9번 삽입)를 실행하지 않는다.

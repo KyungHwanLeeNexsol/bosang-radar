@@ -91,6 +91,8 @@
 
 별도의 독립 검토가 D17(`RATE_LIMIT_HMAC_SECRET` 부재 시 응답이 §8.1의 확정된 서버 처리 순서와 충돌하는 과잉 일반화 서술 — 정책·동의 검증과 기존 idempotency 판정이 rate limit 판정보다 먼저 실행됨에도, `spec.md` REQ-B2CCONSULT-018과 `acceptance.md` AC-B2CCONSULT-018 일부가 "서버 시크릿이 설정되지 않으면 500"이라는 포괄 표현으로 서술되어 있어 이 우선순위를 반영하지 못함) 1건의 신규 blocking 결함을 발견해, `plan_status`를 다시 `amended-pending-reaudit`로 전환한다 — D17 수정 및 plan-auditor의 새로운 전체 재감사(iteration 5) PASS 전까지 `audit-ready`로 복귀하지 않는다.
 
+**D17 수정 완료(이번 세션)**: `spec.md` REQ-B2CCONSULT-018, `acceptance.md` AC-B2CCONSULT-018, `design.md` §8.1/§9.1/§9.3, `plan.md` M2 테스트 계획을 모두 수정해 응답 우선순위를 명확히 했다 — 정책 비활성/미설정+시크릿 부재→503/`policy_unavailable`, 동의 버전 불일치+시크릿 부재→409/`consent_version_mismatch`, 기존 동일 idempotency 요청+시크릿 부재→200/`success`, 기존 동일 키·다른 지문+시크릿 부재→409/`idempotency_conflict`, 정책·동의 유효+기존 idempotency 레코드 없는 신규 제출+시크릿 부재→500/`server_error`(레코드 생성 없음). 이 우선순위는 spec.md/design.md/acceptance.md/plan.md 네 문서에서 동일하게 반영되었다. REQ 25건/AC 25건 총수는 그대로 유지했다(신규 REQ/AC ID 없음). `spec.md` frontmatter `updated`를 `2026-09-27`로 갱신했다. `review-3.md`/`review-4.md`는 수정하지 않았다(감사 보고서 불변 이력 유지). plan-auditor의 새로운 전체 재감사(iteration 5)를 대기 중이다.
+
 ## §E.2 Run-phase Evidence
 
 _<run-phase 대기 중>_

@@ -4,7 +4,7 @@ title: "03 상담 신청 및 접수 결과 (Plan-Phase)"
 version: "0.1.0"
 status: draft
 created: 2026-09-25
-updated: 2026-09-25
+updated: 2026-09-27
 author: Nexsol
 priority: P1
 phase: "v0.19.0 target"
@@ -92,7 +92,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 ### 3.8 서버 API (Event-driven)
 
-- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 여기에 더해 시스템은 활성 동의 정책이 없을 때(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, 503/`policy_unavailable`), 요청의 `acknowledgedConsentVersion`이 활성 정책 버전과 불일치할 때(409/`consent_version_mismatch`), 동일 `idempotencyKey`로 이전과 다른 핵심 페이로드가 도착했을 때(409/`idempotency_conflict`)도 각각 명시적인 HTTP 상태-응답 매핑으로 분기한다(`design.md` §6.1, §8.1-8.2). `rate_limited` 판정은 신뢰 가능한 원본 IP를 HMAC 처리한 고정 윈도 카운터를 DB UNIQUE 제약 기반 원자적 upsert로 수행하며(`design.md` §9.3), 서버 시크릿이 설정되지 않았거나 신뢰 가능한 IP를 얻을 수 없을 때는 실제 접수를 열지 않는다(fail closed — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다). 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다. 제출 직전 클라이언트가 `readDiagnosisHandoff()`를 재조회한 `resultId`가 폼 마운트 시점에 읽어 둔 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우), 시스템은 서버에 요청을 보내지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 처리해 03-D 실패 상태로 전환한다.
+- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 여기에 더해 시스템은 활성 동의 정책이 없을 때(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, 503/`policy_unavailable`), 요청의 `acknowledgedConsentVersion`이 활성 정책 버전과 불일치할 때(409/`consent_version_mismatch`), 동일 `idempotencyKey`로 이전과 다른 핵심 페이로드가 도착했을 때(409/`idempotency_conflict`)도 각각 명시적인 HTTP 상태-응답 매핑으로 분기한다(`design.md` §6.1, §8.1-8.2). `rate_limited` 판정은 신뢰 가능한 원본 IP를 HMAC 처리한 고정 윈도 카운터를 DB UNIQUE 제약 기반 원자적 upsert로 수행하며(`design.md` §9.3), 정책·동의 검증과 기존 idempotency 판정을 모두 통과해 rate limit 판정 단계에 실제로 도달한 신규 제출에서 서버 시크릿이 설정되지 않았거나 신뢰 가능한 IP를 얻을 수 없을 때는 그 제출의 접수를 열지 않는다(fail closed — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다; 정책 미비(503)·동의 버전 불일치(409)·기존 idempotency 판정(200 또는 409)으로 이미 종료된 요청에는 적용되지 않는다). 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다. 제출 직전 클라이언트가 `readDiagnosisHandoff()`를 재조회한 `resultId`가 폼 마운트 시점에 읽어 둔 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우), 시스템은 서버에 요청을 보내지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 처리해 03-D 실패 상태로 전환한다.
 - **REQ-B2CCONSULT-019**: 시스템은 `consultations` 저장 스키마(`lib/db/schema.ts` 확장)에 상담 id·`resultId`(opaque 참조)·채널·이름·정규화 연락처·연락 희망 시간·동의 3종 boolean·서버 스탬프 동의 버전·요청 지문(`requestFingerprint`, `design.md` §8.2)·처리 상태·idempotencyKey·생성/수정 시각을 저장하며, `DiagnosisResult`의 담보 항목·집계 등 진단 상세 내용은 이 테이블에 복제하지 않는다. 또한 시스템은 `consultationRateLimits` 보조 테이블을 원자적 고정 윈도 카운터로 정의하며(`design.md` §9.3), 원본 IP 문자열은 이 테이블을 포함해 어떤 컬럼에도 평문으로 저장하지 않는다(HMAC 처리된 값만 저장한다).
 
 ### 3.9 중복 · 멱등성 (Event-driven)
