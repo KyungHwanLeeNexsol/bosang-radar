@@ -93,6 +93,18 @@
 
 **D17 수정 완료(이번 세션)**: `spec.md` REQ-B2CCONSULT-018, `acceptance.md` AC-B2CCONSULT-018, `design.md` §8.1/§9.1/§9.3, `plan.md` M2 테스트 계획을 모두 수정해 응답 우선순위를 명확히 했다 — 정책 비활성/미설정+시크릿 부재→503/`policy_unavailable`, 동의 버전 불일치+시크릿 부재→409/`consent_version_mismatch`, 기존 동일 idempotency 요청+시크릿 부재→200/`success`, 기존 동일 키·다른 지문+시크릿 부재→409/`idempotency_conflict`, 정책·동의 유효+기존 idempotency 레코드 없는 신규 제출+시크릿 부재→500/`server_error`(레코드 생성 없음). 이 우선순위는 spec.md/design.md/acceptance.md/plan.md 네 문서에서 동일하게 반영되었다. REQ 25건/AC 25건 총수는 그대로 유지했다(신규 REQ/AC ID 없음). `spec.md` frontmatter `updated`를 `2026-09-27`로 갱신했다. `review-3.md`/`review-4.md`는 수정하지 않았다(감사 보고서 불변 이력 유지). plan-auditor의 새로운 전체 재감사(iteration 5)를 대기 중이다.
 
+### iteration 5 재검증 완료 — `plan_status: audit-ready` 재확정 (이번 세션)
+
+위 "D17 신규 blocking 결함 발견으로 재감사 대기 전환"(위 참고) 이후, D17 결함을 수정했고(커밋 `b0b875e`), 이어서 독립 plan-auditor가 이 커밋을 대상으로 다섯 번째 재검증(iteration 5)을 수행했다. 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사(diff-only 아님)이며, **PASS**(종합 점수 **0.97**, Tier L 임계값 0.85 상회, iteration 3 0.92 → iteration 4 0.96 → iteration 5 0.97로 단조 개선)를 반환했다.
+
+이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`에 실제로 영속 저장되었고 Git 트리에 실제로 커밋되어 있음이 감사자 자신에 의해 `git ls-tree -r HEAD .moai/reports/plan-audit`로 확인되었다(커밋 `5621a69`) — review-3.md·review-4.md·review-5.md 모두 트리에 존재하며, 두 이전 보고서는 이번 세션에서도 수정되지 않았음이 함께 재확인되었다.
+
+감사자는 RATE_LIMIT_HMAC_SECRET 부재 시 500 응답이 §8.1 서버 처리 순서와 충돌하던 과잉 일반화 서술이 `spec.md` REQ-B2CCONSULT-018 / `acceptance.md` AC-B2CCONSULT-018 / `design.md` §8.1·§9.1·§9.3 / `plan.md` M2 네 문서 모두에서 일관되게 수정되었음을 5개 응답 우선순위 조합(정책 비활성→503, 동의 버전 불일치→409, 기존 idempotency 일치→200, 기존 idempotency 불일치→409, 신규 제출→500)별로 라인 단위 교차 검증했다 — 과잉 일반화 문구 잔존 0건이며, D1-D16 회귀도 없음을 확인했다.
+
+이 재검증 과정에서 감사자는 별도의 경미한 신규 결함 D18(`acceptance.md`의 D17 태그 시나리오가 5개 우선순위 조합 중 4개만 명시적 Given-When-Then으로 기술하고 있고, 동의 버전 불일치+시크릿 부재 조합은 4개 문서의 산문 서술로만 커버됨)을 발견했다. 감사자는 D18을 **non-blocking**으로 명시적으로 판정했다 — 규칙 자체는 4개 문서에서 정확히 일관되게 서술되어 있어 계약 모순이 아니라는 근거다. D18은 이번 세션에서 수정하지 않으며, 선택적 후속 조치로 기록만 해 둔다.
+
+이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 재확정한다. D1-D10/D11-D14/D15-D16 수정 요약 표와 위 "iteration 3/4 재검증 완료" 절은 이번 전환으로 다시 쓰지 않는다 — 이 절은 그 기록들에 이어 붙는 새 기록일 뿐이다.
+
 ## §E.2 Run-phase Evidence
 
 _<run-phase 대기 중>_
