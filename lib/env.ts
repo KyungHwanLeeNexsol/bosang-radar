@@ -55,6 +55,11 @@ const VAR_INFO: Record<string, VarInfo> = {
       "Researcher/Skeptic/Verifier가 실제 리서치 소견을 생성하는 데 필요한 Gemini API 키입니다.",
     howToObtain: "Google AI Studio(aistudio.google.com)에서 발급받으세요.",
   },
+  RATE_LIMIT_HMAC_SECRET: {
+    reason:
+      "POST /api/consultations의 rate limit 판정이 원본 IP를 해싱하는 데 쓰는 서버 시크릿입니다 (CONSULT_POLICY_READY=true일 때만 필수, SPEC-B2C-CONSULT-001 design.md §4.2).",
+    howToObtain: "무작위 문자열을 생성해 설정하세요 (예: openssl rand -base64 32).",
+  },
 };
 
 /** AC-RUNTIME-010: 오류 메시지는 스코프 + 변수명 + 필요 이유 + 획득 경로를 담되, 값은 절대 포함하지 않는다. */
@@ -89,6 +94,7 @@ export interface ValidatedEnv {
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   TESTER_PASSWORD?: string;
+  RATE_LIMIT_HMAC_SECRET?: string;
 }
 
 /**
@@ -129,6 +135,19 @@ export function validateEnv(
     missing.push("GEMINI_API_KEY");
   }
 
+  // app 스코프 RATE_LIMIT_HMAC_SECRET 조건부 게이트 — CONSULT_POLICY_READY가
+  // 정확히 문자열 "true"일 때만 요구한다(SPEC-B2C-CONSULT-001 design.md §4.2).
+  // ENABLE_CONSULT_FLOW가 아니라 CONSULT_POLICY_READY가 판정 기준이다 — 화면만
+  // 배포되고 실제 PII 접수는 아직 열리지 않은 상태(ENABLE_CONSULT_FLOW=true +
+  // CONSULT_POLICY_READY=false)에서는 이 시크릿 없이도 정상 기동되어야 한다.
+  if (
+    scope === "app" &&
+    source.CONSULT_POLICY_READY === "true" &&
+    !source.RATE_LIMIT_HMAC_SECRET
+  ) {
+    missing.push("RATE_LIMIT_HMAC_SECRET");
+  }
+
   if (missing.length > 0) {
     throw new EnvValidationError(scope, missing);
   }
@@ -140,5 +159,6 @@ export function validateEnv(
     BETTER_AUTH_SECRET: source.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: source.BETTER_AUTH_URL,
     TESTER_PASSWORD: source.TESTER_PASSWORD,
+    RATE_LIMIT_HMAC_SECRET: source.RATE_LIMIT_HMAC_SECRET,
   };
 }
