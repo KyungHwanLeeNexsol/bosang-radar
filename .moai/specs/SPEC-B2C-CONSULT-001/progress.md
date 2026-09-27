@@ -2,7 +2,7 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
-- `plan_status: audit-ready` — 독립 plan-auditor의 **실제 증거로 뒷받침되는** 두 번째 재검증(HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`에 실제로 영속 저장되어 있다. 독립 검토가 발견한 10건(D1-D10, 아래 요약)의 blocking 계약 모순이 이 재검증으로 전부 해소되었음이 확인되었다 — plan-phase의 최종 게이트를 통과했다.
+- `plan_status: amended-pending-reaudit` — 독립 plan-auditor의 **실제 증거로 뒷받침되는** 두 번째 재검증(HEAD `23f129b597132cdfed39fb35879f5c09612746ef` 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-2.md`에 실제로 영속 저장되어 있다. 독립 검토가 발견한 10건(D1-D10, 아래 요약)의 blocking 계약 모순이 이 재검증으로 전부 해소되었음이 확인되었다 — plan-phase의 최종 게이트를 통과했다. **다만 이 PASS 선언 이후 별도의 독립 검토가 D11/D13/D14(D12는 별도 처리) 신규 blocking 계약 모순을 추가로 발견했다 — 이에 따라 `plan_status`를 `amended-pending-reaudit`로 되돌리고, 해당 결함을 수정한 뒤 plan-auditor의 전체 재감사를 다시 받는다.**
 - `plan_complete_at: 2026-09-25T14:55:32Z`
 
 ### "iteration 3" 주장 무효화 — 관측되지 않은 검증 주장이었음 (D-META-1 정정)
