@@ -253,6 +253,66 @@ M3 구현 도중 `components/result/result-cta-bar.tsx`의 CTA 활성화 게이�
 - **사용자 승인**: 이 세션에서 사용자에게 Option A(기존 `enableDevFixture` prop 전달 패턴 미러링, 2개 파일 확장)로 직접 확인받아 승인되었다 — `NEXT_PUBLIC_` 미러 변수 대안은 명시적으로 기각.
 - **plan.md/design.md 정정**: 위 승인에 따라 `plan.md` §D 제약 ①과 `design.md` §5 "허용된 기존 파일 최소 확장" 목록을 기존 7개에서 9개로 확장했다 — 8번 `app/result/page.tsx`, 9번 `components/result/result-view.tsx` 추가(이 문서 갱신 커밋 참고). 신규 REQ-ID/AC-ID 발급 없음 — 기존 M3 마일스톤 범위 내 파일 확장 예산 정정이다.
 
+### M3 구현 완료
+
+**변경 파일**: `lib/diagnosis/flags.ts`(확장, `computeConsultFlags` 추가) · `lib/diagnosis/flags.test.ts`(확장) · `lib/consult/draft.ts`(신규) · `lib/consult/draft.test.ts`(신규) · `components/diagnosis/diagnosis-flow.tsx`(확장, 1줄 + import) · `app/consult/page.tsx`(신규) · `app/consult/page.test.tsx`(신규) · `components/consult/consult-view.tsx`(신규, M3 placeholder) · `components/consult/consult-view.test.tsx`(신규) · `components/result/result-cta-bar.tsx`(확장, 4개 stub → 조건부 `<Link>`) · `components/result/result-cta-bar.test.tsx`(확장) · `app/result/page.tsx`(확장, `computeConsultFlags` 호출 + prop 전달) · `components/result/result-view.tsx`(확장, `shouldRenderConsult` prop 통과).
+
+### §E 5-section 증거 형식
+
+**Claim**: computeConsultFlags/lib/consult/draft.ts/app/consult 라우트 셸/02 CTA 4개 활성화가 TDD RED→GREEN으로 구현되었고, 02의 기존 회귀 스위트(SPEC-B2C-RESULT-001)를 깨뜨리지 않는다.
+
+**Evidence**:
+- `node_modules/.bin/tsc --noEmit` → 0 errors (전체 프로젝트).
+- `node_modules/.bin/eslint <변경 파일 전체>` → 0 warnings/errors.
+- `TURSO_DATABASE_URL="file:./.tmp/build-check.db" LLM_PROVIDER_MODE=deterministic node_modules/.bin/next build` → `✓ Compiled successfully`, 라우트 표에 `○ /consult` 등록 확인(`ƒ /api/consultations`·`○ /result`와 함께). 유일한 경고는 M2와 동일한 사전 존재 `instrumentation.ts` Edge Runtime 경고.
+- `node_modules/.bin/vitest run`(프로젝트 전체) → `Test Files 47 passed (47)` / `Tests 406 passed (406)` — M2 종료 시점(400 passed)에서 순증 6건(전부 `lib/diagnosis/flags.test.ts`의 `computeConsultFlags` 신규 케이스; `node` 환경이라 실제로 실행됨). jsdom/undici `Unhandled Error`(`webidl.util.markAsUncloneable is not a function`, Node v20.19.6 환경 결함)는 30건→33건으로 순증 3건 — 전부 이번에 신규 작성한 jsdom 테스트 파일(`lib/consult/draft.test.ts`·`app/consult/page.test.tsx`·`components/consult/consult-view.test.tsx`) 자신이 이미 사전 존재하던 동일 클래스 오류에 편입된 것이며, 새 오류 유형이 아니다(`components/result/result-cta-bar.test.tsx`·`lib/diagnosis/handoff.test.ts` 등 기존 30건과 동일한 스택 트레이스).
+
+**Baseline-attribution**: 이번 실행(이 트리), M2 HEAD `f03263c`에서 계속된 `feat/SPEC-B2C-CONSULT-001` 브랜치.
+
+**Gaps**: jsdom 환경 결함으로 `lib/consult/draft.test.ts`·`app/consult/page.test.tsx`·`components/consult/consult-view.test.tsx`·`components/result/result-cta-bar.test.tsx`(4개 신규 `shouldRenderConsult=true` 케이스 포함)는 이 샌드박스에서 vitest 워커 자체가 기동하지 못해 실제로 실행되지 못했다 — TDD RED 증거는 `tsc --noEmit`(prop 미존재 시 TS2322 타입 에러, 아래 RED 증거 참고)로 대체 확보했다. `computeConsultFlags`(environment: node)만 vitest로 실제 RED→GREEN 실행 확인됨.
+
+**Residual-risk**: draft.ts/consult-view.tsx/result-cta-bar.tsx의 jsdom 기반 assertion(Link href 값, draft 폴백 동작, handoff 배선)은 CI(Linux 환경, jsdom 정상 동작 확인됨 — M1 §E.2 기록)에서 최초로 실제 실행·검증된다. 이 세션은 코드 리뷰 + 타입체크 + lint + next build로 대체 검증했다.
+
+### RED 증거 (GREEN 이전 verbatim, TDD 필수)
+
+`computeConsultFlags`(`git stash`로 구현 임시 제거 후 재실행):
+
+```
+ ❯ lib/diagnosis/flags.test.ts (18 tests | 6 failed) 11ms
+     × 'false/false' 3ms
+     × 'true/false — 03 화면은 노출되지만 실제 제출은 불가' 1ms
+     × 'false/true — 정책은 준비됐지만 03 화면 자체가 비노출' 0ms
+     × 'true/true — 03 화면 노출 + 실제 제출 가능' 0ms
+     × "1"·"yes" 등 다른 truthy 문자열은 거짓으로 취급한다 0ms
+     × ENABLE_CONSULT_FLOW만으로 shouldRenderConsult가 결정된다(02 게이트를 참조하지 않는다) 0ms
+TypeError: computeConsultFlags is not a function
+```
+
+`shouldRenderConsult` prop(`result-cta-bar.tsx`/`result-view.tsx`/`app/result/page.tsx` 구현 전, `tsc --noEmit`):
+
+```
+components/result/result-cta-bar.test.tsx(158,36): error TS2322: Type '{ shouldRenderConsult: true; }' is not assignable to type 'IntrinsicAttributes'.
+  Property 'shouldRenderConsult' does not exist on type 'IntrinsicAttributes'.
+(총 6건, ResultTopBarCta/ResultDisabilitySectionCta/ResultFinalCta 3개 컴포넌트 × 2곳)
+```
+
+### AC 매트릭스(M3 범위 — AC-B2CCONSULT-003/005/006 전부, 004/006은 M4 범위 부분 제외)
+
+| AC | 상태 | 근거 |
+|---|---|---|
+| AC-B2CCONSULT-003 (4개 CTA → `/consult` 매핑) | PASS | `result-cta-bar.test.tsx` "shouldRenderConsult=true" describe 블록 5건 — 상단 `?channel=kakao`, 후유장해 쿼리 없음, 하단 카카오 `?channel=kakao`, 하단 전화 `?channel=phone` 전부 assert(jsdom 미실행, 코드 리뷰로 대체 검증 — 위 Gaps 참고) |
+| AC-B2CCONSULT-005 (`ENABLE_CONSULT_FLOW=false` → 기존 stub 유지) | PASS | 기존 `result-cta-bar.test.tsx` 최초 12개 테스트를 **한 글자도 수정하지 않음** — `shouldRenderConsult` 생략 시 기본값 `false`로 완전히 하위 호환됨이 그 자체로 증거. `computeConsultFlags` 매트릭스 테스트가 `ENABLE_CONSULT_FLOW=false`일 때 `shouldRenderConsult===false`임을 별도 확인 |
+| AC-B2CCONSULT-006 (draft sessionStorage 저장, 손상 시 빈 draft 폴백) | PASS(M3 범위 한정 — `draft.ts` 자체) | `draft.test.ts` 8개 케이스: write→read 왕복, 빈 스토리지, 손상 JSON, 스키마 불일치, 알 수 없는 키, clear, SSR 가드. "필수 동의 체크 상태는 저장하지 않는다"는 `ConsultationDraft` 타입 자체에 그 필드가 없음(M1에서 이미 계약됨)으로 구조적으로 보장. **폼 마운트 시 실제 렌더링 통합**은 M4 범위 |
+
+### 회귀 확인 — SPEC-B2C-RESULT-001 OFF-branch
+
+`result-cta-bar.test.tsx`의 기존 12개 테스트(`aria-disabled="true"`, 클릭/Enter no-op 안내, `total` 표시, `aria-label`, sticky 클래스, 면책 문구/푸터)는 **1바이트도 수정되지 않았다** — 새 `shouldRenderConsult` prop이 옵셔널 + 기본값 `false`이므로 기존 호출부(`<ResultFinalCta total={5} />` 등, prop 생략)는 정확히 이전과 동일한 분기를 탄다. `result-view.tsx`도 3개 CTA 호출부에 prop 하나씩 추가한 것 외 다른 로직은 변경하지 않았다(diff 확인).
+
+### 자기검증 (§E 5-section 증거 형식) — E4/E6
+
+- **E4**: `grep -rn 'AskUserQuestion' lib/diagnosis/flags.ts components/result/ lib/consult/draft.ts components/diagnosis/diagnosis-flow.tsx app/consult/ components/consult/ app/result/page.tsx` → 0건(exit 1).
+- **E6**: 커밋/푸시는 이 항목 이후 수행 — 아래 커밋 SHA 참고.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1 완료, M2 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_

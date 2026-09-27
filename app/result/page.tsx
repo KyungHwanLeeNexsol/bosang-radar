@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { computeDiagnosisFlags } from "@/lib/diagnosis/flags";
+import { computeConsultFlags, computeDiagnosisFlags } from "@/lib/diagnosis/flags";
 import { ResultSkeleton } from "@/components/result/result-skeleton";
 import { ResultView } from "@/components/result/result-view";
 
@@ -37,6 +37,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function ResultPage() {
   const { reviewEnabled, shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
+  // SPEC-B2C-CONSULT-001 M3 (design.md §3/§4, REQ-B2CCONSULT-005) — 02
+  // 게이트(shouldRenderDiagnosis)와 무관한 별도 판정이다. shouldRenderConsult가
+  // 거짓이어도(02 게이트와 독립) 이 페이지 자체는 정상 렌더링되며, 4개 CTA만
+  // 기존 "준비 중" stub으로 남는다 — <ResultView>에 prop으로만 전달할 뿐, 이
+  // 게이트 계산 로직을 result-view.tsx에서 다시 계산하지 않는다.
+  const { shouldRenderConsult } = computeConsultFlags(process.env);
 
   if (!shouldRenderDiagnosis) {
     return (
@@ -51,7 +57,7 @@ export default function ResultPage() {
 
   return (
     <Suspense fallback={<ResultSkeleton />}>
-      <ResultView enableDevFixture={reviewEnabled} />
+      <ResultView enableDevFixture={reviewEnabled} shouldRenderConsult={shouldRenderConsult} />
     </Suspense>
   );
 }

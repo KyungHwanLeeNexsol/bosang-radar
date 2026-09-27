@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { MessageCircle, Phone } from "lucide-react";
 
 import { ResultDisclaimer } from "./result-disclaimer";
@@ -93,8 +94,21 @@ function usePreparingButton(): PreparingButtonRenderProps {
   };
 }
 
+// SPEC-B2C-CONSULT-001 M3 (design.md §3, REQ-B2CCONSULT-003/004/005) — 3개
+// CTA 컴포넌트가 공유하는 활성화 prop. app/result/page.tsx가
+// computeConsultFlags(process.env).shouldRenderConsult를 계산해
+// result-view.tsx를 거쳐 여기까지 prop으로 전달한다 — 이 파일은
+// "use client"이므로 process.env를 직접 읽지 않는다(diagnosis-flow.tsx가
+// enableDevStates를 prop으로만 받는 것과 동일한 원칙). 기본값 false —
+// 이 prop을 생략하는 기존 SPEC-B2C-RESULT-001 테스트 전부가 동일 동작을
+// 유지한다(REQ-B2CCONSULT-005 "02 게이트와 무관하게 이 플래그 단독으로
+// CTA 활성화 여부를 결정한다").
+interface ConsultCtaProps {
+  shouldRenderConsult?: boolean;
+}
+
 /** 상단 탑바 CTA — "카카오톡 상담"(MIGRATION-PLAN.md §4). */
-export function ResultTopBarCta() {
+export function ResultTopBarCta({ shouldRenderConsult = false }: ConsultCtaProps = {}) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
@@ -110,32 +124,47 @@ export function ResultTopBarCta() {
       </div>
 
       <div className="relative flex items-center">
-        <button
-          {...buttonProps}
-          aria-label="카카오톡 상담"
-          data-testid="result-cta-top"
-          className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1 text-label-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
-        >
-          <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
-          <span className="hidden md:inline">카카오톡 상담</span>
-        </button>
-        {/* SPEC-B2C-RESULT-001 D3(2차) — absolute로 빼서 메시지 유무와 무관하게
-            탑바 높이(=design.md 02 목업 기준 56px)에 전혀 영향을 주지 않는다. */}
-        <span
-          role="status"
-          aria-live="polite"
-          data-testid="result-cta-top-notice"
-          className="absolute right-0 top-full mt-1 whitespace-nowrap text-label-s text-bora-warn"
-        >
-          {message ?? ""}
-        </span>
+        {shouldRenderConsult ? (
+          <Link
+            href="/consult?channel=kakao"
+            aria-label="카카오톡 상담"
+            data-testid="result-cta-top"
+            className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1 text-label-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
+          >
+            <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
+            <span className="hidden md:inline">카카오톡 상담</span>
+          </Link>
+        ) : (
+          <>
+            <button
+              {...buttonProps}
+              aria-label="카카오톡 상담"
+              data-testid="result-cta-top"
+              className="flex items-center gap-1.5 rounded-full border border-app-line px-3.5 py-1 text-label-s font-medium text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:px-4"
+            >
+              <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
+              <span className="hidden md:inline">카카오톡 상담</span>
+            </button>
+            {/* SPEC-B2C-RESULT-001 D3(2차) — absolute로 빼서 메시지 유무와
+                무관하게 탑바 높이(=design.md 02 목업 기준 56px)에 전혀
+                영향을 주지 않는다. */}
+            <span
+              role="status"
+              aria-live="polite"
+              data-testid="result-cta-top-notice"
+              className="absolute right-0 top-full mt-1 whitespace-nowrap text-label-s text-bora-warn"
+            >
+              {message ?? ""}
+            </span>
+          </>
+        )}
       </div>
     </header>
   );
 }
 
 /** 후유장해 섹션 CTA — "내 장해율이 얼마나 나올지 궁금하신가요?"(MIGRATION-PLAN.md §4). */
-export function ResultDisabilitySectionCta() {
+export function ResultDisabilitySectionCta({ shouldRenderConsult = false }: ConsultCtaProps = {}) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
@@ -146,21 +175,37 @@ export function ResultDisabilitySectionCta() {
       <p className="text-body-s font-semibold text-bora-ink">
         내 장해율이 얼마나 나올지 궁금하신가요?
       </p>
-      <button
-        {...buttonProps}
-        data-testid="result-cta-disability-button"
-        className="mt-2 inline-flex items-center rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white shadow-[0_2px_8px_-2px_rgba(108,71,255,0.55)] hover:bg-bora-accent-deep"
-      >
-        상담 신청하기
-      </button>
-      <span
-        role="status"
-        aria-live="polite"
-        data-testid="result-cta-disability-notice"
-        className={noticeClassName(message, "mt-1 text-label-s text-bora-warn")}
-      >
-        {message ?? ""}
-      </span>
+      {shouldRenderConsult ? (
+        // SPEC-B2C-CONSULT-001 M3 (design.md §3) — 후유장해 섹션은 특정
+        // 채널을 강요하지 않는 중립 진입점이므로 쿼리 파라미터 없이
+        // /consult로 이동한다(상단/하단 CTA와 달리 ?channel=을 붙이지
+        // 않는다).
+        <Link
+          href="/consult"
+          data-testid="result-cta-disability-button"
+          className="mt-2 inline-flex items-center rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white shadow-[0_2px_8px_-2px_rgba(108,71,255,0.55)] hover:bg-bora-accent-deep"
+        >
+          상담 신청하기
+        </Link>
+      ) : (
+        <>
+          <button
+            {...buttonProps}
+            data-testid="result-cta-disability-button"
+            className="mt-2 inline-flex items-center rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white shadow-[0_2px_8px_-2px_rgba(108,71,255,0.55)] hover:bg-bora-accent-deep"
+          >
+            상담 신청하기
+          </button>
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="result-cta-disability-notice"
+            className={noticeClassName(message, "mt-1 text-label-s text-bora-warn")}
+          >
+            {message ?? ""}
+          </span>
+        </>
+      )}
     </div>
   );
 }
@@ -170,7 +215,10 @@ export function ResultDisabilitySectionCta() {
  * 숫자(디자인 목업의 11)를 하드코딩하지 않고 result-view.tsx가 넘겨주는
  * aggregate.total을 그대로 사용한다(REQ-B2CRESULT-002와 동일한 원칙).
  */
-export function ResultFinalCta({ total }: { total: number }) {
+export function ResultFinalCta({
+  total,
+  shouldRenderConsult = false,
+}: ConsultCtaProps & { total: number }) {
   const { message, buttonProps } = usePreparingButton();
 
   return (
@@ -183,31 +231,55 @@ export function ResultFinalCta({ total }: { total: number }) {
       >
         <p className="text-body font-semibold text-white">{total}가지를 전부 청구하시겠어요?</p>
         <div className="flex items-center gap-2">
-          <button
-            {...buttonProps}
-            data-testid="result-cta-final-kakao"
-            className="flex items-center gap-1.5 rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
-          >
-            <MessageCircle className="size-4" aria-hidden="true" />
-            카카오톡으로 상담
-          </button>
-          <button
-            {...buttonProps}
-            data-testid="result-cta-final-phone"
-            className="flex items-center gap-1.5 rounded-full border border-app-sidebar-line px-4 py-2 text-body-s font-semibold text-white"
-          >
-            <Phone className="size-4" aria-hidden="true" />
-            전화 상담
-          </button>
+          {shouldRenderConsult ? (
+            <Link
+              href="/consult?channel=kakao"
+              data-testid="result-cta-final-kakao"
+              className="flex items-center gap-1.5 rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
+            >
+              <MessageCircle className="size-4" aria-hidden="true" />
+              카카오톡으로 상담
+            </Link>
+          ) : (
+            <button
+              {...buttonProps}
+              data-testid="result-cta-final-kakao"
+              className="flex items-center gap-1.5 rounded-full bg-bora-accent px-4 py-2 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
+            >
+              <MessageCircle className="size-4" aria-hidden="true" />
+              카카오톡으로 상담
+            </button>
+          )}
+          {shouldRenderConsult ? (
+            <Link
+              href="/consult?channel=phone"
+              data-testid="result-cta-final-phone"
+              className="flex items-center gap-1.5 rounded-full border border-app-sidebar-line px-4 py-2 text-body-s font-semibold text-white"
+            >
+              <Phone className="size-4" aria-hidden="true" />
+              전화 상담
+            </Link>
+          ) : (
+            <button
+              {...buttonProps}
+              data-testid="result-cta-final-phone"
+              className="flex items-center gap-1.5 rounded-full border border-app-sidebar-line px-4 py-2 text-body-s font-semibold text-white"
+            >
+              <Phone className="size-4" aria-hidden="true" />
+              전화 상담
+            </button>
+          )}
         </div>
-        <span
-          role="status"
-          aria-live="polite"
-          data-testid="result-cta-final-notice"
-          className={noticeClassName(message, "text-label-s text-amber-200")}
-        >
-          {message ?? ""}
-        </span>
+        {shouldRenderConsult ? null : (
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="result-cta-final-notice"
+            className={noticeClassName(message, "text-label-s text-amber-200")}
+          >
+            {message ?? ""}
+          </span>
+        )}
       </div>
     </>
   );
