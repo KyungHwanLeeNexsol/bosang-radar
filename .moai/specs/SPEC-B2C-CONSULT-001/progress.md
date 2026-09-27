@@ -2,6 +2,22 @@
 
 ## §E.1 Plan-phase Audit-Ready Signal
 
+### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
+
+- `plan_status: audit-ready`
+- 감사 대상: `b0b875ee9b869227528b0a03607d4b1f8d4131e5`
+- 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`
+- 감사 보고서 커밋: `5621a69`
+- 최종 상태 전환 커밋: `c427cf0`
+- Verdict: **PASS**, 종합 점수 **0.97**(Tier L 임계값 0.85 상회)
+- D17(`RATE_LIMIT_HMAC_SECRET` 부재 응답과 서버 처리 순서 우선순위 충돌) 해소 확인
+- `SPEC-B2C-CONSULT-001-review-3.md`/`-review-4.md`/`-review-5.md` 모두 `git ls-tree -r HEAD`로 Git 트리 존재 확인됨
+- review-3.md/review-4.md는 D17 세션(이번 문서 정리 포함) 동안 수정되지 않음
+
+아래는 이 canonical 상태에 이르기까지의 전체 상태 전환 이력(iteration 1부터 iteration 5까지)이다 — 각 시점의 선언은 그 당시 기준으로 기록되어 있으며, 이후 절이 이를 정정·보완한다. 최신 진실은 위 canonical 상태이며, 아래 이력은 감사 추적을 위해 그대로 보존한다.
+
+### 상태 전환 이력 (Historical Record)
+
 - `plan_status: amended-pending-reaudit` — 독립 plan-auditor의 세 번째 재검증(iteration 3, HEAD `f180834c4d0c905c93df79e9bdd3a8f9b17b23b7` — D11/D13/D14 수정 커밋 기준, 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사 — diff-only 아님)이 **PASS**를 반환했다(종합 점수 **0.92**, Tier L 임계값 0.85 상회). 이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-3.md`에 실제로 영속 저장되어 있고, **이 SPEC의 감사 이력 중 최초로 `git ls-tree -r HEAD`로 Git 트리에 실제 커밋되어 있음이 감사자 자신에 의해 확인되었다**(로컬 디스크에만 존재한 이전 iteration 3 주장과 다름 — 아래 "iteration 3" 주장 무효화 절 참고). 이 재검증은 D11/D13/D14 3건이 모두 해소되었음을 확인했고, 그 과정에서 별도의 신규 결함 D-NEW-1(경미, `design.md` §9.1 표의 §8.1 단계 번호 참조 2건이 D11 재배열 이후 갱신되지 않은 상태로 남아 있던 문제)을 발견했다 — 감사자 자신의 판정으로 이 D-NEW-1은 **non-blocking**이며(순수 2줄 텍스트 정정, 동작·아키텍처 영향 없음, `§8.1` 자체의 번호 목록은 이미 정확했음) 이 PASS 판정을 저지하지 않는다. D-NEW-1은 이 상태 전환 직전 커밋에서 이미 수정되었다(`design.md` §9.1 두 행의 `§8.1` 참조를 `9번`, `8번/10번`으로 정정). D12(별도 세션의 보고서 영속화 결함)는 이번 세션이 review-3.md를 실제로 git 커밋함으로써 해소된 것으로 감사자가 별도로 확인했다. 이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 전환했었다 — plan-phase의 최종 게이트를 통과했다고 판단했었다.
 - `plan_complete_at: 2026-09-25T14:55:32Z`
 - **D15/D16 신규 blocking 결함 발견으로 재감사 대기 전환(이번 세션)**: 별도의 독립 검토가 D15(이 문서가 review-1.md/review-2.md를 실제로 Git 트리에 존재하는 보고서인 것처럼 인용한 stale/부정확 서술 — 실제로 커밋되어 있는 것은 review-3.md뿐)와 D16(`RATE_LIMIT_HMAC_SECRET` 검증 계약이 "확정"과 "run-phase 결정 대기"로 동시에 서술된 내부 모순) 2건의 신규 blocking 결함을 발견해, `plan_status`를 다시 `amended-pending-reaudit`로 되돌린다 — 두 결함 수정 및 plan-auditor의 새로운 전체 재감사 PASS 전까지 `audit-ready`로 복귀하지 않는다.

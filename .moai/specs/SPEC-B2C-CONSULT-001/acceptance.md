@@ -213,6 +213,11 @@ Given 활성 동의 정책이 없거나 `CONSULT_POLICY_READY`가 거짓이고, 
 When `POST /api/consultations`를 호출하면
 Then 정책 검증이 rate limit 판정보다 먼저 실행되므로 HTTP 503과 `{status:"error", code:"policy_unavailable"}`가 반환된다.
 
+추가 시나리오 — 동의 버전 불일치 + 시크릿 부재 (우선순위 검증, D18):
+Given 활성 동의 정책은 존재하지만 요청의 `acknowledgedConsentVersion`이 활성 정책 버전과 다르고, `RATE_LIMIT_HMAC_SECRET`도 설정되지 않았을 때
+When `POST /api/consultations`를 호출하면
+Then rate limit 판정보다 동의 버전 검증이 먼저 종료되므로 HTTP 409와 `{status:"error", code:"consent_version_mismatch"}`가 반환되며 어떤 레코드도 생성되지 않는다.
+
 추가 시나리오 — 기존 동일 idempotency 요청 + 시크릿 부재 (우선순위 검증, D17):
 Given 활성 동의 정책이 존재하고, 동일 `idempotencyKey`로 이미 존재하는 레코드가 있으며 이번 요청의 요청 지문이 그 레코드와 일치하고, `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
 When `POST /api/consultations`를 호출하면
