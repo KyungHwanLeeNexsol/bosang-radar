@@ -1,6 +1,23 @@
 # 보상레이더 (bosang-radar)
 
-> 최종 수정: 2026-09-25 (SPEC-B2C-RESULT-001 sync-phase 종료 — PR #19
+> 최종 수정: 2026-09-28 (SPEC-B2C-CONSULT-001 M1-M7 — **③ 상담 신청
+> 및 접수 결과(03)** 화면 9개(Desktop 03/03-A2/03-B/03-C/03-D + Mobile
+> M03/M03-B/M03-C/M03-D)가 `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`
+> 기능 플래그 뒤에 구현 완료됐다. `app/consult/`·
+> `app/api/consultations/`·`components/consult/`·`lib/consult/`가
+> 신설됐고, 카톡/전화 채널 선택 → 상담 동의 → 실제
+> `POST /api/consultations` 제출 → 접수 성공/중복/실패 분기까지 전체
+> 흐름이 Playwright e2e로 검증됐다. M7 시각 검증
+> (`scripts/visual-verify.ts`)에서 `/consult` 계열이 01/02와 달리
+> 사이트 헤더(BORA 로고/네비)를 렌더링하지 않고 03/03-A2에 디자인
+> 목업의 히어로 타이틀·설명 2줄이 빠져 있다는 디자인 정합성 결함을
+> 발견했다 — 상태·문구·동작 관련 semantic check 95건은 전건 통과했으나,
+> 9화면 전부가 시각 회귀 허용 오차를 초과해 FAIL 상태로 남으며 후속
+> 작업에서 고친다. 같은 검증에서 SPEC-B2C-RESULT-001의 02/M02 계열
+> 5화면도 이 SPEC의 M3(02→03 CTA 활성화) 병합 이후 `designTopHint`
+> 보정값이 stale 상태였다는 사실이 함께 드러났다 — 이는 02 자체의
+> 후속 추적 항목이다(상세: §Roadmap A). 이전 개정: 2026-09-25
+> (SPEC-B2C-RESULT-001 sync-phase 종료 — PR #19
 > squash 병합(main `e0b5bab`)으로 **② 보상 진단 결과(02)** 의
 > plan/run/sync 3단계가 모두 완료됐다(`status: completed`). 02 화면,
 > 01→02 sessionStorage 인계, strict Zod `DiagnosisResult` 계약,
@@ -51,10 +68,13 @@
 > SPEC-B2C-FOUNDATION-001에서 이전 B2B 전용 코드(로그인, 사건 리서치
 > 파이프라인 등)를 삭제하고 B2C 방향으로 전환했으며, 아래 B2C 흐름 중
 > **① 질문 입력 및 진단**(01/01-A2/01-B/01-C/01-D/01-E, Desktop+Mobile)은
-> SPEC-B2C-DIAGNOSIS-001에서 기능 플래그 뒤에 구현이 완료됐다(`status:
-> completed`). **② 보상 진단 결과**·**③ 상담 신청**은 아직 디자인
-> (`design/`)만 확정됐을 뿐 코드 구현은 없다 — 다음 SPEC(02 보상 진단
-> 결과)이 §Roadmap A에서 다룬다.
+> SPEC-B2C-DIAGNOSIS-001에서, **② 보상 진단 결과**(02, Desktop 전체
+> 펼침+Mobile 4탭)는 SPEC-B2C-RESULT-001에서 각각 기능 플래그 뒤에
+> 구현이 완료됐다(`status: completed`). **③ 상담 신청 및 접수 결과**
+> (03/03-A2/03-B/03-C/03-D, Desktop+Mobile)도 SPEC-B2C-CONSULT-001
+> M1-M7에서 구현이 완료됐으나, `/consult` 계열에 사이트 헤더·히어로
+> 타이틀이 빠져 있는 디자인 정합성 결함이 남아 있다 — §Roadmap A에서
+> 다룬다.
 
 ## 타깃 사용자
 
@@ -176,9 +196,10 @@ B2C 대상 서비스이므로 단정형 금액 제시는 표시광고법·보험
 
 - B2B 전용 코드(로그인, `app/cases/*` 등)는 **삭제 완료**됐다 — 공존이
   아니라 대체다.
-- B2C 화면 중 **① 질문 입력 및 진단**은 SPEC-B2C-DIAGNOSIS-001에서
-  기능 플래그 뒤에 **구현 완료**됐다. **② 보상 진단 결과**·**③ 상담
-  신청**은 아직 디자인(`design/`)만 확정된 상태다.
+- B2C 화면 중 **① 질문 입력 및 진단**은 SPEC-B2C-DIAGNOSIS-001에서,
+  **② 보상 진단 결과**는 SPEC-B2C-RESULT-001에서, **③ 상담 신청 및
+  접수 결과**는 SPEC-B2C-CONSULT-001 M1-M7에서 각각 기능 플래그 뒤에
+  **구현 완료**됐다.
 - 코드 수준 구조(라우트 분리, 컴포넌트 재사용 여부, DB 스키마 공유
   여부 등)의 상세 스케치는 `structure.md` § 현재 vs 목표 구조를
   참고한다.
@@ -252,19 +273,33 @@ B2C 대상 서비스이므로 단정형 금액 제시는 표시광고법·보험
 대응 화면은 아직 디자인되지 않았다**(Desktop `01-D`/`01-E`만 존재).
 ① 질문 입력 및 진단(01 흐름, Desktop+Mobile)은 SPEC-B2C-DIAGNOSIS-001에서,
 ② 보상 진단 결과(02 흐름, Desktop 전체 펼침 + Mobile 4탭)는
-SPEC-B2C-RESULT-001에서 각각 기능 플래그(`ENABLE_DIAGNOSIS_FLOW`/
-`DIAGNOSIS_ENGINE_READY`) 뒤에 구현이 완료됐다 — 02는 골절 사례 1종의
-review 전용 fixture(`buildFractureResult`)로만 채워지며 실제 담보 매칭
-엔진은 여전히 미연결이다. 아래는 그중 **아직 디자인·구현 모두 안 된
-것**만 남긴다. 이번 라운드에서 SPEC 문서를 생성하지 않는다:
+SPEC-B2C-RESULT-001에서, ③ 상담 신청 및 접수 결과(03 흐름,
+Desktop+Mobile 9화면)는 SPEC-B2C-CONSULT-001 M1-M7에서 각각 기능
+플래그(`ENABLE_DIAGNOSIS_FLOW`/`DIAGNOSIS_ENGINE_READY`,
+`ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`) 뒤에 구현이 완료됐다 —
+02는 골절 사례 1종의 review 전용 fixture(`buildFractureResult`)로만
+채워지며 실제 담보 매칭 엔진은 여전히 미연결이고, 03은 실제
+`POST /api/consultations` 제출로 접수 성공/중복/실패까지 전체 흐름이
+동작하지만 `/consult` 계열에 사이트 헤더·히어로 타이틀이 빠져 있는
+디자인 정합성 결함이 M7 시각 검증에서 발견돼 남아 있다(아래 항목
+참고). 아래는 **아직 디자인·구현 모두 안 된 것**과 **구현은 됐지만
+알려진 결함이 남은 것**을 함께 남긴다. 이번 라운드에서 SPEC 문서를
+생성하지 않는다:
 
 - **02 담보 데이터 확장** — 골절 외 암·뇌혈관·심장·디스크 등 케이스별
   담보 세트 데이터 설계 (02 UI·데이터 계약은 구현 완료됐으나, 채워 넣는
   실데이터는 여전히 골절 사례 1종뿐).
-- **③ 상담 신청 흐름 실제 구현** — 03/03-A2/03-B/03-C/03-D(Desktop+Mobile)
-  디자인만 존재하는 화면 전체를 실제 라우트/컴포넌트로 구현 (이름·연락처
-  수집 API + PII 예외 스키마 신설 포함, 담보 매칭 로직 방식은 미결정,
-  위 § 참고).
+- **`/consult` 계열 사이트 헤더·히어로 타이틀 결함 수정** — 03(상담
+  신청) 흐름 9화면 전체가 01/02와 달리 사이트 헤더(BORA 로고/네비)를
+  렌더링하지 않고, 03/03-A2는 디자인 목업의 히어로 타이틀·설명 2줄도
+  누락됐다. SPEC-B2C-CONSULT-001 M7 시각 검증(`scripts/visual-verify.ts`)
+  에서 발견된 디자인 정합성 결함으로, `components/consult/*.tsx` 수정이
+  필요해 이번 SPEC 범위 밖으로 남겨졌다.
+- **02/M02 계열 `designTopHint` 재보정 (SPEC-B2C-RESULT-001 추적 항목)**
+  — `ENABLE_CONSULT_FLOW=true` 환경에서 02/M02 5화면이 이미 CTA 활성
+  렌더로 나오고 있었으나 기존 시각 검증 기준값은 스텁 렌더 기준으로
+  고정돼 있었다는 사실이 SPEC-B2C-CONSULT-001 M7에서 함께 드러났다 —
+  03이 아니라 02 자체의 후속 추적 항목이다.
 - **모바일 결과없음/분석오류 화면 디자인 없음** — Desktop의
   `01-D`·`01-E`에 대응하는 모바일 화면이 아직 디자인되지 않음.
 - **DEV ONLY 정책 문구 확정** — `design/internal/`의 동의 상세 자리표시자
