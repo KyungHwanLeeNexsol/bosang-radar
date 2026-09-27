@@ -72,6 +72,21 @@
 
 이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 전환한다. D1-D10/D11-D14 수정 요약 표와 위 "감사 이력 정정" 번호 목록은 이번 전환으로 다시 쓰지 않는다 — 이 절은 그 목록들에 이어 붙는 새 기록일 뿐이다.
 
+### iteration 4 재검증 완료 — `plan_status: audit-ready` 재확정 (이번 세션)
+
+위 "D15/D16 신규 blocking 결함 발견으로 재감사 대기 전환"(위 참고) 이후, D15·D16 두 결함을 모두 수정했고(커밋 `e232ee7b3b36457f1f20aef026787ee2d272abcf`), 이어서 독립 plan-auditor가 이 커밋을 대상으로 네 번째 재검증(iteration 4)을 수행했다. 6개 plan-phase 산출물 전체를 처음부터 다시 읽는 완전 재감사(diff-only 아님)이며, **PASS**(종합 점수 **0.96**, Tier L 임계값 0.85 상회)를 반환했다.
+
+이 재검증 보고서는 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-4.md`에 실제로 영속 저장되었고 Git 트리에 실제로 커밋되어 있음이 감사자 자신에 의해 `git ls-tree -r HEAD .moai/reports/plan-audit`로 확인되었다 — 확인 결과 `review-3.md`(iteration 3의 증거)와 `review-4.md`(이번 iteration 4의 증거) 둘 다 트리에 존재하며, `review-1.md`·`review-2.md`는 D15 정정이 이미 확립한 대로 여전히 트리에 부재함이 함께 재확인되었다.
+
+이 재검증은 D15(존재하지 않는 review-1.md/review-2.md를 실제 영속 보고서인 것처럼 인용한 서술)와 D16(`RATE_LIMIT_HMAC_SECRET` 검증 계약이 "확정"과 "run-phase 결정 대기"로 동시에 서술된 내부 모순) 2건이 모두 해소되었음을 확인했다.
+
+이 과정에서 감사자는 별도로 non-blocking 신규 결함 2건을 발견했으며, 둘 다 즉시 조치가 필요하지 않다고 명시적으로 판정했다:
+
+- **D-NEW-2**: `review-3.md`(이전에 이미 커밋된 감사 보고서)가 D15 수정의 일환으로 사후에 캐비앗(caveat) 정정을 받았다 — "감사 보고서는 불변의 이력"이라는 규범에 대한 경미한 위반이지만, 그 수정 자체는 정직했고 명확히 라벨링되었으며 보고서 내부의 잘못된 영속성 주장을 바로잡는 데 필요했다. 추가 조치 불필요.
+- **D-NEW-3**: `spec.md` 프런트매터의 `updated:` 날짜(`2026-09-25`)가 이 SPEC의 실제 최종 실질 수정 시점 대비 오래되었다 — 장식적(cosmetic) 문제일 뿐 스키마 유효성에 영향이 없으며, `spec.md`가 다음에 실질적으로 수정될 때까지 정정을 보류한다(감사자 자신의 권고에 따라 이번 조치에서는 수정하지 않음).
+
+이로써 `plan_status`를 `amended-pending-reaudit`에서 `audit-ready`로 재확정한다.
+
 ## §E.2 Run-phase Evidence
 
 _<run-phase 대기 중>_
