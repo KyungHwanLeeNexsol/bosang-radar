@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { ZodError } from "zod";
 
 import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import { computeAggregate } from "@/lib/diagnosis/aggregate";
@@ -9,6 +10,7 @@ import {
   readConsultationDraft,
   writeConsultationDraft,
 } from "@/lib/consult/draft";
+import { ConsultationRequestSchema } from "@/lib/consult/schema";
 import { CONSULTATION_DRAFT_VERSION } from "@/lib/consult/types";
 import type {
   ConsultationChannel,
@@ -88,6 +90,62 @@ function parseSubmitResult(data: unknown): ConsultationSubmitResult | null {
   return null;
 }
 
+interface ConsultViewFormErrors {
+  name?: string;
+  contact?: string;
+  preferredCallTime?: string;
+}
+
+// M6 (design.md §11, AC-B2CCONSULT-024) — 첫 오류 필드로 포커스 이동 순서.
+// consult-form.tsx가 고정 id(consult-{field}-input)로 렌더링하는 입력
+// 요소를 그대로 찾는다 — ref 배선을 새로 추가하지 않는다(Enforce
+// Simplicity, 기존 필드 id는 M4부터 이미 안정적이다).
+const FIELD_FOCUS_ORDER: Array<keyof ConsultViewFormErrors> = ["name", "contact", "preferredCallTime"];
+const FIELD_INPUT_ID: Record<keyof ConsultViewFormErrors, string> = {
+  name: "consult-name-input",
+  contact: "consult-contact-input",
+  preferredCallTime: "consult-preferred-call-time-input",
+};
+
+// zod 기본 메시지(예: name의 min(1))는 영문이라 이 화면의 한국어 UI와
+// 어긋난다. schema.ts의 .refine이 만든 커스텀 메시지(code === "custom")는
+// 이미 한국어이므로 그대로 쓰고, 그 외(too_small/too_big 등 기본 타입
+// 검증)는 이 화면 전용 한국어 대체 문구를 쓴다 — 검증 규칙 자체는 여전히
+// ConsultationRequestSchema 그대로이며(제약 D — 서버와 동일 규칙), 문구만
+// 다듬는다.
+const FIELD_FALLBACK_MESSAGE: Record<"name" | "contact", string> = {
+  name: "이름을 입력해 주세요",
+  contact: "연락처를 입력해 주세요",
+};
+
+function extractFieldErrors(error: ZodError): ConsultViewFormErrors {
+  const errors: ConsultViewFormErrors = {};
+  for (const issue of error.issues) {
+    const rawField = issue.path[0];
+    if (rawField !== "name" && rawField !== "contact" && rawField !== "preferredCallTime") {
+      continue;
+    }
+    const field = rawField as "name" | "contact" | "preferredCallTime";
+    if (errors[field]) {
+      continue;
+    }
+    errors[field] =
+      issue.code === "custom" || field === "preferredCallTime"
+        ? issue.message
+        : FIELD_FALLBACK_MESSAGE[field];
+  }
+  return errors;
+}
+
+function focusFirstInvalidField(errors: ConsultViewFormErrors): void {
+  for (const key of FIELD_FOCUS_ORDER) {
+    if (errors[key]) {
+      document.getElementById(FIELD_INPUT_ID[key])?.focus();
+      return;
+    }
+  }
+}
+
 type ConsultSubmitView =
   | { kind: "form" }
   | { kind: "success"; result: Extract<ConsultationSubmitResult, { status: "success" }> }
@@ -127,6 +185,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
 
   const [submitView, setSubmitView] = React.useState<ConsultSubmitView>({ kind: "form" });
   const [isRetrying, setIsRetrying] = React.useState(false);
+  const [formErrors, setFormErrors] = React.useState<ConsultViewFormErrors>({});
 
   const persistDraft = React.useCallback((next: ConsultFormState) => {
     writeConsultationDraft({
@@ -203,6 +262,19 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
       acknowledgedConsentVersion: CONSENT_POLICY_VERSION,
       idempotencyKey: formState.idempotencyKey,
     };
+
+    // M6 (design.md §11, AC-B2CCONSULT-024) — 서버로 보내기 전에 동일한
+    // ConsultationRequestSchema로 클라이언트에서도 검증한다. 실패하면
+    // fetch를 호출하지 않고 오류 요약 + 필드별 오류를 표시한 뒤 첫 오류
+    // 필드로 포커스를 이동시킨다.
+    const validation = ConsultationRequestSchema.safeParse(request);
+    if (!validation.success) {
+      const fieldErrors = extractFieldErrors(validation.error);
+      setFormErrors(fieldErrors);
+      focusFirstInvalidField(fieldErrors);
+      return;
+    }
+    setFormErrors({});
 
     let result: ConsultationSubmitResult | null;
     try {
@@ -304,6 +376,24 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
 
       <ConsultChannelSelector value={formState.channel} onChange={handleChannelChange} />
 
+      {Object.keys(formErrors).length > 0 ? (
+        // M6 (design.md §11 "오류 요약") — role="alert"는 이 프로젝트의
+        // 기존 오류 표기 관례(consult-form.tsx FieldError, consult-
+        // failure.tsx 등)를 그대로 따른다.
+        <div
+          data-testid="consult-error-summary"
+          role="alert"
+          className="rounded-[12px] border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <p className="text-sm font-semibold text-destructive">입력한 내용을 다시 확인해 주세요</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-meta text-destructive">
+            {FIELD_FOCUS_ORDER.filter((key) => formErrors[key]).map((key) => (
+              <li key={key}>{formErrors[key]}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <ConsultForm
         channel={formState.channel}
         name={formState.name}
@@ -315,6 +405,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
         preferredCallTime={formState.preferredCallTime}
         onPreferredCallTimeChange={(value) => updateField("preferredCallTime", value)}
         onPreferredCallTimeBlur={handleBlurPersist}
+        errors={formErrors}
       />
 
       <ConsultConsentGroup

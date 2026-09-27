@@ -104,4 +104,50 @@ describe("components/consult/ConsultSubmitBar", () => {
 
     expect(findButton(container)?.getAttribute("aria-busy")).not.toBe("true");
   });
+
+  // SPEC-B2C-CONSULT-001 M6 (design.md §11 "모바일 하단 CTA sticky") —
+  // result-cta-final(components/result/result-cta-bar.tsx)과 동일한
+  // sticky bottom-0 ... md:static 패턴을 재사용한다.
+  it("컨테이너가 모바일에서 sticky bottom-0이고 데스크톱(md)에서 static이다", () => {
+    act(() => {
+      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={vi.fn()} />);
+    });
+
+    const bar = container.querySelector('[data-testid="consult-submit-bar"]');
+    expect(bar?.className).toContain("sticky");
+    expect(bar?.className).toContain("bottom-0");
+    expect(bar?.className).toContain("md:static");
+  });
+
+  // design.md §11 "aria-live=polite로 상태 안내" — 제출 중 상태를
+  // 스크린리더에 안내하는 role=status aria-live=polite 영역.
+  it("제출 중일 때 role=status aria-live=polite 영역에 안내 문구가 표시된다", async () => {
+    let resolveSubmit: () => void = () => {};
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        })
+    );
+
+    act(() => {
+      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={onSubmit} />);
+    });
+
+    const statusRegion = container.querySelector('[data-testid="consult-submit-status"]');
+    expect(statusRegion?.getAttribute("role")).toBe("status");
+    expect(statusRegion?.getAttribute("aria-live")).toBe("polite");
+    expect(statusRegion?.textContent).toBe("");
+
+    act(() => {
+      findButton(container)?.click();
+    });
+
+    expect(container.querySelector('[data-testid="consult-submit-status"]')?.textContent).not.toBe("");
+
+    await act(async () => {
+      resolveSubmit();
+      await Promise.resolve();
+    });
+  });
 });

@@ -333,3 +333,146 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     expect(secondBody.idempotencyKey).toBe(firstBody.idempotencyKey);
   });
 });
+
+// SPEC-B2C-CONSULT-001 M6 (design.md §11, plan.md §F item 6; acceptance
+// AC-B2CCONSULT-024) — 제출 전 클라이언트 사이드 검증. consult-view.tsx가
+// ConsultationRequestSchema로 사전 검증해, 실패 시 fetch를 호출하지 않고
+// 오류 요약을 표시하며 첫 오류 필드로 포커스를 이동시킨다.
+describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC-B2CCONSULT-024)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
+    writeDiagnosisHandoff(result);
+
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  function checkRequiredConsents() {
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    act(() => {
+      checkboxes[0].click();
+      checkboxes[1].click();
+    });
+  }
+
+  async function clickSubmitAndFlush() {
+    await act(async () => {
+      container
+        .querySelector('[data-testid="consult-submit-button"]')!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  it("이름·연락처를 비운 채 제출하면 fetch가 호출되지 않고 오류 요약이 표시되며 첫 오류 필드(이름)로 포커스가 이동한다", async () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    checkRequiredConsents();
+
+    await clickSubmitAndFlush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="consult-error-summary"]')).not.toBeNull();
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    expect(document.activeElement).toBe(nameInput);
+    expect(nameInput?.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("이름·연락처는 유효하지만 전화 채널에서 연락 희망 시간이 비어있으면 그 필드로 포커스가 이동한다", async () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    const phoneRadio = container.querySelector<HTMLInputElement>('input[value="phone"]');
+    act(() => {
+      phoneRadio!.click();
+    });
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    act(() => {
+      nameInput!.value = "김보상";
+      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      contactInput!.value = "010-0000-0000";
+      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    checkRequiredConsents();
+
+    await clickSubmitAndFlush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const timeInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-preferred-call-time-input"]'
+    );
+    expect(document.activeElement).toBe(timeInput);
+    expect(timeInput?.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("형식이 잘못된 연락처(문자 포함)로 제출하면 fetch가 호출되지 않고 연락처 필드가 오류로 표시된다", async () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    act(() => {
+      nameInput!.value = "김보상";
+      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      contactInput!.value = "연락주세요";
+      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    checkRequiredConsents();
+
+    await clickSubmitAndFlush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(contactInput?.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(contactInput);
+  });
+
+  it("모든 필드가 유효하면 클라이언트 검증을 통과해 fetch가 정확히 1회 호출된다", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "success", channel: "kakao", maskedContact: "010-****-0000" }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    act(() => {
+      nameInput!.value = "김보상";
+      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      contactInput!.value = "010-0000-0000";
+      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    checkRequiredConsents();
+
+    await clickSubmitAndFlush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="consult-error-summary"]')).toBeNull();
+  });
+});

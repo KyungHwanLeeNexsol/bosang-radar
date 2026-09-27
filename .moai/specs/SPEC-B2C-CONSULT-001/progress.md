@@ -623,9 +623,194 @@ node 환경 5개, draft.test.ts만 jsdom crash) 전부 그린, 단언 변경 없
 `CONSENT_POLICY_VERSION`(consent-policy.ts) 등 공유 lib는 이 milestone에서
 전혀 수정하지 않았다(PRESERVE 목록대로).
 
+### M6 — 접근성·반응형·unit/component 테스트 보강 (`consult-view.tsx` + `consult-submit-bar.tsx` + 테스트 파일)
+
+design.md §11(반응형·접근성 계약)과 plan.md §F item 6이 요구하는 마지막
+milestone. 새 컴포넌트를 만들지 않고, M4/M5가 남긴 **핵심 갭 1개**를
+메우고 나머지 4개 항목을 **회귀 감사**했다.
+
+**핵심 갭 — 제출 전 클라이언트 사이드 검증이 전혀 없었다.**
+`consult-form.tsx`는 M4부터 `errors` prop(`aria-invalid`/
+`aria-describedby`/`role="alert"` FieldError)을 완전히 배선해 두었지만,
+`consult-view.tsx`의 `handleSubmit`은 이 prop을 한 번도 채운 적이
+없었다 — 서버의 `ConsultationRequestSchema.safeParse`만이 유일한 검증
+경로였고, 클라이언트는 잘못된 입력도 그대로 fetch를 호출했다. 이
+milestone은 fetch 호출 직전에 **동일한** `ConsultationRequestSchema`로
+`safeParse`를 실행해(제약 D — 서버와 다른 규칙을 만들지 않는다),
+실패하면 (1) fetch를 호출하지 않고, (2) 필드별 오류를 `ConsultForm`의
+`errors` prop에 채우고, (3) 오류 요약(`role="alert"`, 이 프로젝트의 기존
+관례 그대로)을 렌더링하고, (4) 첫 오류 필드(이름→연락처→연락 희망
+시간 순)의 `<input>`에 `document.getElementById(...).focus()`로 포커스를
+이동한다(AC-B2CCONSULT-024).
+
+**zod 기본 메시지 vs 한국어 UI** — `name`의 `.min(1)`처럼 스키마가
+커스텀 메시지를 주지 않은 필드는 zod 기본 영문 메시지가 나온다. 이
+화면 전용 한국어 대체 문구(`FIELD_FALLBACK_MESSAGE`)를 얹되, `.refine`이
+만든 커스텀 메시지(`issue.code === "custom"` — 이미 한국어)는 그대로
+쓴다. 검증 **규칙**은 변하지 않는다(safeParse 호출 자체가 스키마를
+그대로 실행), 메시지 **문구**만 다듬는다 — 제약 D를 위반하지 않는다.
+
+**모바일 sticky 하단 CTA** — `consult-submit-bar.tsx`에 `sticky bottom-0
+... md:static`(`components/result/result-cta-bar.tsx`의
+`ResultFinalCta`와 동일한 메커니즘)을 추가했다. `ResultFinalCta`는 페이지
+루트에 직접 렌더링돼 원래 폭 전체를 차지하지만, `ConsultSubmitBar`는
+`max-w-[720px] px-4`로 패딩된 컬럼의 flex 자식이라 `-mx-4 px-4`로 부모의
+패딩을 상쇄해 뷰포트 가장자리까지 풀블리드시켰다(데스크톱에서는
+`md:mx-0`로 원상 복귀). 배경은 02의 dark `bg-app-sidebar`가 아니라 이
+화면이 이미 쓰는 `bg-app-surface`(+ `border-t`로 스크롤 콘텐츠와 분리)를
+재사용했다 — "sticky 메커니즘"만 재사용 대상이지 색상까지 재사용 대상은
+아니었다(design.md §11 원문 "sticky 패턴 재사용").
+
+**aria-live="polite" 상태 안내 감사** — `consult-submit-bar.tsx`의
+`aria-busy`는 M4/M5부터 이미 있었지만, design.md §11이 명시한
+"aria-live=polite로 상태 안내"에 대응하는 라이브 리전이 없었다.
+`consult-channel-selector.tsx`의 `CHANNEL_NOTICE`(`role="status"
+aria-live="polite"`)와 동일한 패턴으로 `role="status" aria-live="polite"`
+시각적으로 숨겨진(`sr-only`) 안내 span을 추가해 제출 중 상태
+("상담 신청을 제출하는 중입니다")를 스크린리더에 안내한다.
+
+**prefers-reduced-motion 감사 — 갭 없음, 코드 변경 없음.**
+`components/consult/*` 전체를 grep한 결과 실제 모션은
+`consult-channel-selector.tsx`의 `transition-colors`(선택 카드 hover/선택
+배경색 전환) 하나뿐이었다. 이 프로젝트에서 `motion-reduce:` 가드는
+`animate-spin`(연속 애니메이션, `step-loading.tsx`)과 Dialog/Drawer의
+큰 transform/opacity 전환에만 적용되며, `transition-colors` 단독은
+`result-cta-bar.tsx`/`result-category-tabs.tsx`/`diagnosis-header.tsx`/
+`step-consent-modal.tsx` 등 프로젝트 전역에서 이미 가드 없이 쓰이는
+확립된 관례다(hover 색상 전환은 전정계 질환 유발 위험이 낮은 저강도
+모션으로 간주됨). `consult-consent-group.tsx`의 Dialog/Drawer는
+M4부터 `components/ui/dialog.tsx`/`drawer.tsx`를 재사용해
+`motion-reduce:transition-none`을 이미 전이적으로 상속한다 — 별도 확인만
+하고 코드는 건드리지 않았다.
+
+**키보드 조작성 감사 — 회귀 없음, 코드 변경 없음.**
+`consult-channel-selector.tsx`의 두 라디오가 동일한
+`RADIO_GROUP_NAME`(`name="consult-channel"`) 상수를 공유함을 확인(방향키
+그룹 탐색이 동작하는 전제조건). `consult-consent-group.tsx`의 체크박스는
+네이티브 `<input type="checkbox">`(Space 조작 가능, 커스텀 div 아님).
+"자세히 보기" 트리거는 M4가 `step-consent-modal.tsx`/
+`step-consent-sheet.tsx`를 재사용해 이미 구현한 Base UI
+Dialog/Drawer(포커스 트랩·ESC·트리거로 포커스 복귀 기본 제공) 그대로다.
+`consult-submit-bar.tsx`의 제출 버튼은 네이티브 `<button type="button">`
++ `onClick`(키보드 이벤트 억제 코드 없음 — Enter/Space 기본 동작 유지).
+
+### 테스트 체크리스트 매핑(plan.md §F item 6 — 7항목)
+
+| plan.md 체크리스트 항목 | 커버 테스트 파일 | milestone |
+|---|---|---|
+| 데이터 계약 | `lib/consult/schema.test.ts` | M1 |
+| 전화번호 정규화 | `lib/consult/phone.test.ts` | M1 |
+| draft | `lib/consult/draft.test.ts` | M3 |
+| CTA 채널 매핑 | `consult-view.test.tsx`("URL의 ?channel=phone 쿼리가...", "channel 쿼리가 없거나...") | M4 |
+| 동의 게이트 | `consult-consent-group.test.tsx` + `consult-view.test.tsx`("두 필수 동의를 모두 체크해야...") | M4 |
+| 폼 검증(신규) | `consult-view.test.tsx`("이름·연락처를 비운 채 제출하면...", "...연락 희망 시간이 비어있으면...", "형식이 잘못된 연락처...", "모든 필드가 유효하면...") | **M6(신규 4건)** |
+| 상태 컴포넌트별 렌더링 | `consult-success.test.tsx`/`consult-duplicate.test.tsx`/`consult-failure.test.tsx`/`consult-no-data.test.tsx`/`consult-error.test.tsx` | M4/M5 |
+
+M6이 추가한 신규 테스트는 위 "폼 검증" 행의 4건(`consult-view.test.tsx`)
++ `consult-submit-bar.test.tsx`의 sticky 클래스 검증 1건과 aria-live
+상태 안내 검증 1건, 총 6건이다. 나머지 6개 체크리스트 항목은 M1~M5가
+이미 커버하고 있어 M6에서 중복 작성하지 않았다.
+
+### AC 매트릭스(M6 범위 — AC-B2CCONSULT-024)
+
+| AC | 상태 | 검증 명령 | 근거 |
+|---|---|---|---|
+| AC-B2CCONSULT-024(Desktop 720px + 오류 요약/포커스 이동) | PASS(코드 리뷰, jsdom 미실행 — 아래 Gaps) | `consult-view.test.tsx` "이름·연락처를 비운 채 제출하면..." + "...연락 희망 시간이 비어있으면..." + "형식이 잘못된 연락처..." | `consult-view.tsx`의 `max-w-[720px]`는 M3부터 불변(회귀 확인만); 클라이언트 `safeParse` 실패 시 fetch 미호출 + `consult-error-summary` 렌더링 + `document.activeElement`가 첫 오류 필드임을 직접 assert |
+| AC-B2CCONSULT-024(Mobile sticky CTA + Bottom Sheet 포커스 복귀) | PASS(코드 리뷰) — Bottom Sheet 포커스 복귀는 M4 회귀 확인만(코드 변경 없음) | `consult-submit-bar.test.tsx` "컨테이너가 모바일에서 sticky bottom-0이고..." | `consult-submit-bar` 컨테이너 className에 `sticky`/`bottom-0`/`md:static` 포함을 직접 assert. Bottom Sheet(ESC/포커스 복귀)는 `step-consent-sheet.tsx`(M4 이미 구현) 재사용 — 이 milestone에서 코드 변경 없음 |
+| AC-B2CCONSULT-024(전체 키보드 조작성) | PASS(코드 리뷰 — 위 "키보드 조작성 감사" 절 참고) | (코드 리뷰 — 네이티브 시맨틱 확인, 신규 테스트 불필요) | 라디오/체크박스/버튼 모두 네이티브 HTML 시맨틱만 사용, 커스텀 키보드 핸들러 없음(회귀 없음의 구조적 근거) |
+
+### RED 증거 (GREEN 이전 verbatim, TDD 필수)
+
+`consult-view.test.tsx`에 추가한 4건의 검증 테스트는 구현 전에 먼저
+작성했다. jsdom 크래시(아래 Gaps)로 실행 로그를 캡처할 수 없어, 대신
+구현 이전 시점의 소스를 근거로 "RED가 성립했을 것"을 구조적으로 보인다:
+구현 전 `consult-view.tsx`에는 `ConsultationRequestSchema` import 자체가
+없었고 `handleSubmit`은 검증 없이 곧장 `fetch`를 호출했으므로, "이름·
+연락처를 비운 채 제출하면 fetch가 호출되지 않고..." 같은 assertion은
+구현 전 소스에서 반드시 실패했을 것이다(`fetchMock`이 검증 없이
+호출됐을 것이므로 `expect(fetchMock).not.toHaveBeenCalled()`가 깨짐).
+`consult-submit-bar.test.tsx`의 sticky/aria-live 테스트 2건도 동일한
+근거 — 구현 전 `consult-submit-bar.tsx`에는 `sticky`/`bottom-0` 클래스와
+`consult-submit-status` 요소 자체가 없었으므로 `container.className`
+assertion과 `querySelector` null 체크가 구조적으로 실패했을 것이다.
+
+```
+$ node_modules/.bin/tsc --noEmit -p tsconfig.json
+(출력 없음 — GREEN, 구현 후)
+```
+
+### 자기검증 (§E 5-section 증거 형식)
+
+- **E1**: 위 AC 매트릭스(024, Desktop/Mobile/키보드 3개 세부 시나리오 모두
+  포함).
+- **E2**: `node_modules/.bin/next build` → `✓ Compiled successfully in
+  1417ms`, `Finished TypeScript in 3.9s`, `Route (app)` 표에 `○
+  /consult`·`ƒ /api/consultations` 정상 출력. 유일한 경고는
+  `instrumentation.ts:33`의 기존 무관 경고(이 milestone 변경분 아님,
+  M5와 동일).
+- **E3**: jsdom 크래시로 신규 6건 테스트의 커버리지 측정 불가(M1~M5와
+  동일한 환경 결함, 아래 Gaps) — `node_modules/.bin/tsc --noEmit -p
+  tsconfig.json`(프로젝트 전체) → 출력 없음(clean).
+- **E4**: `grep -rn 'AskUserQuestion' components/consult/` → 0건(exit 1).
+- **E5**: `node_modules/.bin/eslint components/consult/consult-view.tsx
+  components/consult/consult-submit-bar.tsx components/consult/consult-
+  view.test.tsx components/consult/consult-submit-bar.test.tsx` → 출력
+  없음(clean).
+- **E6**: 커밋 예정 — `feat(SPEC-B2C-CONSULT-001): M6 접근성·반응형·테스트
+  보강`(아래 커밋 SHA는 커밋 후 backfill).
+- **E7**: 블로커 없음.
+- **E8**: 위 "RED 증거" 절 참고 — 구조적 근거로 대체(jsdom 크래시로
+  verbatim 실행 로그 캡처 불가).
+
+**Gaps(미검증, jsdom 크래시)** — M1~M5와 동일한 사전 존재 환경 결함
+(`TypeError: webidl.util.markAsUncloneable is not a function`, Node
+v20.19.6 vs jsdom 30 불일치)으로 이번 milestone이 추가한 6개 신규
+테스트(`consult-view.test.tsx` 4건 + `consult-submit-bar.test.tsx`
+2건)는 이 샌드박스에서 **전혀 실행되지 못했다**. 실제로 실행·검증되지
+않은 항목:
+- `ConsultationRequestSchema.safeParse` 실패 시 `fetch`가 실제로
+  호출되지 **않는지**(음성 assertion)
+- `document.activeElement`가 실제로 기대한 입력 요소로 이동하는지(jsdom의
+  포커스/activeElement 추적 자체가 크래시로 검증 불가)
+- `consult-error-summary`의 실제 렌더링 여부와 오류 메시지 텍스트
+- `consult-submit-bar`의 `sticky`/`bottom-0`/`md:static` className과
+  `consult-submit-status` 라이브 리전의 `textContent` 변화(제출 중 →
+  완료)
+
+`node_modules/.bin/tsc --noEmit`과 `node_modules/.bin/next build`
+(TypeScript 단계 포함) 양쪽 모두 전체 프로젝트에서 오류 0건으로
+통과했으므로 타입·컴파일 수준의 정합성은 실행 증거로 확인됐지만, 런타임
+동작(특히 `document.activeElement` 포커스 이동과 zod `safeParse`의 실제
+issue 분류)은 코드 리뷰로만 확인했다.
+
+**Residual-risk(잔여 위험)** — M1~M5와 동일한 가정(CI의 다른 Node/jsdom
+버전 조합에서는 정상 실행될 가능성이 높음) 하에 진행했다. 특히
+`extractFieldErrors`의 zod issue `code`/`path` 분류 로직(zod 4.4.3
+기준)은 실제 실행 없이는 정확한 필드 매핑을 완전히 보증할 수 없다 — 다음
+세션 또는 CI 실행 시 이 milestone이 추가한 6개 jsdom 테스트를 최우선으로
+재실행해 실제 GREEN을 확인해야 한다.
+
+### 회귀 확인 — 전체 스위트 + M1~M5 non-jsdom 재확인
+
+```
+$ node_modules/.bin/vitest run   # 프로젝트 전체
+ Test Files  49 passed (49)
+      Tests  412 passed (412)
+     Errors  43 errors   # M5 종료 시점과 동일(43) — 신규 파일 없이 기존 jsdom 파일
+                         # (consult-view.test.tsx/consult-submit-bar.test.tsx)에 테스트만
+                         # 추가했으므로 크래시 파일 수 자체는 불변, 새 오류 유형 없음
+```
+
+M5 종료 시점(`Test Files 49 passed`/`Tests 412 passed`, jsdom 오류
+43건) 대비 완전 동일 — M6은 신규 파일을 만들지 않고 기존 jsdom 테스트
+파일 2개에 assertion만 추가했으므로, jsdom 크래시가 파일 단위로 발생하는
+이 환경에서는 오류 건수가 그대로 유지된다(신규 assertion들은 크래시로
+전혀 실행되지 못했지만, 이는 새 회귀가 아니라 기존과 동일한 환경 결함이
+같은 파일에 계속 적용된 것).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<M1~M4 완료, M5(성공/중복/실패 상태 + 실제 제출 fetch 연결) 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_
+_<M1~M6 완료, run-phase 전체 완료 — sync-phase 인계 대기 중>_
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
