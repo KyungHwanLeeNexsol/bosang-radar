@@ -1,30 +1,40 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 
 import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import { computeAggregate } from "@/lib/diagnosis/aggregate";
-import { readConsultationDraft, writeConsultationDraft } from "@/lib/consult/draft";
+import {
+  clearConsultationDraft,
+  readConsultationDraft,
+  writeConsultationDraft,
+} from "@/lib/consult/draft";
 import { CONSULTATION_DRAFT_VERSION } from "@/lib/consult/types";
-import type { ConsultationChannel, ConsultationRequest } from "@/lib/consult/types";
+import type {
+  ConsultationChannel,
+  ConsultationRequest,
+  ConsultationSubmitResult,
+} from "@/lib/consult/types";
 import { CONSENT_POLICY_VERSION } from "@/lib/consult/consent-policy";
 import { ConsultSummaryCard } from "./consult-summary-card";
 import { ConsultChannelSelector } from "./consult-channel-selector";
 import { ConsultForm } from "./consult-form";
 import { ConsultConsentGroup } from "./consult-consent-group";
 import { ConsultSubmitBar } from "./consult-submit-bar";
+import { ConsultNoData } from "./consult-no-data";
+import { ConsultError } from "./consult-error";
+import { ConsultSuccess } from "./consult-success";
+import { ConsultDuplicate } from "./consult-duplicate";
+import { ConsultFailure } from "./consult-failure";
 
-// SPEC-B2C-CONSULT-001 M4 — M3의 최소 placeholder를 전면 교체한다. 마운트
-// 시 readDiagnosisHandoff()(design.md §2.2) 3갈래 분기(empty/invalid/valid)
-// + readConsultationDraft()(§2.3, 항상 유효한 draft 반환)를 조회해, valid일
-// 때만 실제 폼(요약 카드+채널 선택+입력 폼+동의+제출)을 렌더링한다.
-//
-// empty/invalid 상태의 실제 전용 컴포넌트(consult-no-data.tsx/
-// consult-error.tsx)는 plan.md §F 5번(Milestone 5)의 파일 목록이다 — 이
-// milestone은 M3가 남긴 placeholder와 동일한 방식으로, 마운트 로직이
-// 테스트 가능하도록 최소 인라인 렌더링만 두고 M5가 이를 전용 컴포넌트로
-// 교체하도록 남겨 둔다.
+// SPEC-B2C-CONSULT-001 M4/M5 — M3의 최소 placeholder를 전면 교체한다.
+// 마운트 시 readDiagnosisHandoff()(design.md §2.2) 3갈래 분기(empty/invalid/
+// valid) + readConsultationDraft()(§2.3, 항상 유효한 draft 반환)를 조회해,
+// valid일 때만 실제 폼(요약 카드+채널 선택+입력 폼+동의+제출)을 렌더링한다.
+// M5는 empty/invalid 상태를 전용 컴포넌트(consult-no-data.tsx/
+// consult-error.tsx)로 교체하고, 실제 POST /api/consultations 제출 +
+// 응답 3갈래(success/duplicate/error) 라우팅을 연결한다(design.md §9.1,
+// acceptance AC-B2CCONSULT-018/020/022).
 //
 // 02(result-view.tsx)가 이미 확립한 관례와 동일하게, readDiagnosisHandoff()/
 // readConsultationDraft()를 렌더 본문에서 직접 호출한다(SSR 가드가 있어
@@ -60,6 +70,30 @@ interface ConsultFormState {
   idempotencyKey: string;
 }
 
+// M5 — POST /api/consultations 응답이 실제로 ConsultationSubmitResult
+// 형태인지 최소한으로 확인한다(discriminant 필드만 검증) — 타입이 이미
+// 나머지 필드 형태를 컴파일 타임에 보장하는 자체 서버 응답이므로, 전체
+// zod 스키마를 새로 정의하지 않는다(Enforce Simplicity — lib/consult/
+// schema.ts는 이 milestone의 PRESERVE 대상이라 수정하지 않는다). status가
+// 세 값 중 하나가 아니면 예상치 못한 응답으로 간주해 null을 반환하고,
+// 호출부가 03-D 실패로 처리한다.
+function parseSubmitResult(data: unknown): ConsultationSubmitResult | null {
+  if (typeof data !== "object" || data === null || !("status" in data)) {
+    return null;
+  }
+  const status = (data as { status?: unknown }).status;
+  if (status === "success" || status === "duplicate" || status === "error") {
+    return data as ConsultationSubmitResult;
+  }
+  return null;
+}
+
+type ConsultSubmitView =
+  | { kind: "form" }
+  | { kind: "success"; result: Extract<ConsultationSubmitResult, { status: "success" }> }
+  | { kind: "duplicate"; result: Extract<ConsultationSubmitResult, { status: "duplicate" }> }
+  | { kind: "failure" };
+
 export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   const handoff = readDiagnosisHandoff();
 
@@ -79,6 +113,20 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   // 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, design.md §2.3).
   const [piiCollection, setPiiCollection] = React.useState(false);
   const [healthInfoUse, setHealthInfoUse] = React.useState(false);
+
+  // M5 — 폼 마운트 시점(첫 렌더)의 resultId를 캡처한다. useRef의 초기값
+  // 인자는 오직 첫 렌더에서만 실제로 쓰이므로, 이 한 줄이 곧 "마운트 시
+  // 1회 캡처"다(useEffect 불필요, Enforce Simplicity). 제출 직전
+  // readDiagnosisHandoff()를 다시 호출해 이 값과 비교하면 handoff_mismatch를
+  // 판정할 수 있다(design.md §9.1, AC-B2CCONSULT-018 handoff_mismatch
+  // 시나리오) — 다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우
+  // 서버를 호출하지 않고 즉시 03-D로 판정한다.
+  const mountResultIdRef = React.useRef<string | null>(
+    handoff.status === "valid" ? handoff.result.resultId : null
+  );
+
+  const [submitView, setSubmitView] = React.useState<ConsultSubmitView>({ kind: "form" });
+  const [isRetrying, setIsRetrying] = React.useState(false);
 
   const persistDraft = React.useCallback((next: ConsultFormState) => {
     writeConsultationDraft({
@@ -126,14 +174,27 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
     persistDraft(next);
   }
 
-  async function handleSubmitStub(): Promise<void> {
-    // M5가 실제 POST /api/consultations fetch 호출 + 성공/중복/실패 응답
-    // 분기로 이 스텁을 교체한다. 지금은 consult-submit-bar.tsx의 이중 제출
-    // 방지 메커니즘만 검증 가능하도록 하는 최소 스텁이다(Enforce
-    // Simplicity — M5의 실제 네트워크/라우팅 로직을 여기서 미리 구현하지
-    // 않는다).
+  // M5 — 실제 제출 핸들러(design.md §9.1). 순서: (1) 제출 직전
+  // readDiagnosisHandoff()를 재조회해 mountResultIdRef와 비교 — 다르면
+  // 서버를 호출하지 않고 즉시 handoff_mismatch로 03-D 처리한다(REQ-
+  // B2CCONSULT-018 handoff_mismatch 시나리오). (2) 일치하면 POST
+  // /api/consultations를 호출하고 응답을 status로 3갈래 분기한다 —
+  // success는 clearConsultationDraft() 호출 후 03-B, duplicate는 draft를
+  // 건드리지 않고 03-C(design.md §2.2 — draft는 "제출 성공" 시에만
+  // 제거되며 duplicate는 신규 성공 제출이 아니다), error(어떤 code든)와
+  // fetch 예외/비정상 응답은 모두 동일하게 03-D로 수렴한다(acceptance
+  // AC-B2CCONSULT-022 — 03-D는 code별로 문구를 분기하지 않는 일반 실패
+  // 화면이다).
+  async function handleSubmit(): Promise<void> {
+    const freshHandoff = readDiagnosisHandoff();
+    const freshResultId = freshHandoff.status === "valid" ? freshHandoff.result.resultId : null;
+    if (freshResultId !== mountResultIdRef.current) {
+      setSubmitView({ kind: "failure" });
+      return;
+    }
+
     const request: ConsultationRequest = {
-      resultId: handoff.status === "valid" ? handoff.result.resultId : "",
+      resultId: mountResultIdRef.current ?? "",
       channel: formState.channel,
       name: formState.name,
       contact: formState.contact,
@@ -142,48 +203,95 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
       acknowledgedConsentVersion: CONSENT_POLICY_VERSION,
       idempotencyKey: formState.idempotencyKey,
     };
-    console.info("[consult] submit stub (M5가 실제 fetch로 교체)", {
-      channel: request.channel,
-    });
+
+    let result: ConsultationSubmitResult | null;
+    try {
+      const response = await fetch("/api/consultations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      });
+      result = parseSubmitResult(await response.json());
+    } catch {
+      setSubmitView({ kind: "failure" });
+      return;
+    }
+
+    if (!result) {
+      setSubmitView({ kind: "failure" });
+      return;
+    }
+
+    if (result.status === "success") {
+      // REQ-B2CCONSULT-025/design.md §2.2 — draft만 지운다. 진단 결과
+      // 핸드오프(DiagnosisResult)는 절대 건드리지 않는다 — 성공/중복/실패
+      // 화면 모두 "진단 결과로 돌아가기"가 제출 전과 동일한 결과를 다시
+      // 보여줘야 한다.
+      clearConsultationDraft();
+      setSubmitView({ kind: "success", result });
+      return;
+    }
+    if (result.status === "duplicate") {
+      setSubmitView({ kind: "duplicate", result });
+      return;
+    }
+    setSubmitView({ kind: "failure" });
+  }
+
+  async function handleRetry(): Promise<void> {
+    if (isRetrying) {
+      return;
+    }
+    setIsRetrying(true);
+    try {
+      // idempotencyKey는 formState에 이미 저장된 값을 그대로 재사용한다
+      // (handleSubmit이 formState.idempotencyKey를 읽을 뿐 새로 생성하지
+      // 않음) — 새 crypto.randomUUID() 호출 지점이 이 함수 어디에도 없다.
+      await handleSubmit();
+    } finally {
+      setIsRetrying(false);
+    }
   }
 
   if (handoff.status === "empty") {
-    return (
-      <div
-        data-testid="consult-no-data"
-        className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center"
-      >
-        <h1 className="text-h2 font-semibold text-bora-ink">먼저 진단 결과가 필요합니다</h1>
-        <p className="max-w-sm text-body text-bora-ink-3">
-          상담 신청을 위해서는 먼저 보상 가능성 진단을 완료해 주세요.
-        </p>
-        <Link
-          href="/"
-          className="mt-2 rounded-full bg-bora-accent px-5 py-2.5 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
-        >
-          진단 시작하기
-        </Link>
-      </div>
-    );
+    return <ConsultNoData />;
   }
 
   if (handoff.status === "invalid") {
+    return <ConsultError />;
+  }
+
+  if (submitView.kind === "success") {
     return (
-      <div
-        data-testid="consult-error"
-        className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center"
-      >
-        <h1 className="text-h2 font-semibold text-bora-ink">진단 결과를 불러올 수 없어요</h1>
-        <p className="max-w-sm text-body text-bora-ink-3">
-          일시적인 오류로 진단 결과를 확인하지 못했습니다. 처음부터 다시 진단해 주세요.
-        </p>
-        <Link
-          href="/"
-          className="mt-2 rounded-full bg-bora-accent px-5 py-2.5 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
-        >
-          진단 시작하기
-        </Link>
-      </div>
+      <ConsultSuccess
+        channel={submitView.result.channel}
+        maskedContact={submitView.result.maskedContact}
+        preferredCallTime={submitView.result.preferredCallTime}
+      />
+    );
+  }
+
+  if (submitView.kind === "duplicate") {
+    return (
+      <ConsultDuplicate
+        channel={formState.channel}
+        maskedContact={submitView.result.maskedContact}
+        receivedAt={submitView.result.receivedAt}
+        applicationStatus={submitView.result.applicationStatus}
+      />
+    );
+  }
+
+  if (submitView.kind === "failure") {
+    return (
+      <ConsultFailure
+        channel={formState.channel}
+        name={formState.name}
+        contact={formState.contact}
+        preferredCallTime={formState.preferredCallTime}
+        isRetrying={isRetrying}
+        onRetry={handleRetry}
+      />
     );
   }
 
@@ -219,7 +327,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
         isPolicyReady={isPolicyReady}
       />
 
-      <ConsultSubmitBar canSubmit={canSubmit} channel={formState.channel} onSubmit={handleSubmitStub} />
+      <ConsultSubmitBar canSubmit={canSubmit} channel={formState.channel} onSubmit={handleSubmit} />
     </div>
   );
 }

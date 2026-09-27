@@ -454,6 +454,175 @@ $ npx vitest run lib/consult/schema.test.ts lib/consult/phone.test.ts \
 전부 그린, 단언 변경 없음 — `route.ts`의 `CONSENT_POLICY_VERSION` 추출
 리팩터링은 동작을 바꾸지 않았다.
 
+### M5 — 성공·중복·실패 상태 화면 + 실제 제출 연결 (`components/consult/{consult-success,consult-duplicate,consult-failure,consult-no-data,consult-error}.tsx` + `consult-view.tsx` 배선)
+
+M3/M4가 `consult-view.tsx`에 남겨 둔 empty/invalid 인라인 placeholder를
+전용 컴포넌트(`consult-no-data.tsx`/`consult-error.tsx`)로 추출하고,
+03-B/03-C/03-D 3개 응답 상태 화면을 신규 작성한 뒤 `handleSubmitStub`을
+실제 `POST /api/consultations` fetch 호출로 교체했다.
+
+**응답 3갈래 라우팅 계약** — design.md §9.1/acceptance AC-B2CCONSULT-022가
+정의한 대로, `status:"error"`(코드 무관)와 fetch 예외/비정상 JSON은 전부
+동일한 03-D(`ConsultFailure`)로 수렴한다. `status:"success"`만 03-B,
+`status:"duplicate"`만 03-C. code별 별도 문구 분기는 이 SPEC 범위에 없다
+(design.md §10의 03-D 문구가 의도적으로 일반적인 이유).
+
+**handoff_mismatch 사전 판정** — `React.useRef`의 초기값 인자가 오직 첫
+렌더에서만 쓰이는 성질을 이용해 `useEffect` 없이 마운트 시점 `resultId`를
+캡처했다(`mountResultIdRef`). 제출 시 `readDiagnosisHandoff()`를 다시
+호출해 이 값과 비교 — 다르면 서버를 호출하지 않고 즉시 03-D로 판정한다
+(acceptance.md handoff_mismatch 시나리오, "서버 상태 코드가 없다" 원칙).
+
+**duplicate 응답에는 draft를 지우지 않기로 결정(§7 remaining-ambiguity
+해소, delegation 프롬프트가 명시적으로 판단을 요구한 항목)** — design.md
+§2.2 "상담 신청 완료 후 draft 삭제"와 REQ-B2CCONSULT-025는 모두 "제출
+**성공** 시"라는 조건을 명시하며, acceptance.md AC-B2CCONSULT-025의 draft
+정리 시나리오도 "상담 신청이 **성공적으로** 접수되었을 때"만 검증한다.
+duplicate는 이번 세션의 신규 성공 제출이 아니라 과거에 이미 존재하는
+신청과의 충돌이므로, `handleSubmit`은 `status:"duplicate"` 분기에서
+`clearConsultationDraft()`를 호출하지 않는다 — SPEC 전체에서 draft 삭제가
+"성공"과만 결부되어 일관되게 서술되므로 진짜 모호함(blocker 보고 대상)이
+아니라고 판단했다.
+
+**"이전 화면으로 돌아가기"(design.md §10 03-D 원문) vs "진단 결과로
+돌아가기"(acceptance.md AC-B2CCONSULT-025 03-D 시나리오 인용 문구) 표기
+불일치 해소** — design.md §10은 03-D의 복귀 CTA를 "이전 화면으로
+돌아가기"로, acceptance.md는 같은 CTA를 "진단 결과로 돌아가기"로
+인용한다. 두 문서 모두 같은 목적지(`/result`)를 가리키고(03-D 진입 전
+"이전 화면"은 항상 `/result`다 — 02→03 흐름 외 03 직접 진입은 이미
+no-data/error 상태로 별도 처리됨) acceptance.md가 실제 검증 가능한
+Given-When-Then 형식으로 정확한 버튼 텍스트를 못 박고 있으므로, 03-B/03-C
+와 동일하게 "진단 결과로 돌아가기" 문구 + `href="/result"`로 통일했다 —
+AC가 SSOT라는 원칙(더 정밀하고 테스트 가능한 문서를 우선)에 따른 판단이며,
+真 blocker가 아니라고 판단했다.
+
+**서버 응답 검증(narrowing) 방식** — `lib/consult/schema.ts`는 이 milestone
+의 PRESERVE 대상(B10)이라 `ConsultationSubmitResultSchema` 같은 신규 zod
+스키마를 추가하지 않았다. 대신 `consult-view.tsx` 모듈 스코프에
+`parseSubmitResult()`(discriminant `status` 필드만 `"success"|"duplicate"
+|"error"` 중 하나인지 확인)를 두어 완전히 untyped `any`로 신뢰하지 않으면서도
+불필요한 전체 스키마 중복을 피했다(Enforce Simplicity — 자체 서버 응답이라
+나머지 필드 형태는 컴파일 타임 타입이 이미 보장).
+
+### AC 매트릭스(M5 범위 — AC-B2CCONSULT-018/020/022/023/025)
+
+| AC | 상태 | 검증 명령 | 근거 |
+|---|---|---|---|
+| AC-B2CCONSULT-018(최초 제출 성공 응답 형태) | PASS(코드 리뷰, jsdom 미실행 — 서버측은 M2 route.test.ts로 이미 실행 검증됨) | `consult-success.test.tsx` "내부 DB 식별자(consultationId)를..." + `consult-view.test.tsx` "success 응답 → 03-B..." | `ConsultSuccess`는 서버 응답의 `channel`/`maskedContact`/`preferredCallTime`만 렌더링, `consultationId`/`expectedContactWindow` 필드 자체가 타입에 없어 렌더링 불가능(구조적 보장) |
+| AC-B2CCONSULT-020(중복 → 409, 새 레코드 미생성) | PASS(서버측 M2 route.test.ts 기존 커버, 변경 없음) + 클라이언트 라우팅 PASS(코드 리뷰) | `consult-view.test.tsx` "duplicate 응답 → 03-C..." | `status:"duplicate"` 응답이 `ConsultDuplicate`로 라우팅되고 draft가 삭제되지 않음을 확인 |
+| AC-B2CCONSULT-022(확정 문구 없음 + 재시도 동일 idempotencyKey + 입력 보존) | PASS(코드 리뷰) | `consult-failure.test.tsx` "AC-022...", `consult-view.test.tsx` "다시 시도하기는 최초 제출과 동일한 idempotencyKey로..." + "네트워크 예외(fetch reject)..." | "저장되었습니다" 문구 부재 assert, 재시도 요청 body의 `idempotencyKey`가 최초 제출과 동일함을 두 번째 fetch 호출 인자에서 직접 비교, fetch reject도 동일하게 03-D로 라우팅 |
+| AC-B2CCONSULT-023(중복 PII 최소화 + 접수일 날짜 단위) | PASS(코드 리뷰) | `consult-duplicate.test.tsx` "내부 consultationId나 전체 페이로드를..." + "접수일은 시:분:초 없이..." | `innerHTML`에 `consultationId` 패턴 부재, `receivedAt` 표시 영역에 `\d{2}:\d{2}:\d{2}` 패턴 부재를 직접 assert. `maskedContact`/`receivedAt` 유도 방식(요청 자신의 값 vs 매칭 레코드 재조회)은 서버측(`route.ts` `toDuplicateResult`)이 M2에서 이미 구현·검증됨 — 이 milestone은 클라이언트가 서버 값을 재계산 없이 그대로 렌더링만 함을 확인 |
+| AC-B2CCONSULT-025(draft만 정리, 핸드오프 유지 + 성공 후 복귀 + 중복/실패 복귀) | PASS(코드 리뷰) | `consult-view.test.tsx` "success 응답 → 03-B가 렌더링되고 draft는 삭제되며..." | `sessionStorage`에서 draft 키(`bosang-radar:consultation-draft-v1`)는 성공 시에만 제거되고 진단 핸드오프 키(`DIAGNOSIS_STORAGE_KEY`)는 그대로 유지됨을 직접 assert. 3개 상태 컴포넌트 모두 `href="/result"` 링크만 제공(핸드오프 자체를 건드리는 코드 경로 없음 — 구조적 보장) |
+
+### RED 증거 (GREEN 이전 verbatim, TDD 필수)
+
+```
+$ node_modules/.bin/tsc --noEmit -p tsconfig.json 2>&1 | grep -E "consult-(no-data|error|success|duplicate|failure)"
+components/consult/consult-duplicate.test.tsx(6,34): error TS2307: Cannot find module './consult-duplicate' or its corresponding type declarations.
+components/consult/consult-error.test.tsx(6,30): error TS2307: Cannot find module './consult-error' or its corresponding type declarations.
+components/consult/consult-failure.test.tsx(6,32): error TS2307: Cannot find module './consult-failure' or its corresponding type declarations.
+components/consult/consult-no-data.test.tsx(6,31): error TS2307: Cannot find module './consult-no-data' or its corresponding type declarations.
+components/consult/consult-success.test.tsx(6,32): error TS2307: Cannot find module './consult-success' or its corresponding type declarations.
+```
+
+GREEN(구현 후, 같은 명령): 출력 없음(0건 매칭, clean).
+
+M4와 동일한 한계로, 5개 신규 컴포넌트와 `consult-view.tsx`의 응답 라우팅
+로직은 jsdom 크래시(아래 Gaps)로 실제 RED→GREEN 실행 로그를 캡처할 수
+없었다 — 테스트 파일을 구현 전에 먼저 작성해(`tsc --noEmit`이 `TS2307`로
+모듈 부재를 구조적으로 확인) RED를 대체 증거로 확보한 뒤 구현했다.
+
+### 자기검증 (§E 5-section 증거 형식)
+
+- **E1**: 위 AC 매트릭스(018/020/022/023/025). 016/019는 M1/M2가 이미
+  검증했고 이 milestone에서 변경한 파일이 없어 재확인만 했다(아래 회귀
+  절 — 전체 스위트 412 passed에 포함, `route.test.ts`/`schema.test.ts`는
+  M1/M2 회귀 세트에 이미 포함).
+- **E2**: `node_modules/.bin/next build` → `✓ Compiled successfully in 1654ms`,
+  `Route (app)` 표에 `○ /consult`·`ƒ /api/consultations` 출력(정상 생성
+  확인). `Finished TypeScript in 4.0s`도 같은 빌드에 포함되어 통과. 유일한
+  경고는 `instrumentation.ts:33`의 기존 무관 경고(이 milestone 변경분 아님).
+- **E3**: jsdom 크래시로 5개 신규 컴포넌트 + `consult-view.tsx`의 커버리지
+  측정 불가(M4와 동일한 환경 결함, 아래 Gaps) — `node_modules/.bin/tsc
+  --noEmit -p tsconfig.json`(프로젝트 전체) → 출력 없음(clean, 타입 수준
+  정합성만 확인).
+- **E4**: `grep -rn 'AskUserQuestion' components/consult/` → 0건(exit 1).
+- **E5**: `node_modules/.bin/eslint components/consult/consult-{no-data,error,success,duplicate,failure,view}.tsx components/consult/consult-{no-data,error,success,duplicate,failure,view}.test.tsx` → 출력 없음(clean).
+- **E6**: 커밋은 이 세션 종료 직전 1건으로 예정(아래 회귀 절 이후 커밋·푸시 수행).
+- **E7**: 블로커 없음 — 위 두 건(duplicate 시 draft 미정리, 03-D "돌아가기"
+  문구 통일)은 SPEC 문서 간 표현 불일치였을 뿐 상반된 요구사항이 아니었고,
+  acceptance.md(더 정밀·테스트 가능한 문서)를 SSOT로 삼아 자체 해소했다.
+- **E8**: 위 "RED 증거" 참고 — 5개 컴포넌트는 구조적 확인(`tsc --noEmit`
+  TS2307)으로 대체, `consult-view.tsx`의 제출 라우팅 로직(성공/중복/실패/
+  handoff_mismatch/재시도)은 jsdom 크래시로 verbatim 실행 로그를 캡처하지
+  못했다 — 코드 리뷰 수준으로만 제시한다(아래 Gaps).
+
+**Gaps(미검증, jsdom 크래시)** — M1~M4와 동일한 사전 존재 환경 결함
+(`TypeError: webidl.util.markAsUncloneable is not a function`, Node
+v20.19.6 vs jsdom 30 불일치)으로 이번 milestone이 추가한 5개 jsdom
+컴포넌트 테스트 파일(`consult-{no-data,error,success,duplicate,failure}.test.tsx`)
+과 `consult-view.test.tsx`에 추가한 6개 신규 제출-라우팅 테스트
+("success/duplicate/error 응답 라우팅", "네트워크 예외", "handoff_mismatch",
+"다시 시도하기 idempotencyKey 재사용")는 이 샌드박스에서 **전혀 실행되지
+못했다**. 실제로 실행·검증되지 않은 항목:
+- 5개 신규 컴포넌트의 실제 렌더링 결과(DOM 구조, 텍스트, `aria-busy` 속성)
+- `handleSubmit`의 fetch 호출 자체(모킹된 `fetch`가 실제로 호출됐는지,
+  요청 body가 기대한 형태인지)
+- `handoff_mismatch` 판정 시 fetch가 **호출되지 않는지**(음성 assertion)
+- 재시도 시 두 번째 fetch 호출의 `idempotencyKey`가 첫 번째와 동일한지
+
+`node_modules/.bin/tsc --noEmit`과 `node_modules/.bin/next build`
+(TypeScript 단계 포함) 양쪽 모두 전체 프로젝트에서 오류 0건으로
+통과했으므로 타입·컴파일 수준의 정합성은 실행 증거로 확인됐지만, 런타임
+동작 자체(특히 상태 전이·fetch 모킹 상호작용)는 코드 리뷰로만 확인했다.
+
+**Residual-risk(잔여 위험)** — M1~M4와 동일한 가정(CI의 다른 Node/jsdom
+버전 조합에서는 정상 실행될 가능성이 높음) 하에 진행했다. 다음 세션 또는
+CI 실행 시 이 milestone이 추가한 11개 jsdom 테스트 파일(신규 5개 +
+`consult-view.test.tsx` 확장)을 최우선으로 재실행해 실제 GREEN을 확인해야
+한다 — 특히 `handleSubmit`의 3갈래 라우팅과 `handoff_mismatch` 사전 판정은
+코드 리뷰만으로는 상대적으로 낮은 신뢰도(비동기 `fetch` 모킹 타이밍에
+의존하는 로직이라 실제 실행 없이는 race condition 여부를 완전히 배제할
+수 없음).
+
+### 회귀 확인 — 전체 스위트 + M1~M4 non-jsdom 재확인
+
+```
+$ node_modules/.bin/vitest run   # 프로젝트 전체
+ Test Files  49 passed (49)
+      Tests  412 passed (412)
+     Errors  43 errors   # 전부 동일 jsdom/undici Unhandled Error(M4 종료 시점 38건 → +5,
+                         # 이번에 추가한 jsdom 테스트 파일 5개만큼 정확히 순증 — 새 오류
+                         # 유형 없음. consult-view.test.tsx는 이미 M3부터 동일 범주였으므로
+                         # 신규 아님(테스트 6건을 추가했지만 파일 자체는 기존)
+```
+
+M4 종료 시점(`Test Files 49 passed`/`Tests 412 passed`, jsdom 오류 38건)
+대비 Test Files 동일(49, 신규 5개 파일 전부 jsdom이라 "passed"에 포함되지
+않음), Tests 동일(412, jsdom 크래시로 신규 assertion이 전혀 실행되지
+못했기 때문), jsdom 오류 +5(신규 jsdom 테스트 파일 5개)로 정확히 정합 —
+신규 실패 카테고리 없음, 0건 회귀.
+
+M1/M2/M4 non-jsdom 파일 개별 재실행(변경된 `consult-view.tsx`가 참조하는
+공유 lib들이 기존 동작을 바꾸지 않았는지 재확인):
+
+```
+$ node_modules/.bin/vitest run lib/consult/schema.test.ts lib/consult/phone.test.ts \
+  lib/consult/draft.test.ts app/api/consultations/route.test.ts \
+  lib/consult/consent-policy.test.ts lib/consult/dedupe.test.ts
+ Test Files  5 passed (5)
+      Tests  55 passed (55)
+     Errors  1 error   # draft.test.ts(jsdom) — 동일한 사전 존재 크래시, 나머지 4개
+                       # node 환경 파일은 5개 모두 "passed" 집계에 포함되어 실제 실행됨
+```
+
+non-jsdom 4개 파일(schema/phone/route/consent-policy/dedupe — 정확히는
+node 환경 5개, draft.test.ts만 jsdom crash) 전부 그린, 단언 변경 없음 —
+`consult-view.tsx`가 import하는 `clearConsultationDraft`/
+`readConsultationDraft`/`writeConsultationDraft`(draft.ts),
+`CONSENT_POLICY_VERSION`(consent-policy.ts) 등 공유 lib는 이 milestone에서
+전혀 수정하지 않았다(PRESERVE 목록대로).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<M1~M4 완료, M5(성공/중복/실패 상태 + 실제 제출 fetch 연결) 이후 계속 진행 중 — 전체 run-phase 완료 후 기록>_

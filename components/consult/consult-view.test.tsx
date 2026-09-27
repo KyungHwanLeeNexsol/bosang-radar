@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsultView } from "./consult-view";
 import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
@@ -175,5 +175,161 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
     expect(
       container.querySelector('[data-testid="consult-submit-button"]')?.getAttribute("aria-disabled")
     ).not.toBe("true");
+  });
+});
+
+// SPEC-B2C-CONSULT-001 M5 (design.md §9.1, §2.2; acceptance
+// AC-B2CCONSULT-018/020/022/023, handoff_mismatch 시나리오) — 실제
+// POST /api/consultations fetch 연결 + 응답 3갈래 라우팅(success/
+// duplicate/error) + handoff_mismatch 사전 판정 + 다시 시도하기의
+// idempotencyKey 재사용을 검증한다. 서버 자체는 route.test.ts가 이미
+// 검증하므로, 여기서는 fetch를 모킹해 클라이언트 라우팅 로직만 검증한다.
+describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSULT-018/020/022/023)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
+    writeDiagnosisHandoff(result);
+
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  function fillRequiredFieldsAndConsent() {
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
+    act(() => {
+      nameInput!.value = "김보상";
+      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      contactInput!.value = "010-0000-0000";
+      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    act(() => {
+      checkboxes[0].click();
+      checkboxes[1].click();
+    });
+  }
+
+  async function clickAndFlush(el: Element) {
+    await act(async () => {
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  it("success 응답 → 03-B가 렌더링되고 draft는 삭제되며 진단 핸드오프는 유지된다(REQ-B2CCONSULT-025)", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "success", channel: "kakao", maskedContact: "010-****-0000" }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(container.querySelector('[data-testid="consult-success"]')).not.toBeNull();
+    expect(window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")).toBeNull();
+    expect(window.sessionStorage.getItem(DIAGNOSIS_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it("duplicate 응답 → 03-C가 렌더링되고 draft는 삭제되지 않는다", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({
+        status: "duplicate",
+        receivedAt: "2026-09-20",
+        maskedContact: "010-****-0000",
+        applicationStatus: "received",
+      }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(container.querySelector('[data-testid="consult-duplicate"]')).not.toBeNull();
+    expect(window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")).not.toBeNull();
+  });
+
+  it("error 응답(어떤 code든) → 03-D가 렌더링된다(AC-B2CCONSULT-022)", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "error", code: "server_error", message: "..." }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+  });
+
+  it("네트워크 예외(fetch reject) → 03-D가 렌더링된다(AC-B2CCONSULT-022 타임아웃 시나리오)", async () => {
+    fetchMock.mockRejectedValue(new Error("network"));
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+  });
+
+  it("handoff_mismatch: 마운트 후 핸드오프의 resultId가 바뀌면 fetch 없이 즉시 03-D를 렌더링한다", async () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+
+    const original = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
+    writeDiagnosisHandoff({ ...original, resultId: "different-result-id" });
+
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+  });
+
+  it("다시 시도하기는 최초 제출과 동일한 idempotencyKey로 재전송한다", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "error", code: "server_error", message: "..." }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+
+    await clickAndFlush(container.querySelector('[data-testid="consult-failure-retry"]')!);
+
+    const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(secondBody.idempotencyKey).toBe(firstBody.idempotencyKey);
   });
 });
