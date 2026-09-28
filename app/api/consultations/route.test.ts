@@ -110,6 +110,28 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       logSpy.mockRestore();
     });
 
+    it("channel 필드에 악의적인 PII 값(전화번호/이름)을 넣어도 검증 이전 로그에 원본이 남지 않는다", async () => {
+      const logSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+
+      await submit(buildPayload({ channel: "010-9999-8888" }));
+      await submit(buildPayload({ channel: "김공격자" }));
+
+      const loggedText = logSpy.mock.calls.map((c) => String(c[0])).join("\n");
+
+      // schema 검증(1번 단계)보다 앞서 실행되는 요청 시작 로그이므로, channel이
+      // "kakao"/"phone" 둘 중 하나가 아니면 원본 값이 아니라 고정 sentinel
+      // "invalid"만 로그 인자로 전달되어야 한다(원본 값이 console.info 호출
+      // 인자 어디에도 나타나지 않아야 한다).
+      expect(loggedText).not.toContain("010-9999-8888");
+      expect(loggedText).not.toContain("김공격자");
+      for (const call of logSpy.mock.calls) {
+        const parsed = JSON.parse(String(call[0])) as { channel?: unknown };
+        expect(parsed.channel).toBe("invalid");
+      }
+
+      logSpy.mockRestore();
+    });
+
     it("검증 실패 오류 응답 본문에 name/contact 원본이 echo되지 않는다", async () => {
       const { json } = await submit(buildPayload({ name: "" }));
 

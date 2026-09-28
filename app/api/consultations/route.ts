@@ -162,15 +162,21 @@ export async function handleConsultationSubmit(
   }
 
   // 요청 시작 시점 최소 구조적 로그 — name/contact 원본은 절대 포함하지
-  // 않는다(design.md §9.1, REQ-B2CCONSULT-018).
+  // 않는다(design.md §9.1, REQ-B2CCONSULT-018). channel은 스키마 검증
+  // (아래 1번 단계) 이전에 로그를 남기므로, 공격자가 채널 필드에 전화번호나
+  // 이름 같은 PII를 넣어 보내는 로그 인젝션을 막기 위해 정확히
+  // "kakao"/"phone" 두 값일 때만 그대로 남기고, 그 외(공격 페이로드/잘못된
+  // 타입/누락)는 고정 sentinel "invalid"로 대체한다 — 원본 값은 어떤 경우도
+  // 로그에 실리지 않는다.
+  const rawChannel =
+    typeof body === "object" && body !== null && "channel" in body
+      ? (body as { channel?: unknown }).channel
+      : undefined;
   console.info(
     JSON.stringify({
       event: "consultation_request_received",
       timestamp: new Date().toISOString(),
-      channel:
-        typeof body === "object" && body !== null && "channel" in body
-          ? (body as { channel?: unknown }).channel
-          : undefined,
+      channel: rawChannel === "kakao" || rawChannel === "phone" ? rawChannel : "invalid",
       hasResultId: Boolean(
         typeof body === "object" &&
           body !== null &&

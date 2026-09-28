@@ -1035,9 +1035,154 @@ Mobile M02-C 자체 화면 측정에는 영향이 없음(별도 컨텍스트)을
 확인했지만, 향후 result-view.tsx의 탭 전환 애니메이션/로딩 방식이
 바뀌면 이 가드도 함께 갱신이 필요할 수 있다.
 
+### D-RUN-3/D-RUN-4/D-RUN-6 후속 — lint React ref 결함 + 상담 테스트 실패 + PII 사전검증 로그 인젝션 해소
+
+사용자의 독립 검토가 지적한 6개 항목(D-RUN-1~D-RUN-6) 중 3개(D-RUN-3/
+D-RUN-4/D-RUN-6)를 해소했다. D-RUN-1/D-RUN-2/D-RUN-5(03 화면 BORA 헤더/
+히어로, 02/M02 통합 회귀, 증거 경로 분리)는 별도 delegation 범위다.
+
+**Claim 1 — `consult-view.tsx`의 `react-hooks/refs` 위반(lazy state
+initializer 안에서 렌더 중 ref `.current` 쓰기)을 제거했다.**
+
+**Evidence**:
+```
+$ pnpm exec eslint components/consult/consult-view.tsx
+(수정 전) 166:70 error Error: Cannot access refs during render
+(수정 전) 194:5  warning Unused eslint-disable directive
+```
+`initialChannelFromDraftRef.current = draft.channel != null`을 `useState`
+lazy initializer 콜백 안에서 쓰던 것을 제거했다. 1차 수정(state 필드로
+전환)은 새로운 `react-hooks/set-state-in-effect` 위반을 드러냈다 —
+React Compiler 정적 분석(`eslint-plugin-react-hooks` v7)이 refs 위반을
+먼저 만나면 같은 컴포넌트의 나머지 검사를 중단하는 것으로 보이며, 1차
+위반만 없앴을 때 이 2차 위반이 노출됐다. `eslint-plugin-react-hooks`
+소스(`enableAllowSetStateFromRefsInEffects` 기본값 `true`)를 직접 읽고,
+ref로 게이팅된 setState 호출은 이 예외로 면제됨을 확인한 뒤 — ref
+선언은 유지하되 렌더 중 `.current` 쓰기 없이 `useRef(readConsultationDraft()
+.channel != null)`(순수 함수 인자로만 사용, 마운트 시에만 실제 반영)로
+재작성했다.
+```
+$ pnpm exec eslint components/consult/consult-view.tsx
+(수정 후) (빈 출력, exit 0)
+$ pnpm lint   # 프로젝트 전체
+(수정 후) $ eslint . (빈 출력, exit 0)
+```
+
+**Claim 2 — `app/api/consultations/route.ts`의 검증 이전 `channel` 로그가
+공격자 통제 원본 값을 그대로 남기던 PII 인젝션 벡터를 제거했다.**
+
+**Evidence**: `handleConsultationSubmit`의 요청 시작 로그(스키마 검증보다
+먼저 실행)가 `body.channel`을 검증 없이 `console.info`에 그대로 넘기고
+있었다 — `channel: "010-1234-5678"`처럼 공격자가 PII를 채널 필드에 넣으면
+로그에 원본 값이 남는다. `rawChannel === "kakao" || rawChannel === "phone"`
+일 때만 그대로 로그하고, 그 외는 고정 sentinel `"invalid"`로 대체하도록
+수정했다. `route.ts` 파일 전체의 `console.*` 호출을 grep으로 전수 확인해
+그 외 로그 인젝션 지점이 없음을 검증했다(에러 경로는 `toSafeErrorMeta()`가
+`errorName`/`errorCode`를 고정 화이트리스트로만 통과시키는 이미 안전한
+경로).
+```
+$ grep -n "console\." app/api/consultations/route.ts
+166:  console.info(
+381:    console.error(JSON.stringify({ event: "consultation_request_failed", ...toSafeErrorMeta(error) }));
+```
+신규 테스트(`route.test.ts`, `channel 필드에 악의적인 PII 값(전화번호/
+이름)을 넣어도 검증 이전 로그에 원본이 남지 않는다`)를 추가해, 전화번호
+형태(`010-9999-8888`)와 이름 형태(`김공격자`) 두 악의적 채널 값을 각각
+제출하고 `console.info` mock의 모든 호출 인자가 원본 문자열을 포함하지
+않음 + `channel` 필드가 정확히 `"invalid"`임을 assert한다.
+```
+$ pnpm exec vitest run app/api/consultations/route.test.ts
+Test Files  1 passed (1)
+     Tests  29 passed (29)
+```
+
+**Claim 3 — 상담 unit/component 테스트 12건 실패의 근본 원인은 코드
+결함이 아니라 (a) 손상된 pnpm 의존성 설치(환경) + (b) React 19 대응
+누락된 테스트 하네스(테스트 코드) 두 가지였다 — 둘 다 수정했다.**
+
+**Evidence(환경, (a))**: `pnpm test`가 처음에는 `Test Files 49 passed
+(49)` / `Errors 43 errors`를 보고했다 — 92개 테스트 파일 중 43개가
+`ERR_MODULE_NOT_FOUND`로 vitest worker 기동 자체에 실패했다(원인:
+`node_modules/.pnpm/@csstools+css-calc@3.3.0.../node_modules/@csstools/
+css-calc` 디렉터리가 내용 없이 비어 있는 깨진 pnpm 링크). `rm -rf
+node_modules && pnpm install`로 재설치해 해결했다 — 소스 코드 변경이
+아니다.
+```
+$ rm -rf node_modules && pnpm install
+Packages: +723 (모두 정상 링크)
+$ pnpm test
+(재설치 후) Test Files 92 passed (92) / Tests 698 passed (698)
+```
+**Evidence(테스트 하네스, (b))**: 재설치 후 3개 파일(`consult-form.test.tsx`
+/`consult-failure.test.tsx`/`consult-view.test.tsx`)에서 실제 코드 결함이
+아닌 3가지 테스트 코드 결함이 드러났다:
+1. `globalThis.IS_REACT_ACT_ENVIRONMENT`가 설정되지 않아 매 `act()` 호출마다
+   경고가 출력됐다(기능 실패는 아니었으나 위생 문제) — 3개 파일 모두
+   상단에 `(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean })
+   .IS_REACT_ACT_ENVIRONMENT = true` 추가(`@types/react`가 이 필드를
+   전역에 타입 선언하지 않아 `any` 없이 좁힌 타입으로 캐스팅 — 이
+   프로젝트의 `any` 금지 규칙 준수).
+2. React 19는 controlled input의 값 변경 추적을 위해 인스턴스에 자체
+   value setter를 얹는다 — `el.value = x; el.dispatchEvent(new Event
+   ("input"))` 같은 평범한 대입은 React의 추적값도 함께 갱신해 버려
+   onChange가 호출되지 않는다(github.com/facebook/react/issues/11488).
+   `Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,
+   "value").set`로 얻은 네이티브 setter를 직접 호출하는 `setNativeInputValue`
+   헬퍼를 각 파일에 로컬로 추가해 우회했다 — 공유 하네스 파일은 이
+   프로젝트에 기존 관례가 없어(grep 0건 확인) 만들지 않고, 기존 로컬
+   헬퍼(`fillRequiredFieldsAndConsent`/`clickAndFlush`) 관례를 그대로
+   따랐다.
+3. `react-dom-client.development.js`의 `registerSimpleEvent("focusout",
+   "onBlur")`(코드에서 직접 확인)로, React는 "blur"가 아니라 "focusout"
+   (bubbles) 네이티브 이벤트를 위임 지점에서 구독해 onBlur로 변환한다 —
+   테스트가 `new Event("blur", {bubbles:true})`를 디스패치하면 React가
+   인식하지 못해 onBlur가 전혀 호출되지 않았다. 모든 blur 시뮬레이션을
+   `"focusout"`으로 교체했다.
+
+`consult-failure.test.tsx`의 나머지 1건("입력 내용: 유지됨" 문자열 불일치)은
+확정 카피 문제였다 — `SummaryRow`가 `<dt>`/`<dd>`를 별개 요소로 렌더링해
+콜론 없이 textContent가 이어붙는다(`components/consult-success.test.tsx`/
+`consult-duplicate.test.tsx`의 기존 통과 assertion이 label/value를 항상
+별도로 검증하는 동일 컨벤션 확인 — 두 sibling 화면 모두 콜론 결합 없이
+검증됨). design.md §10의 `"입력 내용: 유지됨"` 표기는 이 SummaryRow가
+전달하는 의미를 설명하는 산문 인용이지 리터럴 렌더 텍스트 요구가 아니라고
+판단해(이 한 행만 다른 행과 다르게 콜론을 실제로 렌더링해야 한다는 근거
+없음), 테스트를 sibling 컨벤션과 일치시켜 별도 assertion 2개로 분리했다
+(컴포넌트는 변경하지 않음).
+```
+$ pnpm exec vitest run components/consult/consult-form.test.tsx components/consult/consult-failure.test.tsx
+Test Files  2 passed (2) / Tests 10 passed (10)
+$ pnpm exec vitest run components/consult/consult-view.test.tsx
+Test Files  1 passed (1) / Tests 19 passed (19)
+```
+
+**Baseline-attribution**: 이번 실행(이 트리), HEAD `f003e07`에서 계속된
+`feat/SPEC-B2C-CONSULT-001` 브랜치. `pnpm exec tsc --noEmit -p .`(전체
+타입체크, 에러 0건) + `pnpm lint`(전체, 에러/경고 0건) + `pnpm test`(전체,
+`Test Files 92 passed (92)` / `Tests 698 passed (698)`, `not configured to
+support act` 경고 0건 — 수정 전 grep으로 발생 건수 다수 확인 후 수정 후
+0건 재확인)로 종합 검증했다.
+
+**Gaps(미검증)**: 이 delegation은 D-RUN-3/D-RUN-4/D-RUN-6 3개 항목만
+다룬다 — D-RUN-1(03 화면 헤더/히어로), D-RUN-2(02/M02 통합 회귀),
+D-RUN-5(증거 경로 분리), 추가 점검(rate-limit 트랜잭션 계약,
+x-forwarded-for 신뢰 경계, scope diff audit)은 별도 delegation 범위이며
+여기서 검증하지 않았다.
+
+**Residual-risk(잔여 위험)**: (1) `node_modules` 손상은 이번 세션에서
+`rm -rf node_modules && pnpm install`로 복구했지만, 근본 원인(pnpm store의
+`@csstools/css-calc` 콘텐츠 없는 빈 디렉터리)은 조사하지 않았다 — 다시
+발생하면 동일한 재설치로 복구 가능하나, CI 환경에서는 매 실행이 클린
+설치이므로 재발 가능성은 낮다. (2) `SummaryRow`의 dt/dd 콜론 미표시가
+디자인 의도인지("입력 내용: 유지됨" 표기가 산문 인용인지 리터럴 카피
+요구인지)는 sibling 컨벤션으로 추론했을 뿐 사용자에게 직접 확인받지
+않았다 — 이 판단이 틀렸다면 `SummaryRow`(consult-failure/success/duplicate
+3개 컴포넌트 전부)에 콜론을 추가하는 별도 후속이 필요하다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<M1~M6 완료, run-phase 전체 완료 — sync-phase 인계 대기 중>_
+- `run_status: amended-pending-revalidation`
+- **재작업 지시 접수(이번 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

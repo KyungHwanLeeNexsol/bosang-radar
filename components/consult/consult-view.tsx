@@ -156,16 +156,18 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   const handoff = readDiagnosisHandoff();
 
   // M7 발견 — lazy initializer 실행 시점에 초기 channel이 draft에서 왔는지
-  // resolveInitialChannel() 폴백에서 왔는지를 별도로 기록해 둔다. 아래
-  // 마운트 후 보정 effect가 "draft 복원 값은 절대 덮어쓰지 않는다"는 기존
-  // 우선순위(draft.channel ?? resolveInitialChannel())를 그대로 지키려면
-  // 이 출처 구분이 필요하다 — formState.channel 값만으로는 두 경우가 우연히
-  // 같은 값("kakao")일 수 있어 사후에 구분할 수 없다.
-  const initialChannelFromDraftRef = React.useRef(false);
+  // resolveInitialChannel() 폴백에서 왔는지를 기록해 둔다. 아래 마운트 후
+  // 보정 effect가 "draft 복원 값은 절대 덮어쓰지 않는다"는 우선순위
+  // (draft.channel ?? resolveInitialChannel())를 지키려면 이 출처 구분이
+  // 필요하다 — formState.channel 값만으로는 두 경우가 우연히 같은 값
+  // ("kakao")일 수 있어 사후에 구분할 수 없다. readConsultationDraft()는
+  // sessionStorage를 읽기만 하는 순수 함수라 여기서 한 번 더 호출해도
+  // 안전하다 — useRef의 초기값 인자로 전달할 뿐, 렌더 중 `.current`를
+  // 쓰지는 않는다(react-hooks/refs 위반 없음).
+  const initialChannelFromDraftRef = React.useRef(readConsultationDraft().channel != null);
 
   const [formState, setFormState] = React.useState<ConsultFormState>(() => {
     const draft = readConsultationDraft();
-    initialChannelFromDraftRef.current = draft.channel != null;
     return {
       channel: draft.channel ?? resolveInitialChannel(),
       name: draft.name ?? "",
@@ -191,7 +193,6 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
     setFormState((prev) =>
       prev.channel === settledChannel ? prev : { ...prev, channel: settledChannel }
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 필수 동의 두 항목은 draft에서 절대 복원하지 않는다 — 새로고침 후에도

@@ -5,6 +5,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsultForm } from "./consult-form";
 
+// React 19 act() 환경 플래그 — 이 플래그가 없으면 act() 자체는 여전히
+// 동작하지만 "The current testing environment is not configured to support
+// act(...)" 경고가 매 act() 호출마다 출력된다(react-dom/test-utils 문서 권고).
+// @types/react가 이 필드를 globalThis에 타입 선언하지 않으므로 좁힌 타입으로
+// 캐스팅한다(any 금지 — 이 프로젝트 코딩 표준).
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// React 19는 controlled input의 값 변경을 추적하기 위해 인스턴스 위에 자체
+// value setter를 얹어 두므로, `el.value = x` 같은 평범한 대입은 React의
+// 추적값도 함께 갱신해 버려 뒤이은 "input" 이벤트가 실제 변경으로 인식되지
+// 않는다(onChange가 호출되지 않음, https://github.com/facebook/react/
+// issues/11488). HTMLInputElement.prototype의 네이티브 setter를 직접 호출해
+// React의 래핑을 우회한 뒤 이벤트를 디스패치해야 onChange가 정상 호출된다.
+function setNativeInputValue(el: HTMLInputElement, value: string): void {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  )!.set!;
+  nativeSetter.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 // SPEC-B2C-CONSULT-001 M4 (design.md §5, §6; acceptance AC-B2CCONSULT-010) —
 // 이름/연락처/연락 희망 시간 입력 폼. 연락처 라벨과 연락 희망 시간의
 // 필수/선택 여부는 channel prop에 따라 달라지며, ConsultationRequestSchema의
@@ -55,8 +77,7 @@ describe("components/consult/ConsultForm", () => {
     expect(nameInput).not.toBeNull();
 
     act(() => {
-      nameInput!.value = "홍길동";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      setNativeInputValue(nameInput!, "홍길동");
     });
 
     expect(onNameChange).toHaveBeenCalledWith("홍길동");
@@ -99,7 +120,13 @@ describe("components/consult/ConsultForm", () => {
       '[data-testid="consult-contact-input"]'
     );
     act(() => {
-      contactInput!.dispatchEvent(new Event("blur", { bubbles: true }));
+      // React는 "blur"가 아니라 "focusout"(bubbles) 네이티브 이벤트를
+      // 위임 지점(root)에서 구독해 합성 onBlur로 변환한다(react-dom
+      // registerSimpleEvent("focusout", "onBlur")) — "blur"는 네이티브에서
+      // 버블링하지 않고 React도 이를 직접 구독하지 않으므로, 테스트가
+      // "blur"를 디스패치하면 React가 이를 인식하지 못해 onBlur가 전혀
+      // 호출되지 않는다.
+      contactInput!.dispatchEvent(new Event("focusout", { bubbles: true }));
     });
 
     expect(onContactBlur).toHaveBeenCalledTimes(1);

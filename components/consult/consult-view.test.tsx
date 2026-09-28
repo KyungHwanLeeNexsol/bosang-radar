@@ -8,6 +8,28 @@ import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import { buildFractureResult, FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
 import { readConsultationDraft } from "@/lib/consult/draft";
 
+// React 19 act() 환경 플래그 — 이 플래그가 없으면 act() 자체는 여전히
+// 동작하지만 "The current testing environment is not configured to support
+// act(...)" 경고가 매 act() 호출마다 출력된다(react-dom/test-utils 문서 권고).
+// @types/react가 이 필드를 globalThis에 타입 선언하지 않으므로 좁힌 타입으로
+// 캐스팅한다(any 금지 — 이 프로젝트 코딩 표준).
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// React 19는 controlled input의 값 변경을 추적하기 위해 인스턴스 위에 자체
+// value setter를 얹어 두므로, `el.value = x` 같은 평범한 대입은 React의
+// 추적값도 함께 갱신해 버려 뒤이은 "input" 이벤트가 실제 변경으로 인식되지
+// 않는다(onChange가 호출되지 않음, https://github.com/facebook/react/
+// issues/11488). HTMLInputElement.prototype의 네이티브 setter를 직접 호출해
+// React의 래핑을 우회한 뒤 이벤트를 디스패치해야 onChange가 정상 호출된다.
+function setNativeInputValue(el: HTMLInputElement, value: string): void {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  )!.set!;
+  nativeSetter.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 // SPEC-B2C-CONSULT-001 M4 (design.md §2.2, §2.3; acceptance
 // AC-B2CCONSULT-006~009) — ConsultView의 3갈래 분기(empty/invalid/valid) +
 // draft 초기화/왕복 + idempotencyKey 1회 생성을 검증한다. handoff 모킹은
@@ -112,9 +134,11 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
       '[data-testid="consult-name-input"]'
     );
     act(() => {
-      nameInput!.value = "홍길동";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      nameInput!.dispatchEvent(new Event("blur", { bubbles: true }));
+      setNativeInputValue(nameInput!, "홍길동");
+      // React는 "focusout"(bubbles) 네이티브 이벤트를 root에서 구독해 합성
+      // onBlur로 변환한다 — "blur"는 버블링하지 않아 React가 인식하지
+      // 못한다.
+      nameInput!.dispatchEvent(new Event("focusout", { bubbles: true }));
     });
 
     const draft = readConsultationDraft();
@@ -217,10 +241,8 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
       '[data-testid="consult-contact-input"]'
     );
     act(() => {
-      nameInput!.value = "김보상";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      contactInput!.value = "010-0000-0000";
-      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "010-0000-0000");
     });
     const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
     act(() => {
@@ -412,10 +434,8 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
     const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
     act(() => {
-      nameInput!.value = "김보상";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      contactInput!.value = "010-0000-0000";
-      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "010-0000-0000");
     });
     checkRequiredConsents();
 
@@ -437,10 +457,8 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
     const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
     act(() => {
-      nameInput!.value = "김보상";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      contactInput!.value = "연락주세요";
-      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "연락주세요");
     });
     checkRequiredConsents();
 
@@ -463,10 +481,8 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
     const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
     act(() => {
-      nameInput!.value = "김보상";
-      nameInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      contactInput!.value = "010-0000-0000";
-      contactInput!.dispatchEvent(new Event("input", { bubbles: true }));
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "010-0000-0000");
     });
     checkRequiredConsents();
 
