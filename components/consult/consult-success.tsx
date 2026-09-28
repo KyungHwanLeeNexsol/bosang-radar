@@ -46,7 +46,7 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
 
       <dl
         data-testid="consult-success-summary"
-        className="mt-[38px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-14"
+        className="mt-[2px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-14"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={maskedContact} />
@@ -60,7 +60,7 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
         접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다
       </p>
 
-      <div className="mt-[-14px] flex w-full flex-col items-center gap-2 md:mt-[-39px] md:w-auto md:flex-row md:justify-center">
+      <div className="mt-[-29px] flex w-full flex-col items-center gap-2 md:mt-[-39px] md:w-auto md:flex-row md:justify-center">
         <Link
           href="/result"
           data-testid="consult-success-back-cta"

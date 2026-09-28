@@ -62,7 +62,7 @@ export function ConsultFailure({
 
       <dl
         data-testid="consult-failure-summary"
-        className="mt-[44px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-5"
+        className="mt-[5px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-5"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="이름" value={name} />
@@ -73,7 +73,7 @@ export function ConsultFailure({
         <SummaryRow label="입력 내용" value="유지됨" />
       </dl>
 
-      <div className="mt-[15px] flex w-full flex-col items-center gap-2 md:mt-6 md:w-auto">
+      <div className="mt-[1px] flex w-full flex-col items-center gap-2 md:mt-6 md:w-auto">
         <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
           <Button
             type="button"

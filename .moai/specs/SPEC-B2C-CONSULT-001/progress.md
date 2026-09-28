@@ -1188,6 +1188,12 @@ delegation에서 해소했다.
 **Claim 1 — D-RUN-1: 03 계열 9화면 중 7개가 PASS로 전환됐다(03/03-A2/
 03-B/03-C/03-D/M03/M03-C). M03-B/M03-D 2개는 top축 잔여 FAIL로 남는다.**
 
+**[정정 — 이번 세션, 아래 "D-RUN-1/2/5 재작업" 절 참고]** 이 Claim이 남긴
+M03-B/M03-D FAIL은 이후 세션에서 실제로 해소됐다. 아래 Gaps/Residual-risk에
+적었던 "근본 원인을 특정했다"(normalizeDesign 스트레치 + tightBox region
+클램핑)는 재현 실험 결과 이 두 화면의 실제 원인이 아니었다 — 실제 원인은
+별도 절에서 근거와 함께 재확정한다.
+
 **Evidence**:
 ```
 $ pnpm visual:verify (무제약 전체 24화면, VISUAL_ONLY 없음)
@@ -1227,8 +1233,10 @@ padding/margin을 normalized-design/M03.png 실측과 대조해 픽셀 단위로
 **Baseline-attribution**: 이번 실행(이 트리), `feat/SPEC-B2C-CONSULT-001`
 브랜치, 커밋 `c0605b7`(코드 수정) + `c3bbf63`(증거 갱신).
 
-**Gaps(미검증)**: M03-B/M03-D의 성공/실패 요약 카드·CTA 버튼 top 위치가
-설계 대비 Δ21-25px 잔여 오차로 남는다. 근본 원인을 특정했다 — (a)
+**Gaps(미검증) — [SUPERSEDED, 아래 "D-RUN-1/2/5 재작업" 절 참고]**:
+M03-B/M03-D의 성공/실패 요약 카드·CTA 버튼 top 위치가
+설계 대비 Δ21-25px 잔여 오차로 남는다. 이 delegation은 근본 원인을
+특정했다고 적었으나 — (a)
 `normalizeDesign()`이 design PNG를 `ctx.drawImage(img, 0, 0, w, h)`로
 뷰포트 크기에 맞춰 단순 스트레치하는데, 두 화면의 viewport height(605px/
 737px)가 raw export 크기와 정확히 1:1이라 여유 공간이 없다. (b) 카드
@@ -1244,16 +1252,18 @@ PASS하므로, 데스크톱과 모바일이 서로 다른 margin/gap 반응형 �
 상태로 수렴했고, 이 조합을 더 정밀하게 맞추는 작업은 이번 delegation
 예산을 넘어섰다.
 
-**Residual-risk(잔여 위험)**: (1) M03-B/M03-D는 여전히 FAIL 상태다 — 후속
-세션에서 `tightBox()`의 region 클램핑 로직 자체를 개선(viewport 경계를
-넘는 region을 clamp 대신 스킵하거나 별도 취급)하거나, 두 화면의 viewport
-height를 raw export보다 여유 있게 만들고 design 쪽 hint도 함께
-재계산하는 접근이 필요할 것으로 보인다. (2) semanticChecks(아이콘 존재,
-CTA 존재, 텍스트 유지 등)는 M03-B/M03-D 모두 PASS — 콘텐츠 자체는
-정확하며 순수 기하학적 위치 오차만 남아 있다.
+**Residual-risk(잔여 위험) — [SUPERSEDED, 아래 절 참고]**: (1) M03-B/M03-D는
+여전히 FAIL 상태다 — 후속 세션에서 `tightBox()`의 region 클램핑 로직
+자체를 개선하거나, 두 화면의 viewport height를 조정하는 접근이 필요할
+것으로 보인다고 이 delegation은 추정했다(재현 결과 이 추정은 틀렸다 —
+아래 절 참고). (2) semanticChecks(아이콘 존재, CTA 존재, 텍스트 유지
+등)는 M03-B/M03-D 모두 PASS — 콘텐츠 자체는 정확했다(이 부분은 정정
+후에도 유효).
 
-**Claim 2 — D-RUN-2: 02/M02/M02-B/M02-C/M02-D 5화면 전부 PASS로
-전환됐다. 근본 원인은 이전 "M7 후속" 절이 추정한 CTA 활성/비활성 전환이
+**Claim 2 — D-RUN-2: 02/M02/M02-B/M02-C/M02-D 5화면 전부 "설정된 검증
+게이트 기준" PASS로 전환됐다(픽셀 좌표·배경색 게이트 통과 — 화면 전체의
+디자인 정합성 완료를 의미하지 않는다; 아래 (b)는 여전히 미해결이다).
+근본 원인은 이전 "M7 후속" 절이 추정한 CTA 활성/비활성 전환이
 아니었다.**
 
 **Evidence**:
@@ -1291,9 +1301,22 @@ SPEC 범위 밖이라 재설계하지 않았다. (c)
 **Baseline-attribution**: 위와 동일(커밋 `c0605b7`/`c3bbf63`).
 
 **Gaps(미검증)**: (b)의 "먼저 확인할 항목" 콘텐츠 구조 편차는 이번
-delegation에서 재설계하지 않고 `skipMetrics`로 top/height를
-게이트하지 않았다 — SPEC-B2C-RESULT-001 소유 범위이므로 그 SPEC의 후속
-판단이 필요하다(별도 사용자 결정 요청 대상).
+delegation에서 재설계하지 않고 `skipMetrics: ["top", "height"]`로
+top/height 두 축을 게이트하지 않았다(left/width만 게이트) — 즉 이
+요소는 "카드가 있고 좌우 위치·너비가 맞다"만 검증되고, 세로 위치·높이·
+내부 카드형 vs 단순 목록형 레이아웃 차이는 검증 범위 밖이다.
+
+**범위 판단(이번 세션)**: `result-priority-checklist.tsx`는
+`components/result/`에 위치하며 SPEC-B2C-CONSULT-001의 design.md §7
+Out of Scope는 이 SPEC을 `/consult` 플로우로 한정한다 — `/result`
+페이지의 콘텐츠 구조(카드형 vs 단순 목록형) 재설계는 이 SPEC의 권한
+밖이다. 따라서 이 편차는 **SPEC-B2C-RESULT-001의 후속 작업**으로
+남긴다(이번 SPEC에서 수정하지 않음). 미해결 항목: "`design/exports/
+M02-*.png`가 보이는 번호+한 줄 라벨+화살표의 단순 목록과 달리, 구현은
+각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로
+렌더링한다 — SPEC-B2C-RESULT-001에서 디자인에 맞출지, 아니면 설명
+문구 추가를 승인된 콘텐츠 확장으로 인정하고 디자인 export를 갱신할지
+결정이 필요하다."
 
 **Residual-risk(잔여 위험)**: `backgroundProbe.bottom` 값(02:2300,
 M02:1600, M02-B:2100, M02-C/D:1200)은 하단 sticky CTA 바 시작 지점보다
@@ -1303,7 +1326,8 @@ M02:1600, M02-B:2100, M02-C/D:1200)은 하단 sticky CTA 바 시작 지점보다
 **Claim 3 — D-RUN-5: 03 계열 9화면의 증거(스크린샷/정규화 디자인/
 오버레이/diff/measurements.json)가 `.moai/reports/visual-check/
 SPEC-B2C-CONSULT-001/`로 분리됐다. 기존 15화면은
-`SPEC-B2C-DIAGNOSIS-001/` 경로를 그대로 유지한다.**
+`SPEC-B2C-DIAGNOSIS-001/` **경로**를 그대로 유지한다 — "경로 유지"와
+"그 경로 안의 증거 내용이 불변"은 다른 주장이며, 아래에서 구분한다.**
 
 **Evidence**:
 ```
@@ -1312,6 +1336,14 @@ diffs/ measurements.json measurements.partial.json normalized-design/
 overlays/ screenshots/
 $ ls .moai/reports/visual-check/SPEC-B2C-CONSULT-001/screenshots/ | wc -l
 9
+$ grep -cE 'id: "M?01' scripts/visual-verify.ts; grep -cE 'id: "M?02' scripts/visual-verify.ts
+10   (01 계열: 01/01-A2/01-B/01-C/01-D/01-E/M01/M01-A2/M01-B/M01-C)
+5    (02 계열: 02/M02/M02-B/M02-C/M02-D) — 합계 15화면, 문서 전반의
+     "기존 15화면(01 계열 10 + 02 계열 5)" 표현과 일치함을 이번 세션에
+     스크린샷 디렉터리가 아니라 SCREENS 배열 자체에서 직접 재확인했다
+     (스크린샷 디렉터리에는 이 배열에 없는 01-A3/M01-A3 등 예전 화면
+     분해 방식의 파일이 orphan으로 남아 있어 파일 개수만으로 세면 다른
+     수가 나온다 — 화면 ID 기준이 정확하다).
 $ git log --oneline -1 -- .moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/02-result.png
 c3bbf63 test(SPEC-B2C-CONSULT-001): D-RUN-1/2/5 전체 24화면 canonical 실행 증거 갱신
 ```
@@ -1323,16 +1355,250 @@ c3bbf63 test(SPEC-B2C-CONSULT-001): D-RUN-1/2/5 전체 24화면 canonical 실행
 기록됐던 03/M03 계열 9화면 분량의 파일 33개는 `git rm`으로 제거했다(fix
 커밋 `c0605b7`).
 
-**Baseline-attribution**: 위와 동일.
+**"경로 유지" ≠ "내용 불변" — 위 `git log` 자체가 근거다**: `02-result.png`
+(DIAGNOSIS-001 소유 파일)의 마지막 수정 커밋이 CONSULT-001 커밋
+(`c3bbf63`)이다. 이는 **버그가 아니라 스크립트의 설계된 동작**이다 —
+`scripts/visual-verify.ts` 파일 상단 주석이 명시하듯
+`measurements.json`은 "제약 없는 전체 24화면 실행"에서만 canonical로
+갱신되며, 그 실행은 24개 화면(9개 CONSULT + 15개 DIAGNOSIS)을 전부
+다시 캡처·측정한다 — **경로**(어느 SPEC 디렉터리에 쓰는지)는 화면
+ID별로 분리되지만, 전체 실행을 한 번 돌리면 15개 기존 화면의
+**측정값·스크린샷도 다시 생성**된다. 이번 세션에 같은 현상을 직접
+재현했다: 무제약 전체 실행(아래 "D-RUN-1/2/5 재작업" 절 Evidence) 후
+`git diff --stat`으로 확인한 결과 —
+```
+$ git diff --stat -- .moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/measurements.json
+ ... | 2 +-  (generatedAt 타임스탬프 한 줄만 변경, 24개 화면의 측정값·pass 여부는 동일)
+$ git diff --stat -- .moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/M02-C-result-disability.png .../overlays/M02-C.png .../diffs/M02-C.png
+ 3 files changed  (PNG 바이트 수준 미세 차이 — 폰트 안티앨리어싱 등 렌더링 잡음, maxΔ/pass 값은 HEAD와 동일: maxDelta=0, pass=true)
+```
+즉 **경로는 분리 유지**되고(각 화면이 소유 SPEC 디렉터리에 그대로
+남는다), **측정 판정 결과(PASS/FAIL, Δ값)는 불변**이지만, **파일
+바이트/타임스탬프는 실행마다 갱신**된다 — "기존 15화면 경로 유지"만
+검증된 사실이고 "기존 증거 내용(바이트) 불변"은 성립하지 않는다.
 
-**Gaps(미검증)**: 없음 — 경로 분리 자체는 완전히 검증됐다.
+**Baseline-attribution**: 위와 동일 + 이번 세션 무제약 전체 실행(아래
+절, 기준 커밋 `acf361f`).
 
-**Residual-risk(잔여 위험)**: 없음.
+**Gaps(미검증)**: 경로 분리 로직(`reportDirFor`) 자체와 파일 개수는
+확인했지만, DIAGNOSIS-001 소유 15화면 각각의 **디자인 측 측정값이
+CONSULT-001의 신규 변경(BOX_LIKE_KEYS 등 전역 상수 수정)에 의해
+회귀하지 않는지**는 전체 실행 결과(PASS/FAIL 표)로만 확인했다 —
+회귀가 실제로 있었다(03 Desktop "진단 결과 요약 카드" — 아래 절 참고,
+이번 세션 중 발견·수정). 향후 `scripts/visual-verify.ts`의 전역 상수
+(`BOX_LIKE_KEYS` 등)를 수정할 때는 반드시 무제약 전체 24화면 실행으로
+재확인해야 한다.
+
+**Residual-risk(잔여 위험)**: 경로 분리 헬퍼(`reportDirFor`)가 앞으로
+추가될 신규 SPEC(예: SPEC-B2C-RESULT-002)의 화면 ID를 `CONSULT_SCREEN_IDS`
+집합과 혼동 없이 분류하려면, 화면 ID 명명 규칙이 SPEC 경계를 반영해야
+한다 — 현재는 하드코딩된 집합 하나로만 판정하므로, 화면 ID가 재사용되면
+잘못된 SPEC 디렉터리에 기록될 수 있다.
+
+### D-RUN-1/2/5 재작업(이번 세션) — M03-B/M03-D 실제 원인 해소 + 전체 재검증
+
+사용자가 acf361f의 완료 주장과 실제 검증 범위가 어긋난다고 지적했다.
+이 절은 M03-B/M03-D의 실제 원인을 좌표 기준계를 통일해 재확인하고,
+근본적인 수정을 적용한 뒤, 무제약 전체 24화면 재실행으로 회귀 여부를
+검증한 결과다.
+
+**Claim 4 — M03-B/M03-D는 이제 실제로 PASS한다. 이전 delegation이 적은
+"근본 원인을 특정했다"(normalizeDesign 스트레치 + tightBox region
+클램핑)는 재현 결과 틀렸다 — 실제 원인은 서로 무관한 세 가지였다.**
+
+**Evidence — 좌표 기준계 통일 재현(같은 뷰포트로 3가지 좌표를 나란히
+측정)**:
+
+디자인 좌표(`design/exports/M03-B-신청-완료.png` 실측, tightBox 저대비
+임계값 6 적용 후), 실제 DOM `getBoundingClientRect()`(Playwright
+ad-hoc 재현 스크립트, 뷰포트 390×605 — 실제 화면 스펙과 동일하게
+고정), 그리고 스크린샷에서 `tightBox()`가 측정한 좌표(원래 스크립트,
+수정 전) 세 가지를 같은 화면·같은 축(top, px, 뷰포트 좌상단 기준)으로
+나열한다.
+
+| 화면 | 요소 | 디자인 top | DOM top(스크롤=0 보정 후, ground truth) | tightBox top(수정 전) | 수정 전 델타 |
+|---|---|---|---|---|---|
+| M03-B | 성공 요약(summary) | 248 | 283.5 | 316 | Δ68(design 대비) / DOM-tightBox 차 32.5 |
+| M03-B | 돌아가기 CTA(backCta) | 501 | 552.3 | 552 | Δ51.3(design 대비) / DOM-tightBox 차 0.3 |
+| M03-D | 실패 요약(summary) | 302 | 341.1 | — | Δ39.1(design 대비) |
+| M03-D | 다시 시도하기(retry) | 574 | 631.6 | — | Δ57.6(design 대비) |
+| M03-D | 이전 화면으로(backCta) | 633 | 687.6 | — | Δ54.6(design 대비) |
+
+세 원인을 분리했다:
+
+**(1) 측정기 오류(tightBox 잉크 임계값 미등록) — "summary" 카드에만
+해당**: `summary` 카드는 `border-app-line`(옅은 테두리)+`bg-app-surface`
+(옅은 배경)로 `backCta`/`retry`와 똑같은 저대비 상자인데, D-RUN-1이
+`backCta`/`retry`만 `BOX_LIKE_KEYS`(잉크 임계값 18→6)에 추가하고
+`summary`는 빼놓았다(대신 `skipMetrics`로 top 제외 left/width/height만
+건너뛰어 정작 실패하던 top은 그대로 게이트에 남겼다 — 위 표의
+DOM-tightBox 차 32.5px가 그 증거: 기본 임계값 18은 카드 테두리를 못
+잡고 안쪽 텍스트 잉크만 잡아 top을 실제보다 아래로 측정했다).
+`backCta`는 이미 임계값 6이 등록돼 있어 DOM과 tightBox 차가 0.3px로
+거의 없다 — 즉 이 오류는 `summary`에만 있었다.
+
+**중요한 함정(재현 중 발견) — key 이름 충돌**: `summary`를 그냥
+`BOX_LIKE_KEYS`(문자열 key 기준 전역 집합)에 추가하면 03(Desktop)
+화면의 "진단 결과 요약 카드"(`consult-summary-card`, key도 `"summary"`)
+까지 같은 낮은 임계값으로 바뀌어 **회귀**가 났다(재현: 03/03-A2
+height Δ42 > 8 FAIL). 최종 수정은 `BOX_LIKE_KEYS`를 건드리지 않고
+M03-B/M03-D의 두 `summary` ElementSpec에만 `inkThreshold: 6`을 로컬로
+지정했다(`ElementSpec.inkThreshold` 필드는 이미 존재했다 — 새 필드
+아님).
+
+**(2) 실제 UI 간격 오류 — genuine, 측정기와 무관**: 임계값을 고쳐도
+`backCta`(이미 정확히 측정되던 요소)의 델타는 여전히 51.3px로 남는다 —
+이건 측정 문제가 아니라 실제 CSS 여백이 디자인보다 많다는 뜻이다.
+`consult-success.tsx`/`consult-failure.tsx`의 `summary` 카드
+`margin-top`(38px/44px)과 CTA 그룹 `div`의 `margin-top`(-14px/15px,
+모바일 전용 값 — `md:` 데스크톱 값은 그대로 둠)을 위 표의 실측
+델타만큼 줄였다: 성공 summary 38→2px, 성공 CTA -14→-29px, 실패
+summary 44→5px, 실패 버튼 그룹 15→1px. 데스크톱(03-B/03-D)은 같은
+컴포넌트를 공유하지만 `md:` 값이 이미 맞아 PASS 상태를 유지했다
+(재검증 결과 실제로 그대로 PASS).
+
+**(3) 스크롤 carry-over(검증 하네스 버그, D-RUN-1이 처음 지목했던
+가설) — genuine, 실제로 있었다**: 모바일 뷰포트(390×605/737)는 폼
+전체보다 작아 제출 버튼에 닿으려면 실제로 스크롤이 필요하다(ad-hoc
+재현 실측: 제출 직전 `scrollY≈650`). 성공/실패 화면 전환이 client-side
+상태 전환(하드 네비게이션 없음)이라 그 스크롤이 전환 후에도 남는다
+(실측: 전환 직후 `scrollY≈75-77`, 0이 아니다). 디자인 export는 항상
+`scrollY=0` 기준이라 이 차이가 모든 요소의 top을 일괄로 밀어 보이게
+한다. **D-RUN-1의 원래 가설은 방향은 맞았다** — 다만 D-RUN-1이 실제로
+커밋한 것은 이 스크롤 리셋(`window.scrollTo(0,0)`) **더하기** 컴포넌트
+쪽에 근거 없는 음수 마진(-13px/-10px)을 "같이" 적용한 상태였고, 두
+수정이 겹쳐 과다 보정(반대 방향으로 델타 24px 발생)됐다. 이번 세션은
+먼저 스크롤 가설을 오버사이즈 뷰포트(390×1200)로 잘못 반증했다가
+(뷰포트가 너무 커서 스크롤이 전혀 필요 없어 스크롤 자체가 재현되지
+않았다), 실제 화면 스펙과 같은 뷰포트로 재현해서야 진짜 원인임을
+확인했다 — 이 오진단·재정정 과정 자체를 기록해 둔다(같은 함정에
+다시 빠지지 않도록).
+
+**Reproduction — normalizeDesign 스트레치 / region 클램핑 가설
+재검증**: 이전 delegation이 원인으로 지목했던 두 메커니즘을 그대로
+재현했다. (a) `normalizeDesign()`은 여전히 `ctx.drawImage(img, 0, 0,
+w, h)`로 뷰포트 크기에 맞춰 스트레치하고, 두 화면의 viewport
+height(605px/737px)는 이번에도 raw export와 1:1로 유지했다(바꾸지
+않았다) — 즉 이 스트레치 배율은 수정 전후 변하지 않았는데도 원인
+(1)(2)(3)을 고치자 PASS로 전환됐다. 이는 스트레치 자체가 이 두
+화면의 FAIL 원인이 아니었음을 보여준다. (b) `tightBox()`의 region
+클램핑(`Math.min(impl.height, impl.height - region.top)`)은 여전히
+코드에 그대로 있다(수정하지 않았다) — margin을 정상 범위(2-29px)로
+고친 뒤에는 region이 뷰포트 경계를 넘는 경우 자체가 사라져 클램핑이
+발동할 상황이 없어졌다. 즉 클램핑 로직은 "정상적으로 존재하는 안전
+장치"였고, 이전 delegation이 관찰한 "margin을 늘렸는데 측정 top이
+줄어드는" 역설적 현상은 클램핑의 결함이 아니라 **큰 음수/과대 margin이
+region을 실제로 뷰포트 밖으로 밀어냈을 때 클램핑이 정상 동작한 결과**
+였다(클램핑이 있는데도 발생한 문제가 아니라, 클램핑이 없었다면 더
+나쁜 값이 나왔을 상황).
+
+**조치 요약**:
+1. `scripts/visual-verify.ts`: 두 `summary` ElementSpec에 로컬
+   `inkThreshold: 6` 추가(전역 `BOX_LIKE_KEYS`는 건드리지 않음 — key
+   충돌 회피). `skipMetrics`를 `["left","width","height"]`에서
+   `["height"]`로 축소(left/width는 이제 Δ0으로 정확히 측정되므로
+   게이트 대상에 포함 — 검증을 더 엄격하게 만들었다, 완화가 아니다).
+   기존에 있던 `window.scrollTo(0, 0)` 되돌리기를 다시 추가(스크롤
+   기준점 통일, 모든 화면에 적용되는 no-op-safe 수정).
+2. `components/consult/consult-success.tsx`: `consult-success-summary`
+   `mt-[38px]`→`mt-[2px]`, CTA 그룹 `div` `mt-[-14px]`→`mt-[-29px]`
+   (모바일 전용, `md:` 값 불변).
+3. `components/consult/consult-failure.tsx`: `consult-failure-summary`
+   `mt-[44px]`→`mt-[5px]`, 버튼 그룹 `div` `mt-[15px]`→`mt-[1px]`
+   (모바일 전용, `md:` 값 불변).
+
+**height 미해결 항목(측정기 오류가 아니라 실제 카드 내부 패딩 차이,
+새로 발견)**: `summary` 카드의 height는 여전히 스킵 대상이다 —
+design export가 각 행에 더 넓은 세로 패딩을 준다(design/exports/
+M03-B-신청-완료.png 직접 확인: 실측 design height 303px vs 구현
+211px, 행당 카드 패딩 32px 제외 시 디자인 ≈68px/행 vs 구현
+`SummaryRow`의 `py-3`(12px) 기준 ≈45px/행). 이건 이번 요청 범위(top
+위치 FAIL 해소)를 벗어난 별도 스타일 변경(`SummaryRow`의 `py-3`
+자체를 늘리는 결정)이라 이번 세션에서는 고치지 않고 skipMetrics로
+남긴다 — SPEC-B2C-CONSULT-001 소유 컴포넌트이므로 이 SPEC의 후속
+작업으로 남는다(SPEC-B2C-RESULT-001로 넘길 항목 아님, 위 "여전히
+열려 있음" 목록의 6번과는 다른 별도 항목).
+
+**Evidence — 수정 후 무제약 전체 24화면 재실행**:
+```
+$ node_modules/.bin/tsx scripts/visual-verify.ts   (VISUAL_ONLY 없음, VISUAL_SKIP_BUILD 없음)
+$ echo $?
+0
+[visual-verify] 01 … PASS (maxΔ=5px / 허용 8px)
+[visual-verify] 01-A2 … PASS (maxΔ=6px / 허용 8px)
+[visual-verify] 01-B … PASS (maxΔ=5px / 허용 8px)
+[visual-verify] 01-C … PASS (maxΔ=6px / 허용 8px)
+[visual-verify] 01-D … PASS (maxΔ=8px / 허용 8px)
+[visual-verify] 01-E … PASS (maxΔ=6px / 허용 8px)
+[visual-verify] M01 … PASS (maxΔ=4px / 허용 4px)
+[visual-verify] M01-A2 … PASS (maxΔ=3px / 허용 4px)
+[visual-verify] M01-B … PASS (maxΔ=3px / 허용 4px)
+[visual-verify] M01-C … PASS (maxΔ=4px / 허용 4px)
+[visual-verify] 02 … PASS (maxΔ=8px / 허용 8px)
+[visual-verify] M02 … PASS (maxΔ=0px / 허용 4px)
+[visual-verify] M02-B … PASS (maxΔ=2px / 허용 4px)
+[visual-verify] M02-C … PASS (maxΔ=0px / 허용 4px)
+[visual-verify] M02-D … PASS (maxΔ=0px / 허용 4px)
+[visual-verify] 03 … PASS (maxΔ=3px / 허용 8px)
+[visual-verify] 03-A2 … PASS (maxΔ=4px / 허용 8px)
+[visual-verify] 03-B … PASS (maxΔ=1px / 허용 8px)
+[visual-verify] 03-C … PASS (maxΔ=2px / 허용 8px)
+[visual-verify] 03-D … PASS (maxΔ=7px / 허용 8px)
+[visual-verify] M03 … PASS (maxΔ=4px / 허용 4px)
+[visual-verify] M03-B … PASS (maxΔ=2px / 허용 4px)
+[visual-verify] M03-C … PASS (maxΔ=2px / 허용 4px)
+[visual-verify] M03-D … PASS (maxΔ=4px / 허용 4px)
+모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.
+```
+24개 화면 전부 PASS. M03-D의 maxΔ=4px는 허용 오차(4px) 경계값이다 —
+여유가 거의 없으므로 향후 이 두 컴포넌트를 다시 건드릴 때는 반드시
+재실행으로 확인해야 한다(경계값이라는 사실 자체를 잔여 위험으로
+기록한다).
+
+**회귀 발견·수정(이 재작업 도중)**: 위 "key 충돌" 함정 수정 전 1차
+실행에서 03/03-A2(height Δ42 FAIL)와 03-B(top Δ12 FAIL) 회귀가
+실제로 발생했었다 — `BOX_LIKE_KEYS`에 `summary`를 전역으로 추가한
+직후의 실행이었다. 로컬 `inkThreshold`로 바꾼 뒤 재실행해서 회귀가
+해소됐음을 위 결과로 확인했다. 이 회귀-발견-재수정 과정 자체가
+"무제약 전체 실행 없이는 부분 실행만으로 회귀를 놓칠 수 있다"는
+근거다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `acf361f`(사용자 지정),
+`feat/SPEC-B2C-CONSULT-001` 브랜치. 실행 환경: 이 머신의 기본 Node
+(v20.19.6)로는 `pnpm`(packageManager 고정 `pnpm@11.23.0`, Node
+22.13+ 요구)이 `ERR_UNKNOWN_BUILTIN_MODULE`로 기동 불가 — 기존에
+설치돼 있던 Node v22.23.2(nvm-windows)를 세션 PATH 앞에 추가해
+실행했다(신규 설치 없음, 시스템 전역 설정 변경 없음).
+
+**Gaps(미검증)**: (1) height 미해결 항목(위 참고, SummaryRow py-3
+패딩)은 그대로 미검증·미해결 상태다. (2) `tightBox()`의 region
+클램핑 로직 자체는 이번에도 수정하지 않았다 — 이번 두 화면은 margin이
+정상 범위로 돌아와 클램핑이 발동할 상황이 사라졌을 뿐, 클램핑 로직의
+근본 개선(설계 결정)은 여전히 다루지 않은 채로 남아 있다. (3) 다른
+20개 화면에 대해서는 "결과가 PASS로 유지된다"만 확인했고, 이번
+변경(scrollTo 복원 + inkThreshold 로컬화)이 그 화면들의 개별 요소
+delta를 **개선**했는지는(예: 03/03-A2/03-D의 maxΔ가 이전 acf361f
+문서 값과 비교해 소폭 낮아졌다 — 03: 42→3px 등, scrollTo 복원의
+부수 효과로 보이나 별도로 원인을 추적하지 않았다) 확인만 했고 각각의
+정확한 인과를 추적하지는 않았다.
+
+**Residual-risk(잔여 위험)**: (1) M03-D maxΔ=4px는 허용치 경계값이라
+여유가 거의 없다(위 참고). (2) 이번 세션이 발견한 "key 이름 전역
+충돌" 함정은 `scripts/visual-verify.ts`의 다른 전역 상수(예:
+`inkThresholdFor` 외 향후 추가될 유사 전역 판정 맵)에도 같은 구조로
+재발할 수 있다 — 화면 간 key 이름이 재사용될 때마다 전역 집합에
+추가하기 전에 반드시 무제약 전체 실행으로 교차 영향을 확인해야
+한다(§E.2 D-RUN-5 Gaps에도 동일 경고를 남겼다). (3) height
+skipMetrics 미해결 항목이 남아 있는 한, 이 두 화면은 "top 위치는
+디자인과 일치하지만 카드 내부 콘텐츠 밀도(줄 간격)는 다르다"는 상태로
+계속 PASS 표시된다 — 검증 게이트가 이 차이를 잡지 못한다는 사실을
+독립적으로 기억해야 한다(§E.2 D-RUN-2 Claim 2와 같은 종류의 한계).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
-- **재작업 지시 접수(이번 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
+- **재작업 지시 접수(당시 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
+- **업데이트(이번 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 위 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). **이번 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다** — 그 항목들은 이전 delegation(D-RUN-3/4/6 후속 절)의 완료 주장에 의존하며, `run_status`는 그 항목들을 포함해 전부 재확인되기 전까지 `audit-ready`로 전환하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -1363,6 +1629,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 3. **`CONSULT_POLICY_READY` 실제 활성화 시점(구 `productionReady`)** — 이 SPEC은 이제 배포 게이트(`ENABLE_CONSULT_FLOW`)와 실제 개인정보 수집 게이트(`CONSULT_POLICY_READY`)를 명확히 분리된 두 개의 서버 계약으로 확정했다(`design.md` §4, §6.1) — 이전에는 이 분리가 코드 계약이 아니라 문서상의 "이해"에 불과했다. 실제로 `CONSULT_POLICY_READY`를 `true`로 전환하는 시점(법무 확정 + 운영 준비 완료 후)은 여전히 사람의 운영 판단이며, 이 SPEC이 자동으로 결정하지 않는다.
 4. **"기존 신청 상태 확인" 실제 목적지** — 이 SPEC은 "준비 중" 스텁으로 구현했다(§ 디자인 대조 D4). 실제 신청 상태 조회 기능(인증 없는 조회 페이지 등)을 만들 것인지, 만든다면 인증·보안 요구사항이 무엇인지는 별도 제품 결정이 필요하다. (변경 없음)
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
+6. **(신규, 이번 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다.
 
 ### 이번 세션에서 해소됨
 

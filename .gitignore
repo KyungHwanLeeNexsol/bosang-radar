@@ -219,6 +219,16 @@ secret-*.*
 .moai/reports/visual-check/**/measurements.partial.json
 
 # ===========================================
+# Session-scoped Runtime Artifacts (local-only)
+# Trace logs, session reports, harness usage logs, and the lessons inbox
+# are generated fresh per session and never meant to be committed.
+# ===========================================
+.moai/harness/
+.moai/lessons-inbox.jsonl
+.moai/logs/trace-*.jsonl
+.moai/reports/session-*.md
+
+# ===========================================
 # Evolution Telemetry (local-only usage data)
 # Learnings and new-skills are git-tracked for team sharing.
 # ===========================================

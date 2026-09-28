@@ -2259,12 +2259,24 @@ const SCREENS: readonly ScreenSpec[] = [
         locate: (p) => vis(p, "consult-success-summary"),
         designTopHint: 265,
         mergeBands: 4,
-        // border-app-line 저대비 카드(회색 페이지 배경과 대비가 약함) —
-        // 기본/낮은 임계값 모두 좌우/폭/높이 경계를 안정적으로 못 잡는다
-        // (테두리 vs 텍스트 잉크). top만 게이트하고 나머지는 스킵한다.
-        skipMetrics: ["left", "width", "height"],
+        // D-RUN-1 후속(이번 세션) — key "summary"는 03(Desktop) 화면의
+        // "진단 결과 요약 카드"(consult-summary-card)와 이름이 겹친다.
+        // BOX_LIKE_KEYS는 key 문자열 기준 전역 집합이라 거기 추가하면 그
+        // 화면까지 함께 낮은 임계값으로 바뀌어 회귀가 난다(실측) — 이
+        // 요소에만 로컬 inkThreshold를 지정해 backCta/retry와 같은 낮은
+        // 임계값을 적용한다. 그 결과 left/width는 디자인과 정확히
+        // 일치(Δ0)한다 — 저대비 잉크 경계 문제는 top 포함 4축 모두
+        // 해소됐다. height만 남는다: 디자인
+        // export(M03-B-신청-완료.png)의 각 행이 실제 SummaryRow(py-3)보다
+        // 세로 패딩이 더 크다(실측 design height=303 vs impl height=211,
+        // 행당 카드 패딩(p-4=32) 제외 시 디자인 ≈68px/행 vs 구현 ≈45px/행)
+        // — 진짜 행 패딩 값 차이이며 잉크 측정 오차가 아니다. 이 SPEC의
+        // 요청 범위(top 위치 FAIL 해소)를 벗어난 별도 스타일 변경이라
+        // height는 계속 스킵하고 progress.md에 미해결 항목으로 남긴다.
+        inkThreshold: BOX_INK_THRESHOLD,
+        skipMetrics: ["height"],
         skipReason:
-          "border-app-line 저대비 카드 — 좌우/폭/높이 잉크 경계 측정이 불안정해 top만 게이트한다",
+          "디자인 export 대비 SummaryRow 행 패딩(py-3)이 더 좁아 카드 height가 작다 — 잉크 측정 오차가 아닌 실제 패딩 차이(미해결, progress.md 참고)",
       },
       {
         key: "backCta",
@@ -2357,12 +2369,19 @@ const SCREENS: readonly ScreenSpec[] = [
         locate: (p) => vis(p, "consult-failure-summary"),
         designTopHint: 319,
         mergeBands: 5,
-        // border-app-line 저대비 카드(회색 페이지 배경과 대비가 약함) —
-        // 기본/낮은 임계값 모두 좌우/폭/높이 경계를 안정적으로 못 잡는다
-        // (테두리 vs 텍스트 잉크). top만 게이트하고 나머지는 스킵한다.
-        skipMetrics: ["left", "width", "height"],
+        // D-RUN-1 후속(이번 세션) — M03-B와 동일한 원인·동일한 해소: key
+        // "summary"는 03(Desktop) "진단 결과 요약 카드"와 이름이 겹쳐
+        // BOX_LIKE_KEYS(전역 집합)에는 추가하지 않고 이 요소에만 로컬
+        // inkThreshold를 지정한다. left/width는 Δ0으로 일치한다. height만
+        // 디자인 export(M03-D-신청-실패.png)의 행
+        // 패딩이 더 넓어 남는다(실측 design height=381 vs impl height=256)
+        // — 잉크 측정 오차가 아닌 실제 SummaryRow(py-3) 패딩 차이. 이
+        // SPEC의 요청 범위(top FAIL 해소)를 벗어난 별도 스타일 변경이라
+        // height는 계속 스킵하고 progress.md에 미해결 항목으로 남긴다.
+        inkThreshold: BOX_INK_THRESHOLD,
+        skipMetrics: ["height"],
         skipReason:
-          "border-app-line 저대비 카드 — 좌우/폭/높이 잉크 경계 측정이 불안정해 top만 게이트한다",
+          "디자인 export 대비 SummaryRow 행 패딩(py-3)이 더 좁아 카드 height가 작다 — 잉크 측정 오차가 아닌 실제 패딩 차이(미해결, progress.md 참고)",
       },
       {
         key: "retry",
@@ -2688,6 +2707,16 @@ async function verifyScreen(
       }`,
     });
     await page.waitForTimeout(120);
+
+    // 03-B/03-D/M03-B/M03-D는 폼을 다 채운 뒤 제출하는데, 모바일 뷰포트에서는
+    // 폼이 뷰포트보다 길어 제출 버튼에 도달하려면 실제로 스크롤이 필요하다
+    // (실측: 제출 직전 scrollY≈650). 성공/실패 화면 전환이 client-side 상태
+    // 전환(하드 네비게이션 없음)이라 그 스크롤 위치가 전환 후에도 그대로
+    // 남는다(실측: 전환 직후 scrollY≈75, 0이 아님). 디자인 export는 항상
+    // scrollY=0 기준이므로 여기서 명시적으로 top=0으로 되돌려야 두 기준이
+    // 같은 원점을 공유한다. 이미 0이면 완전한 no-op이다(그 상태 자체는
+    // ad-hoc 재현 스크립트로 확인함).
+    await page.evaluate(() => window.scrollTo(0, 0));
 
     const domInfos = new Map<string, DomInfo | null>();
     for (const element of spec.elements) {

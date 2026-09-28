@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T04:18:57.346Z",
+  "generatedAt": "2026-09-28T10:05:51.493Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -4582,22 +4582,22 @@
           "key": "summary",
           "label": "성공 요약",
           "design": {
-            "left": 35,
-            "top": 265,
-            "width": 320,
-            "height": 145
+            "left": 20,
+            "top": 248,
+            "width": 350,
+            "height": 303
           },
           "impl": {
-            "left": 37,
-            "top": 241,
-            "width": 316,
-            "height": 145
+            "left": 20,
+            "top": 248,
+            "width": 350,
+            "height": 211
           },
           "delta": {
-            "left": 2,
-            "top": 24,
-            "width": 4,
-            "height": 0
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 92
           },
           "lines": {
             "actual": 4
@@ -4606,7 +4606,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "backCta",
@@ -4619,24 +4619,24 @@
           },
           "impl": {
             "left": 20,
-            "top": 477,
+            "top": 499,
             "width": 350,
-            "height": 48
+            "height": 50
           },
           "delta": {
             "left": 0,
-            "top": 24,
+            "top": 2,
             "width": 0,
-            "height": 2
+            "height": 0
           },
           "lines": {
             "actual": 1
           },
           "text": "진단 결과로 돌아가기",
-          "backgroundColor": "rgb(108, 71, 255)",
+          "backgroundColor": "rgb(82, 39, 214)",
           "fontSize": "13px",
           "lineHeight": "19.5px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -4659,8 +4659,8 @@
           "pass": true
         }
       ],
-      "maxDelta": 24,
-      "pass": false
+      "maxDelta": 2,
+      "pass": true
     },
     {
       "id": "M03-C",
@@ -5512,22 +5512,22 @@
           "key": "summary",
           "label": "실패 요약(입력 보존)",
           "design": {
-            "left": 34,
-            "top": 319,
-            "width": 321,
-            "height": 205
+            "left": 20,
+            "top": 302,
+            "width": 350,
+            "height": 381
           },
           "impl": {
-            "left": 37,
-            "top": 296,
-            "width": 316,
-            "height": 190
+            "left": 20,
+            "top": 302,
+            "width": 350,
+            "height": 256
           },
           "delta": {
-            "left": 3,
-            "top": 23,
-            "width": 5,
-            "height": 15
+            "left": 0,
+            "top": 0,
+            "width": 0,
+            "height": 125
           },
           "lines": {
             "actual": 5
@@ -5536,7 +5536,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "retry",
@@ -5549,13 +5549,13 @@
           },
           "impl": {
             "left": 18,
-            "top": 553,
+            "top": 577,
             "width": 354,
             "height": 51
           },
           "delta": {
             "left": 2,
-            "top": 21,
+            "top": 3,
             "width": 4,
             "height": 1
           },
@@ -5566,7 +5566,7 @@
           "backgroundColor": "rgb(108, 71, 255)",
           "fontSize": "14px",
           "lineHeight": "20px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "backCta",
@@ -5579,13 +5579,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 608,
+            "top": 632,
             "width": 350,
             "height": 52
           },
           "delta": {
             "left": 0,
-            "top": 25,
+            "top": 1,
             "width": 0,
             "height": 2
           },
@@ -5596,7 +5596,7 @@
           "backgroundColor": "rgb(248, 250, 251)",
           "fontSize": "13px",
           "lineHeight": "19.5px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -5619,50 +5619,9 @@
           "pass": true
         }
       ],
-      "maxDelta": 25,
-      "pass": false
+      "maxDelta": 4,
+      "pass": true
     }
   ],
-  "findings": [
-    {
-      "screen": "M03-B",
-      "element": "성공 요약",
-      "kind": "metric",
-      "detail": "top 디자인 265 vs 구현 241",
-      "delta": 24,
-      "tolerance": 4
-    },
-    {
-      "screen": "M03-B",
-      "element": "진단 결과로 돌아가기 CTA",
-      "kind": "metric",
-      "detail": "top 디자인 501 vs 구현 477",
-      "delta": 24,
-      "tolerance": 4
-    },
-    {
-      "screen": "M03-D",
-      "element": "실패 요약(입력 보존)",
-      "kind": "metric",
-      "detail": "top 디자인 319 vs 구현 296",
-      "delta": 23,
-      "tolerance": 4
-    },
-    {
-      "screen": "M03-D",
-      "element": "다시 시도하기",
-      "kind": "metric",
-      "detail": "top 디자인 574 vs 구현 553",
-      "delta": 21,
-      "tolerance": 4
-    },
-    {
-      "screen": "M03-D",
-      "element": "이전 화면으로 돌아가기",
-      "kind": "metric",
-      "detail": "top 디자인 633 vs 구현 608",
-      "delta": 25,
-      "tolerance": 4
-    }
-  ]
+  "findings": []
 }

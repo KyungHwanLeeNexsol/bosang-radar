@@ -13,7 +13,7 @@
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
     "ENABLE_TOOL_SEARCH": "1",
     "MOAI_CONFIG_SOURCE": "sections",
-    "PATH": "C:\\Users\\Nexsol\\.local\\bin;C:\\Users\\Nexsol\\go\\bin;/usr/local/bin;/usr/local/sbin;/usr/bin;/bin;/usr/sbin;/sbin"
+    "PATH": "C:\\Program Files\\Git\\bin;C:\\Program Files\\Git\\usr\\bin;C:\\nvm4w\\nodejs;C:\\Program Files\\GitHub CLI;C:\\Users\\zuge3\\AppData\\Local\\Programs\\moai;C:\\Users\\zuge3\\.local\\bin;C:\\Users\\zuge3\\go\\bin;/usr/local/bin;/usr/local/sbin;/usr/bin;/bin;/usr/sbin;/sbin"
   },
   "hooks": {
     "ConfigChange": [
