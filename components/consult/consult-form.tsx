@@ -61,13 +61,16 @@ export function ConsultForm({
   const contactLabel = isPhone ? "통화 가능한 전화번호" : "카카오톡 연락에 사용할 휴대폰 번호";
 
   return (
-    <div data-testid="consult-form" className="grid gap-4 md:grid-cols-2">
+    <div
+      data-testid="consult-form"
+      className="-mt-[62px] grid gap-9 md:mt-0 md:grid-cols-2 md:gap-6"
+    >
       <div>
         <Label htmlFor="consult-name-input">이름 *</Label>
         <Input
           id="consult-name-input"
           data-testid="consult-name-input"
-          className="mt-1.5 h-11"
+          className="mt-2 h-14 md:mt-1.5 md:h-11"
           value={name}
           maxLength={20}
           onChange={(event) => onNameChange(event.target.value)}
@@ -83,7 +86,7 @@ export function ConsultForm({
         <Input
           id="consult-contact-input"
           data-testid="consult-contact-input"
-          className="mt-1.5 h-11"
+          className="mt-2 h-14 md:mt-1.5 md:h-11"
           value={contact}
           placeholder="010-0000-0000"
           onChange={(event) => onContactChange(event.target.value)}
@@ -99,12 +102,14 @@ export function ConsultForm({
           <Label htmlFor="consult-preferred-call-time-input">
             연락 희망 시간{isPhone ? " *" : ""}
           </Label>
-          <span className="text-label-s text-bora-ink-4">{isPhone ? "전화 상담은 필수" : "선택"}</span>
+          <span className="text-label-s text-bora-ink-4">
+            {isPhone ? "전화 상담은 필수" : "선택"}
+          </span>
         </div>
         <Input
           id="consult-preferred-call-time-input"
           data-testid="consult-preferred-call-time-input"
-          className="mt-1.5 h-11"
+          className="mt-2 h-14 md:mt-1.5 md:h-11"
           value={preferredCallTime}
           placeholder="평일 오후 (13시 ~ 18시)"
           onChange={(event) => onPreferredCallTimeChange(event.target.value)}

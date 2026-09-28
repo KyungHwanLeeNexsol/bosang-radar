@@ -28,6 +28,7 @@ import { ConsultError } from "./consult-error";
 import { ConsultSuccess } from "./consult-success";
 import { ConsultDuplicate } from "./consult-duplicate";
 import { ConsultFailure } from "./consult-failure";
+import { ConsultHeader } from "./consult-header";
 
 // SPEC-B2C-CONSULT-001 M4/M5 — M3의 최소 placeholder를 전면 교체한다.
 // 마운트 시 readDiagnosisHandoff()(design.md §2.2) 3갈래 분기(empty/invalid/
@@ -100,7 +101,11 @@ interface ConsultViewFormErrors {
 // consult-form.tsx가 고정 id(consult-{field}-input)로 렌더링하는 입력
 // 요소를 그대로 찾는다 — ref 배선을 새로 추가하지 않는다(Enforce
 // Simplicity, 기존 필드 id는 M4부터 이미 안정적이다).
-const FIELD_FOCUS_ORDER: Array<keyof ConsultViewFormErrors> = ["name", "contact", "preferredCallTime"];
+const FIELD_FOCUS_ORDER: Array<keyof ConsultViewFormErrors> = [
+  "name",
+  "contact",
+  "preferredCallTime",
+];
 const FIELD_INPUT_ID: Record<keyof ConsultViewFormErrors, string> = {
   name: "consult-name-input",
   contact: "consult-contact-input",
@@ -354,44 +359,73 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   }
 
   if (handoff.status === "empty") {
-    return <ConsultNoData />;
+    return (
+      <>
+        <ConsultHeader variant="form" />
+        <div className="flex flex-1 flex-col bg-app-bg">
+          <ConsultNoData />
+        </div>
+      </>
+    );
   }
 
   if (handoff.status === "invalid") {
-    return <ConsultError />;
+    return (
+      <>
+        <ConsultHeader variant="form" />
+        <div className="flex flex-1 flex-col bg-app-bg">
+          <ConsultError />
+        </div>
+      </>
+    );
   }
 
   if (submitView.kind === "success") {
     return (
-      <ConsultSuccess
-        channel={submitView.result.channel}
-        maskedContact={submitView.result.maskedContact}
-        preferredCallTime={submitView.result.preferredCallTime}
-      />
+      <>
+        <ConsultHeader variant="outcome" />
+        <div className="flex flex-1 flex-col bg-app-bg">
+          <ConsultSuccess
+            channel={submitView.result.channel}
+            maskedContact={submitView.result.maskedContact}
+            preferredCallTime={submitView.result.preferredCallTime}
+          />
+        </div>
+      </>
     );
   }
 
   if (submitView.kind === "duplicate") {
     return (
-      <ConsultDuplicate
-        channel={formState.channel}
-        maskedContact={submitView.result.maskedContact}
-        receivedAt={submitView.result.receivedAt}
-        applicationStatus={submitView.result.applicationStatus}
-      />
+      <>
+        <ConsultHeader variant="outcome" />
+        <div className="flex flex-1 flex-col bg-app-bg">
+          <ConsultDuplicate
+            channel={formState.channel}
+            maskedContact={submitView.result.maskedContact}
+            receivedAt={submitView.result.receivedAt}
+            applicationStatus={submitView.result.applicationStatus}
+          />
+        </div>
+      </>
     );
   }
 
   if (submitView.kind === "failure") {
     return (
-      <ConsultFailure
-        channel={formState.channel}
-        name={formState.name}
-        contact={formState.contact}
-        preferredCallTime={formState.preferredCallTime}
-        isRetrying={isRetrying}
-        onRetry={handleRetry}
-      />
+      <>
+        <ConsultHeader variant="outcome" />
+        <div className="flex flex-1 flex-col bg-app-bg">
+          <ConsultFailure
+            channel={formState.channel}
+            name={formState.name}
+            contact={formState.contact}
+            preferredCallTime={formState.preferredCallTime}
+            isRetrying={isRetrying}
+            onRetry={handleRetry}
+          />
+        </div>
+      </>
     );
   }
 
@@ -399,54 +433,80 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   const canSubmit = piiCollection && healthInfoUse;
 
   return (
-    <div data-testid="consult-view" className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-8">
-      <ConsultSummaryCard title={handoff.result.inputSummary.title} aggregate={aggregate} />
-
-      <ConsultChannelSelector value={formState.channel} onChange={handleChannelChange} />
-
-      {Object.keys(formErrors).length > 0 ? (
-        // M6 (design.md §11 "오류 요약") — role="alert"는 이 프로젝트의
-        // 기존 오류 표기 관례(consult-form.tsx FieldError, consult-
-        // failure.tsx 등)를 그대로 따른다.
-        <div
-          data-testid="consult-error-summary"
-          role="alert"
-          className="rounded-[12px] border border-destructive/30 bg-destructive/5 p-4"
-        >
-          <p className="text-sm font-semibold text-destructive">입력한 내용을 다시 확인해 주세요</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-meta text-destructive">
-            {FIELD_FOCUS_ORDER.filter((key) => formErrors[key]).map((key) => (
-              <li key={key}>{formErrors[key]}</li>
-            ))}
-          </ul>
+    <>
+      <ConsultHeader variant="form" />
+      <div className="flex flex-1 flex-col bg-app-bg">
+        <div className="mx-auto w-full max-w-[720px] px-5 pt-6 md:px-0 md:pt-8">
+          <h1 className="text-h1 font-bold text-bora-ink">손해사정사에게 무료로 물어보세요</h1>
+          <p className="mt-2 text-body text-bora-ink-3">
+            <span className="md:hidden">
+              진단 결과가 함께 전달되어 처음부터 다시 설명하지 않으셔도 됩니다.
+            </span>
+            <span className="hidden md:inline">
+              진단 결과가 함께 전달되어 처음부터 다시 설명하지 않으셔도 됩니다. 보험증권과 치료
+              내용을 함께 확인하면 필요한 서류와 청구 절차를 안내받을 수 있습니다.
+            </span>
+          </p>
         </div>
-      ) : null}
+        <div
+          data-testid="consult-view"
+          className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-5 pt-1 pb-8 md:px-0 md:pt-12"
+        >
+          <ConsultSummaryCard title={handoff.result.inputSummary.title} aggregate={aggregate} />
 
-      <ConsultForm
-        channel={formState.channel}
-        name={formState.name}
-        onNameChange={(value) => updateField("name", value)}
-        onNameBlur={handleBlurPersist}
-        contact={formState.contact}
-        onContactChange={(value) => updateField("contact", value)}
-        onContactBlur={handleBlurPersist}
-        preferredCallTime={formState.preferredCallTime}
-        onPreferredCallTimeChange={(value) => updateField("preferredCallTime", value)}
-        onPreferredCallTimeBlur={handleBlurPersist}
-        errors={formErrors}
-      />
+          <ConsultChannelSelector value={formState.channel} onChange={handleChannelChange} />
 
-      <ConsultConsentGroup
-        piiCollection={piiCollection}
-        healthInfoUse={healthInfoUse}
-        marketing={formState.marketingConsent}
-        onPiiCollectionChange={setPiiCollection}
-        onHealthInfoUseChange={setHealthInfoUse}
-        onMarketingChange={handleMarketingChange}
-        isPolicyReady={isPolicyReady}
-      />
+          {Object.keys(formErrors).length > 0 ? (
+            // M6 (design.md §11 "오류 요약") — role="alert"는 이 프로젝트의
+            // 기존 오류 표기 관례(consult-form.tsx FieldError, consult-
+            // failure.tsx 등)를 그대로 따른다.
+            <div
+              data-testid="consult-error-summary"
+              role="alert"
+              className="rounded-[12px] border border-destructive/30 bg-destructive/5 p-4"
+            >
+              <p className="text-sm font-semibold text-destructive">
+                입력한 내용을 다시 확인해 주세요
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-meta text-destructive">
+                {FIELD_FOCUS_ORDER.filter((key) => formErrors[key]).map((key) => (
+                  <li key={key}>{formErrors[key]}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-      <ConsultSubmitBar canSubmit={canSubmit} channel={formState.channel} onSubmit={handleSubmit} />
-    </div>
+          <ConsultForm
+            channel={formState.channel}
+            name={formState.name}
+            onNameChange={(value) => updateField("name", value)}
+            onNameBlur={handleBlurPersist}
+            contact={formState.contact}
+            onContactChange={(value) => updateField("contact", value)}
+            onContactBlur={handleBlurPersist}
+            preferredCallTime={formState.preferredCallTime}
+            onPreferredCallTimeChange={(value) => updateField("preferredCallTime", value)}
+            onPreferredCallTimeBlur={handleBlurPersist}
+            errors={formErrors}
+          />
+
+          <ConsultConsentGroup
+            piiCollection={piiCollection}
+            healthInfoUse={healthInfoUse}
+            marketing={formState.marketingConsent}
+            onPiiCollectionChange={setPiiCollection}
+            onHealthInfoUseChange={setHealthInfoUse}
+            onMarketingChange={handleMarketingChange}
+            isPolicyReady={isPolicyReady}
+          />
+
+          <ConsultSubmitBar
+            canSubmit={canSubmit}
+            channel={formState.channel}
+            onSubmit={handleSubmit}
+          />
+        </div>
+      </div>
+    </>
   );
 }

@@ -32,7 +32,7 @@ interface ConsultDuplicateProps {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-app-line py-2 last:border-b-0">
+    <div className="flex justify-between border-b border-app-line py-3 last:border-b-0">
       <dt className="text-body-s text-bora-ink-3">{label}</dt>
       <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
@@ -48,7 +48,7 @@ export function ConsultDuplicate({
   return (
     <div
       data-testid="consult-duplicate"
-      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-4 py-12 text-center"
+      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-5 py-12 text-center"
     >
       <span
         aria-hidden="true"
@@ -60,7 +60,7 @@ export function ConsultDuplicate({
 
       <dl
         data-testid="consult-duplicate-summary"
-        className="w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left"
+        className="mt-8 w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-10"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={maskedContact} />
@@ -71,14 +71,17 @@ export function ConsultDuplicate({
         />
       </dl>
 
-      <div className="flex flex-col items-center gap-2">
-        <span data-testid="consult-duplicate-status-inquiry" className="text-label-s text-bora-ink-4">
+      <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
+        <span
+          data-testid="consult-duplicate-status-inquiry"
+          className="text-label-s text-bora-ink-4"
+        >
           기존 신청 상태 확인: 준비 중
         </span>
         <Link
           href="/result"
           data-testid="consult-duplicate-back-cta"
-          className="rounded-full bg-bora-accent px-5 py-2.5 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
+          className="w-full rounded-full bg-bora-accent px-5 py-3.5 text-center text-body-s font-semibold text-white hover:bg-bora-accent-deep md:w-auto"
         >
           진단 결과로 돌아가기
         </Link>

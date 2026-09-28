@@ -29,7 +29,7 @@ interface ConsultFailureProps {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-app-line py-2 last:border-b-0">
+    <div className="flex justify-between border-b border-app-line py-3 last:border-b-0">
       <dt className="text-body-s text-bora-ink-3">{label}</dt>
       <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
@@ -47,7 +47,7 @@ export function ConsultFailure({
   return (
     <div
       data-testid="consult-failure"
-      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-4 py-12 text-center"
+      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-5 py-12 text-center"
     >
       <span
         aria-hidden="true"
@@ -62,7 +62,7 @@ export function ConsultFailure({
 
       <dl
         data-testid="consult-failure-summary"
-        className="w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left"
+        className="mt-[44px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-5"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="이름" value={name} />
@@ -73,28 +73,31 @@ export function ConsultFailure({
         <SummaryRow label="입력 내용" value="유지됨" />
       </dl>
 
-      <div className="flex flex-col items-center gap-2">
-        <Button
-          type="button"
-          data-testid="consult-failure-retry"
-          variant="diagnosis"
-          aria-disabled={isRetrying}
-          aria-busy={isRetrying}
-          onClick={() => {
-            if (!isRetrying) {
-              onRetry();
-            }
-          }}
-        >
-          다시 시도하기
-        </Button>
-        <Link
-          href="/result"
-          data-testid="consult-failure-back-cta"
-          className="text-body-s font-medium text-bora-ink-3 underline hover:text-bora-ink"
-        >
-          진단 결과로 돌아가기
-        </Link>
+      <div className="mt-[15px] flex w-full flex-col items-center gap-2 md:mt-6 md:w-auto">
+        <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
+          <Button
+            type="button"
+            data-testid="consult-failure-retry"
+            variant="diagnosis"
+            className="h-12 w-full px-5 md:w-auto"
+            aria-disabled={isRetrying}
+            aria-busy={isRetrying}
+            onClick={() => {
+              if (!isRetrying) {
+                onRetry();
+              }
+            }}
+          >
+            다시 시도하기
+          </Button>
+          <Link
+            href="/result"
+            data-testid="consult-failure-back-cta"
+            className="w-full rounded-full border border-app-line bg-app-surface px-5 py-3.5 text-center text-body-s font-semibold text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:w-auto"
+          >
+            이전 화면으로 돌아가기
+          </Link>
+        </div>
         <p className="mt-1 text-label-s text-bora-ink-4">
           다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요
         </p>

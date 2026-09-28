@@ -22,7 +22,12 @@ interface ChannelOption {
 }
 
 const CHANNEL_OPTIONS: ChannelOption[] = [
-  { value: "kakao", icon: MessageCircle, label: "카카오톡 상담", description: "편한 시간에 답변을 확인하세요" },
+  {
+    value: "kakao",
+    icon: MessageCircle,
+    label: "카카오톡 상담",
+    description: "편한 시간에 답변을 확인하세요",
+  },
   { value: "phone", icon: Phone, label: "전화 상담", description: "10분이면 충분합니다" },
 ];
 
@@ -42,16 +47,20 @@ interface ConsultChannelSelectorProps {
 
 export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelectorProps) {
   return (
-    <div data-testid="consult-channel-selector">
+    <div data-testid="consult-channel-selector" className="mt-6 md:mt-0">
       <h2 className="text-h3 font-bold text-bora-ink">어떻게 상담받으시겠어요?</h2>
-      <div role="radiogroup" aria-label="상담 채널 선택" className="mt-3 grid grid-cols-2 gap-3">
+      <div
+        role="radiogroup"
+        aria-label="상담 채널 선택"
+        className="mt-3 grid grid-cols-1 gap-3 md:mt-4 md:grid-cols-2"
+      >
         {CHANNEL_OPTIONS.map(({ value: optionValue, icon: Icon, label, description }) => {
           const checked = value === optionValue;
           return (
             <label
               key={optionValue}
               className={cn(
-                "flex cursor-pointer items-center justify-between gap-3 rounded-[12px] border p-3.5 transition-colors",
+                "flex cursor-pointer items-center justify-between gap-3 rounded-[12px] border p-5 transition-colors md:p-6",
                 checked
                   ? "border-bora-accent-line bg-bora-accent-soft"
                   : "border-app-line hover:bg-app-surface-sub"
@@ -61,7 +70,7 @@ export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelect
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-[10px]",
+                    "flex size-9 shrink-0 items-center justify-center rounded-[10px] md:size-10",
                     checked ? "bg-bora-accent text-white" : "bg-app-surface-inset text-bora-ink-3"
                   )}
                 >
@@ -87,7 +96,7 @@ export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelect
       <p
         role="status"
         aria-live="polite"
-        className="mt-2.5 rounded-[8px] bg-bora-accent-soft px-3.5 py-2.5 text-label-s font-medium text-bora-accent-deep"
+        className="mt-2.5 rounded-[8px] bg-bora-accent-soft px-3.5 py-2.5 text-label-s font-medium text-bora-accent-deep md:mt-3 md:py-3"
       >
         {CHANNEL_NOTICE[value]}
       </p>

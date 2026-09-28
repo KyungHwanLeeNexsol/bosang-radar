@@ -23,7 +23,7 @@ interface ConsultSuccessProps {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-app-line py-2 last:border-b-0">
+    <div className="flex justify-between border-b border-app-line py-3 last:border-b-0">
       <dt className="text-body-s text-bora-ink-3">{label}</dt>
       <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
@@ -34,7 +34,7 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
   return (
     <div
       data-testid="consult-success"
-      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-4 py-12 text-center"
+      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-6 px-5 py-14 text-center md:gap-5 md:py-12"
     >
       <span
         aria-hidden="true"
@@ -46,7 +46,7 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
 
       <dl
         data-testid="consult-success-summary"
-        className="w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left"
+        className="mt-[38px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-14"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={maskedContact} />
@@ -60,11 +60,11 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
         접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다
       </p>
 
-      <div className="flex flex-col items-center gap-2">
+      <div className="mt-[-14px] flex w-full flex-col items-center gap-2 md:mt-[-39px] md:w-auto md:flex-row md:justify-center">
         <Link
           href="/result"
           data-testid="consult-success-back-cta"
-          className="rounded-full bg-bora-accent px-5 py-2.5 text-body-s font-semibold text-white hover:bg-bora-accent-deep"
+          className="w-full rounded-full bg-bora-accent px-5 py-3.5 text-center text-body-s font-semibold text-white hover:bg-bora-accent-deep md:w-auto"
         >
           진단 결과로 돌아가기
         </Link>

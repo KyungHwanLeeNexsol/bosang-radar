@@ -15,7 +15,7 @@ export function ConsultSummaryCard({ title, aggregate }: ConsultSummaryCardProps
     <section
       data-testid="consult-summary-card"
       aria-label="진단 결과 요약"
-      className="rounded-[12px] border border-app-line bg-app-surface p-4 md:p-5"
+      className="rounded-[12px] border border-app-line bg-app-surface p-[13px] md:p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -32,8 +32,8 @@ export function ConsultSummaryCard({ title, aggregate }: ConsultSummaryCardProps
         </div>
       </div>
       <p className="mt-3 border-t border-app-line pt-3 text-meta text-bora-ink-3">
-        가능성 낮음 {aggregate.lowLikelihood}개를 포함해 총 {aggregate.total}개 담보를
-        분석했습니다 · 보험증권 확인 전 참고 결과
+        가능성 낮음 {aggregate.lowLikelihood}개를 포함해 총 {aggregate.total}개 담보를 분석했습니다
+        · 보험증권 확인 전 참고 결과
       </p>
     </section>
   );
