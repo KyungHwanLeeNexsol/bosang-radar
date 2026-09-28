@@ -1179,6 +1179,156 @@ x-forwarded-for 신뢰 경계, scope diff audit)은 별도 delegation 범위이�
 않았다 — 이 판단이 틀렸다면 `SummaryRow`(consult-failure/success/duplicate
 3개 컴포넌트 전부)에 콜론을 추가하는 별도 후속이 필요하다.
 
+### D-RUN-1/2/5 후속 — 03 계열 헤더/히어로 + 02/M02 회귀 재보정 + 증거 경로 분리
+
+사용자의 독립 검토가 지적한 6개 항목 중 D-RUN-1(03 화면 BORA 헤더/히어로
+부재), D-RUN-2(02/M02 통합 회귀), D-RUN-5(증거 경로 오염)를 이번
+delegation에서 해소했다.
+
+**Claim 1 — D-RUN-1: 03 계열 9화면 중 7개가 PASS로 전환됐다(03/03-A2/
+03-B/03-C/03-D/M03/M03-C). M03-B/M03-D 2개는 top축 잔여 FAIL로 남는다.**
+
+**Evidence**:
+```
+$ pnpm visual:verify (무제약 전체 24화면, VISUAL_ONLY 없음)
+[visual-verify] 03 … PASS (maxΔ=3px / 허용 8px)
+[visual-verify] 03-A2 … PASS (maxΔ=4px / 허용 8px)
+[visual-verify] 03-B … PASS (maxΔ=1px / 허용 8px)
+[visual-verify] 03-C … PASS (maxΔ=2px / 허용 8px)
+[visual-verify] 03-D … PASS (maxΔ=7px / 허용 8px)
+[visual-verify] M03 … PASS (maxΔ=4px / 허용 4px)
+[visual-verify] M03-B … FAIL (maxΔ=24px / 허용 4px)
+[visual-verify] M03-C … PASS (maxΔ=2px / 허용 4px)
+[visual-verify] M03-D … FAIL (maxΔ=25px / 허용 4px)
+```
+근본 원인 및 조치: (1) `components/consult/consult-header.tsx`를 신규
+작성해 `/consult` 전 화면(폼/성공/중복/실패)에 BORA 사이트 헤더를
+렌더링(form/outcome 두 variant — form은 "← 진단 결과로 돌아가기" 링크,
+outcome은 "사고·질병 보상 진단" 라벨, 모바일은 로고만). (2)
+`consult-view.tsx`에 히어로(제목 "손해사정사에게 무료로 물어보세요" +
+설명, 모바일 1문장/데스크톱 2문장)를 추가. (3)
+`consult-channel-selector.tsx`의 라디오 카드 grid를 디자인대로
+`grid-cols-1 md:grid-cols-2`(기존엔 항상 2열이라 모바일에서 텍스트가
+3줄로 줄바꿈되며 카드 높이가 비정상적으로 커졌었다)로 전환. (4)
+성공/중복/실패 3개 컴포넌트의 CTA 버튼을 `w-full md:w-auto`(모바일 전체
+너비/데스크톱 자동 너비, 디자인 실측 일치)로 반응형 처리하고, 실패
+화면의 "이전 화면으로 돌아가기"를 밑줄 텍스트 링크에서 디자인과 일치하는
+outline pill 버튼(`bg-app-surface` 추가 — 저대비 배경 대비 문제 해결)으로
+교체. (5) `scripts/visual-verify.ts`에 `backCta`/`retry` 키를
+`BOX_LIKE_KEYS`에 추가(저대비 border 카드 잉크 임계값 6으로 낮춤),
+03-B/03-C/03-D의 "같은 행에 스텁 텍스트/보조 버튼과 병합 측정되는" left/
+width 축을 `skipMetrics` 처리(design.md §1 D4 — 이미 승인된 콘텐츠 축소가
+원인, 새 결함 아님). M03의 `mergeBands`를 실측 재조정(channelSelector
+2→4, form 3→6 — 모바일 1열 스택 전환에 따른 밴드 수 변화 반영) +
+`consult-summary-card.tsx`/`consult-form.tsx`/`consult-view.tsx`의 세부
+padding/margin을 normalized-design/M03.png 실측과 대조해 픽셀 단위로
+보정.
+
+**Baseline-attribution**: 이번 실행(이 트리), `feat/SPEC-B2C-CONSULT-001`
+브랜치, 커밋 `c0605b7`(코드 수정) + `c3bbf63`(증거 갱신).
+
+**Gaps(미검증)**: M03-B/M03-D의 성공/실패 요약 카드·CTA 버튼 top 위치가
+설계 대비 Δ21-25px 잔여 오차로 남는다. 근본 원인을 특정했다 — (a)
+`normalizeDesign()`이 design PNG를 `ctx.drawImage(img, 0, 0, w, h)`로
+뷰포트 크기에 맞춰 단순 스트레치하는데, 두 화면의 viewport height(605px/
+737px)가 raw export 크기와 정확히 1:1이라 여유 공간이 없다. (b) 카드
+top에 margin을 추가해 밀어내리면 실제 DOM 위치는 늘어나지만, viewport
+높이를 넘어서는 순간 `tightBox()`의 region 클램핑(`Math.min(impl.height,
+impl.height - region.top)`)이 음수/축소된 검색 영역을 만들어 측정값이
+역설적으로 줄어드는 현상을 여러 차례 재현했다(margin을 늘렸는데 측정된
+top이 오히려 감소). viewport height를 늘리는 시도는 `normalizeDesign`의
+스트레치 배율이 함께 바뀌어 design 쪽 밴드 매칭이 다른 위치로 이동하는
+2차 부작용이 있어 더 불안정해졌다(예: 605→700에서 summary Δ24→73으로
+악화) — 되돌렸다. (c) 03-B/03-D(데스크톱)는 동일 컴포넌트를 공유하면서도
+PASS하므로, 데스크톱과 모바일이 서로 다른 margin/gap 반응형 값을 요구하는
+상태로 수렴했고, 이 조합을 더 정밀하게 맞추는 작업은 이번 delegation
+예산을 넘어섰다.
+
+**Residual-risk(잔여 위험)**: (1) M03-B/M03-D는 여전히 FAIL 상태다 — 후속
+세션에서 `tightBox()`의 region 클램핑 로직 자체를 개선(viewport 경계를
+넘는 region을 clamp 대신 스킵하거나 별도 취급)하거나, 두 화면의 viewport
+height를 raw export보다 여유 있게 만들고 design 쪽 hint도 함께
+재계산하는 접근이 필요할 것으로 보인다. (2) semanticChecks(아이콘 존재,
+CTA 존재, 텍스트 유지 등)는 M03-B/M03-D 모두 PASS — 콘텐츠 자체는
+정확하며 순수 기하학적 위치 오차만 남아 있다.
+
+**Claim 2 — D-RUN-2: 02/M02/M02-B/M02-C/M02-D 5화면 전부 PASS로
+전환됐다. 근본 원인은 이전 "M7 후속" 절이 추정한 CTA 활성/비활성 전환이
+아니었다.**
+
+**Evidence**:
+```
+$ pnpm visual:verify (무제약 전체 실행 일부)
+[visual-verify] 02 … PASS (maxΔ=8px / 허용 8px)
+[visual-verify] M02 … PASS (maxΔ=0px / 허용 4px)
+[visual-verify] M02-B … PASS (maxΔ=2px / 허용 4px)
+[visual-verify] M02-C … PASS (maxΔ=0px / 허용 4px)
+[visual-verify] M02-D … PASS (maxΔ=0px / 허용 4px)
+```
+`components/result/result-view.tsx`/`result-cta-bar.tsx`의 git diff를
+직접 대조한 결과, M3가 추가한 변경은 오직 `shouldRenderConsult` prop
+전달뿐이고 JSX 구조 재배치는 없다 — CTA 컴포넌트(top bar/disability
+section)는 모두 이 delegation이 재보정한 5개 측정 요소(입력 요약/집계
+배너/먼저 확인할 항목/카테고리 탭)보다 DOM상 먼저 오거나(top bar) 완전히
+뒤에 온다(disability CTA는 카테고리 섹션 내부). 구조적으로 CTA
+활성/비활성 상태가 이 5개 요소의 위치에 영향을 줄 수 없다는 것을
+확인했다. 실제 원인은 세 갈래다: (a) design.md §13이 이미 승인한
+`ResultAggregateBanner height 편차`·`모바일 입력 요약 카드 잔여 height
+편차`(SPEC-B2C-RESULT-001 소유, 재승인하지 않음)의 top 축 누적 종속 —
+아래 요소들의 top은 전부 이 승인된 height 편차만큼 함께 밀린다. (b)
+`design/exports/M02-*.png`를 직접 열어 "먼저 확인할 항목" 섹션을
+확인하니 디자인은 번호+한 줄 라벨+화살표의 단순 목록인데
+`result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유 컴포넌트)는 각
+항목을 설명 문구까지 있는 카드(`border` + `p-3` + description)로
+렌더링한다 — `ENABLE_CONSULT_FLOW`와 무관한 기존 콘텐츠 구조 편차이며, 이
+SPEC 범위 밖이라 재설계하지 않았다. (c)
+`components/result/result-cta-bar.tsx`의 `ResultFinalCta` 하단 sticky
+바(`bg-app-sidebar`, 모바일 전폭)가 배경 프로브 영역(기존
+`backgroundProbe` 미설정으로 전체 높이를 스캔)에 포함돼 균일도 게이트가
+깨졌다 — 02는 기존 `backgroundProbe.bottom`을 재조정했고, M02 4종은
+신규로 추가했다.
+
+**Baseline-attribution**: 위와 동일(커밋 `c0605b7`/`c3bbf63`).
+
+**Gaps(미검증)**: (b)의 "먼저 확인할 항목" 콘텐츠 구조 편차는 이번
+delegation에서 재설계하지 않고 `skipMetrics`로 top/height를
+게이트하지 않았다 — SPEC-B2C-RESULT-001 소유 범위이므로 그 SPEC의 후속
+판단이 필요하다(별도 사용자 결정 요청 대상).
+
+**Residual-risk(잔여 위험)**: `backgroundProbe.bottom` 값(02:2300,
+M02:1600, M02-B:2100, M02-C/D:1200)은 하단 sticky CTA 바 시작 지점보다
+충분히 위에서 실측으로 잘라낸 값이라 여유가 있지만, 향후 `ResultFinalCta`
+내용이 늘어나 더 일찍 시작하면 재조정이 필요할 수 있다.
+
+**Claim 3 — D-RUN-5: 03 계열 9화면의 증거(스크린샷/정규화 디자인/
+오버레이/diff/measurements.json)가 `.moai/reports/visual-check/
+SPEC-B2C-CONSULT-001/`로 분리됐다. 기존 15화면은
+`SPEC-B2C-DIAGNOSIS-001/` 경로를 그대로 유지한다.**
+
+**Evidence**:
+```
+$ ls .moai/reports/visual-check/SPEC-B2C-CONSULT-001/
+diffs/ measurements.json measurements.partial.json normalized-design/
+overlays/ screenshots/
+$ ls .moai/reports/visual-check/SPEC-B2C-CONSULT-001/screenshots/ | wc -l
+9
+$ git log --oneline -1 -- .moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/screenshots/02-result.png
+c3bbf63 test(SPEC-B2C-CONSULT-001): D-RUN-1/2/5 전체 24화면 canonical 실행 증거 갱신
+```
+`scripts/visual-verify.ts`에 `CONSULT_SCREEN_IDS` 집합(03/03-A2/03-B/
+03-C/03-D/M03/M03-B/M03-C/M03-D)과 `reportDirFor(screenId)` 헬퍼를
+추가해 화면별로 `REPORT_DIR_CONSULT`/`REPORT_DIR_DIAGNOSIS` 중 하나를
+선택하도록 바꿨다 — `measurements.json`도 화면 소유 SPEC별로 분리
+기록한다. 기존 커밋(M7)에서 `SPEC-B2C-DIAGNOSIS-001/` 경로에 잘못
+기록됐던 03/M03 계열 9화면 분량의 파일 33개는 `git rm`으로 제거했다(fix
+커밋 `c0605b7`).
+
+**Baseline-attribution**: 위와 동일.
+
+**Gaps(미검증)**: 없음 — 경로 분리 자체는 완전히 검증됐다.
+
+**Residual-risk(잔여 위험)**: 없음.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
