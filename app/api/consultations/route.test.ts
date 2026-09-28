@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
@@ -17,22 +18,128 @@ const RATE_SECRET = "test-hmac-secret";
 let client: Client;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
+const migrationsFolder = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "db",
+  "migrations"
+);
+
+// [재검토] rate-limit 원자성 수정으로 route.ts가 db.transaction()을 쓰게
+// 되면서 ":memory:" URL을 그대로 두면 안 된다 — @libsql/client의 로컬
+// :memory: 드라이버(Sqlite3Client)는 트랜잭션을 여는 순간 클라이언트 자신의
+// 연결 핸들을 null로 비우고("A new connection will be lazily created on
+// next use" — node_modules/@libsql/client/lib-esm/sqlite3.js 158행 원문
+// 주석) 다시 복구하지 않는다. :memory: DB는 그 연결에만 존재하므로, 트랜잭션
+// 직후 같은 요청 안에서 이어지는 일반 db.select()/db.insert() 호출조차
+// 완전히 새로운 빈 DB를 만나 "no such table" 오류를 낸다(직접 재현해
+// 확인함 — 단일 순차 요청 하나만으로도 재현된다, 동시성과 무관). 파일
+// 기반 임시 DB로 바꾸면 트랜잭션이 실제 파일에 커밋되므로 재연결 뒤에도
+// 같은 데이터를 읽을 수 있다(직접 재현해 확인함). 원격 Turso HTTP
+// 클라이언트(http.js HttpClient)는 요청마다 독립된 스트림을 새로 열 뿐
+// 공유 핸들을 null로 비우지 않으므로, 이 문제는 로컬 :memory:/파일 테스트
+// 드라이버에만 있는 현상이고 실제 배포 환경에는 영향이 없다.
+const tmpDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  ".tmp"
+);
+const dbFile = path.join(tmpDir, `consultations-route-test-${Date.now()}-${process.pid}.db`);
+
+// Windows에서는 libsql 네이티브 바인딩이 close() 반환 후에도 OS 파일 잠금을
+// 한 틱 정도 늦게 해제한다(scripts/db-migrate.test.ts에서 실측된 동일
+// 현상) — rmSync가 즉시 EPERM을 낼 수 있어 짧은 재시도로 흡수한다.
+async function cleanupDbFile(file: string): Promise<void> {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const p = file + suffix;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!existsSync(p)) break;
+      try {
+        rmSync(p);
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
+}
+
+// [동시성 테스트 보정] 위 드라이버 특성상 db.transaction()이 호출될 때마다
+// 완전히 새로운 네이티브 연결이 열린다 — 파일 기반으로 바꿔도, 여러 요청이
+// 동시에 각자 새 연결로 같은 파일에 접근하면 SQLITE_BUSY 라이브락이 실제로
+// 발생한다(WAL + busy_timeout 조합으로도, db.transaction() 호출만
+// 직렬화해도 여전히 재현됨 — 트랜잭션이 파일 잠금을 쥔 동안 "다른 동시
+// 요청"의 일반 select/insert가 같은 client의 별도 연결로 부딕혀 BUSY를
+// 낸다). 실제 배포 환경(원격 Turso)은 서버가 모든 동시 요청을 정상적으로
+// 큐잉·직렬화하므로 이 문제가 없다 — 테스트에서만 같은 역할을 대신하도록,
+// 클라이언트의 execute()/batch()와 드라이즐의 transaction() 전체(콜백
+// 실행 + commit/rollback까지 포함)를 하나의 공유 프로미스 큐로 직렬화한다
+// (실제 BEGIN/COMMIT/ROLLBACK 로직은 그대로 실행되며, 가짜 트랜잭션
+// API로 대체하지 않는다 — DB I/O가 실제로 벌어지는 "순서"만 한 번에
+// 하나로 강제해, :memory: 시절의 단일 연결 직렬화와 동등한 효과를 낸다).
+function createIoQueue() {
+  let queue: Promise<unknown> = Promise.resolve();
+  return function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const result = queue.then(fn, fn);
+    queue = result.catch(() => undefined);
+    return result;
+  };
+}
+
+function serializeClient(rawClient: Client, enqueue: <T>(fn: () => Promise<T>) => Promise<T>): Client {
+  // Sqlite3Client의 메서드들은 내부적으로 ES 비공개 필드(#db 등)를 쓰므로,
+  // Proxy를 통해 호출하면 this가 Proxy 자신으로 바인딩되어 "Cannot read
+  // private member" 오류가 난다(직접 재현해 확인함) — 그래서 모든 함수
+  // 프로퍼티를 실제 target에 명시적으로 bind해 반환한다.
+  return new Proxy(rawClient, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target);
+      if (prop === "execute" || prop === "batch" || prop === "executeMultiple") {
+        const bound = (value as (...args: unknown[]) => Promise<unknown>).bind(target);
+        return (...args: unknown[]) => enqueue(() => bound(...args));
+      }
+      if (typeof value === "function") {
+        return value.bind(target);
+      }
+      return value;
+    },
+  }) as Client;
+}
+
+function serializeTransactions(
+  target: ReturnType<typeof drizzle<typeof schema>>,
+  enqueue: <T>(fn: () => Promise<T>) => Promise<T>
+): ReturnType<typeof drizzle<typeof schema>> {
+  const originalTransaction = target.transaction.bind(target);
+  return new Proxy(target, {
+    get(t, prop) {
+      if (prop === "transaction") {
+        return (callback: Parameters<typeof originalTransaction>[0]) =>
+          enqueue(() => originalTransaction(callback));
+      }
+      const value = Reflect.get(t, prop, t);
+      return typeof value === "function" ? value.bind(t) : value;
+    },
+  }) as ReturnType<typeof drizzle<typeof schema>>;
+}
+
 beforeAll(async () => {
-  client = createClient({ url: ":memory:" });
-  db = drizzle(client, { schema });
-  const migrationsFolder = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-    "db",
-    "migrations"
-  );
+  mkdirSync(tmpDir, { recursive: true });
+  await cleanupDbFile(dbFile);
+  const enqueue = createIoQueue();
+  const rawClient = createClient({ url: `file:${dbFile}`, timeout: 5000 });
+  client = serializeClient(rawClient, enqueue);
+  db = serializeTransactions(drizzle(client, { schema }), enqueue);
   await migrate(db, { migrationsFolder });
 });
 
-afterAll(() => {
+afterAll(async () => {
   client.close();
+  await cleanupDbFile(dbFile);
 });
 
 beforeEach(async () => {
@@ -260,6 +367,133 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
         clientB
       );
       expect(firstB.status).toBe(201);
+    });
+  });
+
+  describe("[재검토] rate limit 카운터 증가와 만료 레코드 cleanup의 원자성", () => {
+    // 이 SPEC의 원 설계(design.md §9.3 "보관·정리 정책")는 "매 upsert
+    // 트랜잭션에서 부가적으로 DELETE ...를 함께 실행한다"고 명시했으나,
+    // route.ts의 실제 구현은 두 개의 독립된 await 문(트랜잭션으로 묶이지
+    // 않음)이었다 — 코드 주석("같은 upsert 트랜잭션에 곁들여 실행한다")과
+    // 실제 DB 동작이 어긋나 있었다. [재현 기록, 이번 세션] 수정 전
+    // 코드로 이 시나리오를 직접 재현한 결과: delete가 실패해도 upsert는
+    // 이미 독립적으로 커밋된 채 남았고(카운트=1), 같은 IP의 재시도가
+    // 카운트를 2로 추가 소비했다 — 실패한 시도 하나가 카운트를 두 번
+    // 태우는 버그였다. `db.transaction()`으로 묶어 수정한 뒤에는 아래
+    // 테스트가 통과한다(증가+삭제가 원자적 단위로 묶여, 삭제 실패 시
+    // 증가까지 통째로 롤백된다).
+    //
+    // [이 블록만 별도 :memory: 대신 파일 기반 임시 DB를 쓰는 이유]
+    // @libsql/client의 로컬 :memory: 드라이버(Sqlite3Client)는 트랜잭션을
+    // 여는 순간 클라이언트 자신의 연결 핸들을 null로 비우고("A new
+    // connection will be lazily created on next use" —
+    // node_modules/@libsql/client/lib-esm/sqlite3.js 158행 원문 주석)
+    // 다시 복구하지 않는다. :memory: DB는 그 연결에만 존재하므로, 트랜잭션
+    // 이후의 모든 client.execute() 호출이 완전히 새로운 빈 DB를 조용히
+    // 만들어 "no such table" 오류를 낸다(직접 재현해 확인함). 파일 기반
+    // 임시 DB로 바꾸면 트랜잭션이 실제 파일에 커밋되므로 재연결 뒤에도
+    // 같은 데이터를 읽을 수 있다(직접 재현해 확인함) — 단, 파일 기반은
+    // 동시 쓰기 경합 시 SQLITE_BUSY를 내므로 이 블록은 순차 실행만
+    // 하고, 파일 전역 공유 :memory: client/db(다른 모든 테스트가 쓰는
+    // 동시성 테스트 포함)는 그대로 둔다. 원격 Turso HTTP 클라이언트는
+    // 요청마다 독립된 스트림을 새로 열 뿐 공유 핸들을 null로 비우지
+    // 않으므로, 이 이슈는 로컬 :memory: 테스트 드라이버에만 있는 현상이고
+    // 실제 배포 환경에는 영향이 없다.
+    let txClient: Client;
+    let txDb: ReturnType<typeof drizzle<typeof schema>>;
+    const tmpDir = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "..",
+      "..",
+      ".tmp"
+    );
+    const dbFile = path.join(tmpDir, `consultations-rate-limit-tx-${Date.now()}-${process.pid}.db`);
+
+    async function cleanupDbFile(file: string): Promise<void> {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        const p = file + suffix;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          if (!existsSync(p)) break;
+          try {
+            rmSync(p);
+            break;
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        }
+      }
+    }
+
+    beforeEach(async () => {
+      mkdirSync(tmpDir, { recursive: true });
+      await cleanupDbFile(dbFile);
+      txClient = createClient({ url: `file:${dbFile}` });
+      txDb = drizzle(txClient, { schema });
+      await migrate(txDb, { migrationsFolder });
+    });
+
+    afterEach(async () => {
+      txClient.close();
+      await cleanupDbFile(dbFile);
+    });
+
+    it("cleanup delete가 실패하면 트랜잭션 전체가 롤백되어 카운터 증가도 커밋되지 않는다", async () => {
+      const ip = "198.51.100.62";
+
+      // db.transaction() 자체는 실제 트랜잭션(BEGIN/COMMIT/ROLLBACK)을 그대로
+      // 타되, 콜백에 전달되는 tx 객체의 delete 메서드만 목(mock)으로
+      // 실패시킨다 — DB 클라이언트 전체를 가정 없이 흉내 내는 대신,
+      // drizzle-orm/libsql이 실제로 지원하는 트랜잭션 API가 콜백 내부
+      // 오류 앞에서 정직하게 롤백하는지를 검증한다.
+      const originalTransaction = txDb.transaction.bind(txDb);
+      const brokenCleanupDb = new Proxy(txDb, {
+        get(target, prop, receiver) {
+          if (prop === "transaction") {
+            return (callback: Parameters<typeof originalTransaction>[0]) =>
+              originalTransaction((tx) => {
+                const brokenTx = new Proxy(tx as object, {
+                  get(txTarget, txProp, txReceiver) {
+                    if (txProp === "delete") {
+                      return () => {
+                        throw new Error("cleanup boom (simulated)");
+                      };
+                    }
+                    return Reflect.get(txTarget, txProp, txReceiver);
+                  },
+                });
+                return callback(brokenTx as Parameters<typeof callback>[0]);
+              });
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as typeof txDb;
+
+      const first = await handleConsultationSubmit(
+        makeRequest(buildPayload({ resultId: "cleanup-fail-1", idempotencyKey: randomUUID() }), ip),
+        brokenCleanupDb,
+        buildEnv()
+      );
+      expect(first.status).toBe(500);
+
+      // 트랜잭션 전체가 롤백됐다면: 이번 요청의 카운터 증가(insert 겸
+      // upsert)도 커밋되지 않아야 한다 — 테이블에 행이 전혀 없어야 한다.
+      const rows = await txClient.execute("SELECT request_count FROM consultation_rate_limits");
+      expect(rows.rows.length).toBe(0);
+
+      // 재시도(같은 IP, 새 idempotencyKey)는 실패한 시도가 카운트를 전혀
+      // 소비하지 않았으므로 이번이 이 IP의 진짜 첫 신규 증가(=1)여야 하고,
+      // 201로 정상 성공해야 한다.
+      const retry = await handleConsultationSubmit(
+        makeRequest(buildPayload({ resultId: "cleanup-fail-2", idempotencyKey: randomUUID() }), ip),
+        txDb,
+        buildEnv()
+      );
+      expect(retry.status).toBe(201);
+      const rowsAfterRetry = await txClient.execute(
+        "SELECT request_count FROM consultation_rate_limits"
+      );
+      expect(Number(rowsAfterRetry.rows[0].request_count)).toBe(1);
     });
   });
 

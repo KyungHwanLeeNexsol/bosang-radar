@@ -304,19 +304,43 @@ export async function handleConsultationSubmit(
       const windowStartMs = Math.floor(nowMs / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS;
       const ipHmac = createHmac("sha256", secret).update(trustedIp).digest("hex");
 
-      const [{ requestCount }] = await db
-        .insert(consultationRateLimits)
-        .values({ windowStart: new Date(windowStartMs), ipHmac, requestCount: 1 })
-        .onConflictDoUpdate({
-          target: [consultationRateLimits.windowStart, consultationRateLimits.ipHmac],
-          set: { requestCount: sql`${consultationRateLimits.requestCount} + 1` },
-        })
-        .returning({ requestCount: consultationRateLimits.requestCount });
+      // [보안 재재감사, 이번 세션] design.md §9.3 "보관·정리 정책"은 "매
+      // upsert 트랜잭션에서 부가적으로 DELETE ...를 함께 실행한다"고
+      // 명시했지만, 이전 구현은 증가(upsert)와 정리(delete)를 두 개의
+      // 독립된 await 문으로 실행했다 — 실제로는 트랜잭션으로 묶여 있지
+      // 않았다("같은 upsert 트랜잭션에 곁들여 실행한다"는 이전 주석은
+      // 실제 코드와 달랐다). delete가 실패하면(드물지만 가능) 이미
+      // 별도로 커밋된 증가만 남고 요청은 500으로 끝나며, 클라이언트가
+      // 같은 idempotencyKey로 재시도하면(consult-view.tsx handleRetry)
+      // idempotency 조회(4-6번 단계)는 새 레코드가 전혀 없어 재시도가
+      // rate limit 단계에 다시 도달해 카운트를 한 번 더 소비한다 — 실패한
+      // 시도 하나가 카운트를 두 번 태운다(RED로 재현, route.test.ts 참고).
+      // `db.transaction()`으로 증가+정리를 실제 원자적 단위로 묶어
+      // 설계와 구현을 일치시켰다 — delete가 실패하면 증가까지 통째로
+      // 롤백되어, 실패한 시도는 카운트를 전혀 소비하지 않는다(재시도가
+      // 처음부터 다시 시작). `drizzle-orm/libsql`의 `db.transaction()`은
+      // 이 프로젝트의 원격 Turso(HTTP) 연결에서도 이미 검증된 방식이다
+      // (`lib/cases/create-case.ts`의 리스 완료 기록 트랜잭션과 동일한
+      // 패턴 — SPEC-PILOT-READY-001). 다만 그 SPEC의 리포트가 이미
+      // 명시했듯, 로컬 파일 기반 SQLite로만 단위 테스트했을 뿐 실제
+      // 배포 환경(원격 Turso HTTP)에서 재검증하지는 않았다는 한계는
+      // 이 수정에도 동일하게 적용된다(잔여 위험으로 아래에 남긴다).
+      const { requestCount } = await db.transaction(async (tx) => {
+        const [{ requestCount: count }] = await tx
+          .insert(consultationRateLimits)
+          .values({ windowStart: new Date(windowStartMs), ipHmac, requestCount: 1 })
+          .onConflictDoUpdate({
+            target: [consultationRateLimits.windowStart, consultationRateLimits.ipHmac],
+            set: { requestCount: sql`${consultationRateLimits.requestCount} + 1` },
+          })
+          .returning({ requestCount: consultationRateLimits.requestCount });
 
-      // 보관·정리 정책 — 같은 upsert 트랜잭션에 곁들여 실행한다(design.md §9.3).
-      await db
-        .delete(consultationRateLimits)
-        .where(lt(consultationRateLimits.windowStart, new Date(nowMs - RATE_LIMIT_RETENTION_MS)));
+        await tx
+          .delete(consultationRateLimits)
+          .where(lt(consultationRateLimits.windowStart, new Date(nowMs - RATE_LIMIT_RETENTION_MS)));
+
+        return { requestCount: count };
+      });
 
       if (requestCount > RATE_LIMIT_MAX_REQUESTS) {
         return NextResponse.json(errorResult("rate_limited", "잠시 후 다시 시도해 주세요."), {

@@ -1797,6 +1797,19 @@ M03 PASS(4/4) M03-B PASS(2/4) M03-C PASS(2/4) M03-D PASS(4/4)
 X-Forwarded-For는 실제 취약점이었다 — 첫 번째 값 대신 마지막 값을
 신뢰하도록 수정하고 회귀 테스트를 추가했다.**
 
+> **[정정, 이번 세션] Claim 9(A)는 잘못된 결론이었다 — 아래 "D-NEW-3"
+> 절 참고.** upsert 문 자체(카운터 증가)의 원자성만 확인하고, 그 바로
+> 다음에 별도 `await`로 실행되는 만료 레코드 cleanup(`DELETE`)까지
+> 하나로 묶여 있는지는 검토하지 않았다 — "같은 트랜잭션에 곁들여
+> 실행한다"는 코드 주석이 실제 DB 동작과 달랐다는 사실은 Claim 9(A)도
+> 인지했지만("기존 주석은 부정확했다"), 그 부정확함이 "실제 결함을
+> 만들지 않는다"고 판단한 것이 틀렸다 — cleanup delete가 실패하면
+> 이미 커밋된 증가만 남고 재시도가 카운트를 한 번 더 소비하는 실제
+> 버그였다(재현 완료, 아래 참고). 이 문단(A)의 "코드 수정 없음"
+> 결론은 폐기하고, 아래 D-NEW-3 절의 실제 수정으로 대체한다. (B)
+> X-Forwarded-For 부분의 결론(마지막 값 신뢰)은 이번 세션도 유지하되,
+> 조건과 운영 확인 체크리스트를 아래 D-NEW-3 절에서 보강한다.
+
 **(A) rate-limit 원자성 — Evidence**: `app/api/consultations/route.ts`의
 카운터 증가는 `db.insert(consultationRateLimits).values({...})
 .onConflictDoUpdate({ target: [windowStart, ipHmac], set: { requestCount:
@@ -2032,12 +2045,188 @@ measurements.json 실측값 대조.
 방식으로 계속 구분해 기록해야 한다.
 삭제된 원문 끝 -->
 
+### D-NEW-3 — rate-limit cleanup 원자성 실제 수정 + X-Forwarded-For 운영 체크리스트 + 검증 상태 표현 재확인 (이번 세션)
+
+사용자가 Claim 9(A)의 "코드 수정 불필요" 결론이 실제 코드와 다르다고
+지적했다 — 카운터 증가(upsert)와 만료 레코드 정리(delete)가 실제로는
+트랜잭션으로 묶여 있지 않았다는 사실은 Claim 9(A)도 확인했으나, "부정확한
+주석이 실제 결함을 만들지 않는다"는 결론이 틀렸다.
+
+**Claim 10 — rate-limit 카운터 증가와 cleanup을 실제 `db.transaction()`으로
+묶어 원자성을 실제 계약과 일치시켰다.**
+
+**Evidence — 재현(수정 전)**: `db.transaction()`으로 묶기 전 코드에서,
+cleanup delete만 실패하도록 만든 상태로 요청을 보내면: 1) 카운터
+증가(upsert)는 독립적으로 이미 커밋된 채 500이 반환된다
+(`consultation_rate_limits.request_count = 1`로 남음). 2) 같은 IP·새
+idempotencyKey로 재시도하면 다시 rate-limit 단계에 도달해 카운트가
+2로 증가한다 — 실패한 시도 하나가 카운트를 두 번 태운다. 이 시나리오는
+`app/api/consultations/route.test.ts`의 "[재검토] rate limit 카운터
+증가와 만료 레코드 cleanup의 원자성" describe 블록에서, 실제
+`db.transaction()` 콜백에 전달되는 `tx` 객체의 `delete`만 목(mock)으로
+실패시키는 방식(DB 클라이언트 전체를 가정 없이 흉내 내지 않음)으로
+재현했다 — 수정 전 코드 기준으로 위 1)/2)와 동일하게 재현됨을 직접
+확인했다.
+
+**Evidence — 선택한 정책과 근거**: 사용자가 제시한 두 옵션(실제
+트랜잭션 vs 접수 결과와 분리된 최선 노력 cleanup) 중, `design.md`
+§9.3이 이미 "매 upsert 트랜잭션에서 부가적으로 DELETE ...를 함께
+실행한다"고 명시한 쪽(실제 트랜잭션)을 선택했다 — 설계 계약과 실제
+구현을 일치시키는 것이 목표이기 때문이다. `drizzle-orm/libsql`이 이
+프로젝트가 실제로 쓰는 원격 Turso(HTTP) 연결에서 트랜잭션을 정말로
+지원하는지는 가정하지 않고 직접 소스를 확인했다:
+- `@libsql/client`의 `HttpClient.transaction()`
+  (`node_modules/@libsql/client/lib-esm/http.js`)은 매 호출마다
+  `this.#client.openStream()`으로 독립된 Hrana 스트림을 열어
+  `HttpTransaction`을 반환한다 — 진짜 인터랙티브 트랜잭션이다.
+- `drizzle-orm/libsql`의 `LibSQLSession.transaction()`
+  (`node_modules/drizzle-orm/libsql/session.js`)은 `await
+  this.client.transaction()`으로 트랜잭션을 열고, 콜백 성공 시
+  `commit()`, 실패 시 `rollback()` 후 재throw한다 — 정직한
+  BEGIN/COMMIT/ROLLBACK 래퍼다.
+- 이 프로젝트 안에 이미 같은 패턴의 실제 사용 전례가 있다 —
+  `lib/cases/create-case.ts`(SPEC-PILOT-READY-001)가 같은 Turso
+  백엔드에 대해 lease 완료 기록을 `db.transaction()`으로 원자적으로
+  처리한다. 단, 그 SPEC 자신의 리포트(`.moai/reports/
+  pilot-ready-idempotency-scope-20260911.md`)가 이미 밝히듯, 그 전례도
+  로컬 파일 기반 SQLite로만 단위 테스트됐을 뿐 실제 원격 Turso HTTP에서
+  재검증되지는 않았다 — 이 한계는 이번 수정에도 동일하게 적용된다
+  (Residual-risk 참고).
+
+**Evidence — 수정 후(GREEN)**: `app/api/consultations/route.ts`의
+rate-limit 증가+cleanup을 `await db.transaction(async (tx) => {...})`로
+묶었다(`tx.insert(...).onConflictDoUpdate(...)` 다음에
+`tx.delete(...)`).
+```
+$ node_modules/.bin/vitest run app/api/consultations/route.test.ts
+ Test Files  1 passed (1)
+ Tests  31 passed (31)   ← 신규 원자성 테스트 1건 포함, 기존 30건 전부 유지
+```
+신규 테스트는 "cleanup delete가 실패하면 트랜잭션 전체가 롤백되어
+카운터 증가도 커밋되지 않는다"로, delete 실패 시 증가까지 전부
+롤백되어 테이블에 행이 남지 않고, 재시도가 진짜 첫 증가(count=1)로
+성공하는지를 검증한다.
+
+**테스트 인프라 부수 발견(이번 세션) — 로컬 `:memory:` 드라이버 한계**:
+`db.transaction()`을 실제로 실행하자 기존 테스트 스위트 전체가
+"no such table" / "SQLITE_BUSY"로 깨지는 현상을 발견했다. 원인은
+`@libsql/client`의 로컬 `:memory:` 드라이버(`Sqlite3Client`)가
+트랜잭션을 여는 순간 클라이언트 자신의 연결 핸들을 `null`로 비우고
+("A new connection will be lazily created on next use" —
+`node_modules/@libsql/client/lib-esm/sqlite3.js` 158행 원문 주석) 다시
+복구하지 않는 것이었다 — `:memory:` DB는 그 연결에만 존재하므로 이후의
+모든 비-트랜잭션 쿼리가 완전히 새로운 빈 DB를 만나 깨진다. 직접
+재현해 확인했고(파일 기반 임시 DB로 바꾸면 해소됨), 원격 Turso HTTP
+클라이언트(`HttpClient`)는 매 호출마다 독립 스트림을 열 뿐 공유
+핸들을 비우지 않으므로 **이 문제는 로컬 테스트 드라이버에만 있는
+현상이고 실제 배포 환경에는 영향이 없다**(코드 검증 완료).
+`route.test.ts`를 파일 기반 임시 SQLite + I/O 직렬화 큐(테스트
+전용 — 실제 BEGIN/COMMIT/ROLLBACK은 그대로 실행됨, 가짜 트랜잭션
+API로 대체하지 않음)로 바꿔 기존 31개 테스트 전부를 GREEN으로
+복원했다.
+
+**회귀 검증(기존 계약 재확인, 이번 세션 실행)**: 동시 요청 5건 제한,
+6번째 429, 동일 idempotencyKey 재시도가 제한을 추가로 소비하지 않는
+기존 계약을 포함한 `route.test.ts` 전체 31개 테스트가 위 인프라 수정
+후 전부 GREEN이다. 상담 컴포넌트 테스트 + DB 마이그레이션/시드
+테스트 102개도 회귀 없이 통과했고, 프로젝트 전체 vitest 스위트(92개
+파일, 701개 테스트)도 전부 통과했다.
+```
+$ node_modules/.bin/vitest run components/consult app/api/consultations \
+    scripts/db-migrate.test.ts scripts/db-seed.test.ts
+ Test Files  14 passed (14) / Tests  102 passed (102)
+$ node_modules/.bin/vitest run
+ Test Files  92 passed (92) / Tests  701 passed (701)
+$ node_modules/.bin/tsc --noEmit -p tsconfig.json
+ (exit 0, 출력 없음)
+$ node_modules/.bin/eslint app/api/consultations/route.ts \
+    app/api/consultations/route.test.ts
+ (exit 0, 출력 없음)
+```
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `99e298b`(이번 수정을
+반영한 새 커밋 SHA는 최종 보고 참고).
+
+**Gaps(미검증)**: 이 수정은 로컬 파일 기반 SQLite 단위 테스트로만
+검증됐다 — `lib/cases/create-case.ts`의 기존 전례와 동일한 한계로,
+실제 원격 Turso HTTP 연결에서 트랜잭션 커밋/롤백이 동일하게 동작하는지는
+재검증하지 않았다.
+
+**Residual-risk(잔여 위험)**: 원격 Turso가 트랜잭션 도중 연결이
+끊기거나 타임아웃되는 경우의 동작(자동 롤백인지, 세션이 걸리는지)은
+이 SPEC의 범위 밖이며 실측하지 않았다. 프로덕션에서 실제로 delete
+실패가 관찰되면(예: Turso 쪽 순간 오류) 이 트랜잭션 경로가 사용자에게는
+500으로만 보이고 카운트는 소비되지 않는다는 점은 설계상 의도된 동작이다.
+
+---
+
+**Claim 11 — X-Forwarded-For 운영 확인 체크리스트를 실행 가능한 절차로
+구체화했다(코드 변경 없음, 문서 보강).**
+
+Claim 9(B)의 "마지막 값 신뢰" 결론은 유지한다 — 다만 이 결론은
+"Next.js에 도달하기 전 신뢰 가능한 단일 Nginx가 헤더를 append 또는
+overwrite하고, 앱에 대한 직접 접속이 차단되어 있다"는 조건에서만
+성립하며, 이 저장소 밖의 실제 Nginx 설정과 앱 바인딩은 확인하지
+못했으므로 **보안 검증 완료로 선언하지 않는다**. 운영자가 실제
+배포에서 확인해야 할 절차:
+
+| # | 확인 항목 | 확인 방법 |
+|---|-----------|-----------|
+| 1 | Next.js 프로세스가 `127.0.0.1`에만 바인딩되어 외부에서 직접 접속할 수 없는가 | `ss -tlnp \| grep <포트>`로 바인딩 주소 확인, 외부 IP로 직접 curl 시도해 연결이 거부되는지 확인 |
+| 2 | Nginx 설정에 `proxy_set_header X-Forwarded-For ...`가 정확히 한 줄만 있고, 중복·주석 처리된 다른 지시문이 없는가 | `nginx -T \| grep -i x-forwarded-for`로 최종 적용된 설정 확인 |
+| 3 | 그 지시문이 append(`$proxy_add_x_forwarded_for`)인지 overwrite(`$remote_addr`)인지 | 2번 결과의 변수명으로 판별 |
+| 4 | Nginx 앞에 CDN·추가 리버스 프록시 등 신뢰할 hop이 더 있는가 | 실제 네트워크 구성도/Oracle Cloud 콘솔의 VCN·로드밸런서 설정 확인 — 있다면 "신뢰 가능한 hop 수"가 1보다 커지므로 `getTrustedIp()`의 "마지막 값" 선택 로직 자체를 다시 계산해야 한다 |
+
+위조 헤더(`X-Forwarded-For: 1.2.3.4`)를 직접 보낸 요청이 위 설정에서
+Nginx를 거친 뒤 최종적으로 어떤 값이 되는지, 그리고 이 코드가 어떤
+rate-limit 키를 쓰게 되는지의 기대값:
+
+| Nginx 지시문 | 위조 헤더 포함 요청이 Nginx를 거친 뒤 최종 헤더 | `getTrustedIp()`가 고르는 값 | rate-limit 키 |
+|---|---|---|---|
+| append (`$proxy_add_x_forwarded_for`) | `"1.2.3.4, <실제 클라이언트 IP>"` | 마지막 값 = `<실제 클라이언트 IP>` | 안전 — 위조값 무시됨 |
+| overwrite (`$remote_addr`) | `"<실제 클라이언트 IP>"` (위조 헤더는 Nginx가 덮어씀) | `<실제 클라이언트 IP>` | 안전 |
+| (가정 위반) 앱이 Nginx 없이 직접 노출 | `"1.2.3.4"` (클라이언트가 보낸 그대로) | `1.2.3.4` | **위험** — 공격자가 매 요청 다른 값을 넣어 rate limit 완전 우회 가능 |
+
+위 표의 세 번째 행("가정 위반")이 실제로 성립하지 않는지(즉 1번 확인
+항목이 실제로 참인지)가 이 체크리스트에서 가장 먼저 확인해야 할
+항목이다 — 그것이 거짓이면 코드 수정과 무관하게 rate-limit 자체가
+우회 가능하다.
+
+**Gaps(미검증)**: 위 4개 확인 항목 모두 이 저장소 밖(Oracle Cloud
+VM의 실제 Nginx 설정)에 있어 이번 세션에서 직접 검증하지 못했다.
+코드는 두 정상 시나리오(append/overwrite) 모두에서 안전하도록 이미
+수정되어 있다(Claim 9(B), 이전 세션) — 이번 세션은 그 조건과 확인
+절차를 명시적으로 문서화했을 뿐이다.
+
+**Residual-risk(잔여 위험)**: 위 체크리스트의 1~4번 중 하나라도
+확인되지 않은 상태에서는 "X-Forwarded-For 보안 검증 완료"를 선언할
+수 없다 — `audit-ready` 전환의 전제조건 중 하나로 계속 남긴다(여전히
+열려 있음 8번).
+
+---
+
+**Claim 12 — 시각 검증 상태 표현 재확인: 이미 정확히 구분되어 있음
+(문서 변경 없음, 확인만).**
+
+사용자가 "24/24 PASS를 디자인 높이 완료로 확대하지 말라"고
+재지시했다. 현재 문서(§E.2 "D-RUN 재작업 2" Claim 6 + "여전히 열려
+있음" 7번)를 다시 읽어 확인한 결과, M03-B/M03-D의 height는 이미
+`skipMetrics`로 명시되어 있고, 24/24 PASS는 이미 "설정된 검증 게이트
+기준"이라는 한정어와 함께만 기술되어 있으며, PNG에서 직접 확인
+가능한 사실(카드 경계·"이름" 행이 design.md와 다르게 추가돼 있던
+콘텐츠 결함 — 확정, 해소됨)과 측정 불확실성(145px/303px/174-176px
+세 가지 값이 서로 2배 가까이 어긋나 어느 것도 "진짜 디자인 height"로
+확정할 근거가 없음 — 미해결)이 이미 분리되어 기록되어 있다. 추가
+수정이 필요한 표현 결함은 발견하지 못했다 — 이 항목은 "문서가 이미
+올바르다"는 재확인 결과만 남긴다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
 - **재작업 지시 접수(당시 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
 - **업데이트(당시 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). 그 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다.
-- **업데이트 2(이번 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — rate-limit은 이미 원자적이라 수정이 필요 없었고, X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했다. **다만 실제 Nginx 배포가 append/overwrite 중 어느 방식인지는 이 저장소 코드만으로 확정할 수 없는 운영 확인 대상으로 남는다(design.md §4 배포 체크리스트 항목) — 그 운영 확인과 height 미해결 항목(Claim 6) 두 가지가 남아있는 한 `run_status`는 `audit-ready`로 전환하지 않는다.**
+- **업데이트 2(당시 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — **이 (5)의 rate-limit 결론은 다음 세션에서 정정됐다(아래 업데이트 3 참고). X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했으며 이 결론은 유지된다.**
+- **업데이트 3(이번 세션) — rate-limit 원자성 결론 정정 + 실제 수정 + X-Forwarded-For 운영 체크리스트 구체화**: 사용자가 Claim 9(A)의 "rate-limit은 이미 안전하다(수정 불필요)" 결론이 실제 코드와 다르다고 지적했다 — 카운터 증가와 만료 레코드 cleanup이 실제로는 트랜잭션으로 묶여 있지 않았고, cleanup 실패 시 카운트가 이중 소비되는 실제 버그였다(재현 완료, D-NEW-3 Claim 10 참고). `db.transaction()`으로 실제 수정하고 신규 회귀 테스트로 검증했다 — `route.test.ts` 31개 전부 GREEN, 상담 컴포넌트+DB 테스트 102개, 프로젝트 전체 701개 테스트 전부 통과, `tsc`/`eslint` 모두 clean(D-NEW-3 Claim 10 참고). X-Forwarded-For는 "마지막 값 신뢰" 결론을 유지하되, 운영자가 실제 배포에서 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 추가했다(D-NEW-3 Claim 11 참고) — 실제 Nginx 설정 확인은 여전히 이 저장소 밖의 운영 결정으로 남는다. 시각 검증 상태 표현은 재확인 결과 이미 정확했다(D-NEW-3 Claim 12). **rate-limit 원자성은 이번 세션에서 실제로 해소됐다. 남아있는 audit-ready 전제조건은: (a) X-Forwarded-For 실제 Nginx 설정 운영 확인(체크리스트 4항목 미확인), (b) M03-B/M03-D 요약 카드 height 측정 불확실성(Claim 6, 미해결) 두 가지다 — 이 둘이 해소되기 전까지 `run_status`는 `audit-ready`로 전환하지 않는다.**
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2070,7 +2259,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
 6. **(신규, D-RUN 1회차 재작업 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다.
 7. **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
-8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다.
+8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.**
 
 ### 이번 세션에서 해소됨
 
@@ -2078,3 +2267,4 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 8. **Rate limiting 구체 알고리즘·저장소 — 결정 완료(2026-09-25)**: DB 기반 고정 윈도(`consultationRateLimits` 테이블, HMAC 처리된 원본 IP, 원자적 upsert)로 plan-phase에서 확정했다(`design.md` §9.3) — 더 이상 run-phase에 위임된 미결정 항목이 아니다. 실제 윈도 크기·요청 한도 상수 값의 트래픽 기반 미세 조정만 운영 판단으로 남는다.
 9. **Rate limiting 판정과 idempotency 조회의 처리 순서 — 결정 완료(2026-09-27, 독립 검토 D11)**: idempotency 조회를 rate limit 판정보다 먼저 수행하도록 재배열했다(`design.md` §8.1·§9.3) — 더 이상 열린 항목이 아니다.
 10. **`lib/env.ts` `RATE_LIMIT_HMAC_SECRET` 조건부 필수 검증 — 결정 확정(2026-09-27, 독립 검토 D16)**: `lib/env.ts`를 이 SPEC의 7번째 확장 대상으로 확정했다(`design.md` §4.2·§5, `plan.md` §D 제약 ①) — 더 이상 "추가 여부"가 열린 판단이 아니다. 판정 조건은 `CONSULT_POLICY_READY === "true"`다(이전 초안의 `ENABLE_CONSULT_FLOW === "true"` 조건은 내부 모순으로 정정됨 — `ENABLE_CONSULT_FLOW=true`+`CONSULT_POLICY_READY=false`는 실제 PII 접수가 애초에 불가능한 상태이므로 이 시크릿이 필요 없다). 실제 `lib/env.ts` 코드 반영은 정상적인 SPEC→구현 인계에 따른 run-phase 과제로 남지만, 이는 더 이상 "결정 대기"가 아니라 "결정 완료, 구현 대기"다 — 통상적인 plan→run 인계이지 open decision이 아니다.
+11. **rate-limit 카운터 증가 + 만료 레코드 cleanup 원자성 — 실제 결함 발견·수정 완료(이번 세션)**: 직전 세션의 Claim 9(A)는 "이미 안전하다(수정 불필요)"로 잘못 결론지었다 — 실제로는 cleanup delete 실패 시 카운터 증가만 별도로 커밋된 채 남고, 재시도가 카운트를 이중 소비하는 실제 버그였다(재현 완료). `db.transaction()`으로 증가+cleanup을 실제 원자적 단위로 묶어 수정했고, `route.test.ts` 신규 회귀 테스트(delete 실패 시 트랜잭션 전체 롤백 검증) + 기존 31개 전체 + 상담/DB 테스트 102개 + 프로젝트 전체 701개가 모두 GREEN이다(§E.2 D-NEW-3 Claim 10 참고). 더 이상 열린 항목이 아니다 — 실제 원격 Turso HTTP 환경에서의 재검증만 잔여 위험으로 남는다(코드 수준 결정 완료, 배포 환경 실측은 이 SPEC 범위 밖).
