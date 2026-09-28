@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T10:05:51.493Z",
+  "generatedAt": "2026-09-28T11:32:46.076Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -3323,27 +3323,27 @@
           "key": "summary",
           "label": "실패 요약(입력 보존)",
           "design": {
-            "left": 416,
+            "left": 420,
             "top": 350,
-            "width": 604,
-            "height": 233
+            "width": 600,
+            "height": 164
           },
           "impl": {
             "left": 397,
             "top": 357,
             "width": 646,
-            "height": 190
+            "height": 146
           },
           "delta": {
-            "left": 19,
+            "left": 23,
             "top": 7,
-            "width": 42,
-            "height": 43
+            "width": 46,
+            "height": 18
           },
           "lines": {
-            "actual": 5
+            "actual": 4
           },
-          "text": "상담 방식전화 상담이름홍길동연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
+          "text": "상담 방식전화 상담연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -3360,15 +3360,15 @@
           },
           "impl": {
             "left": 574,
-            "top": 623,
+            "top": 622,
             "width": 123,
-            "height": 52
+            "height": 51
           },
           "delta": {
             "left": 37,
-            "top": 1,
+            "top": 0,
             "width": 243,
-            "height": 3
+            "height": 2
           },
           "lines": {
             "actual": 1
@@ -3390,15 +3390,15 @@
           },
           "impl": {
             "left": 703,
-            "top": 625,
+            "top": 623,
             "width": 160,
-            "height": 49
+            "height": 50
           },
           "delta": {
             "left": 166,
-            "top": 3,
+            "top": 1,
             "width": 206,
-            "height": 0
+            "height": 1
           },
           "lines": {
             "actual": 1
@@ -3424,7 +3424,7 @@
           "pass": true
         },
         {
-          "label": "입력 필드 값 유지(이름) — 폼 상태 보존",
+          "label": "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
           "expected": "true",
           "actual": "true",
           "pass": true
@@ -5515,24 +5515,24 @@
             "left": 20,
             "top": 302,
             "width": 350,
-            "height": 381
+            "height": 176
           },
           "impl": {
             "left": 20,
             "top": 302,
             "width": 350,
-            "height": 256
+            "height": 211
           },
           "delta": {
             "left": 0,
             "top": 0,
             "width": 0,
-            "height": 125
+            "height": 35
           },
           "lines": {
-            "actual": 5
+            "actual": 4
           },
-          "text": "상담 방식전화 상담이름홍길동연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
+          "text": "상담 방식전화 상담연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -5551,13 +5551,13 @@
             "left": 18,
             "top": 577,
             "width": 354,
-            "height": 51
+            "height": 52
           },
           "delta": {
             "left": 2,
             "top": 3,
             "width": 4,
-            "height": 1
+            "height": 2
           },
           "lines": {
             "actual": 1
@@ -5579,15 +5579,15 @@
           },
           "impl": {
             "left": 20,
-            "top": 632,
+            "top": 635,
             "width": 350,
-            "height": 52
+            "height": 50
           },
           "delta": {
             "left": 0,
-            "top": 1,
+            "top": 2,
             "width": 0,
-            "height": 2
+            "height": 0
           },
           "lines": {
             "actual": 1
@@ -5613,7 +5613,7 @@
           "pass": true
         },
         {
-          "label": "입력 필드 값 유지(이름) — 폼 상태 보존",
+          "label": "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
           "expected": "true",
           "actual": "true",
           "pass": true

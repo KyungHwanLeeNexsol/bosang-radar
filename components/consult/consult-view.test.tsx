@@ -212,6 +212,14 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
   let container: HTMLDivElement;
   let root: Root;
   let fetchMock: ReturnType<typeof vi.fn>;
+  // 이번 세션 재작업 — 모바일 뷰포트에서는 제출 버튼에 닿기 위해 실제로
+  // 스크롤이 필요하고, client-side 상태 전환이라 브라우저가 스크롤을
+  // 자동으로 되돌리지 않는다(실측: visual-verify 재현 스크립트에서
+  // scrollY≈75). consult-view.tsx가 전환마다 window.scrollTo(0, 0) +
+  // 결과 제목 포커스를 호출하는지 스파이로 검증한다 — jsdom은 실제 레이아웃
+  // 스크롤을 구현하지 않으므로, 호출 여부/인자만 검증할 수 있다(픽셀 단위
+  // 재현은 Playwright 몫 — e2e/consult-flow-03.spec.ts에 별도로 추가함).
+  let scrollToMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     window.sessionStorage.clear();
@@ -225,6 +233,8 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
 
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    scrollToMock = vi.fn();
+    vi.stubGlobal("scrollTo", scrollToMock);
   });
 
   afterEach(() => {
@@ -234,6 +244,13 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     container.remove();
     vi.unstubAllGlobals();
   });
+
+  function expectOutcomeFocusAndScroll() {
+    expect(scrollToMock).toHaveBeenCalledWith(0, 0);
+    const title = container.querySelector('[data-testid="consult-outcome-title"]');
+    expect(title).not.toBeNull();
+    expect(document.activeElement).toBe(title);
+  }
 
   function fillRequiredFieldsAndConsent() {
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
@@ -273,6 +290,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     expect(container.querySelector('[data-testid="consult-success"]')).not.toBeNull();
     expect(window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")).toBeNull();
     expect(window.sessionStorage.getItem(DIAGNOSIS_STORAGE_KEY)).not.toBeNull();
+    expectOutcomeFocusAndScroll();
   });
 
   it("duplicate 응답 → 03-C가 렌더링되고 draft는 삭제되지 않는다", async () => {
@@ -293,6 +311,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
 
     expect(container.querySelector('[data-testid="consult-duplicate"]')).not.toBeNull();
     expect(window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")).not.toBeNull();
+    expectOutcomeFocusAndScroll();
   });
 
   it("error 응답(어떤 code든) → 03-D가 렌더링된다(AC-B2CCONSULT-022)", async () => {
@@ -307,6 +326,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
 
     expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+    expectOutcomeFocusAndScroll();
   });
 
   it("네트워크 예외(fetch reject) → 03-D가 렌더링된다(AC-B2CCONSULT-022 타임아웃 시나리오)", async () => {
@@ -319,6 +339,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
 
     expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+    expectOutcomeFocusAndScroll();
   });
 
   it("handoff_mismatch: 마운트 후 핸드오프의 resultId가 바뀌면 fetch 없이 즉시 03-D를 렌더링한다", async () => {
@@ -334,9 +355,10 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+    expectOutcomeFocusAndScroll();
   });
 
-  it("다시 시도하기는 최초 제출과 동일한 idempotencyKey로 재전송한다", async () => {
+  it("다시 시도하기는 최초 제출과 동일한 idempotencyKey로 재전송하고, 스크롤·포커스 복원도 재시도마다 다시 실행된다", async () => {
     fetchMock.mockResolvedValue({
       json: async () => ({ status: "error", code: "server_error", message: "..." }),
     });
@@ -348,11 +370,17 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
 
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(scrollToMock).toHaveBeenCalledTimes(1);
 
+    // [HARD 재현] 재시도는 kind가 "failure"→"failure"로 값이 그대로다 —
+    // 의존성을 kind 문자열로 두면 React가 변화 없음으로 판단해 effect가
+    // 다시 실행되지 않는다(e2e/consult-flow-03.spec.ts 390×737 재시도
+    // 테스트로 처음 발견한 회귀). scrollTo가 재시도마다 다시 호출돼야 한다.
     await clickAndFlush(container.querySelector('[data-testid="consult-failure-retry"]')!);
 
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
     expect(secondBody.idempotencyKey).toBe(firstBody.idempotencyKey);
+    expect(scrollToMock).toHaveBeenCalledTimes(2);
   });
 });
 

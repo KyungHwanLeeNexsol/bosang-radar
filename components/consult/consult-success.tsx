@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
@@ -19,6 +20,11 @@ interface ConsultSuccessProps {
   channel: ConsultationChannel;
   maskedContact: string;
   preferredCallTime?: string;
+  /** 화면 전환 직후 스크롤 위치 복원과 함께 이 제목으로 포커스를 옮기는 데
+   * 쓰인다(consult-view.tsx) — 클라이언트 상태 전환이라 브라우저가 스크롤을
+   * 자동으로 되돌리지 않고, 스크린 리더도 새 화면 진입을 자동으로 알리지
+   * 않는다. */
+  titleRef?: Ref<HTMLHeadingElement>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
@@ -30,7 +36,12 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: ConsultSuccessProps) {
+export function ConsultSuccess({
+  channel,
+  maskedContact,
+  preferredCallTime,
+  titleRef,
+}: ConsultSuccessProps) {
   return (
     <div
       data-testid="consult-success"
@@ -42,7 +53,14 @@ export function ConsultSuccess({ channel, maskedContact, preferredCallTime }: Co
       >
         <CheckCircle2 className="size-6 md:size-7" />
       </span>
-      <h1 className="text-h2 font-bold text-bora-ink">상담 신청이 접수되었습니다</h1>
+      <h1
+        ref={titleRef}
+        tabIndex={-1}
+        data-testid="consult-outcome-title"
+        className="text-h2 font-bold text-bora-ink outline-none"
+      >
+        상담 신청이 접수되었습니다
+      </h1>
 
       <dl
         data-testid="consult-success-summary"

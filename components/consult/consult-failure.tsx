@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 
@@ -20,11 +21,15 @@ const CHANNEL_LABEL: Record<ConsultationChannel, string> = {
 
 interface ConsultFailureProps {
   channel: ConsultationChannel;
-  name: string;
   contact: string;
   preferredCallTime: string;
   isRetrying: boolean;
   onRetry: () => void;
+  /** 화면 전환 직후 스크롤 위치 복원과 함께 이 제목으로 포커스를 옮기는 데
+   * 쓰인다(consult-view.tsx) — 클라이언트 상태 전환이라 브라우저가 스크롤을
+   * 자동으로 되돌리지 않고, 스크린 리더도 새 화면 진입을 자동으로 알리지
+   * 않는다. */
+  titleRef?: Ref<HTMLHeadingElement>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
@@ -38,11 +43,11 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 export function ConsultFailure({
   channel,
-  name,
   contact,
   preferredCallTime,
   isRetrying,
   onRetry,
+  titleRef,
 }: ConsultFailureProps) {
   return (
     <div
@@ -55,7 +60,14 @@ export function ConsultFailure({
       >
         <TriangleAlert className="size-6 md:size-7" />
       </span>
-      <h1 className="text-h2 font-bold text-bora-ink">상담 신청이 접수되지 않았습니다</h1>
+      <h1
+        ref={titleRef}
+        tabIndex={-1}
+        data-testid="consult-outcome-title"
+        className="text-h2 font-bold text-bora-ink outline-none"
+      >
+        상담 신청이 접수되지 않았습니다
+      </h1>
       <p role="alert" className="max-w-sm text-body text-bora-ink-3">
         일시적인 오류로 접수가 완료되지 않았습니다. 입력하신 내용은 다시 입력하지 않아도 됩니다.
       </p>
@@ -65,7 +77,6 @@ export function ConsultFailure({
         className="mt-[5px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-5"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
-        <SummaryRow label="이름" value={name} />
         <SummaryRow label="연락처" value={contact} />
         {channel === "phone" && preferredCallTime ? (
           <SummaryRow label="연락 희망 시간" value={preferredCallTime} />
@@ -73,7 +84,7 @@ export function ConsultFailure({
         <SummaryRow label="입력 내용" value="유지됨" />
       </dl>
 
-      <div className="mt-[1px] flex w-full flex-col items-center gap-2 md:mt-6 md:w-auto">
+      <div className="mt-[46px] flex w-full flex-col items-center gap-2 md:mt-[67px] md:w-auto">
         <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
           <Button
             type="button"

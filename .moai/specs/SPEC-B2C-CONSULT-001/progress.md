@@ -1594,11 +1594,450 @@ skipMetrics 미해결 항목이 남아 있는 한, 이 두 화면은 "top 위치
 계속 PASS 표시된다 — 검증 게이트가 이 차이를 잡지 못한다는 사실을
 독립적으로 기억해야 한다(§E.2 D-RUN-2 Claim 2와 같은 종류의 한계).
 
+### D-RUN 재작업 2(이번 세션) — 스크롤 접근성 실제 수정 + 카드 콘텐츠 정정 + D-RUN-3/4/6 재확인
+
+사용자가 "3fb4530의 24/24 visual PASS만으로 run-phase 완료·audit-ready를
+선언하지 말라"고 재지시했다. 이 절은 (1) scrollTo가 하네스에만 있고
+제품 코드에는 없었다는 지적을 실제로 재현·수정하고, (2) M03-B/M03-D
+height skipMetrics를 근거와 함께 재확인하고, (3) 백엔드 rate-limit
+원자성·X-Forwarded-For 신뢰 경계를 재감사하고, (4) D-RUN-3/4/6의 기존
+완료 주장을 재확인한 결과다.
+
+**Claim 5 — 실제 사용자 화면(components/consult/consult-view.tsx)에는
+scrollTo(0,0)가 전혀 없었다. 재현 결과 진짜 문제였다 — 모바일 뷰포트에서
+폼을 채우려면 실제로 스크롤이 필요하고, 성공/중복/실패 전환이
+client-side 상태 전환이라 그 스크롤이 남는다. 제품 코드에 수정을
+추가했고, 수정 도중 재시도 시 스크롤이 복원되지 않는 별도 회귀를
+Playwright e2e로 새로 발견해 함께 고쳤다.**
+
+**Evidence — 재현(Playwright, 실제 뷰포트)**:
+```
+390×605(성공)/390×718(중복)/390×737(handoff_mismatch): 제출 버튼 클릭 직전
+scrollY > 0(실측 — 폼이 뷰포트보다 길어 실제로 스크롤해야 제출 버튼에
+닿는다). 전환 직후 window.scrollY는 0으로 복원되지 않은 채 유지된다
+(수정 전).
+```
+
+**조치**:
+1. `components/consult/consult-view.tsx` — `submitView` 상태에 대한
+   `useEffect`를 추가해 `kind !== "form"`으로 전환될 때마다
+   `window.scrollTo(0, 0)` + 결과 제목(`outcomeTitleRef`)으로 포커스
+   이동. **첫 구현은 `[submitView.kind]`(문자열 값)에 의존했는데,
+   재시도는 kind가 "failure"→"failure"로 값이 그대로라 React가 변화
+   없음으로 판단해 effect가 다시 실행되지 않았다**(재시도 후 스크롤이
+   복원되지 않는 회귀 — Playwright e2e 390×737 재시도 테스트로 처음
+   발견). 의존성을 `[submitView]`(객체 참조 — `setSubmitView`가 매
+   호출마다 새 객체를 만든다)로 바꿔 해소했다.
+2. `components/consult/consult-success.tsx` / `consult-duplicate.tsx` /
+   `consult-failure.tsx` — 각 화면의 `<h1>`에 `ref`(titleRef prop으로
+   전달받음) + `tabIndex={-1}` + `data-testid="consult-outcome-title"`
+   추가(스크린 리더가 프로그램적 포커스로 새 화면을 인지할 수 있도록,
+   `outline-none`으로 시각적 포커스 링만 제거 — 기존 코드베이스의
+   `components/diagnosis/step-questions.tsx` `headingRef` 관례와
+   동일한 패턴).
+
+**Evidence — 수정 후 검증(2개 독립 계층)**:
+```
+$ node_modules/.bin/vitest run components/consult/consult-view.test.tsx
+ Tests  19 passed (19)   ← success/duplicate/error/network-exception/
+                            handoff_mismatch 5개 시나리오 전부
+                            scrollTo(0,0) 호출 + 결과 제목 포커스 검증.
+                            재시도 시 scrollTo가 2회(최초+재시도) 호출됨을
+                            별도로 검증(회귀 가드).
+
+$ node_modules/.bin/tsx scripts/run-e2e.ts --spec=e2e/consult-flow-03.spec.ts
+  ✓ 성공 전환 후 스크롤 최상단 복원 + 포커스 이동 (390×605)
+  ✓ 중복 전환 후 스크롤 최상단 복원 + 포커스 이동 (390×718)
+  ✓ handoff_mismatch 실패 전환 + 재시도 후에도 스크롤 최상단 복원 +
+    포커스 이동 (390×737)
+  ✓ (기존 Desktop 플로우 2건도 회귀 없이 유지)
+  5 passed (5.0m)
+```
+실제 브라우저(Chromium)에서 실제 폼 제출 흐름(스크롤 → 제출 → 전환 →
+재검증 → 재시도 → 재검증)을 검증했다 — 하네스(`scripts/visual-verify.ts`)
+의 `scrollTo` 호출과는 완전히 독립적인 증거다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `3fb4530`.
+
+**Gaps(미검증)**: 03-D(제출 실패) 화면 자체는 이 e2e 파일의 기존
+[환경 노트 2]가 이미 기록한 이유(next@16.3.2가 리버스 프록시 없이도
+x-forwarded-for를 raw 소켓 주소로 자동 채워 fail-closed 500 분기가
+이 환경에서 도달 불가능함)로 실제 서버 `error` 응답 경로는 여전히
+e2e로 커버되지 않는다 — 이번에 추가한 스크롤·포커스 테스트는
+handoff_mismatch(클라이언트 분기)로 03-D에 도달하므로 이 공백과는
+무관하다.
+
+**Residual-risk(잔여 위험)**: `useEffect` 의존성을 객체 참조로 바꾸는
+수정은 React의 얕은 비교 규칙에 의존한다 — 향후 `setSubmitView`가
+"이전 상태와 같으면 리렌더링하지 않는다"는 최적화(예: 함수형 업데이트
++ 값 비교)로 바뀌면 이 effect가 다시 조용히 깨질 수 있다. 재시도
+회귀를 잡는 전용 테스트(vitest `scrollToMock` 호출 횟수 검증 + e2e
+재시도 테스트)를 남겨 뒀으므로 향후 변경 시 CI가 이를 잡아낼 것이다.
+
+**Claim 6 — M03-B/M03-D height skipMetrics 재확인: 측정 자체가
+신뢰할 수 없다는 이전 결론(Claim 1 관련 재작업)은 유지되지만, 그 중
+M03-D는 "이름" 행이 design.md 결정과 다르게 추가돼 있던 별개의 실제
+콘텐츠 결함이 섞여 있었다 — 그 결함은 해소했다.**
+
+**Evidence**: `design/exports/M03-D-신청-실패.png`/`03-D-상담-신청-실패.png`
+원본 목업을 직접 열어 확인한 결과, 요약 카드는 정확히 4행(상담 방식/
+연락처/연락 희망 시간/입력 내용)이다 — "이름" 행이 없다. `design.md`
+§10도 동일하게 "요약(상담 방식/연락처/연락 희망 시간/"입력 내용:
+유지됨")"이라고 4행만 명시한다. 그런데 `components/consult/
+consult-failure.tsx`는 5행(이름 포함)을 렌더링하고 있었다 — design.md의
+명시적 결정과 어긋난 구현 편차였다.
+
+**조치**:
+1. `consult-failure.tsx` — "이름" `SummaryRow`와 미사용이 된 `name` prop
+   전체를 제거(인터페이스/구조분해/`consult-view.tsx` 호출부).
+2. `consult-failure.test.tsx` — 이름이 요약에 없음을 확인하는 회귀
+   가드 테스트 추가, 기존 테스트 제목의 "이름" 언급 정정.
+3. `scripts/visual-verify.ts` — 03-D/M03-D의 "폼 상태 보존" semanticCheck가
+   기존에는 요약 카드 텍스트에 이름이 포함되는지로 확인했는데, 그
+   요구 자체가 design.md와 어긋난 콘텐츠(요약에 이름 표시)를 전제하고
+   있었다. 실제 보존 메커니즘인 `sessionStorage` draft(`lib/consult/
+   draft.ts`)에 이름이 그대로 남아 있는지 직접 확인하는
+   `draftNameMatches()` 헬퍼로 교체했다("다시 입력하지 않아도 됩니다"
+   문구의 실제 근거).
+4. `scripts/visual-verify.ts`의 03-D/M03-D `summary` ElementSpec —
+   `mergeBands: 5`가 카드 바로 아래 별도 안내 박스(채팅 아이콘 문구)의
+   밴드까지 하나로 합쳐 디자인 height를 실제보다 부풀리고 있었다(실측
+   381px). 재현 결과 저대비 임계값(threshold 6)에서는 카드 4행 사이의
+   quiet-gap이 이미 거의 안 보여 `mergeBands: 1`만으로도 카드 전체가
+   하나의 밴드로 잡힌다(실측 176px) — `mergeBands: 1`로 교체했다.
+5. 카드가 "이름" 행 제거로 짧아지면서(구현 height 256→211px) 그 아래
+   버튼(다시 시도하기/이전 화면으로 돌아가기)이 디자인 목표보다 위로
+   밀려 올라가는 회귀가 실측으로 나타났다(Δ42-43px) — 버튼 그룹
+   wrapper의 margin을 재측정해 재조정했다: 모바일 `mt-[1px]`→
+   `mt-[46px]`, 데스크톱 `md:mt-6`→`md:mt-[67px]`.
+
+**height는 여전히 미해결(측정기 오류로 확인, "시각 정합성 완료"로
+표시하지 않음)**: `mergeBands: 1`로 얻은 디자인 height(176px)조차
+구현(211px)보다 **작다** — "행 패딩이 좁다"는 원래 가설과 방향이
+반대다. 저대비 경계 검출은 카드 위/아래 테두리를 살짝씩 놓쳐 과소
+측정할 수 있어 이 176px도 신뢰할 근거가 약하다. M03-B는 이미 세 가지
+독립 측정법(145/303/174px)이 서로 2배 가까이 어긋난다는 결론을 앞선
+delegation이 남겼다(위 Claim 1 관련 절 참고, 아직 유효). 두 화면 모두
+**Figma 원본 실측 또는 디자이너 확인 없이는 height를 자동 게이트할
+신뢰 가능한 목표값이 없다** — `skipMetrics: ["height"]`를 유지하고,
+이 판단 자체를 미해결 항목으로 남긴다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `3fb4530`.
+
+**Evidence — 조치 후 검증**:
+```
+$ node_modules/.bin/tsx scripts/visual-verify.ts   (무제약 전체 24화면)
+$ echo $?
+0
+... (24/24 PASS, 상세는 아래 "무제약 전체 재실행" 참고)
+```
+
+**Gaps(미검증)**: height의 "진짜" 디자인 목표값은 이 세션에서도 확정하지
+못했다(위 참고). `mergeBands: 1`이 03-D(Desktop)에도 동일하게 맞는지는
+Desktop summary가 이미 `["left","width","height"]` 전부 스킵 상태(top만
+게이트)라 height 불일치가 게이트에 노출되지 않는다 — Desktop의 height
+차이 크기 자체는 이번에 별도로 실측하지 않았다.
+
+**Residual-risk(잔여 위험)**: 버튼 wrapper margin(46px/67px)은 "카드가
+정확히 4행일 때"를 전제로 재조정했다 — 향후 요약 카드에 행이
+추가/제거되면(예: `preferredCallTime` 조건부 렌더링이 없어지거나
+늘어나면) 이 margin도 다시 재측정해야 한다. 카드 height 자체가
+skipMetrics라 이 margin 값이 여전히 맞는지를 자동으로 감지할 게이트가
+없다 — 사람이 diff/overlay 이미지를 주기적으로 확인해야 한다.
+
+**Claim 7 — D-RUN-3/D-RUN-4/D-RUN-6의 기존 완료 주장을 이번 세션에
+독립적으로 재확인했다. 셋 다 여전히 유효하다.**
+
+**Evidence**:
+```
+$ node_modules/.bin/eslint .                      → exit 0, 출력 없음(D-RUN-3)
+$ node_modules/.bin/vitest run --reporter=dot     → 92 Test Files, 699 Tests
+                                                      전부 passed, exit 0(D-RUN-4)
+```
+D-RUN-6(검증 전 PII 로그 인젝션)은 `app/api/consultations/route.ts`
+164-187행과 `lib/logging/safe-error.ts`를 직접 다시 읽어 확인했다 —
+(a) 요청 시작 구조적 로그는 `channel`을 정확히 "kakao"/"phone"
+두 값일 때만 그대로 남기고 그 외(공격 페이로드 포함)는 고정 sentinel
+"invalid"로 대체하며, `name`/`contact` 원본은 어떤 로그 경로에도
+등장하지 않는다(스키마 검증 이전 시점 로그 포함). (b) 에러 로그는
+`toSafeErrorMeta()`를 통해서만 `error.name`/`.code`를 남기며, 둘 다
+고정 화이트리스트(`KNOWN_ERROR_NAMES`/`KNOWN_ERROR_CODES`)에 있는
+값만 통과시키고 `.message`는 절대 읽지 않는다 — 라이브러리/DB 드라이버
+오류 메시지가 사용자 입력을 반사할 위험을 원천적으로 막는다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `3fb4530`.
+
+**Gaps(미검증)**: D-RUN-3/4/6은 lint·테스트 통과 + 코드 재검토로
+확인했다 — 실제 프로덕션 트래픽에서 로그 인젝션 공격을 재현하는 침투
+테스트는 이 세션 범위 밖이다.
+
+**Residual-risk(잔여 위험)**: 없음(코드 검토 결과 원천적으로 막혀 있음
+— 새 로그 호출부가 추가될 때 `toSafeErrorMeta()`를 우회하면 재발할
+수 있다는 구조적 위험만 남는다, `safe-error.ts`의 @MX:ANCHOR 주석이
+이미 이 위험을 명시적으로 기록해 두고 있다).
+
+**Claim 8 — 무제약 전체 24화면 재실행(이번 세션 모든 수정 반영 후)**:
+
+```
+$ node_modules/.bin/tsx scripts/visual-verify.ts
+$ echo $?
+0
+01 PASS(5/8) 01-A2 PASS(6/8) 01-B PASS(5/8) 01-C PASS(6/8) 01-D PASS(8/8)
+01-E PASS(6/8) M01 PASS(4/4) M01-A2 PASS(3/4) M01-B PASS(3/4) M01-C PASS(4/4)
+02 PASS(8/8) M02 PASS(0/4) M02-B PASS(2/4) M02-C PASS(0/4) M02-D PASS(0/4)
+03 PASS(3/8) 03-A2 PASS(4/8) 03-B PASS(1/8) 03-C PASS(2/8) 03-D PASS(7/8)
+M03 PASS(4/4) M03-B PASS(2/4) M03-C PASS(2/4) M03-D PASS(4/4)
+모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.
+```
+24/24 PASS, exit 0. M03-D는 여전히 허용치(4px) 경계값이다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `3fb4530`.
+
+**Claim 9 — 백엔드 재감사: rate-limit 원자성은 이미 안전했다(수정 불필요).
+X-Forwarded-For는 실제 취약점이었다 — 첫 번째 값 대신 마지막 값을
+신뢰하도록 수정하고 회귀 테스트를 추가했다.**
+
+**(A) rate-limit 원자성 — Evidence**: `app/api/consultations/route.ts`의
+카운터 증가는 `db.insert(consultationRateLimits).values({...})
+.onConflictDoUpdate({ target: [windowStart, ipHmac], set: { requestCount:
+sql\`${consultationRateLimits.requestCount} + 1\` } })` 단일 SQL문으로
+수행된다 — JS에서 읽고 쓰는 두 단계가 아니라 DB 엔진 내부에서 원자적으로
+평가되므로, 동시 요청이 같은 (windowStart, ipHmac) 키에서 둘 다 count=4를
+읽고 둘 다 count=5를 쓰는 경쟁이 구조적으로 발생할 수 없다(await 지점이
+읽기-쓰기 사이에 없음). `design.md` §9.3 4번 항목이 명시한 것과 정확히
+같은 구현이다 — **코드 수정 없음**. 만료 레코드 cleanup(`DELETE`)이
+증가와 같은 트랜잭션으로 묶여 있다는 기존 주석은 부정확했다(실제로는
+순차적인 별개 문장) — 다만 오래된 행을 두 번 지우는 것은 no-op이라 이
+부정확함 자체는 실제 결함을 만들지 않으므로 트랜잭션으로 묶는 리팩터는
+하지 않았다(이득 없이 복잡도만 추가).
+```
+$ node_modules/.bin/vitest run app/api/consultations/route.test.ts
+ Tests  30 passed (30)   ← 기존 rate-limit 경쟁 테스트 포함
+```
+
+**(B) X-Forwarded-For 신뢰 경계 — Evidence**: 기존 `getTrustedIp()`는
+`forwarded.split(",")[0]`(첫 번째 값)을 신뢰했다. `tech.md`는 Next.js가
+`127.0.0.1`에만 바인딩돼 Nginx를 거치지 않은 요청은 도달할 수 없다고
+명시하지만, 이 저장소에는 실제 `nginx.conf`가 없다(Oracle Cloud VM에서
+저장소 밖에 관리됨). 표준 Nginx 레시피
+(`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`)는
+클라이언트가 보낸 원래 값 뒤에 실제 IP를 이어 붙이는(append) 방식이며,
+이 경우 외부 클라이언트가 `X-Forwarded-For: 1.2.3.4`를 직접 보내면
+헤더가 `"1.2.3.4, <진짜 IP>"`가 되어 **첫 번째 값을 신뢰하면 공격자가
+매 요청마다 다른 가짜 값을 넣어 rate limit을 완전히 우회할 수 있다**
+— 독립적으로 두 차례(각각 다른 조사) 재현·확인됐다. **마지막** 값을
+신뢰하도록 수정했다 — overwrite 방식이면 값이 하나뿐이라 결과가
+동일하고, append 방식이면 마지막 값이 유일한 신뢰 가능 hop(Nginx)이
+직접 붙인 실제 클라이언트 IP다(이 프로젝트가 문서화한 단일 리버스
+프록시 토폴로지와 일치, 앞단에 추가 CDN 등 프록시 계층 없음).
+```
+RED(수정 되돌린 상태에서 재현): AssertionError: expected 429 to be 201
+  — 서로 다른 두 클라이언트가 조작된 공통 첫 값을 공유하도록 구성했을 때
+    클라이언트 B가 클라이언트 A의 사용량에 걸려 잘못 차단됐다.
+GREEN(수정 후):
+$ node_modules/.bin/vitest run app/api/consultations/route.test.ts
+ Tests  30 passed (30)
+$ node_modules/.bin/vitest run
+ Test Files  92 passed (92) / Tests  700 passed (700)
+$ node_modules/.bin/tsc --noEmit && node_modules/.bin/eslint .
+ (모두 exit 0, 출력 없음)
+```
+
+**조치**: `app/api/consultations/route.ts` `getTrustedIp()` —
+`parts[0]` → `parts[parts.length - 1]`. `app/api/consultations/
+route.test.ts`에 조작된 공통 접두값을 공유하는 두 클라이언트가 별도
+rate-limit 버킷을 받는지 확인하는 회귀 테스트 추가.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `3fb4530`, 독립된 두
+조사(같은 결론에 수렴 — 재현성 확인)로 검증.
+
+**Gaps(미검증)**: 실제 Oracle Cloud Nginx 배포가 append 방식인지
+overwrite 방식인지는 이 저장소 코드만으로는 확정할 수 없다 — `design.md`
+§4의 운영 배포 체크리스트가 이미 별도 항목("Nginx가 x-forwarded-for
+헤더를 정확히 전달하는지 확인한다")으로 요구하는 배포 확인 대상이며,
+코드 수준 결정이 아니다. 앞단에 CDN 등 추가 프록시 계층이 없다는
+전제(tech.md)도 마찬가지로 배포 확인이 필요하다.
+
+**Residual-risk(잔여 위험)**: 코드 수정(마지막 값 신뢰)은 두 배포
+방식 모두에서 안전하지만, 향후 CDN 등 신뢰 가능한 hop이 추가되면
+"뒤에서 몇 번째 값을 신뢰할지"를 다시 계산해야 한다(현재는 hop 1개
+가정). **이 항목은 코드 수준에서는 해소됐지만, 실제 배포 설정 확인은
+여전히 운영 결정으로 미해결 상태다 — `audit-ready` 전환의 전제조건
+중 하나로 남긴다.**
+
+### [중복 제거 — 삭제됨] D-RUN 재작업 2회차
+
+이 절은 바로 위 "D-RUN 재작업 2" 절(Claim 5-8)의 초안이었고, 완전히
+포함·대체됐다(이름 행 제거·`mergeBands` 수정 등 추가 내용은 위 절에만
+있다) — 중복 Claim 번호(5/6)로 인한 혼동을 막기 위해 본문을 제거하고
+이 표시만 남긴다. 삭제 직전 본문의 스크롤 재현 내용은 위 Claim 5와
+동일했고, height 측정 3종(145/303/174px)은 위 Claim 6의 145/303/176px과
+사실상 동일한 결론이었다.
+
+<!-- 삭제된 원문 시작
+직전 절("D-RUN-1/2/5 재작업")은 `scripts/visual-verify.ts`(검증 하네스)에만
+`window.scrollTo(0,0)`을 넣었을 뿐, 실제 사용자가 쓰는
+`components/consult/consult-view.tsx`에는 그 보정이 없었다 — 하네스의
+스크롤 보정만으로 "사용자 동작이 해결됐다"고 보고하는 것은 검증 스크립트
+수정과 제품 코드 수정을 혼동한 것이었다. 사용자의 재작업 지시에 따라
+제품 코드에서 재현·수정하고, height skipMetrics의 근거도 다시 검증했다.
+
+**Claim 5 — 모바일(390×605/718/737)에서 폼을 채우며 스크롤한 위치가
+성공·중복·실패(handoff_mismatch 포함) 전환 후에도 실제로 남아 있었다
+(제품 코드의 실제 결함, 검증 하네스의 결함이 아니었다). 전환 시 스크롤을
+맨 위로 되돌리고 결과 제목으로 포커스를 이동하도록 수정했다.**
+
+**Evidence — 재현(Playwright ad-hoc 스크립트, 실제 화면 스펙과 동일한
+뷰포트)**:
+```
+scrollY RIGHT BEFORE submit click: 652   (폼이 뷰포트보다 길어 실제로 스크롤됨)
+scrollY right after success/failure transition (BEFORE any fix): 75~77
+                                                                    (0이 아님 — 재현됨)
+```
+`consult-view.tsx`의 `handleSubmit()`은 `setSubmitView(...)`로만
+상태를 전환하고(client-side, 하드 네비게이션 없음) 스크롤·포커스를
+전혀 건드리지 않았다 — 재현 전제와 정확히 일치하는 코드 경로였다.
+
+**조치**:
+1. `components/consult/consult-view.tsx` — 공유 `outcomeTitleRef`
+   (`useRef<HTMLHeadingElement>`)를 추가하고, `submitView`가 "form"이
+   아닌 값으로 바뀔 때마다(`useEffect` 의존성 배열은 `[submitView]`
+   — 객체 참조 전체. 문자열 `submitView.kind`로 두면 "실패→재시도→
+   실패"처럼 같은 kind로 재전환될 때 React가 값 불변으로 판단해
+   effect가 재실행되지 않는 회귀가 실제로 났다 — 아래 재현 기록 참고)
+   `window.scrollTo(0,0)` + `outcomeTitleRef.current?.focus()`를
+   실행한다.
+2. `components/consult/consult-success.tsx` /
+   `consult-duplicate.tsx` / `consult-failure.tsx` — 각 결과 화면의
+   `<h1>`에 `ref={titleRef}` + `tabIndex={-1}` +
+   `data-testid="consult-outcome-title"` + `focus:outline-none`을
+   추가해 프로그래밍적으로 포커스 가능하게 만들고, `titleRef` prop을
+   받아 `consult-view.tsx`가 전달하는 공유 ref를 그대로 연결한다.
+   `components/result/result-view.tsx`/`coverage-category-section.tsx`
+   가 이미 확립한 "id + tabIndex={-1} + outline-none + 전환 후
+   `.focus()`" 관례를 그대로 따른다(design.md §15 참고, 새 패턴을
+   만들지 않음).
+
+**[HARD 재현] 재시도 시 스크롤 미복원 회귀 — 발견 및 수정**: 첫 수정은
+`useEffect` 의존성을 `[submitView.kind]`로 뒀다. handoff_mismatch
+실패 후 "다시 시도하기"를 누르면 같은 handoff_mismatch 조건이 다시
+걸려 `submitView.kind`가 "failure"→"failure"로 값 자체는 바뀌지 않는다
+— React가 의존성 값이 동일하다고 판단해 effect가 재실행되지 않아
+스크롤이 복원되지 않는 회귀가 실측으로 확인됐다(아래 e2e 재시도
+테스트가 최초 실행에서 정확히 이 실패를 잡았다: `Expected: 0,
+Received: 24`). `setSubmitView`가 매 호출마다 새 객체를 만드는
+성질을 이용해 의존성을 `[submitView]`(객체 참조)로 바꿔 해소했다 —
+같은 kind로의 재전환도 참조가 달라 매번 감지된다.
+
+**Evidence — 신규 Playwright e2e(`e2e/consult-flow-03.spec.ts`, 실제
+제출 흐름 전체를 완주하는 통합 테스트, 하네스 스크립트가 아닌 제품
+코드 자체를 검증)**:
+```
+$ node_modules/.bin/tsx scripts/run-e2e.ts --spec=consult-flow-03
+$ echo $?
+0
+
+  ✓ 02→03 전체 플로우: 성공 → 결과 복귀 → 중복 (Desktop, 1440x900) (2.9s)
+  ✓ CTA 쿼리 파라미터로 채널 사전 선택 (Desktop, 1440x900) (2.3s)
+  ✓ 성공 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로
+    이동한다 (390×605) (3.0s)
+  ✓ 중복 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로
+    이동한다 (390×718) (3.5s)
+  ✓ handoff_mismatch 실패 전환 및 재시도 후에도 스크롤이 최상단으로
+    복원되고 포커스가 결과 제목으로 이동한다 (390×737) (2.6s)
+
+  5 passed (5.0m)
+```
+새 테스트 3개는 실제 380×605/718/737 뷰포트에서 (1) 폼을 스크롤해
+제출 버튼에 닿게 하고(재현 전제 — 제출 직전 `scrollY > 0`을 단언),
+(2) 제출 후 `window.scrollY === 0`과 결과 제목이
+`toBeFocused()`인지 검증하며, handoff_mismatch 테스트는 추가로 "다시
+시도하기" 클릭 후에도 같은 검증을 반복한다(재시도 회귀 재발 방지).
+기존 Desktop 테스트 2개는 그대로 통과해 회귀가 없음을 확인했다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋
+`3fb453039406cb6ff4ad226931b1f52e2b5e9085`(사용자 지정), 이 트리.
+
+**Gaps(미검증)**: (1) 실제 서버 500 오류로 도달하는 "진짜" 03-D(실패)
+경로는 이번에도 검증하지 않았다 — `e2e/consult-flow-03.spec.ts` 파일
+상단 [환경 노트 2]가 이미 기록한 대로 이 Next.js 버전(16.3.2)에서는
+리버스 프록시 없이 `next start`로 직접 서빙하면 fail-closed 분기가
+도달 불가능하다(관찰이며, 이번 세션이 새로 만든 제약이 아니다).
+handoff_mismatch 경로로 03-D 화면 자체는 검증되지만 "실제 네트워크
+오류/500 응답" 경로의 스크롤·포커스 복원은 별도로 검증되지 않았다.
+(2) `prefers-reduced-motion` 대응은 하지 않았다 — `window.scrollTo(0,0)`
+는 즉시 이동(smooth 스크롤이 아님)이라 모션 감소 설정과 무관하게
+동일하게 동작하므로 이번 수정에서는 그 축이 애초에 해당되지 않는다
+(참고: `components/result/result-view.tsx`는 `scrollIntoView({behavior:
+smooth/auto})`를 쓰는 카테고리 앵커 이동에만 그 분기가 필요하다 —
+이 수정은 즉시 이동이라 그 분기가 필요 없다는 뜻이며, 누락이 아니다).
+
+**Residual-risk(잔여 위험)**: 없음 — 5개 e2e 테스트가 성공/중복/실패/
+재시도 4가지 전환 경로 모두를 실제 브라우저에서 검증했고, 기존
+Desktop 테스트도 회귀 없이 통과했다.
+
+**Claim 6 — M03-B/M03-D 요약 카드 height는 skipMetrics를 유지한다.
+근거 없이 유지하는 것이 아니라, 세 가지 독립 측정법이 서로 2배 가까이
+다른 값을 줘서 "디자인이 의도한 진짜 height"를 자동으로도 수동으로도
+확정할 수 없었다는 것이 이번 세션이 새로 확인한 근거다.**
+
+**Evidence — 세 가지 독립 측정**:
+```
+(a) tightBox 기본 임계값(18):        design height ≈ 145px
+(b) tightBox 낮은 임계값(6)+
+    mergeBands:4(bandsLow):          design height ≈ 303px
+(c) 디자인 PNG 직접 픽셀 스캔
+    (앱의 band 병합 로직과 무관,
+    카드 배경색→페이지 배경색
+    전환 지점 탐지, 이번 세션
+    자체 제작 스크립트):             design height ≈ 174px
+
+현재 구현 height(변경 없음):                              211px
+```
+(a)/(c)는 오히려 현재 구현(211px)이 디자인보다 **더 크다**고 시사하고,
+(b)만 디자인이 더 크다고 시사한다 — 측정법에 따라 "늘려야 한다"와
+"줄여야 한다"는 반대 결론이 나온다. 이는 이 카드가 `border-app-line`
+(옅은 테두리) + `bg-app-surface`(옅은 배경)인 저대비 export에서 자동
+픽셀 측정이 근본적으로 불안정하다는 뜻이며, 어느 한 값을 "정답"으로
+골라 CSS를 그 값에 맞추는 것은 근거 없는 결정이다.
+
+**판단(이번 세션)**: 근거 없이 skipMetrics를 유지하며 "시각 정합성
+완료"로 표시하지 않기 위해, top/left/width는 게이트를 유지하되(실제로
+정확히 일치함, D-RUN-1/2/5 재작업 절 참고) height만 계속 skip하고 그
+이유를 정확히 기록한다. Figma 등 원본 디자인 소스에서 실제 행 패딩
+값(px)을 확인하거나, 디자이너가 현재 밀도(카드 패딩 `p-4`=16px +
+`SummaryRow` 세로 패딩 `py-3`=12px, 텍스트 line-height 24px 기준
+행당 ≈45-49px)를 승인하는 두 갈래 중 하나가 필요하다 — 이번
+세션에서는 결정할 수 없다.
+
+**02/M02 result-priority-checklist 콘텐츠 구조 편차와의 구분**: 이
+height 미해결 항목은 SPEC-B2C-CONSULT-001 소유 컴포넌트(consult-
+success/failure.tsx)의 자체 스타일 판단이며, `.moai/specs/
+SPEC-B2C-RESULT-001`로 넘긴 "먼저 확인할 항목" 콘텐츠 구조 편차(§E.2
+D-RUN-2 Claim 2, "여전히 열려 있음" 6번)와는 별개의 항목이다 — 혼동하지
+않도록 명시한다.
+
+**Baseline-attribution**: 이번 세션, `design/exports/
+M03-B-신청-완료.png`/`M03-D-신청-실패.png` 직접 측정 + 기존
+measurements.json 실측값 대조.
+
+**Gaps(미검증)**: 원본 Figma 파일에 직접 접근하지 않았다 — 세 측정법
+모두 PNG export를 대상으로 한 간접 측정이다. Figma 소스의 실제 spacing
+토큰 값을 확인하면 이 불일치가 해소될 수 있다.
+
+**Residual-risk(잔여 위험)**: height가 계속 skip 상태이므로, "카드
+내부 콘텐츠 밀도가 디자인과 다를 수 있다"는 상태로 이 검증 게이트를
+통과한다 — top 위치가 정확한 것과 카드 내부 레이아웃이 디자인과
+일치하는 것은 다른 주장이라는 점을 §E.2 D-RUN-2 Claim 2와 동일한
+방식으로 계속 구분해 기록해야 한다.
+삭제된 원문 끝 -->
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
 - **재작업 지시 접수(당시 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
-- **업데이트(이번 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 위 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). **이번 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다** — 그 항목들은 이전 delegation(D-RUN-3/4/6 후속 절)의 완료 주장에 의존하며, `run_status`는 그 항목들을 포함해 전부 재확인되기 전까지 `audit-ready`로 전환하지 않는다.
+- **업데이트(당시 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). 그 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다.
+- **업데이트 2(이번 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — rate-limit은 이미 원자적이라 수정이 필요 없었고, X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했다. **다만 실제 Nginx 배포가 append/overwrite 중 어느 방식인지는 이 저장소 코드만으로 확정할 수 없는 운영 확인 대상으로 남는다(design.md §4 배포 체크리스트 항목) — 그 운영 확인과 height 미해결 항목(Claim 6) 두 가지가 남아있는 한 `run_status`는 `audit-ready`로 전환하지 않는다.**
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -1629,7 +2068,9 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 3. **`CONSULT_POLICY_READY` 실제 활성화 시점(구 `productionReady`)** — 이 SPEC은 이제 배포 게이트(`ENABLE_CONSULT_FLOW`)와 실제 개인정보 수집 게이트(`CONSULT_POLICY_READY`)를 명확히 분리된 두 개의 서버 계약으로 확정했다(`design.md` §4, §6.1) — 이전에는 이 분리가 코드 계약이 아니라 문서상의 "이해"에 불과했다. 실제로 `CONSULT_POLICY_READY`를 `true`로 전환하는 시점(법무 확정 + 운영 준비 완료 후)은 여전히 사람의 운영 판단이며, 이 SPEC이 자동으로 결정하지 않는다.
 4. **"기존 신청 상태 확인" 실제 목적지** — 이 SPEC은 "준비 중" 스텁으로 구현했다(§ 디자인 대조 D4). 실제 신청 상태 조회 기능(인증 없는 조회 페이지 등)을 만들 것인지, 만든다면 인증·보안 요구사항이 무엇인지는 별도 제품 결정이 필요하다. (변경 없음)
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
-6. **(신규, 이번 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다.
+6. **(신규, D-RUN 1회차 재작업 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다.
+7. **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
+8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다.
 
 ### 이번 세션에서 해소됨
 

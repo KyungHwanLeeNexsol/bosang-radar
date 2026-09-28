@@ -129,6 +129,20 @@ async function submitConsultForm(page: Page): Promise<void> {
   await page.getByTestId("consult-submit-button").click();
 }
 
+/**
+ * 02의 후유장해 섹션 CTA로 03에 진입한다. Mobile은 result-view.tsx가
+ * activeCategory 하나만 렌더링하므로(scripts/visual-verify.ts의 동명 헬퍼와
+ * 동일한 이유) 기본 활성 탭이 "disability"가 아니면 이 CTA가 DOM에 아예
+ * 없다 — 존재하면 먼저 그 탭으로 전환한다(Desktop은 이 클릭이 no-op).
+ */
+async function clickDisabilityConsultCta(page: Page): Promise<void> {
+  const disabilityTab = page.getByTestId("category-tab-disability");
+  if (await disabilityTab.isVisible().catch(() => false)) {
+    await disabilityTab.click();
+  }
+  await page.getByTestId("result-cta-disability-button").click();
+}
+
 test.describe("03 화면 — 02→03 전체 플로우: 성공 → 결과 복귀 → 중복 (Desktop, 1440x900)", () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
@@ -242,3 +256,158 @@ test.describe("03 화면 — CTA 쿼리 파라미터로 채널 사전 선택 (De
 // x-forwarded-for를 raw 소켓 주소로 자동 채워 fail closed 분기가 이
 // 환경에서 도달 불가능함) 때문이다. 렌더링 자체는
 // components/consult/consult-failure.test.tsx가 이미 커버한다.
+
+// SPEC-B2C-CONSULT-001 D-RUN 재작업(이번 세션) — 모바일 실제 크기(390×605/
+// 718/737)에서 성공·중복·실패 전환 후 브라우저 스크롤·포커스 복원을
+// 검증한다. 재현: 폼 전체가 뷰포트보다 길어 제출 버튼에 닿으려면 실제로
+// 스크롤이 필요하고, 성공/중복/실패 전환은 client-side 상태 전환(하드
+// 네비게이션 없음)이라 그 스크롤 위치가 전환 후에도 남는다(디자인 검증
+// 하네스인 scripts/visual-verify.ts에서만 window.scrollTo(0,0)로 되돌리고
+// 있었을 뿐, 실제 사용자가 쓰는 이 컴포넌트 자체에는 그 보정이 없었다 —
+// 이 테스트가 프로덕트 코드의 실제 동작을 검증한다).
+async function scrollFormToSubmitButton(page: Page): Promise<void> {
+  // 실제 사용자가 제출 버튼을 누르려면 브라우저가 그 지점까지 스크롤해야
+  // 한다 — Playwright의 .click()도 대상이 뷰포트 밖이면 자동으로
+  // scrollIntoView를 수행하므로, 명시적으로 호출해 재현 조건을 보장한다.
+  await page.getByTestId("consult-submit-button").scrollIntoViewIfNeeded();
+}
+
+test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () => {
+  test("성공 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동한다 (390×605)", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.1" });
+    await page.setViewportSize({ width: 390, height: 605 });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await page.getByRole("radio", { name: /전화 상담/ }).check();
+    await fillConsultForm(page, {
+      name: CONSULT_NAME,
+      contact: CONSULT_PHONE,
+      preferredCallTime: CONSULT_CALL_TIME,
+    });
+    await checkRequiredConsents(page);
+    await scrollFormToSubmitButton(page);
+    const scrollYBeforeSubmit = await page.evaluate(() => window.scrollY);
+    expect(scrollYBeforeSubmit).toBeGreaterThan(0); // 재현 전제: 실제로 스크롤된 상태에서 제출한다.
+
+    await submitConsultForm(page);
+    await page.getByTestId("consult-success").waitFor();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), {
+        message: "성공 화면 전환 후 스크롤이 최상단으로 복원되지 않았다",
+      })
+      .toBe(0);
+    await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
+  });
+
+  test("중복 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동한다 (390×718)", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.2" });
+    await page.setViewportSize({ width: 390, height: 718 });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+    await fillConsultForm(page, { name: CONSULT_NAME, contact: CONSULT_PHONE });
+    await checkRequiredConsents(page);
+    await submitConsultForm(page);
+    await page.getByTestId("consult-success").waitFor();
+
+    await page.getByTestId("consult-success-back-cta").click();
+    await page.waitForURL("**/result", { timeout: 10_000 });
+    await page.getByTestId("result-view").waitFor();
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await fillConsultForm(page, { name: CONSULT_NAME, contact: CONSULT_PHONE });
+    await checkRequiredConsents(page);
+    await scrollFormToSubmitButton(page);
+    const scrollYBeforeSubmit = await page.evaluate(() => window.scrollY);
+    expect(scrollYBeforeSubmit).toBeGreaterThan(0);
+
+    await submitConsultForm(page);
+    await page.getByTestId("consult-duplicate").waitFor();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), {
+        message: "중복 화면 전환 후 스크롤이 최상단으로 복원되지 않았다",
+      })
+      .toBe(0);
+    await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
+  });
+
+  test("handoff_mismatch 실패 전환 및 재시도 후에도 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동한다 (390×737)", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.3" });
+    await page.setViewportSize({ width: 390, height: 737 });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await page.getByRole("radio", { name: /전화 상담/ }).check();
+    await fillConsultForm(page, {
+      name: CONSULT_NAME,
+      contact: CONSULT_PHONE,
+      preferredCallTime: CONSULT_CALL_TIME,
+    });
+    await checkRequiredConsents(page);
+
+    // scripts/visual-verify.ts gotoConsultFailure()와 동일한 절차 —
+    // 제출 직전 sessionStorage의 진단 handoff resultId를 변조해
+    // handleSubmit()의 handoff_mismatch 분기(consult-view.tsx)를
+    // 결정론적으로 재현한다. 실제 서버 호출도, DB도 필요 없다.
+    await page.evaluate(() => {
+      const KEY = "bosang-radar:diagnosis-handoff-v1";
+      const raw = window.sessionStorage.getItem(KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { resultId?: string };
+      parsed.resultId = `${parsed.resultId}-e2e-mismatch`;
+      window.sessionStorage.setItem(KEY, JSON.stringify(parsed));
+    });
+
+    await scrollFormToSubmitButton(page);
+    const scrollYBeforeSubmit = await page.evaluate(() => window.scrollY);
+    expect(scrollYBeforeSubmit).toBeGreaterThan(0);
+
+    await submitConsultForm(page);
+    await page.getByTestId("consult-failure").waitFor();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), {
+        message: "실패 화면 전환 후 스크롤이 최상단으로 복원되지 않았다",
+      })
+      .toBe(0);
+    await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
+
+    // 제출 실패 후 재시도 — handoff_mismatch는 sessionStorage에 남은
+    // 변조값 때문에 재시도에서도 다시 실패로 귀결되지만(핸드오프 자체를
+    // 복구하지 않는 한), 매 전환마다 스크롤·포커스가 다시 복원되는지는
+    // 별도로 검증해야 한다(한 번만 복원되고 재시도에서는 안 되는 회귀를
+    // 잡기 위함).
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), { message: "테스트 준비: 스크롤 강제 이동 실패" })
+      .toBeGreaterThan(0);
+    await page.getByTestId("consult-failure-retry").click();
+    await page.getByTestId("consult-failure").waitFor();
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), {
+        message: "재시도 후 스크롤이 최상단으로 다시 복원되지 않았다",
+      })
+      .toBe(0);
+    await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
+  });
+});

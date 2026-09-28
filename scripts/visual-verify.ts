@@ -572,6 +572,26 @@ async function iconExists(page: Page, containerTestId: string): Promise<string> 
   );
 }
 
+/**
+ * 03-D/M03-D "폼 상태 보존" 검증 — design.md §10의 요약 4행(상담 방식/
+ * 연락처/연락 희망 시간/입력 내용)에는 "이름"이 없어 화면에 이름이
+ * 보이지 않는다. 실제 보존 메커니즘은 lib/consult/draft.ts가 쓰는
+ * sessionStorage draft이므로, 그 draft에 기대한 이름이 그대로 남아
+ * 있는지를 직접 확인한다("입력하신 내용은 다시 입력하지 않아도 됩니다"
+ * 문구의 근거 — 재시도가 이 draft 값을 그대로 재전송한다).
+ */
+async function draftNameMatches(page: Page, expectedName: string): Promise<boolean> {
+  const raw = await page.evaluate(
+    () => window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")
+  );
+  if (!raw) return false;
+  try {
+    return (JSON.parse(raw) as { name?: string }).name === expectedName;
+  } catch {
+    return false;
+  }
+}
+
 /** 상담 동의 체크박스(consult-consent-checkbox-*) 개수. */
 async function consentCheckboxCount(page: Page): Promise<string> {
   return String(await page.locator('[data-testid^="consult-consent-checkbox-"]').count());
@@ -2127,10 +2147,14 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "실패 요약(입력 보존)",
         locate: (p) => vis(p, "consult-failure-summary"),
         designTopHint: 350,
-        mergeBands: 5,
-        // border-app-line 저대비 카드(회색 페이지 배경과 대비가 약함) —
-        // 기본/낮은 임계값 모두 좌우/폭/높이 경계를 안정적으로 못 잡는다
-        // (테두리 vs 텍스트 잉크). top만 게이트하고 나머지는 스킵한다.
+        // 이번 세션 재작업 — design.md §10은 이 카드에 정확히 4행(상담
+        // 방식/연락처/연락 희망 시간/입력 내용)만 명시한다("이름" 없음,
+        // design/exports/03-D-상담-신청-실패.png 원본 목업도 4행뿐). 기존
+        // mergeBands:5는 카드 바로 아래 별도 안내 박스(채팅 아이콘 문구)의
+        // 밴드까지 하나로 합쳐 디자인 height를 실제보다 부풀렸다. Desktop은
+        // 이미 top만 게이트해 PASS 상태였으므로 그 게이트 범위는 건드리지
+        // 않는다(임계값 변경은 Mobile summary에서만 실측으로 필요했다).
+        mergeBands: 4,
         skipMetrics: ["left", "width", "height"],
         skipReason:
           "border-app-line 저대비 카드 — 좌우/폭/높이 잉크 경계 측정이 불안정해 top만 게이트한다",
@@ -2167,13 +2191,17 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await testIdExists(page, "consult-failure-retry"),
       },
       {
-        label: "입력 필드 값 유지(이름) — 폼 상태 보존",
+        // D-RUN 재작업(이번 세션) — design.md §10의 요약 4행(상담 방식/
+        // 연락처/연락 희망 시간/입력 내용)에는 "이름"이 없다(design/exports/
+        // 03-D-신청-실패.png 원본 목업도 4행뿐). 이전 버전은 요약 카드
+        // 텍스트에 이름이 포함되는지로 "폼 상태 보존"을 확인했는데, 그
+        // 요구 자체가 design.md와 어긋난 콘텐츠(요약에 이름 표시)를
+        // 전제하고 있었다. "다시 입력하지 않아도 된다"는 실제 보존
+        // 메커니즘은 sessionStorage draft이므로, 그 draft에 이름이 그대로
+        // 남아 있는지를 직접 확인한다(재시도가 같은 값을 재전송하는 근거).
+        label: "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
         expected: "true",
-        actual: String(
-          ((await page.getByTestId("consult-failure-summary").textContent()) ?? "").includes(
-            CONSULT_NAME
-          )
-        ),
+        actual: String(await draftNameMatches(page, CONSULT_NAME)),
       },
     ],
   },
@@ -2266,17 +2294,27 @@ const SCREENS: readonly ScreenSpec[] = [
         // 요소에만 로컬 inkThreshold를 지정해 backCta/retry와 같은 낮은
         // 임계값을 적용한다. 그 결과 left/width는 디자인과 정확히
         // 일치(Δ0)한다 — 저대비 잉크 경계 문제는 top 포함 4축 모두
-        // 해소됐다. height만 남는다: 디자인
-        // export(M03-B-신청-완료.png)의 각 행이 실제 SummaryRow(py-3)보다
-        // 세로 패딩이 더 크다(실측 design height=303 vs impl height=211,
-        // 행당 카드 패딩(p-4=32) 제외 시 디자인 ≈68px/행 vs 구현 ≈45px/행)
-        // — 진짜 행 패딩 값 차이이며 잉크 측정 오차가 아니다. 이 SPEC의
-        // 요청 범위(top 위치 FAIL 해소)를 벗어난 별도 스타일 변경이라
-        // height는 계속 스킵하고 progress.md에 미해결 항목으로 남긴다.
+        // 해소됐다. height는 계속 스킵한다 — 이번 세션에 세 가지 독립
+        // 측정법으로 디자인의 "진짜" 카드 height를 재확인해 봤는데
+        // 서로 2배 가까이 어긋난다: (a) 기본 임계값(18) tightBox → 145px,
+        // (b) 낮은 임계값(6) bandsLow+mergeBands:4 → 303px, (c) 이
+        // ElementSpec과 무관하게 디자인 PNG를 직접 픽셀 스캔해 카드
+        // 배경색(순수 백색)이 페이지 배경(#f4f6f8)으로 바뀌는 지점을 찾는
+        // 방식(design/exports/M03-B-신청-완료.png 실측) → 약 174px. 세
+        // 값이 서로 크게 갈린다는 사실 자체가 "이 카드는 저대비 export
+        // 이미지에서 자동 픽셀 측정으로 height를 신뢰성 있게 확정할 수
+        // 없다"는 증거다 — 어느 값도 "정답"이라고 단정할 근거가 없다.
+        // 구현 height(211)를 늘려야 하는지 줄여야 하는지조차 측정법에
+        // 따라 결론이 반대로 나온다(145/174 기준으로는 구현이 이미 더
+        // 크거나 비슷하고, 303 기준으로는 구현이 더 작다). Figma 등 원본
+        // 디자인 소스의 실제 행 패딩 값(px)을 직접 확인하거나 디자이너의
+        // 시각적 판단 없이는 이 축을 자동으로 게이트할 수 없다 — 근거
+        // 없이 skipMetrics를 유지한 채 "시각 정합성 완료"로 표시하지
+        // 않도록, 이 판단 자체를 미해결 항목으로 progress.md에 남긴다.
         inkThreshold: BOX_INK_THRESHOLD,
         skipMetrics: ["height"],
         skipReason:
-          "디자인 export 대비 SummaryRow 행 패딩(py-3)이 더 좁아 카드 height가 작다 — 잉크 측정 오차가 아닌 실제 패딩 차이(미해결, progress.md 참고)",
+          "저대비 카드 디자인 export의 height를 세 가지 측정법(threshold18/threshold6+merge/직접 픽셀스캔)으로 재확인했으나 145px/303px/174px로 서로 2배 가까이 어긋나 신뢰 가능한 목표값이 없다 — Figma 원본 확인 또는 디자이너 판단 필요(미해결, progress.md 참고)",
       },
       {
         key: "backCta",
@@ -2368,20 +2406,30 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "실패 요약(입력 보존)",
         locate: (p) => vis(p, "consult-failure-summary"),
         designTopHint: 319,
-        mergeBands: 5,
-        // D-RUN-1 후속(이번 세션) — M03-B와 동일한 원인·동일한 해소: key
-        // "summary"는 03(Desktop) "진단 결과 요약 카드"와 이름이 겹쳐
-        // BOX_LIKE_KEYS(전역 집합)에는 추가하지 않고 이 요소에만 로컬
-        // inkThreshold를 지정한다. left/width는 Δ0으로 일치한다. height만
-        // 디자인 export(M03-D-신청-실패.png)의 행
-        // 패딩이 더 넓어 남는다(실측 design height=381 vs impl height=256)
-        // — 잉크 측정 오차가 아닌 실제 SummaryRow(py-3) 패딩 차이. 이
-        // SPEC의 요청 범위(top FAIL 해소)를 벗어난 별도 스타일 변경이라
-        // height는 계속 스킵하고 progress.md에 미해결 항목으로 남긴다.
+        // 이번 세션 재확인 — design.md §10은 이 카드에 정확히 4행(상담
+        // 방식/연락처/연락 희망 시간/입력 내용)만 명시한다("이름" 없음,
+        // design/exports/M03-D-신청-실패.png 원본 목업도 4행뿐). 이전
+        // mergeBands:5는 카드 바로 아래 별도 안내 박스(채팅 아이콘 문구)의
+        // 밴드까지 하나로 합쳐 디자인 height를 실제보다 부풀렸다(측정
+        // 381px) — "이름" 행 제거(consult-failure.tsx)와 별개로 이 mergeBands
+        // 값 자체가 틀렸었다. 실측 결과 저대비 임계값(threshold 6)에서는
+        // 카드 4행 사이의 quiet-gap이 이미 거의 안 보여, mergeBands를
+        // 1로만 줘도 bandsLow가 카드 전체(4행)를 이미 하나의 밴드로 잡는다
+        // (실측 176px) — mergeBands:1이 맞다. 다만 이 176px 자체도
+        // 신뢰하기 어렵다: 저대비 경계 검출이 카드 위/아래 테두리를
+        // 살짝씩 놓쳐 실제보다 작게 잡힐 수 있고, 구현 height(211px)와
+        // 방향이 반대(디자인이 더 작음)라 "행 패딩이 좁다"는 가설과도
+        // 맞지 않는다. height는 계속 스킵하고 미해결로 남긴다 — 신뢰
+        // 가능한 디자인 목표값은 Figma 원본 실측 없이는 확정할 수 없다.
+        mergeBands: 1,
+        // D-RUN-1 후속 — key "summary"는 03(Desktop) "진단 결과 요약
+        // 카드"와 이름이 겹쳐 BOX_LIKE_KEYS(전역 집합)에는 추가하지 않고
+        // 이 요소에만 로컬 inkThreshold를 지정한다. left/width는 Δ0으로
+        // 일치한다.
         inkThreshold: BOX_INK_THRESHOLD,
         skipMetrics: ["height"],
         skipReason:
-          "디자인 export 대비 SummaryRow 행 패딩(py-3)이 더 좁아 카드 height가 작다 — 잉크 측정 오차가 아닌 실제 패딩 차이(미해결, progress.md 참고)",
+          "저대비 카드 height 측정이 mergeBands 값에 따라 176~381px로 크게 어긋나고, bandsLow 최소값(176)조차 구현(211)보다 작아 '행 패딩이 좁다'는 가설과 방향이 맞지 않는다 — Figma 원본 실측 없이는 신뢰 가능한 목표값을 정할 수 없다(미해결, progress.md 참고)",
       },
       {
         key: "retry",
@@ -2408,13 +2456,11 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await testIdExists(page, "consult-failure-retry"),
       },
       {
-        label: "입력 필드 값 유지(이름) — 폼 상태 보존",
+        // D-RUN 재작업(이번 세션) — 03-D와 동일한 이유(design.md §10 요약
+        // 4행에 "이름" 없음). draftNameMatches() 참고.
+        label: "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
         expected: "true",
-        actual: String(
-          ((await page.getByTestId("consult-failure-summary").textContent()) ?? "").includes(
-            CONSULT_NAME
-          )
-        ),
+        actual: String(await draftNameMatches(page, CONSULT_NAME)),
       },
     ],
   },

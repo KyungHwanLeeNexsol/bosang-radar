@@ -221,6 +221,46 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       expect(retry.status).toBe(200);
       expect(retry.json.status).toBe("success");
     });
+
+    it("[보안 재감사] x-forwarded-for의 클라이언트 조작 가능한 첫 값이 아니라 Nginx가 덧붙인 마지막 값으로 rate limit 키를 정한다", async () => {
+      // 두 "서로 다른 실제 클라이언트"를 표준 Nginx append 레시피
+      // (proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;)로
+      // 시뮬레이션한다 — 둘 다 같은(공격자가 조작할 수 있는) 위조 첫
+      // 값("9.9.9.9")을 클라이언트가 직접 보냈다고 가정하고, Nginx가 그
+      // 뒤에 각자의 실제 IP를 이어 붙인다. getTrustedIp()가 첫 번째 값을
+      // 신뢰했다면 두 클라이언트가 같은 rate limit 버킷을 공유해, A가
+      // 윈도를 5건으로 채우면 B의 6번째(사실은 B의 첫 신규 제출) 시도까지
+      // 429로 막혀버린다(다른 사용자의 정상 요청 과잉 차단). 마지막 값을
+      // 신뢰하면 두 클라이언트는 서로 다른 버킷으로 분리된다.
+      const spoofedPrefix = "9.9.9.9";
+      const clientA = `${spoofedPrefix}, 198.51.100.30`;
+      const clientB = `${spoofedPrefix}, 198.51.100.31`;
+
+      for (let i = 0; i < 5; i += 1) {
+        const { status } = await submit(
+          buildPayload({ resultId: `spoof-a-${i}`, idempotencyKey: randomUUID() }),
+          buildEnv(),
+          clientA
+        );
+        expect(status).toBe(201);
+      }
+      // A는 이제 윈도가 포화됐다 — A 자신의 6번째 신규 시도는 429여야 한다.
+      const overflowA = await submit(
+        buildPayload({ resultId: "spoof-a-overflow", idempotencyKey: randomUUID() }),
+        buildEnv(),
+        clientA
+      );
+      expect(overflowA.status).toBe(429);
+
+      // B는 같은 위조 첫 값을 공유하지만 실제 IP(마지막 값)가 다르므로
+      // A의 포화와 무관하게 정상 접수돼야 한다.
+      const firstB = await submit(
+        buildPayload({ resultId: "spoof-b-first", idempotencyKey: randomUUID() }),
+        buildEnv(),
+        clientB
+      );
+      expect(firstB.status).toBe(201);
+    });
   });
 
   describe("AC-B2CCONSULT-018 추가 시나리오 — D17 응답 우선순위 (시크릿 부재 5가지 조합)", () => {

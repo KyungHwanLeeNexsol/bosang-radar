@@ -36,7 +36,6 @@ describe("components/consult/ConsultFailure", () => {
 
   const baseProps = {
     channel: "phone" as const,
-    name: "김보상",
     contact: "010-0000-0000",
     preferredCallTime: "평일 오후",
     isRetrying: false,
@@ -61,7 +60,20 @@ describe("components/consult/ConsultFailure", () => {
     expect(container.textContent).toContain("유지됨");
   });
 
-  it("채널·이름·연락 희망 시간 입력값이 그대로 유지되어 표시된다", () => {
+  // 이번 세션 재작업 — design.md §10 실패 요약은 정확히 4행(상담 방식/
+  // 연락처/연락 희망 시간/입력 내용)만 명시한다. 구현이 이전에 "이름" 행을
+  // 추가로 렌더링했던 것은 이 결정과 어긋난 편차였다(design/exports/
+  // M03-D-신청-실패.png 원본 목업도 4행뿐이다) — 회귀 방지 가드.
+  it("design.md §10 — 요약에 '이름' 행을 추가로 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-failure-summary"]');
+    expect(summary?.textContent).not.toContain("이름");
+  });
+
+  it("채널·연락 희망 시간 입력값이 그대로 유지되어 표시된다(design.md §10 — 이름은 요약에 표시하지 않는다)", () => {
     act(() => {
       root.render(<ConsultFailure {...baseProps} />);
     });

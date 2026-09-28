@@ -106,13 +106,36 @@ function errorResult(
 // Nginx가 리버스 프록시로서 채우는 x-forwarded-for를 신뢰 가능한 원본 IP로
 // 사용한다 — Next.js 프로세스는 127.0.0.1에만 바인딩되어 Nginx를 거치지 않은
 // 요청은 애초에 도달할 수 없다(tech.md, design.md §9.3).
+//
+// [보안 재감사, 이번 세션] design.md §9.3은 "Nginx가 채우는 원본 IP를
+// 사용한다"고만 적고 콤마로 구분된 여러 값 중 어느 인덱스를 신뢰할지는
+// 명시하지 않았다 — 그 선택은 구현 세부사항이었다. 이전 구현은 첫 번째
+// 값(`split(",")[0]`)을 신뢰했는데, 이는 표준 Nginx 레시피
+// (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`)가 클라이언트가
+// 보낸 원래 헤더 값 뒤에 실제 클라이언트 IP를 이어 붙이는(append) 방식일
+// 때 취약하다 — 외부 클라이언트가 요청에 `X-Forwarded-For: 1.2.3.4`를 직접
+// 넣어 보내면 Nginx를 거친 뒤 헤더가 `"1.2.3.4, <진짜 IP>"`가 되고, 첫 번째
+// 값을 고르면 신뢰할 수 없는 클라이언트 값을 그대로 rate limit 키로
+// 쓰게 된다(공격자가 매 요청마다 다른 가짜 값을 넣어 rate limit을 완전히
+// 우회할 수 있다). 이 저장소에는 실제 nginx.conf가 없어(Oracle Cloud VM에서
+// 저장소 밖에 관리됨, tech.md) 실제 배포가 append 방식인지 overwrite
+// 방식(`proxy_set_header X-Forwarded-For $remote_addr;`)인지 코드만으로는
+// 확정할 수 없다 — 이는 design.md §4 운영 배포 체크리스트가 이미 별도
+// 항목으로 요구하는 배포 확인 대상이다(§9.3, 미해결 운영 결정으로 남음).
+// 다만 **마지막** 값을 신뢰하도록 바꾸면 두 배포 방식 모두에서 안전하다 —
+// overwrite 방식이면 값이 하나뿐이라 결과가 그대로 같고, append 방식이면
+// 마지막 값이 Nginx(유일한 신뢰 가능한 hop) 자신이 덧붙인 실제 클라이언트
+// IP다. 이 프로젝트가 문서화한 배포 구조(Nginx 리버스 프록시 1개, 그 앞에
+// CDN 등 추가 프록시 계층 없음, tech.md)에서는 "신뢰 가능한 hop 수만큼
+// 뒤에서부터 신뢰한다"는 표준 관행과도 일치한다.
 function getTrustedIp(request: NextRequest): string | null {
   const forwarded = request.headers.get("x-forwarded-for");
   if (!forwarded) {
     return null;
   }
-  const first = forwarded.split(",")[0]?.trim();
-  return first && first.length > 0 ? first : null;
+  const parts = forwarded.split(",");
+  const last = parts[parts.length - 1]?.trim();
+  return last && last.length > 0 ? last : null;
 }
 
 // 동일 idempotencyKey를 공유하는 동시 요청들이(같은 버튼 재클릭 등) 각자

@@ -220,6 +220,25 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   const [isRetrying, setIsRetrying] = React.useState(false);
   const [formErrors, setFormErrors] = React.useState<ConsultViewFormErrors>({});
 
+  // 성공/중복/실패(handoff_mismatch 포함, handleSubmit이 동일하게 "failure"로
+  // 수렴시킨다) 전환은 하드 네비게이션 없는 client-side 상태 전환이라
+  // 브라우저가 스크롤을 자동으로 맨 위로 되돌리지 않는다 — 모바일에서 폼을
+  // 채우며 스크롤한 위치가 결과 화면까지 그대로 남는다(실측: visual-verify
+  // 재현 스크립트에서 scrollY≈75). 전환마다 맨 위로 스크롤하고, 스크린
+  // 리더 사용자가 새 화면임을 인지하도록 결과 제목으로 포커스를 옮긴다.
+  // [HARD 재현, e2e/consult-flow-03.spec.ts 390×737 재시도 테스트로 발견]
+  // 의존성을 submitView.kind(문자열 값)로 두면 재시도가 "failure"→
+  // "failure"로 값이 그대로라 React가 변화 없음으로 판단해 effect가 다시
+  // 실행되지 않는다(재시도 후 스크롤이 복원되지 않는 회귀). setSubmitView가
+  // 매 호출마다 새 객체를 만드므로 submitView 자체(참조)를 의존성으로 써야
+  // 같은 kind로의 재전환도 매번 감지된다.
+  const outcomeTitleRef = React.useRef<HTMLHeadingElement>(null);
+  React.useEffect(() => {
+    if (submitView.kind === "form") return;
+    window.scrollTo(0, 0);
+    outcomeTitleRef.current?.focus();
+  }, [submitView]);
+
   const persistDraft = React.useCallback((next: ConsultFormState) => {
     writeConsultationDraft({
       draftVersion: CONSULTATION_DRAFT_VERSION,
@@ -389,6 +408,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
             channel={submitView.result.channel}
             maskedContact={submitView.result.maskedContact}
             preferredCallTime={submitView.result.preferredCallTime}
+            titleRef={outcomeTitleRef}
           />
         </div>
       </>
@@ -405,6 +425,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
             maskedContact={submitView.result.maskedContact}
             receivedAt={submitView.result.receivedAt}
             applicationStatus={submitView.result.applicationStatus}
+            titleRef={outcomeTitleRef}
           />
         </div>
       </>
@@ -418,11 +439,11 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
         <div className="flex flex-1 flex-col bg-app-bg">
           <ConsultFailure
             channel={formState.channel}
-            name={formState.name}
             contact={formState.contact}
             preferredCallTime={formState.preferredCallTime}
             isRetrying={isRetrying}
             onRetry={handleRetry}
+            titleRef={outcomeTitleRef}
           />
         </div>
       </>
