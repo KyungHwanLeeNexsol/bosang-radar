@@ -2779,6 +2779,22 @@ D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으�
 
 **Gaps(미검증)**: 정리 실패 주입은 `execFileSync` 패치 preload로 했고 실제 taskkill 자체를 실패시킨 것은 아니다. POSIX(`process.kill(-pid)`) 경로와 SIGINT 중단 시 정리는 실행하지 못했다. 주입 (B)의 127은 원인을 libuv 단언까지만 확인했고 회피하지 않았다. 전체 vitest·e2e는 다시 돌리지 않았다(`scripts` 범위만). Nginx `X-Forwarded-For` 운영 설정 확인과 요약 카드 height는 **여전히 미검증이며 해결로 표시하지 않는다**(열린 항목 7·8 그대로).
 
+### D-NEW-13 — 정리 실패 실행이 canonical 증거를 덮어쓰지 않게 함 (`60ab12a` 후속)
+
+정리 실패 시 exit 1(D-NEW-12)은 그대로 두었다. spec/plan/acceptance/design은 바꾸지 않았다(plan-audit 재실행 대상 아님). 로그·해시는 `.moai/state/verify/visual-verify-port-fix/`(gitignore)에 있다.
+
+**Claim 47 — 정리에 실패한 실행은 `measurements.json`(canonical)과 `.partial.json`을 갱신하지 않고, 종료 사유와 `cleanupFailures`를 담은 `measurements.failed.json`에만 쓴다.**
+- 기록 규칙을 새 모듈 `scripts/visual-verify-report.ts`로 분리했다(`visual-verify.ts`는 import 시 `main()`이 돌아 테스트할 수 없어서). 정상 실행의 파일 형식(키 순서·필드)은 그대로다. 실패 증거는 `canonical:false`, `exitReason:"cleanup-failed"`, `cleanupFailures`, `untouchedFile`(정리에 성공했다면 갱신했을 파일)을 담고 화면별 측정치도 보존한다. `VISUAL_ONLY`·`VISUAL_SKIP_BUILD`·`VISUAL_BASE_URL`의 부분 증거 규칙과 화면 위반 처리는 유지했고, 비정규 실행이 정리에 실패해도 partial·canonical을 건드리지 않는다.
+- `main()`은 `decideOutcome()`으로 위반 또는 정리 실패가 있으면 성공 메시지 없이 종료 코드 1로 끝낸다.
+
+**Evidence(실제 실행 — 단위 테스트와 수동 주입을 구분해 기록)**
+- **단위 회귀 테스트** `scripts/visual-verify-report.test.ts` 8건 + 기존 서버 테스트 포함 `vitest run scripts` 10파일 62건 통과, tsc 종료 코드 0, eslint 0, prettier 통과. 24화면 전부 PASS인 결과에 정리 실패를 주입해 확인: 기존 canonical 파일 바이트 불변(한글·개행 포함 비교), partial 파일 미생성, 실패 증거에 종료 사유·원인·15+9개 결과 기록, `decideOutcome` → exit 1·성공 아님. 정상 정리에서는 canonical 갱신·실패 증거 없음·키 순서 유지, 부분 증거 규칙 유지.
+- **수동 실제 실행 — 대조군(수정 전 `HEAD` 코드, 제약 없는 24화면 전체, `taskkill`만 실패시키는 preload 주입)**: 24 PASS, 종료 코드 1이었지만 **canonical 두 파일의 sha256이 바뀌었다**(`6939c21c…→6acaca43…`, `54eedbfd…→6df40099…`) — 실패한 실행이 정상 정규 증거를 덮어쓴 것을 확인했고 `git checkout`으로 복원했다.
+- **수동 실제 실행 — 수정 후 같은 주입**: 24 PASS, **종료 코드 1**, 성공 메시지 없음("정리에 실패해(1건) 성공으로 보고하지 않습니다 — 종료 코드 1"), **canonical sha256 불변**(`6939c21c…`, `54eedbfd…`), `measurements.failed.json` 2개 생성(`canonical=false`, `exitReason=cleanup-failed`, 원인 문자열 포함, 15+9개 결과). 실행이 남긴 서버(포트 4460)는 수동 종료했고 실패 증거 사본은 위 로그 디렉터리에 보관한 뒤 작업 트리에서는 지웠다.
+- **정상 정리(제약 없는 `pnpm visual:verify`, 빌드 포함): 24 PASS / 0 FAIL, 정리 실패 0건, 종료 코드 0**, 첫 시도(`run3.log`, 포트 1722, 종료 후 ECONNREFUSED). canonical 두 파일이 갱신됐고(`6939c21c…→111259ef…`, `54eedbfd…→530cd33d…`) `canonical:true`, 실패 증거 파일 없음, 키 구성 `generatedAt,canonical,run,tolerance,results,findings`(예전 형식 그대로). 실행이 바꾼 `.moai/reports/visual-check` 산출물은 이전 관례대로 되돌렸다.
+
+**Gaps(미검증)**: 정리 실패는 `execFileSync` 패치 preload로 주입했다(실제 taskkill 실패가 아님). 실패 증거 파일(`.failed.json`)은 gitignore 여부를 따로 정하지 않았고 이번 커밋에는 넣지 않았다. 정리 실패 + 예외(오류 경로)에서는 측정치를 기록하지 않는 기존 동작을 그대로 뒀다. POSIX 정리 경로와 SIGINT 중단 시 정리는 실행하지 못했다. 전체 vitest·e2e는 다시 돌리지 않았다(`scripts` 범위만). Nginx `X-Forwarded-For` 운영 설정 확인과 요약 카드 height는 **여전히 미검증이며 해결로 표시하지 않는다**(열린 항목 7·8 그대로).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`

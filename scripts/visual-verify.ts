@@ -41,6 +41,13 @@ import { HELPERS_SOURCE } from "./visual-verify-helpers";
 import { runMigrations } from "./db-migrate";
 // 포트 선정(금지 포트 회피) · 준비 확인 · 프로세스 트리 정리는 이 파일이 import되는
 // 순간 main()이 도는 탓에 테스트할 수 없어 별도 모듈로 분리했다.
+import {
+  decideOutcome,
+  MEASUREMENTS_CANONICAL,
+  MEASUREMENTS_PARTIAL,
+  measurementsFileName,
+  writeMeasurements,
+} from "./visual-verify-report";
 import { releaseResources, startManagedServer, type ManagedServer } from "./visual-verify-server";
 
 // tsx(esbuild)는 `keepNames` 옵션 때문에 함수 리터럴마다 `__name(...)` 호출을
@@ -3306,43 +3313,34 @@ async function main() {
     if (cleanupFailures.length > 0) process.exitCode = 1;
   }
 
-  // SPEC-B2C-CONSULT-001 D-RUN-5 — measurements.json도 화면 소유 SPEC별로
-  // 나눠 쓴다. 파일명(measurements.json vs .partial.json) 분기는 기존과
-  // 동일하게 유지해, VISUAL_ONLY로 스코프를 좁힌 실행이 canonical 파일을
-  // 실수로 덮어쓰지 않는다는 기존 안전장치를 그대로 보존한다.
-  const measurementsFile = isCanonicalRun ? "measurements.json" : "measurements.partial.json";
-  function writeMeasurementsSplit(reportDir: string, screenIds: string[]) {
-    if (screenIds.length === 0) return;
-    const idSet = new Set(screenIds);
-    fs.writeFileSync(
-      path.join(reportDir, measurementsFile),
-      JSON.stringify(
-        {
-          generatedAt: new Date().toISOString(),
-          // 산출물이 스스로 "이 실행이 audit-ready 근거로 쓸 수 있는
-          // 전체 실행이었는지"를 밝힌다.
-          canonical: isCanonicalRun,
-          run: {
-            screenIds,
-            totalScreens: SCREENS.length,
-            visualOnly: onlyRaw ?? null,
-            skipBuild,
-            externalBaseURL: externalBaseURL || null,
-          },
-          tolerance: TOLERANCE,
-          results: results.filter((r) => idSet.has(r.id)),
-          findings: findings.filter((f) => idSet.has(f.screen)),
-        },
-        null,
-        2
-      )
-    );
-  }
+  // SPEC-B2C-CONSULT-001 D-RUN-5 — measurements도 화면 소유 SPEC별로 나눠 쓴다.
+  // 어떤 실행이 어떤 파일을 쓰는지는 visual-verify-report.ts가 정한다: 제약 없는
+  // 전체 실행만 measurements.json, VISUAL_ONLY 등은 .partial.json, 정리에 실패한
+  // 실행은 .failed.json(정규·부분 증거는 건드리지 않는다).
+  const measurementsFile = measurementsFileName(isCanonicalRun, cleanupFailures);
+  const measurementsContext = {
+    isCanonicalRun,
+    cleanupFailures,
+    run: {
+      totalScreens: SCREENS.length,
+      visualOnly: onlyRaw ?? null,
+      skipBuild,
+      externalBaseURL: externalBaseURL || null,
+    },
+    tolerance: TOLERANCE,
+    results,
+    findings,
+  };
   const diagnosisScreenIds = screens.filter((s) => !CONSULT_SCREEN_IDS.has(s.id)).map((s) => s.id);
   const consultScreenIds = screens.filter((s) => CONSULT_SCREEN_IDS.has(s.id)).map((s) => s.id);
-  writeMeasurementsSplit(REPORT_DIR_DIAGNOSIS, diagnosisScreenIds);
-  writeMeasurementsSplit(REPORT_DIR_CONSULT, consultScreenIds);
-  if (!isCanonicalRun) {
+  writeMeasurements(REPORT_DIR_DIAGNOSIS, diagnosisScreenIds, measurementsContext);
+  writeMeasurements(REPORT_DIR_CONSULT, consultScreenIds, measurementsContext);
+  if (cleanupFailures.length > 0) {
+    console.log(
+      `\n[visual-verify] 정리에 실패한 실행입니다 — 결과를 ${measurementsFile}에 기록했습니다(종료 사유·정리 실패 포함).\n` +
+        `  기존 ${MEASUREMENTS_CANONICAL}·${MEASUREMENTS_PARTIAL}은 갱신하지 않았습니다.`
+    );
+  } else if (!isCanonicalRun) {
     console.log(
       `\n[visual-verify] 부분/비정규 실행입니다 — 결과를 ${measurementsFile}에 기록했습니다.\n` +
         `  audit-ready 근거가 되는 measurements.json은 제약 없는 전체 ${SCREENS.length}화면 실행에서만 갱신됩니다.`
@@ -3359,6 +3357,11 @@ async function main() {
     );
   }
 
+  const outcome = decideOutcome({
+    findingCount: findings.length,
+    cleanupFailureCount: cleanupFailures.length,
+  });
+
   if (findings.length > 0) {
     console.log(`\n── 위반 ${findings.length}건 ──`);
     for (const f of findings) {
@@ -3369,14 +3372,16 @@ async function main() {
       `\n측정 원본: .moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/${measurementsFile}` +
         ` (01/02 계열), .moai/reports/visual-check/SPEC-B2C-CONSULT-001/${measurementsFile} (03 계열)`
     );
-    process.exitCode = 1;
-    return;
   }
 
   if (cleanupFailures.length > 0) {
     console.error(
-      `\n화면 검사에는 위반이 없지만 정리에 실패해(${cleanupFailures.length}건) 성공으로 보고하지 않습니다.`
+      `\n정리에 실패해(${cleanupFailures.length}건) 성공으로 보고하지 않습니다 — 종료 코드 1.`
     );
+  }
+
+  if (!outcome.reportSuccess) {
+    process.exitCode = outcome.exitCode;
     return;
   }
 
