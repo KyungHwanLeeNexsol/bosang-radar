@@ -48,8 +48,8 @@ Then 페이지 이동 없이 현재의 `aria-disabled` "준비 중" stub 동작�
 
 추가 시나리오 — 정책 미준비 상태의 제출 CTA 대체(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`, 독립 검토 iteration 8 D1'):
 Given `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`여서 `app/consult/page.tsx`가 `isPolicyReady=false`를 03 폼 뷰에 전달했고, 사용자가 필수 동의 두 항목(`piiCollection`·`healthInfoUse`)을 모두 체크하고 나머지 필드를 유효하게 채웠을 때
-When 사용자가 제출 영역(안내 영역 포함)을 클릭·탭하고, 키보드 포커스를 페이지 전체에 걸쳐 이동하며 제출을 시도하면
-Then 실제 제출 CTA(`data-testid="consult-submit-button"`)는 렌더링되지 않고 그 자리에 "상담 신청은 아직 준비 중"이라는 취지의 안내 영역(`role="status"`, `aria-live="polite"`, 잠정 문구는 `design.md` §4)이 표시되며, 어떤 시도로도 `POST /api/consultations` 요청은 발생하지 않는다(네트워크 요청 0건). 채널 선택기·입력 필드·동의 그룹은 그대로 표시된다.
+When 사용자가 제출 영역(안내 영역 포함)을 클릭·탭하고, 키보드 Tab으로 페이지 전체의 포커스를 이동하면(제출 버튼이 없으므로 제출을 시도하는 조작은 존재하지 않는다)
+Then 실제 제출 CTA(`data-testid="consult-submit-button"`)는 렌더링되지 않고 그 자리에 "상담 신청은 아직 준비 중"이라는 취지의 안내 영역(`role="status"`, `aria-live="polite"`, 잠정 문구는 `design.md` §4)이 표시되며, 어떤 조작으로도 `POST /api/consultations` 요청은 발생하지 않는다(네트워크 요청 0건). 채널 선택기·입력 필드·동의 그룹은 그대로 표시된다.
 참고(현재 설계의 사실 기술이며 새 요구가 아니다): 03 폼에는 `<form>` 요소와 Enter 제출 핸들러가 없으므로, 어떤 정책 상태에서도 제출은 제출 버튼 클릭(키보드로는 포커스된 버튼의 활성화)으로만 가능하다. 위 시나리오에서 제출 버튼이 렌더링되지 않는다는 것이 곧 제출 경로가 없다는 뜻이다.
 회귀 짝: 같은 입력 상태에서 `CONSULT_POLICY_READY=true`이면 안내 영역은 표시되지 않고 기존 제출 CTA(`consult-submit-button`)가 렌더링되며, 활성화 조건(AC-B2CCONSULT-012)과 이중 제출 방지(AC-B2CCONSULT-015)는 종전과 동일하게 동작한다.
 서버 독립성: 이 클라이언트 대체는 UX 계층일 뿐이며, 서버의 503/`policy_unavailable` 저장 거부(AC-B2CCONSULT-018의 "활성 동의 정책 없음" 추가 시나리오, `app/api/consultations/route.test.ts`)는 클라이언트 동작과 무관하게 독립적으로 유효하다 — 이 시나리오가 그 거부를 대체하거나 약화하지 않는다.
@@ -86,15 +86,30 @@ Given `sessionStorage`에 진단 결과 핸드오프가 없는 상태(02를 경�
 When 사용자가 `/consult`에 접근하면
 Then "먼저 진단 결과가 필요합니다" 03 전용 안내와 01 입력 화면으로 돌아가는 CTA가 표시되며, 상담 폼 자체는 렌더링되지 않는다.
 
+추가 시나리오 — 전체 로드·새로고침에서도 hydration 오류 없이 empty 안내(정책 준비·미준비 두 상태 모두, 프로덕션 빌드, hydration #418 회귀):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`에 진단 결과 핸드오프가 없을 때
+When `/consult`를 `page.goto`로 전체 로드하고 `page.reload()`로 새로고침하면
+Then 두 실행 모두 React hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이고, hydration이 끝난 뒤 `consult-no-data`와 "먼저 진단 결과가 필요합니다" 문구가 표시된다. 서버 HTML에는 이 문구도 폼도 없고 로딩 자리표시자(`consult-loading`)만 있다(`design.md` §2.2.1). 검증: `e2e/consult-flow-03.spec.ts`의 `(a) 진단 handoff 없이 /consult를 직접 열고 새로고침해도 empty 안내가 뜨고 오류가 없다`(준비 모드 `pnpm test:e2e`, 미준비 모드 `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` — 후자는 제목 태그 `@policy-not-ready`), 서버 마크업 부분은 `components/consult/consult-view.test.tsx`의 `handoff 없음(empty): 서버 마크업은 loading뿐이고, 수화 오류 없이 no-data 안내로 전환된다`.
+
 **AC-B2CCONSULT-008** (REQ-B2CCONSULT-008)
 Given `sessionStorage`의 진단 결과 핸드오프 값이 유효하지 않은 JSON이거나 스키마와 불일치할 때
 When `/consult`가 마운트되면
 Then 콘솔 예외로 애플리케이션이 중단되지 않고 03 전용 오류 상태가 표시된다.
 
+추가 시나리오 — 손상된 핸드오프의 전체 로드·새로고침에서도 hydration 오류 없음(파싱 불가 텍스트 · 유효 JSON이나 잘못된 형태 두 종류, 정책 준비·미준비 두 상태 모두, 프로덕션 빌드):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`의 진단 결과 핸드오프가 파싱 불가 텍스트이거나 유효한 JSON이지만 `DiagnosisResultSchema`와 맞지 않는 형태일 때
+When `/consult`를 전체 로드하고 새로고침하면
+Then 두 종류·두 실행 모두 hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이고, hydration 이후 03 전용 오류 안내가 표시되며 서버 HTML에는 오류 문구도 폼도 없이 로딩 자리표시자만 있다. 검증: `e2e/consult-flow-03.spec.ts`의 `(b-i) 손상된 handoff(파싱 불가 텍스트)여도 전체 로드·새로고침에서 오류 안내가 뜨고 hydration 오류가 없다`·`(b-ii) 손상된 handoff(유효 JSON이나 잘못된 형태)여도 …`(두 실행 모드), 서버 마크업 부분은 `components/consult/consult-view.test.tsx`의 `handoff 손상(파싱 불가 JSON): …`·`handoff 손상(유효 JSON이나 스키마 불일치): …`.
+
 **AC-B2CCONSULT-009** (REQ-B2CCONSULT-009)
 Given 정상적으로 `/consult`에 도착해 진단 결과 요약이 표시된 상태에서
 When 페이지를 새로고침하거나 뒤로가기 후 다시 `/consult`로 진입하면
 Then 동일한 `resultId`를 가진 동일한 요약이 다시 표시되며, 신선도(TTL) 만료로 인한 별도 "결과 없음" 전환이 발생하지 않는다.
+
+추가 시나리오 — 유효한 핸드오프의 전체 로드·새로고침에서도 hydration 오류 없이 폼 표시, draft 복원과 채널 우선순위 유지(정책 준비·미준비 두 상태 모두, 프로덕션 빌드):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`에 유효한 진단 결과 핸드오프가 있을 때
+When `/consult`를 전체 로드하고 `page.reload()`로 새로고침하거나, `/consult?channel=phone`을 전체 로드하면
+Then 두 실행 모두 hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이다. 서버 HTML에는 empty·invalid 문구도 폼도 없이 로딩 자리표시자만 있고, hydration이 끝난 뒤 폼이 표시된다(`design.md` §2.2.1). 채널은 draft > URL `?channel=` > 기본 `kakao` 순서로 결정되어 draft가 없고 URL이 `phone`이면 전화 채널이 선택된다. 정책 준비 상태에서는 입력·blur 후 새로고침하면 draft 값이 복원되고 필수 동의 두 항목은 해제된 채이며, 정책 미준비 상태에서는 draft가 저장되지도 복원되지도 않고 정책 안내가 표시된다(AC-B2CCONSULT-006의 추가 시나리오와 일치). 검증: `e2e/consult-flow-03.spec.ts`의 `(c) 유효한 handoff로 /consult를 전체 로드·새로고침해도 폼이 뜨고 hydration 오류가 없다`·`(c) 유효한 handoff + ?channel=phone 전체 로드에서 전화 채널이 선택되고 hydration 오류가 없다`·`(c) 유효한 handoff에서 입력·blur 후 새로고침하면 …`(두 실행 모드), 서버 마크업·우선순위 부분은 `components/consult/consult-view.test.tsx`의 `valid handoff(정책 준비): …`·`valid handoff(정책 미준비): …`·`draft가 없고 URL이 ?channel=phone이면 …`·`draft의 channel이 URL ?channel=보다 우선한다 …`·`draft가 없으면 수화 후 idempotencyKey가 새로 1회 생성되어 draft에 기록된다(정책 준비)`.
 
 ## 채널 선택 · 입력 폼
 
@@ -107,6 +122,11 @@ Then 검증 오류가 표시되고 요청이 서버로 전송되지 않는다.
 Given 카카오톡 채널이 선택된 상태에서
 When 연락 희망 시간을 비운 채 다른 필수 값을 모두 채우고 제출하면
 Then 그 필드에 대한 검증 오류 없이 제출이 진행된다.
+
+추가 시나리오 — 모바일 채널 안내가 입력 폼과 겹치지 않는다(390×737 터치 뷰포트, 카카오톡·전화 각각, 정책 준비·미준비 각각, 커밋 `ef205d3`; `design.md` §11·§12.2):
+Given 유효한 핸드오프로 `/consult`가 390×737 모바일 뷰포트에서 렌더링되고 채널을 카카오톡 또는 전화로 선택했을 때
+When 채널 카드, 채널 안내(`role="status"`), 이름·연락처·연락 희망 시간의 라벨과 입력, 폼 컨테이너의 bounding rect를 측정하고, 페이지를 최대로 스크롤한 뒤 하단 sticky 영역(`consult-submit-bar`)과 입력 필드·동의 체크박스 세 개(필수 2 + 선택 1)의 rect를 측정하면
+Then (a) 모든 채널 카드는 채널 안내의 상단 위에서 끝나고, 채널 안내는 이름 라벨의 상단 위에서 끝난다. (b) 채널 안내와 이름·연락처·연락 희망 시간의 라벨·입력, 그리고 폼 컨테이너 사이의 교차 면적이 모두 0이다(맞닿기만 한 경우는 겹침이 아니다). (c) 최대 스크롤 상태에서 sticky 영역은 입력 필드 세 개와 동의 체크박스 세 개 어느 것과도 교차하지 않고, 각 요소의 중심 좌표에서 실제로 가장 위에 그려지는 요소가 그 요소(또는 그 라벨)이며 시험 클릭(trial click)이 가로채이지 않는다. 정책 준비 상태에서는 제출 버튼 전체가 뷰포트 안에 들어오고, 미준비 상태에서는 정책 안내가 뷰포트 안에서 텍스트가 잘리지 않고 보인다. 회귀 가드로 데스크톱(1440×900)에서도 채널 안내가 이름 라벨·입력과 겹치지 않고 채널 카드 아래에 있다. 검증: `e2e/consult-flow-03.spec.ts`의 `03 화면 — 모바일(390x737) 채널 안내·폼·하단 CTA 겹침 없음 (정책 준비 모드|정책 미준비 모드)`(`(a)(b) {kakao|phone} 채널 — 채널 안내가 … 채널 카드 아래에 위치한다`, `(c) {kakao|phone} 채널 — 하단 sticky CTA가 입력·동의 체크박스를 가리지 않고 …`)와 `03 화면 — 데스크톱(1440x900) 채널 안내가 폼과 겹치지 않는다 (…)`. 보조 가드: `components/consult/consult-form.test.tsx`는 폼 컨테이너에 음수 상단 마진(`-mt-*`) 클래스가 없음을 jsdom으로 확인한다(레이아웃 측정이 아니므로 e2e가 주 검증이다).
 
 **AC-B2CCONSULT-011** (REQ-B2CCONSULT-011)
 Given 연락처 입력값이 `"010 0000 0000"`(공백 포함)일 때
