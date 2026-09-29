@@ -2795,6 +2795,31 @@ D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으�
 
 **Gaps(미검증)**: 정리 실패는 `execFileSync` 패치 preload로 주입했다(실제 taskkill 실패가 아님). 실패 증거 파일(`.failed.json`)은 gitignore 여부를 따로 정하지 않았고 이번 커밋에는 넣지 않았다. 정리 실패 + 예외(오류 경로)에서는 측정치를 기록하지 않는 기존 동작을 그대로 뒀다. POSIX 정리 경로와 SIGINT 중단 시 정리는 실행하지 못했다. 전체 vitest·e2e는 다시 돌리지 않았다(`scripts` 범위만). Nginx `X-Forwarded-For` 운영 설정 확인과 요약 카드 height는 **여전히 미검증이며 해결로 표시하지 않는다**(열린 항목 7·8 그대로).
 
+### D-NEW-9 — 요약 카드 height 실측 확정 및 모바일 수정 (이번 세션)
+
+**Claim 37 — M03-B/M03-D 디자인 요약 카드의 height는 175px이다. 이전 기록의 303px은 카드 하나가 아니라 카드+아래 버튼 두 개를 병합해 잰 값이다.**
+
+**Evidence**: 저장소 밖 일회용 스크립트로 `design/exports/M03-B-신청-완료.png`(780x1210)와 `M03-D-신청-실패.png`(780x1474)의 세로 한 줄(x=55)을 스캔해 색이 바뀌는 지점을 찍었다.
+
+```
+M03-B  x=55: y497-498 테두리(#e2e7ec) … 구분선 y584-585, 672-673, 760-761 … y845-846 테두리
+             → 바깥 높이 497..846 = 350px (2배 해상도 → 175px), 행 간격 88px = 44px
+M03-D  x=55: y605-606 테두리 … 구분선 y692, 780, 868 … y953-954 테두리 → 바깥 높이 350px
+구분선 가로 스캔 M03-B y=584: x40-739(700px) 전체가 #e2e7ec → 구분선이 카드 폭 끝까지 이어짐
+```
+
+카드 폭은 디자인 700px, 구현 350px이라 디자인은 2배 해상도다. `visual-verify`가 기록한 `measurements.partial.json`의 M03-B `summary.design.height`는 303이었는데 `top 248 + 303 = 551`은 두 번째 버튼의 바닥(디자인 y=1102 → 551)과 일치해 카드에 아래 버튼이 병합된 값임을 알 수 있다. M03-D의 기록값 176은 위 직접 스캔(175)과 맞는다. 코드 주석의 세 측정값 중 "약 174px"(직접 스캔)이 맞았고 145px/303px은 측정기 오류였다.
+
+**Claim 38 — 구현 카드가 디자인보다 36px 컸던 원인은 카드 `dl`의 `p-4`(세로 여백 32px)와 행 높이 약 4px이며, 모바일에서 `p-4`를 없애 211px→179px로 줄였다.**
+
+**Evidence**: 같은 방식으로 구현 스크린샷(390px, 1배)을 스캔했다. 수정 전 M03-B 바깥 높이 248..458 = 211px, M03-D 302..512 = 211px(행 4개, 구분선이 카드 안쪽 16px씩 들어감). 수정 후 M03-B 248..426 = 179px, M03-D 302..480 = 179px, 구분선 가로 스캔 y=292: x20-369(350px) 전체. 변경은 `consult-success.tsx`/`consult-failure.tsx` 두 파일: `dl`에서 `p-4`를 빼고 `md:p-4`로 옮기고, 행에 `px-4 md:px-0`을 주고, 카드 아래 요소의 위치를 그대로 두려고 모바일 여백을 카드 감소분 32px만큼 보정했다(성공 화면 CTA 그룹 `mt-[-29px]`→`mt-[3px]`, 실패 화면 버튼 그룹 `mt-[46px]`→`mt-[78px]`). `md:` 이상은 값을 바꾸지 않았다.
+
+**Baseline-attribution**: 위 두 측정은 HEAD `43c0ae4` 기준 수정 전 실행과, 그 위에 이번 변경을 얹은 작업 트리 실행이다. 검증(모두 이번 세션, exit 0): `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm exec prettier --check`(수정한 두 파일), `pnpm test`(94파일/756개 통과), `VISUAL_ONLY=M03-B,M03-D pnpm visual:verify`(M03-B Δ2px, M03-D Δ4px, 수정 전과 같은 값 — 카드 아래 위치 불변), `pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts`(16 passed). 로그: `.moai/state/verify/consult-merge-prep/`.
+
+**Gaps(미검증)**: (1) 디자인 원본 `design/claimradar-ui.pen` 대조는 하지 못했다 — Pencil MCP가 "열린 파일 없음"으로 응답해 연결이 맺어지지 않았다. 위 측정은 export PNG 기준이다. (2) 데스크톱 카드는 디자인 캡쳐를 재지 않아 변경하지 않았다. (3) M03-C 중복 화면(`consult-duplicate.tsx`)의 카드도 같은 구조지만 재지 않아 수정하지 않았다. (4) `scripts/visual-verify.ts`의 `skipMetrics: ["height"]`와 `skipReason`(145/303/174 서술)은 그대로다 — 게이트는 여전히 요약 카드 height를 검사하지 않는다. (5) 없음 — 제약 없는 전체 24화면 `pnpm visual:verify`를 수정 후 트리에서 실행해 24/24 PASS(exit 0, 로그 `13-visual-full-after.log`)를 확인했고, 그 실행이 갱신한 공식 증거(`measurements.json`, diffs/overlays/screenshots)를 별도 증거 커밋으로 남긴다. 단 이 PASS는 "설정된 검증 게이트 기준"이며 요약 카드 height는 여전히 게이트에서 제외돼 있다(위 (4)).
+
+**Residual-risk(잔여 위험)**: 구현 179px과 디자인 175px 사이에 3~4px 차이가 남는다(행 높이 43.5px vs 약 42.5px). 카드 아래 요소의 위치 보정값(`mt-[3px]`, `mt-[78px]`)은 카드 감소분 32px을 그대로 상쇄하는 값이라 카드 높이를 다시 바꾸면 함께 조정해야 한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -2808,6 +2833,8 @@ D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으�
 - **업데이트 6(D-NEW-6, 이번 세션)**: 정책 미준비 시 제출 CTA를 안내로 대체하는 클라이언트 동작을 구현했다(§E.2 D-NEW-6 Claim 24-25). 관련 vitest 112/112, eslint·tsc 0건은 직접 실행했다. `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 이번 변경으로 `visual-verify`·e2e를 다시 돌리지 않았으므로 그 재검증도 여전히 필요하다(Claim 25 Gaps 1).
 - **업데이트 7(D-NEW-7, 이번 세션)**: 정책 미준비 상태의 draft 쓰기 차단과 Enter 테스트 정정(§E.2 D-NEW-7 Claim 27-28)을 반영했고, 정책 준비 경로 `pnpm test:e2e`(25 passed, exit 0)와 `pnpm visual:verify`(24/24 PASS, exit 0)를 다시 실행했다(Claim 31). 정책 미준비 브라우저 검증에서 요청 항목은 통과했으나 기존 결함 두 가지(하이드레이션 #418, 모바일 채널 안내 겹침)를 발견했다(Claim 32, 열린 항목 19·20). `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 미해결이다.
 - **업데이트 8(D-NEW-8, 이번 세션)**: 열린 항목 19·20의 두 화면 결함(hydration #418, 모바일 채널 안내 겹침)을 수정했고(`2230e2b`, `ef205d3`), 최종 코드에서 vitest 125/125, eslint·tsc exit 0, `pnpm test:e2e` 36 passed, `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` 11 passed, `pnpm visual:verify` 24화면 PASS를 직접 실행해 확인했다(§E.2 D-NEW-8 Claim 33-36, 모두 exit 0). 그래서 두 결함은 run-phase 보류 사유에서 뺐다. `run_status`는 `amended-pending-revalidation`을 유지한다 — 보류 기준은 (a) Nginx `X-Forwarded-For` 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 이번에도 확인하지 않았다. 이와 별개로 M03 `form.top` skipMetrics 편차와 모바일 안내 문구 유지는 사용자 승인 없이 정한 결정이라 열린 판단으로 남긴다(Claim 34).
+
+- **업데이트 9(D-NEW-9, 이번 세션)**: 보류 기준 (b) 요약 카드 height의 측정 불확실성이 해소됐다 — 디자인 카드는 175px이고 구현이 36px 컸으며(§E.2 D-NEW-9 Claim 37), 모바일에서 211→179px로 줄였다(Claim 38). 다만 `.pen` 원본 대조, 데스크톱, M03-C는 미완이고 사용자의 시각 정합 승인도 없으므로 (b)를 해소로 선언하지 않는다. (a) Nginx `X-Forwarded-For` 설정 운영 확인과 열린 항목 12(원격 Turso 병렬 검증)는 이번에도 확인하지 않았다. `run_status`는 `amended-pending-revalidation`을 유지한다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2839,7 +2866,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 4. **"기존 신청 상태 확인" 실제 목적지** — 이 SPEC은 "준비 중" 스텁으로 구현했다(§ 디자인 대조 D4). 실제 신청 상태 조회 기능(인증 없는 조회 페이지 등)을 만들 것인지, 만든다면 인증·보안 요구사항이 무엇인지는 별도 제품 결정이 필요하다. (변경 없음)
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
 6. **(신규, D-RUN 1회차 재작업 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다. **[D-NEW-5 정합]** 이 항목은 새 결정이 필요한 열린 항목이 아니다 — SPEC-B2C-RESULT-001 `progress.md`(L136-146, 2026-09-22)에서 사용자가 이 카드형 유지를 명시적으로 승인(PASS-WITH-DEBT)했고, 이 SPEC의 `design.md` §13도 승인된 debt ②로 나열한다. 승인된 debt의 재확인이며 RESULT-001의 승인 기록이 권위다(뒤집으려면 RESULT-001에서 다시 열어야 한다).
-7. **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
+7. **[정정, D-NEW-9 — 측정 확정, 모바일 수정 완료, 원본 대조·데스크톱·M03-C 미완]** 디자인 export 직접 픽셀 스캔 결과 M03-B/M03-D 요약 카드의 디자인 height는 **175px**(2배 해상도 350px)로 확정됐고(§E.2 D-NEW-9 Claim 37), 구현은 211px으로 **구현이 36px 더 컸다** — 아래 정정 전 기록의 "디자인 303px, 행 패딩이 더 넓다"는 틀렸다(303px은 카드 아래 버튼 두 개까지 병합해 잰 값). 모바일 카드에서 `p-4` 세로 여백을 없애 211→179px로 줄였다(Claim 38). 디자인 `.pen` 원본과의 대조(Pencil 연결 실패), 데스크톱 카드, M03-C 중복 화면 카드는 아직 하지 않았다. 사용자가 이 결과를 시각 정합으로 승인하기 전까지 "시각 정합성 완료"로 표시하지 않는다. (정정 전 기록 — 아래는 SUPERSEDED) **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
 8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.**
 12. **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.

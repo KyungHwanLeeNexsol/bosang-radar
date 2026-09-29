@@ -32,9 +32,13 @@ interface ConsultFailureProps {
   titleRef?: Ref<HTMLHeadingElement>;
 }
 
+// 모바일 카드는 디자인 export(M03-D)처럼 카드 자체의 세로 여백 없이 행이 테두리에
+// 바로 붙고 행 구분선이 카드 폭 끝까지 이어진다(디자인 175px, 구현 211px 실측 —
+// progress.md 열린 항목 7). 그래서 모바일은 행이 px-4를 갖고, md 이상은 디자인을
+// 재지 않아 기존대로 카드가 p-4를 갖는다.
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-app-line py-3 last:border-b-0">
+    <div className="flex justify-between border-b border-app-line px-4 py-3 last:border-b-0 md:px-0">
       <dt className="text-body-s text-bora-ink-3">{label}</dt>
       <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
@@ -74,7 +78,7 @@ export function ConsultFailure({
 
       <dl
         data-testid="consult-failure-summary"
-        className="mt-[5px] w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-5"
+        className="mt-[5px] w-full rounded-[12px] border border-app-line bg-app-surface text-left md:mt-5 md:p-4"
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={contact} />
@@ -84,7 +88,7 @@ export function ConsultFailure({
         <SummaryRow label="입력 내용" value="유지됨" />
       </dl>
 
-      <div className="mt-[46px] flex w-full flex-col items-center gap-2 md:mt-[67px] md:w-auto">
+      <div className="mt-[78px] flex w-full flex-col items-center gap-2 md:mt-[67px] md:w-auto">
         <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
           <Button
             type="button"
