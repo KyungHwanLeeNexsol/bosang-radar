@@ -2763,6 +2763,22 @@ D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으�
 
 **Residual-risk**: 다른 워크트리(`agent-a6009ada…`)에 `next start`로 보이는 프로세스가 남아 있음을 관찰했다. 이 수정과의 관련은 확인하지 못했고 다른 세션 것일 수 있어 건드리지 않았다.
 
+### D-NEW-12 — `visual:verify` 정리 실패를 종료 코드로 전달 (`d85cc4c` 후속)
+
+금지 포트 재선택과 "이미 종료됨" 정상 처리는 그대로 두었다. spec/plan/acceptance/design은 바꾸지 않았다(plan-audit 재실행 대상 아님). 로그는 `.moai/state/verify/visual-verify-port-fix/`(gitignore)에 있다.
+
+**Claim 46 — 정리 실패가 경고로 끝나 exit 0이 될 수 있던 경로를 막았다.**
+- `killProcessTree()`는 "이미 종료됨"(taskkill 128, ESRCH)이 아닌 실패에서 `ProcessCleanupError`를 던진다(예전: `console.error` 후 정상 반환).
+- `startManagedServer()`: 준비 실패 뒤 정리도 실패하면 원래 오류를 `originalError`로 보존한 `StartupCleanupError`로 둘을 함께 던진다. 정리가 정상이면 원래 오류만 던진다.
+- `main()`: 브라우저 종료·서버 정리를 `releaseResources()`로 각각 독립 시도하고 실패를 모은다. 실패가 있으면 각각 stderr에 기록하고 `process.exitCode = 1`로 두며, 화면 검사에 위반이 없어도 성공 메시지를 내지 않는다. try 안의 원래 오류는 finally가 덮어쓰지 않는다. 브라우저 종료 실패도 같은 원칙(종료 코드 1)이다.
+
+**Evidence(구분해서 기록 — 실제로 실행한 것만)**
+- 단위 회귀 테스트(`scripts/visual-verify-server.test.ts`) 21건 통과: 정리 명령 실패(status 1, ENOENT) → `ProcessCleanupError`(경고 출력 0건), 128/ESRCH → 정상, 준비 실패+정리 실패 → 원래 오류 보존, 준비 실패+정상 정리 → 원래 오류만, `releaseResources`(브라우저 실패에도 서버 정리 실행, 실패 수집). 기존 금지 포트·정상 정리 테스트 포함 재실행 통과. `vitest run scripts` 9파일 53건, tsc 종료 코드 0(리다이렉트한 실제 코드), 변경 3파일 eslint 0 / prettier 통과.
+- **실제 스크립트 주입(수동, 커밋하지 않은 preload로 `taskkill` 호출만 실패시킴)**: (A) `VISUAL_ONLY=03` — 화면 03 PASS인데 정리 실패 1건 기록, "정리에 실패해 성공으로 보고하지 않습니다", **종료 코드 1**, 서버(포트 8594)가 실제로 남았음을 확인해 수동 종료. (B) `chromium.launch` 실패 + 정리 실패 — 원래 오류(`Executable doesn't exist`)와 정리 실패가 함께 기록됨(서버 포트 14328 잔존→수동 종료). **(B)의 종료 코드는 1이 아니라 127이었다**: 죽지 않은 자식이 남은 상태에서 `process.exit(1)`이 호출되자 Windows용 Node가 libuv 단언(`UV_HANDLE_CLOSING`, `src\win\async.c:94`)으로 종료된 것이다. 0은 아니지만 정리 실패 상태에서만 나타나는 부수 현상이며 이 수정으로 고치지 않았다. 같은 (B) 시나리오를 주입 없이 실행하면 종료 코드 1, 서버 잔존 없음.
+- **제약 없는 `pnpm visual:verify`(빌드 포함): 24 PASS / 0 FAIL, 정리 실패 0건, 종료 코드 0**, 첫 시도(`run2.log`, 포트 14350, 종료 후 ECONNREFUSED). 첫 실패·재시도 없음. 이전 세션의 "첫 시도 exit 1(6668) → 재실행 통과"(Claim 43)와 D-NEW-11(첫 시도 통과)의 기록은 소급 수정하지 않았다. 실행이 바꾼 `.moai/reports/visual-check` 산출물은 되돌렸다.
+
+**Gaps(미검증)**: 정리 실패 주입은 `execFileSync` 패치 preload로 했고 실제 taskkill 자체를 실패시킨 것은 아니다. POSIX(`process.kill(-pid)`) 경로와 SIGINT 중단 시 정리는 실행하지 못했다. 주입 (B)의 127은 원인을 libuv 단언까지만 확인했고 회피하지 않았다. 전체 vitest·e2e는 다시 돌리지 않았다(`scripts` 범위만). Nginx `X-Forwarded-For` 운영 설정 확인과 요약 카드 height는 **여전히 미검증이며 해결로 표시하지 않는다**(열린 항목 7·8 그대로).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`

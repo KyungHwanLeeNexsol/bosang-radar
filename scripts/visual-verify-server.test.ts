@@ -1,14 +1,17 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   findSafePort,
   isUnsafePort,
   killProcessTree,
+  ProcessCleanupError,
+  releaseResources,
   startManagedServer,
+  StartupCleanupError,
   waitForServer,
 } from "./visual-verify-server";
 
@@ -281,5 +284,145 @@ describe("killProcessTree", () => {
     killProcessTree(child);
     expect(await until(() => !isAlive(pid), 3_000)).toBe(true);
     expect(() => killProcessTree(child)).not.toThrow();
+  });
+});
+
+describe("정리 실패는 경고로 끝나지 않고 호출자에게 전달된다", () => {
+  const gone = (fields: object) => Object.assign(new Error("gone"), fields);
+
+  function fakeChild(pid: number | undefined) {
+    let unref = 0;
+    const child = { pid, unref: () => (unref += 1) } as unknown as ChildProcess;
+    return { child, unrefCount: () => unref };
+  }
+
+  it("정리 명령이 '이미 종료됨'이 아닌 이유로 실패하면 ProcessCleanupError를 던진다", () => {
+    const { child, unrefCount } = fakeChild(4242);
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args) => void errors.push(args));
+
+    let thrown: unknown;
+    try {
+      killProcessTree(child, () => {
+        throw gone({ status: 1 });
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    spy.mockRestore();
+
+    expect(thrown).toBeInstanceOf(ProcessCleanupError);
+    expect((thrown as ProcessCleanupError).pid).toBe(4242);
+    expect((thrown as Error).message).toMatch(/pid 4242.*수동 확인/);
+    // 경고 출력만으로 끝나는 예전 동작이 아니다.
+    expect(errors).toEqual([]);
+    expect(unrefCount()).toBe(1);
+  });
+
+  it("taskkill 실행 파일 자체를 못 찾는 실패(ENOENT)도 정리 실패다", () => {
+    const { child } = fakeChild(1);
+    expect(() =>
+      killProcessTree(child, () => {
+        throw gone({ code: "ENOENT" });
+      })
+    ).toThrow(ProcessCleanupError);
+  });
+
+  it("'이미 종료된 프로세스'(taskkill 128, ESRCH)는 예전처럼 정상 정리다", () => {
+    for (const fields of [{ status: 128 }, { code: "ESRCH" }]) {
+      const { child, unrefCount } = fakeChild(7);
+      expect(() =>
+        killProcessTree(child, () => {
+          throw gone(fields);
+        })
+      ).not.toThrow();
+      expect(unrefCount()).toBe(1);
+    }
+  });
+
+  it("준비 실패 후 정리도 실패하면 원래 오류를 보존한 채 정리 실패를 함께 담아 던진다", async () => {
+    const pidFile = path.join(tmpDir, "cleanup-fail.pid");
+    const file = fixture("cleanup-fail.js", "setInterval(() => {}, 1000);");
+    let spawned: ChildProcess | undefined;
+
+    let thrown: unknown;
+    try {
+      await startManagedServer({
+        readyTimeoutMs: 1_500,
+        pollIntervalMs: 100,
+        spawnOnPort: (port) => (spawned = spawnFixture(file, port, pidFile)),
+        killTree: () => {
+          throw new ProcessCleanupError(spawned?.pid ?? 0, "주입된 정리 실패");
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(StartupCleanupError);
+    const combined = thrown as StartupCleanupError;
+    expect((combined.originalError as Error).message).toMatch(/1500ms 안에 기동하지 않았습니다/);
+    expect((combined.cleanupError as Error).message).toMatch(/주입된 정리 실패/);
+    expect(combined.message).toMatch(/1500ms[\s\S]*정리도 실패[\s\S]*주입된 정리 실패/);
+
+    // 주입한 정리는 아무것도 죽이지 않았으므로 fixture는 남아 있다 — 실제 정리로 마무리한다.
+    const pid = readPid(pidFile);
+    expect(isAlive(pid)).toBe(true);
+    killProcessTree(spawned as ChildProcess);
+    expect(await until(() => !isAlive(pid), 3_000)).toBe(true);
+  });
+
+  it("준비 실패 + 정상 정리면 원래 오류만 던진다(정리 실패로 바뀌지 않는다)", async () => {
+    const pidFile = path.join(tmpDir, "orig-only.pid");
+    const file = fixture("orig-only.js", "setInterval(() => {}, 1000);");
+
+    let thrown: unknown;
+    try {
+      await startManagedServer({
+        readyTimeoutMs: 1_500,
+        pollIntervalMs: 100,
+        spawnOnPort: (port) => spawnFixture(file, port, pidFile),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).not.toBeInstanceOf(StartupCleanupError);
+    expect((thrown as Error).message).toMatch(/1500ms 안에 기동하지 않았습니다/);
+    const pid = readPid(pidFile);
+    expect(await until(() => !isAlive(pid), 3_000)).toBe(true);
+  });
+
+  it("releaseResources: 브라우저 종료가 실패해도 서버 정리는 실행되고, 둘 다의 실패를 모아 돌려준다", async () => {
+    const order: string[] = [];
+    const failures = await releaseResources([
+      {
+        label: "브라우저 종료 실패",
+        release: async () => {
+          order.push("browser");
+          throw new Error("close boom");
+        },
+      },
+      {
+        label: "서버 프로세스 트리 정리 실패",
+        release: () => {
+          order.push("server");
+          throw new ProcessCleanupError(9, "kill boom");
+        },
+      },
+    ]);
+
+    expect(order).toEqual(["browser", "server"]);
+    expect(failures).toHaveLength(2);
+    expect(failures[0]).toBe("브라우저 종료 실패: close boom");
+    expect(failures[1]).toMatch(/^서버 프로세스 트리 정리 실패: .*pid 9.*kill boom/);
+  });
+
+  it("releaseResources: 전부 성공하면 빈 배열(종료 코드에 영향 없음)", async () => {
+    expect(
+      await releaseResources([
+        { label: "a", release: () => undefined },
+        { label: "b", release: async () => undefined },
+      ])
+    ).toEqual([]);
   });
 });

@@ -137,31 +137,83 @@ function isAlreadyGone(error: unknown): boolean {
   return status === 128 || code === "ESRCH";
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** 서버 프로세스 트리를 종료하지 못했다 — 서버가 남았을 수 있다. */
+export class ProcessCleanupError extends Error {
+  constructor(
+    readonly pid: number,
+    readonly reason: string
+  ) {
+    super(
+      `서버 프로세스 트리 정리 실패(pid ${pid}) — 서버가 남았을 수 있어 수동 확인이 필요합니다: ${reason}`
+    );
+    this.name = "ProcessCleanupError";
+  }
+}
+
+function defaultKill(pid: number): void {
+  if (process.platform === "win32") {
+    // shell:true로 띄웠기 때문에 child.pid는 cmd.exe다 — /T로 자식
+    // (pnpm → next start)까지 함께 종료해야 포트가 반납된다.
+    execFileSync(TASKKILL, ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+  } else {
+    process.kill(-pid, "SIGTERM");
+  }
+}
+
 /**
  * 자식 프로세스와 그 하위 트리를 종료한다. 이미 종료됐어도 안전하다(멱등).
- * 정리에 실패하면 조용히 넘기지 않고 stderr에 경고한다 — 서버가 남는 걸 알아야 한다.
+ *
+ * "이미 종료됨"이 아닌 이유로 실패하면 ProcessCleanupError를 던진다. 경고만 남기고
+ * 정상 반환하면 서버가 남았는데도 호출자가 성공으로 끝낼 수 있다.
+ *
+ * `kill`은 정리 명령 실패를 주입하기 위한 자리다(기본은 플랫폼별 종료 명령).
  */
-export function killProcessTree(child: ChildProcess): void {
+export function killProcessTree(
+  child: ChildProcess,
+  kill: (pid: number) => void = defaultKill
+): void {
   const pid = child.pid;
-  if (pid) {
-    try {
-      if (process.platform === "win32") {
-        // shell:true로 띄웠기 때문에 child.pid는 cmd.exe다 — /T로 자식
-        // (pnpm → next start)까지 함께 종료해야 포트가 반납된다.
-        execFileSync(TASKKILL, ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
-      } else {
-        process.kill(-pid, "SIGTERM");
-      }
-    } catch (error) {
-      if (!isAlreadyGone(error)) {
-        const reason = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[visual-verify] 서버 프로세스 트리 정리 실패(pid ${pid}) — 수동 확인 필요: ${reason}`
-        );
+  try {
+    if (pid) {
+      try {
+        kill(pid);
+      } catch (error) {
+        if (!isAlreadyGone(error)) throw new ProcessCleanupError(pid, errorMessage(error));
       }
     }
+  } finally {
+    child.unref();
   }
-  child.unref();
+}
+
+/** 각 해제 단계를 독립적으로 시도하고, 실패한 단계의 메시지를 모아 돌려준다. */
+export async function releaseResources(
+  steps: { label: string; release: () => void | Promise<void> }[]
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const step of steps) {
+    try {
+      await step.release();
+    } catch (error) {
+      failures.push(`${step.label}: ${errorMessage(error)}`);
+    }
+  }
+  return failures;
+}
+
+/** 준비 실패(원래 오류)와 그 뒤 정리 실패를 함께 담는다. 원래 오류는 그대로 보존한다. */
+export class StartupCleanupError extends Error {
+  constructor(
+    readonly originalError: unknown,
+    readonly cleanupError: unknown
+  ) {
+    super(`${errorMessage(originalError)}\n[정리도 실패] ${errorMessage(cleanupError)}`);
+    this.name = "StartupCleanupError";
+  }
 }
 
 export interface ManagedServer {
@@ -177,14 +229,16 @@ export interface StartManagedServerOptions {
   /** 기본은 findSafePort(). 테스트에서 금지 포트를 주입하는 자리. */
   pickPort?: () => Promise<number>;
   log?: (message: string) => void;
+  /** 기본은 killProcessTree(). 테스트에서 정리 실패를 주입하는 자리. */
+  killTree?: (child: ChildProcess) => void;
 }
 
 /**
  * 서버를 띄우고 준비될 때까지 기다린다.
  *
  * spawn 이후 어떤 이유로든 준비 확인이 실패하면(타임아웃, 금지 포트, 자식 조기
- * 종료) 자식 프로세스 트리를 정리한 뒤에 예외를 던진다 — 호출자는 이 함수가
- * 실패하면 정리할 서버가 없다고 가정해도 된다.
+ * 종료) 자식 프로세스 트리를 정리한 뒤에 원래 오류를 던진다. 정리까지 실패하면
+ * 원래 오류를 보존한 StartupCleanupError로 둘을 함께 던진다.
  */
 export async function startManagedServer(
   options: StartManagedServerOptions
@@ -211,14 +265,19 @@ export async function startManagedServer(
     exitReason = `spawn 오류: ${error.message}`;
   });
 
-  const stop = () => killProcessTree(child);
+  const killTree = options.killTree ?? killProcessTree;
+  const stop = () => killTree(child);
   try {
     await waitForServer(baseURL, readyTimeoutMs, {
       intervalMs: pollIntervalMs,
       abortReason: () => exitReason,
     });
   } catch (error) {
-    stop();
+    try {
+      stop();
+    } catch (cleanupError) {
+      throw new StartupCleanupError(error, cleanupError);
+    }
     throw error;
   }
   return { baseURL, stop };

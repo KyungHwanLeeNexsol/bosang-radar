@@ -41,7 +41,7 @@ import { HELPERS_SOURCE } from "./visual-verify-helpers";
 import { runMigrations } from "./db-migrate";
 // 포트 선정(금지 포트 회피) · 준비 확인 · 프로세스 트리 정리는 이 파일이 import되는
 // 순간 main()이 도는 탓에 테스트할 수 없어 별도 모듈로 분리했다.
-import { startManagedServer, type ManagedServer } from "./visual-verify-server";
+import { releaseResources, startManagedServer, type ManagedServer } from "./visual-verify-server";
 
 // tsx(esbuild)는 `keepNames` 옵션 때문에 함수 리터럴마다 `__name(...)` 호출을
 // 덧붙인다. 그 함수를 `page.evaluate`로 브라우저에 보내면 헬퍼가 없어
@@ -3255,6 +3255,7 @@ async function main() {
   // finally는 각 자원이 실제로 만들어진 경우에만 해제한다.
   let server: ManagedServer | null = null;
   let browser: Browser | null = null;
+  let cleanupFailures: string[] = [];
   try {
     let baseURL = externalBaseURL;
     if (!baseURL) {
@@ -3293,17 +3294,16 @@ async function main() {
       }
     }
   } finally {
-    // 브라우저 종료가 실패해도 서버 정리는 반드시 실행하고, try 안의 원래 오류를
-    // 덮어쓰지 않도록 종료 실패는 기록만 한다.
-    try {
-      await browser?.close();
-    } catch (error) {
-      console.error(
-        `[visual-verify] 브라우저 종료 실패: ${error instanceof Error ? error.message : String(error)}`
-      );
-    } finally {
-      server?.stop();
-    }
+    // 브라우저 종료가 실패해도 서버 정리는 반드시 시도한다. 이 finally는 던지지
+    // 않으므로 try 안의 원래 오류는 그대로 전파되고, 정리 실패는 그 옆에 기록된다.
+    // 정리에 실패했다면 서버·브라우저가 남았을 수 있으므로 화면 검사에 위반이
+    // 없더라도 종료 코드는 0이 될 수 없다.
+    cleanupFailures = await releaseResources([
+      { label: "브라우저 종료 실패", release: async () => void (await browser?.close()) },
+      { label: "서버 프로세스 트리 정리 실패", release: () => server?.stop() },
+    ]);
+    for (const failure of cleanupFailures) console.error(`[visual-verify] ${failure}`);
+    if (cleanupFailures.length > 0) process.exitCode = 1;
   }
 
   // SPEC-B2C-CONSULT-001 D-RUN-5 — measurements.json도 화면 소유 SPEC별로
@@ -3370,6 +3370,13 @@ async function main() {
         ` (01/02 계열), .moai/reports/visual-check/SPEC-B2C-CONSULT-001/${measurementsFile} (03 계열)`
     );
     process.exitCode = 1;
+    return;
+  }
+
+  if (cleanupFailures.length > 0) {
+    console.error(
+      `\n화면 검사에는 위반이 없지만 정리에 실패해(${cleanupFailures.length}건) 성공으로 보고하지 않습니다.`
+    );
     return;
   }
 
