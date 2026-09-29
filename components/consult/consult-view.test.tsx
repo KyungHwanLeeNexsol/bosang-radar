@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsultView } from "./consult-view";
@@ -942,5 +943,239 @@ describe("components/consult/ConsultView — 정책 미준비 상태에서는 dr
     // 화면 상태는 바뀌지만 저장소의 draft는 갱신도 삭제도 되지 않는다.
     expect(nameInput().value).toBe("수정된이름");
     expect(window.sessionStorage.getItem(DRAFT_KEY)).toBe(before);
+  });
+});
+
+// SPEC-B2C-CONSULT-001 후속(React hydration 오류 #418 회귀) — /consult를
+// 전체 로드(page.goto/reload)하면 서버 HTML은 window가 없어 handoff가 항상
+// "empty"이므로 no-data 안내를 렌더링하는데, 클라이언트 첫 렌더는 실제
+// sessionStorage를 읽어 폼을 렌더링해 텍스트 콘텐츠가 어긋났다("Minified
+// React error #418"). jsdom은 window를 정의하므로 평범한 renderToString은
+// 서버를 흉내 내지 못한다 — 서버 렌더 구간에서만 window를 undefined로
+// 스텁해 실제 SSR과 동일한 조건(typeof window === "undefined")을 만든 뒤,
+// 그 HTML을 컨테이너에 넣고 실제 sessionStorage를 채운 채 hydrateRoot로
+// 수화한다.
+describe("components/consult/ConsultView — SSR 마크업 수화 일치(hydration #418 회귀)", () => {
+  const DRAFT_KEY = "bosang-radar:consultation-draft-v1";
+  const NO_DATA_COPY = "먼저 진단 결과가 필요합니다";
+  let container: HTMLDivElement;
+  let root: Root | null;
+  let recoverableErrors: unknown[];
+  let consoleErrors: string[];
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = null;
+    recoverableErrors = [];
+    consoleErrors = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      consoleErrors.push(args.map((arg) => String(arg)).join(" "));
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function seedValidHandoff() {
+    writeDiagnosisHandoff(
+      buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" })
+    );
+  }
+
+  // 서버 렌더 구간에서만 window를 제거한다 — lib/diagnosis/handoff.ts와
+  // lib/consult/draft.ts의 SSR 가드(`typeof window === "undefined"`)가 실제
+  // 서버와 똑같이 동작한다.
+  function renderServerHtml(isPolicyReady: boolean): string {
+    vi.stubGlobal("window", undefined);
+    try {
+      return renderToString(<ConsultView isPolicyReady={isPolicyReady} />);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  async function hydrate(isPolicyReady: boolean): Promise<string> {
+    const serverHtml = renderServerHtml(isPolicyReady);
+    container.innerHTML = serverHtml;
+    await act(async () => {
+      root = hydrateRoot(container, <ConsultView isPolicyReady={isPolicyReady} />, {
+        onRecoverableError: (error) => {
+          recoverableErrors.push(error);
+        },
+      });
+    });
+    return serverHtml;
+  }
+
+  function expectNoHydrationErrors() {
+    expect(recoverableErrors, `onRecoverableError 호출: ${String(recoverableErrors)}`).toEqual([]);
+    const hydrationLogs = consoleErrors.filter((line) => /hydrat|418|did not match/i.test(line));
+    expect(hydrationLogs, `hydration 관련 console.error: ${hydrationLogs.join("\n")}`).toEqual([]);
+  }
+
+  function expectLoadingMarkup(serverHtml: string) {
+    expect(serverHtml).toContain('data-testid="consult-loading"');
+    expect(serverHtml).toContain('aria-busy="true"');
+    expect(serverHtml).not.toContain(NO_DATA_COPY);
+    expect(serverHtml).not.toContain("진단 결과를 불러올 수 없어요");
+    expect(serverHtml).not.toContain('data-testid="consult-view"');
+    expect(serverHtml).not.toContain('data-testid="consult-no-data"');
+    expect(serverHtml).not.toContain('data-testid="consult-error"');
+  }
+
+  function nameInput() {
+    return container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]')!;
+  }
+  function contactInput() {
+    return container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]')!;
+  }
+  function radio(channel: "kakao" | "phone") {
+    return container.querySelector<HTMLInputElement>(`input[value="${channel}"]`)!;
+  }
+
+  it("valid handoff(정책 준비): 서버 마크업은 loading뿐이고, 수화 오류 없이 폼이 표시되며 draft 값이 복원된다", async () => {
+    seedValidHandoff();
+    writeConsultationDraft({
+      draftVersion: CONSULTATION_DRAFT_VERSION,
+      channel: "phone",
+      name: "복원이름",
+      contactRaw: "010-1111-2222",
+      preferredCallTime: "평일 오후",
+      marketingConsent: true,
+      idempotencyKey: "draft-key-ready-1",
+    });
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(container.querySelector('[data-testid="consult-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-loading"]')).toBeNull();
+    expect(container.textContent).not.toContain(NO_DATA_COPY);
+    expect(nameInput().value).toBe("복원이름");
+    expect(contactInput().value).toBe("010-1111-2222");
+    expect(radio("phone").checked).toBe(true);
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-testid="consult-consent-checkbox-marketing"]'
+      )!.checked
+    ).toBe(true);
+    // 필수 동의 두 항목은 draft에서 절대 복원하지 않는다.
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-testid="consult-consent-checkbox-piiCollection"]'
+      )!.checked
+    ).toBe(false);
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-submit-policy-notice"]')).toBeNull();
+    // draft의 idempotencyKey는 수화 후에도 그대로 보존된다(재시도 재사용 전제).
+    expect(readConsultationDraft().idempotencyKey).toBe("draft-key-ready-1");
+  });
+
+  it("valid handoff(정책 미준비): 서버 마크업은 loading뿐이고, 수화 오류 없이 폼+정책 안내가 표시되며 draft는 갱신되지 않는다", async () => {
+    seedValidHandoff();
+    writeConsultationDraft({
+      draftVersion: CONSULTATION_DRAFT_VERSION,
+      channel: "phone",
+      name: "복원이름",
+      idempotencyKey: "draft-key-notready-1",
+    });
+    const draftBefore = window.sessionStorage.getItem(DRAFT_KEY);
+
+    const serverHtml = await hydrate(false);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(container.querySelector('[data-testid="consult-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-submit-policy-notice"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).toBeNull();
+    // 읽기(복원)는 유지하고 쓰기(persistDraft)만 막는다.
+    expect(nameInput().value).toBe("복원이름");
+    expect(radio("phone").checked).toBe(true);
+    expect(window.sessionStorage.getItem(DRAFT_KEY)).toBe(draftBefore);
+  });
+
+  it("draft가 없고 URL이 ?channel=phone이면 전체 로드 수화 후에도 전화 채널이 선택된다", async () => {
+    seedValidHandoff();
+    window.history.pushState(null, "", "/consult?channel=phone");
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(radio("phone").checked).toBe(true);
+    expect(radio("kakao").checked).toBe(false);
+  });
+
+  it("draft의 channel이 URL ?channel=보다 우선한다(draft 카카오 vs URL 전화)", async () => {
+    seedValidHandoff();
+    writeConsultationDraft({
+      draftVersion: CONSULTATION_DRAFT_VERSION,
+      channel: "kakao",
+      idempotencyKey: "draft-key-priority-1",
+    });
+    window.history.pushState(null, "", "/consult?channel=phone");
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(radio("kakao").checked).toBe(true);
+    expect(radio("phone").checked).toBe(false);
+    expect(readConsultationDraft().idempotencyKey).toBe("draft-key-priority-1");
+  });
+
+  it("draft가 없으면 수화 후 idempotencyKey가 새로 1회 생성되어 draft에 기록된다(정책 준비)", async () => {
+    seedValidHandoff();
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    const key = readConsultationDraft().idempotencyKey;
+    expect(key).toBeTruthy();
+    expect(key).not.toBe("");
+  });
+
+  it("handoff 없음(empty): 서버 마크업은 loading뿐이고, 수화 오류 없이 no-data 안내로 전환된다", async () => {
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(container.querySelector('[data-testid="consult-no-data"]')).not.toBeNull();
+    expect(container.textContent).toContain(NO_DATA_COPY);
+    expect(container.querySelector('[data-testid="consult-view"]')).toBeNull();
+    expect(container.querySelector('[data-testid="consult-loading"]')).toBeNull();
+  });
+
+  it("handoff 손상(파싱 불가 JSON): 서버 마크업은 loading뿐이고, 수화 오류 없이 오류 안내로 전환된다", async () => {
+    window.sessionStorage.setItem(DIAGNOSIS_STORAGE_KEY, "{not valid json");
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(container.querySelector('[data-testid="consult-error"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-view"]')).toBeNull();
+  });
+
+  it("handoff 손상(유효 JSON이나 스키마 불일치): 서버 마크업은 loading뿐이고, 수화 오류 없이 오류 안내로 전환된다", async () => {
+    window.sessionStorage.setItem(DIAGNOSIS_STORAGE_KEY, JSON.stringify({ unexpected: "shape" }));
+
+    const serverHtml = await hydrate(true);
+
+    expectNoHydrationErrors();
+    expectLoadingMarkup(serverHtml);
+    expect(container.querySelector('[data-testid="consult-error"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-view"]')).toBeNull();
   });
 });

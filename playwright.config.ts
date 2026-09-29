@@ -30,8 +30,22 @@ import { defineConfig } from "@playwright/test";
 const port = process.env.E2E_PORT ? Number(process.env.E2E_PORT) : 3000;
 const baseURL = `http://localhost:${port}`;
 
+// SPEC-B2C-CONSULT-001 후속(hydration #418 회귀) — CONSULT_POLICY_READY는
+// 프로덕션 빌드/부팅 시점에 고정되는 서버 플래그라 한 번의 e2e 실행에서는
+// 준비/미준비 두 모드를 동시에 검증할 수 없다. 그래서 모드를 별도 실행으로
+// 나눈다:
+//   준비 모드(기본):  pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts
+//   미준비 모드:      E2E_CONSULT_POLICY_READY=false pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts
+// test.skip 대신 제목 태그로 나눈다 — scripts/run-e2e.ts가 결과 표식 수를
+// "Running N tests"와 대조하므로 skip이 섞이면 기대 수가 어긋난다. 제목에
+// `@policy-not-ready`가 들어간 테스트는 미준비 모드에서만, 그 외 모든
+// 테스트는 준비 모드에서만 실행한다(grep/grepInvert).
+const policyReady = process.env.E2E_CONSULT_POLICY_READY !== "false";
+const POLICY_NOT_READY_TAG = /@policy-not-ready/;
+
 export default defineConfig({
   testDir: "./e2e",
+  ...(policyReady ? { grepInvert: POLICY_NOT_READY_TAG } : { grep: POLICY_NOT_READY_TAG }),
   fullyParallel: false,
   forbidOnly: false,
   // SPEC-B2C-FOUNDATION-001 M5 — e2e/ 디렉터리 전체(구 B2B/Better Auth
@@ -67,7 +81,7 @@ export default defineConfig({
       PORT: String(port),
       ENABLE_DIAGNOSIS_DEV_STATES: "true",
       ENABLE_CONSULT_FLOW: "true",
-      CONSULT_POLICY_READY: "true",
+      CONSULT_POLICY_READY: policyReady ? "true" : "false",
       RATE_LIMIT_HMAC_SECRET: "e2e-test-rate-limit-hmac-secret",
     },
   },

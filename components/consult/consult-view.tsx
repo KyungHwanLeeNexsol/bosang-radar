@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { ZodError } from "zod";
 
-import { readDiagnosisHandoff } from "@/lib/diagnosis/handoff";
+import { readDiagnosisHandoff, type DiagnosisHandoffReadResult } from "@/lib/diagnosis/handoff";
 import { computeAggregate } from "@/lib/diagnosis/aggregate";
 import {
   clearConsultationDraft,
@@ -39,13 +39,50 @@ import { ConsultHeader } from "./consult-header";
 // 응답 3갈래(success/duplicate/error) 라우팅을 연결한다(design.md §9.1,
 // acceptance AC-B2CCONSULT-018/020/022).
 //
-// 02(result-view.tsx)가 이미 확립한 관례와 동일하게, readDiagnosisHandoff()/
-// readConsultationDraft()를 렌더 본문에서 직접 호출한다(SSR 가드가 있어
-// 서버에서는 안전한 기본값을 반환하고, hydration 시 실제 값으로 재조정된다
-// — 이 프로젝트의 기존 관례를 그대로 따른다).
+// [hydration 불일치 수정 — React error #418] 브라우저 전용 상태(sessionStorage
+// 의 handoff·draft, window.location.search의 ?channel=, 무작위 idempotencyKey)를
+// 렌더 본문이나 useState 지연 초기화에서 직접 읽으면 서버 HTML(window 없음 →
+// handoff "empty" → no-data 안내)과 클라이언트 첫 렌더(실제 값 → 폼)의 텍스트
+// 콘텐츠가 달라진다. 이전 주석은 hydration이 "실제 값으로 재조정된다"고
+// 적었으나 텍스트 콘텐츠 불일치는 재조정되지 않고 #418 오류를 낸다. 그래서
+// 02(result-view.tsx)와 동일하게 useSyncExternalStore로 handoff를 읽는다:
+// 서버 스냅샷과 hydration 렌더는 항상 "loading"(빈 컨테이너)이고, 그 뒤
+// 클라이언트에서만 실제 handoff로 전환한다. 브라우저 전용 값을 읽는 모든
+// 로직(draft·URL 채널·idempotencyKey 지연 초기화)은 이 전환 이후에만
+// 마운트되는 ConsultViewBody 안에 두어, 서버 HTML과 어긋날 수 없게 한다.
 
 interface ConsultViewProps {
   isPolicyReady?: boolean;
+}
+
+// 서버/hydration 렌더용 "loading" 상태를 실제 handoff 판별 유니언에 더한다.
+type ConsultHandoffSnapshot = { status: "loading" } | DiagnosisHandoffReadResult;
+
+function getServerSnapshot(): ConsultHandoffSnapshot {
+  return { status: "loading" };
+}
+
+// sessionStorage를 마운트 시 1회 읽는다(이 컴포넌트는 handoff를 절대 지우지
+// 않는다 — REQ-B2CRESULT-016). SSR·hydration에서는 항상 "loading"을 반환하고
+// (getServerSnapshot), 클라이언트에서는 최초 1회만 계산해 ref에 캐시한다.
+// subscribe는 갱신을 구독하지 않는 no-op — 이 값은 마운트 동안 불변이다(제출
+// 시점의 변조 검사는 handleSubmit이 readDiagnosisHandoff()를 다시 호출해
+// 수행한다). useEffect 안의 동기 setState 대신 이 패턴을 쓰는 이유는
+// react-hooks/set-state-in-effect 권고(계단식 리렌더 방지)를 따르기 위함이며,
+// result-view.tsx의 useDiagnosisHandoffState와 동일하다.
+function useConsultHandoffSnapshot(): ConsultHandoffSnapshot {
+  const snapshotRef = React.useRef<DiagnosisHandoffReadResult | null>(null);
+
+  const getSnapshot = React.useCallback((): ConsultHandoffSnapshot => {
+    if (snapshotRef.current === null) {
+      snapshotRef.current = readDiagnosisHandoff();
+    }
+    return snapshotRef.current;
+  }, []);
+
+  const subscribe = React.useCallback(() => () => {}, []);
+
+  return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 // design.md §3 "정책 기본값" — CTA가 전달한 ?channel= 쿼리를 읽어 초기
@@ -157,9 +194,15 @@ type ConsultSubmitView =
   | { kind: "duplicate"; result: Extract<ConsultationSubmitResult, { status: "duplicate" }> }
   | { kind: "failure" };
 
-export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
-  const handoff = readDiagnosisHandoff();
+interface ConsultViewBodyProps {
+  handoff: DiagnosisHandoffReadResult;
+  isPolicyReady: boolean;
+}
 
+// handoff snapshot이 "loading"을 벗어난 뒤(= 클라이언트에서만) 마운트되므로,
+// 아래 useState/useRef 지연 초기화가 읽는 draft·URL 채널·randomUUID는 서버 HTML과
+// 비교될 일이 없다. 기존 로직은 그대로다.
+function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
   // M7 발견 — lazy initializer 실행 시점에 초기 channel이 draft에서 왔는지
   // resolveInitialChannel() 폴백에서 왔는지를 기록해 둔다. 아래 마운트 후
   // 보정 effect가 "draft 복원 값은 절대 덮어쓰지 않는다"는 우선순위
@@ -551,4 +594,26 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
       </div>
     </>
   );
+}
+
+export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
+  const handoff = useConsultHandoffSnapshot();
+
+  // 서버 HTML과 hydration 첫 렌더가 100% 동일해야 하므로, 이 분기에는 empty/
+  // invalid 문구도 폼도 넣지 않는다 — 헤더 + 빈 컨테이너만 렌더링한다
+  // (aria-busy로 보조기기에 로딩 중임을 알린다).
+  if (handoff.status === "loading") {
+    return (
+      <>
+        <ConsultHeader variant="form" />
+        <div
+          data-testid="consult-loading"
+          aria-busy="true"
+          className="flex flex-1 flex-col bg-app-bg"
+        />
+      </>
+    );
+  }
+
+  return <ConsultViewBody handoff={handoff} isPolicyReady={isPolicyReady} />;
 }

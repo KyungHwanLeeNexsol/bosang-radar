@@ -411,3 +411,203 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
   });
 });
+
+// SPEC-B2C-CONSULT-001 후속(React hydration 오류 #418 회귀) — /consult를
+// 전체 로드(page.goto)하거나 새로고침(page.reload)하면 서버 HTML(window
+// 없음 → handoff "empty" → no-data 안내)과 클라이언트 첫 렌더(실제
+// sessionStorage → 폼)의 텍스트가 달라 프로덕션 빌드에서
+// "Minified React error #418"이 1건 발생했다. 클라이언트 사이드 내비게이션
+// (/result에서 CTA 클릭)에서는 재현되지 않고 오직 전체 로드에서만 나타나므로,
+// 이 회귀 테스트는 반드시 프로덕션 빌드(pnpm build && pnpm start)에서 goto/
+// reload로 검증해야 한다.
+//
+// 모드: CONSULT_POLICY_READY는 빌드 시점에 고정되는 서버 플래그라
+// playwright.config.ts가 E2E_CONSULT_POLICY_READY 환경변수로 모드를 나누고
+// 제목의 `@policy-not-ready` 태그로 실행 대상을 고른다(준비 모드 실행에서는
+// 태그 없는 테스트만, 미준비 모드 실행에서는 태그 있는 테스트만 돈다). 같은
+// 시나리오를 두 모드로 각각 등록한다.
+const POLICY_NOT_READY_TAG = "@policy-not-ready";
+const DIAGNOSIS_HANDOFF_STORAGE_KEY = "bosang-radar:diagnosis-handoff-v1";
+const CONSULT_DRAFT_STORAGE_KEY = "bosang-radar:consultation-draft-v1";
+const CLIENT_ERROR_PATTERN = /hydrat|418|Minified React error/i;
+const NO_DATA_COPY = "먼저 진단 결과가 필요합니다";
+
+/**
+ * 페이지 오류(pageerror)와 콘솔 오류(console type "error" 또는 hydration
+ * 관련 메시지)를 수집한다. 반드시 대상 내비게이션 전에 호출해 리스너를 먼저
+ * 붙인다 — hydration 오류는 첫 로드 도중에 발생한다.
+ */
+function collectClientErrors(page: Page): string[] {
+  const collected: string[] = [];
+  page.on("pageerror", (error) => {
+    collected.push(`pageerror: ${error.message}`);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error" || CLIENT_ERROR_PATTERN.test(message.text())) {
+      collected.push(`console.${message.type()}: ${message.text()}`);
+    }
+  });
+  return collected;
+}
+
+function expectNoClientErrors(errors: string[]): void {
+  expect(errors, `수집된 클라이언트 오류: ${JSON.stringify(errors, null, 2)}`).toEqual([]);
+}
+
+async function overwriteDiagnosisHandoff(page: Page, value: string): Promise<void> {
+  await page.evaluate(
+    ([key, next]) => {
+      window.sessionStorage.setItem(key, next);
+    },
+    [DIAGNOSIS_HANDOFF_STORAGE_KEY, value] as const
+  );
+}
+
+function registerHydrationTests(policyReady: boolean): void {
+  const tag = policyReady ? "" : ` ${POLICY_NOT_READY_TAG}`;
+  const modeLabel = policyReady ? "정책 준비 모드" : "정책 미준비 모드";
+
+  test.describe(`03 화면 — 전체 로드·새로고침 hydration 오류 없음 (${modeLabel}, Desktop, 1440x900)${tag}`, () => {
+    test.use({ viewport: DESKTOP_VIEWPORT });
+
+    test(`(a) 진단 handoff 없이 /consult를 직접 열고 새로고침해도 empty 안내가 뜨고 오류가 없다${tag}`, async ({
+      page,
+    }) => {
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult");
+      await expect(page.getByTestId("consult-no-data")).toBeVisible();
+      await expect(page.getByText(NO_DATA_COPY)).toBeVisible();
+
+      await page.reload();
+      await expect(page.getByTestId("consult-no-data")).toBeVisible();
+      await expect(page.getByText(NO_DATA_COPY)).toBeVisible();
+
+      expectNoClientErrors(errors);
+    });
+
+    test(`(b-i) 손상된 handoff(파싱 불가 텍스트)여도 전체 로드·새로고침에서 오류 안내가 뜨고 hydration 오류가 없다${tag}`, async ({
+      page,
+    }) => {
+      await completeFractureFlowToResult(page);
+      await overwriteDiagnosisHandoff(page, "{not valid json");
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult");
+      await expect(page.getByTestId("consult-error")).toBeVisible();
+      await expect(page.getByText("진단 결과를 불러올 수 없어요")).toBeVisible();
+
+      await page.reload();
+      await expect(page.getByTestId("consult-error")).toBeVisible();
+
+      expectNoClientErrors(errors);
+    });
+
+    test(`(b-ii) 손상된 handoff(유효 JSON이나 잘못된 형태)여도 전체 로드·새로고침에서 오류 안내가 뜨고 hydration 오류가 없다${tag}`, async ({
+      page,
+    }) => {
+      await completeFractureFlowToResult(page);
+      await overwriteDiagnosisHandoff(page, JSON.stringify({ unexpected: "shape" }));
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult");
+      await expect(page.getByTestId("consult-error")).toBeVisible();
+
+      await page.reload();
+      await expect(page.getByTestId("consult-error")).toBeVisible();
+
+      expectNoClientErrors(errors);
+    });
+
+    test(`(c) 유효한 handoff로 /consult를 전체 로드·새로고침해도 폼이 뜨고 hydration 오류가 없다${tag}`, async ({
+      page,
+    }) => {
+      await completeFractureFlowToResult(page);
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult");
+      await page.getByTestId("consult-view").waitFor();
+      await expect(page.getByText(NO_DATA_COPY)).toHaveCount(0);
+
+      await page.reload();
+      await page.getByTestId("consult-view").waitFor();
+      await expect(page.getByText(NO_DATA_COPY)).toHaveCount(0);
+
+      // 제출 영역은 정책 준비 여부에 따라 갈린다(REQ-B2CCONSULT-005/006 예외).
+      if (policyReady) {
+        await expect(page.getByTestId("consult-submit-button")).toBeVisible();
+        await expect(page.getByTestId("consult-submit-policy-notice")).toHaveCount(0);
+      } else {
+        await expect(page.getByTestId("consult-submit-policy-notice")).toBeVisible();
+        await expect(page.getByTestId("consult-submit-button")).toHaveCount(0);
+      }
+
+      expectNoClientErrors(errors);
+    });
+
+    test(`(c) 유효한 handoff + ?channel=phone 전체 로드에서 전화 채널이 선택되고 hydration 오류가 없다${tag}`, async ({
+      page,
+    }) => {
+      await completeFractureFlowToResult(page);
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult?channel=phone");
+      await page.getByTestId("consult-view").waitFor();
+
+      await expect(page.getByRole("radio", { name: /전화 상담/ })).toBeChecked();
+      await expect(page.getByLabel(/통화 가능한 전화번호/)).toBeVisible();
+
+      expectNoClientErrors(errors);
+    });
+
+    test(`(c) 유효한 handoff에서 입력·blur 후 새로고침하면 ${policyReady ? "draft가 복원되고 필수 동의는 해제된다" : "draft가 저장·복원되지 않는다"}${tag}`, async ({
+      page,
+    }) => {
+      await completeFractureFlowToResult(page);
+      const errors = collectClientErrors(page);
+
+      await page.goto("/consult");
+      await page.getByTestId("consult-view").waitFor();
+
+      const nameInput = page.getByTestId("consult-name-input");
+      const contactInput = page.getByTestId("consult-contact-input");
+      await nameInput.fill(CONSULT_NAME);
+      await nameInput.blur();
+      await contactInput.fill(CONSULT_PHONE);
+      await contactInput.blur();
+      await page.getByTestId("consult-consent-checkbox-marketing").check();
+      await checkRequiredConsents(page);
+
+      await page.reload();
+      await page.getByTestId("consult-view").waitFor();
+
+      // 필수 동의 두 항목은 정책 모드와 무관하게 새로고침 후 항상 해제된다.
+      await expect(page.getByTestId("consult-consent-checkbox-piiCollection")).not.toBeChecked();
+      await expect(page.getByTestId("consult-consent-checkbox-healthInfoUse")).not.toBeChecked();
+
+      if (policyReady) {
+        await expect(page.getByTestId("consult-name-input")).toHaveValue(CONSULT_NAME);
+        await expect(page.getByTestId("consult-contact-input")).toHaveValue(CONSULT_PHONE);
+        await expect(page.getByTestId("consult-consent-checkbox-marketing")).toBeChecked();
+        await expect(page.getByTestId("consult-submit-button")).toBeVisible();
+      } else {
+        // 정책 미준비: persistDraft 가드로 draft 자체가 저장되지 않아 복원할 값이 없다.
+        const draftRaw = await page.evaluate(
+          (key) => window.sessionStorage.getItem(key),
+          CONSULT_DRAFT_STORAGE_KEY
+        );
+        expect(draftRaw).toBeNull();
+        await expect(page.getByTestId("consult-name-input")).toHaveValue("");
+        await expect(page.getByTestId("consult-contact-input")).toHaveValue("");
+        await expect(page.getByTestId("consult-consent-checkbox-marketing")).not.toBeChecked();
+        await expect(page.getByTestId("consult-submit-policy-notice")).toBeVisible();
+        await expect(page.getByTestId("consult-submit-button")).toHaveCount(0);
+      }
+
+      expectNoClientErrors(errors);
+    });
+  });
+}
+
+registerHydrationTests(true);
+registerHydrationTests(false);
