@@ -382,6 +382,130 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     expect(secondBody.idempotencyKey).toBe(firstBody.idempotencyKey);
     expect(scrollToMock).toHaveBeenCalledTimes(2);
   });
+
+  // AC-B2CCONSULT-022의 "입력 보존"은 03-D 화면이 값을 다시 보여주라는 요구가
+  // 아니라(design.md §10 요약은 상담 방식/연락처/연락 희망 시간/"입력 내용:
+  // 유지됨" 4행이며 이름·마케팅 동의는 표시하지 않는다), 입력값이 draft와 폼
+  // 상태에 보존되어 재시도 때 동일한 값으로 전송된다는 뜻이다. 아래 두
+  // 테스트가 그 두 경로(같은 세션 재시도 / 화면을 나갔다 재진입한 뒤 재시도)를
+  // 실제 fetch payload로 확인한다.
+  const ENTERED = {
+    channel: "phone",
+    name: "김보상",
+    contact: "010-1234-5678",
+    preferredCallTime: "평일 오후 (13시 ~ 18시)",
+  } as const;
+
+  // 실제 사용자처럼 각 필드를 채우고 포커스를 벗어난다(draft는 blur에서 저장된다).
+  function enterPhoneConsultation() {
+    act(() => {
+      container.querySelector<HTMLInputElement>('input[value="phone"]')!.click();
+    });
+    const fields: Array<[string, string]> = [
+      ["consult-name-input", ENTERED.name],
+      ["consult-contact-input", ENTERED.contact],
+      ["consult-preferred-call-time-input", ENTERED.preferredCallTime],
+    ];
+    for (const [testId, value] of fields) {
+      const input = container.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`)!;
+      act(() => {
+        setNativeInputValue(input, value);
+        input.dispatchEvent(new Event("focusout", { bubbles: true }));
+      });
+    }
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    act(() => {
+      checkboxes[0].click();
+      checkboxes[1].click();
+      checkboxes[2].click(); // 선택 동의(마케팅)
+    });
+  }
+
+  it("실패 후 재시도는 채널·이름·연락처·연락 희망 시간·마케팅 동의를 최초 제출과 동일한 payload로 재전송한다(AC-B2CCONSULT-022)", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "error", code: "server_error", message: "..." }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    enterPhoneConsultation();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
+    const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    // 입력값이 실제로 첫 요청에 실렸는지 먼저 확인한다 — 비교 대상이 빈 값이면
+    // 재시도 비교가 공허하게 통과한다.
+    expect(firstBody).toMatchObject({
+      ...ENTERED,
+      consent: { piiCollection: true, healthInfoUse: true, marketing: true },
+    });
+
+    // design.md §10 — 03-D 요약에는 이름이 표시되지 않지만(4행), 그 값은 재전송된다.
+    expect(
+      container.querySelector('[data-testid="consult-failure-summary"]')?.textContent
+    ).not.toContain(ENTERED.name);
+
+    await clickAndFlush(container.querySelector('[data-testid="consult-failure-retry"]')!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(secondBody).toMatchObject({
+      ...ENTERED,
+      consent: { piiCollection: true, healthInfoUse: true, marketing: true },
+    });
+    expect(secondBody).toEqual(firstBody);
+  });
+
+  it("실패 후 /consult에 다시 들어오면 draft에서 입력값이 폼에 복원되고, 필수 동의만 다시 체크하면 같은 payload로 재전송된다(AC-B2CCONSULT-022)", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({ status: "error", code: "server_error", message: "..." }),
+    });
+
+    act(() => {
+      root.render(<ConsultView />);
+    });
+    enterPhoneConsultation();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+    const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+
+    // "이전 화면으로 돌아가기"(/result)로 나갔다가 /consult로 다시 들어오는
+    // 경로 — 컴포넌트를 새로 마운트하고 sessionStorage draft만 남긴다.
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[value="phone"]')!.checked).toBe(true);
+    expect(
+      container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]')!.value
+    ).toBe(ENTERED.name);
+    expect(
+      container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]')!.value
+    ).toBe(ENTERED.contact);
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-testid="consult-preferred-call-time-input"]'
+      )!.value
+    ).toBe(ENTERED.preferredCallTime);
+    const restored = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    expect(restored[0].checked).toBe(false); // 필수 동의는 복원하지 않는다(재확인 원칙)
+    expect(restored[1].checked).toBe(false);
+    expect(restored[2].checked).toBe(true); // 마케팅 동의는 draft에서 복원된다
+
+    act(() => {
+      restored[0].click();
+      restored[1].click();
+    });
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const reentryBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(reentryBody).toEqual(firstBody);
+  });
 });
 
 // SPEC-B2C-CONSULT-001 M6 (design.md §11, plan.md §F item 6; acceptance

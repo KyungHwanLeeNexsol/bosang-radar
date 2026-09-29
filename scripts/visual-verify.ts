@@ -573,12 +573,14 @@ async function iconExists(page: Page, containerTestId: string): Promise<string> 
 }
 
 /**
- * 03-D/M03-D "폼 상태 보존" 검증 — design.md §10의 요약 4행(상담 방식/
+ * 03-D/M03-D 입력 보존 검증(부분) — design.md §10의 요약 4행(상담 방식/
  * 연락처/연락 희망 시간/입력 내용)에는 "이름"이 없어 화면에 이름이
- * 보이지 않는다. 실제 보존 메커니즘은 lib/consult/draft.ts가 쓰는
- * sessionStorage draft이므로, 그 draft에 기대한 이름이 그대로 남아
- * 있는지를 직접 확인한다("입력하신 내용은 다시 입력하지 않아도 됩니다"
- * 문구의 근거 — 재시도가 이 draft 값을 그대로 재전송한다).
+ * 보이지 않는다. 보존 메커니즘은 lib/consult/draft.ts가 쓰는 sessionStorage
+ * draft이므로, 그 draft에 기대한 이름이 남아 있는지만 확인한다.
+ * [범위] 이 검사는 draft의 이름 한 필드만 본다 — 채널·연락처·연락 희망
+ * 시간·마케팅 동의의 보존이나 재시도 요청 payload의 동일성은 증명하지
+ * 않는다. 재전송(payload) 검증은 components/consult/consult-view.test.tsx
+ * (AC-B2CCONSULT-022)의 몫이다.
  */
 async function draftNameMatches(page: Page, expectedName: string): Promise<boolean> {
   const raw = await page.evaluate(
@@ -2196,10 +2198,11 @@ const SCREENS: readonly ScreenSpec[] = [
         // 03-D-신청-실패.png 원본 목업도 4행뿐). 이전 버전은 요약 카드
         // 텍스트에 이름이 포함되는지로 "폼 상태 보존"을 확인했는데, 그
         // 요구 자체가 design.md와 어긋난 콘텐츠(요약에 이름 표시)를
-        // 전제하고 있었다. "다시 입력하지 않아도 된다"는 실제 보존
-        // 메커니즘은 sessionStorage draft이므로, 그 draft에 이름이 그대로
-        // 남아 있는지를 직접 확인한다(재시도가 같은 값을 재전송하는 근거).
-        label: "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
+        // 전제하고 있었다. 보존 메커니즘은 sessionStorage draft이므로 그
+        // draft에 이름이 남아 있는지를 확인한다. [범위] draft의 이름 한
+        // 필드만 본다 — 다른 필드의 보존과 재전송 payload 동일성은 이
+        // 검사가 증명하지 않는다(consult-view.test.tsx가 검증).
+        label: "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
         expected: "true",
         actual: String(await draftNameMatches(page, CONSULT_NAME)),
       },
@@ -2457,8 +2460,8 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         // D-RUN 재작업(이번 세션) — 03-D와 동일한 이유(design.md §10 요약
-        // 4행에 "이름" 없음). draftNameMatches() 참고.
-        label: "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
+        // 4행에 "이름" 없음)와 동일한 범위 한계. draftNameMatches() 참고.
+        label: "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
         expected: "true",
         actual: String(await draftNameMatches(page, CONSULT_NAME)),
       },
