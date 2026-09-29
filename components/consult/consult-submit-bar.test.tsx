@@ -34,7 +34,9 @@ describe("components/consult/ConsultSubmitBar", () => {
   it("canSubmit=false면 aria-disabled=true이고 클릭해도 onSubmit이 호출되지 않는다", () => {
     const onSubmit = vi.fn();
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit={false} channel="kakao" onSubmit={onSubmit} />);
+      root.render(
+        <ConsultSubmitBar isPolicyReady canSubmit={false} channel="kakao" onSubmit={onSubmit} />
+      );
     });
 
     const button = findButton(container);
@@ -50,7 +52,7 @@ describe("components/consult/ConsultSubmitBar", () => {
   it("canSubmit=true면 클릭 시 onSubmit이 정확히 1회 호출된다", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={onSubmit} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={onSubmit} />);
     });
 
     act(() => {
@@ -62,12 +64,12 @@ describe("components/consult/ConsultSubmitBar", () => {
 
   it("channel별로 버튼 라벨이 달라진다(카카오톡 상담 신청하기 / 전화 상담 신청하기)", () => {
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={vi.fn()} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={vi.fn()} />);
     });
     expect(findButton(container)?.textContent).toContain("카카오톡 상담 신청하기");
 
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="phone" onSubmit={vi.fn()} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="phone" onSubmit={vi.fn()} />);
     });
     expect(findButton(container)?.textContent).toContain("전화 상담 신청하기");
   });
@@ -82,7 +84,7 @@ describe("components/consult/ConsultSubmitBar", () => {
     );
 
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={onSubmit} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={onSubmit} />);
     });
 
     act(() => {
@@ -110,7 +112,7 @@ describe("components/consult/ConsultSubmitBar", () => {
   // sticky bottom-0 ... md:static 패턴을 재사용한다.
   it("컨테이너가 모바일에서 sticky bottom-0이고 데스크톱(md)에서 static이다", () => {
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={vi.fn()} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={vi.fn()} />);
     });
 
     const bar = container.querySelector('[data-testid="consult-submit-bar"]');
@@ -131,7 +133,7 @@ describe("components/consult/ConsultSubmitBar", () => {
     );
 
     act(() => {
-      root.render(<ConsultSubmitBar canSubmit channel="kakao" onSubmit={onSubmit} />);
+      root.render(<ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={onSubmit} />);
     });
 
     const statusRegion = container.querySelector('[data-testid="consult-submit-status"]');
@@ -148,6 +150,72 @@ describe("components/consult/ConsultSubmitBar", () => {
     await act(async () => {
       resolveSubmit();
       await Promise.resolve();
+    });
+  });
+
+  // SPEC-B2C-CONSULT-001 run-phase 보완(design.md §4, AC-B2CCONSULT-005 추가
+  // 시나리오) — isPolicyReady=false면 제출 버튼 대신 안내 영역을 렌더링한다.
+  // 잠정 문구이며 법무·운영이 확정한 문장이 아니다(리터럴로 고정).
+  describe("isPolicyReady 분기", () => {
+    const NOT_READY_NOTICE = "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요.";
+
+    function findNotice() {
+      return container.querySelector<HTMLElement>('[data-testid="consult-submit-policy-notice"]');
+    }
+
+    it("isPolicyReady=false면 canSubmit=true여도 제출 버튼이 없고 role=status aria-live=polite 안내 영역이 표시된다", () => {
+      const onSubmit = vi.fn();
+      act(() => {
+        root.render(
+          <ConsultSubmitBar isPolicyReady={false} canSubmit channel="kakao" onSubmit={onSubmit} />
+        );
+      });
+
+      expect(findButton(container)).toBeNull();
+      const notice = findNotice();
+      expect(notice?.getAttribute("role")).toBe("status");
+      expect(notice?.getAttribute("aria-live")).toBe("polite");
+      expect(notice?.textContent).toBe(NOT_READY_NOTICE);
+    });
+
+    it("isPolicyReady=false에서 바 영역을 클릭해도 onSubmit이 호출되지 않는다", () => {
+      const onSubmit = vi.fn();
+      act(() => {
+        root.render(
+          <ConsultSubmitBar isPolicyReady={false} canSubmit channel="kakao" onSubmit={onSubmit} />
+        );
+      });
+
+      act(() => {
+        findNotice()?.click();
+        container.querySelector<HTMLElement>('[data-testid="consult-submit-bar"]')?.click();
+      });
+
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("isPolicyReady=false여도 컨테이너는 모바일 sticky bottom-0 / 데스크톱 static 배치를 유지한다", () => {
+      act(() => {
+        root.render(
+          <ConsultSubmitBar isPolicyReady={false} canSubmit channel="kakao" onSubmit={vi.fn()} />
+        );
+      });
+
+      const bar = container.querySelector('[data-testid="consult-submit-bar"]');
+      expect(bar?.className).toContain("sticky");
+      expect(bar?.className).toContain("md:static");
+    });
+
+    it("회귀 짝: isPolicyReady=true면 안내 영역이 없고 제출 버튼이 있다", () => {
+      act(() => {
+        root.render(
+          <ConsultSubmitBar isPolicyReady canSubmit channel="kakao" onSubmit={vi.fn()} />
+        );
+      });
+
+      expect(findNotice()).toBeNull();
+      expect(findButton(container)).not.toBeNull();
+      expect(container.textContent).not.toContain(NOT_READY_NOTICE);
     });
   });
 });

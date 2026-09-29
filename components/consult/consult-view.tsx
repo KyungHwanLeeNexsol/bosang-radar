@@ -297,6 +297,14 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
   // AC-B2CCONSULT-022 — 03-D는 code별로 문구를 분기하지 않는 일반 실패
   // 화면이다).
   async function handleSubmit(): Promise<void> {
+    // 다층 방어(design.md §4, AC-B2CCONSULT-005 추가 시나리오) — 정책 미준비
+    // 상태에서는 제출 버튼이 렌더링되지 않아 이 함수에 UI로 도달할 수 없지만,
+    // 어떤 경로로든 호출되더라도 POST를 발생시키지 않는다. 서버의 503/
+    // policy_unavailable 거부와는 독립된 UX 계층의 방어선이다.
+    if (!isPolicyReady) {
+      return;
+    }
+
     const freshHandoff = readDiagnosisHandoff();
     const freshResultId = freshHandoff.status === "valid" ? freshHandoff.result.resultId : null;
     if (freshResultId !== mountResultIdRef.current) {
@@ -522,6 +530,7 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
           />
 
           <ConsultSubmitBar
+            isPolicyReady={isPolicyReady}
             canSubmit={canSubmit}
             channel={formState.channel}
             onSubmit={handleSubmit}

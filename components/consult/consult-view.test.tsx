@@ -182,7 +182,7 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
 
   it("두 필수 동의를 모두 체크해야 제출 버튼이 활성화된다(AC-B2CCONSULT-012)", () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const submitButton = container.querySelector<HTMLButtonElement>(
@@ -282,7 +282,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -304,7 +304,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -320,7 +320,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -333,7 +333,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     fetchMock.mockRejectedValue(new Error("network"));
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -344,7 +344,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
 
   it("handoff_mismatch: 마운트 후 핸드오프의 resultId가 바뀌면 fetch 없이 즉시 03-D를 렌더링한다", async () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
 
@@ -364,7 +364,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     fillRequiredFieldsAndConsent();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -427,7 +427,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     enterPhoneConsultation();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -463,7 +463,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     enterPhoneConsultation();
     await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
@@ -476,7 +476,7 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     });
     root = createRoot(container);
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     expect(container.querySelector<HTMLInputElement>('input[value="phone"]')!.checked).toBe(true);
@@ -559,7 +559,7 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
 
   it("이름·연락처를 비운 채 제출하면 fetch가 호출되지 않고 오류 요약이 표시되며 첫 오류 필드(이름)로 포커스가 이동한다", async () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
     checkRequiredConsents();
 
@@ -575,7 +575,7 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
 
   it("이름·연락처는 유효하지만 전화 채널에서 연락 희망 시간이 비어있으면 그 필드로 포커스가 이동한다", async () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const phoneRadio = container.querySelector<HTMLInputElement>('input[value="phone"]');
@@ -603,7 +603,7 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
 
   it("형식이 잘못된 연락처(문자 포함)로 제출하면 fetch가 호출되지 않고 연락처 필드가 오류로 표시된다", async () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
@@ -627,7 +627,7 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
     });
 
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
@@ -642,5 +642,169 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[data-testid="consult-error-summary"]')).toBeNull();
+  });
+});
+
+// SPEC-B2C-CONSULT-001 run-phase 보완(design.md §4 "ENABLE_CONSULT_FLOW=true +
+// CONSULT_POLICY_READY=false일 때의 클라이언트 동작", acceptance
+// AC-B2CCONSULT-005 추가 시나리오) — 정책 미준비 상태에서는 제출 CTA 대신
+// 안내 영역이 렌더링되고 어떤 시도로도 POST /api/consultations가 발생하지
+// 않는다. 이 클라이언트 대체는 UX 계층일 뿐이며 서버의 503/policy_unavailable
+// 거부(route.test.ts)는 독립적으로 유효하다.
+describe("components/consult/ConsultView — 정책 미준비 상태의 제출 CTA 대체(AC-B2CCONSULT-005 추가 시나리오)", () => {
+  // 법무·운영이 확정한 문구가 아닌 잠정 문구 — lib/consult/consent-policy.ts의
+  // CONSULT_POLICY_NOT_READY_NOTICE와 동일한 값을 의도적으로 리터럴로 고정한다
+  // (상수를 import하면 상수가 바뀔 때 테스트가 함께 바뀌어 회귀를 못 잡는다).
+  const NOT_READY_NOTICE = "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요.";
+
+  let container: HTMLDivElement;
+  let root: Root;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
+    writeDiagnosisHandoff(result);
+
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  function fillValidFieldsAndCheckRequiredConsents() {
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
+    act(() => {
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "010-0000-0000");
+    });
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    act(() => {
+      checkboxes[0].click();
+      checkboxes[1].click();
+    });
+  }
+
+  function findNotice() {
+    return container.querySelector<HTMLElement>('[data-testid="consult-submit-policy-notice"]');
+  }
+
+  it("isPolicyReady=false면 제출 버튼이 렌더링되지 않고 role=status aria-live=polite 안내 영역이 표시된다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+    fillValidFieldsAndCheckRequiredConsents();
+
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).toBeNull();
+    const notice = findNotice();
+    expect(notice).not.toBeNull();
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
+    expect(notice?.textContent).toBe(NOT_READY_NOTICE);
+  });
+
+  it("prop을 생략해도(fail-closed 기본값) 제출 버튼 대신 안내 영역이 표시된다", () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).toBeNull();
+    expect(findNotice()?.textContent).toBe(NOT_READY_NOTICE);
+  });
+
+  it("isPolicyReady=false에서 필수 동의·유효 입력 후 안내 영역 클릭과 입력 필드 Enter는 POST를 발생시키지 않는다", async () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+    fillValidFieldsAndCheckRequiredConsents();
+
+    const notice = findNotice();
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
+    await act(async () => {
+      notice!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      container
+        .querySelector('[data-testid="consult-submit-bar"]')!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (const input of [nameInput!, contactInput!]) {
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", bubbles: true }));
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+    // 제출 시도 후에도 03-B/C/D 결과 화면으로 전환되지 않고 폼이 그대로 남는다.
+    expect(container.querySelector('[data-testid="consult-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-success"]')).toBeNull();
+    expect(container.querySelector('[data-testid="consult-failure"]')).toBeNull();
+  });
+
+  it("isPolicyReady=false여도 채널 선택기·입력 필드·동의 그룹은 그대로 표시되고 조작할 수 있다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-channel-selector"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-form"]')).not.toBeNull();
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    expect(checkboxes.length).toBe(3);
+
+    // 채널 전환이 실제로 동작한다.
+    const phoneRadio = container.querySelector<HTMLInputElement>('input[value="phone"]');
+    act(() => {
+      phoneRadio!.click();
+    });
+    expect(container.querySelector<HTMLInputElement>('input[value="phone"]')!.checked).toBe(true);
+
+    // 입력 필드가 실제로 값을 받는다.
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    act(() => {
+      setNativeInputValue(nameInput!, "김보상");
+    });
+    expect(
+      container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]')!.value
+    ).toBe("김보상");
+
+    // 동의 체크박스가 실제로 토글된다.
+    act(() => {
+      checkboxes[0].click();
+    });
+    expect(document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[0].checked).toBe(
+      true
+    );
+  });
+
+  it("회귀 짝: isPolicyReady=true면 안내 영역은 없고 제출 버튼이 렌더링된다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady />);
+    });
+
+    expect(findNotice()).toBeNull();
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).not.toBeNull();
+    expect(container.textContent).not.toContain(NOT_READY_NOTICE);
   });
 });
