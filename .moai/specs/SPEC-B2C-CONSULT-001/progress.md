@@ -2852,6 +2852,25 @@ pm2: bosang-radar  online  pid 165278  uptime 45h  user ubuntu
 
 사이트 파일은 `server_name bosang-radar.duckdns.org`, `location /`이 `proxy_pass http://127.0.0.1:3000;`, 443은 Certbot 관리, 80은 301/404다. `ss` 출력에 IPv6(`[::]`) 리스너는 없었다.
 
+(A2) 사용자가 같은 SSH 세션에서 이어서 실행한 두 번째 묶음이다(마찬가지로 저는 재현하지 못했다).
+
+```
+sudo nginx -T 2>/dev/null | grep -inE 'real_ip|set_real_ip_from|proxy_protocol'
+systemctl status nginx --no-pager | head -5
+stat -c %y /etc/nginx/sites-available/bosang-radar
+```
+
+관측 출력:
+
+```
+(첫 명령: 출력 없음 — 일치하는 줄이 없다)
+     Active: active (running) since Fri 2026-09-18 06:38:43 UTC; 1 week 4 days ago
+   Main PID: 49500 (nginx)
+2026-09-17 06:11:59.875792277 +0000        (사이트 파일 수정 시각)
+```
+
+첫 명령은 `2>/dev/null`로 오류를 숨기므로 "일치 없음"과 "명령 실패"가 같은 모양이다. 다만 같은 `sudo nginx -T`가 앞선 묶음에서 정상 출력을 냈다.
+
 (B) 제가 이 세션에서 로컬 PC로 실행한 외부 관측이다.
 
 ```
@@ -2863,6 +2882,15 @@ Resolve-DnsName bosang-radar.duckdns.org -Type A
   → 152.67.203.228 (TTL 60)
 ```
 
+(C) 제가 이 세션에서 보낸 표식 요청이다. 위조 `X-Forwarded-For`(문서용 주소 `203.0.113.7`)를 실었다. 서버 로그 대조는 사용자 실행을 기다리는 중이다.
+
+```
+curl -sS -m 10 -o /dev/null -w 'http_code=%{http_code}\n' -A "moai-xffcheck1790672279" -H 'X-Forwarded-For: 203.0.113.7' "https://bosang-radar.duckdns.org/?verify=xffcheck1790672279"
+  → http_code=200 / exit=0
+```
+
+기본 로그 형식이면 Nginx 액세스 로그의 이 표식 줄 첫 필드(`$remote_addr`)가 요청을 보낸 PC의 공인 IP와 같아야 한다. 같으면 Nginx 앞에 다른 hop이 없다는 실측이 된다. PC의 공인 IP는 개인 정보라 이 문서에 적지 않는다.
+
 **체크리스트(Claim 11) 대응**
 
 | # | 확인 항목 | 결과 | 근거와 한계 |
@@ -2870,14 +2898,14 @@ Resolve-DnsName bosang-radar.duckdns.org -Type A
 | 1 | Next.js가 `127.0.0.1`에만 바인딩돼 외부에서 직접 닿지 않는가 | 확인 | `ss`가 `127.0.0.1:3000`만 보였고, 외부 `:3000` 접속은 시간 초과였다. 시간 초과만으로는 방화벽 차단과 미바인딩을 구분하지 못하므로 바인딩 근거는 `ss` 출력이다 |
 | 2 | `X-Forwarded-For` 지시문이 정확히 한 줄인가 | 확인 | `nginx -T` 결과에 198행 한 줄뿐이고 활성 사이트도 하나다. 단 grep 패턴이 `x-forwarded-for` 와 `proxy_set_header` 뿐이라 `real_ip` 계열 등 다른 방식의 조작은 검사 범위 밖이다(4번) |
 | 3 | append인가 overwrite인가 | 확인 (append) | `$proxy_add_x_forwarded_for`다. 위조 `1.2.3.4`를 보내면 Nginx를 거친 뒤 `"1.2.3.4, <실제 IP>"`가 되고 `getTrustedIp()`는 마지막 값을 고른다 (Claim 11 표의 첫 행) |
-| 4 | Nginx 앞에 CDN·로드밸런서 등 추가 hop이 있는가 | 일부 확인 | DNS A 레코드가 VM 공인 IP로 직접 향하고 CDN 레코드는 없다. 같은 IP로 SSH가 VM의 sshd에 직접 닿았으므로 이 IP는 VM 자체 주소로 보이고 로드밸런서 프런트엔드일 가능성은 낮다(추론). 미확인: OCI 콘솔의 로드밸런서·NLB 유무, `real_ip_header`·`set_real_ip_from`·`proxy_protocol` 지시문 부재 |
+| 4 | Nginx 앞에 CDN·로드밸런서 등 추가 hop이 있는가 | 일부 확인 | DNS A 레코드가 VM 공인 IP로 직접 향하고 CDN 레코드는 없다. 같은 IP로 SSH가 VM의 sshd에 직접 닿았으므로 이 IP는 VM 자체 주소로 보이고 로드밸런서 프런트엔드일 가능성은 낮다(추론). 확인: `real_ip`·`set_real_ip_from`·`proxy_protocol` 지시문은 설정 전체에서 검색되지 않았다((A2)). 미확인: 표식 요청의 로그상 `$remote_addr` 대조((C)), OCI 콘솔의 로드밸런서·NLB 유무 |
 
-**Baseline-attribution**: (A)는 사용자가 이 세션 중 실행한 시점의 출력이며 pm2 업타임 45h인 프로세스 기준이다. `nginx -T`는 디스크의 설정 파일을 읽으므로 실행 중인 Nginx가 로드한 설정과 같다는 보장은 없다. (B)는 이 세션 실행 시점, 이 PC 기준이다.
+**Baseline-attribution**: (A)는 사용자가 이 세션 중 실행한 시점의 출력이며 pm2 업타임 45h인 프로세스 기준이다. `nginx -T`는 디스크의 설정 파일을 읽으므로 실행 중인 Nginx가 로드한 설정과 같다는 보장은 없다. 다만 (A2)에서 사이트 파일 수정 시각(2026-09-17 06:11 UTC)이 Nginx 시작 시각(2026-09-18 06:38 UTC)보다 앞서므로, 이 파일에 한해서는 실행 중인 Nginx가 읽은 내용과 디스크 내용이 같다고 본다. `nginx.conf`와 include된 다른 파일의 수정 시각은 확인하지 않았다. (B)는 이 세션 실행 시점, 이 PC 기준이다.
 
 **Gaps(미검증)**:
 1. (A) 전부는 사용자가 붙여 넣은 텍스트이고 제가 직접 관측하지 않았다.
-2. Nginx 설정 파일이 마지막 reload 이후 바뀌지 않았는지 미확인: `systemctl status nginx --no-pager | head -5`의 Active 시각과 `stat -c %y /etc/nginx/sites-available/bosang-radar`를 비교한다.
-3. 4번 잔여: `sudo nginx -T 2>/dev/null | grep -inE 'real_ip|set_real_ip_from|proxy_protocol'` 결과가 비어 있는지, OCI 콘솔에서 이 VM 앞에 로드밸런서·NLB가 없는지 확인한다.
+2. 사이트 파일이 Nginx 시작보다 먼저 수정됐음은 확인했다(Baseline). `nginx.conf`와 include된 다른 파일의 수정 시각은 미확인이다: `sudo nginx -T 2>/dev/null | grep -E '^# configuration file'`로 파일 목록을 뽑아 각각 `stat`한다.
+3. 4번 잔여: 표식 요청((C))이 Nginx 로그에 PC의 공인 IP로 찍히는지 사용자가 확인해야 한다: `sudo grep -rh 'xffcheck1790672279' /var/log/nginx/ | tail -3`. OCI 콘솔에서 이 VM 앞에 로드밸런서·NLB가 없는지도 남는다(로그 대조가 통과하면 사실상 중복 확인이다).
 4. 위조 헤더 종단 시험은 하지 못했다. `/api/consultations`가 이 브랜치에만 있고 운영에 배포되지 않아(main 병합 금지) 설정 수준의 추론이다.
 5. DNS AAAA 레코드는 조회하지 않았다.
 
@@ -2898,7 +2926,7 @@ Resolve-DnsName bosang-radar.duckdns.org -Type A
 - **업데이트 8(D-NEW-8, 이번 세션)**: 열린 항목 19·20의 두 화면 결함(hydration #418, 모바일 채널 안내 겹침)을 수정했고(`2230e2b`, `ef205d3`), 최종 코드에서 vitest 125/125, eslint·tsc exit 0, `pnpm test:e2e` 36 passed, `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` 11 passed, `pnpm visual:verify` 24화면 PASS를 직접 실행해 확인했다(§E.2 D-NEW-8 Claim 33-36, 모두 exit 0). 그래서 두 결함은 run-phase 보류 사유에서 뺐다. `run_status`는 `amended-pending-revalidation`을 유지한다 — 보류 기준은 (a) Nginx `X-Forwarded-For` 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 이번에도 확인하지 않았다. 이와 별개로 M03 `form.top` skipMetrics 편차와 모바일 안내 문구 유지는 사용자 승인 없이 정한 결정이라 열린 판단으로 남긴다(Claim 34).
 
 - **업데이트 9(D-NEW-14, 이번 세션)**: 보류 기준 (b) 요약 카드 height의 측정 불확실성이 해소됐다 — 디자인 카드는 175px이고 구현이 36px 컸으며(§E.2 D-NEW-14 Claim 48), 모바일에서 211→179px로 줄였다(Claim 49). 다만 `.pen` 원본 대조, 데스크톱, M03-C는 미완이고 사용자의 시각 정합 승인도 없으므로 (b)를 해소로 선언하지 않는다. (a) Nginx `X-Forwarded-For` 설정 운영 확인과 열린 항목 12(원격 Turso 병렬 검증)는 이번에도 확인하지 않았다. `run_status`는 `amended-pending-revalidation`을 유지한다.
-- **업데이트 10(D-NEW-15, 이번 세션)**: 보류 기준 (a) Nginx `X-Forwarded-For` 운영 확인이 **일부 진행**됐다. 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식 — §E.2 D-NEW-15 Claim 50). 4번(추가 hop)은 `real_ip` 계열 지시문 부재와 OCI 콘솔 확인이 남아 있어 (a)를 해소로 선언하지 않는다. 열린 항목 12(원격 Turso 병렬 검증)는 여전히 미수행이다. 이 세션에서 업데이트 9의 번호를 D-NEW-9/Claim 37·38에서 D-NEW-14/Claim 48·49로 바로잡았다(기존 D-NEW-9·Claim 37·38과 겹쳤다). `run_status`는 `amended-pending-revalidation`을 유지한다.
+- **업데이트 10(D-NEW-15, 이번 세션)**: 보류 기준 (a) Nginx `X-Forwarded-For` 운영 확인이 **일부 진행**됐다. 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식 — §E.2 D-NEW-15 Claim 50). 이후 `real_ip` 계열 지시문이 설정 전체에 없음과 사이트 파일이 Nginx 시작보다 먼저 수정됐음도 확인했다. 4번(추가 hop)은 표식 요청의 로그 대조와 OCI 콘솔 확인이 남아 있어 (a)를 해소로 선언하지 않는다. 열린 항목 12(원격 Turso 병렬 검증)는 여전히 미수행이다. 이 세션에서 업데이트 9의 번호를 D-NEW-9/Claim 37·38에서 D-NEW-14/Claim 48·49로 바로잡았다(기존 D-NEW-9·Claim 37·38과 겹쳤다). `run_status`는 `amended-pending-revalidation`을 유지한다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2931,7 +2959,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 5. **손해사정사 "등록정보 확인" 링크의 실제 목적지** — 금융감독원 등록 손해사정사 조회 페이지로 연결할 실제 URL이 아직 없다. 이 SPEC은 "준비 중" 스텁으로 구현했다. (변경 없음)
 6. **(신규, D-RUN 1회차 재작업 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다. **[D-NEW-5 정합]** 이 항목은 새 결정이 필요한 열린 항목이 아니다 — SPEC-B2C-RESULT-001 `progress.md`(L136-146, 2026-09-22)에서 사용자가 이 카드형 유지를 명시적으로 승인(PASS-WITH-DEBT)했고, 이 SPEC의 `design.md` §13도 승인된 debt ②로 나열한다. 승인된 debt의 재확인이며 RESULT-001의 승인 기록이 권위다(뒤집으려면 RESULT-001에서 다시 열어야 한다).
 7. **[정정, D-NEW-14 — 측정 확정, 모바일 수정 완료, 원본 대조·데스크톱·M03-C 미완]** 디자인 export 직접 픽셀 스캔 결과 M03-B/M03-D 요약 카드의 디자인 height는 **175px**(2배 해상도 350px)로 확정됐고(§E.2 D-NEW-14 Claim 48), 구현은 211px으로 **구현이 36px 더 컸다** — 아래 정정 전 기록의 "디자인 303px, 행 패딩이 더 넓다"는 틀렸다(303px은 카드 아래 버튼 두 개까지 병합해 잰 값). 모바일 카드에서 `p-4` 세로 여백을 없애 211→179px로 줄였다(Claim 49). 디자인 `.pen` 원본과의 대조(Pencil 연결 실패), 데스크톱 카드, M03-C 중복 화면 카드는 아직 하지 않았다. 사용자가 이 결과를 시각 정합으로 승인하기 전까지 "시각 정합성 완료"로 표시하지 않는다. (정정 전 기록 — 아래는 SUPERSEDED) **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
-8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.** **[부분 확인, D-NEW-15 Claim 50]** 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, `X-Forwarded-For` 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식). 4번(추가 hop)은 `real_ip` 계열 지시문 부재와 OCI 콘솔의 로드밸런서 유무가 남아 있어 완료로 표시하지 않는다.
+8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.** **[부분 확인, D-NEW-15 Claim 50]** 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, `X-Forwarded-For` 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식). `real_ip` 계열 지시문이 설정 전체에 없음도 확인했다. 4번(추가 hop)은 표식 요청의 로그 대조와 OCI 콘솔의 로드밸런서 유무가 남아 있어 완료로 표시하지 않는다.
 12. **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
 14. **[해소됨 — iteration 9 PASS, §E.2 D-NEW-6]** **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
