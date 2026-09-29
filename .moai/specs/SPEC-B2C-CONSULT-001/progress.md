@@ -5,6 +5,7 @@
 ### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
 
 - `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
+- 최신 재감사: iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 판단 대기(열린 항목 14).
 - 이 블록의 아래 항목들은 정정 **이전**의 마지막 canonical PASS 기록(review-5)이다. review-6(PASS 1.0, 감사 대상 `a106ac9`)도 Git 트리에 있으나 이 블록에는 반영돼 있지 않았다 — D-NEW-5에서 보완한다.
 - 감사 대상: `b0b875ee9b869227528b0a03607d4b1f8d4131e5`
 - 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`
@@ -511,7 +512,7 @@ AC가 SSOT라는 원칙(더 정밀하고 테스트 가능한 문서를 우선)�
 |---|---|---|---|
 | AC-B2CCONSULT-018(최초 제출 성공 응답 형태) | PASS(코드 리뷰, jsdom 미실행 — 서버측은 M2 route.test.ts로 이미 실행 검증됨) | `consult-success.test.tsx` "내부 DB 식별자(consultationId)를..." + `consult-view.test.tsx` "success 응답 → 03-B..." | `ConsultSuccess`는 서버 응답의 `channel`/`maskedContact`/`preferredCallTime`만 렌더링, `consultationId`/`expectedContactWindow` 필드 자체가 타입에 없어 렌더링 불가능(구조적 보장) |
 | AC-B2CCONSULT-020(중복 → 409, 새 레코드 미생성) | PASS(서버측 M2 route.test.ts 기존 커버, 변경 없음) + 클라이언트 라우팅 PASS(코드 리뷰) | `consult-view.test.tsx` "duplicate 응답 → 03-C..." | `status:"duplicate"` 응답이 `ConsultDuplicate`로 라우팅되고 draft가 삭제되지 않음을 확인 |
-| AC-B2CCONSULT-022(확정 문구 없음 + 재시도 동일 idempotencyKey + 입력 보존) | PASS(코드 리뷰) | `consult-failure.test.tsx` "AC-022...", `consult-view.test.tsx` "다시 시도하기는 최초 제출과 동일한 idempotencyKey로..." + "네트워크 예외(fetch reject)..." | "저장되었습니다" 문구 부재 assert, 재시도 요청 body의 `idempotencyKey`가 최초 제출과 동일함을 두 번째 fetch 호출 인자에서 직접 비교, fetch reject도 동일하게 03-D로 라우팅 |
+| AC-B2CCONSULT-022(확정 문구 없음 + 재시도 동일 idempotencyKey + 입력 보존) | PASS(코드 리뷰) **[D-NEW-5 정정: 이 행의 당시 증거는 `idempotencyKey` 동일성 비교까지였고, 입력값(채널·이름·연락처·연락 희망 시간·마케팅 동의)의 재전송은 검증하지 않았다. 현재 증거와 범위는 §E.2 D-NEW-5 참고]** | `consult-failure.test.tsx` "AC-022...", `consult-view.test.tsx` "다시 시도하기는 최초 제출과 동일한 idempotencyKey로..." + "네트워크 예외(fetch reject)..." | "저장되었습니다" 문구 부재 assert, 재시도 요청 body의 `idempotencyKey`가 최초 제출과 동일함을 두 번째 fetch 호출 인자에서 직접 비교, fetch reject도 동일하게 03-D로 라우팅 |
 | AC-B2CCONSULT-023(중복 PII 최소화 + 접수일 날짜 단위) | PASS(코드 리뷰) | `consult-duplicate.test.tsx` "내부 consultationId나 전체 페이로드를..." + "접수일은 시:분:초 없이..." | `innerHTML`에 `consultationId` 패턴 부재, `receivedAt` 표시 영역에 `\d{2}:\d{2}:\d{2}` 패턴 부재를 직접 assert. `maskedContact`/`receivedAt` 유도 방식(요청 자신의 값 vs 매칭 레코드 재조회)은 서버측(`route.ts` `toDuplicateResult`)이 M2에서 이미 구현·검증됨 — 이 milestone은 클라이언트가 서버 값을 재계산 없이 그대로 렌더링만 함을 확인 |
 | AC-B2CCONSULT-025(draft만 정리, 핸드오프 유지 + 성공 후 복귀 + 중복/실패 복귀) | PASS(코드 리뷰) | `consult-view.test.tsx` "success 응답 → 03-B가 렌더링되고 draft는 삭제되며..." | `sessionStorage`에서 draft 키(`bosang-radar:consultation-draft-v1`)는 성공 시에만 제거되고 진단 핸드오프 키(`DIAGNOSIS_STORAGE_KEY`)는 그대로 유지됨을 직접 assert. 3개 상태 컴포넌트 모두 `href="/result"` 링크만 제공(핸드오프 자체를 건드리는 코드 경로 없음 — 구조적 보장) |
 
@@ -2359,7 +2360,119 @@ plan-audit 해시 대상이라(`spec-workflow.md` § Report Persistence) 수정�
 **상태**: `run_status`는 변경하지 않는다(`amended-pending-revalidation` 유지).
 audit-ready 전제조건은 4·5번 두 가지 그대로이며(§E.3), 1~3번은 완료로 표시하지
 않고 열린 항목 12번(1·2번) 또는 위 표(3번)에서 추적한다. 이번 절은 audit-ready
-전환의 근거가 되지 않는다.
+전환의 근거가 되지 않는다. **[D-NEW-5 보완]** 이후 plan-audit iteration 7이
+FAIL이라, 이 표의 4·5번과 별개로 plan-audit 해소가 audit-ready의 추가 전제조건이
+됐다(§E.3 업데이트 5, 열린 항목 14).
+
+### D-NEW-5 — SPEC 계약 불일치 정리: AC-B2CCONSULT-022 "입력 보존"의 의미 확정 (이번 세션)
+
+**Claim 17 — AC-022의 "화면에 표시되던 … 값이 그대로 유지된다"는 03-D가 값을 다시
+보여 주라는 요구가 아니다. 입력값을 보존해 동일한 값으로 재시도한다는 뜻이다.
+(확정)**
+
+**Evidence (문서 대조)**:
+- `spec.md` REQ-B2CCONSULT-022: 보존 대상에 마케팅 동의가 들어 있고 "화면과 draft
+  양쪽에 보존"이라고 쓴다. 마케팅 동의는 03-D 어디에도 표시되지 않는다
+  (design §10, 목업).
+- `design.md` §10: 03-D 요약은 상담 방식/연락처/연락 희망 시간/"입력 내용: 유지됨"
+  4행이다. 입력 보존 범위는 draft 필드 전부(channel/name/contactRaw/
+  preferredCallTime/marketing)이고 필수 동의 두 항목만 재확인한다.
+- 디자인 목업 `design/exports/03-D-상담-신청-실패.png`, `M03-D-신청-실패.png`를 이번
+  세션에 직접 열어 확인했다: 이름 행 없이 4행이고, 안내 문구는 "현재 화면에서 입력
+  내용이 유지됩니다"이다.
+- 기존 결정 기록: 위 Claim 6(이름 행은 design과 어긋난 구현 편차로 보고 제거).
+- spec/acceptance/design/plan/research 어디에도 03-D의 이름 표시를 명시적으로
+  요구하는 문구는 없다(검색).
+
+결론: design §10의 4행 결정과 AC-022는 충돌하지 않는다. 이름을 숨긴 채 PASS를
+선언한 것이 아니다. 다만 이전의 AC 매트릭스 "PASS(코드 리뷰)" 표기는 증거가
+`idempotencyKey` 비교까지였으므로 위 매트릭스 행에 정정을 표시했다.
+
+**Claim 18 — 입력값이 실제 재시도 payload에서 유지됨을 테스트로 검증했다.**
+
+**Evidence**: `components/consult/consult-view.test.tsx`에 2개 추가. (1) 전화 채널로
+채널·이름·연락처·연락 희망 시간·마케팅 동의를 입력(각 필드 blur로 draft 저장)해
+실패시킨 뒤 재시도 요청 body가 최초 요청 body와 `toEqual`로 같음을 확인한다(첫
+요청에 값이 실제로 실렸는지 먼저 확인해 공허한 일치를 막고, 03-D 요약에 이름이
+없음도 고정). (2) 03-D에서 나갔다 `/consult`로 재진입(재마운트)하면 draft에서 채널·
+이름·연락처·희망 시간·마케팅 동의가 폼에 복원되고 필수 동의 두 항목은 미체크이며,
+필수 동의만 다시 체크해 제출하면 최초와 같은 payload가 전송됨을 확인한다.
+```
+$ vitest run components/consult scripts/db-migrate.test.ts scripts/db-seed.test.ts app/api/consultations
+ Test Files  14 passed (14) / Tests  104 passed (104)   ← 기존 102 + 신규 2
+$ eslint components/consult/consult-view.test.tsx scripts/visual-verify.ts  → exit 0
+$ tsc --noEmit -p tsconfig.json                                           → exit 0 (next typegen 후)
+```
+변이 검사(제품 코드를 일부러 망가뜨림, 원복 확인): 요청의 `marketing`을 항상
+false로 → (1)만 실패, draft 복원에서 마케팅 동의를 제외 → (2)만 실패. 재시도 때만
+값이 달라지는 변이는 첫 요청과 재시도가 같은 `handleSubmit`을 쓰므로 만들 수 없었다.
+
+범위 한계: jsdom 단위 테스트이며 fetch를 모킹한다. 실제 서버·브라우저(Playwright
+e2e)와 `visual-verify`는 재실행하지 않았다. `visual-verify`의 03-D/M03-D
+semanticCheck는 draft의 **이름 한 필드만** 본다 — 채널·연락처·희망 시간·마케팅
+동의의 보존이나 재전송을 증명하지 않는다. 이 사실에 맞게 라벨·주석만 정정했고(로직
+무변경), `.moai/reports/visual-check/…/measurements.json`에는 재실행하지 않았으므로
+옛 라벨이 남아 있다.
+
+**Claim 19 — `acceptance.md` AC-022 문구를 정정하고 plan-audit 재감사를 수행했다.
+결과는 FAIL(STOP)이며 `plan_status`는 `amended-pending-reaudit`에 머문다.**
+
+**Evidence**: 정정 커밋 `5a1dfbf`(acceptance.md 한 줄, `manager-spec` 수행, 변경 범위를
+`git diff --numstat`로 직접 확인: 1 insertion/1 deletion. spec/design/plan/research는
+변경하지 않음). 재감사 iteration 7: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`
+(보고서를 직접 열어 확인), 감사 대상 `653a3cf`, Verdict **FAIL**, 종합 점수 **0.80**
+(임계값 0.85, review-6은 1.0), STOP. Claude-only 감사(`audit_multi`/`codex_audit`/
+`glm_audit` 미가용). 감사자는 이 문서의 일부 구간(약 L630-1183, L1400-1828, L1882-2160,
+L2229-2360)을 grep·diff로만 검토했다고 보고서에 밝혔다. 감사자가 보고한 review-6 이후
+delta: `spec.md` status draft→in-progress(M1 커밋), `plan.md`·`design.md` §5의 기존 파일
+확장 예산 7→9, AC-022 정정, 이 문서의 증가.
+
+blocking 3건 — 이번 AC-022 정정에서 생긴 것이 아니라, run-phase 진행 중 쌓인
+"plan 제약 ↔ 실제 구현" 불일치가 재감사에서 드러난 것이다(감사자 판정):
+- **D1**: REQ-025·plan §D/§G·design §12의 "기존 15개 `SCREENS` 항목 수정 금지"가
+  실제로는 지켜지지 않았다. 직접 확인한 것: `scripts/visual-verify.ts`의 `skipMetrics`
+  출현이 `a106ac9` 5건 → HEAD 35건(감사자는 02계열 5개 항목 0→18로 보고 — 항목별
+  수치는 재현하지 않았다). AC-025는 24화면 PASS만 보므로 게이트가 느슨해져도 통과한다.
+- **D2**: design이 신뢰 IP를 `x-forwarded-for`의 어느 요소로 삼는지 규정하지 않고(구현은
+  현재 "마지막 값" — design.md에 그 서술이 없음을 검색으로 확인), "헤더 부재 시
+  fail closed" 분기가 Next.js 16.3.2에서는 도달 불가능하다는 e2e 파일 주석의 발견이
+  plan 산출물·이 문서에 기록돼 있지 않으며, REQ-018의 "신뢰 IP 획득 불가" 절에 대응하는
+  AC가 없다.
+- **D3**: "기존 파일 확장 정확히 9개" 제약에 없는 `playwright.config.ts`(+17/-1),
+  `scripts/db-migrate.test.ts`(+7/-3), `.gitignore`(+10)가 `a106ac9` 이후 변경됐다(직접
+  확인, 변경 통계).
+
+non-blocking(optional) D4~D9. 그중 **D6**은 이번 정정과 직접 관련된다: REQ-022의 "화면과
+draft 양쪽에 보존"의 "화면"이 정정된 AC-022에서 문자 그대로는 검증되지 않는다(요구사항이
+미커버는 아님) — 제안: REQ-022의 "화면"을 "폼 상태"로 바꾸거나 대응 AC 조항 추가. 이번에
+`spec.md`는 수정하지 않았다.
+
+**Claim 20 — 별건 관찰(미조치): 03-D 요약의 연락처·연락 희망 시간 표시가 목업과
+다르다.**
+
+**Evidence**: 목업(03-D/M03-D)의 연락처는 마스킹(`010-****-1234`)이고 카카오톡 상담
+채널인데도 연락 희망 시간 행이 있다. 구현(`components/consult/consult-failure.tsx`)은
+연락처를 입력 원문 그대로 표시하고, 연락 희망 시간 행은 `channel === "phone"`이며
+값이 있을 때만 표시한다. design §10의 03-D 문장은 마스킹 여부와 행 조건을 명시하지
+않는다(03-B만 "연락처(마스킹)"·"phone일 때만"을 명시). 확인한 것: 코드와 목업 이미지.
+확인하지 않은 것: 의도된 편차인지, `visual-verify`가 이 텍스트 차이를 잡는지. 제품/디자인
+판단이 필요해 고치지 않고 열린 항목 13으로 기록했다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `e284483`. 정정 `5a1dfbf`, 테스트
+`653a3cf`, 감사 대상 `653a3cf`.
+
+**Gaps(미검증)**: (1) plan-audit PASS 없음 — `plan_status` 복귀 불가. (2) 감사 캐시
+해시 저장(`audit_cache`)은 수행하지 못했다 — `moai` MCP 서버 연결 실패와 CLI 부재로
+도구를 쓸 수 없었고, FAIL이라 저장할 PASS도 없다. (3) Playwright e2e·`visual-verify`
+재실행 없음. (4) REQ-022 "화면" 문구(D6) 미정정. (5) D1~D3 미해소.
+
+**Residual-risk(잔여 위험)**: D1~D3은 plan 산출물과 실제 구현의 불일치라, 해소 방식(계약을
+구현에 맞게 amendment / 구현을 계약에 맞게 되돌림 / PASS-with-debt)에 따라 SPEC 본문
+변경 범위가 커질 수 있다. 재감사 기준선(review-6)은 run-phase 이전 트리였다.
+
+**상태**: `plan_status: amended-pending-reaudit` 유지. `run_status:
+amended-pending-revalidation` 유지 — run-phase audit-ready 보류 기준은 Nginx 설정·카드
+height 그대로이며, 별도로 plan-audit FAIL 해소가 필요하다(열린 항목 14).
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -2369,7 +2482,8 @@ audit-ready 전제조건은 4·5번 두 가지 그대로이며(§E.3), 1~3번은
 - **업데이트 2(당시 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — **이 (5)의 rate-limit 결론은 다음 세션에서 정정됐다(아래 업데이트 3 참고). X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했으며 이 결론은 유지된다.**
 - **업데이트 3(이번 세션) — rate-limit 원자성 결론 정정 + 실제 수정 + X-Forwarded-For 운영 체크리스트 구체화**: 사용자가 Claim 9(A)의 "rate-limit은 이미 안전하다(수정 불필요)" 결론이 실제 코드와 다르다고 지적했다 — 카운터 증가와 만료 레코드 cleanup이 실제로는 트랜잭션으로 묶여 있지 않았고, cleanup 실패 시 카운트가 이중 소비되는 실제 버그였다(재현 완료, D-NEW-3 Claim 10 참고). `db.transaction()`으로 실제 수정하고 신규 회귀 테스트로 검증했다 — `route.test.ts` 31개 전부 GREEN, 상담 컴포넌트+DB 테스트 102개, 프로젝트 전체 701개 테스트 전부 통과, `tsc`/`eslint` 모두 clean(D-NEW-3 Claim 10 참고). X-Forwarded-For는 "마지막 값 신뢰" 결론을 유지하되, 운영자가 실제 배포에서 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 추가했다(D-NEW-3 Claim 11 참고) — 실제 Nginx 설정 확인은 여전히 이 저장소 밖의 운영 결정으로 남는다. 시각 검증 상태 표현은 재확인 결과 이미 정확했다(D-NEW-3 Claim 12). **rate-limit 원자성은 이번 세션에서 실제로 해소됐다(로컬 파일 SQLite에서 트랜잭션 롤백을 확인한 범위 — 원격 Turso 실행·병렬 경합은 미검증, D-NEW-4 참고). 남아있는 audit-ready 전제조건은: (a) X-Forwarded-For 실제 Nginx 설정 운영 확인(체크리스트 4항목 미확인), (b) M03-B/M03-D 요약 카드 height 측정 불확실성(Claim 6, 미해결) 두 가지다 — 이 둘이 해소되기 전까지 `run_status`는 `audit-ready`로 전환하지 않는다.**
 
-- **업데이트 4(D-NEW-4 정합, 이번 세션)**: SPEC 기준(acceptance Quality Gate "레이스 안전성", design §9.3·§4.2)을 대조한 결과 audit-ready 전제조건은 위 업데이트 3의 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 두 가지 그대로다. 원격 Turso 실행과 직렬화 없는 병렬 요청 검증은 audit-ready 게이트가 아니라 "배포 전 별도 검증이 필요한 잔여 위험"이며(열린 항목 12번, D-NEW-4 "게이트 판정"), 수행하지 않았으므로 완료로 표시하지 않는다. 다만 AC-B2CCONSULT-021의 "병렬 처리" 문구를 문자 그대로 요구하는 감사 판단이 나오면 이 분류는 뒤집힐 수 있다. `run_status`는 `amended-pending-revalidation`을 유지한다.
+- **업데이트 4(D-NEW-4 정합, 이번 세션)**: SPEC 기준(acceptance Quality Gate "레이스 안전성", design §9.3·§4.2)을 대조한 결과 audit-ready 전제조건은 위 업데이트 3의 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 두 가지 그대로다. 원격 Turso 실행과 직렬화 없는 병렬 요청 검증은 audit-ready 게이트가 아니라 "배포 전 별도 검증이 필요한 잔여 위험"이며(열린 항목 12번, D-NEW-4 "게이트 판정"), 수행하지 않았으므로 완료로 표시하지 않는다. 다만 AC-B2CCONSULT-021의 "병렬 처리" 문구를 문자 그대로 요구하는 감사 판단이 나오면 이 분류는 뒤집힐 수 있다. `run_status`는 `amended-pending-revalidation`을 유지한다. **[D-NEW-5 보완: 이후 plan-audit iteration 7 FAIL로 추가 보류 조건이 생겼다 — 아래 업데이트 5]**
+- **업데이트 5(D-NEW-5, 이번 세션)**: AC-B2CCONSULT-022의 "입력 보존"은 "입력값을 draft에 보존하고 재시도·재진입 때 동일 값으로 전송"으로 확정했고 design §10의 이름 없는 4행과 충돌하지 않는다(§E.2 D-NEW-5 Claim 17). `run_status`는 유지한다 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 이와 별개로 `plan_status`는 acceptance.md 정정 후 plan-audit 재감사 iteration 7이 **FAIL(0.80, STOP)** 이라 `amended-pending-reaudit`에 머문다(blocking D1~D3, 열린 항목 14). plan-phase 신호와 run-phase 신호는 별개이므로, plan-audit FAIL이 해소되기 전에는 (a)(b)가 해소돼도 두 신호 모두 audit-ready로 올리지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2404,6 +2518,8 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 7. **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
 8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.**
 12. **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
+13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
+14. **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 사용자 판단 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. 결정 전까지 `plan_status`는 `amended-pending-reaudit`다.
 
 ### 이번 세션에서 해소됨
 
