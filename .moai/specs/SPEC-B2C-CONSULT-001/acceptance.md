@@ -46,6 +46,13 @@ Given `ENABLE_CONSULT_FLOW=false`(02의 `shouldRenderDiagnosis`는 `true`인 상
 When 02 화면의 상담 CTA를 클릭하면
 Then 페이지 이동 없이 현재의 `aria-disabled` "준비 중" stub 동작이 그대로 유지된다.
 
+추가 시나리오 — 정책 미준비 상태의 제출 CTA 대체(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`, 독립 검토 iteration 8 D1'):
+Given `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`여서 `app/consult/page.tsx`가 `isPolicyReady=false`를 03 폼 뷰에 전달했고, 사용자가 필수 동의 두 항목(`piiCollection`·`healthInfoUse`)을 모두 체크하고 나머지 필드를 유효하게 채웠을 때
+When 사용자가 제출 영역을 확인하고, 그 영역을 클릭하거나 입력 필드에서 Enter를 눌러 제출을 시도하면
+Then 실제 제출 CTA(`data-testid="consult-submit-button"`)는 렌더링되지 않고 그 자리에 "상담 신청은 아직 준비 중"이라는 취지의 안내 영역(`role="status"`, `aria-live="polite"`, 잠정 문구는 `design.md` §4)이 표시되며, 어떤 시도로도 `POST /api/consultations` 요청은 발생하지 않는다(네트워크 요청 0건). 채널 선택기·입력 필드·동의 그룹은 그대로 표시된다.
+회귀 짝: 같은 입력 상태에서 `CONSULT_POLICY_READY=true`이면 안내 영역은 표시되지 않고 기존 제출 CTA(`consult-submit-button`)가 렌더링되며, 활성화 조건(AC-B2CCONSULT-012)과 이중 제출 방지(AC-B2CCONSULT-015)는 종전과 동일하게 동작한다.
+서버 독립성: 이 클라이언트 대체는 UX 계층일 뿐이며, 서버의 503/`policy_unavailable` 저장 거부(AC-B2CCONSULT-018의 "활성 동의 정책 없음" 추가 시나리오, `app/api/consultations/route.test.ts`)는 클라이언트 동작과 무관하게 독립적으로 유효하다 — 이 시나리오가 그 거부를 대체하거나 약화하지 않는다.
+
 ## 02→03 핸드오프 · draft
 
 **AC-B2CCONSULT-006** (REQ-B2CCONSULT-006)

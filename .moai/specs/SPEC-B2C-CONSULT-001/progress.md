@@ -4,8 +4,9 @@
 
 ### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
 
-- `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
-- 최신 재감사: iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 결정(D1~D3 한정 수정 후 재감사)에 따라 plan 산출물을 사후 반영했고 재감사(iteration 8)를 기다린다(§E.2 D-NEW-5 Claim 21, 열린 항목 14).
+- `plan_status: audit-ready` — 2026-09-29 plan-audit iteration 9가 PASS(0.857)를 내려 복귀했다(§E.2 D-NEW-6). 이 PASS는 커밋 전 작업 트리 기준이며 여유가 0.007로 얕다(§E.2 D-NEW-6 Claim 26). 아래 두 줄은 복귀 직전까지의 이력이다.
+- (이력) `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
+- 최신 재감사: iteration 9 — Verdict **PASS**, 종합 점수 **0.857**(임계값 0.85, 여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-9.md`. 그 직전 iteration 8은 FAIL 0.80(보고서 `...-review-8.md`, 새 blocking D1' — REQ-005 둘째 조항에 AC 없음)이었고 사용자 결정(클라이언트 구현 + AC 추가)에 따라 해소했다(§E.2 D-NEW-6). (이력) iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 결정(D1~D3 한정 수정 후 재감사)에 따라 plan 산출물을 사후 반영했고 재감사(iteration 8)를 기다린다(§E.2 D-NEW-5 Claim 21, 열린 항목 14).
 - 이 블록의 아래 항목들은 정정 **이전**의 마지막 canonical PASS 기록(review-5)이다. review-6(PASS 1.0, 감사 대상 `a106ac9`)도 Git 트리에 있으나 이 블록에는 반영돼 있지 않았다 — D-NEW-5에서 보완한다.
 - 감사 대상: `b0b875ee9b869227528b0a03607d4b1f8d4131e5`
 - 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`
@@ -2528,6 +2529,51 @@ plan 산출물이 인용하는 "2026-09-29 세션 사용자 결정"의 근거는
 amended-pending-revalidation` 유지 — run-phase audit-ready 보류 기준은 Nginx 설정·카드
 height 그대로이며, 별도로 plan-audit FAIL 해소가 필요하다(열린 항목 14).
 
+### D-NEW-6 — iteration 8 FAIL(D1')의 해소: 정책 미준비 시 제출 CTA 대체 구현 + iteration 9 PASS
+
+**Claim 22 — iteration 8(FAIL 0.80)의 새 blocking 결함 D1'은 실재했고, 감사관의 전제("코드는 이미 구현돼 있다")는 틀렸다.**
+D1'은 REQ-B2CCONSULT-005 둘째 조항("정책 미준비 시 제출 버튼 대신 안내")에 AC가 없다는 지적이다. 감사관은 AC 시나리오만 더하라고 권했으나, 직접 코드를 읽어 보니 클라이언트 동작 자체가 없었다.
+- `isPolicyReady`는 `components/consult/consult-view.tsx`에서 동의 그룹의 "자세히 보기" 표시에만 쓰였다.
+- 제출 활성화는 `canSubmit = piiCollection && healthInfoUse`(L454)와 `consult-submit-bar.tsx`의 `disabled = !canSubmit || isSubmitting`뿐이라 정책 상태를 보지 않았다.
+- 따라서 정책 미준비 상태에서도 버튼이 눌리고, 서버가 503 `policy_unavailable`로 거부해 일반 실패 화면(03-D)이 떴다. 저장은 서버가 막았지만 설계 §4의 "안내로 대체"는 구현되지 않은 상태였다.
+- AC만 추가했다면 없는 동작을 있다고 적는 결과가 됐다.
+
+**Claim 23 — 사용자가 "클라이언트 구현 + AC 추가"를 선택했다.**
+선택지는 (1) 클라이언트 구현 + AC 추가, (2) REQ·설계를 서버 전용 동작으로 정정, (3) 승인된 debt로 기록·보류였다. 사용자 응답 원문: "클라이언트 구현 + AC 추가 (Recommended)". 이 선택은 Implementation Kickoff Approval을 대체하지 않으며, run-phase 재검증 게이트(Nginx·카드 height)는 그대로다.
+
+**Claim 24 — 문서와 코드를 순서대로 반영했다(쓰기 에이전트 동시 실행 없음).**
+1. `manager-spec`이 문서만 수정했다: acceptance.md AC-B2CCONSULT-005 추가 시나리오(정책 미준비 CTA 대체 + 회귀 짝 + 서버 독립성), design.md §4 문단(잠정 안내 문구 명시)과 §5 트리 한 구절, spec.md HISTORY 행과 REQ-005 둘째 조항 문구("비활성화" → "안내 영역으로 대체", 비활성 버튼으로 읽힐 여지 제거). AC 25개·REQ 25개 유지를 직접 재확인했다(`grep -cE '^\*\*AC-B2CCONSULT-[0-9]{3}\*\*'` → 25).
+2. `manager-develop`(tdd)이 코드를 구현했다: `lib/consult/consent-policy.ts`(`CONSULT_POLICY_NOT_READY_NOTICE`, 잠정·법무 미검토 주석), `consult-submit-bar.tsx`(필수 prop `isPolicyReady`, false면 버튼 없이 `role="status"` 안내), `consult-view.tsx`(prop 전달 + `handleSubmit` 방어 가드, `ConsultView` 기본값은 fail-closed `false` 유지). 기존 제출 테스트 14곳은 `isPolicyReady`를 명시하도록 바꿨고 단언은 약화하지 않았다.
+3. 에이전트가 배정된 작업 폴더(`consult-followup`)가 아니라 자기 격리 폴더(`agent-a9b60ee...`)에서 작업했다. 저는 그 diff(6개 파일)를 `git apply`로 `consult-followup`에 옮겼고, 대상 파일이 HEAD와 동일한 상태임을 확인한 뒤 적용했다.
+
+**Claim 25 — 코드 검증(제가 `consult-followup`에서 직접 실행).**
+- `pnpm exec vitest run components/consult app/consult lib/consult` → exit 0, `Test Files 17 passed (17)`, `Tests 112 passed (112)`. 로그 `.moai/state/verify/consult-followup/v-tests.log`.
+- `pnpm exec eslint components/consult lib/consult app/consult` → exit 0(출력 없음). `pnpm exec tsc --noEmit` → exit 0. 로그 `v-eslint.log`, `v-tsc.log`.
+- 에이전트 보고(제가 재현하지 않은 부분): RED 5건 실패(`1-red.log`), 분기 무력화 변이에서 4건 실패(`3-mutation.log`). 진입 시 기준선은 102건이었다 — 이전에 제가 적은 "104/104"는 기억에서 가져온 수치이며 실측이 아니므로 폐기한다.
+- 알려진 한계: `handleSubmit`의 `!isPolicyReady` 가드만 무력화해도 `components/consult` 72개 테스트가 모두 통과한다. 버튼이 없으면 UI로는 그 가드에 도달할 수 없어서다. 가드는 방어용이며 이를 잡는 테스트는 없다.
+- Prettier: 변경한 5개 중 3개는 HEAD에서 이미 규격 밖이었고, 새로 쓴 줄만 정리했다(전체 재포맷 없음).
+
+**Claim 26 — plan-audit iteration 9는 PASS(0.857)이지만 여유가 0.007이라 얕다.**
+보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-9.md`. Claude 단독 감사이며 codex·GLM 두 번째 의견은 받지 못했다.
+- 차원 점수: Clarity 0.75, Completeness 1.0, Testability 0.75, Traceability 1.0. must-pass 7개는 통과 또는 해당 없음.
+- D1'은 해소로 판정됐다(AC-005 추가 시나리오 ↔ 구현 일치, 서버 반은 AC-018 "활성 동의 정책 없음"이 담당).
+- 감사관은 Traceability를 1.0으로 채점한 것에 PASS가 달려 있고, 0.75로 채점하면 0.80이라 FAIL이 된다고 밝혔다. 가장 싼 보강은 아래 D1 문구 정정과 D4 한 문장이다. 이 보강은 산출물을 바꿔 해시가 다시 바뀌므로 이번에는 하지 않았다.
+- non-blocking 결함: D1 — AC-005 추가 시나리오와 design §4의 "입력 필드에서 Enter로 제출 시도" 문구는 부정확하다(`<form>`·Enter 핸들러가 없어 어느 정책 상태에서도 Enter는 제출하지 않는다. 테스트의 Enter 이벤트는 변별력이 없고, 실제 보증은 버튼 부재와 `handleSubmit` 가드다). D2 — design §5에 `lib/consult/consent-policy.ts`가 목록에 없다. D3 — plan.md L81이 제출 바를 "이중 제출 방지, aria-busy"로만 설명한다. D4 — AC-024가 포커스 트랩·ESC 복귀·`aria-describedby`·`aria-live`를 명시하지 않는다(review-8 D2에서 이월). D5 — `app/consult/page.tsx`의 env→prop 연결에 페이지 수준 테스트가 없다. D6 — 이월 항목(AC-021 동시성 범위, 03-D 문구 드리프트, AC-025 고정 SHA), 재검토하지 않았다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `eb5f3ee` 위의 커밋 전 작업 트리. 감사 대상도 같은 작업 트리다(감사관이 명시). 커밋 뒤 산출물(spec·plan·acceptance·design·research·tasks)이 바뀌지 않으면 PASS가 그대로 유효하며, `progress.md`는 해시 대상이 아니다.
+
+**Gaps(미검증)**:
+1. `visual-verify`와 Playwright e2e를 다시 돌리지 않았다. 에이전트 코드 읽기 결과 `scripts/visual-verify.ts`는 자체 서버를 `ENABLE_CONSULT_FLOW`·`CONSULT_POLICY_READY` 모두 `"true"`로 띄워서(L2518-2519) 기본 경로에는 영향이 없다고 보지만, 이는 코드를 읽은 추정이다. `VISUAL_BASE_URL`로 외부 서버를 가리키는 경우 그 서버에 `CONSULT_POLICY_READY=true`가 없으면 제출 버튼 단계와 `aria-disabled` 검사가 실패한다.
+2. 정책 미준비 상태의 레이아웃(모바일 하단 고정 바에 안내가 계속 붙는 모양)을 브라우저로 보지 않았다.
+3. `next build`와 변경 파일 커버리지를 측정하지 않았다.
+4. 감사 캐시 해시 저장(`audit_cache`)을 하지 못했다 — `moai` MCP 서버 연결 실패와 CLI 부재. 그래서 캐시된 PASS가 없고 다음 `/moai run`의 Phase 1은 재실행된다.
+5. 감사관은 `progress.md`, `research.md`를 읽지 않았고 `design.md`·`plan.md`는 변경 부분 위주로 읽었다. codex·GLM 교차 감사는 없었다.
+6. 병렬 세션 확인(`moai session list`)은 CLI 부재로 하지 못했다. `git fetch` 기준 원격 브랜치는 앞서 있지 않았다.
+
+**Residual-risk(잔여 위험)**: 안내 문구는 잠정 문구이며 법무·운영 확정 문구가 아니다. 정책 미준비 검토 모드에서도 이름·연락처를 입력하고 blur하면 sessionStorage draft에 저장된다(제출은 불가능하지만 PII가 브라우저에 남는다). PASS가 채점 한 칸에 걸려 있어 다음 감사관이 다르게 채점할 수 있다.
+
+**상태**: `plan_status: audit-ready`(iteration 9 PASS). `run_status: amended-pending-revalidation` 유지 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 두 항목은 이번 세션에서 확인하지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -2538,6 +2584,7 @@ height 그대로이며, 별도로 plan-audit FAIL 해소가 필요하다(열린 
 
 - **업데이트 4(D-NEW-4 정합, 이번 세션)**: SPEC 기준(acceptance Quality Gate "레이스 안전성", design §9.3·§4.2)을 대조한 결과 audit-ready 전제조건은 위 업데이트 3의 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 두 가지 그대로다. 원격 Turso 실행과 직렬화 없는 병렬 요청 검증은 audit-ready 게이트가 아니라 "배포 전 별도 검증이 필요한 잔여 위험"이며(열린 항목 12번, D-NEW-4 "게이트 판정"), 수행하지 않았으므로 완료로 표시하지 않는다. 다만 AC-B2CCONSULT-021의 "병렬 처리" 문구를 문자 그대로 요구하는 감사 판단이 나오면 이 분류는 뒤집힐 수 있다. `run_status`는 `amended-pending-revalidation`을 유지한다. **[D-NEW-5 보완: 이후 plan-audit iteration 7 FAIL로 추가 보류 조건이 생겼다 — 아래 업데이트 5]**
 - **업데이트 5(D-NEW-5, 이번 세션)**: AC-B2CCONSULT-022의 "입력 보존"은 "입력값을 draft에 보존하고 재시도·재진입 때 동일 값으로 전송"으로 확정했고 design §10의 이름 없는 4행과 충돌하지 않는다(§E.2 D-NEW-5 Claim 17). `run_status`는 유지한다 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 이와 별개로 `plan_status`는 acceptance.md 정정 후 plan-audit 재감사 iteration 7이 **FAIL(0.80, STOP)** 이라 `amended-pending-reaudit`에 머문다(blocking D1~D3, 열린 항목 14). plan-phase 신호와 run-phase 신호는 별개이므로, plan-audit FAIL이 해소되기 전에는 (a)(b)가 해소돼도 두 신호 모두 audit-ready로 올리지 않는다.
+- **업데이트 6(D-NEW-6, 이번 세션)**: 정책 미준비 시 제출 CTA를 안내로 대체하는 클라이언트 동작을 구현했다(§E.2 D-NEW-6 Claim 24-25). 관련 vitest 112/112, eslint·tsc 0건은 직접 실행했다. `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 이번 변경으로 `visual-verify`·e2e를 다시 돌리지 않았으므로 그 재검증도 여전히 필요하다(Claim 25 Gaps 1).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2573,7 +2620,11 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.**
 12. **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
-14. **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
+14. **[해소됨 — iteration 9 PASS, §E.2 D-NEW-6]** **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
+15. **(신규, D-NEW-6) 정책 미준비 안내 문구 확정 — 제품·법무 판단 필요(잠정 문구 사용 중)** — 현재 문구는 "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."로, 기존 "준비 중" 스텁(§ 디자인 대조 D4) 선례를 따른 잠정 문구다. 법무·운영이 확정한 문장이 아니다. 실제 확정 시 `lib/consult/consent-policy.ts`의 `CONSULT_POLICY_NOT_READY_NOTICE`와 관련 테스트만 바꾸면 된다.
+16. **(신규, D-NEW-6) 정책 미준비 검토 모드에서 입력값이 sessionStorage draft에 저장되는 점 — 제품 판단 필요(미조치)** — 제출이 불가능한 상태에서도 이름·연락처가 blur 때 draft로 저장된다. 이 SPEC 범위 밖이라 바꾸지 않았다. 원하면 `CONSULT_POLICY_READY=false`일 때 draft 저장을 끄는 별도 작업이 필요하다.
+17. **(신규, D-NEW-6) iteration 9 optional 결함 D1~D6 — 미조치, 산출물을 다시 바꿔 재감사하면 정리 가능** — 특히 D1(AC-005 추가 시나리오·design §4의 부정확한 Enter 문구)과 D4(AC-024 문구)가 PASS의 얕은 여유(0.007)를 보강한다(Claim 26). 산출물이 바뀌면 해시가 다시 바뀌어 재감사가 필요하다.
+18. **(신규, D-NEW-6) `visual-verify`·Playwright e2e 재실행 — 미수행** — 이번 코드 변경 뒤 두 검증을 돌리지 않았다. 외부 서버(`VISUAL_BASE_URL`)로 돌릴 때는 그 서버에 `CONSULT_POLICY_READY=true`가 필요하다(Claim 25 Gaps 1).
 
 ### 이번 세션에서 해소됨
 

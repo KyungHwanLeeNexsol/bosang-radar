@@ -19,6 +19,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 - 2026-09-25: 최초 작성 (Nexsol) — B2C 3단계 퍼널(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 중 마지막 흐름인 **③ 상담 신청 및 접수 결과**의 plan-phase 문서만 작성한다. 실제 화면·컴포넌트·API·DB 마이그레이션 구현은 후속 `/moai run SPEC-B2C-CONSULT-001`의 범위이며, 이번 커밋에는 코드 변경이 포함되지 않는다. 디자인 SSOT는 `design/MIGRATION-PLAN.md`(§2 ③, §6, §7)이며, 02의 stub 상태(`components/result/result-cta-bar.tsx`, `status: completed`)를 실제 흐름으로 전환하는 SPEC이다.
 - 2026-09-29: 독립 검토 iteration 7(`.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`) D1·D2·D3·D6 반영(manager-spec 재위임, 사용자 결정 2026-09-29) — (D1) REQ-B2CCONSULT-025의 기존 15화면 정의 불변 조항에 run-phase의 02 계열 5개 항목 재보정을 승인된 debt로 사후 문서화한 명시적 예외를 추가(`design.md` §12.1이 항목별 열거), (D2) REQ-B2CCONSULT-018의 신뢰 가능한 원본 IP를 단일 신뢰 프록시가 덧붙인 `x-forwarded-for`의 가장 오른쪽 값으로 정의하고 배포 전제·방어적 안전망 성격을 명시(`design.md` §9.3), (D3) 기존 파일 확장 예산 9개를 12개로 갱신(`plan.md` §D, `design.md` §5), (D6) REQ-B2CCONSULT-022의 "화면"을 "폼 상태"로 정정.
+- 2026-09-29: 독립 검토 iteration 8(FAIL 0.80) 차단 결함 D1' 반영(manager-spec 재위임, 사용자 결정 2026-09-29 — 해당 클라이언트 동작을 코드로 구현하고 AC를 추가하기로 승인) — REQ-B2CCONSULT-005 둘째 절(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`)과 `design.md` §4 조합표 해당 행에 대응하는 수용 시나리오가 없던 결함을 해소한다. (D1') `acceptance.md` AC-B2CCONSULT-005에 "정책 미준비 시 제출 CTA가 안내 영역(`role="status"`)으로 대체되고 `POST /api/consultations` 요청이 발생하지 않는다"는 추가 시나리오와 `CONSULT_POLICY_READY=true` 회귀 짝을 추가했다(AC 25건 불변), `design.md` §4에 클라이언트 동작(`isPolicyReady` 전달 경로·안내 영역·UX 전용 원칙)을 명시했고 `design.md` §5 파일 트리의 `consult-submit-bar.tsx` 설명에 한 절을 보탰다. 안내 문구는 법무·운영 확정 전의 잠정 문구다. REQ-B2CCONSULT-005는 "비활성화"를 "안내 영역으로 대체"로 정밀화하고 AC 포인터만 추가했다(요구사항 25건 불변).
 
 ## 1. 배경 (Why)
 
@@ -62,7 +63,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 - **REQ-B2CCONSULT-003** (When): 사용자가 02 화면의 4개 상담 CTA(상단 탑바/후유장해 섹션/하단 카카오톡/하단 전화) 중 하나를 클릭할 때, 시스템은 `/consult` 라우트로 실제 네비게이션을 수행한다. 전달하는 채널 쿼리는 CTA별로 다음과 같이 명확히 구분된다 — 상단 탑바: `?channel=kakao`, 후유장해 섹션: 쿼리 파라미터 없이 `/consult`(중립, 채널 미지정 — REQ-B2CCONSULT-004의 `kakao` 기본값이 적용됨), 하단 카카오톡: `?channel=kakao`, 하단 전화: `?channel=phone`.
 - **REQ-B2CCONSULT-004** (When): `/consult` 진입 시 `channel` 쿼리 값이 없거나 `"kakao"`/`"phone"` 중 하나가 아닐 때(위변조·오타 포함), 시스템은 오류를 던지거나 빈 화면을 렌더링하지 않고 `"kakao"`로 폴백한다.
-- **REQ-B2CCONSULT-005** (Where): `ENABLE_CONSULT_FLOW` 환경 변수(기본값 falsy)가 `"true"`가 아닐 때, 시스템은 02의 4개 상담 CTA를 현재의 `aria-disabled` "준비 중" stub 동작으로 **독립적으로** 유지한다 — 02 자체의 `shouldRenderDiagnosis` 게이트 상태와 무관하게 이 플래그 단독으로 CTA 활성화 여부를 결정한다. 이 플래그는 "코드/화면이 배포되어 리뷰 가능한가"만 게이트하며, "실제로 개인정보 수집을 시작해도 되는가"는 별도의 `CONSULT_POLICY_READY` 환경 변수(REQ-B2CCONSULT-018)가 독립적으로 게이트한다 — 두 조건은 서로 혼동되지 않으며, `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`일 때 시스템은 03 화면 자체는 렌더링하되 실제 제출 동작은 클라이언트에서 비활성화하고 서버도 독립적으로 저장을 거부한다(`design.md` §4).
+- **REQ-B2CCONSULT-005** (Where): `ENABLE_CONSULT_FLOW` 환경 변수(기본값 falsy)가 `"true"`가 아닐 때, 시스템은 02의 4개 상담 CTA를 현재의 `aria-disabled` "준비 중" stub 동작으로 **독립적으로** 유지한다 — 02 자체의 `shouldRenderDiagnosis` 게이트 상태와 무관하게 이 플래그 단독으로 CTA 활성화 여부를 결정한다. 이 플래그는 "코드/화면이 배포되어 리뷰 가능한가"만 게이트하며, "실제로 개인정보 수집을 시작해도 되는가"는 별도의 `CONSULT_POLICY_READY` 환경 변수(REQ-B2CCONSULT-018)가 독립적으로 게이트한다 — 두 조건은 서로 혼동되지 않으며, `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`일 때 시스템은 03 화면 자체는 렌더링하되 실제 제출 CTA를 안내 영역으로 대체해 클라이언트에서 제출을 불가능하게 하고 서버도 독립적으로 저장을 거부한다(`design.md` §4, AC-B2CCONSULT-005 추가 시나리오).
 
 ### 3.3 02→03 핸드오프 · draft (Event-driven)
 
