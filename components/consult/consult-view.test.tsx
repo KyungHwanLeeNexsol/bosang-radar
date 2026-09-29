@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsultView } from "./consult-view";
 import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import { buildFractureResult, FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
-import { readConsultationDraft } from "@/lib/consult/draft";
+import { readConsultationDraft, writeConsultationDraft } from "@/lib/consult/draft";
+import { CONSULTATION_DRAFT_VERSION } from "@/lib/consult/types";
 
 // React 19 act() 환경 플래그 — 이 플래그가 없으면 act() 자체는 여전히
 // 동작하지만 "The current testing environment is not configured to support
@@ -117,7 +118,7 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
 
   it("마운트 시 idempotencyKey가 1회 생성되어 draft에 저장된다", () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const draft = readConsultationDraft();
@@ -127,7 +128,7 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
 
   it("이름 필드에서 blur하면 draft에 이름이 저장되고, 필수 동의 체크 상태는 저장되지 않는다", () => {
     act(() => {
-      root.render(<ConsultView />);
+      root.render(<ConsultView isPolicyReady />);
     });
 
     const nameInput = container.querySelector<HTMLInputElement>(
@@ -728,7 +729,7 @@ describe("components/consult/ConsultView — 정책 미준비 상태의 제출 C
     expect(findNotice()?.textContent).toBe(NOT_READY_NOTICE);
   });
 
-  it("isPolicyReady=false에서 필수 동의·유효 입력 후 안내 영역 클릭과 입력 필드 Enter는 POST를 발생시키지 않는다", async () => {
+  it("isPolicyReady=false에서 필수 동의·유효 입력 후 제출 영역(안내 영역 포함) 클릭과 키보드 포커스 이동은 POST를 발생시키지 않는다", async () => {
     act(() => {
       root.render(<ConsultView isPolicyReady={false} />);
     });
@@ -741,15 +742,18 @@ describe("components/consult/ConsultView — 정책 미준비 상태의 제출 C
     const contactInput = container.querySelector<HTMLInputElement>(
       '[data-testid="consult-contact-input"]'
     );
+    // 03 폼에는 <form>·Enter 제출 핸들러가 없어 어떤 정책 상태에서도 제출은 제출
+    // 버튼 클릭(키보드로는 포커스된 버튼의 활성화)뿐이다. 그래서 이 시나리오의
+    // 조작은 제출 영역 클릭·탭과 키보드 포커스 이동이다.
     await act(async () => {
       notice!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       container
         .querySelector('[data-testid="consult-submit-bar"]')!
         .dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      for (const input of [nameInput!, contactInput!]) {
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-        input.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", bubbles: true }));
-      }
+      // 키보드 포커스를 입력 필드 사이로 옮기고, 안내 영역(비대화형) 주변까지 이동한다.
+      nameInput!.focus();
+      contactInput!.focus();
+      notice!.focus();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -759,6 +763,19 @@ describe("components/consult/ConsultView — 정책 미준비 상태의 제출 C
     expect(container.querySelector('[data-testid="consult-view"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="consult-success"]')).toBeNull();
     expect(container.querySelector('[data-testid="consult-failure"]')).toBeNull();
+
+    // 키보드 부분의 판별 단언: 제출 영역과 03 뷰 전체에 제출 컨트롤이 존재하지 않는다
+    // (제출 버튼·type=submit 버튼·form 요소 없음) — 그래서 어떤 키 조작으로도 제출이 시작될 수 없다.
+    expect(container.querySelector('[data-testid="consult-submit-button"]')).toBeNull();
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+    expect(container.querySelector("form")).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="consult-submit-bar"] button, [data-testid="consult-submit-bar"] [role="button"]'
+      )
+    ).toBeNull();
+    // 안내 영역은 계속 role=status로 존재한다.
+    expect(findNotice()?.getAttribute("role")).toBe("status");
   });
 
   it("isPolicyReady=false여도 채널 선택기·입력 필드·동의 그룹은 그대로 표시되고 조작할 수 있다", () => {
@@ -806,5 +823,124 @@ describe("components/consult/ConsultView — 정책 미준비 상태의 제출 C
     expect(findNotice()).toBeNull();
     expect(container.querySelector('[data-testid="consult-submit-button"]')).not.toBeNull();
     expect(container.textContent).not.toContain(NOT_READY_NOTICE);
+  });
+});
+
+// REQ-B2CCONSULT-006 정책 미준비 예외 / AC-B2CCONSULT-006 추가 시나리오 —
+// isPolicyReady=false에서는 제출이 불가능해 draft의 존재 이유가 없고 원문
+// 이름·연락처를 지속 저장소에 남길 근거도 없으므로, 어떤 경로로도 draft를 쓰지
+// 않는다(마운트 초기 기록·blur·채널 변경·마케팅 동의 변경). 폼 화면 상태와
+// draft 읽기(복원)는 종전과 같다. 이미 있는 draft는 갱신도 삭제도 하지 않는다.
+describe("components/consult/ConsultView — 정책 미준비 상태에서는 draft를 쓰지 않는다(AC-B2CCONSULT-006 추가 시나리오)", () => {
+  const DRAFT_KEY = "bosang-radar:consultation-draft-v1";
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const result = buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" });
+    writeDiagnosisHandoff(result);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function nameInput() {
+    return container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]')!;
+  }
+  function contactInput() {
+    return container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]')!;
+  }
+  function blur(el: HTMLElement) {
+    // React는 "focusout"(bubbles) 네이티브 이벤트를 root에서 구독해 합성 onBlur로 변환한다.
+    el.dispatchEvent(new Event("focusout", { bubbles: true }));
+  }
+
+  it("(a) 마운트 직후 sessionStorage에 draft 키가 없다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+
+    expect(window.sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  it("(b) 이름·연락처를 입력하고 blur해도 draft 키가 없고, 입력한 값은 폼에 그대로 표시된다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+
+    act(() => {
+      setNativeInputValue(nameInput(), "홍길동");
+      blur(nameInput());
+      setNativeInputValue(contactInput(), "010-1234-5678");
+      blur(contactInput());
+    });
+
+    expect(window.sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(nameInput().value).toBe("홍길동");
+    expect(contactInput().value).toBe("010-1234-5678");
+  });
+
+  it("(c) 채널 변경과 마케팅 동의 토글도 draft를 쓰지 않고, 폼 상태(채널·체크)는 정상 반영된다", () => {
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+
+    act(() => {
+      container.querySelector<HTMLInputElement>('input[value="phone"]')!.click();
+    });
+    act(() => {
+      document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[2].click();
+    });
+
+    expect(window.sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(container.querySelector<HTMLInputElement>('input[value="phone"]')!.checked).toBe(true);
+    expect(document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[2].checked).toBe(
+      true
+    );
+  });
+
+  it("(d) 이미 있는 유효 draft는 마운트·수정·blur·채널 변경 후에도 바이트 동일하고, 값은 폼에 복원된다(읽기 불변)", () => {
+    writeConsultationDraft({
+      draftVersion: CONSULTATION_DRAFT_VERSION,
+      channel: "phone",
+      name: "기존이름",
+      contactRaw: "010-9999-8888",
+      preferredCallTime: "오후 2시",
+      marketingConsent: true,
+      idempotencyKey: "seeded-key-1",
+    });
+    const before = window.sessionStorage.getItem(DRAFT_KEY);
+    expect(before).not.toBeNull();
+
+    act(() => {
+      root.render(<ConsultView isPolicyReady={false} />);
+    });
+
+    // 읽기는 종전과 같다 — draft 값이 폼에 복원된다.
+    expect(nameInput().value).toBe("기존이름");
+    expect(contactInput().value).toBe("010-9999-8888");
+    expect(container.querySelector<HTMLInputElement>('input[value="phone"]')!.checked).toBe(true);
+
+    act(() => {
+      setNativeInputValue(nameInput(), "수정된이름");
+      blur(nameInput());
+    });
+    act(() => {
+      container.querySelector<HTMLInputElement>('input[value="kakao"]')!.click();
+    });
+
+    // 화면 상태는 바뀌지만 저장소의 draft는 갱신도 삭제도 되지 않는다.
+    expect(nameInput().value).toBe("수정된이름");
+    expect(window.sessionStorage.getItem(DRAFT_KEY)).toBe(before);
   });
 });

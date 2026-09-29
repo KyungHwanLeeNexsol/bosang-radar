@@ -239,17 +239,29 @@ export function ConsultView({ isPolicyReady = false }: ConsultViewProps) {
     outcomeTitleRef.current?.focus();
   }, [submitView]);
 
-  const persistDraft = React.useCallback((next: ConsultFormState) => {
-    writeConsultationDraft({
-      draftVersion: CONSULTATION_DRAFT_VERSION,
-      channel: next.channel,
-      name: next.name,
-      contactRaw: next.contact,
-      preferredCallTime: next.preferredCallTime,
-      marketingConsent: next.marketingConsent,
-      idempotencyKey: next.idempotencyKey,
-    });
-  }, []);
+  // REQ-B2CCONSULT-006 정책 미준비 예외 — isPolicyReady=false에서는 제출이
+  // 불가능해 draft(입력 편의·재시도 시 같은 idempotencyKey 재사용)의 존재
+  // 이유가 없고, 원문 이름·연락처를 지속 저장소에 남길 근거도 없다. 마운트
+  // 초기 기록·blur·채널 변경·마케팅 동의 변경 네 경로가 모두 이 함수를
+  // 거치므로 여기 한 곳에서 막는다. 기존 draft는 갱신도 삭제도 하지 않으며
+  // 읽기(복원)와 폼 화면 상태는 이 가드의 영향을 받지 않는다.
+  const persistDraft = React.useCallback(
+    (next: ConsultFormState) => {
+      if (!isPolicyReady) {
+        return;
+      }
+      writeConsultationDraft({
+        draftVersion: CONSULTATION_DRAFT_VERSION,
+        channel: next.channel,
+        name: next.name,
+        contactRaw: next.contact,
+        preferredCallTime: next.preferredCallTime,
+        marketingConsent: next.marketingConsent,
+        idempotencyKey: next.idempotencyKey,
+      });
+    },
+    [isPolicyReady]
+  );
 
   const didInitDraftRef = React.useRef(false);
   React.useEffect(() => {

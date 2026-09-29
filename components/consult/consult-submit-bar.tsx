@@ -11,7 +11,7 @@ import type { ConsultationChannel } from "@/lib/consult/types";
 // SPEC-B2C-CONSULT-001 M4 (design.md §7, REQ-B2CCONSULT-015; acceptance
 // AC-B2CCONSULT-012/015) — 제출 CTA. canSubmit(필수 동의 2개 모두 체크,
 // consult-view.tsx가 계산)이 게이트하며, isSubmitting 상태로 aria-busy +
-// 이중 클릭/Enter 반복 방지를 자체적으로 구현한다. 실제 POST
+// 이중 클릭(버튼 활성화) 반복 방지를 자체적으로 구현한다. 실제 POST
 // /api/consultations fetch 연결과 성공/중복/실패 응답 분기는 M5 범위다 —
 // onSubmit은 이 milestone에서 스텁 콜백을 받는다(consult-view.tsx 주석 참고).
 //
@@ -24,9 +24,11 @@ import type { ConsultationChannel } from "@/lib/consult/types";
 //
 // 정책 미준비 분기(design.md §4, REQ-B2CCONSULT-005, AC-B2CCONSULT-005 추가
 // 시나리오) — isPolicyReady=false면 제출 버튼을 아예 렌더링하지 않고 그 자리에
-// 안내 영역(role=status aria-live=polite)을 둔다. 버튼이 DOM에 없으므로
-// 클릭/Enter로 onSubmit에 도달할 경로 자체가 없다. 이 대체는 UX 계층일 뿐이며
-// 저장 거부의 권위는 서버(503/policy_unavailable)에 있다.
+// 안내 영역(role=status aria-live=polite)을 둔다. 03 폼에는 <form>·Enter 제출
+// 핸들러가 없어 제출 경로는 제출 버튼 클릭(키보드로는 포커스된 버튼의 기본
+// Enter/Space 활성화)뿐인데, 이 분기에서는 버튼이 DOM에 없으므로 onSubmit에
+// 도달할 경로 자체가 없다. 이 대체는 UX 계층일 뿐이며 저장 거부의 권위는
+// 서버(503/policy_unavailable)에 있다.
 
 const BAR_CLASS_NAME =
   "sticky bottom-0 -mx-4 border-t border-app-line bg-app-surface px-4 py-3 md:static md:mx-0 md:border-none md:bg-transparent md:px-0 md:py-0";
@@ -56,7 +58,8 @@ export function ConsultSubmitBar({
 
   const handleClick = React.useCallback(() => {
     // AC-B2CCONSULT-015 — 진행 중인 요청이 있으면(isSubmitting) 두 번째
-    // 클릭/Enter를 완전히 무시한다(두 번째 onSubmit 호출 자체를 막는다).
+    // 버튼 활성화(클릭, 또는 포커스된 버튼의 Enter/Space 네이티브 활성화)를
+    // 완전히 무시한다(두 번째 onSubmit 호출 자체를 막는다).
     if (disabled) {
       return;
     }
