@@ -130,7 +130,7 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 - [ ] `ENABLE_CONSULT_FLOW=true` 설정(03 화면·API 배포 활성화).
 - [ ] `CONSULT_POLICY_READY=true`는 법무·운영이 동의 문구를 최종 확정한 **이후에만** 설정한다 — 이 값이 `true`로 전환되는 순간부터 `RATE_LIMIT_HMAC_SECRET`이 `lib/env.ts` 조건부 필수 검증 대상이 된다.
 - [ ] `RATE_LIMIT_HMAC_SECRET`을 `CONSULT_POLICY_READY=true`로 전환하기 전 반드시 실제 비밀값으로 설정한다(부재 시 `lib/env.ts` 조건부 필수 검증이 기동 시점에 명확히 실패한다; 설령 검증을 우회해 기동되더라도 §9.3의 API 계층 fail closed로 모든 실제 접수가 500 처리된다) — 이 값 자체는 어떤 저장소·설정 템플릿에도 커밋하지 않는다.
-- [ ] Nginx가 `x-forwarded-for` 헤더를 정확히 전달하는지 확인한다(§9.3) — 이 헤더를 얻지 못하면 rate limit 판정도 fail closed로 접수를 막는다.
+- [ ] 앱이 단일 신뢰 프록시(Nginx)를 거쳐서만 도달 가능한지 확인한다(§9.3) — Next.js가 `127.0.0.1`에만 바인딩되고 앞단에 추가 신뢰 hop(CDN 등)이 없어야 하며, Nginx가 `x-forwarded-for`를 정확히 한 번 append 또는 overwrite해야 한다. rate limit 키는 이 헤더의 **가장 오른쪽 값**이다. 헤더가 없어도 Next.js 16.3.2가 소켓 주소를 채워 넣으므로 "헤더 부재 → fail closed"는 이 항목의 안전장치가 아니다(§9.3) — 이 배포 전제가 깨져 앱이 직접 노출되면 클라이언트가 조작한 값으로 rate limit이 우회될 수 있다(`progress.md` Claim 11 표의 '가정 위반' 행). 실제 확인 절차 4항목은 `progress.md` Claim 11.
 
 ## 5. 신규 파일 트리 + 허용된 기존 파일 확장
 
@@ -172,17 +172,22 @@ db/migrations/
 └── 000N_*.sql                            [신규] `pnpm db:generate` 산출물(파일명은 drizzle-kit이 결정)
 ```
 
-**허용된 기존 파일 최소 확장(정확히 9개, `plan.md` §D 제약)**:
+**허용된 기존 파일 최소 확장(정확히 12개, `plan.md` §D 제약 — 원래 7개 + run-phase M3 발견 2개(8·9번) + run-phase M2·M7 발견 3개(10~12번, 2026-09-29 세션 사용자 결정으로 사후 문서화·승인). 이 중 6번 `.env.local.example`은 plan-phase 커밋 `a106ac9`에 이미 반영되어 run-phase에서 실제로 수정된 파일은 11개다)**:
 
 1. `components/result/result-cta-bar.tsx` — 4개 stub 버튼을 실제 `<Link href={...}>` 네비게이션으로 교체(`aria-disabled`/no-op 핸들러 제거, `shouldRenderConsult`가 거짓이면 기존 stub 동작 유지).
 2. `components/diagnosis/diagnosis-flow.tsx` — 새 진단 시작 액션의 기존 `clearDiagnosisHandoff()` 호출 옆에 `clearConsultationDraft()` 호출 한 줄 추가.
 3. `lib/diagnosis/flags.ts` — `computeConsultFlags(env)` export 함수 추가(§4).
-4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목 수정 금지, §10).
+4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목은 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정 외 수정 금지, §12).
 5. `lib/db/schema.ts` — `consultations` 테이블 **및** `consultationRateLimits` 보조 테이블 정의 추가(§6, §9.3, 기존 12개 테이블 정의는 수정하지 않는다).
 6. `.env.local.example` — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 변수의 안전한 플레이스홀더 항목 추가(§4.2, 이미 존재하는 설정 템플릿 파일이며 애플리케이션 코드가 아니다).
 7. `lib/env.ts` — `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증 추가(`CONSULT_POLICY_READY === "true"`일 때만 필수, §4.2). **확정된 결정이며 run-phase 전용 작업**이다 — 이 plan-phase 세션은 이 파일을 수정하지 않으며, 여기서는 확정된 7번째 확장 대상으로 기술만 한다.
 8. `app/result/page.tsx` — `computeConsultFlags(process.env).shouldRenderConsult`를 계산해 `<ResultView>`에 prop으로 전달(기존 `enableDevFixture` prop 전달 패턴과 동일, run-phase M3 발견).
 9. `components/result/result-view.tsx` — 전달받은 prop을 3개 CTA 컴포넌트(`ResultTopBarCta`/`ResultDisabilitySectionCta`/`ResultFinalCta`)에 다시 prop으로 전달만 함(run-phase M3 발견).
+10. `playwright.config.ts` — `webServer.env`에 `ENABLE_CONSULT_FLOW="true"`·`CONSULT_POLICY_READY="true"`·`RATE_LIMIT_HMAC_SECRET`(IP 해싱 전용 비시크릿 테스트 리터럴) 3개 주입 추가, 기존 `PORT`·`ENABLE_DIAGNOSIS_DEV_STATES`는 유지(run-phase M7 발견, §4/§4.2). 이 `webServer`는 01/02 e2e 스펙과 공유되므로 01/02 스펙 파일은 수정하지 않고(`git diff --name-status a106ac9..HEAD -- e2e/`가 `e2e/consult-flow-03.spec.ts`(A)만 출력) 이 확장된 env 아래에서 회귀 검증 대상으로만 재실행한다.
+11. `scripts/db-migrate.test.ts` — 기대 테이블 목록 `EXPECTED_TABLES`를 12개에서 14개로 갱신(`consultations`·`consultation_rate_limits` 추가, 5번 스키마 확장의 필연적 결과, run-phase M2 발견).
+12. `db/migrations/meta/_journal.json` — `pnpm db:generate`가 5번 스키마 확장의 신규 마이그레이션(`0009_abnormal_owl.sql`)과 함께 갱신하는 drizzle-kit 생성 산출물(수동 편집 아님, 7줄 추가·0줄 삭제, run-phase M2 발견).
+
+회귀 증거 재생성: canonical 전체 24화면 실행은 기존 15화면의 커밋된 증거(`.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/**`의 스크린샷·overlay·diff·`measurements.json` 16개 파일)를 다시 생성하므로 바이트·타임스탬프가 갱신되며, 이는 canonical 실행에 내재한 동작이지 이 예산의 확장이 아니다(`progress.md` 시각 검증 증거 경로 절).
 
 ## 6. 상담 데이터 계약 (`lib/consult/types.ts` + `schema.ts`)
 
@@ -358,8 +363,8 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 알고리즘 — **이 판정은 §8.1의 7번 단계에서만, 즉 `idempotencyKey` 조회(§8.1 4번) 결과 기존 레코드가 전혀 없어 이번 제출이 진짜 신규 시도로 판정됐을 때만 호출된다**(독립 검토 D11) — 동일 `idempotencyKey`의 재시도는 지문 일치/불일치 여부와 무관하게(§8.1 5-6번) 이 rate limit 판정 자체를 거치지 않는다:
 
-1. Nginx가 리버스 프록시로서 `x-forwarded-for` 헤더에 채우는 원본 클라이언트 IP를 신뢰 가능한 IP로 사용한다 — Next.js 프로세스는 `127.0.0.1`에만 바인딩되어 있어 Nginx를 거치지 않은 요청은 애초에 도달할 수 없다(`tech.md`).
-2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다. (D17: 이 판정은 §8.1 7번 단계에서만, 즉 정책·동의 검증과 기존 idempotency 조회를 모두 통과해 신규 제출로 판정된 요청에만 적용된다 — 앞선 단계에서 이미 종료된 요청에는 영향을 주지 않는다.)
+1. 신뢰 가능한 원본 클라이언트 IP는 **단일 신뢰 프록시(Nginx)가 `x-forwarded-for`에 덧붙인 가장 오른쪽 값(single-hop rightmost)**이다. 앞쪽(왼쪽) 값은 클라이언트가 임의로 조작해 보낼 수 있으므로 판정에 쓰지 않는다 — 표준 append 레시피(`$proxy_add_x_forwarded_for`)에서는 클라이언트가 보낸 값 뒤에 프록시가 실제 IP를 이어 붙이고, overwrite 레시피(`$remote_addr`)에서는 값이 하나뿐이라 결과가 같다. 최좌측 값을 신뢰한 최초 구현은 공격자가 요청마다 다른 조작 값을 넣어 rate limit을 우회할 수 있음이 run-phase에서 두 차례 독립적으로 재현되어 이 정의로 확정됐다(`progress.md` Claim 9(B)). **이 보장은 앱이 그 단일 신뢰 프록시를 거쳐서만 도달 가능하다는 배포 전제에 의존한다** — Next.js 프로세스가 `127.0.0.1`에만 바인딩되고 앞단에 추가 신뢰 hop(CDN 등)이 없어야 한다(`tech.md`). 앱이 프록시 없이 직접 노출되면 클라이언트가 보낸 값이 그대로 키가 되어 rate limit이 우회 가능하며(`progress.md` Claim 11 표의 '가정 위반' 행), 신뢰 가능한 hop이 둘 이상이면 "가장 오른쪽 값" 선택 자체를 다시 계산해야 한다.
+2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(`x-forwarded-for` 값이 비어 있는 경우 등) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다. **헤더 부재 시 실제 런타임 동작(실측)**: 이 저장소가 고정한 Next.js 16.3.2는 `x-forwarded-for`가 없으면 `req.headers['x-forwarded-for'] ??= originalRequest.socket.remoteAddress`로 raw 소켓 주소를 채워 넣는다 — 헤더를 전혀 보내지 않은 POST가 201로 접수됨이 직접 재현됐다(`e2e/consult-flow-03.spec.ts` [환경 노트 2]). 따라서 "헤더 부재 → fail closed"는 실제 런타임에서 성립하는 전제가 아니며, `!trustedIp` 분기는 **방어적 안전망(defense in depth)**일 뿐 Next.js 런타임에서는 도달하지 않고 핸들러 수준 테스트(`acceptance.md` AC-B2CCONSULT-018)로만 검증된다. 실제 방어선은 헤더 부재 처리가 아니라 위 1번의 가장 오른쪽 값 정의와 프록시 경유 전용 배포 전제다. (D17: 이 판정은 §8.1 7번 단계에서만, 즉 정책·동의 검증과 기존 idempotency 조회를 모두 통과해 신규 제출로 판정된 요청에만 적용된다 — 앞선 단계에서 이미 종료된 요청에는 영향을 주지 않는다.)
 3. `windowStart = floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS`. `ipHmac = HMAC-SHA256(trustedIp, RATE_LIMIT_HMAC_SECRET)`를 계산한다.
 4. `INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, 1) ON CONFLICT (window_start, ip_hmac) DO UPDATE SET request_count = request_count + 1 RETURNING request_count` 형태의 원자적 upsert를 수행한다.
 5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 단계(8번 비즈니스 중복 조회, 9번 삽입)를 실행하지 않는다.
@@ -401,7 +406,7 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 ## 12. 시각 검증 계획 (`scripts/visual-verify.ts` 확장)
 
-9개 신규 화면을 기존 15개(01 계열 10 + 02 계열 5) 배열에 **추가만** 한다.
+9개 신규 화면을 기존 15개(01 계열 10 + 02 계열 5) 배열에 **추가**한다 — 기존 15개 항목은 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정 외에는 수정하지 않는다.
 
 | id | platform | 진입 방법(결정론적) | 픽셀 비교 대상(핵심 3-4요소) | semanticChecks |
 |---|---|---|---|---|
@@ -417,10 +422,30 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 review 전용 진입 파라미터(`devFixture`/`devConsultState`)는 `ENABLE_DIAGNOSIS_DEV_STATES` 게이트(기존 `reviewEnabled`)를 그대로 재사용한다 — 03 전용 별도 게이트를 만들지 않는다. `devConsultState`는 실제 서버 호출 없이 클라이언트가 결정론적으로 성공/중복/실패 상태를 렌더링하도록 하는 review 전용 우회 경로다(run-phase가 구체 구현 확정).
 
-**기존 15화면 회귀 방지**: 기존 `SCREENS` 배열 항목·허용 오차(`TOLERANCE`)·04건의 승인된 02 시각 debt(§13)는 이 SPEC이 절대 수정하지 않는다 — `pnpm visual:verify` 전체 실행 시 기존 15화면 PASS + 신규 9화면 PASS(총 24화면)를 run-phase 완료 조건으로 삼는다.
+**기존 15화면 회귀 방지**: 기존 `SCREENS` 배열 항목·허용 오차(`TOLERANCE`)·04건의 승인된 02 시각 debt(§13)는 이 SPEC이 수정하지 않는다 — 단 아래 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정만 예외다. `pnpm visual:verify` 전체 실행 시 기존 15화면 PASS + 신규 9화면 PASS(총 24화면)를 run-phase 완료 조건으로 삼는다.
+
+### 12.1 승인된 재보정 — 02 계열 5개 기존 항목 (2026-09-29 사용자 승인, 독립 검토 iteration 7 D1)
+
+run-phase(`progress.md` D-RUN-2 Claim 2)에서 02 계열 5개 기존 `SCREENS` 항목(02/M02/M02-B/M02-C/M02-D)에 아래 조정이 적용됐다. 이는 위 "수정하지 않는다" 원칙의 예외이며, 2026-09-29 세션에서 사용자가 이를 되돌리지 않고 **승인된 debt로 사후 문서화**하기로 결정했다(AskUserQuestion). `git show a106ac9:scripts/visual-verify.ts` 기준으로 이 5개 항목에는 `skipMetrics`가 0건이었다.
+
+**근거**: (a) `skipMetrics` — SPEC-B2C-RESULT-001이 이미 승인한 시각 debt 4건(`.moai/specs/SPEC-B2C-RESULT-001/progress.md` §E.3의 2026-09-22·2026-09-24 사용자 결정: ① fixture 담보 7개 유지 / ② `priorityChecklist` 카드형 유지 / ③ `ResultAggregateBanner` height 편차 / ④ 모바일 입력 요약 카드 잔여 height 편차 — 번호는 이 문서 §13 나열 순서와 같다)의 요소별 축 게이트 해제이며, 그 debt들이 문서 흐름상 아래 요소로 누적되는 종속 값을 포함한다. debt 자체를 이 SPEC에서 재선언·재승인하지 않는다. (b) `backgroundProbe` — 이 SPEC의 `progress.md` D-RUN-2 Claim 2(c): 하단 전폭 CTA 바(`bg-app-sidebar`)·푸터가 배경 프로브 영역에 포함되어 균일도 게이트를 깨뜨렸다.
+
+| 항목 | `backgroundProbe` | `skipMetrics` (요소 → 제외 축 · 귀속) |
+|---|---|---|
+| `02` (Desktop) | 기존 `bottom` 3089 → 2300 (값 변경 1건) | 2건 — 집계 배너 `["top","height"]`(③) · 먼저 확인할 항목 `["top"]`(③ 집계 배너 height 편차의 누적 종속 — `skipReason` 기준) |
+| `M02` | 신규 `bottom: 1600` | 4건, 모두 `["top","height"]` — 입력하신 사고 내용 카드(④) · 집계 배너(③ + 상위 요소 누적 종속) · 먼저 확인할 항목(②) · 카테고리 탭(② + 누적 종속) |
+| `M02-B` | 신규 `bottom: 1700` | 4건 — `M02`와 동일한 요소·축 |
+| `M02-C` | 신규 `bottom: 1200` | 4건 — 동일 |
+| `M02-D` | 신규 `bottom: 1200` | 4건 — 동일 |
+
+합계: `skipMetrics` 정확히 18건(`02` 2 + M02·M02-B·M02-C·M02-D 각 4, 항목별 `skipReason` 동반), `backgroundProbe` 5건(값 변경 1 + 신규 4). 귀속은 `scripts/visual-verify.ts` 각 `skipReason`과 RESULT-001 §E.3의 44건 귀속표(② `priorityChecklist`·카테고리 탭 / ③ 집계 배너 / ④ 모바일 입력 요약 카드)를 따른다.
+
+- **PASS의 의미**: 이 재보정 아래 02 계열 5화면의 PASS는 "설정된 검증 게이트 기준" PASS다(`progress.md` D-RUN-2 Claim 2). `skipMetrics` 대상 요소는 `left`·`width`만 게이트되며 세로 위치·높이는 위 승인 debt 범위로 간주해 검증하지 않는다.
+- **불변인 것(검증됨)**: `TOLERANCE`(`{ desktop: 8, mobile: 4 }`)와 01 계열·M01 계열 10개 항목(01·01-A2·01-B·01-C·01-D·01-E·M01·M01-A2·M01-B·M01-C)은 `a106ac9`와 항목 텍스트가 바이트 동일하다. 02 계열 5개 항목에서 삭제된 줄은 `bottom: 3089,`(`02`)와 주석 `// 참값(top=923).`(`M02`, 확장 재작성) 두 줄뿐이다. 이 사실은 `acceptance.md` AC-B2CCONSULT-025의 "기존 15화면 정의 불변" 시나리오가 이진 검사한다.
+- **그 외 harness 변경의 범위**: 공용 집합 `BOX_LIKE_KEYS`에 `backCta`·`retry` 두 key가 추가됐으나 03-B/03-C/03-D 요소 전용이며 기존 15개 항목은 이 두 key를 사용하지 않는다(HEAD의 기존 15개 항목 중 사용 0건). 리포트 출력 경로 함수화(`reportDirFor`) 등 harness 본체 변경은 `SCREENS` 항목·`TOLERANCE`가 아니므로 이 예외 목록과 위 불변 검사의 대상이 아니다.
 
 ## 13. 01/02 회귀 방지 조건
 
-- SPEC-B2C-RESULT-001이 승인한 4건의 시각 debt(fixture 담보 7개 유지·`priorityChecklist` 카드형 유지·`ResultAggregateBanner` height 편차·모바일 입력 요약 카드 잔여 height 편차)는 그대로 유지하며 이 SPEC에서 재선언·재승인하지 않는다.
+- SPEC-B2C-RESULT-001이 승인한 4건의 시각 debt(fixture 담보 7개 유지·`priorityChecklist` 카드형 유지·`ResultAggregateBanner` height 편차·모바일 입력 요약 카드 잔여 height 편차)는 그대로 유지하며 이 SPEC에서 재선언·재승인하지 않는다. 02 계열 5개 기존 항목의 `backgroundProbe`·`skipMetrics` 재보정은 이 4건의 누적 종속 축 게이트 해제와 프로브 영역 조정으로서 §12.1이 항목별로 열거한 승인된 예외이며, 4건 debt 자체의 재선언·재승인이 아니다.
 - `e2e/diagnosis-flow-01.spec.ts`/`e2e/diagnosis-flow-02.spec.ts`(존재 시)는 수정하지 않는다 — 회귀 검증 대상으로만 재실행한다.
 - `DIAGNOSIS_ENGINE_READY`를 이 SPEC의 코드 어디에서도 `true`로 전환하지 않는다(02의 REQ-B2CRESULT-024와 동형 원칙).

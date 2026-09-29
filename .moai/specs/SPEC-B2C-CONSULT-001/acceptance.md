@@ -208,6 +208,16 @@ Given `CONSULT_POLICY_READY=true`이고 활성 동의 정책이 존재하며, �
 When `POST /api/consultations`를 호출하면
 Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 레코드도 생성되지 않는다(rate limit 판정 단계에 도달했으나 시크릿 부재로 안전하게 수행할 수 없기 때문).
 
+추가 시나리오 — 조작된 `x-forwarded-for` 왼쪽 값은 rate limit 키가 아니다 (독립 검토 iteration 7 D2):
+Given 신뢰 프록시가 클라이언트가 보낸 조작 값 뒤에 실제 IP를 덧붙인 `x-forwarded-for`(`"<조작된 값>, <실제 IP>"`)로 서로 다른 두 클라이언트 A·B가 **같은** 조작된 왼쪽 값과 서로 다른 실제 IP를 갖고, A가 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LIMIT_MAX_REQUESTS`건의 신규 제출로 윈도를 포화시켰을 때
+When A가 다음 신규 제출을 하고 이어서 B가 첫 신규 제출을 하면
+Then A의 다음 제출은 429/`rate_limited`를 받고 B의 제출은 201로 접수된다 — rate limit 키는 가장 오른쪽 값에서만 파생되며 클라이언트가 조작할 수 있는 왼쪽 값은 판정에 쓰이지 않는다. 이 시나리오는 `app/api/consultations/route.test.ts`의 `[보안 재감사] x-forwarded-for의 클라이언트 조작 가능한 첫 값이 아니라 Nginx가 덧붙인 마지막 값으로 rate limit 키를 정한다` 테스트가 검증한다. 이 보장은 앱이 단일 신뢰 프록시를 거쳐서만 도달 가능하다는 배포 전제에 의존한다(`design.md` §9.3).
+
+추가 시나리오 — 신뢰 가능한 IP를 얻을 수 없을 때(핸들러 수준, 방어적 안전망, 독립 검토 iteration 7 D2):
+Given 정책·동의·idempotency 판정을 통과한 신규 제출이고 `RATE_LIMIT_HMAC_SECRET`이 설정되어 있으나 요청에 `x-forwarded-for` 헤더가 없어 핸들러가 신뢰 가능한 IP를 얻을 수 없을 때(핸들러를 직접 호출하는 테스트 — 실제 Next.js 16.3.2 런타임은 헤더 부재 시 소켓 주소를 채우므로 이 상황은 런타임에서 재현되지 않는다, `design.md` §9.3)
+When `POST /api/consultations` 핸들러를 호출하면
+Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되어 접수를 열지 않는다. 이 시나리오는 `app/api/consultations/route.test.ts`의 `신뢰 가능한 IP를 얻을 수 없으면(x-forwarded-for 부재) 시크릿이 있어도 500으로 fail closed한다` 테스트가 검증한다.
+
 추가 시나리오 — 정책 비활성 + 시크릿 부재 (우선순위 검증, D17):
 Given 활성 동의 정책이 없거나 `CONSULT_POLICY_READY`가 거짓이고, `RATE_LIMIT_HMAC_SECRET` 환경 변수도 설정되지 않았을 때
 When `POST /api/consultations`를 호출하면
@@ -339,7 +349,12 @@ Then 모든 단계가 키보드만으로 완료 가능하다.
 **AC-B2CCONSULT-025** (REQ-B2CCONSULT-025)
 Given `pnpm visual:verify`를 이 SPEC의 run-phase 구현 완료 후 전체 실행할 때
 When 결과를 확인하면
-Then 기존 15화면(01 계열 10 + 02 계열 5)이 여전히 PASS하고, 이 SPEC이 추가한 9화면(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D)도 PASS한다(총 24화면).
+Then 기존 15화면(01 계열 10 + 02 계열 5)이 여전히 PASS하고, 이 SPEC이 추가한 9화면(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D)도 PASS한다(총 24화면). 02 계열 5화면의 PASS는 `design.md` §12.1이 열거한 승인된 재보정을 반영한 "설정된 검증 게이트 기준" PASS다.
+
+추가 시나리오 — 기존 15화면 정의 불변(승인된 재보정 외, 독립 검토 iteration 7 D1):
+Given plan-merge 커밋 `a106ac9`의 `scripts/visual-verify.ts`와 run-phase 완료 HEAD의 같은 파일에서 `SCREENS` 배열 항목을 `id`별로 추출했을 때(항목 경계는 들여쓰기 2칸의 `  {` ~ `  },`)
+When 기존 15개 `id`(01·01-A2·01-B·01-C·01-D·01-E·M01·M01-A2·M01-B·M01-C·02·M02·M02-B·M02-C·M02-D)의 항목 텍스트와 `TOLERANCE` 상수를 두 시점 사이에 비교하면
+Then 01 계열·M01 계열 10개 항목과 `TOLERANCE`는 바이트 동일하고, 02 계열 5개 항목에서 삭제·변경된 줄은 `design.md` §12.1이 열거한 것뿐이다 — `02`의 `bottom: 3089,` 한 줄과 `M02`의 주석 `// 참값(top=923).` 한 줄이 유일한 삭제 줄이며, 그 밖의 차이는 `backgroundProbe` 5건(`02`의 값 변경 1 + M02·M02-B·M02-C·M02-D 신규 4)·`skipMetrics` 정확히 18건(`02` 2 + M02·M02-B·M02-C·M02-D 각 4, 모두 `skipReason` 동반)·주석의 추가다. 이 검사는 `SCREENS` 항목과 `TOLERANCE`만 대상으로 하며 harness 본체 변경은 대상이 아니다(`design.md` §12.1).
 
 추가 시나리오 — draft만 정리, 진단 결과 핸드오프는 유지:
 Given 상담 신청이 성공적으로 접수되었을 때

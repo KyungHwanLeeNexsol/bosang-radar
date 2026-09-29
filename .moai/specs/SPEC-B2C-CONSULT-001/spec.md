@@ -4,7 +4,7 @@ title: "03 상담 신청 및 접수 결과 (Plan-Phase)"
 version: "0.1.0"
 status: in-progress
 created: 2026-09-25
-updated: 2026-09-27
+updated: 2026-09-29
 author: Nexsol
 priority: P1
 phase: "v0.19.0 target"
@@ -18,6 +18,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 ## HISTORY
 
 - 2026-09-25: 최초 작성 (Nexsol) — B2C 3단계 퍼널(01 질문 입력 → 02 보상 진단 결과 → 03 상담 신청) 중 마지막 흐름인 **③ 상담 신청 및 접수 결과**의 plan-phase 문서만 작성한다. 실제 화면·컴포넌트·API·DB 마이그레이션 구현은 후속 `/moai run SPEC-B2C-CONSULT-001`의 범위이며, 이번 커밋에는 코드 변경이 포함되지 않는다. 디자인 SSOT는 `design/MIGRATION-PLAN.md`(§2 ③, §6, §7)이며, 02의 stub 상태(`components/result/result-cta-bar.tsx`, `status: completed`)를 실제 흐름으로 전환하는 SPEC이다.
+- 2026-09-29: 독립 검토 iteration 7(`.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`) D1·D2·D3·D6 반영(manager-spec 재위임, 사용자 결정 2026-09-29) — (D1) REQ-B2CCONSULT-025의 기존 15화면 정의 불변 조항에 run-phase의 02 계열 5개 항목 재보정을 승인된 debt로 사후 문서화한 명시적 예외를 추가(`design.md` §12.1이 항목별 열거), (D2) REQ-B2CCONSULT-018의 신뢰 가능한 원본 IP를 단일 신뢰 프록시가 덧붙인 `x-forwarded-for`의 가장 오른쪽 값으로 정의하고 배포 전제·방어적 안전망 성격을 명시(`design.md` §9.3), (D3) 기존 파일 확장 예산 9개를 12개로 갱신(`plan.md` §D, `design.md` §5), (D6) REQ-B2CCONSULT-022의 "화면"을 "폼 상태"로 정정.
 
 ## 1. 배경 (Why)
 
@@ -92,7 +93,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 ### 3.8 서버 API (Event-driven)
 
-- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 여기에 더해 시스템은 활성 동의 정책이 없을 때(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, 503/`policy_unavailable`), 요청의 `acknowledgedConsentVersion`이 활성 정책 버전과 불일치할 때(409/`consent_version_mismatch`), 동일 `idempotencyKey`로 이전과 다른 핵심 페이로드가 도착했을 때(409/`idempotency_conflict`)도 각각 명시적인 HTTP 상태-응답 매핑으로 분기한다(`design.md` §6.1, §8.1-8.2). `rate_limited` 판정은 신뢰 가능한 원본 IP를 HMAC 처리한 고정 윈도 카운터를 DB UNIQUE 제약 기반 원자적 upsert로 수행하며(`design.md` §9.3), 정책·동의 검증과 기존 idempotency 판정을 모두 통과해 rate limit 판정 단계에 실제로 도달한 신규 제출에서 서버 시크릿이 설정되지 않았거나 신뢰 가능한 IP를 얻을 수 없을 때는 그 제출의 접수를 열지 않는다(fail closed — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다; 정책 미비(503)·동의 버전 불일치(409)·기존 idempotency 판정(200 또는 409)으로 이미 종료된 요청에는 적용되지 않는다). 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다. 제출 직전 클라이언트가 `readDiagnosisHandoff()`를 재조회한 `resultId`가 폼 마운트 시점에 읽어 둔 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우), 시스템은 서버에 요청을 보내지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 처리해 03-D 실패 상태로 전환한다.
+- **REQ-B2CCONSULT-018**: 시스템은 `POST /api/consultations` 엔드포인트를 제공하며, `ConsultationRequestSchema` 검증 실패(400/`validation`), 비즈니스 중복(409/`duplicate`), 과도한 요청(429/`rate_limited`), 서버 오류(500/`server_error`), 성공(201 또는 200/`success`)을 명시적인 HTTP 상태-응답 매핑으로 분기한다. 여기에 더해 시스템은 활성 동의 정책이 없을 때(`CONSULT_POLICY_READY`가 거짓이거나 정책 미설정, 503/`policy_unavailable`), 요청의 `acknowledgedConsentVersion`이 활성 정책 버전과 불일치할 때(409/`consent_version_mismatch`), 동일 `idempotencyKey`로 이전과 다른 핵심 페이로드가 도착했을 때(409/`idempotency_conflict`)도 각각 명시적인 HTTP 상태-응답 매핑으로 분기한다(`design.md` §6.1, §8.1-8.2). `rate_limited` 판정은 신뢰 가능한 원본 IP(단일 신뢰 프록시가 `x-forwarded-for`에 덧붙인 가장 오른쪽 값 — 클라이언트가 조작할 수 있는 왼쪽 값은 신뢰하지 않으며, 이 보장은 앱이 그 단일 신뢰 프록시를 거쳐서만 도달 가능하다는 배포 전제에 의존한다)를 HMAC 처리한 고정 윈도 카운터를 DB UNIQUE 제약 기반 원자적 upsert로 수행하며(`design.md` §9.3), 정책·동의 검증과 기존 idempotency 판정을 모두 통과해 rate limit 판정 단계에 실제로 도달한 신규 제출에서 서버 시크릿이 설정되지 않았거나 신뢰 가능한 IP를 얻을 수 없을 때는 그 제출의 접수를 열지 않는다(fail closed — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다; 정책 미비(503)·동의 버전 불일치(409)·기존 idempotency 판정(200 또는 409)으로 이미 종료된 요청에는 적용되지 않는다; 신뢰 가능한 IP 부재 분기는 방어적 안전망이다 — 실제 Next.js 16.3.2 런타임은 `x-forwarded-for` 부재 시 소켓 주소로 채워 넣으므로 이 분기는 런타임에서 도달하지 않고 핸들러 수준에서만 검증된다, `design.md` §9.3). 요청 수신·처리 로그는 `name`/`contact` 원본 값을 포함하지 않으며, 오류 응답 본문도 이 값들을 echo하지 않는다. 제출 직전 클라이언트가 `readDiagnosisHandoff()`를 재조회한 `resultId`가 폼 마운트 시점에 읽어 둔 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우), 시스템은 서버에 요청을 보내지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 처리해 03-D 실패 상태로 전환한다.
 - **REQ-B2CCONSULT-019**: 시스템은 `consultations` 저장 스키마(`lib/db/schema.ts` 확장)에 상담 id·`resultId`(opaque 참조)·채널·이름·정규화 연락처·연락 희망 시간·동의 3종 boolean·서버 스탬프 동의 버전·요청 지문(`requestFingerprint`, `design.md` §8.2)·처리 상태·idempotencyKey·생성/수정 시각을 저장하며, `DiagnosisResult`의 담보 항목·집계 등 진단 상세 내용은 이 테이블에 복제하지 않는다. 또한 시스템은 `consultationRateLimits` 보조 테이블을 원자적 고정 윈도 카운터로 정의하며(`design.md` §9.3), 원본 IP 문자열은 이 테이블을 포함해 어떤 컬럼에도 평문으로 저장하지 않는다(HMAC 처리된 값만 저장한다).
 
 ### 3.9 중복 · 멱등성 (Event-driven)
@@ -102,7 +103,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 ### 3.10 성공 · 중복 · 실패 상태 (Event-driven)
 
-- **REQ-B2CCONSULT-022** (When): 서버 응답이 `"error"`이거나 클라이언트가 타임아웃/네트워크 오류로 응답 자체를 받지 못했을 때, 시스템은 서버의 저장 성공/실패 여부를 단정하는 문구를 표시하지 않으며, 재시도 시 이전과 동일한 `idempotencyKey`를 재사용하고, 사용자가 입력한 값(채널·이름·연락처·연락 희망 시간·마케팅 동의)을 화면과 draft 양쪽에 보존한다.
+- **REQ-B2CCONSULT-022** (When): 서버 응답이 `"error"`이거나 클라이언트가 타임아웃/네트워크 오류로 응답 자체를 받지 못했을 때, 시스템은 서버의 저장 성공/실패 여부를 단정하는 문구를 표시하지 않으며, 재시도 시 이전과 동일한 `idempotencyKey`를 재사용하고, 사용자가 입력한 값(채널·이름·연락처·연락 희망 시간·마케팅 동의)을 폼 상태와 draft 양쪽에 보존한다(03-D 요약은 `design.md` §10의 4행이며 입력한 값을 다시 표시하지 않는다).
 - **REQ-B2CCONSULT-023** (When): 서버 응답이 `"duplicate"`일 때, 시스템은 마스킹된 연락처·접수일·처리 상태 라벨만 표시하며 기존 신청의 전체 페이로드나 내부 식별자를 노출하지 않는다. 마스킹된 연락처는 매칭된 기존 레코드의 저장값을 다시 읽어 반환하지 않으며, 항상 이번 요청 발신자 본인이 제출한 연락처를 정규화·마스킹해 파생한다(교차 제출 정보 유출 방지, `design.md` §9.4). 접수일은 시:분:초를 포함하지 않는 날짜 단위 정밀도(`YYYY-MM-DD`)로만 표시한다.
 
 ### 3.11 반응형 · 접근성 (Ubiquitous)
@@ -111,7 +112,7 @@ related_specs: [SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001]
 
 ### 3.12 회귀 방지 (Unwanted)
 
-- **REQ-B2CCONSULT-025**: 시스템은 `pnpm visual:verify`의 기존 15화면(01 계열 10 + 02 계열 5) 정의·허용 오차·02의 승인된 시각 debt 4건을 수정하지 않으며, 이 SPEC이 추가하는 9화면은 기존 배열에 추가하는 방식으로만 확장한다. 상담 신청 성공 시 시스템은 `clearConsultationDraft()`를 호출해 상담 폼 draft만 정리하며, `DiagnosisResult` 핸드오프 자체는 삭제하지 않는다 — 핸드오프는 기존 정책(새 진단 시작 시 `clearDiagnosisHandoff()` 호출)에 의해서만 계속 제거된다. 성공·중복·실패 화면에서 "진단 결과로 돌아가기"를 눌렀을 때 제출 이전과 동일한 `resultId`의 진단 결과가 다시 표시됨을 보장한다(`design.md` §2.2). `DIAGNOSIS_ENGINE_READY`를 이 SPEC의 코드 어디에서도 `true`로 전환하지 않는다.
+- **REQ-B2CCONSULT-025**: 시스템은 `pnpm visual:verify`의 기존 15화면(01 계열 10 + 02 계열 5) 정의·허용 오차(`TOLERANCE`)·02의 승인된 시각 debt 4건을 수정하지 않는다 — 단, run-phase에서 02 계열 5개 항목(02/M02/M02-B/M02-C/M02-D)에 적용되어 2026-09-29 사용자 결정으로 승인된 debt로 사후 문서화된 `backgroundProbe`·`skipMetrics` 재보정(`design.md` §12.1이 항목별로 열거)만 예외이며, 그 외 기존 항목은 변경하지 않는다. 이 SPEC이 추가하는 9화면은 기존 배열에 추가하는 방식으로만 확장한다. 상담 신청 성공 시 시스템은 `clearConsultationDraft()`를 호출해 상담 폼 draft만 정리하며, `DiagnosisResult` 핸드오프 자체는 삭제하지 않는다 — 핸드오프는 기존 정책(새 진단 시작 시 `clearDiagnosisHandoff()` 호출)에 의해서만 계속 제거된다. 성공·중복·실패 화면에서 "진단 결과로 돌아가기"를 눌렀을 때 제출 이전과 동일한 `resultId`의 진단 결과가 다시 표시됨을 보장한다(`design.md` §2.2). `DIAGNOSIS_ENGINE_READY`를 이 SPEC의 코드 어디에서도 `true`로 전환하지 않는다.
 
 ## 4. Out of Scope
 
