@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T11:32:46.076Z",
+  "generatedAt": "2026-09-29T03:20:09.757Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -2811,7 +2811,7 @@
           "lines": {
             "actual": 4
           },
-          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-28처리 상태접수됨",
+          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-29처리 상태접수됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -3424,7 +3424,7 @@
           "pass": true
         },
         {
-          "label": "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
+          "label": "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
           "expected": "true",
           "actual": "true",
           "pass": true
@@ -5063,7 +5063,7 @@
           "lines": {
             "actual": 4
           },
-          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-28처리 상태접수됨",
+          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-29처리 상태접수됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -5613,7 +5613,7 @@
           "pass": true
         },
         {
-          "label": "입력 값 유지(sessionStorage draft) — 폼 상태 보존",
+          "label": "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
           "expected": "true",
           "actual": "true",
           "pass": true
