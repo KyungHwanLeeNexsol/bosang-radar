@@ -2293,7 +2293,7 @@ const SCREENS: readonly ScreenSpec[] = [
         inkThreshold: BOX_INK_THRESHOLD,
         skipMetrics: ["top"],
         skipReason:
-          "모바일 디자인 목업에는 채널 안내(role=status)가 없지만 안내 문구는 필수(acceptance 의미 검사·CHANNEL_NOTICE)라 화면에 남긴다 — 예전에는 음수 마진(-mt-[62px])으로 폼을 안내 위로 끌어올려 top을 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다. 음수 마진 제거로 폼이 안내 높이만큼 아래로 밀려 top이 약 62px 커진다(left/width/height는 계속 게이트). 절대 top 대신 semanticChecks의 '채널 안내 하단 → 이름 라벨/폼 상단 간격' 상대 위치 게이트(16~24px)가 폼이 과도하게 밀리거나 안내와 겹치는 회귀를 잡는다",
+          "모바일 디자인 목업에는 채널 안내(role=status)가 없다. 그 안내를 모바일에서도 표시하는 것은 현재 화면의 설계 선택이며 REQ/AC나 M03 semanticChecks가 요구하는 필수 사항은 아니다(데스크톱 03-A2만 안내 문구를 검사한다). 예전에는 음수 마진(-mt-[62px])으로 폼을 안내 위로 끌어올려 top을 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다. 음수 마진 제거로 폼이 안내 높이만큼 아래로 밀려 top이 약 62px 커진다(left/width/height는 계속 게이트). 이 편차에 대한 디자인 승인 기록은 없다. 절대 top 대신 semanticChecks의 '채널 안내 하단 → 이름 라벨/폼 상단 간격' 상대 위치 게이트(16~24px)가 폼이 과도하게 밀리거나 안내와 겹치는 회귀를 잡는다",
       },
     ],
     semanticChecks: async (page) => [
