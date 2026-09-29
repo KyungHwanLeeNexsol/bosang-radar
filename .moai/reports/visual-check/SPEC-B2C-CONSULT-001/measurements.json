@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T03:20:09.757Z",
+  "generatedAt": "2026-09-29T06:07:55.627Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -4220,13 +4220,13 @@
             "left": 20,
             "top": 382,
             "width": 350,
-            "height": 248
+            "height": 246
           },
           "delta": {
             "left": 0,
             "top": 4,
             "width": 0,
-            "height": 4
+            "height": 2
           },
           "lines": {
             "actual": 6
@@ -4248,13 +4248,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 587,
+            "top": 649,
             "width": 350,
             "height": 309
           },
           "delta": {
             "left": 0,
-            "top": 3,
+            "top": 65,
             "width": 0,
             "height": 1
           },
