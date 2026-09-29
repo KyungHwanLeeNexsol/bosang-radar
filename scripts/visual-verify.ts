@@ -606,6 +606,37 @@ async function elementPosition(page: Page, testId: string): Promise<string> {
   return locator.first().evaluate((el) => window.getComputedStyle(el).position);
 }
 
+// M03 채널 안내 하단 → 폼 상단의 허용 간격(px). 부모(consult-view.tsx)의
+// flex-col gap-5 = 20px 기준이며 폰트·브라우저 오차를 ±4px 허용한다. M03 form의
+// 절대 top은 skipMetrics로 제외되므로(디자인 목업에는 안내가 없다), 폼이 안내
+// 아래로 과도하게 밀리거나 안내와 겹치는 회귀는 이 상대 위치 게이트가 잡는다.
+const M03_NOTICE_TO_FORM_GAP = { min: 16, max: 24 } as const;
+
+/**
+ * upperSelector 요소 하단 → lowerSelector 요소 상단의 세로 간격이 범위 안이면
+ * "min~maxpx", 벗어나면 실측 간격("NN.Npx"), 요소가 없으면 "missing"을 반환한다.
+ * semanticChecks가 기대값 문자열과 정확히 비교하므로 위반 시 실측값이 그대로 보인다.
+ */
+async function gapBetweenWithinRange(
+  page: Page,
+  upperSelector: string,
+  lowerSelector: string,
+  range: { readonly min: number; readonly max: number }
+): Promise<string> {
+  const gap = await page.evaluate(
+    ({ upper, lower }) => {
+      const upperEl = document.querySelector(upper);
+      const lowerEl = document.querySelector(lower);
+      if (!upperEl || !lowerEl) return null;
+      return lowerEl.getBoundingClientRect().top - upperEl.getBoundingClientRect().bottom;
+    },
+    { upper: upperSelector, lower: lowerSelector }
+  );
+  if (gap === null) return "missing";
+  if (gap >= range.min && gap <= range.max) return `${range.min}~${range.max}px`;
+  return `${Math.round(gap * 10) / 10}px`;
+}
+
 // ── 24개 화면 정의 (런타임 추론 없이 코드에 전부 열거한다) ───────────
 // 기존 10개(SPEC-B2C-DIAGNOSIS-001) + SPEC-B2C-RESULT-001 M6이 추가한
 // 5개(02/M02/M02-B/M02-C/M02-D) + SPEC-B2C-CONSULT-001 M7이 추가하는
@@ -2262,7 +2293,7 @@ const SCREENS: readonly ScreenSpec[] = [
         inkThreshold: BOX_INK_THRESHOLD,
         skipMetrics: ["top"],
         skipReason:
-          "모바일 디자인 목업에는 채널 안내(role=status)가 없지만 안내 문구는 필수(acceptance 의미 검사·CHANNEL_NOTICE)라 화면에 남긴다 — 예전에는 음수 마진(-mt-[62px])으로 폼을 안내 위로 끌어올려 top을 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다. 음수 마진 제거로 폼이 안내 높이만큼 아래로 밀려 top이 약 62px 커진다(left/width/height는 계속 게이트)",
+          "모바일 디자인 목업에는 채널 안내(role=status)가 없지만 안내 문구는 필수(acceptance 의미 검사·CHANNEL_NOTICE)라 화면에 남긴다 — 예전에는 음수 마진(-mt-[62px])으로 폼을 안내 위로 끌어올려 top을 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다. 음수 마진 제거로 폼이 안내 높이만큼 아래로 밀려 top이 약 62px 커진다(left/width/height는 계속 게이트). 절대 top 대신 semanticChecks의 '채널 안내 하단 → 이름 라벨/폼 상단 간격' 상대 위치 게이트(16~24px)가 폼이 과도하게 밀리거나 안내와 겹치는 회귀를 잡는다",
       },
     ],
     semanticChecks: async (page) => [
@@ -2275,6 +2306,26 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "하단 제출 바 sticky 포지션 적용(md 미만 뷰포트)",
         expected: "sticky",
         actual: await elementPosition(page, "consult-submit-bar"),
+      },
+      {
+        label: "채널 안내 하단 → 이름 라벨 상단 간격(상대 위치, gap-5=20px 기준)",
+        expected: `${M03_NOTICE_TO_FORM_GAP.min}~${M03_NOTICE_TO_FORM_GAP.max}px`,
+        actual: await gapBetweenWithinRange(
+          page,
+          '[data-testid="consult-channel-selector"] [role="status"]',
+          'label[for="consult-name-input"]',
+          M03_NOTICE_TO_FORM_GAP
+        ),
+      },
+      {
+        label: "채널 안내 하단 → 폼 컨테이너 상단 간격(상대 위치, gap-5=20px 기준)",
+        expected: `${M03_NOTICE_TO_FORM_GAP.min}~${M03_NOTICE_TO_FORM_GAP.max}px`,
+        actual: await gapBetweenWithinRange(
+          page,
+          '[data-testid="consult-channel-selector"] [role="status"]',
+          '[data-testid="consult-form"]',
+          M03_NOTICE_TO_FORM_GAP
+        ),
       },
     ],
   },

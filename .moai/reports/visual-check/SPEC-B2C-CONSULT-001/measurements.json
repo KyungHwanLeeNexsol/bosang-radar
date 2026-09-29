@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T06:07:55.627Z",
+  "generatedAt": "2026-09-29T06:36:11.771Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -4279,6 +4279,18 @@
           "label": "하단 제출 바 sticky 포지션 적용(md 미만 뷰포트)",
           "expected": "sticky",
           "actual": "sticky",
+          "pass": true
+        },
+        {
+          "label": "채널 안내 하단 → 이름 라벨 상단 간격(상대 위치, gap-5=20px 기준)",
+          "expected": "16~24px",
+          "actual": "16~24px",
+          "pass": true
+        },
+        {
+          "label": "채널 안내 하단 → 폼 컨테이너 상단 간격(상대 위치, gap-5=20px 기준)",
+          "expected": "16~24px",
+          "actual": "16~24px",
           "pass": true
         }
       ],

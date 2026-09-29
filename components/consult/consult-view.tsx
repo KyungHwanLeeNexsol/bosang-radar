@@ -58,8 +58,14 @@ interface ConsultViewProps {
 // 서버/hydration 렌더용 "loading" 상태를 실제 handoff 판별 유니언에 더한다.
 type ConsultHandoffSnapshot = { status: "loading" } | DiagnosisHandoffReadResult;
 
+// 서버/hydration 스냅샷은 호출마다 새 객체를 만들지 않고 이 모듈 수준의 고정
+// 불변 객체를 반환한다. useSyncExternalStore는 같은 상태에서 안정된(동일 참조)
+// 스냅샷을 기대하므로 참조가 바뀌지 않게 둔다. (이 변경은 #418의 원인 수정이
+// 아니라 스냅샷 참조 안정성 확보다.)
+const LOADING_SNAPSHOT = Object.freeze({ status: "loading" } as const);
+
 function getServerSnapshot(): ConsultHandoffSnapshot {
-  return { status: "loading" };
+  return LOADING_SNAPSHOT;
 }
 
 // sessionStorage를 마운트 시 1회 읽는다(이 컴포넌트는 handoff를 절대 지우지

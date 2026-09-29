@@ -666,6 +666,25 @@ function expectNoOverlap(aName: string, a: Rect, bName: string, b: Rect): void {
   ).toBe(false);
 }
 
+// 채널 안내 하단 → 폼(이름 라벨) 상단의 세로 간격 허용 범위. 비겹침만 단언하면
+// 폼이 안내에서 과도하게 아래로 밀려도 통과하므로 상·하한을 둔다. 기준은 부모
+// (consult-view.tsx)의 flex-col gap-5 = 20px이다. 이 값은 CSS gap이라 폰트
+// 렌더링에 따라 변하지 않지만, 서브픽셀 반올림·브라우저 차이를 ±4px 허용한다.
+// 하한 16은 음수 마진(겹침)·간격 붕괴 회귀를, 상한 24는 폼이 밀려 내려가는
+// 회귀를 잡는다.
+const NOTICE_TO_FORM_GAP_PX = { min: 16, max: 24 } as const;
+
+function expectGapWithin(
+  name: string,
+  gap: number,
+  range: { readonly min: number; readonly max: number }
+): void {
+  expect(
+    gap >= range.min && gap <= range.max,
+    `${name} 간격이 ${Math.round(gap * 10) / 10}px — 허용 범위 ${range.min}~${range.max}px(부모 gap-5=20px 기준)를 벗어난다`
+  ).toBe(true);
+}
+
 function saveLayoutEvidence(fileStem: string, data: unknown): void {
   if (!LAYOUT_EVIDENCE_DIR) return;
   const dir = path.resolve(LAYOUT_EVIDENCE_DIR);
@@ -706,7 +725,7 @@ function registerLayoutTests(policyReady: boolean): void {
     test.use({ viewport: MOBILE_LAYOUT_VIEWPORT, isMobile: true, hasTouch: true });
 
     for (const channel of ["kakao", "phone"] as const) {
-      test(`(a)(b) ${channel} 채널 — 채널 안내가 이름·연락처·연락 희망 시간 라벨/입력과 폼 위로 겹치지 않고 채널 카드 아래에 위치한다${tag}`, async ({
+      test(`(a)(b)(d) ${channel} 채널 — 채널 안내가 이름·연락처·연락 희망 시간 라벨/입력과 폼 위로 겹치지 않고 채널 카드 아래에 위치하며, 안내 하단과 이름 라벨·폼 상단의 간격이 gap-5 부근이다${tag}`, async ({
         page,
       }) => {
         await openConsultWithChannel(page, channel);
@@ -744,8 +763,17 @@ function registerLayoutTests(policyReady: boolean): void {
         );
         const formRect = await rectOf(page.getByTestId("consult-form"), "폼 컨테이너");
 
+        const noticeBottom = noticeRect.y + noticeRect.height;
+        const noticeToNameLabelGap = nameLabelRect.y - noticeBottom;
+        const noticeToFormGap = formRect.y - noticeBottom;
+
         saveLayoutEvidence(`rects-${modeStem}-${channel}`, {
           viewport: MOBILE_LAYOUT_VIEWPORT,
+          gaps: {
+            noticeToNameLabel: noticeToNameLabelGap,
+            noticeToForm: noticeToFormGap,
+            allowed: NOTICE_TO_FORM_GAP_PX,
+          },
           notice: noticeRect,
           channelCards: cardRects,
           nameLabel: nameLabelRect,
@@ -780,6 +808,19 @@ function registerLayoutTests(policyReady: boolean): void {
 
         // (b) 폼 컨테이너 전체가 안내와 교차하지 않는다.
         expectNoOverlap("폼 컨테이너", formRect, "채널 안내", noticeRect);
+
+        // (d) 상대 위치 — 겹치지 않는 것만으로는 폼이 과도하게 아래로 밀려도 통과하므로,
+        // 안내 하단 → 이름 라벨/폼 상단의 실측 간격이 gap-5(20px) 부근이어야 한다.
+        expectGapWithin(
+          "채널 안내 하단 → 이름 라벨 상단",
+          noticeToNameLabelGap,
+          NOTICE_TO_FORM_GAP_PX
+        );
+        expectGapWithin(
+          "채널 안내 하단 → 폼 컨테이너 상단",
+          noticeToFormGap,
+          NOTICE_TO_FORM_GAP_PX
+        );
       });
 
       test(`(c) ${channel} 채널 — 하단 sticky CTA가 입력·동의 체크박스를 가리지 않고 ${policyReady ? "제출 버튼이 뷰포트에 온전히 들어온다" : "정책 미준비 안내가 잘리지 않고 보인다"}${tag}`, async ({
