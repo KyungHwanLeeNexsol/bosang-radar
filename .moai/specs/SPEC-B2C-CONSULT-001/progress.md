@@ -2742,6 +2742,27 @@ D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으�
 
 **상태**: `plan_status: audit-ready`(iteration 12 PASS, 커밋 전 작업 트리 기준). `run_status: amended-pending-revalidation` 유지 — 보류 사유는 이번에도 (a) Nginx `X-Forwarded-For` 운영 설정 확인(운영 환경 접근이 필요해 확인하지 못했다), (b) 요약 카드 height(변경·확인하지 않았다) 두 가지이며 **어느 쪽도 해결로 표시하지 않는다.**
 
+### D-NEW-11 — `visual:verify` 포트·정리 결함 수정 (`15c4159` 후속)
+
+문구 정정과 M03 검증 게이트는 그대로 두었고 spec/plan/acceptance/design은 바꾸지 않았다(그래서 plan-audit 재실행 대상이 아니다). 로그는 `.moai/state/verify/visual-verify-port-fix/`(gitignore)에 있다.
+
+**Claim 44 — 검증 도구 결함 3건을 고쳤다.**
+1. `findFreePort()`가 OS 임의 포트를 그대로 반환해 6668(fetch "bad port") 같은 금지 포트가 걸리면 `waitForServer()`가 120초를 헛기다렸다. 새 모듈 `scripts/visual-verify-server.ts`의 `findSafePort()`가 금지 포트를 버리고 다시 고르며(최대 20회, 초과 시 원인을 밝히고 실패), `waitForServer()`는 금지 포트 URL·fetch "bad port"·자식 조기 종료를 만나면 기다리지 않고 즉시 원인과 함께 실패한다. 외부 `VISUAL_BASE_URL` 경로는 이 함수들을 거치지 않으므로 동작이 같다.
+2. spawn 이후 준비 확인이 실패해도 자식 트리가 남았고, `main()`의 `chromium.launch`/`newContext`/`goto`는 `try` 밖이라 그 단계 실패 때도 서버가 남았다. `startManagedServer()`가 준비 실패 시 트리를 정리한 뒤 던지고, `main()`의 `try/finally`를 서버 기동 직후부터로 넓혔다.
+3. **이번에 새로 발견한 결함**: 이 셸(Git Bash) PATH에는 System32가 없어 `taskkill`이 "내부 또는 외부 명령이 아닙니다"로 실패했는데, 예전 `stop()`의 `catch {}`가 그 실패를 삼켜 정리 실패가 아무 신호 없이 서버를 남길 수 있었다. `%SystemRoot%\System32\taskkill.exe` 절대 경로로 호출하고, "이미 종료됨"(종료 코드 128/ESRCH)이 아닌 실패는 stderr에 경고한다.
+
+**Evidence(직접 실행)**
+- 원인 재현: 기존 `waitForServer` 본문에 한도 3초로 6668을 주니 `3066ms 후 실패 → 서버가 3000ms 안에 기동하지 않았습니다` — 금지 포트 원인이 가려진 채 한도를 끝까지 기다렸다. Node v24.19.0에서 1~65535 전 포트를 fetch로 두드려 "bad port" 82개를 실측해 `UNSAFE_PORTS`로 옮겼다(6668 포함).
+- 회귀 테스트 `scripts/visual-verify-server.test.ts` 14건 통과(4.4초): 6668·6667 주입 후 재선택, 계속 금지면 유한 재시도 후 실패, URL이 금지 포트면 fetch 없이 즉시 실패, 실제 fetch도 6668에서 2초 안에 실패, 자식 조기 종료(`exit code=3`)는 한도 60초를 기다리지 않고 실패, 준비 타임아웃 후 shell 뒤 손자 프로세스까지 종료, 정상 기동 후 `stop()`이 손자까지 종료(정리 전 생존을 대조군으로 확인). `taskkill` 절대 경로 수정 전에는 이 중 정리 관련 3건이 실제로 실패했다.
+- `main()` 준비 단계 실패 주입(실제 스크립트, `VISUAL_SKIP_BUILD=1 PLAYWRIGHT_BROWSERS_PATH=존재하지 않는 경로`로 `chromium.launch` 실패): 수정 후 — 서버(포트 12233) 기동 뒤 launch 실패, exit 1, 종료 후 ECONNREFUSED(정리됨). **대조군 — 수정 전 `HEAD` 코드에 같은 주입: 종료 후에도 포트 3428이 200을 응답(서버 잔존)**, 수동으로 종료했다.
+- `pnpm exec tsc --noEmit` 종료 코드 0(리다이렉트한 실제 종료 코드), 변경 3파일 eslint 0 / prettier 통과, `vitest run scripts` 9파일 46건 통과.
+
+**Claim 45 — 제약 없는 `pnpm visual:verify`: 24 PASS / 0 FAIL, 종료 코드 0.** `run1.log`, 빌드 포함, 커밋 `15c4159` + 이 수정(커밋 전 작업 트리) 기준, 포트 13970. **이번 최종 실행은 첫 시도에 통과했다 — 첫 실패도 재시도도 없었다.** 앞선 세션의 "첫 시도 exit 1(6668) → 재실행 통과" 기록(Claim 43)은 그 시점의 사실이므로 그대로 두고 고치지 않았다. 종료 후 이 실행의 서버 포트는 ECONNREFUSED였다. 실행이 바꾼 `measurements.json` 2개(생성 시각)와 PNG 3개(재렌더)는 되돌렸다.
+
+**Gaps(미검증)**: 이 수정으로 6668이 다시 걸리는 실행을 실제 `visual:verify` 전체로 재현하지는 않았다(포트 재선택은 주입 테스트로만 확인, OS가 금지 포트를 주는 상황은 우연에 달렸다). Chromium 쪽 금지 포트 목록은 실측하지 않고 fetch 실측 목록(상위집합)으로 갈음했다. POSIX(`process.kill(-pid)`) 정리 경로는 이 환경(Windows)에서 실행하지 못했다. SIGINT 등 신호로 중단된 경우의 정리는 다루지 않았다. 전체 vitest·e2e는 다시 돌리지 않았다(`scripts` 범위만). Nginx `X-Forwarded-For` 운영 설정 확인과 요약 카드 height는 **여전히 미검증이며 해결로 표시하지 않는다**(열린 항목 7·8 그대로).
+
+**Residual-risk**: 다른 워크트리(`agent-a6009ada…`)에 `next start`로 보이는 프로세스가 남아 있음을 관찰했다. 이 수정과의 관련은 확인하지 못했고 다른 세션 것일 수 있어 건드리지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -2798,7 +2819,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 19. **[해소됨 — D-NEW-8 Claim 33, 수정 커밋 `2230e2b`, 검증 Claim 36]** **`/consult` 전체 로드·새로고침 시 React 하이드레이션 오류 #418.** **현재 상태**: 원인은 `consult-view.tsx`가 렌더 중 `readDiagnosisHandoff()`를 읽어 서버 HTML(빈 상태)과 클라이언트 첫 렌더(폼)가 어긋나는 것이었고, `useSyncExternalStore` 2단계 렌더(서버 스냅샷 = loading)로 고쳤다. 프로덕션 빌드에서 정책 준비·미준비 양쪽의 `page.goto`/`page.reload()`가 hydration 콘솔 오류 0건임을 e2e가 단언하고, 최종 실행이 통과했다(36 / 11 passed). 확인 범위는 Chromium이다. **이력(D-NEW-7 Claim 32 당시 서술)**: "미조치, 원인은 코드 읽기에 따른 추정이고 수정으로 확인하지 못했다"고 적었다 — 이번에 원인을 코드와 테스트로 확인하고 수정했다.
 20. **[해소됨 — D-NEW-8 Claim 34, 수정 커밋 `ef205d3`, 검증 Claim 36. 단 M03 `form.top` 편차 결정은 사용자 승인 기록이 없다]** **모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃.** **현재 상태**: 원인은 `consult-form.tsx` 컨테이너의 모바일 `-mt-[62px]`가 폼을 안내 문구 위로 62px 끌어올린 것이었다. 음수 마진을 제거해 간격을 부모 `gap-5`에 맡겼다. 390px에서 안내와 이름·연락처·연락 시간 라벨/입력의 겹침 면적 0, 하단 sticky 제출 영역과 입력·동의 체크박스 비겹침을 kakao/phone × 정책 준비/미준비 e2e가 rect로 단언하고 최종 실행이 통과했다. 다시 만든 `M03-consult.png`(kakao 채널)는 제가 직접 열어 겹침이 없음을 눈으로 확인했다. phone 채널·미준비 모드의 겹침은 e2e rect 단언으로만 확인했고 스크린샷을 직접 보지는 않았다. **이력(D-NEW-7 Claim 32 당시 서술)**: 좌표가 y 592~628 대 586~600로 겹치고 `visual:verify`가 이를 놓친다고 적고 "디자인 판단 필요, 미조치"로 남겼다.
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
-22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
+22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
 
 ### 이번 세션에서 해소됨
 

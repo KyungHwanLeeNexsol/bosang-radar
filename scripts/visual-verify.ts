@@ -26,9 +26,8 @@
 // 대상으로 한다 — `next dev`는 `<nextjs-portal>` 개발 전용 DOM을 주입해
 // 픽셀 비교를 오염시킨다. 매 화면 캡처 직전에 그 요소의 부재를 단언한다.
 
-import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import process from "node:process";
 
@@ -40,6 +39,9 @@ import { HELPERS_SOURCE } from "./visual-verify-helpers";
 // scripts/run-e2e.ts와 동일하게 in-process 재사용한다(서브프로세스 호출은
 // env 전달 경계가 하나 더 생긴다는 그 파일의 이유와 동일).
 import { runMigrations } from "./db-migrate";
+// 포트 선정(금지 포트 회피) · 준비 확인 · 프로세스 트리 정리는 이 파일이 import되는
+// 순간 main()이 도는 탓에 테스트할 수 없어 별도 모듈로 분리했다.
+import { startManagedServer, type ManagedServer } from "./visual-verify-server";
 
 // tsx(esbuild)는 `keepNames` 옵션 때문에 함수 리터럴마다 `__name(...)` 호출을
 // 덧붙인다. 그 함수를 `page.evaluate`로 브라우저에 보내면 헬퍼가 없어
@@ -583,8 +585,8 @@ async function iconExists(page: Page, containerTestId: string): Promise<string> 
  * (AC-B2CCONSULT-022)의 몫이다.
  */
 async function draftNameMatches(page: Page, expectedName: string): Promise<boolean> {
-  const raw = await page.evaluate(
-    () => window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")
+  const raw = await page.evaluate(() =>
+    window.sessionStorage.getItem("bosang-radar:consultation-draft-v1")
   );
   if (!raw) return false;
   try {
@@ -2524,32 +2526,6 @@ const SCREENS: readonly ScreenSpec[] = [
 ];
 
 // ── 서버 기동 ────────────────────────────────────────────────────────
-async function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on("error", reject);
-    server.listen(0, () => {
-      const port = (server.address() as net.AddressInfo).port;
-      server.close(() => resolve(port));
-    });
-  });
-}
-
-async function waitForServer(url: string, timeoutMs: number) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch {
-      // 아직 기동 전 — 재시도한다.
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(`서버가 ${timeoutMs}ms 안에 기동하지 않았습니다: ${url}`);
-}
-
 async function startProductionServer(): Promise<{ baseURL: string; stop: () => void }> {
   // SPEC-B2C-CONSULT-001 M7 — 03-B/03-C(성공/중복)가 실제 POST
   // /api/consultations 제출로 도달해야 해서 서버 부팅에 TURSO_DATABASE_URL
@@ -2582,34 +2558,23 @@ async function startProductionServer(): Promise<{ baseURL: string; stop: () => v
     execSync("pnpm build", { cwd: PROJECT_ROOT, env, stdio: "inherit" });
   }
 
-  const port = await findFreePort();
-  const baseURL = `http://localhost:${port}`;
-  console.log(`[visual-verify] pnpm start → ${baseURL}`);
-  const child: ChildProcess = spawn("pnpm", ["start"], {
-    cwd: PROJECT_ROOT,
-    env: { ...env, PORT: String(port) },
-    stdio: "ignore",
-    shell: true,
-    detached: process.platform !== "win32",
-  });
-  await waitForServer(baseURL, 120_000);
-  return {
-    baseURL,
-    stop: () => {
-      try {
-        if (child.pid && process.platform === "win32") {
-          // shell:true로 띄웠기 때문에 child.pid는 cmd.exe다 — /T로 자식
-          // (pnpm → next start)까지 함께 종료해야 포트가 반납된다.
-          execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: "ignore" });
-        } else if (child.pid) {
-          process.kill(-child.pid, "SIGTERM");
-        }
-      } catch {
-        // 이미 종료된 경우 — 무시한다.
-      }
-      child.unref();
+  // 포트는 금지 포트(Node fetch "bad port" / Chromium ERR_UNSAFE_PORT)를 피해 고른다.
+  // spawn 이후 준비 확인이 실패하면 startManagedServer가 자식 트리를 정리하고 던지므로,
+  // 이 함수가 실패하면 남은 서버가 없다.
+  return startManagedServer({
+    readyTimeoutMs: 120_000,
+    log: (message) => console.log(`[visual-verify] ${message}`),
+    spawnOnPort: (port) => {
+      console.log(`[visual-verify] pnpm start → http://localhost:${port}`);
+      return spawn("pnpm", ["start"], {
+        cwd: PROJECT_ROOT,
+        env: { ...env, PORT: String(port) },
+        stdio: "ignore",
+        shell: true,
+        detached: process.platform !== "win32",
+      });
     },
-  };
+  });
 }
 
 // ── 측정 ─────────────────────────────────────────────────────────────
@@ -3271,16 +3236,8 @@ async function main() {
     screens = SCREENS.filter((s) => ids.includes(s.id));
   }
 
-  let server: { baseURL: string; stop: () => void } | null = null;
   const externalBaseURL = process.env.VISUAL_BASE_URL ?? "";
   const skipBuild = process.env.VISUAL_SKIP_BUILD === "1";
-  let baseURL = externalBaseURL;
-  if (!baseURL) {
-    server = await startProductionServer();
-    baseURL = server.baseURL;
-  } else {
-    console.log(`[visual-verify] 기존 서버 재사용: ${baseURL}`);
-  }
 
   // audit-ready 근거가 되는 measurements.json은 **제약 없는 전체 실행**
   // 에서만 나온다. 화면을 골랐거나(VISUAL_ONLY), 현재 소스를 빌드하지
@@ -3289,17 +3246,31 @@ async function main() {
   const isCanonicalRun =
     screens.length === SCREENS.length && onlyRaw === undefined && !skipBuild && !externalBaseURL;
 
-  const browser = await chromium.launch();
-  const analysisContext = await browser.newContext();
-  await analysisContext.addInitScript(KEEP_NAMES_SHIM);
-  await analysisContext.addInitScript(HELPERS_SOURCE);
-  const analysis = await analysisContext.newPage();
-  await analysis.goto("about:blank");
-
   const findings: Finding[] = [];
   const results: ScreenResult[] = [];
 
+  // 정리 범위는 서버 기동 시점부터 시작한다. 예전에는 서버 기동과
+  // chromium.launch / newContext / goto가 try 밖에 있어서, 이 준비 단계 중 하나라도
+  // 실패하면 이미 떠 있는 `next start` 트리(와 브라우저)가 그대로 남았다. 아래
+  // finally는 각 자원이 실제로 만들어진 경우에만 해제한다.
+  let server: ManagedServer | null = null;
+  let browser: Browser | null = null;
   try {
+    let baseURL = externalBaseURL;
+    if (!baseURL) {
+      server = await startProductionServer();
+      baseURL = server.baseURL;
+    } else {
+      console.log(`[visual-verify] 기존 서버 재사용: ${baseURL}`);
+    }
+
+    browser = await chromium.launch();
+    const analysisContext = await browser.newContext();
+    await analysisContext.addInitScript(KEEP_NAMES_SHIM);
+    await analysisContext.addInitScript(HELPERS_SOURCE);
+    const analysis = await analysisContext.newPage();
+    await analysis.goto("about:blank");
+
     for (const spec of screens) {
       process.stdout.write(`[visual-verify] ${spec.id} … `);
       try {
@@ -3322,8 +3293,17 @@ async function main() {
       }
     }
   } finally {
-    await browser.close();
-    server?.stop();
+    // 브라우저 종료가 실패해도 서버 정리는 반드시 실행하고, try 안의 원래 오류를
+    // 덮어쓰지 않도록 종료 실패는 기록만 한다.
+    try {
+      await browser?.close();
+    } catch (error) {
+      console.error(
+        `[visual-verify] 브라우저 종료 실패: ${error instanceof Error ? error.message : String(error)}`
+      );
+    } finally {
+      server?.stop();
+    }
   }
 
   // SPEC-B2C-CONSULT-001 D-RUN-5 — measurements.json도 화면 소유 SPEC별로
