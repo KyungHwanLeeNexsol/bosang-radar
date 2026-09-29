@@ -72,9 +72,11 @@ async function cleanupDbFile(file: string): Promise<void> {
 // [테스트 직렬화 큐 — 이 파일 테스트의 증명 범위]
 // 위 드라이버 특성상 db.transaction()이 호출될 때마다 완전히 새로운 네이티브
 // 연결이 열린다. 파일 DB에서 여러 요청이 각자 새 연결로 같은 파일에 동시에
-// 접근하면 SQLITE_BUSY("database is locked")가 실제로 난다(관측: 별도 연결·
-// 큐 없음 조건에서 같은 IP 8건 동시 요청 → 201 1건 + 500 7건, 3회 반복 동일;
-// 라우트를 거치지 않은 직접 트랜잭션 8건도 ok 1 + SQLITE_BUSY 7).
+// 접근하면 SQLITE_BUSY("database is locked")가 난다(관측: 라우트를 거치지 않은
+// 직접 트랜잭션 8건 → ok 1 + SQLITE_BUSY 7). 같은 조건(별도 연결·큐 없음)에서
+// 라우트로 같은 IP 8건을 동시 요청하면 201 1건 + 500 7건이 3회 반복 동일했으나,
+// 그 500의 원인 메타데이터는 남기지 않아 SQLITE_BUSY는 유력한 원인일 뿐
+// 직접 확인한 것은 아니다.
 // 그래서 이 테스트 하네스는 client.execute()/batch()/executeMultiple()과
 // drizzle의 transaction() 전체(콜백 + commit/rollback)를 하나의 공유
 // 프로미스 큐에 태워 DB I/O를 한 번에 하나씩만 실행한다. 실제
