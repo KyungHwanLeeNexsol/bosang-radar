@@ -4,9 +4,9 @@
 
 ### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
 
-- `plan_status: audit-ready` — 2026-09-29 plan-audit iteration 9가 PASS(0.857)를 내려 복귀했다(§E.2 D-NEW-6). 이 PASS는 커밋 전 작업 트리 기준이며 여유가 0.007로 얕다(§E.2 D-NEW-6 Claim 26). 아래 두 줄은 복귀 직전까지의 이력이다.
+- `plan_status: audit-ready` — 2026-09-29 plan-audit iteration 9가 PASS(0.857)를 내려 복귀했고, 이후 문서 변경(§E.2 D-NEW-7)에 대한 iteration 10도 PASS(0.857)다. 두 PASS 모두 커밋 전 작업 트리 기준이며 여유가 0.007로 얕다(§E.2 D-NEW-6 Claim 26, D-NEW-7 Claim 29). 아래 두 줄은 복귀 직전까지의 이력이다.
 - (이력) `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
-- 최신 재감사: iteration 9 — Verdict **PASS**, 종합 점수 **0.857**(임계값 0.85, 여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-9.md`. 그 직전 iteration 8은 FAIL 0.80(보고서 `...-review-8.md`, 새 blocking D1' — REQ-005 둘째 조항에 AC 없음)이었고 사용자 결정(클라이언트 구현 + AC 추가)에 따라 해소했다(§E.2 D-NEW-6). (이력) iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 결정(D1~D3 한정 수정 후 재감사)에 따라 plan 산출물을 사후 반영했고 재감사(iteration 8)를 기다린다(§E.2 D-NEW-5 Claim 21, 열린 항목 14).
+- 최신 재감사: iteration 10 — Verdict **PASS**, 종합 점수 **0.857**(여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-10.md`(§E.2 D-NEW-7 Claim 29). (이력) iteration 9 — Verdict **PASS**, 종합 점수 **0.857**(임계값 0.85, 여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-9.md`. 그 직전 iteration 8은 FAIL 0.80(보고서 `...-review-8.md`, 새 blocking D1' — REQ-005 둘째 조항에 AC 없음)이었고 사용자 결정(클라이언트 구현 + AC 추가)에 따라 해소했다(§E.2 D-NEW-6). (이력) iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 결정(D1~D3 한정 수정 후 재감사)에 따라 plan 산출물을 사후 반영했고 재감사(iteration 8)를 기다린다(§E.2 D-NEW-5 Claim 21, 열린 항목 14).
 - 이 블록의 아래 항목들은 정정 **이전**의 마지막 canonical PASS 기록(review-5)이다. review-6(PASS 1.0, 감사 대상 `a106ac9`)도 Git 트리에 있으나 이 블록에는 반영돼 있지 않았다 — D-NEW-5에서 보완한다.
 - 감사 대상: `b0b875ee9b869227528b0a03607d4b1f8d4131e5`
 - 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`
@@ -2574,6 +2574,66 @@ D1'은 REQ-B2CCONSULT-005 둘째 조항("정책 미준비 시 제출 버튼 대�
 
 **상태**: `plan_status: audit-ready`(iteration 9 PASS). `run_status: amended-pending-revalidation` 유지 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 두 항목은 이번 세션에서 확인하지 않았다.
 
+### D-NEW-7 — REQ-005 후속 검증: Enter 문구 정정, 정책 미준비 draft 쓰기 차단, 브라우저·회귀 검증
+
+**Claim 27 — AC-005·design §4의 "입력 필드에서 Enter로 제출 시도" 표현은 부정확했고, 무의미한 Enter 테스트를 정정했다.**
+- 근거: `components/consult/*.tsx`에 `<form>`, 폼 제출 핸들러, 키 입력 핸들러가 없다(제가 grep으로 확인, `onSubmit`은 콜백 prop 이름뿐). Enter는 어느 정책 상태에서도 제출 경로가 아니다. 제출은 제출 버튼 클릭으로만 가능하다.
+- 문서: AC-005 추가 시나리오의 조작을 "제출 영역(안내 영역 포함) 클릭·탭과 키보드 포커스 이동"으로 바꿨고, 핵심 단언(제출 버튼 미렌더링, `role="status"` 안내, `POST /api/consultations` 0건)은 그대로 뒀다. REQ-015·AC-015·AC-024·design §11의 "Enter"는 렌더링된 `<button>`의 네이티브 활성화를 뜻해 사실과 맞아 남겼다(감사관도 확인).
+- 테스트: `consult-view.test.tsx`의 Enter keydown/keyup 발생을 제거하고, 제출 컨트롤 부재(`consult-submit-button`·`button[type=submit]`·`form` 없음, 제출 바 안에 button 없음)를 변별력 있는 단언으로 넣었다. POST 0건 단언은 유지했다. `consult-submit-bar.tsx` 주석의 "클릭/Enter" 표현 3곳(L14, L26-28, L59)도 실제 동작에 맞게 고쳤다(주석만 변경).
+
+**Claim 28 — 정책 미준비 상태에서 원시 PII를 sessionStorage draft에 쓰는 것을 허용할 근거가 기존 SPEC에 없어서 쓰기를 차단했다.**
+- 확인한 현재 동작: `persistDraft`가 마운트, blur, 채널 변경, 마케팅 동의 변경에서 `isPolicyReady`와 무관하게 항상 draft를 썼다(RED 테스트 4건이 이를 재현: 아래).
+- 근거 조사: spec.md·design.md·acceptance.md·research.md에서 "draft"와 정책 관련 표현이 같은 줄에 나오는 곳이 0건이었다(줄 단위 grep, 다른 표현으로 논의된 곳은 확인하지 못함). REQ-B2CCONSULT-006·AC-006은 정책 상태 예외 없이 저장을 요구하지만, 정책 미준비 상태를 고려하거나 그 상태의 PII 저장을 승인한 기록은 찾지 못했다. draft의 목적(입력 편의, 재시도용 `idempotencyKey` 유지)은 제출이 가능한 준비 상태에서만 의미가 있고, design §4의 정책 게이트(`CONSULT_POLICY_READY`=개인정보 수집을 시작해도 되는가)와도 방향이 어긋난다. 이 판단은 사용자 지시("근거가 없다면 수정")에 따라 제가 내렸으며, 조문 해석에 기댄 판단이라 감사관 D1(iteration 10)이 design §2.3의 "승인한 기록 없음" 표현이 정밀하지 않다고 지적했다.
+- 문서 변경: REQ-006에 예외를 추가했고(정책 미준비 상태에서는 어떤 경로로도 쓰지 않음, 읽기·폼 상태 불변, 기존 draft는 갱신도 삭제도 하지 않음), AC-006에 정책 준비 상태 명시와 미준비 상태 추가 시나리오 2건, REQ-022·AC-022에 준비 상태 한정 문구, design §2.3·§4에 반영했다.
+- 코드: `persistDraft`에 `if (!isPolicyReady) return;`을 넣고 `[isPolicyReady]`를 의존성에 추가했다. 네 호출 경로가 이 한 지점을 지난다. `lib/consult/draft.ts`는 건드리지 않았다. 폼 화면 상태(입력값 표시, 채널 선택, 동의 체크)는 그대로다.
+- 테스트(에이전트 보고): RED에서 새 테스트 4건 실패·기존 26건 통과(`4 failed | 26 passed`), 가드 제거 변이에서 4건 모두 실패, 마운트만·blur만·채널/마케팅만 가드한 부분 변이에서도 해당 테스트가 실패해 4건 모두 변별력이 있음을 확인했다. 기존 draft 왕복 테스트 2건은 `isPolicyReady`를 명시하도록 바꿨고 단언은 약화하지 않았다.
+- 알려진 잔여 위험: 준비 상태에서 같은 탭에 기록된 draft가 남아 있는 채로 미준비 상태로 바뀌면, 그 draft는 갱신도 삭제도 되지 않는다(바이트 동일, 테스트 (d)가 고정). 미준비 상태에서 사용자가 값을 수정해도 저장되지 않아 새로고침하면 이전 draft 값이 복원된다. `isPolicyReady`는 서버가 계산하는 prop이라 실행 중 전환은 없으나 재배포로 바뀐 뒤 같은 탭이 남는 경우는 가능하다(전환 경로를 코드로 확인하지는 않았다).
+- 알려진 한계: `handleSubmit`의 `!isPolicyReady` 가드는 버튼이 없어서 UI로 도달할 수 없고, 가드만 제거해도 통과하는 테스트가 있다(D-NEW-6 Claim 25 그대로).
+
+**Claim 29 — plan-audit iteration 10은 PASS 0.857이며 여유는 여전히 0.007이다.**
+보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-10.md`, Claude 단독 감사. must-pass 통과, D1'과 이전 D1~D3(review-9)은 해소됐다.
+- iteration 9의 결함 중 Enter 문구(D1), design §5 트리(D2), plan L81(D3)은 해소로 판정됐다. AC·REQ는 각각 25개, `\uXXXX` 없음, frontmatter 유효.
+- 새 non-blocking 결함: D1 — progress.md 열린 항목 16이 낡았음(이 세션에서 해소 표시로 갱신), design §2.3의 "승인한 기록 없음" 표현 정밀도. D2 — AC-005 When 절의 "포커스를 이동하며 제출을 시도" 표현이 모호. D3 — design L69의 "제출 시도 때 draft 기록" 표현이 `handleSubmit`이 draft를 쓰지 않는 사실과 다름(기존). D4 — REQ-006이 길어짐. D5(이월) — AC-024 세부 항목 미명시. D6(이월) — 페이지 배선 테스트, AC-021 범위 등은 재검토하지 않음.
+- 감사관은 Traceability를 1.0으로 채점한 것에 PASS가 걸려 있고 0.75로 채점하면 0.80(FAIL)이라고 다시 밝혔다. 가장 싼 보강은 AC-024 한 문장과 AC-005 When 문구 정정이며, 산출물이 바뀌므로 이번에는 하지 않았다.
+- 감사 캐시 해시 저장(`audit_cache`)은 하지 못했다(`moai` 도구 연결 실패·CLI 부재). 다음 `/moai run`의 Phase 1은 재실행된다.
+
+**Claim 30 — 정책 미준비(`CONSULT_POLICY_READY=false`) 실제 브라우저 검증: 요청한 항목은 통과했다.**
+e2e-tester가 커밋 `fe52d5a`의 프로덕션 빌드(`ENABLE_CONSULT_FLOW=true`, `CONSULT_POLICY_READY=false`, `RATE_LIMIT_HMAC_SECRET` 미설정, `TURSO_DATABASE_URL=file:./.tmp/notready.db`)를 띄워 Chromium으로 데스크톱 1440×900과 모바일 390×737(`isMobile`·`hasTouch` 에뮬레이션)에서 실행했다. 증거(git 무시 경로, 로컬 전용): `.moai/state/verify/consult-followup/browser-notready/`(`results.json`, 스크립트, 스크린샷 9장, 로그). 아래 수치는 에이전트 보고이며 화면 캡처 일부는 제가 직접 열어 확인했다.
+- A. 유효한 handoff에서 폼(이름·연락처·채널·동의 그룹)과 정책 미준비 안내가 표시되고 안내 문구가 정확히 일치, `role="status"`·`aria-live="polite"`. `consult-submit-button`·`button[type=submit]`·`form` 0개. 두 뷰포트 PASS.
+- B. 유효 입력·동의 체크 후 안내문 클릭, 제출 영역 주변 클릭, Tab 40회, Enter/Space 조작 동안 `POST /api/consultations` 0건, 세션 중 non-GET 요청 0건. DB `consultations`·`consultation_rate_limits` 0행. 두 뷰포트 PASS. (Space 조작이 입력창 전체 선택을 공백으로 바꾼 것은 프로브 부작용이며 제품 결함이 아니다.)
+- C. 입력·blur·채널 변경·마케팅 토글 뒤 `bosang-radar:consultation-draft-v1`은 `null`, handoff 키는 존재, 입력값은 화면에 유지, 새로고침 뒤에도 draft 키 `null`. 두 뷰포트 PASS.
+- D. 모바일 sticky 안내(높이 88px, `position: sticky`)는 최대 스크롤에서 이름·연락처·연락 희망 시간·채널·동의 3개와 교차하지 않고, 각 요소의 trial click과 `elementFromPoint` 검사를 통과했다. 안내문은 잘림 없이 뷰포트 안에 들어온다(63px). 데스크톱은 static(43.5px). 두 뷰포트 PASS.
+- 서버가 `RATE_LIMIT_HMAC_SECRET` 없이 부팅하고 `/consult`가 200을 응답해 design §4.2의 주장이 확인됐다.
+- 부정 케이스(handoff 없이 `/consult` 직접 진입)는 데스크톱만 실행했고 "먼저 진단 결과가 필요합니다"가 표시됐다.
+- **다만 아래 Claim 32의 두 현상은 이 검증에서 발견됐고 통과하지 못했다** — 콘솔 오류 검사(E)는 두 뷰포트 모두 FAIL이다.
+
+**Claim 31 — 정책 준비 경로 회귀 검증: e2e와 `visual:verify` 모두 exit 0.**
+커밋 `fe52d5a` 위에서 제가 직접 실행했다(`ENABLE_CONSULT_FLOW`·`CONSULT_POLICY_READY` 모두 `"true"`는 각 러너가 주입).
+- `pnpm test:e2e`: exit 0, `Running 25 tests using 1 worker` → `25 passed (5.0m)`. 로그 `.moai/state/verify/consult-followup/regress/e2e.log`. 03 관련 5건 통과: 02→03 전체 플로우(성공→결과 복귀→중복), CTA 쿼리로 채널 사전 선택, 모바일 스크롤·포커스 복원 3건(성공, 중복, `handoff_mismatch` 실패 전환과 재시도). 실패(03-D) 흐름은 e2e에서 `handoff_mismatch` 경로로만 검증되고(`e2e/consult-flow-03.spec.ts` 상단 주석의 알려진 공백), 서버 오류 응답 경로는 컴포넌트·라우트 테스트가 담당한다.
+- `pnpm visual:verify`(화면 선택 환경변수 없이 무제약): exit 0, 24개 화면 전부 PASS(`01 01-A2 01-B 01-C 01-D 01-E 02 03 03-A2 03-B 03-C 03-D M01 M01-A2 M01-B M01-C M02 M02-B M02-C M02-D M03 M03-B M03-C M03-D`), 마지막 줄 "모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다." 로그 `regress/vv.log`.
+- 필수 동의 게이트(AC-012)와 재시도·idempotencyKey 재사용은 vitest(116/116)가 담당하며, e2e 스펙은 동의를 체크한 뒤 제출하는 경로로 지나간다(스펙에서 동의를 6곳 언급, 게이트 자체를 단언하는지는 하나씩 확인하지 않았다). 이 게이트만 따로 겨냥한 브라우저 테스트를 새로 만들지는 않았다.
+- 재생성된 시각 증거: `03-C`·`M03-C`의 diff·overlay·screenshot 6장과 CONSULT `measurements.json`(생성 시각, "접수일" 날짜 2026-09-29, 이전 커밋에서 바꾼 라벨 반영)을 커밋한다. DIAGNOSIS-001의 `measurements.json`은 생성 시각만 바뀌어 되돌렸다.
+- 이전에 남긴 e2e 로그의 `instrumentation.ts`의 Edge Runtime 경고(`process.exit`)는 기존 경고이며 이번 변경과 무관하다.
+
+**Claim 32 — 이번 변경과 무관한 기존 결함 두 가지를 발견했다(미조치, 열린 항목 19·20).**
+1. **하이드레이션 오류 #418.** `/consult`를 `page.goto`로 전체 로드하거나 `page.reload()`할 때 `Minified React error #418`이 1건 난다(정책 미준비: 에이전트 측정, 두 뷰포트). 정책 준비 상태에서도 제가 같은 스크립트로 재현했다(`regress/ready-reload418.log`: `errs after goto /consult full load: 1`). `/result` 새로고침과 결과 화면 CTA를 통한 `/consult` 진입에서는 0건이다. 서버가 내려준 HTML(`regress/ssr-consult.html`)에는 빈 상태 문구 "먼저 진단 결과가 필요합니다"가 1회 있고 `consult-view`·`consult-form` testid는 없다. 그래서 클라이언트 첫 렌더(sessionStorage에서 읽은 handoff → 폼)와 서버 HTML(빈 상태)이 어긋난다는 것까지가 관찰이고, `consult-view.tsx`가 렌더 본문에서 sessionStorage를 읽는 구조가 원인이라는 것은 코드 읽기에 따른 추정이다. 화면에서 이상은 보지 못했고(입력값 유지, 안내문 정상), 프로덕션 빌드의 메시지가 minified라 원인 노드는 특정하지 못했다.
+2. **모바일 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃.** 390px에서 채널 안내(y 592~628)가 이름 라벨(586~600)과 이름 input 위쪽 약 20px을 덮는다. 정책 준비 상태에서도 좌표가 같고(`regress/ready-overlap.log`), 이번 변경 이전에 커밋된 증거 `M03-consult.png`에도 같은 겹침이 보인다(이번 재생성에서 이 파일은 바뀌지 않았다). 데스크톱은 정상이다. 디자인 원본 `M03-상담-신청.png`에는 선택기와 이름 사이에 이런 안내가 없어 의도된 배치인지 알 수 없다. 에이전트의 D 검사가 통과한 이유는 겹침이 입력창 중심점 위쪽만 덮어 hit-target 검사를 통과했기 때문이며, `visual:verify`도 높이와 문구를 재는 검증이라 이 겹침을 놓친다. 따라서 위 Claim 30 D의 PASS는 "sticky 안내가 입력·동의를 가리지 않는다"는 요청 범위에 한정되고, 이 겹침에 대한 보증이 아니다.
+
+**Baseline-attribution**: 이번 세션. 코드·문서 기준 커밋 `1b47b34`(코드), `fe52d5a`(문서), 그 위에서 제가 직접 실행한 명령(vitest·eslint·tsc·`pnpm test:e2e`·`pnpm visual:verify`·정책 준비 서버 재현)과 에이전트 보고(RED/변이, 정책 미준비 브라우저 측정, 감사)를 구분해 적었다.
+
+**Gaps(미검증)**:
+1. Chromium 에뮬레이션만 확인했다. Firefox·WebKit·실제 iOS Safari·실기기 터치, 스크린리더 낭독(속성값만 확인)은 하지 않았다.
+2. 정책 미준비 상태의 부정 케이스(handoff 없음)는 모바일에서 실행하지 않았다.
+3. Nginx `X-Forwarded-For` 운영 확인과 요약 카드 height(Claim 6)는 이번에도 확인하지 않았다 — 미해결로 남긴다.
+4. 하이드레이션 #418의 원인과 채널 안내 겹침의 원인은 진단·수정하지 않았다.
+5. `handleSubmit` 가드를 잡는 테스트가 없다. 화면 캡처는 정책 미준비 상태의 하단·상단 일부만 직접 확인했다.
+6. 정책 준비 상태에서 e2e가 draft 저장 값을 직접 읽지는 않는다(에이전트 확인). draft 재시도·복원은 vitest가 담당한다.
+7. 감사는 Claude 단독이고 커밋 전 작업 트리 기준이었다(이후 코드·문서는 변경 없이 커밋했다).
+
+**Residual-risk(잔여 위험)**: plan-audit PASS 여유 0.007. 하이드레이션 #418과 모바일 안내 겹침은 정책 준비·미준비 모두에서 사용자에게 보일 수 있는 기존 결함이다. 준비 상태에서 남은 draft가 미준비 전환 뒤에도 남는 좁은 경우가 있다.
+
+**상태**: `plan_status: audit-ready`(iteration 10 PASS). `run_status: amended-pending-revalidation` 유지 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 두 항목은 이번에도 확인하지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -2585,6 +2645,7 @@ D1'은 REQ-B2CCONSULT-005 둘째 조항("정책 미준비 시 제출 버튼 대�
 - **업데이트 4(D-NEW-4 정합, 이번 세션)**: SPEC 기준(acceptance Quality Gate "레이스 안전성", design §9.3·§4.2)을 대조한 결과 audit-ready 전제조건은 위 업데이트 3의 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 두 가지 그대로다. 원격 Turso 실행과 직렬화 없는 병렬 요청 검증은 audit-ready 게이트가 아니라 "배포 전 별도 검증이 필요한 잔여 위험"이며(열린 항목 12번, D-NEW-4 "게이트 판정"), 수행하지 않았으므로 완료로 표시하지 않는다. 다만 AC-B2CCONSULT-021의 "병렬 처리" 문구를 문자 그대로 요구하는 감사 판단이 나오면 이 분류는 뒤집힐 수 있다. `run_status`는 `amended-pending-revalidation`을 유지한다. **[D-NEW-5 보완: 이후 plan-audit iteration 7 FAIL로 추가 보류 조건이 생겼다 — 아래 업데이트 5]**
 - **업데이트 5(D-NEW-5, 이번 세션)**: AC-B2CCONSULT-022의 "입력 보존"은 "입력값을 draft에 보존하고 재시도·재진입 때 동일 값으로 전송"으로 확정했고 design §10의 이름 없는 4행과 충돌하지 않는다(§E.2 D-NEW-5 Claim 17). `run_status`는 유지한다 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 이와 별개로 `plan_status`는 acceptance.md 정정 후 plan-audit 재감사 iteration 7이 **FAIL(0.80, STOP)** 이라 `amended-pending-reaudit`에 머문다(blocking D1~D3, 열린 항목 14). plan-phase 신호와 run-phase 신호는 별개이므로, plan-audit FAIL이 해소되기 전에는 (a)(b)가 해소돼도 두 신호 모두 audit-ready로 올리지 않는다.
 - **업데이트 6(D-NEW-6, 이번 세션)**: 정책 미준비 시 제출 CTA를 안내로 대체하는 클라이언트 동작을 구현했다(§E.2 D-NEW-6 Claim 24-25). 관련 vitest 112/112, eslint·tsc 0건은 직접 실행했다. `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 이번 변경으로 `visual-verify`·e2e를 다시 돌리지 않았으므로 그 재검증도 여전히 필요하다(Claim 25 Gaps 1).
+- **업데이트 7(D-NEW-7, 이번 세션)**: 정책 미준비 상태의 draft 쓰기 차단과 Enter 테스트 정정(§E.2 D-NEW-7 Claim 27-28)을 반영했고, 정책 준비 경로 `pnpm test:e2e`(25 passed, exit 0)와 `pnpm visual:verify`(24/24 PASS, exit 0)를 다시 실행했다(Claim 31). 정책 미준비 브라우저 검증에서 요청 항목은 통과했으나 기존 결함 두 가지(하이드레이션 #418, 모바일 채널 안내 겹침)를 발견했다(Claim 32, 열린 항목 19·20). `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 미해결이다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2622,9 +2683,12 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
 14. **[해소됨 — iteration 9 PASS, §E.2 D-NEW-6]** **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
 15. **(신규, D-NEW-6) 정책 미준비 안내 문구 확정 — 제품·법무 판단 필요(잠정 문구 사용 중)** — 현재 문구는 "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."로, 기존 "준비 중" 스텁(§ 디자인 대조 D4) 선례를 따른 잠정 문구다. 법무·운영이 확정한 문장이 아니다. 실제 확정 시 `lib/consult/consent-policy.ts`의 `CONSULT_POLICY_NOT_READY_NOTICE`와 관련 테스트만 바꾸면 된다.
-16. **(신규, D-NEW-6) 정책 미준비 검토 모드에서 입력값이 sessionStorage draft에 저장되는 점 — 제품 판단 필요(미조치)** — 제출이 불가능한 상태에서도 이름·연락처가 blur 때 draft로 저장된다. 이 SPEC 범위 밖이라 바꾸지 않았다. 원하면 `CONSULT_POLICY_READY=false`일 때 draft 저장을 끄는 별도 작업이 필요하다.
+16. **[해소됨 — D-NEW-7 Claim 28: 정책 미준비 상태에서는 draft를 쓰지 않도록 수정. 잔여 위험은 Claim 28에 기록]** **(신규, D-NEW-6) 정책 미준비 검토 모드에서 입력값이 sessionStorage draft에 저장되는 점 — 제품 판단 필요(미조치)** — 제출이 불가능한 상태에서도 이름·연락처가 blur 때 draft로 저장된다. 이 SPEC 범위 밖이라 바꾸지 않았다. 원하면 `CONSULT_POLICY_READY=false`일 때 draft 저장을 끄는 별도 작업이 필요하다.
 17. **(신규, D-NEW-6) iteration 9 optional 결함 D1~D6 — 미조치, 산출물을 다시 바꿔 재감사하면 정리 가능** — 특히 D1(AC-005 추가 시나리오·design §4의 부정확한 Enter 문구)과 D4(AC-024 문구)가 PASS의 얕은 여유(0.007)를 보강한다(Claim 26). 산출물이 바뀌면 해시가 다시 바뀌어 재감사가 필요하다.
-18. **(신규, D-NEW-6) `visual-verify`·Playwright e2e 재실행 — 미수행** — 이번 코드 변경 뒤 두 검증을 돌리지 않았다. 외부 서버(`VISUAL_BASE_URL`)로 돌릴 때는 그 서버에 `CONSULT_POLICY_READY=true`가 필요하다(Claim 25 Gaps 1).
+18. **[해소됨 — D-NEW-7 Claim 31: `pnpm test:e2e` 25 passed exit 0, `pnpm visual:verify` 24/24 PASS exit 0. 정책 미준비 브라우저 확인은 Claim 30]** **(신규, D-NEW-6) `visual-verify`·Playwright e2e 재실행 — 미수행** — 이번 코드 변경 뒤 두 검증을 돌리지 않았다. 외부 서버(`VISUAL_BASE_URL`)로 돌릴 때는 그 서버에 `CONSULT_POLICY_READY=true`가 필요하다(Claim 25 Gaps 1).
+19. **(신규, D-NEW-7) `/consult` 전체 로드·새로고침 시 React 하이드레이션 오류 #418 — 미조치, 별도 수정 판단 필요** — 정책 미준비·준비 두 상태 모두에서 재현된다(Claim 32). 서버 렌더 HTML은 "먼저 진단 결과가 필요합니다" 빈 상태이고 클라이언트 첫 렌더는 폼이라 불일치가 난다. 이번 변경과 무관하다. `consult-view.tsx`가 렌더 본문에서 `readDiagnosisHandoff()`·`readConsultationDraft()`를 직접 호출하는 구조(design §2.2)가 원인으로 보이지만 코드 수정으로 확인하지는 않았다.
+20. **(신규, D-NEW-7) 모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃 — 미조치, 디자인 판단 필요** — 두 정책 상태에서 좌표가 같고(y 592~628 대 라벨 586~600), 이번 변경 이전에 커밋된 증거 `M03-consult.png`에도 그대로 보인다(Claim 32). `visual:verify`는 높이와 문구를 재는 검증이라 이 겹침을 잡지 못하고 PASS한다. 디자인 원본 `M03-상담-신청.png`에는 선택기와 이름 사이에 이런 안내 문구가 없어 의도된 배치를 알 수 없다.
+21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 미조치** — PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 
 ### 이번 세션에서 해소됨
 
