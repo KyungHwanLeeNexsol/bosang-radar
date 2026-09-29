@@ -48,17 +48,28 @@ Then 페이지 이동 없이 현재의 `aria-disabled` "준비 중" stub 동작�
 
 추가 시나리오 — 정책 미준비 상태의 제출 CTA 대체(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`, 독립 검토 iteration 8 D1'):
 Given `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`여서 `app/consult/page.tsx`가 `isPolicyReady=false`를 03 폼 뷰에 전달했고, 사용자가 필수 동의 두 항목(`piiCollection`·`healthInfoUse`)을 모두 체크하고 나머지 필드를 유효하게 채웠을 때
-When 사용자가 제출 영역을 확인하고, 그 영역을 클릭하거나 입력 필드에서 Enter를 눌러 제출을 시도하면
+When 사용자가 제출 영역(안내 영역 포함)을 클릭·탭하고, 키보드 포커스를 페이지 전체에 걸쳐 이동하며 제출을 시도하면
 Then 실제 제출 CTA(`data-testid="consult-submit-button"`)는 렌더링되지 않고 그 자리에 "상담 신청은 아직 준비 중"이라는 취지의 안내 영역(`role="status"`, `aria-live="polite"`, 잠정 문구는 `design.md` §4)이 표시되며, 어떤 시도로도 `POST /api/consultations` 요청은 발생하지 않는다(네트워크 요청 0건). 채널 선택기·입력 필드·동의 그룹은 그대로 표시된다.
+참고(현재 설계의 사실 기술이며 새 요구가 아니다): 03 폼에는 `<form>` 요소와 Enter 제출 핸들러가 없으므로, 어떤 정책 상태에서도 제출은 제출 버튼 클릭(키보드로는 포커스된 버튼의 활성화)으로만 가능하다. 위 시나리오에서 제출 버튼이 렌더링되지 않는다는 것이 곧 제출 경로가 없다는 뜻이다.
 회귀 짝: 같은 입력 상태에서 `CONSULT_POLICY_READY=true`이면 안내 영역은 표시되지 않고 기존 제출 CTA(`consult-submit-button`)가 렌더링되며, 활성화 조건(AC-B2CCONSULT-012)과 이중 제출 방지(AC-B2CCONSULT-015)는 종전과 동일하게 동작한다.
 서버 독립성: 이 클라이언트 대체는 UX 계층일 뿐이며, 서버의 503/`policy_unavailable` 저장 거부(AC-B2CCONSULT-018의 "활성 동의 정책 없음" 추가 시나리오, `app/api/consultations/route.test.ts`)는 클라이언트 동작과 무관하게 독립적으로 유효하다 — 이 시나리오가 그 거부를 대체하거나 약화하지 않는다.
 
 ## 02→03 핸드오프 · draft
 
 **AC-B2CCONSULT-006** (REQ-B2CCONSULT-006)
-Given 사용자가 03 폼에 이름·연락처를 입력한 뒤 필드에서 포커스를 뺐을 때
+Given 정책 준비 상태(`isPolicyReady=true`, `CONSULT_POLICY_READY=true`)에서 사용자가 03 폼에 이름·연락처를 입력한 뒤 필드에서 포커스를 뺐을 때
 When `sessionStorage`를 검사하면
 Then `lib/consult/draft.ts`의 전용 키 아래 해당 필드 값이 저장되어 있으며, 두 필수 동의 체크박스의 체크 상태는 저장되어 있지 않다.
+
+추가 시나리오 — 정책 미준비 상태에서는 draft를 쓰지 않는다(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`):
+Given `isPolicyReady=false`이고 `sessionStorage`에 상담 draft 키가 없는 상태에서 사용자가 이름·연락처를 입력하고 포커스를 빼고, 채널을 바꾸고, 마케팅 동의를 켜고 끈 뒤
+When `sessionStorage`를 검사하면
+Then 상담 draft 키(`bosang-radar:consultation-draft-v1`)는 존재하지 않는다 — 마운트 시 초기 기록·blur·채널 변경·마케팅 동의 변경 어느 경로로도 쓰이지 않았다. 입력한 값은 폼에 계속 표시되며(메모리 상태), 채널 선택기·동의 체크박스도 정상적으로 조작된다.
+
+추가 시나리오 — 정책 미준비 상태에서도 draft 읽기는 유지되고 기존 draft는 그대로 남는다:
+Given `isPolicyReady=false`이고 `sessionStorage`에 유효한 상담 draft가 이미 있을 때(정책 준비 상태에서 같은 탭에 기록된 경우)
+When `/consult`가 마운트되고 사용자가 필드를 수정한 뒤 포커스를 빼면
+Then 폼은 draft 값으로 복원되어 표시되며(읽기는 종전과 동일), `sessionStorage`의 draft 값은 갱신도 삭제도 되지 않고 마운트 전과 바이트 동일하다(`design.md` §2.3의 알려진 잔여).
 
 추가 시나리오 — 손상된 draft 폴백:
 Given `sessionStorage`의 draft 값이 유효하지 않은 JSON일 때
@@ -310,7 +321,7 @@ Then 어느 요청도 HTTP 429(`rate_limited`)를 받지 않는다 — 최초 1�
 ## 성공 · 중복 · 실패 상태
 
 **AC-B2CCONSULT-022** (REQ-B2CCONSULT-022)
-Given 제출 요청이 네트워크 타임아웃으로 응답을 받지 못했을 때
+Given 정책 준비 상태(제출이 가능한 유일한 상태)에서 제출 요청이 네트워크 타임아웃으로 응답을 받지 못했을 때
 When 03-D 실패 화면이 표시되면
 Then "저장되었습니다"류의 확정 문구가 없으며, 입력한 채널·이름·연락처·연락 희망 시간·마케팅 동의는 draft에 보존된다(03-D 요약은 design.md §10의 4행이며 이름을 다시 표시하지 않는다). "다시 시도하기"를 눌렀을 때 최초 제출과 동일한 `idempotencyKey`와 동일한 채널·이름·연락처·연락 희망 시간·마케팅 동의 값이 재전송되며(재시도 요청 payload로 검증), 03-D에서 나갔다가 `/consult`로 재진입해도 draft에서 같은 값이 폼에 복원된다(필수 동의 두 항목만 재확인이 필요하다).
 

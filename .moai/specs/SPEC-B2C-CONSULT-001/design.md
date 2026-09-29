@@ -66,9 +66,15 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 - 키: `bosang-radar:consultation-draft-v1`.
 - 스키마: `ConsultationDraftSchema`(`lib/consult/schema.ts`) — **`z.strictObject`**로 정의한다(알 수 없는 키 거부). 명시적 `draftVersion: z.literal(1)`(또는 그 시점의 현재 버전 리터럴) 필드를 필수로 포함하며, 그 외 저장 필드(`channel`/`name`/`contactRaw`/`preferredCallTime`/`marketingConsent`/`idempotencyKey`)는 모두 `.optional()`이다 — strict(알 수 없는 키·구버전 거부) + 개별 필드 optional(폼 진화에 유연 대응) 두 원칙을 동시에 만족한다. **필수 동의 두 항목의 체크 상태는 draft에 저장하지 않는다** — 새로고침 후에도 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, §3 참고).
 - 파싱 실패(손상된 JSON), 스키마 검증 실패(알 수 없는 키 포함), 또는 `draftVersion`이 현재 버전과 다를 때 — 어느 경우든 02의 `handoff.ts`처럼 `invalid` 오류 상태로 분기하지 **않는다** — 오류를 던지지 않고 조용히 빈 draft로 폴백한다(폼이 비어있는 것으로 시작할 뿐, 사용자가 진단 결과 자체를 잃는 것이 아니므로 오류 상태로 만들 만큼 치명적이지 않다는 판단, Enforce Simplicity).
-- 저장 시점: 필드 blur 또는 제출 시도 시(매 keystroke마다 쓰지 않음 — 불필요한 쓰기 최소화).
+- 저장 시점: 정책 준비 상태(`isPolicyReady=true`)에서만, 필드 blur 또는 제출 시도 시(매 keystroke마다 쓰지 않음 — 불필요한 쓰기 최소화). 정책 미준비 상태는 아래 "정책 미준비 상태 — draft 쓰기 없음" 참고.
 - 제거 시점: (a) 상담 신청 성공 시 `clearConsultationDraft()`, (b) 새 진단 시작 시(§2.2).
-- `idempotencyKey`: draft가 최초 생성될 때(폼 마운트 시) `crypto.randomUUID()`로 1회 생성되어 draft에 저장된다 — 실패 후 재시도 시에도 **같은 키**를 재사용한다(§8).
+- `idempotencyKey`: draft가 최초 생성될 때(폼 마운트 시) `crypto.randomUUID()`로 1회 생성되어 draft에 저장된다(정책 준비 상태에서만 — 아래 참고) — 실패 후 재시도 시에도 **같은 키**를 재사용한다(§8).
+- **정책 미준비 상태 — draft 쓰기 없음**(REQ-B2CCONSULT-006 예외, AC-B2CCONSULT-006 추가 시나리오): `isPolicyReady`가 거짓이면(§4) 클라이언트는 draft를 어떤 경로로도 쓰지 않는다 — 마운트 시 초기 기록, 필드 blur, 채널 변경, 마케팅 동의 변경 모두 해당한다.
+  - **근거**: draft의 목적은 입력 편의와 재시도 시 같은 `idempotencyKey` 재사용인데, 둘 다 제출이 가능한 상태에서만 의미가 있다. 정책 미준비는 "실제로 개인정보 수집을 시작해도 되는가"가 아니오인 리뷰 상태이고(§4, §4.1) 서버도 이 상태에서는 PII 레코드를 만들지 않는데, 이 상태에서 원문 이름·연락처를 `sessionStorage`에 남기는 것을 검토하거나 승인한 기록은 어떤 plan-phase 산출물에도 없었다. 근거 없는 원문 PII를 지속 저장소에 쓰지 않는다는 사용자 결정에 따른다.
+  - **읽기는 종전과 같다**: draft 읽기(복원)는 아무것도 쓰지 않으므로 정책 상태와 무관하게 유지되며, 위 손상·알 수 없는 키·구버전 폴백도 그대로 적용된다.
+  - **폼 화면 상태는 영향받지 않는다**: 입력·표시되는 값, 채널 선택, 동의 체크는 메모리(컴포넌트 상태)에서 그대로 조작·표시된다. 이 상태에서 마운트 시 생성된 `idempotencyKey`도 컴포넌트 상태에만 존재하고 draft에는 기록되지 않는다(제출이 불가능해 재사용될 일이 없다).
+  - **알려진 잔여**: 같은 탭에서 정책 준비 상태에 기록된 draft가 이미 `sessionStorage`에 남아 있으면, 정책 미준비 상태의 `/consult`는 그 draft를 갱신도 삭제도 하지 않는다(새 진단 시작 시의 `clearConsultationDraft()`(§2.2)는 정책 상태와 무관하게 종전대로 동작한다). `sessionStorage`는 탭 범위이고 정책 준비→미준비 전환은 재배포·재기동을 요구하므로 이 조합은 좁으며, 수용된 잔여로 기록하고 별도 정리 로직은 추가하지 않는다.
+  - 준비 상태(`isPolicyReady=true`)의 동작 — 재시도 시 같은 payload 재사용(REQ-B2CCONSULT-022), 성공 시 draft 정리(REQ-B2CCONSULT-025) — 은 이 예외의 영향을 받지 않는다(두 경우 모두 제출이 가능한 상태에서만 발생한다).
 
 ## 3. CTA 활성화 계약
 
@@ -106,7 +112,7 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 | `true` | `false` | 03 화면은 리뷰 가능하지만 실제 제출은 불가능하다 — 클라이언트는 제출 버튼을 실제 제출 대신 안내로 대체하고, 서버는 독립적으로 저장을 거부한다(503/`policy_unavailable`, §6.1, §9.1). |
 | `true` | `true` | 실제 상담 신청 제출이 가능하다. |
 
-**`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`일 때의 클라이언트 동작**(REQ-B2CCONSULT-005, AC-B2CCONSULT-005 추가 시나리오): `app/consult/page.tsx`는 `computeConsultFlags(process.env).isPolicyReady`를 03 폼 뷰(`consult-view.tsx`)에 prop으로 전달하고, 뷰는 이 값을 동의 그룹(`consult-consent-group.tsx`)과 제출 영역(`consult-submit-bar.tsx`) 양쪽에 전달한다. `isPolicyReady`가 거짓이면 제출 영역은 제출 버튼(`data-testid="consult-submit-button"`) **대신** 안내 영역(`role="status"`, `aria-live="polite"`)을 렌더링하며, 이 상태에서는 필수 동의 체크·입력 유효성과 무관하게 어떤 클릭·Enter 입력으로도 `POST /api/consultations` 요청이 발생하지 않는다. 채널 선택기·입력 필드·동의 그룹은 그대로 표시·조작할 수 있어 리뷰어가 화면을 검토할 수 있다(동의 그룹의 "자세히 보기" 상세 펼침은 §1 D5의 기존 `CONSULT_POLICY_READY` 게이트를 그대로 따른다). 안내 문구는 §1 D4가 따른 `result-footer.tsx`의 "준비 중" 스텁 선례에 맞춘 **잠정 문구**로 `"상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."`를 쓴다 — 법무·운영이 확정한 문장이 아니며(§1b가 `progress.md` § Open Decisions for User로 이관한 법무·운영 확정 항목군과 같은 성격이다) 확정되면 `lib/consult/` 공용 상수 모듈의 값만 교체한다. 이 클라이언트 대체는 UX 계층일 뿐 권위가 아니다 — 저장 거부의 권위는 항상 서버(§6.1, §9.1의 503/`policy_unavailable`)에 있으며, 클라이언트가 안내로 대체하지 않았거나 우회당하더라도 서버는 독립적으로 저장을 거부한다. `isPolicyReady`가 참이면 제출 영역은 기존 동작(제출 버튼, 이중 제출 방지)을 그대로 유지한다.
+**`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`일 때의 클라이언트 동작**(REQ-B2CCONSULT-005, AC-B2CCONSULT-005 추가 시나리오): `app/consult/page.tsx`는 `computeConsultFlags(process.env).isPolicyReady`를 03 폼 뷰(`consult-view.tsx`)에 prop으로 전달하고, 뷰는 이 값을 동의 그룹(`consult-consent-group.tsx`)과 제출 영역(`consult-submit-bar.tsx`) 양쪽에 전달한다. `isPolicyReady`가 거짓이면 제출 영역은 제출 버튼(`data-testid="consult-submit-button"`) **대신** 안내 영역(`role="status"`, `aria-live="polite"`)을 렌더링하며, 이 상태에서는 필수 동의 체크·입력 유효성과 무관하게 제출 영역을 클릭·탭하거나 키보드로 조작해도 `POST /api/consultations` 요청이 발생하지 않는다. 03 폼에는 `<form>` 요소와 Enter 제출 핸들러가 없으므로 어떤 정책 상태에서도 제출은 제출 버튼 클릭(키보드로는 포커스된 버튼의 활성화)으로만 가능한데, 이 상태에서는 그 버튼이 렌더링되지 않는다(현재 설계의 사실 기술이며 새 요구가 아니다). 이 상태에서는 상담 폼 draft도 쓰지 않는다(§2.3 — 제출이 불가능한 상태에서 원문 이름·연락처를 `sessionStorage`에 남길 근거가 없다). 채널 선택기·입력 필드·동의 그룹은 그대로 표시·조작할 수 있어 리뷰어가 화면을 검토할 수 있다(동의 그룹의 "자세히 보기" 상세 펼침은 §1 D5의 기존 `CONSULT_POLICY_READY` 게이트를 그대로 따른다). 안내 문구는 §1 D4가 따른 `result-footer.tsx`의 "준비 중" 스텁 선례에 맞춘 **잠정 문구**로 `"상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."`를 쓴다 — 법무·운영이 확정한 문장이 아니며(§1b가 `progress.md` § Open Decisions for User로 이관한 법무·운영 확정 항목군과 같은 성격이다) 확정되면 `lib/consult/consent-policy.ts` 공용 상수 모듈의 값만 교체한다. 이 클라이언트 대체는 UX 계층일 뿐 권위가 아니다 — 저장 거부의 권위는 항상 서버(§6.1, §9.1의 503/`policy_unavailable`)에 있으며, 클라이언트가 안내로 대체하지 않았거나 우회당하더라도 서버는 독립적으로 저장을 거부한다. `isPolicyReady`가 참이면 제출 영역은 기존 동작(제출 버튼, 이중 제출 방지)을 그대로 유지한다.
 
 이 SPEC의 `ENABLE_CONSULT_FLOW`는 "코드가 배포됐는지"만 게이트하고, "동의 문구가 법무 확정됐는지"는 게이트하지 않는다(두 조건을 혼동하지 않는다) — 후자는 `CONSULT_POLICY_READY`의 몫이다.
 
@@ -165,6 +171,7 @@ lib/consult/
 ├── draft.ts                              [신규] sessionStorage draft read/write/clear
 ├── phone.ts                              [신규] 연락처 정규화/표시 포맷/마스킹
 ├── dedupe.ts                             [신규] 정규화 연락처 기반 비즈니스 중복 키 도출(순수 함수, 서버·클라이언트 공유 가능)
+├── consent-policy.ts                     [신규] 동의 정책 버전 상수(`CONSENT_POLICY_VERSION`)와 정책 미준비 안내 문구(`CONSULT_POLICY_NOT_READY_NOTICE`) — 서버·클라이언트 공용 상수 단일 소스(§4, §6.1)
 └── *.test.ts                             [신규]
 
 e2e/
