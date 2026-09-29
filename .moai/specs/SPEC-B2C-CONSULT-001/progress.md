@@ -4,7 +4,8 @@
 
 ### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
 
-- `plan_status: audit-ready`
+- `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
+- 이 블록의 아래 항목들은 정정 **이전**의 마지막 canonical PASS 기록(review-5)이다. review-6(PASS 1.0, 감사 대상 `a106ac9`)도 Git 트리에 있으나 이 블록에는 반영돼 있지 않았다 — D-NEW-5에서 보완한다.
 - 감사 대상: `b0b875ee9b869227528b0a03607d4b1f8d4131e5`
 - 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-5.md`
 - 감사 보고서 커밋: `5621a69`
