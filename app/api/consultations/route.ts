@@ -318,13 +318,16 @@ export async function handleConsultationSubmit(
       // `db.transaction()`으로 증가+정리를 실제 원자적 단위로 묶어
       // 설계와 구현을 일치시켰다 — delete가 실패하면 증가까지 통째로
       // 롤백되어, 실패한 시도는 카운트를 전혀 소비하지 않는다(재시도가
-      // 처음부터 다시 시작). `drizzle-orm/libsql`의 `db.transaction()`은
-      // 이 프로젝트의 원격 Turso(HTTP) 연결에서도 이미 검증된 방식이다
-      // (`lib/cases/create-case.ts`의 리스 완료 기록 트랜잭션과 동일한
-      // 패턴 — SPEC-PILOT-READY-001). 다만 그 SPEC의 리포트가 이미
-      // 명시했듯, 로컬 파일 기반 SQLite로만 단위 테스트했을 뿐 실제
-      // 배포 환경(원격 Turso HTTP)에서 재검증하지는 않았다는 한계는
-      // 이 수정에도 동일하게 적용된다(잔여 위험으로 아래에 남긴다).
+      // 처음부터 다시 시작).
+      // [검증 범위] 확인한 것: (1) 라이브러리 소스 — @libsql/client
+      // HttpClient.transaction()은 호출마다 독립 스트림을 열고,
+      // drizzle-orm/libsql의 transaction()은 BEGIN/COMMIT/ROLLBACK을
+      // 감싼다. (2) 이 프로젝트의 기존 사용 전례 —
+      // `lib/cases/create-case.ts`(SPEC-PILOT-READY-001)가 같은
+      // 패턴을 쓴다. 확인하지 않은 것: 실제 원격 Turso(HTTP)에서 이번
+      // 경로를 실행한 검증은 없다. 전례도 로컬 파일 SQLite로만
+      // 단위 테스트됐다. 이 수정의 테스트는 로컬 파일 SQLite 위에서
+      // 트랜잭션 롤백을 확인한 것이며, 원격·병렬 동작은 미검증이다.
       const { requestCount } = await db.transaction(async (tx) => {
         const [{ requestCount: count }] = await tx
           .insert(consultationRateLimits)

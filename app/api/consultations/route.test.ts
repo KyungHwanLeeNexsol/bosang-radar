@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
@@ -38,9 +38,10 @@ const migrationsFolder = path.resolve(
 // 확인함 — 단일 순차 요청 하나만으로도 재현된다, 동시성과 무관). 파일
 // 기반 임시 DB로 바꾸면 트랜잭션이 실제 파일에 커밋되므로 재연결 뒤에도
 // 같은 데이터를 읽을 수 있다(직접 재현해 확인함). 원격 Turso HTTP
-// 클라이언트(http.js HttpClient)는 요청마다 독립된 스트림을 새로 열 뿐
-// 공유 핸들을 null로 비우지 않으므로, 이 문제는 로컬 :memory:/파일 테스트
-// 드라이버에만 있는 현상이고 실제 배포 환경에는 영향이 없다.
+// 클라이언트(http.js HttpClient)는 소스상 요청마다 독립된 스트림을 새로 열 뿐
+// 공유 핸들을 null로 비우지 않으므로, 이 현상은 로컬 드라이버의 특성으로
+// 보인다. 다만 이는 소스 읽기 결과이며 원격 Turso에서 실행해 확인한 것은
+// 아니다(미검증).
 const tmpDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -68,19 +69,24 @@ async function cleanupDbFile(file: string): Promise<void> {
   }
 }
 
-// [동시성 테스트 보정] 위 드라이버 특성상 db.transaction()이 호출될 때마다
-// 완전히 새로운 네이티브 연결이 열린다 — 파일 기반으로 바꿔도, 여러 요청이
-// 동시에 각자 새 연결로 같은 파일에 접근하면 SQLITE_BUSY 라이브락이 실제로
-// 발생한다(WAL + busy_timeout 조합으로도, db.transaction() 호출만
-// 직렬화해도 여전히 재현됨 — 트랜잭션이 파일 잠금을 쥔 동안 "다른 동시
-// 요청"의 일반 select/insert가 같은 client의 별도 연결로 부딕혀 BUSY를
-// 낸다). 실제 배포 환경(원격 Turso)은 서버가 모든 동시 요청을 정상적으로
-// 큐잉·직렬화하므로 이 문제가 없다 — 테스트에서만 같은 역할을 대신하도록,
-// 클라이언트의 execute()/batch()와 드라이즐의 transaction() 전체(콜백
-// 실행 + commit/rollback까지 포함)를 하나의 공유 프로미스 큐로 직렬화한다
-// (실제 BEGIN/COMMIT/ROLLBACK 로직은 그대로 실행되며, 가짜 트랜잭션
-// API로 대체하지 않는다 — DB I/O가 실제로 벌어지는 "순서"만 한 번에
-// 하나로 강제해, :memory: 시절의 단일 연결 직렬화와 동등한 효과를 낸다).
+// [테스트 직렬화 큐 — 이 파일 테스트의 증명 범위]
+// 위 드라이버 특성상 db.transaction()이 호출될 때마다 완전히 새로운 네이티브
+// 연결이 열린다. 파일 DB에서 여러 요청이 각자 새 연결로 같은 파일에 동시에
+// 접근하면 SQLITE_BUSY("database is locked")가 실제로 난다(관측: 별도 연결·
+// 큐 없음 조건에서 같은 IP 8건 동시 요청 → 201 1건 + 500 7건, 3회 반복 동일;
+// 라우트를 거치지 않은 직접 트랜잭션 8건도 ok 1 + SQLITE_BUSY 7).
+// 그래서 이 테스트 하네스는 client.execute()/batch()/executeMultiple()과
+// drizzle의 transaction() 전체(콜백 + commit/rollback)를 하나의 공유
+// 프로미스 큐에 태워 DB I/O를 한 번에 하나씩만 실행한다. 실제
+// BEGIN/COMMIT/ROLLBACK은 그대로 실행되며 가짜 트랜잭션 API는 아니다.
+//
+// 따라서 이 파일의 "동시 요청" 테스트(AC-B2CCONSULT-021 등)가 증명하는 것은
+// 서로 다른 요청의 DB 호출이 호출 단위로 번갈아 실행될 때의 논리(in-process
+// 락, 조회 순서, 응답 코드)뿐이다. 트랜잭션이 열려 있는 동안 다른 요청의
+// select/insert가 실제로 겹치는 상황, 병렬 연결 경합, 원격 Turso의 동시
+// 트랜잭션 동작은 증명하지 않는다 — 실제 병렬 DB 경합의 증거로 인용하지 말 것.
+// 또한 "같은 IP 5건 허용·6번째 429" 테스트는 순차 실행이라 동시성 테스트가
+// 아니다. 직렬화 없는 원격 병렬 검증은 미수행(progress.md §E.2 D-NEW-4 참고).
 function createIoQueue() {
   let queue: Promise<unknown> = Promise.resolve();
   return function enqueue<T>(fn: () => Promise<T>): Promise<T> {
@@ -383,61 +389,12 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
     // 테스트가 통과한다(증가+삭제가 원자적 단위로 묶여, 삭제 실패 시
     // 증가까지 통째로 롤백된다).
     //
-    // [이 블록만 별도 :memory: 대신 파일 기반 임시 DB를 쓰는 이유]
-    // @libsql/client의 로컬 :memory: 드라이버(Sqlite3Client)는 트랜잭션을
-    // 여는 순간 클라이언트 자신의 연결 핸들을 null로 비우고("A new
-    // connection will be lazily created on next use" —
-    // node_modules/@libsql/client/lib-esm/sqlite3.js 158행 원문 주석)
-    // 다시 복구하지 않는다. :memory: DB는 그 연결에만 존재하므로, 트랜잭션
-    // 이후의 모든 client.execute() 호출이 완전히 새로운 빈 DB를 조용히
-    // 만들어 "no such table" 오류를 낸다(직접 재현해 확인함). 파일 기반
-    // 임시 DB로 바꾸면 트랜잭션이 실제 파일에 커밋되므로 재연결 뒤에도
-    // 같은 데이터를 읽을 수 있다(직접 재현해 확인함) — 단, 파일 기반은
-    // 동시 쓰기 경합 시 SQLITE_BUSY를 내므로 이 블록은 순차 실행만
-    // 하고, 파일 전역 공유 :memory: client/db(다른 모든 테스트가 쓰는
-    // 동시성 테스트 포함)는 그대로 둔다. 원격 Turso HTTP 클라이언트는
-    // 요청마다 독립된 스트림을 새로 열 뿐 공유 핸들을 null로 비우지
-    // 않으므로, 이 이슈는 로컬 :memory: 테스트 드라이버에만 있는 현상이고
-    // 실제 배포 환경에는 영향이 없다.
-    let txClient: Client;
-    let txDb: ReturnType<typeof drizzle<typeof schema>>;
-    const tmpDir = path.resolve(
-      path.dirname(fileURLToPath(import.meta.url)),
-      "..",
-      "..",
-      "..",
-      ".tmp"
-    );
-    const dbFile = path.join(tmpDir, `consultations-rate-limit-tx-${Date.now()}-${process.pid}.db`);
-
-    async function cleanupDbFile(file: string): Promise<void> {
-      for (const suffix of ["", "-wal", "-shm"]) {
-        const p = file + suffix;
-        for (let attempt = 0; attempt < 5; attempt++) {
-          if (!existsSync(p)) break;
-          try {
-            rmSync(p);
-            break;
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          }
-        }
-      }
-    }
-
-    beforeEach(async () => {
-      mkdirSync(tmpDir, { recursive: true });
-      await cleanupDbFile(dbFile);
-      txClient = createClient({ url: `file:${dbFile}` });
-      txDb = drizzle(txClient, { schema });
-      await migrate(txDb, { migrationsFolder });
-    });
-
-    afterEach(async () => {
-      txClient.close();
-      await cleanupDbFile(dbFile);
-    });
-
+    // 이 블록은 파일 상단의 전역 파일 DB(`client`/`db`, beforeEach에서 두
+    // 테이블 초기화)를 그대로 쓴다. 별도 임시 DB를 둘 이유가 없다 — 이 테스트는
+    // 순차 실행이라 직렬화 큐가 결과에 영향을 주지 않고, 트랜잭션 롤백은
+    // 큐 안에서도 동일하게 BEGIN/ROLLBACK으로 실행된다. 증명 범위는 "로컬 파일
+    // SQLite에서 콜백 내부 오류 시 트랜잭션 전체가 롤백된다"까지이며, 원격
+    // Turso에서의 롤백은 확인하지 않았다(미검증).
     it("cleanup delete가 실패하면 트랜잭션 전체가 롤백되어 카운터 증가도 커밋되지 않는다", async () => {
       const ip = "198.51.100.62";
 
@@ -446,8 +403,8 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       // 실패시킨다 — DB 클라이언트 전체를 가정 없이 흉내 내는 대신,
       // drizzle-orm/libsql이 실제로 지원하는 트랜잭션 API가 콜백 내부
       // 오류 앞에서 정직하게 롤백하는지를 검증한다.
-      const originalTransaction = txDb.transaction.bind(txDb);
-      const brokenCleanupDb = new Proxy(txDb, {
+      const originalTransaction = db.transaction.bind(db);
+      const brokenCleanupDb = new Proxy(db, {
         get(target, prop, receiver) {
           if (prop === "transaction") {
             return (callback: Parameters<typeof originalTransaction>[0]) =>
@@ -467,10 +424,14 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
           }
           return Reflect.get(target, prop, receiver);
         },
-      }) as typeof txDb;
+      }) as typeof db;
+
+      // 클라이언트의 실제 재시도(consult-view.tsx handleRetry)와 같이,
+      // 실패한 요청과 재시도가 "같은 idempotencyKey·같은 페이로드"를 보낸다.
+      const payload = buildPayload({ resultId: "cleanup-fail", idempotencyKey: randomUUID() });
 
       const first = await handleConsultationSubmit(
-        makeRequest(buildPayload({ resultId: "cleanup-fail-1", idempotencyKey: randomUUID() }), ip),
+        makeRequest(payload, ip),
         brokenCleanupDb,
         buildEnv()
       );
@@ -478,21 +439,20 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
 
       // 트랜잭션 전체가 롤백됐다면: 이번 요청의 카운터 증가(insert 겸
       // upsert)도 커밋되지 않아야 한다 — 테이블에 행이 전혀 없어야 한다.
-      const rows = await txClient.execute("SELECT request_count FROM consultation_rate_limits");
-      expect(rows.rows.length).toBe(0);
+      // 상담 레코드도 없어야 한다(있으면 재시도가 idempotency 재생으로 처리돼
+      // rate limit 경로를 검증하지 못한다).
+      expect(await countRows("consultation_rate_limits")).toBe(0);
+      expect(await countRows("consultations")).toBe(0);
 
-      // 재시도(같은 IP, 새 idempotencyKey)는 실패한 시도가 카운트를 전혀
-      // 소비하지 않았으므로 이번이 이 IP의 진짜 첫 신규 증가(=1)여야 하고,
-      // 201로 정상 성공해야 한다.
-      const retry = await handleConsultationSubmit(
-        makeRequest(buildPayload({ resultId: "cleanup-fail-2", idempotencyKey: randomUUID() }), ip),
-        txDb,
-        buildEnv()
-      );
+      // 같은 키로 재시도하면 idempotency 재생(200)이 아니라 신규 제출 경로로
+      // 다시 들어가야 하고(201), 실패한 시도가 카운트를 소비하지 않았으므로
+      // 카운트는 1에서 시작해야 한다.
+      const retry = await handleConsultationSubmit(makeRequest(payload, ip), db, buildEnv());
       expect(retry.status).toBe(201);
-      const rowsAfterRetry = await txClient.execute(
+      const rowsAfterRetry = await client.execute(
         "SELECT request_count FROM consultation_rate_limits"
       );
+      expect(rowsAfterRetry.rows.length).toBe(1);
       expect(Number(rowsAfterRetry.rows[0].request_count)).toBe(1);
     });
   });

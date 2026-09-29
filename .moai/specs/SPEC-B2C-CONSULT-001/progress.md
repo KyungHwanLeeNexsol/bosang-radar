@@ -2118,13 +2118,19 @@ $ node_modules/.bin/vitest run app/api/consultations/route.test.ts
 모든 비-트랜잭션 쿼리가 완전히 새로운 빈 DB를 만나 깨진다. 직접
 재현해 확인했고(파일 기반 임시 DB로 바꾸면 해소됨), 원격 Turso HTTP
 클라이언트(`HttpClient`)는 매 호출마다 독립 스트림을 열 뿐 공유
-핸들을 비우지 않으므로 **이 문제는 로컬 테스트 드라이버에만 있는
-현상이고 실제 배포 환경에는 영향이 없다**(코드 검증 완료).
+핸들을 비우지 않으므로 **이 문제는 로컬 테스트 드라이버의 특성으로
+보인다**(소스 읽기 기준).
+**[D-NEW-4 정정]** 이 문단의 이전 표현("실제 배포 환경에는 영향이 없다
+(코드 검증 완료)")은 과했다. 근거는 라이브러리 소스 읽기뿐이며 원격
+Turso에서 실행해 확인한 것이 아니다 — 아래 "D-NEW-4" 절 참고.
 `route.test.ts`를 파일 기반 임시 SQLite + I/O 직렬화 큐(테스트
 전용 — 실제 BEGIN/COMMIT/ROLLBACK은 그대로 실행됨, 가짜 트랜잭션
 API로 대체하지 않음)로 바꿔 기존 31개 테스트 전부를 GREEN으로
 복원했다.
 
+**[D-NEW-4 정정: 아래 회귀 검증의 "동시 요청" 결과는 DB I/O를 직렬화한
+테스트 하네스 위에서 얻은 것이며, 실제 병렬 DB 경합의 증거가 아니다.
+"6번째 429" 테스트는 순차 실행이다.]**
 **회귀 검증(기존 계약 재확인, 이번 세션 실행)**: 동시 요청 5건 제한,
 6번째 429, 동일 idempotencyKey 재시도가 제한을 추가로 소비하지 않는
 기존 계약을 포함한 `route.test.ts` 전체 31개 테스트가 위 인프라 수정
@@ -2220,13 +2226,105 @@ VM의 실제 Nginx 설정)에 있어 이번 세션에서 직접 검증하지 못
 수정이 필요한 표현 결함은 발견하지 못했다 — 이 항목은 "문서가 이미
 올바르다"는 재확인 결과만 남긴다.
 
+### D-NEW-4 — dbcea00 후속: 검증 증거가 증명하는 범위 정정 (이번 세션)
+
+`db.transaction()`으로 증가+cleanup을 묶은 수정(`dbcea00`)은 유지한다.
+이번 절은 그 수정을 뒷받침한 검증이 실제로 증명하는 범위를 바로잡는다.
+커밋은 이미 push되어 있어 커밋 메시지는 고치지 않았다.
+
+**Claim 13 — 기존 "동시 요청" 테스트는 DB I/O를 직렬화한 위에서 돈다. 실제
+병렬 DB 경합의 증거가 아니다.**
+
+**Evidence**: `app/api/consultations/route.test.ts`의 `createIoQueue()` /
+`serializeClient()` / `serializeTransactions()`는 `client.execute` ·
+`batch` · `executeMultiple`과 `db.transaction()` 전체(콜백+commit/rollback)를
+하나의 프로미스 큐로 한 번에 하나씩 실행한다(파일 상단, `beforeAll`이 이 큐로
+`client`/`db`를 만든다). 따라서 AC-B2CCONSULT-021의 동시 요청 테스트가
+증명하는 것은 요청들의 DB 호출이 호출 단위로 번갈아 실행될 때의 논리(in-process
+`withIdempotencyLock`, 조회 순서, 응답 코드)까지다. 트랜잭션이 열린 동안 다른
+요청의 select/insert가 실제로 겹치는 상황은 만들어지지 않는다. 또한 "같은 IP 5건
+허용·6번째 429" 테스트는 `for` 루프 순차 실행이라 동시성 테스트가 아니다.
+
+**Claim 14 — 직렬화 없이 별도 연결로 돌리는 로컬 검증은 신뢰할 수 있는 결과를
+낼 수 없었다. PASS를 만들지 않았다. 원격 Turso 검증은 수행하지 않았다.**
+
+**Evidence**: 커밋하지 않는 임시 vitest 파일로, 큐/프록시 없이 요청마다 새
+`createClient({url: file:...})` 연결을 열어 동시 실행했다(작업 트리
+`.moai/state/verify/consult-followup/3-probe-timeout-{none,5000}.log`, gitignore
+대상). 관측 원문:
+
+```
+A: 같은 IP, 서로 다른 idempotencyKey 8건 동시 (기대: 201x5, 429x3), 3회 반복
+  {"201/success":1,"500/server_error":7}   ← 3회 모두 동일 (timeout 미지정 / 5000 모두)
+B: 라우트 우회, 별도 연결 db.transaction upsert 8건 동시
+  timeout=undefined {"ok:1":1,"ERR:SQLITE_BUSY:database is locked":7}
+  timeout=5000      {"ok:1":1,"ERR:SQLITE_BUSY:database is locked":7}
+C: 동일 idempotencyKey·동일 페이로드 5건 동시, 3회 반복
+  {"201/success":1,"200/success":4}         ← 3회 모두 동일
+```
+
+해석: A의 500이 SQLITE_BUSY라는 직접 증거는 B(같은 트랜잭션을 라우트 없이
+실행한 관측)다. `timeout: 5000`을 줘도 결과가 같았고, 그 옵션이 이 경로에서 실제로
+어떻게 동작하는지는 확인하지 않았다. 결과적으로 5건 허용·6번째 429는
+이 조건에서 검증되지 않았다(A는 기대와 다르며 원인이 로컬 파일 잠금이라 라우트
+결함이라고도 단정하지 않는다). C의 통과는 같은 키 요청을 프로세스 내부 락이
+직렬화하기 때문일 가능성이 높아 DB 레벨 동시 안전성의 증거로 쓰지 않는다.
+(중간에 수정 스크립트 실패로 timeout이 적용되지 않은 채 한 번 더 실행된 출력이
+있었으며, 그 출력은 timeout=5000의 증거로 인용하지 않고 폐기했다.)
+
+원격 Turso: 메인 체크아웃 `.env.local`의 `TURSO_DATABASE_URL`은 앱 이름의 단일
+DB 하나를 가리키고, 저장소 문서·`.env.local.example` 어디에도 테스트/스테이징
+DB 표시가 없다. 운영/개발 여부를 구분할 수 없어, 승인 없이 동시 쓰기 부하를
+걸지 않았다.
+
+**Claim 15 — cleanup 실패 회귀 테스트가 같은 idempotencyKey로 재시도하도록
+고쳤다.**
+
+**Evidence**: `route.test.ts` "[재검토] … 원자성" 블록. 실패 요청과 재시도가 같은
+payload(같은 `idempotencyKey`)를 쓴다. 실패 후 `consultation_rate_limits`와
+`consultations`가 모두 0행임을 확인하고(상담 레코드가 있으면 재시도가 idempotency
+재생으로 처리돼 rate-limit 경로를 검증하지 못한다), 재시도가 200이 아닌 201로
+신규 제출 경로를 타며 `request_count`가 1행·값 1로 시작함을 확인한다. 중복
+임시 파일 DB 설정(tmpDir/dbFile/cleanupDbFile/beforeEach/afterEach)은 전역 파일
+DB 재사용으로 제거했고, 31개 전부 통과했다. 이 테스트의 증명 범위는 로컬 파일
+SQLite의 트랜잭션 롤백까지다. 옛 코드에 대해 새 단언이 실패하는지(변이 검증)는
+이번에 실행하지 않았다.
+
+**Claim 16 — "원격 Turso(HTTP)에서도 이미 검증된 방식" 표현을 정정했다.**
+
+**Evidence**: `route.ts`, `route.test.ts`, 이 문서의 해당 문장을 같은 사실로
+통일했다 — 확인한 것은 라이브러리 소스 읽기(`HttpClient.transaction()`이
+호출마다 독립 스트림을 열고 `LibSQLSession.transaction()`이
+BEGIN/COMMIT/ROLLBACK을 감싼다)와 기존 사용 전례(`lib/cases/create-case.ts`,
+이 전례도 로컬 파일 SQLite로만 단위 테스트됨)이며, 원격 Turso에서 이번 경로를
+실행한 검증은 없다.
+
+**Baseline-attribution**: 이번 세션, 기준 커밋 `dbcea00`. 검증 명령과 결과는
+최종 보고 및 커밋 메시지 참고.
+
+**Gaps(미검증)**: (1) 원격 Turso에서 이번 rate-limit 트랜잭션 경로의 실행,
+커밋/롤백 동작. (2) 직렬화 없는 병렬 요청에서의 5건 허용·6번째 429·동일
+idempotencyKey 동작(로컬 파일 SQLite는 SQLITE_BUSY로 검증 불가, 원격은 환경
+불명으로 미실행). (3) 프로세스 내부 락을 우회하는 DB 레벨 동일 키 레이스
+(PM2 cluster 등 다중 프로세스). (4) Nginx `X-Forwarded-For` 실제 설정 — Claim 11
+체크리스트 4항목 여전히 미확인. (5) 요약 카드 height — Claim 6 측정 불확실성
+여전히 미해결.
+
+**Residual-risk(잔여 위험)**: 트랜잭션 경로가 원격에서 기대와 다르게 동작하면
+(예: 트랜잭션 도중 지연·오류) 제출이 500으로 실패할 수 있고, 이를 실제로
+관측하기 전까지는 가설이다. 병렬 조건의 rate-limit 정확도(정확히 5건 허용)도
+같은 이유로 확정할 수 없다.
+
+**상태**: `run_status`는 변경하지 않는다(`amended-pending-revalidation` 유지).
+이번 절은 audit-ready 전환의 근거가 되지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
 - **재작업 지시 접수(당시 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
 - **업데이트(당시 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). 그 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다.
 - **업데이트 2(당시 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — **이 (5)의 rate-limit 결론은 다음 세션에서 정정됐다(아래 업데이트 3 참고). X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했으며 이 결론은 유지된다.**
-- **업데이트 3(이번 세션) — rate-limit 원자성 결론 정정 + 실제 수정 + X-Forwarded-For 운영 체크리스트 구체화**: 사용자가 Claim 9(A)의 "rate-limit은 이미 안전하다(수정 불필요)" 결론이 실제 코드와 다르다고 지적했다 — 카운터 증가와 만료 레코드 cleanup이 실제로는 트랜잭션으로 묶여 있지 않았고, cleanup 실패 시 카운트가 이중 소비되는 실제 버그였다(재현 완료, D-NEW-3 Claim 10 참고). `db.transaction()`으로 실제 수정하고 신규 회귀 테스트로 검증했다 — `route.test.ts` 31개 전부 GREEN, 상담 컴포넌트+DB 테스트 102개, 프로젝트 전체 701개 테스트 전부 통과, `tsc`/`eslint` 모두 clean(D-NEW-3 Claim 10 참고). X-Forwarded-For는 "마지막 값 신뢰" 결론을 유지하되, 운영자가 실제 배포에서 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 추가했다(D-NEW-3 Claim 11 참고) — 실제 Nginx 설정 확인은 여전히 이 저장소 밖의 운영 결정으로 남는다. 시각 검증 상태 표현은 재확인 결과 이미 정확했다(D-NEW-3 Claim 12). **rate-limit 원자성은 이번 세션에서 실제로 해소됐다. 남아있는 audit-ready 전제조건은: (a) X-Forwarded-For 실제 Nginx 설정 운영 확인(체크리스트 4항목 미확인), (b) M03-B/M03-D 요약 카드 height 측정 불확실성(Claim 6, 미해결) 두 가지다 — 이 둘이 해소되기 전까지 `run_status`는 `audit-ready`로 전환하지 않는다.**
+- **업데이트 3(이번 세션) — rate-limit 원자성 결론 정정 + 실제 수정 + X-Forwarded-For 운영 체크리스트 구체화**: 사용자가 Claim 9(A)의 "rate-limit은 이미 안전하다(수정 불필요)" 결론이 실제 코드와 다르다고 지적했다 — 카운터 증가와 만료 레코드 cleanup이 실제로는 트랜잭션으로 묶여 있지 않았고, cleanup 실패 시 카운트가 이중 소비되는 실제 버그였다(재현 완료, D-NEW-3 Claim 10 참고). `db.transaction()`으로 실제 수정하고 신규 회귀 테스트로 검증했다 — `route.test.ts` 31개 전부 GREEN, 상담 컴포넌트+DB 테스트 102개, 프로젝트 전체 701개 테스트 전부 통과, `tsc`/`eslint` 모두 clean(D-NEW-3 Claim 10 참고). X-Forwarded-For는 "마지막 값 신뢰" 결론을 유지하되, 운영자가 실제 배포에서 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 추가했다(D-NEW-3 Claim 11 참고) — 실제 Nginx 설정 확인은 여전히 이 저장소 밖의 운영 결정으로 남는다. 시각 검증 상태 표현은 재확인 결과 이미 정확했다(D-NEW-3 Claim 12). **rate-limit 원자성은 이번 세션에서 실제로 해소됐다(로컬 파일 SQLite에서 트랜잭션 롤백을 확인한 범위 — 원격 Turso 실행·병렬 경합은 미검증, D-NEW-4 참고). 남아있는 audit-ready 전제조건은: (a) X-Forwarded-For 실제 Nginx 설정 운영 확인(체크리스트 4항목 미확인), (b) M03-B/M03-D 요약 카드 height 측정 불확실성(Claim 6, 미해결) 두 가지다 — 이 둘이 해소되기 전까지 `run_status`는 `audit-ready`로 전환하지 않는다.**
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2267,4 +2365,4 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 8. **Rate limiting 구체 알고리즘·저장소 — 결정 완료(2026-09-25)**: DB 기반 고정 윈도(`consultationRateLimits` 테이블, HMAC 처리된 원본 IP, 원자적 upsert)로 plan-phase에서 확정했다(`design.md` §9.3) — 더 이상 run-phase에 위임된 미결정 항목이 아니다. 실제 윈도 크기·요청 한도 상수 값의 트래픽 기반 미세 조정만 운영 판단으로 남는다.
 9. **Rate limiting 판정과 idempotency 조회의 처리 순서 — 결정 완료(2026-09-27, 독립 검토 D11)**: idempotency 조회를 rate limit 판정보다 먼저 수행하도록 재배열했다(`design.md` §8.1·§9.3) — 더 이상 열린 항목이 아니다.
 10. **`lib/env.ts` `RATE_LIMIT_HMAC_SECRET` 조건부 필수 검증 — 결정 확정(2026-09-27, 독립 검토 D16)**: `lib/env.ts`를 이 SPEC의 7번째 확장 대상으로 확정했다(`design.md` §4.2·§5, `plan.md` §D 제약 ①) — 더 이상 "추가 여부"가 열린 판단이 아니다. 판정 조건은 `CONSULT_POLICY_READY === "true"`다(이전 초안의 `ENABLE_CONSULT_FLOW === "true"` 조건은 내부 모순으로 정정됨 — `ENABLE_CONSULT_FLOW=true`+`CONSULT_POLICY_READY=false`는 실제 PII 접수가 애초에 불가능한 상태이므로 이 시크릿이 필요 없다). 실제 `lib/env.ts` 코드 반영은 정상적인 SPEC→구현 인계에 따른 run-phase 과제로 남지만, 이는 더 이상 "결정 대기"가 아니라 "결정 완료, 구현 대기"다 — 통상적인 plan→run 인계이지 open decision이 아니다.
-11. **rate-limit 카운터 증가 + 만료 레코드 cleanup 원자성 — 실제 결함 발견·수정 완료(이번 세션)**: 직전 세션의 Claim 9(A)는 "이미 안전하다(수정 불필요)"로 잘못 결론지었다 — 실제로는 cleanup delete 실패 시 카운터 증가만 별도로 커밋된 채 남고, 재시도가 카운트를 이중 소비하는 실제 버그였다(재현 완료). `db.transaction()`으로 증가+cleanup을 실제 원자적 단위로 묶어 수정했고, `route.test.ts` 신규 회귀 테스트(delete 실패 시 트랜잭션 전체 롤백 검증) + 기존 31개 전체 + 상담/DB 테스트 102개 + 프로젝트 전체 701개가 모두 GREEN이다(§E.2 D-NEW-3 Claim 10 참고). 더 이상 열린 항목이 아니다 — 실제 원격 Turso HTTP 환경에서의 재검증만 잔여 위험으로 남는다(코드 수준 결정 완료, 배포 환경 실측은 이 SPEC 범위 밖).
+11. **rate-limit 카운터 증가 + 만료 레코드 cleanup 원자성 — 실제 결함 발견·수정 완료(이번 세션)**: 직전 세션의 Claim 9(A)는 "이미 안전하다(수정 불필요)"로 잘못 결론지었다 — 실제로는 cleanup delete 실패 시 카운터 증가만 별도로 커밋된 채 남고, 재시도가 카운트를 이중 소비하는 실제 버그였다(재현 완료). `db.transaction()`으로 증가+cleanup을 실제 원자적 단위로 묶어 수정했고, `route.test.ts` 신규 회귀 테스트(delete 실패 시 트랜잭션 전체 롤백 검증) + 기존 31개 전체 + 상담/DB 테스트 102개 + 프로젝트 전체 701개가 모두 GREEN이다(§E.2 D-NEW-3 Claim 10 참고). 코드 수준 결정은 끝났다. **[D-NEW-4 정정]** 다만 "더 이상 열린 항목이 아니다"는 과했다 — 실제 원격 Turso에서의 실행, 그리고 직렬화 없는 병렬 동시 요청 검증(5건 허용·6번째 429·동일 키 동작)은 수행하지 못했고, 이는 열린 검증 공백이다(D-NEW-4 참고).
