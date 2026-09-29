@@ -2260,6 +2260,9 @@ const SCREENS: readonly ScreenSpec[] = [
         designTopHint: 584,
         mergeBands: 6,
         inkThreshold: BOX_INK_THRESHOLD,
+        skipMetrics: ["top"],
+        skipReason:
+          "모바일 디자인 목업에는 채널 안내(role=status)가 없지만 안내 문구는 필수(acceptance 의미 검사·CHANNEL_NOTICE)라 화면에 남긴다 — 예전에는 음수 마진(-mt-[62px])으로 폼을 안내 위로 끌어올려 top을 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다. 음수 마진 제거로 폼이 안내 높이만큼 아래로 밀려 top이 약 62px 커진다(left/width/height는 계속 게이트)",
       },
     ],
     semanticChecks: async (page) => [

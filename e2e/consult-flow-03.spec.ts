@@ -50,7 +50,10 @@
 // 단위 테스트 components/consult/consult-failure.test.tsx가 렌더링
 // 자체는 이미 커버하고 있다).
 
-import { expect, test, type Page } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 
@@ -611,3 +614,301 @@ function registerHydrationTests(policyReady: boolean): void {
 
 registerHydrationTests(true);
 registerHydrationTests(false);
+
+// SPEC-B2C-CONSULT-001 후속(모바일 390px 채널 안내 겹침 회귀) — /consult 모바일에서
+// 채널 안내(role=status)가 "이름" 라벨·입력 위로 덮여 그려지던 결함
+// (consult-form.tsx의 -mt-[62px] 음수 마진이 폼을 안내 위로 끌어올렸다)을
+// 실제 브라우저 레이아웃(boundingBox)으로 검증한다. jsdom은 레이아웃을 측정하지
+// 못하므로 이 e2e가 진짜 검증이고, components/consult/consult-form.test.tsx의
+// `-mt-` 클래스 부재 단위 테스트는 값싼 가드일 뿐이다.
+//
+// 모드(정책 준비/미준비)는 위 hydration 테스트와 동일한 태그 메커니즘을 쓴다.
+// LAYOUT_EVIDENCE_DIR 환경변수가 설정되면(선택) 측정값 JSON과 스크린샷을 그
+// 디렉터리에 남긴다 — 설정되지 않으면 파일을 전혀 쓰지 않는다.
+const MOBILE_LAYOUT_VIEWPORT = { width: 390, height: 737 };
+const LAYOUT_EVIDENCE_DIR = process.env.LAYOUT_EVIDENCE_DIR;
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function intersectionArea(a: Rect, b: Rect): number {
+  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
+/** 엄격한 교차 판정 — 맞닿기만 한(면적 0) 경우는 겹침으로 보지 않는다. */
+function rectsIntersect(a: Rect, b: Rect): boolean {
+  return intersectionArea(a, b) > 0;
+}
+
+function describeRect(rect: Rect): string {
+  const round = (value: number) => Math.round(value * 10) / 10;
+  return `top=${round(rect.y)} bottom=${round(rect.y + rect.height)} left=${round(rect.x)} right=${round(rect.x + rect.width)}`;
+}
+
+async function rectOf(locator: Locator, name: string): Promise<Rect> {
+  const box = await locator.boundingBox();
+  if (!box) {
+    throw new Error(`${name} 요소의 boundingBox를 측정하지 못했다(렌더링되지 않았거나 숨겨짐)`);
+  }
+  return box;
+}
+
+function expectNoOverlap(aName: string, a: Rect, bName: string, b: Rect): void {
+  expect(
+    rectsIntersect(a, b),
+    `${aName}(${describeRect(a)})와 ${bName}(${describeRect(b)})가 겹친다 — 교차 면적 ${intersectionArea(a, b)}px²`
+  ).toBe(false);
+}
+
+function saveLayoutEvidence(fileStem: string, data: unknown): void {
+  if (!LAYOUT_EVIDENCE_DIR) return;
+  const dir = path.resolve(LAYOUT_EVIDENCE_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${fileStem}.json`), JSON.stringify(data, null, 2));
+}
+
+async function saveLayoutScreenshot(page: Page, fileStem: string): Promise<void> {
+  if (!LAYOUT_EVIDENCE_DIR) return;
+  const dir = path.resolve(LAYOUT_EVIDENCE_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: path.join(dir, `${fileStem}.png`) });
+}
+
+type LayoutChannel = "kakao" | "phone";
+
+/** 02 결과 → 03 진입 후 채널을 선택하고 페이지 맨 위로 스크롤한다. */
+async function openConsultWithChannel(page: Page, channel: LayoutChannel): Promise<void> {
+  await completeFractureFlowToResult(page);
+  await clickDisabilityConsultCta(page);
+  await page.waitForURL("**/consult", { timeout: 10_000 });
+  await page.getByTestId("consult-view").waitFor();
+
+  const radio = page.getByRole("radio", {
+    name: channel === "kakao" ? /카카오톡 상담/ : /전화 상담/,
+  });
+  await radio.check();
+  await expect(radio).toBeChecked();
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+function registerLayoutTests(policyReady: boolean): void {
+  const tag = policyReady ? "" : ` ${POLICY_NOT_READY_TAG}`;
+  const modeLabel = policyReady ? "정책 준비 모드" : "정책 미준비 모드";
+  const modeStem = policyReady ? "ready" : "not-ready";
+
+  test.describe(`03 화면 — 모바일(390x737) 채널 안내·폼·하단 CTA 겹침 없음 (${modeLabel})${tag}`, () => {
+    test.use({ viewport: MOBILE_LAYOUT_VIEWPORT, isMobile: true, hasTouch: true });
+
+    for (const channel of ["kakao", "phone"] as const) {
+      test(`(a)(b) ${channel} 채널 — 채널 안내가 이름·연락처·연락 희망 시간 라벨/입력과 폼 위로 겹치지 않고 채널 카드 아래에 위치한다${tag}`, async ({
+        page,
+      }) => {
+        await openConsultWithChannel(page, channel);
+
+        const selector = page.getByTestId("consult-channel-selector");
+        const notice = selector.locator("[role=status]");
+        await expect(notice).toBeVisible();
+
+        const noticeRect = await rectOf(notice, "채널 안내");
+        const cardRects = await Promise.all(
+          (await selector.locator("label").all()).map((card, index) =>
+            rectOf(card, `채널 카드 ${index + 1}`)
+          )
+        );
+        const nameLabelRect = await rectOf(
+          page.locator("label[for=consult-name-input]"),
+          "이름 라벨"
+        );
+        const nameInputRect = await rectOf(page.getByTestId("consult-name-input"), "이름 입력");
+        const contactLabelRect = await rectOf(
+          page.locator("label[for=consult-contact-input]"),
+          "연락처 라벨"
+        );
+        const contactInputRect = await rectOf(
+          page.getByTestId("consult-contact-input"),
+          "연락처 입력"
+        );
+        const callLabelRect = await rectOf(
+          page.locator("label[for=consult-preferred-call-time-input]"),
+          "연락 희망 시간 라벨"
+        );
+        const callInputRect = await rectOf(
+          page.getByTestId("consult-preferred-call-time-input"),
+          "연락 희망 시간 입력"
+        );
+        const formRect = await rectOf(page.getByTestId("consult-form"), "폼 컨테이너");
+
+        saveLayoutEvidence(`rects-${modeStem}-${channel}`, {
+          viewport: MOBILE_LAYOUT_VIEWPORT,
+          notice: noticeRect,
+          channelCards: cardRects,
+          nameLabel: nameLabelRect,
+          nameInput: nameInputRect,
+          contactLabel: contactLabelRect,
+          contactInput: contactInputRect,
+          callLabel: callLabelRect,
+          callInput: callInputRect,
+          form: formRect,
+        });
+        await saveLayoutScreenshot(page, `mobile-top-${modeStem}-${channel}`);
+
+        // (a) 세로 순서 — 채널 카드 → 안내 → 이름 라벨, 그리고 안내가 아래 요소와 교차하지 않는다.
+        cardRects.forEach((cardRect, index) => {
+          expect(
+            cardRect.y + cardRect.height,
+            `채널 카드 ${index + 1}(${describeRect(cardRect)})가 채널 안내(${describeRect(noticeRect)}) 위에서 끝나야 한다`
+          ).toBeLessThanOrEqual(noticeRect.y);
+          expectNoOverlap(`채널 카드 ${index + 1}`, cardRect, "채널 안내", noticeRect);
+        });
+        expect(
+          noticeRect.y + noticeRect.height,
+          `채널 안내(${describeRect(noticeRect)})가 이름 라벨(${describeRect(nameLabelRect)}) 위에서 끝나야 한다`
+        ).toBeLessThanOrEqual(nameLabelRect.y);
+
+        expectNoOverlap("채널 안내", noticeRect, "이름 라벨", nameLabelRect);
+        expectNoOverlap("채널 안내", noticeRect, "이름 입력", nameInputRect);
+        expectNoOverlap("채널 안내", noticeRect, "연락처 라벨", contactLabelRect);
+        expectNoOverlap("채널 안내", noticeRect, "연락처 입력", contactInputRect);
+        expectNoOverlap("채널 안내", noticeRect, "연락 희망 시간 라벨", callLabelRect);
+        expectNoOverlap("채널 안내", noticeRect, "연락 희망 시간 입력", callInputRect);
+
+        // (b) 폼 컨테이너 전체가 안내와 교차하지 않는다.
+        expectNoOverlap("폼 컨테이너", formRect, "채널 안내", noticeRect);
+      });
+
+      test(`(c) ${channel} 채널 — 하단 sticky CTA가 입력·동의 체크박스를 가리지 않고 ${policyReady ? "제출 버튼이 뷰포트에 온전히 들어온다" : "정책 미준비 안내가 잘리지 않고 보인다"}${tag}`, async ({
+        page,
+      }) => {
+        await openConsultWithChannel(page, channel);
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await expect
+          .poll(() => page.evaluate(() => window.scrollY), {
+            message: "테스트 준비: 하단 스크롤 실패",
+          })
+          .toBeGreaterThan(0);
+
+        const bar = page.getByTestId("consult-submit-bar");
+        await expect(bar).toBeVisible();
+
+        const targets: Array<[string, Locator]> = [
+          ["이름 입력", page.getByTestId("consult-name-input")],
+          ["연락처 입력", page.getByTestId("consult-contact-input")],
+          ["연락 희망 시간 입력", page.getByTestId("consult-preferred-call-time-input")],
+          [
+            "개인정보 수집 동의 체크박스",
+            page.getByTestId("consult-consent-checkbox-piiCollection"),
+          ],
+          [
+            "건강정보 이용 동의 체크박스",
+            page.getByTestId("consult-consent-checkbox-healthInfoUse"),
+          ],
+          ["마케팅 수신 동의 체크박스", page.getByTestId("consult-consent-checkbox-marketing")],
+        ];
+
+        const measured: Record<string, unknown> = {};
+        for (const [name, target] of targets) {
+          await target.scrollIntoViewIfNeeded();
+          const targetRect = await rectOf(target, name);
+          const barRect = await rectOf(bar, "하단 CTA 영역");
+          measured[name] = { target: targetRect, bar: barRect };
+
+          expectNoOverlap(name, targetRect, "하단 CTA 영역", barRect);
+          // 실제 포인터가 도달 가능한지 — 가려져 있으면 trial 클릭이 실패한다.
+          await target.click({ trial: true, timeout: 5_000 });
+          const hitOk = await target.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              rect.x + rect.width / 2,
+              rect.y + rect.height / 2
+            );
+            if (!hit) return false;
+            const labels = (element as HTMLInputElement).labels;
+            return (
+              hit === element ||
+              element.contains(hit) ||
+              hit.contains(element) ||
+              (labels !== null &&
+                labels !== undefined &&
+                Array.from(labels).some((label) => label.contains(hit)))
+            );
+          });
+          expect(
+            hitOk,
+            `${name}(${describeRect(targetRect)}) 중심에서 실제로 가장 위에 그려지는 요소가 이 요소(또는 그 라벨)가 아니다 — 하단 CTA(${describeRect(barRect)})가 가리고 있을 수 있다`
+          ).toBe(true);
+        }
+
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        saveLayoutEvidence(`sticky-${modeStem}-${channel}`, {
+          viewport: MOBILE_LAYOUT_VIEWPORT,
+          measured,
+        });
+        await saveLayoutScreenshot(page, `mobile-bottom-${modeStem}-${channel}`);
+
+        if (policyReady) {
+          // 제출 버튼 전체가 뷰포트 안에 들어와야 한다(잘리지 않음).
+          await expect(page.getByTestId("consult-submit-button")).toBeInViewport({ ratio: 1 });
+        } else {
+          // 정책 미준비 안내는 뷰포트 안에 온전히 보이고 텍스트가 잘리지 않는다.
+          const policyNotice = page.getByTestId("consult-submit-policy-notice");
+          await expect(policyNotice).toBeInViewport({ ratio: 1 });
+          const clip = await policyNotice.evaluate((element) => ({
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight,
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth,
+          }));
+          expect(
+            clip.scrollHeight <= clip.clientHeight && clip.scrollWidth <= clip.clientWidth,
+            `정책 미준비 안내 텍스트가 잘린다: ${JSON.stringify(clip)}`
+          ).toBe(true);
+        }
+      });
+    }
+  });
+
+  // 데스크톱은 이번 수정 범위 밖이다 — 같은 겹침 검사를 회귀 가드로 유지한다.
+  test.describe(`03 화면 — 데스크톱(1440x900) 채널 안내가 폼과 겹치지 않는다 (${modeLabel})${tag}`, () => {
+    test.use({ viewport: DESKTOP_VIEWPORT });
+
+    test(`채널 안내가 이름 라벨·입력과 겹치지 않고 채널 카드 아래에 있다${tag}`, async ({
+      page,
+    }) => {
+      await openConsultWithChannel(page, "kakao");
+
+      const selector = page.getByTestId("consult-channel-selector");
+      const noticeRect = await rectOf(selector.locator("[role=status]"), "채널 안내");
+      const nameLabelRect = await rectOf(
+        page.locator("label[for=consult-name-input]"),
+        "이름 라벨"
+      );
+      const nameInputRect = await rectOf(page.getByTestId("consult-name-input"), "이름 입력");
+      const formRect = await rectOf(page.getByTestId("consult-form"), "폼 컨테이너");
+      saveLayoutEvidence(`rects-desktop-${modeStem}`, {
+        viewport: DESKTOP_VIEWPORT,
+        notice: noticeRect,
+        nameLabel: nameLabelRect,
+        nameInput: nameInputRect,
+        form: formRect,
+      });
+      await saveLayoutScreenshot(page, `desktop-top-${modeStem}`);
+
+      expect(
+        noticeRect.y + noticeRect.height,
+        `채널 안내(${describeRect(noticeRect)})가 이름 라벨(${describeRect(nameLabelRect)}) 위에서 끝나야 한다`
+      ).toBeLessThanOrEqual(nameLabelRect.y);
+      expectNoOverlap("채널 안내", noticeRect, "이름 라벨", nameLabelRect);
+      expectNoOverlap("채널 안내", noticeRect, "이름 입력", nameInputRect);
+      expectNoOverlap("폼 컨테이너", formRect, "채널 안내", noticeRect);
+    });
+  });
+}
+
+registerLayoutTests(true);
+registerLayoutTests(false);

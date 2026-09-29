@@ -152,4 +152,22 @@ describe("components/consult/ConsultForm", () => {
     expect(errorEl?.getAttribute("role")).toBe("alert");
     expect(errorEl?.textContent).toBe("연락처 형식이 올바르지 않습니다");
   });
+
+  // 모바일 채널 안내 겹침 회귀 가드 — 폼 컨테이너에 음수 마진(-mt-*)을 두면
+  // 폼이 바로 위 채널 안내(role=status) 위로 끌려 올라와 겹친다. jsdom은
+  // 레이아웃을 측정할 수 없으므로 이 단위 테스트는 클래스 문자열만 확인하는
+  // 값싼 가드일 뿐이고, 실제 겹침 여부는 e2e/consult-flow-03.spec.ts의
+  // boundingBox 테스트가 검증한다.
+  it("폼 컨테이너에는 위 요소와 겹치게 만드는 음수 상단 마진(-mt-*) 클래스가 없다", () => {
+    act(() => {
+      root.render(<ConsultForm {...baseProps()} />);
+    });
+
+    const form = container.querySelector<HTMLElement>('[data-testid="consult-form"]');
+    expect(form).not.toBeNull();
+    const negativeTopMargins = Array.from(form!.classList).filter(
+      (className) => className.startsWith("-mt-") || className.includes(":-mt-")
+    );
+    expect(negativeTopMargins).toEqual([]);
+  });
 });

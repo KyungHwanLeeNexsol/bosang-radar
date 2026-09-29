@@ -61,10 +61,12 @@ export function ConsultForm({
   const contactLabel = isPhone ? "통화 가능한 전화번호" : "카카오톡 연락에 사용할 휴대폰 번호";
 
   return (
-    <div
-      data-testid="consult-form"
-      className="-mt-[62px] grid gap-9 md:mt-0 md:grid-cols-2 md:gap-6"
-    >
+    // 모바일에서 채널 안내(consult-channel-selector.tsx의 role=status)와 겹치지
+    // 않도록 음수 상단 마진을 두지 않는다 — 폼은 부모(consult-view.tsx)의
+    // gap-5 간격만큼만 안내 아래에서 시작한다. 예전 -mt-[62px]은 디자인
+    // 목업(안내 배너 없음)의 폼 top에 맞추려고 폼을 안내 위로 끌어올려
+    // 안내가 이름 라벨·입력을 덮었다(e2e/consult-flow-03.spec.ts가 검증).
+    <div data-testid="consult-form" className="grid gap-9 md:grid-cols-2 md:gap-6">
       <div>
         <Label htmlFor="consult-name-input">이름 *</Label>
         <Input
