@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T06:36:11.771Z",
+  "generatedAt": "2026-09-29T08:28:39.415Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -4603,13 +4603,13 @@
             "left": 20,
             "top": 248,
             "width": 350,
-            "height": 211
+            "height": 179
           },
           "delta": {
             "left": 0,
             "top": 0,
             "width": 0,
-            "height": 92
+            "height": 124
           },
           "lines": {
             "actual": 4
@@ -4631,15 +4631,15 @@
           },
           "impl": {
             "left": 20,
-            "top": 499,
+            "top": 501,
             "width": 350,
-            "height": 50
+            "height": 48
           },
           "delta": {
             "left": 0,
-            "top": 2,
+            "top": 0,
             "width": 0,
-            "height": 0
+            "height": 2
           },
           "lines": {
             "actual": 1
@@ -5533,13 +5533,13 @@
             "left": 20,
             "top": 302,
             "width": 350,
-            "height": 211
+            "height": 179
           },
           "delta": {
             "left": 0,
             "top": 0,
             "width": 0,
-            "height": 35
+            "height": 3
           },
           "lines": {
             "actual": 4
