@@ -4,7 +4,7 @@
 
 ### 현재 상태 (Canonical — 최신, 이번 세션 갱신)
 
-- `plan_status: audit-ready` — 2026-09-29 plan-audit iteration 9가 PASS(0.857)를 내려 복귀했고, 이후 문서 변경(§E.2 D-NEW-7)에 대한 iteration 10도 PASS(0.857)다. 두 PASS 모두 커밋 전 작업 트리 기준이며 여유가 0.007로 얕다(§E.2 D-NEW-6 Claim 26, D-NEW-7 Claim 29). 아래 두 줄은 복귀 직전까지의 이력이다.
+- `plan_status: audit-ready` — 2026-09-29 plan-audit iteration 9가 PASS(0.857)를 내려 복귀했고, 이후 문서 변경(§E.2 D-NEW-7)에 대한 iteration 10도 PASS(0.857)다. 이번 세션(D-NEW-8)에서 hydration 2단계 렌더·모바일 안내 비겹침 반영으로 문서 4개가 다시 바뀌어 iteration 11을 새로 돌렸고 역시 PASS(0.857, 임계 0.85, blocking 0건)다 — 세 PASS 모두 커밋 전 작업 트리 기준이며 여유가 0.007로 얕다(§E.2 D-NEW-6 Claim 26, D-NEW-7 Claim 29, D-NEW-8 Claim 35). iteration 11 보고서: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-11.md`(커밋 `dd01367`). 감사는 Claude 단독이고 plan-audit 캐시 저장은 하지 못했다(`moai` MCP 미연결). 아래 두 줄은 복귀 직전까지의 이력이다.
 - (이력) `plan_status: amended-pending-reaudit` — D-NEW-5(이번 세션)에서 `acceptance.md`의 AC-B2CCONSULT-022 한 문장을 정정해 plan-artifact 해시가 바뀌었다. 독립 plan-auditor의 새 전체 재감사 PASS 전까지 `audit-ready`로 되돌리지 않는다(재감사 결과는 §E.2 D-NEW-5 참고). 이것은 plan-phase 신호(`plan_status`)이며 run-phase 신호(`run_status`, §E.3)와 별개다.
 - 최신 재감사: iteration 10 — Verdict **PASS**, 종합 점수 **0.857**(여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-10.md`(§E.2 D-NEW-7 Claim 29). (이력) iteration 9 — Verdict **PASS**, 종합 점수 **0.857**(임계값 0.85, 여유 0.007), 결함 D1~D6 모두 non-blocking, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-9.md`. 그 직전 iteration 8은 FAIL 0.80(보고서 `...-review-8.md`, 새 blocking D1' — REQ-005 둘째 조항에 AC 없음)이었고 사용자 결정(클라이언트 구현 + AC 추가)에 따라 해소했다(§E.2 D-NEW-6). (이력) iteration 7 — Verdict **FAIL**, 종합 점수 **0.80**(임계값 0.85), STOP 신호. 감사 대상 `653a3cf`, 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-7.md`. blocking D1~D3(§E.2 D-NEW-5 참고). PASS가 아니므로 `plan_status`를 되돌리지 않았다. 해소 방식은 사용자 결정(D1~D3 한정 수정 후 재감사)에 따라 plan 산출물을 사후 반영했고 재감사(iteration 8)를 기다린다(§E.2 D-NEW-5 Claim 21, 열린 항목 14).
 - 이 블록의 아래 항목들은 정정 **이전**의 마지막 canonical PASS 기록(review-5)이다. review-6(PASS 1.0, 감사 대상 `a106ac9`)도 Git 트리에 있으나 이 블록에는 반영돼 있지 않았다 — D-NEW-5에서 보완한다.
@@ -2634,6 +2634,52 @@ e2e-tester가 커밋 `fe52d5a`의 프로덕션 빌드(`ENABLE_CONSULT_FLOW=true`
 
 **상태**: `plan_status: audit-ready`(iteration 10 PASS). `run_status: amended-pending-revalidation` 유지 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 두 항목은 이번에도 확인하지 않았다.
 
+### D-NEW-8 — hydration #418과 모바일 채널 안내 겹침 수정, 재감사, 최종 검증
+
+D-NEW-7 Claim 32가 "이번 변경과 무관하다"며 열린 항목 19·20으로 남긴 두 결함을 이번 세션에 실제로 고쳤다. 코드 커밋(로컬 → push 대상): `2230e2b`(hydration), `ef205d3`(모바일 레이아웃), `dd01367`(명세 문서 4개 + review-11), `2d89815`(M03 시각 증거 재생성).
+
+**Claim 33 — hydration #418: 원인 확인·수정·회귀 테스트.**
+- 원인: `components/consult/consult-view.tsx`가 렌더 중 `readDiagnosisHandoff()`(sessionStorage)를 읽었다. 서버 HTML은 빈 상태, 브라우저 첫 렌더는 유효 handoff의 폼이라 둘이 어긋났다. 이전 헤더 주석의 "hydration reconciles" 서술은 사실이 아니어서 고쳤다.
+- 수정(`2230e2b`): `useSyncExternalStore`(서버 스냅샷 = loading, 클라이언트 스냅샷은 ref에 1회 캐시) 2단계 렌더. 서버·첫 클라이언트 렌더는 헤더 + 로딩 골격이고, 이후 본문(`ConsultViewBody`)이 기존 로직 그대로 empty/invalid/success/duplicate/failure/form 분기를 처리한다. formState 초기값(draft·URL `?channel=`·`idempotencyKey`)도 본문 마운트 뒤에만 계산돼 서버/클라이언트가 어긋나지 않는다. 채널 쿼리가 draft 채널보다 우선하고 draft 복원은 그대로다(단위 테스트로 확인).
+- 테스트: `components/consult/consult-view.test.tsx`에 "SSR 마크업 수화 일치(hydration #418 회귀)" 8건(유효/empty/손상 JSON/잘못된 스키마, draft 복원, 채널 쿼리, idempotencyKey 보존, 준비/미준비). `e2e/consult-flow-03.spec.ts`의 hydration 테스트가 프로덕션 빌드에서 handoff 없음·손상 2종·유효(전체 로드+새로고침)·`?channel=phone`·draft 복원(준비)/draft 미저장(미준비)을 두 정책 모드로 확인하고 hydration 콘솔 오류 0건을 단언한다. 정책 모드는 빌드 시점에 굳으므로 `playwright.config.ts`가 `E2E_CONSULT_POLICY_READY=false`로 별도 호출하는 방식(`@policy-not-ready` 태그)을 쓴다.
+- 수정 전 e2e 실패는 에이전트 보고이며 제가 수정 전 코드를 다시 돌려 확인하지는 않았다.
+
+**Claim 34 — 모바일 채널 안내 겹침: 원인 확인·수정·비겹침 테스트.**
+- 원인: `components/consult/consult-form.tsx` 컨테이너의 모바일 `-mt-[62px]`가 폼을 채널 안내 문구 위로 62px 끌어올렸다(D-NEW-7 관측 좌표: 안내 y 592~628 대 이름 라벨 586~600).
+- 수정(`ef205d3`): 음수 마진 제거, 간격은 부모 `flex flex-col gap-5`에 맡김. jsdom 가드 테스트가 컨테이너에 `-mt-*` 클래스가 없음을 확인한다.
+- 테스트: 390×737에서 kakao/phone × 준비/미준비 각각 (a) 채널 카드가 안내 위에 끝남, (b) 안내가 이름 라벨 위, (c) 안내와 이름·연락처·연락 시간 라벨/입력의 겹침 면적 0, (d) 최대 스크롤 상태에서 sticky 제출 영역이 입력·동의 체크박스 3개를 가리지 않음(trial click, elementFromPoint), 데스크톱 1440×900 안내-폼 비겹침. 최종 실행: 준비 모드 전체 36건, 미준비 모드 태그 11건 통과(Claim 36).
+- 시각 증거: `scripts/visual-verify.ts`의 M03 `form` 요소에 `skipMetrics: ["top"]` + `skipReason`을 추가했다(모바일 안내 문구가 필수라 폼이 약 62px 내려가고, 디자인 목업에는 이 안내가 없다). left/width/height는 그대로 게이트한다. 재생성 후 `M03-consult.png`를 직접 열어 확인했고 CONSULT `measurements.json`의 form top이 587 → 649(+62)로 바뀌었다(`2d89815`). DIAGNOSIS-001 `measurements.json`은 생성 시각만 바뀌어 되돌렸다.
+- **사용자 승인 기록이 없는 결정(알림)**: (1) 안내 문구를 모바일에서 계속 보이게 두고 폼을 아래로 내린 것, (2) 그 결과를 M03 `form.top` skipMetrics "의도된 편차"로 처리한 것은 오케스트레이터가 "겹치지 않게 수정하고 시각 증거를 갱신하라"는 지시 범위에서 정했다. 디자인 승인은 받지 않았고 문서(design §11, §12.2)도 "승인"이라고 쓰지 않는다. 이 결정은 열린 판단으로 남긴다.
+
+**Claim 35 — plan-audit iteration 11: PASS 0.857.** 문서 4개(spec·plan·acceptance·design)가 바뀌어 이전 PASS를 인용하지 않고 새로 돌렸다. 독립 plan-auditor가 0에서 채점했고 결과는 PASS 0.857(임계 0.85), Must-pass 전부 통과(MP-4 N/A), REQ 25 / AC 25, blocking 0건이다. 점수 Clarity 0.75 / Completeness 1.0 / Testability 0.75 / Traceability 1.0으로 iteration 10과 네 항목 모두 같아 STOP-on-regression은 발동하지 않았다. 여유는 0.007이라 리뷰어가 Traceability를 0.75로 읽으면 0.80으로 FAIL이 될 수 있다(fragility). optional 결함 D1~D10은 열린 항목 21에 옮겼다. 감사관이 직접 실행한 검증은 `pnpm exec vitest run components/consult app/consult lib/consult` 17파일·125테스트 통과뿐이며(로그 `.moai/state/verify/consult-followup/review11-vitest.log`), e2e·visual:verify·eslint·tsc·`next build`는 실행하지 않았다. 교차모델 감사(`audit_multi`/`codex_audit`/`glm_audit`)는 쓰지 않았고 plan-audit 캐시 해시는 저장하지 못했다. review-10의 PASS 캐시는 이번 트리에서 무효이므로 다음 `/moai run`의 Phase 1에서 감사가 다시 돈다.
+
+**Claim 36 — 최종 코드에서 제가 직접 실행한 검증(HEAD `dd01367`, 로그 `.moai/state/verify/consult-followup/final/`).**
+
+| 명령 | 종료 코드 | 관측 결과 | 로그 |
+|---|---|---|---|
+| `pnpm exec vitest run components/consult app/consult lib/consult` | 0 | 17파일 · 125테스트 통과 | `1-vitest.log` |
+| `pnpm exec eslint components/consult app/consult lib/consult e2e/consult-flow-03.spec.ts playwright.config.ts scripts/visual-verify.ts` | 0 | 출력 없음 | `2-eslint.log` |
+| `pnpm exec tsc --noEmit` | 0 | 출력 없음 | `3-tsc.log` |
+| `pnpm test:e2e` (프로덕션 `next build` 포함, 정책 준비) | 0 | 36 passed (5.0m) | `4-e2e-ready.log` |
+| `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` (`next build` 포함, 태그 테스트만) | 0 | 11 passed (5.0m) | `5-e2e-notready.log` |
+| `pnpm visual:verify` (화면 제한 없음) | 0 | 24화면 PASS, FAIL 0건. M03 최대 편차 4px(허용 4px), 03-D 7px(허용 8px) | `6-visual.log` |
+
+세 실행의 종료 코드는 `summary.txt`에 각각 기록돼 있다. 빌드 로그에 Turbopack 경고 1건이 있고(`instrumentation.ts` Edge Runtime 관련으로 D-NEW-7에서 기존 경고로 확인한 것과 같은 종류로 보이며 이번에 원문을 다시 대조하지는 않았다).
+
+**Baseline-attribution**: 이번 세션, 위 표의 명령을 HEAD `dd01367`에서 제가 직접 실행. 수정 전 실패 재현, RED/변이 확인, iteration 11 세부 판정은 에이전트 보고를 구분해 적었다.
+
+**Gaps(미검증)**:
+1. Nginx `X-Forwarded-For` 운영 확인과 요약 카드 height(Claim 6)는 이번에도 확인하지 않았다 — 미해결로 유지한다.
+2. Chromium 에뮬레이션만 확인했다. Firefox·WebKit·실제 iOS Safari·실기기 터치·스크린리더는 하지 않았다.
+3. 스크린샷을 직접 본 것은 `M03-consult.png`(kakao)뿐이다. phone 채널·정책 미준비 모드·M03-B/C/D는 rect 단언과 visual:verify 수치로만 확인했다.
+4. hydration 수정은 전체 로드·새로고침에 한정된다. 뒤로가기 재진입은 e2e로 확인하지 않았다(iteration 11 D6).
+5. M03 최대 편차가 4px로 허용 4px와 같아 여유가 없다. `form.top`을 skipMetrics로 뺀 뒤의 나머지 축 수치다.
+6. `pnpm test:e2e` 첫 실행에서 신규 워크트리에 한해 drizzle `column.cjs` 일시 오류가 에이전트 측정으로 한 번 보고됐다(재실행에서는 통과, 원인 미확인). 제 최종 실행에서는 나타나지 않았다.
+
+**Residual-risk(잔여 위험)**: plan-audit PASS 여유 0.007. 모바일 폼이 디자인 원본보다 약 62px 아래에 있어 그 수직 관계는 e2e 비겹침 테스트가 지킨다(visual 게이트는 이 축을 재지 않는다). M03 `form.top` 편차와 안내 문구를 모바일에 계속 보이는 결정은 디자인 승인이 없다. 확인 범위 밖 환경에서 hydration이 다시 어긋날 가능성은 배제하지 못한다.
+
+**상태**: `plan_status: audit-ready`(iteration 11 PASS). `run_status: amended-pending-revalidation` 유지 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 두 가지다. 열린 항목 19·20의 화면 결함은 위 검증이 끝나 이번에 보류 사유에서 뺐다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -2646,6 +2692,7 @@ e2e-tester가 커밋 `fe52d5a`의 프로덕션 빌드(`ENABLE_CONSULT_FLOW=true`
 - **업데이트 5(D-NEW-5, 이번 세션)**: AC-B2CCONSULT-022의 "입력 보존"은 "입력값을 draft에 보존하고 재시도·재진입 때 동일 값으로 전송"으로 확정했고 design §10의 이름 없는 4행과 충돌하지 않는다(§E.2 D-NEW-5 Claim 17). `run_status`는 유지한다 — run-phase audit-ready 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로다. 이와 별개로 `plan_status`는 acceptance.md 정정 후 plan-audit 재감사 iteration 7이 **FAIL(0.80, STOP)** 이라 `amended-pending-reaudit`에 머문다(blocking D1~D3, 열린 항목 14). plan-phase 신호와 run-phase 신호는 별개이므로, plan-audit FAIL이 해소되기 전에는 (a)(b)가 해소돼도 두 신호 모두 audit-ready로 올리지 않는다.
 - **업데이트 6(D-NEW-6, 이번 세션)**: 정책 미준비 시 제출 CTA를 안내로 대체하는 클라이언트 동작을 구현했다(§E.2 D-NEW-6 Claim 24-25). 관련 vitest 112/112, eslint·tsc 0건은 직접 실행했다. `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며, 이번 변경으로 `visual-verify`·e2e를 다시 돌리지 않았으므로 그 재검증도 여전히 필요하다(Claim 25 Gaps 1).
 - **업데이트 7(D-NEW-7, 이번 세션)**: 정책 미준비 상태의 draft 쓰기 차단과 Enter 테스트 정정(§E.2 D-NEW-7 Claim 27-28)을 반영했고, 정책 준비 경로 `pnpm test:e2e`(25 passed, exit 0)와 `pnpm visual:verify`(24/24 PASS, exit 0)를 다시 실행했다(Claim 31). 정책 미준비 브라우저 검증에서 요청 항목은 통과했으나 기존 결함 두 가지(하이드레이션 #418, 모바일 채널 안내 겹침)를 발견했다(Claim 32, 열린 항목 19·20). `run_status`는 유지한다 — 보류 기준은 (a) Nginx 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 미해결이다.
+- **업데이트 8(D-NEW-8, 이번 세션)**: 열린 항목 19·20의 두 화면 결함(hydration #418, 모바일 채널 안내 겹침)을 수정했고(`2230e2b`, `ef205d3`), 최종 코드에서 vitest 125/125, eslint·tsc exit 0, `pnpm test:e2e` 36 passed, `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` 11 passed, `pnpm visual:verify` 24화면 PASS를 직접 실행해 확인했다(§E.2 D-NEW-8 Claim 33-36, 모두 exit 0). 그래서 두 결함은 run-phase 보류 사유에서 뺐다. `run_status`는 `amended-pending-revalidation`을 유지한다 — 보류 기준은 (a) Nginx `X-Forwarded-For` 설정 운영 확인, (b) 요약 카드 height 그대로이며 둘 다 이번에도 확인하지 않았다. 이와 별개로 M03 `form.top` skipMetrics 편차와 모바일 안내 문구 유지는 사용자 승인 없이 정한 결정이라 열린 판단으로 남긴다(Claim 34).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -2683,12 +2730,12 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
 14. **[해소됨 — iteration 9 PASS, §E.2 D-NEW-6]** **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
 15. **(신규, D-NEW-6) 정책 미준비 안내 문구 확정 — 제품·법무 판단 필요(잠정 문구 사용 중)** — 현재 문구는 "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."로, 기존 "준비 중" 스텁(§ 디자인 대조 D4) 선례를 따른 잠정 문구다. 법무·운영이 확정한 문장이 아니다. 실제 확정 시 `lib/consult/consent-policy.ts`의 `CONSULT_POLICY_NOT_READY_NOTICE`와 관련 테스트만 바꾸면 된다.
-16. **[해소됨 — D-NEW-7 Claim 28: 정책 미준비 상태에서는 draft를 쓰지 않도록 수정. 잔여 위험은 Claim 28에 기록]** **(신규, D-NEW-6) 정책 미준비 검토 모드에서 입력값이 sessionStorage draft에 저장되는 점 — 제품 판단 필요(미조치)** — 제출이 불가능한 상태에서도 이름·연락처가 blur 때 draft로 저장된다. 이 SPEC 범위 밖이라 바꾸지 않았다. 원하면 `CONSULT_POLICY_READY=false`일 때 draft 저장을 끄는 별도 작업이 필요하다.
-17. **(신규, D-NEW-6) iteration 9 optional 결함 D1~D6 — 미조치, 산출물을 다시 바꿔 재감사하면 정리 가능** — 특히 D1(AC-005 추가 시나리오·design §4의 부정확한 Enter 문구)과 D4(AC-024 문구)가 PASS의 얕은 여유(0.007)를 보강한다(Claim 26). 산출물이 바뀌면 해시가 다시 바뀌어 재감사가 필요하다.
-18. **[해소됨 — D-NEW-7 Claim 31: `pnpm test:e2e` 25 passed exit 0, `pnpm visual:verify` 24/24 PASS exit 0. 정책 미준비 브라우저 확인은 Claim 30]** **(신규, D-NEW-6) `visual-verify`·Playwright e2e 재실행 — 미수행** — 이번 코드 변경 뒤 두 검증을 돌리지 않았다. 외부 서버(`VISUAL_BASE_URL`)로 돌릴 때는 그 서버에 `CONSULT_POLICY_READY=true`가 필요하다(Claim 25 Gaps 1).
-19. **(신규, D-NEW-7) `/consult` 전체 로드·새로고침 시 React 하이드레이션 오류 #418 — 미조치, 별도 수정 판단 필요** — 정책 미준비·준비 두 상태 모두에서 재현된다(Claim 32). 서버 렌더 HTML은 "먼저 진단 결과가 필요합니다" 빈 상태이고 클라이언트 첫 렌더는 폼이라 불일치가 난다. 이번 변경과 무관하다. `consult-view.tsx`가 렌더 본문에서 `readDiagnosisHandoff()`·`readConsultationDraft()`를 직접 호출하는 구조(design §2.2)가 원인으로 보이지만 코드 수정으로 확인하지는 않았다.
-20. **(신규, D-NEW-7) 모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃 — 미조치, 디자인 판단 필요** — 두 정책 상태에서 좌표가 같고(y 592~628 대 라벨 586~600), 이번 변경 이전에 커밋된 증거 `M03-consult.png`에도 그대로 보인다(Claim 32). `visual:verify`는 높이와 문구를 재는 검증이라 이 겹침을 잡지 못하고 PASS한다. 디자인 원본 `M03-상담-신청.png`에는 선택기와 이름 사이에 이런 안내 문구가 없어 의도된 배치를 알 수 없다.
-21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 미조치** — PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
+16. **[해소됨 — D-NEW-7 Claim 28]** **정책 미준비 검토 모드에서 입력값이 sessionStorage draft에 저장되는 점.** **현재 상태**: `CONSULT_POLICY_READY=false`이면 draft를 쓰지 않도록 수정했다(`persistDraft`의 `isPolicyReady` 가드). 잔여 위험은 Claim 28에 있고, 미준비 모드에서 draft가 저장·복원되지 않는 것은 이번 세션 e2e로도 확인했다(D-NEW-8 Claim 33). **이력(D-NEW-6 당시 서술)**: 제출이 불가능한 상태에서도 이름·연락처가 blur 때 draft로 저장되는데 이 SPEC 범위 밖이라 바꾸지 않았고, 별도 작업이 필요하다고 적었다 — 이후 D-NEW-7에서 수정으로 바뀌었다.
+17. **iteration 9 optional 결함 D1~D6 — 일부 해소, 나머지는 iteration 11 D8~D10으로 이월(미조치)**. **현재 상태**: D1(AC-005 추가 시나리오·design §4의 부정확한 "Enter로 제출 시도" 문구)은 D-NEW-7 Claim 27에서 정정됐고, iteration 11도 AC-005 조작 문구가 해소됐다고 확인했다(Claim 35). D4(AC-024 문구 등)를 포함한 나머지는 iteration 11에서 D8(REQ-006 길이·근거 혼입), D9(AC-024에 REQ-024의 Desktop 모달 포커스 트랩·ESC, `aria-describedby`, `aria-live` 미명시), D10(`page.test.tsx`의 `isPolicyReady` 단언 부재, AC-025의 SHA `a106ac9` 고정)으로 이월돼 그대로 열려 있다. **이력(D-NEW-6 당시 서술)**: "D1이 아직 미조치"라고 적었으나 그 뒤 정정됐다. 산출물이 다시 바뀌면 해시가 바뀌어 재감사가 필요하다.
+18. **[해소됨 — D-NEW-7 Claim 31, 이번 세션 D-NEW-8 Claim 36에서 최종 코드로 재실행]** **`visual-verify`·Playwright e2e 재실행.** **현재 상태**: 최종 코드(`2d89815` 직전 트리)에서 `pnpm test:e2e` 36 passed(exit 0), `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` 11 passed(exit 0), `pnpm visual:verify` 24화면 PASS·FAIL 0건(exit 0)을 직접 실행했다(Claim 36). 외부 서버(`VISUAL_BASE_URL`)로 돌릴 때는 그 서버에 `CONSULT_POLICY_READY=true`가 필요하다는 조건은 그대로다. **이력(D-NEW-6 당시 서술)**: 코드 변경 뒤 두 검증을 돌리지 않았다고 적었고("미수행"), D-NEW-7에서 25 passed / 24 PASS로 처음 재실행했다.
+19. **[해소됨 — D-NEW-8 Claim 33, 수정 커밋 `2230e2b`, 검증 Claim 36]** **`/consult` 전체 로드·새로고침 시 React 하이드레이션 오류 #418.** **현재 상태**: 원인은 `consult-view.tsx`가 렌더 중 `readDiagnosisHandoff()`를 읽어 서버 HTML(빈 상태)과 클라이언트 첫 렌더(폼)가 어긋나는 것이었고, `useSyncExternalStore` 2단계 렌더(서버 스냅샷 = loading)로 고쳤다. 프로덕션 빌드에서 정책 준비·미준비 양쪽의 `page.goto`/`page.reload()`가 hydration 콘솔 오류 0건임을 e2e가 단언하고, 최종 실행이 통과했다(36 / 11 passed). 확인 범위는 Chromium이다. **이력(D-NEW-7 Claim 32 당시 서술)**: "미조치, 원인은 코드 읽기에 따른 추정이고 수정으로 확인하지 못했다"고 적었다 — 이번에 원인을 코드와 테스트로 확인하고 수정했다.
+20. **[해소됨 — D-NEW-8 Claim 34, 수정 커밋 `ef205d3`, 검증 Claim 36. 단 M03 `form.top` 편차 결정은 사용자 승인 기록이 없다]** **모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃.** **현재 상태**: 원인은 `consult-form.tsx` 컨테이너의 모바일 `-mt-[62px]`가 폼을 안내 문구 위로 62px 끌어올린 것이었다. 음수 마진을 제거해 간격을 부모 `gap-5`에 맡겼다. 390px에서 안내와 이름·연락처·연락 시간 라벨/입력의 겹침 면적 0, 하단 sticky 제출 영역과 입력·동의 체크박스 비겹침을 kakao/phone × 정책 준비/미준비 e2e가 rect로 단언하고 최종 실행이 통과했다. 다시 만든 `M03-consult.png`(kakao 채널)는 제가 직접 열어 겹침이 없음을 눈으로 확인했다. phone 채널·미준비 모드의 겹침은 e2e rect 단언으로만 확인했고 스크린샷을 직접 보지는 않았다. **이력(D-NEW-7 Claim 32 당시 서술)**: 좌표가 y 592~628 대 586~600로 겹치고 `visual:verify`가 이를 놓친다고 적고 "디자인 판단 필요, 미조치"로 남겼다.
+21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남, D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 
 ### 이번 세션에서 해소됨
 
