@@ -15,8 +15,20 @@ import { toSafeErrorMeta } from "@/lib/logging/safe-error";
 // 지문 계산 → idempotencyKey 조회(일치→성공 반환/불일치→거부, 이 두 경로
 // 모두 rate limit 미적용) → (신규 제출 시도일 때만) rate limit 판정 →
 // 비즈니스 중복 조회 → 삽입 → 삽입 시점 UNIQUE 충돌 재조회.
+//
+// [D-NEW-25] 4~9단계(키 조회 → rate limit → 중복 조회 → 삽입)는 DB 쓰기 트랜잭션
+// 하나 안에서 실행된다. 쓰기 트랜잭션은 시작하는 순간 DB의 쓰기 잠금을 잡으므로(SQLite
+// BEGIN IMMEDIATE) 다른 프로세스가 같은 키로 동시에 들어와도 이 트랜잭션이 커밋된 뒤에야
+// 키를 조회한다 — 그 요청은 먼저 커밋된 행을 보고 같은 요청이면 재생(200), 다른 요청이면
+// idempotency_conflict를 받고 rate limit을 소비하지 않는다. 그래서 같은 키·같은 요청의
+// 동시 제출은 프로세스 수와 무관하게 상담 행 1개, 동일한 성공 응답, rate limit 소비 1회다.
+// 이전에는 키 조회가 트랜잭션 밖이었고 rate limit 증가가 삽입과 별개로 커밋되어, 두 프로세스가
+// 둘 다 조회를 통과해 [409 duplicate, 201]과 카운터 2(이중 소비)가 났다(원격에서 관측, 하네스
+// T7). 스키마는 그대로다 — 기존 UNIQUE 인덱스(idempotency_key, result_id+contact_normalized)가
+// 마지막 방어선이다.
 
 type DrizzleDb = ReturnType<typeof getDb>;
+type ConsultationRow = typeof consultations.$inferSelect;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -103,6 +115,43 @@ function errorResult(
   return { status: "error", code, message, ...(fieldErrors ? { fieldErrors } : {}) };
 }
 
+// 쓰기 트랜잭션이 "무슨 일이 일어났는가"만 돌려준다 — HTTP 응답으로의 변환은 트랜잭션 밖에서
+// 한다. 429와 duplicate도 정상 반환(커밋)이라 rate limit 카운터를 소비하고, 예상 밖 오류만
+// 예외로 끝나 트랜잭션 전체(카운터 포함)가 롤백된다.
+type SubmitOutcome =
+  | { kind: "replay"; row: ConsultationRow }
+  | { kind: "idempotency_conflict" }
+  | { kind: "server_error" }
+  | { kind: "rate_limited" }
+  | { kind: "duplicate"; row: ConsultationRow }
+  | { kind: "created"; row: ConsultationRow };
+
+function toResponse(outcome: SubmitOutcome, contactNormalized: string): NextResponse {
+  switch (outcome.kind) {
+    case "replay":
+      return NextResponse.json(toSuccessResult(outcome.row), { status: 200 });
+    case "idempotency_conflict":
+      return NextResponse.json(
+        errorResult("idempotency_conflict", "이미 다른 내용으로 접수된 요청입니다."),
+        { status: 409 }
+      );
+    case "server_error":
+      return NextResponse.json(errorResult("server_error", "일시적인 오류가 발생했습니다."), {
+        status: 500,
+      });
+    case "rate_limited":
+      return NextResponse.json(errorResult("rate_limited", "잠시 후 다시 시도해 주세요."), {
+        status: 429,
+      });
+    case "duplicate":
+      return NextResponse.json(toDuplicateResult(outcome.row, contactNormalized), {
+        status: 409,
+      });
+    case "created":
+      return NextResponse.json(toSuccessResult(outcome.row), { status: 201 });
+  }
+}
+
 // Nginx가 리버스 프록시로서 채우는 x-forwarded-for를 신뢰 가능한 원본 IP로
 // 사용한다 — Next.js 프로세스는 127.0.0.1에만 바인딩되어 Nginx를 거치지 않은
 // 요청은 애초에 도달할 수 없다(tech.md, design.md §9.3).
@@ -138,13 +187,14 @@ function getTrustedIp(request: NextRequest): string | null {
   return last && last.length > 0 ? last : null;
 }
 
-// 동일 idempotencyKey를 공유하는 동시 요청들이(같은 버튼 재클릭 등) 각자
-// 독립적으로 idempotencyKey 조회(§8.1 4번)를 통과해버리면 rate limit
-// 판정을 중복으로 소비해 부당하게 429를 받을 수 있다(REQ-B2CCONSULT-021
-// 동시성 시나리오). 이 프로젝트의 실제 배포는 PM2가 구동하는 단일
-// 프로세스이므로(design.md §9.3), 프로세스 내 idempotencyKey별 순차화로
-// 같은 키를 공유하는 요청들을 4-10번 단계 전체에서 직렬화한다 — 서로 다른
-// idempotencyKey의 요청들은 이 락의 영향을 받지 않고 그대로 동시 처리된다.
+// 같은 프로세스 안에서 동일 idempotencyKey를 공유하는 동시 요청(같은 버튼 재클릭 등)을 순차화한다.
+// 정확성의 근거가 아니다 — 프로세스 수와 무관하게 같은 키의 동시 제출이 하나의 접수·동일한 성공
+// 응답·rate limit 1회 소비가 되는 것은 아래 DB 쓰기 트랜잭션이 보장한다(D-NEW-25). 이 락은 같은
+// 프로세스의 더블클릭이 DB 쓰기 잠금을 놓고 다투지 않게 줄이는 최적화이고, 로컬 file: 드라이버에서는
+// 같은 프로세스의 동시 쓰기 트랜잭션이 SQLITE_BUSY로 실패하는 경우를 줄여 준다(수정 전 코드로 관측:
+// 같은 키 동시 5건을 로컬 file DB에서 격리 실행하면 이 락 덕에 [201,200,200,200,200]이 나왔고,
+// 서로 다른 키의 동시 요청은 로컬에서 SQLITE_BUSY로 실패했다 — 원격 HTTP 클라이언트에는 해당 없음).
+// 서로 다른 idempotencyKey의 요청들은 이 락의 영향을 받지 않고 그대로 동시 처리된다.
 const idempotencyLocks = new Map<string, Promise<unknown>>();
 
 async function withIdempotencyLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -248,8 +298,9 @@ export async function handleConsultationSubmit(
   // 3-10) 이하 전부 DB에 접근한다 — 예기치 못한 DB 오류가 어느 단계에서
   // 발생하든(idempotency 조회/rate limit upsert/비즈니스 중복 조회/삽입)
   // 오직 500/server_error로만 응답한다(다른 상태로 오인 매핑하지 않는다).
-  // 삽입 시점 UNIQUE 레이스(10번)는 내부 try/catch가 먼저 재조회로 해석을
-  // 시도하고, 그마저 해석 불가능한 경우에만 이 바깥 catch로 넘어온다.
+  // 쓰기 트랜잭션이 실패했을 때 경쟁자의 행이 이미 있으면 재조회가 먼저 그 행으로 해석을
+  // 시도하고(아래 resolveAfterFailedWrite), 그마저 해석 불가능한 경우에만 이 바깥 catch로
+  // 넘어온다.
   try {
     // 3) 요청 지문 계산
     const fingerprint = computeRequestFingerprint({
@@ -264,174 +315,142 @@ export async function handleConsultationSubmit(
       acknowledgedConsentVersion: payload.acknowledgedConsentVersion,
     });
 
-    // 4-10) 동일 idempotencyKey를 공유하는 동시 요청 전체를 이 지점부터
-    // 직렬화한다 — 그래야 재시도 요청이 앞선 요청의 커밋을 항상 관측하고
-    // rate limit을 중복 소비하지 않는다(위 withIdempotencyLock 주석 참고).
-    return await withIdempotencyLock(payload.idempotencyKey, async () => {
-      // 4-6) idempotencyKey 조회 — 일치 시 기존 성공 반환, 불일치 시 거부.
-      // 이 두 경로 모두 rate limit 판정을 거치지 않는다(§8.1 5-6번, D11).
-      const existingByKey = await db
+    // 쓰기 트랜잭션이 실패했을 때의 방어적 재조회 — 이미 경쟁자가 같은 키를 커밋했다면 그 행을
+    // 기준으로 재생·충돌을 판정한다. 쓰기 잠금이 제대로 동작하는 DB에서는 UNIQUE 충돌이 여기까지
+    // 오지 않지만, 원격에서 COMMIT 응답만 유실돼 실제로는 커밋된 모호한 실패도 이 재조회가 정확한
+    // 성공(재생)으로 바꿔 준다. 같은 키의 결과만 해석한다 — 다른 키의 같은 업무 키 행이 있다고
+    // duplicate로 바꾸면 본 경로(카운터 소비·커밋)와 달리 카운터가 롤백된 채 409가 나가고, 트랜잭션
+    // 실패 원인이 409로 가려진다. 못 찾으면 null — 호출한 쪽이 원래 오류를 그대로 던진다.
+    const resolveAfterFailedWrite = async (): Promise<SubmitOutcome | null> => {
+      const [byKey] = await db
         .select()
         .from(consultations)
         .where(eq(consultations.idempotencyKey, payload.idempotencyKey))
         .limit(1);
+      if (!byKey) return null;
+      return byKey.requestFingerprint === fingerprint
+        ? { kind: "replay", row: byKey }
+        : { kind: "idempotency_conflict" };
+    };
 
-      if (existingByKey.length > 0) {
-        const existing = existingByKey[0];
-        if (existing.requestFingerprint === fingerprint) {
-          return NextResponse.json(toSuccessResult(existing), { status: 200 });
-        }
-        return NextResponse.json(
-          errorResult("idempotency_conflict", "이미 다른 내용으로 접수된 요청입니다."),
-          { status: 409 }
-        );
-      }
-
-      // 7) rate limit 판정 — idempotencyKey 조회 결과 기존 레코드가 전혀
-      // 없어 이번 제출이 진짜 신규 시도로 판정됐을 때만 호출된다(§8.1 7번,
-      // D11). 서버 시크릿·신뢰 가능한 IP 부재는 이 단계에서만 500/
-      // server_error로 fail closed 처리된다(§9.3, D17) — 앞선 2-6번
-      // 단계에서 이미 종료된 요청에는 적용되지 않는다.
-      const secret = env.RATE_LIMIT_HMAC_SECRET;
-      const trustedIp = getTrustedIp(request);
-      if (!secret || !trustedIp) {
-        return NextResponse.json(errorResult("server_error", "일시적인 오류가 발생했습니다."), {
-          status: 500,
-        });
-      }
-
-      const nowMs = Date.now();
-      const windowStartMs = Math.floor(nowMs / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS;
-      const ipHmac = createHmac("sha256", secret).update(trustedIp).digest("hex");
-
-      // [보안 재재감사, 이번 세션] design.md §9.3 "보관·정리 정책"은 "매
-      // upsert 트랜잭션에서 부가적으로 DELETE ...를 함께 실행한다"고
-      // 명시했지만, 이전 구현은 증가(upsert)와 정리(delete)를 두 개의
-      // 독립된 await 문으로 실행했다 — 실제로는 트랜잭션으로 묶여 있지
-      // 않았다("같은 upsert 트랜잭션에 곁들여 실행한다"는 이전 주석은
-      // 실제 코드와 달랐다). delete가 실패하면(드물지만 가능) 이미
-      // 별도로 커밋된 증가만 남고 요청은 500으로 끝나며, 클라이언트가
-      // 같은 idempotencyKey로 재시도하면(consult-view.tsx handleRetry)
-      // idempotency 조회(4-6번 단계)는 새 레코드가 전혀 없어 재시도가
-      // rate limit 단계에 다시 도달해 카운트를 한 번 더 소비한다 — 실패한
-      // 시도 하나가 카운트를 두 번 태운다(RED로 재현, route.test.ts 참고).
-      // `db.transaction()`으로 증가+정리를 실제 원자적 단위로 묶어
-      // 설계와 구현을 일치시켰다 — delete가 실패하면 증가까지 통째로
-      // 롤백되어, 실패한 시도는 카운트를 전혀 소비하지 않는다(재시도가
-      // 처음부터 다시 시작).
-      // [검증 범위] 확인한 것: (1) 라이브러리 소스 — @libsql/client
-      // HttpClient.transaction()은 호출마다 독립 스트림을 열고,
-      // drizzle-orm/libsql의 transaction()은 BEGIN/COMMIT/ROLLBACK을
-      // 감싼다. (2) 이 프로젝트의 기존 사용 전례 —
-      // `lib/cases/create-case.ts`(SPEC-PILOT-READY-001)가 같은
-      // 패턴을 쓴다. 확인하지 않은 것: 실제 원격 Turso(HTTP)에서 이번
-      // 경로를 실행한 검증은 없다. 전례도 로컬 파일 SQLite로만
-      // 단위 테스트됐다. 이 수정의 테스트는 로컬 파일 SQLite 위에서
-      // 트랜잭션 롤백을 확인한 것이며, 원격·병렬 동작은 미검증이다.
-      const { requestCount } = await db.transaction(async (tx) => {
-        const [{ requestCount: count }] = await tx
-          .insert(consultationRateLimits)
-          .values({ windowStart: new Date(windowStartMs), ipHmac, requestCount: 1 })
-          .onConflictDoUpdate({
-            target: [consultationRateLimits.windowStart, consultationRateLimits.ipHmac],
-            set: { requestCount: sql`${consultationRateLimits.requestCount} + 1` },
-          })
-          .returning({ requestCount: consultationRateLimits.requestCount });
-
-        await tx
-          .delete(consultationRateLimits)
-          .where(lt(consultationRateLimits.windowStart, new Date(nowMs - RATE_LIMIT_RETENTION_MS)));
-
-        return { requestCount: count };
-      });
-
-      if (requestCount > RATE_LIMIT_MAX_REQUESTS) {
-        return NextResponse.json(errorResult("rate_limited", "잠시 후 다시 시도해 주세요."), {
-          status: 429,
-        });
-      }
-
-      // 8) 비즈니스 중복 조회 — resultId + 정규화 연락처 복합 키(AND)
-      const existingByBusinessKey = await db
-        .select()
-        .from(consultations)
-        .where(
-          and(
-            eq(consultations.resultId, payload.resultId),
-            eq(consultations.contactNormalized, contactNormalized)
-          )
-        )
-        .limit(1);
-
-      if (existingByBusinessKey.length > 0) {
-        return NextResponse.json(toDuplicateResult(existingByBusinessKey[0], contactNormalized), {
-          status: 409,
-        });
-      }
-
-      // 9) 신규 삽입
-      const insertedAt = new Date();
-      const newRow = {
-        id: randomUUID(),
-        resultId: payload.resultId,
-        channel: payload.channel,
-        name: payload.name,
-        contactNormalized,
-        preferredCallTime: payload.preferredCallTime ?? null,
-        consentPiiCollection: payload.consent.piiCollection,
-        consentHealthInfoUse: payload.consent.healthInfoUse,
-        consentMarketing: payload.consent.marketing,
-        consentVersion: policy.version,
-        requestFingerprint: fingerprint,
-        applicationStatus: "received",
-        idempotencyKey: payload.idempotencyKey,
-        createdAt: insertedAt,
-        updatedAt: insertedAt,
-      };
-
+    // 4-9) 같은 프로세스의 동일 idempotencyKey 요청을 순차화한 뒤(위 withIdempotencyLock 주석),
+    // DB 쓰기 트랜잭션 하나로 키 조회부터 삽입까지 실행한다(파일 머리 주석 D-NEW-25).
+    return await withIdempotencyLock(payload.idempotencyKey, async () => {
+      let outcome: SubmitOutcome;
       try {
-        await db.insert(consultations).values(newRow);
-        return NextResponse.json(toSuccessResult(newRow), { status: 201 });
-      } catch (insertError) {
-        // 10) 삽입 시점 UNIQUE 충돌 재조회(동시 요청 레이스, REQ-B2CCONSULT-021).
-        // 어느 제약이 충돌했는지는 정확한 드라이버 에러 코드/메시지 형태에
-        // 의존하지 않고 재조회로 판정한다(환경 간 에러 형태 차이에 견고함).
-        const raceByKey = await db
-          .select()
-          .from(consultations)
-          .where(eq(consultations.idempotencyKey, payload.idempotencyKey))
-          .limit(1);
-        if (raceByKey.length > 0) {
-          const raced = raceByKey[0];
-          if (raced.requestFingerprint === fingerprint) {
-            return NextResponse.json(toSuccessResult(raced), { status: 200 });
+        outcome = await db.transaction(async (tx): Promise<SubmitOutcome> => {
+          // 4-6) idempotencyKey 조회 — 일치 시 기존 성공 반환, 불일치 시 거부. 이 두 경로
+          // 모두 rate limit 판정을 거치지 않는다(§8.1 5-6번, D11). 쓰기 잠금을 잡은 뒤의
+          // 조회이므로 다른 프로세스가 이미 커밋한 행을 반드시 본다.
+          const [existingByKey] = await tx
+            .select()
+            .from(consultations)
+            .where(eq(consultations.idempotencyKey, payload.idempotencyKey))
+            .limit(1);
+          if (existingByKey) {
+            return existingByKey.requestFingerprint === fingerprint
+              ? { kind: "replay", row: existingByKey }
+              : { kind: "idempotency_conflict" };
           }
-          return NextResponse.json(
-            errorResult("idempotency_conflict", "이미 다른 내용으로 접수된 요청입니다."),
-            { status: 409 }
-          );
-        }
 
-        const raceByBusinessKey = await db
-          .select()
-          .from(consultations)
-          .where(
-            and(
-              eq(consultations.resultId, payload.resultId),
-              eq(consultations.contactNormalized, contactNormalized)
+          // 7) rate limit 판정 — idempotencyKey 조회 결과 기존 레코드가 전혀 없어 이번
+          // 제출이 진짜 신규 시도로 판정됐을 때만 실행된다(§8.1 7번, D11). 서버 시크릿·신뢰
+          // 가능한 IP 부재는 이 단계에서만 500/server_error로 fail closed 처리된다(§9.3,
+          // D17) — 앞선 2-6번 단계에서 이미 종료된 요청에는 적용되지 않는다.
+          const secret = env.RATE_LIMIT_HMAC_SECRET;
+          const trustedIp = getTrustedIp(request);
+          if (!secret || !trustedIp) {
+            return { kind: "server_error" };
+          }
+
+          const nowMs = Date.now();
+          const windowStartMs = Math.floor(nowMs / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS;
+          const ipHmac = createHmac("sha256", secret).update(trustedIp).digest("hex");
+
+          // 카운터 증가(upsert)와 만료 행 정리(delete), 그리고 아래 중복 조회·삽입이 모두 같은
+          // 트랜잭션이다 — 어느 하나라도 예외로 끝나면 카운터 증가까지 통째로 롤백되어 실패한
+          // 시도는 카운트를 소비하지 않는다(같은 idempotencyKey의 재시도가 카운트를 두 번 태우지
+          // 않는다, route.test.ts의 삽입·cleanup 실패 롤백 테스트). 429와 409/duplicate는
+          // 예외가 아니라 정상 반환이므로 커밋되어 카운터를 소비한다.
+          // [검증 범위] 로컬 file: SQLite 단위 테스트(경쟁 주입·롤백)와 로컬 두 프로세스 하네스
+          // T7(원격 왕복 지연 모사)로 확인했다. 원격 Turso(HTTP)에서의 실행은 별도로
+          // scripts/verify-remote-consult.ts로 확인한다(결과와 범위는 progress.md D-NEW-25).
+          const [{ requestCount }] = await tx
+            .insert(consultationRateLimits)
+            .values({ windowStart: new Date(windowStartMs), ipHmac, requestCount: 1 })
+            .onConflictDoUpdate({
+              target: [consultationRateLimits.windowStart, consultationRateLimits.ipHmac],
+              set: { requestCount: sql`${consultationRateLimits.requestCount} + 1` },
+            })
+            .returning({ requestCount: consultationRateLimits.requestCount });
+
+          await tx
+            .delete(consultationRateLimits)
+            .where(
+              lt(consultationRateLimits.windowStart, new Date(nowMs - RATE_LIMIT_RETENTION_MS))
+            );
+
+          if (requestCount > RATE_LIMIT_MAX_REQUESTS) {
+            return { kind: "rate_limited" };
+          }
+
+          // 8) 비즈니스 중복 조회 — resultId + 정규화 연락처 복합 키(AND)
+          const [existingByBusinessKey] = await tx
+            .select()
+            .from(consultations)
+            .where(
+              and(
+                eq(consultations.resultId, payload.resultId),
+                eq(consultations.contactNormalized, contactNormalized)
+              )
             )
-          )
-          .limit(1);
-        if (raceByBusinessKey.length > 0) {
-          return NextResponse.json(toDuplicateResult(raceByBusinessKey[0], contactNormalized), {
-            status: 409,
-          });
-        }
+            .limit(1);
+          if (existingByBusinessKey) {
+            return { kind: "duplicate", row: existingByBusinessKey };
+          }
 
-        // 재조회로도 해석되지 않는 진짜 예기치 못한 오류 — 바깥 catch가
-        // 공통 500/server_error 포맷으로 응답하도록 그대로 전달한다.
-        throw insertError;
+          // 9) 신규 삽입
+          const insertedAt = new Date();
+          const newRow = {
+            id: randomUUID(),
+            resultId: payload.resultId,
+            channel: payload.channel,
+            name: payload.name,
+            contactNormalized,
+            preferredCallTime: payload.preferredCallTime ?? null,
+            consentPiiCollection: payload.consent.piiCollection,
+            consentHealthInfoUse: payload.consent.healthInfoUse,
+            consentMarketing: payload.consent.marketing,
+            consentVersion: policy.version,
+            requestFingerprint: fingerprint,
+            applicationStatus: "received",
+            idempotencyKey: payload.idempotencyKey,
+            createdAt: insertedAt,
+            updatedAt: insertedAt,
+          };
+          await tx.insert(consultations).values(newRow);
+          return { kind: "created", row: newRow };
+        });
+      } catch (writeError) {
+        // 10) 쓰기 트랜잭션이 실패했다 — 경쟁자의 행이 이미 있으면 그 행으로 해석하고, 재조회가
+        // 실패하거나 아무것도 없으면 원래 오류를 그대로 전달해 바깥 catch가 공통 500/server_error
+        // 포맷으로 응답하게 한다(재조회 자체의 오류가 원래 오류를 가리지 않게 삼킨다).
+        const resolved = await resolveAfterFailedWrite().catch(() => null);
+        if (!resolved) {
+          throw writeError;
+        }
+        // 구제된 실패도 흔적을 남긴다 — 그렇지 않으면 BEGIN 타임아웃·COMMIT 유실이 모두 조용히
+        // 재생/충돌 응답으로 바뀌어 운영에서 트랜잭션 실패율을 알 수 없다.
+        console.warn(
+          JSON.stringify({
+            event: "consultation_write_tx_failed_resolved",
+            outcome: resolved.kind,
+            ...toSafeErrorMeta(writeError),
+          })
+        );
+        outcome = resolved;
       }
+      return toResponse(outcome, contactNormalized);
     });
   } catch (error) {
     console.error(

@@ -14,8 +14,13 @@ import {
   computeIpHmac,
   createCaseContext,
   runTriggerCase,
+  runTwoProcessCase,
   waitForWindowRoom,
   windowStartOf,
+  withSimulatedLatency,
+  type WorkerHandle,
+  type WorkerJob,
+  type WorkerResult,
 } from "./verify-remote-consult-cases.ts";
 import {
   evaluateGuard,
@@ -342,7 +347,14 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
 
       // 2) run — 로컬 SQLite는 병렬 부하에서 SQLITE_BUSY 5xx를 낼 수 있으므로(route.test.ts 관측)
       // T5/T6 통과를 단정하지 않는다. 하네스가 본 것을 그대로 기록하고 종료 코드가 그에 맞는지만 본다.
-      const runExit = await main(["run", "--run-id", runId, "--window-room-ms", "0"], deps);
+      // T7은 다르다 — 서로 다른 프로세스가 같은 키를 동시에 제출해도 DB가 하나로 정리해야 하는
+      // 게이트이고, 워커에 원격 왕복 지연(문장당 50ms)을 모사해 경쟁 구간을 열어 둔 채 실행한다.
+      // 로컬 SQLite는 문장이 마이크로초에 끝나 지연 없이는 먼저 온 프로세스가 끝낸 뒤에야 다른 쪽이
+      // 조회해 결함이 드러나지 않는다(수정 전 코드로 관측).
+      const runExit = await main(
+        ["run", "--run-id", runId, "--window-room-ms", "0", "--simulate-latency-ms", "50"],
+        deps
+      );
 
       const results = JSON.parse(readFileSync(path.join(runDir, "results.json"), "utf8")) as {
         runId: string;
@@ -374,11 +386,13 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
         expect(failed, `${id} 실패 체크`).toEqual([]);
       }
       const t7 = results.cases.find((c) => c.id === "T7");
-      expect(t7?.gate).toBe(false);
+      expect(t7?.gate).toBe(true);
       // fork 경로가 실제로 동작했다 — 두 프로세스의 응답이 모두 기록되고 워커 오류가 없다.
       expect(t7?.error).toBeUndefined();
       expect(t7?.requests).toHaveLength(2);
-      expect(t7?.status).toBe("INFO");
+      // T7의 통과 여부는 여기서 단정하지 않는다 — 전체 실행에서는 T5/T6이 같은 프로세스에서 남긴 로컬
+      // 잠금이 풀리는 시점에 따라 T7 워커가 SQLITE_BUSY를 볼 수 있다(지연 0ms 전체 실행에서 관측,
+      // T7만 단독 실행하면 같은 조건에서 3/3 통과). 통과 여부는 아래 "--only T7" 테스트가 오염 없이 본다.
 
       // 3) 원장 — write-ahead로 모든 제출 키와 (window_start, ip_hmac) 쌍이 남아 있다.
       const ledger = JSON.parse(readFileSync(path.join(runDir, "ledger.json"), "utf8")) as {
@@ -831,6 +845,300 @@ describe("트리거 안전 — T3은 라우트 호출이 던져도 트리거를 
       trigger: { name: string } | null;
     };
     expect(persisted.trigger?.name).toBe(`vt_${runId}_block_delete`);
+  });
+});
+
+describe("T7 게이트 판정 — 같은 키를 서로 다른 프로세스가 동시에 제출", () => {
+  const SUCCESS_BODY = JSON.stringify({
+    status: "success",
+    channel: "kakao",
+    maskedContact: "010-****-0001",
+  });
+  const DUPLICATE_BODY = JSON.stringify({
+    status: "duplicate",
+    receivedAt: "2026-09-30",
+    maskedContact: "010-****-0001",
+    applicationStatus: "received",
+  });
+
+  // 실제 프로세스를 띄우지 않고 "워커가 이런 응답을 받았고 DB에 이런 상태가 남았다"를 흉내 낸다.
+  // 판정 로직(무엇을 게이트로 보고 어떤 관측을 실패로 보는가)만 결정적으로 검증한다.
+  function fakeWorker(
+    response: WorkerResult,
+    seed?: (job: WorkerJob) => Promise<void>
+  ): WorkerHandle {
+    let pending: Promise<void> = Promise.resolve();
+    return {
+      ready: async () => {},
+      start: (job) => {
+        pending = seed ? seed(job) : Promise.resolve();
+      },
+      result: async () => {
+        await pending;
+        return response;
+      },
+      kill: () => {},
+    };
+  }
+
+  async function runT7(responses: [WorkerResult, WorkerResult], counter: number) {
+    const db = await makeMigratedDb();
+    const client = createClient({ url: db.url });
+    openClients.push(client);
+    const secret = "t7-unit-secret";
+    const runId = `t7gate${dbCounter}`;
+    const ledger = new LedgerWriter(path.join(stateRoot, runId), {
+      runId,
+      fingerprint: fingerprintOf(db.url),
+      baseline: { consultations: 0, consultation_rate_limits: 0 },
+      name: `가상테스트-${runId}`,
+    });
+    const seed = async (job: WorkerJob): Promise<void> => {
+      const body = job.body as { idempotencyKey: string; resultId: string };
+      await client.execute({
+        sql: `INSERT INTO consultations (id, result_id, channel, name, contact_normalized, preferred_call_time,
+          consent_pii_collection, consent_health_info_use, consent_marketing, consent_version,
+          request_fingerprint, application_status, idempotency_key, created_at, updated_at)
+          VALUES (?, ?, 'kakao', ?, '01000000001', NULL, 1, 1, 0, ?, 'fp', 'received', ?, 1790000000, 1790000000)`,
+        args: [
+          `${runId}-row`,
+          body.resultId,
+          `가상테스트-${runId}`,
+          CONSENT_VERSION,
+          body.idempotencyKey,
+        ],
+      });
+      await client.execute({
+        sql: "INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, ?)",
+        args: [
+          Math.floor(windowStartOf(Date.now()) / 1000),
+          computeIpHmac(secret, job.ip),
+          counter,
+        ],
+      });
+    };
+    let launched = 0;
+    const ctx = createCaseContext({
+      client,
+      db: drizzle(client, { schema }),
+      runId,
+      secret,
+      ledger,
+      windowRoomMs: 0,
+      submit: async () => {
+        throw new Error("submit은 이 테스트에서 쓰지 않는다");
+      },
+      launchWorker: () => {
+        const index = launched++;
+        return fakeWorker(responses[index], index === 0 ? seed : undefined);
+      },
+    });
+    return runTwoProcessCase(ctx);
+  }
+
+  it("T7은 게이트이고, 행 1개·동일한 성공 응답(201+200)·카운터 1이면 통과한다", async () => {
+    const result = await runT7(
+      [
+        { status: 201, bodyText: SUCCESS_BODY },
+        { status: 200, bodyText: SUCCESS_BODY },
+      ],
+      1
+    );
+
+    expect(result.gate).toBe(true);
+    expect(result.checks.filter((c) => !c.pass)).toEqual([]);
+    expect(result.status).toBe("PASS");
+  });
+
+  it("원격에서 관측된 결함(409 duplicate + 201, 카운터 2)은 게이트 실패로 기록한다", async () => {
+    const result = await runT7(
+      [
+        { status: 409, bodyText: DUPLICATE_BODY },
+        { status: 201, bodyText: SUCCESS_BODY },
+      ],
+      2
+    );
+
+    expect(result.gate).toBe(true);
+    expect(result.status).toBe("FAIL");
+    const failed = result.checks.filter((c) => !c.pass).map((c) => c.name);
+    expect(failed.some((name) => name.includes("request_count"))).toBe(true);
+    expect(failed.some((name) => name.includes("2xx"))).toBe(true);
+  });
+
+  it("두 응답이 모두 성공이어도 본문이 서로 다르면 실패로 기록한다", async () => {
+    const result = await runT7(
+      [
+        { status: 201, bodyText: SUCCESS_BODY },
+        { status: 200, bodyText: SUCCESS_BODY.replace("0001", "9999") },
+      ],
+      1
+    );
+
+    expect(result.status).toBe("FAIL");
+    expect(
+      result.checks
+        .filter((c) => !c.pass)
+        .map((c) => c.name)
+        .join("\n")
+    ).toContain("본문");
+  });
+});
+
+describe("withSimulatedLatency — 원격 왕복 지연을 로컬 file: 클라이언트에서 흉내 낸다", () => {
+  it("execute와 트랜잭션의 문장마다 지연을 두되 결과·커밋·롤백은 그대로다", async () => {
+    const db = await makeMigratedDb();
+    const raw = createClient({ url: db.url, timeout: 5000 });
+    openClients.push(raw);
+    const slow = withSimulatedLatency(raw, 40);
+
+    const t0 = Date.now();
+    const selected = await slow.execute("SELECT COUNT(*) AS c FROM consultations");
+    expect(Number(selected.rows[0].c)).toBe(0);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(35);
+
+    const slowDb = drizzle(slow, { schema });
+    const insertMarker = (ipHmac: string) =>
+      slowDb.transaction(async (tx) => {
+        await tx
+          .insert(schema.consultationRateLimits)
+          .values({ windowStart: new Date(1_790_000_000_000), ipHmac, requestCount: 1 });
+        return "done";
+      });
+
+    const t1 = Date.now();
+    expect(await insertMarker("lat-commit")).toBe("done");
+    // BEGIN + INSERT + COMMIT — 세 번의 왕복.
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(3 * 35);
+    expect(
+      await count(raw, "SELECT COUNT(*) AS c FROM consultation_rate_limits WHERE ip_hmac = ?", [
+        "lat-commit",
+      ])
+    ).toBe(1);
+
+    await expect(
+      slowDb.transaction(async (tx) => {
+        await tx.insert(schema.consultationRateLimits).values({
+          windowStart: new Date(1_790_000_000_000),
+          ipHmac: "lat-rollback",
+          requestCount: 1,
+        });
+        throw new Error("rollback-please");
+      })
+    ).rejects.toThrow("rollback-please");
+    expect(
+      await count(raw, "SELECT COUNT(*) AS c FROM consultation_rate_limits WHERE ip_hmac = ?", [
+        "lat-rollback",
+      ])
+    ).toBe(0);
+  });
+
+  it("지연 0은 원본 클라이언트를 그대로 돌려준다", async () => {
+    const db = await makeMigratedDb();
+    expect(withSimulatedLatency(db.client, 0)).toBe(db.client);
+  });
+});
+
+describe("--simulate-latency-ms — 로컬 file: 대상에서만, 유효한 값만", () => {
+  it.each(["abc", "-5", "NaN"])("값 %s는 종료 코드 2이고 원장·행 변화가 없다", async (value) => {
+    const db = await makeMigratedDb();
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+    const runId = `lat${dbCounter}bad`;
+
+    const exitCode = await main(
+      ["run", "--run-id", runId, "--window-room-ms", "0", `--simulate-latency-ms=${value}`],
+      deps
+    );
+
+    expect(exitCode).toBe(2);
+    expect(existsSync(path.join(stateRoot, runId))).toBe(false);
+    expect(await count(db.client, "SELECT COUNT(*) AS c FROM consultations")).toBe(0);
+  });
+
+  it("원격 대상은 지문·쓰기 허용이 맞아도 거부(종료 코드 2)하고 클라이언트도 만들지 않는다", async () => {
+    const spy = makeSpyFactory();
+    const { deps } = makeDeps(
+      { TURSO_DATABASE_URL: REMOTE_URL, TURSO_AUTH_TOKEN: REMOTE_TOKEN },
+      { createClient: spy.factory }
+    );
+
+    const exitCode = await main(
+      [
+        "run",
+        "--run-id",
+        "abcd1234",
+        "--allow-write-remote",
+        "--expect-fingerprint",
+        REMOTE_FP,
+        "--simulate-latency-ms",
+        "50",
+      ],
+      deps
+    );
+
+    expect(exitCode).toBe(2);
+    expect(spy.calls).toHaveLength(0);
+  });
+});
+
+describe("--only — 선택한 케이스만, run에서만, 알려진 케이스만", () => {
+  it(
+    "--only T7은 T7만 실행하고, 앞 케이스의 잔여 잠금 없이 두 프로세스 동시 제출이 통과한다",
+    { timeout: 120_000 },
+    async () => {
+      const db = await makeMigratedDb();
+      const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+      const runId = "only0007";
+
+      const exitCode = await main(
+        [
+          "run",
+          "--only",
+          "T7",
+          "--run-id",
+          runId,
+          "--window-room-ms",
+          "0",
+          "--simulate-latency-ms",
+          "50",
+        ],
+        deps
+      );
+
+      const results = JSON.parse(
+        readFileSync(path.join(stateRoot, runId, "results.json"), "utf8")
+      ) as {
+        gates: { total: number; passed: number };
+        cases: { id: string; status: string; checks: { name: string; pass: boolean }[] }[];
+      };
+      expect(results.cases.map((c) => c.id)).toEqual(["T7"]);
+      expect(results.cases[0]?.checks.filter((c) => !c.pass)).toEqual([]);
+      expect(results.gates).toEqual({ total: 1, passed: 1 });
+      expect(exitCode).toBe(0);
+      expect(await main(["cleanup", "--run-id", runId], deps)).toBe(0);
+    }
+  );
+
+  it.each(["T9", "T7,T0", ""])(
+    "알 수 없는 케이스 값 '%s'는 종료 코드 2이고 쓰기가 없다",
+    async (value) => {
+      const db = await makeMigratedDb();
+      const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+      const runId = `only${dbCounter}bad`;
+
+      const exitCode = await main(["run", "--run-id", runId, `--only=${value}`], deps);
+
+      expect(exitCode).toBe(2);
+      expect(existsSync(path.join(stateRoot, runId))).toBe(false);
+      expect(await count(db.client, "SELECT COUNT(*) AS c FROM consultations")).toBe(0);
+    }
+  );
+
+  it("run이 아닌 명령에 --only를 주면 종료 코드 2로 거부한다", async () => {
+    const db = await makeMigratedDb();
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["preflight", "--only", "T7"], deps)).toBe(2);
   });
 });
 

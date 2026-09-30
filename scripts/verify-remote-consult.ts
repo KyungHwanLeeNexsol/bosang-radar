@@ -27,10 +27,12 @@ import {
   runRevertSchema,
 } from "./verify-remote-consult-cleanup.ts";
 import {
+  CASE_IDS,
   DEFAULT_WINDOW_ROOM_MS,
   createCaseContext,
   runAllCases,
   runWorker,
+  withSimulatedLatency,
   type CaseResult,
   type Db,
   type SubmitFn,
@@ -87,7 +89,8 @@ const USAGE = `사용법: verify-remote-consult.ts <명령> [플래그]
 명령
   fingerprint                   TURSO_DATABASE_URL의 지문(sha256 앞 8자리)을 출력한다(연결 안 함)
   preflight                     쓰기 없음. 상담 테이블 존재·행 수·트리거·마이그레이션 행 수를 본다
-  run [--run-id <id>]           T1~T7을 실행한다. 원장·결과를 남기고 정리는 cleanup에 맡긴다
+  run [--run-id <id>]           T1~T7을 실행한다(T7은 서로 다른 두 프로세스가 같은 키를 동시에 제출하는
+                                게이트). 원장·결과를 남기고 정리는 cleanup에 맡긴다
   cleanup --run-id <id>         원장이 가리키는 행만 정확히 지우고 BEFORE/AFTER 표를 출력한다
   revert-schema --confirm-revert-schema
                                 0009 마이그레이션 되돌리기(빈 테이블만): 두 테이블과 0009 행 1개를 지운다
@@ -97,6 +100,11 @@ const USAGE = `사용법: verify-remote-consult.ts <명령> [플래그]
   --allow-write-remote          원격에 쓰는 명령(run/cleanup/revert-schema)에 필수
   --run-id <id>                 소문자·숫자 4~12자(기본: 무작위 8자리)
   --window-room-ms <ms>         한 케이스의 요청을 60초 윈도 안에 몰기 위한 최소 잔여 시간(기본 ${DEFAULT_WINDOW_ROOM_MS})
+  --simulate-latency-ms <ms>    run 전용, 로컬 file: 대상에서만(원격은 거부). T7 워커의 문장마다 왕복 지연을
+                                모사한다(기본 0). 로컬 DB는 문장이 마이크로초에 끝나 두 프로세스의 경쟁 구간이
+                                거의 생기지 않지만 원격은 실제 왕복 지연이 있어 이 옵션이 필요 없다
+  --only <T7[,T3...]>           run 전용. 지정한 케이스만 실행한다(기본: T1~T7 전부). 앞 케이스가 남기는
+                                로컬 잠금의 영향 없이 한 케이스만 다시 볼 때, 또는 원격에서 T7만 다시 돌릴 때 쓴다
   --confirm-revert-schema       revert-schema 확인 플래그
   -h, --help                    이 도움말
 
@@ -119,6 +127,8 @@ function parseCli(argv: string[]) {
       "allow-write-remote": { type: "boolean" },
       "confirm-revert-schema": { type: "boolean" },
       "window-room-ms": { type: "string" },
+      "simulate-latency-ms": { type: "string" },
+      only: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -126,6 +136,27 @@ function parseCli(argv: string[]) {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
+function parseSimulatedLatency(raw: string | undefined): { ms: number } | { error: string } {
+  if (raw === undefined) return { ms: 0 };
+  const ms = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(ms) || ms < 0) {
+    return { error: "--simulate-latency-ms는 0 이상의 숫자여야 합니다(쓰기 없음)." };
+  }
+  return { ms };
+}
+
+function parseOnly(raw: string | undefined): { ids: string[] | undefined } | { error: string } {
+  if (raw === undefined) return { ids: undefined };
+  const ids = raw.split(",").map((id) => id.trim().toUpperCase());
+  const unknown = ids.filter((id) => !CASE_IDS.includes(id));
+  if (ids.length === 0 || unknown.length > 0) {
+    return {
+      error: `--only는 ${CASE_IDS.join(", ")} 중에서 쉼표로 고릅니다(잘못된 값: ${unknown.join(", ") || "빈 값"}). 쓰기 없음.`,
+    };
+  }
+  return { ids: [...new Set(ids)] };
 }
 
 function makeRedactor(target: GuardTarget, extra: readonly string[] = []) {
@@ -303,7 +334,9 @@ function printCase(log: (line: string) => void, result: CaseResult): void {
 async function runCommand(
   session: Session,
   flags: GuardFlags,
-  values: { "run-id"?: string; "window-room-ms"?: string }
+  values: { "run-id"?: string; "window-room-ms"?: string },
+  simulateLatencyMs: number,
+  onlyCases?: string[]
 ): Promise<number> {
   const { client, deps, target, redact } = session;
 
@@ -377,6 +410,10 @@ async function runCommand(
   const guardArgs: string[] = [];
   if (flags.expectFingerprint) guardArgs.push("--expect-fingerprint", flags.expectFingerprint);
   if (flags.allowWriteRemote) guardArgs.push("--allow-write-remote");
+  if (simulateLatencyMs > 0) {
+    guardArgs.push("--simulate-latency-ms", String(simulateLatencyMs));
+    log(`T7 워커 왕복 지연 모사: 문장당 ${simulateLatencyMs}ms (로컬 file: 전용)`);
+  }
 
   const db = drizzle(client, { schema }) as Db;
   const ctx = createCaseContext({
@@ -423,11 +460,16 @@ async function runCommand(
   };
   writeResults(false);
 
-  await runAllCases(ctx, (result) => {
-    cases.push(result);
-    writeResults(false);
-    printCase(log, result);
-  });
+  if (onlyCases) log(`선택 실행: ${onlyCases.join(", ")} (나머지 케이스는 이번 실행에서 건너뜀)`);
+  await runAllCases(
+    ctx,
+    (result) => {
+      cases.push(result);
+      writeResults(false);
+      printCase(log, result);
+    },
+    onlyCases
+  );
   writeResults(true);
 
   const gateCases = cases.filter((c) => c.gate);
@@ -444,7 +486,8 @@ async function runCommand(
 async function workerCommand(
   deps: HarnessDeps,
   target: GuardTarget,
-  send: ((message: unknown) => Promise<void>) | undefined
+  send: ((message: unknown) => Promise<void>) | undefined,
+  simulateLatencyMs: number
 ): Promise<number> {
   const secret = deps.env.VT_RATE_LIMIT_SECRET;
   if (!secret || !send) {
@@ -454,7 +497,8 @@ async function workerCommand(
   let client: Client | undefined;
   try {
     client = deps.createClient({ url: target.url, authToken: target.authToken });
-    const db = drizzle(client, { schema }) as Db;
+    // 지연은 라우트가 쓰는 db에만 씌운다 — 워커의 준비·결과 전송 자체는 그대로다.
+    const db = drizzle(withSimulatedLatency(client, simulateLatencyMs), { schema }) as Db;
     return await runWorker({
       client,
       db,
@@ -539,6 +583,36 @@ export async function main(argv: string[], overrides: Partial<HarnessDeps> = {})
   }
   const target = guard.target;
 
+  // 지연 모사는 로컬 file: 대상의 run(과 그 워커)에서만 뜻이 있다 — 원격은 실제 왕복 지연이 있어
+  // 더 얹으면 관측을 흐릴 뿐이라 클라이언트를 만들기 전에 거부한다.
+  const latency = parseSimulatedLatency(values["simulate-latency-ms"]);
+  if ("error" in latency) {
+    deps.errorLog(`[verify-remote-consult] ${latency.error}`);
+    return 2;
+  }
+  if (latency.ms > 0 && command !== "run" && command !== "worker") {
+    deps.errorLog(
+      "[verify-remote-consult] 거부: --simulate-latency-ms는 run 전용입니다(쓰기 없음)."
+    );
+    return 2;
+  }
+  if (latency.ms > 0 && target.isRemote) {
+    deps.errorLog(
+      "[run] 거부: --simulate-latency-ms는 로컬 file: 대상에서만 쓸 수 있습니다. 원격은 실제 왕복 지연이 있습니다(쓰기 없음)."
+    );
+    return 2;
+  }
+
+  const only = parseOnly(values.only);
+  if ("error" in only) {
+    deps.errorLog(`[verify-remote-consult] ${only.error}`);
+    return 2;
+  }
+  if (only.ids && command !== "run") {
+    deps.errorLog("[verify-remote-consult] 거부: --only는 run 전용입니다(쓰기 없음).");
+    return 2;
+  }
+
   if (command === "worker") {
     const ipcSend = process.send
       ? (message: unknown) =>
@@ -546,7 +620,7 @@ export async function main(argv: string[], overrides: Partial<HarnessDeps> = {})
             process.send?.(message, (error: Error | null) => (error ? reject(error) : resolve()));
           })
       : undefined;
-    return workerCommand(deps, target, ipcSend);
+    return workerCommand(deps, target, ipcSend, latency.ms);
   }
 
   return withClient(deps, target, async (session) => {
@@ -554,7 +628,7 @@ export async function main(argv: string[], overrides: Partial<HarnessDeps> = {})
       case "preflight":
         return preflightCommand(session);
       case "run":
-        return runCommand(session, flags, values);
+        return runCommand(session, flags, values, latency.ms, only.ids);
       case "cleanup": {
         const runId = values["run-id"] as string;
         if (!isValidRunId(runId)) {

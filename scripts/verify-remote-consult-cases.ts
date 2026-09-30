@@ -438,6 +438,58 @@ function farFutureWindowMs(ctx: CaseContext): number {
 
 const toSeconds = (ms: number): number => Math.floor(ms / 1000);
 
+// --- 원격 왕복 지연 모사(T7 워커 전용) ----------------------------------------------
+
+type AnyFn = (...args: unknown[]) => unknown;
+
+// Sqlite3Client/Sqlite3Transaction의 메서드는 ES 비공개 필드를 쓰므로 Proxy를 거치면 this가 깨진다 —
+// 모든 함수 프로퍼티를 실제 target에 bind해 돌려준다(route.test.ts의 직렬화 큐 Proxy와 같은 이유).
+function delayMethods<T extends object>(
+  target: T,
+  delayedNames: readonly string[],
+  pause: () => Promise<void>,
+  overrides: Record<string, AnyFn> = {}
+): T {
+  return new Proxy(target, {
+    get(t, prop) {
+      if (typeof prop === "string" && prop in overrides) return overrides[prop];
+      const value = Reflect.get(t, prop, t);
+      if (typeof value !== "function") return value;
+      const bound = (value as AnyFn).bind(t);
+      if (typeof prop === "string" && delayedNames.includes(prop)) {
+        return async (...args: unknown[]) => {
+          await pause();
+          return bound(...args);
+        };
+      }
+      return bound;
+    },
+  });
+}
+
+/**
+ * 클라이언트의 문장·트랜잭션 왕복마다 latencyMs만큼 지연을 둔다. 원격(HTTP)은 문장마다 네트워크
+ * 왕복이 있어 두 프로세스가 둘 다 "조회만 끝낸" 상태로 겹칠 수 있지만, 로컬 file: DB는 문장이
+ * 마이크로초에 끝나 먼저 온 프로세스가 전부 끝낸 뒤에야 다른 쪽이 조회하므로 그 겹침이 거의 생기지
+ * 않는다(수정 전 코드로 관측). T7 워커에만 씌워 로컬에서도 같은 경쟁 구간을 열어 두는 데 쓴다.
+ * 지연 0 이하면 원본을 그대로 돌려준다.
+ */
+export function withSimulatedLatency(client: Client, latencyMs: number): Client {
+  if (!(latencyMs > 0)) return client;
+  const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, latencyMs));
+  return delayMethods(client, ["execute", "batch", "executeMultiple"], pause, {
+    transaction: async (...args: unknown[]) => {
+      await pause();
+      const tx = await (client.transaction as AnyFn).apply(client, args);
+      return delayMethods(
+        tx as object,
+        ["execute", "batch", "executeMultiple", "commit", "rollback"],
+        pause
+      );
+    },
+  });
+}
+
 // --- T1: 커밋 ----------------------------------------------------------------------
 
 export async function runCommitCase(ctx: CaseContext): Promise<CaseResult> {
@@ -740,14 +792,19 @@ export async function runSameKeyConcurrentCase(ctx: CaseContext): Promise<CaseRe
   return c.finish();
 }
 
-// --- T7: 서로 다른 프로세스의 같은 키(특성화, 게이트 아님) -------------------------
+// --- T7: 서로 다른 프로세스의 같은 키(게이트) --------------------------------------
 
+// 이 케이스는 처음에는 "관찰만 하는 특성화"(게이트 아님)였다 — 프로세스 안 Map 락은 두 프로세스에
+// 걸치지 않아 원격에서 [409 duplicate, 201]과 rate-limit 카운터 2(이중 소비)가 관측됐고, 그 위험을
+// 기록만 했다. 라우트가 키 조회·rate limit·중복 조회·삽입을 DB 쓰기 트랜잭션 하나로 묶어 프로세스
+// 간에도 원자적이 된 뒤로는 게이트다: 같은 키·같은 요청을 두 프로세스가 동시에 제출하면 상담 행
+// 1개, 동일한 성공 응답(먼저 온 쪽 201 + 나머지 재생 200), rate limit 소비 1회여야 한다.
 export async function runTwoProcessCase(ctx: CaseContext): Promise<CaseResult> {
   const c = new CaseBuilder(
     ctx,
     "T7",
-    "같은 키를 두 프로세스가 동시에 제출(특성화 — 다중 인스턴스 위험 기록)",
-    false
+    "같은 키를 두 프로세스가 동시에 제출 → 행 1개, 동일한 성공 응답, 카운터 1",
+    true
   );
   const workers: WorkerHandle[] = [];
   try {
@@ -769,19 +826,27 @@ export async function runTwoProcessCase(ctx: CaseContext): Promise<CaseResult> {
       c.requests.push(toRecord(ctx, `프로세스 ${i + 1}`, ip, r));
     });
     const rows = await readRateRows(ctx, ipHmac);
-    c.info(
-      "두 프로세스의 상태",
-      results.map((r) => r.status)
+    const accepted = c.requests.filter(isAccepted);
+    c.check(
+      "두 프로세스의 상태(정렬: 최초 접수 201 + 재생 200)",
+      [200, 201],
+      results.map((r) => r.status).sort((a, b) => a - b)
     );
-    c.info(
-      "이 키의 상담 행 수(고유 인덱스 기대값 1)",
-      await countConsultationsByKeys(ctx, [entry.idempotencyKey])
+    c.check("5xx/예외 수", 0, c.requests.filter(isServerError).length);
+    c.check("2xx 응답 수(둘 다 성공이어야 함)", 2, accepted.length);
+    c.check(
+      "2xx 응답 본문의 서로 다른 종류 수(바이트 동일이면 1)",
+      1,
+      new Set(accepted.map((r) => r.bodyText)).size
     );
-    c.info(
-      "rate-limit request_count 합(2면 이중 소비)",
+    c.check("이 키의 상담 행 수", 1, await countConsultationsByKeys(ctx, [entry.idempotencyKey]));
+    c.check(
+      "rate-limit request_count 합(재시도는 소비 안 함, 2면 이중 소비)",
+      1,
       rows.reduce((sum, r) => sum + r.requestCount, 0)
     );
-    c.info("5xx 수", c.requests.filter(isServerError).length);
+    c.check("라우트가 본 윈도 수(1이어야 함)", 1, rows.length);
+    c.note(`상태 분포: ${JSON.stringify(results.map((r) => r.status))}`);
   } catch (error) {
     c.fail(error);
   } finally {
@@ -792,11 +857,15 @@ export async function runTwoProcessCase(ctx: CaseContext): Promise<CaseResult> {
 
 // --- 전체 실행 ---------------------------------------------------------------------
 
+export const CASE_IDS: readonly string[] = ["T1", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+/** only가 있으면 그 케이스만 (원래 순서대로) 실행한다. */
 export async function runAllCases(
   ctx: CaseContext,
-  onCase: (result: CaseResult) => void
+  onCase: (result: CaseResult) => void,
+  only?: readonly string[]
 ): Promise<CaseResult[]> {
-  const cases: { id: string; run: (ctx: CaseContext) => Promise<CaseResult> }[] = [
+  const allCases: { id: string; run: (ctx: CaseContext) => Promise<CaseResult> }[] = [
     { id: "T1", run: runCommitCase },
     { id: "T2", run: runRollbackCase },
     { id: "T3", run: runTriggerCase },
@@ -805,6 +874,7 @@ export async function runAllCases(
     { id: "T6", run: runSameKeyConcurrentCase },
     { id: "T7", run: runTwoProcessCase },
   ];
+  const cases = only ? allCases.filter((entry) => only.includes(entry.id)) : allCases;
   const results: CaseResult[] = [];
   for (const entry of cases) {
     ctx.log(`--- ${entry.id} 시작`);

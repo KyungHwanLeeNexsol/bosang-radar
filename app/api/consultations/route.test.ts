@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createClient, type Client } from "@libsql/client";
+import { createClient, type Client, type InValue } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { NextRequest } from "next/server";
@@ -701,6 +701,260 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
     });
   });
 
+  // SPEC-B2C-CONSULT-001 D-NEW-25 — 프로세스 간 원자적 중복 처리(T7 후속). 이 파일의 DB는
+  // 직렬화 큐 위에서 도는 단일 프로세스라 실제 병렬 경합은 증명하지 못한다(위 큐 주석). 그래서
+  // 여기서는 "다른 프로세스가 조회 이후·쓰기 이전에 같은 키 행을 커밋했다"는 교차 프로세스
+  // 인터리빙을 정확히 한 지점에 주입해 결정적으로 재현한다 — 라우트가 db.transaction()을
+  // 여는 순간 직전에 경쟁자의 행을 커밋한다. 라우트가 키 조회를 그 트랜잭션 안(쓰기 잠금 이후)에서
+  // 하면 경쟁자의 행을 보고 재생하고, 조회를 트랜잭션 밖에서 미리 하면 경쟁자를 놓친다.
+  // 진짜 서로 다른 프로세스 두 개의 실행은 scripts/verify-remote-consult.ts의 T7이 맡는다.
+  describe("T7 후속 — 프로세스 간 원자적 중복 처리(DB 쓰기 트랜잭션)", () => {
+    const WINNER_COLUMNS = [
+      "id",
+      "result_id",
+      "channel",
+      "name",
+      "contact_normalized",
+      "preferred_call_time",
+      "consent_pii_collection",
+      "consent_health_info_use",
+      "consent_marketing",
+      "consent_version",
+      "request_fingerprint",
+      "application_status",
+      "idempotency_key",
+      "created_at",
+      "updated_at",
+    ] as const;
+
+    // 정상 경로로 먼저 한 번 제출해 "경쟁자가 커밋할 행"(정확한 지문 포함)을 얻고, 두 테이블을
+    // 비워 되감는다 — 이후 라우트 호출 중에 이 행이 다시 나타나는 것이 경쟁자의 커밋이다.
+    async function captureWinnerRow(
+      payload: Record<string, unknown>,
+      ip: string
+    ): Promise<InValue[]> {
+      const first = await submit(payload, buildEnv(), ip);
+      expect(first.status).toBe(201);
+      const selected = await client.execute("SELECT * FROM consultations");
+      const row = selected.rows[0];
+      await client.execute("DELETE FROM consultations");
+      await client.execute("DELETE FROM consultation_rate_limits");
+      return WINNER_COLUMNS.map((column) => row[column] as InValue);
+    }
+
+    function dbWithRaceWinner(winnerArgs: InValue[]): typeof db {
+      const originalTransaction = db.transaction.bind(db);
+      return new Proxy(db, {
+        get(target, prop, receiver) {
+          if (prop === "transaction") {
+            return async (callback: Parameters<typeof originalTransaction>[0]) => {
+              await client.execute({
+                sql: `INSERT INTO consultations (${WINNER_COLUMNS.join(", ")}) VALUES (${WINNER_COLUMNS.map(() => "?").join(", ")})`,
+                args: winnerArgs,
+              });
+              return originalTransaction(callback);
+            };
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as typeof db;
+    }
+
+    it("경쟁자가 같은 키·같은 요청을 먼저 커밋했다면 재생(200)하고 rate limit을 소비하지 않는다", async () => {
+      const ip = "198.51.100.71";
+      const payload = buildPayload({ resultId: "t7-same", idempotencyKey: randomUUID() });
+      const winner = await captureWinnerRow(payload, ip);
+
+      const response = await handleConsultationSubmit(
+        makeRequest(payload, ip),
+        dbWithRaceWinner(winner),
+        buildEnv()
+      );
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).status).toBe("success");
+      expect(await countRows("consultations")).toBe(1);
+      expect(await countRows("consultation_rate_limits")).toBe(0);
+    });
+
+    it("경쟁자가 같은 키·다른 요청을 먼저 커밋했다면 409/idempotency_conflict이고 rate limit을 소비하지 않는다", async () => {
+      const ip = "198.51.100.72";
+      const key = randomUUID();
+      const payload = buildPayload({ resultId: "t7-diff", idempotencyKey: key });
+      const winner = await captureWinnerRow({ ...payload, name: "선점자" }, ip);
+
+      const response = await handleConsultationSubmit(
+        makeRequest(payload, ip),
+        dbWithRaceWinner(winner),
+        buildEnv()
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("idempotency_conflict");
+      expect(await countRows("consultations")).toBe(1);
+      expect(await countRows("consultation_rate_limits")).toBe(0);
+    });
+
+    it("삽입이 DB에서 실패하면 rate limit 카운터까지 롤백되어 같은 요청의 재시도가 카운트를 두 번 태우지 않는다", async () => {
+      const ip = "198.51.100.73";
+      const payload = buildPayload({ resultId: "t7-rollback", idempotencyKey: randomUUID() });
+
+      // 구현 방식과 무관하게 삽입만 실패시키려고 DB 트리거를 쓴다(하네스 T3과 같은 수법).
+      await client.execute(
+        "CREATE TRIGGER t7_block_insert BEFORE INSERT ON consultations BEGIN SELECT RAISE(ABORT, 'simulated'); END"
+      );
+      try {
+        const failed = await handleConsultationSubmit(makeRequest(payload, ip), db, buildEnv());
+        expect(failed.status).toBe(500);
+        expect(await countRows("consultations")).toBe(0);
+        // 카운터 증가가 삽입과 같은 트랜잭션이면 삽입 실패와 함께 사라진다.
+        expect(await countRows("consultation_rate_limits")).toBe(0);
+      } finally {
+        await client.execute("DROP TRIGGER IF EXISTS t7_block_insert");
+      }
+
+      const retry = await handleConsultationSubmit(makeRequest(payload, ip), db, buildEnv());
+      expect(retry.status).toBe(201);
+      const counter = await client.execute("SELECT request_count FROM consultation_rate_limits");
+      expect(counter.rows).toHaveLength(1);
+      expect(Number(counter.rows[0].request_count)).toBe(1);
+    });
+
+    // 쓰기 트랜잭션 자체가 실패했는데(예: 원격에서 COMMIT 응답만 유실) 실제로는 같은 키의 행이 이미
+    // 커밋돼 있는 모호한 실패다. 재조회가 그 행으로 해석하지 못하면 사용자는 500을 받고 재시도하게 되어
+    // 이미 접수된 신청을 다시 제출한다.
+    function dbWhoseTransactionFailsAfterWinner(winnerArgs: InValue[]): typeof db {
+      return new Proxy(db, {
+        get(target, prop, receiver) {
+          if (prop === "transaction") {
+            return async () => {
+              await client.execute({
+                sql: `INSERT INTO consultations (${WINNER_COLUMNS.join(", ")}) VALUES (${WINNER_COLUMNS.map(() => "?").join(", ")})`,
+                args: winnerArgs,
+              });
+              throw new Error("commit response lost (simulated)");
+            };
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as typeof db;
+    }
+
+    it("쓰기 트랜잭션이 실패했지만 같은 키·같은 요청의 행이 이미 있으면 500이 아니라 재생(200)한다", async () => {
+      const ip = "198.51.100.76";
+      const payload = buildPayload({ resultId: "t7-lost-commit", idempotencyKey: randomUUID() });
+      const winner = await captureWinnerRow(payload, ip);
+
+      const response = await handleConsultationSubmit(
+        makeRequest(payload, ip),
+        dbWhoseTransactionFailsAfterWinner(winner),
+        buildEnv()
+      );
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).status).toBe("success");
+      expect(await countRows("consultations")).toBe(1);
+    });
+
+    it("쓰기 트랜잭션이 실패했고 같은 키의 행이 다른 요청의 것이면 409/idempotency_conflict다", async () => {
+      const ip = "198.51.100.77";
+      const payload = buildPayload({
+        resultId: "t7-lost-commit-diff",
+        idempotencyKey: randomUUID(),
+      });
+      const winner = await captureWinnerRow({ ...payload, name: "선점자" }, ip);
+
+      const response = await handleConsultationSubmit(
+        makeRequest(payload, ip),
+        dbWhoseTransactionFailsAfterWinner(winner),
+        buildEnv()
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("idempotency_conflict");
+    });
+
+    it("복구 경로가 요청을 구제하면 원래 트랜잭션 실패를 consultation_write_tx_failed_resolved로 기록한다", async () => {
+      const ip = "198.51.100.78";
+      const payload = buildPayload({ resultId: "t7-log-resolved", idempotencyKey: randomUUID() });
+      const winner = await captureWinnerRow(payload, ip);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const response = await handleConsultationSubmit(
+          makeRequest(payload, ip),
+          dbWhoseTransactionFailsAfterWinner(winner),
+          buildEnv()
+        );
+        expect(response.status).toBe(200);
+        const logged = warn.mock.calls.map((call) => String(call[0]));
+        expect(logged.some((line) => line.includes("consultation_write_tx_failed_resolved"))).toBe(
+          true
+        );
+        expect(logged.join("\n")).not.toContain("commit response lost");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    // 복구 경로는 "같은 키" 결과만 해석한다. 다른 키의 같은 업무 키 행이 있다고 409/duplicate로
+    // 바꿔 주면 본 경로와 달리 rate limit 카운터가 롤백된 채 duplicate가 나가고(본 경로는 소비·커밋),
+    // 트랜잭션 실패 원인(서버 시크릿 누락 등)이 409로 가려진다 — 이때는 500이어야 한다.
+    it("쓰기 트랜잭션이 실패했고 같은 키의 행은 없으며 다른 키의 같은 업무 키 행만 있으면 409가 아니라 500이다", async () => {
+      const ip = "198.51.100.79";
+      const other = buildPayload({ resultId: "t7-biz-dup", idempotencyKey: randomUUID() });
+      const winner = await captureWinnerRow(other, ip);
+      const payload = buildPayload({ resultId: "t7-biz-dup", idempotencyKey: randomUUID() });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const response = await handleConsultationSubmit(
+          makeRequest(payload, ip),
+          dbWhoseTransactionFailsAfterWinner(winner),
+          buildEnv()
+        );
+        expect(response.status).toBe(500);
+        expect((await response.json()).code).toBe("server_error");
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    // 특성화 — 429와 409/duplicate는 정상 응답으로 커밋되어 카운터를 소비한다(설계 §8.1 7번 이후).
+    // 트랜잭션을 하나로 묶으면서 "예외로 끝내 롤백"하는 쪽으로 잘못 구현하면 이 값이 깨진다.
+    it("429와 409/duplicate 응답도 rate limit 카운터를 소비하고 커밋한다", async () => {
+      const limitedIp = "198.51.100.74";
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const { status } = await submit(
+          buildPayload({ resultId: `t7-rl-${i}`, idempotencyKey: randomUUID() }),
+          buildEnv(),
+          limitedIp
+        );
+        statuses.push(status);
+      }
+      expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+
+      const duplicateIp = "198.51.100.75";
+      await submit(
+        buildPayload({ resultId: "t7-dup", idempotencyKey: randomUUID() }),
+        buildEnv(),
+        duplicateIp
+      );
+      const duplicate = await submit(
+        buildPayload({ resultId: "t7-dup", idempotencyKey: randomUUID() }),
+        buildEnv(),
+        duplicateIp
+      );
+      expect(duplicate.status).toBe(409);
+      expect(duplicate.json.status).toBe("duplicate");
+
+      const counts = await client.execute(
+        "SELECT request_count FROM consultation_rate_limits ORDER BY request_count"
+      );
+      expect(counts.rows.map((row) => Number(row.request_count))).toEqual([2, 6]);
+      expect(await countRows("consultations")).toBe(6);
+    });
+  });
+
   describe("AC-B2CCONSULT-023 — PII 최소 노출(duplicate 응답)", () => {
     it("duplicate 응답의 maskedContact는 매칭된 기존 레코드가 아니라 이번 요청 자신의 연락처에서 파생된다", async () => {
       await submit(buildPayload({ resultId: "self-derive", contact: "010-1111-2222" }));
@@ -719,12 +973,18 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
 
   describe("일반 서버 오류 (500/server_error, 오검출 방지)", () => {
     it("DB 오류는 오직 500/server_error로만 응답한다(다른 상태로 오인 매핑하지 않는다)", async () => {
+      // 트랜잭션 안의 첫 조회와 복구 경로의 재조회가 모두 실패하는 DB — 의도한 경로(트랜잭션 안
+      // 조회 실패 → 복구 불가 → 500)를 지난다. transaction 속성이 없으면 "함수가 아님" TypeError로
+      // 엉뚱한 이유로 500이 되므로 반드시 둔다.
+      const failingSelect = () => {
+        throw Object.assign(new Error("boom"), {
+          cause: { name: "LibsqlError", code: "SQLITE_IOERR" },
+        });
+      };
       const brokenDb = {
-        select: () => {
-          throw Object.assign(new Error("boom"), {
-            cause: { name: "LibsqlError", code: "SQLITE_IOERR" },
-          });
-        },
+        transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({ select: failingSelect }),
+        select: failingSelect,
       } as unknown as typeof db;
 
       const request = makeRequest(buildPayload());
@@ -736,12 +996,18 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
     });
 
     it("동일 idempotencyKey를 공유하는 두 요청이 모두 실패해도 락 체인이 정상적으로 이어진다", async () => {
+      // 트랜잭션 안의 첫 조회와 복구 경로의 재조회가 모두 실패하는 DB — 의도한 경로(트랜잭션 안
+      // 조회 실패 → 복구 불가 → 500)를 지난다. transaction 속성이 없으면 "함수가 아님" TypeError로
+      // 엉뚱한 이유로 500이 되므로 반드시 둔다.
+      const failingSelect = () => {
+        throw Object.assign(new Error("boom"), {
+          cause: { name: "LibsqlError", code: "SQLITE_IOERR" },
+        });
+      };
       const brokenDb = {
-        select: () => {
-          throw Object.assign(new Error("boom"), {
-            cause: { name: "LibsqlError", code: "SQLITE_IOERR" },
-          });
-        },
+        transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({ select: failingSelect }),
+        select: failingSelect,
       } as unknown as typeof db;
       const key = randomUUID();
       const payload = buildPayload({ resultId: "lock-chain-failure", idempotencyKey: key });
