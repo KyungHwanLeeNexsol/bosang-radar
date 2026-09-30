@@ -86,9 +86,9 @@ function toSuccessResult(row: typeof consultations.$inferSelect): ConsultationSu
     channel: row.channel as ConsultationChannel,
     maskedContact: maskPhone(row.contactNormalized),
   };
-  return row.channel === "phone" && row.preferredCallTime
-    ? { ...base, preferredCallTime: row.preferredCallTime }
-    : base;
+  // .pen 03-B: 카카오 채널에도 "연락 희망 시간" 행이 있다(폼은 카카오에서 선택 입력).
+  // 채널과 상관없이 저장된 값이 있으면 돌려주고, 없으면 필드를 넣지 않는다.
+  return row.preferredCallTime ? { ...base, preferredCallTime: row.preferredCallTime } : base;
 }
 
 // maskedContact는 매칭된 기존 레코드의 저장값을 다시 읽어 반환하지 않고,

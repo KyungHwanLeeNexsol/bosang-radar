@@ -274,6 +274,41 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       const after = await countRows("consultations");
       expect(after).toBe(before + 1);
     });
+
+    // .pen 03-B: 카카오 채널에서도 "연락 희망 시간" 행이 있다(폼은 카카오에서 선택 입력).
+    // 응답은 채널과 상관없이 저장된 값을 돌려주고, 입력이 없으면 필드를 넣지 않는다.
+    it("카카오 채널도 입력한 연락 희망 시간을 success 응답에 담는다", async () => {
+      const { status, json } = await submit(
+        buildPayload({ channel: "kakao", preferredCallTime: "평일 오후 (13시 ~ 18시)" })
+      );
+
+      expect(status).toBe(201);
+      expect(json).toMatchObject({
+        status: "success",
+        channel: "kakao",
+        preferredCallTime: "평일 오후 (13시 ~ 18시)",
+      });
+    });
+
+    it("카카오 채널에서 연락 희망 시간을 입력하지 않으면 응답에 그 필드가 없다", async () => {
+      const { status, json } = await submit(buildPayload({ channel: "kakao" }));
+
+      expect(status).toBe(201);
+      expect(json.status).toBe("success");
+      expect("preferredCallTime" in json).toBe(false);
+    });
+
+    it("같은 키로 재시도한 카카오 채널 요청도 최초 응답과 같은 본문(연락 희망 시간 포함)을 재생한다", async () => {
+      const payload = buildPayload({ channel: "kakao", preferredCallTime: "평일 오전" });
+
+      const first = await submit(payload);
+      const second = await submit(payload);
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(200);
+      expect(second.json).toEqual(first.json);
+      expect(second.json.preferredCallTime).toBe("평일 오전");
+    });
   });
 
   describe("AC-B2CCONSULT-018 추가 시나리오 — 활성 동의 정책 없음(policy_unavailable)", () => {
