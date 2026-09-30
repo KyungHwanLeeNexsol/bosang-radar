@@ -13,6 +13,7 @@
     "test:e2e": "tsx scripts/run-e2e.ts",
     "visual:verify": "tsx scripts/visual-verify.ts",
     "verify:flag-runtime": "tsx scripts/verify-flag-runtime.ts",
+    "verify:remote-consult": "tsx scripts/verify-remote-consult.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:seed": "tsx scripts/db-seed.ts"
