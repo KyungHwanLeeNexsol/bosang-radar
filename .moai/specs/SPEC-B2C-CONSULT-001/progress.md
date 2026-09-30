@@ -2945,6 +2945,109 @@ sudo grep -rh 'xffcheck1790672279' /var/log/nginx/ | tail -3
 
 **Residual-risk(잔여 위험)**: 데스크톱과 M03-C를 고치기 전까지 항목 7을 "시각 정합 완료"로 표시할 수 없다. 데스크톱 03-B 겹침은 사용자가 실제로 볼 수 있는 결함이며 자동 게이트가 잡지 못한다.
 
+### D-NEW-17 — 성공 화면 CTA 겹침 수정, 요약 카드 크기 정렬, 카드 바깥 테두리 상자 게이트, visual:verify 원격 DB 가드
+
+기준 커밋은 `73a2273`, 작업 커밋은 `4084148`(RED e2e) → `8f84007`(컴포넌트) → `0a36b30`(DB 가드 모듈) → `83775ad`(게이트·연결)이다. 모든 명령은 로컬 파일 DB(`TURSO_DATABASE_URL=file:./.tmp/group1.db TURSO_AUTH_TOKEN=`)로 실행했고 원격 DB에는 접속하지 않았다. `.env.local`은 이 작업 트리에 없다. 로그는 `.moai/state/verify/group1/`(gitignored)에 있다.
+
+**Claim 53 — 데스크톱 03-B의 CTA가 안내 문구를 덮던 겹침은 `md:mt-[-39px]` 때문이었고, 제거해 겹침이 사라졌다. SPEC 순서(카드 → 안내 → CTA)는 유지했다(사용자 결정).**
+
+**Evidence (RED, 수정 전 코드)**: 신규 e2e `03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Desktop, 1440x900)`를 수정 전 코드에서 실행(`.moai/state/verify/group1/1-e2e-red.log`, 커밋 `4084148`):
+
+```
+TURSO_DATABASE_URL=file:./.tmp/group1.db TURSO_AUTH_TOKEN= pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts
+Error: 안내 문구(top=524.5 bottom=548.3 left=558.2 right=881.8)와 돌아가기 CTA(top=529.3 bottom=576.8 left=568.1 right=715.4)가 겹친다 — 교차 면적 2798.9375px²
+  1 failed
+    e2e\consult-flow-03.spec.ts:1004:7 › 03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Desktop, 1440x900) › 데스크톱에서 안내 문구와 돌아가기 CTA와 요약 카드가 서로 겹치지 않는다
+  17 passed (5.0m)
+```
+
+같은 실행에서 모바일(390x605) 신규 e2e는 통과했다(모바일 겹침은 원래 없었다).
+
+**Evidence (GREEN, 수정 후)**: 전체 e2e `pnpm test:e2e` → `38 passed (5.0m)`, exit 0(`7-e2e-full.log`; consult-flow-03 스펙 18건에 신규 2건 포함). 수정 후 실제 렌더링 사각형은 프로덕션 서버에서 Playwright로 직접 재서 얻었다(저장소 밖 일회용 스크립트):
+
+```
+desktop 1440x900: 카드 top 237.5 bottom 437.5 | 안내 top 457.5 bottom 481.3 | CTA top 501.3 bottom 548.8
+mobile  390x605 : 카드 top 247.5 bottom 423.5 | 안내 top 447.5 bottom 471.3 | CTA top 501.3 bottom 548.8
+```
+
+**결정 — 카드 위 `md:mt-14` 여백은 제거했다.** 게이트가 필요로 하는지로 판단했다: 여백을 유지하면 카드 top을 디자인(306)에 가깝게 둘 수 있지만, 디자인에서 안내 문구가 있던 자리(카드 위)가 SPEC 순서에서는 비어 68px 빈 간격이 된다. 빈 간격을 유지하려고 카드 top 게이트를 두는 것보다, 그 축을 근거와 함께 제외하는 편이 정직하다고 판단했다. 제거 후 03-B 카드 top은 디자인 306 vs 구현 237.5(Δ68.5)이며 근거 있는 제외 축이다(아래 Claim 55). CTA `top`도 같은 이유로 제외했다(디자인 528 vs 구현 501).
+
+**Baseline-attribution**: 수정 전 수치는 HEAD `73a2273`+RED 테스트 커밋(`4084148`) 위 e2e 실행, 수정 후 수치는 HEAD `83775ad` 트리의 e2e·프로덕션 서버 실측이다. 이번 세션, 이 트리.
+
+**Gaps(미검증)**: (1) 모바일 M03-B의 수정 "전" 사각형 숫자는 기록하지 않았다(RED 실행에서 통과했을 뿐 값을 출력하지 않는다). (2) 안내 문구가 디자인과 달리 카드 아래에 있다는 점은 사용자 결정에 따른 의도된 편차이며 디자인 승인이 아니다. (3) 카카오 채널(3행, 연락 희망 시간 없음)의 겹침은 e2e로 확인하지 않았다(전화 채널만 검증).
+
+**Residual-risk**: 03-B 데스크톱 화면은 카드가 디자인보다 약 68px 위에 놓이고 화면 아래쪽이 비어 보인다. 사용자의 시각 승인이 필요하다.
+
+**Claim 54 — 요약 카드의 바깥 테두리 상자를 성공·중복·실패 6개 화면 모두 디자인 실측과 폭·높이 Δ0으로 맞췄다.**
+
+**Evidence**: 디자인 상자는 `design/exports/*.png`(2배 해상도 원본)에서 카드 테두리색(#e2e7ec) 가로줄을 찾는 `findCardBorderBox`로 잰 값이다(합성 이미지 단위 테스트 7건). 구현 상자는 `getBoundingClientRect()`이다. 제약 없는 전체 `pnpm visual:verify`(exit 0, `8-visual-full.log`, 실행이 갱신한 `measurements.json`)의 값:
+
+| 화면 | 디자인 (left, top, w×h) | 구현 (left, top, w×h) | 수정 전(Claim 51) |
+|------|------------------------|------------------------|-------------------|
+| 03-B | 400, 306, 640×200 | 400, 237.5, 640×200 | 높이 211 / 폭 680 |
+| 03-C | 400, 331, 640×200 | 400, 277.5, 640×200 | 높이 211 / 폭 680 |
+| 03-D | 400, 331, 640×200 | 400, 331.09, 640×200 | 높이 211 / 폭 680 |
+| M03-B | 20, 248, 350×176 | 20, 247.5, 350×176 | 높이 179 |
+| M03-C | 20, 302, 350×176 | 20, 261.5, 350×176 | 높이 211 |
+| M03-D | 20, 302, 350×176 | 20, 302.09, 350×176 | 높이 179 |
+
+카드 자체 패딩을 없애고, 행을 `min-h-[43.5px]`(모바일)/`min-h-[49.5px]`(데스크톱)로 균등하게 두고((176−2)/4, (200−2)/4), 데스크톱 폭을 `md:max-w-[640px]`로 제한했다. 세 화면이 같은 카드를 쓰므로 `components/consult/consult-summary-row.tsx`로 모았다. 카드 아래 요소 위치가 게이트(retry/backCta top)에 걸려 있어 여백을 재보정했다: 03-D 데스크톱 카드 위 `md:mt-[26px]`·버튼 그룹 `md:mt-[72px]`, 모바일 `mt-[78px]`, 성공 화면 모바일 CTA `mt-[6px]`. 화면 PNG를 직접 열어 확인했다: 카드 안 4행 구분선이 카드 폭 끝까지 이어지고 행 텍스트가 잘리지 않으며, 03-D는 카드와 버튼 사이에 큰 빈 간격(약 100px)이 있다(디자인의 안내 박스 자리, 이전부터 있던 보정).
+
+"디자인 175px" 주석은 그 주석이 있던 `SummaryRow` 블록 세 곳을 공용 파일로 옮기며 삭제했고, 새 주석은 실측값 176px를 쓴다.
+
+**Baseline-attribution**: 디자인 상자는 `design/exports` 원본 PNG 기준으로 이번 세션에 재측정했고(Claim 51의 값과 일치), 구현 상자는 HEAD `83775ad` 트리의 프로덕션 빌드다.
+
+**Gaps(미검증)**: (1) `.pen` 원본은 열 수 없어 대조하지 못했다. 모든 디자인 수치는 export PNG 기준이며 PNG가 `.pen`의 최신 출력인지는 확인하지 못했다. (2) 카드의 바깥 상자만 맞췄다. 행 텍스트 안쪽 여백(구현 약 17px, 디자인 라벨 시작 약 20px 추정), 글자 크기, 색은 측정하지 않았다. (3) 카카오 채널(3행)은 디자인 캡처가 없어 측정하지 못했다(카드 높이는 이론상 2+3×43.5=132.5px). (4) 사용자의 시각 정합 승인은 없다.
+
+**Residual-risk**: 행 높이를 `min-h`로 고정했으므로 값이 길어 줄이 바뀌면 카드가 그만큼 커진다(의도된 동작이나 디자인 수치와는 달라진다). 카드 아래 여백 보정값(78/72px 등)은 카드 높이와 결합돼 있어 카드를 다시 바꾸면 함께 조정해야 한다.
+
+**Claim 55 — 요약 카드 게이트를 잉크 측정에서 바깥 테두리 상자(DOM rect vs 디자인 PNG 테두리 검출)로 교체했고, 카드가 30px 어긋나면 실패한다.**
+
+**Evidence**: `scripts/visual-verify-helpers.ts`의 `findCardBorderBox`(원본 해상도, 위·아래 테두리 + 폭 전체 구분선으로 상자 결정)와 `scripts/visual-verify-card-gate.ts`의 `evaluateCardBorderGate`를 추가하고 `ElementSpec.borderBox`로 6개 화면 카드 요소에 연결했다. 이 요소들에서 `skipMetrics`/`mergeBands`/`inkThreshold`를 제거했다(옛 `height` 제외와, 잉크 문제 때문에 있던 03-B·03-D의 `left`/`width` 제외 포함). 단위 테스트 `visual-verify-helpers.test.ts` 7건, `visual-verify-card-gate.test.ts` 7건(음성 테스트: 높이 +30px, 폭 +30px는 실패, 근거 없는 skip은 무효, 측정 공백은 실패). 뮤테이션 확인: 게이트 함수를 "height 항상 제외"로 바꾸면 4건이 실패하는 것을 확인한 뒤 복구했다.
+
+```
+pnpm exec vitest run scripts/visual-verify-db-guard.test.ts scripts/visual-verify-card-gate.test.ts  (뮤테이션 적용 상태)
+ × 카드가 30px 더 크면(높이 +30) 실패한다 / × 허용 오차 이내(+3px)면 통과하고, 초과(+5px)면 … / × 이유를 적어 제외한 축만 … / × 빈 문자열 이유로는 … (card-gate 4건)
+ × file:이 아닌 URL(libsql://…) … 외 5건 (db-guard 6건)  → Failed Tests 10
+복구 후: Test Files 3 passed (3) / Tests 22 passed (22)
+```
+
+03-B/M03-B에는 `카드 → 안내 → CTA 세로 순서·비겹침(실제 DOM rect)` semanticCheck를 추가했다(전체 실행에서 `none`으로 통과).
+
+**남아 있는 제외 축(모두 근거를 코드의 `borderBox.skip`에 문자열로 둠, 상태는 "미검증")**:
+
+| 화면 | 카드 제외 축 | 근거 | 그 축의 Δ |
+|------|--------------|------|-----------|
+| 03-B | top | design.md §10(413행) 순서는 표 → 안내 → CTA인데 디자인은 안내를 카드 위에 둠. 이번 PR-fix에서 사용자가 SPEC 순서 유지 결정 | 68.5 |
+| 03-C | top | design.md §10(417행) 03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없음 | 53.5 |
+| M03-C | top | 위와 같은 이유(M03-C) | 40.5 |
+| 03-D, M03-B, M03-D | 없음 | left/top/width/height 4축 모두 게이트 | — |
+
+카드가 아닌 요소(버튼)의 제외 축은 이번에 바꾸지 않았다: 03-B `backCta`의 left/width(스텁 텍스트와 병합 측정, §1 D4)에 더해 `top`을 새로 제외했다(안내 문구가 CTA 위에 들어감, 디자인은 안내가 카드 위). 03-C `backCta`(left/width/top), 03-D `retry`/`backCta`(left/width), M03-C `backCta`(top)는 그대로다. 이 버튼 축들은 카드와 달리 잉크 측정이며 "미검증" 상태다.
+
+**Baseline-attribution**: 전체 `pnpm visual:verify` 24화면 PASS, exit 0(HEAD `83775ad` 트리, 로그 `8-visual-full.log`). 03 계열 화면별 maxΔ(카드 외 버튼 요소 포함, 제외 축 제외): 03-B 1, 03-C 2, 03-D 2, M03-B 2, M03-C 2, M03-D 4(px). 카드 상자만 보면 제외 축을 뺀 최대 Δ는 0.5px(M03-B top 0.5, M03-D top 0.09, 03-D top 0.09)다.
+
+**Gaps(미검증)**: (1) 이 24/24 PASS는 "설정된 검증 게이트 기준"이다. 카드 외 요소·텍스트·색은 게이트 범위 밖이다. (2) card-gate/db-guard 단위 테스트는 구현과 같은 단계에서 작성해 RED 실행 로그를 따로 남기지 못했다(대신 위 뮤테이션 확인). helpers 테스트는 함수 추가 전 7건 실패(`vv.findCardBorderBox is not a function`)를 확인했다. (3) 디자인 상자 검출은 카드 테두리색 #e2e7ec와 "구분선이 카드 폭 전체를 가로지른다"는 가정에 의존한다. 디자인 구조가 바뀌면(구분선 제거 등) `null`로 실패한다(측정 공백은 통과가 아님). (4) 03-C/M03-C top은 위 근거로 제외돼 있어, 이 두 화면 카드가 위로 어긋나는 회귀는 게이트가 잡지 못한다.
+
+**Residual-risk**: 근거 있는 제외 3건은 실제 디자인 차이를 덮는다. 디자인이 SPEC과 맞춰지면 제외를 걷어야 한다.
+
+**Claim 56 — `pnpm visual:verify`는 `TURSO_DATABASE_URL`이 `file:`이 아니면 실행을 거부한다.**
+
+**Evidence**: `scripts/visual-verify-db-guard.ts`의 `findRemoteDatabaseViolation`을 `main()` 진입 직후(빌드·서버 기동 전) 호출한다. 사유에는 호스트를 넣지 않고 스킴만 표시한다. 단위 테스트 6건(값 없음/빈 값/file: 통과, libsql/https/wss/http/:memory: 거부, 공백 처리). 실제 실행:
+
+```
+TURSO_DATABASE_URL=libsql://example-remote.turso.io TURSO_AUTH_TOKEN= pnpm visual:verify   → exit=1
+[visual-verify] 실행을 거부합니다 — TURSO_DATABASE_URL이 로컬 파일 DB가 아닙니다(스킴 libsql:). 이 스크립트는 상담 신청 행을 실제로 기록하므로 "file:"로 시작하는 로컬 DB에만 실행할 수 있습니다. …
+```
+
+**Baseline-attribution**: HEAD `83775ad`, 이번 세션 실행.
+
+**Gaps(미검증)**: (1) 검사 대상은 스크립트가 시작될 때의 `process.env`뿐이다. `.env.local`에만 원격 URL이 있는 경우는 스크립트가 `??=`로 로컬 file 기본값을 먼저 채우고 Next가 기존 환경변수를 덮어쓰지 않으므로 그 값이 쓰이지 않는다고 판단했지만, `.env.local`을 만들어 실제로 확인하지는 않았다(금지 사항). (2) `pnpm test:e2e`는 별도로 `file:./.tmp/e2e.db`를 하드코딩하므로 이 가드와 무관하다(run-e2e.ts). (3) 사용 불가 상태(`TURSO_AUTH_TOKEN`만 원격)는 검사하지 않는다.
+
+**Residual-risk**: 다른 경로(직접 `pnpm start`나 `db:migrate`)로 원격 DB를 쓰는 것은 이 가드 범위 밖이다.
+
+**환경 노트**: 작업 시작 전 기준선의 `pnpm exec vitest run components/consult scripts`에서 `visual-verify-server.test.ts` 1건이 병렬 실행 중 실패했다(pid 파일 ENOENT, `0-test-baseline.log`). 같은 파일을 단독으로 다시 돌리면 21건 모두 통과했다(`0-test-baseline-server-rerun.log`). 최종 전체 `pnpm test`는 97파일/778건 통과, exit 0(`6-test-full.log`)였다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
