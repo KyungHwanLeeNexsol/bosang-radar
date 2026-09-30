@@ -3182,6 +3182,84 @@ build DEV_STATES=true     -> start DEV_STATES=(미설정): "/" title="서비스 
 
 **Residual-risk**: (1) 병렬 요청이 원격에서 500으로 떨어지면 정당한 신청이 실패할 수 있다. (2) 인스턴스가 둘 이상이면 같은 키가 한도를 두 번 소비해 부당한 429가 날 수 있다. (3) 롤백 경로가 원격에서 다르게 동작하면 실패한 시도가 카운트를 소비할 수 있다. 이 셋이 해소되기 전에는 `CONSULT_POLICY_READY`를 운영에서 켜지 않는 것이 안전하다.
 
+**[정정 — D-NEW-19]** 위 Claim 62의 "검증하지 않았다"는 작성 당시 기록이다. 이후 사용자가 별도 테스트 DB를 기다리지 말고 현재 Turso DB에서 검증하라고 지시했고, 실제로 실행해 (1)(3)의 원격 관측을 얻었다(Claim 64). (2)는 관측으로 확인됐다(Claim 66). 이 Claim의 Gaps는 D-NEW-19가 대체한다.
+
+### D-NEW-19 — 원격 Turso 트랜잭션·병렬 요청 검증 (사용자 지시로 현재 Turso DB에서 실행)
+
+사용자 지시(2026-09-30): 현재 운영 Turso DB는 실제 상담 접수에 사용 중이 아니므로 테스트 DB를 기다리지 말고 이 DB에서 원격 트랜잭션·병렬 요청 검증을 진행한다. 조건: 먼저 대상과 기존 데이터를 확인하고 복구 가능한 백업을 확보할 것, 가상 데이터와 고유 식별자만 쓸 것, 실제 고객 정보와 기존 행은 수정·삭제하지 말 것, 배포 앱의 `CONSULT_POLICY_READY`는 켜지 말고 정책·시크릿은 테스트 하네스에만 주입할 것. 추가로 사용자가 선택한 스키마 처리: 마이그레이션 0009를 적용해 검증하고 끝나면 원상 복구한다.
+
+**Claim 63 — 대상은 비어 있지 않은 실제 파일럿 DB였고, 상담 테이블은 없었으며, 전체 백업과 로컬 복원 리허설을 통과했다.**
+
+**Evidence**: 읽기 전용 점검(`SELECT`/`PRAGMA`만) 결과 스킴 `libsql`, 호스트 마스킹 `bos***.aws***`, URL 지문 `6e5256b8`, 인증 토큰 있음(값은 출력하지 않았다). 행 수: `user` 13, `account` 13, `session` 17, `allowed_testers` 13, `cases` 14, `case_jobs` 19, `evidence` 21, `reports` 14, `feedback` 1, `reservations` 1, `gemini_request_observations` 39, `verification` 0, `__drizzle_migrations` 9(0000~0008). `consultations`와 `consultation_rate_limits`는 존재하지 않았다. 두 테이블은 다른 테이블과 외래 키가 없다(`lib/db/schema.ts`). 따라서 "상담 접수에 쓰이지 않는다"는 지시의 전제는 맞았지만, DB 자체는 실제 파일럿 데이터를 담고 있었다. 백업은 단일 읽기 스냅샷(`client.batch(..., "read")`)으로 전체 13개 테이블의 스키마 SQL과 행 전체를 저장소 밖 사용자 홈의 `turso-backups/` 폴더에 두 번 만들었다(첫 백업, 그리고 마이그레이션 직전의 두 번째 백업). 두 백업의 13개 테이블 SHA-256이 모두 같아 그 사이 파일럿 데이터 변동이 없었다. 각 백업을 임시 로컬 파일 DB에 실제로 복원해 13개 테이블의 행 수와 내용 SHA-256이 원본과 일치함을 확인했다(`RESTORE REHEARSAL: PASS`, 두 번). 백업에는 실제 파일럿 사용자 정보(이메일, 비밀번호 해시, 세션 토큰 등)가 들어 있어 저장소에 커밋하지 않았다.
+
+**Baseline-attribution**: 이번 세션 실행, 대상 지문 `6e5256b8`, 백업 시각은 각 폴더 이름의 타임스탬프. 점검 스크립트는 gitignored `.tmp/turso-discover.mjs`, `.tmp/turso-backup.mjs`, `.tmp/turso-restore-rehearsal.mjs`(커밋하지 않음).
+
+**Gaps(미검증)**: Turso 자체의 시점 복구(PITR) 기능은 사용해 보지 않았다. 백업 파일은 이 PC에 한 벌뿐이다.
+
+**Residual-risk**: 백업에 실제 사용자 정보가 있으므로 보관·삭제는 사용자 판단이다.
+
+**Claim 64 — 원격 Turso(HTTP)에서 필수 게이트 6개(T1~T6)가 모두 통과했다. 동시 6건도 500 없이 5건 허용 + 429 1건이었다.**
+
+**Evidence**: 마이그레이션 0009를 `scripts/db-migrate.ts`로 적용했다(출력 `✅ 마이그레이션 완료`, `__drizzle_migrations` 9→10행, 저널상 대기 마이그레이션은 0009 하나뿐). `preflight`(`--expect-fingerprint 6e5256b8`)는 두 테이블 존재·0행·트리거 없음을 보였다. 이어서 하네스 `run`(run-id `99c694de`, `--allow-write-remote`)이 실제 라우트 코드 `handleConsultationSubmit(request, db, injectedEnv)`를 원격 DB 클라이언트와 주입된 `{CONSULT_POLICY_READY:"true", RATE_LIMIT_HMAC_SECRET:<실행마다 무작위>}`로 직접 호출했다(배포 앱 환경 변수는 건드리지 않았다). 결과 `게이트 6/6 통과`:
+
+| 케이스 | 기대 | 관측 |
+|---|---|---|
+| T1 직접 트랜잭션 커밋 | 커밋 뒤 행 1 | 1 |
+| T2 직접 트랜잭션 롤백 | 예외 뒤 행 0 | 0 |
+| T3 라우트 DB 실패→롤백→재시도 (`BEFORE DELETE` 트리거의 `RAISE(ABORT)`로 만료 행 삭제 실패 유발) | 실패 호출 500 `server_error`, 카운터 행 0, 상담 행 0 → 트리거 제거 후 같은 요청 재시도 2xx, `request_count` 정확히 1 | 500 `server_error`, 0, 0, 2xx, 1 |
+| T4 같은 IP 순차 6건(서로 다른 키) | 5건 허용 뒤 429, 5xx 0 | `[201,201,201,201,201,429]` |
+| T5 같은 IP 동시 6건(서로 다른 키) | 5건 허용 + 429 1건, 5xx 0, 상담 행 5, `request_count` 6 | 5×2xx + 1×429, 5xx 0, 5, 6 |
+| T6 같은 키 동시 재시도 5건(단일 프로세스) | 상담 행 1, 2xx 본문 동일, `request_count` 1 | `[201,200,200,200,200]`, 1, 본문 종류 1, 1 |
+
+윈도 정렬 확인: T4~T7 모두 라우트가 본 윈도는 1개(`window_start` 1790736120000). 하네스 원본 결과는 gitignored `.moai/state/verify/remote/99c694de/results.json`, 콘솔 로그는 `.moai/state/verify/orch/remote-run-1.log`.
+
+**Baseline-attribution**: 이번 세션 실행, HEAD `57f1931`, 대상 지문 `6e5256b8`, 하네스 코드는 커밋 `1dbb4ca`·`949e8c9`·`57f1931`.
+
+**Gaps(미검증)**: (1) 라우트는 HTTP 서버·Nginx·PM2를 거치지 않고 프로세스 안에서 직접 호출했다. 배포된 앱은 호출하지 않았다. (2) 동시성은 6건까지만 시험했다. 더 높은 동시성은 시험하지 않았다. (3) 지연 시간은 측정하지 않았다. (4) 이 검증은 지금 Turso 서버의 동작에 대한 것이다. 이후 서버 쪽 변경에는 유효하지 않을 수 있다.
+
+**Residual-risk**: 로컬 파일 SQLite에서 재현되던 동시 요청 500(`SQLITE_BUSY`, `route.test.ts` 72-91행)은 원격 Turso에서는 나타나지 않았다. 로컬 테스트 하네스의 동시성 결과는 원격을 대표하지 않는다.
+
+**Claim 65 — 테스트에서 만든 행만 원장으로 식별해 정리했고, 스키마를 원상 복구했으며, DB가 마이그레이션 직전 백업과 동일함을 확인했다.**
+
+**Evidence**: `cleanup --run-id 99c694de`(원장 대응 행만, 서명·건수 불일치 시 롤백하는 트랜잭션) 결과:
+
+| 테이블 | 정리 전 총계 | 원장과 일치 | 삭제 | 정리 후 총계 | 정리 후 원장 일치 | baseline |
+|---|---|---|---|---|---|---|
+| `consultations` | 13 | 13 | 13 | 0 | 0 | 0 |
+| `consultation_rate_limits` | 6 | 6 | 6 | 0 | 0 | 0 |
+
+`trigger present after: no`, 종료 코드 0. 13행은 T3 1 + T4 5 + T5 5 + T6 1 + T7 1과, 6행은 T1 마커 1 + T3·T4·T5·T6·T7의 IP별 1행씩과 일치한다(T3의 만료 시드 행은 라우트의 1시간 보관 삭제가 이미 지웠다). 그 뒤 `revert-schema --confirm-revert-schema`가 두 상담 테이블과 0009 `__drizzle_migrations` 행 1개(`created_at 1790510327238`)만 한 트랜잭션으로 지웠다(종료 코드 0). 마지막으로 원격을 다시 읽기 전용 스냅샷으로 떠서 마이그레이션 직전 백업과 비교했다: 13개 테이블의 행 수와 내용 SHA-256이 모두 일치, 스키마(테이블·인덱스·트리거) SHA-256 일치, 같은 DB(지문 `6e5256b8`). 출력 `ROLLBACK-TO-BASELINE: PASS`. 로그: `.moai/state/verify/orch/remote-cleanup-1.log`, `remote-revert-1.log`.
+
+**Baseline-attribution**: 이번 세션 실행, 대상 지문 `6e5256b8`. 비교 기준은 마이그레이션 직전 백업(`pre-migrate-0009-20260930-114035`)이다.
+
+**Gaps(미검증)**: 정리 후 비교는 "마이그레이션 직전 시점"과의 동일성이다. 그 사이 실제 파일럿 사용자가 데이터를 썼다면 체크섬이 달라졌을 텐데 달라지지 않았으므로 그런 변동은 관측되지 않았다.
+
+**Residual-risk**: 운영 DB에 스키마 변경을 넣었다가 되돌렸다. 되돌린 뒤의 배포는 `deploy.yml`의 `db:migrate`가 0009를 정상 적용해야 한다. 그 경로는 이번에 실제 배포로 실행하지 않았다.
+
+**Claim 66 — 서로 다른 두 프로세스가 같은 `idempotencyKey`를 동시에 제출하면 상담 행은 1개지만 두 응답이 다르고(409 duplicate, 201), rate-limit 카운터가 2가 된다(이중 소비). 필수 게이트가 아니며 코드는 수정하지 않았다.**
+
+**Evidence**: T7(게이트 아님, 특성화). 두 워커 프로세스가 공유 시작 시각에 같은 키·같은 본문을 제출했다. 관측: 상태 `[409, 201]`(409 본문은 `status: "duplicate"`, `applicationStatus: "received"`, 201 본문은 `status: "success"`), `consultations` 행 1개, 그 IP의 `request_count` 2, 5xx 0. 요약하면 `withIdempotencyLock`이 프로세스 안에서만 직렬화하므로(`route.ts` 148-165행) 프로세스가 둘이면 같은 키의 재시도가 서로를 못 본다. 고유 인덱스가 상담 행을 1개로 지켜 주지만 한도는 두 번 소비되고 응답은 같지 않다. 단일 프로세스에서는 T6이 통과했다.
+
+**Baseline-attribution**: 이번 세션 실행(run-id `99c694de`, T7).
+
+**Gaps(미검증)**: 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않는다. 다중 인스턴스가 실제로 존재하는지도 확인하지 못했다.
+
+**Residual-risk**: 인스턴스가 둘 이상이 되면 같은 키의 동시 재시도가 서로 다른 응답을 받고 한도를 두 번 소비할 수 있다(한도 근처에서 부당한 429). 사용자가 요청한 "동일 키 동시 재시도의 단일 접수·동일 응답"은 **단일 프로세스에서만** 확인됐다. 다중 인스턴스 대응(예: DB 수준 멱등성 처리)은 설계 변경이라 이번에 하지 않았고 사용자 판단이 필요하다. `CONSULT_POLICY_READY`를 운영에서 켜기 전에 배포가 단일 프로세스임을 확인해야 한다.
+
+### D-NEW-20 — 최종 검증 재실행과 `format:check` 기준선 정정
+
+**Claim 67 — 수정 후 트리에서 전체 검증을 직접 다시 실행했고 `format:check`를 제외하고 모두 exit 0이었다. `format:check`의 남은 3개 실패는 `origin/main`에서도 실패한다.**
+
+**Evidence**: 커밋 `1986838`(서식 정리) 이후 트리에서 순차 실행: `tsc --noEmit` exit 0, `pnpm lint` exit 0, `pnpm test` exit 0(98파일 787테스트), `pnpm test:e2e` 38 passed(exit 0), `E2E_CONSULT_POLICY_READY=false pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts` 11 passed(exit 0), 제약 없는 전체 `pnpm visual:verify` exit 0·24/24 PASS·FAIL 0, `pnpm verify:flag-runtime` exit 0·불일치 0. 모든 실행에 `TURSO_DATABASE_URL=file:./.tmp/final.db`와 빈 토큰을 명시했다. 로그: `.moai/state/verify/final/`. 이후 하네스 커밋(`1dbb4ca`~`57f1931`)과 `_journal.json` 복원(`04e1722`)을 반영한 HEAD `57f1931`에서 `tsc` exit 0, `pnpm lint` exit 0, `pnpm test` exit 0(99파일 826테스트)를 다시 실행했다. e2e와 `visual:verify`는 하네스 추가 이전 트리에서 실행했다(하네스는 `scripts/`의 새 파일만 추가하고 앱 코드를 바꾸지 않았다). `format:check`는 exit 1, 실패 3개: `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`.
+
+`format:check` 기준선: 작업 전 실패는 17개였다. 이 브랜치가 새로 만든 실패 14개(이 브랜치가 추가한 파일 11개 + 수정한 파일 3개: `components/result/result-view.tsx`, `lib/db/schema.test.ts`, `lib/env.ts`)는 `prettier --write`로 정리했다(내용 변경 없음). 그중 13개는 커밋 `1986838`(JSON인 `0009_snapshot.json`은 파싱 후 내용이 같음을 확인)에서, 나머지 1개인 `e2e/consult-flow-03.spec.ts`는 묶음 1 작업 중 커밋 `4084148`에서 정리됐다. 나머지 3개는 이 브랜치가 만든 것이 아니다. `0008_snapshot.json`과 `MIGRATION-PLAN.md`는 이 브랜치가 건드리지 않은 파일이고, `_journal.json`은 `origin/main`의 같은 파일도 `prettier --check --ignore-path .prettierignore`로 실패함을 확인했다(대조군으로 포맷 전 `0009_snapshot.json`도 실패해 검사가 실제로 작동함을 확인). `_journal.json`은 drizzle-kit이 `db:generate` 때마다 다시 쓰는 파일이라 포맷했던 것을 되돌렸다(`04e1722`). 참고: 처음 확인은 `.tmp`가 gitignore되어 Prettier 3이 파일을 건너뛰어 무의미하게 통과했고, 위 대조군으로 발견해 정정했다.
+
+**Baseline-attribution**: 이번 세션 실행. 체인은 커밋 `1986838` 직후 트리, 마지막 세 검사는 HEAD `57f1931`.
+
+**Gaps(미검증)**: (1) 전체 e2e·`visual:verify`를 HEAD `57f1931`에서 다시 돌리지 않았다(위 이유). (2) 시각 정합에 대한 사용자 승인은 없다. (3) `.pen` 원본은 열지 못했다.
+
+**Residual-risk**: `visual:verify` 재실행은 추적되는 증거 파일(`measurements.json`의 `generatedAt`, SPEC-B2C-DIAGNOSIS-001 스크린샷 일부)을 매번 바꾼다. 이번에 8개 파일을 커밋된 상태로 복원했다. 남은 제외 축은 D-NEW-17 Claim 55에 있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3199,6 +3277,10 @@ build DEV_STATES=true     -> start DEV_STATES=(미설정): "/" title="서비스 
 - **업데이트 9(D-NEW-14, 이번 세션)**: 보류 기준 (b) 요약 카드 height의 측정 불확실성이 해소됐다 — 디자인 카드는 175px이고 구현이 36px 컸으며(§E.2 D-NEW-14 Claim 48), 모바일에서 211→179px로 줄였다(Claim 49). 다만 `.pen` 원본 대조, 데스크톱, M03-C는 미완이고 사용자의 시각 정합 승인도 없으므로 (b)를 해소로 선언하지 않는다. (a) Nginx `X-Forwarded-For` 설정 운영 확인과 열린 항목 12(원격 Turso 병렬 검증)는 이번에도 확인하지 않았다. `run_status`는 `amended-pending-revalidation`을 유지한다.
 - **업데이트 10(D-NEW-15, 이번 세션)**: 보류 기준 (a) Nginx `X-Forwarded-For` 운영 확인이 **해소**됐다(설정·실측 수준). 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식 — §E.2 D-NEW-15 Claim 50). 이후 `real_ip` 계열 지시문이 설정 전체에 없음과 사이트 파일이 Nginx 시작보다 먼저 수정됐음도 확인했다. 4번(추가 hop)도 표식 요청이 Nginx 로그에 요청 PC의 공인 IP로 찍힌 실측으로 확인했다(Claim 50의 (D)). 따라서 (a)는 해소로 본다. 한계: 앱이 받는 헤더 값의 종단 관측은 배포 전이라 못 했고, 인프라를 바꾸면 재확인이 필요하다. 남은 run-phase 보류 기준은 (b)다(업데이트 9). 열린 항목 12(원격 Turso 병렬 검증)는 여전히 미수행이다. 이 세션에서 업데이트 9의 번호를 D-NEW-9/Claim 37·38에서 D-NEW-14/Claim 48·49로 바로잡았다(기존 D-NEW-9·Claim 37·38과 겹쳤다). `run_status`는 `amended-pending-revalidation`을 유지한다.
 - **업데이트 11(D-NEW-16, 이번 세션)**: 보류 기준 (b) 요약 카드 height의 남은 범위를 디자인 캡쳐로 측정했다(§E.2 D-NEW-16 Claim 51). 데스크톱 03-B/C/D(+11px, 폭 +40px)와 M03-C 모바일(+35px)은 디자인과 다르고 아직 고치지 않았다. 모바일 성공·실패의 잔차는 3px다(디자인 176px, 이전 기록의 175px을 교정). 데스크톱 03-B에는 CTA 버튼이 안내 문구를 가리는 기존 겹침이 있음을 스크린샷에서 확인했다(Claim 52, 기준 커밋에도 존재). (b)는 해소로 선언하지 않는다. `run_status`는 `amended-pending-revalidation`을 유지한다.
+- **업데이트 12(D-NEW-17, 이번 세션)**: 03-B 데스크톱 CTA-안내문구 겹침을 제거했고(`md:mt-[-39px]` 원인, Claim 53), 요약 카드 6개 화면을 디자인 PNG의 바깥 테두리와 폭·높이 Δ0으로 맞췄으며(Claim 54), 카드 게이트를 DOM 바깥 경계 대 PNG 테두리 검출로 교체했다(Claim 55). `visual:verify`의 운영 DB 가드도 추가했다(Claim 56). 보류 기준 (b)의 높이 차이 자체는 기술적으로 해소됐지만, `.pen` 원본은 열지 못했고(모든 디자인 수치는 PNG 기준) 사용자의 시각 정합 승인이 없으며 일부 축은 근거를 적고 제외했으므로(Claim 55) (b)를 완전 해소로 선언하지 않는다. `run_status`는 `amended-pending-revalidation`을 유지한다.
+- **업데이트 13(D-NEW-18, 이번 세션)**: `/consult`·`/result`가 빌드 시점에 정적으로 굳어 API와 어긋나던 문제를 실제 빌드·재시작으로 재현하고(불일치 13건) `dynamic = "force-dynamic"`으로 고쳐 0건으로 만들었다(Claim 57-59). 재빌드/재시작 순서는 `.moai/docs/runtime-runbook.md` §11에 검증된 사실만 적었다(Claim 61). 그 부작용으로 `/`와 `/result`의 진단 플래그 편차가 생겼고 수정하지 않았다(열린 항목 23). `run_status`는 유지한다.
+- **업데이트 14(D-NEW-19, 이번 세션)**: 열린 항목 12(원격 Turso 검증)를 사용자 지시로 현재 Turso DB에서 수행했다. 대상 확인·전체 백업·복원 리허설(Claim 63), 마이그레이션 0009 적용 후 필수 게이트 6/6 통과(Claim 64), 테스트 행 정리와 스키마 원상 복구, 정리 후 13개 테이블이 마이그레이션 직전 백업과 동일함을 확인했다(Claim 65). 다중 인스턴스에서 같은 키 동시 재시도는 상담 행 1개지만 응답이 다르고 한도가 이중 소비된다(Claim 66, 열린 항목 24). 사용자 지시에 따라 이 PR은 03-B 겹침·카드 크기·시각 검증 누락이 해소·검토되기 전에는 병합하지 않으며 `CONSULT_POLICY_READY`도 활성화하지 않는다. 배포 준비 완료로 선언하지 않는다. `run_status`는 유지한다.
+- **업데이트 15(D-NEW-20, 이번 세션)**: 수정 후 트리에서 `tsc`·`lint`·단위·e2e(38 + 11)·전체 `visual:verify`(24/24)·`verify:flag-runtime`을 다시 실행해 모두 exit 0이었고, `format:check`의 남은 3개 실패는 `origin/main`에서도 실패한다(Claim 67). 처음 확인이 무의미했던 것을 대조군으로 발견해 정정했다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -3232,7 +3314,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 6. **(신규, D-RUN 1회차 재작업 세션) `result-priority-checklist.tsx`(SPEC-B2C-RESULT-001 소유) "먼저 확인할 항목" 콘텐츠 구조가 디자인과 다르다** — `design/exports/M02-*.png`는 번호+한 줄 라벨+화살표의 단순 목록인데, 구현은 각 항목을 설명 문구가 있는 카드(`border`+`p-3`+description)로 렌더링한다. `scripts/visual-verify.ts`는 이 요소의 top/height를 `skipMetrics`로 게이트하지 않아 02/M02/M02-B/M02-C/M02-D는 "게이트 기준" PASS다(§E.2 D-RUN-2 Claim 2 참고). 이 편차는 SPEC-B2C-CONSULT-001의 권한 밖(design.md §7 — 이 SPEC은 `/consult` 플로우로 한정)이므로 SPEC-B2C-RESULT-001의 후속 판단(디자인에 맞출지, 설명 문구 확장을 승인하고 디자인 export를 갱신할지)이 필요하다. **[D-NEW-5 정합]** 이 항목은 새 결정이 필요한 열린 항목이 아니다 — SPEC-B2C-RESULT-001 `progress.md`(L136-146, 2026-09-22)에서 사용자가 이 카드형 유지를 명시적으로 승인(PASS-WITH-DEBT)했고, 이 SPEC의 `design.md` §13도 승인된 debt ②로 나열한다. 승인된 debt의 재확인이며 RESULT-001의 승인 기록이 권위다(뒤집으려면 RESULT-001에서 다시 열어야 한다).
 7. **[정정, D-NEW-14 — 측정 확정, 모바일 수정 완료, 원본 대조·데스크톱·M03-C 미완]** 디자인 export 직접 픽셀 스캔 결과 M03-B/M03-D 요약 카드의 디자인 height는 **175px**(2배 해상도 350px)로 확정됐고(§E.2 D-NEW-14 Claim 48), 구현은 211px으로 **구현이 36px 더 컸다** — 아래 정정 전 기록의 "디자인 303px, 행 패딩이 더 넓다"는 틀렸다(303px은 카드 아래 버튼 두 개까지 병합해 잰 값). 모바일 카드에서 `p-4` 세로 여백을 없애 211→179px로 줄였다(Claim 49). 디자인 `.pen` 원본과의 대조(Pencil 연결 실패)는 하지 못했다. 데스크톱 카드와 M03-C 중복 카드는 디자인 캡쳐(PNG)로 측정했으나 아직 고치지 않았다(D-NEW-16 Claim 51: 데스크톱 +11px·폭 +40px, M03-C 모바일 +35px). 03-B 데스크톱에는 CTA 버튼이 안내 문구를 가리는 기존 겹침도 있다(Claim 52). 사용자가 이 결과를 시각 정합으로 승인하기 전까지 "시각 정합성 완료"로 표시하지 않는다. (정정 전 기록 — 아래는 SUPERSEDED) **`consult-success.tsx`/`consult-failure.tsx`(이 SPEC 소유) 요약 카드 height — 측정 신뢰성 부재로 결정 불가** — M03-B/M03-D 요약 카드의 디자인 height를 세 가지 독립 측정법으로 재확인했으나 145px/303px/174-176px로 2배 가까이 어긋나(§E.2 "D-RUN 재작업 2" Claim 6 참고) 어느 값도 목표로 확정할 근거가 없다. M03-D는 "이름" 행이 design.md와 어긋나게 추가돼 있던 콘텐츠 결함은 별도로 확인·해소했으나(같은 Claim 6), height 자체의 목표값 미확정 문제는 그대로 남는다. Figma 원본의 실제 행 패딩 값 확인 또는 디자이너의 현재 밀도(행당 ≈45-49px) 승인 중 하나가 필요하다 — 6번 항목(RESULT-001 소유)과는 다른, 이 SPEC 자체 소유 컴포넌트의 별개 미해결 항목이다.
 8. **X-Forwarded-For 실제 배포 방식(append/overwrite) 확인** — 코드는 두 방식 모두에서 안전하도록 수정했다(§E.2 "D-RUN 재작업 2" Claim 9 참고, 마지막 값 신뢰). 그러나 Oracle Cloud VM의 실제 Nginx 설정이 어느 방식인지, 그 앞에 추가 프록시/CDN 계층이 없는지는 저장소 코드만으로 확정할 수 없다 — design.md §4 배포 체크리스트의 운영 확인 항목이며, 이 SPEC이 스스로 결정하지 않는다. **(이번 세션) 운영자가 확인할 4단계 체크리스트 + append/overwrite/가정위반 3가지 시나리오별 기대 헤더·rate-limit 키 표를 §E.2 D-NEW-3 Claim 11에 추가했다 — 실제 확인 자체는 여전히 미완료다.** **[확인됨 — 체크리스트 4/4, D-NEW-15 Claim 50. 바로 앞의 "미완료" 문장은 당시 기록이며 이 확인으로 대체됐다]** 사용자가 운영 VM에서 직접 실행한 출력으로 체크리스트 1~3번을 확인했다(앱은 `127.0.0.1:3000`에만 바인딩, `X-Forwarded-For` 지시문은 `$proxy_add_x_forwarded_for` 한 줄, append 방식). `real_ip` 계열 지시문이 설정 전체에 없음도 확인했다. 4번(추가 hop)도 표식 요청이 Nginx 로그에 요청 PC의 공인 IP로 찍힌 실측으로 확인했다(위조 `X-Forwarded-For`를 실어도 `$remote_addr`는 실제 IP). 남은 한계: 앱이 받는 헤더 값의 종단 관측은 배포 전이라 못 했고, 확인은 이 시점의 설정에 한정된다. 인프라(CDN·로드밸런서·프록시)를 바꾸면 다시 확인한다.
-12. **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
+12. **[부분 해소 — D-NEW-19 Claim 63-66: 원격 필수 게이트 6/6 통과, 스키마 원상 복구 확인, 다중 인스턴스 위험은 열린 항목 24로 이관. 바로 아래 "미수행" 서술은 당시 기록이며 이 실행으로 대체됐다]** **(신규, D-NEW-4) 원격 Turso 실행 및 직렬화 없는 병렬 요청 검증 — 배포 전 별도 검증 필요(audit-ready 게이트 아님, 미수행)** — rate-limit 트랜잭션(증가+cleanup)을 실제 원격 Turso(HTTP)에서 실행한 검증이 없고, 직렬화 없는 병렬 요청에서 5건 허용·6번째 429·동일 `idempotencyKey` 동작을 확인하지 못했다. 로컬 파일 SQLite는 별도 연결에서 SQLITE_BUSY가 유력한 원인으로 재현돼 신뢰할 수 있는 검증이 불가능했고, 접근 가능한 원격 DB는 단일 DB 하나뿐이라 운영/개발을 구분할 수 없어 승인 없이 실행하지 않았다. acceptance/design에 이를 요구하는 기준이 없어 audit-ready 전제조건에서는 제외했다(§E.2 D-NEW-4 "게이트 판정" 참고). 필요한 것: 테스트/개발용으로 확인된 원격 Turso DB(또는 사용자의 명시적 승인)와 그 위에서의 실행 결과 기록.
 13. **(신규, D-NEW-5) 03-D/M03-D 요약의 연락처 마스킹·연락 희망 시간 행 조건 — 제품/디자인 판단 필요(미조치)** — 디자인 목업은 연락처를 마스킹(`010-****-1234`)하고 카카오톡 채널에서도 연락 희망 시간 행을 보여 주는데, 구현은 입력 원문을 그대로 표시하고 시간 행은 전화 채널이며 값이 있을 때만 표시한다. design §10의 03-D 문장은 두 가지를 명시하지 않는다. 필요한 것: 목업에 맞출지(마스킹·행 조건 변경, design 문구 보강) 현재 구현을 승인하고 목업을 갱신할지의 결정.
 14. **[해소됨 — iteration 9 PASS, §E.2 D-NEW-6]** **(신규, D-NEW-5) plan-audit iteration 7 FAIL(0.80, STOP) 해소 방식 — 결정됨(D1~D3 한정 수정 후 재감사), 재감사 대기** — blocking D1(기존 SCREENS 미수정 제약 위반), D2(신뢰 IP 규칙·fail-closed 분기 도달 불가·"IP 획득 불가" AC 부재), D3(기존 파일 확장 9개 제약 초과)와 optional D4~D9. Retry Loop Contract상 점수 하락은 STOP이며 선택지는 (1) 범위 축소, (2) PASS-with-debt 수용, (3) 명시적 override로 계속 반복이다. 감사자의 권고는 D1~D3 한정 재감사이고, spec/plan/acceptance 본문 수정은 `manager-spec` 몫이다. **결정(2026-09-29 사용자, §E.2 D-NEW-5 Claim 21에 원문 기록): D1~D3 한정 수정 후 재감사 — D1은 승인된 debt로 사후 문서화, `.gitignore` 10줄은 되돌림(`07c3242`).** 재감사(iteration 8)가 PASS일 때만 `plan_status`를 복귀시키며, 그때까지 `amended-pending-reaudit`다.
 15. **(신규, D-NEW-6) 정책 미준비 안내 문구 확정 — 제품·법무 판단 필요(잠정 문구 사용 중)** — 현재 문구는 "상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."로, 기존 "준비 중" 스텁(§ 디자인 대조 D4) 선례를 따른 잠정 문구다. 법무·운영이 확정한 문장이 아니다. 실제 확정 시 `lib/consult/consent-policy.ts`의 `CONSULT_POLICY_NOT_READY_NOTICE`와 관련 테스트만 바꾸면 된다.
@@ -3243,6 +3325,8 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 20. **[해소됨 — D-NEW-8 Claim 34, 수정 커밋 `ef205d3`, 검증 Claim 36. 단 M03 `form.top` 편차 결정은 사용자 승인 기록이 없다]** **모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃.** **현재 상태**: 원인은 `consult-form.tsx` 컨테이너의 모바일 `-mt-[62px]`가 폼을 안내 문구 위로 62px 끌어올린 것이었다. 음수 마진을 제거해 간격을 부모 `gap-5`에 맡겼다. 390px에서 안내와 이름·연락처·연락 시간 라벨/입력의 겹침 면적 0, 하단 sticky 제출 영역과 입력·동의 체크박스 비겹침을 kakao/phone × 정책 준비/미준비 e2e가 rect로 단언하고 최종 실행이 통과했다. 다시 만든 `M03-consult.png`(kakao 채널)는 제가 직접 열어 겹침이 없음을 눈으로 확인했다. phone 채널·미준비 모드의 겹침은 e2e rect 단언으로만 확인했고 스크린샷을 직접 보지는 않았다. **이력(D-NEW-7 Claim 32 당시 서술)**: 좌표가 y 592~628 대 586~600로 겹치고 `visual:verify`가 이를 놓친다고 적고 "디자인 판단 필요, 미조치"로 남겼다.
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
+23. **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
+24. **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
 
 ### 이번 세션에서 해소됨
 

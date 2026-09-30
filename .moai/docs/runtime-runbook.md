@@ -287,8 +287,13 @@ API가 503을 돌려주고 `/consult`의 `isPolicyReady`가 `false`가 된다. �
   검증은 `next start`(`pnpm start`)로만 했다.
 - `.env.local` 등 서버 디스크의 env 파일을 고친 뒤 재시작했을 때의 동작(이 검증은
   프로세스 env로만 값을 줬다).
-- 원격 Turso에서의 API 동작 전부(마이그레이션 적용, 트랜잭션, 병렬 요청). 자세한 내용은
-  `progress.md` D-NEW-18의 Claim 62.
+- 원격 Turso에서의 API 동작은 **`POST /api/consultations` 라우트 코드를 프로세스 안에서
+  직접 호출해** 관측했다(트랜잭션 커밋·롤백, 같은 IP 동시 6건 5건 허용 + 429, 같은 키
+  동시 재시도의 단일 접수·동일 응답 — 단일 프로세스). 배포된 앱·HTTP 서버·Nginx·PM2를
+  거친 검증은 아니다. 다중 인스턴스에서 같은 키를 동시에 제출하면 응답이 달라지고 한도가
+  이중 소비된다. 자세한 내용은 `progress.md` D-NEW-19(Claim 63-66)와 열린 항목 24.
+  하네스는 `pnpm verify:remote-consult`(안전 가드: 대상 지문·쓰기 허용 플래그·원장 기반
+  정확 정리)이며 `--help`에 사용법이 있다.
 - Nginx `X-Forwarded-For` 운영 확인은 별도 항목(D-NEW-15).
 
 ### 11.5 재현·회귀 검사 실행
