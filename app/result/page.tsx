@@ -28,6 +28,15 @@ import { ResultView } from "@/components/result/result-view";
 // 그대로였음). generateMetadata()로 전환해 동일한 computeDiagnosisFlags()
 // 결과로 분기한다 — 게이트가 닫힌 화면 본문의 "서비스 준비 중" 문구는
 // 사용자 요청에 따라 그대로 유지한다.
+//
+// SPEC-B2C-CONSULT-001 D-NEW-18 — 이 페이지도 process.env만 읽어 `next build`에서
+// 정적으로 프리렌더되었고, 그래서 shouldRenderConsult(ENABLE_CONSULT_FLOW)가
+// 빌드 시점 값으로 굳었다(`pnpm verify:flag-runtime`으로 재현).
+// `dynamic = "force-dynamic"`으로 요청마다 렌더링해 env를 요청 시점에 읽는다
+// (app/consult/page.tsx와 동일한 근거). 부수 효과로 진단 게이트
+// (computeDiagnosisFlags)도 이 라우트에서는 요청 시점 값을 따른다.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const { shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
   return {

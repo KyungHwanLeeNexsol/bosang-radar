@@ -16,6 +16,19 @@ import { ConsultView } from "@/components/consult/consult-view";
 // 전달하는 기존 패턴과 동일 — "use client" 컴포넌트는 process.env를 직접
 // 읽지 않는다). consult-consent-group.tsx의 "자세히 보기" 상세 뷰 노출
 // 여부를 이 값이 게이트한다(design.md D5).
+//
+// SPEC-B2C-CONSULT-001 D-NEW-18 — 이 페이지는 process.env만 읽고 요청 API
+// (cookies/headers 등)를 쓰지 않아 `next build`가 정적으로 프리렌더했고, 그 결과
+// 두 플래그가 빌드 시점 값으로 굳었다(POST /api/consultations는 요청 시점에
+// CONSULT_POLICY_READY를 읽으므로 페이지와 API가 서로 다른 값을 봤다 —
+// `pnpm verify:flag-runtime`으로 재현). 라우트 세그먼트 설정 `dynamic =
+// "force-dynamic"`으로 요청마다 렌더링해 env를 요청 시점에 읽는다(Next.js 문서
+// caching-without-cache-components.md § Route segment config; Cache Components
+// 미사용 프로젝트에서 유효). generateMetadata()도 같은 렌더링을 따른다.
+// 페이지를 async로 바꾸는 `await connection()` 대안은 단위 테스트가 컴포넌트를
+// 요청 범위 밖에서 직접 호출해 채택하지 않았다.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const { shouldRenderConsult } = computeConsultFlags(process.env);
   return {
