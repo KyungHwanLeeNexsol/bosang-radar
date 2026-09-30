@@ -15,7 +15,8 @@ import { ConsultFailure } from "./consult-failure";
 // SPEC-B2C-CONSULT-001 M5 (design.md §10; acceptance AC-B2CCONSULT-022) —
 // 03-D/M03-D 실패 상태. "저장되었습니다"류의 확정 문구를 절대 포함하지
 // 않으며, 다시 시도하기는 동일 idempotencyKey 재전송(호출부 책임)을
-// 트리거하고, 입력값은 그대로 보존 표시된다.
+// 트리거하고, 입력값은 그대로 보존 표시된다. .pen 최우선 지시로 2줄 부제,
+// 카드 아래 안내 박스(대체 채널 문구 + 입력 유지 문구), 아이콘 버튼을 맞춘다.
 
 describe("components/consult/ConsultFailure", () => {
   let container: HTMLDivElement;
@@ -52,18 +53,14 @@ describe("components/consult/ConsultFailure", () => {
     expect(container.textContent).not.toContain("저장되었습니다");
     // SummaryRow는 dt/dd를 별개 요소로 렌더링해 콜론 없이 이어 붙는다 —
     // consult-success.test.tsx/consult-duplicate.test.tsx와 동일하게
-    // 라벨/값을 별도 assertion으로 검증한다(design.md §10의 "입력 내용:
-    // 유지됨" 표기는 이 요약행이 전달하는 의미를 설명하는 것으로, 다른
-    // SummaryRow 행들과 달리 이 행만 콜론을 실제로 렌더링해야 한다는
-    // 근거는 없다 — 이 SPEC의 기존 03-B/C 화면 컨벤션과 일치시킨다).
+    // 라벨/값을 별도 assertion으로 검증한다.
     expect(container.textContent).toContain("입력 내용");
     expect(container.textContent).toContain("유지됨");
   });
 
-  // 이번 세션 재작업 — design.md §10 실패 요약은 정확히 4행(상담 방식/
-  // 연락처/연락 희망 시간/입력 내용)만 명시한다. 구현이 이전에 "이름" 행을
-  // 추가로 렌더링했던 것은 이 결정과 어긋난 편차였다(design/exports/
-  // M03-D-신청-실패.png 원본 목업도 4행뿐이다) — 회귀 방지 가드.
+  // design.md §10 실패 요약은 정확히 4행(상담 방식/연락처/연락 희망 시간/입력 내용)만
+  // 명시한다. 구현이 이전에 "이름" 행을 추가로 렌더링했던 것은 이 결정과 어긋난
+  // 편차였다 — 회귀 방지 가드.
   it("design.md §10 — 요약에 '이름' 행을 추가로 렌더링하지 않는다", () => {
     act(() => {
       root.render(<ConsultFailure {...baseProps} />);
@@ -82,6 +79,35 @@ describe("components/consult/ConsultFailure", () => {
     expect(container.textContent).toContain("평일 오후");
   });
 
+  it(".pen 03-D 4행: 카카오 채널이어도 입력한 연락 희망 시간이 있으면 행을 보인다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} channel="kakao" />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-failure-summary"]');
+    expect(summary?.textContent).toContain("연락 희망 시간");
+    expect(summary?.textContent).toContain("평일 오후");
+  });
+
+  it("입력한 연락 희망 시간이 비어 있으면 행을 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} channel="kakao" preferredCallTime="" />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-failure-summary"]');
+    expect(summary?.textContent).not.toContain("연락 희망 시간");
+  });
+
+  it(".pen 03-D: 부제 두 문장이 알림(role=alert)으로 제공된다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} />);
+    });
+
+    const subtitle = container.querySelector('p[role="alert"]');
+    expect(subtitle?.textContent).toContain("일시적인 오류로 접수가 완료되지 않았습니다.");
+    expect(subtitle?.textContent).toContain("입력하신 내용은 다시 입력하지 않아도 됩니다.");
+  });
+
   it("다시 시도하기 클릭 시 onRetry가 호출된다(같은 idempotencyKey 재전송은 호출부 책임)", () => {
     const onRetry = vi.fn();
     act(() => {
@@ -98,22 +124,43 @@ describe("components/consult/ConsultFailure", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("isRetrying이 true면 재시도 버튼에 aria-busy가 부여되고 비활성화된다", () => {
+  it("isRetrying이 true면 재시도 버튼에 aria-busy가 부여되고 누르기가 무시된다", () => {
+    const onRetry = vi.fn();
     act(() => {
-      root.render(<ConsultFailure {...baseProps} isRetrying />);
+      root.render(<ConsultFailure {...baseProps} onRetry={onRetry} isRetrying />);
     });
 
     const retryButton = container.querySelector('[data-testid="consult-failure-retry"]');
     expect(retryButton?.getAttribute("aria-busy")).toBe("true");
+    expect(retryButton?.getAttribute("aria-disabled")).toBe("true");
+    act(() => {
+      retryButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it("진단 결과로 돌아가기 링크와 대체 채널 안내 문구를 렌더링한다", () => {
+  it("이전 화면으로 돌아가기는 /result 링크이고 안내 박스가 대체 채널과 입력 유지를 알린다", () => {
     act(() => {
       root.render(<ConsultFailure {...baseProps} />);
     });
 
     const backCta = container.querySelector('[data-testid="consult-failure-back-cta"]');
+    expect(backCta?.tagName).toBe("A");
     expect(backCta?.getAttribute("href")).toBe("/result");
-    expect(container.textContent).toContain("카카오톡 상담으로 문의해 주세요");
+    expect(backCta?.textContent).toContain("이전 화면으로 돌아가기");
+
+    const note = container.querySelector('[data-testid="consult-failure-notice"]');
+    expect(note?.textContent).toContain(
+      "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요."
+    );
+    expect(note?.textContent).toContain("현재 화면에서 입력 내용이 유지됩니다.");
+  });
+
+  it("데스크톱 푸터를 함께 그린다(.pen 03-D)", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-footer"]')).not.toBeNull();
   });
 });

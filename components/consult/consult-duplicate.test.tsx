@@ -8,7 +8,8 @@ import { ConsultDuplicate } from "./consult-duplicate";
 // SPEC-B2C-CONSULT-001 M5 (design.md §10; acceptance AC-B2CCONSULT-023) —
 // 03-C/M03-C 중복 상태. 마스킹된 연락처·접수일(날짜 단위)·처리 상태
 // 라벨만 노출하고, 내부 consultationId나 전체 페이로드는 DOM 어디에도
-// 노출하지 않는다.
+// 노출하지 않는다. .pen 최우선 지시로 2줄 부제·안내 박스·"상담 대기 중" 상태·
+// 아이콘 버튼(주 버튼 "기존 신청 상태 확인"은 목적지 없는 준비 중 비활성)을 맞춘다.
 
 describe("components/consult/ConsultDuplicate", () => {
   let container: HTMLDivElement;
@@ -63,13 +64,66 @@ describe("components/consult/ConsultDuplicate", () => {
     expect(container.innerHTML).not.toMatch(/consultationId/i);
   });
 
-  it("기존 신청 상태 확인 준비중 stub과 진단 결과로 돌아가기 링크를 렌더링한다", () => {
+  it(".pen 03-C: 처리 상태 received는 '상담 대기 중'으로 보인다", () => {
     act(() => {
       root.render(<ConsultDuplicate {...baseProps} />);
     });
 
-    expect(container.textContent).toContain("기존 신청 상태 확인");
+    const summary = container.querySelector('[data-testid="consult-duplicate-summary"]');
+    expect(summary?.textContent).toContain("처리 상태");
+    expect(summary?.textContent).toContain("상담 대기 중");
+  });
+
+  it("알려지지 않은 처리 상태는 원본 문자열을 그대로 보여 준다(향후 확장 대비)", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} applicationStatus="in_review" />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-duplicate-summary"]');
+    expect(summary?.textContent).toContain("in_review");
+  });
+
+  it(".pen 03-C: 부제 두 문장과 안내 박스(정보 아이콘 박스)를 렌더링한다", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} />);
+    });
+
+    const subtitle = container.querySelector('[data-testid="consult-duplicate-subtitle"]');
+    expect(subtitle?.textContent).toContain("같은 진단 결과로 접수된 신청이 처리 중입니다.");
+    expect(subtitle?.textContent).toContain("중복으로 다시 신청하지 않으셔도 됩니다.");
+
+    const note = container.querySelector('[data-testid="consult-duplicate-notice"]');
+    expect(note?.textContent).toContain(
+      "신청 내용을 바꾸고 싶으시면 기존 신청을 취소한 뒤 다시 신청해 주세요. 진행 상황은 카카오톡 또는 전화로 안내드립니다."
+    );
+    // 모바일 문구도 .pen M03-C 그대로 담는다(화면 폭에 따라 하나만 보인다).
+    expect(note?.textContent).toContain(
+      "내용을 바꾸시려면 기존 신청을 취소한 뒤 다시 신청해 주세요."
+    );
+  });
+
+  it("기존 신청 상태 확인은 준비 중 비활성 주 버튼, 진단 결과로 돌아가기는 /result 링크다", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} />);
+    });
+
+    const status = container.querySelector('[data-testid="consult-duplicate-status-inquiry"]');
+    expect(status?.tagName).toBe("BUTTON");
+    expect(status?.getAttribute("aria-disabled")).toBe("true");
+    expect(status?.textContent).toContain("기존 신청 상태 확인");
+    expect(status?.textContent).toContain("준비 중");
+
     const backCta = container.querySelector('[data-testid="consult-duplicate-back-cta"]');
+    expect(backCta?.tagName).toBe("A");
     expect(backCta?.getAttribute("href")).toBe("/result");
+    expect(backCta?.textContent).toContain("진단 결과로 돌아가기");
+  });
+
+  it("데스크톱 푸터를 함께 그린다(.pen 03-C)", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-footer"]')).not.toBeNull();
   });
 });

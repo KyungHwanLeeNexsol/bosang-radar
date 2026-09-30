@@ -1,12 +1,12 @@
 "use client";
 
 import type { Ref } from "react";
-import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
+import { ArrowLeft, MessageCircle, RefreshCw, TriangleAlert } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import type { ConsultationChannel } from "@/lib/consult/types";
 
+import { OutcomeActions, OutcomeButton } from "./consult-outcome-button";
+import { OutcomeFrame, OutcomeNote } from "./consult-outcome-frame";
 import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
 
 // SPEC-B2C-CONSULT-001 M5 (design.md §10; acceptance AC-B2CCONSULT-022) —
@@ -15,6 +15,10 @@ import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
 // "다시 시도하기"는 같은 idempotencyKey 재전송을 트리거해야 하지만, 그
 // 책임은 호출부(consult-view.tsx handleSubmit)에 있다 — 이 컴포넌트는
 // onRetry 콜백만 받는다(idempotencyKey 자체를 알지 못함, 단일 책임).
+//
+// [.pen 최우선 지시 반영] 2줄 부제(알림), 카드 아래 안내 박스(대체 채널 + 입력 유지),
+// 아이콘 버튼을 .pen 03-D 그대로 맞춘다. 연락 희망 시간 행은 채널과 상관없이
+// 사용자가 입력한 값이 있으면 보인다(.pen 4행).
 
 const CHANNEL_LABEL: Record<ConsultationChannel, string> = {
   kakao: "카카오톡 상담",
@@ -43,69 +47,60 @@ export function ConsultFailure({
   titleRef,
 }: ConsultFailureProps) {
   return (
-    <div
-      data-testid="consult-failure"
-      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-5 py-12 text-center"
-    >
-      <span
-        aria-hidden="true"
-        className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive md:size-16"
-      >
-        <TriangleAlert className="size-6 md:size-7" />
-      </span>
-      <h1
-        ref={titleRef}
-        tabIndex={-1}
-        data-testid="consult-outcome-title"
-        className="text-h2 font-bold text-bora-ink outline-none"
-      >
-        상담 신청이 접수되지 않았습니다
-      </h1>
-      <p role="alert" className="max-w-sm text-body text-bora-ink-3">
-        일시적인 오류로 접수가 완료되지 않았습니다. 입력하신 내용은 다시 입력하지 않아도 됩니다.
-      </p>
-
-      <dl
-        data-testid="consult-failure-summary"
-        className={`mt-[5px] md:mt-[26px] ${SUMMARY_CARD_CLASS}`}
-      >
-        <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
-        <SummaryRow label="연락처" value={contact} />
-        {channel === "phone" && preferredCallTime ? (
-          <SummaryRow label="연락 희망 시간" value={preferredCallTime} />
-        ) : null}
-        <SummaryRow label="입력 내용" value="유지됨" />
-      </dl>
-
-      <div className="mt-[78px] flex w-full flex-col items-center gap-2 md:mt-[72px] md:w-auto">
-        <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
-          <Button
-            type="button"
-            data-testid="consult-failure-retry"
-            variant="diagnosis"
-            className="h-12 w-full px-5 md:w-auto"
-            aria-disabled={isRetrying}
-            aria-busy={isRetrying}
-            onClick={() => {
-              if (!isRetrying) {
-                onRetry();
-              }
-            }}
+    <OutcomeFrame
+      testId="consult-failure"
+      tone="danger"
+      icon={TriangleAlert}
+      title={
+        <>
+          상담 신청이
+          <br className="md:hidden" /> 접수되지 않았습니다
+        </>
+      }
+      titleRef={titleRef}
+      subtitleRole="alert"
+      subtitle={
+        <>
+          <span className="md:block">일시적인 오류로 접수가 완료되지 않았습니다.</span>{" "}
+          <span className="md:block">입력하신 내용은 다시 입력하지 않아도 됩니다.</span>
+        </>
+      }
+      card={
+        <dl data-testid="consult-failure-summary" className={SUMMARY_CARD_CLASS}>
+          <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
+          <SummaryRow label="연락처" value={contact} />
+          {preferredCallTime ? (
+            <SummaryRow label="연락 희망 시간" mobileLabel="희망 시간" value={preferredCallTime} />
+          ) : null}
+          <SummaryRow label="입력 내용" value="유지됨" />
+        </dl>
+      }
+      note={
+        <OutcomeNote testId="consult-failure-notice" icon={MessageCircle}>
+          다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요. 현재 화면에서 입력 내용이
+          유지됩니다.
+        </OutcomeNote>
+      }
+      actions={
+        <OutcomeActions>
+          <OutcomeButton
+            variant="primary"
+            icon={RefreshCw}
+            testId="consult-failure-retry"
+            action={{ type: "button", onClick: onRetry, busy: isRetrying }}
           >
             다시 시도하기
-          </Button>
-          <Link
-            href="/result"
-            data-testid="consult-failure-back-cta"
-            className="w-full rounded-full border border-app-line bg-app-surface px-5 py-3.5 text-center text-body-s font-semibold text-bora-ink-2 transition-colors hover:bg-app-surface-sub md:w-auto"
+          </OutcomeButton>
+          <OutcomeButton
+            variant="secondary"
+            icon={ArrowLeft}
+            testId="consult-failure-back-cta"
+            action={{ type: "link", href: "/result" }}
           >
             이전 화면으로 돌아가기
-          </Link>
-        </div>
-        <p className="mt-1 text-label-s text-bora-ink-4">
-          다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요
-        </p>
-      </div>
-    </div>
+          </OutcomeButton>
+        </OutcomeActions>
+      }
+    />
   );
 }

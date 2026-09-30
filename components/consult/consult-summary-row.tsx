@@ -6,7 +6,8 @@
 //   - 모바일 350x176, 데스크톱 640x200 (4행 카드 기준, 위·아래 테두리 각 1px 포함)
 //   - 카드 자체의 세로 여백은 없고 행이 테두리에 바로 붙으며 구분선은 카드 폭 끝까지 이어진다.
 //   - 행 높이는 (176-2)/4 = 43.5px(모바일), (200-2)/4 = 49.5px(데스크톱)로 균등하다.
-// [주의] .pen 원본은 열지 못했다 — 위 수치는 export PNG 실측이다.
+// 위 수치는 export PNG 실측이며, .pen 원본에서도 같은 값을 직접 읽어 확인했다
+// (카드 350x176 / 640x200, 라벨 모바일 "희망 시간" · 데스크톱 "연락 희망 시간").
 
 export const SUMMARY_CARD_CLASS =
   "w-full rounded-[12px] border border-app-line bg-app-surface text-left md:max-w-[640px]";
@@ -20,10 +21,31 @@ export const SUMMARY_CARD_CLASS =
 // min-w-0 + break-words로 dd가 줄바꿈되게 하고, 라벨(dt)은 shrink-0으로 줄어들지 않게
 // 하며, gap-4로 값이 라벨에 붙지 않게 한다. 값이 짧을 때는 justify-between이 남는 폭을
 // 쓰므로 기존 크기·위치는 바뀌지 않는다.
-export function SummaryRow({ label, value }: { label: string; value: string }) {
+//
+// mobileLabel: .pen은 연락 희망 시간 행 라벨을 모바일에서 "희망 시간"으로 줄여 쓴다.
+// 두 라벨을 모두 그리고 CSS로 하나만 보이게 하며(display:none은 보조기기에서도 빠진다),
+// 화면 폭에 따라 다른 글자를 쓰는 데 JS 폭 감지를 쓰지 않는다.
+export function SummaryRow({
+  label,
+  mobileLabel,
+  value,
+}: {
+  label: string;
+  mobileLabel?: string;
+  value: string;
+}) {
   return (
     <div className="flex min-h-[43.5px] items-center justify-between gap-4 border-b border-app-line px-4 py-2 last:border-b-0 md:min-h-[49.5px]">
-      <dt className="shrink-0 text-body-s text-bora-ink-3">{label}</dt>
+      <dt className="shrink-0 text-body-s text-bora-ink-3">
+        {mobileLabel ? (
+          <>
+            <span className="md:hidden">{mobileLabel}</span>
+            <span className="hidden md:inline">{label}</span>
+          </>
+        ) : (
+          label
+        )}
+      </dt>
       <dd className="min-w-0 break-words text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
   );

@@ -1,9 +1,10 @@
 import type { Ref } from "react";
-import Link from "next/link";
-import { Clock } from "lucide-react";
+import { ArrowLeft, Clock3, Info, Search } from "lucide-react";
 
 import type { ConsultationChannel } from "@/lib/consult/types";
 
+import { OutcomeActions, OutcomeButton } from "./consult-outcome-button";
+import { OutcomeFrame, OutcomeNote } from "./consult-outcome-frame";
 import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
 
 // SPEC-B2C-CONSULT-001 M5 (design.md §10, §9.4; acceptance AC-B2CCONSULT-023,
@@ -12,6 +13,9 @@ import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
 // duplicate variant) 호출부(consult-view.tsx)가 제출 당시 formState.channel을
 // prop으로 전달한다. 내부 consultationId나 전체 페이로드는 절대 노출하지
 // 않는다 — 마스킹된 연락처·날짜 단위 접수일·처리 상태 라벨만 렌더링한다.
+//
+// [.pen 최우선 지시 반영] 2줄 부제, 카드 아래 안내 박스, 주 버튼 "기존 신청 상태 확인"
+// (목적지가 없어 비활성 "준비 중"), 보조 버튼 "진단 결과로 돌아가기"를 .pen 03-C 그대로 맞춘다.
 
 const CHANNEL_LABEL: Record<ConsultationChannel, string> = {
   kakao: "카카오톡 상담",
@@ -20,10 +24,11 @@ const CHANNEL_LABEL: Record<ConsultationChannel, string> = {
 
 // 이 SPEC 범위에서 서버가 실제로 생성하는 값은 "received" 하나뿐이다
 // (design.md §9.2 — applicationStatus DEFAULT "received", 상태 전이 로직은
-// 범위 밖). 알려지지 않은 값은 원본 문자열을 그대로 표시해 향후 확장에
-// 대비한다(하드코딩된 매핑 실패로 화면이 빈 값을 보여주지 않도록).
+// 범위 밖). .pen 03-C는 이를 "상담 대기 중"으로 표기한다. 알려지지 않은 값은 원본
+// 문자열을 그대로 표시해 향후 확장에 대비한다(하드코딩된 매핑 실패로 화면이 빈
+// 값을 보여주지 않도록).
 const APPLICATION_STATUS_LABEL: Record<string, string> = {
-  received: "접수됨",
+  received: "상담 대기 중",
 };
 
 interface ConsultDuplicateProps {
@@ -46,50 +51,67 @@ export function ConsultDuplicate({
   titleRef,
 }: ConsultDuplicateProps) {
   return (
-    <div
-      data-testid="consult-duplicate"
-      className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-5 px-5 py-12 text-center"
-    >
-      <span
-        aria-hidden="true"
-        className="flex size-14 items-center justify-center rounded-full bg-bora-warn-soft text-bora-warn md:size-16"
-      >
-        <Clock className="size-6 md:size-7" />
-      </span>
-      <h1
-        ref={titleRef}
-        tabIndex={-1}
-        data-testid="consult-outcome-title"
-        className="text-h2 font-bold text-bora-ink outline-none"
-      >
-        이미 접수된 상담 신청이 있습니다
-      </h1>
-
-      <dl data-testid="consult-duplicate-summary" className={`mt-8 md:mt-10 ${SUMMARY_CARD_CLASS}`}>
-        <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
-        <SummaryRow label="연락처" value={maskedContact} />
-        <SummaryRow label="접수일" value={receivedAt} />
-        <SummaryRow
-          label="처리 상태"
-          value={APPLICATION_STATUS_LABEL[applicationStatus] ?? applicationStatus}
-        />
-      </dl>
-
-      <div className="flex w-full flex-col items-center gap-2 md:w-auto md:flex-row md:justify-center">
-        <span
-          data-testid="consult-duplicate-status-inquiry"
-          className="text-label-s text-bora-ink-4"
-        >
-          기존 신청 상태 확인: 준비 중
-        </span>
-        <Link
-          href="/result"
-          data-testid="consult-duplicate-back-cta"
-          className="w-full rounded-full bg-bora-accent px-5 py-3.5 text-center text-body-s font-semibold text-white hover:bg-bora-accent-deep md:w-auto"
-        >
-          진단 결과로 돌아가기
-        </Link>
-      </div>
-    </div>
+    <OutcomeFrame
+      testId="consult-duplicate"
+      tone="warn"
+      icon={Clock3}
+      title={
+        <>
+          이미 접수된
+          <br className="md:hidden" /> 상담 신청이 있습니다
+        </>
+      }
+      titleRef={titleRef}
+      subtitle={
+        // 데스크톱은 두 줄, 모바일은 한 문단으로 흐른다(.pen 03-C / M03-C).
+        <>
+          <span className="md:block">같은 진단 결과로 접수된 신청이 처리 중입니다.</span>{" "}
+          <span className="md:block">중복으로 다시 신청하지 않으셔도 됩니다.</span>
+        </>
+      }
+      subtitleTestId="consult-duplicate-subtitle"
+      card={
+        <dl data-testid="consult-duplicate-summary" className={SUMMARY_CARD_CLASS}>
+          <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
+          <SummaryRow label="연락처" value={maskedContact} />
+          <SummaryRow label="접수일" value={receivedAt} />
+          <SummaryRow
+            label="처리 상태"
+            value={APPLICATION_STATUS_LABEL[applicationStatus] ?? applicationStatus}
+          />
+        </dl>
+      }
+      note={
+        <OutcomeNote testId="consult-duplicate-notice" icon={Info}>
+          <span className="md:hidden">
+            내용을 바꾸시려면 기존 신청을 취소한 뒤 다시 신청해 주세요.
+          </span>
+          <span className="hidden md:inline">
+            신청 내용을 바꾸고 싶으시면 기존 신청을 취소한 뒤 다시 신청해 주세요. 진행 상황은
+            카카오톡 또는 전화로 안내드립니다.
+          </span>
+        </OutcomeNote>
+      }
+      actions={
+        <OutcomeActions>
+          <OutcomeButton
+            variant="primary"
+            icon={Search}
+            testId="consult-duplicate-status-inquiry"
+            action={{ type: "stub" }}
+          >
+            기존 신청 상태 확인
+          </OutcomeButton>
+          <OutcomeButton
+            variant="secondary"
+            icon={ArrowLeft}
+            testId="consult-duplicate-back-cta"
+            action={{ type: "link", href: "/result" }}
+          >
+            진단 결과로 돌아가기
+          </OutcomeButton>
+        </OutcomeActions>
+      }
+    />
   );
 }
