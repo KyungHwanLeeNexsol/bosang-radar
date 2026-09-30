@@ -1,0 +1,801 @@
+import { createHash, createHmac } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClient, type Client, type InStatement } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
+import { NextRequest } from "next/server";
+import { afterAll, describe, expect, it } from "vitest";
+import * as schema from "../lib/db/schema.ts";
+import { handleConsultationSubmit } from "../app/api/consultations/route.ts";
+import {
+  computeIpHmac,
+  createCaseContext,
+  runTriggerCase,
+  waitForWindowRoom,
+  windowStartOf,
+} from "./verify-remote-consult-cases.ts";
+import {
+  evaluateGuard,
+  fingerprintOf,
+  isValidRunId,
+  maskHost,
+  redactText,
+} from "./verify-remote-consult-guard.ts";
+import { LedgerWriter, computeLedgerChecksum } from "./verify-remote-consult-ledger.ts";
+import { main, type HarnessDeps } from "./verify-remote-consult.ts";
+
+// SPEC-B2C-CONSULT-001 Group 3a — 원격 검증 하네스의 로컬 테스트. 이 파일의 모든 실행은
+// `.tmp/` 아래 임시 file: DB만 쓴다. 원격 URL은 클라이언트 팩토리 스파이에만 물려
+// "클라이언트가 만들어지지 않는다"는 것을 확인하는 데 쓰며 네트워크에 나가지 않는다.
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(scriptDir, "..");
+const tmpDir = path.join(projectRoot, ".tmp");
+const migrationsFolder = path.join(projectRoot, "db", "migrations");
+const stateRoot = path.join(tmpDir, `vt-state-${process.pid}-${Date.now()}`);
+const CONSENT_VERSION = "2026-09-25-v1";
+const REMOTE_URL = "libsql://vt-test-guard-org.invalid";
+const REMOTE_FP = fingerprintOf(REMOTE_URL);
+
+const openClients: Client[] = [];
+const createdFiles: string[] = [];
+let dbCounter = 0;
+
+async function makeMigratedDb(): Promise<{ url: string; file: string; client: Client }> {
+  mkdirSync(tmpDir, { recursive: true });
+  const file = path.join(tmpDir, `harness-test-${process.pid}-${Date.now()}-${dbCounter++}.db`);
+  const url = `file:${file}`;
+  const client = createClient({ url });
+  await migrate(drizzle(client), { migrationsFolder });
+  openClients.push(client);
+  createdFiles.push(file);
+  return { url, file, client };
+}
+
+async function removeWithRetry(target: string): Promise<void> {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const p = target + suffix;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!existsSync(p)) break;
+      try {
+        rmSync(p, { recursive: true, force: true });
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
+}
+
+afterAll(async () => {
+  for (const client of openClients) client.close();
+  for (const file of createdFiles) await removeWithRetry(file);
+  await removeWithRetry(stateRoot);
+});
+
+function makeDeps(
+  env: Record<string, string | undefined>,
+  overrides: Partial<HarnessDeps> = {}
+): { deps: Partial<HarnessDeps>; logs: string[] } {
+  const logs: string[] = [];
+  const deps: Partial<HarnessDeps> = {
+    env,
+    stateRoot,
+    log: (line) => logs.push(line),
+    errorLog: (line) => logs.push(line),
+    ...overrides,
+  };
+  return { deps, logs };
+}
+
+async function count(client: Client, sql: string, args: (string | number)[] = []) {
+  const result = await client.execute({ sql, args });
+  return Number(result.rows[0].c);
+}
+
+async function seedDecoyConsultation(client: Client, id = "decoy-1"): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO consultations (id, result_id, channel, name, contact_normalized, preferred_call_time,
+      consent_pii_collection, consent_health_info_use, consent_marketing, consent_version,
+      request_fingerprint, application_status, idempotency_key, created_at, updated_at)
+      VALUES (?, 'decoy-result', 'kakao', '진짜고객', '01011112222', NULL, 1, 1, 0, ?, 'fp', 'received', ?, 1790000000, 1790000000)`,
+    args: [id, CONSENT_VERSION, `${id}-key`],
+  });
+}
+
+async function seedDecoyRateLimit(client: Client, ipHmac = "decoy-hmac"): Promise<void> {
+  await client.execute({
+    sql: "INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (1790000000, ?, 1)",
+    args: [ipHmac],
+  });
+}
+
+interface SpyClient {
+  factory: HarnessDeps["createClient"];
+  calls: unknown[];
+  executed: string[];
+}
+
+function makeSpyFactory(): SpyClient {
+  const calls: unknown[] = [];
+  const executed: string[] = [];
+  const record = (stmt: InStatement): void => {
+    executed.push(typeof stmt === "string" ? stmt : stmt.sql);
+  };
+  const factory: HarnessDeps["createClient"] = (config) => {
+    calls.push(config);
+    const stub = {
+      execute: async (stmt: InStatement) => {
+        record(stmt);
+        throw new Error("stub: 네트워크 접근 없음");
+      },
+      batch: async (stmts: InStatement[]) => {
+        stmts.forEach(record);
+        throw new Error("stub: 네트워크 접근 없음");
+      },
+      transaction: async () => {
+        executed.push("TRANSACTION");
+        throw new Error("stub: 네트워크 접근 없음");
+      },
+      close: () => {},
+    };
+    return stub as unknown as Client;
+  };
+  return { factory, calls, executed };
+}
+
+describe("안전 가드 — 원격 URL은 지문과 쓰기 허용 플래그 없이는 클라이언트도 만들지 않는다", () => {
+  const remoteEnv = { TURSO_DATABASE_URL: REMOTE_URL, TURSO_AUTH_TOKEN: "vt-secret-token-value" };
+
+  it.each([
+    ["지문 없음 + 쓰기 허용", ["run", "--run-id", "abcd1234", "--allow-write-remote"]],
+    [
+      "틀린 지문 + 쓰기 허용",
+      ["run", "--run-id", "abcd1234", "--allow-write-remote", "--expect-fingerprint", "00000000"],
+    ],
+    [
+      "맞는 지문 + 쓰기 허용 없음(run)",
+      ["run", "--run-id", "abcd1234", "--expect-fingerprint", REMOTE_FP],
+    ],
+    [
+      "맞는 지문 + 쓰기 허용 없음(cleanup)",
+      ["cleanup", "--run-id", "abcd1234", "--expect-fingerprint", REMOTE_FP],
+    ],
+    [
+      "맞는 지문 + 쓰기 허용 없음(revert-schema)",
+      ["revert-schema", "--confirm-revert-schema", "--expect-fingerprint", REMOTE_FP],
+    ],
+    ["preflight도 지문이 없으면 거부", ["preflight"]],
+    ["preflight도 틀린 지문이면 거부", ["preflight", "--expect-fingerprint", "ffffffff"]],
+  ])("%s → 종료 코드 2, 클라이언트 미생성", async (_label, argv) => {
+    const spy = makeSpyFactory();
+    const { deps, logs } = makeDeps(remoteEnv, { createClient: spy.factory });
+
+    const exitCode = await main(argv, deps);
+
+    expect(exitCode).toBe(2);
+    expect(spy.calls).toHaveLength(0);
+    const output = logs.join("\n");
+    // 호스트와 토큰은 어떤 출력에도 나오지 않는다.
+    expect(output).not.toContain("test-guard");
+    expect(output).not.toContain("vt-secret-token-value");
+  });
+
+  it("맞는 지문이면 preflight는 가드를 통과해 클라이언트를 만들고, 쓰기 문장은 실행하지 않는다", async () => {
+    const spy = makeSpyFactory();
+    const { deps, logs } = makeDeps(remoteEnv, { createClient: spy.factory });
+
+    const exitCode = await main(["preflight", "--expect-fingerprint", REMOTE_FP], deps);
+
+    expect(exitCode).toBe(1); // 스텁이 연결 실패를 흉내낸다
+    expect(spy.calls).toHaveLength(1);
+    expect(spy.executed.every((sql) => /^\s*(SELECT|PRAGMA)/i.test(sql))).toBe(true);
+    expect(logs.join("\n")).not.toContain("test-guard");
+  });
+
+  it("지문 + 쓰기 허용이 모두 맞아도 run은 스텁에서 쓰기를 한 번도 시도하지 못한다", async () => {
+    const spy = makeSpyFactory();
+    const { deps, logs } = makeDeps(remoteEnv, { createClient: spy.factory });
+
+    const exitCode = await main(
+      ["run", "--run-id", "abcd1234", "--allow-write-remote", "--expect-fingerprint", REMOTE_FP],
+      deps
+    );
+
+    expect(exitCode).not.toBe(0);
+    expect(spy.calls).toHaveLength(1);
+    expect(spy.executed.some((sql) => /^\s*(INSERT|CREATE|DELETE|DROP|UPDATE)/i.test(sql))).toBe(
+      false
+    );
+    expect(logs.join("\n")).not.toContain("vt-secret-token-value");
+  });
+
+  it("file: URL은 지문·쓰기 허용 플래그 없이 통과한다", async () => {
+    const db = await makeMigratedDb();
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["preflight"], deps)).toBe(0);
+  });
+
+  it("evaluateGuard는 file: 은 로컬로, http(s)/libsql/wss는 원격으로 분류한다", () => {
+    const local = evaluateGuard(
+      { TURSO_DATABASE_URL: "file:./.tmp/x.db" },
+      { allowWriteRemote: false },
+      { writes: true }
+    );
+    expect(local.ok).toBe(true);
+    if (local.ok) expect(local.target.isRemote).toBe(false);
+
+    for (const url of ["libsql://a.b.invalid", "https://a.b.invalid", "wss://a.b.invalid"]) {
+      const result = evaluateGuard(
+        { TURSO_DATABASE_URL: url },
+        { allowWriteRemote: true },
+        { writes: true }
+      );
+      expect(result.ok).toBe(false);
+    }
+    const missing = evaluateGuard({}, { allowWriteRemote: false }, { writes: false });
+    expect(missing.ok).toBe(false);
+  });
+});
+
+describe("baseline 중단 — 두 상담 테이블이 모두 비어 있지 않으면 run은 아무것도 쓰지 않는다", () => {
+  it.each([
+    ["consultations", seedDecoyConsultation],
+    ["consultation_rate_limits", seedDecoyRateLimit],
+  ] as const)("%s에 행이 있으면 종료 코드 2, 원장·트리거·행 변화 없음", async (_table, seed) => {
+    const db = await makeMigratedDb();
+    await seed(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+    const runId = `base${dbCounter}x`;
+
+    const exitCode = await main(["run", "--run-id", runId, "--window-room-ms", "0"], deps);
+
+    expect(exitCode).toBe(2);
+    expect(existsSync(path.join(stateRoot, runId))).toBe(false);
+    const triggers = await count(
+      db.client,
+      "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'trigger'"
+    );
+    expect(triggers).toBe(0);
+    expect(await count(db.client, "SELECT COUNT(*) AS c FROM consultations")).toBe(
+      _table === "consultations" ? 1 : 0
+    );
+    expect(await count(db.client, "SELECT COUNT(*) AS c FROM consultation_rate_limits")).toBe(
+      _table === "consultation_rate_limits" ? 1 : 0
+    );
+  });
+
+  it("테이블이 없으면(마이그레이션 전) 종료 코드 2", async () => {
+    mkdirSync(tmpDir, { recursive: true });
+    const file = path.join(tmpDir, `harness-test-empty-${process.pid}-${Date.now()}.db`);
+    createdFiles.push(file);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: `file:${file}`, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["run", "--run-id", "empty001", "--window-room-ms", "0"], deps)).toBe(2);
+    expect(existsSync(path.join(stateRoot, "empty001"))).toBe(false);
+  });
+});
+
+describe("전체 로컬 수명주기 — 마이그레이션 → preflight → run → 이물 행 → cleanup", () => {
+  it(
+    "run이 관측을 정직하게 기록하고, cleanup은 원장 행만 정확히 지운다",
+    { timeout: 240_000 },
+    async () => {
+      const db = await makeMigratedDb();
+      const { deps, logs } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+      const runId = "life0001";
+      const runDir = path.join(stateRoot, runId);
+      const name = `가상테스트-${runId}`;
+
+      // 1) preflight
+      expect(await main(["preflight"], deps)).toBe(0);
+      expect(logs.join("\n")).toContain("consultations");
+
+      // 2) run — 로컬 SQLite는 병렬 부하에서 SQLITE_BUSY 5xx를 낼 수 있으므로(route.test.ts 관측)
+      // T5/T6 통과를 단정하지 않는다. 하네스가 본 것을 그대로 기록하고 종료 코드가 그에 맞는지만 본다.
+      const runExit = await main(["run", "--run-id", runId, "--window-room-ms", "0"], deps);
+
+      const results = JSON.parse(readFileSync(path.join(runDir, "results.json"), "utf8")) as {
+        runId: string;
+        gateFailed: boolean;
+        cases: {
+          id: string;
+          gate: boolean;
+          status: string;
+          checks: { name: string; expected: unknown; observed: unknown; pass: boolean }[];
+          requests: unknown[];
+          rowCounts: { consultations: number; consultation_rate_limits: number };
+        }[];
+      };
+      expect(results.runId).toBe(runId);
+      expect(results.cases.map((c) => c.id)).toEqual(["T1", "T2", "T3", "T4", "T5", "T6", "T7"]);
+      expect(runExit).toBe(results.gateFailed ? 1 : 0);
+      for (const gateCase of results.cases.filter((c) => c.gate)) {
+        expect(gateCase.checks.length).toBeGreaterThan(0);
+        for (const check of gateCase.checks) {
+          expect(check).toHaveProperty("expected");
+          expect(check).toHaveProperty("observed");
+        }
+        expect(gateCase.rowCounts).toHaveProperty("consultations");
+      }
+      // 순차·단일 연결로 결정적인 T1~T4는 로컬에서도 통과해야 한다.
+      for (const id of ["T1", "T2", "T3", "T4"]) {
+        const failed = results.cases.find((c) => c.id === id)?.checks.filter((c) => !c.pass);
+        expect(failed, `${id} 실패 체크`).toEqual([]);
+      }
+      const t7 = results.cases.find((c) => c.id === "T7");
+      expect(t7?.gate).toBe(false);
+      expect(t7?.status).toBe("INFO");
+
+      // 3) 원장 — write-ahead로 모든 제출 키와 (window_start, ip_hmac) 쌍이 남아 있다.
+      const ledger = JSON.parse(readFileSync(path.join(runDir, "ledger.json"), "utf8")) as {
+        name: string;
+        consultations: unknown[];
+        rateLimits: { kind: string }[];
+        trigger: { name: string } | null;
+        checksum: string;
+        fingerprint: string;
+      };
+      expect(ledger.name).toBe(name);
+      expect(ledger.consultations).toHaveLength(15); // T3 1 + T4 6 + T5 6 + T6 1 + T7 1
+      expect(ledger.rateLimits.length).toBeGreaterThanOrEqual(13);
+      expect(new Set(ledger.rateLimits.map((r) => r.kind))).toEqual(
+        new Set(["route", "marker", "seed-expired"])
+      );
+      expect(ledger.trigger?.name).toBe(`vt_${runId}_block_delete`);
+      expect(ledger.checksum).toBe(
+        computeLedgerChecksum(ledger as unknown as Parameters<typeof computeLedgerChecksum>[0])
+      );
+      expect(ledger.fingerprint).toBe(fingerprintOf(db.url));
+
+      // T3의 트리거는 남아 있지 않다.
+      expect(
+        await count(db.client, "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'trigger'")
+      ).toBe(0);
+
+      // 4) 이물(실제 고객) 행 두 개가 도착했다고 가정한다.
+      await seedDecoyConsultation(db.client);
+      await seedDecoyRateLimit(db.client);
+      const beforeMatch = await count(
+        db.client,
+        "SELECT COUNT(*) AS c FROM consultations WHERE name = ?",
+        [name]
+      );
+      expect(beforeMatch).toBeGreaterThanOrEqual(6);
+
+      // 5) cleanup — baseline(0)과 총계가 달라(이물 존재) 종료 코드 3, 하지만 이물은 그대로다.
+      const cleanupExit = await main(["cleanup", "--run-id", runId], deps);
+      expect(cleanupExit).toBe(3);
+      const cleanup = JSON.parse(readFileSync(path.join(runDir, "cleanup.json"), "utf8")) as {
+        triggerPresentAfter: boolean;
+        tables: Record<
+          string,
+          {
+            totalBefore: number;
+            matchingBefore: number;
+            deleted: number;
+            totalAfter: number;
+            matchingAfter: number;
+            baseline: number;
+          }
+        >;
+      };
+      expect(cleanup.triggerPresentAfter).toBe(false);
+      expect(cleanup.tables.consultations.matchingBefore).toBe(beforeMatch);
+      expect(cleanup.tables.consultations.deleted).toBe(beforeMatch);
+      expect(cleanup.tables.consultations.matchingAfter).toBe(0);
+      expect(cleanup.tables.consultations.totalAfter).toBe(1);
+      expect(cleanup.tables.consultation_rate_limits.matchingAfter).toBe(0);
+      expect(cleanup.tables.consultation_rate_limits.totalAfter).toBe(1);
+      expect(cleanup.tables.consultations.baseline).toBe(0);
+      expect(
+        await count(
+          db.client,
+          "SELECT COUNT(*) AS c FROM consultations WHERE id = 'decoy-1' AND name = '진짜고객'"
+        )
+      ).toBe(1);
+      expect(
+        await count(
+          db.client,
+          "SELECT COUNT(*) AS c FROM consultation_rate_limits WHERE ip_hmac = 'decoy-hmac'"
+        )
+      ).toBe(1);
+      expect(
+        await count(db.client, "SELECT COUNT(*) AS c FROM consultations WHERE name = ?", [name])
+      ).toBe(0);
+      expect(
+        await count(
+          db.client,
+          "SELECT COUNT(*) AS c FROM consultation_rate_limits WHERE ip_hmac LIKE ?",
+          [`vt-${runId}-%`]
+        )
+      ).toBe(0);
+      const table = logs.join("\n");
+      expect(table).toContain("total_before");
+      expect(table).toContain("trigger present after: no");
+
+      // 6) 두 번째 cleanup은 0건을 지운다(멱등).
+      expect(await main(["cleanup", "--run-id", runId], deps)).toBe(3);
+      const second = JSON.parse(
+        readFileSync(path.join(runDir, "cleanup.json"), "utf8")
+      ) as typeof cleanup;
+      expect(second.tables.consultations.deleted).toBe(0);
+      expect(second.tables.consultation_rate_limits.deleted).toBe(0);
+
+      // 7) 이물을 치우면 세 번째 cleanup은 baseline과 일치해 종료 코드 0.
+      await db.client.execute("DELETE FROM consultations WHERE id = 'decoy-1'");
+      await db.client.execute("DELETE FROM consultation_rate_limits WHERE ip_hmac = 'decoy-hmac'");
+      expect(await main(["cleanup", "--run-id", runId], deps)).toBe(0);
+      expect(await main(["preflight"], deps)).toBe(0);
+    }
+  );
+});
+
+describe("cleanup 불일치 안전장치 — 원장과 실제가 어긋나면 아무것도 지우지 않고 멈춘다", () => {
+  async function setup(runId: string) {
+    const db = await makeMigratedDb();
+    const runDir = path.join(stateRoot, runId);
+    const name = `가상테스트-${runId}`;
+    const ledger = new LedgerWriter(runDir, {
+      runId,
+      fingerprint: fingerprintOf(db.url),
+      baseline: { consultations: 0, consultation_rate_limits: 0 },
+      name,
+    });
+    const key = `vt-${runId}-t4-0-k`;
+    ledger.addConsultation({
+      caseId: "T4",
+      idempotencyKey: key,
+      resultId: `vt-${runId}-t4-0`,
+      contactNormalized: "01000000001",
+    });
+    ledger.addRateLimits([
+      {
+        caseId: "T1",
+        kind: "marker",
+        windowStartMs: 4_000_000_000_000,
+        ipHmac: `vt-${runId}-t1-commit`,
+      },
+    ]);
+    await db.client.execute({
+      sql: `INSERT INTO consultations (id, result_id, channel, name, contact_normalized, preferred_call_time,
+        consent_pii_collection, consent_health_info_use, consent_marketing, consent_version,
+        request_fingerprint, application_status, idempotency_key, created_at, updated_at)
+        VALUES ('own-1', ?, 'kakao', ?, '01000000001', NULL, 1, 1, 0, ?, 'fp', 'received', ?, 1790000000, 1790000000)`,
+      args: [`vt-${runId}-t4-0`, name, CONSENT_VERSION, key],
+    });
+    await db.client.execute({
+      sql: "INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (4000000000, ?, 1)",
+      args: [`vt-${runId}-t1-commit`],
+    });
+    await seedDecoyConsultation(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+    const ledgerFile = path.join(runDir, "ledger.json");
+    return { db, deps, runDir, ledgerFile, original: readFileSync(ledgerFile, "utf8"), name, key };
+  }
+
+  async function totals(client: Client) {
+    return {
+      consultations: await count(client, "SELECT COUNT(*) AS c FROM consultations"),
+      rateLimits: await count(client, "SELECT COUNT(*) AS c FROM consultation_rate_limits"),
+    };
+  }
+
+  it("체크섬이 깨진 원장(항목만 덧붙임)이면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
+    const s = await setup("tamp0001");
+    const before = await totals(s.db.client);
+    const tampered = JSON.parse(s.original) as { consultations: unknown[] };
+    tampered.consultations.push({
+      caseId: "T4",
+      idempotencyKey: "decoy-1-key",
+      resultId: "decoy-result",
+      contactNormalized: "01011112222",
+    });
+    writeFileSync(s.ledgerFile, JSON.stringify(tampered));
+
+    expect(await main(["cleanup", "--run-id", "tamp0001"], s.deps)).toBe(1);
+    expect(await totals(s.db.client)).toEqual(before);
+  });
+
+  it("체크섬을 다시 맞춰도 서명(이름)이 다른 행을 가리키면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
+    const s = await setup("tamp0002");
+    const before = await totals(s.db.client);
+    const tampered = JSON.parse(s.original) as Parameters<typeof computeLedgerChecksum>[0];
+    tampered.consultations.push({
+      caseId: "T4",
+      idempotencyKey: "decoy-1-key",
+      resultId: "decoy-result",
+      contactNormalized: "01011112222",
+    });
+    tampered.checksum = computeLedgerChecksum(tampered);
+    writeFileSync(s.ledgerFile, JSON.stringify(tampered));
+
+    expect(await main(["cleanup", "--run-id", "tamp0002"], s.deps)).toBe(1);
+    expect(await totals(s.db.client)).toEqual(before);
+  });
+
+  it("원장에 없는데 우리 서명(이름)을 단 행이 있으면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
+    const s = await setup("tamp0003");
+    await s.db.client.execute({
+      sql: `INSERT INTO consultations (id, result_id, channel, name, contact_normalized, preferred_call_time,
+        consent_pii_collection, consent_health_info_use, consent_marketing, consent_version,
+        request_fingerprint, application_status, idempotency_key, created_at, updated_at)
+        VALUES ('stray-1', 'stray-result', 'kakao', ?, '01000000002', NULL, 1, 1, 0, ?, 'fp', 'received', 'stray-key', 1790000000, 1790000000)`,
+      args: [s.name, CONSENT_VERSION],
+    });
+    const before = await totals(s.db.client);
+
+    expect(await main(["cleanup", "--run-id", "tamp0003"], s.deps)).toBe(1);
+    expect(await totals(s.db.client)).toEqual(before);
+  });
+
+  it("다른 DB(지문 불일치)에 대한 cleanup은 종료 코드 2로 거부한다", async () => {
+    const s = await setup("tamp0004");
+    const other = await makeMigratedDb();
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: other.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["cleanup", "--run-id", "tamp0004"], deps)).toBe(2);
+    expect((await totals(s.db.client)).consultations).toBe(2);
+  });
+
+  it("손대지 않은 원장이면 정확히 원장 행만(consultations 1, rate 1) 지운다", async () => {
+    const s = await setup("tamp0005");
+
+    expect(await main(["cleanup", "--run-id", "tamp0005"], s.deps)).toBe(3); // 이물 1행이 baseline과 다름
+    expect(await totals(s.db.client)).toEqual({ consultations: 1, rateLimits: 0 });
+    expect(
+      await count(s.db.client, "SELECT COUNT(*) AS c FROM consultations WHERE id = 'decoy-1'")
+    ).toBe(1);
+  });
+});
+
+describe("revert-schema — 0009 마이그레이션을 되돌린다(빈 테이블에서만)", () => {
+  const journal = JSON.parse(
+    readFileSync(path.join(migrationsFolder, "meta", "_journal.json"), "utf8")
+  ) as { entries: { tag: string; when: number }[] };
+  const entry0009 = journal.entries.find((e) => e.tag.startsWith("0009_"));
+
+  async function tableNames(client: Client): Promise<string[]> {
+    const result = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+    );
+    return result.rows.map((r) => String(r.name));
+  }
+
+  it("확인 플래그가 없으면 종료 코드 2, 아무것도 바꾸지 않는다", async () => {
+    const db = await makeMigratedDb();
+    const before = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema"], deps)).toBe(2);
+    expect(await tableNames(db.client)).toEqual(before);
+  });
+
+  it("행이 있으면 거부하고 아무것도 지우지 않는다", async () => {
+    const db = await makeMigratedDb();
+    await seedDecoyRateLimit(db.client);
+    const before = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema", "--confirm-revert-schema"], deps)).toBe(1);
+    expect(await tableNames(db.client)).toEqual(before);
+  });
+
+  it("0009 마이그레이션 행이 없으면 거부한다", async () => {
+    const db = await makeMigratedDb();
+    await db.client.execute({
+      sql: "DELETE FROM __drizzle_migrations WHERE created_at = ?",
+      args: [entry0009?.when ?? 0],
+    });
+    const before = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema", "--confirm-revert-schema"], deps)).toBe(1);
+    expect(await tableNames(db.client)).toEqual(before);
+  });
+
+  it("0009 마이그레이션 행이 둘이면(유일 식별 불가) 거부한다", async () => {
+    const db = await makeMigratedDb();
+    await db.client.execute({
+      sql: "INSERT INTO __drizzle_migrations (hash, created_at) SELECT hash, created_at FROM __drizzle_migrations WHERE created_at = ?",
+      args: [entry0009?.when ?? 0],
+    });
+    const before = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema", "--confirm-revert-schema"], deps)).toBe(1);
+    expect(await tableNames(db.client)).toEqual(before);
+  });
+
+  it("하네스 것이 아닌 트리거가 있으면 거부한다", async () => {
+    const db = await makeMigratedDb();
+    await db.client.execute(
+      "CREATE TRIGGER foreign_trigger BEFORE DELETE ON consultation_rate_limits BEGIN SELECT RAISE(ABORT, 'x'); END"
+    );
+    const before = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema", "--confirm-revert-schema"], deps)).toBe(1);
+    expect(await tableNames(db.client)).toEqual(before);
+    expect(
+      await count(
+        db.client,
+        "SELECT COUNT(*) AS c FROM sqlite_master WHERE name = 'foreign_trigger'"
+      )
+    ).toBe(1);
+  });
+
+  it("빈 마이그레이션 DB에서는 두 테이블과 0009 행만 정확히 지우고 나머지는 건드리지 않는다", async () => {
+    const db = await makeMigratedDb();
+    await db.client.execute("CREATE TABLE decoy_unrelated (id TEXT PRIMARY KEY, note TEXT)");
+    await db.client.execute("INSERT INTO decoy_unrelated (id, note) VALUES ('keep', '남겨야 함')");
+    const migrationRowsBefore = await count(
+      db.client,
+      "SELECT COUNT(*) AS c FROM __drizzle_migrations"
+    );
+    const tablesBefore = await tableNames(db.client);
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["revert-schema", "--confirm-revert-schema"], deps)).toBe(0);
+
+    const tablesAfter = await tableNames(db.client);
+    expect(tablesAfter).toEqual(
+      tablesBefore.filter((t) => t !== "consultations" && t !== "consultation_rate_limits")
+    );
+    expect(await count(db.client, "SELECT COUNT(*) AS c FROM __drizzle_migrations")).toBe(
+      migrationRowsBefore - 1
+    );
+    expect(
+      await count(
+        db.client,
+        "SELECT COUNT(*) AS c FROM __drizzle_migrations WHERE created_at = ?",
+        [entry0009?.when ?? 0]
+      )
+    ).toBe(0);
+    expect(
+      await count(db.client, "SELECT COUNT(*) AS c FROM decoy_unrelated WHERE id = 'keep'")
+    ).toBe(1);
+    expect(
+      await count(
+        db.client,
+        "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'trigger' OR tbl_name IN ('consultations','consultation_rate_limits')"
+      )
+    ).toBe(0);
+  });
+});
+
+describe("트리거 안전 — T3은 라우트 호출이 던져도 트리거를 반드시 지운다", () => {
+  it("submit이 예외를 던져도 finally에서 트리거를 지우고, 원장에 트리거 이름이 남는다", async () => {
+    const db = await makeMigratedDb();
+    const runId = "trig0001";
+    const client = createClient({ url: db.url });
+    openClients.push(client);
+    const drizzleDb = drizzle(client, { schema });
+    const ledger = new LedgerWriter(path.join(stateRoot, runId), {
+      runId,
+      fingerprint: fingerprintOf(db.url),
+      baseline: { consultations: 0, consultation_rate_limits: 0 },
+      name: `가상테스트-${runId}`,
+    });
+    const ctx = createCaseContext({
+      client,
+      db: drizzleDb,
+      runId,
+      secret: "unit-test-secret",
+      ledger,
+      windowRoomMs: 0,
+      submit: async () => {
+        throw new Error("simulated route failure");
+      },
+      launchWorker: () => {
+        throw new Error("worker는 이 테스트에서 쓰지 않는다");
+      },
+    });
+
+    const result = await runTriggerCase(ctx);
+
+    expect(result.status).not.toBe("PASS");
+    expect(
+      await count(client, "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'trigger'")
+    ).toBe(0);
+    const persisted = JSON.parse(
+      readFileSync(path.join(stateRoot, runId, "ledger.json"), "utf8")
+    ) as {
+      trigger: { name: string } | null;
+    };
+    expect(persisted.trigger?.name).toBe(`vt_${runId}_block_delete`);
+  });
+});
+
+describe("순수 헬퍼", () => {
+  it("fingerprintOf는 URL sha256의 앞 8자리 hex다", () => {
+    const url = "libsql://example-db-org.turso.io";
+    expect(fingerprintOf(url)).toBe(createHash("sha256").update(url).digest("hex").slice(0, 8));
+    expect(fingerprintOf(` ${url} `)).toBe(fingerprintOf(url));
+    expect(fingerprintOf(url)).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("maskHost는 호스트 전체를 드러내지 않는다", () => {
+    expect(maskHost("libsql://bosang-radar-org.aws-ap-northeast-1.turso.io")).toBe("bos***.aws***");
+    expect(maskHost("libsql://singlelabel")).toBe("sin***");
+    expect(maskHost("not a url")).toBe("(알 수 없음)");
+  });
+
+  it("redactText는 비밀·호스트를 가리고 빈 문자열은 무시한다", () => {
+    const text = "fail https://x.example.invalid with tok-123 and secret-abc";
+    const redacted = redactText(text, ["tok-123", "secret-abc", "x.example.invalid", ""]);
+    expect(redacted).not.toContain("tok-123");
+    expect(redacted).not.toContain("secret-abc");
+    expect(redacted).not.toContain("x.example.invalid");
+    expect(redacted).toContain("***");
+  });
+
+  it("isValidRunId는 4~12자 소문자·숫자만 허용한다", () => {
+    expect(isValidRunId("abcd1234")).toBe(true);
+    expect(isValidRunId("abc")).toBe(false);
+    expect(isValidRunId("ABCD1234")).toBe(false);
+    expect(isValidRunId("ab-cd_12")).toBe(false);
+    expect(isValidRunId("a".repeat(13))).toBe(false);
+  });
+
+  it("windowStartOf는 60초 고정 윈도 시작이다", () => {
+    expect(windowStartOf(1_790_000_123_456)).toBe(Math.floor(1_790_000_123_456 / 60_000) * 60_000);
+    expect(windowStartOf(120_000)).toBe(120_000);
+    expect(windowStartOf(179_999)).toBe(120_000);
+  });
+
+  it("waitForWindowRoom은 남은 시간이 모자라면 다음 윈도까지 기다린다", async () => {
+    let clock = 59_000; // 윈도 끝 1초 전
+    const slept: number[] = [];
+    const windowStart = await waitForWindowRoom(20_000, {
+      now: () => clock,
+      sleep: async (ms) => {
+        slept.push(ms);
+        clock += ms;
+      },
+    });
+    expect(windowStart).toBe(60_000);
+    expect(60_000 - (clock % 60_000)).toBeGreaterThanOrEqual(20_000);
+    expect(slept.length).toBeGreaterThan(0);
+
+    const calm = await waitForWindowRoom(20_000, { now: () => 130_000, sleep: async () => {} });
+    expect(calm).toBe(120_000);
+  });
+
+  it("computeIpHmac은 라우트가 저장하는 ip_hmac과 같다(실제 라우트 호출로 확인)", async () => {
+    const db = await makeMigratedDb();
+    const client = createClient({ url: db.url });
+    openClients.push(client);
+    const drizzleDb = drizzle(client, { schema });
+    const secret = "unit-hmac-secret";
+    const ip = "198.51.100.77";
+    const request = new NextRequest("http://localhost/api/consultations", {
+      method: "POST",
+      headers: { "x-forwarded-for": ip },
+      body: JSON.stringify({
+        resultId: "vt-unit-result",
+        channel: "kakao",
+        name: "가상테스트-unit",
+        contact: "010-0000-0001",
+        consent: { piiCollection: true, healthInfoUse: true, marketing: false },
+        acknowledgedConsentVersion: CONSENT_VERSION,
+        idempotencyKey: "vt-unit-key",
+      }),
+    });
+
+    const response = await handleConsultationSubmit(request, drizzleDb, {
+      CONSULT_POLICY_READY: "true",
+      RATE_LIMIT_HMAC_SECRET: secret,
+    });
+    expect(response.status).toBe(201);
+
+    const rows = await client.execute("SELECT ip_hmac FROM consultation_rate_limits");
+    expect(rows.rows.map((r) => String(r.ip_hmac))).toEqual([
+      createHmac("sha256", secret).update(ip).digest("hex"),
+    ]);
+    expect(computeIpHmac(secret, ip)).toBe(String(rows.rows[0].ip_hmac));
+  });
+});
