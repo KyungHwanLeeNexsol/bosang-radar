@@ -263,6 +263,13 @@ export async function main(argv: string[]): Promise<number> {
       `프리렌더된 라우트(.next/prerender-manifest.json): [${built.prerendered.join(", ")}]`
     );
     lines.push(built.routeTable);
+    // consult 플래그를 읽는 두 라우트는 프리렌더되면 안 된다. `/`는 consult 플래그를
+    // 읽지 않으므로 표시만 하고 판정하지 않는다.
+    const frozenRoutes = built.prerendered.filter((r) => r === "/consult" || r === "/result");
+    if (frozenRoutes.length > 0) {
+      mismatchCount += frozenRoutes.length;
+      lines.push(`MISMATCH: 빌드 시점에 프리렌더된 라우트 [${frozenRoutes.join(", ")}]`);
+    }
     for (const start of ALL_COMBOS) {
       const observed = await startAndObserve(start);
       const mismatches = compareObservation(start, observed);
