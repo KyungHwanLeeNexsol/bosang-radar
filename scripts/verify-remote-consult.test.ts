@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -23,7 +24,11 @@ import {
   maskHost,
   redactText,
 } from "./verify-remote-consult-guard.ts";
-import { LedgerWriter, computeLedgerChecksum } from "./verify-remote-consult-ledger.ts";
+import {
+  LedgerWriter,
+  computeLedgerChecksum,
+  type Ledger,
+} from "./verify-remote-consult-ledger.ts";
 import { main, type HarnessDeps } from "./verify-remote-consult.ts";
 
 // SPEC-B2C-CONSULT-001 Group 3a — 원격 검증 하네스의 로컬 테스트. 이 파일의 모든 실행은
@@ -38,6 +43,9 @@ const stateRoot = path.join(tmpDir, `vt-state-${process.pid}-${Date.now()}`);
 const CONSENT_VERSION = "2026-09-25-v1";
 const REMOTE_URL = "libsql://vt-test-guard-org.invalid";
 const REMOTE_FP = fingerprintOf(REMOTE_URL);
+const REMOTE_TOKEN = "vt-secret-token-value";
+// 실제 드라이버 오류는 URL을 메시지에 그대로 싣는 경우가 있다 — 하네스가 그 텍스트를 가리는지 본다.
+const STUB_ERROR_MESSAGE = `stub: 연결 실패 ${REMOTE_URL} (token ${REMOTE_TOKEN})`;
 
 const openClients: Client[] = [];
 const createdFiles: string[] = [];
@@ -129,15 +137,15 @@ function makeSpyFactory(): SpyClient {
     const stub = {
       execute: async (stmt: InStatement) => {
         record(stmt);
-        throw new Error("stub: 네트워크 접근 없음");
+        throw new Error(STUB_ERROR_MESSAGE);
       },
       batch: async (stmts: InStatement[]) => {
         stmts.forEach(record);
-        throw new Error("stub: 네트워크 접근 없음");
+        throw new Error(STUB_ERROR_MESSAGE);
       },
       transaction: async () => {
         executed.push("TRANSACTION");
-        throw new Error("stub: 네트워크 접근 없음");
+        throw new Error(STUB_ERROR_MESSAGE);
       },
       close: () => {},
     };
@@ -147,7 +155,7 @@ function makeSpyFactory(): SpyClient {
 }
 
 describe("안전 가드 — 원격 URL은 지문과 쓰기 허용 플래그 없이는 클라이언트도 만들지 않는다", () => {
-  const remoteEnv = { TURSO_DATABASE_URL: REMOTE_URL, TURSO_AUTH_TOKEN: "vt-secret-token-value" };
+  const remoteEnv = { TURSO_DATABASE_URL: REMOTE_URL, TURSO_AUTH_TOKEN: REMOTE_TOKEN };
 
   it.each([
     ["지문 없음 + 쓰기 허용", ["run", "--run-id", "abcd1234", "--allow-write-remote"]],
@@ -212,6 +220,19 @@ describe("안전 가드 — 원격 URL은 지문과 쓰기 허용 플래그 없�
     expect(logs.join("\n")).not.toContain("vt-secret-token-value");
   });
 
+  it("--help는 명령과 종료 코드를 설명하고 0으로 끝난다, 모르는 명령은 2", async () => {
+    const help = makeDeps({});
+    expect(await main(["--help"], help.deps)).toBe(0);
+    const text = help.logs.join("\n");
+    for (const word of ["preflight", "run", "cleanup", "revert-schema", "--expect-fingerprint"]) {
+      expect(text).toContain(word);
+    }
+
+    const unknown = makeDeps({});
+    expect(await main(["explode"], unknown.deps)).toBe(2);
+    expect(await main(["run", "--no-such-flag"], unknown.deps)).toBe(2);
+  });
+
   it("file: URL은 지문·쓰기 허용 플래그 없이 통과한다", async () => {
     const db = await makeMigratedDb();
     const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
@@ -268,6 +289,31 @@ describe("baseline 중단 — 두 상담 테이블이 모두 비어 있지 않�
     );
   });
 
+  it("이전 실행이 남긴 트리거가 있으면 종료 코드 2, 원장이 만들어지지 않고 트리거는 그대로다", async () => {
+    const db = await makeMigratedDb();
+    await db.client.execute(
+      "CREATE TRIGGER vt_left0001_block_delete BEFORE DELETE ON consultation_rate_limits BEGIN SELECT RAISE(ABORT, 'x'); END"
+    );
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["run", "--run-id", "trigleft1", "--window-room-ms", "0"], deps)).toBe(2);
+    expect(existsSync(path.join(stateRoot, "trigleft1"))).toBe(false);
+    expect(
+      await count(db.client, "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'trigger'")
+    ).toBe(1);
+  });
+
+  it("이미 쓴 run-id를 다시 쓰면 종료 코드 2, 기존 원장은 그대로다", async () => {
+    const db = await makeMigratedDb();
+    const runDir = path.join(stateRoot, "reuse0001");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(path.join(runDir, "ledger.json"), "{}");
+    const { deps } = makeDeps({ TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" });
+
+    expect(await main(["run", "--run-id", "reuse0001", "--window-room-ms", "0"], deps)).toBe(2);
+    expect(readFileSync(path.join(runDir, "ledger.json"), "utf8")).toBe("{}");
+  });
+
   it("테이블이 없으면(마이그레이션 전) 종료 코드 2", async () => {
     mkdirSync(tmpDir, { recursive: true });
     const file = path.join(tmpDir, `harness-test-empty-${process.pid}-${Date.now()}.db`);
@@ -307,6 +353,7 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
           status: string;
           checks: { name: string; expected: unknown; observed: unknown; pass: boolean }[];
           requests: unknown[];
+          error?: string;
           rowCounts: { consultations: number; consultation_rate_limits: number };
         }[];
       };
@@ -328,6 +375,9 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
       }
       const t7 = results.cases.find((c) => c.id === "T7");
       expect(t7?.gate).toBe(false);
+      // fork 경로가 실제로 동작했다 — 두 프로세스의 응답이 모두 기록되고 워커 오류가 없다.
+      expect(t7?.error).toBeUndefined();
+      expect(t7?.requests).toHaveLength(2);
       expect(t7?.status).toBe("INFO");
 
       // 3) 원장 — write-ahead로 모든 제출 키와 (window_start, ip_hmac) 쌍이 남아 있다.
@@ -346,9 +396,7 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
         new Set(["route", "marker", "seed-expired"])
       );
       expect(ledger.trigger?.name).toBe(`vt_${runId}_block_delete`);
-      expect(ledger.checksum).toBe(
-        computeLedgerChecksum(ledger as unknown as Parameters<typeof computeLedgerChecksum>[0])
-      );
+      expect(ledger.checksum).toBe(computeLedgerChecksum(ledger as unknown as Ledger));
       expect(ledger.fingerprint).toBe(fingerprintOf(db.url));
 
       // T3의 트리거는 남아 있지 않다.
@@ -434,6 +482,55 @@ describe("전체 로컬 수명주기 — 마이그레이션 → preflight → ru
   );
 });
 
+describe("실제 CLI(tsx) 경로 — 오케스트레이터가 쓰는 실행 방식 그대로", () => {
+  it(
+    "node --import tsx로 run → cleanup까지 돌고, T7 워커가 tsx 아래에서도 뜬다",
+    { timeout: 240_000 },
+    async () => {
+      const db = await makeMigratedDb();
+      const runId = "cli00001";
+      const runDir = path.join(projectRoot, ".moai", "state", "verify", "remote", runId);
+      const cli = (args: string[]) =>
+        spawnSync(
+          process.execPath,
+          [
+            "--import",
+            import.meta.resolve("tsx"),
+            path.join(scriptDir, "verify-remote-consult.ts"),
+            ...args,
+          ],
+          {
+            cwd: projectRoot,
+            env: { ...process.env, TURSO_DATABASE_URL: db.url, TURSO_AUTH_TOKEN: "" },
+            encoding: "utf8",
+            timeout: 200_000,
+          }
+        );
+
+      try {
+        const fingerprint = cli(["fingerprint"]);
+        expect(fingerprint.status).toBe(0);
+        expect(fingerprint.stdout).toContain(fingerprintOf(db.url));
+
+        // T5의 동시 트랜잭션은 로컬 SQLite에서 SQLITE_BUSY로 실패할 수 있다(게이트 실패 → 종료 코드 1).
+        const run = cli(["run", "--run-id", runId, "--window-room-ms", "0"]);
+        expect([0, 1]).toContain(run.status);
+        const results = JSON.parse(readFileSync(path.join(runDir, "results.json"), "utf8")) as {
+          cases: { id: string; error?: string; requests: unknown[] }[];
+        };
+        const t7 = results.cases.find((c) => c.id === "T7");
+        expect(t7?.error).toBeUndefined();
+        expect(t7?.requests).toHaveLength(2);
+
+        expect(cli(["cleanup", "--run-id", runId]).status).toBe(0);
+        expect(cli(["preflight"]).status).toBe(0);
+      } finally {
+        await removeWithRetry(runDir);
+      }
+    }
+  );
+});
+
 describe("cleanup 불일치 안전장치 — 원장과 실제가 어긋나면 아무것도 지우지 않고 멈춘다", () => {
   async function setup(runId: string) {
     const db = await makeMigratedDb();
@@ -503,7 +600,7 @@ describe("cleanup 불일치 안전장치 — 원장과 실제가 어긋나면 �
   it("체크섬을 다시 맞춰도 서명(이름)이 다른 행을 가리키면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
     const s = await setup("tamp0002");
     const before = await totals(s.db.client);
-    const tampered = JSON.parse(s.original) as Parameters<typeof computeLedgerChecksum>[0];
+    const tampered = JSON.parse(s.original) as Ledger;
     tampered.consultations.push({
       caseId: "T4",
       idempotencyKey: "decoy-1-key",
@@ -515,6 +612,33 @@ describe("cleanup 불일치 안전장치 — 원장과 실제가 어긋나면 �
 
     expect(await main(["cleanup", "--run-id", "tamp0002"], s.deps)).toBe(1);
     expect(await totals(s.db.client)).toEqual(before);
+  });
+
+  it("체크섬을 맞추고 키 접두도 맞췄지만 행의 이름 서명이 다르면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
+    const s = await setup("tamp0006");
+    await s.db.client.execute({
+      sql: `INSERT INTO consultations (id, result_id, channel, name, contact_normalized, preferred_call_time,
+        consent_pii_collection, consent_health_info_use, consent_marketing, consent_version,
+        request_fingerprint, application_status, idempotency_key, created_at, updated_at)
+        VALUES ('real-2', 'vt-tamp0006-forged', 'kakao', '진짜고객2', '01000000009', NULL, 1, 1, 0, ?, 'fp', 'received', 'vt-tamp0006-forged-k', 1790000000, 1790000000)`,
+      args: [CONSENT_VERSION],
+    });
+    const before = await totals(s.db.client);
+    const tampered = JSON.parse(s.original) as Ledger;
+    tampered.consultations.push({
+      caseId: "T4",
+      idempotencyKey: "vt-tamp0006-forged-k",
+      resultId: "vt-tamp0006-forged",
+      contactNormalized: "01000000009",
+    });
+    tampered.checksum = computeLedgerChecksum(tampered);
+    writeFileSync(s.ledgerFile, JSON.stringify(tampered));
+
+    expect(await main(["cleanup", "--run-id", "tamp0006"], s.deps)).toBe(1);
+    expect(await totals(s.db.client)).toEqual(before);
+    expect(
+      await count(s.db.client, "SELECT COUNT(*) AS c FROM consultations WHERE id = 'real-2'")
+    ).toBe(1);
   });
 
   it("원장에 없는데 우리 서명(이름)을 단 행이 있으면 종료 코드 1, 아무 행도 지우지 않는다", async () => {
