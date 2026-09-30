@@ -4,6 +4,8 @@ import { CheckCircle2 } from "lucide-react";
 
 import type { ConsultationChannel } from "@/lib/consult/types";
 
+import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
+
 // SPEC-B2C-CONSULT-001 M5 (design.md §10, §9.4; acceptance AC-B2CCONSULT-018
 // 최초 제출 성공 응답 형태) — 03-B/M03-B 성공 상태. 서버 응답(maskedContact/
 // preferredCallTime)만 그대로 렌더링하고 재계산하지 않는다. "상담 예정
@@ -25,19 +27,6 @@ interface ConsultSuccessProps {
    * 자동으로 되돌리지 않고, 스크린 리더도 새 화면 진입을 자동으로 알리지
    * 않는다. */
   titleRef?: Ref<HTMLHeadingElement>;
-}
-
-// 모바일 카드는 디자인 export(M03-B)처럼 카드 자체의 세로 여백 없이 행이 테두리에
-// 바로 붙고 행 구분선이 카드 폭 끝까지 이어진다(디자인 175px, 구현 211px 실측 —
-// progress.md 열린 항목 7). 그래서 모바일은 행이 px-4를 갖고, md 이상은 디자인을
-// 재지 않아 기존대로 카드가 p-4를 갖는다.
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between border-b border-app-line px-4 py-3 last:border-b-0 md:px-0">
-      <dt className="text-body-s text-bora-ink-3">{label}</dt>
-      <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
-    </div>
-  );
 }
 
 export function ConsultSuccess({
@@ -68,7 +57,7 @@ export function ConsultSuccess({
 
       <dl
         data-testid="consult-success-summary"
-        className="mt-[2px] w-full rounded-[12px] border border-app-line bg-app-surface text-left md:mt-14 md:p-4"
+        className={`mt-[2px] md:mt-0 ${SUMMARY_CARD_CLASS}`}
       >
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={maskedContact} />
@@ -82,7 +71,7 @@ export function ConsultSuccess({
         접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다
       </p>
 
-      <div className="mt-[3px] flex w-full flex-col items-center gap-2 md:mt-[-39px] md:w-auto md:flex-row md:justify-center">
+      <div className="mt-[6px] flex w-full flex-col items-center gap-2 md:mt-0 md:w-auto md:flex-row md:justify-center">
         <Link
           href="/result"
           data-testid="consult-success-back-cta"

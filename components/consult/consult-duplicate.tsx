@@ -4,6 +4,8 @@ import { Clock } from "lucide-react";
 
 import type { ConsultationChannel } from "@/lib/consult/types";
 
+import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
+
 // SPEC-B2C-CONSULT-001 M5 (design.md §10, §9.4; acceptance AC-B2CCONSULT-023,
 // REQ-B2CCONSULT-020) — 03-C/M03-C 중복 상태. 서버 duplicate 응답에는
 // channel 필드가 없으므로(lib/consult/types.ts ConsultationSubmitResult
@@ -36,15 +38,6 @@ interface ConsultDuplicateProps {
   titleRef?: Ref<HTMLHeadingElement>;
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between border-b border-app-line py-3 last:border-b-0">
-      <dt className="text-body-s text-bora-ink-3">{label}</dt>
-      <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
-    </div>
-  );
-}
-
 export function ConsultDuplicate({
   channel,
   maskedContact,
@@ -72,10 +65,7 @@ export function ConsultDuplicate({
         이미 접수된 상담 신청이 있습니다
       </h1>
 
-      <dl
-        data-testid="consult-duplicate-summary"
-        className="mt-8 w-full rounded-[12px] border border-app-line bg-app-surface p-4 text-left md:mt-10"
-      >
+      <dl data-testid="consult-duplicate-summary" className={`mt-8 md:mt-10 ${SUMMARY_CARD_CLASS}`}>
         <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
         <SummaryRow label="연락처" value={maskedContact} />
         <SummaryRow label="접수일" value={receivedAt} />
