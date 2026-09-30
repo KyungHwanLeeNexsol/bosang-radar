@@ -26,7 +26,18 @@
 
 import { randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONSENT_POLICY_VERSION } from "../lib/consult/consent-policy.ts";
@@ -231,7 +242,10 @@ export function findPrerenderedRoutes(
 }
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DB_URL = "file:./.tmp/flag-runtime.db";
+// standalone server.js는 시작하면서 process.chdir(.next/standalone)을 하므로 상대 `file:` URL이
+// 엉뚱한 디렉터리를 가리킨다(SQLITE_CANTOPEN, 관측됨). standalone 모드에서만 절대 경로를 쓴다.
+const DB_URL_RELATIVE = "file:./.tmp/flag-runtime.db";
+let dbUrl = DB_URL_RELATIVE;
 const LOG_DIR = path.join(PROJECT_ROOT, ".moai", "state", "verify", "group4");
 const FLAG_KEY_RE =
   /^(TURSO_|ENABLE_|CONSULT_|DIAGNOSIS_|RATE_LIMIT_|LLM_PROVIDER_|GEMINI_|PORT$|HOSTNAME$)/;
@@ -250,7 +264,7 @@ function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   for (const key of Object.keys(env)) {
     if (FLAG_KEY_RE.test(key)) delete env[key];
   }
-  env.TURSO_DATABASE_URL = DB_URL;
+  env.TURSO_DATABASE_URL = dbUrl;
   env.TURSO_AUTH_TOKEN = "";
   env.LLM_PROVIDER_MODE = "deterministic";
   env.ENABLE_DIAGNOSIS_FLOW = String(flags.diag.flow);
@@ -284,9 +298,31 @@ interface BuildResult {
   readonly routeTable: string;
 }
 
+// Windows 전용 환경 우회. Windows에서 pnpm 프로젝트의 `next build`(standalone)는
+// `.next/standalone/node_modules` 아래 디렉터리 심볼릭 링크를 "파일 심볼릭 링크"로
+// 만들어 `node server.js`가 첫 require에서 EPERM(stat)으로 죽는다(Linux 배포 환경에는
+// 없는 문제). 그 링크를 디렉터리 junction으로 바꿔 서버가 뜨게 한다. 서버 코드·환경
+// 변수·진입점은 그대로이고 `.next/`(gitignored) 아래만 건드린다.
+function repairWindowsSymlinks(dir: string): void {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      const target = path.resolve(dir, readlinkSync(entryPath));
+      if (!statSync(target).isDirectory()) continue;
+      rmSync(entryPath, { force: true });
+      symlinkSync(target, entryPath, "junction");
+    } else if (entry.isDirectory()) {
+      repairWindowsSymlinks(entryPath);
+    }
+  }
+}
+
 // deploy.yml의 "copy static assets into standalone output" 단계와 같은 복사.
 // `.next/` 아래(gitignored)만 건드린다.
 function copyStandaloneAssets(): void {
+  if (process.platform === "win32") {
+    repairWindowsSymlinks(path.join(PROJECT_ROOT, ".next", "standalone", "node_modules"));
+  }
   const standaloneNext = path.join(PROJECT_ROOT, ".next", "standalone", ".next");
   rmSync(path.join(standaloneNext, "static"), { recursive: true, force: true });
   rmSync(path.join(PROJECT_ROOT, ".next", "standalone", "public"), {
@@ -423,6 +459,10 @@ export async function main(argv: string[]): Promise<number> {
   const server: ServerMode = (serverArg ?? "next-start") as ServerMode;
   if (server !== "next-start" && server !== "standalone") {
     throw new Error(`알 수 없는 --server 값: ${String(serverArg)}`);
+  }
+
+  if (server === "standalone") {
+    dbUrl = `file:${path.join(PROJECT_ROOT, ".tmp", "flag-runtime.db").replaceAll("\\", "/")}`;
   }
 
   mkdirSync(LOG_DIR, { recursive: true });
