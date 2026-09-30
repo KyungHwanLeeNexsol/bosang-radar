@@ -3394,6 +3394,46 @@ exit=1
 
 **Residual-risk**: 구성이 다중 프로세스이면 T7 동작(응답 불일치, 한도 이중 소비)이 이미 운영에 적용되는 것이다. 단일 프로세스로 관측되면 그 사실을 §12.5에 기록하고 §12.3 조건이 인스턴스 증가의 선행 조건으로 남는다. 관측 전에는 열린 항목 24를 해소로 표시하지 않는다.
 
+### D-NEW-23 — `/` 탭 제목을 진단 게이트와 일치시킴, T7은 여전히 미관측 (이번 세션)
+
+사용자 지시(2026-09-30): PR #22 head `29e1af3`의 마지막 후속 수정만 진행한다. `app/page.tsx`의 정적 `metadata.title`이 항상 "서비스 준비 중"이라 게이트가 열려도 제목이 어긋나는 문제를 `/result`와 같은 `generateMetadata()`로 고치고, 플래그 조합별로 제목과 본문 상태가 함께 일치하는 회귀 검증을 더한다. T7은 처리 완료로 표시하지 않고 운영 구성 관측값을 받은 뒤 판정한다. `main` 병합과 `CONSULT_POLICY_READY` 활성화는 하지 않고 PR은 Draft를 유지한다.
+
+**Claim 73 — `/`의 탭 제목이 본문과 같은 게이트 판정을 따르도록 고쳤고, 단위·실서버 두 층에서 제목과 본문 상태가 조합마다 일치함을 확인했다.**
+
+**Evidence (RED → GREEN)**: `app/page.test.tsx`의 기존 5행 게이트 행렬에 `generateMetadata()` 제목 단언을 더하고 정적 `metadata` 미export 단언을 추가했다. 수정 전 `pnpm exec vitest run app/page.test.tsx`는 exit 1, 6개 실패(행렬 5행 `TypeError: generateMetadata is not a function`, 정적 `metadata` 잔존 1건). `app/page.tsx`를 `/result`와 같은 방식(`computeDiagnosisFlags(process.env)`로 `shouldRenderDiagnosis`가 참이면 "보상 진단", 거짓이면 "서비스 준비 중")으로 고친 뒤 11/11 통과. `scripts/verify-flag-runtime.ts`에는 `/`·`/result` 응답의 `<title>` 관측과 기대값(열림: "보상 진단"·"보상 진단 결과", 닫힘: 둘 다 "서비스 준비 중") 비교를 더했고, 단위 테스트를 먼저 써서 5개 실패를 확인한 뒤 통과시켰다(18/18). 로그: gitignored `.moai/state/verify/d-new-23/`.
+
+| 단계 | 명령 | 결과 |
+|---|---|---|
+| 1 | `pnpm exec tsc --noEmit` | exit 0 |
+| 2 | `pnpm lint` | exit 0 |
+| 3 | `pnpm test` | exit 0 — 99 파일 / 837 테스트 통과 (이전 833 + 이번 4) |
+| 4 | `pnpm format:check` | **exit 1 — 3개**: `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md` (D-NEW-22 Claim 71과 같은 기존 항목). 수정한 4개 파일은 `prettier --check` 통과 |
+| 5 | `pnpm test:e2e` (전체) | exit 0 — 46 passed |
+| 6 | `E2E_CONSULT_POLICY_READY=false pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts` | exit 0 — 11 passed |
+| 7 | `pnpm visual:verify` (제약 없는 전체) | exit 0 — 24화면 PASS |
+| 8 | `pnpm verify:flag-runtime` (`next start`) | exit 0 — 불일치 0, 프리렌더된 페이지 라우트 없음, 8개 시작 조합 모두 `/`·`/result` 제목이 게이트와 일치 |
+| 9 | `pnpm verify:flag-runtime --server=standalone` | exit 0 — 불일치 0 (Windows 개발 머신에서만 관측) |
+
+실서버 관측(8개 시작 조합, 두 빌드 모두): 게이트가 열린 조합(DEV_ONLY, FLOW+ENGINE, 전부 열림)에서 `/` 제목 "보상 진단"·`/result` 제목 "보상 진단 결과", 닫힌 조합(모두 닫힘, FLOW만)에서 둘 다 "서비스 준비 중"이었다. `visual:verify` 실행은 추적되는 증거 파일 8개를 다시 썼고 커밋 상태로 복원했다.
+
+**Baseline-attribution**: 이번 세션 실행. 검증한 트리는 `29e1af3` 위에 `app/page.tsx`, `app/page.test.tsx`, `scripts/verify-flag-runtime.ts`, `scripts/verify-flag-runtime.test.ts` 네 파일의 변경을 얹은 것이다. 이 절을 포함하는 커밋은 위 네 파일 외에 이 문서만 더했으므로, 커밋 뒤의 head는 같은 코드 트리다(커밋은 자기 SHA를 기록할 수 없어 SHA는 PR 본문에 적는다).
+
+**판단(사용자 확인 필요)**: 게이트가 열렸을 때 `/`의 제목 문구 "보상 진단"은 SPEC·디자인에 지정된 문구가 없어 내가 정했다. 진단 화면의 CTA 문구와 `/result`의 "보상 진단 결과"와 짝을 맞춘 것이며, 다른 문구를 원하면 `app/page.tsx` 한 곳과 두 테스트 파일의 상수만 바꾸면 된다.
+
+**Gaps(미검증)**: (1) Linux standalone, PM2가 재시작 때 바뀐 env를 다시 읽는지는 관측하지 못했다. (2) `/`의 요청 시점 렌더링 비용은 측정하지 않았다. (3) 실제 브라우저 탭 표시는 보지 않았고 HTML `<title>`만 확인했다. (4) 위 e2e는 제목을 단언하지 않는다(제목은 단위와 `verify:flag-runtime`이 검증한다).
+
+**Residual-risk**: 제목 문구는 사용자 승인 전이다. 시각 정합 승인·`.pen` 대조는 여전히 없다.
+
+**Claim 74 — T7은 이번에도 해소되지 않았다. 운영 PM2·Nginx 구성 관측값을 아직 받지 못했다.**
+
+**Evidence**: 작업자는 운영 VM에 접속할 수 없다. 런북 §12.4의 읽기 전용 명령을 사용자가 실행하도록 안내했고, PM2 모드·인스턴스 수·앱 프로세스 수·Nginx 연결 대상 출력은 받지 못했다. 코드(`route.ts`, 원격 회귀 시험)와 런북 §12는 바꾸지 않았고 §12.5 관측 기록란은 "미관측"이다.
+
+**Baseline-attribution**: 이번 세션. 운영 관측값은 없다.
+
+**Gaps(미검증)**: 실제 PM2 `exec_mode`·`instances`·프로세스 수, 앱 포트·프로세스 수, PM2 데몬 수, Nginx가 연결하는 인스턴스 수.
+
+**Residual-risk**: 다중 프로세스로 관측되면 T7 동작(응답 불일치, 한도 이중 소비)이 이미 운영에 적용되는 것이므로 코드 수정과 원격 회귀 시험(`pnpm verify:remote-consult`의 T6·T7)이 `CONSULT_POLICY_READY`를 켜기 전의 선행 과제다. 단일 프로세스로 관측되면 §12.5에 기록하고 §12.3 조건이 인스턴스 증가의 선행 조건으로 남는다. 관측 전에는 열린 항목 24를 해소로 표시하지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3418,6 +3458,7 @@ exit=1
 - **업데이트 16(D-NEW-21, 이번 세션)**: 사용자 결정에 따라 `/`도 `force-dynamic`으로 바꿔 `/`·`/result`·`/consult`가 모두 요청 시점에 게이트를 판정하게 맞췄다(빌드 2종 x 시작 8조합 불일치 31건 → 0건, `next start`와 standalone 모두, Claim 68-69). FOUNDATION-001의 "정적 렌더링" 문구와의 편차는 주석·런북 §11에 기록했고 SPEC 본문은 수정하지 않았다. 성공 화면을 전화·카카오 두 채널, 데스크톱·모바일에서 실제 레이아웃으로 계측해 정상 값에서는 결함이 없음을 확인하고, 길이 상한이 없는 연락 희망 시간의 공백 없는 긴 값에서 카드 밖 넘침 1건을 재현해 `SummaryRow`에서 고쳤다(Claim 70). 카카오 3행 카드는 디자인 캡처가 없어 디자인 정합은 검증하지 않았다. PM2 env 재읽기·Linux standalone·전체 e2e/`visual:verify`는 이번에 검증하지 않았다. 배포 준비 완료·감사 준비 완료·시각 승인·`.pen` 정합을 선언하지 않는다. `run_status`는 유지한다.
 
 - **업데이트 17(D-NEW-22, 이번 세션)**: 수정 후 HEAD `d396a32`에서 `tsc`·`lint`·단위(99/833)·e2e 전체(46)·정책 미준비 e2e(11)·`visual:verify`(24/24)·`verify:flag-runtime`(`next start`, standalone)을 다시 실행해 모두 exit 0이었고 `format:check`만 기존 3개 실패로 exit 1이다(Claim 71). T7은 **해소되지 않았다** — 운영 PM2·Nginx 구성은 관측하지 못했고 사용자가 실행할 읽기 전용 명령(런북 §12.4)의 출력을 기다린다(Claim 72). 전제와 배포 절차 조건은 런북 §12에 "미관측"으로 적었다. `run_status`는 `amended-pending-revalidation`을 유지하며, 시각 정합 승인·`.pen` 대조·운영 구성 관측이 없으므로 audit-ready나 배포 준비 완료로 선언하지 않는다.
+- **업데이트 18(D-NEW-23, 이번 세션)**: `/`의 정적 `metadata.title`을 `generateMetadata()`로 바꿔 진단 게이트가 열리면 "보상 진단", 닫히면 "서비스 준비 중"을 반환하게 했고, 단위(5행 행렬에서 제목·본문 동반 단언)와 실서버(`verify:flag-runtime`이 `/`·`/result`의 `<title>`도 검사) 두 층으로 검증했다(Claim 73). 수정 후 `tsc`·`lint`·단위(99/837)·e2e(46 + 11)·`visual:verify`(24화면)·`verify:flag-runtime`(`next start`, standalone)이 모두 exit 0이고 `format:check`만 기존 3개 실패로 exit 1이다. T7은 **해소되지 않았다** — 운영 관측값을 아직 받지 못했다(Claim 74). `run_status`는 유지하며 audit-ready나 배포 준비 완료로 선언하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 

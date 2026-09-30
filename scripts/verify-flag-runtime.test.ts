@@ -137,24 +137,31 @@ describe("compareObservation — 진단 게이트가 닫혀 있을 때", () => {
 
 // SPEC-B2C-CONSULT-001 D-NEW-21 — `/`와 `/result`의 진단 게이트 판정.
 
-const CLOSED_HTML = "<h1>서비스 준비 중입니다</h1>";
-const OPEN_HOME_HTML = '<div>{\\"enableDevStates\\":false}</div>';
+// D-NEW-23 — `/`와 `/result`의 <title>도 본문 게이트와 같은 상태여야 한다.
+const CLOSED_HTML = "<title>서비스 준비 중</title><h1>서비스 준비 중입니다</h1>";
+const OPEN_HOME_HTML = '<title>보상 진단</title><div>{\\"enableDevStates\\":false}</div>';
 const OPEN_RESULT_HTML =
-  '<div>{\\"enableDevFixture\\":false,\\"shouldRenderConsult\\":false}</div>';
+  '<title>보상 진단 결과</title><div>{\\"enableDevFixture\\":false,\\"shouldRenderConsult\\":false}</div>';
 
 describe("expectedDiagnosisObservation", () => {
   it("시작 시점 env의 computeDiagnosisFlags 결과를 그대로 따른다", () => {
     expect(expectedDiagnosisObservation({ flow: false, engine: false, dev: false })).toEqual({
       gate: "closed",
       devProp: null,
+      homeTitle: "서비스 준비 중",
+      resultTitle: "서비스 준비 중",
     });
     expect(expectedDiagnosisObservation({ flow: true, engine: true, dev: false })).toEqual({
       gate: "open",
       devProp: false,
+      homeTitle: "보상 진단",
+      resultTitle: "보상 진단 결과",
     });
     expect(expectedDiagnosisObservation({ flow: false, engine: false, dev: true })).toEqual({
       gate: "open",
       devProp: true,
+      homeTitle: "보상 진단",
+      resultTitle: "보상 진단 결과",
     });
     // ENGINE_READY 없이 FLOW만 켜도 운영 게이트는 열리지 않는다.
     expect(expectedDiagnosisObservation({ flow: true, engine: false, dev: false }).gate).toBe(
@@ -181,10 +188,39 @@ describe("compareDiagnosisObservation", () => {
       homeDevStatesProp: false,
       resultGate: "open",
       resultDevFixtureProp: false,
+      homeTitle: "보상 진단",
+      resultTitle: "보상 진단 결과",
     });
     expect(compareDiagnosisObservation({ flow: true, engine: true, dev: false }, openOpen)).toEqual(
       []
     );
+  });
+
+  it("게이트는 열렸는데 / 제목이 정적 값으로 굳으면 제목 불일치만 보고한다", () => {
+    const staleTitle = buildDiagnosisObservation(
+      OPEN_HOME_HTML.replace("<title>보상 진단</title>", "<title>서비스 준비 중</title>"),
+      OPEN_RESULT_HTML
+    );
+    expect(
+      compareDiagnosisObservation({ flow: true, engine: true, dev: false }, staleTitle)
+    ).toEqual(['/ 제목: 기대 "보상 진단" / 관측 "서비스 준비 중"']);
+  });
+
+  it("게이트가 닫혔는데 /result 제목이 결과 화면 제목이면 제목 불일치만 보고한다", () => {
+    const wrongTitle = buildDiagnosisObservation(
+      CLOSED_HTML,
+      CLOSED_HTML.replace("<title>서비스 준비 중</title>", "<title>보상 진단 결과</title>")
+    );
+    expect(
+      compareDiagnosisObservation({ flow: false, engine: false, dev: false }, wrongTitle)
+    ).toEqual(['/result 제목: 기대 "서비스 준비 중" / 관측 "보상 진단 결과"']);
+  });
+
+  it("<title>이 응답에 없으면 관측 없음으로 보고한다", () => {
+    const noTitle = buildDiagnosisObservation("<h1>서비스 준비 중입니다</h1>", CLOSED_HTML);
+    expect(
+      compareDiagnosisObservation({ flow: false, engine: false, dev: false }, noTitle)
+    ).toEqual(['/ 제목: 기대 "서비스 준비 중" / 관측 "(없음)"']);
   });
 
   it("/는 빌드 시점에 닫혀 굳고 /result만 열린 어긋남을 SKEW로 보고한다", () => {

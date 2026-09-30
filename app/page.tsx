@@ -40,11 +40,20 @@ import { computeDiagnosisFlags } from "@/lib/diagnosis/flags";
 // 접근 가능")는 이제 사실이 아니다. 지켜지는 것은 세션 확인 없음·다른 런타임 의존성
 // 없음(process.env 읽기뿐)·PII 미수집·항상 접근 가능(게이트가 닫혀도 placeholder를
 // 200으로 응답)이다. SPEC 본문은 수정하지 않았고 편차는 progress.md D-NEW-21에 기록한다.
+//
+// SPEC-B2C-CONSULT-001 D-NEW-23 — 본문은 요청마다 게이트를 판정하도록 고쳤지만 정적
+// `metadata`는 게이트와 무관하게 항상 "서비스 준비 중"이라, 게이트가 열려 진단 화면이
+// 뜰 때도 탭 제목이 어긋났다. app/result/page.tsx(RESULT-001 D2)와 같은 방식으로
+// generateMetadata()가 동일한 computeDiagnosisFlags() 결과로 제목을 고른다. 게이트가
+// 닫힌 화면 본문의 "서비스 준비 중입니다" 문구와 닫힌 상태의 제목은 그대로다.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "서비스 준비 중",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);
+  return {
+    title: shouldRenderDiagnosis ? "보상 진단" : "서비스 준비 중",
+  };
+}
 
 export default function Home() {
   const { reviewEnabled, shouldRenderDiagnosis } = computeDiagnosisFlags(process.env);

@@ -152,14 +152,22 @@ export interface DiagnosisObservation {
   readonly resultGate: GateState;
   /** `/result`의 <ResultView enableDevFixture> prop (닫혀 있으면 null) */
   readonly resultDevFixtureProp: boolean | null;
+  /** `/` 응답의 <title> (D-NEW-23: 본문 게이트와 같은 상태여야 한다) */
+  readonly homeTitle: string | null;
+  /** `/result` 응답의 <title> */
+  readonly resultTitle: string | null;
 }
 
 const PLACEHOLDER_TEXT = "서비스 준비 중입니다";
+const HOME_OPEN_TITLE = "보상 진단";
+const RESULT_OPEN_TITLE = "보상 진단 결과";
 
 // 시작 시점 env로 computeDiagnosisFlags를 그대로 계산한 기대 상태.
 export function expectedDiagnosisObservation(start: DiagnosisFlagInput): {
   gate: GateState;
   devProp: boolean | null;
+  homeTitle: string;
+  resultTitle: string;
 } {
   const { shouldRenderDiagnosis, reviewEnabled } = computeDiagnosisFlags({
     ENABLE_DIAGNOSIS_FLOW: String(start.flow),
@@ -169,6 +177,8 @@ export function expectedDiagnosisObservation(start: DiagnosisFlagInput): {
   return {
     gate: shouldRenderDiagnosis ? "open" : "closed",
     devProp: shouldRenderDiagnosis ? reviewEnabled : null,
+    homeTitle: shouldRenderDiagnosis ? HOME_OPEN_TITLE : CLOSED_TITLE,
+    resultTitle: shouldRenderDiagnosis ? RESULT_OPEN_TITLE : CLOSED_TITLE,
   };
 }
 
@@ -200,6 +210,8 @@ export function buildDiagnosisObservation(
     homeDevStatesProp,
     resultGate: extractGateState(resultHtml, resultDevFixtureProp),
     resultDevFixtureProp,
+    homeTitle: extractTitle(homeHtml),
+    resultTitle: extractTitle(resultHtml),
   };
 }
 
@@ -226,6 +238,16 @@ export function compareDiagnosisObservation(
   if (observed.resultDevFixtureProp !== expected.devProp) {
     mismatches.push(
       `/result enableDevFixture: 기대 ${String(expected.devProp)} / 관측 ${String(observed.resultDevFixtureProp)}`
+    );
+  }
+  if (observed.homeTitle !== expected.homeTitle) {
+    mismatches.push(
+      `/ 제목: 기대 "${expected.homeTitle}" / 관측 "${observed.homeTitle ?? "(없음)"}"`
+    );
+  }
+  if (observed.resultTitle !== expected.resultTitle) {
+    mismatches.push(
+      `/result 제목: 기대 "${expected.resultTitle}" / 관측 "${observed.resultTitle ?? "(없음)"}"`
     );
   }
   return mismatches;
@@ -508,6 +530,7 @@ export async function main(argv: string[]): Promise<number> {
           `/result=${observed.diagnosis.resultGate} ` +
           `(/.enableDevStates=${String(observed.diagnosis.homeDevStatesProp)} ` +
           `/result.enableDevFixture=${String(observed.diagnosis.resultDevFixtureProp)}) ` +
+          `/title="${observed.diagnosis.homeTitle}" /result.title="${observed.diagnosis.resultTitle}" ` +
           `/consult="${observed.consult.consultTitle}" ` +
           `/consult.isPolicyReady=${String(observed.consult.consultPolicyProp)} ` +
           `/result.consultProp=${String(observed.consult.resultConsultProp)} ` +
