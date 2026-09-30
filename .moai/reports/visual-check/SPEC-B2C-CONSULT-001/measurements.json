@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T08:28:39.415Z",
+  "generatedAt": "2026-09-30T00:58:54.248Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -2239,26 +2239,33 @@
           "key": "summary",
           "label": "성공 요약",
           "design": {
-            "left": 420,
-            "top": 325,
-            "width": 600,
-            "height": 164
+            "left": 400,
+            "top": 306,
+            "width": 640,
+            "height": 200
           },
           "impl": {
-            "left": 397,
-            "top": 326,
-            "width": 646,
-            "height": 145
+            "left": 400,
+            "top": 237.5,
+            "width": 640,
+            "height": 200
           },
           "delta": {
-            "left": 23,
-            "top": 1,
-            "width": 46,
-            "height": 19
+            "left": 0,
+            "top": 68.5,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 4
           },
+          "borderBoxSkipped": [
+            {
+              "axis": "top",
+              "reason": "design.md §10(413행) 순서는 요약 표 → 안내 문구 → CTA인데 디자인 목업은 안내 문구를 카드 위(제목~카드 사이)에 둔다. 이번 PR-fix에서 사용자가 SPEC 순서 유지를 결정해 카드 위 공간이 목업(안내 문구 높이+간격)보다 좁다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+              "delta": 68.5
+            }
+          ],
           "text": "상담 방식전화 상담연락처010-****-5678연락 희망 시간평일 오후 (13시 ~ 18시)상담 예정 전문가배정 예정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
@@ -2275,15 +2282,15 @@
             "height": 49
           },
           "impl": {
-            "left": 566,
-            "top": 529,
-            "width": 152,
+            "left": 568,
+            "top": 501,
+            "width": 147,
             "height": 48
           },
           "delta": {
-            "left": 60,
-            "top": 1,
-            "width": 276,
+            "left": 62,
+            "top": 27,
+            "width": 281,
             "height": 1
           },
           "lines": {
@@ -2313,6 +2320,12 @@
           "label": "원시 연락처 문자열 DOM 부재",
           "expected": "false",
           "actual": "false",
+          "pass": true
+        },
+        {
+          "label": "카드 → 안내 → CTA 세로 순서·비겹침(실제 DOM rect)",
+          "expected": "none",
+          "actual": "none",
           "pass": true
         }
       ],
@@ -2791,27 +2804,34 @@
           "key": "summary",
           "label": "중복 요약",
           "design": {
-            "left": 420,
-            "top": 350,
-            "width": 600,
-            "height": 164
+            "left": 400,
+            "top": 331,
+            "width": 640,
+            "height": 200
           },
           "impl": {
-            "left": 397,
-            "top": 310,
-            "width": 646,
-            "height": 145
+            "left": 400,
+            "top": 277.5,
+            "width": 640,
+            "height": 200
           },
           "delta": {
-            "left": 23,
-            "top": 40,
-            "width": 46,
-            "height": 19
+            "left": 0,
+            "top": 53.5,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 4
           },
-          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-29처리 상태접수됨",
+          "borderBoxSkipped": [
+            {
+              "axis": "top",
+              "reason": "design.md §10(417행) 03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+              "delta": 53.5
+            }
+          ],
+          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-30처리 상태접수됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -2828,13 +2848,13 @@
           },
           "impl": {
             "left": 711,
-            "top": 509,
+            "top": 498,
             "width": 147,
             "height": 47
           },
           "delta": {
             "left": 184,
-            "top": 134,
+            "top": 145,
             "width": 239,
             "height": 2
           },
@@ -3323,26 +3343,27 @@
           "key": "summary",
           "label": "실패 요약(입력 보존)",
           "design": {
-            "left": 420,
-            "top": 350,
-            "width": 600,
-            "height": 164
+            "left": 400,
+            "top": 331,
+            "width": 640,
+            "height": 200
           },
           "impl": {
-            "left": 397,
-            "top": 357,
-            "width": 646,
-            "height": 146
+            "left": 400,
+            "top": 331.09,
+            "width": 640,
+            "height": 200
           },
           "delta": {
-            "left": 23,
-            "top": 7,
-            "width": 46,
-            "height": 18
+            "left": 0,
+            "top": 0.09,
+            "width": 0,
+            "height": 0
           },
           "lines": {
             "actual": 4
           },
+          "borderBoxSkipped": [],
           "text": "상담 방식전화 상담연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
@@ -3430,7 +3451,7 @@
           "pass": true
         }
       ],
-      "maxDelta": 7,
+      "maxDelta": 2,
       "pass": true
     },
     {
@@ -4597,23 +4618,24 @@
             "left": 20,
             "top": 248,
             "width": 350,
-            "height": 303
+            "height": 176
           },
           "impl": {
             "left": 20,
-            "top": 248,
+            "top": 247.5,
             "width": 350,
-            "height": 179
+            "height": 176
           },
           "delta": {
             "left": 0,
-            "top": 0,
+            "top": 0.5,
             "width": 0,
-            "height": 124
+            "height": 0
           },
           "lines": {
             "actual": 4
           },
+          "borderBoxSkipped": [],
           "text": "상담 방식전화 상담연락처010-****-5678연락 희망 시간평일 오후 (13시 ~ 18시)상담 예정 전문가배정 예정",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
@@ -4668,6 +4690,12 @@
           "label": "원시 연락처 문자열 DOM 부재",
           "expected": "false",
           "actual": "false",
+          "pass": true
+        },
+        {
+          "label": "카드 → 안내 → CTA 세로 순서·비겹침(실제 DOM rect)",
+          "expected": "none",
+          "actual": "none",
           "pass": true
         }
       ],
@@ -5055,27 +5083,34 @@
           "key": "summary",
           "label": "중복 요약",
           "design": {
-            "left": 35,
-            "top": 319,
-            "width": 320,
-            "height": 145
+            "left": 20,
+            "top": 302,
+            "width": 350,
+            "height": 176
           },
           "impl": {
-            "left": 37,
-            "top": 294,
-            "width": 316,
-            "height": 145
+            "left": 20,
+            "top": 261.5,
+            "width": 350,
+            "height": 176
           },
           "delta": {
-            "left": 2,
-            "top": 25,
-            "width": 4,
+            "left": 0,
+            "top": 40.5,
+            "width": 0,
             "height": 0
           },
           "lines": {
             "actual": 4
           },
-          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-29처리 상태접수됨",
+          "borderBoxSkipped": [
+            {
+              "axis": "top",
+              "reason": "design.md §10(417행) M03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+              "delta": 40.5
+            }
+          ],
+          "text": "상담 방식카카오톡 상담연락처010-****-5678접수일2026-09-30처리 상태접수됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
@@ -5092,13 +5127,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 517,
+            "top": 482,
             "width": 350,
             "height": 48
           },
           "delta": {
             "left": 0,
-            "top": 38,
+            "top": 73,
             "width": 0,
             "height": 2
           },
@@ -5531,19 +5566,20 @@
           },
           "impl": {
             "left": 20,
-            "top": 302,
+            "top": 302.09,
             "width": 350,
-            "height": 179
+            "height": 176
           },
           "delta": {
             "left": 0,
-            "top": 0,
+            "top": 0.09,
             "width": 0,
-            "height": 3
+            "height": 0
           },
           "lines": {
             "actual": 4
           },
+          "borderBoxSkipped": [],
           "text": "상담 방식전화 상담연락처01012345678연락 희망 시간평일 오후 (13시 ~ 18시)입력 내용유지됨",
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
@@ -5561,13 +5597,13 @@
           },
           "impl": {
             "left": 18,
-            "top": 577,
+            "top": 574,
             "width": 354,
             "height": 52
           },
           "delta": {
             "left": 2,
-            "top": 3,
+            "top": 0,
             "width": 4,
             "height": 2
           },
@@ -5591,13 +5627,13 @@
           },
           "impl": {
             "left": 20,
-            "top": 635,
+            "top": 632,
             "width": 350,
             "height": 50
           },
           "delta": {
             "left": 0,
-            "top": 2,
+            "top": 1,
             "width": 0,
             "height": 0
           },
