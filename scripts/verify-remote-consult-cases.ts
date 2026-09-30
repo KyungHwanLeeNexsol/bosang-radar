@@ -33,6 +33,8 @@ export interface WorkerJob {
 export interface WorkerResult {
   readonly status: number;
   readonly bodyText: string;
+  /** 워커가 라우트 호출 한 번에 쓴 시간(ms). 이 필드가 없던 이전 형식의 응답도 받아들인다. */
+  readonly durationMs?: number;
 }
 
 export interface WorkerHandle {
@@ -60,6 +62,8 @@ export interface RequestRecord {
   readonly body: unknown;
   readonly bodyText?: string;
   readonly error?: string;
+  /** 라우트 호출 한 번이 걸린 시간(ms, 소수 첫째 자리). 트랜잭션 잠금 대기가 여기에 드러난다. */
+  readonly durationMs?: number;
 }
 
 export interface RowCounts {
@@ -196,6 +200,23 @@ function sameJson(a: unknown, b: unknown): boolean {
 
 // --- 결과 빌더 ---------------------------------------------------------------------
 
+/** 처리 시간이 기록된 요청만 모아 최소·중앙값·최대와 요청별 값을 한 줄로 만든다. 없으면 undefined. */
+function summarizeDurations(requests: readonly RequestRecord[]): string | undefined {
+  const timed = requests.filter(
+    (r): r is RequestRecord & { durationMs: number } => typeof r.durationMs === "number"
+  );
+  if (timed.length === 0) return undefined;
+  const sorted = timed.map((r) => r.durationMs).sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  const fmt = (ms: number): string => String(Math.round(ms * 10) / 10);
+  return (
+    `요청 처리 시간(ms) — 최소 ${fmt(sorted[0])} / 중앙값 ${fmt(median)} / 최대 ${fmt(sorted[sorted.length - 1])}` +
+    ` · 요청별: ${timed.map((r) => `${r.label}=${fmt(r.durationMs)}`).join(", ")}`
+  );
+}
+
 class CaseBuilder {
   readonly checks: Check[] = [];
   readonly requests: RequestRecord[] = [];
@@ -227,6 +248,8 @@ class CaseBuilder {
   }
 
   async finish(): Promise<CaseResult> {
+    const timing = summarizeDurations(this.requests);
+    if (timing !== undefined) this.note(timing);
     let rowCounts: RowCounts | null = null;
     try {
       rowCounts = await readRowCounts(this.ctx);
@@ -382,12 +405,16 @@ export async function performRouteCall(
   env: InjectedEnv,
   body: unknown,
   ip: string
-): Promise<{ status: number; bodyText: string; error?: string }> {
+): Promise<{ status: number; bodyText: string; error?: string; durationMs: number }> {
+  // 응답 본문을 다 읽은 시점까지(또는 예외가 난 시점까지)를 한 번의 호출 시간으로 잰다.
+  const startedAt = performance.now();
+  const elapsed = (): number => Math.round((performance.now() - startedAt) * 10) / 10;
   try {
     const response = await submit(buildRequest(body, ip), db, env);
-    return { status: response.status, bodyText: await response.text() };
+    const bodyText = await response.text();
+    return { status: response.status, bodyText, durationMs: elapsed() };
   } catch (error) {
-    return { status: 0, bodyText: "", error: describeError(error) };
+    return { status: 0, bodyText: "", error: describeError(error), durationMs: elapsed() };
   }
 }
 
@@ -395,7 +422,7 @@ function toRecord(
   ctx: CaseContext,
   label: string,
   ip: string,
-  outcome: { status: number; bodyText: string; error?: string }
+  outcome: { status: number; bodyText: string; error?: string; durationMs?: number }
 ): RequestRecord {
   let parsed: unknown = null;
   try {
@@ -410,6 +437,7 @@ function toRecord(
     body: parsed,
     bodyText: outcome.bodyText,
     ...(outcome.error ? { error: ctx.redact(outcome.error) } : {}),
+    ...(typeof outcome.durationMs === "number" ? { durationMs: outcome.durationMs } : {}),
   };
 }
 
@@ -938,7 +966,12 @@ export async function runWorker(opts: {
     const { job } = await startPromise;
     while (clock.now() < job.barrierAtMs) await clock.sleep(1);
     const outcome = await performRouteCall(opts.submit, opts.db, env, job.body, job.ip);
-    await opts.io.send({ type: "result", status: outcome.status, bodyText: outcome.bodyText });
+    await opts.io.send({
+      type: "result",
+      status: outcome.status,
+      bodyText: outcome.bodyText,
+      durationMs: outcome.durationMs,
+    });
     return 0;
   } catch (error) {
     await opts.io.send({

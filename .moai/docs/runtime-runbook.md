@@ -517,3 +517,32 @@ Hrana 프로토콜 버전(3 이상이어야 중간 롤백 뒤 자동 커밋으�
 **운영 위험 (검토에서 지적, 미해결).** 쓰기 잠금이 왕복 여러 번 동안 DB 전체에 걸린다. 트랜잭션 길이에 상한이 없어 연결이 멈추면
 잠금이 오래 유지될 수 있다(드라이버에 요청 타임아웃 설정 없음). 실패가 구제되면
 `consultation_write_tx_failed_resolved` 경고 로그가 남으므로 운영에서 그 빈도를 본다.
+
+### 12.8 원격 T1~T7 재시험: 필요한 설정과 절차 (D-NEW-26, 2026-09-30) — 미수행
+
+**상태**: 현재 HEAD(`4c09426`의 DB 쓰기 트랜잭션 이후 코드)는 **원격 미검증**이다. 세션 환경에 `TURSO_*`가 없어 수행하지 못했다. progress.md Claim 64의 "필수 게이트 6/6"은 트랜잭션 도입 전 코드(`57f1931`)의 기록이라 현재 코드의 근거로 쓰지 않는다.
+
+**필요한 설정** (값은 문서·로그·채팅에 적지 않는다)
+
+| 항목 | 내용 |
+|---|---|
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | 시험을 실행하는 셸의 프로세스 환경에 설정한다. 하네스는 `.env*` 파일을 읽지 않는다. 이전 시험(D-NEW-19)의 대상 지문은 `6e5256b8`이다. `pnpm verify:remote-consult fingerprint`의 출력이 같은지 먼저 확인하고, 다르면 다른 DB이므로 멈춘다 |
+| 실행 위치 | 이 브랜치의 작업 트리. 작업 트리에 `.env.local`을 두지 않는다 |
+| 사용자 승인 | 원격 쓰기(마이그레이션 0009 적용, 가상 데이터 쓰기, 정리, 스키마 원상 복구). D-NEW-19의 승인은 그 실행에 한한다 |
+| 백업 스크립트 | 이전에 쓴 일회용 `.tmp/turso-backup.mjs`, `.tmp/turso-restore-rehearsal.mjs`가 이 작업 트리의 `.tmp/`(gitignored)에 남아 있다. 이번에는 열어 보거나 실행하지 않았으므로, 쓰기 전에 읽어서 접속 정보를 어디서 읽는지 확인한다 |
+
+**절차** (이전과 같은 순서. `<fp>`는 위 지문 8자리)
+
+1. `pnpm verify:remote-consult fingerprint` — 지문 확인
+2. 전체 백업(단일 읽기 스냅샷)을 처음과 마이그레이션 직전에 한 번씩, 그리고 각각 로컬 임시 DB로 복원 리허설 — 13개 테이블의 행 수와 내용 SHA-256이 원본과 같은지 확인
+3. `pnpm db:migrate` — 0009 적용. `scripts/cli-bootstrap.ts`가 `.env.local`을 로드하므로 어느 DB에 적용되는지 적용 전에 확인한다(Next의 환경 로더는 이미 있는 환경 변수를 덮어쓰지 않는 것으로 알려져 있으나 이번에 확인하지 않았다)
+4. `pnpm verify:remote-consult preflight --expect-fingerprint <fp>` — 두 테이블 존재, 0행, 트리거 없음
+5. `pnpm verify:remote-consult run --expect-fingerprint <fp> --allow-write-remote` — T1~T7 전체. `results.json`(요청별 `durationMs`, 5xx 수, 행 수, 카운터)과 콘솔의 "요청 처리 시간" 줄을 기록한다. T5·T6·T7 각각에서 응답, 상담 행 수, rate limit 카운터, 5xx, 처리 시간을 본다. FAIL이나 ERROR가 하나라도 있으면 통과로 적지 않는다. `EPERM` 같은 하네스 오류(ERROR)는 관측이 아니므로 새 run-id로 전체를 다시 실행한다
+6. `pnpm verify:remote-consult cleanup --run-id <id> --expect-fingerprint <fp> --allow-write-remote` — 원장이 가리키는 행만 삭제, 정리 전후 표 기록
+7. `pnpm verify:remote-consult revert-schema --confirm-revert-schema --expect-fingerprint <fp> --allow-write-remote` — 두 상담 테이블과 0009 기록 한 행만 삭제
+8. 원격을 다시 읽기 전용 스냅샷으로 떠서 마이그레이션 직전 백업과 비교 — 13개 테이블의 행 수·내용 SHA-256, 스키마 SHA-256
+9. 실패하면 원인을 재현해 고치고 1~8을 **전체** 다시 실행한다(부분 재실행으로 대체하지 않는다). T7만 통과하고 T5에서 잠금 경합이나 5xx가 나오면 실패다
+
+**기록할 것**: 새 HEAD SHA, 대상 지문과 마스킹한 호스트, 케이스별 관측, 5xx 수, 처리 시간(최소·중앙값·최대), 정리 전후 표, 원상 복구 대조 결과. 비밀값과 전체 호스트는 적지 않는다.
+
+`run`은 두 상담 테이블이 모두 비어 있고 상담 테이블에 트리거가 없을 때만 시작한다(3·4단계가 먼저여야 하는 이유).

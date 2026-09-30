@@ -13,11 +13,15 @@ import { handleConsultationSubmit } from "../app/api/consultations/route.ts";
 import {
   computeIpHmac,
   createCaseContext,
+  performRouteCall,
+  runSequentialCase,
   runTriggerCase,
   runTwoProcessCase,
   waitForWindowRoom,
   windowStartOf,
   withSimulatedLatency,
+  type Db,
+  type SubmitFn,
   type WorkerHandle,
   type WorkerJob,
   type WorkerResult,
@@ -982,6 +986,92 @@ describe("T7 게이트 판정 — 같은 키를 서로 다른 프로세스가 �
         .map((c) => c.name)
         .join("\n")
     ).toContain("본문");
+  });
+
+  it("워커가 보낸 처리 시간을 요청 기록과 요약 줄에 남기고, 시간이 없는 응답도 그대로 판정한다", async () => {
+    const timed = await runT7(
+      [
+        { status: 201, bodyText: SUCCESS_BODY, durationMs: 120.5 },
+        { status: 200, bodyText: SUCCESS_BODY, durationMs: 98 },
+      ],
+      1
+    );
+
+    expect(timed.status).toBe("PASS");
+    expect(timed.requests.map((r) => r.durationMs)).toEqual([120.5, 98]);
+    const summary = timed.notes.find((n) => n.includes("요청 처리 시간"));
+    expect(summary).toContain("최소 98");
+    expect(summary).toContain("최대 120.5");
+
+    const untimed = await runT7(
+      [
+        { status: 201, bodyText: SUCCESS_BODY },
+        { status: 200, bodyText: SUCCESS_BODY },
+      ],
+      1
+    );
+    expect(untimed.status).toBe("PASS");
+    expect(untimed.notes.some((n) => n.includes("요청 처리 시간"))).toBe(false);
+  });
+});
+
+describe("요청 처리 시간 기록 — 원격 잠금 경합의 지연을 결과에 남긴다", () => {
+  const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  it("performRouteCall은 정상 응답과 예외 모두 걸린 시간(ms)을 돌려준다", async () => {
+    const slowOk: SubmitFn = async () => {
+      await pause(30);
+      return new Response("{}", { status: 201 });
+    };
+    const slowThrow: SubmitFn = async () => {
+      await pause(30);
+      throw new Error("simulated failure");
+    };
+
+    const ok = await performRouteCall(slowOk, {} as Db, {}, { a: 1 }, "198.51.100.1");
+    const failed = await performRouteCall(slowThrow, {} as Db, {}, { a: 1 }, "198.51.100.1");
+
+    expect(ok.status).toBe(201);
+    expect(ok.durationMs).toBeGreaterThanOrEqual(25);
+    expect(failed.status).toBe(0);
+    expect(failed.durationMs).toBeGreaterThanOrEqual(25);
+  });
+
+  it("실제 라우트로 돈 순차 케이스(T4)는 요청마다 처리 시간을 기록하고 요약 줄을 남긴다", async () => {
+    const db = await makeMigratedDb();
+    const client = createClient({ url: db.url });
+    openClients.push(client);
+    const runId = "tm000001";
+    const ledger = new LedgerWriter(path.join(stateRoot, runId), {
+      runId,
+      fingerprint: fingerprintOf(db.url),
+      baseline: { consultations: 0, consultation_rate_limits: 0 },
+      name: `가상테스트-${runId}`,
+    });
+    const ctx = createCaseContext({
+      client,
+      db: drizzle(client, { schema }),
+      runId,
+      secret: "timing-unit-secret",
+      ledger,
+      windowRoomMs: 2000,
+      submit: handleConsultationSubmit as SubmitFn,
+      launchWorker: () => {
+        throw new Error("worker는 이 테스트에서 쓰지 않는다");
+      },
+    });
+
+    const result = await runSequentialCase(ctx);
+
+    expect(result.status).toBe("PASS");
+    expect(result.requests).toHaveLength(6);
+    for (const record of result.requests) {
+      expect(Number.isFinite(record.durationMs)).toBe(true);
+      expect(record.durationMs).toBeGreaterThanOrEqual(0);
+    }
+    const summary = result.notes.find((n) => n.includes("요청 처리 시간"));
+    expect(summary).toBeDefined();
+    expect(summary).toContain("최대");
   });
 });
 

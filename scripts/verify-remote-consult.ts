@@ -211,10 +211,20 @@ function forkWorker(opts: {
   result.promise.catch(() => {});
 
   child.on("message", (message: unknown) => {
-    const m = message as { type?: string; status?: number; bodyText?: string; message?: string };
+    const m = message as {
+      type?: string;
+      status?: number;
+      bodyText?: string;
+      durationMs?: number;
+      message?: string;
+    };
     if (m.type === "ready") ready.resolve();
     else if (m.type === "result") {
-      result.resolve({ status: Number(m.status), bodyText: String(m.bodyText ?? "") });
+      result.resolve({
+        status: Number(m.status),
+        bodyText: String(m.bodyText ?? ""),
+        ...(typeof m.durationMs === "number" ? { durationMs: m.durationMs } : {}),
+      });
     } else if (m.type === "error") fail(new Error(`워커 오류: ${m.message ?? ""}`));
   });
   child.on("error", (error) => fail(error));
