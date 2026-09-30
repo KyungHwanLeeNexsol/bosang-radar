@@ -230,10 +230,12 @@ https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
 ## 11. 상담 신청(03) 플래그 변경 절차 (SPEC-B2C-CONSULT-001 D-NEW-18)
 
 `ENABLE_CONSULT_FLOW`와 `CONSULT_POLICY_READY`를 바꿀 때 무엇을 다시 빌드하고
-무엇을 재시작만 하면 되는지, 어떤 순서로 켜야 하는지를 적는다. 아래 표의
+무엇을 재시작만 하면 되는지, 어떤 순서로 켜야 하는지를 적는다. 진단 게이트 플래그
+(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)도 같은 표에 함께 적는다. 아래 표의
 "검증됨"은 이 저장소에서 `pnpm verify:flag-runtime`(로컬 `file:` DB, 실제
-`next build` 후 다른 env로 `next start`)로 관측한 사실이고, "미검증"은 관측하지
-못한 항목이다. 검증 기준은 HEAD `d958a2b` 트리다.
+`next build` 후 다른 env로 서버 시작)로 관측한 사실이고, "미검증"은 관측하지 못한
+항목이다. 검증 기준은 `app/page.tsx`에 `force-dynamic`을 넣은 커밋 `2cc1511` 이후
+트리다(서버 모드는 `next start`와 `output: "standalone"` 둘 다 관측했다).
 
 ### 11.1 무엇이 어디서 읽히는가
 
@@ -241,11 +243,22 @@ https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
 |--------|---------|-----------|
 | `ENABLE_CONSULT_FLOW` | `app/consult/page.tsx`, `app/result/page.tsx` | 요청마다(두 라우트는 `dynamic = "force-dynamic"`) |
 | `CONSULT_POLICY_READY` | `app/consult/page.tsx`(`isPolicyReady` prop), `app/api/consultations/route.ts`, `lib/env.ts`(부팅 검증) | 요청마다 + 부팅 시 1회 |
-| `ENABLE_DIAGNOSIS_FLOW`·`DIAGNOSIS_ENGINE_READY`·`ENABLE_DIAGNOSIS_DEV_STATES` | `app/page.tsx`(`/`), `app/result/page.tsx` | `/`는 **빌드 시점**, `/result`는 요청마다 |
+| `ENABLE_DIAGNOSIS_FLOW`·`DIAGNOSIS_ENGINE_READY`·`ENABLE_DIAGNOSIS_DEV_STATES` | `app/page.tsx`(`/`), `app/result/page.tsx` | 요청마다(두 라우트 모두 `dynamic = "force-dynamic"`) |
 
 수정 전에는 `/consult`와 `/result`도 빌드 시점에 굳었다(`next build`의 라우트 표에서
 `○ Static`). 그래서 빌드 때의 플래그 값이 페이지에 남아, 요청 시점에 읽는 API와
-서로 달랐다. 수정 후에는 두 라우트가 `ƒ Dynamic`이다.
+서로 달랐다. 수정 후에는 두 라우트가 `ƒ Dynamic`이다. `/`는 그 뒤에도 한동안 빌드
+시점에 굳어 있었다가(`/result`와 진단 게이트 판정 시점이 달랐다) `2cc1511`에서
+`force-dynamic`이 들어가 이제 세 페이지 라우트(`/`, `/consult`, `/result`)가 모두
+`ƒ Dynamic`이고 `.next/prerender-manifest.json`의 `routes`에는 페이지 라우트가 없다
+(남는 키는 `/_global-error`, `/_not-found`, `/favicon.ico`뿐).
+
+**SPEC-B2C-FOUNDATION-001과의 편차.** 그 SPEC의 REQ-B2CFOUND-002/003은 `/`를 "빌드 시점에
+완전히 정적으로 렌더링"되고 "항상 정적으로 접근 가능"한 화면으로 적었다. `/`가
+`force-dynamic`이 되면서 앞 문구("정적 렌더링")는 더 이상 사실이 아니다. 유지되는
+것은 세션 확인 없음, `process.env` 읽기 외 런타임 의존성 없음, PII 미수집, 게이트가
+닫혀도 placeholder를 200으로 항상 응답한다는 점이다. 이 편차는 사용자가 알고
+받아들인 결정이며 SPEC 본문은 고치지 않았다(`progress.md` D-NEW-21).
 
 ### 11.2 플래그별 변경 절차 (검증됨)
 
@@ -254,11 +267,16 @@ https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
 | `ENABLE_CONSULT_FLOW` | 필요 없음 | 필요 | 빌드 1회(닫힘/열림) 후 4가지 시작 조합 모두에서 `/consult` 제목과 `/result`의 `shouldRenderConsult`가 시작 env를 따랐다(불일치 0건, `.moai/state/verify/group2/7-green-final.log`) |
 | `CONSULT_POLICY_READY` | 필요 없음 | 필요 | 같은 실행에서 `/consult`의 `isPolicyReady`와 API 응답(503 여부)이 시작 env를 따랐다 |
 | 위 두 플래그를 함께 | 필요 없음 | 필요 | 위와 같음 |
-| `ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY` | **필요** | 필요 | `/`는 정적이라 빌드 시점 값이 남는다(관측: 빌드 때 미설정 → 시작 때 `true`여도 `/`는 "서비스 준비 중"). `/result`는 요청 시점 값을 따르므로 재빌드 없이 바꾸면 두 화면이 서로 다른 상태가 된다 |
+| `ENABLE_DIAGNOSIS_FLOW`, `DIAGNOSIS_ENGINE_READY`, `ENABLE_DIAGNOSIS_DEV_STATES` | 필요 없음 | 필요 | 빌드 2종(전부 닫힘 / FLOW+ENGINE 열림) 후 시작 env를 8가지로 바꿔(DEV_STATES만, FLOW+ENGINE, FLOW만(ENGINE 없음)→닫힘 유지, 전부 열림, 전부 닫힘 등) 관측했다. 모든 조합에서 `/`와 `/result`가 같은 상태였고 그 상태가 시작 env로 계산한 `computeDiagnosisFlags`와 같았다(불일치 0건). `next start`와 `standalone` 모두 같은 결과 |
 
-**중요 — 재시작만으로 충분한 것은 수정 커밋 `d958a2b` 이후 빌드일 때다.** 그 이전
-커밋으로 만든 빌드는 두 라우트가 정적이라 플래그가 굳어 있다. 수정이 들어간
-코드를 **한 번은 반드시 재빌드**해 배포한 뒤부터 위 표가 성립한다.
+수정 전(`cb97824` 트리의 `app/page.tsx`)에는 같은 매트릭스에서 불일치가 31건이었다: `/`가 빌드 시점
+값으로 굳어, 재빌드 없이 진단 플래그를 바꾸면 `/`와 `/result`가 서로 다른 상태를 보였다.
+그때의 "진단 플래그는 재빌드가 필요하다"는 절차는 더 이상 맞지 않는다.
+
+**중요 — 재시작만으로 충분한 것은 두 수정이 모두 들어간 빌드일 때다.** consult 플래그는
+`d958a2b` 이후, 진단 플래그는 `2cc1511` 이후 빌드부터다. 그 이전 커밋으로 만든 빌드는
+해당 라우트가 정적이라 플래그가 굳어 있다. 수정이 들어간 코드를 **한 번은 반드시
+재빌드**해 배포한 뒤부터 위 표가 성립한다.
 
 ### 11.3 켜는 순서 (`CONSULT_POLICY_READY=true`)
 
@@ -283,8 +301,16 @@ API가 503을 돌려주고 `/consult`의 `isPolicyReady`가 `false`가 된다. �
 - 운영 프로세스 관리자(PM2 등)가 재시작 때 **바뀐 env를 실제로 다시 읽는지**. 이
   저장소에서는 `pnpm start`를 직접 다시 띄워 관측했을 뿐이다. 관리자가 옛 env를
   캐시하는 방식이면 재시작해도 플래그가 안 바뀔 수 있다.
-- `output: "standalone"` 산출물(`node .next/standalone/server.js`)로 기동했을 때의 동작.
-  검증은 `next start`(`pnpm start`)로만 했다.
+- `output: "standalone"` 산출물은 **Windows 개발 머신에서만** 관측했다(`node
+  .next/standalone/server.js`, `deploy.yml`과 같은 `.next/static`·`public` 복사 후). 페이지
+  게이트 판정은 `next start`와 똑같았다. 이 관측에서 알게 된 사실: (1) Windows에서는 pnpm
+  standalone 산출물의 디렉터리 심볼릭 링크가 파일 링크로 만들어져 `node server.js`가
+  첫 require에서 EPERM으로 죽었다(검증 스크립트가 Windows에서만 junction으로 바꿔 우회,
+  Linux 배포 환경에서의 동작은 관측하지 못했다). (2) standalone `server.js`는 시작하면서
+  cwd를 `.next/standalone`으로 바꾼다 — 상대 경로 `file:` DB URL(`file:./.tmp/…`)은 그
+  안에서 열려다 `SQLITE_CANTOPEN`(POST `/api/consultations`가 500)으로 실패했다. 절대
+  경로 `file:` URL로는 통과했다. 운영이 어떤 DB URL을 쓰는지는 이 저장소에서 확인하지
+  못했다.
 - `.env.local` 등 서버 디스크의 env 파일을 고친 뒤 재시작했을 때의 동작(이 검증은
   프로세스 env로만 값을 줬다).
 - 원격 Turso에서의 API 동작은 **`POST /api/consultations` 라우트 코드를 프로세스 안에서
@@ -299,10 +325,16 @@ API가 503을 돌려주고 `/consult`의 `isPolicyReady`가 `false`가 된다. �
 ### 11.5 재현·회귀 검사 실행
 
 ```bash
-pnpm verify:flag-runtime                  # 빌드 2회(닫힘/열림) x 시작 4조합, 불일치가 있으면 종료 코드 1
+pnpm verify:flag-runtime                  # 빌드 2회(닫힘/열림) x 시작 8조합, 불일치가 있으면 종료 코드 1
 pnpm verify:flag-runtime --build=closed   # 빌드 1회만
 pnpm verify:flag-runtime --observe        # 불일치가 있어도 종료 코드 0(표만 확인)
+pnpm verify:flag-runtime --server=standalone   # output: "standalone" 서버(node .next/standalone/server.js)로 같은 검사
 ```
+
+시작 8조합은 consult 플래그 4가지와 진단 게이트 4가지(전부 닫힘 / FLOW+ENGINE / FLOW만 /
+전부 열림)다. 각 조합에서 `/`와 `/result`의 게이트 상태가 같은지(`SKEW`), 그리고 시작 env로
+계산한 `computeDiagnosisFlags` 결과와 같은지도 판정하고, 세 페이지 라우트가 프리렌더되지
+않았는지도 본다.
 
 이 스크립트는 로컬 `file:./.tmp/flag-runtime.db`만 쓰고, 부모 셸의 `TURSO_*`·플래그
 env를 물려받지 않으며, 최종 env가 `file:`이 아니면 실행을 거부한다. 서버는 검사마다
