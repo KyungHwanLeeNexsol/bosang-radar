@@ -1019,3 +1019,313 @@ test.describe("M03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Mob
     await expectSuccessScreenNoOverlap(page);
   });
 });
+
+// ── 성공 화면(03-B/M03-B) 채널별 레이아웃 계측 — 전화 4행 / 카카오 3행 ────────────
+// pnpm visual:verify는 전화 채널(4행)만 디자인과 비교한다. 카카오 채널은 "연락 희망
+// 시간" 행이 없어 3행이며, 이 카드에는 디자인 캡처가 없다. 그래서 디자인 대조 대신
+// 실제 브라우저 레이아웃(getBoundingClientRect·scrollWidth 등)으로 잘림·겹침·CTA
+// 침범이 없는지만 단언한다. 측정값은 LAYOUT_EVIDENCE_DIR이 설정된 경우에만 파일로
+// 남긴다(위 layout 테스트와 같은 규약).
+type SuccessChannel = "kakao" | "phone";
+
+async function reachSuccessScreenWithChannel(
+  page: Page,
+  channel: SuccessChannel,
+  phone: string,
+  preferredCallTime?: string
+): Promise<void> {
+  await completeFractureFlowToResult(page);
+  await clickDisabilityConsultCta(page);
+  await page.waitForURL("**/consult", { timeout: 10_000 });
+  await page.getByTestId("consult-view").waitFor();
+  await page
+    .getByRole("radio", { name: channel === "kakao" ? /카카오톡 상담/ : /전화 상담/ })
+    .check();
+  await fillConsultForm(page, { name: CONSULT_NAME, contact: phone, preferredCallTime });
+  await checkRequiredConsents(page);
+  await submitConsultForm(page);
+  await page.getByTestId("consult-success").waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+interface TextMetric {
+  text: string;
+  rect: Rect;
+  scrollWidth: number;
+  clientWidth: number;
+  textOverflow: string;
+  lineClamp: string;
+  lineCount: number;
+}
+
+interface SuccessLayoutMetrics {
+  viewportWidth: number;
+  documentScrollWidth: number;
+  card: Rect & {
+    scrollWidth: number;
+    clientWidth: number;
+    borderTop: number;
+    borderBottom: number;
+  };
+  rows: { rect: Rect; dt: TextMetric; dd: TextMetric }[];
+  notice: TextMetric;
+  cta: Rect;
+  cancel: Rect;
+}
+
+async function measureSuccessLayout(page: Page): Promise<SuccessLayoutMetrics> {
+  return page.evaluate(() => {
+    const rectOfElement = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const textMetric = (el: Element) => {
+      const style = getComputedStyle(el);
+      const lineHeight = parseFloat(style.lineHeight);
+      const r = el.getBoundingClientRect();
+      return {
+        text: (el.textContent ?? "").trim(),
+        rect: rectOfElement(el),
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        textOverflow: style.textOverflow,
+        lineClamp: style.getPropertyValue("-webkit-line-clamp") || "none",
+        lineCount:
+          Number.isFinite(lineHeight) && lineHeight > 0 ? Math.round(r.height / lineHeight) : -1,
+      };
+    };
+    const byTestId = (id: string) => {
+      const el = document.querySelector(`[data-testid="${id}"]`);
+      if (!el) throw new Error(`data-testid="${id}" 요소가 없다`);
+      return el;
+    };
+    const card = byTestId("consult-success-summary");
+    const cardStyle = getComputedStyle(card);
+    const rows = Array.from(card.children).map((row) => ({
+      rect: rectOfElement(row),
+      dt: textMetric(row.querySelector("dt") as Element),
+      dd: textMetric(row.querySelector("dd") as Element),
+    }));
+    return {
+      viewportWidth: window.innerWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      card: {
+        ...rectOfElement(card),
+        scrollWidth: card.scrollWidth,
+        clientWidth: card.clientWidth,
+        borderTop: parseFloat(cardStyle.borderTopWidth),
+        borderBottom: parseFloat(cardStyle.borderBottomWidth),
+      },
+      rows,
+      notice: textMetric(byTestId("consult-success-notice")),
+      cta: rectOfElement(byTestId("consult-success-back-cta")),
+      cancel: rectOfElement(byTestId("consult-success-cancel-inquiry")),
+    };
+  });
+}
+
+/** inner가 outer 안에 들어 있는지(서브픽셀 반올림 0.5px 허용). */
+function expectContained(innerName: string, inner: Rect, outerName: string, outer: Rect): void {
+  const tolerance = 0.5;
+  const contained =
+    inner.x >= outer.x - tolerance &&
+    inner.y >= outer.y - tolerance &&
+    inner.x + inner.width <= outer.x + outer.width + tolerance &&
+    inner.y + inner.height <= outer.y + outer.height + tolerance;
+  expect(
+    contained,
+    `${innerName}(${describeRect(inner)})이 ${outerName}(${describeRect(outer)}) 밖으로 나간다`
+  ).toBe(true);
+}
+
+function expectTextNotClipped(name: string, metric: TextMetric): void {
+  expect(
+    metric.scrollWidth,
+    `${name}("${metric.text}") 내용 폭 ${metric.scrollWidth}px가 상자 폭 ${metric.clientWidth}px를 넘는다(가로 잘림)`
+  ).toBeLessThanOrEqual(metric.clientWidth);
+  expect(metric.textOverflow, `${name}에 말줄임(ellipsis)이 걸려 있다`).not.toBe("ellipsis");
+  expect(["none", ""], `${name}에 line-clamp가 걸려 있다`).toContain(metric.lineClamp);
+}
+
+function expectSuccessLayoutSound(
+  metrics: SuccessLayoutMetrics,
+  expectedLabels: readonly string[]
+): void {
+  const { card, rows, notice, cta, cancel } = metrics;
+  expect(
+    rows.map((row) => row.dt.text),
+    "요약 카드 행 구성"
+  ).toEqual([...expectedLabels]);
+
+  // (a) 카드·안내·CTA·취소 문의 사이 쌍별 비교차 + 카드 → 안내 → CTA 순서
+  const blocks: [string, Rect][] = [
+    ["요약 카드", card],
+    ["안내 문구", notice.rect],
+    ["돌아가기 CTA", cta],
+    ["취소 문의 문구", cancel],
+  ];
+  for (let i = 0; i < blocks.length; i += 1) {
+    for (let j = i + 1; j < blocks.length; j += 1) {
+      expectNoOverlap(blocks[i][0], blocks[i][1], blocks[j][0], blocks[j][1]);
+    }
+  }
+  expect(notice.rect.y, "안내 문구는 카드 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
+    card.y + card.height
+  );
+  expect(cta.y, "CTA는 안내 문구 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
+    notice.rect.y + notice.rect.height
+  );
+
+  // (b) 모든 행과 dt/dd가 카드 안에 있고, 한 행에서 dt와 dd가 서로 겹치지 않는다
+  for (const row of rows) {
+    expectContained(`행 "${row.dt.text}"`, row.rect, "요약 카드", card);
+    expectContained(`dt "${row.dt.text}"`, row.dt.rect, "요약 카드", card);
+    expectContained(`dd "${row.dd.text}"`, row.dd.rect, "요약 카드", card);
+    expectNoOverlap(`dt "${row.dt.text}"`, row.dt.rect, `dd "${row.dd.text}"`, row.dd.rect);
+  }
+
+  // (c) 잘림·가로 넘침 없음
+  for (const row of rows) {
+    expectTextNotClipped(`dt "${row.dt.text}"`, row.dt);
+    expectTextNotClipped(`dd "${row.dd.text}"`, row.dd);
+  }
+  expectTextNotClipped("안내 문구", notice);
+  expect(card.scrollWidth, "카드가 가로로 넘친다").toBeLessThanOrEqual(card.clientWidth);
+  expect(metrics.documentScrollWidth, "페이지가 가로로 넘친다").toBeLessThanOrEqual(
+    metrics.viewportWidth
+  );
+  for (const [name, rect] of [
+    ["요약 카드", card],
+    ["안내 문구", notice.rect],
+    ["돌아가기 CTA", cta],
+    ["취소 문의 문구", cancel],
+  ] as [string, Rect][]) {
+    expect(rect.x, `${name} 왼쪽이 뷰포트 밖이다`).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width, `${name} 오른쪽이 뷰포트 밖이다`).toBeLessThanOrEqual(
+      metrics.viewportWidth + 0.5
+    );
+  }
+
+  // (d) 카드 높이 = 행 높이의 합 + 위·아래 테두리(예상치 못한 여백 없음)
+  const rowsHeight = rows.reduce((sum, row) => sum + row.rect.height, 0);
+  expect(
+    Math.abs(card.height - (rowsHeight + card.borderTop + card.borderBottom)),
+    `카드 높이 ${card.height}px ≠ 행 높이 합 ${rowsHeight}px + 테두리 ${card.borderTop + card.borderBottom}px`
+  ).toBeLessThanOrEqual(0.5);
+}
+
+async function saveSuccessEvidence(
+  page: Page,
+  stem: string,
+  metrics: SuccessLayoutMetrics
+): Promise<void> {
+  saveLayoutEvidence(stem, {
+    card: {
+      width: metrics.card.width,
+      height: metrics.card.height,
+      rows: metrics.rows.length,
+      rowHeights: metrics.rows.map((row) => row.rect.height),
+    },
+    metrics,
+  });
+  if (!LAYOUT_EVIDENCE_DIR) return;
+  const dir = path.resolve(LAYOUT_EVIDENCE_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: path.join(dir, `${stem}.png`), fullPage: true });
+}
+
+const SUCCESS_LABELS: Record<SuccessChannel, readonly string[]> = {
+  kakao: ["상담 방식", "연락처", "상담 예정 전문가"],
+  phone: ["상담 방식", "연락처", "연락 희망 시간", "상담 예정 전문가"],
+};
+
+const SUCCESS_VIEWPORTS = [
+  { name: "desktop", size: DESKTOP_VIEWPORT },
+  { name: "mobile", size: { width: 390, height: 605 } },
+] as const;
+
+// 010-0000-NNNN 형태의 가상 번호와 테스트 전용 x-forwarded-for(rate limit 창 분리).
+const SUCCESS_LAYOUT_CASES: {
+  channel: SuccessChannel;
+  viewport: (typeof SUCCESS_VIEWPORTS)[number];
+  phone: string;
+  ip: string;
+}[] = [
+  { channel: "kakao", viewport: SUCCESS_VIEWPORTS[0], phone: "01000000201", ip: "127.21.0.1" },
+  { channel: "kakao", viewport: SUCCESS_VIEWPORTS[1], phone: "01000000202", ip: "127.21.0.2" },
+  { channel: "phone", viewport: SUCCESS_VIEWPORTS[0], phone: "01000000203", ip: "127.21.0.3" },
+  { channel: "phone", viewport: SUCCESS_VIEWPORTS[1], phone: "01000000204", ip: "127.21.0.4" },
+];
+
+for (const { channel, viewport, phone, ip } of SUCCESS_LAYOUT_CASES) {
+  test.describe(`03-B 성공 화면 — ${channel} 채널 레이아웃 계측 (${viewport.name}, ${viewport.size.width}x${viewport.size.height})`, () => {
+    test.use({ viewport: viewport.size });
+
+    test(`${channel} 채널 성공 화면에서 카드 안의 모든 행이 잘리지 않고, 카드·안내·CTA·취소 문의가 겹치지 않으며 카드에 여분의 여백이 없다`, async ({
+      page,
+    }) => {
+      await page.setExtraHTTPHeaders({ "x-forwarded-for": ip });
+      await reachSuccessScreenWithChannel(
+        page,
+        channel,
+        phone,
+        channel === "phone" ? CONSULT_CALL_TIME : undefined
+      );
+      const metrics = await measureSuccessLayout(page);
+      await saveSuccessEvidence(page, `success-${channel}-${viewport.name}`, metrics);
+      expectSuccessLayoutSound(metrics, SUCCESS_LABELS[channel]);
+    });
+  });
+}
+
+// 연락 희망 시간은 스키마(lib/consult/schema.ts)상 min(1)인 자유 문자열이며 허용값
+// 열거나 최대 길이가 없다 — 따라서 "허용되는 가장 긴 값"은 정의되지 않는다. 저장소에서
+// 확인되는 서버 형식 값은 입력란 placeholder 형식("평일 오후 (13시 ~ 18시)")뿐이라
+// 위 4개 케이스가 이미 그 값을 쓴다. 여기서는 스키마가 통과시키는 합성 스트레스 값 두
+// 가지(공백 있는 긴 문장 / 공백 없는 긴 연속 문자열)를 390px 전화 채널에서 계측한다.
+const LONG_CALL_TIME_CASES = [
+  {
+    label: "공백 있는 긴 문장",
+    value: "평일 오전 9시부터 11시 사이 또는 평일 오후 2시부터 6시 사이 어느 때든 가능합니다",
+    phone: "01000000205",
+    ip: "127.21.0.5",
+    stem: "spaced",
+  },
+  {
+    label: "공백 없는 긴 한글 연속 문자열",
+    value: "평일오전9시부터11시사이또는평일오후2시부터6시사이어느때든연락가능합니다감사합니다",
+    phone: "01000000206",
+    ip: "127.21.0.6",
+    stem: "unbroken-hangul",
+  },
+  {
+    label: "공백 없는 긴 영문 연속 문자열",
+    value: "hong.gildong.kakao.id.1234567890abcdefghij",
+    phone: "01000000207",
+    ip: "127.21.0.7",
+    stem: "unbroken-latin",
+  },
+  {
+    label: "공백 없는 매우 긴 영문 연속 문자열",
+    value: "hong.gildong.kakao.id.1234567890abcdefghij.hong.gildong.kakao.id.1234567890abcdefghij",
+    phone: "01000000208",
+    ip: "127.21.0.8",
+    stem: "unbroken-latin-long",
+  },
+] as const;
+
+for (const { label, value, phone, ip, stem } of LONG_CALL_TIME_CASES) {
+  test.describe(`03-B 성공 화면 — 전화 채널 긴 연락 희망 시간(${label}, 390x605)`, () => {
+    test.use({ viewport: { width: 390, height: 605 } });
+
+    test(`긴 연락 희망 시간(${label}, ${value.length}자)이 카드 밖으로 잘리거나 넘치지 않고 카드·안내·CTA가 겹치지 않는다`, async ({
+      page,
+    }) => {
+      await page.setExtraHTTPHeaders({ "x-forwarded-for": ip });
+      await reachSuccessScreenWithChannel(page, "phone", phone, value);
+      const metrics = await measureSuccessLayout(page);
+      await saveSuccessEvidence(page, `success-phone-mobile-long-${stem}`, metrics);
+      expectSuccessLayoutSound(metrics, SUCCESS_LABELS.phone);
+    });
+  });
+}
