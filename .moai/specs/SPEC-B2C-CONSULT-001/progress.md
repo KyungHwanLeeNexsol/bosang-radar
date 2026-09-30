@@ -3356,6 +3356,44 @@ exit=1
 
 `pnpm exec tsc --noEmit` exit 0, `pnpm lint` exit 0, `pnpm test` exit 0(99파일 833테스트, 기준선 `cb97824`의 99/826에서 단위 7개 추가), 이번 작업에서 실행한 e2e는 위 26건(consult spec)뿐이다. 로그: `9-tsc.log`, `10-lint.log`, `11-unit.log`.
 
+### D-NEW-22 — 수정 후 HEAD 최종 재검증과 T7 운영 구성 미관측 (이번 세션)
+
+사용자 지시(2026-09-30): `/`와 `/result`의 판정 시점을 맞추고, T7(두 프로세스 동일 키 동시 제출)의 운영 구성(PM2 `exec_mode`·`instances`·프로세스 수, Nginx 연결 인스턴스 수)을 확인하고, 전화·카카오 두 채널의 성공 화면을 확인하고, 수정 후 HEAD에서 관련 검증을 다시 기록한다. 직접 관측하지 못한 운영 설정과 `.pen` 정합성은 완료로 표시하지 않는다. PR은 Draft를 유지한다.
+
+**Claim 71 — 수정 후 HEAD `d396a32`에서 전체 검증을 순차로 다시 실행했고 `format:check`를 제외하고 모두 exit 0이었다.**
+
+**Evidence**: 모든 실행에 `TURSO_DATABASE_URL=file:./.tmp/final2.db`와 빈 토큰을 명시했다(`run-e2e`는 자체 파일 DB를 강제한다). 로그는 gitignored `.moai/state/verify/final2/`.
+
+| 단계 | 명령 | 결과 |
+|---|---|---|
+| 1 | `pnpm exec tsc --noEmit` | exit 0 |
+| 2 | `pnpm lint` | exit 0 |
+| 3 | `pnpm test` | exit 0 — 99 파일 / 833 테스트 통과 |
+| 4 | `pnpm format:check` | **exit 1 — 3개**: `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md` (`origin/main`에서도 실패하는 기존 항목, D-NEW-20 Claim 67과 같음) |
+| 5 | `pnpm test:e2e` (전체) | exit 0 — 46 passed (이전 38 + 이번에 추가한 성공 화면 두 채널 계측 8) |
+| 6 | `E2E_CONSULT_POLICY_READY=false pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts` | exit 0 — 11 passed |
+| 7 | `pnpm visual:verify` (제약 없는 전체) | exit 0 — 24/24 PASS, FAIL 0 |
+| 8 | `pnpm verify:flag-runtime` (`next start`) | exit 0 — 불일치 0 |
+| 9 | `pnpm verify:flag-runtime --server=standalone` | exit 0 — 불일치 0 (Windows 개발 머신에서만 관측) |
+
+`visual:verify` 실행은 추적되는 증거 파일을 다시 쓴다. 이번에는 두 `measurements.json`의 `generatedAt` 시각만 바뀌었고(내용 변경 없음) `SPEC-B2C-DIAGNOSIS-001` 스크린샷 일부가 다시 렌더링됐다. 상담 화면 스크린샷은 바뀌지 않았다. 8개 파일을 커밋된 상태로 복원했다.
+
+**Baseline-attribution**: 이번 세션 실행, HEAD `d396a32`. 이후 이 커밋에는 문서(런북 §12, 이 절)만 더했다.
+
+**Gaps(미검증)**: (1) 새 성공 화면 두 채널 계측 8개는 정책 준비 모드 전용이고 정책 미준비 e2e(6단계)에는 포함되지 않는다. (2) 3행 카카오 카드에는 디자인 캡처가 없어 DOM 계측과 눈 확인으로만 검증했다. `.pen` 원본은 열지 못했다. 모든 디자인 수치는 export PNG 기준이다. (3) Linux standalone, PM2가 재시작 때 바뀐 env를 다시 읽는지는 관측하지 못했다. (4) Chromium과 1440x900·390 너비만 시험했다. (5) 03-C/03-D에서 긴 값은 측정하지 않았다(`SummaryRow`를 공유한다).
+
+**Residual-risk**: 사용자의 시각 정합 승인은 없다. `/`가 요청마다 렌더링되어 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003의 "정적" 문구와 달라졌다(사용자가 알고 받아들인 편차, D-NEW-21 Claim 68). 요청 시점 비용은 측정하지 않았다.
+
+**Claim 72 — T7은 해소되지 않았다. 운영 PM2·Nginx 구성은 관측하지 못했다.**
+
+**Evidence**: 작업자는 운영 VM에 접속할 수 없다(과거에 자동 분류기가 막았고 사용자가 읽기 전용 명령 출력을 붙여 주는 방식으로 관측해 왔다). 그래서 사용자가 실행할 읽기 전용 명령 6개를 만들어 전달했고(`.moai/docs/runtime-runbook.md` §12.4, env 값이 나오는 `pm2 jlist` 전체 출력은 쓰지 않는다), 출력은 아직 받지 못했다. 저장소를 읽어 알 수 있는 것은 문서상 전제뿐이다: `tech.md`와 `design.md` §9.3은 "PM2가 구동하는 단일 프로세스, Nginx가 앞을 지킨다"고 적었고, `deploy.yml`은 `pm2 restart "$PM2_APP"`으로 이름 하나의 앱을 재시작하며, PM2 설정 파일은 저장소에 없다(코드 확인, 운영 관측 아님). 런북 §12에 전제("문서상, 미관측")와 배포 절차 조건(켜기 전 관측·기록, 인스턴스를 늘리기 전 T7 해결과 원격 회귀 시험)을 적었고 관측 기록란은 "미관측"이다.
+
+**Baseline-attribution**: 이번 세션. 운영 관측값은 없다.
+
+**Gaps(미검증)**: 실제 PM2 `exec_mode`·`instances`·프로세스 수, 앱 포트·프로세스 수, PM2 데몬 수, Nginx가 연결하는 인스턴스 수. 코드는 수정하지 않았다(`route.ts`, 원격 회귀 시험 모두 그대로).
+
+**Residual-risk**: 구성이 다중 프로세스이면 T7 동작(응답 불일치, 한도 이중 소비)이 이미 운영에 적용되는 것이다. 단일 프로세스로 관측되면 그 사실을 §12.5에 기록하고 §12.3 조건이 인스턴스 증가의 선행 조건으로 남는다. 관측 전에는 열린 항목 24를 해소로 표시하지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3378,6 +3416,8 @@ exit=1
 - **업데이트 14(D-NEW-19, 이번 세션)**: 열린 항목 12(원격 Turso 검증)를 사용자 지시로 현재 Turso DB에서 수행했다. 대상 확인·전체 백업·복원 리허설(Claim 63), 마이그레이션 0009 적용 후 필수 게이트 6/6 통과(Claim 64), 테스트 행 정리와 스키마 원상 복구, 정리 후 13개 테이블이 마이그레이션 직전 백업과 동일함을 확인했다(Claim 65). 다중 인스턴스에서 같은 키 동시 재시도는 상담 행 1개지만 응답이 다르고 한도가 이중 소비된다(Claim 66, 열린 항목 24). 사용자 지시에 따라 이 PR은 03-B 겹침·카드 크기·시각 검증 누락이 해소·검토되기 전에는 병합하지 않으며 `CONSULT_POLICY_READY`도 활성화하지 않는다. 배포 준비 완료로 선언하지 않는다. `run_status`는 유지한다.
 - **업데이트 15(D-NEW-20, 이번 세션)**: 수정 후 트리에서 `tsc`·`lint`·단위·e2e(38 + 11)·전체 `visual:verify`(24/24)·`verify:flag-runtime`을 다시 실행해 모두 exit 0이었고, `format:check`의 남은 3개 실패는 `origin/main`에서도 실패한다(Claim 67). 처음 확인이 무의미했던 것을 대조군으로 발견해 정정했다.
 - **업데이트 16(D-NEW-21, 이번 세션)**: 사용자 결정에 따라 `/`도 `force-dynamic`으로 바꿔 `/`·`/result`·`/consult`가 모두 요청 시점에 게이트를 판정하게 맞췄다(빌드 2종 x 시작 8조합 불일치 31건 → 0건, `next start`와 standalone 모두, Claim 68-69). FOUNDATION-001의 "정적 렌더링" 문구와의 편차는 주석·런북 §11에 기록했고 SPEC 본문은 수정하지 않았다. 성공 화면을 전화·카카오 두 채널, 데스크톱·모바일에서 실제 레이아웃으로 계측해 정상 값에서는 결함이 없음을 확인하고, 길이 상한이 없는 연락 희망 시간의 공백 없는 긴 값에서 카드 밖 넘침 1건을 재현해 `SummaryRow`에서 고쳤다(Claim 70). 카카오 3행 카드는 디자인 캡처가 없어 디자인 정합은 검증하지 않았다. PM2 env 재읽기·Linux standalone·전체 e2e/`visual:verify`는 이번에 검증하지 않았다. 배포 준비 완료·감사 준비 완료·시각 승인·`.pen` 정합을 선언하지 않는다. `run_status`는 유지한다.
+
+- **업데이트 17(D-NEW-22, 이번 세션)**: 수정 후 HEAD `d396a32`에서 `tsc`·`lint`·단위(99/833)·e2e 전체(46)·정책 미준비 e2e(11)·`visual:verify`(24/24)·`verify:flag-runtime`(`next start`, standalone)을 다시 실행해 모두 exit 0이었고 `format:check`만 기존 3개 실패로 exit 1이다(Claim 71). T7은 **해소되지 않았다** — 운영 PM2·Nginx 구성은 관측하지 못했고 사용자가 실행할 읽기 전용 명령(런북 §12.4)의 출력을 기다린다(Claim 72). 전제와 배포 절차 조건은 런북 §12에 "미관측"으로 적었다. `run_status`는 `amended-pending-revalidation`을 유지하며, 시각 정합 승인·`.pen` 대조·운영 구성 관측이 없으므로 audit-ready나 배포 준비 완료로 선언하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -3423,7 +3463,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
 23. **[해소됨 — D-NEW-21 Claim 68-69: 사용자 결정으로 `/`도 `force-dynamic`, 빌드 2종 x 시작 8조합 불일치 0건(`next start`·standalone). 아래는 당시 기록]** **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
-24. **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
+24. **[미해소 — D-NEW-22 Claim 72: 운영 PM2·Nginx 구성을 관측하지 못했다. 관측 명령은 런북 §12.4, 전제와 배포 절차 조건은 §12.3에 "미관측"으로 적었다]** **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
 
 ### 이번 세션에서 해소됨
 

@@ -339,3 +339,58 @@ pnpm verify:flag-runtime --server=standalone   # output: "standalone" 서버(nod
 이 스크립트는 로컬 `file:./.tmp/flag-runtime.db`만 쓰고, 부모 셸의 `TURSO_*`·플래그
 env를 물려받지 않으며, 최종 env가 `file:`이 아니면 실행을 거부한다. 서버는 검사마다
 종료한다. 빌드가 2회 들어가므로 기본 `pnpm test`에는 넣지 않았다.
+
+## 12. 운영 구성 전제: 앱 인스턴스 수 (SPEC-B2C-CONSULT-001 D-NEW-22, T7)
+
+**현재 상태: 미관측.** 운영 Oracle VM의 PM2 `exec_mode`·`instances`·프로세스 수와 Nginx가 연결하는
+앱 인스턴스 수는 이 저장소 작업에서 **관측하지 못했다**(작업자가 운영 VM에 접속할 수 없다). 아래 "전제"는
+문서에 적힌 내용이지 관측한 사실이 아니다.
+
+### 12.1 전제 (문서상)
+
+- 앱은 Oracle Cloud VM 위에서 **PM2가 구동하는 단일 프로세스**이고 Nginx가 앞에 있다(`.moai/project/tech.md`,
+  SPEC-B2C-CONSULT-001 `design.md` §9.3, `app/api/consultations/route.ts`의 `withIdempotencyLock` 주석).
+- 저장소에는 PM2 설정 파일(`ecosystem.config.*`)이 없다. `.github/workflows/deploy.yml`은 `pm2 restart "$PM2_APP"`으로
+  이름 하나의 PM2 앱을 재시작할 뿐, 모드·인스턴스 수를 정하지 않는다(코드 확인, 운영 관측 아님).
+
+### 12.2 왜 이 전제가 중요한가
+
+`POST /api/consultations`의 `withIdempotencyLock`은 **프로세스 안의 `Map`**이라 같은 `idempotencyKey`의 동시
+요청을 한 프로세스 안에서만 직렬화한다. 원격 Turso에서 두 프로세스가 같은 키를 동시에 제출한 시험(T7,
+`progress.md` D-NEW-19 Claim 66)은 응답이 `[409 duplicate, 201 success]`로 서로 다르고 상담 행은 1개지만
+rate-limit `request_count`가 2가 됐다(한도 이중 소비). 같은 키 동시 재시도가 단일 프로세스에서는 하나의 접수와
+동일한 성공 응답, 카운터 1(T6 통과)이었다.
+
+### 12.3 배포 절차 조건 (반드시 지킨다)
+
+1. **`CONSULT_POLICY_READY=true`로 켜기 전에** 아래 12.4의 읽기 전용 명령으로 실제 구성이 단일 프로세스인지 확인하고
+   결과를 12.5 표와 `progress.md`에 기록한다. 확인 전에는 이 전제를 "관측됨"으로 쓰지 않는다.
+2. **앱 인스턴스를 늘리기 전에**(PM2 `instances` 2 이상, `cluster` 모드, 앱 포트·Nginx upstream 추가, 다중 컨테이너,
+   서버리스 전환) 같은 키의 동시 재시도가 **하나의 접수, 일관된 성공 응답, rate-limit 이중 소비 없음**이 되도록 코드를 먼저
+   고치고, 원격 회귀 시험(`pnpm verify:remote-consult`의 T6·T7)을 통과시킨다. 그 전에는 인스턴스를 늘리지 않는다.
+3. 실제 구성이 이미 다중 프로세스로 확인되면 T7 동작이 지금 운영에 적용되는 것이므로, 위 코드 수정과 원격 회귀 시험이
+   `CONSULT_POLICY_READY`를 켜기 전의 선행 과제다.
+
+### 12.4 관측 명령 (운영 VM, 읽기 전용, env 값은 출력하지 않는다)
+
+`pm2 jlist`와 `pm2 describe`의 전체 출력에는 환경 변수 값이 들어 있어 **쓰지 않는다**. 아래는 안전한 필드만 꺼낸다.
+
+```bash
+pm2 list
+pm2 jlist | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const a of JSON.parse(s)){const e=a.pm2_env||{};console.log(JSON.stringify({name:a.name,pm_id:a.pm_id,pid:a.pid,status:e.status,exec_mode:e.exec_mode,instances:e.instances,restarts:e.restart_time,exec:(e.pm_exec_path||"").split("/").slice(-2).join("/")}))}})'
+sudo ss -ltnp | grep -E ':(3000|3001|3002|3003|3004)\b'
+ps -eo pid,ppid,etimes,rss,args | grep -E 'standalone/server.js|next-server|next start' | grep -v grep
+pgrep -fc 'God Daemon'
+sudo nginx -T 2>/dev/null | grep -nE '^\s*(upstream\s|proxy_pass\s|server\s+(127\.|localhost|unix:|\[::1\]|[0-9.]+:[0-9]+)|least_conn|ip_hash|hash\s)'
+```
+
+### 12.5 관측 결과 기록
+
+| 항목 | 관측값 | 관측일 |
+|------|--------|--------|
+| PM2 앱 이름·모드(`exec_mode`) | 미관측 | — |
+| `instances` / PM2 프로세스 수 | 미관측 | — |
+| 앱을 듣는 포트 수 | 미관측 | — |
+| 앱 프로세스 수 | 미관측 | — |
+| PM2 데몬 수 | 미관측 | — |
+| Nginx가 연결하는 앱 인스턴스 수(upstream / `proxy_pass`) | 미관측 | — |
