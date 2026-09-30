@@ -42,13 +42,7 @@ const migrationsFolder = path.resolve(
 // 공유 핸들을 null로 비우지 않으므로, 이 현상은 로컬 드라이버의 특성으로
 // 보인다. 다만 이는 소스 읽기 결과이며 원격 Turso에서 실행해 확인한 것은
 // 아니다(미검증).
-const tmpDir = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  ".tmp"
-);
+const tmpDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", ".tmp");
 const dbFile = path.join(tmpDir, `consultations-route-test-${Date.now()}-${process.pid}.db`);
 
 // Windows에서는 libsql 네이티브 바인딩이 close() 반환 후에도 OS 파일 잠금을
@@ -98,7 +92,10 @@ function createIoQueue() {
   };
 }
 
-function serializeClient(rawClient: Client, enqueue: <T>(fn: () => Promise<T>) => Promise<T>): Client {
+function serializeClient(
+  rawClient: Client,
+  enqueue: <T>(fn: () => Promise<T>) => Promise<T>
+): Client {
   // Sqlite3Client의 메서드들은 내부적으로 ES 비공개 필드(#db 등)를 쓰므로,
   // Proxy를 통해 호출하면 this가 Proxy 자신으로 바인딩되어 "Cannot read
   // private member" 오류가 난다(직접 재현해 확인함) — 그래서 모든 함수
@@ -155,7 +152,9 @@ beforeEach(async () => {
   await client.execute("DELETE FROM consultation_rate_limits");
 });
 
-function buildEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+function buildEnv(
+  overrides: Record<string, string | undefined> = {}
+): Record<string, string | undefined> {
   return {
     CONSULT_POLICY_READY: "true",
     RATE_LIMIT_HMAC_SECRET: RATE_SECRET,
@@ -258,10 +257,16 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
   describe("AC-B2CCONSULT-018 추가 시나리오 — 최초 제출 성공 응답 형태", () => {
     it("유효한 신규 제출은 201과 success 페이로드를 반환하고 행 수가 정확히 1 증가한다", async () => {
       const before = await countRows("consultations");
-      const { status, json } = await submit(buildPayload({ channel: "phone", preferredCallTime: "오전" }));
+      const { status, json } = await submit(
+        buildPayload({ channel: "phone", preferredCallTime: "오전" })
+      );
 
       expect(status).toBe(201);
-      expect(json).toMatchObject({ status: "success", channel: "phone", preferredCallTime: "오전" });
+      expect(json).toMatchObject({
+        status: "success",
+        channel: "phone",
+        preferredCallTime: "오전",
+      });
       expect(json.maskedContact).toMatch(/^\d{3}-\*{4}-\d{4}$/);
       expect(json.consultationId).toBeUndefined();
       expect(json.expectedContactWindow).toBeUndefined();
@@ -274,7 +279,10 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
   describe("AC-B2CCONSULT-018 추가 시나리오 — 활성 동의 정책 없음(policy_unavailable)", () => {
     it("CONSULT_POLICY_READY가 거짓이면 503을 반환하고 레코드를 생성하지 않는다", async () => {
       const before = await countRows("consultations");
-      const { status, json } = await submit(buildPayload(), buildEnv({ CONSULT_POLICY_READY: "false" }));
+      const { status, json } = await submit(
+        buildPayload(),
+        buildEnv({ CONSULT_POLICY_READY: "false" })
+      );
 
       expect(status).toBe(503);
       expect(json).toMatchObject({ status: "error", code: "policy_unavailable" });
@@ -285,7 +293,9 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
   describe("AC-B2CCONSULT-018 추가 시나리오 — 동의 버전 불일치(consent_version_mismatch)", () => {
     it("acknowledgedConsentVersion이 활성 정책과 다르면 409를 반환하고 레코드를 생성하지 않는다", async () => {
       const before = await countRows("consultations");
-      const { status, json } = await submit(buildPayload({ acknowledgedConsentVersion: "stale-version" }));
+      const { status, json } = await submit(
+        buildPayload({ acknowledgedConsentVersion: "stale-version" })
+      );
 
       expect(status).toBe(409);
       expect(json).toMatchObject({ status: "error", code: "consent_version_mismatch" });
@@ -297,7 +307,11 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
     it("같은 신뢰 가능한 IP에서 서로 다른 idempotencyKey 6건 중 6번째가 429를 받는다", async () => {
       const ip = "198.51.100.7";
       for (let i = 0; i < 5; i += 1) {
-        const { status } = await submit(buildPayload({ resultId: `r-${i}`, idempotencyKey: randomUUID() }), buildEnv(), ip);
+        const { status } = await submit(
+          buildPayload({ resultId: `r-${i}`, idempotencyKey: randomUUID() }),
+          buildEnv(),
+          ip
+        );
         expect(status).toBe(201);
       }
 
@@ -486,7 +500,10 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       const created = await submit(payload, buildEnv());
       expect(created.status).toBe(201);
 
-      const { status, json } = await submit(payload, buildEnv({ RATE_LIMIT_HMAC_SECRET: undefined }));
+      const { status, json } = await submit(
+        payload,
+        buildEnv({ RATE_LIMIT_HMAC_SECRET: undefined })
+      );
 
       expect(status).toBe(200);
       expect(json.status).toBe("success");
@@ -544,7 +561,10 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
 
   describe("AC-B2CCONSULT-018 추가 시나리오 — 비정상 boolean 문자열은 false로 취급(D14)", () => {
     it("CONSULT_POLICY_READY='TRUE'(대문자)는 false로 취급되어 503을 반환한다", async () => {
-      const { status, json } = await submit(buildPayload(), buildEnv({ CONSULT_POLICY_READY: "TRUE" }));
+      const { status, json } = await submit(
+        buildPayload(),
+        buildEnv({ CONSULT_POLICY_READY: "TRUE" })
+      );
 
       expect(status).toBe(503);
       expect(json.code).toBe("policy_unavailable");
@@ -587,7 +607,11 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
         buildPayload({ resultId: "family-share", contact: "010-1111-1111" })
       );
       const second = await submit(
-        buildPayload({ resultId: "family-share", contact: "010-2222-2222", idempotencyKey: randomUUID() })
+        buildPayload({
+          resultId: "family-share",
+          contact: "010-2222-2222",
+          idempotencyKey: randomUUID(),
+        })
       );
 
       expect(first.status).toBe(201);
@@ -596,7 +620,9 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
 
     it("동일 idempotencyKey, 다른 페이로드는 idempotency_conflict로 거부하고 기존 레코드를 변경하지 않는다", async () => {
       const key = randomUUID();
-      const first = await submit(buildPayload({ resultId: "conflict-1", idempotencyKey: key, name: "김보상" }));
+      const first = await submit(
+        buildPayload({ resultId: "conflict-1", idempotencyKey: key, name: "김보상" })
+      );
       expect(first.status).toBe(201);
 
       const before = await countRows("consultations");
@@ -663,7 +689,9 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       const payload = buildPayload({ resultId: "race-rate-limit", idempotencyKey: key });
 
       // RATE_LIMIT_MAX_REQUESTS(5)를 명백히 초과하는 8개 동시 요청.
-      const results = await Promise.all(Array.from({ length: 8 }, () => submit(payload, buildEnv(), ip)));
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () => submit(payload, buildEnv(), ip))
+      );
 
       expect(results.some((r) => r.status === 429)).toBe(false);
       for (const r of results) {
@@ -678,7 +706,11 @@ describe("POST /api/consultations (SPEC-B2C-CONSULT-001 M2)", () => {
       await submit(buildPayload({ resultId: "self-derive", contact: "010-1111-2222" }));
 
       const { json } = await submit(
-        buildPayload({ resultId: "self-derive", contact: "010-1111-2222", idempotencyKey: randomUUID() })
+        buildPayload({
+          resultId: "self-derive",
+          contact: "010-1111-2222",
+          idempotencyKey: randomUUID(),
+        })
       );
 
       expect(json.maskedContact).toBe("010-****-2222");

@@ -11,7 +11,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Drawer, DrawerClose, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "@/components/diagnosis/use-media-query";
 import { cn } from "@/lib/utils";
 
@@ -108,7 +114,9 @@ export function ConsultConsentGroup({
           <span
             className={cn(
               "rounded-[4px] px-1.5 py-0.5 text-label-s font-semibold",
-              item.badge === "필수" ? "bg-bora-accent/10 text-bora-accent" : "bg-app-surface-inset text-bora-ink-3"
+              item.badge === "필수"
+                ? "bg-bora-accent/10 text-bora-accent"
+                : "bg-app-surface-inset text-bora-ink-3"
             )}
           >
             {item.badge}
@@ -165,7 +173,9 @@ export function ConsultConsentGroup({
 
   return (
     <div data-testid="consult-consent-group">
-      <div className="rounded-[12px] border border-app-line px-4">{REQUIRED_ITEMS.map(renderRow)}</div>
+      <div className="rounded-[12px] border border-app-line px-4">
+        {REQUIRED_ITEMS.map(renderRow)}
+      </div>
 
       <p className="mt-4 text-label-s text-bora-ink-3">
         선택 동의 — 동의하지 않아도 상담 신청은 가능합니다

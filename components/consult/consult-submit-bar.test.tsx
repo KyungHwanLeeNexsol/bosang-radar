@@ -145,7 +145,9 @@ describe("components/consult/ConsultSubmitBar", () => {
       findButton(container)?.click();
     });
 
-    expect(container.querySelector('[data-testid="consult-submit-status"]')?.textContent).not.toBe("");
+    expect(container.querySelector('[data-testid="consult-submit-status"]')?.textContent).not.toBe(
+      ""
+    );
 
     await act(async () => {
       resolveSubmit();

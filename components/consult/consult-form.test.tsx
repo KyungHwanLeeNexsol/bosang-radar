@@ -73,7 +73,9 @@ describe("components/consult/ConsultForm", () => {
 
     expect(container.textContent).toContain("이름");
 
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
     expect(nameInput).not.toBeNull();
 
     act(() => {
@@ -135,9 +137,7 @@ describe("components/consult/ConsultForm", () => {
   it("errors.contact가 있으면 role=alert 오류 메시지가 표시되고 입력에 aria-invalid/aria-describedby가 연결된다", () => {
     act(() => {
       root.render(
-        <ConsultForm
-          {...baseProps({ errors: { contact: "연락처 형식이 올바르지 않습니다" } })}
-        />
+        <ConsultForm {...baseProps({ errors: { contact: "연락처 형식이 올바르지 않습니다" } })} />
       );
     });
 

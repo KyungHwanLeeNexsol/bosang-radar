@@ -202,9 +202,9 @@ export async function handleConsultationSubmit(
       channel: rawChannel === "kakao" || rawChannel === "phone" ? rawChannel : "invalid",
       hasResultId: Boolean(
         typeof body === "object" &&
-          body !== null &&
-          "resultId" in body &&
-          (body as { resultId?: unknown }).resultId
+        body !== null &&
+        "resultId" in body &&
+        (body as { resultId?: unknown }).resultId
       ),
     })
   );
@@ -434,7 +434,9 @@ export async function handleConsultationSubmit(
       }
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: "consultation_request_failed", ...toSafeErrorMeta(error) }));
+    console.error(
+      JSON.stringify({ event: "consultation_request_failed", ...toSafeErrorMeta(error) })
+    );
     return NextResponse.json(errorResult("server_error", "일시적인 오류가 발생했습니다."), {
       status: 500,
     });

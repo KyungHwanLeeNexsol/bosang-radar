@@ -35,7 +35,9 @@ describe("components/consult/ConsultSuccess", () => {
     expect(container.querySelector('[data-testid="consult-success"]')).not.toBeNull();
     expect(container.textContent).toContain("상담 신청이 접수되었습니다");
     expect(container.textContent).toContain("010-****-1234");
-    expect(container.textContent).toContain("접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다");
+    expect(container.textContent).toContain(
+      "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"
+    );
     // §1 D6 — 구체적 시간 약속 문구는 절대 포함하지 않는다.
     expect(container.textContent).not.toContain("영업일 기준");
   });
@@ -43,7 +45,11 @@ describe("components/consult/ConsultSuccess", () => {
   it("전화 채널 + preferredCallTime이 있으면 연락 희망 시간을 표시한다", () => {
     act(() => {
       root.render(
-        <ConsultSuccess channel="phone" maskedContact="010-****-5678" preferredCallTime="평일 오후" />
+        <ConsultSuccess
+          channel="phone"
+          maskedContact="010-****-5678"
+          preferredCallTime="평일 오후"
+        />
       );
     });
 

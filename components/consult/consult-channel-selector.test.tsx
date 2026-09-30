@@ -53,9 +53,7 @@ describe("components/consult/ConsultChannelSelector", () => {
       root.render(<Harness onChange={vi.fn()} />);
     });
 
-    const radios = Array.from(
-      container.querySelectorAll<HTMLInputElement>('input[type="radio"]')
-    );
+    const radios = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
     expect(radios).toHaveLength(2);
     expect(radios[0].name).toBe(radios[1].name);
     expect(radios[0].name.length).toBeGreaterThan(0);
@@ -84,9 +82,7 @@ describe("components/consult/ConsultChannelSelector", () => {
     });
 
     expect(onChange).toHaveBeenCalledWith("phone");
-    expect(
-      container.querySelector<HTMLInputElement>('input[value="phone"]')?.checked
-    ).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="phone"]')?.checked).toBe(true);
   });
 
   it("카카오 채널 선택 시 안내 문구는 '카카오톡으로 상담 내용을 안내'를 포함한다", () => {
@@ -102,7 +98,9 @@ describe("components/consult/ConsultChannelSelector", () => {
       root.render(<Harness initialValue="phone" onChange={vi.fn()} />);
     });
 
-    expect(container.textContent).toContain("접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다");
+    expect(container.textContent).toContain(
+      "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"
+    );
     expect(container.textContent).not.toContain("영업일 기준 1일 이내");
   });
 });

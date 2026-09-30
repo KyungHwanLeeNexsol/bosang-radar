@@ -145,7 +145,10 @@ export interface ResultViewProps {
   shouldRenderConsult?: boolean;
 }
 
-export function ResultView({ enableDevFixture = false, shouldRenderConsult = false }: ResultViewProps) {
+export function ResultView({
+  enableDevFixture = false,
+  shouldRenderConsult = false,
+}: ResultViewProps) {
   const searchParams = useSearchParams();
   const useDevFixture = enableDevFixture && searchParams.get("devFixture") === "fracture";
   const state = useDiagnosisHandoffState(useDevFixture);

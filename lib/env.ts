@@ -140,11 +140,7 @@ export function validateEnv(
   // ENABLE_CONSULT_FLOW가 아니라 CONSULT_POLICY_READY가 판정 기준이다 — 화면만
   // 배포되고 실제 PII 접수는 아직 열리지 않은 상태(ENABLE_CONSULT_FLOW=true +
   // CONSULT_POLICY_READY=false)에서는 이 시크릿 없이도 정상 기동되어야 한다.
-  if (
-    scope === "app" &&
-    source.CONSULT_POLICY_READY === "true" &&
-    !source.RATE_LIMIT_HMAC_SECRET
-  ) {
+  if (scope === "app" && source.CONSULT_POLICY_READY === "true" && !source.RATE_LIMIT_HMAC_SECRET) {
     missing.push("RATE_LIMIT_HMAC_SECRET");
   }
 

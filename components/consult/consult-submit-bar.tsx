@@ -95,14 +95,15 @@ export function ConsultSubmitBar({
         onClick={handleClick}
         className={cn(
           "h-12 w-full rounded-[12px] text-base",
-          disabled &&
-            "bg-app-surface-inset text-bora-ink-4 shadow-none hover:bg-app-surface-inset"
+          disabled && "bg-app-surface-inset text-bora-ink-4 shadow-none hover:bg-app-surface-inset"
         )}
       >
         {!canSubmit ? <Lock aria-hidden="true" className="size-4" /> : null}
         {CHANNEL_LABEL[channel]}
       </Button>
-      <p className="mt-2 text-center text-meta text-bora-ink-3">필수 동의 후 상담을 신청할 수 있습니다</p>
+      <p className="mt-2 text-center text-meta text-bora-ink-3">
+        필수 동의 후 상담을 신청할 수 있습니다
+      </p>
       {/* M6 (design.md §11 "aria-live=polite로 상태 안내") — 제출 중
           상태를 스크린리더에 안내한다. aria-busy 속성 변경만으로는 일부
           스크린리더 조합에서 안정적으로 안내되지 않아, 별도 role=status

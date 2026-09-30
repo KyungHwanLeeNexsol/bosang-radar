@@ -104,7 +104,9 @@ describe("lib/db/schema — consultationRateLimits (AC-B2CCONSULT-019 추가 시
   });
 
   it("원본 IP 문자열을 평문으로 저장하는 컬럼이 존재하지 않는다", () => {
-    const columns = Object.keys(getTableColumns(consultationRateLimits)).map((c) => c.toLowerCase());
+    const columns = Object.keys(getTableColumns(consultationRateLimits)).map((c) =>
+      c.toLowerCase()
+    );
 
     expect(columns.some((c) => c === "ip" || c.includes("rawip") || c.includes("ipaddress"))).toBe(
       false

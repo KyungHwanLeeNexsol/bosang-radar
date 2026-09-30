@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsultView } from "./consult-view";
 import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
-import { buildFractureResult, FRACTURE_FIXTURE_INPUT } from "@/lib/diagnosis/fixtures/fracture-case";
+import {
+  buildFractureResult,
+  FRACTURE_FIXTURE_INPUT,
+} from "@/lib/diagnosis/fixtures/fracture-case";
 import { readConsultationDraft, writeConsultationDraft } from "@/lib/consult/draft";
 import { CONSULTATION_DRAFT_VERSION } from "@/lib/consult/types";
 
@@ -199,7 +202,9 @@ describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSUL
     });
 
     expect(
-      container.querySelector('[data-testid="consult-submit-button"]')?.getAttribute("aria-disabled")
+      container
+        .querySelector('[data-testid="consult-submit-button"]')
+        ?.getAttribute("aria-disabled")
     ).not.toBe("true");
   });
 });
@@ -255,7 +260,9 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
   }
 
   function fillRequiredFieldsAndConsent() {
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
     const contactInput = container.querySelector<HTMLInputElement>(
       '[data-testid="consult-contact-input"]'
     );
@@ -570,7 +577,9 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
     expect(fetchMock).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="consult-error-summary"]')).not.toBeNull();
 
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
     expect(document.activeElement).toBe(nameInput);
     expect(nameInput?.getAttribute("aria-invalid")).toBe("true");
   });
@@ -585,8 +594,12 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
       phoneRadio!.click();
     });
 
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
-    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
     act(() => {
       setNativeInputValue(nameInput!, "김보상");
       setNativeInputValue(contactInput!, "010-0000-0000");
@@ -608,8 +621,12 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
       root.render(<ConsultView isPolicyReady />);
     });
 
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
-    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
     act(() => {
       setNativeInputValue(nameInput!, "김보상");
       setNativeInputValue(contactInput!, "연락주세요");
@@ -632,8 +649,12 @@ describe("components/consult/ConsultView — 클라이언트 사이드 검증(AC
       root.render(<ConsultView isPolicyReady />);
     });
 
-    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="consult-name-input"]');
-    const contactInput = container.querySelector<HTMLInputElement>('[data-testid="consult-contact-input"]');
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
     act(() => {
       setNativeInputValue(nameInput!, "김보상");
       setNativeInputValue(contactInput!, "010-0000-0000");
