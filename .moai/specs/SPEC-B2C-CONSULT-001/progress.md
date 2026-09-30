@@ -3440,9 +3440,34 @@ exit=1
 
 **Baseline-attribution**: 이번 세션, 위 명령과 출력, 2026-09-30T05:20:33Z 한 시점.
 
-**Gaps(미검증)**: (1) `deploy.yml`의 `ORACLE_HOST` 시크릿이 접속한 IP와 같은지는 확인하지 못했다(시크릿은 읽을 수 없다). 서버 호스트 이름은 `bosang-radar-micro-test`다. (2) 앞단에 다른 로드밸런서가 없다는 것은 DNS가 인스턴스 IP를 직접 가리킨다는 데서 추론했다. (3) 이후 배포·재시작·설정 변경 뒤의 구성은 관측하지 않았다. (4) PM2가 재시작 때 바뀐 env를 다시 읽는지는 범위 밖이다. (5) VM의 `ecosystem.config.js`(ORACLE-HOSTING-001 기록)는 읽지 않았다 — 실효 `instances`는 `pm2 jlist`로만 확인했다.
+**Gaps(미검증)**: (1) 이 관측 시점에는 `deploy.yml`의 `ORACLE_HOST` 시크릿이 접속한 서버와 같은지 확인하지 못했다(시크릿은 읽을 수 없다) — **D-NEW-24 Claim 75에서 배포 실행 로그와 대조해 확인했다.** 서버 호스트 이름 등 식별 정보는 문서에 적지 않는다. (2) 앞단에 다른 로드밸런서가 없다는 것은 DNS가 인스턴스 IP를 직접 가리킨다는 데서 추론했다. (3) 이후 배포·재시작·설정 변경 뒤의 구성은 관측하지 않았다. (4) PM2가 재시작 때 바뀐 env를 다시 읽는지는 범위 밖이다. (5) VM의 `ecosystem.config.js`(ORACLE-HOSTING-001 기록)는 읽지 않았다 — 실효 `instances`는 `pm2 jlist`로만 확인했다.
 
 **Residual-risk**: T7(같은 키 동시 재시도의 응답 불일치·한도 이중 소비)은 **다중 인스턴스에서만** 발생하고, 관측 시점의 운영 구성은 단일 프로세스라 현재는 적용되지 않는다. 다만 이는 코드가 아니라 운영 전제에 기댄 것이라 인스턴스를 늘리거나(PM2 `instances` 2 이상, `cluster`, 포트·upstream 추가) 구성을 바꾸기 전에 T7을 코드로 먼저 고치고 `pnpm verify:remote-consult`의 T6·T7 원격 회귀 시험을 통과시켜야 한다(런북 §12.3). `CONSULT_POLICY_READY` 활성화는 이 관측만으로 승인되지 않으며 이번 세션에서도 켜지 않았다.
+
+### D-NEW-24 — `ORACLE_HOST`와 관측 VM의 배포 대상 일치성 확인 (이번 세션)
+
+사용자 지시(2026-09-30): PR #22 HEAD `1387232`의 후속 검증으로, `deploy.yml`의 `ORACLE_HOST`가 단일 인스턴스로 관측한 VM과 같은 배포 대상인지 읽기 전용 근거로 확인한다. 비밀값과 접속 정보는 로그·보고서에 남기지 않고, 추정이나 같은 커밋의 존재만으로 같은 서버라고 단정하지 않는다. 확인이 불가능하면 "미검증"으로 적고, 다중 프로세스 T7 결함이 코드에 남아 있다는 사실을 유지한다. PR은 Draft로 두고 병합하거나 `CONSULT_POLICY_READY`를 바꾸지 않는다.
+
+**Claim 75 — `ORACLE_HOST`는 D-NEW-23에서 관측한 VM을 가리킨다(간접·결정적 증거). 시크릿 값은 읽지 않았고, T7 코드 결함은 그대로다.**
+
+**Evidence**: GitHub 시크릿은 값을 읽을 수 없어 값 비교는 하지 않았다. 대신 배포 실행이 남긴 고유한 흔적이 그 VM에 그대로 있는지 대조했다(접속 정보·시크릿은 기록하지 않았고, 배포 로그에서는 GitHub가 시크릿 값을 `***`로 가려 준다). 로그 원본은 `gh run view 36315061016 --log`, 발췌·VM 관측은 gitignored `.moai/state/verify/d-new-24/`.
+
+| 흔적 | run #33 로그(`36315061016`, `f7ef4ec`, 09-27 11:13:56Z~11:15:54Z) | VM(2026-09-30T05:43:44Z, NTP 동기화 yes) |
+|---|---|---|
+| 코드 반영 | `HEAD is now at f7ef4ec` 11:14:07Z | HEAD `f7ef4ec`, reflog `reset: moving to origin/main` 11:14:06Z |
+| 빌드 종료 | 라우트 표 출력 11:15:45Z | `.next/BUILD_ID` 수정 11:15:45Z |
+| PM2 재시작 | 표 11:15:48Z: `id 0`, `fork`, **pid 165278**, **↺ 32** | `pm_uptime` 11:15:48.56Z, **pid 165278**, **`restart_time` 32**, `fork_mode` |
+| 프로세스 시작(커널) | — | `etimes` 역산 11:15:48Z(PM2와 독립) |
+
+또 VM의 `git reflog` 최근 `reset` 6건(09-21 08:31:30, 09-22 00:44:08, 09-25 08:19:32, 09-25 12:25:58, 09-27 11:05:02, 09-27 11:14:06)이 배포 실행 #28~#33 여섯 건의 실행 창과 하나씩 맞고 각각 실행 시작 후 10~14초다. `ORACLE_HOST`의 `updated_at`은 2026-09-17T05:56:46Z(저장소 시크릿 목록의 수정 시각, 값 아님)로 그 여섯 실행보다 앞서고, 배포 job에 `environment:`가 없어 저장소 수준 시크릿이 쓰인다. 각 실행에서 스크립트 실행 흔적은 한 번뿐이라(`== git pull ==`, `HEAD is now at`, PM2 표 각 1회) 여러 호스트 배포가 아니다.
+
+배포 이후의 PM2·포트(같은 관측): PM2 앱 1개, `fork_mode`, `instances` 1, `pid 165278`이 배포 종료 때와 같고 `restart_time` 32·`unstable_restarts` 0이라 run #33 이후 재시작이 없다. 앱이 듣는 포트는 전체 포트 조회에서 `127.0.0.1:3000` 하나뿐이고 프로세스는 PM2 데몬 1개와 `next-server` 1개뿐이다. T7 코드는 `app/api/consultations/route.ts:148`의 `idempotencyLocks`(프로세스 안의 `Map`)와 `:270`의 사용처가 그대로다. 코드는 바꾸지 않았다. 판정과 한계의 전체 서술은 런북 §12.6.
+
+**Baseline-attribution**: 이번 세션, 위 명령과 출력. 시크릿 목록 조회와 VM 관측은 2026-09-30에 했다.
+
+**Gaps(미검증)**: (1) 시크릿 값을 읽은 것이 아니므로 값 비교가 아니라 흔적 대조에 의한 추론이다. (2) 범위는 run #33까지의 배포와 2026-09-30 시점의 시크릿 상태다. #27 이전 실행은 대조하지 않았고, 이후 `ORACLE_HOST`나 배포 구성이 바뀌면 판정은 무효다. (3) 조직 수준 시크릿은 조회하지 않았다(job에 `environment:`가 없고 저장소 수준이 우선하므로 영향이 없다고 본다). (4) `ecosystem.config.*`의 `instances`/`exec_mode` 선언은 확인하지 못했다(선언 줄이 없거나 파일이 없다는 것만 관측). (5) PM2의 env 재읽기, Linux standalone 기동은 이번에도 범위 밖이다.
+
+**Residual-risk**: T7(같은 키 동시 재시도의 응답 불일치·한도 이중 소비)은 코드상 **남아 있는 결함**이다. 배포 대상이 단일 프로세스 VM임이 확인돼 현재 운영에서는 일어나지 않지만, 인스턴스를 늘리거나 `ORACLE_HOST`·구성을 바꾸기 전에는 T7을 코드로 먼저 고치고 `pnpm verify:remote-consult`의 T6·T7을 통과시켜야 한다(런북 §12.3). `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft·미병합이다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -3469,6 +3494,7 @@ exit=1
 
 - **업데이트 17(D-NEW-22, 이번 세션)**: 수정 후 HEAD `d396a32`에서 `tsc`·`lint`·단위(99/833)·e2e 전체(46)·정책 미준비 e2e(11)·`visual:verify`(24/24)·`verify:flag-runtime`(`next start`, standalone)을 다시 실행해 모두 exit 0이었고 `format:check`만 기존 3개 실패로 exit 1이다(Claim 71). T7은 **해소되지 않았다** — 운영 PM2·Nginx 구성은 관측하지 못했고 사용자가 실행할 읽기 전용 명령(런북 §12.4)의 출력을 기다린다(Claim 72). 전제와 배포 절차 조건은 런북 §12에 "미관측"으로 적었다. `run_status`는 `amended-pending-revalidation`을 유지하며, 시각 정합 승인·`.pen` 대조·운영 구성 관측이 없으므로 audit-ready나 배포 준비 완료로 선언하지 않는다.
 - **업데이트 18(D-NEW-23, 이번 세션)**: `/`의 정적 `metadata.title`을 `generateMetadata()`로 바꿔 진단 게이트가 열리면 "보상 진단", 닫히면 "서비스 준비 중"을 반환하게 했고, 단위(5행 행렬에서 제목·본문 동반 단언)와 실서버(`verify:flag-runtime`이 `/`·`/result`의 `<title>`도 검사) 두 층으로 검증했다(Claim 73). 수정 후 `tsc`·`lint`·단위(99/837)·e2e(46 + 11)·`visual:verify`(24화면)·`verify:flag-runtime`(`next start`, standalone)이 모두 exit 0이고 `format:check`만 기존 3개 실패로 exit 1이다. T7은 운영 VM에서 **단일 인스턴스로 관측**됐다(PM2 `fork_mode`·`instances` 1·앱 프로세스 1·Nginx `proxy_pass` 1, 2026-09-30 한 시점, Claim 74). 그래서 T7은 현재 구성에서는 적용되지 않지만 코드로 고치지 않았고 "인스턴스를 늘리기 전에 T7 해결" 조건이 남는다. `run_status`는 유지하며 audit-ready나 배포 준비 완료로 선언하지 않는다.
+- **업데이트 19(D-NEW-24, 이번 세션)**: `deploy.yml`의 `ORACLE_HOST`가 관측한 VM을 가리키는지, 시크릿 값을 읽지 않고 배포 실행 로그(run #33의 PID `165278`·↺ `32`·재시작 시각)와 VM 현재 상태(같은 PID·재시작 횟수·초 단위 시각, reflog 6건이 실행 #28~#33과 1:1)를 대조해 **일치로 확인**했다(Claim 75). 범위는 run #33까지의 배포와 2026-09-30 시점의 시크릿 상태이고, 시크릿이 바뀌면 무효다. T7은 **코드 결함으로 남아 있다**(`route.ts:148`의 프로세스 안 `Map`). 코드는 바꾸지 않았고 `CONSULT_POLICY_READY`도 켜지 않았다. `run_status`는 유지하며 audit-ready나 배포 준비 완료로 선언하지 않는다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -3514,7 +3540,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
 23. **[해소됨 — D-NEW-21 Claim 68-69: 사용자 결정으로 `/`도 `force-dynamic`, 빌드 2종 x 시작 8조합 불일치 0건(`next start`·standalone). 아래는 당시 기록]** **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
-24. **[운영 구성은 단일 인스턴스로 관측됨(D-NEW-23 Claim 74, 2026-09-30 한 시점) — 코드 수정은 없어 T7 자체는 미해소, "인스턴스 증가 전 T7 해결" 조건 유지. 이전 D-NEW-22 Claim 72의 "관측하지 못했다"는 이 관측으로 대체된다. 관측 결과는 런북 §12.5, 조건은 §12.3]** **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
+24. **[운영 구성은 단일 인스턴스로 관측됨(D-NEW-23 Claim 74, 2026-09-30 한 시점) — 코드 수정은 없어 T7 자체는 미해소, "인스턴스 증가 전 T7 해결" 조건 유지. 이전 D-NEW-22 Claim 72의 "관측하지 못했다"는 이 관측으로 대체된다. 관측 결과는 런북 §12.5, 조건은 §12.3. 배포 대상(`ORACLE_HOST`)과 관측 VM의 일치는 D-NEW-24 Claim 75·런북 §12.6]** **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
 
 ### 이번 세션에서 해소됨
 
