@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 // SPEC-B2C-CONSULT-001 — .pen 03 / 03-A2 / 03-B / 03-C / 03-D 데스크톱 하단 푸터(Footer 컴포넌트).
 // 모바일 프레임(M03*)에는 푸터가 없으므로 md 미만에서는 숨긴다.
 //
@@ -13,11 +15,16 @@ const FOOTER_LINKS = ["개인정보처리방침", "이용약관", "고객 문의
 const DISCLAIMER =
   "본 서비스의 진단 결과는 입력하신 내용을 바탕으로 한 참고용 안내이며, 보상 여부와 금액을 보장하지 않습니다. 실제 지급은 가입하신 보험의 약관과 보험사 심사 결과에 따릅니다.";
 
-export function ConsultFooter() {
+// 위쪽 간격은 놓이는 자리마다 다르다(결과 화면은 버튼 아래 30, 폼 화면은 부모 gap이 정한다)
+// — 그래서 className으로 받는다.
+export function ConsultFooter({ className }: { className?: string }) {
   return (
     <footer
       data-testid="consult-footer"
-      className="mt-[30px] hidden w-full flex-col gap-[14px] border-t border-app-line pt-[26px] text-left md:flex"
+      className={cn(
+        "hidden w-full flex-col gap-[14px] border-t border-app-line pt-[26px] text-left md:flex",
+        className
+      )}
     >
       <div className="flex h-[30px] items-center gap-5">
         {FOOTER_LINKS.map((label) => (

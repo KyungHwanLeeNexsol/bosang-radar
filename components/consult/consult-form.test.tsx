@@ -85,6 +85,33 @@ describe("components/consult/ConsultForm", () => {
     expect(onNameChange).toHaveBeenCalledWith("홍길동");
   });
 
+  // .pen 03 / 03-A2 / M03 이름 필드: 라벨 줄 오른쪽에 힌트 "상담 시 호칭"이 있다. 같은 힌트가
+  // 연락처 필드에도 붙어 있으나 그건 디자인 복사 오류라(연락처는 호칭이 아니다) 적용하지 않는다.
+  it(".pen: 이름 필드 라벨 줄에 힌트 '상담 시 호칭'을 보인다(연락처 필드에는 붙이지 않는다)", () => {
+    act(() => {
+      root.render(<ConsultForm {...baseProps()} />);
+    });
+
+    const nameHint = container.querySelector('[data-testid="consult-name-hint"]');
+    expect(nameHint?.textContent).toBe("상담 시 호칭");
+
+    const nameInput = container.querySelector('[data-testid="consult-name-input"]');
+    expect(nameInput?.getAttribute("aria-describedby") ?? "").toContain("consult-name-hint");
+
+    const contactField = container.querySelector(
+      '[data-testid="consult-contact-input"]'
+    )?.parentElement;
+    expect(contactField?.textContent).not.toContain("상담 시 호칭");
+  });
+
+  it("법무 확인 전이라 '입력하신 정보는 상담 목적으로만 사용됩니다.' 보조 문구는 넣지 않는다(사용자 결정)", () => {
+    act(() => {
+      root.render(<ConsultForm {...baseProps()} />);
+    });
+
+    expect(container.textContent).not.toContain("상담 목적으로만 사용");
+  });
+
   it("channel=kakao일 때 연락처 라벨은 '카카오톡 연락에 사용할'을 포함하고 연락 희망 시간은 선택 입력이다", () => {
     act(() => {
       root.render(<ConsultForm {...baseProps({ channel: "kakao" })} />);

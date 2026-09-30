@@ -98,6 +98,70 @@ describe("components/consult/ConsultView — 3갈래 분기(AC-B2CCONSULT-007/00
   });
 });
 
+// 2026-09 .pen 최우선 지시 — 03 / 03-A2 폼 화면 조립: 입력칸 아래·동의 목록 위에 "상담 예정 전문가"
+// 카드가 오고, 맨 아래에 데스크톱 푸터가 붙는다. 데이터가 없거나 손상된 화면에는 붙지 않는다.
+describe("components/consult/ConsultView — .pen 03 폼 화면 조립(전문가 카드·푸터)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("전문가 카드는 입력 폼 뒤, 동의 목록 앞에 온다", () => {
+    writeDiagnosisHandoff(
+      buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" })
+    );
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    const form = container.querySelector('[data-testid="consult-form"]')!;
+    const card = container.querySelector('[data-testid="consult-expert-card"]')!;
+    const consent = container.querySelector('[data-testid="consult-consent-group"]')!;
+    expect(card).not.toBeNull();
+    expect(form.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(consent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("푸터는 폼 화면 맨 아래에 붙는다", () => {
+    writeDiagnosisHandoff(
+      buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" })
+    );
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    const footer = container.querySelector('[data-testid="consult-footer"]');
+    const consent = container.querySelector('[data-testid="consult-consent-group"]')!;
+    expect(footer).not.toBeNull();
+    expect(
+      consent.compareDocumentPosition(footer!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("진단 데이터가 없는 화면에는 전문가 카드도 푸터도 붙지 않는다", () => {
+    act(() => {
+      root.render(<ConsultView />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-no-data"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-expert-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="consult-footer"]')).toBeNull();
+  });
+});
+
 describe("components/consult/ConsultView — draft 초기화/왕복(AC-B2CCONSULT-006)", () => {
   let container: HTMLDivElement;
   let root: Root;

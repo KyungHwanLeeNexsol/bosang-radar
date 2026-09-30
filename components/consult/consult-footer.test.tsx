@@ -63,6 +63,23 @@ describe("components/consult/ConsultFooter", () => {
     );
   });
 
+  it("위쪽 간격은 쓰는 쪽이 정한다(결과 화면 30, 폼 화면 기본 흐름) — className을 받는다", () => {
+    act(() => {
+      root.render(<ConsultFooter className="mt-[30px]" />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-footer"]')?.className).toContain(
+      "mt-[30px]"
+    );
+  });
+
+  it("className을 주지 않으면 위쪽 간격을 스스로 넣지 않는다", () => {
+    // beforeEach가 className 없이 그린 푸터.
+    expect(container.querySelector('[data-testid="consult-footer"]')?.className).not.toContain(
+      "mt-["
+    );
+  });
+
   it("BORA 브랜드를 포함하고 확정 전 운영정보는 노출하지 않는다", () => {
     expect(container.textContent).toContain("BORA");
     for (const forbidden of ["법인명", "대표자", "사업자등록번호", "등록번호", "사업장 주소"]) {

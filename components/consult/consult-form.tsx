@@ -31,6 +31,7 @@ interface ConsultFormProps {
   errors?: ConsultFormErrors;
 }
 
+const NAME_HINT_ID = "consult-name-hint";
 const NAME_ERROR_ID = "consult-name-error";
 const CONTACT_ERROR_ID = "consult-contact-error";
 const PREFERRED_CALL_TIME_ERROR_ID = "consult-preferred-call-time-error";
@@ -68,7 +69,18 @@ export function ConsultForm({
     // 안내가 이름 라벨·입력을 덮었다(e2e/consult-flow-03.spec.ts가 검증).
     <div data-testid="consult-form" className="grid gap-9 md:grid-cols-2 md:gap-6">
       <div>
-        <Label htmlFor="consult-name-input">이름 *</Label>
+        {/* .pen 03 / 03-A2 / M03 — 라벨 줄 오른쪽 힌트 "상담 시 호칭". .pen은 연락처 필드에도 같은
+            힌트를 붙였지만 연락처는 호칭이 아니라 복사 오류로 보고 이름 필드에만 적용한다. */}
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="consult-name-input">이름 *</Label>
+          <span
+            id={NAME_HINT_ID}
+            data-testid="consult-name-hint"
+            className="text-label-s text-bora-ink-4"
+          >
+            상담 시 호칭
+          </span>
+        </div>
         <Input
           id="consult-name-input"
           data-testid="consult-name-input"
@@ -78,7 +90,7 @@ export function ConsultForm({
           onChange={(event) => onNameChange(event.target.value)}
           onBlur={onNameBlur}
           aria-invalid={errors?.name ? true : undefined}
-          aria-describedby={errors?.name ? NAME_ERROR_ID : undefined}
+          aria-describedby={errors?.name ? `${NAME_HINT_ID} ${NAME_ERROR_ID}` : NAME_HINT_ID}
         />
         <FieldError id={NAME_ERROR_ID} message={errors?.name} />
       </div>

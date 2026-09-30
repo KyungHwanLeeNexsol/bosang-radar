@@ -93,14 +93,40 @@ describe("components/consult/ConsultChannelSelector", () => {
     expect(container.textContent).toContain("카카오톡으로 상담 내용을 안내");
   });
 
-  it("전화 채널 선택 시 안내 문구는 특정 시간을 약속하지 않는 중립 표현이다(design.md §1 D6)", () => {
+  // 2026-09 .pen 최우선 지시(사용자 결정): .pen 03-A2 문구를 그대로 쓴다. design.md §1 D6의
+  // 중립 문구를 대체하며, 운영이 이 약속을 지킬 수 있는지는 런북 §11.3 활성화 전 점검 항목이다.
+  it("전화 채널 선택 시 안내 문구는 .pen 03-A2 문구 '영업일 기준 1일 이내에 …'다", () => {
     act(() => {
       root.render(<Harness initialValue="phone" onChange={vi.fn()} />);
     });
 
-    expect(container.textContent).toContain(
-      "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"
-    );
-    expect(container.textContent).not.toContain("영업일 기준 1일 이내");
+    const notice = container.querySelector('[data-testid="consult-channel-notice"]');
+    expect(notice?.textContent).toBe("영업일 기준 1일 이내에 입력하신 번호로 전화드립니다");
+    expect(container.textContent).not.toContain("접수 내용을 확인한 뒤");
+  });
+
+  it("안내는 role=status aria-live=polite 영역이고 채널에 맞는 아이콘(전화/카카오)을 함께 그린다", () => {
+    act(() => {
+      root.render(<Harness initialValue="phone" onChange={vi.fn()} />);
+    });
+
+    const notice = container.querySelector('[data-testid="consult-channel-notice"]');
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(notice?.getAttribute("aria-live")).toBe("polite");
+    const phoneIcon = notice?.querySelector("svg");
+    expect(phoneIcon?.getAttribute("aria-hidden")).toBe("true");
+    expect(phoneIcon?.getAttribute("class")).toContain("lucide-phone");
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    act(() => {
+      root.render(<Harness initialValue="kakao" onChange={vi.fn()} />);
+    });
+    const kakaoIcon = container
+      .querySelector('[data-testid="consult-channel-notice"]')
+      ?.querySelector("svg");
+    expect(kakaoIcon?.getAttribute("class")).toContain("lucide-message-circle");
   });
 });

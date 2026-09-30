@@ -21,6 +21,8 @@ import { CONSENT_POLICY_VERSION } from "@/lib/consult/consent-policy";
 import { ConsultSummaryCard } from "./consult-summary-card";
 import { ConsultChannelSelector } from "./consult-channel-selector";
 import { ConsultForm } from "./consult-form";
+import { ConsultExpertCard } from "./consult-expert-card";
+import { ConsultFooter } from "./consult-footer";
 import { ConsultConsentGroup } from "./consult-consent-group";
 import { ConsultSubmitBar } from "./consult-submit-bar";
 import { ConsultNoData } from "./consult-no-data";
@@ -580,6 +582,9 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
             errors={formErrors}
           />
 
+          {/* .pen 03 / 03-A2 / M03 — 입력칸 아래, 동의 목록 위. 내용은 중립("배정 예정"). */}
+          <ConsultExpertCard />
+
           <ConsultConsentGroup
             piiCollection={piiCollection}
             healthInfoUse={healthInfoUse}
@@ -596,6 +601,9 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
             channel={formState.channel}
             onSubmit={handleSubmit}
           />
+
+          {/* .pen 03 / 03-A2 — 데스크톱 푸터(모바일 M03에는 없다). 위 간격은 부모 gap 20 + 2 = 22. */}
+          <ConsultFooter className="mt-0.5" />
         </div>
       </div>
     </>

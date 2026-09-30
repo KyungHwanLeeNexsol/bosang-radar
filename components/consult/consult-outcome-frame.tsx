@@ -81,7 +81,7 @@ export function OutcomeFrame({
         {actions}
       </div>
 
-      <ConsultFooter />
+      <ConsultFooter className="mt-[30px]" />
     </div>
   );
 }

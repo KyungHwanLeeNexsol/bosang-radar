@@ -31,13 +31,16 @@ const CHANNEL_OPTIONS: ChannelOption[] = [
   { value: "phone", icon: Phone, label: "전화 상담", description: "10분이면 충분합니다" },
 ];
 
-// design.md §1 D6 — 전화 채널 안내는 "영업일 기준 1일 이내에…"처럼 구체적
-// 시간을 약속하지 않는다(운영 SLA 미확정). 03-B 성공 화면과 동일한 중립
-// 표현을 이 배너에도 그대로 적용한다(acceptance.md §12 semanticChecks가
-// 이 화면에서도 같은 문구를 요구한다).
-const CHANNEL_NOTICE: Record<ConsultationChannel, string> = {
-  kakao: "입력하신 번호의 카카오톡으로 상담 내용을 안내합니다",
-  phone: "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다",
+// [.pen 최우선 지시 반영] 안내 박스는 .pen 03(카카오) / 03-A2(전화) 문구와 아이콘을 그대로 쓴다.
+// 전화 채널의 "영업일 기준 1일 이내에…"는 design.md §1 D6이 금지했던 구체적 시간 약속이지만,
+// 사용자가 .pen 문구를 최우선으로 정했다. 운영이 이 약속을 지킬 수 있는지는 런북 §11.3의
+// 활성화 전 점검 항목이다(03-B 성공 화면 부제와 같은 약속이다).
+const CHANNEL_NOTICE: Record<
+  ConsultationChannel,
+  { icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; text: string }
+> = {
+  kakao: { icon: MessageCircle, text: "입력하신 번호의 카카오톡으로 상담 내용을 안내합니다" },
+  phone: { icon: Phone, text: "영업일 기준 1일 이내에 입력하신 번호로 전화드립니다" },
 };
 
 interface ConsultChannelSelectorProps {
@@ -46,6 +49,7 @@ interface ConsultChannelSelectorProps {
 }
 
 export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelectorProps) {
+  const { icon: NoticeIcon, text: noticeText } = CHANNEL_NOTICE[value];
   return (
     <div data-testid="consult-channel-selector" className="mt-6 md:mt-0">
       <h2 className="text-h3 font-bold text-bora-ink">어떻게 상담받으시겠어요?</h2>
@@ -94,11 +98,13 @@ export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelect
         })}
       </div>
       <p
+        data-testid="consult-channel-notice"
         role="status"
         aria-live="polite"
-        className="mt-2.5 rounded-[8px] bg-bora-accent-soft px-3.5 py-2.5 text-label-s font-medium text-bora-accent-deep md:mt-3 md:py-3"
+        className="mt-2.5 flex items-center gap-2 rounded-[9px] bg-bora-050 px-3.5 py-3 text-[12.5px] font-semibold text-bora-accent-deep md:mt-3"
       >
-        {CHANNEL_NOTICE[value]}
+        <NoticeIcon aria-hidden={true} className="size-3.5 shrink-0 text-bora-accent" />
+        {noticeText}
       </p>
     </div>
   );
