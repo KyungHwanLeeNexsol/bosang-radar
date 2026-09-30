@@ -3469,6 +3469,57 @@ exit=1
 
 **Residual-risk**: T7(같은 키 동시 재시도의 응답 불일치·한도 이중 소비)은 코드상 **남아 있는 결함**이다. 배포 대상이 단일 프로세스 VM임이 확인돼 현재 운영에서는 일어나지 않지만, 인스턴스를 늘리거나 `ORACLE_HOST`·구성을 바꾸기 전에는 T7을 코드로 먼저 고치고 `pnpm verify:remote-consult`의 T6·T7을 통과시켜야 한다(런북 §12.3). `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft·미병합이다.
 
+### D-NEW-25 — T7 코드 수정(DB 쓰기 트랜잭션), 하네스 `--only`, 시각 정합 승인 자료 (이번 세션)
+
+사용자 지시(2026-09-30): PR #22 HEAD `af66a46`에서 (1) `idempotencyLocks`(프로세스 안 `Map`)에 기대지 않고 DB로 프로세스 간 원자적 중복 처리를 하도록 T7을 코드로 고친다(같은 키·같은 요청 동시 제출 → 상담 행 1개·동일한 성공 응답·rate limit 소비 1회, 같은 키·다른 요청 충돌과 DB 실패 롤백은 유지). (2) T1~T6을 유지하고 T7을 서로 다른 두 프로세스에서 다시 실행한다(원격 Turso를 쓰면 기존 가드를 지킨다, 실패를 통과로 보고하지 않는다). (3) 미검증으로 남은 `.pen` 원본 대조, 03-B/03-C의 제외된 top 축, 카카오 성공 카드 디자인 근거를 확인하고, 사용자 판단이 필요한 것은 임의 승인 없이 비교 이미지·차이·선택지로 정리한다. (4) 타입·lint·단위·E2E·시각 검증을 돌려 결과를 문서에 반영하고, 코드로 해결한 것과 승인 대기를 구분한다. PR은 Draft, 병합·`CONSULT_POLICY_READY` 변경 금지.
+
+**실행 환경**: Windows 11, Node v24.19.0, pnpm, 로컬 `file:` SQLite, Playwright Chromium. **원격 Turso는 사용하지 않았다**(세션 환경에 `TURSO_*` 없음, 원격 쓰기 권한을 받지 않아 사용자에게 물었고 "이번에는 생략"을 선택했다).
+
+**Claim 76 — `POST /api/consultations`를 DB 쓰기 트랜잭션 하나로 바꿔, 로컬에서 서로 다른 두 프로세스의 같은 키·같은 요청 동시 제출이 상담 행 1개·동일한 성공 응답·rate limit 소비 1회가 됐다.**
+
+**Evidence**: 구현은 idempotency 키 조회 → 시크릿·IP 확인 → rate limit upsert(+만료 행 삭제) → 업무 키 중복 조회 → 삽입을 `db.transaction()`(`BEGIN IMMEDIATE`) 하나로 묶고, 결과(`replay`/`idempotency_conflict`/`server_error`/`rate_limited`/`duplicate`/`created`)를 트랜잭션 밖에서 HTTP로 매핑한다. 429와 409/`duplicate`는 정상 반환이라 커밋(카운터 소비), 예외는 카운터까지 롤백. 스키마 변경 없음. 같은 프로세스 더블클릭용 `Map` 락은 최적화로만 남겼다. 하네스 `pnpm verify:remote-consult run --only T7 --simulate-latency-ms 100`(워커 문장마다 왕복 지연 모사), 새 DB에서 각 5회(`.moai/state/verify/d-new-25/16-t7-negative-control.txt`):
+
+| | 두 프로세스 응답 | rate limit 카운터 | T7 |
+|---|---|---|---|
+| 수정 전(HEAD `af66a46`의 route.ts) | `[201, 409]` 5/5 | 2 (이중 소비) 5/5 | FAIL 5/5 |
+| 수정 후 | `[200, 201]`, 동일 성공 본문 5/5 | 1 5/5 | PASS 5/5 |
+
+지연 0ms·50ms에서 T7 단독 실행도 PASS 5/5(`11-t7-alone-summary.txt`). 단위 테스트(`route.test.ts` 39개)는 경쟁 주입(같은 키·같은 요청 → 200, 같은 키·다른 요청 → 409, 카운터 0), 삽입 실패 롤백(트리거로 삽입만 실패 → 카운터 롤백, 재시도 카운터 1), COMMIT 유실 모사(→ 재생 200/충돌 409), 429·409 카운터 소비 특성화를 포함한다. 독립 동시성 검토(읽기 전용 에이전트, 판정은 "승인하되 보완")의 권고를 반영했다: 복구 경로 구제 시 `consultation_write_tx_failed_resolved` 경고 로그, 복구 경로는 같은 키 결과만 해석하고 업무 키 중복은 원래 오류를 다시 던져 500(RED 2건 확인 후 수정), 깨진 DB 테스트가 엉뚱한 이유로 통과하지 않도록 `transaction`을 갖춘 스텁으로 교체.
+
+**Baseline-attribution**: 이번 세션, 위 명령과 출력. 수정 전 측정은 작업 트리의 `route.ts`를 `git show HEAD:…`로 잠시 바꿔 돌린 뒤 백업본으로 복구하고 `cmp`로 동일함을 확인했다(`RESTORED-OK`).
+
+**Gaps(미검증)**: (1) **원격 Turso에서는 돌리지 않았다.** 두 번째 `BEGIN IMMEDIATE`가 기다리는지 즉시 실패하는지, Hrana 프로토콜 버전(3 이상이어야 서버가 중간에 롤백한 뒤 자동 커밋으로 실행되지 않음), 잠금 유지 시간은 미확인이다. (2) T7은 한 키·한 IP의 한 라운드 게이트라 "같은 키·다른 요청", "다른 키·같은 연락처"의 프로세스 간 경쟁은 두 프로세스로 실행하지 않았다(단위 테스트 경쟁 주입으로만 확인). (3) 로컬 `file:`은 원격과 지연·잠금 대기 성격이 다르다. 지연 모사는 경쟁 구간을 열기 위한 수단이지 원격의 재현이 아니다. (4) 수정 전 음성 대조는 지연 100ms에서만 5회 했다.
+
+**Residual-risk**: 쓰기 잠금이 왕복 6회 정도 동안 DB 전체에 걸리고 트랜잭션 길이 상한이 없다(드라이버 요청 타임아웃 설정 없음). 연결이 멈추면 잠금이 오래 유지될 수 있고 대기 중인 같은 키 요청도 함께 기다린다. 단일 VM 운영이면 기존 `Map` 락으로도 같은 키 경쟁은 막혔으므로, 새 비용(더 긴 DB 잠금)은 항상 치르고 이득은 다중 인스턴스에서만 생긴다. 구제된 트랜잭션 실패는 경고 로그로만 드러난다.
+
+**Claim 77 — 하네스에 `--only`를 추가했고, T7의 통과 여부는 `--only T7`로 본다. 전체 `run`에서는 T5·T6이 로컬에서 실패한다(수정 전에도 그랬다).**
+
+**Evidence**: `pnpm verify:remote-consult run --only T7[,T3…]`(run 전용, 알 수 없는 값·다른 명령은 종료 코드 2, 쓰기 없음). 전체 `run`(지연 0ms, `10-t7-variant-latency0.log`)에서 T5·T6·T7이 모두 `SQLITE_BUSY`(500)로 **실패**했다(게이트 4/7). 지연 250ms에서는 T5만 실패(6/7)했고 T7은 통과했다. 지연 100ms 전체 실행(`9-…log`)은 T5·T6 실패, T7 통과(5/7)였다. 로컬 `file:` 드라이버가 같은 프로세스의 동시 쓰기 트랜잭션에 `SQLITE_BUSY`를 내고 그 잔여 잠금이 뒤 케이스에 영향을 줘서, 전체 실행에서 T7 결과가 타이밍에 따라 달랐다. T7만 단독으로 돌리면 같은 조건에서 통과한다(Claim 76). 그래서 하네스 수명 주기 테스트는 전체 실행의 T7 통과를 단정하지 않고(워커가 실제로 떠서 응답 2개가 기록됨만 단정), 통과 여부는 `--only T7` 테스트가 본다. 하네스 테스트 53개 통과.
+
+**Baseline-attribution**: 이번 세션, 위 로그.
+
+**Gaps(미검증)**: (1) 로컬 T5·T6 실패는 드라이버 한계라고 본 것이고 원격에서는 확인하지 않았다(이전 원격 실행에서 T5는 통과했다, D-NEW-19). (2) 프로세스 안 전역 직렬화를 넣어 로컬 전체 실행을 7/7로 만드는 방안은 헤드 오브 라인 차단 위험(연결이 멈추면 같은 프로세스의 모든 제출이 멈춤) 때문에 채택하지 않았다.
+
+**Residual-risk**: 로컬만으로는 T1~T7 전체 통과를 보일 수 없다. 전체 게이트는 원격 실행이 있어야 닫힌다.
+
+**Claim 78 — 검증 실행 결과(최종 트리). 전부 통과했고 원격은 미수행이다.**
+
+**Evidence**: `tsc --noEmit` exit 0, `eslint app scripts` exit 0, `prettier --check`(변경 파일) exit 0, `pnpm test` 99 파일·859 테스트 통과, `pnpm test:e2e` 46 passed, `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` 11 passed, `pnpm visual:verify` 24화면 PASS(exit 0). 로그는 gitignored `.moai/state/verify/d-new-25/`(`24-tsc-final.log`, `25-lint-final.log`, `26-prettier-final.log`, `23-unit-all.log`, `19-e2e-full.log`, `20-e2e-policy-off.log`, `22-visual-verify.log`). `visual:verify`가 다시 쓴 추적 증거 파일(`measurements.json` 등)은 내용 변경이 아니라 재생성이라 `git restore`로 되돌렸다.
+
+**Baseline-attribution**: 이번 세션, 위 명령과 출력(수정 후 작업 트리). `verify:flag-runtime`은 이번 변경이 영향을 주지 않는 범위라 돌리지 않았다.
+
+**Gaps(미검증)**: (1) 원격 Turso 회귀 시험(T1~T7 전체, T7 단독)은 돌리지 않았다. (2) Chromium 외 브라우저, 다른 뷰포트는 보지 않았다. (3) 배포본(Linux standalone, PM2)에서의 동작은 보지 않았다.
+
+**Claim 79 — `.pen` 원본 ↔ `design/exports` 대조는 6개 프레임에서 픽셀 동일로 확인했다. 03-B/03-C의 제외된 top 축과 카카오 성공 카드는 사용자 시각 승인 대기이며 대신 승인하지 않았다.**
+
+**Evidence**: Pencil로 `.pen`의 03-B, 03-C, 03-D, M03-B, M03-C, M03-D 프레임을 내보내 저장소 `design/exports` PNG와 Playwright 캔버스로 비교했다: 6/6 크기 동일, **차이 0픽셀, 채널 최대 차이 0**(`18-pen-vs-exports.json`). 비교 이미지와 승인 요청서는 `.moai/reports/visual-check/SPEC-B2C-CONSULT-001/approval/`(`A1`~`A5` PNG, `APPROVAL-PACK.md`)에 있다. 직접 열어 본 것은 A1~A4다. 승인이 필요한 결정 3가지: (1) 03-B/M03-B 안내 문구를 카드 위(디자인)로 할지 카드 아래(SPEC §10 순서, 현재)로 할지와 취소 문의 버튼·하단 링크, (2) 03-C/M03-C의 2줄 부제·안내 박스·"기존 신청 상태 확인" 주 버튼, (3) 카카오 채널 성공 카드가 3행인 것(디자인은 카카오여도 "연락 희망 시간" 행이 있는 4행). 각 결정의 선택지와 영향은 `APPROVAL-PACK.md`.
+
+**Baseline-attribution**: 이번 세션, 위 명령과 출력.
+
+**Gaps(미검증)**: (1) `.pen` 대조는 위 6개 프레임만이다. 01·02 계열과 03·03-A2는 대조하지 않았다. (2) A5(모바일 카카오)는 생성만 하고 열어 보지 않았다. (3) 디자인 예시 값("정하은 손해사정사", "상담 대기 중")이 예시 데이터인지는 확인하지 않았다. (4) 사용자의 시각 정합 승인은 없다.
+
+**Residual-risk**: top 제외 3건(03-B 68.5px, 03-C 53.5px, M03-C 40.5px)은 실제 디자인 차이를 덮는다. 이 화면들의 카드가 위로 어긋나는 회귀를 게이트가 잡지 못한다. 카카오 3행 카드는 디자인 정합을 검증한 적이 없다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3540,7 +3591,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
 23. **[해소됨 — D-NEW-21 Claim 68-69: 사용자 결정으로 `/`도 `force-dynamic`, 빌드 2종 x 시작 8조합 불일치 0건(`next start`·standalone). 아래는 당시 기록]** **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
-24. **[운영 구성은 단일 인스턴스로 관측됨(D-NEW-23 Claim 74, 2026-09-30 한 시점) — 코드 수정은 없어 T7 자체는 미해소, "인스턴스 증가 전 T7 해결" 조건 유지. 이전 D-NEW-22 Claim 72의 "관측하지 못했다"는 이 관측으로 대체된다. 관측 결과는 런북 §12.5, 조건은 §12.3. 배포 대상(`ORACLE_HOST`)과 관측 VM의 일치는 D-NEW-24 Claim 75·런북 §12.6]** **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
+24. **[D-NEW-25 Claim 76-78: T7은 코드로 고쳤고(DB 쓰기 트랜잭션) 로컬 두 프로세스에서 수정 전 FAIL 5/5 → 수정 후 PASS 5/5로 확인했다. 원격 Turso 회귀 시험은 미수행이라 "인스턴스 증가 전 원격 T6·T7 통과" 조건은 유지된다. 아래 문장은 그 이전 기록이다.] [운영 구성은 단일 인스턴스로 관측됨(D-NEW-23 Claim 74, 2026-09-30 한 시점) — 그 시점에는 코드 수정이 없어 T7 자체는 미해소였다. 이전 D-NEW-22 Claim 72의 "관측하지 못했다"는 이 관측으로 대체된다. 관측 결과는 런북 §12.5, 조건은 §12.3. 배포 대상(`ORACLE_HOST`)과 관측 VM의 일치는 D-NEW-24 Claim 75·런북 §12.6]** **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
 
 ### 이번 세션에서 해소됨
 
