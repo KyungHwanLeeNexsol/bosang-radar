@@ -401,7 +401,9 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     // 잡기 위함).
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect
-      .poll(() => page.evaluate(() => window.scrollY), { message: "테스트 준비: 스크롤 강제 이동 실패" })
+      .poll(() => page.evaluate(() => window.scrollY), {
+        message: "테스트 준비: 스크롤 강제 이동 실패",
+      })
       .toBeGreaterThan(0);
     await page.getByTestId("consult-failure-retry").click();
     await page.getByTestId("consult-failure").waitFor();
@@ -953,3 +955,67 @@ function registerLayoutTests(policyReady: boolean): void {
 
 registerLayoutTests(true);
 registerLayoutTests(false);
+
+// ── 성공 화면(03-B/M03-B) 요소 비겹침 회귀 가드 ─────────────────────────
+// jsdom에는 레이아웃이 없어 단위 테스트로는 겹침을 잡을 수 없다 — 실제 브라우저의
+// getBoundingClientRect(=Playwright boundingBox)로 안내 문구·CTA·요약 카드가 서로
+// 겹치지 않고 SPEC 순서(카드 → 안내 → CTA, design.md §10)로 쌓이는지 단언한다.
+// 데스크톱에서 CTA 그룹의 음수 상단 마진(md:mt-[-39px])이 CTA를 안내 문구 위로
+// 끌어올려 덮던 결함(progress.md Claim 52)의 회귀를 막는다.
+async function reachSuccessScreen(page: Page, phone: string): Promise<void> {
+  await completeFractureFlowToResult(page);
+  await clickDisabilityConsultCta(page);
+  await page.waitForURL("**/consult", { timeout: 10_000 });
+  await page.getByTestId("consult-view").waitFor();
+  await page.getByRole("radio", { name: /전화 상담/ }).check();
+  await fillConsultForm(page, {
+    name: CONSULT_NAME,
+    contact: phone,
+    preferredCallTime: CONSULT_CALL_TIME,
+  });
+  await checkRequiredConsents(page);
+  await submitConsultForm(page);
+  await page.getByTestId("consult-success").waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+async function expectSuccessScreenNoOverlap(page: Page): Promise<void> {
+  const cardRect = await rectOf(page.getByTestId("consult-success-summary"), "요약 카드");
+  const noticeRect = await rectOf(page.getByTestId("consult-success-notice"), "안내 문구");
+  const ctaRect = await rectOf(page.getByTestId("consult-success-back-cta"), "돌아가기 CTA");
+
+  expectNoOverlap("안내 문구", noticeRect, "돌아가기 CTA", ctaRect);
+  expectNoOverlap("요약 카드", cardRect, "안내 문구", noticeRect);
+  expectNoOverlap("요약 카드", cardRect, "돌아가기 CTA", ctaRect);
+  // SPEC 순서(design.md §10): 카드 → 안내 → CTA. 안내는 카드 아래, CTA는 안내 아래.
+  expect(
+    noticeRect.y,
+    `안내 문구(${describeRect(noticeRect)})는 요약 카드(${describeRect(cardRect)}) 아래에서 시작해야 한다`
+  ).toBeGreaterThanOrEqual(cardRect.y + cardRect.height);
+  expect(
+    ctaRect.y,
+    `돌아가기 CTA(${describeRect(ctaRect)})는 안내 문구(${describeRect(noticeRect)}) 아래에서 시작해야 한다`
+  ).toBeGreaterThanOrEqual(noticeRect.y + noticeRect.height);
+}
+
+test.describe("03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Desktop, 1440x900)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("데스크톱에서 안내 문구와 돌아가기 CTA와 요약 카드가 서로 겹치지 않는다", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.20.0.1" });
+    await reachSuccessScreen(page, "01023450001");
+    await expectSuccessScreenNoOverlap(page);
+  });
+});
+
+test.describe("M03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Mobile, 390x605)", () => {
+  test.use({ viewport: { width: 390, height: 605 } });
+
+  test("모바일에서 안내 문구와 돌아가기 CTA와 요약 카드가 서로 겹치지 않는다", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.20.0.2" });
+    await reachSuccessScreen(page, "01023450002");
+    await expectSuccessScreenNoOverlap(page);
+  });
+});

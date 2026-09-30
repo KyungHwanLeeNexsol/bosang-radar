@@ -78,7 +78,7 @@ export function ConsultSuccess({
         <SummaryRow label="상담 예정 전문가" value="배정 예정" />
       </dl>
 
-      <p className="max-w-sm text-body text-bora-ink-3">
+      <p data-testid="consult-success-notice" className="max-w-sm text-body text-bora-ink-3">
         접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다
       </p>
 
