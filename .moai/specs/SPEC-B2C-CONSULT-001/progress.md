@@ -3260,6 +3260,102 @@ build DEV_STATES=true     -> start DEV_STATES=(미설정): "/" title="서비스 
 
 **Residual-risk**: `visual:verify` 재실행은 추적되는 증거 파일(`measurements.json`의 `generatedAt`, SPEC-B2C-DIAGNOSIS-001 스크린샷 일부)을 매번 바꾼다. 이번에 8개 파일을 커밋된 상태로 복원했다. 남은 제외 축은 D-NEW-17 Claim 55에 있다.
 
+### D-NEW-21 — `/`와 `/result`의 진단 게이트 판정 시점 정렬, standalone 관측, 성공 화면 두 채널 계측 (이번 세션)
+
+사용자 결정(열린 항목 23): "`/`와 `/result`의 판정 시점을 같게 하되 `/result`·`/consult`의 consult 플래그 런타임 동작은 유지한다." `/result`가 요청 시점이어야 하므로 `/`도 요청 시점으로 맞췄다. 증거 로그는 모두 gitignored `.moai/state/verify/group4/`에 있다.
+
+**Claim 68 — `/`가 빌드 시점에 굳어 `/result`와 판정 시점이 달랐고, `app/page.tsx`에 `dynamic = "force-dynamic"`을 넣자 빌드 2종 x 시작 8조합에서 불일치가 31건에서 0건이 됐다(`next start`).**
+
+**Evidence**: `verify-flag-runtime.ts`를 진단 플래그 3종까지 넓혔다(빌드 closed=전부 false / open=FLOW+ENGINE true, 시작 조합 8개: consult 4조합(DEV_STATES만 열림) + 진단 4조합(전부 닫힘 / FLOW+ENGINE / FLOW만 / 전부 열림)). 각 조합에서 `/`와 `/result`의 게이트 상태(placeholder 문구와 열림 전용 prop이 서로 반대일 때만 확정)를 시작 env로 계산한 `computeDiagnosisFlags` 결과와 비교하고, 둘이 다르면 `SKEW`로 센다.
+
+수정 전(`cb97824`의 `app/page.tsx`, 스크립트는 `7e84066`), 명령 `TURSO_DATABASE_URL=file:./.tmp/group4.db TURSO_AUTH_TOKEN= pnpm verify:flag-runtime`, 전체 출력 `1-red-matrix-next-start.log`, 발췌:
+
+```
+## 빌드 closed (consult=false policy=false diag flow=false engine=false dev=false)
+프리렌더된 라우트(.next/prerender-manifest.json): [/]
+┌ ○ /
+MISMATCH: 빌드 시점에 프리렌더된 라우트 [/]
+- start [diag FLOW+ENGINE(운영 활성)] … 시작 env 기대 게이트=open / 관측 /=closed /result=open (/.enableDevStates=null /result.enableDevFixture=false) … MISMATCH: SKEW: / = closed / /result = open; / 게이트: 기대 open / 관측 closed; / enableDevStates: 기대 false / 관측 null
+## 빌드 open (consult=true policy=true diag flow=true engine=true dev=false)
+- start [diag 모두 닫힘] … 시작 env 기대 게이트=closed / 관측 /=open /result=closed … MISMATCH: SKEW: / = open / /result = closed; …
+불일치 관측 합계: 31
+exit=1
+```
+
+수정 후(`2cc1511`), 같은 명령, `2-after-matrix-next-start.log`:
+
+```
+프리렌더된 라우트(.next/prerender-manifest.json): []
+prerender-manifest routes 전체 키: [/_global-error, /_not-found, /favicon.ico]
+┌ ƒ /
+├ ƒ /consult
+└ ƒ /result
+… (빌드 2종 x 시작 8조합 16줄 모두 OK)
+불일치 관측 합계: 0
+exit=0
+```
+
+수정은 `app/page.tsx`에 `export const dynamic = "force-dynamic";` 한 줄과 주석 정정이다(`computeDiagnosisFlags` 무변경). 단위 회귀: `app/page.test.tsx`에 `dynamic === "force-dynamic"` 단언을 먼저 추가해 실패(`expected undefined to be 'force-dynamic'`)를 확인한 뒤 통과시켰다. 사용한 Next 문서: `node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md`(`dynamic` 라우트 세그먼트 옵션, `'force-dynamic'`은 요청 시점 렌더링), `.../05-config/01-next-config-js/output.md`(standalone). 진단 플래그를 읽는 다른 곳: `components/diagnosis/step-loading.tsx`, `lib/diagnosis/fixtures/fracture-case.ts`는 주석에 이름이 나올 뿐 `process.env`를 읽지 않아(grep) 손대지 않았다.
+
+**FOUNDATION-001 편차(사용자가 알고 수용)**: `app/page.tsx`의 주석이 인용한 REQ-B2CFOUND-002/003("빌드 시점에 완전히 정적으로 렌더링", "항상 정적으로 접근 가능")의 "정적 렌더링"은 더 이상 사실이 아니다. 유지되는 것은 세션 확인 없음·`process.env` 외 런타임 의존성 없음·PII 미수집·게이트가 닫혀도 placeholder 200 응답이다. 주석을 정정했고 SPEC 본문(spec/plan/acceptance/design)은 수정하지 않았다. 런북 §11에도 같은 내용을 적었다.
+
+**Baseline-attribution**: 이번 세션, 이 트리. 수정 전은 `cb97824` 코드 + 확장한 스크립트, 수정 후는 커밋 `2cc1511` 트리. 사용자 결정 원문은 위 첫 문단.
+
+**Gaps(미검증)**: (1) `/`가 요청마다 렌더되는 비용(응답 시간·서버 부하)은 측정하지 않았다. (2) 진단 플래그 3종의 다른 조합(예: ENGINE만 true)은 매트릭스에 없다 — 게이트 계산은 `computeDiagnosisFlags`가 단위 테스트로 5행 행렬을 이미 덮는다. (3) 브라우저에서 `/`를 열어 본 것이 아니라 서버 HTML(RSC 페이로드의 `enableDevStates` prop과 placeholder 문구)로 판정했다. (4) `prerender-manifest`에 남은 `/_global-error`, `/_not-found`, `/favicon.ico`는 페이지 라우트가 아니라서 판정에서 뺐다.
+
+**Residual-risk**: `/`가 동적이 되어 진단 플래그를 바꾼 뒤 재시작만 하면 된다는 것은 이 로컬 관측에 한정된다(PM2가 재시작 때 env를 다시 읽는지는 **미검증**, 런북 §11.4). 다른 사용자가 이전 커밋으로 만든 빌드를 그대로 쓰면 `/`는 여전히 굳어 있다(수정이 들어간 빌드를 한 번은 재배포해야 한다).
+
+**Claim 69 — `output: "standalone"` 서버(`node .next/standalone/server.js`)에서도 같은 매트릭스가 불일치 0건이고 페이지 결과는 `next start`와 같다. 다만 Windows 개발 머신에서만 관측했고, 그러려면 검증 스크립트에 환경 보정 두 가지가 필요했다.**
+
+**Evidence**: 명령 `TURSO_DATABASE_URL=file:./.tmp/group4.db TURSO_AUTH_TOKEN= pnpm verify:flag-runtime --server=standalone`. 스크립트는 `deploy.yml`과 같은 복사(`.next/static` → `.next/standalone/.next/static`, `public` → `.next/standalone/public`) 후 `node .next/standalone/server.js`를 `PORT`(OS가 고른 빈 포트)·`HOSTNAME=127.0.0.1`·시작 env로 띄운다.
+
+- 1차 시도 `3a-standalone-first-attempt-EPERM.log`: `서버가 준비되기 전에 종료됐습니다(exit code=1 …)`. 서버를 직접 띄워 보니 `Error: EPERM: operation not permitted, stat '…\.next\standalone\node_modules\.pnpm\next@16.3.2_…\node_modules\react'`(PowerShell `Get-Item`: `LinkType: SymbolicLink`, `Attributes: Archive, ReparsePoint` — 디렉터리 링크가 파일 링크로 만들어짐). Windows에서만 디렉터리 심볼릭 링크를 junction으로 바꾸는 보정을 넣었다(46개 변환).
+- 2차 시도 `3b-after-matrix-standalone.log`: 페이지 게이트는 모두 OK인데 API가 전부 500. `4-standalone-api500-server.log`: `ConnectionFailed("Unable to open connection to local database ./.tmp/flag-runtime.db: 14")` — standalone `server.js`가 시작하며 cwd를 `.next/standalone`으로 바꿔 상대 `file:` URL이 그 안을 가리킨다. standalone 모드에서만 절대 경로 `file:` URL을 쓰도록 바꿨다(운영이 상대 `file:` URL을 쓴다면 같은 문제가 난다는 뜻이지만 운영 DB URL은 이 저장소에서 확인하지 못했다).
+- 3차 시도 `3c-after-matrix-standalone.log`(커밋 `e8984c8`): 프리렌더 `[]`, 라우트 표 `ƒ /`, `ƒ /consult`, `ƒ /result`, 16줄 모두 OK, `불일치 관측 합계: 0`, `exit=0`. 시작 조합별 `/`·`/result`·`/consult`·API 상태는 `next start` 로그와 같다(`/.enableDevStates`·`/result.enableDevFixture` 값과 `/consult` 제목·`isPolicyReady`도 동일; API의 201 대 409는 같은 로컬 DB를 조합마다 공유해 중복 판정이 달라진 것으로 둘 다 503이 아니다).
+
+**Baseline-attribution**: 이번 세션, 커밋 `2cc1511` 이후 트리(스크립트 보정은 `e8984c8`). 서버는 시나리오마다 종료했다.
+
+**Gaps(미검증)**: (1) Linux(실제 배포 환경)에서의 standalone 동작 — Windows 심볼릭 링크 보정은 Windows 전용이라 Linux에서는 적용되지 않으며, Linux에서 링크가 정상인지는 관측하지 못했다. (2) `next.config`의 `HOSTNAME` 바인딩·Nginx·PM2를 거친 동작. (3) PM2가 `restart` 때 바뀐 env를 다시 읽는지 — **미검증, 주장하지 않는다.** (4) `.env.local` 같은 파일 기반 env는 쓰지 않았다.
+
+**Residual-risk**: standalone에서 상대 `file:` DB URL이 깨진다는 관측은 운영이 원격 Turso URL을 쓰면 해당 없다 — 다만 로컬 파일 DB로 standalone을 돌리는 경우에는 절대 경로를 써야 한다.
+
+**Claim 70 — 성공 화면(03-B/M03-B)을 전화(4행)·카카오(3행) 두 채널, 데스크톱 1440x900·모바일 390 너비에서 실제 브라우저 레이아웃으로 계측했고, 정상 값에서는 잘림·겹침·CTA 침범이 없었다. 긴 값에서 결함 1건(카드 밖 넘침)을 재현해 고쳤다.**
+
+**Evidence**: `e2e/consult-flow-03.spec.ts`에 8개 테스트를 추가했다(기존 18개는 그대로). 명령 `LAYOUT_EVIDENCE_DIR=.moai/state/verify/group4/e2e pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts`(준비 모드, prod 빌드). 단언: (a) 카드·안내(`consult-success-notice`)·CTA(`consult-success-back-cta`)·취소 문의(`consult-success-cancel-inquiry`) 6쌍 비교차와 카드 → 안내 → CTA 순서, (b) 모든 행과 dt/dd가 카드 안에 있고 같은 행 dt/dd 비교차, (c) dt/dd/안내의 `scrollWidth <= clientWidth`, ellipsis·line-clamp 없음, 카드·페이지 가로 넘침 없음, 네 요소가 뷰포트 안, (d) 카드 높이 = 행 높이 합 + 위·아래 테두리(±0.5px), 행 구성이 채널별 라벨과 같음.
+
+측정(수정 전후 동일; `8-success-metrics-green.txt`, `e2e/success-*.json`):
+
+| 채널 x 뷰포트 | 카드 | 행 높이 | 안내 y | CTA | 결과 |
+|---|---|---|---|---|---|
+| 카카오 데스크톱 | 640 x 150.5 | 49.5 x 3 | 408 | 147.3 x 47.5 | 통과 |
+| 카카오 모바일 | 350 x 132.5 | 43.5 x 3 | 404 | 350 x 47.5 | 통과 |
+| 전화 데스크톱 | 640 x 200 | 49.5 x 4 | 457.5 | 147.3 x 47.5 | 통과 |
+| 전화 모바일 | 350 x 176 | 43.5 x 4 | 447.5 | 350 x 47.5 | 통과 |
+
+카카오는 3행이라 카드 높이가 데스크톱 150.5px, 모바일 132.5px로 측정됐다(행 x 개수 + 테두리 2px와 일치, 가정하지 않고 측정). 모든 경우 `documentScrollWidth == viewportWidth`(1440/390).
+
+스크린샷(`e2e/success-{kakao,phone}-{desktop,mobile}.png`)을 직접 봤다: 카카오 데스크톱·모바일은 완료 아이콘·제목 아래에 "상담 방식 / 연락처 / 상담 예정 전문가" 3행 카드(라벨 왼쪽, 값 오른쪽 굵게), 그 아래 안내 문구 한 줄, 보라색 "진단 결과로 돌아가기" CTA와 "신청 취소 · 정보 삭제 문의: 준비 중" 문구가 겹침 없이 쌓여 있다(데스크톱은 CTA와 취소 문의가 같은 줄, 모바일은 CTA가 전체 폭이고 문의 문구가 아래). 전화는 "연락 희망 시간 / 평일 오후 (13시 ~ 18시)" 행이 추가된 4행 카드이고 나머지 구성은 같다. 잘리거나 겹치거나 CTA가 카드·안내를 덮는 모습은 없었다. 카카오 3행 카드에는 디자인 캡처가 없어 디자인 정합은 주장하지 않는다.
+
+연락 희망 시간: `lib/consult/schema.ts`는 `preferredCallTime: z.string().min(1).optional()`(전화 채널이면 필수)로 **허용값 열거도 최대 길이도 없다.** 그래서 "허용되는 가장 긴 값"은 정의되지 않는다. 저장소가 서버 형식으로 쓰는 값은 입력란 placeholder `평일 오후 (13시 ~ 18시)`뿐이고 위 4개 케이스가 이 값을 쓴다. 390px 전화 채널에서 스키마가 통과시키는 합성 스트레스 값 4종을 추가로 계측했다: 공백 있는 49자 한글 문장, 공백 없는 43자 한글, 공백 없는 42자 영문, 공백 없는 85자 영문. 앞 세 가지는 통과(행 56 또는 75.5px로 늘어남)했고 85자 영문에서 결함이 재현됐다(RED, `6-e2e-consult-long-latin-red.log`, 재시도 2회 모두 같은 실패):
+
+```
+Error: dd "hong.gildong.kakao.id.1234567890abcdefghij.hong.gildong.kakao.id.1234567890abcdefghij"(top=392.3 bottom=411.8 left=48.3 right=607.4)이 요약 카드(top=247.5 bottom=514 left=20 right=370) 밖으로 나간다
+  1 failed … 25 passed (5.0m)
+exit=1
+```
+
+원인: dd가 flex 항목의 기본 `min-width:auto` 때문에 줄어들지 못한다. 수정(`components/consult/consult-summary-row.tsx`, 커밋 `7e377b8`): dd에 `min-w-0 break-words`, dt에 `shrink-0`, 행에 `gap-4`. 수정 후 `7-e2e-consult-green.log`: `26 passed (5.0m)`, `exit=0`(재시도 표시 없음), 정상 값의 카드 크기는 위 표와 같고(짧은 값에서는 `justify-between`이 남는 폭을 써 위치도 동일), 85자 영문 값은 카드 안에서 3줄로 줄바꿈되며 행이 75.5px로 늘어난다(`e2e/success-phone-mobile-long-unbroken-latin-long.png`를 봤다: 라벨 "연락 희망 시간"은 그대로, 값이 카드 안 3줄). 이 컴포넌트는 03-B/C/D가 함께 쓰므로 `components/consult` 단위 85건이 통과했다.
+
+**Baseline-attribution**: 이번 세션, 수정 전 계측은 커밋 `cd7e219`(85자 케이스 포함) 트리, 수정 후는 `7e377b8` 트리.
+
+**Gaps(미검증)**: (1) 카카오 3행 카드는 디자인 캡처가 없어 **디자인 정합을 검증하지 않았다**(DOM 계측과 육안만). (2) 전체 `pnpm test:e2e`와 전체 `pnpm visual:verify`는 이번 작업에서 돌리지 않았다 — `SummaryRow` 클래스 변경이 24화면 디자인 비교에 미치는 영향은 전화 채널 정상 값에서 카드 크기가 같다는 측정(위 표)으로만 뒷받침되고, 비교 자체는 최종 HEAD에서 오케스트레이터가 돌린다. (3) 새 테스트 8개는 정책 준비 모드 전용이다(`E2E_CONSULT_POLICY_READY=false` 모드에서는 제출까지 도달하지 못해 실행하지 않는다). (4) Chromium 외 브라우저, 다른 뷰포트(예: 320px), 폰트가 없는 환경은 보지 않았다. (5) 03-C/03-D 화면에서 긴 값은 계측하지 않았다(같은 `SummaryRow`를 쓰지만 별도 e2e 경로가 없다).
+
+**Residual-risk**: 연락 희망 시간에 길이 상한이 없어 극단적으로 긴 입력은 성공 화면 카드를 세로로 길게 만든다(넘침은 없다). 상한을 둘지는 스키마·요구사항 결정이라 건드리지 않았다.
+
+### D-NEW-21 검증 요약 (커밋 `e8984c8` 이후, HEAD `a698e3f` 트리)
+
+`pnpm exec tsc --noEmit` exit 0, `pnpm lint` exit 0, `pnpm test` exit 0(99파일 833테스트, 기준선 `cb97824`의 99/826에서 단위 7개 추가), 이번 작업에서 실행한 e2e는 위 26건(consult spec)뿐이다. 로그: `9-tsc.log`, `10-lint.log`, `11-unit.log`.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3281,6 +3377,7 @@ build DEV_STATES=true     -> start DEV_STATES=(미설정): "/" title="서비스 
 - **업데이트 13(D-NEW-18, 이번 세션)**: `/consult`·`/result`가 빌드 시점에 정적으로 굳어 API와 어긋나던 문제를 실제 빌드·재시작으로 재현하고(불일치 13건) `dynamic = "force-dynamic"`으로 고쳐 0건으로 만들었다(Claim 57-59). 재빌드/재시작 순서는 `.moai/docs/runtime-runbook.md` §11에 검증된 사실만 적었다(Claim 61). 그 부작용으로 `/`와 `/result`의 진단 플래그 편차가 생겼고 수정하지 않았다(열린 항목 23). `run_status`는 유지한다.
 - **업데이트 14(D-NEW-19, 이번 세션)**: 열린 항목 12(원격 Turso 검증)를 사용자 지시로 현재 Turso DB에서 수행했다. 대상 확인·전체 백업·복원 리허설(Claim 63), 마이그레이션 0009 적용 후 필수 게이트 6/6 통과(Claim 64), 테스트 행 정리와 스키마 원상 복구, 정리 후 13개 테이블이 마이그레이션 직전 백업과 동일함을 확인했다(Claim 65). 다중 인스턴스에서 같은 키 동시 재시도는 상담 행 1개지만 응답이 다르고 한도가 이중 소비된다(Claim 66, 열린 항목 24). 사용자 지시에 따라 이 PR은 03-B 겹침·카드 크기·시각 검증 누락이 해소·검토되기 전에는 병합하지 않으며 `CONSULT_POLICY_READY`도 활성화하지 않는다. 배포 준비 완료로 선언하지 않는다. `run_status`는 유지한다.
 - **업데이트 15(D-NEW-20, 이번 세션)**: 수정 후 트리에서 `tsc`·`lint`·단위·e2e(38 + 11)·전체 `visual:verify`(24/24)·`verify:flag-runtime`을 다시 실행해 모두 exit 0이었고, `format:check`의 남은 3개 실패는 `origin/main`에서도 실패한다(Claim 67). 처음 확인이 무의미했던 것을 대조군으로 발견해 정정했다.
+- **업데이트 16(D-NEW-21, 이번 세션)**: 사용자 결정에 따라 `/`도 `force-dynamic`으로 바꿔 `/`·`/result`·`/consult`가 모두 요청 시점에 게이트를 판정하게 맞췄다(빌드 2종 x 시작 8조합 불일치 31건 → 0건, `next start`와 standalone 모두, Claim 68-69). FOUNDATION-001의 "정적 렌더링" 문구와의 편차는 주석·런북 §11에 기록했고 SPEC 본문은 수정하지 않았다. 성공 화면을 전화·카카오 두 채널, 데스크톱·모바일에서 실제 레이아웃으로 계측해 정상 값에서는 결함이 없음을 확인하고, 길이 상한이 없는 연락 희망 시간의 공백 없는 긴 값에서 카드 밖 넘침 1건을 재현해 `SummaryRow`에서 고쳤다(Claim 70). 카카오 3행 카드는 디자인 캡처가 없어 디자인 정합은 검증하지 않았다. PM2 env 재읽기·Linux standalone·전체 e2e/`visual:verify`는 이번에 검증하지 않았다. 배포 준비 완료·감사 준비 완료·시각 승인·`.pen` 정합을 선언하지 않는다. `run_status`는 유지한다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
@@ -3325,7 +3422,7 @@ D10.3-D10.6 재분류(이번 세션) — 아직 사용자 판단이 필요한 �
 20. **[해소됨 — D-NEW-8 Claim 34, 수정 커밋 `ef205d3`, 검증 Claim 36. 단 M03 `form.top` 편차 결정은 사용자 승인 기록이 없다]** **모바일(390px)에서 채널 안내 문구가 "이름" 라벨을 덮는 레이아웃.** **현재 상태**: 원인은 `consult-form.tsx` 컨테이너의 모바일 `-mt-[62px]`가 폼을 안내 문구 위로 62px 끌어올린 것이었다. 음수 마진을 제거해 간격을 부모 `gap-5`에 맡겼다. 390px에서 안내와 이름·연락처·연락 시간 라벨/입력의 겹침 면적 0, 하단 sticky 제출 영역과 입력·동의 체크박스 비겹침을 kakao/phone × 정책 준비/미준비 e2e가 rect로 단언하고 최종 실행이 통과했다. 다시 만든 `M03-consult.png`(kakao 채널)는 제가 직접 열어 겹침이 없음을 눈으로 확인했다. phone 채널·미준비 모드의 겹침은 e2e rect 단언으로만 확인했고 스크린샷을 직접 보지는 않았다. **이력(D-NEW-7 Claim 32 당시 서술)**: 좌표가 y 592~628 대 586~600로 겹치고 `visual:verify`가 이를 놓친다고 적고 "디자인 판단 필요, 미조치"로 남겼다.
 21. **(신규, D-NEW-7) plan-audit iteration 10의 optional 결함 D1~D6 — 일부 문서 반영, 나머지는 iteration 11 D1~D10에 승계(미조치)** — iteration 11(Claim 35)이 새 optional 결함 D1~D10을 남겼다(D1: 모바일 안내를 "필수(acceptance 의미 검사)"로 정당화한 문구가 실제 M03 semanticChecks와 어긋남 — [해소 — D-NEW-10, design.md·`skipReason` 문구 정정, iteration 12에서 RESOLVED 확인], D2: AC-006 draft 서술의 "저장된 draft가 없음" 전제 누락, D3: AC-010(c)의 "최대 스크롤 상태" 서술과 테스트의 `scrollIntoViewIfNeeded()` 불일치, D4: design §11 실측 좌표를 재현할 수 없음, D5: design §5 트리의 `consult-header.tsx` 누락, D6: AC-009 "뒤로가기" 재진입 테스트 부재, D7: `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`가 POSIX 문법이라 PowerShell에서 동작하지 않고 acceptance 회귀 게이트에 두 번 호출이 명시되지 않음, D8~D10 이월). 모두 차단이 아니다. PASS 여유는 여전히 0.007이다. 특히 D5(carried) AC-024의 포커스 트랩·ESC·`aria-describedby`·`aria-live` 미명시와 design §2.3의 "승인한 기록 없음" 표현 정밀도(D1)가 남았다. 산출물을 바꾸면 해시가 다시 바뀌어 재감사가 필요하다.
 22. **(신규, D-NEW-10) plan-audit iteration 12의 optional 결함 D2~D6과 `visual:verify` 포트 결함 — 미조치** — (1) D2: design §11이 모바일 안내를 숨길 수 있는 것처럼 읽히지만 AC-B2CCONSULT-010 시나리오와 e2e(`toBeVisible()`)가 표시된 안내를 전제로 한다. (2) D3: design의 실측 소수 좌표와 20px에 커밋된 증거 경로가 없다. (3) D4: `consult-channel-selector.tsx` 주석이 없는 "acceptance.md §12"를 가리킨다(코드라 이번에 건드리지 않았다). (4) D5: spec.md HISTORY·plan.md에 이번 design 정정과 `7f54edc` 간격 게이트가 기록되지 않았다. (5) D6: acceptance.md L129가 인용하는 테스트 제목이 실제 제목과 다르다. (6) **[해소됨 — D-NEW-11 Claim 44·45]** `scripts/visual-verify.ts`의 `findFreePort()`가 6665~6669처럼 `fetch`가 막는 포트를 뽑으면 서버 기동 확인이 120초 뒤 실패한다(이번에 6668로 1회 재현, 같은 명령 재실행으로 통과). 어느 것도 차단이 아니다. D2·D5·D6과 iteration 11에서 이월된 AC-024·AC-010(c)·AC-009 항목은 spec·acceptance 문서 수정이 필요하고 수정하면 재감사가 또 필요하다. PASS 여유는 0.007이다.
-23. **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
+23. **[해소됨 — D-NEW-21 Claim 68-69: 사용자 결정으로 `/`도 `force-dynamic`, 빌드 2종 x 시작 8조합 불일치 0건(`next start`·standalone). 아래는 당시 기록]** **(신규, D-NEW-18 Claim 60) `/`와 `/result`의 진단 플래그 편차 — 사용자 결정 필요(미조치)** — `/consult`·`/result`를 `force-dynamic`으로 바꾼 부작용으로 `/result`는 요청 시점의 진단 플래그(`ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY`)를 따르고 `app/page.tsx`(`/`)는 빌드 시점 값으로 굳는다(로그로 관측). `/`는 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003("정적 접근")과 엮여 있어 바꾸지 않았다. 필요한 것: `/`도 동적으로 바꿀지(한 줄 변경, 편차 제거) 또는 편차를 두고 진단 플래그는 재빌드가 필요하다고 운영 절차(런북 §11)에 명시할지의 결정.
 24. **(신규, D-NEW-19 Claim 66) 다중 인스턴스에서 같은 `idempotencyKey`의 동시 재시도 — 응답 불일치·한도 이중 소비, 사용자 결정 필요(미조치)** — 두 프로세스가 같은 키를 동시에 제출하면 상담 행은 1개지만 응답이 `[409 duplicate, 201 success]`로 다르고 rate-limit 카운터가 2가 된다. 실제 배포가 단일 PM2 프로세스라는 전제(`route.ts` 144-147행)는 이 저장소에서 확인되지 않았다. 필요한 것: 배포가 단일 프로세스임을 확인하거나, 다중 인스턴스에도 안전하도록 멱등성을 DB 수준으로 처리하는 설계 변경의 결정.
 
 ### 이번 세션에서 해소됨
