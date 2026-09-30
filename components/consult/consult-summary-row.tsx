@@ -13,11 +13,18 @@ export const SUMMARY_CARD_CLASS =
 
 // min-h는 border-box 기준이라 행 하단 구분선(1px)을 포함한다. 값이 길어 줄이 바뀌는
 // 경우에는 py-2가 여백을 지켜 주고 행이 그만큼 늘어난다.
+//
+// 값(dd)은 서버가 돌려준 사용자 입력이라 길이 상한이 없다(연락 희망 시간은 스키마상
+// min(1) 자유 문자열). 공백 없는 긴 문자열이 오면 flex 항목의 기본 min-width:auto 때문에
+// dd가 줄어들지 못해 카드 밖으로 넘쳤다(e2e/consult-flow-03.spec.ts 긴 값 케이스로 재현).
+// min-w-0 + break-words로 dd가 줄바꿈되게 하고, 라벨(dt)은 shrink-0으로 줄어들지 않게
+// 하며, gap-4로 값이 라벨에 붙지 않게 한다. 값이 짧을 때는 justify-between이 남는 폭을
+// 쓰므로 기존 크기·위치는 바뀌지 않는다.
 export function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-h-[43.5px] items-center justify-between border-b border-app-line px-4 py-2 last:border-b-0 md:min-h-[49.5px]">
-      <dt className="text-body-s text-bora-ink-3">{label}</dt>
-      <dd className="text-body-s font-semibold text-bora-ink">{value}</dd>
+    <div className="flex min-h-[43.5px] items-center justify-between gap-4 border-b border-app-line px-4 py-2 last:border-b-0 md:min-h-[49.5px]">
+      <dt className="shrink-0 text-body-s text-bora-ink-3">{label}</dt>
+      <dd className="min-w-0 break-words text-body-s font-semibold text-bora-ink">{value}</dd>
     </div>
   );
 }
