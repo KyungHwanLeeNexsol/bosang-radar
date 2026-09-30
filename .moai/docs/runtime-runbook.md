@@ -226,3 +226,79 @@ https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
 프롬프트/응답은 사람 검토자에 의해 읽히고 주석이 달릴 수 있으며 Google
 제품·ML 기술 개선에 사용될 수 있다(유료 tier는 그렇지 않다) — 이 사실을
 알고 있는 채로 입력 데이터를 다뤄야 한다.
+
+## 11. 상담 신청(03) 플래그 변경 절차 (SPEC-B2C-CONSULT-001 D-NEW-18)
+
+`ENABLE_CONSULT_FLOW`와 `CONSULT_POLICY_READY`를 바꿀 때 무엇을 다시 빌드하고
+무엇을 재시작만 하면 되는지, 어떤 순서로 켜야 하는지를 적는다. 아래 표의
+"검증됨"은 이 저장소에서 `pnpm verify:flag-runtime`(로컬 `file:` DB, 실제
+`next build` 후 다른 env로 `next start`)로 관측한 사실이고, "미검증"은 관측하지
+못한 항목이다. 검증 기준은 HEAD `d958a2b` 트리다.
+
+### 11.1 무엇이 어디서 읽히는가
+
+| 플래그 | 읽는 곳 | 읽는 시점 |
+|--------|---------|-----------|
+| `ENABLE_CONSULT_FLOW` | `app/consult/page.tsx`, `app/result/page.tsx` | 요청마다(두 라우트는 `dynamic = "force-dynamic"`) |
+| `CONSULT_POLICY_READY` | `app/consult/page.tsx`(`isPolicyReady` prop), `app/api/consultations/route.ts`, `lib/env.ts`(부팅 검증) | 요청마다 + 부팅 시 1회 |
+| `ENABLE_DIAGNOSIS_FLOW`·`DIAGNOSIS_ENGINE_READY`·`ENABLE_DIAGNOSIS_DEV_STATES` | `app/page.tsx`(`/`), `app/result/page.tsx` | `/`는 **빌드 시점**, `/result`는 요청마다 |
+
+수정 전에는 `/consult`와 `/result`도 빌드 시점에 굳었다(`next build`의 라우트 표에서
+`○ Static`). 그래서 빌드 때의 플래그 값이 페이지에 남아, 요청 시점에 읽는 API와
+서로 달랐다. 수정 후에는 두 라우트가 `ƒ Dynamic`이다.
+
+### 11.2 플래그별 변경 절차 (검증됨)
+
+| 바꾸는 것 | 재빌드 | 재시작 | 근거 |
+|-----------|:------:|:------:|------|
+| `ENABLE_CONSULT_FLOW` | 필요 없음 | 필요 | 빌드 1회(닫힘/열림) 후 4가지 시작 조합 모두에서 `/consult` 제목과 `/result`의 `shouldRenderConsult`가 시작 env를 따랐다(불일치 0건, `.moai/state/verify/group2/7-green-final.log`) |
+| `CONSULT_POLICY_READY` | 필요 없음 | 필요 | 같은 실행에서 `/consult`의 `isPolicyReady`와 API 응답(503 여부)이 시작 env를 따랐다 |
+| 위 두 플래그를 함께 | 필요 없음 | 필요 | 위와 같음 |
+| `ENABLE_DIAGNOSIS_*`, `DIAGNOSIS_ENGINE_READY` | **필요** | 필요 | `/`는 정적이라 빌드 시점 값이 남는다(관측: 빌드 때 미설정 → 시작 때 `true`여도 `/`는 "서비스 준비 중"). `/result`는 요청 시점 값을 따르므로 재빌드 없이 바꾸면 두 화면이 서로 다른 상태가 된다 |
+
+**중요 — 재시작만으로 충분한 것은 수정 커밋 `d958a2b` 이후 빌드일 때다.** 그 이전
+커밋으로 만든 빌드는 두 라우트가 정적이라 플래그가 굳어 있다. 수정이 들어간
+코드를 **한 번은 반드시 재빌드**해 배포한 뒤부터 위 표가 성립한다.
+
+### 11.3 켜는 순서 (`CONSULT_POLICY_READY=true`)
+
+1. 수정이 들어간 코드를 재빌드해 배포한다(위 중요 문구). 이때 플래그 값은 무엇이어도 된다.
+2. 대상 DB에 `pnpm db:migrate`를 먼저 적용한다. 관측: 마이그레이션하지 않은 빈 DB에서
+   `CONSULT_POLICY_READY=true`로 기동해 `POST /api/consultations`를 보내면 500
+   `server_error`가 나왔다(로컬 파일 DB). 정책을 열기 전에 테이블이 있어야 한다.
+3. `RATE_LIMIT_HMAC_SECRET`을 **같은 재시작에서 함께** 설정한다. 관측:
+   `CONSULT_POLICY_READY=true`이고 이 시크릿이 없으면 프로세스가 부팅 중 종료 코드 1로
+   죽고 포트가 열리지 않는다(`lib/env.ts` 부팅 검증). 값 자체는 이 문서에 적지 않는다.
+4. 플래그를 바꾸고 재시작한다.
+5. 재시작 후 확인한다: `/consult`에서 제출 CTA가 정상이고 `POST /api/consultations`가
+   503이 아닌지 본다. 검증 스크립트는 로컬 전용이다(아래 11.5).
+
+끌 때(되돌릴 때)는 `CONSULT_POLICY_READY=false`로 바꾸고 재시작한다. 관측: 재시작 직후
+API가 503을 돌려주고 `/consult`의 `isPolicyReady`가 `false`가 된다. 이미 저장된
+상담 행을 지우는 코드 경로는 없다(코드를 읽어 확인한 것이며 실제 DB로 관측하지는
+않았다).
+
+### 11.4 검증하지 못한 것 (미검증)
+
+- 운영 프로세스 관리자(PM2 등)가 재시작 때 **바뀐 env를 실제로 다시 읽는지**. 이
+  저장소에서는 `pnpm start`를 직접 다시 띄워 관측했을 뿐이다. 관리자가 옛 env를
+  캐시하는 방식이면 재시작해도 플래그가 안 바뀔 수 있다.
+- `output: "standalone"` 산출물(`node .next/standalone/server.js`)로 기동했을 때의 동작.
+  검증은 `next start`(`pnpm start`)로만 했다.
+- `.env.local` 등 서버 디스크의 env 파일을 고친 뒤 재시작했을 때의 동작(이 검증은
+  프로세스 env로만 값을 줬다).
+- 원격 Turso에서의 API 동작 전부(마이그레이션 적용, 트랜잭션, 병렬 요청). 자세한 내용은
+  `progress.md` D-NEW-18의 Claim 62.
+- Nginx `X-Forwarded-For` 운영 확인은 별도 항목(D-NEW-15).
+
+### 11.5 재현·회귀 검사 실행
+
+```bash
+pnpm verify:flag-runtime                  # 빌드 2회(닫힘/열림) x 시작 4조합, 불일치가 있으면 종료 코드 1
+pnpm verify:flag-runtime --build=closed   # 빌드 1회만
+pnpm verify:flag-runtime --observe        # 불일치가 있어도 종료 코드 0(표만 확인)
+```
+
+이 스크립트는 로컬 `file:./.tmp/flag-runtime.db`만 쓰고, 부모 셸의 `TURSO_*`·플래그
+env를 물려받지 않으며, 최종 env가 `file:`이 아니면 실행을 거부한다. 서버는 검사마다
+종료한다. 빌드가 2회 들어가므로 기본 `pnpm test`에는 넣지 않았다.

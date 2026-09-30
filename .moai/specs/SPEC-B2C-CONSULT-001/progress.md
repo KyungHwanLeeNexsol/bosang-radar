@@ -3048,6 +3048,140 @@ TURSO_DATABASE_URL=libsql://example-remote.turso.io TURSO_AUTH_TOKEN= pnpm visua
 
 **환경 노트**: 작업 시작 전 기준선의 `pnpm exec vitest run components/consult scripts`에서 `visual-verify-server.test.ts` 1건이 병렬 실행 중 실패했다(pid 파일 ENOENT, `0-test-baseline.log`). 같은 파일을 단독으로 다시 돌리면 21건 모두 통과했다(`0-test-baseline-server-rerun.log`). 최종 전체 `pnpm test`는 97파일/778건 통과, exit 0(`6-test-full.log`)였다.
 
+### D-NEW-18 — 빌드 시점·런타임 플래그 불일치 재현과 수정, 원격 Turso rate-limit 미검증 문서화 (이번 세션)
+
+기준 커밋은 `51647c4`, 작업 커밋은 `a34b79b`(RED 검사) → `668d340`(프리렌더 판정 추가) → `d958a2b`(수정)이다. 모든 빌드·기동·e2e는 로컬 파일 DB(`file:./.tmp/…`, `TURSO_AUTH_TOKEN` 비움)로 실행했고 원격 DB에는 접속하지 않았다. `.env.local`은 이 작업 트리에 없고 읽지 않았다. 로그는 `.moai/state/verify/group2/`(gitignored)에 있다. 이 절은 `run_status`를 바꾸지 않으며 감사 준비·배포 준비·시각 승인을 선언하지 않는다.
+
+**Claim 57 — `/consult`와 `/result`는 `next build`에서 정적으로 프리렌더되어 `ENABLE_CONSULT_FLOW`·`CONSULT_POLICY_READY`(`isPolicyReady`)가 빌드 시점 값으로 굳었고, 요청 시점에 env를 읽는 `POST /api/consultations`와 어긋났다.**
+
+**Evidence**: 가설로 시작해 실제 빌드로 재현했다. `pnpm verify:flag-runtime --observe`(`2-before-observe.log`)는 빌드 2회(closed = 두 플래그 false, open = 두 플래그 true)를 각각 `next build`한 뒤, 같은 빌드로 시작 env 4조합(consult × policy)마다 `pnpm start`로 서버를 띄워 `/consult`, `/result`, `POST /api/consultations`를 관측한다(로컬 파일 DB, `ENABLE_DIAGNOSIS_DEV_STATES=true`로 고정해 `/result`가 항상 렌더되게 했다). 빌드 산출물은 두 빌드 모두 `.next/prerender-manifest.json`의 프리렌더 라우트가 `[/, /consult, /result]`였고 라우트 표에서 `/consult`·`/result`가 `○ (Static)`이었다.
+
+BEFORE 표(수정 전 코드, HEAD `51647c4`; 기대 = 시작 env를 따름):
+
+| 빌드 | 시작 env (consult, policy) | `/consult` 제목 | `/consult` isPolicyReady | `/result` shouldRenderConsult | API | 판정 |
+|------|-----------------------------|-----------------|--------------------------|-------------------------------|-----|------|
+| closed | (false, false) | 서비스 준비 중 | — | false | 503 | OK |
+| closed | (true, false) | **서비스 준비 중**(기대 상담 신청) | **null**(기대 false) | **false**(기대 true) | 503 | 불일치 3 |
+| closed | (false, true) | 서비스 준비 중 | — | false | 201 | OK |
+| closed | (true, true) | **서비스 준비 중**(기대 상담 신청) | **null**(기대 true) | **false**(기대 true) | 409(중복, 503 아님) | 불일치 3 |
+| open | (false, false) | **상담 신청**(기대 서비스 준비 중) | **true**(기대 —) | **true**(기대 false) | 503 | 불일치 3 |
+| open | (true, false) | 상담 신청 | **true**(기대 false) | true | 503 | 불일치 1 |
+| open | (false, true) | **상담 신청**(기대 서비스 준비 중) | **true**(기대 —) | **true**(기대 false) | 409 | 불일치 3 |
+| open | (true, true) | 상담 신청 | true | true | 409 | OK |
+
+불일치 합계 13건. 대표 사례 두 가지: (1) open 빌드를 (true, false)로 재시작하면 페이지는 `isPolicyReady=true`(제출 가능 화면)인데 API는 503으로 거부한다 — 가설에서 짚은 "폼은 준비 완료인데 API는 503". (2) closed 빌드를 (true, true)로 재시작하면 API는 접수를 받는데 페이지는 "서비스 준비 중" placeholder다. 종료 코드 판정은 `--observe` 없이 실행한 RED 로그(`3-red-nonobserve.log` 6건, 최종 스크립트 `6-red-final-script.log` 8건: 프리렌더 라우트 2 + 관측 6)가 `exit=1`이다.
+
+**Baseline-attribution**: 수정 전 트리(HEAD `51647c4`, 검사 스크립트 커밋 `a34b79b`는 앱 코드를 바꾸지 않는다) 위, 이번 세션, 명령 `pnpm verify:flag-runtime --observe`와 `--build=closed`.
+
+**Gaps(미검증)**: (1) `next start`로만 관측했다. 운영이 쓰는 방식(`output: "standalone"`의 `node .next/standalone/server.js`, PM2 등)은 실행하지 않았다. (2) API 관측은 상태 코드뿐이며 본문은 비교하지 않았다. 열린 상태의 201/409는 "503이 아님"의 증거일 뿐 접수 로직의 검증이 아니다. (3) `/consult`의 ConsultView 안쪽 렌더링(제출 CTA 문구)은 확인하지 않고 prop 값(`isPolicyReady`)만 봤다. (4) 브라우저 하이드레이션은 이 검사가 아니라 e2e가 다룬다.
+
+**Residual-risk**: 관측은 로컬에서 재현된 결정론적 결과지만 운영 서버 프로세스의 env 갱신 방식은 미확인이다(Claim 61).
+
+**Claim 58 — `/consult`·`/result`에 `export const dynamic = "force-dynamic"`을 추가해 두 라우트를 요청마다 렌더링하게 했고, 같은 재현에서 불일치가 13건에서 0건이 됐다.**
+
+**Evidence**: 수정은 `app/consult/page.tsx`, `app/result/page.tsx` 각 한 줄과 근거 주석이다(커밋 `d958a2b`). 코드 수정을 택한 이유는 배포 절차 변경 없이 코드만으로 닫히기 때문이다. `computeConsultFlags`의 `"true"` 문자열 판정은 바꾸지 않았고 `/`와 API 라우트는 건드리지 않았다. 따른 문서: `node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md`(Route segment config `dynamic`: `'force-dynamic'`은 라우트를 요청마다 렌더링), `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/02-route-segment-config/index.md` 버전 이력(`dynamic`은 Cache Components를 켤 때만 제거되며 이 프로젝트의 `next.config.ts`는 `cacheComponents`를 쓰지 않는다), `node_modules/next/dist/docs/01-app/02-guides/environment-variables.md` "Runtime Environment Variables". 문서가 권하는 다른 방법인 `await connection()`도 먼저 적용해 봤으나 `app/consult/page.test.tsx`·`app/result/page.test.tsx`가 페이지 컴포넌트를 요청 범위 밖에서 직접 호출해 11건이 실패했고(`connection was called outside a request scope`, 페이지도 async가 돼 `render()`로 못 그린다) 되돌렸다. `dynamic` 방식은 두 테스트 파일을 그대로 통과한다(21건 통과).
+
+AFTER 표(수정 후, HEAD `d958a2b`; 전체 `7-green-final.log`, `pnpm verify:flag-runtime` `exit=0`, 불일치 합계 0):
+
+| 빌드 | 시작 env (consult, policy) | `/consult` 제목 | isPolicyReady | `/result` prop | API |
+|------|-----------------------------|-----------------|---------------|----------------|-----|
+| closed | (false, false) | 서비스 준비 중 | — | false | 503 |
+| closed | (true, false) | 상담 신청 | false | true | 503 |
+| closed | (false, true) | 서비스 준비 중 | — | false | 201 |
+| closed | (true, true) | 상담 신청 | true | true | 409 |
+| open | (false, false) | 서비스 준비 중 | — | false | 503 |
+| open | (true, false) | 상담 신청 | false | true | 503 |
+| open | (false, true) | 서비스 준비 중 | — | false | 409 |
+| open | (true, true) | 상담 신청 | true | true | 409 |
+
+두 빌드 모두 프리렌더 라우트는 `[/]`뿐이고 라우트 표는 `/consult`·`/result`가 `ƒ (Dynamic)`이다. 회귀: `pnpm test` 98파일/787건 통과 exit 0(`9-test-final.log`; 직전 기준 97파일/778건, 신규 검사 테스트 9건), `pnpm exec tsc --noEmit` exit 0, `pnpm lint` exit 0(`9-tsc-final.log`, `9-lint-final.log`), 전체 `pnpm test:e2e` `38 passed (5.0m)` exit 0(`10-e2e-full.log`), 정책 미준비 모드 `E2E_CONSULT_POLICY_READY=false pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts` `11 passed (5.0m)` exit 0(`11-e2e-policy-not-ready.log`).
+
+**Baseline-attribution**: 수정 후 트리(HEAD `d958a2b`), 이번 세션. BEFORE와 같은 명령·같은 환경 구성.
+
+**Gaps(미검증)**: (1) Claim 57의 (1)~(4)가 그대로 남는다. (2) 페이지를 요청마다 렌더링하므로 요청당 서버 렌더 비용이 생긴다. 이 라우트들은 가벼운 셸이지만 부하를 재보지 않았다. (3) `dynamic` 세그먼트 설정은 Cache Components를 켜면 빌드 오류로 드러난다(문서 버전 이력). 앞으로 그 옵션을 켜면 이 두 파일을 다시 고쳐야 한다(코드 확인, 실행하지 않음).
+
+**Residual-risk**: `/result`는 진단 게이트(`computeDiagnosisFlags`)도 함께 요청 시점 값을 따르게 됐고 `/`는 그대로 정적이다. 진단 플래그를 재빌드 없이 바꾸면 두 화면이 어긋날 수 있다(Claim 60).
+
+**Claim 59 — 회귀 검사 `pnpm verify:flag-runtime`은 수정 전 코드에서 실패하고 수정 후 통과한다.**
+
+**Evidence**: `scripts/verify-flag-runtime.ts`(+ `scripts/verify-flag-runtime.test.ts` 9건, `package.json` 스크립트)는 실제 `next build` 후 시작 env를 바꿔 페이지 제목·prop·API 상태와 프리렌더 매니페스트를 대조한다. 순수 판정 함수(기대값 계산, 제목/prop 추출, 비교, 프리렌더 판정)는 단위 테스트로 분리했고 느린 빌드는 기본 `pnpm test`에 넣지 않았다(빌드 2회 + 서버 기동 8회).
+
+```
+수정 전(최종 스크립트, 6-red-final-script.log):
+pnpm verify:flag-runtime --build=closed   → exit=1
+MISMATCH: 빌드 시점에 프리렌더된 라우트 [/consult, /result]
+… start consult=true policy=false … MISMATCH: /consult 제목 …; /consult isPolicyReady …; /result shouldRenderConsult …
+불일치 관측 합계: 8
+수정 후(7-green-final.log):
+pnpm verify:flag-runtime                  → exit=0   불일치 관측 합계: 0
+```
+
+RED 실행의 수정 전 코드는 수정 패치를 `git checkout --`으로 되돌린 상태였고 실행 뒤 같은 패치를 다시 적용해 커밋했다(`d958a2b`).
+
+**Baseline-attribution**: RED는 HEAD `668d340`(앱 코드는 `51647c4`와 동일), GREEN은 HEAD `d958a2b`. 이번 세션.
+
+**Gaps(미검증)**: (1) 이 검사는 사람이 직접 실행하는 스크립트이며 CI에 연결하지 않았다. (2) 단위 테스트는 판정 함수만 다루고, 뮤테이션 확인(비교 함수를 항상 통과로 바꾸기)은 하지 않았다. RED 실행 자체가 실패 검출 능력의 증거다. (3) 플랫폼은 Windows + Git Bash에서만 실행했다(서버 종료에 `taskkill`을 쓴다).
+
+**Residual-risk**: 새 라우트가 consult 플래그를 읽기 시작하면 이 검사의 라우트 목록(`/consult`, `/result`)에 추가해야 한다.
+
+**Claim 60 — `/`(app/page.tsx)는 진단 플래그를 빌드 시점에 굳히고, 이번 수정 뒤 `/result`와 진단 게이트 상태가 어긋날 수 있다. 수정하지 않고 보고한다.**
+
+**Evidence**: 수정 후 트리에서 일회용 스크립트(저장소 밖, `5-diag-probe-postfix.log`)로 `ENABLE_DIAGNOSIS_DEV_STATES`만 바꿔 관측했다(로컬 파일 DB):
+
+```
+build DEV_STATES=(미설정) -> start DEV_STATES=true : "/" title="서비스 준비 중" h1="서비스 준비 중입니다" | "/result" title="보상 진단 결과" h1=(없음: ResultView)
+build DEV_STATES=true     -> start DEV_STATES=(미설정): "/" title="서비스 준비 중" h1=(없음: DiagnosisFlow) | "/result" title="서비스 준비 중" h1="서비스 준비 중입니다"
+```
+
+첫 줄은 `/`가 빌드 시점 값(닫힘)에 굳고 `/result`는 시작 env(열림)를 따른다. 둘째 줄은 반대다. `/`는 라우트 표에서 `○ Static`이다(`d958a2b`에서 변경하지 않음). `app/page.tsx`의 기존 주석이 "빌드 시점에 완전히 정적으로 렌더링된다"를 SPEC-B2C-FOUNDATION-001 REQ-B2CFOUND-002/003과 묶어 두었기에, 이 라우트를 동적으로 바꾸는 것은 다른 SPEC의 요구 문구와 부딪힐 수 있어 이번 범위에서 손대지 않았다.
+
+**Baseline-attribution**: HEAD `d958a2b`(수정 후), 이번 세션.
+
+**Gaps(미검증)**: (1) 운영에서 진단 플래그를 재빌드 없이 바꾼 적이 있는지는 모른다. (2) `/`를 동적으로 바꿨을 때 SPEC-B2C-FOUNDATION-001이나 기존 테스트가 무엇을 요구하는지는 확인하지 않았다. (3) 이 일회용 스크립트는 커밋하지 않았다.
+
+**Residual-risk**: 진단 플래그를 재빌드 없이 바꾸는 운영 실수가 있으면 `/`와 `/result`가 서로 다른 상태로 노출된다. 런북 11.2가 진단 플래그는 재빌드가 필요하다고 적어 두었다. `/`도 동적으로 바꿀지는 사용자 판단이 필요하다.
+
+**Claim 61 — 플래그 변경 시 재빌드/재시작 순서를 검증된 사실만으로 `.moai/docs/runtime-runbook.md` §11에 적었다.**
+
+**Evidence**: 검증됨(관측): `ENABLE_CONSULT_FLOW`·`CONSULT_POLICY_READY`는 수정 커밋 이후 빌드에서 재시작만으로 페이지·API 모두 새 값을 따른다(Claim 58 AFTER 표). `CONSULT_POLICY_READY=true`에 `RATE_LIMIT_HMAC_SECRET`이 없으면 프로세스가 종료 코드 1로 죽고 포트가 열리지 않는다. 마이그레이션 없는 빈 파일 DB에서 정책을 열고 POST를 보내면 500 `server_error`다(`8-boot-probe.log`):
+
+```
+(a) POLICY_READY=true, no secret: exited code=1; /consult -> unreachable (ECONNREFUSED); log: [app] 환경변수 검증 실패 — 다음 변수가 누락되었습니다: | - RATE_LIMIT_HMAC_SECRET: …
+(b) POLICY_READY=true + secret, UNMIGRATED empty file DB: POST /api/consultations -> 500 {"status":"error","code":"server_error",…}
+```
+
+미검증(런북에 미검증으로 표기): PM2 등 프로세스 관리자의 env 갱신 방식, `output: "standalone"` 서버 기동, 서버 디스크 `.env*` 수정 후 재시작, 원격 Turso 전부, Nginx 헤더(D-NEW-15는 별도).
+
+**Baseline-attribution**: HEAD `d958a2b`, 이번 세션, 로컬 `pnpm start` 재시작.
+
+**Gaps(미검증)**: 위 미검증 목록 전부. 특히 "재시작만으로 충분"은 이 저장소에서 `pnpm start`를 다시 띄운 결과이지 운영 프로세스 관리자의 동작이 아니다.
+
+**Residual-risk**: 운영 관리자가 env를 캐시하면 문서대로 재시작해도 플래그가 바뀌지 않는다. 배포 담당이 첫 전환에서 결과를 직접 확인해야 한다.
+
+**Claim 62 — 원격 Turso에서의 rate-limit 트랜잭션은 검증하지 않았다. 문서화만 했으며 이 PR은 배포 준비 완료가 아니다.**
+
+**Evidence**: 운영과 분리된 테스트용 원격 Turso DB가 없다는 사용자 확인에 따라 어떤 원격 DB에도 접속하지 않았고 요청도 보내지 않았다. 아래는 코드·테스트를 읽은 결과다(코드 확인 = 읽음, 관측 = 이전 세션이 남긴 기록 또는 이번 세션 실행).
+
+| 항목 | 근거 | 종류 |
+|------|------|------|
+| 트랜잭션은 upsert `RETURNING` + 만료 행 `DELETE`를 한 단위로 묶는다 | `app/api/consultations/route.ts` 331-346행, 판정 348행 | 코드 확인 |
+| 원격 URL이면 같은 `createClient`로 HTTP 전송을 쓴다 | `lib/db/client.ts` 19-21행 | 코드 확인 |
+| 롤백 테스트는 `tx.delete`를 JS 목으로 던지게 한 것이다. DB가 DELETE를 실패시키는 경로가 아니다 | `route.test.ts` 400-460행 | 코드 확인 |
+| 로컬 파일 DB에서 트랜잭션 롤백 성공, 순차 5건 허용·6번째 429 | `route.test.ts` 297, 400행 | 이전 세션 관측 |
+| 직접 트랜잭션 8건 병렬 → ok 1 + SQLITE_BUSY 7, 라우트 8건 병렬 → 201 1 + 500 7(3회 동일). 500 원인 메타데이터는 미기록 | `route.test.ts` 72-91행 주석 | 이전 세션 관측, 이번 미재실행 |
+| `withIdempotencyLock`은 모듈 전역 `Map`이라 프로세스 안에서만 직렬화한다 | `route.ts` 148-165행, 사용 270행 | 코드 확인 |
+| 단일 PM2 프로세스를 전제한다 | `route.ts` 144-147행 주석 | 코드 확인(전제 자체는 미확인) |
+| 삽입 경쟁은 UNIQUE 제약(`idempotency_key`, `result_id+contact_normalized`)과 재조회로 정리된다 | `lib/db/schema.ts` 217·222행, `route.ts` 392-434행 | 코드 확인 |
+| 마이그레이션 없는 빈 DB에서 정책이 열려 있으면 POST가 500 | Claim 61 (b) | 이번 세션 관측(로컬) |
+
+향후 테스트 DB 조건(운영과 분리가 증명되는 별도 DB 이름·org 또는 group, 그 DB 전용 최소 권한 토큰, `db:migrate`를 그 DB에만 적용, 공유 데이터 없음, 폐기 가능, `libsql://`/`https://` HTTP 전송), 필요한 테스트(커밋 경로, `BEFORE DELETE` 트리거로 DB 수준 DELETE 실패를 만든 강제 롤백 경로, 같은 IP·서로 다른 키 병렬 요청의 정확히 5건 허용 후 429, 같은 키 병렬 요청의 단일·다중 인스턴스 카운터 소비), 위험과 결과는 PR 본문 붙여넣기용 파일 `.moai/state/verify/group2/pr-turso-block.md`(gitignored)에 담았다.
+
+**Baseline-attribution**: 코드 확인은 HEAD `d958a2b` 트리를 이번 세션에 읽은 것이다. 관측 항목은 표에 출처를 적었다.
+
+**Gaps(미검증)**: 원격 Turso에서의 (1) 트랜잭션 원자성, (2) 병렬 카운터 정확도, (3) 병렬 요청의 500 발생 여부, (4) 다중 인스턴스에서 같은 키의 동시 요청 처리, (5) 지연 시간. 이번 세션에서 이 다섯 가지는 하나도 관측하지 못했다. 원격 동작이 괜찮다고 주장하지 않는다.
+
+**Residual-risk**: (1) 병렬 요청이 원격에서 500으로 떨어지면 정당한 신청이 실패할 수 있다. (2) 인스턴스가 둘 이상이면 같은 키가 한도를 두 번 소비해 부당한 429가 날 수 있다. (3) 롤백 경로가 원격에서 다르게 동작하면 실패한 시도가 카운트를 소비할 수 있다. 이 셋이 해소되기 전에는 `CONSULT_POLICY_READY`를 운영에서 켜지 않는 것이 안전하다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
