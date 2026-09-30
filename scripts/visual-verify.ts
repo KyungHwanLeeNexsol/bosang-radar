@@ -33,6 +33,8 @@ import process from "node:process";
 
 import { chromium, type Browser, type Locator, type Page } from "@playwright/test";
 
+import { evaluateCardBorderGate, type BorderAxis, type BorderBox } from "./visual-verify-card-gate";
+import { findRemoteDatabaseViolation } from "./visual-verify-db-guard";
 import { HELPERS_SOURCE } from "./visual-verify-helpers";
 // SPEC-B2C-CONSULT-001 M7 — 03-B/03-C(성공/중복)가 실제 POST
 // /api/consultations 제출로 도달해야 해서 DB 마이그레이션이 필요해졌다.
@@ -149,6 +151,22 @@ interface ElementSpec {
   expectLineTexts?: readonly string[];
   /** 디자인과 정확히 일치해야 하는 전체 텍스트. */
   expectText?: string;
+  /**
+   * 요약 카드처럼 옅은 테두리 카드는 잉크 측정으로 크기를 믿을 수 없어(progress.md
+   * Claim 48/51) 이 옵션을 준 요소는 **잉크 측정을 하지 않고** 바깥 테두리 상자로만
+   * 비교한다: 구현은 getBoundingClientRect(), 디자인은 PNG 원본 해상도에서 카드
+   * 테두리색 가로줄을 찾아 잰 상자(findCardBorderBox). 이 요소에는 skipMetrics/
+   * inkThreshold/mergeBands가 적용되지 않는다.
+   */
+  borderBox?: {
+    /** 디자인 PNG에서 카드 맨 위 테두리의 대략적인 top(CSS px). */
+    hintTopCss: number;
+    /**
+     * 게이트에서 제외할 축 → 제외 근거(SPEC/디자인 결정 인용). 근거 없는 제외는
+     * 인정되지 않는다(evaluateCardBorderGate가 그 축을 그대로 검사한다).
+     */
+    skip?: Partial<Record<BorderAxis, string>>;
+  };
 }
 
 /**
@@ -570,6 +588,44 @@ async function radioChecked(page: Page, name: RegExp): Promise<string> {
 async function attrValue(page: Page, testId: string, attr: string): Promise<string> {
   const value = await page.getByTestId(testId).getAttribute(attr);
   return value ?? "missing";
+}
+
+/**
+ * 03-B/M03-B 성공 화면 — 요약 카드 → 안내 문구 → CTA가 SPEC 순서(design.md §10)로
+ * 세로로 쌓이고 서로 겹치지 않는지 실제 DOM rect로 확인한다. 픽셀 게이트는 위치·크기
+ * 지표만 봐서, 데스크톱에서 CTA(md:mt-[-39px])가 안내 문구를 덮던 결함(progress.md
+ * Claim 52)을 통과시켰다. 결과는 "none" 또는 문제 요약 문자열이다.
+ */
+async function successStackCheck(
+  page: Page
+): Promise<{ label: string; expected: string; actual: string }> {
+  const actual = await page.evaluate(() => {
+    const parts: Array<[string, string]> = [
+      ["요약 카드", "consult-success-summary"],
+      ["안내 문구", "consult-success-notice"],
+      ["돌아가기 CTA", "consult-success-back-cta"],
+    ];
+    const rects = parts.map(([name, id]) => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+      return { name, rect: el ? el.getBoundingClientRect() : null };
+    });
+    const problems: string[] = [];
+    for (let i = 0; i < rects.length; i++) {
+      const cur = rects[i];
+      if (!cur.rect) {
+        problems.push(`${cur.name} 없음`);
+        continue;
+      }
+      const prev = rects[i - 1];
+      if (prev?.rect && cur.rect.top < prev.rect.bottom - 0.5) {
+        problems.push(
+          `${cur.name}(top ${cur.rect.top.toFixed(1)})가 ${prev.name}(bottom ${prev.rect.bottom.toFixed(1)}) 위로 겹침`
+        );
+      }
+    }
+    return problems.length === 0 ? "none" : problems.join("; ");
+  });
+  return { label: "카드 → 안내 → CTA 세로 순서·비겹침(실제 DOM rect)", expected: "none", actual };
 }
 
 /** containerTestId 안에 aria-hidden 아이콘(svg)이 있는지 "true"/"false"로 반환한다. */
@@ -2073,13 +2129,14 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "성공 요약",
         locate: (p) => vis(p, "consult-success-summary"),
         designTopHint: 325,
-        mergeBands: 4,
-        // border-app-line 저대비 카드(회색 페이지 배경과 대비가 약함) —
-        // 기본/낮은 임계값 모두 좌우/폭/높이 경계를 안정적으로 못 잡는다
-        // (테두리 vs 텍스트 잉크). top만 게이트하고 나머지는 스킵한다.
-        skipMetrics: ["left", "width", "height"],
-        skipReason:
-          "border-app-line 저대비 카드 — 좌우/폭/높이 잉크 경계 측정이 불안정해 top만 게이트한다",
+        // D-NEW-17 — 잉크 측정 대신 바깥 테두리 상자(DOM rect vs 디자인 PNG 테두리 검출)로
+        // left/width/height/top 4축을 게이트한다.
+        borderBox: {
+          hintTopCss: 306,
+          skip: {
+            top: "design.md §10(413행) 순서는 요약 표 → 안내 문구 → CTA인데 디자인 목업은 안내 문구를 카드 위(제목~카드 사이)에 둔다. 이번 PR-fix에서 사용자가 SPEC 순서 유지를 결정해 카드 위 공간이 목업(안내 문구 높이+간격)보다 좁다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+          },
+        },
       },
       {
         key: "backCta",
@@ -2093,8 +2150,9 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "진단 결과로 돌아가기 CTA",
         locate: (p) => vis(p, "consult-success-back-cta"),
         designTopHint: 528,
-        skipMetrics: ["left", "width"],
-        skipReason: "design.md §1 D4 — 같은 행의 스텁 텍스트와 병합 측정되어 폭 비교 불가",
+        skipMetrics: ["left", "width", "top"],
+        skipReason:
+          "left/width: design.md §1 D4 — 같은 행의 스텁 텍스트와 병합 측정되어 폭 비교 불가. top: design.md §10(413행) 순서(표 → 안내 문구 → CTA)를 유지하므로 안내 문구가 CTA 위에 들어가 목업(안내가 카드 위)보다 CTA가 그 높이만큼 아래에 놓인다(겹침은 아래 semanticChecks가 잡는다)",
       },
     ],
     semanticChecks: async (page) => [
@@ -2121,6 +2179,7 @@ const SCREENS: readonly ScreenSpec[] = [
           )
         ),
       },
+      await successStackCheck(page),
     ],
   },
   {
@@ -2137,17 +2196,16 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "중복 요약",
         locate: (p) => vis(p, "consult-duplicate-summary"),
         designTopHint: 350,
-        mergeBands: 4,
-        // border-app-line 저대비 카드(회색 페이지 배경과 대비가 약함) —
-        // 기본/낮은 임계값 모두 좌우/폭/높이 경계를 안정적으로 못 잡는다
-        // (테두리 vs 텍스트 잉크). design.md §10은 원본 Pencil 목업의
-        // "신청 내용을 바꾸고 싶으시면…" 안내 박스를 03-C 계약에서 명시적으로
-        // 제외한다(§10 03-C 문구 목록에 없음) — 그 안내 박스만큼 구현이 더
-        // 짧아 top도 함께 게이트하지 않는다(§1 D3/D4와 동일한 성격의 의도된
-        // 콘텐츠 축소).
-        skipMetrics: ["left", "width", "height", "top"],
-        skipReason:
-          "design.md §10 — 03-C 계약이 원본 목업의 안내 박스를 제외해 카드 이후 레이아웃 길이가 짧다",
+        // D-NEW-17 — 바깥 테두리 상자로 left/width/height를 게이트한다. top만 제외:
+        // 디자인 목업은 카드 위에 2줄 부제("같은 진단 결과로…/중복으로 다시…")가 있고
+        // 카드 아래에 "신청 내용을 바꾸고 싶으시면…" 안내 박스가 있으나, design.md §10
+        // (417행) 03-C 계약의 문구 목록에는 둘 다 없다.
+        borderBox: {
+          hintTopCss: 331,
+          skip: {
+            top: "design.md §10(417행) 03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+          },
+        },
       },
       {
         key: "backCta",
@@ -2189,17 +2247,10 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "실패 요약(입력 보존)",
         locate: (p) => vis(p, "consult-failure-summary"),
         designTopHint: 350,
-        // 이번 세션 재작업 — design.md §10은 이 카드에 정확히 4행(상담
-        // 방식/연락처/연락 희망 시간/입력 내용)만 명시한다("이름" 없음,
-        // design/exports/03-D-상담-신청-실패.png 원본 목업도 4행뿐). 기존
-        // mergeBands:5는 카드 바로 아래 별도 안내 박스(채팅 아이콘 문구)의
-        // 밴드까지 하나로 합쳐 디자인 height를 실제보다 부풀렸다. Desktop은
-        // 이미 top만 게이트해 PASS 상태였으므로 그 게이트 범위는 건드리지
-        // 않는다(임계값 변경은 Mobile summary에서만 실측으로 필요했다).
-        mergeBands: 4,
-        skipMetrics: ["left", "width", "height"],
-        skipReason:
-          "border-app-line 저대비 카드 — 좌우/폭/높이 잉크 경계 측정이 불안정해 top만 게이트한다",
+        // D-NEW-17 — design.md §10은 이 카드에 정확히 4행(상담 방식/연락처/연락 희망
+        // 시간/입력 내용)만 명시한다. 잉크 측정 대신 바깥 테두리 상자로 4축을 모두
+        // 게이트한다(제외 축 없음).
+        borderBox: { hintTopCss: 331 },
       },
       {
         key: "retry",
@@ -2352,35 +2403,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "성공 요약",
         locate: (p) => vis(p, "consult-success-summary"),
         designTopHint: 265,
-        mergeBands: 4,
-        // D-RUN-1 후속(이번 세션) — key "summary"는 03(Desktop) 화면의
-        // "진단 결과 요약 카드"(consult-summary-card)와 이름이 겹친다.
-        // BOX_LIKE_KEYS는 key 문자열 기준 전역 집합이라 거기 추가하면 그
-        // 화면까지 함께 낮은 임계값으로 바뀌어 회귀가 난다(실측) — 이
-        // 요소에만 로컬 inkThreshold를 지정해 backCta/retry와 같은 낮은
-        // 임계값을 적용한다. 그 결과 left/width는 디자인과 정확히
-        // 일치(Δ0)한다 — 저대비 잉크 경계 문제는 top 포함 4축 모두
-        // 해소됐다. height는 계속 스킵한다 — 이번 세션에 세 가지 독립
-        // 측정법으로 디자인의 "진짜" 카드 height를 재확인해 봤는데
-        // 서로 2배 가까이 어긋난다: (a) 기본 임계값(18) tightBox → 145px,
-        // (b) 낮은 임계값(6) bandsLow+mergeBands:4 → 303px, (c) 이
-        // ElementSpec과 무관하게 디자인 PNG를 직접 픽셀 스캔해 카드
-        // 배경색(순수 백색)이 페이지 배경(#f4f6f8)으로 바뀌는 지점을 찾는
-        // 방식(design/exports/M03-B-신청-완료.png 실측) → 약 174px. 세
-        // 값이 서로 크게 갈린다는 사실 자체가 "이 카드는 저대비 export
-        // 이미지에서 자동 픽셀 측정으로 height를 신뢰성 있게 확정할 수
-        // 없다"는 증거다 — 어느 값도 "정답"이라고 단정할 근거가 없다.
-        // 구현 height(211)를 늘려야 하는지 줄여야 하는지조차 측정법에
-        // 따라 결론이 반대로 나온다(145/174 기준으로는 구현이 이미 더
-        // 크거나 비슷하고, 303 기준으로는 구현이 더 작다). Figma 등 원본
-        // 디자인 소스의 실제 행 패딩 값(px)을 직접 확인하거나 디자이너의
-        // 시각적 판단 없이는 이 축을 자동으로 게이트할 수 없다 — 근거
-        // 없이 skipMetrics를 유지한 채 "시각 정합성 완료"로 표시하지
-        // 않도록, 이 판단 자체를 미해결 항목으로 progress.md에 남긴다.
-        inkThreshold: BOX_INK_THRESHOLD,
-        skipMetrics: ["height"],
-        skipReason:
-          "저대비 카드 디자인 export의 height를 세 가지 측정법(threshold18/threshold6+merge/직접 픽셀스캔)으로 재확인했으나 145px/303px/174px로 서로 2배 가까이 어긋나 신뢰 가능한 목표값이 없다 — Figma 원본 확인 또는 디자이너 판단 필요(미해결, progress.md 참고)",
+        // D-NEW-17 — 옛 잉크 측정은 인접 밴드가 섞여 카드 height를 145/303/174px로
+        // 제각각 재서 height를 제외해 두었다(progress.md Claim 48). 바깥 테두리 상자
+        // (DOM rect vs 디자인 PNG 테두리색 가로줄 검출, 176px)로 바꿔 4축 모두 게이트한다.
+        // 모바일은 카드 top이 디자인과 일치하므로 top도 게이트한다.
+        borderBox: { hintTopCss: 248 },
       },
       {
         key: "backCta",
@@ -2413,6 +2440,7 @@ const SCREENS: readonly ScreenSpec[] = [
           )
         ),
       },
+      await successStackCheck(page),
     ],
   },
   {
@@ -2429,12 +2457,13 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "중복 요약",
         locate: (p) => vis(p, "consult-duplicate-summary"),
         designTopHint: 319,
-        mergeBands: 4,
-        // 03-C와 동일한 이유(design.md §10이 원본 목업의 안내 박스를
-        // 03-C/M03-C 계약에서 제외) — top도 게이트하지 않는다.
-        skipMetrics: ["left", "width", "height", "top"],
-        skipReason:
-          "design.md §10 — 03-C 계약이 원본 목업의 안내 박스를 제외해 카드 이후 레이아웃 길이가 짧다",
+        // D-NEW-17 — 03-C와 같은 이유로 top만 제외하고 left/width/height를 게이트한다.
+        borderBox: {
+          hintTopCss: 302,
+          skip: {
+            top: "design.md §10(417행) M03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
+          },
+        },
       },
       {
         key: "backCta",
@@ -2472,30 +2501,10 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "실패 요약(입력 보존)",
         locate: (p) => vis(p, "consult-failure-summary"),
         designTopHint: 319,
-        // 이번 세션 재확인 — design.md §10은 이 카드에 정확히 4행(상담
-        // 방식/연락처/연락 희망 시간/입력 내용)만 명시한다("이름" 없음,
-        // design/exports/M03-D-신청-실패.png 원본 목업도 4행뿐). 이전
-        // mergeBands:5는 카드 바로 아래 별도 안내 박스(채팅 아이콘 문구)의
-        // 밴드까지 하나로 합쳐 디자인 height를 실제보다 부풀렸다(측정
-        // 381px) — "이름" 행 제거(consult-failure.tsx)와 별개로 이 mergeBands
-        // 값 자체가 틀렸었다. 실측 결과 저대비 임계값(threshold 6)에서는
-        // 카드 4행 사이의 quiet-gap이 이미 거의 안 보여, mergeBands를
-        // 1로만 줘도 bandsLow가 카드 전체(4행)를 이미 하나의 밴드로 잡는다
-        // (실측 176px) — mergeBands:1이 맞다. 다만 이 176px 자체도
-        // 신뢰하기 어렵다: 저대비 경계 검출이 카드 위/아래 테두리를
-        // 살짝씩 놓쳐 실제보다 작게 잡힐 수 있고, 구현 height(211px)와
-        // 방향이 반대(디자인이 더 작음)라 "행 패딩이 좁다"는 가설과도
-        // 맞지 않는다. height는 계속 스킵하고 미해결로 남긴다 — 신뢰
-        // 가능한 디자인 목표값은 Figma 원본 실측 없이는 확정할 수 없다.
-        mergeBands: 1,
-        // D-RUN-1 후속 — key "summary"는 03(Desktop) "진단 결과 요약
-        // 카드"와 이름이 겹쳐 BOX_LIKE_KEYS(전역 집합)에는 추가하지 않고
-        // 이 요소에만 로컬 inkThreshold를 지정한다. left/width는 Δ0으로
-        // 일치한다.
-        inkThreshold: BOX_INK_THRESHOLD,
-        skipMetrics: ["height"],
-        skipReason:
-          "저대비 카드 height 측정이 mergeBands 값에 따라 176~381px로 크게 어긋나고, bandsLow 최소값(176)조차 구현(211)보다 작아 '행 패딩이 좁다'는 가설과 방향이 맞지 않는다 — Figma 원본 실측 없이는 신뢰 가능한 목표값을 정할 수 없다(미해결, progress.md 참고)",
+        // D-NEW-17 — design.md §10은 이 카드에 정확히 4행(상담 방식/연락처/연락 희망
+        // 시간/입력 내용)만 명시한다. 옛 잉크 측정(height 176~381px로 측정법마다 달랐음)
+        // 대신 바깥 테두리 상자로 4축을 모두 게이트한다(제외 축 없음).
+        borderBox: { hintTopCss: 302 },
       },
       {
         key: "retry",
@@ -2537,9 +2546,9 @@ async function startProductionServer(): Promise<{ baseURL: string; stop: () => v
   // SPEC-B2C-CONSULT-001 M7 — 03-B/03-C(성공/중복)가 실제 POST
   // /api/consultations 제출로 도달해야 해서 서버 부팅에 TURSO_DATABASE_URL
   // (lib/env.ts app 스코프는 항상 필수 — CONSULT_POLICY_READY와 무관)과
-  // 상담 신청 3개 env가 필요해졌다. 기존 값이 이미 있으면(.env.local 등)
-  // 그대로 두고, 없을 때만 이 스크립트 전용 기본값을 채운다 — 다른 세션이
-  // 이미 export해 둔 값을 덮어쓰지 않는다.
+  // 상담 신청 3개 env가 필요해졌다. 기존 값이 이미 있으면 그대로 두고, 없을 때만 이
+  // 스크립트 전용 로컬 file DB 기본값을 채운다. 이미 설정된 값이 file:이 아닌 원격
+  // 주소면 main() 진입 직후 findRemoteDatabaseViolation이 실행 자체를 거부한다.
   process.env.TURSO_DATABASE_URL ??= "file:./.tmp/visual-verify.db";
   process.env.LLM_PROVIDER_MODE ??= "deterministic";
   fs.mkdirSync(path.join(PROJECT_ROOT, ".tmp"), { recursive: true });
@@ -2609,6 +2618,10 @@ declare global {
         region: Box
       ) => Box | null;
       findBrightBox: (d: ImageData, minBrightness: number) => Box | null;
+      findCardBorderBox: (
+        d: ImageData,
+        opts: { scale: number; hintTopCss: number; hintToleranceCss?: number }
+      ) => (BorderBox & { dividerCount: number }) | null;
       composeOverlay: (a: string, b: string, w: number, h: number) => Promise<string>;
       composeDiff: (a: string, b: string, w: number, h: number) => Promise<string>;
       normalizeDesign: (a: string, w: number, h: number) => Promise<string>;
@@ -2701,6 +2714,8 @@ interface ElementResult {
   delta: Partial<Record<"left" | "top" | "width" | "height", number>>;
   lines: { expected?: number; actual: number };
   lineTexts?: { expected: readonly string[]; actual: string[] };
+  /** borderBox 요소만: 바깥 테두리 상자 게이트에서 근거와 함께 제외된 축(측정은 기록됨). */
+  borderBoxSkipped?: Array<{ axis: BorderAxis; reason: string; delta: number }>;
   text: string;
   backgroundColor: string;
   fontSize: string;
@@ -2958,6 +2973,43 @@ async function verifyScreen(
       ] as const
     );
 
+    // ── 카드 바깥 테두리 상자(디자인 쪽) — borderBox 요소만 ─────────────
+    // 리샘플하지 않은 원본 PNG(2배 export)에서 잰다: 1배로 줄이면 테두리색이 배경과
+    // 섞여 검출 기준이 흐려진다. scale = 원본 폭 / 뷰포트 폭이 정수가 아니면 export
+    // 규격이 바뀐 것이므로 조용히 넘어가지 않고 이 화면을 오류로 만든다.
+    const borderBoxElements = spec.elements.filter((e) => e.borderBox);
+    const designBorderBoxes: Record<string, BorderBox | null> = {};
+    if (borderBoxElements.length > 0) {
+      const measured = await analysis.evaluate(
+        async ([raw, viewportWidth, hintsJson]) => {
+          const image = await window.__vv.loadImageData(raw as string);
+          const scale = image.width / (viewportWidth as number);
+          const hints = JSON.parse(hintsJson as string) as Array<{ key: string; hint: number }>;
+          const boxes: Record<string, BorderBox | null> = {};
+          for (const { key, hint } of hints) {
+            const found = window.__vv.findCardBorderBox(image, { scale, hintTopCss: hint });
+            boxes[key] = found
+              ? { left: found.left, top: found.top, width: found.width, height: found.height }
+              : null;
+          }
+          return { scale, boxes };
+        },
+        [
+          designRawUrl,
+          width,
+          JSON.stringify(
+            borderBoxElements.map((e) => ({ key: e.key, hint: e.borderBox!.hintTopCss }))
+          ),
+        ] as const
+      );
+      if (Math.abs(measured.scale - Math.round(measured.scale)) > 1e-6 || measured.scale < 1) {
+        throw new Error(
+          `${spec.id}: 디자인 export 폭/뷰포트 폭 비율이 정수가 아닙니다(${measured.scale}) — export 규격이 바뀌었는지 확인하세요.`
+        );
+      }
+      Object.assign(designBorderBoxes, measured.boxes);
+    }
+
     // ── 배경색 게이트 (D2 8차) ────────────────────────────────────────
     // 7차는 배경색을 "기록"만 하고 판정하지 않아, M01-C에서 콘텐츠 아래가
     // 통째로 흰색이던 실제 결함을 스크립트가 통과시켰다. 세 가지를 모두
@@ -3010,6 +3062,73 @@ async function verifyScreen(
     for (const element of spec.elements) {
       const dom = domInfos.get(element.key) ?? null;
       const implBox = analysed.implBoxes[element.key] ?? null;
+
+      // 바깥 테두리 상자 게이트 요소 — 잉크 측정 경로를 타지 않는다(위 borderBox 주석).
+      if (element.borderBox) {
+        const round2 = (v: number) => Math.round(v * 100) / 100;
+        const designBorder = designBorderBoxes[element.key] ?? null;
+        const implBorder: BorderBox | null = dom
+          ? {
+              left: round2(dom.rect.left),
+              top: round2(dom.rect.top),
+              width: round2(dom.rect.width),
+              height: round2(dom.rect.height),
+            }
+          : null;
+        if (!dom) {
+          findings.push({
+            screen: spec.id,
+            element: element.label,
+            kind: "missing",
+            detail: "구현에서 요소를 찾지 못했습니다.",
+          });
+        }
+        if (!designBorder) {
+          findings.push({
+            screen: spec.id,
+            element: element.label,
+            kind: "missing",
+            detail: `디자인 PNG에서 top≈${element.borderBox.hintTopCss}px 부근의 카드 테두리 상자(테두리색 가로줄 + 구분선)를 찾지 못했습니다 — 측정 공백은 통과로 취급하지 않습니다.`,
+          });
+        }
+        const gate = evaluateCardBorderGate({
+          design: designBorder,
+          impl: implBorder,
+          tolerance,
+          skip: element.borderBox.skip,
+        });
+        for (const v of gate.violations) {
+          findings.push({
+            screen: spec.id,
+            element: element.label,
+            kind: "metric",
+            detail: `[바깥 테두리 상자] ${v.axis} 디자인 ${v.design} vs 구현 ${v.impl}`,
+            delta: v.delta,
+            tolerance,
+          });
+        }
+        if (gate.deltas) {
+          const skippedAxes = new Set(gate.skipped.map((s) => s.axis));
+          for (const axis of ["left", "top", "width", "height"] as const) {
+            if (!skippedAxes.has(axis)) maxDelta = Math.max(maxDelta, gate.deltas[axis]);
+          }
+        }
+        elements.push({
+          key: element.key,
+          label: element.label,
+          design: designBorder,
+          impl: implBorder,
+          delta: gate.deltas ?? {},
+          lines: { expected: element.expectLines, actual: dom?.lines.length ?? 0 },
+          borderBoxSkipped: gate.skipped,
+          text: dom?.text ?? "",
+          backgroundColor: dom?.backgroundColor ?? "",
+          fontSize: dom?.fontSize ?? "",
+          lineHeight: dom?.lineHeight ?? "",
+          pass: gate.pass && dom !== null,
+        });
+        continue;
+      }
 
       // 디자인 밴드 매칭 — hint에 가장 가까운 밴드를 고른다. 요소가 저대비
       // 박스면 같은 알고리즘의 낮은-임계값 세그먼트 결과에서 찾는다.
@@ -3207,6 +3326,14 @@ async function verifyScreen(
 
 // ── 엔트리 포인트 ────────────────────────────────────────────────────
 async function main() {
+  // 빌드·서버·브라우저를 띄우기 전에 가장 먼저 거부한다 — 원격 DB에 상담 신청 행을
+  // 쓰는 일이 없어야 한다(visual-verify-db-guard.ts).
+  const remoteDbViolation = findRemoteDatabaseViolation(process.env);
+  if (remoteDbViolation) {
+    console.error(remoteDbViolation);
+    process.exit(1);
+  }
+
   for (const reportDir of [REPORT_DIR_DIAGNOSIS, REPORT_DIR_CONSULT]) {
     for (const sub of ["screenshots", "normalized-design", "overlays", "diffs"]) {
       fs.mkdirSync(path.join(reportDir, sub), { recursive: true });
