@@ -215,3 +215,15 @@ describe("app/page — devStep 강제 진입 (AC-B2CDIAG-015/016)", () => {
     expect(flowNode?.getAttribute("data-step")).toBe("error");
   });
 });
+
+// SPEC-B2C-CONSULT-001 D-NEW-21 — `/`도 진단 게이트를 요청 시점에 읽어야 한다.
+// 이 export가 없으면 `next build`가 `/`를 프리렌더해 세 플래그를 빌드 시점 값으로
+// 굳히고, 같은 게이트를 요청 시점에 읽는 `/result`와 서로 다른 상태를 보이게 된다
+// (`pnpm verify:flag-runtime`로 재현). app/consult/page.tsx, app/result/page.tsx와
+// 동일한 방식이다.
+describe("app/page — 게이트 판정 시점", () => {
+  it("dynamic = 'force-dynamic'을 export해 빌드 시점 프리렌더로 플래그가 굳지 않는다", async () => {
+    const pageModule = await import("./page");
+    expect((pageModule as { dynamic?: string }).dynamic).toBe("force-dynamic");
+  });
+});

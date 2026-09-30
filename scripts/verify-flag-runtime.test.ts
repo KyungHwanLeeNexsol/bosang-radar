@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDiagnosisObservation,
+  compareDiagnosisObservation,
   compareObservation,
+  expectedDiagnosisObservation,
   expectedObservation,
   extractConsultPolicyProp,
+  extractGateState,
   extractResultConsultProp,
   extractTitle,
   findPrerenderedRoutes,
@@ -111,5 +115,96 @@ describe("findPrerenderedRoutes", () => {
       "/consult",
     ]);
     expect(findPrerenderedRoutes({}, ["/consult"])).toEqual([]);
+  });
+});
+
+describe("compareObservation — 진단 게이트가 닫혀 있을 때", () => {
+  it("ResultView가 렌더되지 않아 shouldRenderConsult prop이 없는 것이 정상이다", () => {
+    expect(
+      compareObservation(
+        { consult: false, policy: false },
+        {
+          consultTitle: "서비스 준비 중",
+          consultPolicyProp: null,
+          resultConsultProp: null,
+          apiStatus: 503,
+        },
+        false
+      )
+    ).toEqual([]);
+  });
+});
+
+// SPEC-B2C-CONSULT-001 D-NEW-21 — `/`와 `/result`의 진단 게이트 판정.
+
+const CLOSED_HTML = "<h1>서비스 준비 중입니다</h1>";
+const OPEN_HOME_HTML = '<div>{\\"enableDevStates\\":false}</div>';
+const OPEN_RESULT_HTML =
+  '<div>{\\"enableDevFixture\\":false,\\"shouldRenderConsult\\":false}</div>';
+
+describe("expectedDiagnosisObservation", () => {
+  it("시작 시점 env의 computeDiagnosisFlags 결과를 그대로 따른다", () => {
+    expect(expectedDiagnosisObservation({ flow: false, engine: false, dev: false })).toEqual({
+      gate: "closed",
+      devProp: null,
+    });
+    expect(expectedDiagnosisObservation({ flow: true, engine: true, dev: false })).toEqual({
+      gate: "open",
+      devProp: false,
+    });
+    expect(expectedDiagnosisObservation({ flow: false, engine: false, dev: true })).toEqual({
+      gate: "open",
+      devProp: true,
+    });
+    // ENGINE_READY 없이 FLOW만 켜도 운영 게이트는 열리지 않는다.
+    expect(expectedDiagnosisObservation({ flow: true, engine: false, dev: false }).gate).toBe(
+      "closed"
+    );
+  });
+});
+
+describe("extractGateState", () => {
+  it("placeholder 문구와 열림 prop이 서로 반대일 때만 확정한다", () => {
+    expect(extractGateState(CLOSED_HTML, null)).toBe("closed");
+    expect(extractGateState(OPEN_HOME_HTML, false)).toBe("open");
+    expect(extractGateState("<p>없음</p>", null)).toBe("unknown");
+    expect(extractGateState(CLOSED_HTML, true)).toBe("unknown");
+  });
+});
+
+describe("compareDiagnosisObservation", () => {
+  const openOpen = buildDiagnosisObservation(OPEN_HOME_HTML, OPEN_RESULT_HTML);
+
+  it("시작 env(운영 활성)와 두 화면이 모두 일치하면 불일치가 없다", () => {
+    expect(openOpen).toEqual({
+      homeGate: "open",
+      homeDevStatesProp: false,
+      resultGate: "open",
+      resultDevFixtureProp: false,
+    });
+    expect(compareDiagnosisObservation({ flow: true, engine: true, dev: false }, openOpen)).toEqual(
+      []
+    );
+  });
+
+  it("/는 빌드 시점에 닫혀 굳고 /result만 열린 어긋남을 SKEW로 보고한다", () => {
+    const skewed = buildDiagnosisObservation(CLOSED_HTML, OPEN_RESULT_HTML);
+    const mismatches = compareDiagnosisObservation(
+      { flow: true, engine: true, dev: false },
+      skewed
+    );
+    expect(mismatches[0]).toBe("SKEW: / = closed / /result = open");
+    expect(mismatches).toContain("/ 게이트: 기대 open / 관측 closed");
+    expect(mismatches.some((m) => m.startsWith("/ enableDevStates"))).toBe(true);
+  });
+
+  it("두 화면이 같아도 시작 env와 다르면 불일치다", () => {
+    const mismatches = compareDiagnosisObservation(
+      { flow: false, engine: false, dev: false },
+      openOpen
+    );
+    expect(mismatches).toContain("/ 게이트: 기대 closed / 관측 open");
+    expect(mismatches).toContain("/result 게이트: 기대 closed / 관측 open");
+    expect(mismatches.some((m) => m.startsWith("SKEW"))).toBe(false);
   });
 });
