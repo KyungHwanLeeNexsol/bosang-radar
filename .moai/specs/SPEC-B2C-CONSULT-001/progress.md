@@ -3583,6 +3583,50 @@ exit=1
 
 **Residual-risk**: 새 쓰기 트랜잭션은 모든 신규 접수를 DB 쓰기 잠금 하나로 직렬화한다. 관측상 동시 6건의 마지막 요청은 약 1.7초에 끝났다. 접수가 이 규모보다 훨씬 많이 동시에 몰리면 대기가 늘 수 있고, 트랜잭션 길이 상한과 드라이버 요청 타임아웃이 없어 연결이 멈추면 잠금이 오래 유지될 수 있다(D-NEW-25 Residual-risk 그대로). 구제된 트랜잭션 실패는 `consultation_write_tx_failed_resolved` 경고 로그로만 드러난다. `CONSULT_POLICY_READY`는 켜지 않았고 병합하지 않았다. 시각 정합 승인 대기 3건이 남아 있어 병합 준비 완료로 선언하지 않는다.
 
+### D-NEW-27 — e2e 계약을 `.pen` 순서로 정정, `visual:verify` 위반 6건 분류, 단위 4 남은 작업 (이번 세션)
+
+**배경**: 2026-09-30 18:04(KST) 사용자가 "여기까지 하고 커밋·푸시하고 남은 작업을 내용으로 남겨줘"라고 지시했다. 세션은 그 정리 도중(18:07:45, 전체 단위 테스트를 기다리는 중) 끝나 이 기록과 커밋·푸시가 이뤄지지 않았다(대화 기록의 마지막 항목으로 확인, 사용자 중단 표시는 없다). 직전 메모리는 이 절을 이미 가리키고 있었으나 절 자체가 없었다. 이번 세션은 사용자의 "바로 이어서 할 수 있는 작업은 바로 진행하고, 결정이 필요한 건 물어봐 달라"는 지시로 이어서 진행했다. 단위 4의 미커밋 변경 9개는 어제 상태 그대로였다.
+
+**Claim 83 — e2e 1차는 35 통과 / 11 실패였고, 원인 3종은 모두 테스트 쪽 계약이었으며 수정 후 전부 통과했다.**
+
+Evidence: `pnpm test:e2e`(로컬 파일 DB `file:./.tmp/e2e.db`, 이 작업 폴더에는 `.env.local` 없음) 1차 결과 `11 failed / 35 passed`. 원인:
+1. 03-B 순서 검사가 옛 계약 "카드 → 안내 → CTA"를 기대한다. 구현은 `.pen` 순서 "안내(부제) → 카드 → CTA"다(`안내 문구(top=253.1 …)는 요약 카드(top=305.6 …) 아래에서 시작해야 한다`).
+2. 행 라벨을 `textContent`로 읽어 모바일·데스크톱 라벨이 이어 붙었다(`"희망 시간연락 희망 시간"`). 컴포넌트는 두 글자를 모두 그리고 CSS로 하나만 보이게 하므로 컴포넌트가 맞고 읽는 방식이 틀렸다.
+3. 모바일 스크롤 복원 테스트: 실패 화면이 `.pen` M03-D(390x737)에 맞아 한 화면에 들어가 `스크롤 강제 이동 실패`.
+
+수정은 `e2e/consult-flow-03.spec.ts` 한 파일: 02→03 흐름 `toContainText("접수됨")` → `"상담 대기 중"`(소스는 `consult-duplicate.tsx:31`), 순서 검사 2곳을 `.pen` 순서로, 라벨 읽기를 `innerText`로, 모바일(768px 미만) 기대 라벨을 `"희망 시간"`으로(`successLabels`), 스크롤 테스트는 재시도 전에 뷰포트 높이를 500으로 줄임. 재실행: 상담 스펙 `26 passed`(exit 0), `E2E_CONSULT_POLICY_READY=false` 모드 `11 passed`(exit 0). 수정 파일 prettier·eslint exit 0.
+
+**Baseline-attribution**: 이번 세션, HEAD `d30e9e9` + 미커밋 변경(9개 + e2e 스펙), 로컬 파일 DB. 증거 원본(gitignored): `.moai/state/verify/d-new-27/e2e-main.log`, `e2e-consult2.log`, `e2e-policyoff.log`.
+
+**Gaps(미검증)**: (1) 진단 스펙 20개는 스펙 수정 후 다시 돌리지 않았다(1차 실행에서 통과했고 수정은 상담 스펙뿐). (2) 이 브랜치에는 GitHub 검사(CI) 결과가 없다(`gh pr checks 22` → `no checks reported`, 이유는 확인하지 못했다). (3) 순서·라벨 기대값이 승인된 계약인지는 별도 문제다. 아래 "사용자 결정 대기".
+
+**Claim 84 — `pnpm visual:verify`는 exit 1, 위반 6건이며 원인은 두 종류다.** 두 번 실행해 같은 6건을 봤다(`d-new-27/visual.log`, `visual2.log`).
+
+- **A (4건) 03-C·03-D·M03-C·M03-D 안내 박스 `(missing)`**: 디자인 PNG에서 카드 테두리 상자를 찾지 못했다. 원인은 `findCardBorderBox`가 행 구분선 3개 이상을 요구하는 오검출 방지 장치(`visual-verify-helpers.test.ts`가 구분선 0개 → `null`을 단언)인데 구분선 없는 단일 안내 박스에 적용한 것이다. 구현 결함이 아니다(스크린샷을 `.pen` PNG와 눈으로 비교하면 박스·아이콘·두 줄 문구·버튼 배치가 거의 같다).
+- **시도 후 되돌림**: `borderBox`를 빼고 일반(글자 잉크) 측정으로 바꾸면 위반이 `height 17 vs 35`, `width 558 vs 532`, `width 310 vs 296`, `height 16 vs 30`으로 바뀐다. 줄바꿈 위치 차이가 그대로 수치가 되는 잘못된 척도라 되돌렸다. 측정 공백을 통과로 취급하지 않는 쪽이 정직한 신호다. 4곳에 `@MX:TODO`를 남겼다.
+- **B (2건) M03 채널 선택**: `top Δ9`(디자인 386 vs 구현 377), `height Δ8`(244 vs 252), 허용 4px 초과. 커밋된 기준 측정(`51647c4`)에서는 `Δ4`/`Δ2`로 통과였다. 이번에 새로 드러났다: 헤더를 `.pen` 52px로 줄이자(이전 57) 구현이 5px 위로 올라갔다. 의심(눈으로 본 추정이며 측정 아님): 디자인 측정 구간(첫 카드 top ~ 이름 입력창 bottom, `mergeBands: 4`)과 구현 요소(`consult-channel-selector`: 제목 ~ 안내 배너)가 서로 다른 구간이다. 구현 채널 카드 높이가 약 77px로 보이고 디자인은 약 67px로 보인다.
+
+**Gaps(미검증)**: B의 원인은 확정하지 못했다. `visual:verify`가 재측정한 `measurements.json`은 증거로 커밋하지 않고 `git restore`했다(초록이 아니므로 증거로 남길 상태가 아니다).
+
+**Claim 85 — 정적 검사**: `tsc --noEmit` exit 0, `eslint .` exit 0, `prettier --check .` exit 1이며 실패는 기존 3개뿐이다(`db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`, D-NEW-20 Claim 67과 같은 항목). 전체 단위 테스트 `vitest run`은 `Test Files 103 passed (103)`, `Tests 907 passed (907)`, exit 0이다(`d-new-27/vitest-full.log`, 어제 18:07 로그와 같은 수치이며 이번에는 이 트리에서 직접 다시 실행했다).
+
+**PR #22 본문이 낡았다(읽기 전용 확인, 수정하지 않았다)**: 본문 226줄에 단위 1~3 커밋(`6de35f3`·`d1461ce`·`d30e9e9`) 언급이 없고, "원래 head `73a2273` 이후 31개"에서 멈췄다. "카카오 3행" 서술은 단위 1 이후 코드와 어긋난다(`4c09426`에서는 연락 희망 시간 행이 전화 채널에만 나왔고, 지금은 서버가 값을 돌려주면 채널과 무관하게 나온다). 푸시 전에 고치면 로컬에만 있는 커밋을 설명하게 되어 보류했다. 이전 본문은 `d-new-27/pr22-body-before.md`에 있다.
+
+**남은 작업(우선순위)**
+- High 1. `findCardBorderBox`에 구분선 0개를 허용하는 옵션(`minDividers`) 추가. `visual-verify-helpers.test.ts`에 테스트(기본값 3 유지, 기존 "구분선 없으면 null" 단언은 기본값에서 유지, 0개 허용 케이스 추가) 후 4개 안내 박스 게이트에 적용(`@MX:TODO` 4곳).
+- High 2. M03 채널 선택 원인 확정: `normalized-design/M03.png` 밴드와 구현 요소 구간을 비교하고, 구간이 다르면 게이트를 재정의하며, 실제 카드 높이가 다르면 `consult-channel-selector.tsx` 모바일 치수를 `.pen`에 맞춘다.
+- High 3. `pnpm visual:verify` 재실행으로 exit 0 확인. 증거 파일은 의도한 갱신이 아니면 `git restore`.
+- Medium 4. 단위 4 변경 9개 + e2e 스펙의 커밋·푸시(사용자 결정). 커밋 메시지에 `visual:verify`가 아직 초록이 아님을 적는다.
+- Medium 5. PR #22 본문 갱신(`gh api -X PATCH repos/<owner>/<repo>/pulls/22 -F body=@file`, `gh`는 `C:\Program Files\GitHub CLI`에 있고 Git 경로가 필요하며 `gh pr edit`는 토큰에 `read:org`가 없어 실패한다).
+- Medium 6. `design.md` §10 순서와 `APPROVAL-PACK.md` 결정 1~3 갱신(문서 변경은 재감사가 필요하다).
+- Low 7. 원격 T1~T7을 새 HEAD에서 재시험(운영 DB 쓰기이므로 명시적 허락·백업·원복 필요).
+
+**사용자 결정(2026-10-01, AskUserQuestion 응답)**: (결정 1·2) 03-B 안내 위치와 03-C 부제·안내 박스·버튼은 "현재 구현(.pen 순서) 승인"을 선택했다. (결정 3) 카카오 채널 성공 카드는 연락 희망 시간을 입력했을 때 "4행 승인 (.pen 따름)"을 선택했다. 미커밋 변경은 "커밋하고 푸시"를 선택했다. 이 승인은 시각 정합 완료를 뜻하지 않는다(`visual:verify` 위반 6건이 남아 있다). 승인에 따른 후속이 남았다: `design.md` §10의 카드 → 안내 → CTA 순서 문장, `APPROVAL-PACK.md` 결정 1~3, PR #22 본문("카카오 3행")을 새 결정에 맞게 고치는 일이다. `design.md` 변경은 재감사가 필요하다. PR 본문은 이번 응답에 포함되지 않아 수정하지 않았다. "보상 진단" 탭 제목 확인과 제품·법무 열린 항목(아래 "Open Decisions for User")은 그대로 대기다.
+
+**재개 방법**: 작업 폴더 `.claude/worktrees/consult-followup`(`moai cc -w consult-followup`), 브랜치 `feat/SPEC-B2C-CONSULT-001`. 이 절을 쓰기 시작한 시점의 머리는 `d30e9e9`였고, 같은 세션에서 미커밋 변경 11개(어제 9개 + `e2e/consult-flow-03.spec.ts` + 이 `progress.md`)를 2개 커밋으로 나눠 푸시했다(정확한 SHA는 `git log -3`). 증거 로그는 `.moai/state/verify/d-new-27/`.
+
+**Residual-risk**: `visual:verify`는 초록이 아니다. 시각 정합 완료나 병합 준비 완료를 선언하지 않는다. `CONSULT_POLICY_READY`는 켜지 않았고 병합하지 않았으며 PR은 Draft다. 원격 T1~T7 증거는 단위 1의 서버 응답 변경 이전 코드 기준이다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
