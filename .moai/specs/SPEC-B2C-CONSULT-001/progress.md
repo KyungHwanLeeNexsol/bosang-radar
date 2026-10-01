@@ -3806,6 +3806,30 @@ Evidence(**감사관이 실행**, 읽기 전용, Claude 단독 감사 — moai �
 
 **Residual-risk**: 계획 문서는 아직 감사 통과 상태가 아니다(`plan_status`는 audit-ready로 올리지 않는다). 정정 전까지 `design.md` §10의 "visual:verify 위반이 남아 있다" 문장은 사실과 다르다. 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. `run_status`는 바꾸지 않았다.
 
+#### D1~D6 정정과 plan-audit review-14 (D-NEW-28 계속)
+
+**배경**: 사용자 결정 4~6(위)에 따라 review-13의 막는 결함 D1~D6을 문서만 고쳐 해소했고(`general-purpose` 1개에 manager-spec 역할 지정, 로컬 커밋 `e266694`, 푸시 전), `plan-auditor`를 한 번 더 돌렸다(review-14). 실행 모드는 `serial`.
+
+**Claim 100 — D1~D6 정정은 문서 5개(+30/−19)만 바꿨고, 잔여 문구는 사라졌다.**
+
+Evidence(오케스트레이터가 직접 확인): `git show --stat e266694` → `spec.md`, `plan.md`, `acceptance.md`, `design.md`, `APPROVAL-PACK.md` 5개. 5개 계획 산출물을 grep한 결과 `정확히 12개`·`위반이 남아 있다`·`세 가지뿐`·`phone일 때만`은 0건, `접수 내용을 확인한 뒤`는 design.md 2건(둘 다 "대체됨" 이력)이다. REQ-022·REQ-025·AC-018의 고친 문장을 직접 읽었다. 문서에 커밋 해시나 "별도 커밋" 주장은 없다. 이 정정의 `pnpm prettier --check`는 `.prettierignore`에 `.moai`가 있어 5개 파일을 모두 무시했으므로 서식 검증이 아니다.
+
+**Claim 101 — plan-audit review-14는 PASS(0.857, Tier L 기준 0.85, 여유 0.007)다. review-13의 막는 결함 6건이 모두 해소됐다고 판정했다.**
+
+Evidence(**감사관이 실행**, 읽기 전용, Claude 단독 감사 — moai 감사 MCP 도구가 연결되지 않아 교차 모델 의견·감사 캐시 해시 없음; 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-14.md`는 `.gitignore:210`으로 커밋되지 않는 로컬 파일; HEAD `e266694`, 오케스트레이터가 `git status --short` 비어 있음 확인): 필수 통과 MP-1~7 전부 PASS/N/A. 점수: Clarity 0.75, Completeness 1.0, Testability 0.75, Traceability 1.0, 조화평균 4/(1/0.75+1+1/0.75+1)=0.857. STOP-on-regression 미발동(직전 review-13의 0.75보다 높고 review-12의 0.857과 같다). D1~D6 모두 RESOLVED(D1은 문서상 해소이고 운영 질문은 열린 채 기록됨), 선택 결함 D11도 해소, D7·D8·D9·D10·D12는 선택으로 유지. 새 선택 지적:
+- N1: 모바일 M03-D 행의 "03-D와 동일"이 정정된 03-D 행(데스크톱 푸터 표시)과 어긋난다. 모바일은 푸터를 숨김으로 검사한다.
+- N2: design.md L509의 `skipMetrics` 개수 주장(파일 전체 32, 03 계열 12)이 낡았다. **오케스트레이터가 직접 센 값은 `grep -c "skipMetrics:" scripts/visual-verify.ts` = 25**(감사관 측정 25와 일치, 03 계열 5). 02 계열 18과 01 계열 2는 맞아 AC-025의 수치는 유지된다.
+- N3: design.md의 REQ 번호 참조 2곳 오기(`a106ac9`부터 존재, REQ→AC 매핑에는 영향 없음). N4: plan.md §D가 "신규 디렉터리 4개만"이라 하나 `scripts/verify-*`·`scripts/visual-verify-*` 17개 파일은 네 범주에 들지 않는다. N5: "결정 1·2" 구분은 `progress.md`가 둘을 함께 기록해 추정이고, D6 행은 "구현자 판단" 제목 아래 있다.
+- 감사관의 한 줄 경고: 어느 한 차원이 한 단계 내려가면 합계가 0.85 아래로 떨어지는 아슬아슬한 통과이며(Clarity 0.50이면 0.75, Traceability 0.75면 0.80), 계획 산출물을 한 글자라도 고치면 이 판정이 무효가 된다.
+
+**오케스트레이터 정정 기록**: (1) 결정 5의 선택지 설명에 "운영 약속 가능 여부는 런북 §11.3 활성화 전 점검 항목으로 남는다"고 적었으나 **`.moai/docs/runtime-runbook.md` §11.3(L281~)에는 그런 점검 항목이 없다**(`영업일`·`약속`·`연락드립` grep 0건, 오케스트레이터와 감사관이 각각 확인). 그 문장은 `consult-success.tsx:15-17`, `consult-channel-selector.tsx:36-37`의 코드 주석을 확인 없이 옮긴 것이었다. 따라서 결정 5가 "점검을 남겼다"는 뜻이 아니며, 점검 항목은 아직 만들어지지 않았다. design.md D6 행에는 이 사실이 이미 적혀 있다. (2) 이 라운드 중 작업 위치를 하위 폴더로 옮기는 바람에 훅이 `.moai/specs/SPEC-B2C-CONSULT-001/.moai/state/`에 상태 캐시 3개를 만들었다. 내용(config-cache, context-usage, github/counts)을 확인한 뒤 그 폴더만 삭제했고 `git status`는 다시 비어 있다.
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, 정정은 HEAD `e266694`, 감사는 같은 HEAD, 코드는 `ea3509e` 이후 변경 없음(감사관이 `git log ea3509e..HEAD -- components app lib scripts e2e` 비어 있음을 확인).
+
+**Gaps(미검증)**: 감사관이 `visual:verify`·Playwright·vitest·tsc·eslint·prettier·커버리지·`next build`를 돌리지 않았고 "M03 최대 편차 4px PASS"·"24/24" 같은 서술은 기록된 증거에 의존한다. 사용자의 AskUserQuestion 응답은 명령으로 관측할 수 없고 문서가 그것을 충실히 인용하고 코드가 결정과 일치함만 확인했다. `.pen` 원본, D8의 절대 좌표, D10(§8.1 step 10)은 다시 보지 않았다. `APPROVAL-PACK.md`는 계획 산출물이 아니라 감사하지 않았다. 감사 범위 밖의 낡은 곳(점검 항목 13번의 "시간 행은 전화 채널 전용", 코드 주석 4곳)은 고치지 않았다.
+
+**Residual-risk**: 이 PASS는 계획 산출물 감사 결과일 뿐이다. 시각 정합 완료·병합 준비 완료·배포 준비 완료를 선언하지 않으며 `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft다. 구현 착수 승인(Implementation Kickoff Approval)과 사용자의 별도 푸시·병합 확인은 그대로 필요하다. 이후 계획 산출물을 한 글자라도 고치면(N1~N4 위생 수정 포함) 이 판정이 무효가 되고 재감사가 필요하다. 런북 §11.3 점검 항목 추가, 점검 항목 13번 문구 정정(progress.md는 감사 범위 밖), 낡은 코드 주석 정정은 아직 하지 않았다. `plan_status`·`run_status`는 이 기록으로 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
