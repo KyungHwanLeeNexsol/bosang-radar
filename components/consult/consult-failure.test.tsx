@@ -176,4 +176,98 @@ describe("components/consult/ConsultFailure", () => {
 
     expect(container.querySelector('[data-testid="consult-footer"]')).not.toBeNull();
   });
+
+  it("reason을 생략하면 기본(결과 불명) 변형과 동일하게 렌더링한다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} reason="unknown_outcome" />);
+    });
+
+    expect(container.textContent).toContain("상담 신청 접수 여부를 확인하지 못했습니다");
+    expect(container.textContent).toContain("접수되었는지 이 화면에서는 알 수 없습니다");
+    expect(container.textContent).toContain("중복 접수되지 않습니다");
+    expect(container.querySelector('[data-testid="consult-failure-retry"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-failure-notice"]')).not.toBeNull();
+  });
+});
+
+// handoff_mismatch 변형 — consult-view.tsx handleSubmit이 제출 직전에 진단 핸드오프
+// 불일치를 감지하면 서버로 아무 요청도 보내지 않고 이 화면으로 온다. 그래서 공용
+// 문구("접수되었는지 알 수 없습니다", "다시 시도해도 중복 접수되지 않습니다")가 사실과
+// 다르고, 재시도는 같은 비교를 반복해 계속 실패하므로 재시도 버튼도 없다.
+describe("components/consult/ConsultFailure — handoff_mismatch 변형", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  const mismatchProps = {
+    channel: "phone" as const,
+    contact: "010-0000-0000",
+    preferredCallTime: "평일 오후",
+    isRetrying: false,
+    onRetry: vi.fn(),
+    reason: "handoff_mismatch" as const,
+  };
+
+  it("제목과 부제가 '보내지 않았음'을 알린다(부제는 role=alert)", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    const title = container.querySelector('[data-testid="consult-outcome-title"]');
+    expect(title?.textContent).toBe("상담 신청을 보내지 않았습니다");
+    const subtitle = container.querySelector('p[role="alert"]');
+    expect(subtitle?.textContent).toContain(
+      "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요."
+    );
+  });
+
+  it("재시도 버튼과 안내 박스(중복 접수 안 됨)를 렌더링하지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    expect(container.querySelector('[data-testid="consult-failure-retry"]')).toBeNull();
+    expect(container.querySelector('[data-testid="consult-failure-notice"]')).toBeNull();
+    expect(container.textContent).not.toContain("다시 시도하기");
+  });
+
+  it("공용 문구(접수 여부 불명·중복 접수 안내)가 나타나지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("접수되었는지 이 화면에서는 알 수 없습니다");
+    expect(text).not.toContain("중복 접수되지 않습니다");
+    expect(text).not.toContain("접수 여부를 확인하지 못했습니다");
+  });
+
+  it("요약 카드와 이전 화면으로 돌아가기(/result) 링크는 그대로 유지한다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-failure-summary"]');
+    expect(summary?.textContent).toContain("전화 상담");
+    expect(summary?.textContent).toContain("010-0000-0000");
+    expect(summary?.textContent).toContain("평일 오후");
+    expect(summary?.textContent).toContain("유지됨");
+
+    const backCta = container.querySelector('[data-testid="consult-failure-back-cta"]');
+    expect(backCta?.tagName).toBe("A");
+    expect(backCta?.getAttribute("href")).toBe("/result");
+    expect(backCta?.textContent).toContain("이전 화면으로 돌아가기");
+  });
 });

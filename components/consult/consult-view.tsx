@@ -29,7 +29,7 @@ import { ConsultNoData } from "./consult-no-data";
 import { ConsultError } from "./consult-error";
 import { ConsultSuccess } from "./consult-success";
 import { ConsultDuplicate } from "./consult-duplicate";
-import { ConsultFailure } from "./consult-failure";
+import { ConsultFailure, type ConsultFailureReason } from "./consult-failure";
 import { ConsultHeader } from "./consult-header";
 
 // SPEC-B2C-CONSULT-001 M4/M5 — M3의 최소 placeholder를 전면 교체한다.
@@ -200,7 +200,7 @@ type ConsultSubmitView =
   | { kind: "form" }
   | { kind: "success"; result: Extract<ConsultationSubmitResult, { status: "success" }> }
   | { kind: "duplicate"; result: Extract<ConsultationSubmitResult, { status: "duplicate" }> }
-  | { kind: "failure" };
+  | { kind: "failure"; reason: ConsultFailureReason };
 
 interface ConsultViewBodyProps {
   handoff: DiagnosisHandoffReadResult;
@@ -371,7 +371,9 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
     const freshHandoff = readDiagnosisHandoff();
     const freshResultId = freshHandoff.status === "valid" ? freshHandoff.result.resultId : null;
     if (freshResultId !== mountResultIdRef.current) {
-      setSubmitView({ kind: "failure" });
+      // 아무 요청도 보내지 않은 경로 — 03-D가 "보내지 않았음"을 안내하고
+      // 재시도 버튼을 숨기도록 별도 reason을 준다.
+      setSubmitView({ kind: "failure", reason: "handoff_mismatch" });
       return;
     }
 
@@ -408,12 +410,12 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
       });
       result = parseSubmitResult(await response.json());
     } catch {
-      setSubmitView({ kind: "failure" });
+      setSubmitView({ kind: "failure", reason: "unknown_outcome" });
       return;
     }
 
     if (!result) {
-      setSubmitView({ kind: "failure" });
+      setSubmitView({ kind: "failure", reason: "unknown_outcome" });
       return;
     }
 
@@ -430,7 +432,7 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
       setSubmitView({ kind: "duplicate", result });
       return;
     }
-    setSubmitView({ kind: "failure" });
+    setSubmitView({ kind: "failure", reason: "unknown_outcome" });
   }
 
   async function handleRetry(): Promise<void> {
@@ -509,6 +511,7 @@ function ConsultViewBody({ handoff, isPolicyReady }: ConsultViewBodyProps) {
         <ConsultHeader variant="outcome" />
         <div className="flex flex-1 flex-col bg-app-bg">
           <ConsultFailure
+            reason={submitView.reason}
             channel={formState.channel}
             contact={formState.contact}
             preferredCallTime={formState.preferredCallTime}

@@ -437,6 +437,40 @@ describe("components/consult/ConsultView — 제출 응답 라우팅(AC-B2CCONSU
     expect(fetchMock).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
     expectOutcomeFocusAndScroll();
+
+    // 아무것도 보내지 않았으므로 "접수 여부 불명"·"중복 접수되지 않음" 문구와
+    // 재시도 버튼이 없어야 한다(재시도는 같은 비교를 반복해 계속 실패한다).
+    expect(container.querySelector('[data-testid="consult-outcome-title"]')?.textContent).toBe(
+      "상담 신청을 보내지 않았습니다"
+    );
+    expect(container.querySelector('p[role="alert"]')?.textContent).toContain(
+      "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요."
+    );
+    expect(container.querySelector('[data-testid="consult-failure-retry"]')).toBeNull();
+    expect(container.querySelector('[data-testid="consult-failure-notice"]')).toBeNull();
+    expect(container.textContent).not.toContain("접수되었는지 이 화면에서는 알 수 없습니다");
+    expect(container.textContent).not.toContain("중복 접수되지 않습니다");
+    expect(container.querySelector('[data-testid="consult-failure-back-cta"]')).not.toBeNull();
+  });
+
+  it("handoff_mismatch가 아닌 실패(fetch 예외)는 공용 문구와 재시도 버튼을 그대로 보인다", async () => {
+    fetchMock.mockRejectedValue(new Error("network"));
+
+    act(() => {
+      root.render(<ConsultView isPolicyReady />);
+    });
+    fillRequiredFieldsAndConsent();
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="consult-outcome-title"]')?.textContent).toBe(
+      "상담 신청 접수 여부를 확인하지 못했습니다"
+    );
+    expect(container.textContent).toContain("접수되었는지 이 화면에서는 알 수 없습니다");
+    expect(
+      container.querySelector('[data-testid="consult-failure-notice"]')?.textContent
+    ).toContain("같은 내용으로 다시 시도해도 중복 접수되지 않습니다.");
+    expect(container.querySelector('[data-testid="consult-failure-retry"]')).not.toBeNull();
   });
 
   it("다시 시도하기는 최초 제출과 동일한 idempotencyKey로 재전송하고, 스크롤·포커스 복원도 재시도마다 다시 실행된다", async () => {

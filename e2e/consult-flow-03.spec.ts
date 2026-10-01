@@ -400,7 +400,7 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
   });
 
-  test("handoff_mismatch 실패 전환 및 재시도 후에도 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동한다 (390×737)", async ({
+  test("handoff_mismatch 실패 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동하며, 보내지 않았음을 안내하고 재시도 버튼은 없다 (390×737)", async ({
     page,
   }) => {
     await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.3" });
@@ -446,30 +446,15 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
       .toBe(0);
     await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
 
-    // 제출 실패 후 재시도 — handoff_mismatch는 sessionStorage에 남은
-    // 변조값 때문에 재시도에서도 다시 실패로 귀결되지만(핸드오프 자체를
-    // 복구하지 않는 한), 매 전환마다 스크롤·포커스가 다시 복원되는지는
-    // 별도로 검증해야 한다(한 번만 복원되고 재시도에서는 안 되는 회귀를
-    // 잡기 위함).
-    // 실패 화면이 .pen M03-D 프레임(390x737)에 맞춰져 이 뷰포트에는 한 화면에 다 들어와
-    // 스크롤이 생기지 않는다. 복원 동작은 뷰포트 높이와 무관하므로 스크롤이 생기도록
-    // 높이를 줄여 "스크롤된 상태에서 재시도"하는 전제를 만든다.
-    await page.setViewportSize({ width: 390, height: 500 });
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect
-      .poll(() => page.evaluate(() => window.scrollY), {
-        message: "테스트 준비: 스크롤 강제 이동 실패",
-      })
-      .toBeGreaterThan(0);
-    await page.getByTestId("consult-failure-retry").click();
-    await page.getByTestId("consult-failure").waitFor();
-
-    await expect
-      .poll(() => page.evaluate(() => window.scrollY), {
-        message: "재시도 후 스크롤이 최상단으로 다시 복원되지 않았다",
-      })
-      .toBe(0);
-    await expect(page.getByTestId("consult-outcome-title")).toBeFocused();
+    // handoff_mismatch는 서버로 아무것도 보내지 않은 경로라 03-D가 "보내지
+    // 않았음"을 안내하고 재시도 버튼·"중복 접수되지 않습니다" 안내 박스를 그리지
+    // 않는다(재시도는 같은 비교를 반복해 계속 실패하므로). 이전 화면 링크는 남는다.
+    await expect(page.getByTestId("consult-outcome-title")).toHaveText(
+      "상담 신청을 보내지 않았습니다"
+    );
+    await expect(page.getByTestId("consult-failure-retry")).toHaveCount(0);
+    await expect(page.getByTestId("consult-failure-notice")).toHaveCount(0);
+    await expect(page.getByTestId("consult-failure-back-cta")).toBeVisible();
   });
 });
 
