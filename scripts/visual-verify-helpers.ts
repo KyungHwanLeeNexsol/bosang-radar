@@ -279,8 +279,9 @@ export const HELPERS_SOURCE = String.raw`
   // 저대비 카드는 잉크 밴드 측정으로는 인접 버튼·밴드가 섞여 크기를 신뢰할 수
   // 없다(progress.md Claim 48/51). 그래서 카드 테두리색(기본 #e2e7ec)의 긴 가로줄만
   // 찾아 "맨 위 테두리 ~ 맨 아래 테두리"를 카드 바깥 높이로, 행 구분선(카드 폭
-  // 전체를 가로지른다)의 좌우 끝을 카드 폭으로 삼는다. 위·아래 테두리의 직선
-  // 구간은 둥근 모서리 때문에 양 끝이 짧으므로 폭 계산에 쓰지 않는다.
+  // 전체를 가로지른다)의 좌우 끝을 카드 폭으로 삼는다(구분선이 없으면 좌·우 세로
+  // 테두리선으로 잰다). 위·아래 테두리의 직선 구간은 둥근 모서리 때문에 양 끝이
+  // 짧으므로 폭 계산에 쓰지 않는다.
   // 이미지는 원본 해상도(2배 export면 scale=2)에서 잰다 — 1배로 줄이면 테두리색이
   // 배경과 섞여 검출 기준이 흐려진다. 결과는 CSS px(이미지 px / scale)다.
   function findBorderLines(imageData, opts) {
@@ -385,9 +386,46 @@ export const HELPERS_SOURCE = String.raw`
     }
     if (bottom === null || dividers.length < opts.minDividers) return null;
 
-    // 구분선이 없으면 위 테두리선 자신의 끝점(둥근 모서리를 뺀 직선 구간)을 폭으로 쓴다.
-    const x0 = dividers.length > 0 ? Math.min(...dividers.map((l) => l.x0)) : top.x0;
-    const x1 = dividers.length > 0 ? Math.max(...dividers.map((l) => l.x1)) : top.x1;
+    let x0;
+    let x1;
+    if (dividers.length > 0) {
+      x0 = Math.min(...dividers.map((l) => l.x0));
+      x1 = Math.max(...dividers.map((l) => l.x1));
+    } else {
+      // 구분선이 없으면 좌·우 세로 테두리선으로 바깥 폭을 잰다. 위 테두리선의 직선
+      // 구간은 둥근 모서리만큼 양 끝이 짧아 폭이 작게 나온다. 세로 테두리는 위 테두리
+      // 직선 구간의 바깥쪽 maxCorner 안에서만, 상자 높이(위~아래 테두리)의 40% 이상
+      // 끊김 없이 이어진 테두리색 열일 때만 인정한다 — 글리프·아이콘 가장자리나 배경이
+      // 우연히 만족할 수 없는 길이다. 어느 한쪽이라도 못 찾으면 위 테두리 폭으로
+      // 대신하지 않고 null(측정 공백은 통과가 아니다).
+      const minVertRun = Math.round((bottom.y1 + 1 - top.y0) * 0.4);
+      const hasVerticalBorder = (x) => {
+        let run = 0;
+        for (let y = top.y0; y <= bottom.y1; y++) {
+          const i = (y * imageData.width + x) * 4;
+          const match =
+            Math.abs(imageData.data[i] - opts.borderColor.r) <= opts.colorTolerance &&
+            Math.abs(imageData.data[i + 1] - opts.borderColor.g) <= opts.colorTolerance &&
+            Math.abs(imageData.data[i + 2] - opts.borderColor.b) <= opts.colorTolerance;
+          run = match ? run + 1 : 0;
+          if (run >= minVertRun) return true;
+        }
+        return false;
+      };
+      for (let x = Math.max(0, top.x0 - maxCorner); x < top.x0; x++) {
+        if (hasVerticalBorder(x)) {
+          x0 = x;
+          break;
+        }
+      }
+      for (let x = Math.min(imageData.width - 1, top.x1 + maxCorner); x > top.x1; x--) {
+        if (hasVerticalBorder(x)) {
+          x1 = x;
+          break;
+        }
+      }
+      if (x0 === undefined || x1 === undefined) return null;
+    }
     return {
       left: x0 / opts.scale,
       top: top.y0 / opts.scale,

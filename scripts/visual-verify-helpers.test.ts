@@ -195,14 +195,103 @@ describe("findCardBorderBox — 디자인 PNG의 카드 바깥 테두리 상자 
       line: 2,
     };
 
-    it("구분선이 없어도 위·아래 테두리선 자체의 끝점으로 상자를 돌려준다", () => {
+    // 좌·우 세로 테두리를 지워(= 페이지 배경색) "세로선이 없는 상자"를 만든다.
+    function eraseVerticalBorders(
+      img: FakeImage,
+      c: CardSpec,
+      sides: { left?: boolean; right?: boolean }
+    ) {
+      const y0 = c.top + c.radius;
+      const h = c.height - 2 * c.radius;
+      if (sides.left) fillRect(img, c.left, y0, c.line, h, PAGE_BG);
+      if (sides.right) fillRect(img, c.left + c.width - c.line, y0, c.line, h, PAGE_BG);
+    }
+
+    it("구분선이 없으면 좌·우 세로 테두리선으로 잰 바깥 상자(둥근 모서리 포함)를 돌려준다", () => {
       const img = makeImage(780, 1210);
       drawCard(img, NOTICE_LIKE);
 
       const box = vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 });
 
-      // 위 테두리 직선 구간: x 64..715(이미지 px) → left 32, width 326. 아래 테두리 y1=671 → 높이 88.
-      expect(box).toEqual({ left: 32, top: 248, width: 326, height: 88, dividerCount: 0 });
+      // 세로 테두리 x 40..739(이미지 px) → left 20, width 350. 아래 테두리 y1=671 → 높이 88.
+      expect(box).toEqual({ left: 20, top: 248, width: 350, height: 88, dividerCount: 0 });
+    });
+
+    it("1배 해상도(선 두께 1px)의 안내 박스도 같은 바깥 상자를 돌려준다", () => {
+      const img = makeImage(390, 605);
+      drawCard(img, {
+        left: 20,
+        top: 248,
+        width: 350,
+        height: 88,
+        dividerYs: [],
+        radius: 12,
+        line: 1,
+      });
+
+      const box = vv.findCardBorderBox(img, { scale: 1, hintTopCss: 248, minDividers: 0 });
+
+      expect(box).toEqual({ left: 20, top: 248, width: 350, height: 88, dividerCount: 0 });
+    });
+
+    it("모서리 반지름이 달라도 같은 바깥 상자를 돌려준다(위 테두리 직선 구간 길이에 의존하지 않는다)", () => {
+      const small = makeImage(780, 1210);
+      drawCard(small, { ...NOTICE_LIKE, radius: 12 });
+      const large = makeImage(780, 1210);
+      drawCard(large, { ...NOTICE_LIKE, radius: 24 });
+
+      const a = vv.findCardBorderBox(small, { scale: 2, hintTopCss: 248, minDividers: 0 });
+      const b = vv.findCardBorderBox(large, { scale: 2, hintTopCss: 248, minDividers: 0 });
+
+      expect(a).toEqual({ left: 20, top: 248, width: 350, height: 88, dividerCount: 0 });
+      expect(b).toEqual(a);
+    });
+
+    it("왼쪽 세로 테두리만 없으면 null이다(위 테두리 폭으로 대신하지 않는다)", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      eraseVerticalBorders(img, NOTICE_LIKE, { left: true });
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("오른쪽 세로 테두리만 없어도 null이다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      eraseVerticalBorders(img, NOTICE_LIKE, { right: true });
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("세로 테두리가 둘 다 없으면 null이다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      eraseVerticalBorders(img, NOTICE_LIKE, { left: true, right: true });
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("테두리색의 짧은 세로선이나 박스 높이만 한 다른 색 세로선은 세로 테두리로 오인하지 않는다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      eraseVerticalBorders(img, NOTICE_LIKE, { left: true, right: true });
+      // 왼쪽: 테두리색이지만 짧은 세로선(박스 높이의 약 1/4) — 아이콘 모서리·글리프 가장자리 흉내
+      fillRect(img, 40, 560, 2, 40, BORDER);
+      // 오른쪽: 박스 높이만큼 길지만 테두리색이 아닌(글자색) 세로선
+      fillRect(img, 738, 520, 2, 128, [0x20, 0x24, 0x28]);
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("진짜 세로 테두리 바깥의 짧은 잡선은 무시하고 안쪽 상자를 돌려준다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      // 상자 왼쪽 바깥 12px(이미지 px) 위치의 짧은 세로선
+      fillRect(img, 28, 560, 2, 40, BORDER);
+
+      const box = vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 });
+
+      expect(box).toEqual({ left: 20, top: 248, width: 350, height: 88, dividerCount: 0 });
     });
 
     it("옵션을 생략하면 같은 이미지가 여전히 null이다(기본값 불변)", () => {
