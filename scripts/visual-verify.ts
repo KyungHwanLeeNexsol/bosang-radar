@@ -161,6 +161,8 @@ interface ElementSpec {
   borderBox?: {
     /** 디자인 PNG에서 카드 맨 위 테두리의 대략적인 top(CSS px). */
     hintTopCss: number;
+    /** 디자인 PNG에서 요구하는 행 구분선 최소 개수(기본 1). 구분선 없는 안내 박스는 0. */
+    minDividers?: number;
     /**
      * 게이트에서 제외할 축 → 제외 근거(SPEC/디자인 결정 인용). 근거 없는 제외는
      * 인정되지 않는다(evaluateCardBorderGate가 그 축을 그대로 검사한다).
@@ -2254,12 +2256,11 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "note",
         label: "안내 박스(신청 내용을 바꾸고 싶으시면…)",
         locate: (p) => vis(p, "consult-duplicate-notice"),
-        // @MX:TODO: findCardBorderBox는 행 구분선 3개 이상을 요구해(오검출 방지) 구분선 없는
-        // 단일 안내 박스를 디자인 PNG에서 찾지 못한다(progress.md D-NEW-27). 구분선 0개를
-        // 허용하는 옵션을 테스트와 함께 추가한 뒤 이 게이트를 통과시켜야 한다. 일반 측정
-        // 경로(글자 잉크)는 줄바꿈 위치 차이가 그대로 수치가 되어 척도로 쓸 수 없었다.
+        // 구분선 없는 단일 안내 박스라 minDividers: 0으로 바깥 테두리 상자를 잰다(progress.md
+        // D-NEW-28). 일반 측정 경로(글자 잉크)는 줄바꿈 위치 차이가 그대로 수치가 되어 척도로
+        // 쓸 수 없었다.
         designTopHint: 553,
-        borderBox: { hintTopCss: 553 },
+        borderBox: { hintTopCss: 553, minDividers: 0 },
       },
       {
         key: "backCta",
@@ -2318,9 +2319,9 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "note",
         label: "안내 박스(다시 시도해도 접수되지 않으면…)",
         locate: (p) => vis(p, "consult-failure-notice"),
-        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 553,
-        borderBox: { hintTopCss: 553 },
+        borderBox: { hintTopCss: 553, minDividers: 0 },
       },
       {
         key: "retry",
@@ -2560,9 +2561,9 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "note",
         label: "안내 박스(내용을 바꾸시려면…)",
         locate: (p) => vis(p, "consult-duplicate-notice"),
-        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 496,
-        borderBox: { hintTopCss: 496 },
+        borderBox: { hintTopCss: 496, minDividers: 0 },
       },
       {
         // .pen M03-C: 주 버튼(기존 신청 상태 확인, 준비 중 비활성) top 555, 보조 버튼 top 614.
@@ -2619,9 +2620,9 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "note",
         label: "안내 박스(다시 시도해도 접수되지 않으면…)",
         locate: (p) => vis(p, "consult-failure-notice"),
-        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 496,
-        borderBox: { hintTopCss: 496 },
+        borderBox: { hintTopCss: 496, minDividers: 0 },
       },
       {
         key: "retry",
@@ -2742,7 +2743,7 @@ declare global {
       findBrightBox: (d: ImageData, minBrightness: number) => Box | null;
       findCardBorderBox: (
         d: ImageData,
-        opts: { scale: number; hintTopCss: number; hintToleranceCss?: number }
+        opts: { scale: number; hintTopCss: number; hintToleranceCss?: number; minDividers?: number }
       ) => (BorderBox & { dividerCount: number }) | null;
       composeOverlay: (a: string, b: string, w: number, h: number) => Promise<string>;
       composeDiff: (a: string, b: string, w: number, h: number) => Promise<string>;
@@ -3106,10 +3107,18 @@ async function verifyScreen(
         async ([raw, viewportWidth, hintsJson]) => {
           const image = await window.__vv.loadImageData(raw as string);
           const scale = image.width / (viewportWidth as number);
-          const hints = JSON.parse(hintsJson as string) as Array<{ key: string; hint: number }>;
+          const hints = JSON.parse(hintsJson as string) as Array<{
+            key: string;
+            hint: number;
+            minDividers?: number;
+          }>;
           const boxes: Record<string, BorderBox | null> = {};
-          for (const { key, hint } of hints) {
-            const found = window.__vv.findCardBorderBox(image, { scale, hintTopCss: hint });
+          for (const { key, hint, minDividers } of hints) {
+            const found = window.__vv.findCardBorderBox(image, {
+              scale,
+              hintTopCss: hint,
+              minDividers,
+            });
             boxes[key] = found
               ? { left: found.left, top: found.top, width: found.width, height: found.height }
               : null;
@@ -3120,7 +3129,11 @@ async function verifyScreen(
           designRawUrl,
           width,
           JSON.stringify(
-            borderBoxElements.map((e) => ({ key: e.key, hint: e.borderBox!.hintTopCss }))
+            borderBoxElements.map((e) => ({
+              key: e.key,
+              hint: e.borderBox!.hintTopCss,
+              minDividers: e.borderBox!.minDividers,
+            }))
           ),
         ] as const
       );

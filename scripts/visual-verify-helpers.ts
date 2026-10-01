@@ -343,6 +343,8 @@ export const HELPERS_SOURCE = String.raw`
       minRunCss: options.minRunCss ?? 100,
       borderColor: options.borderColor ?? { r: 0xe2, g: 0xe7, b: 0xec },
       colorTolerance: options.colorTolerance ?? 4,
+      // 구분선 최소 개수. 기본 1(폭을 구분선 끝점에서 얻는다), 0이면 구분선 없는 안내 박스.
+      minDividers: options.minDividers ?? 1,
     };
     const lines = findBorderLines(imageData, opts);
     const hint = opts.hintTopCss * opts.scale;
@@ -381,10 +383,11 @@ export const HELPERS_SOURCE = String.raw`
       }
       break;
     }
-    if (bottom === null || dividers.length === 0) return null;
+    if (bottom === null || dividers.length < opts.minDividers) return null;
 
-    const x0 = Math.min(...dividers.map((l) => l.x0));
-    const x1 = Math.max(...dividers.map((l) => l.x1));
+    // 구분선이 없으면 위 테두리선 자신의 끝점(둥근 모서리를 뺀 직선 구간)을 폭으로 쓴다.
+    const x0 = dividers.length > 0 ? Math.min(...dividers.map((l) => l.x0)) : top.x0;
+    const x1 = dividers.length > 0 ? Math.max(...dividers.map((l) => l.x1)) : top.x1;
     return {
       left: x0 / opts.scale,
       top: top.y0 / opts.scale,

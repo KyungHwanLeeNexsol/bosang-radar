@@ -29,6 +29,7 @@ interface VvHelpers {
       hintTopCss: number;
       hintToleranceCss?: number;
       minRunCss?: number;
+      minDividers?: number;
     }
   ) => BorderBoxResult | null;
 }
@@ -180,6 +181,69 @@ describe("findCardBorderBox — 디자인 PNG의 카드 바깥 테두리 상자 
     drawCard(img, { ...M03B_LIKE, dividerYs: [] });
 
     expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248 })).toBeNull();
+  });
+
+  describe("minDividers: 0 — 구분선 없는 안내 박스", () => {
+    // 안내 박스: 행 구분선이 없는 단일 상자(2배 export). 위·아래 테두리의 직선 구간만 보인다.
+    const NOTICE_LIKE: CardSpec = {
+      left: 40,
+      top: 496,
+      width: 700,
+      height: 176,
+      dividerYs: [],
+      radius: 24,
+      line: 2,
+    };
+
+    it("구분선이 없어도 위·아래 테두리선 자체의 끝점으로 상자를 돌려준다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+
+      const box = vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 });
+
+      // 위 테두리 직선 구간: x 64..715(이미지 px) → left 32, width 326. 아래 테두리 y1=671 → 높이 88.
+      expect(box).toEqual({ left: 32, top: 248, width: 326, height: 88, dividerCount: 0 });
+    });
+
+    it("옵션을 생략하면 같은 이미지가 여전히 null이다(기본값 불변)", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248 })).toBeNull();
+    });
+
+    it("헤더 전폭 선만 힌트 근처에 있으면 null이다(아래 테두리가 없는 선은 상자가 아니다)", () => {
+      const img = makeImage(780, 1210);
+      fillRect(img, 0, 118, 780, 2, BORDER);
+      drawCard(img, NOTICE_LIKE);
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 60, minDividers: 0 })).toBeNull();
+    });
+
+    it("맨 위 테두리만 있고 짝이 되는 아래 테두리가 없으면 null이다", () => {
+      const img = makeImage(780, 1210);
+      fillRect(img, 64, 496, 652, 2, BORDER);
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("위·아래 사이에 끝점이 다른 선이 끼면 null이다(상자로 오인하지 않는다)", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, NOTICE_LIKE);
+      // 상자 안쪽에 폭이 좁은 가로선(구분선도 테두리도 아님)
+      fillRect(img, 200, 580, 300, 2, BORDER);
+
+      expect(vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 })).toBeNull();
+    });
+
+    it("구분선이 있는 카드는 minDividers: 0이어도 기존과 같은 상자를 돌려준다", () => {
+      const img = makeImage(780, 1210);
+      drawCard(img, M03B_LIKE);
+
+      const box = vv.findCardBorderBox(img, { scale: 2, hintTopCss: 248, minDividers: 0 });
+
+      expect(box).toEqual({ left: 20, top: 248, width: 350, height: 176, dividerCount: 3 });
+    });
   });
 
   it("1배 해상도 이미지(선 두께 1px)도 같은 방식으로 측정한다", () => {
