@@ -2254,7 +2254,7 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "note",
-        label: "안내 박스(신청 내용을 바꾸고 싶으시면…)",
+        label: "안내 박스(신청 내용 변경, 취소, 접수 상태 확인은…)",
         locate: (p) => vis(p, "consult-duplicate-notice"),
         // 구분선 없는 단일 안내 박스라 minDividers: 0으로 바깥 테두리 상자를 잰다(progress.md
         // D-NEW-28). 일반 측정 경로(글자 잉크)는 줄바꿈 위치 차이가 그대로 수치가 되어 척도로
@@ -2560,7 +2560,7 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "note",
-        label: "안내 박스(내용을 바꾸시려면…)",
+        label: "안내 박스(변경·취소·상태 확인은…)",
         locate: (p) => vis(p, "consult-duplicate-notice"),
         // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 496,
