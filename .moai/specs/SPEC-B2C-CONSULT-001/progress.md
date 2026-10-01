@@ -3915,6 +3915,59 @@ Baseline-attribution: 비교는 이번 세션의 Pencil 두 파일(수정 전 �
 
 **Residual-risk**: 사용자의 시각 정합 승인은 없다. 임시 비교용 탭(`pen-check-before.pen`)은 저장소 밖 파일이며 저장소에 영향이 없다.
 
+### D-NEW-30 — PR #22 후속 정리: 최신 서버 코드의 원격 T1~T7 재시험, 하네스 검증 범위 확장, 03-D `handoff_mismatch` 실제 화면 (2026-10-01, 시작 HEAD `349d8a6`)
+
+**사용자 요청(2026-10-01)**: (1) PR 본문 첫머리의 "현재 코드 … 원격 T1~T7 7/7 통과"를 바로잡는다 — 그 결과는 `4c09426` 이후이고 6차 성공 응답 변경 이전 코드에서 2회 통과한 것이며 최신 서버 코드의 원격 재시험은 아직 없다고 첫머리에 표시하되, 과거 결과를 지우거나 최신 head의 결과로 바꿔 쓰지 않는다. (2) 사용자 결정 11에 따라 최신 head로 원격 T1~T7을 다시 실행한다. 기존 대상 확인·백업·시험 데이터 원장 정리·스키마 원상 복구 절차를 지키고, 변경된 카카오 채널 성공 응답의 연락 희망 시간도 검증 범위에 넣는다. 실행한 코드 SHA·결과·복구 근거를 PR과 이 문서에 적는다. (3) 승인되지 않은 03-D `handoff_mismatch` 문구와 모바일 표시를 사용자가 판단할 수 있게 실제 화면 캡처와 함께 제시한다. 열린 항목 13, 25~29는 완료 처리하지 않고 병합 전 조건과 상담 기능 활성화 전 조건을 구분해 보고한다. (4) 최종 head 기준으로 검증 결과와 미검증 범위를 정리한다. PR은 Draft, `CONSULT_POLICY_READY`는 비활성, 병합하지 않는다.
+
+이 절은 D-NEW-29의 "원격 Turso T1~T7을 다시 돌리지 않았다(결정 11)"는 당시 기록을 대체하는 새 증거를 담는다. 위 D-NEW-29 기록과 §12.8의 "7/7 ×2"는 성공 응답이 바뀌기 전 코드의 기록으로 그대로 둔다.
+
+**Claim 109 — 원격 시험 하네스는 카카오 채널 성공 응답의 연락 희망 시간을 검증하지 않았고, 이번에 T3·T4·T7에 추가했다.**
+
+Evidence(오케스트레이터가 직접 확인): 기존 `scripts/verify-remote-consult-cases.ts`의 `buildPayload`는 요청에 `preferredCallTime`을 싣지 않았다(파일에서 `channel`·`preferred` 일치가 `channel: "kakao"` 한 줄뿐임을 `Grep`으로 확인). 그래서 6차 수정(`6de35f3`)이 바꾼 성공 응답 — 저장된 값이 있으면 채널과 무관하게 돌려주고 없으면 필드를 넣지 않는다(`app/api/consultations/route.ts` `toSuccessResult`) — 은 기존 T1~T7이 관측하지 못했다. 변경(커밋 `2ed735b`, 변경 파일은 하네스 2개뿐): 짝수 번째 요청에만 `preferredCallTime`("평일 오후 2시~4시")을 싣고 홀수 번째는 비워서, 응답의 `status`·`channel`·`preferredCallTime`을 보낸 값과 비교한다 — T3은 재시도 성공 응답과 DB 저장값, T4는 앞 5건(값을 보낸 3건은 그대로, 안 보낸 2건은 필드 없음), T7은 최초 접수와 재생 두 응답. 케이스 ID·구성·기존 판정은 바꾸지 않았다. 필드가 `null`로 오면 "없음"과 다르게 보아 실패한다. TDD: RED — 새 시험 5건이 의도한 이유로 실패(`Tests  5 failed | 56 skipped (61)`, `exit=1`, `red-vitest.log`). GREEN — `scripts/verify-remote-consult.test.ts` `Tests  61 passed (61)`, `exit=0`(`green-vitest.log`). 새 시험에는 응답에서 시간만 지우는 변형(`stripCallTime`)이 T3·T4·T7에서 FAIL로 잡히는 음성 시험 3건이 들어 있다. 변경 파일 `tsc --noEmit`·`eslint`·`prettier --check` 모두 `exit=0`.
+
+Baseline-attribution: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, `349d8a6`에서 `2ed735b`로, 로컬 file: DB, 로그는 gitignored `.moai/state/verify/d-new-30/`.
+
+**Gaps(미검증)**: T5·T6에는 같은 검사를 넣지 않았다(T4·T7이 같은 응답 경로를 본다고 판단했다. T6은 응답 본문이 바이트 동일한지만 기존 검사가 본다). 저장값 대조는 T3에서만 한다. 하네스는 카카오 채널만 보내므로 전화 채널 성공 응답은 원격에서 관측하지 않았다.
+
+**Residual-risk**: 이 검사는 하네스가 보내는 값 한 종류(평일 오후 2시~4시)와 없음 두 경우만 본다. 길이 한도·특수문자 값은 보지 않는다.
+
+**Claim 110 — 최신 서버 코드의 원격 Turso T1~T7이 7/7 통과했고, 정리·스키마 원상 복구·백업 대조까지 통과했다.** *(실행 1회. 이전 D-NEW-26은 2회였다.)*
+
+Evidence(오케스트레이터가 직접 실행하고 로그를 읽음. 로그는 gitignored `.moai/state/verify/d-new-30/`이고 각 로그의 `exit=` 줄이 파일 안에 있다):
+- **대상**: `fingerprint` 출력 지문 `6e5256b8`(이전 실행과 같음), 마스킹한 호스트 `bos***.aws***`, 스킴 `libsql:`. 접속 정보는 저장소 밖 임시 래퍼가 메인 체크아웃 `.env.local`에서 `TURSO_*` 두 값만 읽어 자식 프로세스 환경에만 넣고, 출력의 URL·호스트·토큰을 `***`로 가렸다(래퍼 파일에 값 없음, 작업 트리에 `.env.local` 없음).
+- **백업 3회**(읽기 전용 단일 스냅샷, 저장소 밖 로컬 폴더 `turso-backups/d30-retest-{a-initial,b-pre-migrate,c-post-revert}`): a·b 두 백업 모두 로컬 복원 리허설 PASS(13개 테이블 행 수·내용 SHA-256 일치), a와 b는 서로 같고, 지난 세션 기준선(`pre-migrate-0009-20260930-114035`)과도 같았다(`ROLLBACK-TO-BASELINE: PASS`, 스키마 해시 `d8a6a12d87bb`). 파일럿 데이터는 그 사이 변하지 않았다. 마이그레이션 직전 `__drizzle_migrations`는 9행이었고 작업 트리의 마이그레이션은 0000~0009 10개라 적용될 것은 0009 하나뿐이었다.
+- `pnpm db:migrate` → `✅ 마이그레이션 완료`. `preflight --expect-fingerprint 6e5256b8`: `consultations` 존재·0행, `consultation_rate_limits` 존재·0행, 트리거 없음, `__drizzle_migrations` 10행.
+- `run --run-id d30run01 --expect-fingerprint 6e5256b8 --allow-write-remote`: `게이트 7/7 통과`, `exit=0`(`remote-run1.log`, `results.json`은 gitignored `.moai/state/verify/remote/d30run01/`). T3: 실패 유도 500 `server_error` → 카운터 미소비 → 같은 요청 재시도 2xx, request_count 1, 상담 행 1, 응답·저장값의 연락 희망 시간이 보낸 값과 같음. T4: `[201,201,201,201,201,429]`, 앞 5건 응답의 시간 필드가 보낸 값과 같고 안 보낸 2건에는 필드 없음. T5: 5건 허용 + 429 1건, 행 5, 카운터 6. T6: `[201,200,200,200,200]`, 행 1, 카운터 1, 본문 바이트 동일. T7: 두 프로세스 `[201,200]`, 행 1, 카운터 1, 두 응답의 시간이 보낸 값과 같음. 5xx는 T3의 의도적 실패 유도 1건뿐이고 T4~T7은 0건이다. 요청 처리 시간(ms, 최소/중앙값/최대): T3 241.5/302.4/363.2, T4 295.9/320.8/343.2, T5 324.9/1063.6/1796.8, T6 342.8/570/743.5, T7 556.6/630/703.4.
+- `cleanup --run-id d30run01`: 상담 13행→0, 요청 제한 6행→0(총계가 baseline과 같음), 트리거 없음, `exit=0`(`remote-cleanup1.log`).
+- `revert-schema --confirm-revert-schema`: 두 테이블과 0009 마이그레이션 행 1개 삭제, `exit=0`(`remote-revert1.log`).
+- 복구 뒤 읽기 전용 백업 c와 마이그레이션 직전 백업 b 대조: 13개 테이블 행 수·내용 SHA-256 같음, 스키마 해시 같음, 같은 DB 지문, `ROLLBACK-TO-BASELINE: PASS`.
+
+Baseline-attribution: 실행 시점 HEAD `2ed735b`, 작업 트리 깨끗(`git status --short`가 비어 있음). `git diff --name-only 349d8a6 2ed735b`는 하네스 파일 2개뿐이므로 시험 대상 서버 코드(`app/`·`lib/`)는 PR의 `349d8a6`과 같고, 성공 응답을 바꾼 `6de35f3`을 포함한다. 이전 7/7 ×2는 head `6474869`(2026-09-30 16:32)이고 `6de35f3`(같은 날 17:06)은 그보다 뒤다(`git log`, `git merge-base --is-ancestor 6474869 6de35f3` 성공으로 확인).
+
+**Gaps(미검증)**: 실행은 1회다. 한계는 §12.8과 같다 — 동시성 6건까지, 라우트를 프로세스 안에서 직접 호출(배포 앱 미경유), T7의 두 프로세스는 한 머신의 워커(실제 다중 인스턴스 아님), Hrana 프로토콜 버전 직접 확인 안 함. 이 DB가 운영 DB인지 개발 DB인지는 구분되지 않는다(지문 일치만 확인). 시험이 도는 동안 두 상담 테이블이 잠시 존재했는데 그동안 앱이 이를 읽은 흔적은 확인하지 않았다(상담 기능 플래그는 꺼져 있다). 전화 채널 성공 응답은 원격에서 관측하지 않았다.
+
+**Residual-risk**: 이후 서버 코드(`app/`·`lib/`)나 마이그레이션을 바꾸면 이 결과는 그 코드의 근거가 아니다. 이 결과는 병합 가능·운영 준비 완료를 뜻하지 않는다.
+
+**Claim 111 — 03-D `handoff_mismatch` 변형의 실제 화면을 390px와 1440px로 캡처했다. 변형 문구에 대한 사용자 승인은 여전히 없다.**
+
+Evidence(오케스트레이터가 두 PNG를 직접 열어 눈으로 확인): 기존 `handoff_mismatch` e2e와 같은 절차(제출 직전 `sessionStorage`의 진단 handoff `resultId`를 변조)를 따르는 임시 Playwright 시험 파일을 만들어 로컬 파일 DB로 돌렸다(`2 passed`, `exit=0`, `capture-e2e.log`). 임시 파일은 실행 뒤 삭제했고 커밋하지 않았다(`git status --short` 비어 있음). 산출물(gitignored `.moai/state/verify/d-new-30/`): `handoff-mismatch-{mobile-390,desktop-1440}-{viewport,full}.png`와 `.json`. 관측: 390px — 제목이 두 줄("상담 신청을 / 보내지 않았습니다"), 가로 넘침 없음(`scrollWidth` 390 = `clientWidth` 390), 재시도 버튼·안내 박스 없음, "이전 화면으로 돌아가기"(`/result` 링크) 있음. 1440px — 제목 한 줄, 가로 넘침 없음, 같은 구성. 부제는 "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요."이고 요약 카드 행은 상담 방식·연락처·희망 시간(데스크톱은 "연락 희망 시간")·입력 내용("유지됨")이다. 연락처는 마스킹 없이 입력 원문이 보인다(열린 항목 13).
+
+Baseline-attribution: HEAD `2ed735b`, Chromium, 전화 채널·연락 희망 시간 입력 상태, 이 트리, 로컬 파일 DB.
+
+**Gaps(미검증)**: 카카오 채널·시간 미입력 상태, Chromium 외 브라우저는 캡처하지 않았다. 이 변형은 `.pen` 프레임이 없어 시각 게이트 대상이 아니다. "입력 내용 · 유지됨" 행은 안내 박스가 없는 이 변형에서도 표시된다 — 입력(draft)을 성공 때만 지운다는 코드 주석(`consult-view.tsx`)과는 맞지만, `/result`로 나갔다가 `/consult`로 돌아왔을 때 입력이 실제로 복원되는지는 이번에 확인하지 않았다.
+
+**Residual-risk**: 문구와 표시가 미승인 상태다. 승인 여부는 사용자가 이 캡처를 보고 결정한다.
+
+**Claim 112 — 최종 코드(`2ed735b`)에서 전체 검증이 통과했다. 이 뒤로 코드·테스트는 바뀌지 않았다.**
+
+Evidence(오케스트레이터가 로그를 읽음. 로그는 gitignored `.moai/state/verify/d-new-30/`, 각 로그 안의 `exit=` 줄): `final-vitest-full.log` — `Test Files  103 passed (103)`, `Tests  934 passed (934)`(D-NEW-29의 929 + 이번 추가 5), `exit=0`. `final-tsc.log` `exit=0`. `final-eslint.log`(`eslint .`) `exit=0`. `final-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `final-e2e-policyoff.log`(`E2E_CONSULT_POLICY_READY=false`) — `11 passed (5.0m)`, `exit=0`. `final-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`. 편차: 03 6px·03-A2 7px·03-B 2px·03-C 3px·03-D 3px(허용 8px), M03 4px·M03-C 2px·M03-D 2px(허용 4px)·M03-B 0.25px. `visual:verify`가 덮어쓴 추적 대상 `.moai/reports/visual-check` 증거는 `git restore`로 되돌렸고 `git status --short`가 비어 있음을 확인했다.
+
+Baseline-attribution: 실행 시점 HEAD `2ed735b`. 이 기록을 담는 커밋은 문서(`progress.md`, 런북)만 바꾼다.
+
+**Gaps(미검증)**: `pnpm verify:flag-runtime`, 커버리지 측정, 전체 `pnpm format:check`(`origin/main`에서도 실패하는 기존 3개 파일이 있다)는 이번에 돌리지 않았다. 원격 저장소 CI는 확인하지 않았다(이전에 이 브랜치에서 체크 0개였고 이유는 모른다). `visual:verify`는 저장된 `.pen`이 아니라 `design/exports` PNG와 비교한다. 사용자의 시각 정합 승인은 없다.
+
+**Residual-risk**: 이 항목은 검증 게이트가 통과했다는 기록이며 시각 정합·병합 준비·운영 준비 완료를 주장하지 않는다. 열린 항목 13, 25~29는 이번에 어느 것도 완료 처리하지 않았고 원문 그대로 열려 있다. `run_status`·`plan_status`는 바꾸지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았으므로 review-17 PASS의 해시 조건은 이번 변경과 무관하다(`git diff --name-only 349d8a6 HEAD`에 계획 산출물 없음).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
