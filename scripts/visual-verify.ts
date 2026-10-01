@@ -591,18 +591,20 @@ async function attrValue(page: Page, testId: string, attr: string): Promise<stri
 }
 
 /**
- * 03-B/M03-B 성공 화면 — 요약 카드 → 안내 문구 → CTA가 SPEC 순서(design.md §10)로
- * 세로로 쌓이고 서로 겹치지 않는지 실제 DOM rect로 확인한다. 픽셀 게이트는 위치·크기
- * 지표만 봐서, 데스크톱에서 CTA(md:mt-[-39px])가 안내 문구를 덮던 결함(progress.md
- * Claim 52)을 통과시켰다. 결과는 "none" 또는 문제 요약 문자열이다.
+ * 03-B/M03-B 성공 화면 — 안내 문구(부제) → 요약 카드 → CTA가 .pen 순서로 세로로 쌓이고
+ * 서로 겹치지 않는지 실제 DOM rect로 확인한다. 픽셀 게이트는 위치·크기 지표만 봐서,
+ * 데스크톱에서 CTA(md:mt-[-39px])가 안내 문구를 덮던 결함(progress.md Claim 52)을
+ * 통과시켰다. 결과는 "none" 또는 문제 요약 문자열이다.
+ * [.pen 최우선 지시] 예전 순서(카드 → 안내 → CTA, design.md §10)는 .pen의 "제목 → 부제 →
+ * 카드 → 버튼"으로 바뀌었다.
  */
 async function successStackCheck(
   page: Page
 ): Promise<{ label: string; expected: string; actual: string }> {
   const actual = await page.evaluate(() => {
     const parts: Array<[string, string]> = [
-      ["요약 카드", "consult-success-summary"],
       ["안내 문구", "consult-success-notice"],
+      ["요약 카드", "consult-success-summary"],
       ["돌아가기 CTA", "consult-success-back-cta"],
     ];
     const rects = parts.map(([name, id]) => {
@@ -625,7 +627,25 @@ async function successStackCheck(
     }
     return problems.length === 0 ? "none" : problems.join("; ");
   });
-  return { label: "카드 → 안내 → CTA 세로 순서·비겹침(실제 DOM rect)", expected: "none", actual };
+  return { label: "안내 → 카드 → CTA 세로 순서·비겹침(실제 DOM rect)", expected: "none", actual };
+}
+
+/** data-testid 요소의 속성이 기대값과 같은지 "true"/"false"로 반환한다(속성이 없으면 "false"). */
+async function attrEquals(
+  page: Page,
+  testId: string,
+  attr: string,
+  expected: string
+): Promise<string> {
+  return String((await attrValue(page, testId, attr)) === expected);
+}
+
+/**
+ * 데스크톱 푸터(consult-footer)가 화면에 보이는지 "true"/"false"로 반환한다. .pen은 03 / 03-A2 /
+ * 03-B / 03-C / 03-D에만 푸터가 있고 모바일(M03*)에는 없다 — 요소가 없거나 display:none이면 false.
+ */
+async function footerVisible(page: Page): Promise<string> {
+  return String(await page.getByTestId("consult-footer").isVisible());
 }
 
 /** containerTestId 안에 aria-hidden 아이콘(svg)이 있는지 "true"/"false"로 반환한다. */
@@ -2057,6 +2077,14 @@ const SCREENS: readonly ScreenSpec[] = [
         expected: "true",
         actual: await attrValue(page, "consult-submit-button", "aria-disabled"),
       },
+      { label: "데스크톱 푸터 표시(.pen 03)", expected: "true", actual: await footerVisible(page) },
+      {
+        label: "상담 예정 전문가 카드 표시(내용은 중립 '배정 예정')",
+        expected: "true",
+        actual: String(
+          await page.getByTestId("consult-expert-card").filter({ hasText: "배정 예정" }).isVisible()
+        ),
+      },
     ],
   },
   {
@@ -2104,14 +2132,32 @@ const SCREENS: readonly ScreenSpec[] = [
         actual: await attrValue(page, "consult-preferred-call-time-input", "aria-required"),
       },
       {
-        label: "안내 문구 — 접수 내용을 확인한 뒤…(§1 D6)",
+        // .pen 03-A2 문구(사용자 결정으로 design.md §1 D6의 중립 문구를 대체했다).
+        label: "안내 문구 — 영업일 기준 1일 이내에 입력하신 번호로 전화드립니다(.pen 03-A2)",
         expected: "true",
         actual: String(
           await page
-            .locator('[data-testid="consult-channel-selector"] [role="status"]')
-            .filter({ hasText: "접수 내용을 확인한 뒤" })
+            .locator('[data-testid="consult-channel-notice"][role="status"]')
+            .filter({ hasText: "영업일 기준 1일 이내에 입력하신 번호로 전화드립니다" })
             .isVisible()
         ),
+      },
+      {
+        label: "상담 예정 전문가 카드 표시(내용은 중립 '배정 예정')",
+        expected: "true",
+        actual: String(
+          await page.getByTestId("consult-expert-card").filter({ hasText: "배정 예정" }).isVisible()
+        ),
+      },
+      {
+        label: "이름 필드 힌트 '상담 시 호칭' 표시",
+        expected: "true",
+        actual: String(await page.getByTestId("consult-name-hint").isVisible()),
+      },
+      {
+        label: "데스크톱 푸터 표시(.pen 03-A2)",
+        expected: "true",
+        actual: String(await page.getByTestId("consult-footer").isVisible()),
       },
     ],
   },
@@ -2131,28 +2177,21 @@ const SCREENS: readonly ScreenSpec[] = [
         designTopHint: 325,
         // D-NEW-17 — 잉크 측정 대신 바깥 테두리 상자(DOM rect vs 디자인 PNG 테두리 검출)로
         // left/width/height/top 4축을 게이트한다.
-        borderBox: {
-          hintTopCss: 306,
-          skip: {
-            top: "design.md §10(413행) 순서는 요약 표 → 안내 문구 → CTA인데 디자인 목업은 안내 문구를 카드 위(제목~카드 사이)에 둔다. 이번 PR-fix에서 사용자가 SPEC 순서 유지를 결정해 카드 위 공간이 목업(안내 문구 높이+간격)보다 좁다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
-          },
-        },
+        // [.pen 최우선 지시] 부제를 .pen처럼 카드 위로 옮겨 예전에 제외했던 top(design.md §10
+        // 순서 유지 결정)도 다시 게이트한다.
+        borderBox: { hintTopCss: 306 },
       },
       {
         key: "backCta",
-        // design.md §1 D4 — 같은 행의 "신청 취소·정보 삭제 문의"는 실제
-        // 목적지 없는 "준비 중" 스텁 텍스트로 구현했다(버튼 아님). 디자인
-        // export에서 이 행은 버튼+스텁 텍스트 사이 간격이 colGap 임계값보다
-        // 좁아 하나의 밴드/컬럼으로 병합 측정된다(segmentBands가 둘을
-        // 분리하지 못함) — 병합된 디자인 폭(버튼+공백+스텁 텍스트)을 버튼
-        // 하나만 있는 구현과 비교하는 건 애초에 성립하지 않는 비교이므로
-        // left/width는 게이트하지 않는다(top/height만 비교).
+        // 디자인 export에서 이 행은 두 버튼(진단 결과로 돌아가기 / 신청 취소·정보 삭제 문의)
+        // 사이 간격이 colGap 임계값보다 좁아 하나의 밴드/컬럼으로 병합 측정된다(segmentBands가
+        // 둘을 분리하지 못함) — 병합된 디자인 폭을 버튼 하나와 비교하는 건 성립하지 않으므로
+        // left/width는 게이트하지 않는다(top/height는 비교한다).
         label: "진단 결과로 돌아가기 CTA",
         locate: (p) => vis(p, "consult-success-back-cta"),
         designTopHint: 528,
-        skipMetrics: ["left", "width", "top"],
-        skipReason:
-          "left/width: design.md §1 D4 — 같은 행의 스텁 텍스트와 병합 측정되어 폭 비교 불가. top: design.md §10(413행) 순서(표 → 안내 문구 → CTA)를 유지하므로 안내 문구가 CTA 위에 들어가 목업(안내가 카드 위)보다 CTA가 그 높이만큼 아래에 놓인다(겹침은 아래 semanticChecks가 잡는다)",
+        skipMetrics: ["left", "width"],
+        skipReason: "같은 행의 두 번째 버튼과 병합 측정되어 폭 비교 불가 — top/height는 게이트한다",
       },
     ],
     semanticChecks: async (page) => [
@@ -2180,6 +2219,16 @@ const SCREENS: readonly ScreenSpec[] = [
         ),
       },
       await successStackCheck(page),
+      {
+        label: "데스크톱 푸터 표시(.pen 03-B)",
+        expected: "true",
+        actual: await footerVisible(page),
+      },
+      {
+        label: "신청 취소 · 정보 삭제 문의는 준비 중 비활성 버튼",
+        expected: "true",
+        actual: await attrEquals(page, "consult-success-cancel-inquiry", "aria-disabled", "true"),
+      },
     ],
   },
   {
@@ -2196,28 +2245,31 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "중복 요약",
         locate: (p) => vis(p, "consult-duplicate-summary"),
         designTopHint: 350,
-        // D-NEW-17 — 바깥 테두리 상자로 left/width/height를 게이트한다. top만 제외:
-        // 디자인 목업은 카드 위에 2줄 부제("같은 진단 결과로…/중복으로 다시…")가 있고
-        // 카드 아래에 "신청 내용을 바꾸고 싶으시면…" 안내 박스가 있으나, design.md §10
-        // (417행) 03-C 계약의 문구 목록에는 둘 다 없다.
-        borderBox: {
-          hintTopCss: 331,
-          skip: {
-            top: "design.md §10(417행) 03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
-          },
-        },
+        // D-NEW-17 — 바깥 테두리 상자로 4축을 모두 게이트한다.
+        // [.pen 최우선 지시] 2줄 부제와 카드 아래 안내 박스를 .pen대로 구현해, 예전에 제외했던
+        // top(design.md §10 계약에 없다는 이유)도 다시 게이트한다.
+        borderBox: { hintTopCss: 331 },
+      },
+      {
+        key: "note",
+        label: "안내 박스(신청 내용을 바꾸고 싶으시면…)",
+        locate: (p) => vis(p, "consult-duplicate-notice"),
+        // @MX:TODO: findCardBorderBox는 행 구분선 3개 이상을 요구해(오검출 방지) 구분선 없는
+        // 단일 안내 박스를 디자인 PNG에서 찾지 못한다(progress.md D-NEW-27). 구분선 0개를
+        // 허용하는 옵션을 테스트와 함께 추가한 뒤 이 게이트를 통과시켜야 한다. 일반 측정
+        // 경로(글자 잉크)는 줄바꿈 위치 차이가 그대로 수치가 되어 척도로 쓸 수 없었다.
+        designTopHint: 553,
+        borderBox: { hintTopCss: 553 },
       },
       {
         key: "backCta",
-        // design.md §1 D4 — 이 행은 왼쪽 "기존 신청 상태 확인"(스텁 텍스트)
-        // + 오른쪽 "진단 결과로 돌아가기"(실제 구현) — 03-B와 동일한 이유로
-        // 병합 측정된다. left/width는 게이트하지 않는다. top도 위 summary와
-        // 동일한 이유(§10 안내 박스 제외)로 게이트하지 않는다.
+        // 이 행은 왼쪽 "기존 신청 상태 확인"(준비 중 비활성) + 오른쪽 "진단 결과로 돌아가기"라
+        // 03-B와 같은 이유로 병합 측정된다. left/width는 게이트하지 않고 top/height는 비교한다.
         label: "진단 결과로 돌아가기 CTA",
         locate: (p) => vis(p, "consult-duplicate-back-cta"),
         designTopHint: 643,
-        skipMetrics: ["left", "width", "top"],
-        skipReason: "design.md §1 D4(폭) + §10(안내 박스 제외로 top 무의미) — height만 게이트한다",
+        skipMetrics: ["left", "width"],
+        skipReason: "같은 행의 첫 번째 버튼과 병합 측정되어 폭 비교 불가 — top/height는 게이트한다",
       },
     ],
     semanticChecks: async (page) => [
@@ -2230,6 +2282,16 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "기존 신청 상태 확인 CTA(스텁) 존재",
         expected: "true",
         actual: await testIdExists(page, "consult-duplicate-status-inquiry"),
+      },
+      {
+        label: "기존 신청 상태 확인은 준비 중 비활성(aria-disabled=true)",
+        expected: "true",
+        actual: await attrEquals(page, "consult-duplicate-status-inquiry", "aria-disabled", "true"),
+      },
+      {
+        label: "데스크톱 푸터 표시(.pen 03-C)",
+        expected: "true",
+        actual: await footerVisible(page),
       },
     ],
   },
@@ -2251,6 +2313,14 @@ const SCREENS: readonly ScreenSpec[] = [
         // 시간/입력 내용)만 명시한다. 잉크 측정 대신 바깥 테두리 상자로 4축을 모두
         // 게이트한다(제외 축 없음).
         borderBox: { hintTopCss: 331 },
+      },
+      {
+        key: "note",
+        label: "안내 박스(다시 시도해도 접수되지 않으면…)",
+        locate: (p) => vis(p, "consult-failure-notice"),
+        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        designTopHint: 553,
+        borderBox: { hintTopCss: 553 },
       },
       {
         key: "retry",
@@ -2296,6 +2366,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
         expected: "true",
         actual: String(await draftNameMatches(page, CONSULT_NAME)),
+      },
+      {
+        label: "데스크톱 푸터 표시(.pen 03-D)",
+        expected: "true",
+        actual: await footerVisible(page),
       },
     ],
   },
@@ -2387,6 +2462,18 @@ const SCREENS: readonly ScreenSpec[] = [
           M03_NOTICE_TO_FORM_GAP
         ),
       },
+      {
+        label: "푸터 숨김(.pen 모바일에는 없음)",
+        expected: "false",
+        actual: await footerVisible(page),
+      },
+      {
+        label: "상담 예정 전문가 카드 표시(내용은 중립 '배정 예정')",
+        expected: "true",
+        actual: String(
+          await page.getByTestId("consult-expert-card").filter({ hasText: "배정 예정" }).isVisible()
+        ),
+      },
     ],
   },
   {
@@ -2413,7 +2500,10 @@ const SCREENS: readonly ScreenSpec[] = [
         key: "backCta",
         label: "진단 결과로 돌아가기 CTA",
         locate: (p) => vis(p, "consult-success-back-cta"),
-        designTopHint: 501,
+        // 442 = .pen M03-B 주 버튼 top(카드 248 + 176 + 간격 18). 이전 기준값 501은 디자인 export의
+        // 두 번째 버튼("신청 취소 · 정보 삭제 문의") 위치라 구현의 주 버튼(447)과 54px 어긋난 것으로
+        // 잘못 측정됐다(단위 4 측정에서 발견).
+        designTopHint: 442,
       },
     ],
     semanticChecks: async (page) => [
@@ -2441,6 +2531,11 @@ const SCREENS: readonly ScreenSpec[] = [
         ),
       },
       await successStackCheck(page),
+      {
+        label: "푸터 숨김(.pen 모바일에는 없음)",
+        expected: "false",
+        actual: await footerVisible(page),
+      },
     ],
   },
   {
@@ -2457,21 +2552,30 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "중복 요약",
         locate: (p) => vis(p, "consult-duplicate-summary"),
         designTopHint: 319,
-        // D-NEW-17 — 03-C와 같은 이유로 top만 제외하고 left/width/height를 게이트한다.
-        borderBox: {
-          hintTopCss: 302,
-          skip: {
-            top: "design.md §10(417행) M03-C 계약에는 카드 위 2줄 부제와 카드 아래 안내 박스가 없다 — 디자인 카드 top은 그 부제 높이를 포함해 구조적으로 다르다. 카드 top의 디자인 근접성은 게이트하지 않는다(미검증).",
-          },
-        },
+        // D-NEW-17 — 바깥 테두리 상자로 4축을 모두 게이트한다.
+        // [.pen 최우선 지시] 2줄 부제·안내 박스를 .pen대로 구현해 예전 top 제외를 풀었다.
+        borderBox: { hintTopCss: 302 },
+      },
+      {
+        key: "note",
+        label: "안내 박스(내용을 바꾸시려면…)",
+        locate: (p) => vis(p, "consult-duplicate-notice"),
+        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        designTopHint: 496,
+        borderBox: { hintTopCss: 496 },
+      },
+      {
+        // .pen M03-C: 주 버튼(기존 신청 상태 확인, 준비 중 비활성) top 555, 보조 버튼 top 614.
+        key: "statusInquiry",
+        label: "기존 신청 상태 확인(준비 중)",
+        locate: (p) => vis(p, "consult-duplicate-status-inquiry"),
+        designTopHint: 555,
       },
       {
         key: "backCta",
         label: "진단 결과로 돌아가기 CTA",
         locate: (p) => vis(p, "consult-duplicate-back-cta"),
-        designTopHint: 555,
-        skipMetrics: ["top"],
-        skipReason: "design.md §10 — 안내 박스 제외로 top 무의미(width/height만 게이트)",
+        designTopHint: 614,
       },
     ],
     semanticChecks: async (page) => [
@@ -2484,6 +2588,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "기존 신청 상태 확인 CTA(스텁) 존재",
         expected: "true",
         actual: await testIdExists(page, "consult-duplicate-status-inquiry"),
+      },
+      {
+        label: "푸터 숨김(.pen 모바일에는 없음)",
+        expected: "false",
+        actual: await footerVisible(page),
       },
     ],
   },
@@ -2505,6 +2614,14 @@ const SCREENS: readonly ScreenSpec[] = [
         // 시간/입력 내용)만 명시한다. 옛 잉크 측정(height 176~381px로 측정법마다 달랐음)
         // 대신 바깥 테두리 상자로 4축을 모두 게이트한다(제외 축 없음).
         borderBox: { hintTopCss: 302 },
+      },
+      {
+        key: "note",
+        label: "안내 박스(다시 시도해도 접수되지 않으면…)",
+        locate: (p) => vis(p, "consult-failure-notice"),
+        // @MX:TODO: 03-C 안내 박스와 같은 이유(progress.md D-NEW-27).
+        designTopHint: 496,
+        borderBox: { hintTopCss: 496 },
       },
       {
         key: "retry",
@@ -2536,6 +2653,11 @@ const SCREENS: readonly ScreenSpec[] = [
         label: "draft에 이름 보존(sessionStorage, 이름 한 필드만 — 재전송 증명 아님)",
         expected: "true",
         actual: String(await draftNameMatches(page, CONSULT_NAME)),
+      },
+      {
+        label: "푸터 숨김(.pen 모바일에는 없음)",
+        expected: "false",
+        actual: await footerVisible(page),
       },
     ],
   },

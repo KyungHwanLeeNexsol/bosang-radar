@@ -218,7 +218,7 @@ test.describe("03 화면 — 02→03 전체 플로우: 성공 → 결과 복귀 
     const duplicateSummary = page.getByTestId("consult-duplicate-summary");
     await expect(duplicateSummary).toContainText("카카오톡 상담");
     await expect(duplicateSummary).toContainText(CONSULT_PHONE_MASKED);
-    await expect(duplicateSummary).toContainText("접수됨");
+    await expect(duplicateSummary).toContainText("상담 대기 중");
   });
 });
 
@@ -399,6 +399,10 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     // 복구하지 않는 한), 매 전환마다 스크롤·포커스가 다시 복원되는지는
     // 별도로 검증해야 한다(한 번만 복원되고 재시도에서는 안 되는 회귀를
     // 잡기 위함).
+    // 실패 화면이 .pen M03-D 프레임(390x737)에 맞춰져 이 뷰포트에는 한 화면에 다 들어와
+    // 스크롤이 생기지 않는다. 복원 동작은 뷰포트 높이와 무관하므로 스크롤이 생기도록
+    // 높이를 줄여 "스크롤된 상태에서 재시도"하는 전제를 만든다.
+    await page.setViewportSize({ width: 390, height: 500 });
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect
       .poll(() => page.evaluate(() => window.scrollY), {
@@ -959,7 +963,8 @@ registerLayoutTests(false);
 // ── 성공 화면(03-B/M03-B) 요소 비겹침 회귀 가드 ─────────────────────────
 // jsdom에는 레이아웃이 없어 단위 테스트로는 겹침을 잡을 수 없다 — 실제 브라우저의
 // getBoundingClientRect(=Playwright boundingBox)로 안내 문구·CTA·요약 카드가 서로
-// 겹치지 않고 SPEC 순서(카드 → 안내 → CTA, design.md §10)로 쌓이는지 단언한다.
+// 겹치지 않고 .pen 순서(안내 → 카드 → CTA)로 쌓이는지 단언한다. 이 순서는 design.md
+// §10의 카드 → 안내 → CTA를 대체한다(사용자 지시 ".pen 최우선").
 // 데스크톱에서 CTA 그룹의 음수 상단 마진(md:mt-[-39px])이 CTA를 안내 문구 위로
 // 끌어올려 덮던 결함(progress.md Claim 52)의 회귀를 막는다.
 async function reachSuccessScreen(page: Page, phone: string): Promise<void> {
@@ -987,15 +992,16 @@ async function expectSuccessScreenNoOverlap(page: Page): Promise<void> {
   expectNoOverlap("안내 문구", noticeRect, "돌아가기 CTA", ctaRect);
   expectNoOverlap("요약 카드", cardRect, "안내 문구", noticeRect);
   expectNoOverlap("요약 카드", cardRect, "돌아가기 CTA", ctaRect);
-  // SPEC 순서(design.md §10): 카드 → 안내 → CTA. 안내는 카드 아래, CTA는 안내 아래.
+  // .pen 03-B 순서: 안내(부제) → 카드 → CTA. 안내는 카드 위, CTA는 카드 아래.
+  // (사용자 지시 ".pen 최우선"으로 design.md §10의 카드 → 안내 → CTA 순서를 대체했다.)
   expect(
-    noticeRect.y,
-    `안내 문구(${describeRect(noticeRect)})는 요약 카드(${describeRect(cardRect)}) 아래에서 시작해야 한다`
-  ).toBeGreaterThanOrEqual(cardRect.y + cardRect.height);
+    cardRect.y,
+    `요약 카드(${describeRect(cardRect)})는 안내 문구(${describeRect(noticeRect)}) 아래에서 시작해야 한다`
+  ).toBeGreaterThanOrEqual(noticeRect.y + noticeRect.height);
   expect(
     ctaRect.y,
-    `돌아가기 CTA(${describeRect(ctaRect)})는 안내 문구(${describeRect(noticeRect)}) 아래에서 시작해야 한다`
-  ).toBeGreaterThanOrEqual(noticeRect.y + noticeRect.height);
+    `돌아가기 CTA(${describeRect(ctaRect)})는 요약 카드(${describeRect(cardRect)}) 아래에서 시작해야 한다`
+  ).toBeGreaterThanOrEqual(cardRect.y + cardRect.height);
 }
 
 test.describe("03-B 성공 화면 — 요약 카드·안내·CTA 비겹침 (Desktop, 1440x900)", () => {
@@ -1084,7 +1090,10 @@ async function measureSuccessLayout(page: Page): Promise<SuccessLayoutMetrics> {
       const lineHeight = parseFloat(style.lineHeight);
       const r = el.getBoundingClientRect();
       return {
-        text: (el.textContent ?? "").trim(),
+        // innerText는 display:none인 쪽을 빼고 화면에 보이는 글자만 돌려준다. 연락 희망
+        // 시간 라벨은 모바일/데스크톱 두 글자를 모두 그리고 CSS로 하나만 보이게 하므로
+        // textContent를 쓰면 두 라벨이 이어 붙어 읽힌다.
+        text: ((el as HTMLElement).innerText ?? el.textContent ?? "").trim(),
         rect: rectOfElement(el),
         scrollWidth: el.scrollWidth,
         clientWidth: el.clientWidth,
@@ -1169,11 +1178,11 @@ function expectSuccessLayoutSound(
       expectNoOverlap(blocks[i][0], blocks[i][1], blocks[j][0], blocks[j][1]);
     }
   }
-  expect(notice.rect.y, "안내 문구는 카드 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
-    card.y + card.height
-  );
-  expect(cta.y, "CTA는 안내 문구 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
+  expect(card.y, "요약 카드는 안내 문구 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
     notice.rect.y + notice.rect.height
+  );
+  expect(cta.y, "CTA는 요약 카드 아래에서 시작해야 한다").toBeGreaterThanOrEqual(
+    card.y + card.height
   );
 
   // (b) 모든 행과 dt/dd가 카드 안에 있고, 한 행에서 dt와 dd가 서로 겹치지 않는다
@@ -1234,10 +1243,14 @@ async function saveSuccessEvidence(
   await page.screenshot({ path: path.join(dir, `${stem}.png`), fullPage: true });
 }
 
-const SUCCESS_LABELS: Record<SuccessChannel, readonly string[]> = {
-  kakao: ["상담 방식", "연락처", "상담 예정 전문가"],
-  phone: ["상담 방식", "연락처", "연락 희망 시간", "상담 예정 전문가"],
-};
+// .pen은 연락 희망 시간 행 라벨을 모바일(md=768px 미만)에서 "희망 시간"으로 줄여 쓴다.
+const MOBILE_MAX_WIDTH = 768;
+
+function successLabels(channel: SuccessChannel, viewportWidth: number): readonly string[] {
+  if (channel === "kakao") return ["상담 방식", "연락처", "상담 예정 전문가"];
+  const callTimeLabel = viewportWidth < MOBILE_MAX_WIDTH ? "희망 시간" : "연락 희망 시간";
+  return ["상담 방식", "연락처", callTimeLabel, "상담 예정 전문가"];
+}
 
 const SUCCESS_VIEWPORTS = [
   { name: "desktop", size: DESKTOP_VIEWPORT },
@@ -1273,7 +1286,7 @@ for (const { channel, viewport, phone, ip } of SUCCESS_LAYOUT_CASES) {
       );
       const metrics = await measureSuccessLayout(page);
       await saveSuccessEvidence(page, `success-${channel}-${viewport.name}`, metrics);
-      expectSuccessLayoutSound(metrics, SUCCESS_LABELS[channel]);
+      expectSuccessLayoutSound(metrics, successLabels(channel, viewport.size.width));
     });
   });
 }
@@ -1325,7 +1338,7 @@ for (const { label, value, phone, ip, stem } of LONG_CALL_TIME_CASES) {
       await reachSuccessScreenWithChannel(page, "phone", phone, value);
       const metrics = await measureSuccessLayout(page);
       await saveSuccessEvidence(page, `success-phone-mobile-long-${stem}`, metrics);
-      expectSuccessLayoutSound(metrics, SUCCESS_LABELS.phone);
+      expectSuccessLayoutSound(metrics, successLabels("phone", 390));
     });
   });
 }

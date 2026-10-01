@@ -25,18 +25,24 @@ export const SUMMARY_CARD_CLASS =
 // mobileLabel: .pen은 연락 희망 시간 행 라벨을 모바일에서 "희망 시간"으로 줄여 쓴다.
 // 두 라벨을 모두 그리고 CSS로 하나만 보이게 하며(display:none은 보조기기에서도 빠진다),
 // 화면 폭에 따라 다른 글자를 쓰는 데 JS 폭 감지를 쓰지 않는다.
+//
+// 글씨는 .pen 카드 행에서 직접 읽은 값이다(모바일 / 데스크톱): 라벨 12 / 12.5px 500 #6b7684,
+// 값 12.5 / 13.5px 700 #111820, 행 좌우 패딩 15 / 20. 행 높이는 위 min-h가 정한다.
+// tone="warn": .pen 03-C의 처리 상태 값만 경고색(#8a5a12)이다.
 export function SummaryRow({
   label,
   mobileLabel,
   value,
+  tone,
 }: {
   label: string;
   mobileLabel?: string;
   value: string;
+  tone?: "warn";
 }) {
   return (
-    <div className="flex min-h-[43.5px] items-center justify-between gap-4 border-b border-app-line px-4 py-2 last:border-b-0 md:min-h-[49.5px]">
-      <dt className="shrink-0 text-body-s text-bora-ink-3">
+    <div className="flex min-h-[43.5px] items-center justify-between gap-4 border-b border-app-line px-[15px] py-2 last:border-b-0 md:min-h-[49.5px] md:px-5">
+      <dt className="shrink-0 text-[12px] font-medium text-bora-ink-3 md:text-[12.5px]">
         {mobileLabel ? (
           <>
             <span className="md:hidden">{mobileLabel}</span>
@@ -46,7 +52,13 @@ export function SummaryRow({
           label
         )}
       </dt>
-      <dd className="min-w-0 break-words text-body-s font-semibold text-bora-ink">{value}</dd>
+      <dd
+        className={`min-w-0 break-words text-[12.5px] font-bold md:text-[13.5px] ${
+          tone === "warn" ? "text-bora-warn" : "text-bora-ink"
+        }`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

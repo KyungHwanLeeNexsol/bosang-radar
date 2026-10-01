@@ -39,7 +39,11 @@ export function ConsultFooter({ className }: { className?: string }) {
           </span>
         ))}
         <span className="flex-1" />
-        <span className="flex items-center gap-2" aria-hidden="true">
+        <span
+          data-testid="consult-footer-brand"
+          className="flex items-center gap-2 opacity-50"
+          aria-hidden="true"
+        >
           <span className="flex size-[30px] items-center justify-center rounded-[8px] bg-bora-accent text-[15.8px] font-extrabold text-white">
             B
           </span>

@@ -78,6 +78,7 @@ export function ConsultDuplicate({
           <SummaryRow
             label="처리 상태"
             value={APPLICATION_STATUS_LABEL[applicationStatus] ?? applicationStatus}
+            tone="warn"
           />
         </dl>
       }

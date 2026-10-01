@@ -80,6 +80,11 @@ describe("components/consult/ConsultFooter", () => {
     );
   });
 
+  it(".pen Footer 컴포넌트: 오른쪽 BORA 로고는 반투명(opacity 0.5)이다", () => {
+    const brand = container.querySelector('[data-testid="consult-footer-brand"]');
+    expect(brand?.className).toContain("opacity-50");
+  });
+
   it("BORA 브랜드를 포함하고 확정 전 운영정보는 노출하지 않는다", () => {
     expect(container.textContent).toContain("BORA");
     for (const forbidden of ["법인명", "대표자", "사업자등록번호", "등록번호", "사업장 주소"]) {

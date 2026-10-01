@@ -74,6 +74,23 @@ describe("components/consult/ConsultDuplicate", () => {
     expect(summary?.textContent).toContain("상담 대기 중");
   });
 
+  it(".pen 03-C: 처리 상태 값만 경고색(#8a5a12)으로 그린다(다른 값은 기본 잉크색)", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} />);
+    });
+
+    const values = Array.from(
+      container.querySelectorAll('[data-testid="consult-duplicate-summary"] dd')
+    );
+    const status = values.find((dd) => dd.textContent === "상담 대기 중");
+    expect(status?.className).toContain("text-bora-warn");
+    const others = values.filter((dd) => dd !== status);
+    expect(others.length).toBe(3);
+    for (const dd of others) {
+      expect(dd.className).not.toContain("text-bora-warn");
+    }
+  });
+
   it("알려지지 않은 처리 상태는 원본 문자열을 그대로 보여 준다(향후 확장 대비)", () => {
     act(() => {
       root.render(<ConsultDuplicate {...baseProps} applicationStatus="in_review" />);

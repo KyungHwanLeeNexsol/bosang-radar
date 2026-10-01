@@ -124,6 +124,21 @@ describe("components/consult/ConsultSuccess", () => {
     expect(cancel?.textContent).toContain("준비 중");
   });
 
+  it(".pen 카드 글씨: 라벨은 500, 값은 700(모바일 12/12.5px, 데스크톱 12.5/13.5px)이다", () => {
+    act(() => {
+      root.render(<ConsultSuccess channel="kakao" maskedContact="010-****-1234" />);
+    });
+
+    const dt = container.querySelector('[data-testid="consult-success-summary"] dt');
+    const dd = container.querySelector('[data-testid="consult-success-summary"] dd');
+    expect(dt?.className).toContain("font-medium");
+    expect(dt?.className).toContain("text-[12px]");
+    expect(dt?.className).toContain("md:text-[12.5px]");
+    expect(dd?.className).toContain("font-bold");
+    expect(dd?.className).toContain("text-[12.5px]");
+    expect(dd?.className).toContain("md:text-[13.5px]");
+  });
+
   it("데스크톱 푸터를 함께 그린다(.pen 03-B)", () => {
     act(() => {
       root.render(<ConsultSuccess channel="kakao" maskedContact="010-****-1234" />);
