@@ -17,6 +17,7 @@ import {
   runSequentialCase,
   runTriggerCase,
   runTwoProcessCase,
+  VT_CALL_TIME,
   waitForWindowRoom,
   windowStartOf,
   withSimulatedLatency,
@@ -857,6 +858,7 @@ describe("T7 게이트 판정 — 같은 키를 서로 다른 프로세스가 �
     status: "success",
     channel: "kakao",
     maskedContact: "010-****-0001",
+    preferredCallTime: VT_CALL_TIME,
   });
   const DUPLICATE_BODY = JSON.stringify({
     status: "duplicate",
@@ -1013,6 +1015,26 @@ describe("T7 게이트 판정 — 같은 키를 서로 다른 프로세스가 �
     expect(untimed.status).toBe("PASS");
     expect(untimed.notes.some((n) => n.includes("요청 처리 시간"))).toBe(false);
   });
+
+  it("두 응답이 같아도 카카오 성공 응답에 보낸 연락 희망 시간이 없으면 실패로 기록한다", async () => {
+    const withoutTime = JSON.stringify({
+      status: "success",
+      channel: "kakao",
+      maskedContact: "010-****-0001",
+    });
+
+    const result = await runT7(
+      [
+        { status: 201, bodyText: withoutTime },
+        { status: 200, bodyText: withoutTime },
+      ],
+      1
+    );
+
+    expect(result.status).toBe("FAIL");
+    const failed = result.checks.filter((c) => !c.pass).map((c) => c.name);
+    expect(failed.some((name) => name.includes("연락 희망 시간"))).toBe(true);
+  });
 });
 
 describe("요청 처리 시간 기록 — 원격 잠금 경합의 지연을 결과에 남긴다", () => {
@@ -1072,6 +1094,92 @@ describe("요청 처리 시간 기록 — 원격 잠금 경합의 지연을 결�
     const summary = result.notes.find((n) => n.includes("요청 처리 시간"));
     expect(summary).toBeDefined();
     expect(summary).toContain("최대");
+  });
+});
+
+describe("카카오 성공 응답의 연락 희망 시간 — 보낸 값을 그대로 돌려주고, 안 보냈으면 필드가 없다", () => {
+  let seq = 0;
+
+  async function makeRealRouteCtx(submit: SubmitFn) {
+    const db = await makeMigratedDb();
+    const client = createClient({ url: db.url });
+    openClients.push(client);
+    const runId = `ct${String(seq++).padStart(6, "0")}`;
+    const ledger = new LedgerWriter(path.join(stateRoot, runId), {
+      runId,
+      fingerprint: fingerprintOf(db.url),
+      baseline: { consultations: 0, consultation_rate_limits: 0 },
+      name: `가상테스트-${runId}`,
+    });
+    const ctx = createCaseContext({
+      client,
+      db: drizzle(client, { schema }),
+      runId,
+      secret: "call-time-unit-secret",
+      ledger,
+      windowRoomMs: 0,
+      submit,
+      launchWorker: () => {
+        throw new Error("worker는 이 테스트에서 쓰지 않는다");
+      },
+    });
+    return { ctx, client };
+  }
+
+  // 라우트 응답에서 연락 희망 시간만 지워 "응답에서 시간이 빠진 결함"을 흉내 낸다.
+  const stripCallTime: SubmitFn = async (request, db, env) => {
+    const response = await handleConsultationSubmit(request, db, env);
+    const parsed = JSON.parse(await response.text()) as Record<string, unknown>;
+    delete parsed.preferredCallTime;
+    return new Response(JSON.stringify(parsed), { status: response.status });
+  };
+
+  it("T4: 실제 라우트에서 짝수 번째 요청은 시간을 그대로 돌려받고 홀수 번째 응답에는 필드가 없다", async () => {
+    const { ctx } = await makeRealRouteCtx(handleConsultationSubmit as SubmitFn);
+
+    const result = await runSequentialCase(ctx);
+
+    expect(result.checks.filter((c) => !c.pass)).toEqual([]);
+    expect(result.status).toBe("PASS");
+    const echoCheck = result.checks.find((c) => c.name.includes("연락 희망 시간"));
+    expect(echoCheck).toBeDefined();
+    const bodies = result.requests
+      .slice(0, 5)
+      .map((r) => (r.body as { preferredCallTime?: string }).preferredCallTime);
+    expect(bodies).toEqual([VT_CALL_TIME, undefined, VT_CALL_TIME, undefined, VT_CALL_TIME]);
+  });
+
+  it("T4: 응답에서 연락 희망 시간이 빠지면 실패로 기록한다", async () => {
+    const { ctx } = await makeRealRouteCtx(stripCallTime);
+
+    const result = await runSequentialCase(ctx);
+
+    expect(result.status).toBe("FAIL");
+    const failed = result.checks.filter((c) => !c.pass).map((c) => c.name);
+    expect(failed.some((name) => name.includes("연락 희망 시간"))).toBe(true);
+  });
+
+  it("T3: 실패 뒤 재시도한 성공 응답이 시간을 돌려주고, DB에 저장된 값도 보낸 값과 같다", async () => {
+    const { ctx } = await makeRealRouteCtx(handleConsultationSubmit as SubmitFn);
+
+    const result = await runTriggerCase(ctx);
+
+    expect(result.checks.filter((c) => !c.pass)).toEqual([]);
+    expect(result.status).toBe("PASS");
+    const names = result.checks.map((c) => c.name);
+    expect(names.some((n) => n.includes("재시도") && n.includes("연락 희망 시간"))).toBe(true);
+    expect(names.some((n) => n.includes("저장된 연락 희망 시간"))).toBe(true);
+  });
+
+  it("T3: 재시도 성공 응답에서 시간이 빠지면 실패로 기록한다", async () => {
+    const { ctx } = await makeRealRouteCtx(stripCallTime);
+
+    const result = await runTriggerCase(ctx);
+
+    // 첫 호출은 500(JSON 본문 {code})이라 stripCallTime이 그대로 통과시키고, 재시도 성공 응답만 바뀐다.
+    expect(result.status).toBe("FAIL");
+    const failed = result.checks.filter((c) => !c.pass).map((c) => c.name);
+    expect(failed.some((name) => name.includes("연락 희망 시간"))).toBe(true);
   });
 });
 

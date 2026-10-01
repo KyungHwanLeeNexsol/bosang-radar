@@ -364,19 +364,49 @@ async function triggerCount(ctx: CaseContext, triggerName: string): Promise<numb
 interface BuiltPayload {
   readonly body: Record<string, unknown>;
   readonly entry: LedgerConsultation;
+  /** 이 요청이 카카오 채널에 실어 보낸 연락 희망 시간. 안 보냈으면 undefined. */
+  readonly preferredCallTime: string | undefined;
+}
+
+/** 시험 요청이 카카오 채널에 싣는 가상 연락 희망 시간. */
+export const VT_CALL_TIME = "평일 오후 2시~4시";
+
+/** 짝수 번째 요청에만 시간을 싣고 홀수 번째는 비워서, "있으면 돌려주고 없으면 필드가 없다"를 같이 본다. */
+function callTimeFor(index: number): string | undefined {
+  return index % 2 === 0 ? VT_CALL_TIME : undefined;
+}
+
+// 성공 응답에서 채널·연락 희망 시간만 뽑는다. 키 순서를 기대값과 같게 두고, 값이 undefined인 키는
+// JSON 비교(sameJson)에서 빠진다 — 그래서 안 보냈을 때는 응답에 필드 자체가 없어야 같다(null도 다르다).
+function successShape(record: RequestRecord): Record<string, unknown> {
+  const body = (
+    typeof record.body === "object" && record.body !== null ? record.body : {}
+  ) as Record<string, unknown>;
+  return {
+    status: body.status,
+    channel: body.channel,
+    preferredCallTime: body.preferredCallTime,
+  };
+}
+
+function expectedSuccessShape(sentCallTime: string | undefined): Record<string, unknown> {
+  return { status: "success", channel: "kakao", preferredCallTime: sentCallTime };
 }
 
 function buildPayload(ctx: CaseContext, caseId: string, index: number): BuiltPayload {
   const digits = String(ctx.nextSeq()).padStart(4, "0");
   const resultId = `vt-${ctx.runId}-${caseId}-${index}`;
   const idempotencyKey = `${resultId}-k`;
+  const preferredCallTime = callTimeFor(index);
   return {
+    preferredCallTime,
     body: {
       resultId,
       channel: "kakao",
       name: ctx.name,
       // 가운데 그룹 0000은 실제 가입자에게 배정되지 않는 번호 대역이다.
       contact: `010-0000-${digits}`,
+      ...(preferredCallTime !== undefined ? { preferredCallTime } : {}),
       consent: { piiCollection: true, healthInfoUse: true, marketing: false },
       acknowledgedConsentVersion: CONSENT_POLICY_VERSION,
       idempotencyKey,
@@ -601,7 +631,7 @@ export async function runTriggerCase(ctx: CaseContext): Promise<CaseResult> {
     const windowStartMs = await waitForWindowRoom(ctx.windowRoomMs, ctx.clock);
     const ip = "198.51.100.11";
     const ipHmac = registerIp(ctx, "T3", ip, windowStartMs);
-    const { body, entry } = buildPayload(ctx, "t3", 0);
+    const { body, entry, preferredCallTime } = buildPayload(ctx, "t3", 0);
     const expiredSeconds = toSeconds(ctx.clock.now() - 2 * 3600 * 1000);
 
     // 모든 쓰기 전에 원장에 올린다.
@@ -656,6 +686,20 @@ export async function runTriggerCase(ctx: CaseContext): Promise<CaseResult> {
       const retried = await callRoute(ctx, "같은 요청 재시도", body, ip);
       c.requests.push(retried);
       c.check("재시도는 2xx", true, isAccepted(retried), isAccepted(retried));
+      c.check(
+        "재시도 성공 응답의 채널·연락 희망 시간(보낸 값 그대로)",
+        expectedSuccessShape(preferredCallTime),
+        successShape(retried)
+      );
+      const stored = await ctx.client.execute({
+        sql: "SELECT preferred_call_time AS v FROM consultations WHERE idempotency_key = ?",
+        args: [entry.idempotencyKey],
+      });
+      c.check(
+        "저장된 연락 희망 시간(보낸 값과 같아야 함)",
+        preferredCallTime ?? null,
+        stored.rows.length === 1 ? (stored.rows[0].v ?? null) : `행 ${stored.rows.length}개`
+      );
       const counter = (await readRateRows(ctx, ipHmac)).reduce((sum, r) => sum + r.requestCount, 0);
       c.check("재시도 뒤 request_count(1이어야 하고 2면 이중 소비)", 1, counter);
       c.check(
@@ -728,10 +772,12 @@ export async function runSequentialCase(ctx: CaseContext): Promise<CaseResult> {
     const ip = "198.51.100.12";
     const ipHmac = registerIp(ctx, "T4", ip, windowStartMs);
     const keys: string[] = [];
+    const sentCallTimes: (string | undefined)[] = [];
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS + 1; i++) {
-      const { body, entry } = buildPayload(ctx, "t4", i);
+      const { body, entry, preferredCallTime } = buildPayload(ctx, "t4", i);
       ctx.ledger.addConsultation(entry);
       keys.push(entry.idempotencyKey);
+      sentCallTimes.push(preferredCallTime);
       c.requests.push(await callRoute(ctx, `순차 ${i + 1}`, body, ip));
     }
     const statuses = c.requests.map((r) => r.status);
@@ -740,6 +786,11 @@ export async function runSequentialCase(ctx: CaseContext): Promise<CaseResult> {
       "2xx x5, 429",
       statuses,
       statuses.slice(0, 5).every((s) => s >= 200 && s < 300) && statuses[5] === 429
+    );
+    c.check(
+      "앞 5건 성공 응답의 채널·연락 희망 시간(보낸 값 그대로, 안 보낸 건 필드 없음)",
+      sentCallTimes.slice(0, 5).map(expectedSuccessShape),
+      c.requests.slice(0, 5).map(successShape)
     );
     await checkFiveThenLimited(ctx, c, ipHmac, keys);
   } catch (error) {
@@ -840,7 +891,7 @@ export async function runTwoProcessCase(ctx: CaseContext): Promise<CaseResult> {
     const windowStartMs = await waitForWindowRoom(ctx.windowRoomMs, ctx.clock);
     const ip = "198.51.100.15";
     const ipHmac = registerIp(ctx, "T7", ip, windowStartMs);
-    const { body, entry } = buildPayload(ctx, "t7", 0);
+    const { body, entry, preferredCallTime } = buildPayload(ctx, "t7", 0);
     ctx.ledger.addConsultation(entry);
 
     workers.push(ctx.launchWorker(), ctx.launchWorker());
@@ -866,6 +917,11 @@ export async function runTwoProcessCase(ctx: CaseContext): Promise<CaseResult> {
       "2xx 응답 본문의 서로 다른 종류 수(바이트 동일이면 1)",
       1,
       new Set(accepted.map((r) => r.bodyText)).size
+    );
+    c.check(
+      "2xx 응답의 채널·연락 희망 시간(최초 접수와 재생 모두 보낸 값 그대로)",
+      accepted.map(() => expectedSuccessShape(preferredCallTime)),
+      accepted.map(successShape)
     );
     c.check("이 키의 상담 행 수", 1, await countConsultationsByKeys(ctx, [entry.idempotencyKey]));
     c.check(
