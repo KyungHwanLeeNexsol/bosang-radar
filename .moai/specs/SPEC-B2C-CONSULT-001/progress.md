@@ -3861,6 +3861,34 @@ Evidence(오케스트레이터가 직접 확인): `get_app_state`가 활성 편�
 
 **Residual-risk**: `.pen`·PNG가 바뀌기 전까지 SPEC·acceptance·코드의 새 문구와 디자인 원본이 다르다. *(당시 기록 — Claim 103 시점의 상태다. 현재: 커밋 `a029261`에서 `.pen`(11줄 추가·11줄 삭제)과 PNG 4개가 새 문구로 바뀌었다. 오케스트레이터가 저장 뒤 의도한 Pencil 노드 10개를 다시 읽어 문구가 `consult-failure.tsx`·`consult-duplicate.tsx`의 문자열과 같음을 확인했다. 남는 위험: `.pen` diff가 11줄 쌍인데 의도한 편집은 10곳이라 나머지 1줄은 확인하지 않았고(`.pen` 내용을 직접 읽지 않았다) `.pen` diff가 의도한 10곳만 담는다고 주장하지 않는다. 사용자의 시각 정합 승인은 없다.)* `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft이며 병합하지 않았다. "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있다는 확인은 여전히 없다(런북 §11.3 4번은 항목만 있고 확인된 것이 아니다). `run_status`·`plan_status`는 바꾸지 않았다.
 
+**Claim 104 — 이번 라운드(D-NEW-29)의 수정 후 코드 전체 검증이 통과했다. 코드·테스트는 이 검증 뒤로 바뀌지 않았다.**
+
+Evidence(오케스트레이터가 로그 말미를 직접 읽음. 로그는 gitignored `.moai/state/verify/d-new-29/`): `final-vitest-full.log` — `Test Files  103 passed (103)`, `Tests  923 passed (923)`. `final-tsc.log` — 출력 없이 `exit=0`. `final-eslint.log` — 출력 없이 `exit=0`. `final-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `final-e2e-policyoff.log`(정책 미준비 모드) — `11 passed (5.0m)`, `exit=0`. `final-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`(`exit=` 줄은 로그 파일 안의 값이고 백그라운드 알림의 종료 코드가 아니다). 편차: 03-C 3px·03-D 3px(허용 8px), M03-C 2px·M03-D 2px(허용 4px), M03 4px(허용 4px).
+
+Baseline-attribution: 위 로그 파일의 수정 시각은 2026-10-01 14:10:17~14:22:04이고 코드의 마지막 커밋 `0a37d45`는 14:07:38이다(`git log --date=format`, `date -r`로 확인). `git diff --name-only 0a37d45 HEAD`는 `spec.md`·`design.md`·`progress.md`·`APPROVAL-PACK.md`와 `.pen`·`design/exports` PNG 4개만 나열하므로 코드·테스트 파일은 검증 뒤로 바뀌지 않았다. `design/exports` PNG 4개의 수정 시각 14:16:53은 `visual:verify` 시작 전이고, 그 PNG가 이후 `a029261`에 커밋됐다. 반면 `.pen` 저장은 14:40:04(사용자 Ctrl+S)라서 `visual:verify`는 저장된 `.pen`이 아니라 그보다 먼저 내보낸 PNG를 기준으로 돌았다. `visual:verify`가 덮어쓴 추적 대상 `.moai/reports` 증거는 `git restore`로 되돌렸고 커밋하지 않았다.
+
+**Gaps(미검증)**: 로그 자체에는 실행 시점 HEAD가 적혀 있지 않다(위 시각 순서로 추정). 이번 라운드의 문구·테스트 변경 뒤에 원격 Turso T1~T7은 다시 돌리지 않았다. `visual:verify`가 저장된 `.pen`과 PNG를 다시 비교한 적은 없다.
+
+**Residual-risk**: 사용자의 시각 정합 승인은 없다. 이 항목은 검증 게이트가 통과했다는 기록이며 시각 정합·병합 준비·운영 준비 완료를 주장하지 않는다.
+
+**Claim 105 — plan-audit: review-15 FAIL(0.81) → D1·D2 정정(`8069614`) → review-16 PASS(0.875). 경계 통과이며 이 PASS는 정정 시점 산출물에만 유효하다.**
+
+Evidence: `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-15.md`(FAIL 0.81, 필수 항목 탈락 없음, 평균 점수 미달)와 `-review-16.md`(PASS 0.875, 명확성 0.75·완결성 1.0·검증 가능성 0.75·추적성 1.0). 두 보고서는 로컬 gitignored 산출물이다. D1(`.pen`·PNG 정렬 보류 서술 6곳이 저장소 상태와 어긋남)과 D2(03-C 처리 상태 "접수됨" 서술)는 오케스트레이터가 해당 줄을 직접 읽어 확인한 뒤 `8069614`에서 당시 기록 표시로 정정했다. 정정 커밋의 변경 파일이 4개뿐이고 작업 트리가 깨끗함도 `git show --stat`과 `git status --short`로 확인했다.
+
+Baseline-attribution: 감사 대상은 HEAD `8069614`의 계획 산출물이다. 점수와 판정은 감사 에이전트의 보고에서 가져왔고 오케스트레이터가 다시 매기지 않았다.
+
+**Gaps(미검증)**: 이 PASS는 추적성 1.0이라는 해석에 민감하다 — 감사 보고에 따르면 한 밴드만 깎여도 평균이 0.8125로 FAIL이다. Claude 단독 감사이며 교차 모델 의견은 없다. `moai` CLI가 PATH에 없어 SPEC 린트는 돌리지 못했고 수동 점검으로 대체됐다. 감사는 `.pen` 내용을 읽지 않았다.
+
+**Residual-risk**: `spec.md`·`plan.md`·`acceptance.md`·`design.md`·`research.md` 중 어느 하나라도 수정하면 이 PASS는 무효가 된다. 이 PASS는 Implementation Kickoff를 승인하지 않는다.
+
+**Claim 106 — 열린 결함: 03-D 중립 문구가 `handoff_mismatch` 경로에는 맞지 않고, 그 경로의 "다시 시도하기"는 같은 이유로 다시 실패할 수 있다.**
+
+Evidence(오케스트레이터가 `components/consult/consult-view.tsx`를 직접 읽음): `handleSubmit`은 제출 직전에 `readDiagnosisHandoff()`를 다시 읽어 마운트 시 고정된 `mountResultIdRef.current`와 비교하고, 다르면 서버를 호출하지 않고 `setSubmitView({ kind: "failure" })`를 한다(371~376행). `handleRetry`는 같은 `handleSubmit()`을 다시 호출한다(436~449행). 03-D의 "접수되었는지 이 화면에서는 알 수 없습니다"와 "같은 내용으로 다시 시도해도 중복 접수되지 않습니다"는 이 경로에서는 요청을 보내지 않았다는 사실과 맞지 않는다. 같은 지적이 review-15/16 보고에도 있다.
+
+**Gaps(미검증)**: 이 경로에서 재시도가 항상 실패한다는 것은 코드를 읽은 추론이고 테스트로 재현하지 않았다. 문구를 바꿀지, 재시도 동작을 바꿀지는 사용자 결정이 필요해 이번 라운드에서 건드리지 않았다.
+
+**Residual-risk**: 사용자가 결정하기 전까지 이 경로에서 이용자는 사실과 다른 안내를 볼 수 있다. review-16이 남긴 선택 결함 D5(03-C 안내 문구에 대응하는 REQ·AC 없음, 한도 25/25)와 D6(design.md §5 컴포넌트 트리 17개 중 11개 기재)도 그대로 열려 있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
