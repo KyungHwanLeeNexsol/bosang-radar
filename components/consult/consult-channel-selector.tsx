@@ -51,12 +51,12 @@ interface ConsultChannelSelectorProps {
 export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelectorProps) {
   const { icon: NoticeIcon, text: noticeText } = CHANNEL_NOTICE[value];
   return (
-    <div data-testid="consult-channel-selector" className="mt-6 md:mt-0">
+    <div data-testid="consult-channel-selector" className="mt-0 md:mt-0">
       <h2 className="text-h3 font-bold text-bora-ink">어떻게 상담받으시겠어요?</h2>
       <div
         role="radiogroup"
         aria-label="상담 채널 선택"
-        className="mt-3 grid grid-cols-1 gap-3 md:mt-4 md:grid-cols-2"
+        className="mt-3.5 grid grid-cols-1 gap-4 md:mt-4 md:grid-cols-2 md:gap-3"
       >
         {CHANNEL_OPTIONS.map(({ value: optionValue, icon: Icon, label, description }) => {
           const checked = value === optionValue;
@@ -64,7 +64,7 @@ export function ConsultChannelSelector({ value, onChange }: ConsultChannelSelect
             <label
               key={optionValue}
               className={cn(
-                "flex cursor-pointer items-center justify-between gap-3 rounded-[12px] border p-5 transition-colors md:p-6",
+                "flex cursor-pointer items-center justify-between gap-3 rounded-[12px] border px-5 py-3.75 transition-colors md:p-6",
                 checked
                   ? "border-bora-accent-line bg-bora-accent-soft"
                   : "border-app-line hover:bg-app-surface-sub"
