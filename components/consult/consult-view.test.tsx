@@ -1341,12 +1341,22 @@ describe("components/consult/ConsultView — 응답 유실 후 같은 키 재시
     vi.unstubAllGlobals();
   });
 
-  async function clickAndFlush(el: Element) {
+  // 실제 DB I/O가 끝나 화면이 바뀔 때까지 조건으로 기다린다(고정 대기는 느린 머신에서
+  // 불안정하다). act 안에서는 갱신이 끝나야 DOM에 반영되므로 폴링은 act 밖에서 하고
+  // 반복마다 짧은 act로 감싼다.
+  async function clickAndWaitFor(el: Element, testId: string) {
     await act(async () => {
       el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      // 실제 DB I/O가 끝날 때까지 기다린다 — 마이크로태스크 몇 번으로는 부족하다.
-      await new Promise((resolve) => setTimeout(resolve, 300));
     });
+    const deadline = Date.now() + 5000;
+    while (!container.querySelector(`[data-testid="${testId}"]`)) {
+      if (Date.now() > deadline) {
+        throw new Error(`${testId} 화면이 5초 안에 나타나지 않았다`);
+      }
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    }
   }
 
   it("서버는 커밋했지만 응답이 유실되면 03-D가 접수 여부를 단정하지 않고, 다시 시도하기는 같은 키로 재전송해 03-B에 도달하며 행은 1개·rate limit은 1회만 소비된다", async () => {
@@ -1385,7 +1395,10 @@ describe("components/consult/ConsultView — 응답 유실 후 같은 키 재시
       checkboxes[0].click();
       checkboxes[1].click();
     });
-    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+    await clickAndWaitFor(
+      container.querySelector('[data-testid="consult-submit-button"]')!,
+      "consult-failure"
+    );
 
     // 1) 서버는 커밋했지만 클라이언트는 03-D를 본다 — 문구는 접수 여부를 단정하지 않는다.
     expect(await countRows("consultations")).toBe(1);
@@ -1395,7 +1408,10 @@ describe("components/consult/ConsultView — 응답 유실 후 같은 키 재시
     expect(failure!.textContent).not.toContain("접수되지 않았습니다");
 
     // 2) 다시 시도하기 → 같은 idempotencyKey로 재전송 → 서버가 재생 → 03-B.
-    await clickAndFlush(container.querySelector('[data-testid="consult-failure-retry"]')!);
+    await clickAndWaitFor(
+      container.querySelector('[data-testid="consult-failure-retry"]')!,
+      "consult-success"
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(sentBodies[1].idempotencyKey).toBe(sentBodies[0].idempotencyKey);
