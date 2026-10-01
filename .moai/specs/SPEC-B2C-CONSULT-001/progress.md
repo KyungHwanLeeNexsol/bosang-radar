@@ -3676,6 +3676,43 @@ Evidence: `pnpm prettier --check <3개>` exit 0(`All matched files use Prettier 
 
 **Residual-risk**: `visual:verify`는 초록이 아니다(위반 8건). 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. 폭·좌표 위반 6건이 가설대로 측정 부산물이면 게이트 정의를 고쳐야 하고, 실제 차이라면 구현을 고쳐야 한다. 어느 쪽인지 정해지기 전까지 이 6건을 통과로도 실패로도 단정하지 않는다. `run_status`는 바꾸지 않았다.
 
+#### 단위 1b — 구분선 없는 박스의 폭을 세로 테두리선으로 측정 (D-NEW-28 계속)
+
+**배경**: 사용자 결정(2026-10-01)대로 `findCardBorderBox`가 구분선이 없을 때 위 테두리선의 직선 구간 대신 좌·우 세로 테두리선에서 바깥 폭을 재도록 고쳤다. 허용치·게이트·`skipMetrics`는 바꾸지 않았다. 실행 모드는 `serial` 그대로다(`general-purpose` 1개에 manager-develop 역할 지정, 지난 교훈대로). 코드 변경은 `scripts/visual-verify-helpers.ts`, `scripts/visual-verify-helpers.test.ts` 2개이고 로컬 커밋 `2ec74b2`에 담겼다(푸시하지 않았다).
+
+**Claim 89 — 구분선이 없는 박스는 좌·우 세로 테두리선으로 바깥 상자를 재며, RED 8건 실패 후 GREEN 27건 통과했다.**
+
+Evidence:
+- RED(에이전트가 구현 전에 기록): `Tests  8 failed | 19 passed (27)`, `exit=1`(`.moai/state/verify/d-new-28/unit1b-red.log`). 8건은 모두 `minDividers: 0` 묶음이고 옛 동작(위 테두리 직선 구간)에서 실패했다.
+- GREEN(오케스트레이터가 직접 재실행): `pnpm vitest run scripts/visual-verify-helpers.test.ts scripts/visual-verify-card-gate.test.ts` → `Test Files  2 passed (2)`, `Tests  27 passed (27)`, `exit=0`(`orch1b-vitest.log`).
+- 구현: 구분선이 없으면 위 테두리선 직선 구간 바깥 `maxCorner` 안에서 좌·우 세로 테두리 열을 찾는다. 상자 높이의 40% 이상이 테두리색으로 끊김 없이 이어진 열만 테두리로 인정하고(40%는 측정값이 아니라 판단이다), 한쪽이라도 못 찾으면 `null`이다(위 테두리 폭으로 되돌아가지 않는다). 구분선이 있는 경로는 그대로다.
+- 일부러 바꾼 기존 테스트 1건: "구분선이 없어도 위·아래 테두리선 자체의 끝점으로…"는 `{ left: 32, width: 326 }`을 단언해 정정 대상 결함을 그대로 고정하고 있었다. 이제 `{ left: 20, width: 350 }`(바깥 상자)를 단언한다. 그 밖의 기존 테스트는 수정 없이 통과한다. 새 테스트 7건을 추가했다(1배 해상도, 반지름 12/24 동일 결과, 왼쪽·오른쪽·양쪽 테두리 없음 → `null`, 짧은 테두리색 세로선·테두리색이 아닌 세로선 오인 방지, 바깥 잔선 무시).
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, HEAD `2ec74b2`(부모 `7bddedb`), 이 트리, `git status --short` 비어 있음.
+
+**Gaps(미검증)**: 커버리지는 측정하지 않았다. 40% 기준은 판단이며, 반지름 0인 상자는 검색 구간이 비어 `null`이 된다(이번 디자인에는 없다). 실제 디자인 PNG의 픽셀을 직접 열어 보지는 않았고 `visual:verify` 측정 결과로만 관찰했다.
+
+**Claim 90 — 정적 검사는 변경 2개 기준 모두 exit 0이다.**
+
+Evidence(오케스트레이터가 직접 재실행): `pnpm tsc --noEmit` `exit=0`, `pnpm eslint <2개>` `exit=0`, `pnpm prettier --check <2개>` `exit=0`(`All matched files use Prettier code style!`). 원본: `orch1b-tsc.log`, `orch1b-eslint.log`, `orch1b-prettier.log`. 전체 `vitest run`, `eslint .`, e2e는 이번 단위에서 돌리지 않았다.
+
+**Claim 91 — `pnpm visual:verify`는 여전히 exit 1이지만 위반은 8건에서 2건으로 줄었다. 새로 생긴 6건은 측정 부산물이었다.**
+
+Evidence(**에이전트가 실행하고 오케스트레이터는 로그 파일을 읽었다. 재실행하지 않았다**, `.moai/state/verify/d-new-28/unit1b-visual.log`, 끝줄 `exit=1`):
+```
+── 위반 2건 ──
+  [M03] 채널 선택 (metric) Δ9 > 4 — top 디자인 386 vs 구현 377
+  [M03] 채널 선택 (metric) Δ8 > 4 — height 디자인 244 vs 252
+```
+- 사라진 6건: 03-C·03-D width 627 vs 640, M03-C·M03-D left 26 vs 20, width 338 vs 350. 해당 화면 최대 차이는 03-C 2.5px(허용 8), 03-D 3px(허용 8), M03-C 2px·M03-D 2px(허용 4)로 모두 PASS다.
+- 안내 박스 4곳의 `left`/`width` 차이는 0으로 읽혔다(에이전트 보고, 로그에서 화면별 최대 차이만 직접 확인).
+- 새 위반은 없다. M03 채널 선택 2건은 값이 변하지 않았다(단위 1 이전부터 같은 값).
+- 에이전트가 실행 뒤 `git restore .moai/reports`로 재작성된 추적 증거를 되돌렸고, 오케스트레이터가 확인한 `git status --short`는 비어 있다.
+
+**해석(추정, 측정 아님)**: M03 채널 선택 2건은 이 측정 버그와 무관하다(구분선이 있는 경로는 바뀌지 않았다). 아래쪽 끝은 디자인 386+244=630, 구현 377+252=629로 1px 차이이고 위쪽만 9px 어긋난다. 구현 컨테이너가 제목 위쪽에서 더 일찍 시작하는 구조일 가능성이 있다. 확인하지 않았고 단위 2에서 잰다.
+
+**Residual-risk**: `visual:verify`는 초록이 아니다(위반 2건). 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. `run_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
