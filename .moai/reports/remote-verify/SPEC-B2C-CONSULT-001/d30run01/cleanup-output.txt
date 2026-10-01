@@ -1,0 +1,7 @@
+$ tsx scripts/verify-remote-consult.ts "cleanup" "--run-id" "d30run01" "--expect-fingerprint" "6e5256b8" "--allow-write-remote"
+table	total_before	matching_before	deleted	total_after	matching_after	baseline
+consultations	13	13	13	0	0	0
+consultation_rate_limits	6	6	6	0	0	0
+trigger present after: no
+[cleanup] 완료: 총계가 baseline과 같고 원장 행이 남지 않았습니다.
+exit=0

@@ -1,0 +1,3 @@
+$ tsx scripts/verify-remote-consult.ts "revert-schema" "--confirm-revert-schema" "--expect-fingerprint" "6e5256b8" "--allow-write-remote"
+[revert-schema] 완료: consultations, consultation_rate_limits 테이블(과 인덱스·트리거)과 0009 마이그레이션 행 1개(created_at 1790510327238)를 지웠습니다.
+exit=0
