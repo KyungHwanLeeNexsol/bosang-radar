@@ -224,7 +224,7 @@ Then 클라이언트가 보낸 `name`/`contact` 원본 값이 echo되어 있지 
 추가 시나리오 — 최초 제출 성공 응답 형태:
 Given 유효한 최초 제출 페이로드(중복도 재시도도 아닌 신규 `idempotencyKey`)로 `POST /api/consultations`를 호출했을 때
 When 응답을 확인하면
-Then HTTP 201과 함께 `{status:"success", channel, maskedContact}` 형태의 페이로드가 반환되며(`channel === "phone"`이면 `preferredCallTime`도 포함), 응답 본문에 내부 DB 식별자(`consultationId`)나 구체적 연락 시각 약속(`expectedContactWindow`)은 포함되지 않는다(§9.4) — `consultations` 테이블의 행 수가 요청 전 대비 정확히 1 증가했음으로 신규 삽입임을 확인한다(동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)에서는 행 수가 증가하지 않는다는 점과 대비된다).
+Then HTTP 201과 함께 `{status:"success", channel, maskedContact}` 형태의 페이로드가 반환되며(저장된 `preferredCallTime`이 있으면 채널과 무관하게 `preferredCallTime`도 포함하고 없으면 필드를 넣지 않는다 — 카카오 채널에서 연락 희망 시간을 입력한 경우도 포함하며, 사용자 결정 3과 `app/api/consultations/route.ts:89-91`에 근거한다), 응답 본문에 내부 DB 식별자(`consultationId`)나 구체적 연락 시각 약속(`expectedContactWindow`)은 포함되지 않는다(§9.4) — `consultations` 테이블의 행 수가 요청 전 대비 정확히 1 증가했음으로 신규 삽입임을 확인한다(동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)에서는 행 수가 증가하지 않는다는 점과 대비된다).
 
 추가 시나리오 — 활성 동의 정책 없음(`policy_unavailable`):
 Given `CONSULT_POLICY_READY`가 거짓이거나 활성 정책이 설정되지 않았을 때
@@ -343,7 +343,7 @@ Then 어느 요청도 HTTP 429(`rate_limited`)를 받지 않는다 — 최초 1�
 **AC-B2CCONSULT-022** (REQ-B2CCONSULT-022)
 Given 정책 준비 상태(제출이 가능한 유일한 상태)에서 제출 요청이 네트워크 타임아웃으로 응답을 받지 못했을 때
 When 03-D 실패 화면이 표시되면
-Then "저장되었습니다"류의 확정 문구가 없으며, 입력한 채널·이름·연락처·연락 희망 시간·마케팅 동의는 draft에 보존된다(03-D 요약은 design.md §10의 4행이며 이름을 다시 표시하지 않는다). "다시 시도하기"를 눌렀을 때 최초 제출과 동일한 `idempotencyKey`와 동일한 채널·이름·연락처·연락 희망 시간·마케팅 동의 값이 재전송되며(재시도 요청 payload로 검증), 03-D에서 나갔다가 `/consult`로 재진입해도 draft에서 같은 값이 폼에 복원된다(필수 동의 두 항목만 재확인이 필요하다).
+Then "저장되었습니다"류의 확정 문구가 없으며, 입력한 채널·이름·연락처·연락 희망 시간·마케팅 동의는 draft에 보존된다(03-D 요약 카드는 design.md §10에 따라 상담 방식·입력한 연락처·연락 희망 시간(입력했을 때만)·"입력 내용: 유지됨"의 3~4행이며 이름은 표시하지 않는다. 입력한 연락처는 마스킹 없이 다시 표시된다 — 사용자 결정 6, 개인정보 검토는 progress.md 열린 항목 13번으로 남아 있다). "다시 시도하기"를 눌렀을 때 최초 제출과 동일한 `idempotencyKey`와 동일한 채널·이름·연락처·연락 희망 시간·마케팅 동의 값이 재전송되며(재시도 요청 payload로 검증), 03-D에서 나갔다가 `/consult`로 재진입해도 draft에서 같은 값이 폼에 복원된다(필수 동의 두 항목만 재확인이 필요하다).
 
 추가 시나리오 — 서버 500 응답도 동일하게 처리:
 Given 서버가 500을 반환했을 때
@@ -406,7 +406,7 @@ Then 제출 전과 동일한 `resultId`를 가진 동일한 진단 결과 요약
 
 추가 시나리오 — 중복/실패 화면에서도 복귀 시 핸드오프 유지:
 Given 서버 응답이 `duplicate` 또는 `error`였을 때
-When 03-C/03-D 화면의 "진단 결과로 돌아가기"를 눌러 `/result`로 이동하면
+When 03-C 화면의 "진단 결과로 돌아가기" 또는 03-D 화면의 "이전 화면으로 돌아가기"(둘 다 `/result` 링크)를 눌러 `/result`로 이동하면
 Then 제출 시도와 무관하게 동일한 `resultId`의 진단 결과가 그대로 표시된다.
 
 추가 시나리오 — `DIAGNOSIS_ENGINE_READY` 미전환:
