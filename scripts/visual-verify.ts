@@ -2405,16 +2405,17 @@ const SCREENS: readonly ScreenSpec[] = [
         inkThreshold: BOX_INK_THRESHOLD,
       },
       {
-        // D-RUN-1 — mergeBands:2는 옛 2열 그리드(카드 2개가 한 행)를 전제로
-        // 한 값이다. 모바일을 디자인대로 1열 스택(그리드 1열)으로 바꾸면서
-        // 카드 2개가 서로 다른 밴드가 됐다 — 제목+카드1+카드2+안내배너
-        // 4밴드를 모두 병합해야 `consult-channel-selector`(전체 div) 폭에
-        // 대응한다(normalized-design/M03.png 실측).
+        // D-NEW-28 단위 2b — 모바일 디자인에는 채널 안내 배너가 없다. hint 386에서
+        // 병합 4밴드는 카드1 상단 → 이름 입력창 하단(386→630)이라, 구현의
+        // `consult-channel-selector` 전체 div(제목 → 안내 배너 하단)와 서로 다른
+        // 구간을 비교하고 있었다. 양쪽에 모두 있는 요소인 라디오그룹(옵션 카드 2개,
+        // 1열 스택)으로 재정의한다: 디자인은 카드1+카드2 = 2밴드(386→540).
         key: "channelSelector",
-        label: "채널 선택",
-        locate: (p) => vis(p, "consult-channel-selector"),
+        label: "채널 선택(카드 2개)",
+        locate: (p) =>
+          p.locator('[data-testid="consult-channel-selector"]:visible [role="radiogroup"]'),
         designTopHint: 386,
-        mergeBands: 4,
+        mergeBands: 2,
         inkThreshold: BOX_INK_THRESHOLD,
       },
       {
