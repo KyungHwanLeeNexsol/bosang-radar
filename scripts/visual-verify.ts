@@ -414,8 +414,8 @@ async function finalCtaPosition(page: Page): Promise<string> {
 //   - 03-B/03-C: 실제 POST /api/consultations 제출로 도달한다(x-forwarded-
 //     for 헤더 직접 주입으로 rate limit fail-closed 500 분기를 피한다 —
 //     e2e [환경 노트 1]과 동일한 이유).
-//   - 03-D: 아래 gotoConsultFailure() 주석에서 설명하는 handoff_mismatch
-//     클라이언트 분기로 도달한다(실제 서버 호출 없이 100% 결정론적).
+//   - 03-D: 아래 gotoConsultFailure() 주석에서 설명하는 요청 중단(네트워크
+//     예외) 분기로 도달한다(결과를 알 수 없는 공용 03-D, 100% 결정론적).
 const CONSULT_NAME = "홍길동";
 // lib/consult/phone.ts KOREAN_MOBILE_PATTERN을 만족하는 유효한 연락처 —
 // normalizePhone("01012345678") === "01012345678", maskPhone(...) ===
@@ -545,22 +545,19 @@ async function gotoConsultDuplicate(page: Page, baseURL: string): Promise<void> 
 }
 
 /**
- * 03-D(실패) — handoff_mismatch 클라이언트 분기로 도달한다.
- * consult-view.tsx handleSubmit()은 제출 직전 readDiagnosisHandoff()를 다시
- * 호출해 마운트 시점에 캡처한 resultId(mountResultIdRef)와 비교하고,
- * 다르면 서버를 전혀 호출하지 않고 즉시 03-D로 전환한다(다른 탭에서 새
- * 진단을 시작해 핸드오프가 교체된 경우를 위한 방어 분기, design.md §9.1).
- * 폼을 채운 뒤 제출 직전 sessionStorage의 핸드오프 resultId를 변조해 이
- * 분기를 결정론적으로 재현한다 — 실제 서버 호출도, CONSULT_POLICY_READY/
- * RATE_LIMIT_HMAC_SECRET/DB도 전혀 필요 없다.
+ * 03-D(실패) — 요청이 중단되는 네트워크 예외 분기로 도달한다.
+ * consult-view.tsx handleSubmit()은 fetch가 예외를 던지면(오프라인, 응답
+ * 유실 등) 접수 여부를 알 수 없는 공용 03-D(reason "unknown_outcome")로
+ * 전환한다. 폼을 채운 뒤 POST /api/consultations를 abort해 이 분기를
+ * 결정론적으로 재현한다 — 요청이 서버에 닿지 않으므로 DB·rate limit 상태와
+ * 무관하다.
  *
- * [잔여 위험] e2e/consult-flow-03.spec.ts [환경 노트 2]는 "클라이언트에서
- * 결정론적으로 03-D를 유발할 방법이 없다"고 기록했지만, 그 문서가 검토한
- * 것은 idempotency_conflict/consent_version_mismatch(페이로드 변조 필요)·
- * rate_limited(타이밍 경계)·RATE_LIMIT_HMAC_SECRET 부재(서버 부팅 자체를
- * 막음) 네 가지뿐이다 — handoff_mismatch 분기는 그 목록에 없었다. 이
- * 스크립트는 픽셀 검증 목적에 한정해 그 공백을 메운다(e2e의 동작 검증
- * 커버리지 공백을 대체하지 않는다 — 그 공백은 여전히 알려진 채로 남는다).
+ * [이전 방식을 버린 이유] 예전에는 제출 직전 sessionStorage의 핸드오프
+ * resultId를 변조해 handoff_mismatch 분기로 03-D에 도달했다. 그 분기는 이제
+ * 요청을 보내지 않았음을 알리는 별도 변형(재시도 버튼·안내 박스 없음)을
+ * 렌더링하므로, .pen의 03-D(재시도 버튼·안내 박스 포함)와 비교할 수 없다.
+ * handoff_mismatch 변형의 동작은 단위 시험과 e2e가 검증하고, 이 스크립트의
+ * 픽셀 비교 대상은 아니다(.pen에 그 변형 프레임이 없다).
  */
 async function gotoConsultFailure(page: Page, baseURL: string): Promise<void> {
   await gotoConsultPhoneChannel(page, baseURL);
@@ -570,14 +567,7 @@ async function gotoConsultFailure(page: Page, baseURL: string): Promise<void> {
     preferredCallTime: CONSULT_CALL_TIME,
   });
   await checkRequiredConsents(page);
-  await page.evaluate(() => {
-    const KEY = "bosang-radar:diagnosis-handoff-v1";
-    const raw = window.sessionStorage.getItem(KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as { resultId?: string };
-    parsed.resultId = `${parsed.resultId}-visual-verify-mismatch`;
-    window.sessionStorage.setItem(KEY, JSON.stringify(parsed));
-  });
+  await page.route("**/api/consultations", (route) => route.abort("failed"));
   await page.getByTestId("consult-submit-button").click();
   await page.getByTestId("consult-failure").waitFor({ timeout: 10_000 });
 }
@@ -2684,7 +2674,7 @@ async function startProductionServer(): Promise<{ baseURL: string; stop: () => v
     // design.md §4(REQ-B2CCONSULT-005) — ENABLE_CONSULT_FLOW 단독으로
     // /consult 라우트 게이트가 열린다. CONSULT_POLICY_READY=true는
     // 03-B/03-C의 실제 제출 성공에 필요하다(route.ts 2단계 정책 검증) —
-    // 03-D는 handoff_mismatch 분기로 도달해 이 값과 무관하게 동작한다.
+    // 03-D는 요청을 중단시키는 네트워크 예외 분기로 도달하므로 서버 응답과 무관하다.
     ENABLE_CONSULT_FLOW: "true",
     CONSULT_POLICY_READY: "true",
     RATE_LIMIT_HMAC_SECRET:
