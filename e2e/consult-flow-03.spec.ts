@@ -456,6 +456,99 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     await expect(page.getByTestId("consult-failure-notice")).toHaveCount(0);
     await expect(page.getByTestId("consult-failure-back-cta")).toBeVisible();
   });
+
+  // 03-D 요약 카드의 "입력 내용 · 유지됨" 주장을 실제 재진입 경로로 확인한다. 이 안내가 맞으려면
+  // "이전 화면으로 돌아가기"(/result)로 나갔다가 /consult로 다시 들어왔을 때 입력이 복원되어야
+  // 한다. 필수 동의 두 항목은 설계상 draft에 저장하지 않으므로 복원되지 않는 것이 정상이다.
+  async function expectConsultInputRestoredAfterLeavingFailure(page: Page): Promise<void> {
+    await page.getByTestId("consult-failure-back-cta").click();
+    await page.waitForURL("**/result", { timeout: 10_000 });
+    await page.getByTestId("result-view").waitFor();
+
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await expect(page.getByRole("radio", { name: /전화 상담/ })).toBeChecked();
+    await expect(page.getByTestId("consult-name-input")).toHaveValue(CONSULT_NAME);
+    await expect(page.getByTestId("consult-contact-input")).toHaveValue(CONSULT_PHONE);
+    await expect(page.getByTestId("consult-preferred-call-time-input")).toHaveValue(
+      CONSULT_CALL_TIME
+    );
+    await expect(page.getByTestId("consult-consent-checkbox-piiCollection")).not.toBeChecked();
+    await expect(page.getByTestId("consult-consent-checkbox-healthInfoUse")).not.toBeChecked();
+  }
+
+  test("handoff_mismatch 실패 화면에서 이전 화면으로 나갔다 /consult로 다시 들어오면 이름·연락처·희망 시간이 복원된다 (390×737)", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.4" });
+    await page.setViewportSize({ width: 390, height: 737 });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await page.getByRole("radio", { name: /전화 상담/ }).check();
+    await fillConsultForm(page, {
+      name: CONSULT_NAME,
+      contact: CONSULT_PHONE,
+      preferredCallTime: CONSULT_CALL_TIME,
+    });
+    await checkRequiredConsents(page);
+
+    // 위 handoff_mismatch 시험과 같은 절차로 제출 직전에 handoff resultId를 변조한다.
+    await page.evaluate(() => {
+      const KEY = "bosang-radar:diagnosis-handoff-v1";
+      const raw = window.sessionStorage.getItem(KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { resultId?: string };
+      parsed.resultId = `${parsed.resultId}-e2e-mismatch-restore`;
+      window.sessionStorage.setItem(KEY, JSON.stringify(parsed));
+    });
+
+    await scrollFormToSubmitButton(page);
+    await submitConsultForm(page);
+    await page.getByTestId("consult-failure").waitFor();
+    await expect(page.getByTestId("consult-outcome-title")).toHaveText(
+      "상담 신청을 보내지 않았습니다"
+    );
+
+    await expectConsultInputRestoredAfterLeavingFailure(page);
+  });
+
+  test("unknown_outcome 실패 화면에서 이전 화면으로 나갔다 /consult로 다시 들어오면 이름·연락처·희망 시간이 복원된다 (390×737)", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.10.0.5" });
+    await page.setViewportSize({ width: 390, height: 737 });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await page.getByRole("radio", { name: /전화 상담/ }).check();
+    await fillConsultForm(page, {
+      name: CONSULT_NAME,
+      contact: CONSULT_PHONE,
+      preferredCallTime: CONSULT_CALL_TIME,
+    });
+    await checkRequiredConsents(page);
+
+    // 서버에 닿기 전에 요청을 끊어 응답 유실·네트워크 오류와 같은 unknown_outcome 실패를 만든다.
+    await page.route("**/api/consultations", (route) => route.abort("failed"));
+
+    await scrollFormToSubmitButton(page);
+    await submitConsultForm(page);
+    await page.getByTestId("consult-failure").waitFor();
+    await expect(page.getByTestId("consult-outcome-title")).toHaveText(
+      "상담 신청 접수 여부를 확인하지 못했습니다"
+    );
+
+    await expectConsultInputRestoredAfterLeavingFailure(page);
+  });
 });
 
 // SPEC-B2C-CONSULT-001 후속(React hydration 오류 #418 회귀) — /consult를
