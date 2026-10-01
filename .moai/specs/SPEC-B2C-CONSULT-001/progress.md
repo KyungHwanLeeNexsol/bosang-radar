@@ -3627,6 +3627,55 @@ Evidence: `pnpm test:e2e`(로컬 파일 DB `file:./.tmp/e2e.db`, 이 작업 폴�
 
 **Residual-risk**: `visual:verify`는 초록이 아니다. 시각 정합 완료나 병합 준비 완료를 선언하지 않는다. `CONSULT_POLICY_READY`는 켜지 않았고 병합하지 않았으며 PR은 Draft다. 원격 T1~T7 증거는 단위 1의 서버 응답 변경 이전 코드 기준이다.
 
+### D-NEW-28 — 안내 박스 4곳 측정 가능화(`minDividers`), `visual:verify` 재실행 결과 (단위 1)
+
+**배경**: D-NEW-27 "남은 작업 High 1"을 TDD(RED → GREEN)로 수행했다. 대상은 구분선이 없는 단일 안내 박스 4곳(03-C, 03-D, M03-C, M03-D)이 디자인 PNG에서 `(missing)`으로 측정되던 문제다. 코드 변경은 `scripts/visual-verify-helpers.ts`, `scripts/visual-verify-helpers.test.ts`, `scripts/visual-verify.ts` 3개이고 로컬 커밋 `b47815f`에 담겼다(푸시하지 않았다).
+
+**정정**: D-NEW-27 Claim 84와 `@MX:TODO` 주석은 "행 구분선 3개 이상을 요구한다"고 적었으나 코드는 3개가 아니라 **1개 이상**을 요구했다. `findCardBorderBox`는 `dividers.length === 0`일 때만 `null`을 돌려주고, 구분선이 없는 목록에 `Math.min(...[])`를 쓰면 `Infinity`가 된다. 이번 변경은 이 실제 코드 기준으로 한다.
+
+**Claim 86 — `findCardBorderBox`에 `minDividers` 옵션(기본 1)을 테스트 먼저 추가했고, RED 1건 실패 후 GREEN 13건 통과했다.**
+
+Evidence:
+- RED: `pnpm vitest run scripts/visual-verify-helpers.test.ts` → exit 1, `Tests  1 failed | 12 passed (13)`. 실패 1건은 `minDividers: 0 — 구분선 없는 안내 박스 > 구분선이 없어도 위·아래 테두리선 자체의 끝점으로 상자를 돌려준다`이고 메시지는 `AssertionError: expected null to deeply equal { Object (left, top, ...) }`(`Received: null`)이다. 나머지 5건은 `null`/기존 결과 유지를 단언하는 방어 테스트라 구현 전에도 통과했다(옵션이 무시되기 때문). 원본: `.moai/state/verify/d-new-28/red.log`.
+- GREEN: 같은 명령 → exit 0, `Tests  13 passed (13)`. 기존 테스트 `구분선이 없어 폭을 확정할 수 없는 상자는 null이다`는 수정하지 않았고 기본값에서 계속 통과한다. 원본: `green.log`.
+- 구현: `minDividers: options.minDividers ?? 1`, `dividers.length < opts.minDividers`이면 `null`, 구분선이 없으면 폭을 위 테두리선 자신의 `x0`/`x1`에서 얻는다. `visual-verify.ts`는 `borderBox.minDividers`를 힌트 JSON으로 브라우저 호출에 전달하고 안내 박스 4곳에 `minDividers: 0`을 지정했으며, 해소된 `@MX:TODO` 4곳을 제거했다.
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, 부모 HEAD `535c8a7` 위의 작업 트리(내용은 커밋 `b47815f`와 같다), 이 트리.
+
+**Gaps(미검증)**: 커버리지는 측정하지 않았다. 브라우저 안(`window.__vv`)에서의 실제 PNG 호출은 `visual:verify` 실행(아래 Claim 87)으로만 관찰했다.
+
+**Claim 87 — `pnpm visual:verify`는 exit 1, 위반 8건이다. 안내 박스 4곳은 더 이상 `(missing)`이 아니지만, 새로 측정된 폭·좌표 위반 6건이 나타났다.**
+
+Evidence(`.moai/state/verify/d-new-28/visual-unit1.log`, 끝줄 `exit=1`):
+```
+[03-C] 안내 박스(신청 내용을 바꾸고 싶으시면…) Δ13 > 8 — [바깥 테두리 상자] width 디자인 627 vs 구현 640
+[03-D] 안내 박스(다시 시도해도 접수되지 않으면…) Δ13 > 8 — [바깥 테두리 상자] width 디자인 627 vs 구현 640
+[M03] 채널 선택 Δ9 > 4 — top 디자인 386 vs 구현 377
+[M03] 채널 선택 Δ8 > 4 — height 디자인 244 vs 구현 252
+[M03-C] 안내 박스(내용을 바꾸시려면…) Δ6 > 4 — [바깥 테두리 상자] left 디자인 26 vs 구현 20
+[M03-C] 안내 박스(내용을 바꾸시려면…) Δ12 > 4 — [바깥 테두리 상자] width 디자인 338 vs 구현 350
+[M03-D] 안내 박스(다시 시도해도 접수되지 않으면…) Δ6 > 4 — [바깥 테두리 상자] left 디자인 26 vs 구현 20
+[M03-D] 안내 박스(다시 시도해도 접수되지 않으면…) Δ12 > 4 — [바깥 테두리 상자] width 디자인 338 vs 구현 350
+```
+- 안내 박스 4곳의 `top`과 `height`는 위반 목록에 없다(허용 안에서 통과). M03 채널 선택 2건(`top Δ9`, `height Δ8`)은 D-NEW-27 Claim 84 B와 같은 값이다.
+- 허용치·임계값·`skipMetrics`·게이트는 건드리지 않았다.
+
+**해석(측정 아님, 가설)**: 새 6건은 구현과 디자인의 실제 차이가 아니라 이번에 추가한 폭 계산 방식의 부산물일 가능성이 높다. 구분선이 없으면 폭을 위 테두리선의 직선 구간에서 얻는데, 이 구간은 둥근 모서리 때문에 상자 바깥 폭보다 양쪽이 짧다. 근거: (1) M03-C·M03-D의 `left`가 6, `width`가 12 어긋나 좌우 대칭(한쪽 6)이다. (2) 이번에 추가한 테스트가 같은 성질을 고정한다(반지름 12 CSS px 카드에서 `left`가 바깥 상자보다 12 안쪽). (3) 구현 안내 박스는 `rounded-[9px]`(모바일)/`rounded-[10px]`(데스크톱)다(`components/consult/consult-outcome-frame.tsx:100`). 디자인 PNG의 실제 테두리 모양은 눈으로 확인하지 않았다.
+
+**Baseline-attribution**: 이번 세션, 부모 HEAD `535c8a7` 위의 작업 트리(내용은 `b47815f`와 같다), 로컬 파일 DB(`.env.local` 없음). `visual:verify`가 다시 쓴 추적 증거 파일은 `git restore`로 되돌렸다.
+
+**Gaps(미검증)**: 위 가설은 확인하지 않았다. 좌우 세로 테두리선을 찾아 바깥 폭을 재는 방식이 필요한지, 폭·좌표 축을 어떻게 게이트할지는 결정하지 않았다. M03 채널 선택 2건의 원인은 이번에도 확정하지 못했다.
+
+**Claim 88 — 정적 검사와 단위 테스트(변경 3개 기준)는 모두 exit 0이다.**
+
+Evidence: `pnpm prettier --check <3개>` exit 0(`All matched files use Prettier code style!`), `pnpm tsc --noEmit` exit 0, `pnpm eslint <3개>` exit 0, `pnpm vitest run scripts/visual-verify-helpers.test.ts scripts/visual-verify-card-gate.test.ts` exit 0(`Test Files  2 passed (2)`, `Tests  20 passed (20)`). 원본: `d-new-28/prettier.log`, `tsc.log`, `eslint.log`, `vitest.log`.
+
+**Baseline-attribution**: 이번 세션, 부모 HEAD `535c8a7` 위의 작업 트리(내용은 `b47815f`와 같다).
+
+**Gaps(미검증)**: 전체 `vitest run`, `eslint .`, e2e는 이번 단위에서 다시 돌리지 않았다.
+
+**Residual-risk**: `visual:verify`는 초록이 아니다(위반 8건). 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. 폭·좌표 위반 6건이 가설대로 측정 부산물이면 게이트 정의를 고쳐야 하고, 실제 차이라면 구현을 고쳐야 한다. 어느 쪽인지 정해지기 전까지 이 6건을 통과로도 실패로도 단정하지 않는다. `run_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
@@ -3672,6 +3721,16 @@ M1(`lib/consult/types.ts`+`schema.ts`+`phone.ts`) 구현 위임은 `manager-deve
 
 - **Decision**: `serial`
 - **Justification**: types.ts → schema.ts(types.ts에 의존) → phone.ts(schema.ts의 .refine이 참조) 순으로 강한 순차 의존성이 있다. Anthropic의 코딩 작업 병렬화 caveat와 동일한 원리.
+
+### Run-phase D-NEW-28 위임 — Mode Selection
+
+D-NEW-27 남은 작업 High 1~3을 `manager-develop` 1개(cycle_type=tdd)에게 단위별로 순차 위임한다(입력 파라미터: tier=L, 단위 1 scope=기존 파일 3개(`scripts/visual-verify-helpers.ts`, `scripts/visual-verify-helpers.test.ts`, `scripts/visual-verify.ts`), domain count=1(시각 검증 하네스), concurrency benefit=LOW — 테스트 먼저 → 구현 → 호출부 적용이 순차 의존). `fanout`/`sweep`/`agent-team`은 후보로 검토되지 않았고, `manager-lead`도 진입 조건(마일스톤 3개 이상 AND 파일 10개 이상)에 못 미쳐 쓰지 않는다.
+
+- **Decision**: `serial`
+- **Justification**: 한 단위 안에서 테스트 → 헬퍼 구현 → 호출부 4곳 적용이 앞 단계 결과에 의존한다. 단위 2는 측정 결과에 따라 수정 방향이 갈려 단위 1 뒤에 순차로 간다. 코딩 작업은 병렬화할 하위 작업이 적다는 Anthropic caveat와 같은 원리.
+- **Kickoff Approval(2026-10-01, AskUserQuestion 응답)**: 이 세션에서 시작 / 단계별 확인(반자율) / 단위별 로컬 커밋만(푸시 없음).
+- **Phase 1 계획 감사 재실행 생략 근거(이력 기반 추정, 기계 측정 아님)**: (1) 최신 verdict PASS(iteration 12), (2) 종합 0.857이 Tier L 임계 0.85 이상, (3) 계획 산출물(spec/plan/acceptance/design/research)을 고친 커밋이 마지막 감사 이후 없다(`git log` 기준 최신 `15d7e66`이고 iteration 12는 그 정정의 커밋 전 작업 트리를 감사했다고 위 기록에 적혀 있다). 다만 이 셸에 `moai` 명령어가 없어(`command not found`) plan-artifact 해시를 계산하지 못했고 감사 캐시도 없다. 해시 동일성은 추정이다.
+- **실행하지 못한 것**: 라우팅 기록(`moai harness ledger record`)과 세션 조회(`moai session list`)는 `moai` 명령어 부재로 건너뛰었다(실패해도 진행되는 단계). 모델 주입용 프로필 조회도 못 해 spawn에서 모델을 지정하지 않는다(세션 모델 상속).
 
 ## Open Decisions for User
 
