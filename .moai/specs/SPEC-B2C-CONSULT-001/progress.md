@@ -915,7 +915,7 @@ ToResult` + `gotoConsultMain`/`gotoConsultPhoneChannel`), 03-B/03-C는
 `gotoConsultDuplicate`), 03-D는 `consult-view.tsx handleSubmit()`의
 handoff_mismatch 클라이언트 분기(`gotoConsultFailure` — 제출 직전
 sessionStorage의 진단 핸드오프 resultId를 변조해 서버 호출 없이 결정론적
-으로 재현한다. `e2e/consult-flow-03.spec.ts` [환경 노트 2]가 "클라이언트
+으로 재현한다. *(당시 기록 — 이후 `9c057c9`에서 `gotoConsultFailure`는 `POST /api/consultations`를 `route.abort`로 끊어 결과를 알 수 없는 공용 03-D에 도달한다. 이 문단의 handoff_mismatch 도달 방식은 더는 현재 상태가 아니다.)* `e2e/consult-flow-03.spec.ts` [환경 노트 2]가 "클라이언트
 에서 결정론적으로 03-D를 유발할 방법이 없다"고 기록한 목록에는
 idempotency_conflict/consent_version_mismatch/rate_limited/RATE_LIMIT_
 HMAC_SECRET 부재 4가지만 있고 이 분기는 없었다).
@@ -3897,7 +3897,7 @@ Evidence(오케스트레이터가 `components/consult/consult-view.tsx`를 직�
 
 **Claim 107 — `handoff_mismatch` 변형 수정(`9cdac4b`)과 시각 게이트 경로 변경(`9c057c9`) 뒤, HEAD `8746881`에서 전체 검증이 통과했다.**
 
-Evidence(오케스트레이터가 로그 말미를 직접 읽음. 로그는 gitignored `.moai/state/verify/d-new-29/v2-*.log`이고 각 로그의 `exit=` 줄과 실행 시점 `git rev-parse --short HEAD`가 파일 안에 기록돼 있다): `v2-vitest.log` — `Test Files  103 passed (103)`, `Tests  929 passed (929)`, `exit=0`. `v2-tsc.log` — `exit=0`. `v2-eslint.log` — `exit=0`. `v2-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `v2-e2e-policyoff.log`(정책 미준비 모드) — `11 passed (5.0m)`, `exit=0`. `v2-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`, 로그 안의 `FAIL` 줄 0개. 편차: 03-A2 7px·03-B 2px·03-C 3px·03-D 3px(허용 8px), M03 4px·M03-C 2px·M03-D 2px(허용 4px)·M03-B 0.25px. 여섯 로그 모두 실행 시점 HEAD가 `8746881`로 기록돼 있다. `9cdac4b` 단위 시험은 RED 4건 실패 → GREEN 59건 통과였다(수정 에이전트 보고, 오케스트레이터는 그 로그를 직접 열지 않았다). `visual:verify`가 덮어쓴 추적 대상 `.moai/reports` 증거는 `git restore`로 되돌렸고 `git status --short`가 비어 있음을 확인했다.
+Evidence(오케스트레이터가 로그 말미를 직접 읽음. 로그는 gitignored `.moai/state/verify/d-new-29/v2-*.log`이고 각 로그의 `exit=` 줄과 실행 시점 `git rev-parse --short HEAD`가 파일 안에 기록돼 있다): `v2-vitest.log` — `Test Files  103 passed (103)`, `Tests  929 passed (929)`, `exit=0`. `v2-tsc.log` — `exit=0`. `v2-eslint.log` — `exit=0`. `v2-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `v2-e2e-policyoff.log`(정책 미준비 모드) — `11 passed (5.0m)`, `exit=0`. `v2-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`, 로그 안의 `FAIL` 줄 0개. 편차: 03 6px·03-A2 7px·03-B 2px·03-C 3px·03-D 3px(허용 8px), M03 4px·M03-C 2px·M03-D 2px(허용 4px)·M03-B 0.25px. 여섯 로그 모두 실행 시점 HEAD가 `8746881`로 기록돼 있다. `9cdac4b` 단위 시험은 RED 4건 실패 → GREEN 59건 통과였다(수정 에이전트 보고, 오케스트레이터는 그 로그를 직접 열지 않았다). `visual:verify`가 덮어쓴 추적 대상 `.moai/reports` 증거는 `git restore`로 되돌렸고 `git status --short`가 비어 있음을 확인했다.
 
 Baseline-attribution: 이 검증은 Claim 104의 검증(`0a37d45` 시점)을 대체한다. 이전 이후로 코드 변경은 `9cdac4b`(consult-failure·consult-view와 시험, e2e)와 `9c057c9`(`scripts/visual-verify.ts`의 `gotoConsultFailure`)뿐이다. `9c057c9` 이전의 시각 게이트는 03-D에 `handoff_mismatch` 분기로 도달했고, 그대로 두면 새 변형(재시도 버튼·안내 박스 없음)을 .pen의 03-D와 비교하게 되므로 요청 중단(`route.abort`) 경로로 바꿨다. 허용 오차·`skipMetrics`·게이트 정의는 바꾸지 않았다.
 
@@ -3905,7 +3905,7 @@ Baseline-attribution: 이 검증은 Claim 104의 검증(`0a37d45` 시점)을 대
 
 **Residual-risk**: 사용자의 시각 정합 승인은 없다. 이 항목은 검증 게이트가 통과했다는 기록이며 시각 정합·병합 준비·운영 준비 완료를 주장하지 않는다. `design.md` §4.1·§12의 03-B·03-C 진입 방법 서술은 현재 코드와 어긋나는 기존 불일치이고 이번에 고치지 않았다.
 
-**Claim 108 — `.pen`의 변경은 의도한 노드 10곳뿐이다(결정 13). diff의 11번째 줄은 노드 변경이 아니다.**
+**Claim 108 — `.pen`에서 바뀐 노드는 의도한 10곳뿐이다(결정 13). diff의 11번째 줄은 노드·변수 변경이 아니지만 그 줄 자체는 읽지 않았다.**
 
 Evidence(오케스트레이터가 Pencil에서 읽기 전용으로 비교): 수정 전 `.pen`(`git show 0a37d45:design/claimradar-ui.pen`을 저장소 밖 임시 파일로 꺼내 Pencil에서 열었고, SHA-256이 커밋 전 기준과 같음을 확인했다)과 현재 `.pen`에서 노드마다 속성(자식 제외) FNV 해시를 계산해 비교했다. 깊이 0 노드 31개의 속성 해시와 깊이 1 하위 트리 92개의 전체 해시, 디자인 변수 해시를 맞췄고, 차이가 난 하위 트리 4개(`aT06V`·`UHq8V`·`aIWHb`·`KnAgZ`)는 노드마다 해시를 다시 맞췄다. 결과: 달라진 노드는 `l2Poc`·`G4iZZG`·`z46fDG`·`o5F0N`·`bF4tb`·`OFlIF`·`pqo9z`·`vkJTm`·`L7kcNM`·`cuFqa` 10개뿐이고 추가·삭제된 노드는 없다. 나머지는 모두 같았다.
 
