@@ -3861,7 +3861,7 @@ Evidence(오케스트레이터가 직접 확인): `get_app_state`가 활성 편�
 
 **Residual-risk**: `.pen`·PNG가 바뀌기 전까지 SPEC·acceptance·코드의 새 문구와 디자인 원본이 다르다. *(당시 기록 — Claim 103 시점의 상태다. 현재: 커밋 `a029261`에서 `.pen`(11줄 추가·11줄 삭제)과 PNG 4개가 새 문구로 바뀌었다. 오케스트레이터가 저장 뒤 의도한 Pencil 노드 10개를 다시 읽어 문구가 `consult-failure.tsx`·`consult-duplicate.tsx`의 문자열과 같음을 확인했다. 남는 위험: `.pen` diff가 11줄 쌍인데 의도한 편집은 10곳이라 나머지 1줄은 확인하지 않았고(`.pen` 내용을 직접 읽지 않았다) `.pen` diff가 의도한 10곳만 담는다고 주장하지 않는다. 사용자의 시각 정합 승인은 없다.)* `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft이며 병합하지 않았다. "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있다는 확인은 여전히 없다(런북 §11.3 4번은 항목만 있고 확인된 것이 아니다). `run_status`·`plan_status`는 바꾸지 않았다.
 
-**Claim 104 — 이번 라운드(D-NEW-29)의 수정 후 코드 전체 검증이 통과했다. 코드·테스트는 이 검증 뒤로 바뀌지 않았다.**
+**Claim 104 — 이번 라운드(D-NEW-29)의 수정 후 코드 전체 검증이 통과했다. 코드·테스트는 이 검증 뒤로 바뀌지 않았다.** *(당시 기록 — 이 문장은 `0a37d45` 시점 기준이다. 이후 `9cdac4b`·`9c057c9`에서 코드와 시각 게이트 스크립트가 바뀌었고, 그 뒤의 전체 검증은 Claim 107이다.)*
 
 Evidence(오케스트레이터가 로그 말미를 직접 읽음. 로그는 gitignored `.moai/state/verify/d-new-29/`): `final-vitest-full.log` — `Test Files  103 passed (103)`, `Tests  923 passed (923)`. `final-tsc.log` — 출력 없이 `exit=0`. `final-eslint.log` — 출력 없이 `exit=0`. `final-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `final-e2e-policyoff.log`(정책 미준비 모드) — `11 passed (5.0m)`, `exit=0`. `final-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`(`exit=` 줄은 로그 파일 안의 값이고 백그라운드 알림의 종료 코드가 아니다). 편차: 03-C 3px·03-D 3px(허용 8px), M03-C 2px·M03-D 2px(허용 4px), M03 4px(허용 4px).
 
@@ -3879,9 +3879,9 @@ Baseline-attribution: 감사 대상은 HEAD `8069614`의 계획 산출물이다.
 
 **Gaps(미검증)**: 이 PASS는 추적성 1.0이라는 해석에 민감하다 — 감사 보고에 따르면 한 밴드만 깎여도 평균이 0.8125로 FAIL이다. Claude 단독 감사이며 교차 모델 의견은 없다. `moai` CLI가 PATH에 없어 SPEC 린트는 돌리지 못했고 수동 점검으로 대체됐다. 감사는 `.pen` 내용을 읽지 않았다.
 
-**Residual-risk**: `spec.md`·`plan.md`·`acceptance.md`·`design.md`·`research.md` 중 어느 하나라도 수정하면 이 PASS는 무효가 된다. 이 PASS는 Implementation Kickoff를 승인하지 않는다.
+**Residual-risk**: `spec.md`·`plan.md`·`acceptance.md`·`design.md`·`research.md` 중 어느 하나라도 수정하면 이 PASS는 무효가 된다. 이 PASS는 Implementation Kickoff를 승인하지 않는다. *(갱신 — 이후 `8746881`에서 계획 문서를 고쳐 이 PASS는 무효가 됐다. 새 감사는 Claim 107 뒤에 기록한다.)*
 
-**Claim 106 — 열린 결함: 03-D 중립 문구가 `handoff_mismatch` 경로에는 맞지 않고, 그 경로의 "다시 시도하기"는 같은 이유로 다시 실패할 수 있다.**
+**Claim 106 — 열린 결함: 03-D 중립 문구가 `handoff_mismatch` 경로에는 맞지 않고, 그 경로의 "다시 시도하기"는 같은 이유로 다시 실패할 수 있다.** *(당시 기록 — 결정 10에 따라 `9cdac4b`에서 이 경로만 별도 변형으로 고쳤다. 현재 상태와 검증은 Claim 107이다.)*
 
 Evidence(오케스트레이터가 `components/consult/consult-view.tsx`를 직접 읽음): `handleSubmit`은 제출 직전에 `readDiagnosisHandoff()`를 다시 읽어 마운트 시 고정된 `mountResultIdRef.current`와 비교하고, 다르면 서버를 호출하지 않고 `setSubmitView({ kind: "failure" })`를 한다(371~376행). `handleRetry`는 같은 `handleSubmit()`을 다시 호출한다(436~449행). 03-D의 "접수되었는지 이 화면에서는 알 수 없습니다"와 "같은 내용으로 다시 시도해도 중복 접수되지 않습니다"는 이 경로에서는 요청을 보내지 않았다는 사실과 맞지 않는다. 같은 지적이 review-15/16 보고에도 있다.
 
@@ -3894,6 +3894,26 @@ Evidence(오케스트레이터가 `components/consult/consult-view.tsx`를 직�
 - (결정 11) 원격 Turso T1~T7은 지금 다시 돌리지 않고 병합 직전으로 미룬다. 병합 전에 그때의 서버 코드로 다시 돌려야 하며, 기존 7/7 두 번은 6차 라운드의 성공 응답 변경 이전 결과다.
 - (결정 12) review-16의 선택 지적 D5(03-C 안내 문구에 대응하는 REQ·AC 없음)와 D6(design.md §5 트리가 17개 중 11개 기재)은 이번 라운드에서 고치지 않는다.
 - (결정 13) `.pen` diff의 11번째 줄을 확인한다. 결과(오케스트레이터가 확인, 이 기록의 작성자는 `.pen`을 읽지 않았다): 수정 전 `.pen`(커밋 `0a37d45`)과 현재 `.pen`의 노드 요약값(digest)을 Pencil에서 읽기 전용으로 비교해 의도한 노드 편집 정확히 10곳(03-C `l2Poc`; 03-D `G4iZZG`·`z46fDG`·`bF4tb`; M03-C `OFlIF`; M03-D `pqo9z`·`vkJTm`·`cuFqa`; 안내 컨테이너 `o5F0N`·`L7kcNM`의 이름을 "재시도 안내"로 변경)을 찾았고, 나머지 최상위 프레임·깊이 1 하위 트리·디자인 변수는 모두 같았다. 따라서 11번째 diff 줄은 노드나 변수 변경이 아니며 파일 수준 메타데이터일 가능성이 높지만 그 줄 자체를 읽은 것은 아니다.
+
+**Claim 107 — `handoff_mismatch` 변형 수정(`9cdac4b`)과 시각 게이트 경로 변경(`9c057c9`) 뒤, HEAD `8746881`에서 전체 검증이 통과했다.**
+
+Evidence(오케스트레이터가 로그 말미를 직접 읽음. 로그는 gitignored `.moai/state/verify/d-new-29/v2-*.log`이고 각 로그의 `exit=` 줄과 실행 시점 `git rev-parse --short HEAD`가 파일 안에 기록돼 있다): `v2-vitest.log` — `Test Files  103 passed (103)`, `Tests  929 passed (929)`, `exit=0`. `v2-tsc.log` — `exit=0`. `v2-eslint.log` — `exit=0`. `v2-e2e-full.log` — `47 passed (5.0m)`, `exit=0`. `v2-e2e-policyoff.log`(정책 미준비 모드) — `11 passed (5.0m)`, `exit=0`. `v2-visual.log` — `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.`, `exit=0`, 로그 안의 `FAIL` 줄 0개. 편차: 03-A2 7px·03-B 2px·03-C 3px·03-D 3px(허용 8px), M03 4px·M03-C 2px·M03-D 2px(허용 4px)·M03-B 0.25px. 여섯 로그 모두 실행 시점 HEAD가 `8746881`로 기록돼 있다. `9cdac4b` 단위 시험은 RED 4건 실패 → GREEN 59건 통과였다(수정 에이전트 보고, 오케스트레이터는 그 로그를 직접 열지 않았다). `visual:verify`가 덮어쓴 추적 대상 `.moai/reports` 증거는 `git restore`로 되돌렸고 `git status --short`가 비어 있음을 확인했다.
+
+Baseline-attribution: 이 검증은 Claim 104의 검증(`0a37d45` 시점)을 대체한다. 이전 이후로 코드 변경은 `9cdac4b`(consult-failure·consult-view와 시험, e2e)와 `9c057c9`(`scripts/visual-verify.ts`의 `gotoConsultFailure`)뿐이다. `9c057c9` 이전의 시각 게이트는 03-D에 `handoff_mismatch` 분기로 도달했고, 그대로 두면 새 변형(재시도 버튼·안내 박스 없음)을 .pen의 03-D와 비교하게 되므로 요청 중단(`route.abort`) 경로로 바꿨다. 허용 오차·`skipMetrics`·게이트 정의는 바꾸지 않았다.
+
+**Gaps(미검증)**: `handoff_mismatch` 변형은 .pen에 프레임이 없어 픽셀 비교 대상이 아니다(단위 시험과 e2e가 검증). 그 변형의 모바일 제목 줄바꿈("상담 신청을 / 보내지 않았습니다")은 390px 브라우저에서 눈으로 확인하지 않았다. 변형 문구에 대한 사용자 승인은 "이 경로만 안내를 바꾸고 재시도 버튼 숨기기"라는 선택까지이고 문구 자체를 사용자가 읽고 승인한 기록은 없다. 원격 Turso T1~T7은 결정 11에 따라 다시 돌리지 않았다(병합 직전으로 미룸). `visual:verify`는 저장된 `.pen`이 아니라 `design/exports` PNG와 비교한다.
+
+**Residual-risk**: 사용자의 시각 정합 승인은 없다. 이 항목은 검증 게이트가 통과했다는 기록이며 시각 정합·병합 준비·운영 준비 완료를 주장하지 않는다. `design.md` §4.1·§12의 03-B·03-C 진입 방법 서술은 현재 코드와 어긋나는 기존 불일치이고 이번에 고치지 않았다.
+
+**Claim 108 — `.pen`의 변경은 의도한 노드 10곳뿐이다(결정 13). diff의 11번째 줄은 노드 변경이 아니다.**
+
+Evidence(오케스트레이터가 Pencil에서 읽기 전용으로 비교): 수정 전 `.pen`(`git show 0a37d45:design/claimradar-ui.pen`을 저장소 밖 임시 파일로 꺼내 Pencil에서 열었고, SHA-256이 커밋 전 기준과 같음을 확인했다)과 현재 `.pen`에서 노드마다 속성(자식 제외) FNV 해시를 계산해 비교했다. 깊이 0 노드 31개의 속성 해시와 깊이 1 하위 트리 92개의 전체 해시, 디자인 변수 해시를 맞췄고, 차이가 난 하위 트리 4개(`aT06V`·`UHq8V`·`aIWHb`·`KnAgZ`)는 노드마다 해시를 다시 맞췄다. 결과: 달라진 노드는 `l2Poc`·`G4iZZG`·`z46fDG`·`o5F0N`·`bF4tb`·`OFlIF`·`pqo9z`·`vkJTm`·`L7kcNM`·`cuFqa` 10개뿐이고 추가·삭제된 노드는 없다. 나머지는 모두 같았다.
+
+Baseline-attribution: 비교는 이번 세션의 Pencil 두 파일(수정 전 임시 복사본과 작업 공간 `.pen`)에 대해 한 번 실행한 결과다. 해시 함수는 비암호화 FNV이고, 속성은 `JSON.stringify` 결과를 썼다.
+
+**Gaps(미검증)**: `git diff --numstat`의 11줄 중 노드 10곳으로 설명되지 않는 1줄은 노드·변수 변경이 아니라는 것만 확인했고 그 줄의 내용은 읽지 않았다(파일 수준 메타데이터일 가능성이 높다는 추정). `.pen` 내용은 저장소 규칙에 따라 직접 읽지 않았다. 해시 비교는 속성 변경을 잡지만 해시 충돌 가능성은 이론상 있다.
+
+**Residual-risk**: 사용자의 시각 정합 승인은 없다. 임시 비교용 탭(`pen-check-before.pen`)은 저장소 밖 파일이며 저장소에 영향이 없다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
