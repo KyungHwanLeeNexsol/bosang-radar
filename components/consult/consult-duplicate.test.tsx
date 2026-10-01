@@ -100,7 +100,7 @@ describe("components/consult/ConsultDuplicate", () => {
     expect(summary?.textContent).toContain("in_review");
   });
 
-  it(".pen 03-C: 부제 두 문장과 안내 박스(정보 아이콘 박스)를 렌더링한다", () => {
+  it("03-C: 부제 두 문장과 안내 박스(정보 아이콘 박스)를 렌더링한다", () => {
     act(() => {
       root.render(<ConsultDuplicate {...baseProps} />);
     });
@@ -111,12 +111,24 @@ describe("components/consult/ConsultDuplicate", () => {
 
     const note = container.querySelector('[data-testid="consult-duplicate-notice"]');
     expect(note?.textContent).toContain(
-      "신청 내용을 바꾸고 싶으시면 기존 신청을 취소한 뒤 다시 신청해 주세요. 진행 상황은 카카오톡 또는 전화로 안내드립니다."
+      "신청 내용 변경, 취소, 접수 상태 확인은 아직 이 화면에서 지원되지 않습니다."
     );
-    // 모바일 문구도 .pen M03-C 그대로 담는다(화면 폭에 따라 하나만 보인다).
-    expect(note?.textContent).toContain(
-      "내용을 바꾸시려면 기존 신청을 취소한 뒤 다시 신청해 주세요."
-    );
+    // 모바일 문구도 함께 담는다(화면 폭에 따라 하나만 보인다).
+    expect(note?.textContent).toContain("변경·취소·상태 확인은 아직 지원되지 않습니다.");
+  });
+
+  // 취소 수단과 문의 창구가 아직 없으므로 실행할 수 없는 절차나 확인되지 않은
+  // 연락 약속을 안내 박스에 다시 넣지 않도록 막는다.
+  it("실행할 수 없는 취소 절차나 미확인 연락 약속을 안내하지 않는다", () => {
+    act(() => {
+      root.render(<ConsultDuplicate {...baseProps} />);
+    });
+
+    const note = container.querySelector('[data-testid="consult-duplicate-notice"]');
+    const text = note?.textContent ?? "";
+    expect(text).not.toContain("취소한 뒤");
+    expect(text).not.toContain("다시 신청해 주세요");
+    expect(text).not.toContain("안내드립니다");
   });
 
   it("기존 신청 상태 확인은 준비 중 비활성 주 버튼, 진단 결과로 돌아가기는 /result 링크다", () => {

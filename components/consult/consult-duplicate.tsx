@@ -84,12 +84,12 @@ export function ConsultDuplicate({
       }
       note={
         <OutcomeNote testId="consult-duplicate-notice" icon={Info}>
-          <span className="md:hidden">
-            내용을 바꾸시려면 기존 신청을 취소한 뒤 다시 신청해 주세요.
-          </span>
+          {/* 기존 신청의 상태 확인·취소·문의 목적지와 운영 절차가 아직 없다(활성화 전에
+              해소할 열린 항목). 그래서 실행할 수 없는 취소 절차나 확인되지 않은 연락
+              약속을 안내하지 않고, 지원되지 않는다는 사실만 알린다. */}
+          <span className="md:hidden">변경·취소·상태 확인은 아직 지원되지 않습니다.</span>
           <span className="hidden md:inline">
-            신청 내용을 바꾸고 싶으시면 기존 신청을 취소한 뒤 다시 신청해 주세요. 진행 상황은
-            카카오톡 또는 전화로 안내드립니다.
+            신청 내용 변경, 취소, 접수 상태 확인은 아직 이 화면에서 지원되지 않습니다.
           </span>
         </OutcomeNote>
       }
