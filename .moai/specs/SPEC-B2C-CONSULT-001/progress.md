@@ -3832,6 +3832,35 @@ Evidence(**감사관이 실행**, 읽기 전용, Claude 단독 감사 — moai �
 
 **추가 기록 — 런북 §11.3 점검 항목 추가(사용자 결정, 2026-10-01, AskUserQuestion 응답)**: 선택지 "점검 항목을 추가"에 따라 `.moai/docs/runtime-runbook.md` §11.3 "켜는 순서"에 4번 항목 "연락 기한 약속을 운영이 지킬 수 있는지 확인한다"를 넣고 뒤 항목을 5·6번으로 옮겼다(문서만 변경, 계획 산출물이 아니라 review-14 PASS는 무효가 되지 않는다). 항목 본문은 "이 문서를 쓴 시점에는 확인되지 않았다"고 적는다. 즉 **운영이 약속을 지킬 수 있다는 확인은 여전히 없다.** 이 변경으로 코드 주석 3곳(`consult-success.tsx:17`, `consult-channel-selector.tsx:36`, `consult-channel-selector.test.tsx:97`)의 "런북 §11.3 활성화 전 점검 항목" 서술이 이제 사실이다. 남은 낡은 곳: `design.md` D6 행이 "런북 §11.3에 점검 항목이 없다"고 적고 있다 — 계획 산출물이라 지금 고치면 review-14 PASS가 무효가 되어 고치지 않았고, 다음 계획 산출물 수정(N1~N4 위생 수정 등) 때 함께 바로잡는다.
 
+### D-NEW-29 — PR #22 병합 전 보정 라운드: 03-D·03-C 문구, 응답 유실 후 재시도 테스트, `.pen` 접근 확인 (2026-10-01, HEAD `fb64643`에서 시작)
+
+**사용자 요청(2026-10-01)**: PR #22는 Draft로 유지하고 main 병합과 `CONSULT_POLICY_READY` 활성화는 하지 않는다. (1) 03-D/M03-D 제목·부제·안내가 접수 실패를 확정하는 표현이라 중립 문구로 고친다. `consult-view.tsx`는 서버 오류뿐 아니라 응답 유실·네트워크 예외도 같은 화면으로 보내기 때문이다. 입력값 보존과 같은 `idempotencyKey` 재시도는 유지하고, 서버는 접수를 커밋했지만 클라이언트가 응답을 못 받은 뒤 재시도해 성공 응답을 받는 시나리오를 테스트에 추가한다. 사용자 결정 6의 요약 카드·버튼 배치는 유지한다. (2) 03-C/M03-C에서 실제 취소 수단 없이 "기존 신청을 취소한 뒤 다시 신청"하라는 안내를 고치고, 이용자가 실행할 수 있는 절차만 안내한다. 취소·문의 경로를 임의로 만들지 않고, 활성화 전에 필요한 목적지와 운영 절차를 열린 항목으로 명시한다. (3) 런북 §11.4의 수정 전 T7 동작을 과거 기록으로 표시하고 현재 코드의 원격 T1~T7 7/7 ×2 결과와 한계를 §12.8로 연결하며, PR 본문과 이 문서에서 수정 전·후 증거를 섞지 않는다. (4) `.pen`·export PNG·SPEC/acceptance를 같은 문구로 맞추고 03-C·03-D 시각 검증을 다시 돌리며, 계획 문서를 고치면 기존 plan-auditor PASS를 재사용하지 않고 재감사한다. 수정 후 코드에서 전체 단위 테스트·타입 검사·lint·전체 e2e·`visual:verify`를 실행해 보고한다. (5) "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있는지는 확인되지 않았으므로 확인 전에는 `CONSULT_POLICY_READY`를 켜거나 상담 운영 준비 완료라고 보고하지 않는다.
+
+**사용자 결정(2026-10-01, AskUserQuestion 응답, 보정 라운드)** — 정확한 선택지 문구:
+- (결정 7) 03-D(실패) 문구: "접수 여부 확인 불가 + 문의 문장 제거 (권장)". 확정 문구: 제목 "상담 신청 접수 여부를 확인하지 못했습니다"(모바일은 "상담 신청 접수 여부를 / 확인하지 못했습니다" 두 줄), 부제 "신청이 접수되었는지 이 화면에서는 알 수 없습니다." / "입력하신 내용은 다시 입력하지 않아도 됩니다.", 안내 "같은 내용으로 다시 시도해도 중복 접수되지 않습니다. 현재 화면에서 입력 내용이 유지됩니다." 안내에서 "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요."를 뺀다(이 앱 안에 실제 문의 목적지가 없다).
+- (결정 8) 03-C(중복) 안내 박스 문구: "취소 안내 제거, 미지원을 사실대로 (권장)". 확정 문구: 데스크톱 "신청 내용 변경, 취소, 접수 상태 확인은 아직 이 화면에서 지원되지 않습니다.", 모바일 "변경·취소·상태 확인은 아직 지원되지 않습니다." "기존 신청을 취소한 뒤 다시 신청해 주세요"와 "진행 상황은 카카오톡 또는 전화로 안내드립니다"를 뺀다(후자는 운영이 지킬 수 있는지 확인되지 않은 약속).
+- (결정 9) `.pen`·PNG 정렬과 진행 방식: ".pen 정렬 = 제가 Pencil 도구로 직접, 안 되면 즉시 중단 (권장)", "진행 방식 = 착수 승인, 이상 시 정지, 푸시는 마지막에 확인 (권장)". 정지 조건은 `.pen` 접근 문제, plan-auditor FAIL, 검증 실패, 계획 문서에 추가 결정이 필요한 경우다. 푸시와 PR 본문 갱신은 모든 검증 결과를 보여 준 뒤 한 번 더 확인받는다. 병합과 `CONSULT_POLICY_READY` 활성화는 하지 않는다. `.pen` 접근 문제가 확인된 뒤 사용자는 ".pen 접근 = 작업 공간 .pen을 Pencil에서 열어 주기 (권장)"를 선택했다(아래 Claim 103).
+
+**Claim 102 — 03-D·03-C 문구와 응답 유실 후 재시도 테스트가 코드에 반영됐다.**
+
+Evidence(오케스트레이터가 직접 확인, HEAD `4e99240`): `git diff fb64643 HEAD`를 읽어 `consult-failure.tsx`(헤더 주석·제목·부제 1행·안내 텍스트만 변경)와 `consult-duplicate.tsx`(안내 두 `span`과 주석만 변경)가 결정 7·8의 문구와 같음을 확인했다. 03-D 요약 카드 4행, 두 버튼의 라벨·순서, test id, `onRetry`/`busy` 연결, `/result` 링크, 03-C의 비활성 스텁 버튼과 링크는 diff에 없어 그대로다(결정 6 유지). `scripts/visual-verify.ts`는 03-D·M03-D 안내 요소의 `label` 문자열 2곳만 바뀌었고 허용치·`skipMetrics`·힌트·게이트는 그대로다. 오케스트레이터가 다시 돌린 결과: `pnpm vitest run components/consult app/api/consultations` → `Test Files  16 passed (16)`, `Tests  172 passed (172)`, `exit=0`(원본 `.moai/state/verify/d-new-29/orch-vitest.log`, 기준선은 169개), `pnpm tsc --noEmit` `exit=0`, 새 통합 테스트 3회 연속 통과와 `consult-view.test.tsx` 전체 42개 통과, 변경 파일 `eslint`·`prettier --check` `exit=0`.
+- 새 테스트(커밋 `0c4e813`, `4e99240`): `components/consult/consult-view.test.tsx`의 통합 테스트는 `fetch`를 실제 서버 핸들러(`handleConsultationSubmit`)와 파일 DB에 연결하고, 첫 호출은 서버가 커밋한 뒤 `TypeError("Failed to fetch")`를 던진다. 03-D의 새 제목과 `접수되지 않았습니다` 부재, 두 요청의 같은 `idempotencyKey`, 재시도 뒤 성공 화면, `consultations` 1행, rate limit 카운터 1회를 단언한다. 에이전트 보고: `e2e/consult-flow-03.spec.ts`에도 첫 POST를 `route.fetch()`로 서버에 보낸 뒤 `route.abort("failed")`로 응답만 끊는 e2e를 정책 준비 그룹에 추가했다.
+- RED(에이전트가 기록): 옛 문구에서 `Tests  7 failed | 56 passed (63)`, `exit=1`(`red-vitest.log`). 같은 키 단언의 민감도는 에이전트가 `handleSubmit`의 키를 `crypto.randomUUID()`로 바꾸는 변형으로 새 테스트 1개가 실패함을 확인한 뒤 원복했다(`mutation-vitest.log`, 오케스트레이터는 `git diff`에 `consult-view.tsx` 변경이 없음만 확인).
+- 에이전트 보고(재실행하지 않음): e2e 정책 준비 모드 `27 passed`, 정책 끔 모드 `11 passed`(둘 다 `exit=0`, 이전 26/11에서 새 테스트 1개 증가). 전체 e2e는 수정 후 코드에서 이 라운드 마지막에 다시 실행한다.
+- 오케스트레이터 수정: 에이전트의 통합 테스트가 DB I/O를 `setTimeout` 300ms 고정 대기로 기다려 느린 머신에서 불안정할 수 있어, 화면이 나타날 때까지 조건으로 기다리도록 바꿨다(커밋 `4e99240`).
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, 시작 HEAD `fb64643`, 위 확인은 HEAD `4e99240`, 이 트리, 로컬 파일 DB.
+
+**Gaps(미검증)**: `pnpm visual:verify`는 이 단계에서 돌리지 않았다. 디자인 PNG가 옛 문구라 03-C·03-D 게이트가 빨갛게 나올 수 있고 시각 정합은 주장하지 않는다. 전체 `vitest run`, `eslint .`, 전체 e2e, 커버리지는 아직이다. 모바일 폭에서 새 제목의 두 줄 분할이 자연스러운지 눈으로 확인하지 않았다. 응답 유실 후 재시도 검증은 로컬 파일 DB(libsql)와 로컬 `next start` 기준이며 원격 Turso·운영 환경은 확인하지 않았다. 03-D 안내 아이콘은 말풍선(`MessageCircle`) 그대로이고 더는 카카오를 가리키는 문장이 없어 아이콘만 어색할 수 있으나 디자인 변경 범위를 넓히지 않으려고 바꾸지 않았다. 03-C 부제의 "처리 중입니다"가 운영 현실과 맞는지는 확인하지 않았다.
+
+**Claim 103 — Pencil 도구는 `filePath`를 무시하고 활성 편집기 파일에만 적용된다. 이번 세션의 활성 편집기는 메인 체크아웃의 `.pen`이다.**
+
+Evidence(오케스트레이터가 직접 확인): `get_app_state`가 활성 편집기를 `/C:/Users/Nexsol/Documents/bosang-radar/design/claimradar-ui.pen`(메인 체크아웃, 브랜치 `plan/SPEC-B2C-RESULT-001`)으로 보고했고, 이 작업 공간(`.claude/worktrees/consult-followup`)의 파일이 아니다. 두 파일의 `git hash-object`는 모두 `94135d7546b380b3ca4d392b4d17e38360a12338`(1387119 바이트)로 같다. 존재하지 않는 경로(`design/does-not-exist-probe.pen`)를 `filePath`로 준 읽기 전용 `execute`가 오류 없이 `OK`를 반환했고 디스크에 그 파일은 생기지 않았다 → `filePath`는 검증·적용되지 않는다. 모든 호출은 읽기뿐이었고(`Get`/`Print`), 이 작업 공간과 메인 체크아웃의 `git status`는 변경이 없으며 메인 체크아웃 `.pen` 해시도 그대로다. 수정 대상 노드(두 파일이 같아 id도 같다): 03-C 프레임 `p8jllI`·모바일 `p3bj0d`(안내 `l2Poc`, `OFlIF`), 03-D 프레임 `P1OrE`·모바일 `DSXr6`(제목 `G4iZZG`, `pqo9z`, 부제 `z46fDG`, `vkJTm`, 안내 `bF4tb`, `cuFqa`). Pencil 안내는 `.pen`을 직접 읽지 말라고 하는데 오케스트레이터가 문구 위치를 찾느라 `Grep`으로 한 번 읽었다(변경 없음).
+
+**Gaps(미검증)**: 활성 편집기를 작업 공간 파일로 바꿨을 때 `execute`/`Export`가 실제로 그 파일에 쓰는지는 아직 확인하지 않았다(사용자가 파일을 열기 전이다). `Export`는 노드 id 이름의 2배 크기 PNG를 만들어 기존 `design/exports` 파일명으로 바꿔 넣어야 한다.
+
+**Residual-risk**: `.pen`·PNG가 바뀌기 전까지 SPEC·acceptance·코드의 새 문구와 디자인 원본이 다르다. `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft이며 병합하지 않았다. "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있다는 확인은 여전히 없다(런북 §11.3 4번은 항목만 있고 확인된 것이 아니다). `run_status`·`plan_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
