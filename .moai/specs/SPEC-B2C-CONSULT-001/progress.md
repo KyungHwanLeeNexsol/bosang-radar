@@ -3744,6 +3744,36 @@ Evidence(**에이전트가 측정**했고 오케스트레이터는 `visual:verif
 
 **Residual-risk**: `visual:verify`는 여전히 exit 1(위반 2건)이다. 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. 안내 배너의 모바일 노출 여부와 게이트 재정의는 사용자 결정이 남았다. `run_status`는 바꾸지 않았다.
 
+#### 단위 2b·3 — M03 채널 선택 게이트 재정의 + 모바일 카드 크기 맞춤, `visual:verify` exit 0 (D-NEW-28 계속)
+
+**배경**: 사용자 결정(2026-10-01, AskUserQuestion)대로 F1(게이트 재정의)+F2(모바일 클래스만 `.pen`에 맞춤)를 함께 했다. 모바일 안내 배너는 그대로 두었고(Claim 34의 열린 결정 유지), 허용치·`skipMetrics`는 바꾸지 않았다. 실행 모드는 `serial`(`general-purpose` 1개). 로컬 커밋 2개(푸시하지 않았다): `9fa60fb`(F1, `scripts/visual-verify.ts`), `ea3509e`(F2, `components/consult/consult-channel-selector.tsx`).
+
+**Claim 95 — F1만 적용하면 우연히 맞던 값이 사라지고 실제 차이가 위반으로 드러났다(RED).**
+
+Evidence(에이전트가 실행, 오케스트레이터는 보고를 받았고 이 단계는 재실행하지 않았다, `.moai/state/verify/d-new-28/unit2b-run-f1.log`, 끝줄 `exit=1`):
+```
+[M03] 채널 선택(카드 2개) (metric) Δ22 > 4 — top 디자인 386 vs 구현 408
+[M03] 채널 선택(카드 2개) (metric) Δ15 > 4 — height 디자인 154 vs 구현 169
+```
+단위 2의 예측(top Δ22, height Δ15)과 일치한다. 다른 화면은 모두 PASS였다. 변경: M03 `channelSelector` 요소의 대상을 `[data-testid="consult-channel-selector"]:visible [role="radiogroup"]`(카드 2개), `designTopHint: 386`, `mergeBands: 2`, 라벨을 "채널 선택(카드 2개)"로 바꾸고 틀린 주석("안내 배너")을 고쳤다(1파일 +9/−8).
+
+**Claim 96 — F2(모바일 클래스만)로 카드 2개 요소가 허용 안에 들어왔고 전체 `visual:verify`는 exit 0, 위반 0건이다(GREEN).**
+
+Evidence(**오케스트레이터가 직접 실행**, HEAD `ea3509e`, `.moai/state/verify/d-new-28/orch2b-visual.log`): `모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다.` 끝줄 `exit=0`. 화면별 최대 차이: 02 8px(허용 8), M02 0, M02-B 2, M02-C 0, M02-D 0, 03 6(8), 03-A2 7(8), 03-B 2(8), 03-C 2.5(8), 03-D 3(8), **M03 4(허용 4)**, M03-B 0.25, M03-C 2, M03-D 2. 에이전트의 같은 실행(`unit2b-run-final.log`)도 같은 결과였고, 카드 2개 요소 실측은 top 386/386, left 20/20, width 350/350, height 154/153(디자인/구현)이다(에이전트 보고, `unit2b-final-measurements.json`).
+- M03의 최대 차이 4px는 `summary` 카드 `top`(디자인 179 vs 구현 175, Δ4)에서 나오며 허용치 4 이내라 위반이 아니다. 이번에 바꾼 영역의 위쪽 요소다.
+- 컴포넌트 변경(3줄): 루트 `mt-6 md:mt-0` → `mt-0 md:mt-0`, 라디오그룹 `mt-3 … gap-3 md:mt-4 md:grid-cols-2` → `mt-3.5 … gap-4 md:mt-4 md:grid-cols-2 md:gap-3`, 옵션 카드 `p-5 … md:p-6` → `px-5 py-3.75 … md:p-6`. 기존 데스크톱 `gap-3`이 `md`에도 적용되고 있어 `md:gap-3`을 추가해 데스크톱 값을 그대로 유지했다. `md:` 접두 클래스는 삭제·변경이 없다(`git diff 963ef0e HEAD`로 오케스트레이터가 확인).
+- 이 문장은 "게이트가 측정하는 요소가 허용 오차 이내"라는 뜻이며 시각 정합 전체를 뜻하지 않는다.
+
+**Claim 97 — 회귀 검증(오케스트레이터가 직접 실행, HEAD `ea3509e`).**
+
+Evidence: 전체 `pnpm vitest run` → `Test Files  103 passed (103)`, `Tests  920 passed (920)`, `exit=0`(D-NEW-27 Claim 85의 907에서 단위 1·1b가 더한 테스트 13개 증가). `pnpm tsc --noEmit` `exit=0`. `pnpm eslint .` `exit=0`. `pnpm prettier --check`(변경 4개 파일) `exit=0`. e2e `pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts` → `26 passed`, `exit=0`; `E2E_CONSULT_POLICY_READY=false` 모드 → `11 passed`, `exit=0`(D-NEW-27 Claim 83과 같은 수치). 원본: `orch2b-vitest-full.log`, `orch2b-tsc.log`, `orch2b-eslint.log`, `orch2b-prettier.log`, `orch2b-e2e-on.log`, `orch2b-e2e-off.log`. `visual:verify`가 재작성한 추적 증거는 `git restore .moai/reports`로 되돌렸고 `git status --short`는 비어 있다(오케스트레이터가 확인). 알림의 "exit code 0"은 감싸개의 값이라 쓰지 않고 로그의 `exit=` 줄과 개수를 읽었다.
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, HEAD `ea3509e`(이 기록 커밋 전), 이 트리, 로컬 파일 DB(`.env.local` 없음).
+
+**Gaps(미검증)**: (1) 채널 선택 제목 글자는 게이트 대상이 아니다(디자인 잉크 top 352, 구현은 계산상 약 353으로 추정, 직접 재지 않았고 제목 글자 크기 16px 대 15px도 추정이다). (2) 카드 안쪽 레이아웃과 안내 배너 위치는 게이트 대상이 아니라 재지 않았다. (3) 390px 이외의 모바일 폭(예: 360px에서 줄바꿈)과 다른 브라우저는 확인하지 않았다. (4) `.pen` 원본은 열지 못했고 디자인 수치는 정규화 PNG 기준이다. (5) 커버리지는 측정하지 않았다. (6) `visual:verify`가 재작성한 증거 파일(`measurements.json`, 스크린샷 등)은 커밋하지 않았다(원래 커밋된 증거는 이전 상태 그대로다). 초록 증거를 커밋할지는 정하지 않았다. (7) 모바일 `form`의 `top` 건너뛰기는 안내 배너가 남아 있어 그대로 유지된다.
+
+**Residual-risk**: `visual:verify`가 초록이어도 이는 게이트가 보는 요소와 허용 오차 이내라는 뜻일 뿐, 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. 승인 대기 항목이 남아 있다: PR #22 본문, `design.md` §10 문장, `APPROVAL-PACK.md` 결정 1~3 정정(문서 변경은 재감사가 필요하다), "보상 진단" 탭 제목 확인, 제품·법무 열린 항목, 원격 T1~T7 재시험(운영 DB 쓰기라 명시적 허락·백업·원복 필요). 이 기록 커밋을 포함한 로컬 커밋 8개(`b47815f`부터)가 푸시되지 않았다. `CONSULT_POLICY_READY`는 켜지 않았고 병합하지 않았으며 PR은 Draft다. `run_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
