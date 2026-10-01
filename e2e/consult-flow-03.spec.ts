@@ -254,11 +254,63 @@ test.describe("03 화면 — CTA 쿼리 파라미터로 채널 사전 선택 (De
   });
 });
 
-// 03-D(제출 실패) 화면의 자동화 커버리지는 이 파일에 없다 — 파일 상단
-// [환경 노트 2]에서 실측으로 확인한 이유(next@16.3.2 base-server.js가
+// 03-D(제출 실패) 화면은 서버 오류를 유발하는 방식으로는 재현할 수 없다 —
+// 파일 상단 [환경 노트 2]에서 실측으로 확인한 이유(next@16.3.2 base-server.js가
 // x-forwarded-for를 raw 소켓 주소로 자동 채워 fail closed 분기가 이
-// 환경에서 도달 불가능함) 때문이다. 렌더링 자체는
-// components/consult/consult-failure.test.tsx가 이미 커버한다.
+// 환경에서 도달 불가능함) 때문이다. 대신 아래 "응답 유실 후 재시도" 테스트가
+// 브라우저 쪽에서 응답만 끊어(page.route) 03-D를 결정론적으로 만든다.
+// 렌더링 자체는 components/consult/consult-failure.test.tsx가 커버한다.
+
+// SPEC-B2C-CONSULT-001 D-NEW-29 — 서버는 상담을 커밋했지만 브라우저가 응답을
+// 받지 못한 경우. 첫 POST를 실제 서버로 보내 커밋시킨 뒤(route.fetch) 브라우저에는
+// 네트워크 오류(route.abort)를 돌려준다. 03-D는 접수 여부를 단정하지 않아야 하고,
+// "다시 시도하기"는 같은 idempotencyKey로 재전송해 서버의 재생 응답으로 03-B에
+// 도달해야 한다. 정책 준비 모드 전용(태그 없음)이다.
+test.describe("03 화면 — 응답 유실 후 같은 키 재시도 (Desktop, 1440x900)", () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test("서버가 커밋한 뒤 응답이 유실되면 03-D는 접수 여부를 단정하지 않고, 다시 시도하기는 같은 idempotencyKey로 재전송해 성공 화면에 도달한다", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": "127.30.0.1" });
+
+    const postedKeys: string[] = [];
+    await page.route("**/api/consultations", async (route) => {
+      const request = route.request();
+      if (request.method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      postedKeys.push((request.postDataJSON() as { idempotencyKey: string }).idempotencyKey);
+      if (postedKeys.length === 1) {
+        await route.fetch();
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+
+    await completeFractureFlowToResult(page);
+    await clickDisabilityConsultCta(page);
+    await page.waitForURL("**/consult", { timeout: 10_000 });
+    await page.getByTestId("consult-view").waitFor();
+
+    await fillConsultForm(page, { name: CONSULT_NAME, contact: "01000009901" });
+    await checkRequiredConsents(page);
+    await submitConsultForm(page);
+
+    const failure = page.getByTestId("consult-failure");
+    await failure.waitFor();
+    await expect(failure).toContainText("상담 신청 접수 여부를 확인하지 못했습니다");
+    await expect(failure).not.toContainText("접수되지 않았습니다");
+
+    await page.getByTestId("consult-failure-retry").click();
+    await page.getByTestId("consult-success").waitFor();
+
+    expect(postedKeys).toHaveLength(2);
+    expect(postedKeys[1]).toBe(postedKeys[0]);
+  });
+});
 
 // SPEC-B2C-CONSULT-001 D-RUN 재작업(이번 세션) — 모바일 실제 크기(390×605/
 // 718/737)에서 성공·중복·실패 전환 후 브라우저 스크롤·포커스 복원을

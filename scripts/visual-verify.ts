@@ -2317,7 +2317,7 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "note",
-        label: "안내 박스(다시 시도해도 접수되지 않으면…)",
+        label: "안내 박스(같은 내용으로 다시 시도해도…)",
         locate: (p) => vis(p, "consult-failure-notice"),
         // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 553,
@@ -2619,7 +2619,7 @@ const SCREENS: readonly ScreenSpec[] = [
       },
       {
         key: "note",
-        label: "안내 박스(다시 시도해도 접수되지 않으면…)",
+        label: "안내 박스(같은 내용으로 다시 시도해도…)",
         locate: (p) => vis(p, "consult-failure-notice"),
         // 03-C 안내 박스와 같은 이유로 minDividers: 0(progress.md D-NEW-28).
         designTopHint: 496,

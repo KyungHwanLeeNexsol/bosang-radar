@@ -2,9 +2,17 @@
 import { act } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import path from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient, type Client } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
+import { NextRequest } from "next/server";
 
 import { ConsultView } from "./consult-view";
+import { handleConsultationSubmit } from "@/app/api/consultations/route";
+import * as schema from "@/lib/db/schema";
 import { writeDiagnosisHandoff } from "@/lib/diagnosis/handoff";
 import {
   buildFractureResult,
@@ -1262,5 +1270,140 @@ describe("components/consult/ConsultView — SSR 마크업 수화 일치(hydrati
     expectLoadingMarkup(serverHtml);
     expect(container.querySelector('[data-testid="consult-error"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="consult-view"]')).toBeNull();
+  });
+});
+
+// SPEC-B2C-CONSULT-001 D-NEW-29 — 응답 유실 후 재시도. 서버가 상담을 이미
+// 커밋했는데 클라이언트가 응답을 받지 못하면(네트워크 예외) 03-D가 뜨고, 사용자가
+// "다시 시도하기"를 누르면 같은 idempotencyKey로 재전송되어 서버가 기존 결과를
+// 재생(200 success)해야 한다. 이 테스트는 fetch를 실제 서버 핸들러
+// (handleConsultationSubmit)와 파일 DB에 연결해 클라이언트·서버 경계를 함께
+// 확인한다. 기존 route.test.ts와 같은 이유로 :memory:가 아니라 파일 DB를 쓴다
+// (libsql 로컬 드라이버는 트랜잭션 뒤 :memory: 연결을 잃는다). 요청이 순차라서
+// route.test.ts의 I/O 직렬화 큐는 필요하지 않다.
+describe("components/consult/ConsultView — 응답 유실 후 같은 키 재시도(D-NEW-29)", () => {
+  const tmpDir = path.resolve(process.cwd(), ".tmp");
+  const dbFile = path.join(tmpDir, `consult-view-lost-response-${Date.now()}-${process.pid}.db`);
+  const env = { CONSULT_POLICY_READY: "true", RATE_LIMIT_HMAC_SECRET: "test-hmac-secret" };
+
+  let client: Client;
+  let db: ReturnType<typeof drizzle<typeof schema>>;
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeAll(async () => {
+    mkdirSync(tmpDir, { recursive: true });
+    client = createClient({ url: `file:${dbFile}`, timeout: 5000 });
+    db = drizzle(client, { schema });
+    await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "db", "migrations") });
+  });
+
+  afterAll(async () => {
+    client.close();
+    // Windows는 close() 뒤에도 파일 잠금이 잠시 남을 수 있어 짧게 재시도한다.
+    for (const suffix of ["", "-wal", "-shm"]) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (!existsSync(dbFile + suffix)) break;
+        try {
+          rmSync(dbFile + suffix);
+          break;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
+    }
+  });
+
+  async function countRows(table: "consultations" | "consultation_rate_limits"): Promise<number> {
+    const result = await client.execute(`SELECT COUNT(*) as c FROM ${table}`);
+    return Number(result.rows[0].c);
+  }
+
+  beforeEach(async () => {
+    await client.execute("DELETE FROM consultations");
+    await client.execute("DELETE FROM consultation_rate_limits");
+    window.sessionStorage.clear();
+    window.history.pushState(null, "", "/consult");
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    writeDiagnosisHandoff(
+      buildFractureResult(FRACTURE_FIXTURE_INPUT, { "surgery-status": "수술 받음" })
+    );
+    vi.stubGlobal("scrollTo", vi.fn());
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  async function clickAndFlush(el: Element) {
+    await act(async () => {
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      // 실제 DB I/O가 끝날 때까지 기다린다 — 마이크로태스크 몇 번으로는 부족하다.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+  }
+
+  it("서버는 커밋했지만 응답이 유실되면 03-D가 접수 여부를 단정하지 않고, 다시 시도하기는 같은 키로 재전송해 03-B에 도달하며 행은 1개·rate limit은 1회만 소비된다", async () => {
+    const sentBodies: Array<{ idempotencyKey: string }> = [];
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      sentBodies.push(JSON.parse(init.body as string));
+      const request = new NextRequest("http://localhost/api/consultations", {
+        method: "POST",
+        headers: { "x-forwarded-for": "203.0.113.9" },
+        body: init.body as string,
+      });
+      const response = await handleConsultationSubmit(request, db, env);
+      if (sentBodies.length === 1) {
+        // 서버는 이미 커밋했다 — 응답만 클라이언트에 닿지 못한다.
+        throw new TypeError("Failed to fetch");
+      }
+      return { json: async () => response.json() };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    act(() => {
+      root.render(<ConsultView isPolicyReady />);
+    });
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-name-input"]'
+    );
+    const contactInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="consult-contact-input"]'
+    );
+    act(() => {
+      setNativeInputValue(nameInput!, "김보상");
+      setNativeInputValue(contactInput!, "010-0000-0000");
+    });
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    act(() => {
+      checkboxes[0].click();
+      checkboxes[1].click();
+    });
+    await clickAndFlush(container.querySelector('[data-testid="consult-submit-button"]')!);
+
+    // 1) 서버는 커밋했지만 클라이언트는 03-D를 본다 — 문구는 접수 여부를 단정하지 않는다.
+    expect(await countRows("consultations")).toBe(1);
+    const failure = container.querySelector('[data-testid="consult-failure"]');
+    expect(failure).not.toBeNull();
+    expect(failure!.textContent).toContain("상담 신청 접수 여부를 확인하지 못했습니다");
+    expect(failure!.textContent).not.toContain("접수되지 않았습니다");
+
+    // 2) 다시 시도하기 → 같은 idempotencyKey로 재전송 → 서버가 재생 → 03-B.
+    await clickAndFlush(container.querySelector('[data-testid="consult-failure-retry"]')!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentBodies[1].idempotencyKey).toBe(sentBodies[0].idempotencyKey);
+    expect(container.querySelector('[data-testid="consult-success"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="consult-failure"]')).toBeNull();
+    expect(await countRows("consultations")).toBe(1);
+    const counter = await client.execute("SELECT request_count FROM consultation_rate_limits");
+    expect(counter.rows.length).toBe(1);
+    expect(Number(counter.rows[0].request_count)).toBe(1);
   });
 });

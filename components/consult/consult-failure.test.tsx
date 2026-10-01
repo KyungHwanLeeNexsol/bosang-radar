@@ -15,8 +15,9 @@ import { ConsultFailure } from "./consult-failure";
 // SPEC-B2C-CONSULT-001 M5 (design.md §10; acceptance AC-B2CCONSULT-022) —
 // 03-D/M03-D 실패 상태. "저장되었습니다"류의 확정 문구를 절대 포함하지
 // 않으며, 다시 시도하기는 동일 idempotencyKey 재전송(호출부 책임)을
-// 트리거하고, 입력값은 그대로 보존 표시된다. .pen 최우선 지시로 2줄 부제,
-// 카드 아래 안내 박스(대체 채널 문구 + 입력 유지 문구), 아이콘 버튼을 맞춘다.
+// 트리거하고, 입력값은 그대로 보존 표시된다. 2줄 부제, 카드 아래 안내 박스
+// (중복 접수되지 않음 + 입력 유지 문구), 아이콘 버튼을 갖는다. 접수 여부를
+// 단정하지 않는 문구(응답 유실 가능성)를 검증한다.
 
 describe("components/consult/ConsultFailure", () => {
   let container: HTMLDivElement;
@@ -49,7 +50,7 @@ describe("components/consult/ConsultFailure", () => {
     });
 
     expect(container.querySelector('[data-testid="consult-failure"]')).not.toBeNull();
-    expect(container.textContent).toContain("상담 신청이 접수되지 않았습니다");
+    expect(container.textContent).toContain("상담 신청 접수 여부를 확인하지 못했습니다");
     expect(container.textContent).not.toContain("저장되었습니다");
     // SummaryRow는 dt/dd를 별개 요소로 렌더링해 콜론 없이 이어 붙는다 —
     // consult-success.test.tsx/consult-duplicate.test.tsx와 동일하게
@@ -104,8 +105,22 @@ describe("components/consult/ConsultFailure", () => {
     });
 
     const subtitle = container.querySelector('p[role="alert"]');
-    expect(subtitle?.textContent).toContain("일시적인 오류로 접수가 완료되지 않았습니다.");
+    expect(subtitle?.textContent).toContain("신청이 접수되었는지 이 화면에서는 알 수 없습니다.");
     expect(subtitle?.textContent).toContain("입력하신 내용은 다시 입력하지 않아도 됩니다.");
+  });
+
+  // 이 화면은 서버 error뿐 아니라 응답 유실·네트워크 예외도 받으므로, 서버가
+  // 이미 접수했을 수 있다. "접수되지 않았다"고 단정하거나 존재하지 않는 문의
+  // 창구를 안내하는 문구가 다시 들어오지 않도록 막는다.
+  it("접수 안 됨을 단정하거나 카카오톡 문의를 안내하는 문구를 포함하지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...baseProps} />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("접수되지 않았습니다");
+    expect(text).not.toContain("접수가 완료되지 않았습니다");
+    expect(text).not.toContain("카카오톡 상담으로 문의");
   });
 
   it("다시 시도하기 클릭 시 onRetry가 호출된다(같은 idempotencyKey 재전송은 호출부 책임)", () => {
@@ -139,7 +154,7 @@ describe("components/consult/ConsultFailure", () => {
     expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it("이전 화면으로 돌아가기는 /result 링크이고 안내 박스가 대체 채널과 입력 유지를 알린다", () => {
+  it("이전 화면으로 돌아가기는 /result 링크이고 안내 박스가 중복 접수되지 않음과 입력 유지를 알린다", () => {
     act(() => {
       root.render(<ConsultFailure {...baseProps} />);
     });
@@ -150,9 +165,7 @@ describe("components/consult/ConsultFailure", () => {
     expect(backCta?.textContent).toContain("이전 화면으로 돌아가기");
 
     const note = container.querySelector('[data-testid="consult-failure-notice"]');
-    expect(note?.textContent).toContain(
-      "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요."
-    );
+    expect(note?.textContent).toContain("같은 내용으로 다시 시도해도 중복 접수되지 않습니다.");
     expect(note?.textContent).toContain("현재 화면에서 입력 내용이 유지됩니다.");
   });
 
