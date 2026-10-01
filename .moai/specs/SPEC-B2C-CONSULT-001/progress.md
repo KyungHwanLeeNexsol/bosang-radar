@@ -3774,6 +3774,38 @@ Evidence: 전체 `pnpm vitest run` → `Test Files  103 passed (103)`, `Tests  9
 
 **Residual-risk**: `visual:verify`가 초록이어도 이는 게이트가 보는 요소와 허용 오차 이내라는 뜻일 뿐, 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. 승인 대기 항목이 남아 있다: PR #22 본문, `design.md` §10 문장, `APPROVAL-PACK.md` 결정 1~3 정정(문서 변경은 재감사가 필요하다), "보상 진단" 탭 제목 확인, 제품·법무 열린 항목, 원격 T1~T7 재시험(운영 DB 쓰기라 명시적 허락·백업·원복 필요). 이 기록 커밋을 포함한 로컬 커밋 8개(`b47815f`부터)가 푸시되지 않았다. `CONSULT_POLICY_READY`는 켜지 않았고 병합하지 않았으며 PR은 Draft다. `run_status`는 바꾸지 않았다.
 
+#### 문서 정정과 plan-audit review-13 (D-NEW-28 계속)
+
+**배경**: D-NEW-27 "남은 작업"의 `design.md` §10·`APPROVAL-PACK.md` 정정을 사용자 결정(2026-10-01)에 따라 진행했다. 정정은 `general-purpose` 1개에 manager-spec 역할을 지정해 맡겼고(로컬 커밋 `a90fcbd`, 푸시 전), 이어서 `plan-auditor` 재감사(review-13)를 돌렸다. 실행 모드는 `serial`.
+
+**Claim 98 — `design.md` §10과 `APPROVAL-PACK.md`는 사용자 결정 3건과 현재 구현에 맞게 정정됐다. 단 §10 머리글에 낡은 문장이 하나 들어갔다.**
+
+Evidence(오케스트레이터가 직접 확인): `git show --stat a90fcbd` → 파일 2개(`APPROVAL-PACK.md` +27, `design.md` +23, 합계 +41/−9). `git diff HEAD~1 HEAD -- design.md`를 읽었고, 인용된 코드 위치(`consult-success.tsx:50`·`:56-59`, `route.ts:87-92`, `consult-duplicate.tsx:25-32`·`:65-71`)를 직접 열어 일치함을 확인했다. 문서에 커밋 해시나 "별도 커밋" 주장은 없다. 결정 3건은 "구현 기준, 사용자 결정 기록 없음"과 구분해 표시됐다.
+- **낡은 문장(오케스트레이터의 실수)**: §10 머리글(design.md L411)이 "`visual:verify` 위반이 남아 있다"고 적는데 `visual:verify`는 이미 exit 0이다(Claim 96). 정정을 위임할 때 "지금은 초록"임을 알려 주지 않아 에이전트가 D-NEW-27의 옛 문장을 그대로 옮겼다.
+
+**Claim 99 — plan-audit review-13은 FAIL(0.75, Tier L 기준 0.85), 직전 0.857보다 낮아 STOP-on-regression이 켜졌다.**
+
+Evidence(**감사관이 실행**, 읽기 전용, Claude 단독 감사 — moai 감사 MCP 도구는 연결되지 않아 교차 모델 의견 없음; 보고서 `.moai/reports/plan-audit/SPEC-B2C-CONSULT-001-review-13.md`는 `.gitignore:210`으로 커밋되지 않는 로컬 파일; HEAD `a90fcbd`, `git status` 비어 있음): 필수 통과 MP-1~7 전부 PASS/N/A. 점수: Clarity 0.50(이전 0.75), Completeness 1.0, Testability 0.75, Traceability 1.0, 조화평균 0.75. 막는 결함 6건:
+- D1: §1 D6은 시간 약속 없는 중립 문구를 요구하는데 코드는 "영업일 기준 1일 이내…"를 두 곳(`consult-success.tsx:50` 03-B 부제, `consult-channel-selector.tsx:43` 전화 채널 안내 박스)에 넣었다. 방금 정정한 §10은 "사용자 결정은 세 가지뿐"이라면서 이 문구를 미결정으로 적어 스스로 모순된다. 커밋 `6de35f3`·`d1461ce`·`d30e9e9` 본문에 "design.md D6 대체, 사용자 결정"·".pen 최우선 지시에 따라"가 있으나 SPEC 문서와 이 `progress.md`에는 그 지시의 기록이 없다(`progress.md`의 "최우선" 3건은 다른 뜻이다 — 오케스트레이터가 직접 확인).
+- D2: §12 표의 03-A2·03-D 행이 `scripts/visual-verify.ts`의 현재 검사와 다르다.
+- D3: Claim 98의 낡은 문장.
+- D4: REQ-022·acceptance는 "03-D에서 입력한 값을 다시 표시하지 않는다"인데 코드(`consult-failure.tsx:70-75`)는 입력한 연락처(마스킹 없이)와 연락 희망 시간을 보여 준다(열린 항목 13과 같은 쟁점).
+- D5: SPEC은 03-D 버튼을 "진단 결과로 돌아가기"라 하는데 코드는 "이전 화면으로 돌아가기"(`consult-failure.tsx:100`, 오케스트레이터 확인).
+- D6: plan.md의 "기존 파일 정확히 12개만 수정" 예산이 깨졌다. `git diff --name-status a106ac9 HEAD`로 `app/page.tsx`, `package.json`, `scripts/visual-verify-helpers.ts` 수정을 오케스트레이터가 확인했다.
+- 막지 않는 지적 D7~D12(푸터·전문가 카드 누락, §12 옛 좌표, 03-C 요약 행, §8.1 트랜잭션 반영, 카카오 연락 희망 시간 응답을 덮는 AC 부재, 지난 감사 이월 항목)는 이번 정정 범위 밖이다.
+- 감사 맥락: 직전 감사(review-12) 이후 코드 변경 커밋 56개 중 11개가 `components/consult/`·`app/api/consultations/`를 건드렸는데 계획 문서는 대부분 갱신되지 않았다. 감사관은 `visual:verify`·테스트를 돌리지 않았다.
+
+**사용자 결정(2026-10-01, AskUserQuestion 응답, 감사 FAIL 처리 라운드)** — 정확한 선택지 문구:
+- (결정 4) 감사 FAIL 처리: "D1~D6 정정 후 범위 재감사". 사용자 override로 이번 라운드를 한 번 더 돈다. D1~D6을 문서만 고쳐 해소하고(D7~D12는 범위 밖), 바뀐 부분 중심으로 `plan-auditor`를 한 번 더 돌린다. 계획 산출물 해시가 바뀌어 이전 PASS 캐시는 무효가 된다. 로컬 커밋만 하고 푸시는 따로 확인받는다.
+- (결정 5) D1 시간 약속 문구: ".pen 문구 유지, 문서를 코드에 맞춤". 이 선택은 "'.pen을 최우선으로' 하라는 지시는 사용자가 했고 문구를 유지한다"는 뜻으로 기록한다(그 전까지 근거는 커밋 본문과 코드 주석뿐이었다). 설계서 §1 D6·§10·§12를 ".pen 문구 채택"으로 통일하고 코드는 바꾸지 않는다. 운영이 이 약속을 지킬 수 있는지는 런북 §11.3 활성화 전 점검 항목으로 남으며 이 답변으로 점검이 끝난 것은 아니다.
+- (결정 6) 03-D 화면: "현재 구현 유지, REQ·AC 문장을 코드에 맞춤". 03-D는 입력한 연락처·연락 희망 시간을 다시 보여 주고 버튼 문구는 "이전 화면으로 돌아가기"로 둔다. REQ-022·REQ-025·AC-025 등을 이에 맞게 고친다. 입력한 연락처를 마스킹 없이 화면에 다시 표시하는 데 따른 개인정보 검토는 열린 항목 13번으로 그대로 남으며 이 답변이 그 검토를 대신하지 않는다.
+
+**Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, 위 Claim 98은 HEAD `a90fcbd`, 결정은 이 기록 시점.
+
+**Gaps(미검증)**: 감사관이 실행한 검사 범위 밖(`visual:verify`·vitest·tsc·eslint·prettier·`next build`·커버리지)은 재확인하지 않았다. `.pen` 원본과 모바일 PNG는 열지 않았다. 사용자의 AskUserQuestion 응답 자체는 명령으로 관측할 수 없고 이 기록은 오케스트레이터가 받은 응답을 옮긴 것이다.
+
+**Residual-risk**: 계획 문서는 아직 감사 통과 상태가 아니다(`plan_status`는 audit-ready로 올리지 않는다). 정정 전까지 `design.md` §10의 "visual:verify 위반이 남아 있다" 문장은 사실과 다르다. 시각 정합 완료·병합 준비 완료·배포 준비 완료·감사 준비 완료를 선언하지 않는다. `run_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
