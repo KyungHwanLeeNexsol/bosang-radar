@@ -287,8 +287,15 @@ https://ai.google.dev/gemini-api/terms)에 따르면 무료 tier에 제출된
 3. `RATE_LIMIT_HMAC_SECRET`을 **같은 재시작에서 함께** 설정한다. 관측:
    `CONSULT_POLICY_READY=true`이고 이 시크릿이 없으면 프로세스가 부팅 중 종료 코드 1로
    죽고 포트가 열리지 않는다(`lib/env.ts` 부팅 검증). 값 자체는 이 문서에 적지 않는다.
-4. 플래그를 바꾸고 재시작한다.
-5. 재시작 후 확인한다: `/consult`에서 제출 CTA가 정상이고 `POST /api/consultations`가
+4. **연락 기한 약속을 운영이 지킬 수 있는지 확인한다.** 상담 화면은 `.pen` 문구로 두 곳에서
+   "영업일 기준 1일 이내"에 연락하겠다고 약속한다: 03-B 성공 화면 부제
+   (`components/consult/consult-success.tsx`)와 전화 채널을 고르면 보이는 안내
+   (`components/consult/consult-channel-selector.tsx`). 정책을 열기 전에 상담 운영 담당이
+   이 기한을 실제로 지킬 수 있는지 사람이 확인한다. 이 항목은 코드나 스크립트로 검증할 수
+   없고, **이 문서를 쓴 시점에는 확인되지 않았다**(SPEC-B2C-CONSULT-001 `progress.md`
+   사용자 결정 5).
+5. 플래그를 바꾸고 재시작한다.
+6. 재시작 후 확인한다: `/consult`에서 제출 CTA가 정상이고 `POST /api/consultations`가
    503이 아닌지 본다. 검증 스크립트는 로컬 전용이다(아래 11.5).
 
 끌 때(되돌릴 때)는 `CONSULT_POLICY_READY=false`로 바꾸고 재시작한다. 관측: 재시작 직후

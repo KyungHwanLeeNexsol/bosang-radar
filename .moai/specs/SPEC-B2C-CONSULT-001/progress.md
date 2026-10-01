@@ -3830,6 +3830,8 @@ Evidence(**감사관이 실행**, 읽기 전용, Claude 단독 감사 — moai �
 
 **Residual-risk**: 이 PASS는 계획 산출물 감사 결과일 뿐이다. 시각 정합 완료·병합 준비 완료·배포 준비 완료를 선언하지 않으며 `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft다. 구현 착수 승인(Implementation Kickoff Approval)과 사용자의 별도 푸시·병합 확인은 그대로 필요하다. 이후 계획 산출물을 한 글자라도 고치면(N1~N4 위생 수정 포함) 이 판정이 무효가 되고 재감사가 필요하다. 런북 §11.3 점검 항목 추가, 점검 항목 13번 문구 정정(progress.md는 감사 범위 밖), 낡은 코드 주석 정정은 아직 하지 않았다. `plan_status`·`run_status`는 이 기록으로 바꾸지 않았다.
 
+**추가 기록 — 런북 §11.3 점검 항목 추가(사용자 결정, 2026-10-01, AskUserQuestion 응답)**: 선택지 "점검 항목을 추가"에 따라 `.moai/docs/runtime-runbook.md` §11.3 "켜는 순서"에 4번 항목 "연락 기한 약속을 운영이 지킬 수 있는지 확인한다"를 넣고 뒤 항목을 5·6번으로 옮겼다(문서만 변경, 계획 산출물이 아니라 review-14 PASS는 무효가 되지 않는다). 항목 본문은 "이 문서를 쓴 시점에는 확인되지 않았다"고 적는다. 즉 **운영이 약속을 지킬 수 있다는 확인은 여전히 없다.** 이 변경으로 코드 주석 3곳(`consult-success.tsx:17`, `consult-channel-selector.tsx:36`, `consult-channel-selector.test.tsx:97`)의 "런북 §11.3 활성화 전 점검 항목" 서술이 이제 사실이다. 남은 낡은 곳: `design.md` D6 행이 "런북 §11.3에 점검 항목이 없다"고 적고 있다 — 계획 산출물이라 지금 고치면 review-14 PASS가 무효가 되어 고치지 않았고, 다음 계획 산출물 수정(N1~N4 위생 수정 등) 때 함께 바로잡는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
