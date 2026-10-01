@@ -3851,7 +3851,7 @@ Evidence(오케스트레이터가 직접 확인, HEAD `4e99240`): `git diff fb64
 
 **Baseline-attribution**: 이번 세션, 브랜치 `feat/SPEC-B2C-CONSULT-001`, 시작 HEAD `fb64643`, 위 확인은 HEAD `4e99240`, 이 트리, 로컬 파일 DB.
 
-**Gaps(미검증)**: `pnpm visual:verify`는 이 단계에서 돌리지 않았다. 디자인 PNG가 옛 문구라 03-C·03-D 게이트가 빨갛게 나올 수 있고 시각 정합은 주장하지 않는다. 전체 `vitest run`, `eslint .`, 전체 e2e, 커버리지는 아직이다. 모바일 폭에서 새 제목의 두 줄 분할이 자연스러운지 눈으로 확인하지 않았다. 응답 유실 후 재시도 검증은 로컬 파일 DB(libsql)와 로컬 `next start` 기준이며 원격 Turso·운영 환경은 확인하지 않았다. 03-D 안내 아이콘은 말풍선(`MessageCircle`) 그대로이고 더는 카카오를 가리키는 문장이 없어 아이콘만 어색할 수 있으나 디자인 변경 범위를 넓히지 않으려고 바꾸지 않았다. 03-C 부제의 "처리 중입니다"가 운영 현실과 맞는지는 확인하지 않았다.
+**Gaps(미검증)**: `pnpm visual:verify`는 이 단계에서 돌리지 않았다. 디자인 PNG가 옛 문구라 03-C·03-D 게이트가 빨갛게 나올 수 있고 시각 정합은 주장하지 않는다. *(당시 기록 — HEAD `4e99240` 시점의 상태다. 이후 커밋 `a029261`에서 `design/claimradar-ui.pen`과 PNG 4개(`03-C-상담-신청-중복.png`, `03-D-상담-신청-실패.png`, `M03-C-신청-중복.png`, `M03-D-신청-실패.png`)가 새 문구로 바뀌었고, 오케스트레이터가 보고한 `pnpm visual:verify`는 이 코드에서 exit 0, 위반 없음이었다. 로그 `.moai/state/verify/d-new-29/final-visual.log`(gitignored)의 보고된 값은 03-C 3px, 03-D 3px of 8px, M03-C 2px, M03-D 2px of 4px, M03 4px of 4px이며 이 기록의 작성자는 로그를 열지 않았다. 사용자의 시각 정합 승인은 여전히 없다.)* 전체 `vitest run`, `eslint .`, 전체 e2e, 커버리지는 아직이다. 모바일 폭에서 새 제목의 두 줄 분할이 자연스러운지 눈으로 확인하지 않았다. 응답 유실 후 재시도 검증은 로컬 파일 DB(libsql)와 로컬 `next start` 기준이며 원격 Turso·운영 환경은 확인하지 않았다. 03-D 안내 아이콘은 말풍선(`MessageCircle`) 그대로이고 더는 카카오를 가리키는 문장이 없어 아이콘만 어색할 수 있으나 디자인 변경 범위를 넓히지 않으려고 바꾸지 않았다. 03-C 부제의 "처리 중입니다"가 운영 현실과 맞는지는 확인하지 않았다.
 
 **Claim 103 — Pencil 도구는 `filePath`를 무시하고 활성 편집기 파일에만 적용된다. 이번 세션의 활성 편집기는 메인 체크아웃의 `.pen`이다.**
 
@@ -3859,7 +3859,7 @@ Evidence(오케스트레이터가 직접 확인): `get_app_state`가 활성 편�
 
 **Gaps(미검증)**: 활성 편집기를 작업 공간 파일로 바꿨을 때 `execute`/`Export`가 실제로 그 파일에 쓰는지는 아직 확인하지 않았다(사용자가 파일을 열기 전이다). `Export`는 노드 id 이름의 2배 크기 PNG를 만들어 기존 `design/exports` 파일명으로 바꿔 넣어야 한다.
 
-**Residual-risk**: `.pen`·PNG가 바뀌기 전까지 SPEC·acceptance·코드의 새 문구와 디자인 원본이 다르다. `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft이며 병합하지 않았다. "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있다는 확인은 여전히 없다(런북 §11.3 4번은 항목만 있고 확인된 것이 아니다). `run_status`·`plan_status`는 바꾸지 않았다.
+**Residual-risk**: `.pen`·PNG가 바뀌기 전까지 SPEC·acceptance·코드의 새 문구와 디자인 원본이 다르다. *(당시 기록 — Claim 103 시점의 상태다. 현재: 커밋 `a029261`에서 `.pen`(11줄 추가·11줄 삭제)과 PNG 4개가 새 문구로 바뀌었다. 오케스트레이터가 저장 뒤 의도한 Pencil 노드 10개를 다시 읽어 문구가 `consult-failure.tsx`·`consult-duplicate.tsx`의 문자열과 같음을 확인했다. 남는 위험: `.pen` diff가 11줄 쌍인데 의도한 편집은 10곳이라 나머지 1줄은 확인하지 않았고(`.pen` 내용을 직접 읽지 않았다) `.pen` diff가 의도한 10곳만 담는다고 주장하지 않는다. 사용자의 시각 정합 승인은 없다.)* `CONSULT_POLICY_READY`는 켜지 않았고 PR은 Draft이며 병합하지 않았다. "영업일 기준 1일 이내" 연락 약속을 운영이 지킬 수 있다는 확인은 여전히 없다(런북 §11.3 4번은 항목만 있고 확인된 것이 아니다). `run_status`·`plan_status`는 바꾸지 않았다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
