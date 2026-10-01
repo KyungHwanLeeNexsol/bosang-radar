@@ -3968,6 +3968,50 @@ Baseline-attribution: 실행 시점 HEAD `2ed735b`. 이 기록을 담는 커밋�
 
 **Residual-risk**: 이 항목은 검증 게이트가 통과했다는 기록이며 시각 정합·병합 준비·운영 준비 완료를 주장하지 않는다. 열린 항목 13, 25~29는 이번에 어느 것도 완료 처리하지 않았고 원문 그대로 열려 있다. `run_status`·`plan_status`는 바꾸지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았으므로 review-17 PASS의 해시 조건은 이번 변경과 무관하다(`git diff --name-only 349d8a6 HEAD`에 계획 산출물 없음).
 
+### D-NEW-31 — PR #22 마지막 검토 항목: 입력 복원 브라우저 확인, 캡처 업로드, 원격 시험 증거의 공개용 정리 (2026-10-01, 시작 HEAD `5a02d04`)
+
+**사용자 요청(2026-10-01)**: (1) 03-D `handoff_mismatch` 390px·1440px 실제 화면 캡처를 사용자가 볼 수 있게 PR에서 접근 가능한 위치에 올리고 본문에 바로 열리는 링크를 넣는다. 시험 데이터인지 먼저 확인하고, 문구·시각 정합은 사용자가 승인하기 전까지 미승인으로 유지한다. (2) 화면의 "입력 내용 · 유지됨" 주장에 맞춰 `/result`로 이동한 뒤 `/consult`로 다시 들어왔을 때 이름·연락처·희망 시간이 복원되는지 브라우저에서 확인하고, 복원되지 않으면 동작 또는 문구를 고치고 회귀 시험을 추가한다. (3) 원격 T1~T7의 기존 로컬 결과에서 시크릿·민감 정보를 뺀 실행 결과·정리·원상 복구 증거를 PR에 연결한다. 이미 끝난 원격 DB 시험을 증거 정리만을 위해 다시 실행하지 않는다. (4) 변경 후 HEAD와 필요한 검증을 PR에 갱신한다. PR은 Draft, `CONSULT_POLICY_READY`는 비활성, 병합하지 않는다.
+
+**Claim 113 — 03-D 두 변형에서 `/result`로 나갔다 `/consult`로 다시 들어오면 채널·이름·연락처·희망 시간이 복원된다. 동작·문구 수정은 필요 없었고 회귀 e2e 2건을 추가했다. 필수 동의 두 항목은 복원되지 않는다(설계).**
+
+Evidence(오케스트레이터가 직접 실행): `lib/consult/draft.ts`와 `consult-view.tsx`를 읽어, 입력 보관(draft)은 제출 성공(`clearConsultationDraft()`)과 새 진단 시작(`diagnosis-flow.tsx`)에서만 지워지고 `/result`로 나가는 것만으로는 지워지지 않는 구조로 보았다. 이 읽기를 브라우저로 확인하려고 `e2e/consult-flow-03.spec.ts`에 시험 두 개를 추가했다(커밋 `f9d5f07`). `handoff_mismatch`(제출 직전 handoff `resultId` 변조)와 `unknown_outcome`(`POST /api/consultations`를 `route.abort`) 실패 화면에서 "이전 화면으로 돌아가기"(`/result`) → 결과 화면의 후유장해 CTA → `/consult` 재진입 뒤, 전화 상담 선택·이름·연락처·희망 시간 값이 입력했던 값과 같고 필수 동의 두 체크박스는 해제된 상태임을 단언한다. `pnpm test:e2e --spec=e2e/consult-flow-03.spec.ts`: `29 passed`, `exit=0`(`d-new-31-restore-e2e-1.log`) — 새 시험 2건이 처음 실행에서 통과했다. 민감도 확인: `handleSubmit` 첫 줄에 `clearConsultationDraft()`를 넣는 임시 변형을 가하자 새 시험 2건만 실패했고(`2 failed`, `27 passed`, `exit=1`, `d-new-31-restore-e2e-mutation.log`) 변형은 `git restore`로 되돌렸다(`git status --short`가 e2e 파일만 가리키고 `MUTATION-CHECK` 검색이 0건임을 확인했다).
+
+Baseline-attribution: HEAD `5a02d04`에 시험 파일 변경(커밋 `f9d5f07`)을 더한 트리, Playwright Chromium 390×737, 로컬 파일 DB. 앱 코드는 바뀌지 않았다.
+
+**Gaps(미검증)**: 전화 채널·시간 입력 한 경로와 Chromium만 확인했다. 카카오 채널과 시간 미입력 상태는 확인하지 않았다. `handoff_mismatch`는 제출 직전에 handoff를 바꿔 재현했고, 다른 탭에서 새 진단을 돌려 생기는 실제 경로는 관측하지 않았다. 재진입 뒤 같은 `idempotencyKey`로 다시 제출해 성공하는지는 이번에 확인하지 않았다.
+
+**Residual-risk**: 요약 카드의 "입력 내용: 유지됨"은 이름·연락처·희망 시간의 유지를 뜻하고 필수 동의는 포함하지 않는다. 재진입하면 동의를 다시 체크해야 하는데 화면은 이를 알리지 않는다. 문구를 바꿀지는 사용자 결정으로 남겼다(승인 자료 `approval/APPROVAL-PACK.md` §5.2 결정 5).
+
+**Claim 114 — 03-D `handoff_mismatch` 390px·1440px 캡처를 PR에서 열 수 있는 추적 파일로 올렸다. 시험 데이터만 담겼음을 확인했고, 문구·시각 정합은 미승인이다.**
+
+Evidence: 캡처 원본은 Claim 111의 gitignored 파일이고 viewport판과 full판은 바이트가 같다(`git hash-object` 해시가 쌍마다 일치). 그래서 2장만 올렸다: `.moai/reports/visual-check/SPEC-B2C-CONSULT-001/approval/A6-03-D-handoff-mismatch-mobile-390.png`와 `A7-03-D-handoff-mismatch-desktop-1440.png`(커밋 `865360f`). 올리기 전 점검(저장소가 공개라서 올리기 전에 했다): 화면의 값은 e2e 시험 데이터이고(연락처 `01012345678` 관용적 가상 번호, 희망 시간 `평일 오후 (13시 ~ 18시)`, 이름은 화면에 나오지 않는다), 만든 작업 트리에 `.env*` 파일이 없었으며(`ls`로 확인), PNG에서 메타데이터 청크와 `Nexsol`·`libsql`·`turso`·`authToken`·`Bearer`·`eyJ`·`C:\Users`·`@gmail` 문자열을 `grep -a`로 검색해 0건이었다. 승인 요청 절은 `approval/APPROVAL-PACK.md` §5에 더했다(승인 결정 5건, 모두 미승인).
+
+Baseline-attribution: 캡처는 HEAD `2ed735b`의 코드로 만들었고, 그 뒤 앱 코드는 바뀌지 않았다(`git diff --name-only 2ed735b HEAD -- app components lib db design scripts`가 비어 있음).
+
+**Gaps(미검증)**: PNG를 눈으로 확인한 것은 이 세션의 오케스트레이터뿐이다. 마스킹 없이 연락처를 다시 보여 주는 것 자체의 개인정보 검토는 열린 항목 13으로 남아 있다.
+
+**Residual-risk**: 사용자의 문구 승인과 시각 정합 승인은 없다. 이 변형은 `.pen` 프레임이 없어 시각 게이트가 보지 않는다.
+
+**Claim 115 — 원격 T1~T7의 기존 로컬 결과에서 시크릿·민감 정보를 뺀 증거를 올렸다. 이를 위해 원격 DB에 접속하거나 시험을 다시 실행하지 않았다.**
+
+Evidence: `.moai/reports/remote-verify/SPEC-B2C-CONSULT-001/d30run01/`(커밋 `865360f`)에 `README.md`(출처·가공·제외·한계), `run-output.txt`, `results.json`, `cleanup-output.txt`, `cleanup.json`, `revert-schema-output.txt`, `rollback-compare.md`를 올렸다. 가공은 둘뿐이다. `run-output.txt`의 로컬 절대 경로 1곳을 `<repo>/`로 바꿨고, 백업 대조는 로컬 매니페스트 3쌍을 `compare-manifests`로 다시 비교해(원격 접속 없음) 운영 테이블의 행 수·내용 해시를 빼고 일치 여부(true/false)만 남겼다. 공개 전 점검: 데이터 파일 6개에서 `Nexsol`·`Users`·`C:\`·`libsql://`·`turso`·`TURSO`·`eyJ`·`Bearer`·`authToken`·`@`·`http(s)://`·`.env`를 검색해 0건이었다(`README.md`는 검색 대상에서 제외). 요청 기록의 IP는 문서용 대역(`198.51.100.x`)이고 연락처는 `010-****-000x`로 가려져 있다.
+
+Baseline-attribution: 원본은 2026-10-01 07:18 UTC의 `d30run01` 실행 결과(Claim 110)다.
+
+**Gaps(미검증)**: 지문 확인·`db:migrate`·`preflight`·백업 스크립트의 출력은 파일로 저장하지 않아 이 폴더에 없다(세션 중에 확인했고 Claim 110에 요약했다). 이 파일들은 gitignored 원본 로그를 옮긴 것이라 제3자가 원본과 대조할 수 없다. 시험 행 식별자 원장(`ledger.json`)과 백업 본문은 올리지 않았다.
+
+**Residual-risk**: 이 폴더는 병합 가능·운영 준비 완료를 뜻하지 않는다. 이후 서버 코드나 마이그레이션이 바뀌면 이 결과는 그 코드의 근거가 아니다.
+
+**Claim 116 — 변경 후 검증이 통과했다.**
+
+Evidence(오케스트레이터가 로그를 읽음. 로그는 gitignored `.moai/state/verify/`이고 각 로그 안에 `exit=` 줄이 있다): `d-new-31-tsc.log` `exit=0`. `d-new-31-eslint.log`(`eslint .`) `exit=0`. `d-new-31-e2e-full.log` — `49 passed (5.0m)`, `exit=0`(이전 47 + 새 시험 2). `d-new-31-e2e-policyoff.log`(`E2E_CONSULT_POLICY_READY=false`) — `11 passed (5.0m)`, `exit=0`. 변경한 e2e 파일과 새 문서·JSON의 `prettier --check`와 e2e 파일 `eslint`는 통과했다. 각 실행 뒤 `git status --short`가 비어 있었다.
+
+Baseline-attribution: 커밋 `865360f` 시점의 트리. 이 뒤 커밋은 `progress.md`·런북만 바꾼다. `git diff --name-only 2ed735b HEAD`는 e2e 시험 파일 1개와 문서·증거 파일뿐이고 `app`·`components`·`lib`·`db`·`design`·`scripts`에는 변경이 없다.
+
+**Gaps(미검증)**: 이번에 `vitest run` 전체와 `visual:verify`는 다시 돌리지 않았다. 앱·단위 시험·디자인 파일이 `2ed735b`와 같아서(위 diff) 그 시점 결과(Claim 112)를 인용한다. `pnpm verify:flag-runtime`, 커버리지, 전체 `format:check`(`origin/main`에서도 실패하는 기존 3개 파일)도 돌리지 않았다. 원격 CI는 푸시 뒤 조회해 PR 본문에 적는다.
+
+**Residual-risk**: 열린 항목 13, 25~29, 03-D `handoff_mismatch` 문구 승인, 시각 정합 승인은 이번에도 어느 것도 완료 처리하지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았으므로 review-17 PASS의 해시 조건은 이번 변경과 무관하다. `run_status`·`plan_status`는 바꾸지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
