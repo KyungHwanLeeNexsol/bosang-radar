@@ -4112,9 +4112,57 @@ Baseline-attribution: `gh pr view 22` 출력(2026-10-02), 워크플로 파일 �
 
 **Residual-risk**: 병합 직전 백업과 복원 리허설, `0009` 부재 확인은 수행하지 않았다. 병합은 곧 배포라서 위 점검들 뒤에 `main`이 움직이거나 플래그가 바뀌면 이 근거는 낡는다. 사용자 시각 정합 승인과 사용자의 병합 지시는 없다. 열린 항목 25~29와 `unknown_outcome`의 연락처 표시는 그대로 열려 있다. `run_status`·`plan_status`는 바꾸지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았다.
 
+### D-NEW-34 — 병합 직전 최종 점검: 시각 승인 정정, 운영 DB 읽기 전용 사전 상태·백업·복원 리허설, `run_status` 기준 대조 (2026-10-02, 시작 HEAD `e90c01c`)
+
+**범위**: 사용자 지시(2026-10-02)에 따른 병합 전 남은 작업이다. 병합·Draft 해제·`CONSULT_POLICY_READY` 변경·운영 DB 쓰기·마이그레이션 실행은 하지 않았다. 운영 DB와 운영 VM에는 읽기로만 접근했고(이전에 허락받아 수행한 운영 DB 작업의 연장이라는 사용자 지시), 값·시크릿·백업 본문은 이 문서와 PR에 싣지 않는다(저장소가 공개다). 접속 정보가 든 임시 스크립트·설정과 로컬 복원용 임시 DB는 점검 직후 삭제했다. 로그는 gitignored `.moai/state/verify/premerge/`에 있고(운영 표별 행 수가 들어 있어 커밋하지 않는다) 각 로그에 `exit=` 줄이 있다.
+
+**Claim 128 — "시각 승인 대기"를 "현재 구현의 사용자 승인"으로 정정했고, 승인 범위와 검증 한계를 나눠 적었다. 같은 승인을 다시 요구하지 않았다.**
+
+Evidence: D-NEW-32의 `사용자 결정(2026-10-02)` 문단 (5)와 `approval/APPROVAL-PACK.md` §6 결정 5에 "현재 상태를 사용자가 승인했다"가 이미 기록돼 있음을 읽어 확인했다. 사용자가 이번 지시에서 별도의 PR 댓글이나 같은 승인의 재요구 없이 PR·체크리스트의 "시각 승인 대기"를 정정하라고 했다. 정정한 곳: `merge-readiness/MERGE-CHECKLIST.md`(머리말, §5, §6), `APPROVAL-PACK.md` §6.1 신설, PR 본문. 승인 범위는 코드 트리 `aed7dab`가 렌더링하는 상담 화면의 현재 시각 상태이고, 시각 정합 완료·병합 가능·운영 준비·독립 감사 통과는 뜻하지 않는다. 검증 한계 6가지: (1) 03 계열 `scripts/visual-verify.ts`의 `skipMetrics`는 5곳 — 03-B 성공 CTA(`consult-success-back-cta`), 03-C 중복 CTA, 03-D `retry`·`backCta`의 `left`·`width`와 M03 `consult-form`의 `top`(파일을 직접 읽어 확인, 이전 문서의 카드 `top` 제외 3건은 5차 시점 기록); (2) `.pen`에 프레임이 없는 `handoff_mismatch`는 시각 게이트 대상이 아님; (3) `.pen`↔내보내기 "차이 0"은 `a029261` 이전 파일 기준이고 이후 파일은 다시 비교하지 않음; (4) `.pen` 대조는 6프레임뿐(01·02 계열, 03·03-A2 미대조); (5) 시간 미입력 카카오 3행 카드·카카오/시간 미입력 03-D 캡처·320px·Chromium 외 브라우저 미측정; (6) 허용 오차 이내는 동일이 아님.
+
+Baseline-attribution: 커밋 `e90c01c` 트리의 파일 읽기, 이 세션.
+
+**Gaps(미검증)**: 카드 `top`을 현재 게이트가 어떻게 측정하는지는 다시 확인하지 않았다. `.pen` 현재 파일의 픽셀 비교는 하지 않았다.
+
+**Claim 129 — 운영 DB의 `0009` 사전 상태는 기대와 같다: 상담 테이블 2개가 없고 `__drizzle_migrations`는 9행이며, 저널의 `0009`는 적용 대상이다.**
+
+Evidence: 점검 스크립트를 먼저 읽어 SELECT·PRAGMA와 읽기 전용 배치만 쓰는 것을 확인했다. 메인 체크아웃 `.env.local`의 `TURSO_*` 두 값만 읽어 자식 프로세스 환경에 넣고 출력의 URL·호스트·토큰을 가리는 임시 래퍼로 실행했고, 래퍼는 지문이 `6e5256b8`이 아니면 중단한다. 출력: `fingerprint=6e5256b8 expected=6e5256b8 match=true`, `objects=16`, 테이블 13개(기존 목록 그대로, `consultations`·`consultation_rate_limits` 없음), `__drizzle_migrations: 9 rows`, `DONE (read-only)`, `exit=0`(`premerge/discover.txt`). 저널: `db/migrations/meta/_journal.json`은 10개 항목이고 마지막 `0009_abnormal_owl`의 `when`은 1790510327238로 운영 마지막 기록 시각 1789619901242보다 크다(PowerShell로 비교, `True`).
+
+Baseline-attribution: 2026-10-02 한 시점의 운영 DB 읽기.
+
+**Gaps(미검증)**: 이후의 쓰기는 보지 못한다. 병합 직전에 한 번 더 읽는 것을 권장한다. 이 확인은 마이그레이션을 실행해 본 것이 아니다.
+
+**Claim 130 — 최신 백업을 떴고 로컬 복원 리허설이 통과했으며, 새 백업은 기존 기준선 3개와 같다.**
+
+Evidence: 읽기 전용 단일 스냅샷 백업(`turso-backup.mjs`, `client.batch(..., "read")`) 출력 `schema.sha256=d8a6a12d87bb`, `DONE (read-only)`, `exit=0`(`premerge/backup.txt`). 백업 폴더는 저장소 밖 로컬 폴더 `turso-backups/pre-merge-20261002`이고 데이터 파일 13개·manifest 테이블 13개를 확인했다. 로컬 복원 리허설(`turso-restore-rehearsal.mjs`, 원격 접속 없음): 13개 테이블이 모두 `content-sha256-match=true`, `RESTORE REHEARSAL: PASS (모든 테이블 행 수·내용 체크섬 일치)`, `exit=0`(`premerge/rehearsal.txt`). 비교(manifest의 행 수·내용 해시·스키마 해시만 읽는 임시 스크립트): `pre-migrate-0009-20260930-114035`, `d30-retest-b-pre-migrate`, `d30-retest-c-post-revert` 세 기준선 모두 `table-set-same=true schema-sha-match=true content-identical=true`(`premerge/compare.txt`).
+
+Baseline-attribution: 이 세션의 위 실행들. 운영 DB에는 읽기만 했다.
+
+**Gaps(미검증)**: 백업 본문은 운영 데이터이므로 열어 보지 않았고 공개하지 않는다. 복원 리허설은 백업이 읽을 수 있고 완전하다는 증거이지 운영 장애 복구를 시연한 것이 아니다. 백업 이후의 쓰기는 보지 못한다.
+
+**Claim 131 — 최신 HEAD의 코드 트리에서 `verify:flag-runtime`이 통과했고, `format:check`의 실패 3개는 이 PR 때문이 아니다. 서버 코드·마이그레이션·의존성·배포 설정은 바뀌지 않았다.**
+
+Evidence: `pnpm verify:flag-runtime` → `불일치 관측 합계: 0`, `exit=0`(`premerge/flag-runtime.log`). `pnpm format:check` → `exit=1`, 경고 3개: `db/migrations/meta/_journal.json`, `db/migrations/meta/0008_snapshot.json`, `design/MIGRATION-PLAN.md`(`premerge/format-check.log`). `0008_snapshot.json`·`MIGRATION-PLAN.md`는 `git diff --name-only origin/main...HEAD`에 없고, `_journal.json`은 PR이 `0009` 항목을 더했지만 `git show origin/main:db/migrations/meta/_journal.json`의 복사본도 `prettier --check`에서 `exit=1`이다(실패한 대조라 무의미한 통과가 아님). `git diff --name-only 2ed735b HEAD -- app lib db`와 `git diff --name-only aed7dab HEAD`(문서·캡처만)로 서버 코드·마지막 전체 게이트 이후 코드 불변을 확인했다. `git diff -U0 origin/main...HEAD -- package.json`은 npm 스크립트 2줄(`verify:flag-runtime`, `verify:remote-consult`) 추가뿐이고 `pnpm-lock.yaml`·`.github/`·`next.config.*`·`drizzle.config.ts`는 변경이 없다.
+
+Baseline-attribution: 2026-10-02, 현재 트리. tsc·eslint·vitest·e2e 두 모드·`visual:verify`는 D-NEW-32 Claim 121(`aed7dab` 트리)을 인용하며 그 뒤 코드 변경이 없다.
+
+**Gaps(미검증)**: 커버리지, 배포된 앱을 거친 시험, 다중 인스턴스 시험, 변이 시험, 병합 뒤 새 빌드의 smoke는 하지 않았다.
+
+**Claim 132 — 병합 직전 점검(`main`, 운영 플래그, 사전 상태, 변경 여부)에서 보류 사유가 없다. 병합 전 조건은 모두 충족했고 병합 여부는 사용자 지시를 기다린다.**
+
+Evidence: `git fetch` 뒤 `git rev-list --count --left-right origin/main...HEAD` → `0 129`(뒤처짐 0), `origin/main` 머리 `f7ef4ec`. 운영 VM 읽기 전용 재관측(같은 날 두 번): 플래그 5종(`ENABLE_CONSULT_FLOW`, `CONSULT_POLICY_READY`, `ENABLE_DIAGNOSIS_FLOW`, `DIAGNOSIS_ENGINE_READY`, `ENABLE_DIAGNOSIS_DEV_STATES`) 모두 설정되지 않음(`set:false`, `isTrue:false`), 계산된 게이트 모두 `false`, 가동 중인 커밋 `f7ef4ec`, 가동 중인 빌드의 `GET /`는 HTTP 200·"서비스 준비 중입니다"·CSS 청크 참조 포함, 앱 폴더 `.env` 두 곳의 DB 지문 `6e5256b8` 일치(`allMatch:true`). 변경 여부는 Claim 131. 상담 활성화 전 항목(25·26·27·28·29, `unknown_outcome`의 연락처 표시 판단)과 진단 활성화용 smoke 기대 문구 수정은 사용자 지시에 따라 병합 판정에서 분리했다.
+
+Baseline-attribution: 2026-10-02 한 시점의 읽기 전용 관측.
+
+**Gaps(미검증)**: 병합 뒤 새 빌드의 smoke는 보지 못했다(가동 중인 옛 빌드 기준). systemd 등 PM2 바깥의 환경 설정과 `pm2 restart`의 환경 재읽기는 미검증이다. 병합이 곧 배포(`db:migrate` → `build` → `pm2 restart`)이므로 병합 직전에 `main`·플래그·사전 상태를 다시 읽는 것을 권장한다.
+
+**Residual-risk**: 병합 즉시 운영 DB에 `0009`가 적용되고 앱이 재시작된다. PR 자동 CI가 없어 근거는 로컬·원격 하네스·읽기 전용 관측이다. 시각 정합 *완료*, 병합 가능, 운영 준비, 독립 감사 통과를 이 기록으로 선언하지 않는다. `plan_status`는 바꾸지 않았고 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-- `run_status: amended-pending-revalidation`
+- `run_status: audit-ready` — 2026-10-02 갱신(아래 업데이트 21, §E.2 D-NEW-34). 이전 값은 `amended-pending-revalidation`이다. 이 값은 독립 감사를 받을 준비가 됐다는 신호이며 병합 가능·운영 준비·시각 정합 완료·감사 통과를 뜻하지 않는다.
+- `run_complete_at: 2026-10-02`
+- `run_commit_sha: aed7dab` — 마지막 전체 게이트를 돌린 코드 트리다. 그 뒤 커밋은 문서와 캡처만 바꿨다(`git diff --name-only aed7dab HEAD`).
 - **재작업 지시 접수(당시 세션)**: 사용자의 독립 검토가 HEAD `f003e07`이 구현 완료 상태가 아니라고 판정했다 — 이전 버전의 "M1~M6 완료, run-phase 전체 완료" 선언은 정정한다. 바로 위 "M7 후속" 절이 스스로 인정하듯, 신규 03 계열 9화면은 전부 FAIL이고(Claim 3), `ENABLE_CONSULT_FLOW=true` 전체 실행 시 기존 02/M02 5화면도 FAIL한다(Claim 4, 결과 파일은 `git restore`로 커밋에서 제외됨). D-RUN-1~D-RUN-6(헤더/히어로 미구현, 02/M02 통합 회귀, lint React ref 결함, 상담 테스트 실패, 증거 경로 오염, 검증 전 PII 로그 주입) + 추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계) 전부가 해소되고 최종 게이트가 실제 PASS할 때까지 `audit-ready`로 전환하지 않는다.
 - **업데이트(당시 세션)**: D-RUN-1(헤더/히어로 + M03-B/M03-D top FAIL)과 D-RUN-5(증거 경로)는 "D-RUN-1/2/5 재작업" 절의 무제약 전체 24화면 실행(exit 0, 24/24 PASS)으로 실제로 해소됐다 — 근거는 해당 절 참고. D-RUN-2(02/M02 회귀)도 같은 실행으로 PASS를 유지함을 재확인했다(단 "설정된 검증 게이트 기준" PASS이며, 콘텐츠 구조 편차 하나는 SPEC-B2C-RESULT-001로 넘긴 미해결 항목으로 남는다 — 위 "여전히 열려 있음" 6번). 그 세션은 D-RUN-3/D-RUN-4/D-RUN-6과 "추가 점검(rate-limit 트랜잭션 계약, x-forwarded-for 신뢰 경계)"을 재검증하지 않았다.
 - **업데이트 2(당시 세션)**: 사용자가 "24/24 visual PASS만으로 완료·audit-ready를 선언하지 말라"고 재지시했다. "D-RUN 재작업 2" 절에서: (1) 스크롤 복원을 하네스뿐 아니라 실제 제품 코드(`consult-view.tsx`)에도 적용하고 Playwright e2e + vitest 이중 증거로 검증했다(Claim 5). (2) M03-D의 요약 카드 height 차이 일부가 실제로는 "이름" 행이 design.md 결정과 어긋나게 추가돼 있던 콘텐츠 결함이었음을 확인해 해소했다 — height 자체는 측정기 신뢰성 문제로 여전히 미해결(Claim 6). (3) D-RUN-3/D-RUN-4/D-RUN-6을 실제로 재확인했다(Claim 7) — lint/vitest 재실행 + PII 로그 경로 재검토로 전부 여전히 유효함을 확인했다. (4) 무제약 전체 24화면 재실행(Claim 8, exit 0, 24/24 PASS). (5) rate-limit 원자성/X-Forwarded-For 신뢰 경계를 독립된 두 조사로 재감사했다(Claim 9) — **이 (5)의 rate-limit 결론은 다음 세션에서 정정됐다(아래 업데이트 3 참고). X-Forwarded-For는 실제 취약점이 맞아 코드로 고쳤다(마지막 값 신뢰) + RED→GREEN 회귀 테스트로 검증했으며 이 결론은 유지된다.**
@@ -4139,6 +4187,7 @@ Baseline-attribution: `gh pr view 22` 출력(2026-10-02), 워크플로 파일 �
 - **업데이트 18(D-NEW-23, 이번 세션)**: `/`의 정적 `metadata.title`을 `generateMetadata()`로 바꿔 진단 게이트가 열리면 "보상 진단", 닫히면 "서비스 준비 중"을 반환하게 했고, 단위(5행 행렬에서 제목·본문 동반 단언)와 실서버(`verify:flag-runtime`이 `/`·`/result`의 `<title>`도 검사) 두 층으로 검증했다(Claim 73). 수정 후 `tsc`·`lint`·단위(99/837)·e2e(46 + 11)·`visual:verify`(24화면)·`verify:flag-runtime`(`next start`, standalone)이 모두 exit 0이고 `format:check`만 기존 3개 실패로 exit 1이다. T7은 운영 VM에서 **단일 인스턴스로 관측**됐다(PM2 `fork_mode`·`instances` 1·앱 프로세스 1·Nginx `proxy_pass` 1, 2026-09-30 한 시점, Claim 74). 그래서 T7은 현재 구성에서는 적용되지 않지만 코드로 고치지 않았고 "인스턴스를 늘리기 전에 T7 해결" 조건이 남는다. `run_status`는 유지하며 audit-ready나 배포 준비 완료로 선언하지 않는다. [수정 전 코드 기준(당시 기록) — "코드로 고치지 않았고"는 `4c09426` 이전 상태다. 현재 코드의 원격 근거는 Claim 82(원격 T1~T7 7/7 ×2)]
 - **업데이트 19(D-NEW-24, 이번 세션)**: `deploy.yml`의 `ORACLE_HOST`가 관측한 VM을 가리키는지, 시크릿 값을 읽지 않고 배포 실행 로그(run #33의 PID `165278`·↺ `32`·재시작 시각)와 VM 현재 상태(같은 PID·재시작 횟수·초 단위 시각, reflog 6건이 실행 #28~#33과 1:1)를 대조해 **일치로 확인**했다(Claim 75). 범위는 run #33까지의 배포와 2026-09-30 시점의 시크릿 상태이고, 시크릿이 바뀌면 무효다. T7은 **코드 결함으로 남아 있다**(`route.ts:148`의 프로세스 안 `Map`). 코드는 바꾸지 않았고 `CONSULT_POLICY_READY`도 켜지 않았다. `run_status`는 유지하며 audit-ready나 배포 준비 완료로 선언하지 않는다. [수정 전 코드 기준(당시 기록) — "코드 결함으로 남아 있다"와 `route.ts:148`의 프로세스 안 `Map` 설명은 `4c09426` 이전 코드의 것이다. 현재 코드의 원격 근거는 Claim 82(원격 T1~T7 7/7 ×2)]
 - **업데이트 20(D-NEW-26, 이번 세션)**: 사용자가 `4c09426`의 DB 쓰기 트랜잭션에 대한 원격 Turso T1~T7 재시험을 요청했지만, 이 세션 환경에 `TURSO_DATABASE_URL`·`TURSO_AUTH_TOKEN`이 없어(Process·User·Machine 세 범위 조회) 처음에는 수행하지 못했다(Claim 80). 사용자가 `.env.local`의 값을 쓰라고 지시한 뒤 **수행했다: 원격 T1~T7 7/7 통과 2회, 정리와 스키마 원상 복구, 마이그레이션 직전 백업과 13개 테이블·스키마 일치**(Claim 82). Claim 64의 "필수 게이트 6/6 통과"는 `4c09426` 이전 코드의 기록이고, 현재 코드의 근거는 Claim 82다. 재시험에서 5xx와 함께 처리 시간을 얻도록 하네스에 요청별 처리 시간 기록을 추가했다(Claim 81, 라우트 코드는 바꾸지 않음). 필요한 설정과 절차는 런북 §12.8에 적었다. 시각 정합 결정 3건은 승인하지 않았다. `run_status`는 `amended-pending-revalidation`을 유지하며 병합 준비 완료·시각 정합 완료·audit-ready로 선언하지 않는다. (D-NEW-25의 업데이트 항목은 이 목록에 따로 없다. Claim 76-79 참조.)
+- **업데이트 21(D-NEW-34, 2026-10-02) — `run_status`를 `amended-pending-revalidation`에서 `audit-ready`로 갱신했다.** 기준을 완화하지 않고 이 절이 정한 기준을 현재 증거와 사용자 승인에 하나씩 대조했다. (1) 재작업 지시의 D-RUN-1~6과 추가 점검(rate-limit 트랜잭션, `x-forwarded-for` 신뢰 경계): 업데이트 1~4와 10, Claim 50에서 해소됐다. (2) 보류 기준 (a) Nginx `X-Forwarded-For` 운영 확인: 업데이트 10, Claim 50으로 해소됐다. (3) 보류 기준 (b) 요약 카드 높이: 업데이트 9·11·12가 (b)를 완전 해소로 선언하지 않은 이유는 `.pen` 원본 대조, 데스크톱·M03-C, 사용자의 시각 정합 승인, 일부 축 제외였다. 지금은 6개 화면 요약 카드 폭·높이 Δ0(Claim 54, 데스크톱·M03-C 포함), `.pen`↔내보내기 6프레임 차이 0(Claim 79, 당시 파일), 사용자의 시각 정합 승인(2026-10-02, D-NEW-32와 `APPROVAL-PACK.md` §6)이 갖춰졌고, 게이트가 측정하지 않는 축은 사용자가 승인한 범위의 검증 한계로 `APPROVAL-PACK.md` §6.1에 따로 적었다(Claim 128). (4) 최종 게이트가 실제 PASS: tsc·eslint·vitest 939·e2e 49과 11·`visual:verify`는 `aed7dab` 트리에서 `exit=0`(Claim 121), `verify:flag-runtime`은 불일치 0·`exit=0`, `format:check`는 이 PR과 무관한 기존 실패 3개뿐(Claim 131). 그 뒤 코드 변경은 없다. (5) `plan_status: audit-ready`이고 계획 산출물 5종은 `349d8a6` 이후 변경이 없다. **남은 기준은 없다.** 열린 항목 25~29와 13(`unknown_outcome` 부분)은 이 문서의 "Open Decisions for User"가 차단 위험이 아니라 법무·운영·제품 판단이라고 적었고 런북 §11.3이 활성화 전 점검 항목으로 둔 것이라 run-phase 기준이 아니다. 이전에 "미완"이라 적은 것 가운데 지금도 못 한 것(`.pen` 현재 파일의 픽셀 비교, 03·03-A2 대조, 미측정 상태)은 기준이 아니라 `APPROVAL-PACK.md` §6.1의 검증 한계로 남겼다. 이 갱신은 시각 정합 *완료*(모든 축 측정), 병합 가능, 운영 준비, 독립 감사 통과를 선언하지 않는다. 병합·Draft 해제는 사용자 지시를 기다린다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
