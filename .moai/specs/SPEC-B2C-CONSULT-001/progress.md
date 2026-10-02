@@ -4012,6 +4012,60 @@ Baseline-attribution: 커밋 `865360f` 시점의 트리. 이 뒤 커밋은 `prog
 
 **Residual-risk**: 열린 항목 13, 25~29, 03-D `handoff_mismatch` 문구 승인, 시각 정합 승인은 이번에도 어느 것도 완료 처리하지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았으므로 review-17 PASS의 해시 조건은 이번 변경과 무관하다. `run_status`·`plan_status`는 바꾸지 않았다.
 
+### D-NEW-32 — 03-D `handoff_mismatch` 후속: 연락처 마스킹, 동의 재확인 안내, 캡처 갱신, 사용자 결정 기록 (2026-10-02, 시작 HEAD `306b5da`)
+
+**사용자 결정(2026-10-02)**: (1) 03-D `handoff_mismatch` 문구·구성은 현재 그대로 승인. (2) 연락처 마스킹은 `handoff_mismatch`에만 적용(010-****-5678), `unknown_outcome`은 렌더 결과 불변. (3) `handoff_mismatch`용 새 `.pen` 프레임은 만들지 않는다. (4) `handoff_mismatch`의 "입력 내용" 행에 필수 동의 재확인 안내를 덧붙인다. (5) 현재 시각 상태를 사용자가 승인했다(문서 기록만). (6) 열린 항목 28은 활성화 전에 운영 쪽과 확인, 25·26·27은 활성화 전 별도 결정, 29는 미결정. `CONSULT_POLICY_READY`는 꺼 둔다. 모든 명령은 로컬 파일 DB로 실행했고 원격 DB에는 접속하지 않았다. 작업 트리에 `.env*` 파일은 없다. 로그는 gitignored `.moai/state/verify/d-new-32/`에 있고 각 로그에 `exit=` 줄이 있다. 이 절은 `run_status`를 바꾸지 않으며 감사 준비·시각 정합·병합 가능·운영 준비를 선언하지 않는다.
+
+**Claim 117 — 새 단언 4건은 수정 전 코드에서 기대한 이유로 실패했고, `consult-failure.tsx` 수정 뒤 `consult-failure.test.tsx` 21건이 모두 통과했다. `unknown_outcome` 회귀 가드는 수정 전후 모두 통과했다.**
+
+Evidence: RED `pnpm exec vitest run components/consult/consult-failure.test.tsx` → `Tests  4 failed | 17 passed (21)`, `exit=1`(`red.log`). 실패 4건은 "연락처를 마스킹해서 보여주고…"(`expected '…' to contain '010-****-5678'`), "하이픈 없는 입력도…", "정규화할 수 없는 연락처는…"(`'****-9876'`), "입력 내용 행이…"(`'유지됨 · 필수 동의는 다시 확인해 주세요'`)이다. GREEN 같은 명령 → `Test Files  1 passed (1)`, `Tests  21 passed (21)`, `exit=0`(`green.log`).
+
+Baseline-attribution: RED는 시험만 바뀐 트리(`consult-failure.tsx`는 `306b5da` 그대로), GREEN은 커밋 `aed7dab` 트리.
+
+**Gaps(미검증)**: 변이 시험(마스킹 분기를 일부러 깨뜨려 새 단언이 잡는지)은 하지 않았다. RED 실패 4건이 각 단언 대상 동작의 부재에서 나왔음은 위 오류 메시지로만 확인했다.
+
+**Claim 118 — 마스킹 변경은 `handoff_mismatch`에서만 적용된다. 정규화에 실패한 연락처는 던지지 않고 끝 4자리만 남긴다.**
+
+Evidence: `consult-failure.tsx`에 `maskContact()`를 더하고 `notSent`일 때만 `연락처`·`입력 내용` 값을 바꿨다(`lib/`는 수정하지 않고 `normalizePhone`·`maskPhone`을 재사용). `normalizePhone`/`maskPhone` 실측(`pnpm exec tsx probe.ts`, `exit=0`, `probe.log`): `"010-1234-5678"`→`010-****-5678`, `"01012345678"`→`010-****-5678`, `"+82 10-1234-5678"`→`010-****-5678`, `"abc-9876"`·`""`·`"010-12"`→`normalizePhone`이 `null`. `null`일 때의 대체 동작(`maskContact`): 숫자만 뽑아 끝 4자리가 있으면 `****-<끝4자리>`, 숫자가 없으면 `****`이며 예외는 던지지 않는다(단위 시험 "정규화할 수 없는 연락처는 끝 4자리만 남기고 던지지 않는다": `abc-9876` → 화면에 `****-9876`, `abc` 없음). `unknown_outcome` 회귀 가드 단위 시험은 행 값이 연락처 `010-1234-5678`·입력 내용 `유지됨` 그대로이고 `****`·`필수 동의`가 없음을 단언한다.
+
+Baseline-attribution: 커밋 `aed7dab`.
+
+**Gaps(미검증)**: 짧은 번호(`010-12`)처럼 `null`이 되는 입력에서 끝 4자리는 숫자 전체일 수 있어(예: 숫자 3자리면 3자리 모두) "마스킹"으로서의 보호가 약하다. 정상 경로에서는 클라이언트 검증을 통과한 번호만 이 화면에 오므로 도달하지 않는 분기로 보지만 실제 도달 여부는 확인하지 않았다.
+
+**Claim 119 — e2e: `handoff_mismatch` 시험은 마스킹된 연락처·원본 숫자 부재·동의 안내를 단언하고, `unknown_outcome` 시험은 원문 연락처와 "유지됨" 단독 표기를 단언한다. 기존 단언은 하나도 약화하지 않았다.**
+
+Evidence: `e2e/consult-flow-03.spec.ts`에 단언만 추가했다(시험 개수는 그대로). `handoff_mismatch`: `consult-failure-summary`가 `010-****-5678`(`CONSULT_PHONE_MASKED`)과 `유지됨 · 필수 동의는 다시 확인해 주세요`를 포함하고 `01012345678`·`1234`는 포함하지 않는다. `unknown_outcome`: 요약이 `01012345678`을 포함하고 `****`·`필수 동의`는 포함하지 않는다. 입력 복원 시험 2건(`handoff_mismatch`·`unknown_outcome`)은 그대로 둬 같은 실행에서 통과했다. `pnpm test:e2e` → `49 passed (5.0m)`, `exit=0`(`e2e-full.log`). `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` → `11 passed (5.0m)`, `exit=0`(`e2e-policyoff.log`).
+
+Baseline-attribution: 커밋 `aed7dab` 트리. 새 단언은 정책 준비 모드 전용이고 미준비 모드 11건에는 포함되지 않는다.
+
+**Gaps(미검증)**: 새 e2e 단언이 깨진 동작을 잡는지 보는 변이 시험은 하지 않았다.
+
+**Claim 120 — 03-D `handoff_mismatch` 캡처 2장을 새 화면으로 다시 만들었다. 390px에서 "입력 내용" 값은 한 줄이고 가로 넘침이 없다.**
+
+Evidence: 기존과 같은 절차의 임시 Playwright 시험(원본 `handoff_mismatch` 시험을 복사해 `test.only`와 스크린샷을 더함)을 로컬 파일 DB(`TURSO_DATABASE_URL=file:./.tmp/d-new-32.db`)로 실행해 `2 passed`, `exit=0`(`capture-e2e.log`). 임시 시험 파일은 삭제했고 커밋하지 않았다. 390×737: 값 요소 높이 18.75px = 줄 높이 18.75px(한 줄), 값 폭 193.7px, 요약 카드 높이 176px, `scrollWidth` 390 = `clientWidth` 390, 연락처 값 `010-****-5678`, 입력 내용 값 `유지됨 · 필수 동의는 다시 확인해 주세요`. 1440×900: 값 높이 20.25px(한 줄), 카드 200px, `scrollWidth` 1440 = `clientWidth` 1440. 두 PNG를 직접 열어 눈으로 확인했다: 390px은 제목 두 줄, 마스킹된 연락처와 동의 안내가 카드 안에 한 줄로 들어가고 재시도 버튼·안내 박스는 없다. 1440px은 제목 한 줄, 같은 구성에 푸터가 있다. 두 PNG를 `approval/A6-03-D-handoff-mismatch-mobile-390.png`·`A7-03-D-handoff-mismatch-desktop-1440.png`로 올렸다(커밋 `0e911a1`). 올리기 전 점검(저장소가 공개): 화면 값은 시험 데이터(마스킹된 가상 번호, `평일 오후 (13시 ~ 18시)`)이고, 두 PNG에서 `Nexsol|libsql|turso|authToken|Bearer|eyJ|C:.Users|@gmail|tEXt|iTXt|zTXt`를 `grep -a -c -i`로 검색해 각각 0건이었다. 경로 `approval/`은 `git check-ignore`에서 무시 대상이 아니다(추적 경로).
+
+Baseline-attribution: 커밋 `aed7dab`의 코드, Chromium, 전화 채널·연락 희망 시간 입력 상태, 로컬 파일 DB. viewport판과 full판 PNG는 바이트가 같다(`git hash-object` 해시 일치).
+
+**Gaps(미검증)**: 320px 같은 더 좁은 폭, 카카오 채널·시간 미입력 상태, Chromium 외 브라우저는 보지 않았다. 390px에서 줄바꿈이 없으므로 문구·레이아웃 조정은 하지 않았다.
+
+**Claim 121 — 전체 검증이 통과했고, `visual:verify`에서 `unknown_outcome`은 허용 오차 이내였다.**
+
+Evidence(각 로그의 `exit=` 줄과 개수를 읽음): `pnpm exec tsc --noEmit` `exit=0`(`tsc.log`). `pnpm exec eslint .` `exit=0`(`eslint.log`). `pnpm exec vitest run` → `Test Files  103 passed (103)`, `Tests  939 passed (939)`, `exit=0`(`vitest-full.log`). e2e 두 모드는 Claim 119. `TURSO_DATABASE_URL=file:./.tmp/d-new-32-visual.db pnpm visual:verify` → `exit=0`, 마지막 줄 "모든 화면이 허용 오차 이내이며 상태/문구/줄바꿈 불일치가 없습니다."(`visual-verify.log`). `unknown_outcome` 화면인 `03-D`는 `3px 허용 8px PASS`, `M03-D`는 `2px 허용 4px PASS`로 D-NEW-29 기록값(03-D 3px, M03-D 2px)과 같다. `visual:verify`가 다시 쓴 추적 증거(`measurements.json`의 생성 시각과 `SPEC-B2C-CONSULT-001`·`SPEC-B2C-DIAGNOSIS-001`의 diffs·overlays·screenshots·normalized-design PNG)는 의도한 변경이 아니어서 `git restore`로 되돌렸고, 되돌린 뒤 `git status --short`는 의도한 파일만 가리켰다. `prettier --check --ignore-path .prettierignore`: 코드 3개 파일(`consult-failure.tsx`, `consult-failure.test.tsx`, `consult-flow-03.spec.ts`)과 `APPROVAL-PACK.md` `exit=0`.
+
+Baseline-attribution: tsc·eslint·vitest·e2e·visual은 커밋 `aed7dab` 트리(그 뒤 커밋 `0e911a1`은 PNG 2개만 바꿈), 이 세션 실행.
+
+**Gaps(미검증)**: `visual:verify`의 `03-D`·`M03-D`가 허용 오차 이내라는 것이 `unknown_outcome` 렌더가 바이트 단위로 같다는 뜻은 아니다(허용 오차 8px/4px 이내라는 의미). 이번 실행은 렌더 불변을 단위 시험(DOM 행 값)과 e2e 단언으로 따로 고정했다. `pnpm verify:flag-runtime`, 커버리지, 전체 `format:check`는 돌리지 않았다. 원격 CI는 푸시를 하지 않아 조회하지 않았다. Windows에서 원장 이름 변경 EPERM은 이번 실행 중 관측되지 않았다.
+
+**Claim 122 — 사용자 결정 6건을 `approval/APPROVAL-PACK.md`(§5.2 상태, §5.4 캡처 갱신, §6 결정 기록)에 옮겼다. 결정으로 해결된 것은 열린 항목 13의 `handoff_mismatch` 부분뿐이고, 나머지 열린 항목은 완료로 바꾸지 않았다.**
+
+Evidence: `git diff --stat`: `APPROVAL-PACK.md` 24 insertions(+), 7 deletions(-)(문서 1개). 코드 쪽 변경 파일은 `components/consult/consult-failure.tsx`·`consult-failure.test.tsx`·`e2e/consult-flow-03.spec.ts`뿐이고 `spec.md`·`plan.md`·`acceptance.md`·`design.md`, `app/`·`lib/`·`db/`·`scripts/`·`design/`, `.pen`은 수정하지 않았다(plan-audit PASS 해시 조건 유지). 사용자의 시각 상태 승인은 결정으로만 기록했다.
+
+Baseline-attribution: 사용자 메시지(2026-10-02)의 결정 목록을 그대로 옮겼다. 구현자가 새로 확인한 것은 없다.
+
+**Gaps(미검증)**: 열린 항목 13은 `unknown_outcome`이 연락처를 가리지 않아 그 변형에서는 계속 열려 있다. 25·26·27·28·29(상태 확인·취소/삭제 문의 목적지, 03-D 문의 창구, "영업일 기준 1일 이내", 항목 29)는 해결하지 않았고, `CONSULT_POLICY_READY`는 꺼진 채다. 병합 가능·운영 준비·감사 준비는 이 기록으로 선언하지 않는다.
+
+**Residual-risk**: 새 단언들의 변이 감도 미확인. `unknown_outcome`의 원문 연락처 노출은 `.pen` 정합 때문에 남겼으므로 개인정보 관점에서는 그 변형이 열려 있다. 푸시·PR 수정은 하지 않았다(로컬 커밋만).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
