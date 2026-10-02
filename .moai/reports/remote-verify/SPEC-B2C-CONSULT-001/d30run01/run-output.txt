@@ -1,0 +1,100 @@
+$ tsx scripts/verify-remote-consult.ts "run" "--run-id" "d30run01" "--expect-fingerprint" "6e5256b8" "--allow-write-remote"
+대상: bos***.aws*** (스킴 libsql:, 지문 6e5256b8)
+run-id: d30run01  (정리: cleanup --run-id d30run01)
+--- T1 시작
+T1 [PASS] 직접 트랜잭션 커밋 → 커밋 뒤 마커 행이 보인다
+  ok  커밋 뒤 마커 행 수: 기대 1 / 관측 1
+--- T1 PASS
+--- T2 시작
+T2 [PASS] 직접 트랜잭션 롤백 → 예외 뒤 마커 행이 없다
+  ok  트랜잭션이 주입한 예외로 거부됨: 기대 true / 관측 true
+  ok  롤백 뒤 마커 행 수: 기대 0 / 관측 0
+--- T2 PASS
+--- T3 시작
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:19.252Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_failed","errorName":"Error"}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:19.719Z","channel":"kakao","hasResultId":true}
+T3 [PASS] 라우트 DB 실패 → 롤백(카운터 미소비) → 같은 요청 재시도 성공
+  ok  만료 시드 행 삽입: 기대 1 / 관측 1
+  ok  실패 호출은 500 server_error: 기대 {"status":500,"code":"server_error"} / 관측 {"status":500,"code":"server_error"}
+  ok  실패 뒤 rate-limit 행 수(카운터 미소비): 기대 0 / 관측 0
+  ok  실패 뒤 상담 행 수: 기대 0 / 관측 0
+  ok  재시도 전 트리거 없음: 기대 0 / 관측 0
+  ok  재시도는 2xx: 기대 true / 관측 true
+  ok  재시도 성공 응답의 채널·연락 희망 시간(보낸 값 그대로): 기대 {"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"} / 관측 {"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"}
+  ok  저장된 연락 희망 시간(보낸 값과 같아야 함): 기대 평일 오후 2시~4시 / 관측 평일 오후 2시~4시
+  ok  재시도 뒤 request_count(1이어야 하고 2면 이중 소비): 기대 1 / 관측 1
+  ok  재시도 뒤 상담 행 수: 기대 1 / 관측 1
+  ok  재시도 뒤 만료 시드 행 수(라우트의 보관기간 DELETE가 지웠으면 0): 기대 (관찰만) / 관측 0
+  ok  최종 트리거 없음: 기대 0 / 관측 0
+  참고: 요청 처리 시간(ms) — 최소 241.5 / 중앙값 302.4 / 최대 363.2 · 요청별: 실패 유도 호출=241.5, 같은 요청 재시도=363.2
+--- T3 PASS
+--- T4 시작
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:20.497Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:20.820Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:21.166Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:21.504Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:21.830Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.148Z","channel":"kakao","hasResultId":true}
+T4 [PASS] 같은 IP 순차 6건 → 5건 허용 뒤 429
+  ok  앞 5건 2xx 뒤 1건 429(순서): 기대 2xx x5, 429 / 관측 [201,201,201,201,201,429]
+  ok  앞 5건 성공 응답의 채널·연락 희망 시간(보낸 값 그대로, 안 보낸 건 필드 없음): 기대 [{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"}] / 관측 [{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"}]
+  ok  허용(2xx) 수: 기대 5 / 관측 5
+  ok  429 rate_limited 수: 기대 1 / 관측 1
+  ok  5xx/예외 수: 기대 0 / 관측 0
+  ok  이번 키의 상담 행 수: 기대 5 / 관측 5
+  ok  rate-limit request_count 합(6번째 시도까지 셈): 기대 6 / 관측 6
+  ok  라우트가 본 윈도 수(1이어야 함): 기대 1 / 관측 1
+  참고: 관측한 window_start(ms): [1790839080000]
+  참고: 요청 처리 시간(ms) — 최소 295.9 / 중앙값 320.8 / 최대 343.2 · 요청별: 순차 1=319.5, 순차 2=343.2, 순차 3=335.9, 순차 4=322, 순차 5=314.5, 순차 6=295.9
+--- T4 PASS
+--- T5 시작
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.692Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.693Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.693Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.693Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.693Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:22.693Z","channel":"kakao","hasResultId":true}
+T5 [PASS] 같은 IP 동시 6건(서로 다른 키) → 5건 허용 + 429 1건
+  ok  허용(2xx) 수: 기대 5 / 관측 5
+  ok  429 rate_limited 수: 기대 1 / 관측 1
+  ok  5xx/예외 수: 기대 0 / 관측 0
+  ok  이번 키의 상담 행 수: 기대 5 / 관측 5
+  ok  rate-limit request_count 합(6번째 시도까지 셈): 기대 6 / 관측 6
+  ok  라우트가 본 윈도 수(1이어야 함): 기대 1 / 관측 1
+  참고: 관측한 window_start(ms): [1790839080000]
+  참고: 요청 처리 시간(ms) — 최소 324.9 / 중앙값 1063.6 / 최대 1796.8 · 요청별: 동시 1=324.9, 동시 2=863.1, 동시 3=587.1, 동시 4=1612.1, 동시 5=1264, 동시 6=1796.8
+--- T5 PASS
+--- T6 시작
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:24.752Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:24.752Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:24.752Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:24.752Z","channel":"kakao","hasResultId":true}
+{"event":"consultation_request_received","timestamp":"2026-10-01T07:18:24.753Z","channel":"kakao","hasResultId":true}
+T6 [PASS] 같은 키 동시 재시도 5건(단일 프로세스) → 행 1개, 카운터 1
+  ok  이 키의 상담 행 수: 기대 1 / 관측 1
+  ok  2xx 응답 수(첫 201 + 나머지 200 재생): 기대 5 / 관측 5
+  ok  5xx/예외 수: 기대 0 / 관측 0
+  ok  2xx 응답 본문의 서로 다른 종류 수(바이트 동일이면 1): 기대 1 / 관측 1
+  ok  rate-limit request_count 합(재시도는 소비 안 함): 기대 1 / 관측 1
+  ok  라우트가 본 윈도 수(1이어야 함): 기대 1 / 관측 1
+  참고: 상태 분포: [201,200,200,200,200]
+  참고: 요청 처리 시간(ms) — 최소 342.8 / 중앙값 570 / 최대 743.5 · 요청별: 동일키 1=342.8, 동일키 2=438.9, 동일키 3=570, 동일키 4=655.5, 동일키 5=743.5
+--- T6 PASS
+--- T7 시작
+T7 [PASS] 같은 키를 두 프로세스가 동시에 제출 → 행 1개, 동일한 성공 응답, 카운터 1
+  ok  두 프로세스의 상태(정렬: 최초 접수 201 + 재생 200): 기대 [200,201] / 관측 [200,201]
+  ok  5xx/예외 수: 기대 0 / 관측 0
+  ok  2xx 응답 수(둘 다 성공이어야 함): 기대 2 / 관측 2
+  ok  2xx 응답 본문의 서로 다른 종류 수(바이트 동일이면 1): 기대 1 / 관측 1
+  ok  2xx 응답의 채널·연락 희망 시간(최초 접수와 재생 모두 보낸 값 그대로): 기대 [{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"}] / 관측 [{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"},{"status":"success","channel":"kakao","preferredCallTime":"평일 오후 2시~4시"}]
+  ok  이 키의 상담 행 수: 기대 1 / 관측 1
+  ok  rate-limit request_count 합(재시도는 소비 안 함, 2면 이중 소비): 기대 1 / 관측 1
+  ok  라우트가 본 윈도 수(1이어야 함): 기대 1 / 관측 1
+  참고: 상태 분포: [201,200]
+  참고: 요청 처리 시간(ms) — 최소 556.6 / 중앙값 630 / 최대 703.4 · 요청별: 프로세스 1=556.6, 프로세스 2=703.4
+--- T7 PASS
+게이트 7/7 통과
+결과: <repo>/.moai/state/verify/remote/d30run01/results.json
+다음 단계: cleanup --run-id d30run01
+exit=0

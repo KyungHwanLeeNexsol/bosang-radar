@@ -10,6 +10,8 @@
 
 ### 1a. 지금 해소함 (구현자 판단 + 근거)
 
+(D6 행은 2026-10-01에 사용자 결정 5가 반영된 행이라 구현자 판단만으로 해소한 항목이 아니다. 행 안에 그 대체 사실을 적었다.)
+
 | # | 불일치 | 해소 |
 |---|---|---|
 | D1 | `MIGRATION-PLAN.md` §2③ 표는 `03`(`Uli7t`)과 `03-A2`(`EhyPu`)를 서로 다른 노드 ID를 가진 **별개 화면**으로 나열한다. `product.md`도 "03 상담 신청 → [상담 동의] → 03-A2 전화 선택"이라 순차 네비게이션처럼 서술한다. | `design/exports/03-*.png`와 `03-A2-*.png`를 직접 픽셀 대조한 결과 두 파일은 레이아웃·구성 요소가 완전히 동일하고, 오직 채널 라디오 선택 상태(카카오톡 선택 vs 전화 선택)와 "연락 희망 시간" 필드의 필수 여부만 다르다. **이 SPEC은 03과 03-A2를 별도 라우트가 아니라 동일 컴포넌트의 `channel` state 두 값(`"kakao"`/`"phone"`)으로 구현한다** — Pencil 디자인 툴에서 상태별로 프레임을 복제해 내보낸 것일 뿐, 실제 앱에서 별도 페이지 전환은 없다. Mobile 쌍에 `M03-A2`가 애초에 존재하지 않는다는 사실(§2④ 표에 없음, 실제 `design/exports/` 확인 결과 9개 파일 중 Mobile은 M03/M03-B/M03-C/M03-D 4개뿐)이 이 해석을 뒷받침한다 — `M03` 한 화면이 두 채널 상태를 이미 하나로 표현하고 있다. |
@@ -17,11 +19,20 @@
 | D3 | 디자인은 "정하은 손해사정사 · 금융감독원 등록 손해사정사 · 등록정보 확인" 카드로 **특정 담당자**를 미리 배정해 보여준다. | `product.md` §Roadmap A와 이 SPEC의 Out of Scope(§7)가 명시하듯 자동 상담사 배정은 범위 밖이다. 이 SPEC은 이 카드를 **정적 placeholder**("상담 담당자 배정 예정" 수준의 일반 문구, 실명·특정 개인 자격 정보 없이)로 구현한다 — 실제 배정 로직이나 담당자별 데이터 모델은 만들지 않는다. |
 | D4 | 03-B 성공 화면·03-C 중복 화면의 "신청 취소·정보 삭제 문의"/"기존 신청 상태 확인" CTA가 실제 목적지 없이 디자인에만 존재한다. | 기존 `components/result/result-footer.tsx`가 이미 확립한 선례(`href="#"` + "고객 문의: 준비 중")를 그대로 따른다 — 두 CTA 모두 **"준비 중" 스텁**으로 구현하고 죽은 링크(예: 빈 `href="#"`를 실제 이동처럼 보이게 만드는 것)를 만들지 않는다. 실제 신청 상태 조회 기능은 이 SPEC의 범위 밖이다(§7). |
 | D5 | `design/internal/DEV-ONLY-상담-신청-동의-상세-구조.png`의 `{}` 플레이스홀더(보유·이용기간, 수신정보, 이용목적, 수신방법, 동의철회방법)가 사용자 화면에 노출될 위험. | 이 SPEC은 동의 항목의 **구조**(체크박스·필수/선택 라벨·"자세히 보기" 토글 UI 상태)만 구현하고, 상세 펼침 내용의 실제 법무 확정 문구는 구현하지 않는다 — "자세히 보기"를 눌렀을 때 실제 서버가 어떤 문구를 내려줄지는 Open Decision(§9)으로 남기고, run-phase에서는 확정 전까지 상세 펼침 UI 자체를 `CONSULT_POLICY_READY` 조건으로 게이트한다(§4). |
-| D6 | 03-B 성공 화면의 "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다" 문구가 실제 운영 SLA 확정 없이 구체적 시간 약속처럼 읽힐 위험(독립 검토 지적) — 운영 근거 없는 연락 시점 약속은 이 프로젝트가 이미 피하려던 것(§ 원래 D5 해소 근거)과 같은 종류의 문제다. | 문구를 "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"로 교체한다 — 시간 약속을 전혀 하지 않는 중립 표현(§10). API 응답의 `expectedContactWindow` 필드는 제거한다 — 실제 ops SLA가 확정되면 별도 SPEC에서 선택적 필드로 재도입을 검토한다. |
+| D6 | 03-B 성공 화면의 "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다" 문구가 실제 운영 SLA 확정 없이 구체적 시간 약속처럼 읽힐 위험(독립 검토 지적) — 운영 근거 없는 연락 시점 약속은 이 프로젝트가 이미 피하려던 것(§ 원래 D5 해소 근거)과 같은 종류의 문제다. | **[2026-10-01 사용자 결정 5로 대체됨]** 이 SPEC의 이전 해소는 문구를 "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"로 교체해 시간 약속을 전혀 하지 않는 중립 표현을 쓰는 것이었다. 사용자는 이를 되돌려 ".pen 문구 유지, 문서를 코드에 맞춤"을 택했다(사용자 결정 5 — `progress.md`의 `#### 문서 정정과 plan-audit review-13` 절, `사용자 결정(2026-10-01, AskUserQuestion 응답, 감사 FAIL 처리 라운드)` 문단. 이 결정은 "'.pen을 최우선으로' 하라는 지시는 사용자가 했고 문구를 유지한다"는 뜻으로 기록돼 있다). 구현은 `.pen` 문구를 두 곳에 쓴다: 03-B 부제 "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다."(`components/consult/consult-success.tsx:50`), 03-A2 전화 채널 안내 "영업일 기준 1일 이내에 입력하신 번호로 전화드립니다"(`components/consult/consult-channel-selector.tsx:43` `CHANNEL_NOTICE.phone`)(§10). 운영이 이 약속을 지킬 수 있는지는 결정 5가 런북 §11.3의 활성화 전 점검 항목으로 남긴 미해소 사항이며, 이 결정으로 점검이 끝난 것이 아니다 — `.moai/docs/runtime-runbook.md` §11.3의 4번이 이 약속을 점검하는 항목으로 추가돼 있다(커밋 `fb64643`). 그러나 그 점검 자체는 이루어지지 않았다 — 운영이 "영업일 기준 1일 이내" 약속을 지킬 수 있는지는 확인되지 않았고 런북 4번도 "확인되지 않았다"고 적고 있다(`progress.md` 열린 항목 28). API 응답에 `expectedContactWindow` 필드를 두지 않는 결정은 그대로다(성공 응답을 만드는 `app/api/consultations/route.ts:83-92`에 해당 필드가 없다) — 화면 문구는 서버 값이 아니라 정적 문구이며, 이 결정이 응답 형태를 바꾸지는 않는다. |
 
 ### 1b. 사용자 결정 필요 (Open Decisions로 이관)
 
 D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3자 제공 동의 활성화 시점, "기존 신청 상태 확인" 페이지 실제 구현 여부 — 모두 `progress.md` § Open Decisions for User에 목록화한다.
+
+**활성화 전 열린 항목 추가(2026-10-01 보정 라운드, 사용자 결정 7·8·9, `progress.md` `### D-NEW-29`).** 03-C·03-D 문구에서 실행할 수 없는 안내를 뺀 결과, 아래 목적지·운영 절차는 이 앱 안에 **아직 존재하지 않는다**. 번호는 `progress.md` § Open Decisions for User의 목록을 이어 간다(24 다음). 어느 것도 이 문서나 코드가 임의로 정하지 않았고, 해소 전에는 `CONSULT_POLICY_READY`를 켜거나 상담 운영 준비 완료라고 보고하지 않는다.
+
+- 열린 항목 25 — "기존 신청 상태 확인"(03-C 스텁)이 가리킬 목적지와 조회 기능. 둘 다 없다(열린 항목 4와 같은 쟁점의 활성화 전 점검 항목).
+- 열린 항목 26 — 실제 신청 취소·"신청 취소 · 정보 삭제 문의"(03-B 스텁 버튼, 03-C 안내가 말하는 취소)의 목적지와 운영 절차(담당, 본인 확인 방법, 처리 기한). 취소 수단이 없다.
+- 열린 항목 27 — 03-D 실패 상태에서 이용자가 문의할 실제 창구. 앱 안에 문의 목적지가 없어 03-D 안내에서 카카오톡 문의 문장을 뺐다(결정 7).
+- 열린 항목 28 — "영업일 기준 1일 이내" 연락 약속(03-B 부제, 03-A2 전화 채널 안내)을 운영이 지킬 수 있는지. 확인되지 않았다(런북 §11.3 4번은 점검 항목일 뿐 확인된 것이 아니다).
+- 열린 항목 29 — 03-C 부제 "같은 진단 결과로 접수된 신청이 처리 중입니다."와 처리 상태 라벨 "상담 대기 중"이 운영 현실과 맞는지. 확인되지 않았다.
+- 열린 항목 13(03-D에서 입력한 연락처를 마스킹 없이 다시 표시하는 데 대한 개인정보 검토)은 그대로 열려 있다.
 
 ## 2. 사용자 흐름 계약
 
@@ -32,8 +43,8 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
   → 03 화면: 진단 결과 요약(재사용) + 채널 선택 + 입력 폼 + 동의
   → 제출(이중 클릭 방지) → POST /api/consultations
   → 응답 분기: success | duplicate | error(validation/rate_limited/server_error)
-  → 03-B / 03-C / 03-D 렌더링
-  → "진단 결과로 돌아가기"(모든 상태 공통) 또는 재시도(03-D만)
+  → 03-B / 03-C / 03-D 렌더링 (03-D는 `reason`으로 `unknown_outcome` / `handoff_mismatch` 두 변형 — 제출 직전 핸드오프 재조회가 달라 요청을 보내지 않으면 `handoff_mismatch`, 서버 error·fetch 예외 등은 `unknown_outcome`, §10)
+  → "진단 결과로 돌아가기"(03-B·03-C) 또는 "이전 화면으로 돌아가기"(03-D 두 변형 모두) — 모두 `/result` 링크 — 또는 재시도(03-D의 `unknown_outcome` 변형만)
 ```
 
 ### 2.1 `/consult` 라우트
@@ -56,8 +67,25 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 | JSON 파싱 실패 | `{status:"invalid"}` → 03 전용 오류 상태(REQ-B2CCONSULT-008, 02의 REQ-B2CRESULT-014와 동형). |
 | 스키마 버전 불일치 | `DiagnosisResultSchema.safeParse`가 이미 `schemaVersion` 리터럴을 강제하므로 `invalid`로 귀결 — 03이 별도 버전 검사를 추가하지 않는다. |
 | 오래된 결과의 사용 가능 여부 | 02가 이미 확립한 "탭 세션 동안 유지, 명시적 트리거 전까지 만료 없음" 정책을 그대로 상속한다 — 03은 별도의 신선도(TTL) 개념을 도입하지 않는다(신규 신선도 게이트를 만드는 것은 02가 이미 내린 결정을 재검토하는 것이므로 이 SPEC의 범위 밖으로 둔다). |
-| 상담 신청 완료 후 draft 삭제 | 제출 성공 시 `clearConsultationDraft()`를 호출한다(REQ-B2CCONSULT-025, §2.3) — **`DiagnosisResult` 핸드오프 자체는 삭제하지 않는다.** 이유: 성공·중복·실패 화면 모두 "진단 결과로 돌아가기" CTA를 제공하며(§10), 이 CTA로 `/result`에 복귀했을 때 제출 이전과 동일한 결과가 다시 보여야 한다(REQ-B2CCONSULT-009 원칙의 연장) — 핸드오프를 지우면 이 복귀 경로가 깨진다. `DiagnosisResult` 핸드오프는 아래 행의 기존 정책(새 진단 시작 시 `clearDiagnosisHandoff()`)에 의해서만 계속 제거된다. |
+| 상담 신청 완료 후 draft 삭제 | 제출 성공 시 `clearConsultationDraft()`를 호출한다(REQ-B2CCONSULT-025, §2.3) — **`DiagnosisResult` 핸드오프 자체는 삭제하지 않는다.** 이유: 성공·중복 화면은 "진단 결과로 돌아가기", 실패 화면은 "이전 화면으로 돌아가기" CTA를 제공하며(모두 `/result` 링크, §10), 이 CTA로 `/result`에 복귀했을 때 제출 이전과 동일한 결과가 다시 보여야 한다(REQ-B2CCONSULT-009 원칙의 연장) — 핸드오프를 지우면 이 복귀 경로가 깨진다. `DiagnosisResult` 핸드오프는 아래 행의 기존 정책(새 진단 시작 시 `clearDiagnosisHandoff()`)에 의해서만 계속 제거된다. |
 | 새 진단 시작 시 draft 초기화 | `components/diagnosis/diagnosis-flow.tsx`의 기존 "새 진단 시작" 액션이 이미 `clearDiagnosisHandoff()`를 호출한다 — 이 SPEC은 그 호출 지점에 `clearConsultationDraft()`(§2.3) 호출을 한 줄 추가한다(§5 허용된 기존 파일 확장 목록 참고). |
+
+### 2.2.1 hydration 안전 읽기 — 2단계 렌더 (서버 HTML과 첫 브라우저 렌더의 일치)
+
+**관찰된 결함(run-phase 후속, 커밋 `2230e2b`)**: `readDiagnosisHandoff()`는 `window`가 없으면 `{status:"empty"}`를 반환한다. 그래서 서버 HTML에는 "먼저 진단 결과가 필요합니다" 안내가 들어가는데, 브라우저의 첫 렌더는 `sessionStorage`의 실제 handoff를 읽어 폼을 그렸다. 유효한 handoff가 있는 상태에서 `/consult` 전체 로드나 새로고침을 하면(정책 준비·미준비 모두) 텍스트 콘텐츠가 어긋나 React #418이 발생했다. 텍스트 콘텐츠 불일치는 hydration이 재조정하지 않는다. `?channel=` 쿼리·draft·`idempotencyKey`도 브라우저 전용 값이라 같은 이유로 서버 HTML과 어긋날 수 있었다.
+
+**계약**: `components/consult/consult-view.tsx`는 두 단계로 나뉜다. 브라우저 전용 값(`sessionStorage`의 handoff·draft, `window.location.search`의 `?channel=`, 무작위 `idempotencyKey`)은 1단계를 지난 뒤의 클라이언트에서만 읽는다.
+
+| 단계 | 컴포넌트 | 동작 |
+|---|---|---|
+| 1 (서버 HTML · hydration 렌더) | 바깥 `ConsultView` | `React.useSyncExternalStore`로 handoff를 읽는다. 서버 스냅샷은 항상 `loading`이고, 클라이언트 스냅샷은 `readDiagnosisHandoff()`를 마운트당 1회 계산해 캐시하며, `subscribe`는 갱신을 구독하지 않는 no-op이다(`components/result/result-view.tsx`와 같은 패턴). `loading`일 때는 `<ConsultHeader variant="form" />`과 빈 `consult-loading` 컨테이너(`aria-busy="true"`)만 렌더링한다 — empty/invalid 안내도 폼도 들어가지 않는다. |
+| 2 (hydration 이후, 클라이언트 전용) | 안쪽 `ConsultViewBody` | `loading`을 벗어난 뒤에만 마운트되며 이전 로직을 그대로 가진다: draft 복원, 채널 우선순위(draft > URL `?channel=` > 기본 `kakao`), `idempotencyKey` 생성·재사용, 마운트 시점 `resultId` 캡처, `handleSubmit`(제출 직전 handoff 재조회 포함), empty/invalid/success/duplicate/failure 분기, `persistDraft`의 `!isPolicyReady` 쓰기 가드(§2.3). |
+
+**파급(문서화된 결과)**:
+- 서버 HTML과 hydration 완료 사이에는 헤더만 보이고 본문은 비어 있는 짧은 구간이 생긴다.
+- handoff 스냅샷은 마운트당 1회만 읽는다(이전에는 렌더마다 다시 읽었다). 제출 시점의 재조회는 그대로 유지되므로 다른 탭에서 새 진단으로 교체된 handoff는 `handoff_mismatch`로 여전히 감지되며, 이 경로는 요청을 보내지 않고 03-D의 `handoff_mismatch` 변형을 표시한다(§9.1, §10).
+- REQ-B2CCONSULT-007/008/009의 판정 규칙(empty/invalid/valid 3갈래, 새로고침 시 동일 `resultId`, TTL 없음)은 바뀌지 않는다. 바뀌는 것은 표시 시점뿐이다 — 올바른 분기는 hydration 이후에 나타난다.
+- 검증: 서버 마크업을 흉내 낸 단위 테스트(`window`를 가린 렌더 + `hydrateRoot` + `onRecoverableError`)와 프로덕션 빌드 e2e(`registerHydrationTests`, §5 10번)가 정책 준비·미준비 두 상태에서 전체 로드와 `page.reload()`를 각각 확인한다.
 
 ### 2.3 상담 폼 draft — `lib/consult/draft.ts`
 
@@ -66,9 +94,15 @@ D5의 실제 법무 문구, 등록정보 확인 링크의 실제 목적지, 제3
 - 키: `bosang-radar:consultation-draft-v1`.
 - 스키마: `ConsultationDraftSchema`(`lib/consult/schema.ts`) — **`z.strictObject`**로 정의한다(알 수 없는 키 거부). 명시적 `draftVersion: z.literal(1)`(또는 그 시점의 현재 버전 리터럴) 필드를 필수로 포함하며, 그 외 저장 필드(`channel`/`name`/`contactRaw`/`preferredCallTime`/`marketingConsent`/`idempotencyKey`)는 모두 `.optional()`이다 — strict(알 수 없는 키·구버전 거부) + 개별 필드 optional(폼 진화에 유연 대응) 두 원칙을 동시에 만족한다. **필수 동의 두 항목의 체크 상태는 draft에 저장하지 않는다** — 새로고침 후에도 매번 다시 명시적으로 체크해야 한다(동의 재확인 원칙, §3 참고).
 - 파싱 실패(손상된 JSON), 스키마 검증 실패(알 수 없는 키 포함), 또는 `draftVersion`이 현재 버전과 다를 때 — 어느 경우든 02의 `handoff.ts`처럼 `invalid` 오류 상태로 분기하지 **않는다** — 오류를 던지지 않고 조용히 빈 draft로 폴백한다(폼이 비어있는 것으로 시작할 뿐, 사용자가 진단 결과 자체를 잃는 것이 아니므로 오류 상태로 만들 만큼 치명적이지 않다는 판단, Enforce Simplicity).
-- 저장 시점: 필드 blur 또는 제출 시도 시(매 keystroke마다 쓰지 않음 — 불필요한 쓰기 최소화).
+- 저장 시점: 정책 준비 상태(`isPolicyReady=true`)에서만, 마운트 시 초기 1회·필드 blur(이름·연락처·연락 희망 시간)·채널 변경·마케팅 동의 변경 때(매 keystroke마다 쓰지 않음 — 불필요한 쓰기 최소화). 제출 핸들러는 draft를 쓰지 않는다 — 제출 성공 때 지우기만 한다. 정책 미준비 상태는 아래 "정책 미준비 상태 — draft 쓰기 없음" 참고.
 - 제거 시점: (a) 상담 신청 성공 시 `clearConsultationDraft()`, (b) 새 진단 시작 시(§2.2).
-- `idempotencyKey`: draft가 최초 생성될 때(폼 마운트 시) `crypto.randomUUID()`로 1회 생성되어 draft에 저장된다 — 실패 후 재시도 시에도 **같은 키**를 재사용한다(§8).
+- `idempotencyKey`: draft가 최초 생성될 때(폼 마운트 시) `crypto.randomUUID()`로 1회 생성되어 draft에 저장된다(정책 준비 상태에서만 — 아래 참고) — 실패 후 재시도 시에도 **같은 키**를 재사용한다(§8).
+- **정책 미준비 상태 — draft 쓰기 없음**(REQ-B2CCONSULT-006 예외, AC-B2CCONSULT-006 추가 시나리오): `isPolicyReady`가 거짓이면(§4) 클라이언트는 draft를 어떤 경로로도 쓰지 않는다 — 마운트 시 초기 기록, 필드 blur, 채널 변경, 마케팅 동의 변경 모두 해당한다.
+  - **근거**: draft의 목적은 입력 편의와 재시도 시 같은 `idempotencyKey` 재사용인데, 둘 다 제출이 가능한 상태에서만 의미가 있다. 정책 미준비는 "실제로 개인정보 수집을 시작해도 되는가"가 아니오인 리뷰 상태이고(§4, §4.1) 서버도 이 상태에서는 PII 레코드를 만들지 않는데, 이 상태에서 원문 이름·연락처를 `sessionStorage`에 남기는 것을 고려하거나 승인한 항목을 이 SPEC의 산출물에서 찾지 못했다(키워드 grep 기준이며 다른 표현까지 전수 확인한 것은 아니다). 근거 없는 원문 PII를 지속 저장소에 쓰지 않는다는 사용자 결정에 따른다.
+  - **읽기는 종전과 같다**: draft 읽기(복원)는 아무것도 쓰지 않으므로 정책 상태와 무관하게 유지되며, 위 손상·알 수 없는 키·구버전 폴백도 그대로 적용된다.
+  - **폼 화면 상태는 영향받지 않는다**: 입력·표시되는 값, 채널 선택, 동의 체크는 메모리(컴포넌트 상태)에서 그대로 조작·표시된다. 이 상태에서 마운트 시 생성된 `idempotencyKey`도 컴포넌트 상태에만 존재하고 draft에는 기록되지 않는다(제출이 불가능해 재사용될 일이 없다).
+  - **알려진 잔여**: 같은 탭에서 정책 준비 상태에 기록된 draft가 이미 `sessionStorage`에 남아 있으면, 정책 미준비 상태의 `/consult`는 그 draft를 갱신도 삭제도 하지 않는다(새 진단 시작 시의 `clearConsultationDraft()`(§2.2)는 정책 상태와 무관하게 종전대로 동작한다). `sessionStorage`는 탭 범위이고 정책 준비→미준비 전환은 재배포·재기동을 요구하므로 이 조합은 좁으며, 수용된 잔여로 기록하고 별도 정리 로직은 추가하지 않는다.
+  - 준비 상태(`isPolicyReady=true`)의 동작 — 재시도 시 같은 payload 재사용(REQ-B2CCONSULT-022), 성공 시 draft 정리(REQ-B2CCONSULT-025) — 은 이 예외의 영향을 받지 않는다(두 경우 모두 제출이 가능한 상태에서만 발생한다).
 
 ## 3. CTA 활성화 계약
 
@@ -106,13 +140,15 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 | `true` | `false` | 03 화면은 리뷰 가능하지만 실제 제출은 불가능하다 — 클라이언트는 제출 버튼을 실제 제출 대신 안내로 대체하고, 서버는 독립적으로 저장을 거부한다(503/`policy_unavailable`, §6.1, §9.1). |
 | `true` | `true` | 실제 상담 신청 제출이 가능하다. |
 
+**`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`일 때의 클라이언트 동작**(REQ-B2CCONSULT-005, AC-B2CCONSULT-005 추가 시나리오): `app/consult/page.tsx`는 `computeConsultFlags(process.env).isPolicyReady`를 03 폼 뷰(`consult-view.tsx`)에 prop으로 전달하고, 뷰는 이 값을 동의 그룹(`consult-consent-group.tsx`)과 제출 영역(`consult-submit-bar.tsx`) 양쪽에 전달한다. `isPolicyReady`가 거짓이면 제출 영역은 제출 버튼(`data-testid="consult-submit-button"`) **대신** 안내 영역(`role="status"`, `aria-live="polite"`)을 렌더링하며, 이 상태에서는 필수 동의 체크·입력 유효성과 무관하게 제출 영역을 클릭·탭하거나 키보드로 조작해도 `POST /api/consultations` 요청이 발생하지 않는다. 03 폼에는 `<form>` 요소와 Enter 제출 핸들러가 없으므로 어떤 정책 상태에서도 제출은 제출 버튼 클릭(키보드로는 포커스된 버튼의 활성화)으로만 가능한데, 이 상태에서는 그 버튼이 렌더링되지 않는다(현재 설계의 사실 기술이며 새 요구가 아니다). 이 상태에서는 상담 폼 draft도 쓰지 않는다(§2.3 — 제출이 불가능한 상태에서 원문 이름·연락처를 `sessionStorage`에 남길 근거가 없다). 채널 선택기·입력 필드·동의 그룹은 그대로 표시·조작할 수 있어 리뷰어가 화면을 검토할 수 있다(동의 그룹의 "자세히 보기" 상세 펼침은 §1 D5의 기존 `CONSULT_POLICY_READY` 게이트를 그대로 따른다). 안내 문구는 §1 D4가 따른 `result-footer.tsx`의 "준비 중" 스텁 선례에 맞춘 **잠정 문구**로 `"상담 신청은 아직 준비 중입니다. 준비가 끝나면 이용하실 수 있어요."`를 쓴다 — 법무·운영이 확정한 문장이 아니며(§1b가 `progress.md` § Open Decisions for User로 이관한 법무·운영 확정 항목군과 같은 성격이다) 확정되면 `lib/consult/consent-policy.ts` 공용 상수 모듈의 값만 교체한다. 이 클라이언트 대체는 UX 계층일 뿐 권위가 아니다 — 저장 거부의 권위는 항상 서버(§6.1, §9.1의 503/`policy_unavailable`)에 있으며, 클라이언트가 안내로 대체하지 않았거나 우회당하더라도 서버는 독립적으로 저장을 거부한다. `isPolicyReady`가 참이면 제출 영역은 기존 동작(제출 버튼, 이중 제출 방지)을 그대로 유지한다.
+
 이 SPEC의 `ENABLE_CONSULT_FLOW`는 "코드가 배포됐는지"만 게이트하고, "동의 문구가 법무 확정됐는지"는 게이트하지 않는다(두 조건을 혼동하지 않는다) — 후자는 `CONSULT_POLICY_READY`의 몫이다.
 
 ### 4.1 리뷰/개발 환경에서 실사용자 PII 오염 방지
 
 이 프로젝트는 Oracle Cloud 단일 VM에 GitHub Actions로 직접 배포하는 구조이며 별도로 격리된 프리뷰 환경이 없다(`tech.md` § Oracle Cloud Always Free VM, `research.md` §6). 이 조건에서 리뷰 산출물(시각 회귀 스크린샷)이 실제 프로덕션 API를 호출해 진짜 레코드를 만들 위험을 두 겹으로 막는다:
 
-1. **1차 방어(클라이언트 설계)**: `pnpm visual:verify`의 `03`/`M03` 스크린샷은 폼을 채우기만 하고 실제로 제출 버튼을 누르지 않는다(§12) — `03-B`/`03-C`/`03-D`(성공/중복/실패) 상태 스크린샷은 `devConsultState` 쿼리 파라미터로 결정론적으로 렌더링되는 **클라이언트 전용 우회 경로**이며 실제 `POST /api/consultations` 호출을 전혀 발생시키지 않는다(§12, 기존 계약 유지).
+1. **1차 방어(클라이언트 설계)**: `pnpm visual:verify`의 `03`/`M03` 스크린샷은 폼을 채우기만 하고 실제로 제출 버튼을 누르지 않는다(§12) — `03-B`/`03-C`/`03-D`(성공/중복/실패) 상태 스크린샷이 `devConsultState` 쿼리 파라미터로 결정론적으로 렌더링되는 클라이언트 전용 우회 경로이며 `POST /api/consultations`를 발생시키지 않는다는 이 계획 시점의 서술은 현재 코드와 맞지 않는다: `devConsultState`를 처리하는 코드는 없다(`grep -rn devConsultState components app lib e2e scripts`는 `scripts/visual-verify.ts` 주석 3곳만 찾는다). 현재 `03-D`는 폼을 채운 뒤 `POST /api/consultations`를 `route.abort`로 중단해 도달한다(커밋 `9c057c9`, `scripts/visual-verify.ts` `gotoConsultFailure`) — 요청은 발생하되 서버에 닿지 않으므로 레코드가 만들어지지 않는다. `03-B`/`03-C`는 `scripts/visual-verify.ts` 주석(404~418행)이 실제 제출로 도달한다고 적고 있어 이 문장의 옛 서술과 어긋나지만, 이 정정은 03-D만 다루며 03-B·03-C의 도달 경로와 PII 방어 서술은 이 행에서 다시 검토하지 않았다(미해소).
 2. **2차 방어(서버 자체 검증)**: 리뷰어가 실수로 실제 폼을 수동 제출하더라도, 서버는 클라이언트가 보낸 어떤 값도 신뢰하지 않고 자기 자신의 환경 변수 `CONSULT_POLICY_READY`를 직접 확인한다(§6.1) — 법무 확정 전까지는 프로덕션 환경에서도 이 값을 `false`로 유지하므로, 실제 PII 레코드는 이 값이 명시적으로 `true`로 전환되기 전까지 어떤 경로로도 저장되지 않는다.
 
 ### 4.2 환경 변수 활성화 판정 · `lib/env.ts` 검증 범위 · 배포 체크리스트 (독립 검토 D14, D16 확정)
@@ -130,7 +166,7 @@ isPolicyReady = isFlagEnabled(env.CONSULT_POLICY_READY)
 - [ ] `ENABLE_CONSULT_FLOW=true` 설정(03 화면·API 배포 활성화).
 - [ ] `CONSULT_POLICY_READY=true`는 법무·운영이 동의 문구를 최종 확정한 **이후에만** 설정한다 — 이 값이 `true`로 전환되는 순간부터 `RATE_LIMIT_HMAC_SECRET`이 `lib/env.ts` 조건부 필수 검증 대상이 된다.
 - [ ] `RATE_LIMIT_HMAC_SECRET`을 `CONSULT_POLICY_READY=true`로 전환하기 전 반드시 실제 비밀값으로 설정한다(부재 시 `lib/env.ts` 조건부 필수 검증이 기동 시점에 명확히 실패한다; 설령 검증을 우회해 기동되더라도 §9.3의 API 계층 fail closed로 모든 실제 접수가 500 처리된다) — 이 값 자체는 어떤 저장소·설정 템플릿에도 커밋하지 않는다.
-- [ ] Nginx가 `x-forwarded-for` 헤더를 정확히 전달하는지 확인한다(§9.3) — 이 헤더를 얻지 못하면 rate limit 판정도 fail closed로 접수를 막는다.
+- [ ] 앱이 단일 신뢰 프록시(Nginx)를 거쳐서만 도달 가능한지 확인한다(§9.3) — Next.js가 `127.0.0.1`에만 바인딩되고 앞단에 추가 신뢰 hop(CDN 등)이 없어야 하며, Nginx가 `x-forwarded-for`를 정확히 한 번 append 또는 overwrite해야 한다. rate limit 키는 이 헤더의 **가장 오른쪽 값**이다. 헤더가 없어도 Next.js 16.3.2가 소켓 주소를 채워 넣으므로 "헤더 부재 → fail closed"는 이 항목의 안전장치가 아니다(§9.3) — 이 배포 전제가 깨져 앱이 직접 노출되면 클라이언트가 조작한 값으로 rate limit이 우회될 수 있다(`progress.md` Claim 11 표의 '가정 위반' 행). 실제 확인 절차 4항목은 `progress.md` Claim 11.
 
 ## 5. 신규 파일 트리 + 허용된 기존 파일 확장
 
@@ -144,15 +180,15 @@ app/
         └── route.ts                      [신규] POST 핸들러
 
 components/consult/
-├── consult-view.tsx                      [신규] "use client" — 마운트 시 핸드오프+draft 조회, 상태 분기
+├── consult-view.tsx                      [신규] "use client" — 바깥 ConsultView(useSyncExternalStore, 서버 스냅샷 loading)와 hydration 이후에만 마운트되는 ConsultViewBody(핸드오프+draft 조회, 상태 분기), §2.2.1
 ├── consult-summary-card.tsx              [신규] 진단 결과 요약(computeAggregate 재사용)
 ├── consult-channel-selector.tsx          [신규] 카카오톡/전화 라디오
 ├── consult-form.tsx                      [신규] 이름/연락처/연락 희망 시간
 ├── consult-consent-group.tsx             [신규] 필수 2 + 선택 1 동의, 상세 보기(Modal/BottomSheet)
-├── consult-submit-bar.tsx                [신규] 제출 CTA + 이중 제출 방지
+├── consult-submit-bar.tsx                [신규] 제출 CTA + 이중 제출 방지(`isPolicyReady`가 거짓이면 제출 CTA 대신 안내 영역, §4)
 ├── consult-success.tsx                   [신규] 03-B/M03-B
 ├── consult-duplicate.tsx                 [신규] 03-C/M03-C
-├── consult-failure.tsx                   [신규] 03-D/M03-D
+├── consult-failure.tsx                   [신규] 03-D/M03-D (`reason` 속성으로 `unknown_outcome`(기본)·`handoff_mismatch` 두 변형, §10)
 ├── consult-no-data.tsx                   [신규] 핸드오프 부재
 ├── consult-error.tsx                     [신규] 핸드오프 파싱/스키마 오류
 └── *.test.tsx                            [신규] 각 컴포넌트 대응 테스트
@@ -163,6 +199,7 @@ lib/consult/
 ├── draft.ts                              [신규] sessionStorage draft read/write/clear
 ├── phone.ts                              [신규] 연락처 정규화/표시 포맷/마스킹
 ├── dedupe.ts                             [신규] 정규화 연락처 기반 비즈니스 중복 키 도출(순수 함수, 서버·클라이언트 공유 가능)
+├── consent-policy.ts                     [신규] 동의 정책 버전 상수(`CONSENT_POLICY_VERSION`)와 정책 미준비 안내 문구(`CONSULT_POLICY_NOT_READY_NOTICE`) — 서버·클라이언트 공용 상수 단일 소스(§4, §6.1)
 └── *.test.ts                             [신규]
 
 e2e/
@@ -172,15 +209,30 @@ db/migrations/
 └── 000N_*.sql                            [신규] `pnpm db:generate` 산출물(파일명은 drizzle-kit이 결정)
 ```
 
-**허용된 기존 파일 최소 확장(정확히 7개, `plan.md` §D 제약)**:
+**허용된 기존 파일 최소 확장(계획 시점에 열거한 12개, `plan.md` §D 제약 — 원래 7개 + run-phase M3 발견 2개(8·9번) + run-phase M2·M7 발견 3개(10~12번, 2026-09-29 세션 사용자 결정으로 사후 문서화·승인). 이 중 6번 `.env.local.example`은 plan-phase 커밋 `a106ac9`에 이미 반영되어 run-phase에서 실제로 수정된 파일은 이 목록 안에서는 11개다. 이 12개가 run-phase에서 수정된 기존 파일의 전부는 아니다 — 목록 밖 수정은 아래 12번 뒤의 "목록 밖 사후 수정"에 사실대로 적는다)**:
 
 1. `components/result/result-cta-bar.tsx` — 4개 stub 버튼을 실제 `<Link href={...}>` 네비게이션으로 교체(`aria-disabled`/no-op 핸들러 제거, `shouldRenderConsult`가 거짓이면 기존 stub 동작 유지).
 2. `components/diagnosis/diagnosis-flow.tsx` — 새 진단 시작 액션의 기존 `clearDiagnosisHandoff()` 호출 옆에 `clearConsultationDraft()` 호출 한 줄 추가.
 3. `lib/diagnosis/flags.ts` — `computeConsultFlags(env)` export 함수 추가(§4).
-4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목 수정 금지, §10).
+4. `scripts/visual-verify.ts` — `SCREENS` 배열에 9개 항목 **추가**(기존 15개 항목은 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정 외 수정 금지, §12).
 5. `lib/db/schema.ts` — `consultations` 테이블 **및** `consultationRateLimits` 보조 테이블 정의 추가(§6, §9.3, 기존 12개 테이블 정의는 수정하지 않는다).
 6. `.env.local.example` — `ENABLE_CONSULT_FLOW`/`CONSULT_POLICY_READY`/`RATE_LIMIT_HMAC_SECRET` 3개 변수의 안전한 플레이스홀더 항목 추가(§4.2, 이미 존재하는 설정 템플릿 파일이며 애플리케이션 코드가 아니다).
 7. `lib/env.ts` — `RATE_LIMIT_HMAC_SECRET`의 조건부 필수 검증 추가(`CONSULT_POLICY_READY === "true"`일 때만 필수, §4.2). **확정된 결정이며 run-phase 전용 작업**이다 — 이 plan-phase 세션은 이 파일을 수정하지 않으며, 여기서는 확정된 7번째 확장 대상으로 기술만 한다.
+8. `app/result/page.tsx` — `computeConsultFlags(process.env).shouldRenderConsult`를 계산해 `<ResultView>`에 prop으로 전달(기존 `enableDevFixture` prop 전달 패턴과 동일, run-phase M3 발견).
+9. `components/result/result-view.tsx` — 전달받은 prop을 3개 CTA 컴포넌트(`ResultTopBarCta`/`ResultDisabilitySectionCta`/`ResultFinalCta`)에 다시 prop으로 전달만 함(run-phase M3 발견).
+10. `playwright.config.ts` — `webServer.env`에 `ENABLE_CONSULT_FLOW="true"`·`CONSULT_POLICY_READY="true"`·`RATE_LIMIT_HMAC_SECRET`(IP 해싱 전용 비시크릿 테스트 리터럴) 3개 주입 추가, 기존 `PORT`·`ENABLE_DIAGNOSIS_DEV_STATES`는 유지(run-phase M7 발견, §4/§4.2). 이 `webServer`는 01/02 e2e 스펙과 공유되므로 01/02 스펙 파일은 수정하지 않고(`git diff --name-status a106ac9..HEAD -- e2e/`가 `e2e/consult-flow-03.spec.ts`(A)만 출력) 이 확장된 env 아래에서 회귀 검증 대상으로만 재실행한다. **run-phase 후속(hydration #418 수정, 커밋 `2230e2b`)**: `CONSULT_POLICY_READY`는 프로덕션 빌드·부팅 시점에 굳는 서버 플래그라 한 번의 e2e 실행에서 준비·미준비를 동시에 검증할 수 없으므로, 이 파일에 모드 전환을 더했다 — 환경변수 `E2E_CONSULT_POLICY_READY`가 `"false"`이면 `webServer.env`의 `CONSULT_POLICY_READY`를 `"false"`로, 그 외(기본)에는 `"true"`로 주입한다. 모드별 실행 대상은 제목 태그 `@policy-not-ready`를 `grep`/`grepInvert`로 나눈다(`test.skip`은 `scripts/run-e2e.ts`가 결과 표식 수를 "Running N tests"와 대조하므로 쓰지 않는다). 호출은 두 가지다: `pnpm test:e2e`(준비 모드, 태그 없는 테스트만 실행)와 `E2E_CONSULT_POLICY_READY=false pnpm test:e2e`(미준비 모드, 태그 있는 테스트만 실행). 그러므로 미준비 모드를 단독으로 실행하면 태그 붙은 테스트만 돌고 01/02 스펙과 태그 없는 03 테스트는 돌지 않는다 — 전체 회귀 확인에는 두 호출이 모두 필요하다. 같은 시나리오(hydration·모바일 레이아웃)는 두 모드로 각각 등록되어 제목에 모드 라벨(`정책 준비 모드`/`정책 미준비 모드`)이 들어간다.
+11. `scripts/db-migrate.test.ts` — 기대 테이블 목록 `EXPECTED_TABLES`를 12개에서 14개로 갱신(`consultations`·`consultation_rate_limits` 추가, 5번 스키마 확장의 필연적 결과, run-phase M2 발견).
+12. `db/migrations/meta/_journal.json` — `pnpm db:generate`가 5번 스키마 확장의 신규 마이그레이션(`0009_abnormal_owl.sql`)과 함께 갱신하는 drizzle-kit 생성 산출물(수동 편집 아님, 7줄 추가·0줄 삭제, run-phase M2 발견).
+
+**목록 밖 사후 수정(사실 정정이며 승인이 아니다)**: `git diff --name-status a106ac9 HEAD`에서 상태 `M`(기존 파일 수정)인 파일을 `plan.md` §D의 분류 ①②③으로 나누면, 위 12개 밖에 ①(프로덕션 애플리케이션 코드·설정·검증 스크립트) 3개가 더 수정됐다. 각 파일의 사용자 승인 기록은 `progress.md`를 대조했다.
+
+- `app/page.tsx` — ①. `/`에 `dynamic = "force-dynamic"`을 넣고 정적 `metadata` 대신 `generateMetadata()`를 쓴다. `progress.md`에는 이 동작 변경에 대한 사용자 기록이 있다. D-NEW-21의 `사용자 결정(열린 항목 23)`("`/`와 `/result`의 판정 시점을 같게 하되 `/result`·`/consult`의 consult 플래그 런타임 동작은 유지한다."), D-NEW-21 Claim 68 절의 "FOUNDATION-001 편차(사용자가 알고 수용)", D-NEW-22 Residual-risk의 "사용자가 알고 받아들인 편차, D-NEW-21 Claim 68", 그리고 D-NEW-23에서 `generateMetadata()` 전환을 지시한 `사용자 지시(2026-09-30)`다. 이는 SPEC-B2C-FOUNDATION-001의 정적 렌더링 편차와 그 동작 변경에 대한 기록이다. 기존 파일 수정 예산 12개를 넘어서는 것 자체에 대한 승인 기록은 없다.
+- `package.json` — ①. 스크립트 2개(`verify:flag-runtime`, `verify:remote-consult`) 추가(`git diff a106ac9 HEAD -- package.json`: 2줄 추가). 승인 기록 없음.
+- `scripts/visual-verify-helpers.ts` — ①(`scripts/visual-verify.ts`와 같은 검증 하네스). 승인 기록 없음. 단위 1b의 변경은 `progress.md`가 "사용자 결정(2026-10-01)대로"라고 적었으나, 이는 그 변경의 방향에 대한 기록이며 예산 확장을 승인한 기록이 아니다.
+
+그 밖에 수정된 기존 파일은 분류 ②(위 12개와 짝이거나 위 3개 중 `app/page.tsx`와 짝인 테스트: `app/page.test.tsx`, `components/result/result-cta-bar.test.tsx`, `lib/db/schema.test.ts`, `lib/diagnosis/flags.test.ts`, `lib/env.test.ts` — `scripts/db-migrate.test.ts`는 위 11번)와 분류 ③(`.moai/project/product.md`, `.moai/project/structure.md`, 그리고 `plan.md`가 이름으로 열거하지는 않은 프로젝트 문서 `.moai/docs/runtime-runbook.md`)이며, 재생성된 시각 검증 증거 파일은 아래 문단이 다룬다.
+
+회귀 증거 재생성: canonical 전체 24화면 실행은 기존 15화면의 커밋된 증거(`.moai/reports/visual-check/SPEC-B2C-DIAGNOSIS-001/**`의 스크린샷·overlay·diff·`measurements.json` 16개 파일)를 다시 생성하므로 바이트·타임스탬프가 갱신되며, 이는 canonical 실행에 내재한 동작이지 이 예산의 확장이 아니다(`progress.md` 시각 검증 증거 경로 절).
 
 ## 6. 상담 데이터 계약 (`lib/consult/types.ts` + `schema.ts`)
 
@@ -301,13 +353,13 @@ ConsentPolicy (서버 전용, 배포 시 고정 상수 — 향후 관리 테이�
 | 400 | `error`/`validation` | `ConsultationRequestSchema.safeParse` 실패(`fieldErrors` 포함) |
 | 429 | `error`/`rate_limited` | 원본 IP HMAC 기반 DB 고정 윈도 카운터 초과(§9.3) |
 | 500 | `error`/`server_error` | DB 오류 등 예기치 못한 실패, 또는 (§8.1 7번 — 정책·동의 검증과 기존 idempotency 판정을 통과해 신규 제출로 판정된 요청이 rate limit 판정 단계에 도달했을 때만) 판정에 필요한 서버 시크릿·신뢰 가능한 IP를 얻을 수 없어 fail closed로 접수를 열지 않은 경우(§9.3, D17). 정책 검증(503)·동의 버전 불일치(409)·기존 idempotency 판정(200/409)으로 이미 종료된 요청에는 적용되지 않는다 |
-| N/A(서버 미호출) | `error`/`handoff_mismatch` | 제출 직전 클라이언트가 재조회한 `resultId`가 폼 마운트 시점에 읽은 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우) — 서버에 요청을 보내지 않고 클라이언트가 즉시 판정 |
+| N/A(서버 미호출) | `error`/`handoff_mismatch` | 제출 직전 클라이언트가 재조회한 `resultId`가 폼 마운트 시점에 읽은 `resultId`와 다를 때(다른 탭에서 새 진단을 시작하는 등으로 핸드오프가 교체된 경우) — 서버에 요청을 보내지 않고 클라이언트가 즉시 판정하며 03-D의 `handoff_mismatch` 변형을 표시한다(§10) |
 
-`handoff_mismatch`는 서버가 판정하지 않는다 — §9.2가 명시하듯 서버는 `resultId`를 대조 검증할 원본이 없으므로(잔여 위험), 이 판정은 전적으로 클라이언트가 제출 직전 `readDiagnosisHandoff()`를 재호출해 자체적으로 수행한다(REQ-B2CCONSULT-018).
+`handoff_mismatch`는 서버가 판정하지 않는다 — §9.2가 명시하듯 서버는 `resultId`를 대조 검증할 원본이 없으므로(잔여 위험), 이 판정은 전적으로 클라이언트가 제출 직전 `readDiagnosisHandoff()`를 재호출해 자체적으로 수행한다(REQ-B2CCONSULT-018). 요청을 보내지 않았다는 것이 확정이므로 이 경로의 03-D는 "접수 여부를 확인하지 못했다"는 공용 문구를 쓰지 않고, 같은 비교를 반복해 성공할 수 없는 재시도 버튼도 그리지 않는다(`consult-view.tsx` `handleSubmit`의 `reason: "handoff_mismatch"`, 커밋 `9cdac4b`, §10).
 
-클라이언트 측 타임아웃/네트워크 오류(응답 자체를 받지 못한 경우)는 서버 상태 코드가 없다 — 클라이언트는 이를 03-D 실패 상태로 취급하고, **서버가 실제로 저장했는지 여부를 단정하지 않으며**, 재시도 시 **같은 `idempotencyKey`**를 재사용한다(§8 1번 경로가 재시도를 안전하게 흡수한다 — REQ-B2CCONSULT-022).
+클라이언트 측 타임아웃/네트워크 오류(응답 자체를 받지 못한 경우)는 서버 상태 코드가 없다 — 클라이언트는 이를 03-D 실패 상태의 `unknown_outcome` 변형(§10)으로 취급하고, **서버가 실제로 저장했는지 여부를 단정하지 않으며**, 재시도 시 **같은 `idempotencyKey`**를 재사용한다(§8 1번 경로가 재시도를 안전하게 흡수한다 — REQ-B2CCONSULT-022).
 
-로깅: `console.info(JSON.stringify({ event: "consultation_request_received", timestamp, channel, hasResultId: Boolean(body.resultId) }))` — `name`/`contact`는 어떤 로그에도 포함하지 않는다. 에러 응답 본문도 `name`/`contact` 원본값을 절대 echo하지 않는다(REQ-B2CCONSULT-023).
+로깅: `console.info(JSON.stringify({ event: "consultation_request_received", timestamp, channel, hasResultId: Boolean(body.resultId) }))` — `name`/`contact`는 어떤 로그에도 포함하지 않는다. 에러 응답 본문도 `name`/`contact` 원본값을 절대 echo하지 않는다(REQ-B2CCONSULT-018).
 
 ### 9.2 `consultations` 테이블 (`lib/db/schema.ts` 추가)
 
@@ -356,8 +408,8 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 알고리즘 — **이 판정은 §8.1의 7번 단계에서만, 즉 `idempotencyKey` 조회(§8.1 4번) 결과 기존 레코드가 전혀 없어 이번 제출이 진짜 신규 시도로 판정됐을 때만 호출된다**(독립 검토 D11) — 동일 `idempotencyKey`의 재시도는 지문 일치/불일치 여부와 무관하게(§8.1 5-6번) 이 rate limit 판정 자체를 거치지 않는다:
 
-1. Nginx가 리버스 프록시로서 `x-forwarded-for` 헤더에 채우는 원본 클라이언트 IP를 신뢰 가능한 IP로 사용한다 — Next.js 프로세스는 `127.0.0.1`에만 바인딩되어 있어 Nginx를 거치지 않은 요청은 애초에 도달할 수 없다(`tech.md`).
-2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(예: 헤더 부재) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다. (D17: 이 판정은 §8.1 7번 단계에서만, 즉 정책·동의 검증과 기존 idempotency 조회를 모두 통과해 신규 제출로 판정된 요청에만 적용된다 — 앞선 단계에서 이미 종료된 요청에는 영향을 주지 않는다.)
+1. 신뢰 가능한 원본 클라이언트 IP는 **단일 신뢰 프록시(Nginx)가 `x-forwarded-for`에 덧붙인 가장 오른쪽 값(single-hop rightmost)**이다. 앞쪽(왼쪽) 값은 클라이언트가 임의로 조작해 보낼 수 있으므로 판정에 쓰지 않는다 — 표준 append 레시피(`$proxy_add_x_forwarded_for`)에서는 클라이언트가 보낸 값 뒤에 프록시가 실제 IP를 이어 붙이고, overwrite 레시피(`$remote_addr`)에서는 값이 하나뿐이라 결과가 같다. 최좌측 값을 신뢰한 최초 구현은 공격자가 요청마다 다른 조작 값을 넣어 rate limit을 우회할 수 있음이 run-phase에서 두 차례 독립적으로 재현되어 이 정의로 확정됐다(`progress.md` Claim 9(B)). **이 보장은 앱이 그 단일 신뢰 프록시를 거쳐서만 도달 가능하다는 배포 전제에 의존한다** — Next.js 프로세스가 `127.0.0.1`에만 바인딩되고 앞단에 추가 신뢰 hop(CDN 등)이 없어야 한다(`tech.md`). 앱이 프록시 없이 직접 노출되면 클라이언트가 보낸 값이 그대로 키가 되어 rate limit이 우회 가능하며(`progress.md` Claim 11 표의 '가정 위반' 행), 신뢰 가능한 hop이 둘 이상이면 "가장 오른쪽 값" 선택 자체를 다시 계산해야 한다.
+2. 서버 시크릿(`RATE_LIMIT_HMAC_SECRET`)이 환경 변수에 없거나, 신뢰 가능한 IP를 얻을 수 없으면(`x-forwarded-for` 값이 비어 있는 경우 등) 시스템은 이 요청의 실제 접수를 열지 않는다(**fail closed**) — 500/`server_error`로 응답하고 어떤 레코드도 생성하지 않는다. **헤더 부재 시 실제 런타임 동작(실측)**: 이 저장소가 고정한 Next.js 16.3.2는 `x-forwarded-for`가 없으면 `req.headers['x-forwarded-for'] ??= originalRequest.socket.remoteAddress`로 raw 소켓 주소를 채워 넣는다 — 헤더를 전혀 보내지 않은 POST가 201로 접수됨이 직접 재현됐다(`e2e/consult-flow-03.spec.ts` [환경 노트 2]). 따라서 "헤더 부재 → fail closed"는 실제 런타임에서 성립하는 전제가 아니며, `!trustedIp` 분기는 **방어적 안전망(defense in depth)**일 뿐 Next.js 런타임에서는 도달하지 않고 핸들러 수준 테스트(`acceptance.md` AC-B2CCONSULT-018)로만 검증된다. 실제 방어선은 헤더 부재 처리가 아니라 위 1번의 가장 오른쪽 값 정의와 프록시 경유 전용 배포 전제다. (D17: 이 판정은 §8.1 7번 단계에서만, 즉 정책·동의 검증과 기존 idempotency 조회를 모두 통과해 신규 제출로 판정된 요청에만 적용된다 — 앞선 단계에서 이미 종료된 요청에는 영향을 주지 않는다.)
 3. `windowStart = floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS`. `ipHmac = HMAC-SHA256(trustedIp, RATE_LIMIT_HMAC_SECRET)`를 계산한다.
 4. `INSERT INTO consultation_rate_limits (window_start, ip_hmac, request_count) VALUES (?, ?, 1) ON CONFLICT (window_start, ip_hmac) DO UPDATE SET request_count = request_count + 1 RETURNING request_count` 형태의 원자적 upsert를 수행한다.
 5. 반환된 `requestCount`가 `RATE_LIMIT_MAX_REQUESTS`를 초과하면 429/`rate_limited`로 응답하고 §8.1의 나머지 단계(8번 비즈니스 중복 조회, 9번 삽입)를 실행하지 않는다.
@@ -375,22 +427,49 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 ## 10. 성공/중복/실패 상태 계약
 
+> **기록(2026-10-01)**: 아래 03-B/M03-B·03-C/M03-C·03-D/M03-D 서술은 현재 구현(`components/consult/`)이 실제로 하는 일을 적은 것이다. 이 서술과 관련해 `progress.md`에 기록된 사용자 결정은 결정 1~9의 아홉 가지이고, 같은 날 후반 라운드에서 결정 10~13이 더해졌다(이 목록 바로 아래 "후반 라운드" 문단). `### D-NEW-27`의 `사용자 결정(2026-10-01, AskUserQuestion 응답)` 문단에 03-B 안내 위치와 03-C 부제·안내 박스·버튼에 대한 "현재 구현(.pen 순서) 승인"이 "(결정 1·2)"로 함께 기록돼 있고(이 문서가 둘을 03-B = 결정 1, 03-C = 결정 2로 나눠 귀속하는 것은 그 기록을 읽은 해석이다), 같은 문단에 (결정 3) 카카오 채널 성공 카드는 연락 희망 시간을 입력했을 때 "4행 승인 (.pen 따름)"이 있고, `#### 문서 정정과 plan-audit review-13`의 `사용자 결정(2026-10-01, AskUserQuestion 응답, 감사 FAIL 처리 라운드)` 문단에 (결정 4) 감사 FAIL 처리는 "D1~D6 정정 후 범위 재감사", (결정 5) 시간 약속 문구는 ".pen 문구 유지, 문서를 코드에 맞춤", (결정 6) 03-D 화면은 "현재 구현 유지, REQ·AC 문장을 코드에 맞춤"이 있다. 그 뒤 `### D-NEW-29`의 `사용자 결정(2026-10-01, AskUserQuestion 응답, 보정 라운드)` 문단에 (결정 7) 03-D(실패) 문구는 "접수 여부 확인 불가 + 문의 문장 제거 (권장)", (결정 8) 03-C(중복) 안내 박스 문구는 "취소 안내 제거, 미지원을 사실대로 (권장)", (결정 9) `.pen`·PNG 정렬과 진행 방식은 ".pen 정렬 = 제가 Pencil 도구로 직접, 안 되면 즉시 중단 (권장)"·"진행 방식 = 착수 승인, 이상 시 정지, 푸시는 마지막에 확인 (권장)"이 있다(03-C·03-D의 현재 문구는 결정 7·8이 확정한 것이다). 이 목록에 없는 문구·요소는 "구현 기준, 사용자 결정 기록 없음"으로 표시한다. 이 승인은 시각 정합 완료를 뜻하지 않는다. 03-B 순서에 대해서는 더 이른 시점의 사용자 결정 기록(`progress.md` Claim 53, "SPEC 순서(카드 → 안내 → CTA)는 유지했다(사용자 결정)")이 따로 있었고, 현재 03-B 순서는 그 뒤에 기록된 결정 1("현재 구현(.pen 순서) 승인")을 기준으로 적었다. **(당시 기록 — 이 기록을 처음 쓸 때의 상태: 03-C·03-D의 새 문구(결정 7·8)에 대한 `.pen`과 `design/exports` PNG 정렬은 이 라운드에서 아직 이루어지지 않았다(보류 중) — 두 파일은 옛 문구를 담고 있었다.)** **현재 상태: 커밋 `a029261`(`design(SPEC-B2C-CONSULT-001): D-NEW-29 03-D/03-C 문구 정렬`)에서 `design/claimradar-ui.pen`(11줄 추가·11줄 삭제)과 `design/exports`의 PNG 4개(`03-C-상담-신청-중복.png`, `03-D-상담-신청-실패.png`, `M03-C-신청-중복.png`, `M03-D-신청-실패.png`)가 새 문구로 바뀌었다. 오케스트레이터가 저장 뒤 의도한 Pencil 노드 10개를 다시 읽어 문구가 `consult-failure.tsx`·`consult-duplicate.tsx`의 문자열과 같음을 확인했고, 이 코드로 돌린 `pnpm visual:verify`는 exit 0, 위반 없음이었다(로그 `.moai/state/verify/d-new-29/final-visual.log`, gitignored, 이 문서 작성자는 열지 않았다). 알려진 공백: `.pen` diff는 11줄 쌍인데 의도한 편집은 10곳이라 나머지 1줄은 확인하지 않았고, 따라서 `.pen` diff가 의도한 10곳만 담는다고 주장하지 않는다. 사용자의 시각 정합 승인은 여전히 없으며, 이 기록은 시각 정합이 끝났다고 주장하지 않는다.**
+
+**후반 라운드(2026-10-01, `progress.md` `### D-NEW-29`의 결정 10~13).** (결정 10) 03-D `handoff_mismatch` 경로는 지금 고친다 — 03-D 문구를 변형으로 나누고 이 경로에서만 재시도 버튼을 숨긴다(고치지 않고 열린 항목으로 남기는 대안은 거절됐다). 현재 코드는 커밋 `9cdac4b`(`consult-failure.tsx`·`consult-view.tsx`·그 테스트·`e2e/consult-flow-03.spec.ts`)와 `9c057c9`(`scripts/visual-verify.ts`)이며 아래 "03-D / M03-D" 절이 그 결과를 적는다. (결정 11) 원격 Turso T1~T7은 지금 다시 돌리지 않고 병합 직전으로 미룬다 — 병합 전에 그때의 서버 코드로 다시 돌려야 하며, 기존 7/7 두 번은 6차 라운드의 성공 응답 변경 이전 결과다. 이 결정은 이 절의 서술을 바꾸지 않는다. (결정 12) review-16의 선택 지적 D5(03-C 안내 문구에 REQ/AC가 없음)와 D6(`design.md` §5 트리가 17개 중 11개만 나열)은 이번 라운드에서 고치지 않는다 — 이 절의 서술은 두 지적을 반영하지 않았다. (결정 13) `.pen` diff의 11번째 줄을 확인한다 — 결과: 오케스트레이터가 수정 전 `.pen`(커밋 `0a37d45`)과 현재 `.pen`의 노드 요약값(digest)을 Pencil에서 읽기 전용으로 비교해 의도한 노드 편집 10곳(03-C `l2Poc`; 03-D `G4iZZG`·`z46fDG`·`bF4tb`; M03-C `OFlIF`; M03-D `pqo9z`·`vkJTm`·`cuFqa`; 안내 컨테이너 `o5F0N`·`L7kcNM`의 이름을 "재시도 안내"로 변경)만 있고 나머지 최상위 프레임·깊이 1 하위 트리·디자인 변수는 모두 같음을 확인했다. 따라서 11번째 diff 줄은 노드나 변수 변경이 아니며 파일 수준 메타데이터일 가능성이 높지만 그 줄 자체를 읽은 것은 아니다. 위 "나머지 1줄은 확인하지 않았다"는 이 결과로 좁혀졌으나 완전히 닫히지는 않았다(그 줄의 내용은 여전히 읽지 않았다). 이 비교는 이 문서 작성자가 아니라 오케스트레이터가 수행했고 이 문서 작성자는 `.pen`을 읽지 않았다. 사용자의 시각 정합 승인은 여전히 없다.
+
 ### 03-B / M03-B (성공)
 
-체크 아이콘 + "상담 신청이 접수되었습니다" + 요약 테이블(상담 방식/연락처(마스킹)/연락 희망 시간(phone일 때만)/상담 예정 전문가(정적 placeholder)) + "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"(운영 SLA 확정 없이 구체적 시간을 약속하지 않는 중립 표현 — 원 디자인의 "영업일 기준 1일 이내에…" 문구를 이 SPEC이 대체함, §1 D6) + "진단 결과로 돌아가기" + "신청 취소·정보 삭제 문의"(§1 D4, 준비 중 스텁).
+화면 순서는 아이콘 → 제목 → 부제 → 요약 카드 → 버튼 줄 → 푸터다(`consult-outcome-frame.tsx:55-84`). 안내는 카드 아래가 아니라 제목 바로 아래·카드 위의 부제 한 줄이고, 별도 안내 박스는 없다(`consult-success.tsx`가 `note`를 넘기지 않음). 이 위치는 사용자 결정 1(현재 구현(.pen 순서) 승인)에 근거한다.
+
+- 제목: "상담 신청이 접수되었습니다"(`consult-success.tsx:48`).
+- 부제: "영업일 기준 1일 이내에 선택하신 방법으로 연락드립니다."(`consult-success.tsx:50`) — `.pen` 03-B 문구이며 사용자 결정 5(".pen 문구 유지, 문서를 코드에 맞춤")에 근거한다. §1 D6이 이전에 정한 중립 문구 "접수 내용을 확인한 뒤 선택하신 방법으로 연락드리겠습니다"는 이 결정으로 대체됐다(§1 D6). 운영이 이 약속을 지킬 수 있는지는 미해소이며 결정 5로 점검이 끝난 것이 아니다(§1 D6의 런북 §11.3 설명 참고).
+- 03-A2(전화 채널 선택) 채널 안내도 같은 약속을 한다: "영업일 기준 1일 이내에 입력하신 번호로 전화드립니다"(`consult-channel-selector.tsx:43` `CHANNEL_NOTICE.phone`, `role="status"`). `.pen` 03-A2 문구이며 사용자 결정 5에 근거한다. 이 문구가 보이는지는 `scripts/visual-verify.ts:2136-2146`이 `03-A2`에서 검사한다(§12).
+- 요약 카드: 상담 방식 / 연락처(마스킹) / 연락 희망 시간 / 상담 예정 전문가("배정 예정" 정적 placeholder, `consult-success.tsx:54-60`, §1 D3). 연락 희망 시간 행은 채널과 무관하게 서버가 값을 돌려줄 때만 나타나며(`consult-success.tsx:56-58`, 서버 응답은 저장된 값이 있으면 채널과 상관없이 포함 — `app/api/consultations/route.ts:89-91`), 모바일 라벨은 "희망 시간"이다. 카카오 채널에서 연락 희망 시간을 입력한 경우의 4행 카드는 사용자 결정 3에 근거한다. 값이 없으면 3행이다.
+- 버튼 줄: "진단 결과로 돌아가기"(주 버튼, `/result` 링크) + "신청 취소 · 정보 삭제 문의"(`.pen` 모양의 비활성 보조 버튼, "준비 중" 배지, 이동 없음 — `consult-success.tsx:62-80`, `consult-outcome-button.tsx:71-93`, §1 D4). 비활성 버튼 모양은 구현 기준, 사용자 결정 기록 없음.
 
 ### 03-C / M03-C (중복)
 
-시계 아이콘 + "이미 접수된 상담 신청이 있습니다" + 요약(상담 방식/연락처(마스킹)/접수일/처리 상태) + "기존 신청 상태 확인"(§1 D4, 준비 중 스텁 — 실제 조회 기능 없음) + "진단 결과로 돌아가기". 내부 신청 ID·전체 페이로드 등은 노출하지 않는다(REQ-B2CCONSULT-020 — 마스킹된 연락처와 접수일·처리 상태 라벨만).
+화면 순서는 아이콘 → 제목 → 부제 → 요약 카드 → 안내 박스 → 버튼 줄 → 푸터다. 부제·안내 박스·버튼 구성은 사용자 결정 2(현재 구현(.pen 순서) 승인)에 근거한다.
+
+- 제목: "이미 접수된 상담 신청이 있습니다"(모바일은 줄바꿈 — `consult-duplicate.tsx:58-63`).
+- 부제(데스크톱 두 줄, 모바일 한 문단): "같은 진단 결과로 접수된 신청이 처리 중입니다." / "중복으로 다시 신청하지 않으셔도 됩니다."(`consult-duplicate.tsx:65-71`). 첫 문장이 말하는 "처리 중"과 처리 상태 라벨이 운영 현실과 맞는지는 확인되지 않았다(열린 항목 29).
+- 요약 카드: 상담 방식 / 연락처(마스킹) / 접수일 / 처리 상태. 처리 상태 값은 서버 `received`를 "상담 대기 중"으로 표기하고 알 수 없는 값은 원문 그대로 보여 준다(`consult-duplicate.tsx:25-32,73-84`) — 이 라벨 매핑은 구현 기준, 사용자 결정 기록 없음. 상담 방식 값은 서버 응답이 아니라 제출 당시 폼 채널이다(`consult-view.tsx:495`, `consult-duplicate.tsx:10-16` 주석).
+- 안내 박스(카드 아래): 데스크톱 "신청 내용 변경, 취소, 접수 상태 확인은 아직 이 화면에서 지원되지 않습니다.", 모바일 "변경·취소·상태 확인은 아직 지원되지 않습니다."(`consult-duplicate.tsx:85-94`). 사용자 결정 8("취소 안내 제거, 미지원을 사실대로")에 따라 이전 문구 "신청 내용을 바꾸고 싶으시면 기존 신청을 취소한 뒤 다시 신청해 주세요. 진행 상황은 카카오톡 또는 전화로 안내드립니다."(모바일 "내용을 바꾸시려면 기존 신청을 취소한 뒤 다시 신청해 주세요.")를 뺐다. 이 앱에는 실제 취소 수단이 없고, 진행 상황을 카카오톡·전화로 안내하겠다는 약속은 운영이 지킬 수 있는지 확인되지 않았기 때문이다(`consult-duplicate.tsx:87-89` 주석). 취소·변경·상태 확인의 목적지와 운영 절차는 열린 항목 25·26이다(§1b).
+- 버튼 줄: "기존 신청 상태 확인"(주 버튼, 비활성 스텁 "준비 중" — 실제 조회 기능 없음, §1 D4, 열린 항목 25) + "진단 결과로 돌아가기"(보조 버튼, `/result` 링크)(`consult-duplicate.tsx:96-115`).
+
+내부 신청 ID·전체 페이로드 등은 노출하지 않는다(REQ-B2CCONSULT-023 — 마스킹된 연락처와 접수일·처리 상태 라벨만).
 
 ### 03-D / M03-D (실패)
 
-경고 아이콘 + "상담 신청이 접수되지 않았습니다" + "일시적인 오류로 접수가 완료되지 않았습니다. 입력하신 내용은 다시 입력하지 않아도 됩니다"(서버 저장 여부를 단정하지 않는 문구 — "저장되었습니다" 같은 확정 표현 금지) + 요약(상담 방식/연락처/연락 희망 시간/"입력 내용: 유지됨") + "다시 시도하기"(같은 idempotencyKey로 재제출) + "이전 화면으로 돌아가기". 입력 보존 범위: draft에 저장된 필드(channel/name/contactRaw/preferredCallTime/marketing) 전부 — 단, §2.3 원칙대로 두 필수 동의는 재확인이 필요하다. 반복 실패 시 대체 연락 채널: "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요"(디자인 문구 그대로 채택 — 이미 존재하는 대체 경로 안내이며 새 채널을 만들지 않는다).
+이 화면은 `reason` 속성(`ConsultFailureReason = "unknown_outcome" | "handoff_mismatch"`, 기본값 `"unknown_outcome"`, `consult-failure.tsx`)으로 선택되는 **두 변형**이다(커밋 `9cdac4b`). 한 문구를 모든 실패 경로가 공유하던 이전 구조는 `handoff_mismatch` 경로에서 거짓이었다. 아래 "`unknown_outcome` 변형"의 제목·부제·안내 박스 문구는 사용자 결정 7("접수 여부 확인 불가 + 문의 문장 제거 (권장)")에 근거한다. 요약 카드와 버튼 문구는 사용자 결정 6("현재 구현 유지, REQ·AC 문장을 코드에 맞춤")에 근거한다 — 입력한 연락처·연락 희망 시간을 다시 보여 주고 버튼 문구는 "이전 화면으로 돌아가기"로 둔다. 입력한 연락처를 마스킹 없이 다시 표시하는 데 따른 개인정보 검토는 `progress.md` 열린 항목 13번으로 그대로 남아 있으며 결정 6이 그 검토를 대신하지 않는다. 그 밖의 구성은 사용자 결정 기록 없는 구현 기준(`consult-failure.tsx`)이다. 화면 순서는 아이콘 → 제목 → 부제 → 요약 카드 → 안내 박스 → 버튼 줄 → 푸터다.
+
+**`unknown_outcome` 변형(기본) — 요청을 보냈을 수 있어 결과를 알 수 없는 경로**(서버 `error` 응답·`fetch` 예외·해석할 수 없는 응답·성공이 아닌 상태, `consult-view.tsx` `handleSubmit`). 공용 중립 문구는 이전과 같다(바뀐 것은 이 변형을 `reason`으로 명시한 것뿐이다). 경고 아이콘 + "상담 신청 접수 여부를 확인하지 못했습니다"(모바일은 "상담 신청 접수 여부를 / 확인하지 못했습니다" 두 줄, `consult-failure.tsx:77-89`) + 두 줄 부제(`role="alert"`) "신청이 접수되었는지 이 화면에서는 알 수 없습니다." / "입력하신 내용은 다시 입력하지 않아도 됩니다."(`consult-failure.tsx:92-103`. 서버 저장 성공·실패를 단정하는 문구 금지 — "저장되었습니다" 같은 확정 표현도, "접수되지 않았습니다" 같은 부정 표현도 쓰지 않는다) + 요약 카드(상담 방식 / 연락처(폼 입력값 `formState.contact` — `consult-view.tsx:516`, 마스킹 없음, `consult-failure.tsx:107`) / 연락 희망 시간(입력했을 때만, `consult-failure.tsx:108-110`) / "입력 내용: 유지됨", `consult-failure.tsx:104-113`) + 카드 아래 안내 박스 "같은 내용으로 다시 시도해도 중복 접수되지 않습니다. 현재 화면에서 입력 내용이 유지됩니다."(`consult-failure.tsx:114-121`) + "다시 시도하기"(같은 idempotencyKey로 재제출) + "이전 화면으로 돌아가기"(`consult-failure.tsx:122-143`). 입력 보존 범위: draft에 저장된 필드(channel/name/contactRaw/preferredCallTime/marketing) 전부 — 단, §2.3 원칙대로 두 필수 동의는 재확인이 필요하다.
+
+**`handoff_mismatch` 변형 — 요청을 보내지 않은 경로(사용자 결정 10, 커밋 `9cdac4b`).** `handleSubmit`이 제출 직전 `readDiagnosisHandoff()`를 재조회한 `resultId`가 마운트 때 캡처한 값과 다르면 서버로 아무것도 보내지 않고 `reason: "handoff_mismatch"`로 03-D를 표시한다(`consult-view.tsx:371-377`, §9.1). 이 경로에서는 접수 여부가 불명이 아니라 "보내지 않았다"가 확정이라 공용 문구가 거짓이 되고, "다시 시도하기"는 같은 비교를 반복해 성공할 수 없다. 그래서 제목은 "상담 신청을 보내지 않았습니다"(모바일은 "상담 신청을 / 보내지 않았습니다" 두 줄), 부제(`role="alert"`)는 "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요."이며(`consult-failure.tsx:78-82,93-96`), "다시 시도하기" 버튼과 카드 아래 안내 박스(`consult-failure-retry`·`consult-failure-notice`)를 그리지 않는다(`consult-failure.tsx:114-133`). 요약 카드와 "이전 화면으로 돌아가기"(`/result` 링크)는 두 변형에서 같다(사용자 결정 6의 레이아웃 유지). 이 변형의 문구는 `.pen`에 근거가 없다 — **디자인 편차**: `.pen`에는 `handoff_mismatch` 변형 프레임이 없고 그리지 않았다. 따라서 이 변형은 `pnpm visual:verify` 픽셀 비교 대상이 아니며 `components/consult/consult-failure.test.tsx`(`reason` 생략 시 기본 변형과 동일, 두 변형 렌더링)·`components/consult/consult-view.test.tsx`("handoff_mismatch: …", "handoff_mismatch가 아닌 실패(fetch 예외)는 공용 문구와 재시도 버튼을 그대로 보인다")·`e2e/consult-flow-03.spec.ts`가 검증하도록 계획돼 있다(AC-B2CCONSULT-018·022 추가 시나리오; 이 문서를 고친 시점에는 이 시험들을 실행하지 않았다). 사용자 결정 10은 문구를 나누고 이 경로의 재시도 버튼을 숨기는 것을 정했다. 이 변형 문구 자체에 대한 별도 승인 기록은 이 문서 작성자가 받은 입력에 없다(미확인).
+
+**왜 `unknown_outcome` 변형은 "접수되지 않았다"고 말하지 않는가(사용자 결정 7).** `consult-view.tsx` `handleSubmit`은 서버 `error` 응답뿐 아니라 `fetch` 예외(응답 유실·네트워크 오류), 해석할 수 없는 응답, 성공이 아닌 상태도 `unknown_outcome` 03-D로 보낸다(진단 핸드오프 불일치는 위 `handoff_mismatch` 변형이다 — 커밋 `9cdac4b` 이전에는 이 경로도 같은 화면을 썼다, 당시 기록). 서버가 접수를 이미 커밋하고 응답만 클라이언트에 닿지 못한 경우가 이 변형에 포함되므로 화면은 접수 실패를 확정할 수 없다. "다시 시도하기"(`handleRetry`, `consult-view.tsx:438`~)는 `formState`에 저장된 같은 `idempotencyKey`로 다시 전송하고 서버는 이미 커밋된 결과를 재생하므로 같은 내용의 재시도는 중복 접수되지 않는다(§8 1번 경로). 이 동작은 `components/consult/consult-view.test.tsx` describe "응답 유실 후 같은 키 재시도(D-NEW-29)"의 통합 테스트(서버가 커밋한 뒤 `TypeError("Failed to fetch")`, 같은 키 재전송, 03-B 도달, `consultations` 1행, rate limit 1회)와 `e2e/consult-flow-03.spec.ts`의 "서버가 커밋한 뒤 응답이 유실되면 03-D는 접수 여부를 단정하지 않고, 다시 시도하기는 같은 idempotencyKey로 재전송해 성공 화면에 도달한다"(첫 POST를 `route.fetch()`로 서버에 보낸 뒤 `route.abort("failed")`)가 검증한다(AC-B2CCONSULT-022 추가 시나리오). 두 검증은 로컬 파일 DB와 로컬 `next start` 기준이며 원격 Turso·운영 환경은 확인하지 않았다.
+
+**반복 실패 시 대체 문의 경로는 없다(사용자 결정 7).** 이전 문구의 "다시 시도해도 접수되지 않으면 카카오톡 상담으로 문의해 주세요."(디자인 문구를 그대로 채택했던 문장)는 뺐다. 이 앱 안에 실제 문의 목적지가 없기 때문이다(`consult-failure.tsx:12-23` 주석). 03-D에서 이용자가 문의할 실제 창구는 열린 항목 27이다(§1b). 03-D 안내 아이콘은 말풍선(`MessageCircle`)이 그대로라 더는 카카오를 가리키는 문장이 없어 어색할 수 있으나 디자인 변경 범위를 넓히지 않으려고 바꾸지 않았다. 03-D의 새 문구에 대한 `.pen`·`design/exports` PNG 정렬은 이 라운드에서 아직 이루어지지 않았다(보류 중). *(당시 기록 — 이후 커밋 `a029261`에서 `.pen`과 PNG 4개(03-C·03-D·M03-C·M03-D)가 새 문구로 바뀌었다. 위 "기록(2026-10-01)"의 현재 상태 참조.)*
 
 ## 11. 반응형·접근성 계약
 
 - 데스크톱 폼 폭 720px(`design/MIGRATION-PLAN.md` §4 레이아웃 규칙의 03 중앙 컬럼 폭과 일치), 모바일 단일 컬럼.
 - 모바일 하단 CTA sticky(02의 `result-cta-final` sticky 패턴 재사용).
+- **모바일 채널 안내는 자기 공간을 가진다(디자인 목업과의 의도된 편차, 커밋 `ef205d3`)**: 채널 선택기의 안내(`role="status"`, 390px에서 약 37px)를 모바일에서도 표시하는 것은 현재 화면의 **설계 선택**이다. REQ/AC가 모바일 안내 표시를 필수로 규정하지는 않으며(데스크톱 `03-A2`의 semanticChecks만 안내 문구를 요구하고, `M03`의 기존 semanticChecks는 카카오 기본 선택과 sticky만 본다), AC-B2CCONSULT-010 추가 시나리오는 이 선택 뒤에 안내를 측정 대상으로 삼았다(plan-audit review-11 D1). 입력 폼은 음수 상단 마진 없이 부모의 `gap-5`(20px) 아래에서 시작한다. 디자인 목업(`design/exports/M03-상담-신청.png`)에는 모바일 안내가 없으므로 폼은 목업보다 안내 높이만큼(약 62px, 실측 안내 591.6~628.1 · 이름 라벨 648.1~662.1 · 입력창 670.1~726.1) 아래로 밀린다. 데스크톱(`md:`) 스타일은 바뀌지 않는다. 이 위치 변화가 커지거나 안내와 다시 겹치는 회귀는 안내 하단 → 이름 라벨·폼 상단의 상대 간격 게이트(16~24px, 실측 20px)와 e2e 비겹침 단언이 잡는다. **이 편차와 안내 표시 결정에 대한 디자인 승인 기록은 없다(미기록).** 안내를 `md` 미만에서 숨겨 목업과 맞추는 대안을 검토한 기록도 없다. 이 편차의 시각 검증 처리는 §12.2. 이전 구현은 폼에 모바일 `-mt-[62px]`을 두어 폼을 안내 위로 끌어올렸고, 그 결과 안내 문구가 이름 라벨과 입력창 위쪽 약 20px을 덮었다(`visual:verify`의 M03 `form` top을 목업과 맞추기 위한 값이었다).
 - 동의 상세: Desktop Modal / Mobile Bottom Sheet, focus trap, ESC 닫기, 닫으면 트리거로 포커스 복귀(§7).
 - 오류 요약 + 첫 오류 필드로 포커스 이동(제출 실패 시 검증 오류가 있으면), `aria-describedby`로 필드-오류 연결, `aria-live="polite"` 상태 안내.
 - 채널 선택·동의·제출 전체가 키보드만으로 조작 가능(라디오는 방향키, 체크박스는 Space, 제출은 Enter).
@@ -399,26 +478,58 @@ RATE_LIMIT_MAX_REQUESTS = 5         # 윈도당 IP 하나 최대 5회 제출 시
 
 ## 12. 시각 검증 계획 (`scripts/visual-verify.ts` 확장)
 
-9개 신규 화면을 기존 15개(01 계열 10 + 02 계열 5) 배열에 **추가만** 한다.
+9개 신규 화면을 기존 15개(01 계열 10 + 02 계열 5) 배열에 **추가**한다 — 기존 15개 항목은 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정 외에는 수정하지 않는다.
 
 | id | platform | 진입 방법(결정론적) | 픽셀 비교 대상(핵심 3-4요소) | semanticChecks |
 |---|---|---|---|---|
 | `03` | desktop | `/consult?devFixture=fracture&channel=kakao` (review 게이트 재사용) | 요약 카드/채널 선택 행/폼 영역 | 카카오 라디오 `aria-checked=true`, 전화번호 라벨이 "카카오톡 연락에 사용할…"인지, 연락 희망 시간 `required` 부재, 필수 동의 2 + 선택 1 존재, 제출 버튼 `aria-disabled=true`(동의 전) |
-| `03-A2` | desktop | 동일 진입 + 전화 라디오 클릭 | 동일 | 전화 라디오 `aria-checked=true`, "연락 희망 시간" `aria-required=true`, 안내 문구가 "접수 내용을 확인한 뒤…"(§1 D6) |
+| `03-A2` | desktop | 동일 진입 + 전화 라디오 클릭 | 동일 | 전화 라디오 선택됨, "연락 희망 시간" `aria-required=true`(전화 채널), 채널 안내(`role="status"`)에 "영업일 기준 1일 이내에 입력하신 번호로 전화드립니다"(`.pen` 03-A2, 사용자 결정 5)가 보임, 상담 예정 전문가 카드("배정 예정") 표시, 이름 필드 힌트 "상담 시 호칭" 표시, 데스크톱 푸터 표시(`scripts/visual-verify.ts:2125-2164`) |
 | `03-B` | desktop | `?devFixture=fracture&devConsultState=success` | 성공 카드 | 체크 아이콘 존재, 마스킹 연락처 정규식(`\d{3}-\*{4}-\d{4}`) 매칭, 원시 연락처 문자열 DOM 부재 |
 | `03-C` | desktop | `?devFixture=fracture&devConsultState=duplicate` | 중복 카드 | 시계 아이콘 존재, "기존 신청 상태 확인" CTA 존재 |
-| `03-D` | desktop | `?devFixture=fracture&devConsultState=error` | 실패 카드 | 경고 아이콘 존재, "다시 시도하기" CTA 존재, 입력 필드 값 유지(폼 상태 보존) |
-| `M03` | mobile | 동일 fixture, 모바일 뷰포트 | 요약/채널/폼 | 카카오 기본 선택, 하단 CTA `position: sticky` |
+| `03-D` | desktop | 폼을 채운 뒤 `POST /api/consultations`를 `route.abort`로 중단해 `unknown_outcome` 변형에 도달(`gotoConsultFailure`, 커밋 `9c057c9`; 계획 시점의 `devConsultState=error`는 구현되지 않았다, 아래 참고) | 실패 카드(`unknown_outcome` 변형만 — `handoff_mismatch` 변형은 `.pen` 프레임이 없어 비교 대상이 아니다, §10) | 경고 아이콘 존재, "다시 시도하기" CTA 존재, draft에 이름 보존(sessionStorage, 이름 한 필드만 — 다른 필드의 보존과 재전송 payload 동일성은 증명하지 않는다. 03-D 화면은 입력 필드를 렌더링하지 않는다), 데스크톱 푸터 표시(`scripts/visual-verify.ts:2346-2376`) |
+| `M03` | mobile | 동일 fixture, 모바일 뷰포트 | 요약/채널/폼(폼의 `top` 축은 §12.2의 의도된 편차로 게이트에서 제외) | 카카오 기본 선택, 하단 CTA `position: sticky`, 채널 안내 하단 → 이름 라벨 상단·폼 컨테이너 상단 간격 16~24px(상대 위치, `7f54edc`) |
 | `M03-B` | mobile | 동일 | 성공 카드 | 03-B와 동일 |
 | `M03-C` | mobile | 동일 | 중복 카드 | 03-C와 동일 |
-| `M03-D` | mobile | 동일 | 실패 카드 | 03-D와 동일 |
+| `M03-D` | mobile | 동일 | 실패 카드 | 03-D와 동일. 단 푸터는 03-D가 "표시"를 단언하는 것과 달리 모바일은 "숨김"(.pen 모바일에는 없음, 기대값 `"false"`)을 단언한다(`scripts/visual-verify.ts:2659-2663`). `M03-B`·`M03-C` 행의 "동일"은 이 표에 적힌 항목에 한해 문자 그대로 맞다(두 모바일 항목도 각각 푸터 숨김을 추가로 단언한다) |
 
-review 전용 진입 파라미터(`devFixture`/`devConsultState`)는 `ENABLE_DIAGNOSIS_DEV_STATES` 게이트(기존 `reviewEnabled`)를 그대로 재사용한다 — 03 전용 별도 게이트를 만들지 않는다. `devConsultState`는 실제 서버 호출 없이 클라이언트가 결정론적으로 성공/중복/실패 상태를 렌더링하도록 하는 review 전용 우회 경로다(run-phase가 구체 구현 확정).
+review 전용 진입 파라미터(`devFixture`/`devConsultState`)는 `ENABLE_DIAGNOSIS_DEV_STATES` 게이트(기존 `reviewEnabled`)를 그대로 재사용한다 — 03 전용 별도 게이트를 만들지 않는다. `devConsultState`는 실제 서버 호출 없이 클라이언트가 결정론적으로 성공/중복/실패 상태를 렌더링하도록 하는 review 전용 우회 경로로 계획됐다(run-phase가 구체 구현 확정). **(당시 기록 — 계획 시점의 서술이다.)** 현재 코드에는 `devConsultState`를 처리하는 곳이 없고(`scripts/visual-verify.ts` 주석 404~418행), 위 표의 `03-D` 행은 현재 도달 경로(요청 중단, 커밋 `9c057c9`)로 고쳤다. `03-B`·`03-C` 행의 진입 방법 열은 같은 이유로 현재 코드와 어긋나지만 이 정정은 03-D만 다루므로 고치지 않았다(미해소) — 그 두 화면은 해당 주석에 따르면 실제 `POST /api/consultations` 제출로 도달한다. 03-D 시각 게이트는 이전에 진단 핸드오프를 변조해 `handoff_mismatch`로 도달했으나(당시 기록) 그 분기가 별도 변형이 되면서 요청 중단 경로로 옮겼고, 이로써 `.pen` 03-D와 비교하는 화면은 이전과 같은 `unknown_outcome` 03-D다. 허용 오차(`TOLERANCE`)·`skipMetrics`·게이트 정의는 바뀌지 않았다. 이 변경은 이 문서를 고친 시점에 `pnpm visual:verify`로 다시 확인되지 않았다.
 
-**기존 15화면 회귀 방지**: 기존 `SCREENS` 배열 항목·허용 오차(`TOLERANCE`)·04건의 승인된 02 시각 debt(§13)는 이 SPEC이 절대 수정하지 않는다 — `pnpm visual:verify` 전체 실행 시 기존 15화면 PASS + 신규 9화면 PASS(총 24화면)를 run-phase 완료 조건으로 삼는다.
+**기존 15화면 회귀 방지**: 기존 `SCREENS` 배열 항목·허용 오차(`TOLERANCE`)·04건의 승인된 02 시각 debt(§13)는 이 SPEC이 수정하지 않는다 — 단 아래 §12.1이 열거한 02 계열 5개 항목의 승인된 재보정만 예외다. `pnpm visual:verify` 전체 실행 시 기존 15화면 PASS + 신규 9화면 PASS(총 24화면)를 run-phase 완료 조건으로 삼는다.
+
+### 12.1 승인된 재보정 — 02 계열 5개 기존 항목 (2026-09-29 사용자 승인, 독립 검토 iteration 7 D1)
+
+run-phase(`progress.md` D-RUN-2 Claim 2)에서 02 계열 5개 기존 `SCREENS` 항목(02/M02/M02-B/M02-C/M02-D)에 아래 조정이 적용됐다. 이는 위 "수정하지 않는다" 원칙의 예외이며, 2026-09-29 세션에서 사용자가 이를 되돌리지 않고 **승인된 debt로 사후 문서화**하기로 결정했다(AskUserQuestion). `git show a106ac9:scripts/visual-verify.ts` 기준으로 이 5개 항목에는 `skipMetrics`가 0건이었다.
+
+**근거**: (a) `skipMetrics` — SPEC-B2C-RESULT-001이 이미 승인한 시각 debt 4건(`.moai/specs/SPEC-B2C-RESULT-001/progress.md` §E.3의 2026-09-22·2026-09-24 사용자 결정: ① fixture 담보 7개 유지 / ② `priorityChecklist` 카드형 유지 / ③ `ResultAggregateBanner` height 편차 / ④ 모바일 입력 요약 카드 잔여 height 편차 — 번호는 이 문서 §13 나열 순서와 같다)의 요소별 축 게이트 해제이며, 그 debt들이 문서 흐름상 아래 요소로 누적되는 종속 값을 포함한다. debt 자체를 이 SPEC에서 재선언·재승인하지 않는다. (b) `backgroundProbe` — 이 SPEC의 `progress.md` D-RUN-2 Claim 2(c): 하단 전폭 CTA 바(`bg-app-sidebar`)·푸터가 배경 프로브 영역에 포함되어 균일도 게이트를 깨뜨렸다.
+
+| 항목 | `backgroundProbe` | `skipMetrics` (요소 → 제외 축 · 귀속) |
+|---|---|---|
+| `02` (Desktop) | 기존 `bottom` 3089 → 2300 (값 변경 1건) | 2건 — 집계 배너 `["top","height"]`(③) · 먼저 확인할 항목 `["top"]`(③ 집계 배너 height 편차의 누적 종속 — `skipReason` 기준) |
+| `M02` | 신규 `bottom: 1600` | 4건, 모두 `["top","height"]` — 입력하신 사고 내용 카드(④) · 집계 배너(③ + 상위 요소 누적 종속) · 먼저 확인할 항목(②) · 카테고리 탭(② + 누적 종속) |
+| `M02-B` | 신규 `bottom: 1700` | 4건 — `M02`와 동일한 요소·축 |
+| `M02-C` | 신규 `bottom: 1200` | 4건 — 동일 |
+| `M02-D` | 신규 `bottom: 1200` | 4건 — 동일 |
+
+합계: `skipMetrics` 정확히 18건(`02` 2 + M02·M02-B·M02-C·M02-D 각 4, 항목별 `skipReason` 동반), `backgroundProbe` 5건(값 변경 1 + 신규 4). 귀속은 `scripts/visual-verify.ts` 각 `skipReason`과 RESULT-001 §E.3의 44건 귀속표(② `priorityChecklist`·카테고리 탭 / ③ 집계 배너 / ④ 모바일 입력 요약 카드)를 따른다.
+
+- **PASS의 의미**: 이 재보정 아래 02 계열 5화면의 PASS는 "설정된 검증 게이트 기준" PASS다(`progress.md` D-RUN-2 Claim 2). `skipMetrics` 대상 요소는 `left`·`width`만 게이트되며 세로 위치·높이는 위 승인 debt 범위로 간주해 검증하지 않는다.
+- **불변인 것(검증됨)**: `TOLERANCE`(`{ desktop: 8, mobile: 4 }`)와 01 계열·M01 계열 10개 항목(01·01-A2·01-B·01-C·01-D·01-E·M01·M01-A2·M01-B·M01-C)은 `a106ac9`와 항목 텍스트가 바이트 동일하다. 02 계열 5개 항목에서 삭제된 줄은 `bottom: 3089,`(`02`)와 주석 `// 참값(top=923).`(`M02`, 확장 재작성) 두 줄뿐이다. 이 사실은 `acceptance.md` AC-B2CCONSULT-025의 "기존 15화면 정의 불변" 시나리오가 이진 검사한다.
+- **그 외 harness 변경의 범위**: 공용 집합 `BOX_LIKE_KEYS`에 `backCta`·`retry` 두 key가 추가됐으나 03-B/03-C/03-D 요소 전용이며 기존 15개 항목은 이 두 key를 사용하지 않는다(HEAD의 기존 15개 항목 중 사용 0건). 리포트 출력 경로 함수화(`reportDirFor`) 등 harness 본체 변경은 `SCREENS` 항목·`TOLERANCE`가 아니므로 이 예외 목록과 위 불변 검사의 대상이 아니다.
+
+### 12.2 신규 항목 `M03`의 의도된 편차 — `form`의 `top` 축 (run-phase 후속, 커밋 `ef205d3`)
+
+§12.1과 달리 이 편차는 이 SPEC이 추가한 신규 항목 `M03` 안에 있으며, 기존 15개 항목·`TOLERANCE`에는 영향이 없다(AC-B2CCONSULT-025의 "기존 15화면 정의 불변" 검사 대상이 아니다).
+
+| 항목 | 요소(key) | 제외 축 | 근거 |
+|---|---|---|---|
+| `M03` | `form`(`consult-form`) | `skipMetrics: ["top"]` (`skipReason` 동반) | 모바일 디자인 목업에는 채널 안내가 없다. 그 안내를 모바일에서도 표시하는 것은 현재 화면의 설계 선택이며 REQ/AC나 `M03` semanticChecks가 요구하는 필수 사항이 아니다(§11). 예전에는 음수 마진으로 폼을 안내 위로 끌어올려 `top`을 목업(4px 허용 오차)에 맞췄으나 그것이 안내가 이름 라벨·입력을 덮는 결함이었다(§11). 음수 마진을 제거하면 폼이 안내 높이만큼 아래로 밀려 `top`이 약 62px 커진다. `left`·`width`·`height`는 계속 게이트한다. 절대 `top` 대신 `M03` semanticChecks의 '채널 안내 하단 → 이름 라벨·폼 상단 간격' 상대 위치 게이트(16~24px, 기준은 부모 `gap-5` 20px ± 4, 실측 20px)를 둔다(`7f54edc`). 이 편차에 대한 디자인 승인 기록은 없다(미기록). |
+
+- 측정: 수정 후 `pnpm visual:verify`의 M03은 최대 편차 4px로 PASS했다(`TOLERANCE`와 01/02 계열 항목 정의는 바뀌지 않았다).
+- **`skipMetrics` 집계 기준 정리**: §12.1의 "정확히 18건"과 AC-B2CCONSULT-025의 같은 수치는 **기존 02 계열 5개 항목만** 센 값이다(`02` 2 + `M02`·`M02-B`·`M02-C`·`M02-D` 각 4). `scripts/visual-verify.ts` 전체의 `skipMetrics:` 줄 수(`grep -c "skipMetrics:"`)는 다른 기준이며 이 SPEC 기간에 `a106ac9`의 2건(01 계열 `01-D`·`M01-B`, 변경 없음)에서 현재 25건으로 늘었다 — 02 계열 18 + 03 계열 신규 항목 5(`03-B` 1 · `03-C` 1 · `03-D` 2 · `M03` 1, `M03-B`·`M03-C`·`M03-D`는 0건) + 01 계열 2. 측정(이 정정 시점 HEAD `bd1f050`): `grep -c "skipMetrics:" scripts/visual-verify.ts` → `25`, 항목 `id:` 블록별 집계(`awk`) → `01-D 1`, `02 2`, `03-B 1`, `03-C 1`, `03-D 2`, `M01-B 1`, `M02 4`, `M02-B 4`, `M02-C 4`, `M02-D 4`, `M03 1`. 이 문단의 이전 서술(전체 32건, 03 계열 12건)은 현재 HEAD에서 틀렸다(plan-audit review-14 N2). 줄 수가 줄어든 원인은 그 검토 보고서가 `borderBox` 게이트 도입(D-NEW-17·28)으로 추정한 것이며 이 정정에서 커밋별로 확인하지는 않았다. 문서의 18은 기존 항목 재보정 범위의 수치이고, 파일 전체 합계나 03 계열 항목의 `skipMetrics`를 세는 수치가 아니다.
+- 의미: `M03`의 PASS는 §12.1과 같은 뜻으로 "설정된 검증 게이트 기준" PASS이며, `form`은 `left`·`width`·`height`만 게이트된다. 안내와 폼의 세로 관계는 두 곳이 지킨다 — (1) e2e의 bounding rect 비겹침 단언과 안내 하단 → 이름 라벨·폼 상단 16~24px 간격 단언(acceptance AC-B2CCONSULT-010 추가 시나리오는 비겹침까지만 적고 이 간격 단언은 적지 않았다, 테스트가 AC보다 엄격하다), (2) `M03` semanticChecks의 같은 상대 간격 게이트 2개(안내 요소가 DOM에 없으면 `missing`으로 실패한다). 이 게이트들은 안내가 표시된 현재 설계를 전제로 측정하지만, 안내 표시 자체를 REQ/AC가 요구한다는 뜻은 아니다.
 
 ## 13. 01/02 회귀 방지 조건
 
-- SPEC-B2C-RESULT-001이 승인한 4건의 시각 debt(fixture 담보 7개 유지·`priorityChecklist` 카드형 유지·`ResultAggregateBanner` height 편차·모바일 입력 요약 카드 잔여 height 편차)는 그대로 유지하며 이 SPEC에서 재선언·재승인하지 않는다.
+- SPEC-B2C-RESULT-001이 승인한 4건의 시각 debt(fixture 담보 7개 유지·`priorityChecklist` 카드형 유지·`ResultAggregateBanner` height 편차·모바일 입력 요약 카드 잔여 height 편차)는 그대로 유지하며 이 SPEC에서 재선언·재승인하지 않는다. 02 계열 5개 기존 항목의 `backgroundProbe`·`skipMetrics` 재보정은 이 4건의 누적 종속 축 게이트 해제와 프로브 영역 조정으로서 §12.1이 항목별로 열거한 승인된 예외이며, 4건 debt 자체의 재선언·재승인이 아니다.
 - `e2e/diagnosis-flow-01.spec.ts`/`e2e/diagnosis-flow-02.spec.ts`(존재 시)는 수정하지 않는다 — 회귀 검증 대상으로만 재실행한다.
 - `DIAGNOSIS_ENGINE_READY`를 이 SPEC의 코드 어디에서도 `true`로 전환하지 않는다(02의 REQ-B2CRESULT-024와 동형 원칙).

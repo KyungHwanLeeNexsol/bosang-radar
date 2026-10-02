@@ -134,9 +134,21 @@ export interface ResultViewProps {
    * 100% 동일(호출부가 prop을 생략해도 회귀 없음).
    */
   enableDevFixture?: boolean;
+  /**
+   * SPEC-B2C-CONSULT-001 M3 (design.md §3/§4, REQ-B2CCONSULT-005) —
+   * 서버(app/result/page.tsx)가 computeConsultFlags(process.env)로 계산한
+   * shouldRenderConsult 값. 이 컴포넌트는 이 값을 3개 CTA 컴포넌트에 그대로
+   * 다시 전달하기만 한다(enableDevFixture와 동일한 순수 prop 전달 패턴) —
+   * 이 파일도 process.env를 직접 읽지 않는다. 기본값 false — 기존
+   * SPEC-B2C-RESULT-001 동작과 100% 동일.
+   */
+  shouldRenderConsult?: boolean;
 }
 
-export function ResultView({ enableDevFixture = false }: ResultViewProps) {
+export function ResultView({
+  enableDevFixture = false,
+  shouldRenderConsult = false,
+}: ResultViewProps) {
   const searchParams = useSearchParams();
   const useDevFixture = enableDevFixture && searchParams.get("devFixture") === "fracture";
   const state = useDiagnosisHandoffState(useDevFixture);
@@ -204,7 +216,7 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
     // 갈라지는 것과 다른 지점 — 02는 md: 분기 없이 항상 bg-app-bg다).
     // 이 루트에 배경이 없어 흰 body가 그대로 비쳤다.
     <div data-testid="result-view" className="flex w-full flex-col bg-app-bg">
-      <ResultTopBarCta />
+      <ResultTopBarCta shouldRenderConsult={shouldRenderConsult} />
 
       <main className="flex w-full flex-col items-center px-5 py-6 md:px-8 md:py-10">
         <div className="flex w-full max-w-[1080px] flex-col gap-4 md:gap-6">
@@ -231,7 +243,9 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
                   sectionId={coverageSectionId(category)}
                   headingId={coverageHeadingId(category)}
                 />
-                {category === "disability" ? <ResultDisabilitySectionCta /> : null}
+                {category === "disability" ? (
+                  <ResultDisabilitySectionCta shouldRenderConsult={shouldRenderConsult} />
+                ) : null}
               </React.Fragment>
             ))
           ) : (
@@ -251,13 +265,15 @@ export function ResultView({ enableDevFixture = false }: ResultViewProps) {
                 role="tabpanel"
                 controllingTabId={`category-tab-${activeCategory}`}
               />
-              {activeCategory === "disability" ? <ResultDisabilitySectionCta /> : null}
+              {activeCategory === "disability" ? (
+                <ResultDisabilitySectionCta shouldRenderConsult={shouldRenderConsult} />
+              ) : null}
             </>
           )}
         </div>
       </main>
 
-      <ResultFinalCta total={aggregate.total} />
+      <ResultFinalCta total={aggregate.total} shouldRenderConsult={shouldRenderConsult} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T06:33:31.848Z",
+  "generatedAt": "2026-09-29T08:28:39.413Z",
   "canonical": true,
   "run": {
     "screenIds": [
@@ -19,7 +19,7 @@
       "M02-C",
       "M02-D"
     ],
-    "totalScreens": 15,
+    "totalScreens": 24,
     "visualOnly": null,
     "skipBuild": false,
     "externalBaseURL": null
@@ -6372,7 +6372,7 @@
       "background": {
         "probe": {
           "top": 70,
-          "bottom": 3089,
+          "bottom": 2300,
           "minCoverage": 0.99
         },
         "design": {
@@ -6381,7 +6381,7 @@
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7380755216959258
+          "coverage": 0.9964686098654708
         }
       },
       "elements": [
@@ -6443,7 +6443,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "priorityChecklist",
@@ -6473,7 +6473,7 @@
           "backgroundColor": "rgb(237, 231, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -6556,8 +6556,8 @@
           "pass": true
         }
       ],
-      "maxDelta": 45,
-      "pass": false
+      "maxDelta": 8,
+      "pass": true
     },
     {
       "id": "M02",
@@ -6908,16 +6908,16 @@
       "background": {
         "probe": {
           "top": 66,
-          "bottom": 2348,
+          "bottom": 1600,
           "minCoverage": 0.99
         },
         "design": {
           "color": "#f4f6f8",
-          "coverage": 0.957931638913234
+          "coverage": 1
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7805652936021035
+          "coverage": 1
         }
       },
       "elements": [
@@ -6949,7 +6949,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "aggregateBanner",
@@ -6979,7 +6979,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "priorityChecklist",
@@ -7009,7 +7009,7 @@
           "backgroundColor": "rgb(237, 231, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "categoryTabs",
@@ -7039,7 +7039,7 @@
           "backgroundColor": "rgba(0, 0, 0, 0)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -7104,8 +7104,8 @@
           "pass": true
         }
       ],
-      "maxDelta": 182,
-      "pass": false
+      "maxDelta": 0,
+      "pass": true
     },
     {
       "id": "M02-B",
@@ -7423,16 +7423,16 @@
       "background": {
         "probe": {
           "top": 66,
-          "bottom": 3169,
+          "bottom": 1700,
           "minCoverage": 0.99
         },
         "design": {
           "color": "#f4f6f8",
-          "coverage": 0.969062197873026
+          "coverage": 1
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.5753303254914599
+          "coverage": 1
         }
       },
       "elements": [
@@ -7464,7 +7464,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "aggregateBanner",
@@ -7494,7 +7494,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "priorityChecklist",
@@ -7524,7 +7524,7 @@
           "backgroundColor": "rgb(237, 231, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "categoryTabs",
@@ -7554,7 +7554,7 @@
           "backgroundColor": "rgba(0, 0, 0, 0)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -7613,8 +7613,8 @@
           "pass": true
         }
       ],
-      "maxDelta": 182,
-      "pass": false
+      "maxDelta": 2,
+      "pass": true
     },
     {
       "id": "M02-C",
@@ -7951,16 +7951,16 @@
       "background": {
         "probe": {
           "top": 66,
-          "bottom": 1903,
+          "bottom": 1200,
           "minCoverage": 0.99
         },
         "design": {
           "color": "#f4f6f8",
-          "coverage": 0.9477408818726184
+          "coverage": 1
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7791235710397387
+          "coverage": 1
         }
       },
       "elements": [
@@ -7992,7 +7992,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "aggregateBanner",
@@ -8022,7 +8022,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "priorityChecklist",
@@ -8052,7 +8052,7 @@
           "backgroundColor": "rgb(237, 231, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "categoryTabs",
@@ -8082,7 +8082,7 @@
           "backgroundColor": "rgba(0, 0, 0, 0)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -8141,8 +8141,8 @@
           "pass": true
         }
       ],
-      "maxDelta": 182,
-      "pass": false
+      "maxDelta": 0,
+      "pass": true
     },
     {
       "id": "M02-D",
@@ -8465,16 +8465,16 @@
       "background": {
         "probe": {
           "top": 66,
-          "bottom": 1882,
+          "bottom": 1200,
           "minCoverage": 0.99
         },
         "design": {
           "color": "#f4f6f8",
-          "coverage": 0.947136563876652
+          "coverage": 1
         },
         "impl": {
           "color": "#f4f6f8",
-          "coverage": 0.7088381057268722
+          "coverage": 1
         }
       },
       "elements": [
@@ -8506,7 +8506,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "aggregateBanner",
@@ -8536,7 +8536,7 @@
           "backgroundColor": "rgb(255, 255, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "priorityChecklist",
@@ -8566,7 +8566,7 @@
           "backgroundColor": "rgb(237, 231, 255)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         },
         {
           "key": "categoryTabs",
@@ -8596,7 +8596,7 @@
           "backgroundColor": "rgba(0, 0, 0, 0)",
           "fontSize": "16px",
           "lineHeight": "24px",
-          "pass": false
+          "pass": true
         }
       ],
       "semantic": [
@@ -8655,344 +8655,9 @@
           "pass": true
         }
       ],
-      "maxDelta": 182,
-      "pass": false
+      "maxDelta": 0,
+      "pass": true
     }
   ],
-  "findings": [
-    {
-      "screen": "02",
-      "element": "배경 프로브(y 70~3089, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 73.81% < 기준 99.00% (배경이 아닌 색이 26.19% 섞여 있습니다)."
-    },
-    {
-      "screen": "02",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "top 디자인 334 vs 구현 347",
-      "delta": 13,
-      "tolerance": 8
-    },
-    {
-      "screen": "02",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 224 vs 구현 179",
-      "delta": 45,
-      "tolerance": 8
-    },
-    {
-      "screen": "02",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "top 디자인 578 vs 구현 550",
-      "delta": 28,
-      "tolerance": 8
-    },
-    {
-      "screen": "M02",
-      "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 95.79% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
-    },
-    {
-      "screen": "M02",
-      "element": "배경 프로브(y 66~2348, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 78.06% < 기준 99.00% (배경이 아닌 색이 21.94% 섞여 있습니다)."
-    },
-    {
-      "screen": "M02",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 81",
-      "delta": 9,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 303",
-      "delta": 57,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 400",
-      "delta": 48,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 185",
-      "delta": 44,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 601",
-      "delta": 92,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "height 디자인 214 vs 구현 396",
-      "delta": 182,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 1025",
-      "delta": 102,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "height 디자인 40 vs 구현 31",
-      "delta": 9,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 96.91% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
-    },
-    {
-      "screen": "M02-B",
-      "element": "배경 프로브(y 66~3169, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 57.53% < 기준 99.00% (배경이 아닌 색이 42.47% 섞여 있습니다)."
-    },
-    {
-      "screen": "M02-B",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "top 디자인 73 vs 구현 81",
-      "delta": 8,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "height 디자인 358 vs 구현 303",
-      "delta": 55,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "top 디자인 449 vs 구현 400",
-      "delta": 49,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 227 vs 구현 185",
-      "delta": 42,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 601",
-      "delta": 92,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "height 디자인 214 vs 구현 396",
-      "delta": 182,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "top 디자인 924 vs 구현 1025",
-      "delta": 101,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-B",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "height 디자인 38 vs 구현 31",
-      "delta": 7,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 94.77% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
-    },
-    {
-      "screen": "M02-C",
-      "element": "배경 프로브(y 66~1903, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 77.91% < 기준 99.00% (배경이 아닌 색이 22.09% 섞여 있습니다)."
-    },
-    {
-      "screen": "M02-C",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 81",
-      "delta": 9,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 303",
-      "delta": 57,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 400",
-      "delta": 48,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 185",
-      "delta": 44,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 601",
-      "delta": 92,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "height 디자인 214 vs 구현 396",
-      "delta": 182,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 1025",
-      "delta": 102,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-C",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "height 디자인 40 vs 구현 31",
-      "delta": 9,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "디자인 프로브 영역이 균일한 배경이 아닙니다 — 최빈색 #f4f6f8 점유율 94.71% < 기준 99.00%. 프로브 영역 설정(backgroundProbe)을 재검토해야 합니다."
-    },
-    {
-      "screen": "M02-D",
-      "element": "배경 프로브(y 66~1882, 좌우 8px 띠)",
-      "kind": "background",
-      "detail": "구현 배경이 프로브 영역에서 균일하지 않습니다 — 최빈색 #f4f6f8 점유율 70.88% < 기준 99.00% (배경이 아닌 색이 29.12% 섞여 있습니다)."
-    },
-    {
-      "screen": "M02-D",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "top 디자인 72 vs 구현 81",
-      "delta": 9,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "입력하신 사고 내용 카드",
-      "kind": "metric",
-      "detail": "height 디자인 360 vs 구현 303",
-      "delta": 57,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "top 디자인 448 vs 구현 400",
-      "delta": 48,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "집계 배너",
-      "kind": "metric",
-      "detail": "height 디자인 229 vs 구현 185",
-      "delta": 44,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "top 디자인 693 vs 구현 601",
-      "delta": 92,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "먼저 확인할 항목",
-      "kind": "metric",
-      "detail": "height 디자인 214 vs 구현 396",
-      "delta": 182,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "top 디자인 923 vs 구현 1025",
-      "delta": 102,
-      "tolerance": 4
-    },
-    {
-      "screen": "M02-D",
-      "element": "카테고리 탭",
-      "kind": "metric",
-      "detail": "height 디자인 40 vs 구현 31",
-      "delta": 9,
-      "tolerance": 4
-    }
-  ]
+  "findings": []
 }

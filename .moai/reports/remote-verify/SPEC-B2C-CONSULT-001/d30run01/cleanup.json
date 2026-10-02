@@ -1,0 +1,26 @@
+{
+  "runId": "d30run01",
+  "fingerprint": "6e5256b8",
+  "finishedAt": "2026-10-01T07:18:50.389Z",
+  "ok": true,
+  "equalsBaseline": true,
+  "tables": {
+    "consultations": {
+      "totalBefore": 13,
+      "matchingBefore": 13,
+      "deleted": 13,
+      "totalAfter": 0,
+      "matchingAfter": 0,
+      "baseline": 0
+    },
+    "consultation_rate_limits": {
+      "totalBefore": 6,
+      "matchingBefore": 6,
+      "deleted": 6,
+      "totalAfter": 0,
+      "matchingAfter": 0,
+      "baseline": 0
+    }
+  },
+  "triggerPresentAfter": false
+}

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // --- Better Auth 핵심 스키마 (Drizzle 어댑터, sqlite provider) --------------
 // 테이블/컬럼 이름은 Better Auth의 기본 스키마 규약을 그대로 따른다. 이렇게 하면
@@ -185,3 +185,56 @@ export const geminiRequestObservations = sqliteTable("gemini_request_observation
   durationMs: integer("duration_ms").notNull(),
   observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
 });
+
+// SPEC-B2C-CONSULT-001 M2(design.md §9.2) — 상담 신청 저장 테이블. resultId는
+// FK가 아니라 opaque 참조다 — DiagnosisResult 자체가 서버에 영구 저장되지
+// 않으므로(02도 sessionStorage만 사용) 대조 검증할 원본이 없다(§ 잔여
+// 위험). DiagnosisResult.items(담보 항목 배열)는 이 테이블에 복제
+// 저장하지 않는다 — 진단 상세는 이 SPEC의 범위 밖이다.
+//
+// 중복/멱등성 판정은 두 계층으로 분리된다(design.md §8): idempotencyKey
+// UNIQUE 제약이 기술적 멱등성(같은 버튼 재클릭·네트워크 재시도)을,
+// (resultId, contactNormalized) 복합 UNIQUE 인덱스가 비즈니스 중복(이미
+// 접수된 신청)을 각각 판정한다. requestFingerprint는 idempotencyKey
+// 재사용 시 페이로드 동일성을 판정하는 근거다(§8.2).
+export const consultations = sqliteTable(
+  "consultations",
+  {
+    id: text("id").primaryKey(),
+    resultId: text("result_id").notNull(),
+    channel: text("channel").notNull(),
+    name: text("name").notNull(),
+    contactNormalized: text("contact_normalized").notNull(),
+    preferredCallTime: text("preferred_call_time"),
+    consentPiiCollection: integer("consent_pii_collection", { mode: "boolean" }).notNull(),
+    consentHealthInfoUse: integer("consent_health_info_use", { mode: "boolean" }).notNull(),
+    consentMarketing: integer("consent_marketing", { mode: "boolean" }).notNull(),
+    // 서버가 §6.1 활성 정책과 대조 검증한 뒤 자신의 값으로 스탬프한다 —
+    // 클라이언트가 보낸 acknowledgedConsentVersion을 그대로 복사하지 않는다.
+    consentVersion: text("consent_version").notNull(),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    applicationStatus: text("application_status").notNull().default("received"),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("consultations_result_contact_unique").on(table.resultId, table.contactNormalized),
+  ]
+);
+
+// SPEC-B2C-CONSULT-001 M2(design.md §9.3) — DB 기반 고정 윈도 rate limit
+// 카운터. PM2 재시작마다 조용히 리셋되는 인메모리 카운터 대신 이 테이블을
+// 원자적 upsert(ON CONFLICT ... DO UPDATE ... RETURNING)로 갱신한다.
+// ipHmac만 저장하며 원본 IP 문자열은 어떤 컬럼에도 평문으로 저장하지 않는다.
+export const consultationRateLimits = sqliteTable(
+  "consultation_rate_limits",
+  {
+    windowStart: integer("window_start", { mode: "timestamp" }).notNull(),
+    ipHmac: text("ip_hmac").notNull(),
+    requestCount: integer("request_count").notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex("consultation_rate_limits_window_ip_unique").on(table.windowStart, table.ipHmac),
+  ]
+);

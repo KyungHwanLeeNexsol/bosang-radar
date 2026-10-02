@@ -130,3 +130,87 @@ describe("components/result/ResultCtaBar — aria-disabled CTA(REQ-B2CRESULT-023
     expect(container.querySelector('[data-testid="result-input-condition-disclosure"]')).toBeNull();
   });
 });
+
+// SPEC-B2C-CONSULT-001 M3 (design.md, REQ-B2CCONSULT-003/004/005) —
+// shouldRenderConsult=true일 때 4개 CTA가 실제 <Link> 네비게이션으로
+// 전환되는지 검증한다. shouldRenderConsult prop을 생략한 위 describe
+// 블록은 전부 기존 SPEC-B2C-RESULT-001 회귀 스위트이며 한 글자도 수정하지
+// 않았다 — 이 prop이 기본값 false로 완전히 하위 호환됨을 그 자체로 증명한다.
+describe("components/result/ResultCtaBar — shouldRenderConsult=true(REQ-B2CCONSULT-003/004/005)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("상단 탑바 CTA는 aria-disabled 없는 실제 링크로 /consult?channel=kakao로 이동한다", () => {
+    act(() => {
+      root.render(<ResultTopBarCta shouldRenderConsult />);
+    });
+
+    const link = container.querySelector('[data-testid="result-cta-top"]');
+    expect(link?.tagName).toBe("A");
+    expect(link?.getAttribute("href")).toBe("/consult?channel=kakao");
+    expect(link?.hasAttribute("aria-disabled")).toBe(false);
+    expect(container.querySelector('[data-testid="result-cta-top-notice"]')).toBeNull();
+  });
+
+  it("후유장해 섹션 CTA는 채널 쿼리 없이 /consult로 이동한다(중립)", () => {
+    act(() => {
+      root.render(<ResultDisabilitySectionCta shouldRenderConsult />);
+    });
+
+    const link = container.querySelector('[data-testid="result-cta-disability-button"]');
+    expect(link?.tagName).toBe("A");
+    expect(link?.getAttribute("href")).toBe("/consult");
+    expect(container.querySelector('[data-testid="result-cta-disability-notice"]')).toBeNull();
+  });
+
+  it("하단 최종 CTA 카카오 버튼은 /consult?channel=kakao로 이동한다", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={3} shouldRenderConsult />);
+    });
+
+    const link = container.querySelector('[data-testid="result-cta-final-kakao"]');
+    expect(link?.tagName).toBe("A");
+    expect(link?.getAttribute("href")).toBe("/consult?channel=kakao");
+  });
+
+  it("하단 최종 CTA 전화 버튼은 /consult?channel=phone으로 이동한다", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={3} shouldRenderConsult />);
+    });
+
+    const link = container.querySelector('[data-testid="result-cta-final-phone"]');
+    expect(link?.tagName).toBe("A");
+    expect(link?.getAttribute("href")).toBe("/consult?channel=phone");
+    expect(container.querySelector('[data-testid="result-cta-final-notice"]')).toBeNull();
+  });
+
+  it("shouldRenderConsult=true여도 total은 여전히 전달받은 값을 그대로 표시한다", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={9} shouldRenderConsult />);
+    });
+
+    expect(container.textContent).toContain("9가지를 전부 청구하시겠어요?");
+  });
+
+  it("shouldRenderConsult=true여도 면책 문구/푸터는 그대로 렌더링된다", () => {
+    act(() => {
+      root.render(<ResultFinalCta total={3} shouldRenderConsult />);
+    });
+
+    expect(container.querySelector('[data-testid="result-disclaimer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="result-footer"]')).not.toBeNull();
+  });
+});

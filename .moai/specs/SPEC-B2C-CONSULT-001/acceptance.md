@@ -46,12 +46,30 @@ Given `ENABLE_CONSULT_FLOW=false`(02의 `shouldRenderDiagnosis`는 `true`인 상
 When 02 화면의 상담 CTA를 클릭하면
 Then 페이지 이동 없이 현재의 `aria-disabled` "준비 중" stub 동작이 그대로 유지된다.
 
+추가 시나리오 — 정책 미준비 상태의 제출 CTA 대체(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`, 독립 검토 iteration 8 D1'):
+Given `ENABLE_CONSULT_FLOW=true`이고 `CONSULT_POLICY_READY=false`여서 `app/consult/page.tsx`가 `isPolicyReady=false`를 03 폼 뷰에 전달했고, 사용자가 필수 동의 두 항목(`piiCollection`·`healthInfoUse`)을 모두 체크하고 나머지 필드를 유효하게 채웠을 때
+When 사용자가 제출 영역(안내 영역 포함)을 클릭·탭하고, 키보드 Tab으로 페이지 전체의 포커스를 이동하면(제출 버튼이 없으므로 제출을 시도하는 조작은 존재하지 않는다)
+Then 실제 제출 CTA(`data-testid="consult-submit-button"`)는 렌더링되지 않고 그 자리에 "상담 신청은 아직 준비 중"이라는 취지의 안내 영역(`role="status"`, `aria-live="polite"`, 잠정 문구는 `design.md` §4)이 표시되며, 어떤 조작으로도 `POST /api/consultations` 요청은 발생하지 않는다(네트워크 요청 0건). 채널 선택기·입력 필드·동의 그룹은 그대로 표시된다.
+참고(현재 설계의 사실 기술이며 새 요구가 아니다): 03 폼에는 `<form>` 요소와 Enter 제출 핸들러가 없으므로, 어떤 정책 상태에서도 제출은 제출 버튼 클릭(키보드로는 포커스된 버튼의 활성화)으로만 가능하다. 위 시나리오에서 제출 버튼이 렌더링되지 않는다는 것이 곧 제출 경로가 없다는 뜻이다.
+회귀 짝: 같은 입력 상태에서 `CONSULT_POLICY_READY=true`이면 안내 영역은 표시되지 않고 기존 제출 CTA(`consult-submit-button`)가 렌더링되며, 활성화 조건(AC-B2CCONSULT-012)과 이중 제출 방지(AC-B2CCONSULT-015)는 종전과 동일하게 동작한다.
+서버 독립성: 이 클라이언트 대체는 UX 계층일 뿐이며, 서버의 503/`policy_unavailable` 저장 거부(AC-B2CCONSULT-018의 "활성 동의 정책 없음" 추가 시나리오, `app/api/consultations/route.test.ts`)는 클라이언트 동작과 무관하게 독립적으로 유효하다 — 이 시나리오가 그 거부를 대체하거나 약화하지 않는다.
+
 ## 02→03 핸드오프 · draft
 
 **AC-B2CCONSULT-006** (REQ-B2CCONSULT-006)
-Given 사용자가 03 폼에 이름·연락처를 입력한 뒤 필드에서 포커스를 뺐을 때
+Given 정책 준비 상태(`isPolicyReady=true`, `CONSULT_POLICY_READY=true`)에서 사용자가 03 폼에 이름·연락처를 입력한 뒤 필드에서 포커스를 뺐을 때
 When `sessionStorage`를 검사하면
 Then `lib/consult/draft.ts`의 전용 키 아래 해당 필드 값이 저장되어 있으며, 두 필수 동의 체크박스의 체크 상태는 저장되어 있지 않다.
+
+추가 시나리오 — 정책 미준비 상태에서는 draft를 쓰지 않는다(`ENABLE_CONSULT_FLOW=true` + `CONSULT_POLICY_READY=false`):
+Given `isPolicyReady=false`이고 `sessionStorage`에 상담 draft 키가 없는 상태에서 사용자가 이름·연락처를 입력하고 포커스를 빼고, 채널을 바꾸고, 마케팅 동의를 켜고 끈 뒤
+When `sessionStorage`를 검사하면
+Then 상담 draft 키(`bosang-radar:consultation-draft-v1`)는 존재하지 않는다 — 마운트 시 초기 기록·blur·채널 변경·마케팅 동의 변경 어느 경로로도 쓰이지 않았다. 입력한 값은 폼에 계속 표시되며(메모리 상태), 채널 선택기·동의 체크박스도 정상적으로 조작된다.
+
+추가 시나리오 — 정책 미준비 상태에서도 draft 읽기는 유지되고 기존 draft는 그대로 남는다:
+Given `isPolicyReady=false`이고 `sessionStorage`에 유효한 상담 draft가 이미 있을 때(정책 준비 상태에서 같은 탭에 기록된 경우)
+When `/consult`가 마운트되고 사용자가 필드를 수정한 뒤 포커스를 빼면
+Then 폼은 draft 값으로 복원되어 표시되며(읽기는 종전과 동일), `sessionStorage`의 draft 값은 갱신도 삭제도 되지 않고 마운트 전과 바이트 동일하다(`design.md` §2.3의 알려진 잔여).
 
 추가 시나리오 — 손상된 draft 폴백:
 Given `sessionStorage`의 draft 값이 유효하지 않은 JSON일 때
@@ -68,15 +86,30 @@ Given `sessionStorage`에 진단 결과 핸드오프가 없는 상태(02를 경�
 When 사용자가 `/consult`에 접근하면
 Then "먼저 진단 결과가 필요합니다" 03 전용 안내와 01 입력 화면으로 돌아가는 CTA가 표시되며, 상담 폼 자체는 렌더링되지 않는다.
 
+추가 시나리오 — 전체 로드·새로고침에서도 hydration 오류 없이 empty 안내(정책 준비·미준비 두 상태 모두, 프로덕션 빌드, hydration #418 회귀):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`에 진단 결과 핸드오프가 없을 때
+When `/consult`를 `page.goto`로 전체 로드하고 `page.reload()`로 새로고침하면
+Then 두 실행 모두 React hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이고, hydration이 끝난 뒤 `consult-no-data`와 "먼저 진단 결과가 필요합니다" 문구가 표시된다. 서버 HTML에는 이 문구도 폼도 없고 로딩 자리표시자(`consult-loading`)만 있다(`design.md` §2.2.1). 검증: `e2e/consult-flow-03.spec.ts`의 `(a) 진단 handoff 없이 /consult를 직접 열고 새로고침해도 empty 안내가 뜨고 오류가 없다`(준비 모드 `pnpm test:e2e`, 미준비 모드 `E2E_CONSULT_POLICY_READY=false pnpm test:e2e` — 후자는 제목 태그 `@policy-not-ready`), 서버 마크업 부분은 `components/consult/consult-view.test.tsx`의 `handoff 없음(empty): 서버 마크업은 loading뿐이고, 수화 오류 없이 no-data 안내로 전환된다`.
+
 **AC-B2CCONSULT-008** (REQ-B2CCONSULT-008)
 Given `sessionStorage`의 진단 결과 핸드오프 값이 유효하지 않은 JSON이거나 스키마와 불일치할 때
 When `/consult`가 마운트되면
 Then 콘솔 예외로 애플리케이션이 중단되지 않고 03 전용 오류 상태가 표시된다.
 
+추가 시나리오 — 손상된 핸드오프의 전체 로드·새로고침에서도 hydration 오류 없음(파싱 불가 텍스트 · 유효 JSON이나 잘못된 형태 두 종류, 정책 준비·미준비 두 상태 모두, 프로덕션 빌드):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`의 진단 결과 핸드오프가 파싱 불가 텍스트이거나 유효한 JSON이지만 `DiagnosisResultSchema`와 맞지 않는 형태일 때
+When `/consult`를 전체 로드하고 새로고침하면
+Then 두 종류·두 실행 모두 hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이고, hydration 이후 03 전용 오류 안내가 표시되며 서버 HTML에는 오류 문구도 폼도 없이 로딩 자리표시자만 있다. 검증: `e2e/consult-flow-03.spec.ts`의 `(b-i) 손상된 handoff(파싱 불가 텍스트)여도 전체 로드·새로고침에서 오류 안내가 뜨고 hydration 오류가 없다`·`(b-ii) 손상된 handoff(유효 JSON이나 잘못된 형태)여도 …`(두 실행 모드), 서버 마크업 부분은 `components/consult/consult-view.test.tsx`의 `handoff 손상(파싱 불가 JSON): …`·`handoff 손상(유효 JSON이나 스키마 불일치): …`.
+
 **AC-B2CCONSULT-009** (REQ-B2CCONSULT-009)
 Given 정상적으로 `/consult`에 도착해 진단 결과 요약이 표시된 상태에서
 When 페이지를 새로고침하거나 뒤로가기 후 다시 `/consult`로 진입하면
 Then 동일한 `resultId`를 가진 동일한 요약이 다시 표시되며, 신선도(TTL) 만료로 인한 별도 "결과 없음" 전환이 발생하지 않는다.
+
+추가 시나리오 — 유효한 핸드오프의 전체 로드·새로고침에서도 hydration 오류 없이 폼 표시, draft 복원과 채널 우선순위 유지(정책 준비·미준비 두 상태 모두, 프로덕션 빌드):
+Given 프로덕션 빌드에서 `CONSULT_POLICY_READY`가 `"true"`인 실행과 `"false"`인 실행 각각에서 `sessionStorage`에 유효한 진단 결과 핸드오프가 있을 때
+When `/consult`를 전체 로드하고 `page.reload()`로 새로고침하거나, `/consult?channel=phone`을 전체 로드하면
+Then 두 실행 모두 hydration 오류(#418)와 hydration 관련 콘솔·페이지 오류가 0건이다. 서버 HTML에는 empty·invalid 문구도 폼도 없이 로딩 자리표시자만 있고, hydration이 끝난 뒤 폼이 표시된다(`design.md` §2.2.1). 채널은 draft > URL `?channel=` > 기본 `kakao` 순서로 결정되어 draft가 없고 URL이 `phone`이면 전화 채널이 선택된다. 정책 준비 상태에서는 입력·blur 후 새로고침하면 draft 값이 복원되고 필수 동의 두 항목은 해제된 채이며, 정책 미준비 상태에서는 draft가 저장되지도 복원되지도 않고 정책 안내가 표시된다(AC-B2CCONSULT-006의 추가 시나리오와 일치). 검증: `e2e/consult-flow-03.spec.ts`의 `(c) 유효한 handoff로 /consult를 전체 로드·새로고침해도 폼이 뜨고 hydration 오류가 없다`·`(c) 유효한 handoff + ?channel=phone 전체 로드에서 전화 채널이 선택되고 hydration 오류가 없다`·`(c) 유효한 handoff에서 입력·blur 후 새로고침하면 …`(두 실행 모드), 서버 마크업·우선순위 부분은 `components/consult/consult-view.test.tsx`의 `valid handoff(정책 준비): …`·`valid handoff(정책 미준비): …`·`draft가 없고 URL이 ?channel=phone이면 …`·`draft의 channel이 URL ?channel=보다 우선한다 …`·`draft가 없으면 수화 후 idempotencyKey가 새로 1회 생성되어 draft에 기록된다(정책 준비)`.
 
 ## 채널 선택 · 입력 폼
 
@@ -89,6 +122,11 @@ Then 검증 오류가 표시되고 요청이 서버로 전송되지 않는다.
 Given 카카오톡 채널이 선택된 상태에서
 When 연락 희망 시간을 비운 채 다른 필수 값을 모두 채우고 제출하면
 Then 그 필드에 대한 검증 오류 없이 제출이 진행된다.
+
+추가 시나리오 — 모바일 채널 안내가 입력 폼과 겹치지 않는다(390×737 터치 뷰포트, 카카오톡·전화 각각, 정책 준비·미준비 각각, 커밋 `ef205d3`; `design.md` §11·§12.2):
+Given 유효한 핸드오프로 `/consult`가 390×737 모바일 뷰포트에서 렌더링되고 채널을 카카오톡 또는 전화로 선택했을 때
+When 채널 카드, 채널 안내(`role="status"`), 이름·연락처·연락 희망 시간의 라벨과 입력, 폼 컨테이너의 bounding rect를 측정하고, 페이지를 최대로 스크롤한 뒤 하단 sticky 영역(`consult-submit-bar`)과 입력 필드·동의 체크박스 세 개(필수 2 + 선택 1)의 rect를 측정하면
+Then (a) 모든 채널 카드는 채널 안내의 상단 위에서 끝나고, 채널 안내는 이름 라벨의 상단 위에서 끝난다. (b) 채널 안내와 이름·연락처·연락 희망 시간의 라벨·입력, 그리고 폼 컨테이너 사이의 교차 면적이 모두 0이다(맞닿기만 한 경우는 겹침이 아니다). (c) 최대 스크롤 상태에서 sticky 영역은 입력 필드 세 개와 동의 체크박스 세 개 어느 것과도 교차하지 않고, 각 요소의 중심 좌표에서 실제로 가장 위에 그려지는 요소가 그 요소(또는 그 라벨)이며 시험 클릭(trial click)이 가로채이지 않는다. 정책 준비 상태에서는 제출 버튼 전체가 뷰포트 안에 들어오고, 미준비 상태에서는 정책 안내가 뷰포트 안에서 텍스트가 잘리지 않고 보인다. 회귀 가드로 데스크톱(1440×900)에서도 채널 안내가 이름 라벨·입력과 겹치지 않고 채널 카드 아래에 있다. 검증: `e2e/consult-flow-03.spec.ts`의 `03 화면 — 모바일(390x737) 채널 안내·폼·하단 CTA 겹침 없음 (정책 준비 모드|정책 미준비 모드)`(`(a)(b) {kakao|phone} 채널 — 채널 안내가 … 채널 카드 아래에 위치한다`, `(c) {kakao|phone} 채널 — 하단 sticky CTA가 입력·동의 체크박스를 가리지 않고 …`)와 `03 화면 — 데스크톱(1440x900) 채널 안내가 폼과 겹치지 않는다 (…)`. 보조 가드: `components/consult/consult-form.test.tsx`는 폼 컨테이너에 음수 상단 마진(`-mt-*`) 클래스가 없음을 jsdom으로 확인한다(레이아웃 측정이 아니므로 e2e가 주 검증이다).
 
 **AC-B2CCONSULT-011** (REQ-B2CCONSULT-011)
 Given 연락처 입력값이 `"010 0000 0000"`(공백 포함)일 때
@@ -186,7 +224,7 @@ Then 클라이언트가 보낸 `name`/`contact` 원본 값이 echo되어 있지 
 추가 시나리오 — 최초 제출 성공 응답 형태:
 Given 유효한 최초 제출 페이로드(중복도 재시도도 아닌 신규 `idempotencyKey`)로 `POST /api/consultations`를 호출했을 때
 When 응답을 확인하면
-Then HTTP 201과 함께 `{status:"success", channel, maskedContact}` 형태의 페이로드가 반환되며(`channel === "phone"`이면 `preferredCallTime`도 포함), 응답 본문에 내부 DB 식별자(`consultationId`)나 구체적 연락 시각 약속(`expectedContactWindow`)은 포함되지 않는다(§9.4) — `consultations` 테이블의 행 수가 요청 전 대비 정확히 1 증가했음으로 신규 삽입임을 확인한다(동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)에서는 행 수가 증가하지 않는다는 점과 대비된다).
+Then HTTP 201과 함께 `{status:"success", channel, maskedContact}` 형태의 페이로드가 반환되며(저장된 `preferredCallTime`이 있으면 채널과 무관하게 `preferredCallTime`도 포함하고 없으면 필드를 넣지 않는다 — 카카오 채널에서 연락 희망 시간을 입력한 경우도 포함하며, 사용자 결정 3과 `app/api/consultations/route.ts:89-91`에 근거한다), 응답 본문에 내부 DB 식별자(`consultationId`)나 구체적 연락 시각 약속(`expectedContactWindow`)은 포함되지 않는다(§9.4) — `consultations` 테이블의 행 수가 요청 전 대비 정확히 1 증가했음으로 신규 삽입임을 확인한다(동일 `idempotencyKey` 재시도로 기존 레코드를 반환하는 AC-B2CCONSULT-020의 추가 시나리오(멱등 재시도 경로)에서는 행 수가 증가하지 않는다는 점과 대비된다).
 
 추가 시나리오 — 활성 동의 정책 없음(`policy_unavailable`):
 Given `CONSULT_POLICY_READY`가 거짓이거나 활성 정책이 설정되지 않았을 때
@@ -207,6 +245,16 @@ Then HTTP 429와 `{status:"error", code:"rate_limited"}`가 반환되며 이후 
 Given `CONSULT_POLICY_READY=true`이고 활성 동의 정책이 존재하며, 요청의 `acknowledgedConsentVersion`이 그 활성 정책 버전과 일치하고, 동일 `idempotencyKey`의 기존 레코드가 없으며(이번 제출이 진짜 신규 시도), `RATE_LIMIT_HMAC_SECRET` 환경 변수가 설정되지 않았을 때
 When `POST /api/consultations`를 호출하면
 Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되며 어떤 레코드도 생성되지 않는다(rate limit 판정 단계에 도달했으나 시크릿 부재로 안전하게 수행할 수 없기 때문).
+
+추가 시나리오 — 조작된 `x-forwarded-for` 왼쪽 값은 rate limit 키가 아니다 (독립 검토 iteration 7 D2):
+Given 신뢰 프록시가 클라이언트가 보낸 조작 값 뒤에 실제 IP를 덧붙인 `x-forwarded-for`(`"<조작된 값>, <실제 IP>"`)로 서로 다른 두 클라이언트 A·B가 **같은** 조작된 왼쪽 값과 서로 다른 실제 IP를 갖고, A가 `RATE_LIMIT_WINDOW_MS` 이내에 `RATE_LIMIT_MAX_REQUESTS`건의 신규 제출로 윈도를 포화시켰을 때
+When A가 다음 신규 제출을 하고 이어서 B가 첫 신규 제출을 하면
+Then A의 다음 제출은 429/`rate_limited`를 받고 B의 제출은 201로 접수된다 — rate limit 키는 가장 오른쪽 값에서만 파생되며 클라이언트가 조작할 수 있는 왼쪽 값은 판정에 쓰이지 않는다. 이 시나리오는 `app/api/consultations/route.test.ts`의 `[보안 재감사] x-forwarded-for의 클라이언트 조작 가능한 첫 값이 아니라 Nginx가 덧붙인 마지막 값으로 rate limit 키를 정한다` 테스트가 검증한다. 이 보장은 앱이 단일 신뢰 프록시를 거쳐서만 도달 가능하다는 배포 전제에 의존한다(`design.md` §9.3).
+
+추가 시나리오 — 신뢰 가능한 IP를 얻을 수 없을 때(핸들러 수준, 방어적 안전망, 독립 검토 iteration 7 D2):
+Given 정책·동의·idempotency 판정을 통과한 신규 제출이고 `RATE_LIMIT_HMAC_SECRET`이 설정되어 있으나 요청에 `x-forwarded-for` 헤더가 없어 핸들러가 신뢰 가능한 IP를 얻을 수 없을 때(핸들러를 직접 호출하는 테스트 — 실제 Next.js 16.3.2 런타임은 헤더 부재 시 소켓 주소를 채우므로 이 상황은 런타임에서 재현되지 않는다, `design.md` §9.3)
+When `POST /api/consultations` 핸들러를 호출하면
+Then HTTP 500과 `{status:"error", code:"server_error"}`가 반환되어 접수를 열지 않는다. 이 시나리오는 `app/api/consultations/route.test.ts`의 `신뢰 가능한 IP를 얻을 수 없으면(x-forwarded-for 부재) 시크릿이 있어도 500으로 fail closed한다` 테스트가 검증한다.
 
 추가 시나리오 — 정책 비활성 + 시크릿 부재 (우선순위 검증, D17):
 Given 활성 동의 정책이 없거나 `CONSULT_POLICY_READY`가 거짓이고, `RATE_LIMIT_HMAC_SECRET` 환경 변수도 설정되지 않았을 때
@@ -231,7 +279,7 @@ Then 이 경로도 rate limit 판정을 거치지 않으므로 HTTP 409와 `{sta
 추가 시나리오 — `handoff_mismatch` 판정:
 Given 폼 마운트 시점에 읽어 둔 `resultId`와 제출 직전 재조회한 `readDiagnosisHandoff()`의 `resultId`가 서로 다를 때(다른 탭에서 새 진단을 시작해 핸드오프가 교체된 경우)
 When 사용자가 제출을 시도하면
-Then 클라이언트는 `POST /api/consultations`를 호출하지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 03-D 실패 상태를 표시한다.
+Then 클라이언트는 `POST /api/consultations`를 호출하지 않고 즉시 `{status:"error", code:"handoff_mismatch"}`로 03-D 실패 상태의 `handoff_mismatch` 변형을 표시한다 — 제목 "상담 신청을 보내지 않았습니다", 부제(`role="alert"`) "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요.", "다시 시도하기" 버튼(`consult-failure-retry`)과 안내 박스(`consult-failure-notice`)는 없고 요약 카드와 "이전 화면으로 돌아가기"(`consult-failure-back-cta`, `/result` 링크)는 있으며, "접수 여부를 확인하지 못했습니다"·"중복 접수되지 않습니다" 문구는 없다(AC-B2CCONSULT-022 추가 시나리오 참조). 검증(계획): `components/consult/consult-view.test.tsx`의 "handoff_mismatch: 마운트 후 핸드오프의 resultId가 바뀌면 fetch 없이 즉시 03-D를 렌더링한다", `components/consult/consult-failure.test.tsx`의 describe "handoff_mismatch 변형", `e2e/consult-flow-03.spec.ts`의 "handoff_mismatch 실패 전환 후 스크롤이 최상단으로 복원되고 포커스가 결과 제목으로 이동…". 이 문서를 고친 시점에는 이 시험들을 실행하지 않았다.
 
 추가 시나리오 — 비정상 boolean 문자열은 오류가 아니라 false로 취급(독립 검토 D14):
 Given `ENABLE_CONSULT_FLOW` 또는 `CONSULT_POLICY_READY` 환경 변수 값이 `"1"`/`"TRUE"`/`"yes"`처럼 지원되지 않는 형태의 문자열일 때
@@ -293,14 +341,24 @@ Then 어느 요청도 HTTP 429(`rate_limited`)를 받지 않는다 — 최초 1�
 ## 성공 · 중복 · 실패 상태
 
 **AC-B2CCONSULT-022** (REQ-B2CCONSULT-022)
-Given 제출 요청이 네트워크 타임아웃으로 응답을 받지 못했을 때
-When 03-D 실패 화면이 표시되면
-Then "저장되었습니다"류의 확정 문구가 없으며, "다시 시도하기"를 눌렀을 때 최초 제출과 동일한 `idempotencyKey`가 재전송되고, 화면에 표시되던 채널·이름·연락처·연락 희망 시간 값이 그대로 유지된다.
+Given 정책 준비 상태(제출이 가능한 유일한 상태)에서 제출 요청이 네트워크 타임아웃으로 응답을 받지 못했을 때
+When 03-D 실패 화면(결과를 알 수 없는 `unknown_outcome` 변형, 기본 변형)이 표시되면
+Then "저장되었습니다"류의 확정 문구도, 신청이 접수되지 않았다고 말하는 문구도 없다(이 변형의 03-D는 "접수 여부를 확인하지 못했다"고만 알리고, 같은 내용으로 다시 시도해도 중복 접수되지 않는다고 안내하며, 실제 문의 창구가 없으므로 카카오톡 문의 같은 대체 문의 경로를 안내하지 않는다 — 사용자 결정 7). 입력한 채널·이름·연락처·연락 희망 시간·마케팅 동의는 draft에 보존된다(03-D 요약 카드는 design.md §10에 따라 상담 방식·입력한 연락처·연락 희망 시간(입력했을 때만)·"입력 내용: 유지됨"의 3~4행이며 이름은 표시하지 않는다. 입력한 연락처는 마스킹 없이 다시 표시된다 — 사용자 결정 6, 개인정보 검토는 progress.md 열린 항목 13번으로 남아 있다). "다시 시도하기"를 눌렀을 때 최초 제출과 동일한 `idempotencyKey`와 동일한 채널·이름·연락처·연락 희망 시간·마케팅 동의 값이 재전송되며(재시도 요청 payload로 검증), 03-D에서 나갔다가 `/consult`로 재진입해도 draft에서 같은 값이 폼에 복원된다(필수 동의 두 항목만 재확인이 필요하다).
 
 추가 시나리오 — 서버 500 응답도 동일하게 처리:
 Given 서버가 500을 반환했을 때
 When 03-D 화면을 확인하면
-Then 위와 동일한 문구·재시도 동작·입력 보존이 적용된다.
+Then 위와 동일한 문구·재시도 동작·입력 보존이 적용된다(요청을 보냈을 수 있어 결과를 알 수 없는 `unknown_outcome` 변형 — 서버 `error`·fetch 예외·해석할 수 없는 응답·성공이 아닌 상태가 모두 이 변형이다).
+
+추가 시나리오 — 요청을 보내지 않은 `handoff_mismatch` 변형은 공용 문구를 쓰지 않는다(사용자 결정 10, 커밋 `9cdac4b`):
+Given 정책 준비 상태에서 폼 마운트 뒤 진단 핸드오프의 `resultId`가 바뀌어(다른 탭에서 새 진단 시작 등) 제출 직전 재조회 값이 마운트 시점 값과 다를 때
+When 사용자가 제출을 시도해 03-D가 표시되면
+Then `POST /api/consultations` 요청은 0건이고, 03-D 제목은 "상담 신청을 보내지 않았습니다"이며 부제는 "진단 결과가 달라져 신청을 보내지 않았습니다. 진단 결과를 다시 확인한 뒤 신청해 주세요."다. "다시 시도하기" 버튼과 안내 박스는 없고, "접수 여부를 확인하지 못했습니다"·"신청이 접수되었는지 이 화면에서는 알 수 없습니다"·"같은 내용으로 다시 시도해도 중복 접수되지 않습니다" 문구도 없다(아무것도 보내지 않았다는 사실과 어긋나기 때문). 요약 카드(상담 방식·입력한 연락처·연락 희망 시간(입력했을 때만)·"입력 내용: 유지됨")와 "이전 화면으로 돌아가기"(`/result` 링크)는 유지된다. 반대로 `unknown_outcome` 경로(fetch 예외 등)에서는 위 공용 문구와 "다시 시도하기"가 그대로 나타난다. 검증(계획): `components/consult/consult-failure.test.tsx`(두 변형의 렌더링, `reason` 생략 시 기본 변형), `components/consult/consult-view.test.tsx`("handoff_mismatch: …"와 "handoff_mismatch가 아닌 실패(fetch 예외)는 공용 문구와 재시도 버튼을 그대로 보인다"), `e2e/consult-flow-03.spec.ts`. `.pen`에는 이 변형의 프레임이 없고 그리지 않았으므로(디자인 편차, `design.md` §10·§12) 이 변형은 `pnpm visual:verify` 픽셀 비교 대상이 아니다. 이 문서를 고친 시점에는 위 시험을 실행하지 않았다.
+
+추가 시나리오 — 서버가 접수를 커밋한 뒤 응답만 유실된 경우(D-NEW-29, 사용자 결정 7):
+Given 정책 준비 상태에서 서버가 상담 신청을 커밋했지만 클라이언트가 네트워크 오류로 응답을 받지 못해 03-D가 표시됐을 때
+When 사용자가 "다시 시도하기"를 눌러 같은 `idempotencyKey`로 재전송하면
+Then 03-D의 제목·부제·안내 어디에도 신청이 접수되지 않았다는 문구가 없고, 두 요청의 `idempotencyKey`가 같으며, 재시도는 서버의 재생 응답으로 03-B에 도달하고, `consultations`에는 그 키의 행이 1개뿐이며 rate limit은 1회만 소비된다. 검증은 두 곳이다 — (1) `components/consult/consult-view.test.tsx`의 describe "응답 유실 후 같은 키 재시도(D-NEW-29)" 안의 통합 테스트 "서버는 커밋했지만 응답이 유실되면 03-D가 접수 여부를 단정하지 않고, 다시 시도하기는 같은 키로 재전송해 03-B에 도달하며 행은 1개·rate limit은 1회만 소비된다"(`fetch`를 실제 서버 핸들러와 파일 DB에 연결하고 첫 호출은 서버가 커밋한 뒤 `TypeError("Failed to fetch")`를 던진다), (2) `e2e/consult-flow-03.spec.ts`의 "서버가 커밋한 뒤 응답이 유실되면 03-D는 접수 여부를 단정하지 않고, 다시 시도하기는 같은 idempotencyKey로 재전송해 성공 화면에 도달한다"(첫 POST를 `route.fetch()`로 서버에 보낸 뒤 `route.abort("failed")`로 응답만 끊는다). 두 검증은 로컬 파일 DB와 로컬 `next start` 기준이며 원격 Turso·운영 환경은 이 시나리오의 검증 범위가 아니다.
 
 **AC-B2CCONSULT-023** (REQ-B2CCONSULT-023)
 Given 서버가 `{status:"duplicate"}`를 반환했을 때
@@ -339,7 +397,12 @@ Then 모든 단계가 키보드만으로 완료 가능하다.
 **AC-B2CCONSULT-025** (REQ-B2CCONSULT-025)
 Given `pnpm visual:verify`를 이 SPEC의 run-phase 구현 완료 후 전체 실행할 때
 When 결과를 확인하면
-Then 기존 15화면(01 계열 10 + 02 계열 5)이 여전히 PASS하고, 이 SPEC이 추가한 9화면(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D)도 PASS한다(총 24화면).
+Then 기존 15화면(01 계열 10 + 02 계열 5)이 여전히 PASS하고, 이 SPEC이 추가한 9화면(03/03-A2/03-B/03-C/03-D, M03/M03-B/M03-C/M03-D)도 PASS한다(총 24화면). 02 계열 5화면의 PASS는 `design.md` §12.1이 열거한 승인된 재보정을 반영한 "설정된 검증 게이트 기준" PASS다.
+
+추가 시나리오 — 기존 15화면 정의 불변(승인된 재보정 외, 독립 검토 iteration 7 D1):
+Given plan-merge 커밋 `a106ac9`의 `scripts/visual-verify.ts`와 run-phase 완료 HEAD의 같은 파일에서 `SCREENS` 배열 항목을 `id`별로 추출했을 때(항목 경계는 들여쓰기 2칸의 `  {` ~ `  },`)
+When 기존 15개 `id`(01·01-A2·01-B·01-C·01-D·01-E·M01·M01-A2·M01-B·M01-C·02·M02·M02-B·M02-C·M02-D)의 항목 텍스트와 `TOLERANCE` 상수를 두 시점 사이에 비교하면
+Then 01 계열·M01 계열 10개 항목과 `TOLERANCE`는 바이트 동일하고, 02 계열 5개 항목에서 삭제·변경된 줄은 `design.md` §12.1이 열거한 것뿐이다 — `02`의 `bottom: 3089,` 한 줄과 `M02`의 주석 `// 참값(top=923).` 한 줄이 유일한 삭제 줄이며, 그 밖의 차이는 `backgroundProbe` 5건(`02`의 값 변경 1 + M02·M02-B·M02-C·M02-D 신규 4)·`skipMetrics` 정확히 18건(`02` 2 + M02·M02-B·M02-C·M02-D 각 4, 모두 `skipReason` 동반)·주석의 추가다. 이 검사는 `SCREENS` 항목과 `TOLERANCE`만 대상으로 하며 harness 본체 변경은 대상이 아니다(`design.md` §12.1).
 
 추가 시나리오 — draft만 정리, 진단 결과 핸드오프는 유지:
 Given 상담 신청이 성공적으로 접수되었을 때
@@ -353,7 +416,7 @@ Then 제출 전과 동일한 `resultId`를 가진 동일한 진단 결과 요약
 
 추가 시나리오 — 중복/실패 화면에서도 복귀 시 핸드오프 유지:
 Given 서버 응답이 `duplicate` 또는 `error`였을 때
-When 03-C/03-D 화면의 "진단 결과로 돌아가기"를 눌러 `/result`로 이동하면
+When 03-C 화면의 "진단 결과로 돌아가기" 또는 03-D 화면의 "이전 화면으로 돌아가기"(둘 다 `/result` 링크)를 눌러 `/result`로 이동하면
 Then 제출 시도와 무관하게 동일한 `resultId`의 진단 결과가 그대로 표시된다.
 
 추가 시나리오 — `DIAGNOSIS_ENGINE_READY` 미전환:

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getTableName } from "drizzle-orm";
+import { getTableColumns, getTableName } from "drizzle-orm";
 import * as schema from "./schema";
+import { consultationRateLimits, consultations } from "./schema";
 
 describe("lib/db/schema", () => {
   it("REQ-SCAFFOLD-003이 요구하는 5개 애플리케이션 테이블의 SQL 이름이 일치한다", () => {
@@ -52,5 +53,67 @@ describe("lib/db/schema", () => {
     expect(schema.geminiRequestObservations.ok).toBeDefined();
     expect(schema.geminiRequestObservations.durationMs).toBeDefined();
     expect(schema.geminiRequestObservations.observedAt).toBeDefined();
+  });
+});
+
+// SPEC-B2C-CONSULT-001 M2 — AC-B2CCONSULT-019: consultations/consultationRateLimits
+// 컬럼 목록을 정적으로 검사한다. DiagnosisResult.items(담보 항목 배열) 또는 그
+// 축약형을 저장하는 컬럼이 존재하지 않음을 함께 확인한다.
+describe("lib/db/schema — consultations (AC-B2CCONSULT-019)", () => {
+  it("요구된 컬럼이 모두 존재한다", () => {
+    const columns = Object.keys(getTableColumns(consultations));
+
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        "id",
+        "resultId",
+        "channel",
+        "name",
+        "contactNormalized",
+        "preferredCallTime",
+        "consentPiiCollection",
+        "consentHealthInfoUse",
+        "consentMarketing",
+        "consentVersion",
+        "requestFingerprint",
+        "applicationStatus",
+        "idempotencyKey",
+        "createdAt",
+        "updatedAt",
+      ])
+    );
+  });
+
+  it("DiagnosisResult.items(담보 항목 배열) 또는 그 축약형을 저장하는 컬럼이 존재하지 않는다", () => {
+    const columns = Object.keys(getTableColumns(consultations)).map((c) => c.toLowerCase());
+
+    expect(columns).not.toEqual(expect.arrayContaining(["items"]));
+    expect(columns.some((c) => c.includes("item") || c.includes("coverage"))).toBe(false);
+  });
+
+  it("테이블명이 consultations다", () => {
+    expect(getTableName(consultations)).toBe("consultations");
+  });
+});
+
+describe("lib/db/schema — consultationRateLimits (AC-B2CCONSULT-019 추가 시나리오)", () => {
+  it("windowStart/ipHmac/requestCount만 존재한다", () => {
+    const columns = Object.keys(getTableColumns(consultationRateLimits)).sort();
+
+    expect(columns).toEqual(["ipHmac", "requestCount", "windowStart"].sort());
+  });
+
+  it("원본 IP 문자열을 평문으로 저장하는 컬럼이 존재하지 않는다", () => {
+    const columns = Object.keys(getTableColumns(consultationRateLimits)).map((c) =>
+      c.toLowerCase()
+    );
+
+    expect(columns.some((c) => c === "ip" || c.includes("rawip") || c.includes("ipaddress"))).toBe(
+      false
+    );
+  });
+
+  it("테이블명이 consultation_rate_limits다", () => {
+    expect(getTableName(consultationRateLimits)).toBe("consultation_rate_limits");
   });
 });

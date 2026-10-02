@@ -124,6 +124,78 @@ describe("lib/env — validateEnv (AC-RUNTIME-003, AC-RUNTIME-010, AC-RUNTIME-01
     });
   });
 
+  // SPEC-B2C-CONSULT-001 M2(plan.md §F 환경변수 검증 테스트 시나리오,
+  // design.md §4.2) — RATE_LIMIT_HMAC_SECRET은 CONSULT_POLICY_READY가
+  // 정확히 "true"일 때만 app 스코프에서 필수다.
+  describe("RATE_LIMIT_HMAC_SECRET 조건부 필수 (SPEC-B2C-CONSULT-001 §4.2)", () => {
+    it("시나리오 1 — CONSULT_POLICY_READY=false + 시크릿 부재 → env 검증 통과", () => {
+      const result = validateEnv("app", {
+        TURSO_DATABASE_URL: "file:./.tmp/x.db",
+        LLM_PROVIDER_MODE: "deterministic",
+        CONSULT_POLICY_READY: "false",
+      });
+
+      expect(result.RATE_LIMIT_HMAC_SECRET).toBeUndefined();
+    });
+
+    it("시나리오 2 — CONSULT_POLICY_READY=true + 시크릿 부재 → env 검증 실패", () => {
+      expect(() =>
+        validateEnv("app", {
+          TURSO_DATABASE_URL: "file:./.tmp/x.db",
+          LLM_PROVIDER_MODE: "deterministic",
+          CONSULT_POLICY_READY: "true",
+        })
+      ).toThrow(/RATE_LIMIT_HMAC_SECRET/);
+    });
+
+    it("시나리오 3 — CONSULT_POLICY_READY=true + 시크릿 존재 → env 검증 통과", () => {
+      const result = validateEnv("app", {
+        TURSO_DATABASE_URL: "file:./.tmp/x.db",
+        LLM_PROVIDER_MODE: "deterministic",
+        CONSULT_POLICY_READY: "true",
+        RATE_LIMIT_HMAC_SECRET: "test-secret",
+      });
+
+      expect(result.RATE_LIMIT_HMAC_SECRET).toBe("test-secret");
+    });
+
+    it("시나리오 4 — 지원되지 않는 문자열 값('TRUE'/'1'/'yes')은 false로 취급된다(D14)", () => {
+      for (const value of ["TRUE", "1", "yes", "True"]) {
+        const result = validateEnv("app", {
+          TURSO_DATABASE_URL: "file:./.tmp/x.db",
+          LLM_PROVIDER_MODE: "deterministic",
+          CONSULT_POLICY_READY: value,
+        });
+
+        expect(result.RATE_LIMIT_HMAC_SECRET).toBeUndefined();
+      }
+    });
+
+    it("시나리오 4-보완 — CONSULT_POLICY_READY 미설정 시에도 시크릿은 필요 없다", () => {
+      const result = validateEnv("app", {
+        TURSO_DATABASE_URL: "file:./.tmp/x.db",
+        LLM_PROVIDER_MODE: "deterministic",
+      });
+
+      expect(result.RATE_LIMIT_HMAC_SECRET).toBeUndefined();
+    });
+
+    it("시나리오 5 — ENABLE_CONSULT_FLOW가 아니라 CONSULT_POLICY_READY가 판정 기준이다", () => {
+      // ENABLE_CONSULT_FLOW=true + CONSULT_POLICY_READY=false: 화면은
+      // 배포되지만 실제 PII 접수는 열리지 않으므로 시크릿 없이도 기동된다.
+      // (요청 시점 fail-closed 500/server_error는 app/api/consultations/
+      // route.test.ts가 별도로 검증한다 — defense in depth, §9.3/§4.2.)
+      const result = validateEnv("app", {
+        TURSO_DATABASE_URL: "file:./.tmp/x.db",
+        LLM_PROVIDER_MODE: "deterministic",
+        ENABLE_CONSULT_FLOW: "true",
+        CONSULT_POLICY_READY: "false",
+      });
+
+      expect(result.RATE_LIMIT_HMAC_SECRET).toBeUndefined();
+    });
+  });
+
   describe("e2e 스코프", () => {
     it("TESTER_PASSWORD 누락 시 실패한다", () => {
       expect(() =>

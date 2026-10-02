@@ -11,13 +11,16 @@ const scriptPath = path.join(scriptDir, "db-migrate.ts");
 const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
 const tmpDir = path.join(projectRoot, ".tmp");
 
-// lib/db/schema.ts의 12개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
-// 상수도 함께 갱신한다.
+// lib/db/schema.ts의 14개 sqliteTable() 선언과 1:1 대응 — 목록이 바뀌면 이
+// 상수도 함께 갱신한다. consultations/consultation_rate_limits는
+// SPEC-B2C-CONSULT-001 M2가 추가했다.
 const EXPECTED_TABLES = [
   "account",
   "allowed_testers",
   "case_jobs",
   "cases",
+  "consultation_rate_limits",
+  "consultations",
   "evidence",
   "feedback",
   "gemini_request_observations",

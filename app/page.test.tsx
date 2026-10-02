@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import Home from "./page";
+import Home, { generateMetadata } from "./page";
 
 // SPEC-B2C-FOUNDATION-001 M2 — app/page.tsx는 더 이상 로그인 세션에 따른
 // 리다이렉트를 수행하지 않는다. B2C 01 화면이 구현되기 전까지 사용할
@@ -151,7 +151,7 @@ describe("app/page — 플래그 기반 shouldRenderDiagnosis 5행 동작 행렬
       expected: true,
       label: "false/false/true → reviewEnabled DiagnosisFlow",
     },
-  ])("$label", ({ flow, engine, devStates, expected }) => {
+  ])("$label", async ({ flow, engine, devStates, expected }) => {
     setDiagnosisEnv(flow, engine, devStates);
 
     act(() => {
@@ -166,6 +166,12 @@ describe("app/page — 플래그 기반 shouldRenderDiagnosis 5행 동작 행렬
       expect(flowNode).toBeNull();
       expect(container.textContent).toContain("서비스 준비 중입니다");
     }
+
+    // SPEC-B2C-CONSULT-001 D-NEW-23 — 탭 제목도 본문과 같은 게이트 판정을 따라야 한다.
+    // 정적 metadata는 게이트가 열려도 "서비스 준비 중"을 반환해 본문(진단 화면)과 제목이
+    // 어긋났다. 같은 env에서 본문 상태와 제목이 항상 짝을 이루는지 한 행에서 함께 본다.
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe(expected ? "보상 진단" : "서비스 준비 중");
   });
 });
 
@@ -213,5 +219,25 @@ describe("app/page — devStep 강제 진입 (AC-B2CDIAG-015/016)", () => {
     const flowNode = container.querySelector('[data-testid="diagnosis-flow"]');
     expect(flowNode).not.toBeNull();
     expect(flowNode?.getAttribute("data-step")).toBe("error");
+  });
+});
+
+// SPEC-B2C-CONSULT-001 D-NEW-21 — `/`도 진단 게이트를 요청 시점에 읽어야 한다.
+// 이 export가 없으면 `next build`가 `/`를 프리렌더해 세 플래그를 빌드 시점 값으로
+// 굳히고, 같은 게이트를 요청 시점에 읽는 `/result`와 서로 다른 상태를 보이게 된다
+// (`pnpm verify:flag-runtime`로 재현). app/consult/page.tsx, app/result/page.tsx와
+// 동일한 방식이다.
+describe("app/page — 게이트 판정 시점", () => {
+  it("dynamic = 'force-dynamic'을 export해 빌드 시점 프리렌더로 플래그가 굳지 않는다", async () => {
+    const pageModule = await import("./page");
+    expect((pageModule as { dynamic?: string }).dynamic).toBe("force-dynamic");
+  });
+
+  // Next.js는 같은 파일이 정적 `metadata`와 `generateMetadata`를 함께 export하면 빌드를
+  // 거부한다. 정적 metadata가 남아 있으면 제목이 다시 게이트와 무관하게 굳는다.
+  it("정적 metadata를 export하지 않는다(generateMetadata만 사용)", async () => {
+    const pageModule = await import("./page");
+    expect("metadata" in pageModule).toBe(false);
+    expect(typeof pageModule.generateMetadata).toBe("function");
   });
 });

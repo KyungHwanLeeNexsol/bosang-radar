@@ -1,6 +1,19 @@
 # 프로젝트 구조
 
-> 최종 수정: 2026-09-25 (SPEC-B2C-RESULT-001 sync-phase 종료 — PR #19
+> 최종 수정: 2026-09-28 (SPEC-B2C-CONSULT-001 M1-M7 — ③ 상담 신청 및
+> 접수 결과(03) 구현 완료 반영. `app/consult/page.tsx`·
+> `app/api/consultations/route.ts`·`components/consult/*`(11개
+> 컴포넌트)·`lib/consult/`(types·schema·consent-policy·dedupe·draft·
+> phone)가 신설됐다 — 아래 § 목표 구조가 제안했던
+> `app/(diagnosis)/consult/page.tsx`·`app/api/leads/`·`lib/coverage/`·
+> `lib/validation/lead-input.ts` 경로는 채택되지 않았고, 01/02가 이미
+> 확정한 `app/` 루트 직속 배치(별도 라우트 그룹 없음) + 도메인별
+> `lib/<domain>/` 네이밍을 03이 그대로 이어받았다(`lib/consult/`). PII
+> 예외 스키마도 제안된 `lib/validation/lead-input.ts`가 아니라
+> `lib/consult/schema.ts`에 위치한다. § 현재 구조(실측) 트리 자체의
+> 전면 재작성은 이 개정에도 포함하지 않는다(잔여 위험 — 01/02와 동일한
+> 사유로 후속 정리 필요). 이전 개정: 2026-09-25 (SPEC-B2C-RESULT-001
+> sync-phase 종료 — PR #19
 > squash 병합(main `e0b5bab`)으로 02 구현이 main에 반영됐고 SPEC 상태가
 > `completed`로 전환됐다. 구조 변경은 없으며 아래 2026-09-22 개정 내용이
 > 그대로 유효하다. 아래 § 목표 구조(제안) 트리의 02 항목은 실제로는
@@ -188,12 +201,16 @@ Auth·로그인 화면이 이미 삭제됐기 때문) — `scripts/run-e2e.ts`�
 
 > **주의**: 이 절은 코드가 아니라 **문서 수준 제안**이다. 실제 구현 시
 > 라우트 그룹 이름, 파일 위치는 담당 SPEC에서 재조정될 수 있다.
-> **① 01(질문 입력)·② 02(보상 진단 결과)는 이 제안과 다른 실제 경로로
-> 이미 구현이 완료됐다** — `app/(diagnosis)/` 그룹 없이 `app/page.tsx`·
-> `app/result/page.tsx`를 루트에 직접 두고, `lib/coverage/` 대신
-> `lib/diagnosis/`를 썼다(SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001).
-> 아래 트리는 ③ 03(상담 신청)이 아직 미구현인 부분에 대해서만 유효한
-> 제안으로 남는다.
+> **① 01(질문 입력)·② 02(보상 진단 결과)·③ 03(상담 신청 및 접수
+> 결과)는 이 제안과 다른 실제 경로로 이미 구현이 완료됐다** —
+> `app/(diagnosis)/` 그룹 없이 `app/page.tsx`·`app/result/page.tsx`·
+> `app/consult/page.tsx`를 루트에 직접 두고, `lib/coverage/`·
+> `app/api/leads/`·`lib/validation/lead-input.ts` 대신 `lib/diagnosis/`·
+> `app/api/consultations/`·`lib/consult/schema.ts`를 썼다
+> (SPEC-B2C-DIAGNOSIS-001, SPEC-B2C-RESULT-001, SPEC-B2C-CONSULT-001).
+> 아래 트리는 이번 피벗 초기(2026-09-17)에 작성된 문서 수준 제안이며,
+> 01/02/03 모두 실제 구현 경로가 확정된 지금은 역사적 참고 자료로만
+> 남는다.
 > 2026-09-17 재확인으로 기존 B2B 코드(`app/cases/*` 등)는 **삭제(완전
 > 대체)**로 방향이 확정됐다 — 아래는 삭제 이후를 가정한 스케치이며,
 > `(diagnosis)` 같은 별도 라우트 그룹 신설도 삭제 후에는 굳이 필요 없이
