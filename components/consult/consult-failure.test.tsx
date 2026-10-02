@@ -213,7 +213,7 @@ describe("components/consult/ConsultFailure — handoff_mismatch 변형", () => 
 
   const mismatchProps = {
     channel: "phone" as const,
-    contact: "010-0000-0000",
+    contact: "010-1234-5678",
     preferredCallTime: "평일 오후",
     isRetrying: false,
     onRetry: vi.fn(),
@@ -261,7 +261,6 @@ describe("components/consult/ConsultFailure — handoff_mismatch 변형", () => 
 
     const summary = container.querySelector('[data-testid="consult-failure-summary"]');
     expect(summary?.textContent).toContain("전화 상담");
-    expect(summary?.textContent).toContain("010-0000-0000");
     expect(summary?.textContent).toContain("평일 오후");
     expect(summary?.textContent).toContain("유지됨");
 
@@ -269,5 +268,91 @@ describe("components/consult/ConsultFailure — handoff_mismatch 변형", () => 
     expect(backCta?.tagName).toBe("A");
     expect(backCta?.getAttribute("href")).toBe("/result");
     expect(backCta?.textContent).toContain("이전 화면으로 돌아가기");
+  });
+
+  // D-NEW-32 — 서버에 아무것도 보내지 않은 경로라 연락처를 화면에 되풀이해 보일 이유가
+  // 없다. 마스킹된 값만 보이고 원본 숫자(가운데 구간)는 DOM 어디에도 남지 않는다.
+  it("연락처를 마스킹해서 보여주고 원본 번호는 DOM에 남기지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("010-****-5678");
+    expect(text).not.toContain("010-1234-5678");
+    expect(text).not.toContain("01012345678");
+    expect(text).not.toContain("1234");
+  });
+
+  it("하이픈 없는 입력도 같은 마스킹 형식으로 보여준다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} contact="01012345678" />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("010-****-5678");
+    expect(text).not.toContain("01012345678");
+  });
+
+  it("정규화할 수 없는 연락처는 끝 4자리만 남기고 던지지 않는다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} contact="abc-9876" />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("****-9876");
+    expect(text).not.toContain("abc");
+  });
+
+  it("입력 내용 행이 필수 동의를 다시 확인해야 함을 함께 알린다", () => {
+    act(() => {
+      root.render(<ConsultFailure {...mismatchProps} />);
+    });
+
+    const summary = container.querySelector('[data-testid="consult-failure-summary"]');
+    expect(summary?.textContent).toContain("유지됨 · 필수 동의는 다시 확인해 주세요");
+  });
+});
+
+// 결과 불명(unknown_outcome) 변형은 .pen 03-D 프레임과 픽셀 비교되므로 이번 변경으로
+// 렌더 결과가 달라지면 안 된다 — 연락처 원문과 "유지됨" 단독 표기를 고정하는 회귀 가드.
+describe("components/consult/ConsultFailure — unknown_outcome 변형 회귀 가드", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("연락처는 입력 원문 그대로, 입력 내용은 '유지됨'만 표시한다", () => {
+    act(() => {
+      root.render(
+        <ConsultFailure
+          reason="unknown_outcome"
+          channel="phone"
+          contact="010-1234-5678"
+          preferredCallTime="평일 오후"
+          isRetrying={false}
+          onRetry={vi.fn()}
+        />
+      );
+    });
+
+    const rows = Array.from(
+      container.querySelectorAll('[data-testid="consult-failure-summary"] > div')
+    ).map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
+    expect(rows).toContainEqual(["연락처", "010-1234-5678"]);
+    expect(rows).toContainEqual(["입력 내용", "유지됨"]);
+    expect(container.textContent).not.toContain("필수 동의");
+    expect(container.textContent).not.toContain("****");
   });
 });

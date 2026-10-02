@@ -455,6 +455,14 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     await expect(page.getByTestId("consult-failure-retry")).toHaveCount(0);
     await expect(page.getByTestId("consult-failure-notice")).toHaveCount(0);
     await expect(page.getByTestId("consult-failure-back-cta")).toBeVisible();
+
+    // D-NEW-32 — 연락처는 마스킹해서 보이고 원본 번호는 화면에 남지 않으며, 입력 내용 행이
+    // 필수 동의를 다시 확인해야 함을 함께 알린다.
+    const summary = page.getByTestId("consult-failure-summary");
+    await expect(summary).toContainText(CONSULT_PHONE_MASKED);
+    await expect(summary).not.toContainText("01012345678");
+    await expect(summary).not.toContainText("1234");
+    await expect(summary).toContainText("유지됨 · 필수 동의는 다시 확인해 주세요");
   });
 
   // 03-D 요약 카드의 "입력 내용 · 유지됨" 주장을 실제 재진입 경로로 확인한다. 이 안내가 맞으려면
@@ -546,6 +554,13 @@ test.describe("03 화면 — 모바일(390px) 스크롤·포커스 복원", () =
     await expect(page.getByTestId("consult-outcome-title")).toHaveText(
       "상담 신청 접수 여부를 확인하지 못했습니다"
     );
+
+    // D-NEW-32 회귀 가드 — 결과 불명 변형은 연락처 원문과 "유지됨" 단독 표기를 그대로 둔다
+    // (.pen 03-D와 픽셀 비교되는 화면이라 마스킹·동의 안내가 새어 들어오면 안 된다).
+    const summary = page.getByTestId("consult-failure-summary");
+    await expect(summary).toContainText(CONSULT_PHONE);
+    await expect(summary).not.toContainText("****");
+    await expect(summary).not.toContainText("필수 동의");
 
     await expectConsultInputRestoredAfterLeavingFailure(page);
   });

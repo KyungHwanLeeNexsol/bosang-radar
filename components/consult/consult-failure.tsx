@@ -3,6 +3,7 @@
 import type { Ref } from "react";
 import { ArrowLeft, MessageCircle, RefreshCw, TriangleAlert } from "lucide-react";
 
+import { maskPhone, normalizePhone } from "@/lib/consult/phone";
 import type { ConsultationChannel } from "@/lib/consult/types";
 
 import { OutcomeActions, OutcomeButton } from "./consult-outcome-button";
@@ -34,12 +35,27 @@ import { SUMMARY_CARD_CLASS, SummaryRow } from "./consult-summary-row";
 //     서버로 아무것도 보내지 않고 온 경로. 접수 여부가 불명이 아니라 "보내지
 //     않았다"가 확정이라 공용 문구가 거짓이 되고, 재시도는 같은 비교를 반복해
 //     계속 실패하므로 재시도 버튼과 "중복 접수되지 않습니다" 안내 박스를 그리지
-//     않는다. 요약 카드와 이전 화면 링크는 그대로 둔다.
+//     않는다. 요약 카드와 이전 화면 링크는 그대로 두되, 서버에 아무것도 보내지 않은
+//     경로라 연락처는 마스킹해서 보이고(D-NEW-32), 입력 내용 행에는 필수 동의를 다시
+//     확인해야 한다는 안내를 덧붙인다(동의 두 항목은 설계상 draft에 저장되지 않아
+//     복원되지 않는다). unknown_outcome의 렌더 결과는 .pen 03-D와 픽셀 비교되므로
+//     바꾸지 않는다.
 
 const CHANNEL_LABEL: Record<ConsultationChannel, string> = {
   kakao: "카카오톡 상담",
   phone: "전화 상담",
 };
+
+// 정규화에 실패한 값(정상 경로에서는 클라이언트 검증을 통과해 나오지 않는다)도 던지지 않고
+// 마스킹 형식 이상으로 노출하지 않도록 끝 4자리만 남긴다.
+function maskContact(contact: string): string {
+  const normalized = normalizePhone(contact);
+  if (normalized) {
+    return maskPhone(normalized);
+  }
+  const last4 = contact.replace(/\D/g, "").slice(-4);
+  return last4 ? `****-${last4}` : "****";
+}
 
 export type ConsultFailureReason = "unknown_outcome" | "handoff_mismatch";
 
@@ -104,11 +120,14 @@ export function ConsultFailure({
       card={
         <dl data-testid="consult-failure-summary" className={SUMMARY_CARD_CLASS}>
           <SummaryRow label="상담 방식" value={CHANNEL_LABEL[channel]} />
-          <SummaryRow label="연락처" value={contact} />
+          <SummaryRow label="연락처" value={notSent ? maskContact(contact) : contact} />
           {preferredCallTime ? (
             <SummaryRow label="연락 희망 시간" mobileLabel="희망 시간" value={preferredCallTime} />
           ) : null}
-          <SummaryRow label="입력 내용" value="유지됨" />
+          <SummaryRow
+            label="입력 내용"
+            value={notSent ? "유지됨 · 필수 동의는 다시 확인해 주세요" : "유지됨"}
+          />
         </dl>
       }
       note={
