@@ -4066,6 +4066,52 @@ Baseline-attribution: 사용자 메시지(2026-10-02)의 결정 목록을 그대
 
 **Residual-risk**: 새 단언들의 변이 감도 미확인. `unknown_outcome`의 원문 연락처 노출은 `.pen` 정합 때문에 남겼으므로 개인정보 관점에서는 그 변형이 열려 있다. 푸시·PR 수정은 하지 않았다(로컬 커밋만).
 
+### D-NEW-33 — 병합 준비 점검: 배포 자동 실행 순서, 운영 VM 플래그·DB 지문 읽기 전용 확인, CI 부재 확인 (2026-10-02, 시작 HEAD `67243ea`)
+
+**범위**: 병합 체크리스트(`.moai/reports/merge-readiness/SPEC-B2C-CONSULT-001/MERGE-CHECKLIST.md`)를 만들기 위한 읽기 전용 점검이다. 병합·푸시(이 절 작성 시점)·`CONSULT_POLICY_READY` 변경·운영 DB 접속·운영 쓰기는 하지 않았다. 운영 VM에는 읽기 전용으로 접속했고(호스트 키 검증 유지, `BatchMode`) 환경 값·경로·호스트는 출력하지 않았다. 접속 정보가 든 임시 스크립트와 설정은 점검 직후 삭제했다. `run_status`는 바꾸지 않으며 병합 가능·운영 준비·시각 정합 완료를 선언하지 않는다.
+
+**Claim 123 — 병합(`main` 푸시)은 `deploy.yml`로 `db:migrate` → `build` → `pm2 restart` → smoke check를 자동 실행하고, 한 단계라도 실패하면 거기서 멈춘다. smoke 실패는 재시작 뒤라서 새 빌드를 되돌리지 않는다.**
+
+Evidence: `.github/workflows/deploy.yml`을 읽었다. 트리거는 `push: main`과 `workflow_dispatch: {}`뿐이고, 스크립트는 `set -euo pipefail`로 시작하며 순서는 `git reset --hard origin/main` → `pnpm install --frozen-lockfile` → `pnpm run db:migrate` → `NODE_OPTIONS=--max-old-space-size=3072 pnpm run build` → 정적 파일 복사 → `pm2 restart` → smoke(2xx, "서비스 준비 중입니다", CSS 청크)이다. 마이그레이션 원자성: `node_modules/@libsql/client/lib-esm/hrana.js`의 `executeHranaBatch`(214~242줄)가 `BEGIN`, 이전 문장이 성공했을 때만 다음 문장, 커밋이 성공하지 않으면 `ROLLBACK`으로 배치를 구성한다. `db/migrations/0009_abnormal_owl.sql`은 `CREATE TABLE` 2개와 `CREATE UNIQUE INDEX` 3개뿐이다.
+
+Baseline-attribution: 커밋 `67243ea` 트리의 파일 읽기. 실행한 것이 아니다.
+
+**Gaps(미검증)**: 운영에서 마이그레이션 실패를 일으켜 롤백을 관측하지 않았다. 옛 코드가 새 테이블 없이도 동작한다는 것은 추론(`0009`가 추가만 한다는 점)이며 관측하지 않았다.
+
+**Claim 124 — 운영 VM에 상담·진단 플래그 5종(`ENABLE_CONSULT_FLOW`, `CONSULT_POLICY_READY`, `ENABLE_DIAGNOSIS_FLOW`, `DIAGNOSIS_ENGINE_READY`, `ENABLE_DIAGNOSIS_DEV_STATES`)이 모두 설정돼 있지 않다.**
+
+Evidence: SSH 읽기 전용으로 원격 Node 스크립트를 실행해 PM2 저장 환경, 실행 중 프로세스 환경(`/proc/<pid>/environ`), 앱 폴더 `.env` 파일(두 위치)을 읽고 설정 여부와 값이 정확히 `"true"`인지만 출력했다. 출력: 5종 모두 PM2 환경 `set:false`, 프로세스 환경 `set:false`, `.env` 두 파일 `set:false`, 효과적 값 `source:"none"`. `computed`: `shouldRenderDiagnosis:false`, `shouldRenderConsult:false`, `isPolicyReady:false`. 가동 중인 커밋 `deployedHead:"f7ef4ec"`는 같은 날 `git fetch` 뒤 `origin/main` 머리 `f7ef4ec`와 같다.
+
+Baseline-attribution: 2026-10-02 한 시점의 관측. 스크립트는 저장소에 두지 않았다(접속 정보가 들어 있어 삭제).
+
+**Gaps(미검증)**: PM2 바깥의 환경 설정(systemd 등)과 쉘 프로필은 읽지 않았다. `pm2 restart`가 바뀐 환경을 다시 읽는지는 미검증이다(런북 §11.4).
+
+**Claim 125 — 현재 가동 중인 빌드의 `GET /`는 smoke check 기대 문구를 포함하며, 진단 게이트가 닫혀 있는 한 병합 뒤에도 그렇다고 예상한다.**
+
+Evidence: 같은 프로브가 `http://127.0.0.1:3000/`를 GET해 `httpStatus:200`, `containsPlaceholderText:true`, `containsCssChunkRef:true`를 출력했다(본문은 출력하지 않음). 코드 근거: `app/page.tsx`는 `computeDiagnosisFlags(process.env).shouldRenderDiagnosis`가 거짓일 때 "서비스 준비 중입니다"를 렌더하고, `lib/diagnosis/flags.ts`는 `(ENABLE_DIAGNOSIS_FLOW && DIAGNOSIS_ENGINE_READY) || ENABLE_DIAGNOSIS_DEV_STATES`가 정확히 `"true"`일 때만 열린다.
+
+Baseline-attribution: 관측은 가동 중인 옛 빌드(`f7ef4ec`)이고, 병합 뒤 새 빌드는 관측하지 않았다. 문구 일치는 새 코드의 `app/page.tsx`를 읽은 추론과 결합한 판단이다.
+
+**Gaps(미검증)**: 병합 뒤 새 빌드의 `GET /`는 보지 못했다. 진단 플래그를 켜면 이 smoke 문구 검사가 깨지므로 그 전에 `deploy.yml` 기대 문구를 바꿔야 한다(체크리스트 §2).
+
+**Claim 126 — 운영 VM이 설정한 DB의 지문은 원격 T1~T7·백업을 한 DB의 지문 `6e5256b8`과 같다. 즉 그 원격 시험은 운영 VM이 설정한 DB에서 수행된 것이다.**
+
+Evidence: 하네스와 같은 계산(`scripts/verify-remote-consult-guard.ts`의 `fingerprintOf`: `sha256(url.trim())` 앞 8자리)으로 VM에서 지문만 계산했다. 출력: `.env@cwd`와 `.env@root` 두 소스 모두 `scheme:"libsql"`, `fingerprint:"6e5256b8"`, `matchesRehearsal:true`, `allSourcesAgree:true`, `allMatchRehearsal:true`. PM2 환경·프로세스 환경에는 이 변수가 없었다(`sources`에 `.env` 두 개뿐). URL·호스트·토큰은 출력하지 않았다.
+
+Baseline-attribution: 2026-10-02, 런북 §12.8·§12.9가 기록한 대상 지문 `6e5256b8`과 대조.
+
+**Gaps(미검증)**: 실행 중 앱이 이 `.env`를 실제로 읽는지는 프로세스 환경에 변수가 없다는 점에서 추정한 것이다. 이 점검은 DB에 접속하지 않았고 오늘의 테이블 상태(`0009` 부재, `__drizzle_migrations` 9행)는 읽지 않았다.
+
+**Claim 127 — 이 저장소에는 PR에서 도는 CI가 없다.**
+
+Evidence: `.github/workflows/` 목록은 `deploy.yml`, `label-sync.yml` 두 파일이다. `deploy.yml` 트리거는 `push: main`, `workflow_dispatch`이고 `label-sync.yml`에서는 `workflow_dispatch:`(14줄)와 `push:`(24줄)를 확인했다. `pull_request` 트리거는 어느 쪽에도 없다. PR #22: `statusCheckRollup` 길이 0, `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`, `isDraft: true`, `headRefOid`는 `306b5daaa6e5309c5e959c9d07e5a2f43cf23161`.
+
+Baseline-attribution: `gh pr view 22` 출력(2026-10-02), 워크플로 파일 읽기.
+
+**Gaps(미검증)**: `label-sync.yml`의 푸시 경로 조건과 동작은 끝까지 읽지 않았다.
+
+**Residual-risk**: 병합 직전 백업과 복원 리허설, `0009` 부재 확인은 수행하지 않았다. 병합은 곧 배포라서 위 점검들 뒤에 `main`이 움직이거나 플래그가 바뀌면 이 근거는 낡는다. 사용자 시각 정합 승인과 사용자의 병합 지시는 없다. 열린 항목 25~29와 `unknown_outcome`의 연락처 표시는 그대로 열려 있다. `run_status`·`plan_status`는 바꾸지 않았다. 계획 산출물(spec·plan·acceptance·design·research)은 고치지 않았다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 - `run_status: amended-pending-revalidation`
