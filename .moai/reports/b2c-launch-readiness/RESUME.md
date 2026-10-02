@@ -53,7 +53,7 @@
 
 ## 5. 이어 할 때 주의할 점
 
-- 이 브랜치는 로컬에서만 만들었고 푸시하지 않았다. 푸시할 때는 `git push -u origin plan/b2c-launch-readiness`로 브랜치 이름을 명시한다. 브랜치 추적 설정은 일부러 비워 두었으니 이름 없는 `git push`로 main에 올라가는 일은 없다.
+- 이 브랜치(`plan/b2c-launch-readiness`)는 2026-10-02에 사용자 승인을 받아 `git push -u origin plan/b2c-launch-readiness`로 원격에 올렸다. PR은 만들지 않았고 main은 바뀌지 않았다. 다른 PC에서는 `git fetch origin` 뒤 `git switch plan/b2c-launch-readiness`로 가져온다. 이 브랜치를 main에 병합하는 것은 별도 결정이다.
 - 이 저장소는 공개(PUBLIC)다. SPEC·감사 보고서·증거 문서에 비밀값, 실제 사용자 연락처, 운영 서버 주소, 담당자 연락처, 법적 판단 내용을 넣지 않는다. 커밋 전에 점검했고 해당 항목은 없었다.
 - 한 번에 쓰기 에이전트를 하나만 돌린다. 감사자와 작성자를 동시에 돌리지 않는다.
 - `moai` CLI가 PATH에 없는 환경이면 `moai spec lint`와 세션 목록 점검을 못 한다. 이번 감사는 모두 Claude 단독 감사였고 다중 모델 합의는 쓰지 않았다.
