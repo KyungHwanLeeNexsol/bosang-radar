@@ -7,7 +7,7 @@
 - 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-LAUNCH-001/` 안의 파일이며 `main@99993bf` 위의 초안이다.
 - 요구사항 16건(Tier M 상한 16), AC 16건(상한 16). 상한에 맞추려고 합친 후보와 뺀 후보는 아래 "Plan-phase Observations" 4번에 적었다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리·감사 보고서는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다.
-- **plan-audit 범위 고지 (2차 정밀 교정, 2026-10-03)**: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`의 PASS 판정(0.88, Tier M 기준 0.80, iteration 1/3 — 상세는 아래 §G)은 **D-LAUNCH-01~09 사용자 인터뷰 결정이 반영된 원본 결정-기록 패스(커밋 c89dae7)까지만 감사했다.** 이번 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가, §2.4·R-01·L-08의 로컬 실행/D-OPS-12 적용 시점 일관성 정리, D-LAUNCH-09와 CONSULTOPS-001 개정 D-OPS-04의 교차 참조)은 그 감사 이후에 추가된 새 내용이며 **아직 재감사되지 않았다.** `plan_status`는 여전히 `draft`이고, Implementation Kickoff Approval 전에 이 교정 내용을 포함한 재감사(또는 변경 범위가 작다는 판단에 따른 명시적 생략 승인)가 필요하다.
+- **plan-audit 범위 고지 (3차 정밀 교정, 2026-10-03)**: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`의 PASS 판정(0.88, Tier M 기준 0.80, iteration 1/3 — 상세는 아래 §G)은 **D-LAUNCH-01~09 사용자 인터뷰 결정이 반영된 원본 결정-기록 패스(커밋 c89dae7)까지만 감사했다.** 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등)과 이번 3차 정밀 교정(§2.4 단계 표·캐이브아웃 통합, L-01·L-05·R-04 적용 시점 명시, L-08 표면별 G 차단)은 모두 그 감사 이후에 추가된 새 내용이며 **아직 재감사되지 않았다.** `plan_status`는 여전히 `draft`이고, 기존 0.88 PASS를 현재 HEAD의 PASS로 선언하지 않는다. 이 SPEC은 plan-auditor를 1회차만 거쳤으므로(`spec-workflow.md`의 3회 상한 안) Implementation Kickoff Approval 전에 **2회차 재감사가 가능하다** — ENGINE-001·CONSULTOPS-001처럼 이미 3회를 소진한 SPEC과는 처리 경로가 다르다(상세: `.moai/reports/b2c-launch-readiness/RESUME.md` §4). 2회차를 호출하지 않고 run-phase로 진입하면 `/moai run` Phase 1 Plan Audit Gate가 artifact-hash 변경(이 교정으로 spec.md·plan.md·acceptance.md가 바뀜)을 감지해 자동으로 재실행된다 — 이는 plan-phase 재감사와는 별도의, run-phase 진입 시점의 독립된 게이트다.
 
 ## §E.2 Run-phase Evidence
 

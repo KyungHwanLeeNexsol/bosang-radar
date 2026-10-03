@@ -99,9 +99,9 @@
 ### M2. 법적 고지 표면 (사용자 노출 화면)
 
 - 선행: D-LAUNCH-09 결정 기록, N5 확인(완료된 SPEC amendment, design 경로 필요 여부, 시각 기준선).
-- 산출: 푸터 요소 분류 시험과 현황 기록, 결정에 따른 푸터 변경(목적지 연결·표시 통일·제거·유지 중 결정된 것).
-- TDD: RED — 푸터 요소가 기록과 다른 분류를 내는 시험(AC-015). GREEN — 구현.
-- 후보 파일: `components/diagnosis/diagnosis-footer.tsx`, `components/result/result-footer.tsx`, `components/consult/consult-footer.tsx`와 각 `.test.tsx`, `e2e/`, 필요하면 `scripts/visual-verify.ts`(기준선 동결 범위 내에서만).
+- 산출: 푸터 요소 분류 시험과 현황 기록, 결정에 따른 푸터 변경(목적지 연결·표시 통일·제거·유지 중 결정된 것), **L-08 G 차단의 표면별 점검기**(후보 `lib/launch/legal-notice-gate.ts`) — CONSULTOPS-001 D-OPS-04의 6개 요소를 공유 3개(고객 문의·개인정보처리방침·이용약관, S1·S2 모두에 적용)와 S2 전용 3개(03-C·03-B·03-D)로 나눠, 목적 벡터가 S1만 여는 경우 S2 전용 3개의 미확정이 S1의 G 판정을 막지 않게 하고, 목적 벡터가 S2를 여는 경우에만 6개 전부를 요구하게 한다(3차 정밀 교정, 직접 검토 지시). D-OPS-04 자체의 확정 여부는 CONSULTOPS-001의 기록을 그대로 입력으로 받으며 이 점검기가 대신 판정하지 않는다.
+- TDD: RED — 푸터 요소가 기록과 다른 분류를 내는 시험(AC-015 시나리오 1), S2 전용 요소 미확정만으로 S1의 G 판정이 BLOCKED되는 시험 또는 공유 요소 미확정인데 S1의 G 판정이 BLOCKED되지 않는 시험(AC-015 시나리오 2). GREEN — 구현.
+- 후보 파일: `components/diagnosis/diagnosis-footer.tsx`, `components/result/result-footer.tsx`, `components/consult/consult-footer.tsx`와 각 `.test.tsx`, `lib/launch/legal-notice-gate.ts`(+시험), `e2e/`, 필요하면 `scripts/visual-verify.ts`(기준선 동결 범위 내에서만).
 - 관련: REQ-B2CLAUNCH-015.
 
 ### M3. 노출 기록·플래그 조합표·순서 (절차와 로컬 관측)

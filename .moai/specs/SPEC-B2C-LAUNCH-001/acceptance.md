@@ -121,11 +121,16 @@ Then `/`·`/result`·`/consult`가 placeholder `서비스 준비 중입니다`�
 ## 공개 표면 · 관측
 
 **AC-B2CLAUNCH-015** (REQ-B2CLAUNCH-015)
+시나리오 1 — 푸터 요소 분류.
 Given 푸터 요소 분류 시험(후보 `components/diagnosis/diagnosis-footer.test.tsx`, `components/result/result-footer.test.tsx`, `components/consult/consult-footer.test.tsx`)과 법적 고지 항목 fixture가 있을 때
 When 세 푸터를 렌더링해 개인정보처리방침·이용약관·고객 문의 요소를 `목적지 있음`(`href`가 `#`도 빈 값도 아니고 비활성이 아님) / `# 앵커` / `비활성 표시`(`aria-disabled="true"`) / `텍스트만`으로 분류하고 항목과 대조하면
 Then 항목의 현재 상태 칸이 분류 결과와 같고 단계별 허용 칸이 D-LAUNCH-09 기록과 같으며, 링크가 아닌 텍스트인 요소(예: 02의 `고객 문의: 준비 중`)도 `텍스트만`으로 기록돼 있다.
 현재 트리 확인(이 세션 실행): `grep -rn 'href="#"' components app --include=*.tsx | grep -v '\.test\.'` → `components/diagnosis/diagnosis-footer.tsx:29`, `components/result/result-footer.tsx:8`(주석), `components/result/result-footer.tsx:35`. `//`·`*`·`/*`·`{/*`로 시작하는 줄을 거른 넓힌 정규식 `href=("#"|'#'|\{"#"\}|""|\{'#'\})`는 `diagnosis-footer.tsx:29`와 `result-footer.tsx:35` 두 줄만 남긴다. 샘플 시험: `href="#"`, `href='#'`, `href={"#"}`, `href=""`는 넓힌 정규식이 모두 잡고 첫 정규식은 `href="#"`만 잡으며(`href='#'`·`href={"#"}`를 놓친다), `href="/privacy"`는 어느 쪽도 잡지 않는다. `aria-disabled="true"` 검색은 `components/consult/consult-footer.tsx:34`와 푸터 밖의 두 곳(`consult-outcome-button.tsx:89`, 주석 `result-cta-bar.tsx:13`)을 낸다. 이 명령들은 현황 확인용이고 판정은 렌더링 시험이다.
-검증: 컴포넌트 시험(렌더링 분류)과 위 명령(현황) | 통과 판정: 요소마다 현재 상태 칸이 분류와 일치, 단계별 허용 칸이 결정 기록과 일치 | 선결: 단계별 허용 칸은 D-LAUNCH-09 — 결정 전에는 현재 상태 칸만 판정하고 허용 칸은 BLOCKED. (2차 정밀 교정) 일반 공개(G) 허용 칸은 추가로 CONSULTOPS-001 D-OPS-04의 6개 요소(03-C·03-B·03-D·고객 문의·개인정보처리방침·이용약관, 전부 미확정)가 확정될 때까지 BLOCKED다 — 고객 문의·개인정보처리방침·이용약관은 01·02·03에 걸친 공유 요소라 이 AC의 G 판정과 직접 겹친다(`spec.md` §2.4 L-08 참조) | 서명: 제품 책임자·법무(허용 여부). **이 AC가 보지 못하는 것**: 링크가 가리키는 문서의 내용이나 법적 충분성, 모바일에서 숨는 03 푸터(`md` 미만, `consult-footer.tsx:25`)의 모바일 상태, 동적으로 만든 `href`, 분류가 법적 요건을 충족하는지(이 SPEC은 판단하지 않는다).
+시나리오 2 — 표면별 G 차단(3차 정밀 교정, 직접 검토 지시).
+Given D-OPS-04 요소 확정 상태 fixture 네 가지 — (가) 공유 3개(고객 문의·개인정보처리방침·이용약관)·S2 전용 3개(03-C·03-B·03-D) 전부 미확정(현재 실제 상태) (나) 공유 3개는 확정, S2 전용 3개는 미확정 (다) 공유 3개는 미확정, S2 전용 3개는 확정 (라) 6개 전부 확정
+When 목적 벡터를 S1(01·02 진단 단독 공개)로 지정해 L-08의 G 판정을 평가하고, 이어서 목적 벡터를 S2(상담 화면 공개)로 지정해 같은 판정을 평가하면
+Then S1 목적 벡터에서는 (가)(다)가 BLOCKED(공유 요소가 미확정)이고 (나)(라)는 BLOCKED가 아니다 — S2 전용 3개의 미확정 여부(다)는 S1의 G 판정에 영향을 주지 않는다. S2 목적 벡터에서는 (가)(나)(다)가 BLOCKED(6개 중 하나라도 미확정)이고 (라)만 BLOCKED가 아니다. 어느 fixture에서도 D-OPS-04의 현재 미확정 상태 자체가 READY로 바뀌지 않는다(열람 확인 — 이 AC는 CONSULTOPS-001의 D-OPS-04 판정을 대신 내리지 않는다).
+검증: 시나리오 1은 컴포넌트 시험(렌더링 분류)과 위 명령(현황), 시나리오 2는 표면 스코프 판정 로직 단위 시험(후보 `lib/launch/legal-notice-gate.test.ts`) | 통과 판정: 시나리오 1은 요소마다 현재 상태 칸이 분류와 일치·단계별 허용 칸이 결정 기록과 일치, 시나리오 2는 네 fixture × 두 목적 벡터의 기대 결과(위 8칸)와 일치 | 선결: 단계별 허용 칸은 D-LAUNCH-09 — 결정 전에는 현재 상태 칸만 판정하고 허용 칸은 BLOCKED. (2차 정밀 교정) 일반 공개(G) 허용 칸은 추가로 CONSULTOPS-001 D-OPS-04의 6개 요소(03-C·03-B·03-D·고객 문의·개인정보처리방침·이용약관, 전부 미확정)가 확정될 때까지 BLOCKED다 — 고객 문의·개인정보처리방침·이용약관은 01·02·03에 걸친 공유 요소라 이 AC의 G 판정과 직접 겹친다(`spec.md` §2.4 L-08 참조). (3차 정밀 교정) 단, 그 BLOCKED는 요소가 실제로 나타나는 표면에만 적용된다 — 시나리오 2 참조 | 서명: 제품 책임자·법무(허용 여부). **이 AC가 보지 못하는 것**: 링크가 가리키는 문서의 내용이나 법적 충분성, 모바일에서 숨는 03 푸터(`md` 미만, `consult-footer.tsx:25`)의 모바일 상태, 동적으로 만든 `href`, 분류가 법적 요건을 충족하는지(이 SPEC은 판단하지 않는다), D-OPS-04 판정 자체의 사실 여부(CONSULTOPS-001의 기록을 그대로 가져온다).
 
 **AC-B2CLAUNCH-016** (REQ-B2CLAUNCH-016)
 Given 사후 관측 기록 fixture 네 가지 — (가) 관측 대상·담당 역할·기록 위치·관측 수단(기존/신규 구분)·관측 시점이 모두 있음 (나) 관측 수단 하나에 기존/신규 구분이 없음 (다) 신규 수단인데 이를 도입하는 SPEC 식별자나 BLOCKED 사유가 없음 (라) 관측 시점 칸이 비어 있음
