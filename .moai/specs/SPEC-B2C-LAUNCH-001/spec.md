@@ -4,7 +4,7 @@ title: "B2C 출시 게이트: 단계 정의·플래그 순서·deploy smoke 교�
 version: "0.1.0"
 status: draft
 created: 2026-10-02
-updated: 2026-10-02
+updated: 2026-10-03
 author: Nexsol
 priority: P1
 phase: "v0.20.0 target"
@@ -18,6 +18,7 @@ related_specs: [SPEC-B2C-ENGINE-001, SPEC-B2C-CONSULTOPS-001, SPEC-B2C-CONSULT-0
 ## HISTORY
 
 - 2026-10-02: 최초 작성 (Nexsol) — 이 문서들은 2026-10-02에 `main@99993bf` 위에서 만든, 커밋되지 않은 plan-phase 초안이다(`git log -1` = `99993bf`, 작성 시작 시 `git status --short`는 형제 SPEC 두 디렉터리만 미추적으로 보였다). 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리·감사 보고서는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다. 이 항목은 감사·커밋·테스트 결과를 주장하지 않는다.
+- 2026-10-03: D-LAUNCH-01~09 사용자 인터뷰 결정 반영 — 2026-10-03 사용자 인터뷰에서 Open Decisions for User의 D-LAUNCH-01~09 9건이 모두 결정됐다(결정 전문은 `progress.md` "결정 기록 (2026-10-03, 사용자 인터뷰)"). 이 변경은 결정 기록 반영과 `spec.md` Open Clarification N1~N11의 교차 확인 현황 주석("N1~N11 교차 확인 현황")만 추가했다 — 기존 REQ·AC·Out of Scope 본문은 바꾸지 않았고 `status`는 `draft`로 유지했다. plan-auditor 재감사는 이 커밋의 범위가 아니다.
 
 ---
 
@@ -218,6 +219,22 @@ I 칸의 `필수`는 기술적으로 판정선이 분명한 항목(기준선 관
 - [NEEDS CLARIFICATION: N9 — run-phase 커밋 경로와 배포] Tier M의 기본 경로는 `main` 직접 push이고(`.claude/rules/moai/workflow/spec-workflow.md` Route A) `deploy.yml`은 `main`의 모든 push를 배포한다(LF-03). 따라서 이 SPEC의 run-phase 커밋은 문서·시험 파일이라도 운영을 재시작하고, `deploy.yml`을 바꾸는 커밋은 배포 동작 자체를 바꾼다. 교체된 smoke를 싣는 첫 배포는 진단 플래그가 미설정인 상태에서 돌아야 한다(REQ-B2CLAUNCH-013 (가)). PR 경로(`--pr`)를 쓸지, smoke 교체 커밋을 L-01 기준선 관측 뒤에만 `main`에 올릴지는 구현 착수 승인 때 사용자가 정한다.
 - [NEEDS CLARIFICATION: N10 — Tier 상한] 요구사항 16건·AC 16건으로 Tier M 상한에 도달했다. 표면별 개별 단계(D-LAUNCH-03 Q1 (d)) 같은 요구가 더해지면 Tier L로 올리거나 SPEC을 나눠야 한다. 상한에 맞추려고 합치거나 뺀 후보는 `progress.md` Plan-phase Observations에 적었다.
 - [NEEDS CLARIFICATION: N11 — 이행 집행의 한계] 이 SPEC의 게이트는 절차와 점검기이며 운영 호스트에서 환경 변수를 손으로 바꾸는 행위를 막지 못한다. 진단 쪽 런타임 게이트는 ENGINE-001 §9.2 (c)·(d)가 다루고 상담 쪽에는 같은 장치가 없다. 상담 접수에 런타임 게이트가 필요한지(필요하면 CONSULT-001 계약 변경) 확인이 필요하다.
+
+### N1~N11 교차 확인 현황 (2026-10-03 사용자 인터뷰 이후)
+
+2026-10-03 사용자 인터뷰에서 D-LAUNCH-01~09가 모두 결정됐다(`progress.md` "결정 기록 (2026-10-03, 사용자 인터뷰)" 참조). 그 결정은 모두 이 SPEC(LAUNCH)이 소유한 결정 항목만 해소한다. N1~N11은 결정이 아니라 **형제 SPEC·완료된 SPEC과의 충돌·소유 확인**이므로, LAUNCH 쪽 결정만으로는 완전히 해소되지 않는 항목이 남는다. 마커는 모두 유지하며 아래는 각 N에 미치는 영향만 기록한다.
+
+- **N1**: 미해소. D-LAUNCH 결정과 무관 — 형제 SPEC(CONSULTOPS-001·ENGINE-001)의 문구를 이 SPEC의 정의로 이관할지의 확인이 그대로 남는다.
+- **N2**: 부분 해소, 완전 해소 아님. D-LAUNCH-01 (e)(내부 시험을 로컬 실행으로 한정), D-LAUNCH-02(참여자 내부 역할만·데이터 합성 입력만), D-LAUNCH-03 Q2 (4)(내부 시험은 Q1이 정한 첫 표면만)로 이 SPEC(LAUNCH) 쪽의 "내부 시험" 정의는 "로컬 실행 + 내부 역할 + 첫 표면"으로 좁혀졌다. 그러나 N2가 지적한 세 용법 가운데 ENGINE-001 `design.md:184`의 `reviewEnabled` 비프로덕션 용법과 CONSULTOPS-001 D-OPS-12(Q1)의 사용자 결정은 이 세션이 확인하지 못했다 — 그 두 SPEC의 해당 결정이 사용자 인터뷰로 확정돼야 세 용법의 완전한 정리가 성립한다. 미해소로 유지.
+- **N3**: 부분 해소. D-LAUNCH-05 (a)(대상 칸 전부 필수, 면제 없음)로 L-02 G 칸이 필수로 확정됐다 — 즉 CONSULTOPS-001 E-08의 G `해당 없음`(상담 API 개방 수용)을 LAUNCH가 그대로 받아들이지 않는다는 **값**은 정해졌다. 그러나 "이 확인을 LAUNCH가 받는 것이 CONSULTOPS-001의 의도와 같은지"라는 **소유권 확인** 자체는 CONSULTOPS-001 쪽 확인이 없어 미해소로 유지한다. 부수 효과: 이 결정으로 일반 공개 시 상담 API에도 접근 제한 수단이 필요해질 가능성이 커졌다(D-LAUNCH-01·N11로 이어짐, D-LAUNCH-05 서술 참조).
+- **N4**: 미해소. D-LAUNCH-06(smoke 설계: (a) 두 상태 모두 수용, 위치 (ii))이 이 SPEC 쪽 새 smoke 검사의 설계를 정했으나, 완료된 DIAGNOSIS-001의 REQ-B2CDIAG-023·AC-B2CDIAG-024 문구를 in-place amendment로 정리할지는 별도 확인이며 이번 인터뷰의 범위가 아니었다.
+- **N5**: 미해소, 범위는 구체화됨. D-LAUNCH-09가 일반 공개(G)에 (1)(목적지를 갖춘 뒤에만 해당 단계로 진입)을 택해, 목적지 없는 `href="#"` 상태인 01·02 푸터의 변경이 일반 공개 전에 필요하다는 점이 확정됐다. 그 변경이 완료된 SPEC(RESULT-001·DIAGNOSIS-001)의 화면 시각 기준선 동결과 부딪히는지, Conditional Design Route(`manager-design`) 적용 여부는 여전히 확인이 필요하다.
+- **N6**: 미해소. ENGINE-001 N7의 결정 순서(런타임 게이트가 `productionReady` 정의를 바꿀지)에 달려 있으며 이번 인터뷰의 범위가 아니었다.
+- **N7**: 미해소. CONSULTOPS-001 REQ-B2CCONSULTOPS-013의 문구를 진단 플래그까지 넓힐지는 그 SPEC 쪽의 확인이며, 이 SPEC은 R-04로 같은 관측을 요구하는 것으로 이미 중립적으로 처리했다(변경 불필요).
+- **N8**: 미해소. D-LAUNCH-07은 롤백의 선언·실행 역할과 사유 목록만 정했고, 이전 단계 벡터로의 부분 복귀(예: 상담만 닫고 진단은 유지) 범위는 다루지 않았다.
+- **N9**: 미해소(설계상 의도된 보류). run-phase 커밋 경로(PR 경로 `--pr` 여부, smoke 교체 커밋을 L-01 기준선 관측 뒤에만 `main`에 올릴지)는 구현 착수 승인 때 사용자가 정하기로 이미 적혀 있었고 이번 인터뷰의 범위가 아니었다.
+- **N10**: 미해소, 해당 없음 가능. 요구사항 16건·AC 16건으로 Tier M 상한에 이미 닿아 있으나, 이번 9건의 결정은 새 요구사항이나 AC를 추가하지 않았으므로 상한 재검토가 당장 필요하지는 않다.
+- **N11**: 미해소, 연결이 구체화됨. D-LAUNCH-05의 "면제 없음" 결정(N3 참조)으로 일반 공개 시 상담 접수 API에도 접근 제한 수단이 필요해질 가능성이 커졌으나, 상담 접수에 런타임 게이트가 실제로 필요한지(필요하면 CONSULT-001 계약 변경)는 여전히 별도 확인이 필요하다.
 
 ## 설계 대안
 
