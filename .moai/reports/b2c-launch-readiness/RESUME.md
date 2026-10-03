@@ -5,7 +5,7 @@
 
 ## 1. 한 줄 요약
 
-"화면·상담 API 배포 완료"(다크 런치: 플래그가 꺼진 상태로 배포됨)와 "일반 사용자 대상 서비스 출시 가능"은 다른 상태다. 앞의 것은 참이고 뒤의 것은 거짓이다. 일반 공개 전에 필요한 일을 세 개의 plan-phase SPEC 초안으로 나눠 작성했다. 2026-10-02에 작성, 2026-10-03에 (a) LAUNCH-001 1회차 감사, (b) 세 SPEC의 사용자 결정 32건 전부 확정·기록, (c) 사용자가 직접 검토해 지시한 2차 정밀 교정(결함 분리·요소별화·AND-게이트·review-3 결함 수정 등 11건)까지 끝났다. 실행(run-phase), 운영 DB 쓰기, 운영 플래그 변경, main 병합은 여전히 하지 않았다.
+"화면·상담 API 배포 완료"(다크 런치: 플래그가 꺼진 상태로 배포됨)와 "일반 사용자 대상 서비스 출시 가능"은 다른 상태다. 앞의 것은 참이고 뒤의 것은 거짓이다. 일반 공개 전에 필요한 일을 세 개의 plan-phase SPEC 초안으로 나눠 작성했다. 2026-10-02에 작성, 2026-10-03에 (a) LAUNCH-001 1회차 감사, (b) 세 SPEC에 걸친 사용자 결정 대상 32개 ID를 검토 — ENGINE 10/11건·LAUNCH 9/9건 결정, OPS는 12건 중 다수가 조건부·부분 결정이거나 하위 확인(SLA 4항목, D-OPS-04 요소별 채널 등) 대기로 남음 —, (c) 사용자가 직접 검토해 지시한 2차 정밀 교정(결함 분리·요소별화·AND-게이트·review-3 결함 수정 등 11건), (d) 같은 날 사용자가 직접 검토해 지시한 3차 정밀 교정(감사 이력 경로 정정, LAUNCH-001 단계 모델·L-08 표면별 분리, CONSULTOPS-001 N-1 구조 보강·D-OPS-10 AC 보강, 현재형 표현 정정)까지 끝났다. 실행(run-phase), 운영 DB 쓰기, 운영 플래그 변경, main 병합은 여전히 하지 않았다.
 
 ## 2. 코드로 확인한 사실 (main@99993bf)
 
@@ -36,7 +36,7 @@
 - CONSULTOPS review-3 N-1(증거 기록 제외 규칙을 검증하는 AC 없음 → AC-001/002에 fixture 추가)·N-2("최소"/"빼거나" 표현 불일치 → "빼거나" 옵션 제거) — 커밋 `7754ef8`.
 - N-3~N-11(선택 사항)은 손대지 않음 — 범위 밖.
 
-### 사용자 결정 32건 — 전부 확정 (2026-10-03)
+### 사용자 결정 대상 32개 ID 검토 (2026-10-03) — ENGINE 10/11·LAUNCH 9/9 결정, OPS는 조건부·하위 확인 대기 포함 12건
 - ENGINE D-ENGINE-01~11(11건 중 10건 결정, D-ENGINE-07은 법무 작성 대기), CONSULTOPS D-OPS-01~12(12건, 일부 세부는 외부 확인 대기), LAUNCH D-LAUNCH-01~09(9건) — 전부 각 SPEC `progress.md`에 "**결정 (2026-10-03, 사용자 인터뷰)**" 기록으로 남아 있다.
 - 2026-10-03 같은 날, 사용자가 기록된 결정을 직접 검토하고 11건의 정밀 교정을 지시 — 선택 자체는 그대로 두고 분리·구체화·추가 게이트만 반영(아래 §4-0).
 
@@ -48,16 +48,19 @@
 
 ## 4. 다음에 할 일 (우선순위 순서)
 
-0. **(완료, 참고용)** 2026-10-03에 끝낸 일 — LAUNCH-001 1회차 감사(PASS 0.88) → 사용자 결정 32건 인터뷰·기록 → 사용자 검토 후 2차 정밀 교정 11건(D-OPS-10 분리, D-OPS-04 요소별화, D-LAUNCH-07 사유 추가, D-ENGINE-03 유형별 AND-게이트+용어 수정, D-OPS-03 SLA 차단, D-ENGINE-11 생산준비 게이트, D-ENGINE-05/07·D-OPS-01/07/08 미완료 플래그 유지, D-LAUNCH-01/02/03 일관성, review-3 결함 수정, 진행문서 HEAD 동기화).
-1. **세 SPEC 재감사.** 2차 정밀 교정으로 `acceptance.md`를 포함한 실질 내용이 바뀌었으므로 기존 PASS(ENGINE 0.857/CONSULTOPS 0.82/LAUNCH 0.88)는 새 내용을 검증하지 않았다. `plan-auditor`에게 세 SPEC을 순서대로(또는 병렬로) 재감사하게 한다. 특히 ENGINE의 새 6유형 AND-게이트, CONSULTOPS의 D-OPS-10 분리·N-1/N-2 수정, LAUNCH의 D-LAUNCH-07 신규 사유를 집중 점검.
-2. 재감사 FAIL 시 `manager-spec`으로 수정 후 재감사(각 SPEC당 최대 3회, 이번이 1회차로 재시작).
-3. 위 §3 "그래도 남아있는 것" 목록을 법무·운영·엔지니어링·도메인 전문가에게 전달해 실제 확인을 받는다(AskUserQuestion으로는 풀 수 없는 항목들).
-4. 구현 착수 승인(Implementation Kickoff Approval) 전에는 run-phase를 시작하지 않는다 — 위 1~3이 끝나야 그 게이트에 들어갈 수 있다.
-5. 이 plan 브랜치의 PR을 만들지, 계속 직접 push로 이어갈지는 별도 결정.
+0. **(완료, 참고용)** 2026-10-03에 끝낸 일 — LAUNCH-001 1회차 감사(PASS 0.88) → 사용자 결정 32개 ID 인터뷰(ENGINE 10/11·LAUNCH 9/9 결정, OPS는 조건부·하위 확인 대기 포함 12건) → 2차 정밀 교정 11건(D-OPS-10 분리, D-OPS-04 요소별화, D-LAUNCH-07 사유 추가, D-ENGINE-03 유형별 AND-게이트+용어 수정, D-OPS-03 SLA 차단, D-ENGINE-11 생산준비 게이트, D-ENGINE-05/07·D-OPS-01/07/08 미완료 플래그 유지, D-LAUNCH-01/02/03 일관성, review-3 결함 수정, 진행문서 HEAD 동기화) → 3차 정밀 교정(사용자 직접 검토 지시 — 아래 1번의 감사 이력 경로 정정, LAUNCH-001 단계 모델·L-08 표면별 분리, CONSULTOPS-001 N-1 구조 보강·D-OPS-10 AC 보강, 현재형 표현 정정).
+1. **세 SPEC의 재감사 경로는 SPEC마다 다르다**(`spec-workflow.md`의 plan-auditor 3회 상한 + Retry Loop Contract 참조). 1·2·3차 교정으로 세 SPEC 모두 `acceptance.md`를 포함한 실질 내용이 바뀌었으므로, 아래 어느 경로에서도 기존 PASS 점수를 현재 HEAD의 PASS로 선언하지 않는다. 이 세션은 감사 보고서나 점수를 새로 만들어 내지 않았다 — 아래는 기존 `progress.md` §G 기록과 `spec-workflow.md` 규칙을 그대로 적용한 경로 판단이다.
+   - **ENGINE-001**: 이미 plan-auditor 3회(FAIL 0.726 → FAIL 0.807 → PASS 0.857, iteration 3/3) 소진, PASS-with-debt로 종료됨(`progress.md` §G). **새 plan-auditor iteration(4회차 등)을 시작하지 않는다** — 처리 경로는 PASS-with-debt 유지(이번 교정을 debt 해소 기록으로만 남김) 또는 범위 축소 또는 사용자의 명시적 예외 승인 중 하나이며, 이 세션은 PASS-with-debt 유지를 전제로 한다.
+   - **CONSULTOPS-001**: 이미 plan-auditor 3회(FAIL 0.7245 → FAIL 0.7576 → PASS 0.82 knife-edge, iteration 3/3) 소진, PASS-with-debt로 종료됨(`progress.md` §G). ENGINE-001과 같은 이유로 **새 plan-auditor iteration을 시작하지 않는다.**
+   - **LAUNCH-001**: plan-auditor 1회(PASS 0.88, iteration 1/3, `progress.md` §G)만 거쳤으므로 **3회 상한 안에서 2회차 재감사가 가능하다** — ENGINE-001·CONSULTOPS-001과 처리 경로가 다른 유일한 SPEC이다.
+   - 세 SPEC 모두, (LAUNCH-001의 2회차를 포함해) plan-phase 재감사를 호출하지 않고 run-phase로 바로 진입하면 `/moai run` Phase 1 Plan Audit Gate가 **artifact-hash 변경**(이번 교정이 spec.md·plan.md·acceptance.md를 바꿈)을 감지해 자동으로 재실행된다 — 이는 plan-phase 3회 상한과는 별도의, run-phase 진입 시점의 독립된 게이트다(`spec-workflow.md` § Phase 1 Plan Audit Gate).
+2. 위 §3 "그래도 남아있는 것" 목록을 법무·운영·엔지니어링·도메인 전문가에게 전달해 실제 확인을 받는다(AskUserQuestion으로는 풀 수 없는 항목들).
+3. 구현 착수 승인(Implementation Kickoff Approval) 전에는 run-phase를 시작하지 않는다 — 위 1~2가 끝나야 그 게이트에 들어갈 수 있다.
+4. 이 plan 브랜치의 PR을 만들지, 계속 직접 push로 이어갈지는 별도 결정.
 
 ## 5. 이어 할 때 주의할 점
 
-- 이 브랜치(`plan/b2c-launch-readiness`)는 2026-10-02에 사용자 승인을 받아 `git push -u origin plan/b2c-launch-readiness`로 원격에 올렸고, 2026-10-03에 추가 커밋 7건을 같은 방식으로 다시 push했다(`git push origin plan/b2c-launch-readiness`, force 없음). PR은 아직 만들지 않았고 main은 바뀌지 않았다. 다른 PC에서는 `git fetch origin` 뒤 `git switch plan/b2c-launch-readiness`로 가져온다.
+- 이 브랜치(`plan/b2c-launch-readiness`)는 2026-10-02에 사용자 승인을 받아 `git push -u origin plan/b2c-launch-readiness`로 원격에 올렸고, 2026-10-03에 추가 커밋 10건(2차 정밀 교정까지 7건 + 이번 3차 정밀 교정 3건: `9a586eb` LAUNCH-001, `cc9d33c` CONSULTOPS-001, 그리고 이 RESUME 갱신 커밋)을 같은 방식으로 다시 push할 수 있다(`git push origin plan/b2c-launch-readiness`, force 없음 — 이번 세션은 로컬 커밋까지만 수행했고 push는 별도 확인 사항으로 남긴다). PR은 아직 만들지 않았고 main은 바뀌지 않았다. 다른 PC에서는 `git fetch origin` 뒤 `git switch plan/b2c-launch-readiness`로 가져온다.
 - **worktree·공유 plan 브랜치 사용은 `spec-workflow.md` § SPEC Phase Discipline의 기본 안내에서 벗어난 선택이다.** 그 문서의 Route A(Tier S/M 기본, main 직접) / Route B(Tier L 또는 `--pr`, SPEC별 `plan/SPEC-XXX` 브랜치)는 모두 "Step 1(plan)은 메인 체크아웃에서 실행, 이 단계에서 worktree 없음"을 명시한다. 이 작업은 2026-10-02부터 `.claude/worktrees/launch-readiness`라는 **격리된 worktree**에서, 그리고 Route A/B 어느 쪽에도 해당하지 않는 **ENGINE·CONSULTOPS·LAUNCH 세 SPEC이 공유하는 한 brach(`plan/b2c-launch-readiness`)**에서 진행됐다. 이렇게 한 이유는 2026-10-02 세션이 메인 체크아웃을 건드리지 않고 세 SPEC을 함께 다루기로 사용자 승인을 받았기 때문이며(§1), 세 SPEC이 서로를 많이 참조해 한 브랜치로 묶는 쪽이 교차 참조 정합성을 지키기 쉬웠다. **이후 정규 경로로 복귀하려면**: run-phase 진입 전에 각 SPEC을 `plan/SPEC-XXX` 개별 브랜치로 분리해 Route B의 plan PR 3건으로 올리거나(엄격 준수), 또는 이 공유 브랜치 전체를 하나의 plan PR로 올려 사용자가 명시적으로 승인한 예외로 기록하고 넘어가는 두 가지 선택지가 있다 — 어느 쪽도 이 세션이 임의로 정하지 않았고, 기존 이력(커밋)을 다시 쓰지 않는다. Implementation Kickoff Approval은 이 선택과 무관하게 §4의 재감사·외부 확인이 끝난 뒤에만 유효하다.
 - 이 저장소는 공개(PUBLIC)다. SPEC·감사 보고서·증거 문서에 비밀값, 실제 사용자 연락처, 운영 서버 주소, 담당자 연락처, 법적 판단 내용을 넣지 않는다. 2026-10-03 교정에서도 다시 점검했고 해당 항목은 없었다.
 - 한 번에 쓰기 에이전트를 하나만 돌린다. 감사자와 작성자를 동시에 돌리지 않는다. 2026-10-03 교정은 ENGINE·CONSULTOPS를 먼저 병렬로(서로 다른 SPEC 디렉터리, 파일 겹침 없음), LAUNCH-001은 CONSULTOPS의 D-OPS-04·D-OPS-12 최종 내용에 의존해 CONSULTOPS 완료 후 순차로 돌렸다.
@@ -70,25 +73,25 @@
 - SPEC: `.moai/specs/SPEC-B2C-ENGINE-001/`, `.moai/specs/SPEC-B2C-CONSULTOPS-001/`, `.moai/specs/SPEC-B2C-LAUNCH-001/`
 - 감사 보고서: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-{1,2,3}.md`, `SPEC-B2C-CONSULTOPS-001-review-{1,2,3}.md`, `SPEC-B2C-LAUNCH-001-review-1.md`
 - 증거 문서: `.moai/reports/b2c-launch-readiness/evidence-pack-20261002.md`
-- 2026-10-03 커밋(결정 기록 → 2차 정밀 교정 순): `c89dae7`(LAUNCH 결정)·`4415e82`(CONSULTOPS 결정)·`0701e2d`(ENGINE 결정)·`7754ef8`(CONSULTOPS 교정)·`ecfaba9`(ENGINE 교정)·`7916728`(LAUNCH 교정)
+- 2026-10-03 커밋(결정 기록 → 2차 정밀 교정 → 3차 정밀 교정 순): `c89dae7`(LAUNCH 결정)·`4415e82`(CONSULTOPS 결정)·`0701e2d`(ENGINE 결정)·`7754ef8`(CONSULTOPS 2차 교정)·`ecfaba9`(ENGINE 2차 교정)·`7916728`(LAUNCH 2차 교정)·`5544267`(RESUME 2차 갱신)·`9a586eb`(LAUNCH 3차 교정)·`cc9d33c`(CONSULTOPS 3차 교정)
 
 ## 7. 재개 메시지 (새 세션에 그대로 붙여넣기)
 
 ```text
 ✂──── 여기부터 복사 ────✂
 
-ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) 재감사 진입.
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 진입.
 applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
 source_session_id: <not-available — environment-fallback>
 
 전제 검증:
 1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
-2) git log -1 --format='%H' → 7916728 이후(2차 정밀 교정 반영된 상태)인지 확인
-3) grep -l "재감사 전" .moai/specs/SPEC-B2C-*/progress.md → 3개 파일 모두 나와야 함(아직 재감사 안 됨)
+2) git log -1 --format='%H' → cc9d33c 이후(3차 정밀 교정 반영된 상태)인지 확인
+3) grep -c "PASS-with-debt로 종료" .moai/specs/SPEC-B2C-{ENGINE,CONSULTOPS}-001/progress.md → 둘 다 1 이상(이미 3회 소진 상태 확인)
 
-실행: .moai/reports/b2c-launch-readiness/RESUME.md §4-1에 따라 plan-auditor로 세 SPEC 재감사(이번이 1회차로 재시작, 각 SPEC당 최대 3회)
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §4-1에 따라 SPEC별로 다른 경로를 밟는다 — LAUNCH-001만 plan-auditor 2회차 재감사(3회 상한 안), ENGINE-001·CONSULTOPS-001은 이미 3회 소진·PASS-with-debt 상태이므로 재감사 대신 §3 외부 확인 절차로 진행하거나 Implementation Kickoff Approval 전 run-phase Phase 1 Plan Audit Gate(artifact-hash 재검증)에 맡긴다
 
-후속: 재감사 PASS 후 §3 "그래도 남아있는 것" 목록을 법무·운영·엔지니어링에 전달 → Implementation Kickoff Approval
+후속: 위 경로가 끝나면 §3 "그래도 남아있는 것" 목록을 법무·운영·엔지니어링에 전달 → Implementation Kickoff Approval
 
 ✂──── 여기까지 복사 ────✂
 ```
