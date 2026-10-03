@@ -3,7 +3,8 @@
 ## §E.1 Plan-phase Audit-Ready Signal
 
 - `plan_status: draft`
-- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 이후 오케스트레이터가 기록한다. plan-auditor iteration 1(FAIL 0.726)과 iteration 2(FAIL 0.807)의 결함을 반영한 개정본이며, iteration 2 이후의 개정은 재감사를 받지 않았다(§G).
+- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 이후 오케스트레이터가 기록한다. plan-auditor iteration 1(FAIL 0.726), iteration 2(FAIL 0.807), iteration 3(**PASS**, 0.857, thin margin, PASS-with-debt — `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-3.md`)의 결함을 반영한 개정본이다.
+- **2026-10-03 교정 라운드(이 PASS 이후의 새 변경, 미재감사)**: iteration 3의 0.857 PASS는 그 감사 시점에 읽은 작업 트리 스냅샷에 대한 판정이다. 이 PASS 이후 사용자 요청으로 `spec.md`·`plan.md`·`acceptance.md` 본문을 추가로 교정했다(D-ENGINE-03 유형별 준비 상태 매트릭스·AND-게이트, "진단 대상 유형" 용어 수정, D-ENGINE-11 생산 준비 검증 게이트, D-ENGINE-05/07 미해결 범위 보강, review-3의 D29·D30·D32·D33 반영 — 아래 §G 표의 "2026-10-03 교정 라운드" 행 참고). **이 교정 내용은 iteration 3 감사 대상이 아니었으므로 그 PASS가 검증한 적이 없다 — 오늘의 변경을 iteration 3의 0.857 PASS가 그대로 뒤덮는 것처럼 읽어서는 안 되며, 오늘의 변경은 재감사 대기(pending re-audit) 상태다.**
 - 작성된 산출물(Tier L): `spec.md`, `plan.md`, `acceptance.md`, `design.md`, `research.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-ENGINE-001/` 안의 커밋되지 않은 파일이다(`main@99993bf` 위의 초안).
 - 요구사항 25건(Tier L 상한 25), AC 25건(상한 25). 번호는 iteration 1과 같다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리는 변경하지 않았다.
@@ -26,13 +27,14 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 
 ## §G Plan-Auditor Iteration Log
 
-이 표는 실제 plan-auditor 호출 결과만 기록한다. 아래 iteration 2 행 이후의 개정은 재감사를 받지 않았으며, 이 문서는 개정의 통과를 주장하지 않는다.
+이 표는 실제 plan-auditor 호출 결과만 기록한다. iteration 3 행까지가 실제 감사 결과다. **iteration 3 PASS 이후의 "2026-10-03 교정 라운드" 행은 plan-auditor 호출이 아니라 사용자 정밀 교정이며, 재감사를 받지 않았다 — 이 문서는 그 교정의 통과를 주장하지 않는다.**
 
 | Iteration | Date | Score | Verdict | Key Findings | Reflected Changes |
 |---|---|---|---|---|---|
 | 1 | 2026-10-02 | 0.726 | FAIL | Must-pass 7/7 PASS(MP-3, MP-7에 관찰 있음). 종합 0.726 < Tier L 임계값 0.85. 차단 결함 10건(major): D1 REQ-012/AC-012의 02 mock 표기 부재·계획 없음, D2 AC-012의 번들 검색이 §9.1 미결정 옵션을 강제, D3 요구사항이 결정 대기 옵션 선점(REQ-006/009/011/015, plan.md 오인용), D4 REQ-B2CCONSULT-009 TTL 금지와의 충돌 누락, D5 REQ-RESEARCH-012(완료 SPEC)와의 충돌 누락, D6 REQ-023이 완료 계약과 `scripts/verify-flag-runtime.ts`를 바꾸는데 누락 + research.md:46 오류, D7 AC-005 통과 판정 없음, D8 REQ-019/AC-019 검증 수단 없음, D9 운영 상태를 관측 없이 사실로 서술, D10 D-ENGINE-06/09/10 대안 비교 부재·평가적 표현. 선택 결함 9건(D11~D19). 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-1.md` | 아래 "iteration 1 결함 처리" 표 참조 — 결함 19건 전부 직접 검증한 뒤 처리 — 전부 수정 또는 일부 수정이며, 부분 반박 2건(D3의 REQ-008 서술, D18의 RESULT-025 강도)과 일부 보류 2건(D11, D13)은 사유를 적었다. 요구사항·AC 번호와 개수(25/25)는 유지, 결정 대기 항목을 선점하던 요구사항은 구조 중립 또는 조건부로 변경, 기존 SPEC과의 충돌 N6~N8 추가 |
 | 2 | 2026-10-02 | 0.807 | FAIL | Must-pass 6 PASS + 1 N/A(MP-4), MP-3 관찰 유지. 종합 0.807 < Tier L 임계값 0.85(iteration 1 대비 +0.081, 회귀 없음). iteration 1 결함 D1~D19: 수정 14·일부 수정 2(D8, D13)·반박 수용 3(D11 일부, D18, D19). 신규 차단 결함 5건(major 3, minor 2 — 보고서 머리글은 4건이라 적었으나 결함 목록에서 Class: blocking은 D20~D24 5건이다): D20 이 SPEC의 REQ에 `DIAGNOSIS_ENGINE_READY` 설정 금지 없음(AC-023이 타 SPEC의 범위가 좁은 REQ를 인용), D21 REQ-023/AC-023이 design §9.2의 런타임 증거 방식을 강제(옵션 (b) 선점), D22 준비·법무 게이트가 페이지 렌더링만 막고 엔진 경계는 막지 않음, D23 design §4 (b)만 "양립"으로 서술, D24 AC-012 시나리오 1에 fixture와 엔진 결과를 가르는 관찰 가능한 기준 없음. 선택 결함 D25~D28. 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-2.md` | 아래 "iteration 2 결함 처리" 표 참조 — D20~D28과 D8·D13 잔여를 직접 검증한 뒤 처리 — D20·D21·D22·D23·D24·D25·D26·D27·D28 수정(D21은 REQ 문구 중립화 + 시나리오 조건화, D22는 REQ-020 (나) 추가), D13 잔여는 REQ-015 절과 AC-015 시나리오 3으로 수정, D8 잔여는 D22와 같은 수정에 §9.3 기록 형태 서술 추가. 요구사항·AC 25/25 유지, 신규 결정 없음, 신규 확인 사항(N 마커) 없음(N7 내용 확장) |
-| 3 | — | — | — | _<pending — 재감사는 오케스트레이터가 수행하고 결과를 기록한다. 최대 허용 3회 중 마지막이다>_ | — |
+| 3 | 2026-10-03 | 0.857 | **PASS**(thin margin, with recorded debt) | Must-pass 7/7 PASS/N/A(margin +0.007 — Testability 0.02만 떨어져도 종합이 약 0.846으로 FAIL). iteration 2 차단 결함 D20~D24: 4건 FIXED, D24는 REBUTTAL ACCEPTED(저자의 호출-기록 기준이 감사의 제안보다 우수함을 확인). 선택 결함 D25~D28 전부 FIXED, D8·D13 잔여 전부 FIXED. 신규 결함(모두 minor, text-level, must-pass 불만족 아님): D29 "정의된 거절 결과" 미정의, D30 AC-023 시나리오 5 grep이 대괄호·JSON 키 대입을 놓침(거짓 음성 직접 확인), D31 REQ/AC 25/25 안의 시나리오 수(약 35개)가 tier-up/split 신호(사용자 결정 사항), D32 plan.md M7의 `verify-flag-runtime` 갱신이 §9.2 선택과 무관하게 무조건으로 적힘, D33 AC-009 "사고 유형 특정 표현"에 전체 목록 없음, D35 REQ-023이 독립된 두 의무(증거 게이트 + 불변 조건)를 한 REQ에 묶음(D31과 같은 tier 질문에 연결). 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-3.md` | Retry Loop Contract 최대 3회 소진 — PASS-with-debt로 종료(D29~D33, D35를 기록된 debt로 수용, 감사 권고: "D30은 Kickoff 전에 고칠 가치가 있다"). 이 PASS는 iteration 3이 읽은 작업 트리 스냅샷에 대한 판정이며, 그 이후의 추가 교정에는 자동으로 적용되지 않는다 — 아래 "2026-10-03 교정 라운드" 행 참고 |
+| 2026-10-03 교정 라운드(plan-auditor 호출 아님, 미재감사) | 2026-10-03 | — | — | iteration 3 PASS 이후 사용자가 인터뷰 기록을 정밀 교정하며 지시한 항목. (1) D-ENGINE-03 6유형 범위에 유형별 준비 상태 매트릭스(AND-게이트, acceptance.md AC-023) 추가 + "사고 유형" 용어를 "진단 대상 유형"으로 수정(spec.md·plan.md·acceptance.md 본문, HISTORY 제외). (2) D-ENGINE-11 2회 호출 설계는 유지하고 REQ-021·AC-021에 운영 투입 전 실제 공급자 한도·지연·재시도 검증 게이트, REQ-019·AC-019에 01-B 답변 비전송 교차 확인 추가. (3) D-ENGINE-05/07 미해결 범위 재확인(acceptance.md AC-015 선결 보강). (4) iteration 3의 D29·D30·D32·D33 반영(REQ-020 정의, AC-023 시나리오 5 grep 보강, plan.md M7 조건화, AC-009 고정 목록 명시) | 요구사항·AC 번호·개수(25/25) 유지, REQ↔AC 1:1 재확인(스크립트로 검증). **재감사 미수행** — 이 행의 변경은 PASS/FAIL 판정이 없다 |
 
 ### iteration 1 결함 처리
 
@@ -79,6 +81,19 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 | D13 잔여 | 수정 | REQ-015에 "(b)로 확정된 경우 서명 비밀이 없거나 비어 있으면 `resultId`를 발급하지 않고 접수 검증은 어떤 값도 통과시키지 않는다 — 빈 키로 서명·검증하지 않는다(fail-closed)" 절을 추가했다(번호·개수 불변, 상한 25 유지). AC-015 시나리오 3(비밀 부재 → 발급 실패, 빈 키로 만든 후보 거부, 행 0) 추가, plan §B 리스크·M3 RED 갱신. 비밀의 주입·회전 시 발급분 무효화의 문서화는 요구사항이 아니라 M3·M8 산출물로 남겼다 |
 | D11 잔여 | 보류(변경 없음) | REQ-015·020·023에 절이 늘어 복합이 약간 증가했다. 상한 25를 지키려고 새 REQ를 만들지 않았고, 25/25 REQ와 조건부 AC 다수가 tier 상향이나 SPEC 분리를 시사하는지는 감사가 지적한 대로 사용자가 Kickoff에서 정할 사항이라 그대로 둔다 |
 
+### iteration 3 결함 처리 (2026-10-03 교정 라운드 — plan-auditor 재호출 아님)
+
+iteration 3(PASS, 0.857)의 신규 결함 D29·D30·D32·D33·D35와 D31을 이번 교정 라운드에서 직접 검증한 뒤 처리했다. before/after 위치와 검증 방법을 적는다(자가 검증 1번 항목).
+
+| ID | 판정 | before 위치 | after 위치 | 변경 내용과 검증 방법 |
+|---|---|---|---|---|
+| D29 | 수정 | review-3.md 인용은 `spec.md:124`, `acceptance.md:169,203`; 이번 교정 라운드 착수 시 직접 읽은 줄 번호는 `spec.md:125`(REQ-020), `acceptance.md:169`(AC-020 s2), `:203`(AC-023 s4) — 1줄 차이는 두 시점 사이 문서 줄 수 변화로 보이며 대상 문장(정의된 거절 결과)은 동일하다. 세 위치 모두 "정의된 거절 결과"가 어디에도 정의되지 않음 | `spec.md` REQ-B2CENGINE-020 본문(정의 문장 추가), `acceptance.md` AC-B2CENGINE-020 시나리오 2·AC-B2CENGINE-023 시나리오 4(정의 인용 추가) | REQ-020에 "이 '정의된 거절 결과'는 REQ-B2CENGINE-002가 정한 `error` 결과의 사유 코드로 표현하며(네 번째 결과 종류를 새로 만들지 않는다), 01 화면에는 01-E로 매핑한다 — 사유 코드의 정확한 값·형태는 M2에서 정한다"를 추가했다(감사 권고 문구와 같은 방향). AC-020 s2·AC-023 s4의 "정의된 거절 결과" 뒤에 괄호로 이 정의를 인용했다. 검증: 세 파일을 다시 읽어 REQ 쪽에 정의가 있고 두 AC가 그 정의를 가리키는지 grep(`정의된 거절 결과`)으로 대조 |
+| D30 | 수정 | `acceptance.md`(교정 전) AC-B2CENGINE-023 시나리오 5 — `grep -rnE "DIAGNOSIS_ENGINE_READY[[:space:]]*(=\|:)[[:space:]]*[^=[:space:]]" app components lib instrumentation.ts playwright.config.ts .github/workflows --exclude="*.test.*" \| grep -vE "^[^:]+:[0-9]+:[[:space:]]*(//\|\*\|#)"` | `acceptance.md` AC-B2CENGINE-023 시나리오 5(패턴·경로 목록 교체) | 대괄호·JSON 키 대입 형태를 잡도록 패턴을 `DIAGNOSIS_ENGINE_READY[]"']*[[:space:]]*(=\|:)[[:space:]]*["'\`]?[^=[:space:]]`로 바꾸고 경로 목록에 `scripts`·`package.json`·`.env.local.example`을 추가했다(`SPEC-B2C-LAUNCH-001/acceptance.md` AC-012가 쓰는 패턴 형태를 참고 — 그 파일은 읽기만 하고 수정하지 않았다). 검증(같은 방법 — LAUNCH-001 감사가 쓴 방법): 스크래치패드에 양성·음성 샘플 10개(`DIAGNOSIS_ENGINE_READY=true`, `process.env.DIAGNOSIS_ENGINE_READY = "true"`, `process.env["DIAGNOSIS_ENGINE_READY"] = "true"`, JSON 키 `{ "DIAGNOSIS_ENGINE_READY": "true" }`, `{ DIAGNOSIS_ENGINE_READY: 'true' }`, `export DIAGNOSIS_ENGINE_READY=1`, 주석 줄, `ENV DIAGNOSIS_ENGINE_READY true`, `??=`, `===`)을 만들어 구 패턴과 신 패턴을 각각 실행했다 — 구 패턴은 대괄호·JSON 키 두 샘플을 놓쳤고(거짓 음성 직접 확인) 신 패턴은 그 둘을 잡으면서 나머지 거짓 양성 후보(공백 구분·`??=`·`===`·주석)는 그대로 걸러냈다. 이어서 이 작업 트리에 신 패턴을 실제로 실행해(`grep -rnE ... app components lib instrumentation.ts playwright.config.ts scripts package.json .github/workflows .env.local.example --exclude="*.test.*"`) `scripts/verify-flag-runtime.ts:174,293`(선언된 하네스 예외) 두 줄만 나오고, `--exclude="verify-flag-runtime*"`를 더하면 0줄임을 직접 관찰했다 |
+| D32 | 수정 | `plan.md`(교정 전) M7 — "`scripts/verify-flag-runtime.ts`(+`scripts/verify-flag-runtime.test.ts`) ... 함께 갱신해야 하며" (조건 없이 항상 갱신하는 것처럼 읽힘) | `plan.md` M7 해당 문장 | "**`design.md` §9.2 (c)·(d)를 택한 경우에만**"을 조건으로 앞에 붙이고, (b)-단독이면 `computeDiagnosisFlags` 입력이 바뀌지 않아 이 스크립트가 갱신 대상이 아니라는 문장과 `pnpm verify:flag-runtime`을 완료 확인에 포함하는 조건도 같은 조건으로 묶었다(AC-023 시나리오 3의 조건과 일치시킴). 검증: `plan.md` M7 문단을 다시 읽어 `acceptance.md` AC-023 시나리오 3의 선결("§9.2 (c)·(d)")과 조건이 같은 문구로 맞는지 대조 |
+| D33 | 수정 | `acceptance.md`(교정 전) AC-B2CENGINE-009 — "사고 유형 특정 표현(예: "무릎", "골절")이 없다"(전체 목록 없음) | `acceptance.md` AC-B2CENGINE-009 Then·선결 | "'진단 대상 유형 특정 표현'의 전체 목록은 도메인 전문가가 D-ENGINE-03 범위(최초 공개 6개 진단 대상 유형)를 기준으로 정하는 고정 목록이다(AC-B2CENGINE-005 시나리오 1의 고정 변형 목록과 같은 방식) — '무릎', '골절'은 그 목록의 예시 두 건일 뿐"이라는 문장을 추가하고, 선결에 "도메인 전문가의 고정 표현 목록이 없는 동안 일반 질문 세트 조건만 추가로 BLOCKED"를 더했다(감사가 제안한 AC-005 s1 방식과 동일한 구조). 검증: AC-005 시나리오 1과 AC-009의 "고정 목록" 서술이 같은 구조(도메인 전문가 소유, 결정되기 전 BLOCKED)인지 대조 |
+| D31 | 보류(변경 없음, 사용자 결정 사항) | — | — | 25/25 REQ·AC 안에서 시나리오 수(약 35개)가 많다는 지적은 "tier 상향 또는 SPEC 분리"를 Kickoff에서 사용자가 판단할 사항이며, 이 교정 라운드가 임의로 분리·상향하지 않았다(D11 잔여와 같은 판단) |
+| D35 | 보류(변경 없음, D31과 결합) | — | — | REQ-023이 증거 게이트(While)와 불변 조건(Unwanted)을 한 REQ에 묶은 것은 D31의 tier 질문과 같은 결정에 묶여 있다 — 사용자가 tier를 올리거나 SPEC을 쪼개기로 하면 그때 불변 조건을 별도 REQ로 분리한다 |
+
 ### 의미가 바뀐 요구사항·AC (번호 유지)
 
 - 구조 중립 또는 조건부로 바뀐 REQ: 004, 006, 007, 009(조건부), 010(조건부), 013, 015(조건부), 019(조건부), 020, 024(조건부).
@@ -120,6 +135,10 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 - `phase`는 `"v0.20.0 target"`이다(CONSULT-001이 `"v0.19.0 target"`). 릴리스 태그가 저장소에 없어 다음 미출시 버전으로 둔 값이며 사용자가 바꿀 수 있다.
 - `depends_on`은 두지 않았다. run 진입 시 의존 SPEC의 `status: completed`를 요구하는데 이 SPEC의 의존은 결정이고 CONSULT-001은 `in-progress`다. `related_specs`로 비차단 참조만 남겼다.
 - `module`은 경로 목록만 담는다. 엔진 경계 위치는 D-ENGINE-04 확정 후 조정한다.
+
+### 6. plan-phase 작업 위치(worktree 이탈)
+
+이 SPEC의 plan-phase 작업은 `.claude/worktrees/launch-readiness` worktree 안에서, 3개 SPEC이 공유하는 plan 브랜치(`plan/b2c-launch-readiness`) 위에서 진행됐다 — `.claude/rules/moai/workflow/spec-workflow.md` § SPEC Phase Discipline(Step 1 plan-phase는 main checkout에서 진행하도록 정하며 worktree를 금지)과의 이탈이다. 전체 경위는 `.moai/reports/b2c-launch-readiness/RESUME.md`를 참고.
 
 ## Open Decisions for User
 
