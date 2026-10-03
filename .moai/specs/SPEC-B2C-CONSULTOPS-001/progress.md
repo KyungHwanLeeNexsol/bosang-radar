@@ -3,7 +3,7 @@
 ## §E.1 Plan-phase Audit-Ready Signal
 
 - `plan_status: draft`
-- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 통과 이후 오케스트레이터가 기록한다. iteration 1 감사는 FAIL(0.7245), iteration 2 감사는 FAIL(0.7576), iteration 3(마지막 허용 감사)은 PASS(0.82, knife-edge)였다(§G). **다만 iteration 3 PASS는 2026-10-02 스냅샷(2026-10-03 사용자 인터뷰로 D-OPS-01~12가 결정되기 전) 상태만 다룬 결과다.** 그 이후의 D-OPS-01~12 결정 기록(1차 교정, 커밋 `4415e82`)과 이번 2차 정밀 교정(오늘, 이 커밋)은 재감사를 받지 않았다 — 이 PASS를 이 두 교정의 통과로 읽지 않는다. `audit-ready` 선언은 여전히 없다.
+- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 통과 이후 오케스트레이터가 기록한다. iteration 1 감사는 FAIL(0.7245), iteration 2 감사는 FAIL(0.7576), iteration 3(마지막 허용 감사)은 PASS(0.82, knife-edge)였다(§G). **다만 iteration 3 PASS는 2026-10-02 스냅샷(2026-10-03 사용자 인터뷰로 D-OPS-01~12가 결정되기 전) 상태만 다룬 결과다.** 그 이후의 D-OPS-01~12 결정 기록(1차 교정, 커밋 `4415e82`)과 2차 정밀 교정(커밋 `7754ef8`), 그리고 이번 3차 정밀 교정(N-1 구조 보강, D-OPS-10 AC 보강, 현재형 표현 정정, 오늘 이 커밋)은 모두 재감사를 받지 않았다 — 이 PASS를 이 세 교정의 통과로 읽지 않는다. `audit-ready` 선언은 여전히 없다. **이 SPEC은 이미 plan-auditor 3회(iteration 1~3)를 모두 소진했고 iteration 3이 PASS-with-debt로 종료됐다(`spec-workflow.md`의 3회 상한 + Retry Loop Contract) — 새 plan-auditor iteration(4회차 등)을 시작하지 않는다.** run-phase 진입 시 `/moai run` Phase 1 Plan Audit Gate가 artifact-hash 변경(1·2·3차 교정이 spec.md·plan.md·acceptance.md를 바꿈)을 감지해 자동으로 재실행되며, 이는 plan-phase 3회 상한과 무관한 별도의 run-phase 게이트다(상세: `.moai/reports/b2c-launch-readiness/RESUME.md` §4).
 - 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-CONSULTOPS-001/` 안의 커밋되지 않은 파일이며 `main@99993bf` 위의 초안이다.
 - 요구사항 16건(Tier M 상한 16), AC 16건(상한 16). 상한에 맞추려고 합친 후보와 뺀 후보는 아래 "Plan-phase Observations" 3번에 적었다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다.
