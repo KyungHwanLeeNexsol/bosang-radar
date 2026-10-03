@@ -3,10 +3,11 @@
 ## §E.1 Plan-phase Audit-Ready Signal
 
 - `plan_status: draft`
-- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 통과 이후 오케스트레이터가 기록한다. 이 초안은 아직 어떤 plan-auditor 감사도 받지 않았다(§G).
-- 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-LAUNCH-001/` 안의 커밋되지 않은 파일이며 `main@99993bf` 위의 초안이다.
+- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 통과 이후 오케스트레이터가 기록한다.
+- 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-LAUNCH-001/` 안의 파일이며 `main@99993bf` 위의 초안이다.
 - 요구사항 16건(Tier M 상한 16), AC 16건(상한 16). 상한에 맞추려고 합친 후보와 뺀 후보는 아래 "Plan-phase Observations" 4번에 적었다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리·감사 보고서는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다.
+- **plan-audit 범위 고지 (2차 정밀 교정, 2026-10-03)**: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`의 PASS 판정(0.88, Tier M 기준 0.80, iteration 1/3 — 상세는 아래 §G)은 **D-LAUNCH-01~09 사용자 인터뷰 결정이 반영된 원본 결정-기록 패스(커밋 c89dae7)까지만 감사했다.** 이번 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가, §2.4·R-01·L-08의 로컬 실행/D-OPS-12 적용 시점 일관성 정리, D-LAUNCH-09와 CONSULTOPS-001 개정 D-OPS-04의 교차 참조)은 그 감사 이후에 추가된 새 내용이며 **아직 재감사되지 않았다.** `plan_status`는 여전히 `draft`이고, Implementation Kickoff Approval 전에 이 교정 내용을 포함한 재감사(또는 변경 범위가 작다는 판단에 따른 명시적 생략 승인)가 필요하다.
 
 ## §E.2 Run-phase Evidence
 
@@ -26,10 +27,11 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 
 ## §G Plan-Auditor Iteration Log
 
-이 표는 실제 plan-auditor 호출 결과만 기록한다. 아직 호출이 없어 행이 없다.
+이 표는 실제 plan-auditor 호출 결과만 기록한다.
 
 | Iteration | Date | Score | Verdict | Key Findings | Reflected Changes |
 |---|---|---|---|---|---|
+| 1/3 | 2026-10-03 | 0.88 (Tier M 기준 0.80) | PASS | D1 (minor, optional) — AC-B2CLAUNCH-012 오라클 정규식의 주석 제외가 2단계 절차(정규식+주석 필터) 전체에서만 성립한다는 설명이 `acceptance.md:104`에 명확하지 않음. D2 (minor, optional) — SPEC ID 정규식이 SSOT와 불일치(선례 형식 공유, 수정 불요). 7개 Must-Pass 전부 PASS/N/A(차단 사유 없음). 전문: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md` | 이 audit은 D-LAUNCH-01~09 사용자 인터뷰 결정-기록 패스(커밋 c89dae7)까지만 감사했다. D1·D2는 사소·선택 항목이라 반영을 미뤘다. 이후의 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등, 본 파일 §E.1 참조)은 이 iteration 뒤에 추가된 내용이라 이 행이 다루지 않으며, D1·D2 반영 여부와 함께 다음 재감사에서 다뤄야 한다. |
 
 ## Open Decisions for User
 
@@ -57,7 +59,7 @@ D-LAUNCH-01~09 9건은 2026-10-03 사용자 인터뷰에서 모두 결정됐다(
 - **D-LAUNCH-04**: **결정 (2026-10-03, 사용자 인터뷰)**: 서명자 (c) 제품 책임자 + 운영 책임자 + 법무. 형식 (i) 마크다운 문서. 보관은 저장소 안에는 항목 식별자·상태·참조만 두는 (α)와 서명 세부를 담는 기록은 저장소 밖에 두는 (γ)의 혼합.
 - **D-LAUNCH-05**: **결정 (2026-10-03, 사용자 인터뷰)**: (a) 대상 칸 전부 필수, 면제 없음.
 - **D-LAUNCH-06**: **결정 (2026-10-03, 사용자 인터뷰)**: 설계 (a) 두 상태(게이트 닫힘/열림) 모두 수용. 위치 (ii) 저장소 스크립트.
-- **D-LAUNCH-07**: **결정 (2026-10-03, 사용자 인터뷰)**: 선언 (iii) 운영 책임자·제품 책임자 둘 중 누구나. 실행 (1) 운영 호스트 접근 보유자. 사유 목록은 CONSULTOPS-001 §2.4의 작성자 기본 목록(최소 4종)을 그대로 쓰고, 진단 표면 전용 사유는 추가하지 않는다.
+- **D-LAUNCH-07**: **결정 (2026-10-03, 사용자 인터뷰; 2026-10-03 2차 정밀 교정으로 사유 목록 보강)**: 선언 (iii) 운영 책임자·제품 책임자 둘 중 누구나. 실행 (1) 운영 호스트 접근 보유자. 사유 목록은 CONSULTOPS-001 §2.4의 작성자 기본 목록(최소 4종: 사후 검증 불일치, 전제 변경 확인, 시크릿 노출·의심, 활성화된 문구 오류 확인)을 상담 표면에 그대로 쓰고, **2차 정밀 교정에서 진단 표면 전용 사유 2종을 더한다** — (e) 잘못된 판정/결과 매핑이 확인된 경우, (f) 지원 범위 밖 결과의 노출이 확인된 경우. 두 신규 사유는 선언·실행 역할을 사유 종류별로 달리할 근거가 없어 위와 같은 선언 (iii)·실행 (1)을 그대로 쓴다. 확인 방법은 ENGINE-001 D-ENGINE-03의 진단 대상 유형별 준비 상태 매트릭스(AC-B2CENGINE-023)를 참조한다 — 상세는 `spec.md` D-LAUNCH-07 참조.
 - **D-LAUNCH-08**: **결정 (2026-10-03, 사용자 인터뷰)**: 내용 (b) 상태 확인에 접수 행 존재·오류 응답 확인(상담)을 더함. 담당 (1) 운영 책임자.
 - **D-LAUNCH-09**: **결정 (2026-10-03, 사용자 인터뷰)**: 일반 공개(G)는 (1) 목적지(앱 안 페이지 또는 앱 밖 링크)를 갖춘 뒤에만 해당 단계로 진입. 내부 시험(I)은 (2) "준비 중" 비활성 표시를 허용.
 
@@ -132,3 +134,7 @@ D-LAUNCH-01~09 9건은 2026-10-03 사용자 인터뷰에서 모두 결정됐다(
 - **개수**: REQ 정의 001~016(16건), AC 정의 001~016(16건), AC마다 인용한 REQ 번호가 같다(16/16 1:1). 각 AC 블록에 `검증:`·`통과 판정:`·`선결:`이 모두 있다(16/16, awk 블록 점검 누락 0). 확인 마커(대괄호 안에 확인 요청 문구와 N 번호를 넣은 줄) 검색: `spec.md` 11건(N1~N11 모두 정의), `plan.md`·`acceptance.md`·`progress.md` 0건. Out of Scope `### Out of Scope —` H3 5개와 `-` bullet 5개. 시간 추정 정규식(숫자 뒤에 일·주·개월·시간·분·초·영어 시간 단위가 붙는 형태) → 네 파일 0건(숫자와 단위를 붙인 짧은 샘플 세 개를 이 정규식이 잡는 것도 확인). 고정 표지값 접두사 검색 → 0건. 프런트매터 필드: 12개 필수 + `tier`, `related_specs`.
 - **인용한 형제 식별자 존재 대조**: CONSULTOPS-001의 E-03·E-06·E-08·E-17, EV-1, N7, F-04·F-10·F-12·F-16·F-17·F-18·F-19·F-22, D-OPS-04·07·10·11·12, REQ-B2CCONSULTOPS-002·006·011·013·016, AC-B2CCONSULTOPS-011·015, ENGINE-001의 REQ-B2CENGINE-023, N5·N7, D-ENGINE-04·05·07·09·10, design §9.2·§9.3·§10.1·§10.5, DIAGNOSIS-001의 REQ-B2CDIAG-017·023·025, AC-B2CDIAG-024, CONSULT-001의 REQ-B2CCONSULT-005·025, RESULT-001의 REQ-B2CRESULT-025, REQ-PILOT-READY-016, REQ-PILOT-OPS-006을 해당 파일에서 `grep -F`로 찾아 모두 존재함을 확인했다(누락 0). 줄 번호 인용은 작성 중 해당 줄을 열어 확인했다.
 - 작성 끝 `git status --short` → 세 디렉터리(`SPEC-B2C-CONSULTOPS-001/`, `SPEC-B2C-ENGINE-001/`, `SPEC-B2C-LAUNCH-001/`)만 `??`이고 추적 파일 수정은 0개다.
+
+### 7. plan-phase 실행 위치의 일탈 (worktree + 형제 3-SPEC 공유 plan 브랜치)
+
+이번 2차 정밀 교정 세션은 `.claude/worktrees/launch-readiness` worktree에서 `plan/b2c-launch-readiness` 브랜치(이 SPEC과 형제 SPEC-B2C-ENGINE-001·SPEC-B2C-CONSULTOPS-001이 공유)로 작업했다 — `.claude/rules/moai/workflow/spec-workflow.md` § SPEC Phase Discipline의 "Step 1(plan)은 main checkout에서 실행, 이 단계에 L2/L3 worktree 없음" 규칙과의 일탈이다. 전체 경위와 재개 안내는 `.moai/reports/b2c-launch-readiness/RESUME.md`를 참조한다.
