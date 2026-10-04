@@ -266,7 +266,7 @@ source_session_id: <not-available — environment-fallback>
 
 앞 절의 기록은 그대로 두고 아래만 덧붙인다. 원 감사 보고서(`review-3.md`), 점수 0.81, 판정 PASS와 `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다. 새 감사, 자동 4회차, `/moai run`은 시작하지 않았다.
 
-**현재 안내는 §14다.** §13의 감사 결과·결함 처리 상태·불변 항목은 그대로 유효하고, §13의 "승인 전에 사용자가 정할 것" 항목과 복사용 메시지는 이 절이 대체한다. §11의 재개 순서(승인 순서 ①~⑤)도 그대로 유효하다.
+**현재 안내는 §14다.** [§15에서 정정: 사용자가 PASS-with-debt 수용을 골라, 이 절이 "승인 전에 사용자가 정할 것"으로 둔 감사 규칙 해석 차이의 처리 선택은 수용으로 처리됐다. 이 절의 복사용 메시지는 §15가 대체하고 현재 안내는 §15다. 이 절의 나머지(시점별 표 포함)는 유효하며 원문은 보존한다.] §13의 감사 결과·결함 처리 상태·불변 항목은 그대로 유효하고, §13의 "승인 전에 사용자가 정할 것" 항목과 복사용 메시지는 이 절이 대체한다. §11의 재개 순서(승인 순서 ①~⑤)도 그대로 유효하다.
 
 - **감사 규칙과 보고서 해석의 차이(미해결)**: `plan-auditor.md:408`은 이전 회차 미해소 결함을 자동 FAIL로 적고 선택 결함을 제외하는 문구가 없다. `review-3.md:79`는 이를 차단 결함에만 적용한다고 읽어 PASS 0.81을 냈다. 공식 판정은 PASS 0.81 그대로이고, 이 기록은 판정을 바꾸지도 확정하지도 않는다. 규칙 M6(`:155-162`), review-2 선례의 실제 범위, 걸리는 결함(D-11·D-14·D-15, 일부 해소 D-06·D-09)은 LAUNCH `progress.md`의 "후속 기록 교정"에 있다. 3회차는 최종 회차라 자동 4회차가 없으며, 이 차이를 어떻게 다룰지는 사용자가 정한다. 앞서 사용자가 고른 "범위 축소 확정 후 재감사"는 STOP 처리 선택이었고 PASS-with-debt 수용도 Kickoff 승인도 아니다.
 - **복사용 메시지 정정**: §13 복사용 메시지 전제 3의 "보고서는 gitignored라 같은 worktree에서만 보인다"는 틀렸다. `.gitignore:210`의 `.moai/reports/plan-audit/*.md` 규칙이 이 경로를 가리키지만 review-3은 `e5742b4`로 커밋된 추적 파일이고 원격 브랜치에도 있다. 다른 PC에서도 fetch·checkout으로 받을 수 있다. 아래 메시지가 §13 메시지를 대체한다.
@@ -289,7 +289,7 @@ source_session_id: <not-available — environment-fallback>
 - **3회 소진 후 아직 필요한 사용자 선택**: (1) 승인 전 — 감사 규칙 해석 차이의 처리(선택지 (가) 보고서의 PASS를 공식 판정으로 두고 규칙 문구 확인은 별도로, (나) 규칙 원문대로 읽어 PASS-with-debt 수용 또는 명시적 예외로 처리, (다) 공통 감사 규칙의 문구 정정을 별도 요청. 결정이 아니다). (2) 승인 시 — 진행 모드 축과 N9. (3) 이후 시점별 — U2(M2 전), U3(로컬 시험 전), U1·U4·U5(확인 권장).
 - **불변**: 세 SPEC `plan.md`의 "plan-auditor PASS와 Implementation Kickoff Approval 완료" 줄은 모두 `[ ]` 미체크이고 `/moai run`은 시작하지 않았다. ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건, 미확정 사용자 결정 5건과 열린 확인 사항 N1~N11의 상태는 바꾸지 않았다. 운영 DB·플래그·호스트·main은 건드리지 않았다.
 
-### 갱신 재개 메시지 (§13의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+### 갱신 재개 메시지 [SUPERSEDED by §15 갱신 재개 메시지 — 아래 블록은 PASS-with-debt 수용 전 상태 기준이라 ①이 감사 규칙 해석 차이의 처리를 승인 전 사용자 선택으로 남겨 두고 있어 낡았다. 기록으로 보존한다] (§13의 메시지를 대체, 새 세션에 그대로 붙여넣기)
 
 ```text
 ✂──── 여기부터 복사 ────✂
@@ -304,6 +304,54 @@ source_session_id: <not-available — environment-fallback>
 3) git ls-files --error-unmatch .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → exit 0, grep -c "^Verdict: PASS" 같은 파일 → 1 (review-3은 커밋된 추적 파일이라 다른 PC도 fetch·checkout으로 받는다)
 
 실행: .moai/reports/b2c-launch-readiness/RESUME.md §14와 §11의 재개 순서를 따른다 — ① 승인 전 확인(미확정 U1~U5·N1~N11은 현황을 사용자에게 공유하되 전부 해결을 요구하지 않는다. 승인 전에 사용자가 정할 것은 감사 규칙 :408 해석 차이의 처리 선택이고 design 경로는 오케스트레이터가 판단한다. [K-전] 상태·기록 읽기) → ② 실제 사용자 승인(Implementation Kickoff Approval — 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate → ⑤ 구현. 나머지 미확정은 시점별로 관리한다: U2는 M2 진입 전, U3는 로컬 시험 시작 전, U1·U4·U5는 확인 권장(U4·U5는 M1 전), N4는 M4 전, N1·N3·N6~N8·N10·N11은 해당 마일스톤·공개 전, N2는 시점 미기재. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
+
+후속: 구현이 끝나면 SPEC별 /moai sync
+
+✂──── 여기까지 복사 ────✂
+```
+
+## 15. 후속 기록 8 (2026-10-04, `2b8a3aa` 기준 — PASS-with-debt 수용 선택과 Kickoff 준비 자료 — 현재 안내)
+
+앞 절의 기록은 그대로 두고 아래만 덧붙인다. 원 감사 보고서(`review-3.md`), 점수 0.81, 판정 PASS와 `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다. 새 감사, 자동 4회차, `/moai run`, 운영 변경, `main` 병합은 시작하지 않았다.
+
+**현재 안내는 §15다.** §14의 시점별 표와 §13의 감사 결과·불변 항목은 그대로 유효하고, §14의 복사용 메시지는 이 절이 대체한다.
+
+- **선택 확인됨**: 사용자가 이 세션에서 "미해소 선택 결함과 감사 규칙 해석 차이를 debt로 남긴 채 PASS-with-debt로 수용할까요?"라는 질문에 **"debt로 유지하고 수용 (권장)"**을 골랐다(2026-10-04, 사용자 응답). 이 질문 전에는 수용 기록이 없었다. 수용한 debt 목록, 조건, 의미하지 않는 것은 LAUNCH `progress.md`의 "PASS-with-debt 수용 선택 기록"에 있다. 같은 질문은 다시 묻지 않는다.
+- **수용과 Kickoff 승인은 다르다**: 수용은 3회 소진 뒤 LAUNCH-001의 감사 결과를 어떻게 다룰지에 대한 선택이다. Kickoff 승인은 plan→run 경계의 별도 사람 게이트이고 아직 받지 않았다. 세 SPEC의 "Implementation Kickoff Approval 완료"는 `[ ]` 미체크이며 수용이 그 체크를 대신하지 않는다. 수용은 결함 해소도 아니다.
+- **[K-전] 승인 전에 읽어 둔 현재 상태** (실측, `2b8a3aa`):
+
+  | 항목 | 상태 | 근거 |
+  |---|---|---|
+  | LAUNCH STOP 처리 선택 | 완료 | 범위 축소 확정 후 재감사(§12), PASS-with-debt 수용(이 절). 둘 다 사용자 응답이 근거다 |
+  | "plan-auditor PASS"의 감사 판정 | LAUNCH는 PASS 0.81에 debt 수용. ENGINE·CONSULTOPS는 2026-10-02 스냅샷 기준 PASS-with-debt라 현재 내용의 PASS로 쓰지 않는다 | `review-3.md`, 각 SPEC `progress.md` §G |
+  | 작업 트리·divergence | 추적 파일 변경 없음. `origin/main`(`99993bf`)이 이 브랜치의 merge-base와 같고 `git rev-list --count --left-right origin/main...HEAD`는 `0 29`다 | 이 세션 실측. run 직전에 다시 읽는다 |
+  | 동시 세션 | `moai session list --json --filter-spec=SPEC-B2C-LAUNCH-001` → `[]` | 이 세션 실측. run 직전에 다시 읽는다 |
+  | 결정 기록 존재(D-LAUNCH-04) | 있음 | `progress.md:64` |
+  | LAUNCH design 경로 판단 | **미판단.** 푸터 3개 파일이 바뀔 수 있고(D-LAUNCH-09) M2 선행이 N5 확인이라, U2가 정해지기 전에는 판단 근거가 부족하다 | `plan.md:21`, `:101`. 오케스트레이터가 run 진입 전에 판단한다 |
+
+- **[K-시] 승인 시 결정할 것**: LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로(`main` 직접 push 또는 `--pr`, smoke 교체 커밋을 L-01 기준선 관측 뒤에만 `main`에 올릴지). ENGINE의 `design.md` §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태는 ENGINE-001 승인에서 정한다. 어느 SPEC을 먼저 착수할지는 이 자료가 정하지 않는다.
+- **[K-후] 승인 뒤에 확인할 것**: "Implementation Kickoff Approval 완료" 체크(실제 승인 뒤에만), 직전 `pnpm test`·`pnpm lint`·`pnpm build`·`pnpm test:e2e`·`pnpm verify:flag-runtime` 기준선 기록, 운영 접근 제한 확인. `plan.md` 체크 상태는 ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6으로 바뀌지 않았다.
+- **Kickoff Approval 질문 구성안(아직 묻지 않았다)**: 승인 게이트(승인, 수정 뒤 다시 제시, 보류)와 진행 모드 축(자율/반자율, 승인 통과 뒤에만 적용되는 별도 축)과 N9 경로를 한 번의 질문 묶음으로 올린다. 질문은 한 묶음 4문항 이내다. 이 구성안은 승인이 아니고 승인 질문을 실제로 제시하기 전에는 아무것도 체크하지 않는다.
+- **Phase 1 Plan Audit Gate 전망**: skip 조건 3가지 중 LAUNCH는 PASS(0.81, 기준 0.80 이상)와 hash 불변(`spec`·`plan`·`acceptance` blob이 감사 대상 `ba4602e`와 같음)을 실측으로 확인했다. 다만 3회차 감사는 Claude 단독이었고 감사 캐시를 저장하지 않아 캐시 조회 결과는 확인하지 못했다. 본문을 고치면 hash가 바뀌어 게이트가 다시 실행된다. ENGINE·CONSULTOPS는 PASS가 2026-10-02 스냅샷 기준이라 게이트가 다시 실행될 것으로 이 문서 §10과 CONSULTOPS `progress.md`가 적고 있다(두 SPEC의 현재 hash는 이번에 재측정하지 않았다).
+- **열린 위험과 미확인**: (1) debt를 먼저 정리하면(D-16·D-17 등) hash 변경으로 게이트 재실행을 부르고, 그대로 두면 debt가 구현 fixture(M1 RED 입력)에 영향을 줄 수 있다. 어느 쪽으로 갈지는 U4·U5 확정 뒤 판단한다. (2) `external-confirmations-20261004.md`의 [K-전] 행은 "STOP 처리 선택이 먼저"라고 선택 전 상태를 적고 있어 낡았다. 이번에는 고치지 않았다. (3) 새 보고서를 `.gitignore:210` 대상 폴더에 추가할 때 일반 `git add`가 거부되는지는 시험하지 않았다.
+- **아직 필요한 사용자 선택**: 승인 시 — 진행 모드 축과 N9. 이후 시점별 — U2(M2 전), U3(로컬 시험 전), U1·U4·U5(확인 권장, U4·U5는 M1 전). 승인 전에 사용자가 정해야 하는 항목은 남지 않았다.
+- **불변**: ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건, 미확정 사용자 결정 5건과 N1~N11, `plan.md` 체크 상태는 바꾸지 않았다. `plan_status`는 `draft`다. 운영 DB·플래그·호스트·`main`은 건드리지 않았다.
+
+### 갱신 재개 메시지 (§14의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+
+```text
+✂──── 여기부터 복사 ────✂
+
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 3회차 PASS 0.81을 사용자가 PASS-with-debt로 수용(2026-10-04), Implementation Kickoff Approval 전. 수용은 Kickoff 승인이 아니다.
+applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
+source_session_id: <not-available — environment-fallback>
+
+전제 검증:
+1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
+2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → git rev-parse HEAD와 같은지, git status --short → 추적 파일 변경 없음
+3) git ls-files --error-unmatch .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → exit 0, grep -c "^Verdict: PASS" 같은 파일 → 1 (커밋된 추적 파일이라 다른 PC도 fetch·checkout으로 받는다)
+
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §15와 §11의 재개 순서를 따른다 — ① 승인 전 확인([K-전]: 작업 트리·divergence·동시 세션은 run 직전에 다시 읽고, LAUNCH design 경로 판단은 U2(N5) 확정 전이라 미판단 상태. U1~U5·N1~N11은 현황만 공유하고 전부 해결을 요구하지 않는다. 승인 전에 사용자가 정할 항목은 남지 않았다) → ② 실제 사용자 승인(Implementation Kickoff Approval — LAUNCH 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate(artifact-hash 재검증 — LAUNCH는 spec·plan·acceptance가 감사 대상 ba4602e와 같아 skip 조건을 충족하고, 본문을 고치면 재실행) → ⑤ 구현. 수용한 debt는 해소가 아니며 LAUNCH progress.md "PASS-with-debt 수용 선택 기록"에 있다. 나머지 미확정은 시점별로 관리한다: U2는 M2 진입 전, U3는 로컬 시험 시작 전, U1·U4·U5는 확인 권장(U4·U5는 M1 전), N4는 M4 전, N1·N3·N6~N8·N10·N11은 해당 마일스톤·공개 전, N2는 시점 미기재. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
 
 후속: 구현이 끝나면 SPEC별 /moai sync
 
