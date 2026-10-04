@@ -78,7 +78,7 @@
 - 증거 문서: `.moai/reports/b2c-launch-readiness/evidence-pack-20261002.md`
 - 2026-10-03 커밋(결정 기록 → 2차 정밀 교정 → 3차 정밀 교정 순): `c89dae7`(LAUNCH 결정)·`4415e82`(CONSULTOPS 결정)·`0701e2d`(ENGINE 결정)·`7754ef8`(CONSULTOPS 2차 교정)·`ecfaba9`(ENGINE 2차 교정)·`7916728`(LAUNCH 2차 교정)·`5544267`(RESUME 2차 갱신)·`9a586eb`(LAUNCH 3차 교정)·`cc9d33c`(CONSULTOPS 3차 교정)·`0553039`(RESUME 3차 갱신, 원격 도달 확인 지점). 2026-10-04 정렬 교정 커밋은 `0553039` 위의 로컬 커밋(push 전)이다
 
-## 7. 재개 메시지 (새 세션에 그대로 붙여넣기)
+## 7. 재개 메시지 [SUPERSEDED by §9 갱신 재개 메시지 — 아래 블록은 LAUNCH 2회차 감사 전 상태 기준이라 "LAUNCH-001만 2회차 가능" 서술이 낡았다. 기록으로 보존한다]
 
 ```text
 ✂──── 여기부터 복사 ────✂
@@ -107,3 +107,35 @@ source_session_id: <not-available — environment-fallback>
 - **LAUNCH-001 2회차 감사**: `3c56b47` 기준 **FAIL 0.75**(기준 0.80), STOP 신호다(1회차 0.88보다 낮다. 다만 1회차는 결정 반영 전 상태를 감사해 두 점수는 서로 다른 내용을 잰다). 차단 결함 4건·선택 결함 11건이며 보고서는 `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`(저장소 무시 규칙이 걸린 경로라 `git add -f`로 추적한다)다. §4 1번의 "LAUNCH-001만 2회차 가능"은 이 감사로 사용했고, 3회차는 무조건 진행하지 않으며 사용자가 범위 축소·PASS-with-debt·명시적 예외 중 정한 뒤에만 한다. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력이 그대로이고 새 plan-auditor iteration을 시작하지 않았다.
 - **외부 확인 항목 정리**: `.moai/reports/b2c-launch-readiness/external-confirmations-20261004.md`에 SPEC별 확인 대상·담당 역할·필요한 증거·차단 단계를 정리했다. §3 "그래도 남아있는 것"의 역할 귀속 오류와 누락 항목의 정오표, 감사 잔여 중 사용자 결정이 필요한 것도 그 문서에 있다.
 - **현재 위치**: §4 순서 ①(외부 확인·계획 마무리) 진행 중이다. Implementation Kickoff Approval은 받지 않았고 `/moai run`은 시작하지 않았다. 운영 DB·플래그 변경과 main 병합은 하지 않았다.
+
+## 9. 후속 기록 2 (2026-10-04, `b6ee43a` 기준 5차 수정안)
+
+앞 절의 기록은 그대로 두고, 이후 확인된 사실과 정정만 덧붙인다.
+
+- **원격 반영**: §8의 "이 절을 담은 커밋은 새 로컬 커밋이며 push 전이다"는 그 시점의 기록이다. 이후 `git push origin plan/b2c-launch-readiness`(force 없음)로 `3c56b47..b6ee43a`가 올라갔고, `git ls-remote`가 `b6ee43a`를 가리키며 `git rev-list --count --left-right origin/plan/b2c-launch-readiness...HEAD`가 `0 0`임을 확인했다. 5차 수정안은 이 절을 쓰는 시점에 **커밋·push 전의 작업 트리 변경**이다.
+- **현재 상태**: LAUNCH-001 plan-auditor 2회차는 FAIL 0.75(기준 0.80), STOP 신호다(`.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`). **STOP 상태를 유지한다 — 3회차 감사와 run을 시작하지 않았다.** 5차 수정안이 차단 결함 D-01~D-04에 대응했으나 재감사를 받지 않았다(`.moai/specs/SPEC-B2C-LAUNCH-001/progress.md` "5차 수정안 기록"). ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력이 그대로이고 새 plan-auditor iteration을 시작하지 않았다.
+- **정정**: §1과 §4-0의 "선택 자체는 그대로 두고 분리·구체화·추가 게이트만 반영"은 D-LAUNCH-07에 대해 이력과 맞지 않았다 — 2026-10-03 2차 정밀 교정(`7916728`)이 D-LAUNCH-07 결정 기록 문장을 "진단 표면 전용 사유는 추가하지 않는다"(`c89dae7`)에서 "2종을 더한다"로 바꿨다. §3 표의 LAUNCH "9/9 결정 완료"도 같은 뜻으로 읽어야 한다. 5차 수정안이 결정 문장을 원문으로 복원했고(아홉 건 모두 `c89dae7`과 같음을 대조) 사유 2종은 사용자 확인 대기인 후속 변경안으로 분리했다. 그 변경을 사용자가 지시했다는 근거는 이 문서(§1·§4-0)의 2차 기록뿐이며 원 지시문과 결정 주체는 확인하지 못했다.
+- **미확정 사용자 결정**: (1) D-LAUNCH-07 진단 전용 사유 2종 확정 여부, (2) 01·02 푸터 요소별 목적지 기록의 소유(N5), (3) 로컬 시험 판정의 I 서명 필요 여부와 서명자 구성 — 이상 확인 대기. (4) D-LAUNCH-05 (a) 결과로 로컬 첫 진단 시험에도 R-02·R-03과 L-02·L-06·L-07·L-09 등이 필수가 되는 것, (5) `local`로 단계를 점검하는 입력의 거부 규칙 — 이상 확인 권장. 상세는 LAUNCH `progress.md` "5차 수정안 기록"과 `external-confirmations-20261004.md` §6.
+- **Kickoff 전제**: 각 SPEC `plan.md` §C Pre-flight는 6항목이고 `b6ee43a` 기준 체크 상태는 ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6이다(여기에는 "plan-auditor PASS와 Implementation Kickoff Approval 완료"가 들어 있다). 결정 기록이 존재한다는 사실만으로 Kickoff 전제가 충족됐다고 보지 않는다.
+- **재개 순서(갱신, §4와 같은 순서)**: ① 외부 확인·계획 마무리 — `external-confirmations-20261004.md`의 항목과 위 미확정 사용자 결정을 처리하고, LAUNCH STOP 신호의 처리 방식(범위 축소 방향의 5차 수정안 확인, PASS-with-debt 수용, 사용자의 명시적 예외로 3회차)은 사용자가 정한다 → ② Implementation Kickoff Approval → ③ `/moai run` Phase 1 Plan Audit Gate(artifact-hash 재검증) → ④ 구현.
+
+### 갱신 재개 메시지 (§7을 대체, 새 세션에 그대로 붙여넣기)
+
+```text
+✂──── 여기부터 복사 ────✂
+
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 2회차 FAIL(STOP) 상태.
+applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
+source_session_id: <not-available — environment-fallback>
+
+전제 검증:
+1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
+2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → b6ee43a 이상, git status --short → 5차 수정안 변경 여부 확인
+3) grep -c "PASS-with-debt로 종료" .moai/specs/SPEC-B2C-{ENGINE,CONSULTOPS}-001/progress.md → 둘 다 1 이상, grep -c "FAIL — STOP" .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md → 1 이상
+
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §9의 재개 순서를 따른다 — ① 외부 확인·계획 마무리(external-confirmations-20261004.md, 미확정 사용자 결정 5건, LAUNCH STOP 처리 방식은 사용자가 정한다 — 그 선택 전에는 3회차 감사를 시작하지 않는다, ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지) → ② Implementation Kickoff Approval → ③ /moai run Phase 1 Plan Audit Gate → ④ 구현
+
+후속: 구현이 끝나면 SPEC별 /moai sync
+
+✂──── 여기까지 복사 ────✂
+```
