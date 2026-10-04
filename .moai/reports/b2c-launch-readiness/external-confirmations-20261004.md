@@ -1,6 +1,6 @@
-# 외부 확인 항목 정리 (2026-10-04, 6차 교정 반영, 기준 `a0e0ee2`)
+# 외부 확인 항목 정리 (2026-10-04, 7차 교정 반영, 기준 `53c6954`)
 
-세 plan-phase SPEC(ENGINE-001, CONSULTOPS-001, LAUNCH-001)에서 코드 밖의 사람이 확인·결정·서명·관측해야 하는 항목을 SPEC별로 모았다. 각 항목에 확인 대상, 담당 역할, 필요한 증거, 차단 단계를 적었다. 이 문서의 최초 판(`b6ee43a`에 커밋된 것)은 차단 단계를 K·R·I·G로 적었고, 5차 수정안을 반영한 판(`a0e0ee2`에 커밋된 것)은 LAUNCH-001의 로컬 시험 판정 분리에 맞춰 I를 둘로 나눴다. 이번 판(6차 교정)은 착수 전에 확인하는 범위를 [K] 항목과 LAUNCH STOP 처리로 한정하고 나머지 항목은 각 차단 시점까지 관리할 수 있다고 적었으며, 착수에 영향을 주는 미확정 설계 사항을 근거·차단 범위와 함께 따로 모았다. 또 D-LAUNCH-07 추가 사유 2종의 차단 범위를 "차단 없음"으로 정정하고 ENGINE-001 N8의 분류를 [K]에서 [R]로 바로잡았다. 이 정리는 SPEC 원문의 차단 서술을 모은 것이며 새 결정이나 감사 결과가 아니다.
+세 plan-phase SPEC(ENGINE-001, CONSULTOPS-001, LAUNCH-001)에서 코드 밖의 사람이 확인·결정·서명·관측해야 하는 항목을 SPEC별로 모았다. 각 항목에 확인 대상, 담당 역할, 필요한 증거, 차단 단계를 적었다. 이 문서의 최초 판(`b6ee43a`에 커밋된 것)은 차단 단계를 K·R·I·G로 적었고, 5차 수정안을 반영한 판(`a0e0ee2`에 커밋된 것)은 LAUNCH-001의 로컬 시험 판정 분리에 맞춰 I를 둘로 나눴다. 이번 판(6차 교정)은 착수 전에 확인하는 범위를 [K] 항목과 LAUNCH STOP 처리로 한정하고 나머지 항목은 각 차단 시점까지 관리할 수 있다고 적었으며, 착수에 영향을 주는 미확정 설계 사항을 근거·차단 범위와 함께 따로 모았다. 또 D-LAUNCH-07 추가 사유 2종의 차단 범위를 "차단 없음"으로 정정하고 ENGINE-001 N8의 분류를 [K]에서 [R]로 바로잡았다. 7차 교정은 [K] 정의가 각 SPEC Pre-flight 6항목 전체를 승인 선결로 묶어 "Implementation Kickoff Approval 완료"를 승인 전에 요구하는 것으로 읽히던 순환을 없앴다 — [K]를 승인 전·승인 시·승인 후 셋으로 나눴다. 이 정리는 SPEC 원문의 차단 서술을 모은 것이며 새 결정이나 감사 결과가 아니다.
 
 ## 읽는 법
 
@@ -11,9 +11,13 @@
 
 ## 차단 종류와 Kickoff 전제
 
-**착수 전에 확인하는 범위**: LAUNCH-001의 STOP 처리 선택(사용자)과 [K] 항목이다. 아래 [R]·[I-local]·[I-production]·[G] 항목은 각 차단 시점까지 미결 상태와 담당 역할·처리 계획을 관리하면 되며, 외부 확인 항목과 미확정 사용자 결정 전부가 Kickoff의 일괄 선결인 것은 아니다. 착수에 실제로 영향을 주는 미확정 설계 사항은 근거와 차단 범위를 아래 표에 따로 적었다.
+**착수 전에 확인하는 범위**: LAUNCH-001의 STOP 처리 선택(사용자)과 아래 [K-전] 항목이다. 각 SPEC Pre-flight 6항목 전체가 아니다 — 그 안의 "Implementation Kickoff Approval 완료"는 실제 승인 뒤에야 체크할 수 있다. 아래 [R]·[I-local]·[I-production]·[G] 항목은 각 차단 시점까지 미결 상태와 담당 역할·처리 계획을 관리하면 되며, 외부 확인 항목과 미확정 사용자 결정 전부가 Kickoff의 일괄 선결인 것은 아니다. 착수에 실제로 영향을 주는 미확정 설계 사항은 근거와 차단 범위를 아래 표에 따로 적었다.
 
-- **[K] 착수 전제**: 각 SPEC `plan.md` §C Pre-flight 체크리스트(세 SPEC 모두 6항목)와, SPEC이 "Kickoff 시 확인"으로 적은 항목이다. `a0e0ee2` 기준(`b6ee43a` 기준과 같다) 체크 상태는 ENGINE 0/6, CONSULTOPS 1/6(D-OPS-11·12 결정 기록 항목만), LAUNCH 0/6이다. 항목에는 작업 트리·divergence 확인, 동시 세션 확인, 결정 기록 존재, `pnpm` 기준선 기록, **plan-auditor PASS와 Implementation Kickoff Approval 완료**, 운영 접근 제한이 들어 있다. 결정 기록이 있다는 사실은 그중 "결정 기록 존재" 한 항목의 근거일 뿐 다른 항목을 충족시키지 않으며, 그것만으로 Kickoff 전제가 충족됐다고 보지 않는다. 현재 LAUNCH는 plan-auditor 2회차 FAIL 0.75(STOP)이고, ENGINE·CONSULTOPS는 3회 소진·PASS-with-debt이며 그 PASS는 2026-10-02 스냅샷 기준이라 현재 내용의 PASS로 쓰지 않는다. SPEC이 "Kickoff 시 확인"으로 적은 것은 ENGINE의 `design.md` §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태, LAUNCH의 N9·진행 모드 축이다. LAUNCH의 design 경로 적용 여부는 `plan.md`가 run-phase 진입 전 오케스트레이터 판단으로 적었다. 근거와 차단 범위는 아래 "착수([K])에 영향을 주는 미확정 사항" 표에 있다.
+- **[K] 착수 전제 — 승인(Implementation Kickoff Approval) 둘레의 항목**: 시점에 따라 셋으로 나눈다. 각 SPEC `plan.md` §C Pre-flight 체크리스트(세 SPEC 모두 6항목이고 구성이 조금 다르다 — ENGINE은 기준선 항목이 둘이고 운영 접근 제한 항목이 없다)는 run-phase를 시작하기 전의 **점검표 전체**이며 그 안에 "Implementation Kickoff Approval 완료" 항목이 들어 있다. 승인 완료는 승인 뒤에야 참이 되므로 점검표 전체를 승인의 선결로 읽지 않는다 — 그렇게 읽으면 승인 완료를 승인 전에 요구하는 순환이 된다.
+  - **[K-전] 승인 전에 확인**: LAUNCH-001의 STOP 처리 선택(사용자)과, 승인 질문에 올리기 위해 먼저 읽어 두는 상태·기록이다 — 작업 트리·divergence 확인과 동시 세션 확인(둘 다 run 진입 직전에 다시 읽는다 — `agent-common-protocol.md` Pre-Spawn Sync Check), 결정 기록 존재, "plan-auditor PASS"의 감사 판정 부분(현재 LAUNCH는 plan-auditor 2회차 FAIL 0.75·STOP이라 STOP 처리 선택이 먼저이고, ENGINE·CONSULTOPS는 3회 소진·PASS-with-debt이며 그 PASS는 2026-10-02 스냅샷 기준이라 현재 내용의 PASS로 쓰지 않는다), LAUNCH design 경로 적용 여부(`plan.md`가 run-phase 진입 전 오케스트레이터 판단으로 적었고 승인 전에 미리 판단해 둘 수 있다).
+  - **[K-시] 승인 시 결정·확인**: 승인 질문 안에서 정하는 항목이다 — LAUNCH의 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로(`plan.md` §C "승인 때 정한다"), ENGINE의 `design.md` §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태(`plan.md` §B "Implementation Kickoff Approval 시 확인한다").
+  - **[K-후] 승인 뒤에 완료를 확인**: 실제 사용자 승인 **뒤에** 체크하는 항목이다 — "Implementation Kickoff Approval 완료"(실제 승인 없이 체크하지 않는다. 승인 전에 이 항목이 미체크인 것은 정상 상태이며 승인 절차에 들어가는 것을 막는 조건이 아니다), 직전 `pnpm` 기준선 기록(run 진입 직전의 트리 기준), 운영 접근 제한(운영 호스트·DB 접근은 사용자의 별도 지시가 있을 때만 — 상시 제약이며 run 진입 때 확인). 승인 뒤에는 `/moai run` Phase 1 Plan Audit Gate가 따로 돈다.
+  - 이 분류는 `plan.md` §C·§B 항목 문구의 시점 표현("직전", "승인 때 정한다", "Implementation Kickoff Approval 시 확인한다", "사용자의 별도 지시가 있을 때만")을 읽어 나눈 것이며 `plan.md`의 문구와 체크 상태는 바꾸지 않았다. 기준 `53c6954`(`a0e0ee2`와 같다)의 체크 상태는 ENGINE 0/6, CONSULTOPS 1/6(D-OPS-11·12 결정 기록 항목만), LAUNCH 0/6이다. 결정 기록이 있다는 사실은 "결정 기록 존재" 항목의 근거일 뿐 다른 항목을 충족시키지 않으며, 그것만으로 Kickoff 전제가 충족됐다고 보지 않는다. 근거와 차단 범위는 아래 "착수([K])에 영향을 주는 미확정 사항" 표에 있다.
 - **[R] run 마일스톤·AC 차단**: 해당 마일스톤이나 AC(또는 그 일부)만 BLOCKED이고 착수 자체는 막지 않는다. 그 마일스톤 진입이나 AC 판정 전까지 미결로 두고 담당·처리 계획을 관리할 수 있다.
 - **[I-local] 로컬 시험 판정**: 참여자가 자기 로컬 실행에서 시험을 시작해도 되는지의 판정이다(LAUNCH `spec.md` §2.4 "로컬 시험 판정", 단계가 아니다). 점검 요청은 실행 환경 `local` + 목적 단계 입력 없음이며(LAUNCH `spec.md` §2.4 "점검 요청의 두 형태"), I 열의 필수 항목 목록을 판정 규칙으로 읽을 뿐 운영 단계 I의 점검이 아니다. 운영 한정 항목(L-01·L-05·R-04)은 적용되지 않고 그 밖의 I 열 필수 항목은 적용된다. 로컬 시험을 시작하기 전까지 미결 상태와 담당·처리 계획을 관리할 수 있다.
 - **[I-production] 내부 시험 공개 단계**: 운영 호스트에서 일부 표면을 참여자에게 여는 단계다. 점검 요청은 실행 환경 `production` + 목적 단계 `I`(운영 단계 점검)다. 현재 결정(D-LAUNCH-01 (e))에서는 일어나지 않으며, 이 단계의 노출 확대 전까지 미결 상태와 담당·처리 계획을 관리할 수 있다.
@@ -23,10 +27,10 @@
 
 | 항목 | 근거(SPEC 원문) | 차단 범위 | 담당·시점 |
 |---|---|---|---|
-| LAUNCH-001 STOP 처리 선택(범위 축소, PASS-with-debt, 사용자의 명시적 예외 중 하나) | LAUNCH `plan.md` §C의 "plan-auditor PASS와 Implementation Kickoff Approval 완료", 2회차 FAIL 0.75·STOP(`plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`), `spec-workflow.md` SPEC Complexity Tier의 plan-auditor escalation(점수가 전보다 낮으면 STOP·범위 축소 제안, 무조건 재감사 없음, 3회 상한 뒤 PASS-with-debt·범위 축소·사용자의 명시적 override) | LAUNCH-001의 Kickoff Approval만 막는다. ENGINE·CONSULTOPS의 Pre-flight에는 이 항목이 없다 | 사용자, Kickoff 전 |
-| LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로(`main` 직접 push 또는 `--pr`, smoke 교체 커밋 시점) | LAUNCH `plan.md` §A·§C("승인 때 정한다"), `spec.md` N9(설계상 의도된 보류, Route A는 모든 커밋이 운영 재시작) | LAUNCH Kickoff Approval 안에서 정하며 정하기 전에는 승인하지 않는다. 선택은 M4(smoke 교체 병합 시점)와 이후 모든 run-phase 커밋에 영향을 준다 | 사용자, Kickoff Approval 때 |
-| LAUNCH design 경로(`manager-design`) 적용 여부 | LAUNCH `plan.md` §A(푸터 변경 가능성, run-phase 진입 전 오케스트레이터 판단), M2 선행(N5 확인) | run-phase 진입 전 판단이며 M2(푸터 UI 변경)의 진행 방식을 정한다. 착수 승인 자체는 막지 않는다 | 오케스트레이터, run 진입 전 |
-| ENGINE 엔지니어링 결정: §9.1 fixture 격리, §9.2 준비 증거 방식(N7의 `productionReady` 정의 amendment 여부 포함), 서명 토큰 형태 | ENGINE `plan.md` §B("`design.md` §9에 대안과 권고가 있고, Implementation Kickoff Approval 시 확인한다"), `spec.md` N7 해결 상태(Kickoff 시 확인하도록 남아 있고 미해결) | ENGINE-001 Kickoff Approval에서 확인한다. 선택에 따라 `verify:flag-runtime` 갱신 경로(N7)와 `visual:verify` 빌드 배선(N8 (2))이 달라진다 | 엔지니어링, ENGINE Kickoff Approval 때 |
+| LAUNCH-001 STOP 처리 선택(범위 축소, PASS-with-debt, 사용자의 명시적 예외 중 하나) | LAUNCH `plan.md` §C의 "plan-auditor PASS와 Implementation Kickoff Approval 완료" 항목 중 감사 판정 부분(승인 완료 부분은 승인 뒤에 체크), 2회차 FAIL 0.75·STOP(`plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`), `spec-workflow.md` SPEC Complexity Tier의 plan-auditor escalation(점수가 전보다 낮으면 STOP·범위 축소 제안, 무조건 재감사 없음, 3회 상한 뒤 PASS-with-debt·범위 축소·사용자의 명시적 override) | LAUNCH-001의 Kickoff Approval만 막는다. ENGINE·CONSULTOPS의 Pre-flight에는 이 항목이 없다 | 사용자, 승인 전 [K-전] |
+| LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로(`main` 직접 push 또는 `--pr`, smoke 교체 커밋 시점) | LAUNCH `plan.md` §A·§C("승인 때 정한다"), `spec.md` N9(설계상 의도된 보류, Route A는 모든 커밋이 운영 재시작) | LAUNCH Kickoff Approval 안에서 정하며 정하기 전에는 승인하지 않는다. 선택은 M4(smoke 교체 병합 시점)와 이후 모든 run-phase 커밋에 영향을 준다 | 사용자, 승인 시 [K-시] |
+| LAUNCH design 경로(`manager-design`) 적용 여부 | LAUNCH `plan.md` §A(푸터 변경 가능성, run-phase 진입 전 오케스트레이터 판단), M2 선행(N5 확인) | run-phase 진입 전 판단이며 M2(푸터 UI 변경)의 진행 방식을 정한다. 착수 승인 자체는 막지 않는다 | 오케스트레이터, run 진입 전(승인 전에 미리 판단 가능) [K-전] |
+| ENGINE 엔지니어링 결정: §9.1 fixture 격리, §9.2 준비 증거 방식(N7의 `productionReady` 정의 amendment 여부 포함), 서명 토큰 형태 | ENGINE `plan.md` §B("`design.md` §9에 대안과 권고가 있고, Implementation Kickoff Approval 시 확인한다"), `spec.md` N7 해결 상태(Kickoff 시 확인하도록 남아 있고 미해결) | ENGINE-001 Kickoff Approval에서 확인한다. 선택에 따라 `verify:flag-runtime` 갱신 경로(N7)와 `visual:verify` 빌드 배선(N8 (2))이 달라진다 | 엔지니어링, ENGINE 승인 시 [K-시] |
 
 위 표 밖의 외부 항목은 착수 선결이 아니다. 특히 다음은 착수를 막지 않는다: D-LAUNCH-07 추가 사유 2종 (e)(f)(차단 없음, 기본 4종이 유효), 01·02 푸터 소유 N5([R] M2), 로컬 시험 판정의 I 서명자 구성([I-local]과 [R] AC-008의 서명자 부분), D-LAUNCH-05 (a)의 로컬 필수 결과와 점검 요청 형태 규칙의 의도 확인(확인 권장). ENGINE·CONSULTOPS는 3회 소진·PASS-with-debt 이력이 있고 그 PASS는 2026-10-02 스냅샷 기준이라 현재 내용의 PASS로 쓰지 않으며, `/moai run` 진입 때 Phase 1 Plan Audit Gate가 artifact-hash 변경을 감지해 재실행한다(`spec-workflow.md` § Phase 1 Plan Audit Gate).
 
@@ -47,7 +51,7 @@
 | 동의 시점(`design.md` 마커) | 분류 호출이 동의 직후·질문 전에 외부 전송을 일으키는 시점이 동의 문구에 들어가야 하는지 | 법무 | 확인 기록(형식 미지정) | [R] D-ENGINE-07 작성에 영향. [G] |
 | N2 | 서버 API 라우트와 무저장이 REQ-B2CDIAG-004·021과 양립하는지 해석 | 법무(D-ENGINE-04 병기). N2 자체는 미지정 | 해석 결정 기록 | [R] M3~M5 |
 | AC-021 4종 | 공급자 실제 한도, 호출별 실측 지연, 재시도 시험, 호출당 요청 수 | 엔지니어링(AC-021 서명) | 4종 기록. 예시 값 대체 불인정. 시크릿·계정 정보는 추적 파일 금지 | [R] M4·M7 완료 조건 |
-| §9.1·§9.2·서명 토큰 형태, N7 | fixture 격리, 준비 증거 방식(런타임/CI), 서명 토큰 형태, `productionReady` 정의 amendment 여부(N7) | 엔지니어링 | 결정 기록 | **[K]** ENGINE-001 Kickoff 승인 시 확인(근거: ENGINE `plan.md` §B "Implementation Kickoff Approval 시 확인한다", `spec.md` N7 해결 상태) |
+| §9.1·§9.2·서명 토큰 형태, N7 | fixture 격리, 준비 증거 방식(런타임/CI), 서명 토큰 형태, `productionReady` 정의 amendment 여부(N7) | 엔지니어링 | 결정 기록 | **[K-시]** ENGINE-001 Kickoff 승인 시 확인(근거: ENGINE `plan.md` §B "Implementation Kickoff Approval 시 확인한다", `spec.md` N7 해결 상태) |
 | N8 | 02 mock 표기 부재(`?devFixture=fracture` review 경로)와 §9.1 선택에 따른 `visual:verify` 동결 영향 | 엔지니어링(N8 소유는 미지정) | 결정 기록 | [R] 표기를 새 요구로 추가하거나 §9.1이 별도 review 빌드를 요구할 때만 02 시각 기준선에 영향을 준다. `spec.md` N8이 "결정되기 전에는 그 표기를 계획하지 않는다"고 적었으므로 착수를 막지 않는다(6차 교정으로 [K]에서 분류 정정) |
 | 신규 운영 시크릿 주입 | `resultId` 서명 비밀과 `GEMINI_API_KEY`의 운영 주입·회전 | "사람의 별도 승인"(역할 미지정) | 값은 저장소 비추적. 영향 문서화는 M3·M8 산출물 | [R] M3·M8. 비밀 부재 시 접수·발급 모두 fail-closed |
 | N3·N5 | N3: RESULT-001 REQ-009~011 대체를 in-place amendment로 할지. N5: `DIAGNOSIS_ENGINE_READY` 전환 소유를 LAUNCH가 받는지 | 미지정 | 확인 기록 | [R] N3은 AC-025, N5는 LAUNCH 소유 확인 |
@@ -90,7 +94,7 @@ LAUNCH-001은 plan-auditor 2회차가 FAIL 0.75(STOP)로 끝났고 5차 수정�
 | R-02·R-03·R-05 | ENGINE의 엔진 준비 증거, 동의 문구 확정, 면책 문구 법무 검토 | ENGINE 소유(§1) | 참조 줄 | R-02·R-03: [I-local]·[I-production]·[G] — I 칸 `결정 대기`는 필수와 같게 취급되고 D-LAUNCH-05 (a)가 면제를 허용하지 않으며 운영 한정 항목이 아니므로 **로컬 첫 진단 시험에도 필요하다**. R-05: [G]만(I 칸 `해당 없음`) |
 | R-04 | 진단 플래그를 바꾸는 재시작에도 PM2 환경 재읽기 관측 | CONSULTOPS E-03 소유 | 참조 줄 | [I-production]·[G] 운영 재시작 앞. 운영 한정 항목이라 `local`에서는 적용하지 않는다 |
 | D-LAUNCH-06 · N4 | smoke 교체(결정 (a)+(ii))를 `main`에 병합·배포해 통과(L-05), 배포 동작 변경 승인, DIAGNOSIS-001 REQ-B2CDIAG-023 문구 amendment 여부 | 엔지니어링 + 제품 책임자(N4는 미지정) | 병합·배포 기록 | [I-production]·[G] 진단 플래그 변경 앞(L-05는 운영 한정 항목). [R] M4 |
-| N9 · 진행 모드 · design 경로 | run-phase 커밋을 `main` 직접 push로 할지 `--pr`로 할지(모든 커밋이 운영 재시작), smoke 교체 커밋 시점, 자율/반자율 진행 모드, 푸터 변경에 따른 design 경로 적용 여부 | 사용자(Kickoff 때 정함). design 경로는 오케스트레이터 판단 | 승인 기록 | **[K]** Kickoff 시 확인 |
+| N9 · 진행 모드 · design 경로 | run-phase 커밋을 `main` 직접 push로 할지 `--pr`로 할지(모든 커밋이 운영 재시작), smoke 교체 커밋 시점, 자율/반자율 진행 모드, 푸터 변경에 따른 design 경로 적용 여부 | 사용자(Kickoff 때 정함). design 경로는 오케스트레이터 판단 | 승인 기록 | **[K-시]** N9·진행 모드는 Kickoff 승인 시 결정, **[K-전]** design 경로는 run 진입 전 오케스트레이터 판단 |
 | D-LAUNCH-07·08 서명 | 롤백 절차(AC-014)와 사후 관측 계획(AC-016)을 운영 책임자가 이해·수행 가능함을 서명 | 운영 책임자 | 서명 기록, 관측 계획 기록 | [R] M5. L-06·L-07·L-09는 운영 한정 항목이 아니라 [I-local]·[I-production]·[G]에 모두 적용된다 |
 | N1·N3·N6·N7·N8·N10·N11 | 소유·충돌 확인(형제 문구 이관, E-08 G 면제 수용, 런타임 게이트 시 조합표 갱신, REQ-013 범위, 부분 롤백 범위, Tier 상한, 상담 접수 런타임 게이트 필요 여부) | 미지정 | 확인 기록 | [R]·[G]. 형제 SPEC 쪽 확인 필요 |
 
@@ -117,7 +121,7 @@ LAUNCH-001은 plan-auditor 2회차가 FAIL 0.75(STOP)로 끝났고 5차 수정�
 | 법무 | ENGINE: D-ENGINE-07·10, D-ENGINE-06 필드 집합·(iv)·공급자 약관, 동의 시점, N2 해석, D-ENGINE-05 만료 정책, 금지 표현 목록, 공개·비공개 분류. CONSULTOPS: D-OPS-01 문구·서명, D-OPS-02 값·근거, D-OPS-05 개인정보(공동), D-OPS-06 문구. LAUNCH: 법무 확인 기록, L-08 S1(공동), go/no-go 서명자, D-LAUNCH-05 |
 | 운영 책임자 | CONSULTOPS: D-OPS-03 SLA 4항목, D-OPS-04 채널 소유 역할(공동), D-OPS-02 수행, D-OPS-07 시크릿 생성, D-OPS-09 재관측. LAUNCH: L-02 외부 관측 기록, 롤백·관측 서명, go/no-go 서명자 |
 | 제품 책임자 | ENGINE: D-ENGINE-09 서명(공동), D-ENGINE-02·03·05(공동). CONSULTOPS: D-OPS-03·04·05·06·08(공동). LAUNCH: go/no-go 서명자, D-LAUNCH-06 승인(공동), L-08 S1(공동) |
-| 엔지니어링 | ENGINE: N7·§9.1·§9.2·토큰 형태([K]), N8([R]), AC-021 4종. CONSULTOPS: D-OPS-01 반영 방식, D-OPS-07·08·09(공동). LAUNCH: D-LAUNCH-06(공동) |
+| 엔지니어링 | ENGINE: N7·§9.1·§9.2·토큰 형태([K-시]), N8([R]), AC-021 4종. CONSULTOPS: D-OPS-01 반영 방식, D-OPS-07·08·09(공동). LAUNCH: D-LAUNCH-06(공동) |
 | 보험 도메인 전문가 | ENGINE: D-ENGINE-09 서명(공동), D-ENGINE-02·03 규칙표·정답 집합·변형 목록·검수 서명, AC-022 합격 판정(공동) |
 | 개인정보 | CONSULTOPS: D-OPS-05, AC-010 서명(법무와 공동). 단독 소유 항목은 없다 |
 | 미지정 | ENGINE N1 경로·N3·N4·N5·N8, 운영 시크릿 주입 승인. CONSULTOPS N1 경로·N2 승인·N6~N8, E-01·E-05·E-08, D-OPS-04 (e)(f) 내용 소유. LAUNCH L-01 관측 역할, 로컬 시험 판정의 I 서명자 구성, D-LAUNCH-07 (e)(f)의 결정 주체, N1·N3~N8·N10·N11 |
@@ -148,4 +152,4 @@ LAUNCH-001은 plan-auditor 2회차가 FAIL 0.75(STOP)로 끝났고 5차 수정�
 4. **확인 권장** — D-LAUNCH-05 (a)와 운영 한정 항목 셋(L-01·L-05·R-04)의 결과로 로컬 첫 진단 시험에도 R-02·R-03과 L-02·L-03·L-04·L-06·L-07·L-08(S1)·L-09가 필수가 되는 것이 의도한 결과인지. 특히 노출 확대가 없는 로컬 시험에 롤백 항목(L-06·L-07)과 사후 관측 계획(L-09)이 적용되는 것이 맞는지. **차단 범위: 없음** — 의도와 다르면 §2.4와 AC-002 fixture를 고쳐야 하고 그 fixture가 M1의 RED 입력이므로 M1 전에 확인하면 재작업을 피한다.
 5. **확인 권장** — `local` + 목적 단계(I·G)를 함께 주는 요청을 거부하는 규칙(6차 교정의 "점검 요청의 두 형태" — 요청 형태를 실행 환경으로 정하는 방식 포함)과, 로컬에서 첫 표면(S1) 밖을 열 때 그 표면의 항목을 같은 판정에 더하는 규칙. **차단 범위: 없음**(4번과 같은 이유로 M1 전 확인 권장).
 
-STOP 신호에 대한 처리 선택(범위 축소, PASS-with-debt 수용, 사용자의 명시적 예외로 3회차 진행)은 사용자가 정한다. 이번 5차 수정안은 감사 에이전트가 제안한 범위 축소 방향을 문서에 반영한 것이며 그 선택을 대신 내린 것이 아니다. 이 선택은 LAUNCH-001의 착수 전 확인 대상이다(위 "착수([K])에 영향을 주는 미확정 사항" 표 첫 행). 6차 교정도 그 선택을 대신 내리지 않았다.
+STOP 신호에 대한 처리 선택(범위 축소, PASS-with-debt 수용, 사용자의 명시적 예외로 3회차 진행)은 사용자가 정한다. 이번 5차 수정안은 감사 에이전트가 제안한 범위 축소 방향을 문서에 반영한 것이며 그 선택을 대신 내린 것이 아니다. 이 선택은 LAUNCH-001의 승인 전 확인 대상이다([K-전], 위 "착수([K])에 영향을 주는 미확정 사항" 표 첫 행). 6차 교정도 그 선택을 대신 내리지 않았다.

@@ -150,6 +150,28 @@ D-LAUNCH-01~09 9건은 2026-10-03 사용자 인터뷰에서 모두 결정됐다(
 
 STOP 신호의 처리 선택(범위 축소·PASS-with-debt·명시적 예외 중 하나)은 사용자가 정하며 이 SPEC의 Kickoff 전 확인 대상이다. 이 교정은 그 선택을 대신 내리지 않았다.
 
+### 7차 교정 기록 (2026-10-04)
+
+기준은 `53c6954`(원격 `origin/plan/b2c-launch-readiness`와 같음을 시작 전에 확인했다)다. 승인 순서의 순환 표현 **1건만** 교정했다. **공식 감사 결과 FAIL 0.75·STOP은 유지되고 이 교정은 재감사를 받지 않았으며 감사 PASS가 아니다. 점검기·하네스 등 구현이 아직 없어 구현 시험도 실행하지 않았고 PASS를 주장하지 않는다. 3회차 plan-auditor와 `/moai run`을 시작하지 않았고, 실제 사용자 승인(Implementation Kickoff Approval) 없이 어떤 "승인 완료"도 체크하지 않았다.** ENGINE-001·CONSULTOPS-001의 감사 이력, 기존 사용자 결정, 로컬 입력 계약("점검 요청의 두 형태"), [R]·[I-local]·[I-production]·[G] 차단 구분, 미확정 사용자 결정 5건의 상태, 각 SPEC `plan.md` §C의 문구와 체크 상태는 바꾸지 않았다. 과거 기록(위 6차 기록 포함)은 보존하고 정정은 이 절에만 적는다.
+
+**순환 표현 (변경 전 → 후)**
+
+- 변경 전: `RESUME.md` §10의 [K] 표 행·재개 순서·복사용 메시지와 `external-confirmations-20261004.md`의 [K] 정의(그리고 위 6차 기록의 "착수 전에 확인하는 것은 LAUNCH STOP 처리 선택과 [K] 항목이다(각 SPEC `plan.md` §C Pre-flight 6항목과 …)")가 각 SPEC Pre-flight 6항목 전체를 승인 전에 확인할 항목으로 적었다. Pre-flight에는 "Implementation Kickoff Approval 완료"가 들어 있어, 승인 완료를 승인 전에 요구하는 순환으로 읽혔다. Pre-flight 점검표 전체와 승인 전 확인이 같은 말로 서술됐다.
+- 변경 후: [K]를 시점별로 나눴다. **[K-전] 승인 전에 확인**: LAUNCH STOP 처리 선택, 상태·기록 읽기(작업 트리·divergence, 동시 세션, 결정 기록 존재), "plan-auditor PASS"의 감사 판정 부분, LAUNCH design 경로 판단. **[K-시] 승인 시 결정·확인**: LAUNCH의 진행 모드 축·N9 커밋 경로, ENGINE의 §9.1·§9.2·서명 토큰 형태. **[K-후] 승인 뒤에 완료를 확인**: "Implementation Kickoff Approval 완료"(실제 사용자 승인 뒤에만 체크하며, 승인 전 미체크 상태는 정상이고 승인 절차에 들어가는 것을 막는 조건이 아니다), 직전 기준선 기록, 운영 접근 제한. Pre-flight 점검표 전체(run-phase 시작 점검표)와 승인 전 확인([K-전])을 다른 범위로 서술했다. 순서는 승인 전 확인 → 실제 승인 → 승인 완료 체크 → `/moai run` Phase 1 Plan Audit Gate → 구현이다.
+- 맞춘 곳: `external-confirmations-20261004.md`(제목·도입, 착수 전 확인 범위, [K] 정의, K 표의 시점 열·근거, ENGINE·LAUNCH 행의 표지, 역할별 요약, §6), `RESUME.md` §11 신설과 §10의 [K] 표·재개 순서·복사용 메시지에 대체 표시. 이 SPEC의 `spec.md`·`plan.md`·`acceptance.md`와 ENGINE·CONSULTOPS 문서는 바꾸지 않았다.
+- 가정(확인 권장): 분류는 `plan.md` §C·§B 문구의 시점 표현("직전", "승인 때 정한다", "Implementation Kickoff Approval 시 확인한다", "사용자의 별도 지시가 있을 때만")을 읽어 나눈 것이다. 기준선 기록과 운영 접근 제한을 [K-후]로, 작업 트리·동시 세션·결정 기록 존재를 [K-전]으로 읽은 것은 문구에서 따라 나온 해석이며 사용자 결정이 아니다 — 다르게 읽어야 하면 지시해 달라.
+
+**실행한 검증(7차 교정 뒤, 이 교정을 쓴 세션이 직접 실행)** — 문서 대조이며 구현 시험이 아니다. 점검기·하네스(`scripts/check-launch-gate.ts`, `lib/launch/`)는 아직 존재하지 않아 실행하지 않았고 통과했다고 주장하지 않는다. 문서 교정은 감사 PASS도 아니다.
+
+- 승인 순서 대조: `RESUME.md` §11 본문의 재개 순서, §11 복사용 메시지, `external-confirmations-20261004.md`의 [K] 정의, 이 기록이 모두 승인 전 확인 → 실제 승인 → 승인 완료 체크 → `/moai run` Phase 1 Plan Audit Gate → 구현의 순서이고, "승인 완료는 실제 승인 뒤에만 체크하며 승인 전 미체크는 정상이고 승인 절차에 들어가는 것을 막지 않는다"는 문장이 세 문서에 각각 있다. 복사용 메시지의 전제 검증은 3개다(상한 4).
+- 순환 표현 잔존: 현재 안내(external-confirmations, `RESUME.md` §11)에서 Pre-flight 6항목은 "점검표 전체"로만 서술되고 승인 선결로 묶이지 않는다. 옛 서술("[K] 항목을 확인한다", 표의 "필요 — … Pre-flight 6항목")은 §10 안의 보존·대체 표시된 기록과 §11의 정정 인용에만 남는다. external-confirmations의 `[K]` 단독 표지는 정의 머리글 하나뿐이고 표·행은 [K-전]·[K-시]를 쓴다.
+- 불변: 각 SPEC `plan.md` §C 체크 상태 ENGINE 0/6·CONSULTOPS 1/6·LAUNCH 0/6(체크된 "Implementation Kickoff Approval 완료" 0건), 이 SPEC의 `spec.md`·`plan.md`·`acceptance.md`와 ENGINE·CONSULTOPS 문서의 diff 없음, D-LAUNCH 결정 아홉 줄이 `c89dae7`과 일치, [R]·[I-local]·[I-production]·[G] 정의 줄이 변경 전과 바이트 단위로 같음.
+- 과거 기록 보존: 이 파일에서 삭제된 줄 0. `RESUME.md`는 §10의 세 줄에 대체 표시만 끼웠고 원문 단어는 지워지지 않았다(단어 단위 비교의 삭제 토큰 2개는 닫는 굵은 글씨 표시 `**:`가 표시 뒤로 밀린 것뿐이다). `external-confirmations-20261004.md`는 판마다 갱신해 온 정리 문서라 해당 부분을 직접 고쳤다(삭제 12줄, 모두 의도한 줄).
+- 표 구조: 세 문서의 모든 표가 헤더와 같은 칸 수이고, external-confirmations의 K 표는 4행×4칸, `RESUME.md` §11 표는 3행×3칸이다.
+- 변경 범위: 3개 파일뿐이고(응용 코드·워크플로·다른 SPEC·운영 DB·플래그·main 불변) 추가한 줄에서 시크릿·개인정보 패턴 일치는 없다.
+
+**보지 못한 것**: 시점 분류의 타당성은 사람의 판단이다(특히 기준선 기록·운영 접근 제한을 [K-후]로, 작업 트리·동시 세션·결정 기록 존재를 [K-전]으로 읽은 것). 서술의 의미 품질은 재감사를 받지 않았다.
+
 ## Plan-phase Observations
 
 작성 중 확인한 사실과 불일치다. 이 SPEC의 요구사항이 아니라 오케스트레이터·감사자에게 전달하는 관찰이다.

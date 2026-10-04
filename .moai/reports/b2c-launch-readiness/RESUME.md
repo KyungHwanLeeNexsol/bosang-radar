@@ -147,7 +147,7 @@ source_session_id: <not-available — environment-fallback>
 - **원격 반영**: §9의 "5차 수정안은 이 절을 쓰는 시점에 커밋·push 전의 작업 트리 변경이다"는 그 시점의 기록이다. 이후 `git push origin plan/b2c-launch-readiness`(force 없음)로 `b6ee43a..a0e0ee2`(`26a8d3e`·`a0e0ee2`)가 올라갔고, 6차 교정을 시작하기 전에 `git ls-remote`가 `a0e0ee2`를 가리키고 `git rev-list --count --left-right origin/plan/b2c-launch-readiness...HEAD`가 `0 0`임을 확인했다. 6차 교정은 이 절을 쓰는 시점에 **커밋·push 전의 작업 트리 변경**이며, 그 커밋 SHA는 이 문서가 자기 SHA를 적을 수 없으므로 커밋 뒤 보고에 둔다.
 - **현재 상태**: LAUNCH-001 plan-auditor 2회차 **FAIL 0.75(기준 0.80)·STOP이 공식 감사 결과로 그대로**다(`.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`). 5차 수정안과 6차 교정은 재감사를 받지 않았고 문서 교정은 감사 PASS가 아니다. 3회차 감사와 `/moai run`은 시작하지 않았고, 사용자가 STOP 처리를 정하기 전에는 시작하지 않는다. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력이 그대로이고 새 plan-auditor iteration을 시작하지 않았다.
 - **정정**: §4의 "재개 순서"와 3번("위 1~2(외부 확인·계획 마무리)가 끝난 뒤에만"), §5의 마지막 문장("§4의 재감사·외부 확인이 끝난 뒤에만 유효"), §9의 "재개 순서(갱신)"와 복사용 메시지의 "① 외부 확인·계획 마무리"는 외부 확인 항목과 미확정 사용자 결정을 **전부** 처리해야 Kickoff로 넘어가는 것으로 읽혔다. 이는 `external-confirmations-20261004.md`가 정의한 차단 구분과 맞지 않는다 — [R]은 해당 마일스톤·AC만 막고 착수 자체는 막지 않는다. 또 D-LAUNCH-07의 추가 사유 2종은 미승인 제안이라 L-06·M5·AC-B2CLAUNCH-014를 막지 않으며, 원 결정의 기본 4종이 유효한 기준이다(외부 확인 문서의 해당 행을 정정했다). ENGINE-001의 N8은 SPEC 원문이 "Kickoff 시 확인"으로 적지 않았으므로 [K]가 아니라 [R]로 정정했다.
-- **현재 안내 — 차단 구분**: 착수 전에 확인하는 것은 LAUNCH STOP 처리 선택과 [K] 항목이다. 나머지 외부 항목은 각 차단 시점까지 미결 상태와 담당·처리 계획을 관리하면 된다.
+- **현재 안내 — 차단 구분 [§11에서 정정: 아래 표의 [K] 행이 각 SPEC Pre-flight 6항목 전체를 승인 전 선결로 적어 "승인 완료"를 승인 전에 요구하는 순환으로 읽혔다. 원문은 보존한다]**: 착수 전에 확인하는 것은 LAUNCH STOP 처리 선택과 [K] 항목이다. 나머지 외부 항목은 각 차단 시점까지 미결 상태와 담당·처리 계획을 관리하면 된다.
 
   | 구분 | 막는 것 | 착수 전에 필요한가 |
   |---|---|---|
@@ -160,9 +160,9 @@ source_session_id: <not-available — environment-fallback>
   ENGINE·CONSULTOPS의 PASS-with-debt 이력은 2026-10-02 스냅샷 기준이라 현재 내용의 PASS로 쓰지 않으며, `/moai run` 진입 때 Phase 1 Plan Audit Gate가 artifact-hash 변경을 감지해 재실행한다. 결정 기록이 존재한다는 사실만으로 Kickoff 전제가 충족됐다고 보지 않는다.
 - **착수에 영향을 주는 미확정 설계 사항**(근거와 차단 범위의 상세는 `external-confirmations-20261004.md` "착수([K])에 영향을 주는 미확정 사항" 표): (1) LAUNCH STOP 처리 선택 — LAUNCH-001의 Kickoff만 막는다. (2) LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로 — LAUNCH Kickoff Approval 안에서 정한다. (3) LAUNCH design 경로 적용 여부 — run-phase 진입 전 오케스트레이터 판단이고 M2의 진행 방식을 정한다. (4) ENGINE `design.md` §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태 — ENGINE Kickoff Approval에서 확인한다. 이 밖의 외부 항목과 미확정 사용자 결정은 착수 선결이 아니다.
 - **미확정 사용자 결정(상태 불변, 이 교정이 정하지 않았다 — 차단 범위만 구분)**: (1) D-LAUNCH-07 추가 사유 (e)(f) 확정 여부 — 차단 없음. (2) 01·02 푸터 요소별 목적지 기록의 소유(N5) — [R] M2 진입 전. (3) 로컬 시험 판정의 I 서명 필요 여부와 서명자 구성 — [I-local]과 [R] AC-B2CLAUNCH-008의 서명자 부분. 이상 확인 대기. (4) 로컬 첫 시험에도 L-06·L-07·L-09 등이 필수가 되는 결과 — 차단 없음, M1 전 확인 권장. (5) `local` + 목적 단계를 함께 주는 요청의 거부 규칙과 요청 형태를 실행 환경으로 정하는 방식 — 차단 없음, M1 전 확인 권장. 상세는 LAUNCH `progress.md` "6차 교정 기록"과 `external-confirmations-20261004.md` §6.
-- **재개 순서(갱신, §4·§9를 대체)**: ① 착수 전 확인 — LAUNCH STOP 처리는 사용자가 정한다(범위 축소, PASS-with-debt, 명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다). [K] 항목을 확인한다. [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정은 `external-confirmations-20261004.md`에서 미결 상태·담당·처리 계획을 관리하며 착수 선결이 아니다 → ② Implementation Kickoff Approval(LAUNCH의 진행 모드 축·N9 선택 포함) → ③ `/moai run` Phase 1 Plan Audit Gate(artifact-hash 재검증) → ④ 구현(마일스톤마다 해당 [R] 차단을 확인).
+- **재개 순서(갱신, §4·§9를 대체) [§11 재개 순서로 대체 — "[K] 항목을 확인한다"가 Pre-flight 6항목 전체(승인 완료 포함)를 승인 전에 요구하는 것으로 읽히고 승인 완료 체크 단계가 없어 낡았다. 기록으로 보존한다]**: ① 착수 전 확인 — LAUNCH STOP 처리는 사용자가 정한다(범위 축소, PASS-with-debt, 명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다). [K] 항목을 확인한다. [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정은 `external-confirmations-20261004.md`에서 미결 상태·담당·처리 계획을 관리하며 착수 선결이 아니다 → ② Implementation Kickoff Approval(LAUNCH의 진행 모드 축·N9 선택 포함) → ③ `/moai run` Phase 1 Plan Audit Gate(artifact-hash 재검증) → ④ 구현(마일스톤마다 해당 [R] 차단을 확인).
 
-### 갱신 재개 메시지 (§9의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+### 갱신 재개 메시지 [SUPERSEDED by §11 갱신 재개 메시지 — 아래 블록의 "① 착수 전 확인 … [K] 항목 확인"이 Pre-flight 6항목 전체를 승인 전에 요구하는 것으로 읽히고 승인 완료 체크 단계가 없어 낡았다. 기록으로 보존한다] (§9의 메시지를 대체, 새 세션에 그대로 붙여넣기)
 
 ```text
 ✂──── 여기부터 복사 ────✂
@@ -177,6 +177,45 @@ source_session_id: <not-available — environment-fallback>
 3) grep -c "PASS-with-debt로 종료" .moai/specs/SPEC-B2C-{ENGINE,CONSULTOPS}-001/progress.md → 둘 다 1 이상, grep -c "FAIL — STOP" .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md → 1 이상
 
 실행: .moai/reports/b2c-launch-readiness/RESUME.md §10의 재개 순서를 따른다 — ① 착수 전 확인(LAUNCH STOP 처리는 사용자가 정한다: 범위 축소·PASS-with-debt·명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다, [K] 항목 확인은 external-confirmations-20261004.md의 "착수([K])에 영향을 주는 미확정 사항" 표, [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정 5건은 착수 선결이 아니며 각 차단 시점까지 미결 상태·담당·처리 계획을 관리, ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지) → ② Implementation Kickoff Approval → ③ /moai run Phase 1 Plan Audit Gate → ④ 구현
+
+후속: 구현이 끝나면 SPEC별 /moai sync
+
+✂──── 여기까지 복사 ────✂
+```
+
+## 11. 후속 기록 4 (2026-10-04, `53c6954` 기준 7차 교정 — 승인 순서의 순환 표현)
+
+앞 절의 기록은 그대로 두고, 이후 확인된 사실과 정정, 현재 안내만 덧붙인다. §10의 "현재 안내 — 차단 구분" 표의 [K] 행, 재개 순서, 복사용 메시지는 보존하되 아래 정정과 현재 안내가 대체한다. §4·§9에 붙은 "§10에서 정정·대체" 표시는 §10의 해당 부분이 다시 §11로 대체된 뒤에도 유효하다 — 현재 안내는 §11이다.
+
+- **원격 반영**: §10의 "6차 교정은 이 절을 쓰는 시점에 커밋·push 전의 작업 트리 변경이다"는 그 시점의 기록이다. 이후 `git push origin plan/b2c-launch-readiness`(force 없음)로 `a0e0ee2..53c6954`(`0cd8a55`·`53c6954`)가 올라갔고, 7차 교정을 시작하기 전에 `git ls-remote`가 `53c6954`를 가리키고 `git rev-list --count --left-right origin/plan/b2c-launch-readiness...HEAD`가 `0 0`임을 확인했다. 7차 교정은 이 절을 쓰는 시점에 **커밋·push 전의 작업 트리 변경**이며, 그 커밋 SHA는 이 문서가 자기 SHA를 적을 수 없으므로 커밋 뒤 보고에 둔다.
+- **현재 상태**: LAUNCH-001 plan-auditor 2회차 **FAIL 0.75(기준 0.80)·STOP이 공식 감사 결과로 그대로**다. 5·6·7차 교정은 재감사를 받지 않았고 문서 교정은 감사 PASS가 아니다. 점검기·하네스 등 구현은 아직 없어 구현 시험도 실행하지 않았고 PASS를 주장하지 않는다. 3회차 감사와 `/moai run`은 시작하지 않았고, 실제 사용자 승인(Implementation Kickoff Approval)도 받지 않았다 — 그래서 어떤 SPEC의 "Implementation Kickoff Approval 완료"도 체크하지 않았다. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력이 그대로이고 새 plan-auditor iteration을 시작하지 않았다.
+- **정정(순환 표현)**: §10의 [K] 표 행(열 "착수 전에 필요한가"의 값 "필요 — LAUNCH STOP 처리 선택, 각 SPEC `plan.md` §C Pre-flight 6항목 …"), §10 재개 순서 ①("… [K] 항목을 확인한다"), §10 복사용 메시지 ①은 각 SPEC Pre-flight 6항목 전체를 승인 전에 확인해야 하는 것으로 읽혔다. 그런데 그 6항목 안에 "Implementation Kickoff Approval 완료"가 있다. 승인 완료는 승인 뒤에야 참이 되므로 승인 완료를 승인 전에 요구하는 순환이다. 또 Pre-flight 점검표 전체와 승인 전 확인이 같은 말로 서술돼 있었다. `external-confirmations-20261004.md`의 [K] 정의와 LAUNCH `progress.md` 6차 기록의 같은 서술도 함께 정정했다(과거 기록 원문은 보존).
+- **현재 안내 — 승인 둘레의 세 시점**: Pre-flight 점검표(각 SPEC `plan.md` §C, 6항목)는 run-phase를 시작하기 전의 **점검표 전체**이고, 승인 전에 확인하는 것은 그 일부와 별도 확인뿐이다.
+
+  | 시점 | 항목 | 비고 |
+  |---|---|---|
+  | [K-전] 승인 전에 확인 | LAUNCH STOP 처리 선택(사용자). 상태·기록 읽기: 작업 트리·divergence, 동시 세션(둘 다 run 진입 직전에 다시 읽는다), 결정 기록 존재. "plan-auditor PASS"의 감사 판정 부분. LAUNCH design 경로 판단 | 승인 질문에 올리기 위해 먼저 읽어 두는 것. LAUNCH는 FAIL 0.75·STOP이라 STOP 처리 선택이 먼저다 |
+  | [K-시] 승인 시 결정·확인 | LAUNCH 진행 모드 축과 N9 커밋 경로. ENGINE §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태 | 승인 질문 안에서 정한다(`plan.md`의 "승인 때 정한다"·"승인 시 확인한다") |
+  | [K-후] 승인 뒤에 완료를 확인 | "Implementation Kickoff Approval 완료" 체크. 직전 `pnpm` 기준선 기록. 운영 접근 제한 확인 | **실제 사용자 승인 뒤에만 체크**한다. 승인 전에 "승인 완료"가 미체크인 것은 정상이며 승인 절차에 들어가는 것을 막는 조건이 아니다 |
+
+  분류는 `plan.md` 항목 문구의 시점 표현을 읽어 나눈 것이며 `plan.md`의 체크 상태(`53c6954` 기준 ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6)와 문구는 바꾸지 않았다. 기준선 기록과 운영 접근 제한을 [K-후]로, 작업 트리·동시 세션·결정 기록 존재를 [K-전]으로 읽은 것은 문구에서 따라 나온 해석이며 사용자 결정이 아니다. [R]·[I-local]·[I-production]·[G] 차단 구분, 기존 사용자 결정, 미확정 사용자 결정 5건과 로컬 입력 계약은 바꾸지 않았다.
+- **재개 순서(갱신, §10을 대체)**: ① 승인 전 확인 — LAUNCH STOP 처리는 사용자가 정한다(범위 축소, PASS-with-debt, 명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다). [K-전] 항목(상태·기록 읽기, 감사 판정 확인, design 경로 판단)을 확인한다 → ② 실제 사용자 승인: Implementation Kickoff Approval(승인 질문 안에서 [K-시] 항목을 정한다 — LAUNCH의 진행 모드 축·N9, ENGINE의 §9.1·§9.2·서명 토큰 형태) → ③ 승인 완료 체크: 실제 승인 **뒤에** Pre-flight의 "Implementation Kickoff Approval 완료"를 체크하고 [K-후]의 나머지(기준선 기록, 운영 접근 제한)를 run 진입 직전에 확인한다. 승인 없이 체크하지 않는다 → ④ `/moai run` Phase 1 Plan Audit Gate(artifact-hash 재검증) → ⑤ 구현(마일스톤마다 해당 [R] 차단을 확인). [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정은 `external-confirmations-20261004.md`에서 미결 상태·담당·처리 계획을 관리하며 착수 선결이 아니다.
+
+### 갱신 재개 메시지 (§10의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+
+```text
+✂──── 여기부터 복사 ────✂
+
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 2회차 FAIL(STOP) 상태, Implementation Kickoff Approval 전.
+applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
+source_session_id: <not-available — environment-fallback>
+
+전제 검증:
+1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
+2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → 53c6954 이상, git status --short → 7차 교정 변경 여부 확인
+3) grep -c "PASS-with-debt로 종료" .moai/specs/SPEC-B2C-{ENGINE,CONSULTOPS}-001/progress.md → 둘 다 1 이상, grep -c "FAIL — STOP" .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md → 1 이상
+
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §11의 재개 순서를 따른다 — ① 승인 전 확인(LAUNCH STOP 처리는 사용자가 정한다: 범위 축소·PASS-with-debt·명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다, [K-전] 상태·기록 읽기와 감사 판정·design 경로 판단은 external-confirmations-20261004.md의 [K] 정의) → ② 실제 사용자 승인(Implementation Kickoff Approval — 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다)하고 기준선 기록·운영 접근 제한을 run 진입 직전에 확인 → ④ /moai run Phase 1 Plan Audit Gate → ⑤ 구현. [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정 5건은 착수 선결이 아니며 각 차단 시점까지 미결 상태·담당·처리 계획을 관리, ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
 
 후속: 구현이 끝나면 SPEC별 /moai sync
 
