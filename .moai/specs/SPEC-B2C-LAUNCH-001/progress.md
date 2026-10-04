@@ -4,6 +4,7 @@
 
 - `plan_status: draft`
 - 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 통과 이후 오케스트레이터가 기록한다.
+- 2026-10-04 plan-auditor 2회차(iteration 2/3, 대상 `3c56b47`) 결과: **FAIL 0.75**(기준 0.80), STOP 신호. `plan_status`는 `draft`이고 `audit-ready` 선언은 없다. 3회차는 STOP 신호 때문에 무조건 진행하지 않으며 사용자가 범위 축소·PASS-with-debt·명시적 예외 중 정한 뒤에만 시작한다. 상세는 아래 §G와 `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`.
 - 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-LAUNCH-001/` 안의 파일이며 `main@99993bf` 위의 초안이다.
 - 요구사항 16건(Tier M 상한 16), AC 16건(상한 16). 상한에 맞추려고 합친 후보와 뺀 후보는 아래 "Plan-phase Observations" 4번에 적었다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리·감사 보고서는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다.
@@ -32,6 +33,7 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 | Iteration | Date | Score | Verdict | Key Findings | Reflected Changes |
 |---|---|---|---|---|---|
 | 1/3 | 2026-10-03 | 0.88 (Tier M 기준 0.80) | PASS | D1 (minor, optional) — AC-B2CLAUNCH-012 오라클 정규식의 주석 제외가 2단계 절차(정규식+주석 필터) 전체에서만 성립한다는 설명이 `acceptance.md:104`에 명확하지 않음. D2 (minor, optional) — SPEC ID 정규식이 SSOT와 불일치(선례 형식 공유, 수정 불요). 7개 Must-Pass 전부 PASS/N/A(차단 사유 없음). 전문: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md` | 이 audit은 D-LAUNCH-01~09 사용자 결정이 반영되기 전 상태를 감사했다(보고서 커밋 `643dec1`이 결정 반영 커밋 `c89dae7`보다 앞서고 보고서도 결정 미정을 적었다. 정확한 피감사 SHA는 미확인 — 본 파일 §E.1). D1·D2는 사소·선택 항목이라 반영을 미뤘다. 이후의 결정 반영(`c89dae7`), 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등), 3차 정밀 교정, 4차 정렬 교정은 이 iteration 뒤에 추가된 내용이라 이 행이 다루지 않으며, D1·D2 반영 여부와 함께 다음 재감사에서 다뤄야 한다. |
+| 2/3 | 2026-10-04 (감사 대상 `3c56b47`) | 0.75 (Tier M 기준 0.80; Clarity 0.60, Completeness 0.90, Testability 0.80, Traceability 0.75의 조화평균) | FAIL — STOP 신호(1회차 0.88보다 낮음. 1회차는 결정 반영 전 상태를 감사했으므로 두 점수는 서로 다른 내용을 잰다) | Must-Pass 7개는 통과(MP-4 N/A). 차단 결함 4건: D-01 D-LAUNCH-07 기록이 `c89dae7`의 "진단 표면 전용 사유는 추가하지 않는다"에서 "2종을 더한다"로 바뀌었는데 결정 기록 문장에는 사용자 결정으로 적혀 있지 않음(결정 주체·선택 질문 없음. `RESUME.md`는 2차 정밀 교정을 사용자 지시로 적고 이 사유 추가를 그 항목으로 나열함. 나머지 결정 8건은 불변), D-02 CONSULTOPS-001 D-OPS-04 (d)(e)(f)는 "03 계열 푸터"인데 L-08이 "01·02·03 공유"로 적어 S1 G 차단의 근거가 맞지 않음, D-03 단계 표의 `local` 형태가 "단계는 운영 호스트의 상태"와 맞지 않고 `local` 판정을 소비하는 요구사항이 없음, D-04 `spec.md` 교차 참조 문단이 L-08의 표면별 규칙과 모순. 선택 결함 11건(D-05~D-15: 형제 인용 줄 번호 낡음, R-02·R-03이 로컬 시험에도 필수가 되는 점 등). 1회차 D1·D2는 미해소(선택). 전문: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md` | 아직 반영하지 않음. Retry Loop Contract의 STOP 신호에 따라 범위 축소, PASS-with-debt 수용, 사용자의 명시적 예외(3회차) 중 사용자 선택을 기다린다. 이 행은 감사 결과만 기록하며 SPEC 본문은 이 감사로 바뀌지 않았다. |
 
 ## Open Decisions for User
 
