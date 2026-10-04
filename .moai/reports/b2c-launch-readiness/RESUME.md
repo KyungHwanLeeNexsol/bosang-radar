@@ -234,14 +234,14 @@ source_session_id: <not-available — environment-fallback>
 
 ## 13. 후속 기록 6 (2026-10-04, 3회차 감사 결과 — 현재 안내)
 
-**현재 안내는 §13이다.** §11의 재개 순서(승인 순서 ①~⑤)는 그대로 유효하되 ①의 "LAUNCH STOP 처리"는 아래 결과로 갈음된다.
+**현재 안내는 §13이다.** [§14에서 정정: 이 절의 "승인 전에 사용자가 정할 것" 항목은 미확정 사항 전부를 승인 전에 질문으로 확인하는 것으로 읽혔고, 복사용 메시지에는 보고서가 gitignored라는 틀린 문장이 있었다. 이 두 부분은 §14가 대체하며 현재 안내는 §14다. 이 절의 감사 결과·결함 처리 상태·불변 항목은 그대로 유효하고 원문은 보존한다.] §11의 재개 순서(승인 순서 ①~⑤)는 그대로 유효하되 ①의 "LAUNCH STOP 처리"는 아래 결과로 갈음된다.
 
 - **감사 결과(공식)**: LAUNCH-001 plan-auditor 3회차 **PASS 0.81(기준 0.80)**, 여유 얇음. 감사 대상 커밋 `ba4602e0520bd19e8d6c1c61e6b9002995d4c930`, 산출물 blob SHA는 spec.md `6fba2af8be24b7fe860e13035d6180c01bf96854`, plan.md `99cda75e497082c7358165b9ec44bd58085eadc5`, acceptance.md `e67a8d245ae85bd8f0318ce9aaad3cb6dbda0759`. 보고서 `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md`. 점수 Clarity 0.70, Completeness 0.90, Testability 0.80, Traceability 0.85. 이전 점수 0.88 → 0.75 → 0.81. PASS는 감사 판정일 뿐 구현 시험이 아니고 Implementation Kickoff Approval도 아니다. `/moai run`은 시작하지 않았다.
 - **review-2 결함 처리 상태**: 차단 D-01~D-04 해소(D-01은 실질 해소, 문자 그대로는 아님). 선택 D-05·D-07·D-08·D-10·D-12·D-13 해소, D-06·D-09 일부 해소, D-11·D-14·D-15 미해소. 신규 선택 결함 D-16~D-22(보고서 참조). 감사 후 문서는 바꾸지 않았다.
 - **승인 전에 사용자가 정할 것(미해소, 이 PASS로 해소되지 않음)**: U1 D-LAUNCH-07 (e)(f) 승인 또는 폐기, U2 01·02 푸터 요소 기록 소유(N5), U3 로컬 시험의 I 서명 필요 여부와 서명자, U4 로컬 시험에 R-02/R-03 등 비운영 전용 항목 요구 여부(D-17 포함), U5 `local`+단계 거부 규칙·추가 표면 규칙(D-16 포함). spec.md의 [NEEDS CLARIFICATION] N1~N11도 열려 있다(N9는 승인 시 결정). 3회차는 최종 회차이므로 자동 4회차는 없다.
 - **불변**: 어떤 SPEC의 "Implementation Kickoff Approval 완료"도 체크하지 않았고 `plan.md` 체크 상태(ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6), ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건은 그대로다. 운영 DB·플래그·호스트·main은 건드리지 않았다.
 
-### 갱신 재개 메시지 (§11의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+### 갱신 재개 메시지 [SUPERSEDED by §14 갱신 재개 메시지 — 아래 블록의 전제 3 "보고서는 gitignored라 같은 worktree에서만 보인다"는 틀렸다(review-3은 커밋된 추적 파일이다). 실행 ①은 U1~U5·N1~N11을 승인 전에 모두 질문으로 확인하는 것으로 읽혀 낡았다. 기록으로 보존한다] (§11의 메시지를 대체, 새 세션에 그대로 붙여넣기)
 
 ```text
 ✂──── 여기부터 복사 ────✂
@@ -256,6 +256,54 @@ source_session_id: <not-available — environment-fallback>
 3) grep -c "^Verdict: PASS" .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → 1 (보고서는 gitignored라 같은 worktree에서만 보인다)
 
 실행: .moai/reports/b2c-launch-readiness/RESUME.md §13과 §11의 재개 순서를 따른다 — ① 승인 전 확인(미해소 사용자 확인 U1~U5와 N1~N11을 사용자에게 질문으로 확인, [K-전] 상태·기록 읽기) → ② 실제 사용자 승인(Implementation Kickoff Approval — 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate → ⑤ 구현. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
+
+후속: 구현이 끝나면 SPEC별 /moai sync
+
+✂──── 여기까지 복사 ────✂
+```
+
+## 14. 후속 기록 7 (2026-10-04, `e5742b4` 기준 — 감사 규칙 해석 차이·복사용 메시지 정정·미확정 항목 시점 구분 — 현재 안내)
+
+앞 절의 기록은 그대로 두고 아래만 덧붙인다. 원 감사 보고서(`review-3.md`), 점수 0.81, 판정 PASS와 `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다. 새 감사, 자동 4회차, `/moai run`은 시작하지 않았다.
+
+**현재 안내는 §14다.** §13의 감사 결과·결함 처리 상태·불변 항목은 그대로 유효하고, §13의 "승인 전에 사용자가 정할 것" 항목과 복사용 메시지는 이 절이 대체한다. §11의 재개 순서(승인 순서 ①~⑤)도 그대로 유효하다.
+
+- **감사 규칙과 보고서 해석의 차이(미해결)**: `plan-auditor.md:408`은 이전 회차 미해소 결함을 자동 FAIL로 적고 선택 결함을 제외하는 문구가 없다. `review-3.md:79`는 이를 차단 결함에만 적용한다고 읽어 PASS 0.81을 냈다. 공식 판정은 PASS 0.81 그대로이고, 이 기록은 판정을 바꾸지도 확정하지도 않는다. 규칙 M6(`:155-162`), review-2 선례의 실제 범위, 걸리는 결함(D-11·D-14·D-15, 일부 해소 D-06·D-09)은 LAUNCH `progress.md`의 "후속 기록 교정"에 있다. 3회차는 최종 회차라 자동 4회차가 없으며, 이 차이를 어떻게 다룰지는 사용자가 정한다. 앞서 사용자가 고른 "범위 축소 확정 후 재감사"는 STOP 처리 선택이었고 PASS-with-debt 수용도 Kickoff 승인도 아니다.
+- **복사용 메시지 정정**: §13 복사용 메시지 전제 3의 "보고서는 gitignored라 같은 worktree에서만 보인다"는 틀렸다. `.gitignore:210`의 `.moai/reports/plan-audit/*.md` 규칙이 이 경로를 가리키지만 review-3은 `e5742b4`로 커밋된 추적 파일이고 원격 브랜치에도 있다. 다른 PC에서도 fetch·checkout으로 받을 수 있다. 아래 메시지가 §13 메시지를 대체한다.
+- **미확정 사항은 공유와 해결을 구분한다**: U1~U5와 N1~N11의 현황을 승인 전에 사용자에게 공유하는 것은 해결을 뜻하지 않는다. 전부 해결해야 Kickoff에 들어갈 수 있다는 뜻도 아니다. 각 항목은 아래 시점에 해결하며, 시점은 기존 K/R/I-local/I-production/G 분류(`external-confirmations-20261004.md` 차단 종류 절과 LAUNCH 표, §6)를 따른다.
+
+  | 해결 시점 | 항목 | 막는 것 | 근거 |
+  |---|---|---|---|
+  | 승인 전에 사용자 선택 [K-전] | 감사 규칙 해석 차이의 처리 선택 | LAUNCH Kickoff Approval이 기대는 "plan-auditor PASS"의 감사 판정 읽기 | 기존 [K-전] 정의의 "감사 판정 부분"에 해당한다고 이 기록이 읽었다. 사용자 결정이 아니다 |
+  | 승인 전에 오케스트레이터 판단 [K-전] | LAUNCH design 경로 적용 여부 | M2(푸터 UI 변경)의 진행 방식. 승인 자체는 막지 않는다 | `external-confirmations-20261004.md` [K] 표 |
+  | 승인 시 결정 [K-시] | 진행 모드 축(자율/반자율), N9 run-phase 커밋 경로 | 정하기 전에는 LAUNCH를 승인하지 않는다. M4와 이후 run-phase 커밋에 영향 | 같은 문서 [K] 표, `plan.md` §C "승인 때 정한다" |
+  | M2 진입 전 [R] | U2: 01·02 푸터 요소별 목적지 기록의 소유(N5) | 마일스톤 M2 | 같은 문서 §6 항목 2, LAUNCH 표 |
+  | 로컬 시험 시작 전 [I-local] | U3: 로컬 시험의 I 서명 필요 여부와 서명자 구성 | 참여자의 로컬 시험 시작. [R] AC-B2CLAUNCH-008 (마)(바)(사)의 서명자 부분 | 같은 문서 §6 항목 3 |
+  | M4·진단 플래그 변경 전 [R] | N4: 완료된 DIAGNOSIS-001의 smoke 교체 트리거 문구 | 마일스톤 M4와 진단 플래그 변경 | LAUNCH 표 D-LAUNCH-06·N4 행 |
+  | 해당 마일스톤·공개 전 [R]·[G] | N1, N3, N6, N7, N8, N10, N11 (형제 SPEC 쪽 확인 필요) | 해당 마일스톤 또는 일반 공개. 구체 마일스톤은 원문에 적혀 있지 않다 | LAUNCH 표 N1·N3·N6·N7·N8·N10·N11 행 |
+  | 확인 권장(차단 없음) | U1: D-LAUNCH-07 추가 사유 (e)(f)의 승인 또는 폐기 | 없음. 원 결정의 기본 4종이 L-06·M5·AC-014의 유효한 기준이다. "미승인 제안으로 유지"는 결정이 아니므로 U1은 열린 채로 둔다 | 같은 문서 §6 항목 1, `review-3.md` D-22 |
+  | 확인 권장(차단 없음, M1 전) | U4: 로컬 첫 시험에 R-02·R-03과 L-06·L-07·L-09 등이 필수가 되는 결과(D-17 포함). U5: `local`+단계 거부 규칙과 추가 표면 규칙(D-16 포함) | 없음. 다만 그 fixture가 M1의 RED 입력이라 M1 전에 확인하면 재작업을 피한다 | 같은 문서 §6 항목 4·5, `review-3.md` D-16·D-17 |
+  | 시점 미기재 | N2: "내부 시험"의 세 용법 | 알 수 없다. `external-confirmations-20261004.md`의 LAUNCH 표에 N2 행이 없다. 이 기록이 임의로 분류하지 않았다 | 같은 문서 LAUNCH 표 확인 |
+
+  표의 분류는 기존 문서의 차단 구분을 옮긴 것이고 새 사용자 결정이 아니다. 위 표에서 승인 전에 해결을 요구하는 것은 첫 두 행뿐이고, 나머지는 그 시점까지 미결 상태·담당·처리 계획을 관리한다. 승인 전에는 표 전체를 현황으로 공유할 수 있다.
+- **3회 소진 후 아직 필요한 사용자 선택**: (1) 승인 전 — 감사 규칙 해석 차이의 처리(선택지 (가) 보고서의 PASS를 공식 판정으로 두고 규칙 문구 확인은 별도로, (나) 규칙 원문대로 읽어 PASS-with-debt 수용 또는 명시적 예외로 처리, (다) 공통 감사 규칙의 문구 정정을 별도 요청. 결정이 아니다). (2) 승인 시 — 진행 모드 축과 N9. (3) 이후 시점별 — U2(M2 전), U3(로컬 시험 전), U1·U4·U5(확인 권장).
+- **불변**: 세 SPEC `plan.md`의 "plan-auditor PASS와 Implementation Kickoff Approval 완료" 줄은 모두 `[ ]` 미체크이고 `/moai run`은 시작하지 않았다. ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건, 미확정 사용자 결정 5건과 열린 확인 사항 N1~N11의 상태는 바꾸지 않았다. 운영 DB·플래그·호스트·main은 건드리지 않았다.
+
+### 갱신 재개 메시지 (§13의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+
+```text
+✂──── 여기부터 복사 ────✂
+
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 3회차 PASS 0.81(여유 얇음, 감사 규칙 :408 해석 차이 미해결), Implementation Kickoff Approval 전.
+applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
+source_session_id: <not-available — environment-fallback>
+
+전제 검증:
+1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
+2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → git rev-parse HEAD와 같은지, git status --short → 추적 파일 변경 없음
+3) git ls-files --error-unmatch .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → exit 0, grep -c "^Verdict: PASS" 같은 파일 → 1 (review-3은 커밋된 추적 파일이라 다른 PC도 fetch·checkout으로 받는다)
+
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §14와 §11의 재개 순서를 따른다 — ① 승인 전 확인(미확정 U1~U5·N1~N11은 현황을 사용자에게 공유하되 전부 해결을 요구하지 않는다. 승인 전에 사용자가 정할 것은 감사 규칙 :408 해석 차이의 처리 선택이고 design 경로는 오케스트레이터가 판단한다. [K-전] 상태·기록 읽기) → ② 실제 사용자 승인(Implementation Kickoff Approval — 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate → ⑤ 구현. 나머지 미확정은 시점별로 관리한다: U2는 M2 진입 전, U3는 로컬 시험 시작 전, U1·U4·U5는 확인 권장(U4·U5는 M1 전), N4는 M4 전, N1·N3·N6~N8·N10·N11은 해당 마일스톤·공개 전, N2는 시점 미기재. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
 
 후속: 구현이 끝나면 SPEC별 /moai sync
 

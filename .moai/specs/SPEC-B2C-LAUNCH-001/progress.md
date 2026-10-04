@@ -200,6 +200,35 @@ STOP 신호의 처리 선택(범위 축소·PASS-with-debt·명시적 예외 중
 
 **3회차 감사 후 보충 (2026-10-04)**: 3회차 결과는 §G 3/3 행이 공식 기록이다(PASS 0.81, 여유 얇음). D-22(감사관이 (c)의 선택 출처를 불명확하다고 지적)에 대해 사실만 적는다: "D-LAUNCH-07 원 결정 복원, 추가 2종은 미승인 제안으로 유지"는 사용자가 이 재감사 요청 메시지에서 (c)로 직접 적은 문장이다. 다만 이것은 (e)(f)의 승인·폐기 결정이 아니라 현 상태 유지 지시다. review-2가 요구한 "날짜·결정 주체가 있는 결정 기록 또는 본문 제거"는 이행되지 않았으므로 U1(승인 또는 폐기)은 사용자 확인 대기로 남는다. 감사 후 spec/plan/acceptance는 바꾸지 않았다.
 
+### 후속 기록 교정 (2026-10-04, `e5742b4` 기준 — 감사 규칙 해석 차이·복사용 메시지 오류·미확정 항목 시점 구분)
+
+앞 기록은 그대로 두고 아래만 덧붙인다. 원 감사 보고서(`review-3.md`), 점수 0.81, 판정 PASS와 `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다. 새 감사, 자동 4회차, `/moai run`은 시작하지 않았다. 이 기록은 사용자가 고른 "범위 축소 확정 후 재감사"를 PASS-with-debt 수용이나 Kickoff 승인으로 바꾸지 않는다.
+
+**1. 감사 규칙 원문과 보고서 해석의 차이 (미해결 — 사용자 선택 대기)**
+
+| 구분 | 내용 | 출처 |
+|---|---|---|
+| 규칙 원문 | "Unresolved defects from a prior iteration are automatically FAIL regardless of other scores." 이전 회차 미해소 결함의 자동 FAIL에서 선택(optional) 결함을 제외하는 문구는 이 문장에 없다 | `.claude/agents/moai/plan-auditor.md:408` |
+| 같은 규칙의 결함 분류 | 결함을 blocking과 optional로 나누고 "A long list of optional findings does not by itself justify a FAIL"이라고 적는다. 이월된 선택 결함이 :408의 자동 FAIL에 걸리는지는 적지 않았다 | 같은 파일 `:155-162` (M6) |
+| 보고서 해석 | "Per the review-2 precedent (carried optional items do not cause FAIL), the unresolved optional items do not trigger the auto-FAIL clause, which applies to blocking defects." 근거로 규칙 원문이 아니라 review-2 선례를 들었다 | `review-3.md:79` |
+| 인용된 선례의 실제 범위 | review-2는 이월 선택 결함(D-14·D-15)에 대해 "Neither carried item is blocking, and neither caused this FAIL"이라고 적었다. 그 회차의 FAIL은 차단 결함 D-01~D-04에서 나왔다. 따라서 이 문장은 그 FAIL의 원인 설명이고, 이월 선택 결함이 자동 FAIL 조항에서 제외된다고 판정한 기록으로 읽히지 않는다(이 기록의 읽기이며 감사관 판정이 아니다) | `review-2.md:3`, `:227` |
+
+- **이 차이가 걸리는 결함**: 3회차 보고서가 미해소로 적은 D-11, D-14, D-15(`review-3.md:79`). 일부 해소로 적은 D-06, D-09도 문자 그대로 읽으면 같은 쟁점에 놓일 수 있으나, 감사관이 이 둘을 미해소로 판정하지는 않았다.
+- **두 읽기의 결과**: 규칙 원문을 문자 그대로 읽으면 3회차가 자동 FAIL 조항에 걸릴 수 있고, 보고서 해석대로 읽으면 PASS다. 어느 쪽이 맞는지는 이 기록이 정하지 않는다. 공식 판정은 `review-3.md`의 PASS 0.81 그대로다.
+- **하지 않은 것**: PASS를 FAIL로 바꾸지 않았고 PASS를 확정하지도 않았다. 공통 감사 규칙(`plan-auditor.md`)과 원 보고서·점수·판정을 수정하지 않았다.
+- **3회 소진 후 필요한 사용자 선택**: 3회차는 최종 회차라 자동 4회차는 없다. 이 차이를 어떻게 다룰지는 사용자가 정한다. 아래는 선택지이며 결정이 아니고 이 기록이 고르지 않는다. (가) 보고서의 PASS를 공식 판정으로 두고 진행하며 규칙 문구 확인은 별도로 맡긴다. (나) 규칙 원문대로 읽어 3회차를 FAIL 사유가 있는 최종 회차로 보고, PASS-with-debt 수용 또는 사용자의 명시적 예외로 처리한다. (다) 공통 감사 규칙의 문구 정정이나 해석 명시를 이 SPEC 작업과 별도로 요청한다. (다)는 (가)나 (나)와 함께 고를 수 있다. 앞서 고른 "범위 축소 확정 후 재감사"는 STOP 처리 선택이었고 이 선택이 아니다.
+
+**2. `RESUME.md` §13 복사용 메시지 오류 정정**
+
+- **변경 전** (`RESUME.md` §13 복사용 메시지 전제 3): "(보고서는 gitignored라 같은 worktree에서만 보인다)"
+- **사실**: `.gitignore:210`의 `.moai/reports/plan-audit/*.md` 규칙이 이 경로를 가리키지만, review-3은 `e5742b4`로 커밋된 추적 파일이다(`git ls-files`와 `git ls-tree origin/plan/b2c-launch-readiness`로 확인). 같은 폴더의 다른 보고서(LAUNCH review-1·2, ENGINE, CONSULTOPS 등)도 추적된다. 다른 PC도 fetch·checkout으로 받을 수 있다.
+- **변경 후**: `RESUME.md` §14의 복사용 메시지는 `git ls-files --error-unmatch`로 추적 여부를 확인하고 "커밋된 추적 파일이라 다른 PC도 fetch·checkout으로 받는다"고 적는다. §13의 원문은 `[SUPERSEDED by §14]` 표시와 함께 보존했다.
+- **확인하지 않은 것**: ignore 규칙이 있는 폴더에 새 보고서를 추가할 때 일반 `git add`가 거부되는지는 이 세션에서 시험하지 않았다.
+
+**3. 미확정 사항의 공유와 해결 시점 구분**
+
+U1~U5·N1~N11을 승인 전에 사용자에게 현황으로 공유하는 것과 전부 해결해야 Kickoff에 들어갈 수 있다는 것은 다르다. 해결 시점은 기존 K/R/I-local/I-production/G 분류(`external-confirmations-20261004.md`)를 따르며, 시점별 표와 §13 대체 안내는 `RESUME.md` §14에 있다. 그 분류에 행이 없는 N2는 이 기록이 임의로 분류하지 않았다.
+
 ## Plan-phase Observations
 
 작성 중 확인한 사실과 불일치다. 이 SPEC의 요구사항이 아니라 오케스트레이터·감사자에게 전달하는 관찰이다.
