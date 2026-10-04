@@ -314,12 +314,12 @@ source_session_id: <not-available — environment-fallback>
 
 앞 절의 기록은 그대로 두고 아래만 덧붙인다. 원 감사 보고서(`review-3.md`), 점수 0.81, 판정 PASS와 `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다. 새 감사, 자동 4회차, `/moai run`, 운영 변경, `main` 병합은 시작하지 않았다.
 
-**현재 안내는 §15다.** §14의 시점별 표와 §13의 감사 결과·불변 항목은 그대로 유효하고, §14의 복사용 메시지는 이 절이 대체한다.
+**현재 안내는 §15다.** [2026-10-04 `c4cc8f1` 기준 보완: run 진입 조건(plan 반영 경로) 누락 1건을 아래 "run 진입 조건 보완" 항목과 복사용 메시지에 더했다. 앞 내용은 바꾸지 않았다.] §14의 시점별 표와 §13의 감사 결과·불변 항목은 그대로 유효하고, §14의 복사용 메시지는 이 절이 대체한다.
 
 - **사용자 응답(수용 선택 확인됨)**: 사용자가 이 세션에서 `AskUserQuestion`으로 받은 질문 "LAUNCH-001이 plan-auditor 3회를 모두 소진했습니다(PASS 0.81). 미해소 선택 결함과 감사 규칙 해석 차이를 debt로 남긴 채 PASS-with-debt로 수용할까요?"에 **"debt로 유지하고 수용 (권장)"**을 골랐다(2026-10-04, 결정 주체 사용자). 제시한 선택지는 이 응답 외에 "수용하지 않음 (규칙 원문대로)"와 "보류 (규칙 문구 확인 먼저)"였다. 이 세션의 로그는 `.moai/logs/`에 untracked로만 있고 커밋하지 않았으므로 원격 검토자가 볼 수 있는 근거는 이 기록이다. 수용한 debt 목록, 조건, 의미하지 않는 것은 LAUNCH `progress.md`의 "PASS-with-debt 수용 선택 기록"에 있다. 같은 질문은 다시 묻지 않는다.
 - **질문 전 상태(검색 결과이며 사용자 응답이 아니다)**: 이 질문을 올리기 전에 `progress.md`·`RESUME.md`를 검색했을 때 LAUNCH-001의 PASS-with-debt 수용 기록은 없었고, 있던 선택은 STOP 처리인 "범위 축소 확정 후 재감사"(§12)뿐이었다. 이 검색 결과는 수용의 근거가 아니다. 수용의 근거는 위 사용자 응답 하나다.
 - **수용과 Kickoff 승인은 다르다**: 수용은 3회 소진 뒤 LAUNCH-001의 감사 결과를 어떻게 다룰지에 대한 선택이다. Kickoff 승인은 plan→run 경계의 별도 사람 게이트이고 아직 받지 않았다. 세 SPEC의 "Implementation Kickoff Approval 완료"는 `[ ]` 미체크이며 수용이 그 체크를 대신하지 않는다. 수용은 결함 해소도 아니다.
-- **남은 승인 관련 항목(요약, 상세는 아래 표와 항목)**: [K-전] 남음 — LAUNCH design 경로 판단(오케스트레이터, U2(N5) 확정 전이라 미판단), 작업 트리·divergence·동시 세션 재확인(run 직전). 사용자가 승인 전에 정할 항목은 남지 않았다. [K-시] 남음 — LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로, ENGINE §9.1·§9.2·서명 토큰 형태(ENGINE-001 승인). [K-후] — 실제 승인 뒤에만 "Implementation Kickoff Approval 완료" 체크와 기준선·운영 접근 제한 확인.
+- **남은 승인 관련 항목(요약, 상세는 아래 표와 항목)**: [K-전] 남음 — LAUNCH design 경로 판단(오케스트레이터, U2(N5) 확정 전이라 미판단), 작업 트리·divergence·동시 세션 재확인(run 직전). 사용자가 승인 전에 정할 항목은 남지 않았다. [K-시] 남음 — LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로, ENGINE §9.1·§9.2·서명 토큰 형태(ENGINE-001 승인). [K-후] — 실제 승인 뒤에만 "Implementation Kickoff Approval 완료" 체크와 기준선·운영 접근 제한 확인. run 진입 조건(plan 반영 경로 등)은 이 요약과 별개이며 아래 "run 진입 조건 보완"에 있다.
 - **[K-전] 승인 전에 읽어 둔 현재 상태** (실측, `2b8a3aa`):
 
   | 항목 | 상태 | 근거 |
@@ -333,10 +333,34 @@ source_session_id: <not-available — environment-fallback>
 
 - **[K-시] 승인 시 결정할 것**: LAUNCH 진행 모드 축(자율/반자율)과 N9 run-phase 커밋 경로(`main` 직접 push 또는 `--pr`, smoke 교체 커밋을 L-01 기준선 관측 뒤에만 `main`에 올릴지). ENGINE의 `design.md` §9.1 fixture 격리·§9.2 준비 증거 방식(N7 포함)·서명 토큰 형태는 ENGINE-001 승인에서 정한다. 어느 SPEC을 먼저 착수할지는 이 자료가 정하지 않는다.
 - **[K-후] 승인 뒤에 확인할 것**: "Implementation Kickoff Approval 완료" 체크(실제 승인 뒤에만), 직전 `pnpm test`·`pnpm lint`·`pnpm build`·`pnpm test:e2e`·`pnpm verify:flag-runtime` 기준선 기록, 운영 접근 제한 확인. `plan.md` 체크 상태는 ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6으로 바뀌지 않았다.
+- **run 진입 조건 보완 — plan 반영 경로 누락 1건 (`c4cc8f1` 기준)**: Kickoff 승인만으로 `/moai run`에 진입하지 않는다. `spec-workflow.md` § Phase Transitions의 Plan to Run 조건이 따로 있고, 아래 실측대로 아직 충족하지 않았다. 충족하지 않은 조건은 완료로 기록하지 않으며, 승인 완료 체크도 이 조건들을 대신하지 않는다.
+
+  | 조건 | 근거 | 현재 상태 (실측) |
+  |---|---|---|
+  | plan 산출물이 `main`에 반영됨 — Route A(Tier S/M 기본)는 `main`에 commit·push, Route B(Tier L 또는 `--pr`)는 plan PR이 MERGED | `spec-workflow.md` § SPEC Phase Discipline, § Phase Transitions "Plan to Run" Trigger | **미충족.** plan 브랜치는 `origin/main`(`99993bf`)보다 31커밋 앞서 있고 `main`에 없는 `.moai/` 문서 26개를 더한다. PR은 없다(`gh pr list`). ENGINE·CONSULTOPS·LAUNCH 세 SPEC 디렉터리는 `main`에 없고 plan 브랜치에만 있다 |
+  | 적용 Route | 같은 문서 § SPEC Complexity Tier | ENGINE-001은 Tier L이라 Route B, CONSULTOPS-001·LAUNCH-001은 Tier M이라 Route A가 기본이다(`--pr`이면 Route B). 세 SPEC이 한 브랜치를 공유해 어느 Route에도 그대로 맞지 않는다(§5, `progress.md` Plan-phase Observations 7) |
+  | SPEC 승인("Proceed") | 같은 문서 Plan to Run Trigger | 미충족. Kickoff 승인이 이 조건을 맡으며 아직 받지 않았다 |
+  | `progress.md`에 `plan_complete_at`과 `plan_status: audit-ready` 기록 | 같은 문서 Plan to Run Pre-condition, `progress.md` §E.1(감사 통과 뒤 오케스트레이터가 기록) | **미충족.** 세 SPEC 모두 `plan_status: draft`이고 `plan_complete_at` 줄이 없다. LAUNCH는 PASS 0.81과 debt 수용이 있어 기록할 근거가 있지만 이번에 기록하지 않았다. ENGINE·CONSULTOPS는 PASS가 2026-10-02 스냅샷 기준이고 이후 교정은 재감사를 받지 않아(§10) 무엇을 근거로 선언할지 정해지지 않았다 |
+  | 체크아웃 위치 | 같은 문서 § SPEC Phase Discipline — Route A는 main 체크아웃의 `main`에서 직접, Route B는 main 체크아웃의 `feat/SPEC-XXX`(기본) 또는 opt-in worktree | **미정.** plan은 `.claude/worktrees/launch-readiness` worktree에서 진행됐고 메인 체크아웃은 지금 `feat/SPEC-B2C-CONSULT-001`에 있다(`git worktree list`). 메인 체크아웃의 브랜치는 오케스트레이터가 바꾸지 않는다고 `main-checkout-branch-guard.md`가 정하므로 run 위치는 아직 정해지지 않았다 |
+
+  `progress.md`는 plan-artifact hash 대상(`acceptance`·`design`·`plan`·`research`·`spec`·`tasks`)이 아니라서, `plan_complete_at`·`plan_status`를 기록해도 감사 대상 hash는 바뀌지 않는다(`spec-workflow.md` § Report Persistence).
+- **plan 통합 경로와 N9는 별개다**: N9는 run-phase **구현 커밋**이 `main`에 가는 경로(직접 push 또는 `--pr`, smoke 교체 커밋 시점)이고 LAUNCH 승인 때 정한다([K-시]). plan 통합 경로는 **plan-phase 산출물**이 `main`에 오르는 방법이며 세 SPEC이 함께 걸린다. Tier M의 Route A 기본이 두 곳에서 같은 말("`main` 직접 push")로 나타나 혼동하기 쉽지만, 한쪽을 정해도 다른 쪽이 정해지지 않는다. **공유 plan 브랜치 통합 경로는 아직 미정이다.**
+- **반영의 영향(실측)**: `deploy.yml`은 `main`의 모든 push에서 실행되고(`on.push.branches: main`, 경로 필터 없음) plan 문서만 담아도 배포 워크플로가 돈다. `main` 브랜치 보호와 ruleset은 없어(`gh api` 404, ruleset 0건) 직접 push가 기술적으로 막혀 있지 않다. 이 저장소의 선례는 PR이다(CONSULT-001 plan은 PR `#21`로 `main`에 병합됐다). 이번 작업은 `main`을 건드리지 않았다.
+- **§5 선택지의 연결과 권고안**: §5 둘째 항목이 적은 두 선택지가 이 준비 자료의 남은 plan 통합 선택이다. §5의 원문과 기존 이력은 다시 쓰지 않았다.
+
+  | 선택지 | 내용 | 영향 (실측·사실) |
+  |---|---|---|
+  | (가) 개별 plan PR 3건 | 세 SPEC을 `plan/SPEC-XXX` 개별 브랜치로 분리해 Route B의 plan PR 3건(엄격 준수). 기존 공유 브랜치의 커밋은 다시 쓰지 않고, 새 브랜치는 최종 내용을 옮겨 새로 커밋한다 | 병합 3회는 `main` push 3회이고 배포 워크플로 3회다. LAUNCH가 ENGINE·CONSULTOPS 파일을 인용하므로 병합 순서(ENGINE·CONSULTOPS 먼저, LAUNCH 나중)를 정해야 하고, 에픽 공용 문서(`.moai/reports/b2c-launch-readiness/` 3개)를 어느 PR에 실을지도 정해야 한다. 파일 내용은 그대로여서 감사 대상 blob은 변하지 않는다. 장점은 Route B와 CONSULT-001 선례를 그대로 따르고 SPEC별로 되돌릴 수 있다는 것이다 |
+  | (나) 공유 plan PR 1건 | `plan/b2c-launch-readiness` 전체를 PR 1건으로 올리고, 사용자가 명시적으로 승인한 예외로 기록한다 | 병합 1회는 배포 워크플로 1회다. 이력을 다시 쓰지 않고 교차 인용이 한 번에 반영된다. 비용은 어느 Route에도 없는 형태라 사용자의 명시 승인과 기록이 필요하다는 것이다. 저장소 기본 병합 방식 squash(`git-strategy.yaml`)는 31커밋을 한 커밋으로 합쳐 SPEC별 커밋 제목이 `main`에서 사라지며, 이 상태에서 상태 전이 lint(`OwnershipTransitionRule`)가 어떻게 보는지는 시험하지 않았다. merge commit을 쓰면 제목이 남지만 저장소 기본값과 달라 같은 승인에서 정해야 한다 |
+  | 참고: Route A 직접 push | Tier M의 기본 경로(`main`에 직접 push). §5의 선택지가 아니다 | 기술적으로 가능하나 push 즉시 배포되고 검토 기회가 없으며, Tier L인 ENGINE-001에는 해당하지 않는다. 이 문서는 권고하지 않는다 |
+
+  **권고안: (나) 공유 plan PR 1건.** 이유는 세 가지다. (1) 병합마다 배포 워크플로가 돌아 3회보다 1회가 낫다. (2) LAUNCH 병합 시점에 ENGINE·CONSULTOPS 파일이 `main`에 있어야 인용이 맞으므로 (가)도 사실상 세 병합이 모두 필요해 SPEC별 독립 병합의 이점이 작다. (3) 이력을 다시 쓰지 않고 감사된 blob을 그대로 반영한다. 권고 조건은 사용자가 예외를 명시적으로 승인하고 병합 방식(squash 또는 merge commit)을 함께 정하는 것이다. SPEC별 되돌리기나 Route B의 엄격한 준수를 우선하면 (가)가 낫다. 이 권고는 정적 기본값이며 사용자의 관측된 선호에 근거하지 않고 결정도 아니다.
+- **제안 순서(결정 아님)**: ① plan 통합 경로 선택(사용자, Kickoff 승인과 별개의 질문) → ② 근거가 정해진 SPEC의 `progress.md`에 `plan_complete_at`·`plan_status` 기록(오케스트레이터) → ③ 통합 실행(PR 생성·병합. 병합은 `main` push이므로 사용자의 별도 지시가 있을 때만) → ④ Kickoff 승인(①~③의 앞뒤 어느 쪽에서도 받을 수 있다) → ⑤ run 체크아웃 위치 확정 → `/moai run`. `/moai run` 진입은 승인과 위 조건이 모두 충족된 뒤다.
+- **남은 plan 통합 선택(사용자, Kickoff 승인과 별개)**: (a) 통합 경로((가)·(나)·Route A 중), (b) 병합 방식, (c) (나)를 고르면 예외 승인과 그 기록, (d) ENGINE·CONSULTOPS의 `plan_status: audit-ready` 선언 근거, (e) run 체크아웃 위치. Kickoff 승인 때 정하는 것은 이와 구분해 LAUNCH 진행 모드 축과 N9(ENGINE 승인에서는 §9.1·§9.2·서명 토큰 형태)다.
 - **Kickoff Approval 질문 구성안(아직 묻지 않았다)**: 승인 게이트(승인, 수정 뒤 다시 제시, 보류)와 진행 모드 축(자율/반자율, 승인 통과 뒤에만 적용되는 별도 축)과 N9 경로를 한 번의 질문 묶음으로 올린다. 질문은 한 묶음 4문항 이내다. 이 구성안은 승인이 아니고 승인 질문을 실제로 제시하기 전에는 아무것도 체크하지 않는다.
 - **Phase 1 Plan Audit Gate 전망**: skip 조건 3가지 중 LAUNCH는 PASS(0.81, 기준 0.80 이상)와 hash 불변(`spec`·`plan`·`acceptance` blob이 감사 대상 `ba4602e`와 같음)을 실측으로 확인했다. 다만 3회차 감사는 Claude 단독이었고 감사 캐시를 저장하지 않아 캐시 조회 결과는 확인하지 못했다. 본문을 고치면 hash가 바뀌어 게이트가 다시 실행된다. ENGINE·CONSULTOPS는 PASS가 2026-10-02 스냅샷 기준이라 게이트가 다시 실행될 것으로 이 문서 §10과 CONSULTOPS `progress.md`가 적고 있다(두 SPEC의 현재 hash는 이번에 재측정하지 않았다).
 - **열린 위험과 미확인**: (1) debt를 먼저 정리하면(D-16·D-17 등) hash 변경으로 게이트 재실행을 부르고, 그대로 두면 debt가 구현 fixture(M1 RED 입력)에 영향을 줄 수 있다. 어느 쪽으로 갈지는 U4·U5 확정 뒤 판단한다. (2) `external-confirmations-20261004.md`의 [K-전] 행은 "STOP 처리 선택이 먼저"라고 선택 전 상태를 적고 있어 낡았다. 이번에는 고치지 않았다. (3) 새 보고서를 `.gitignore:210` 대상 폴더에 추가할 때 일반 `git add`가 거부되는지는 시험하지 않았다.
-- **아직 필요한 사용자 선택**: 승인 시 — 진행 모드 축과 N9. 이후 시점별 — U2(M2 전), U3(로컬 시험 전), U1·U4·U5(확인 권장, U4·U5는 M1 전). 승인 전에 사용자가 정해야 하는 항목은 남지 않았다.
+- **아직 필요한 사용자 선택**: 승인 시 — 진행 모드 축과 N9. 이후 시점별 — U2(M2 전), U3(로컬 시험 전), U1·U4·U5(확인 권장, U4·U5는 M1 전). 승인 전에 사용자가 정해야 하는 항목은 남지 않았다. 다만 run 진입 전에 정할 plan 통합 선택 (a)~(e)가 승인과 별개로 남아 있다(위 "run 진입 조건 보완").
 - **불변**: ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건, 미확정 사용자 결정 5건과 N1~N11, `plan.md` 체크 상태는 바꾸지 않았다. `plan_status`는 `draft`다. 운영 DB·플래그·호스트·`main`은 건드리지 않았다.
 
 ### 갱신 재개 메시지 (§14의 메시지를 대체, 새 세션에 그대로 붙여넣기)
@@ -344,7 +368,7 @@ source_session_id: <not-available — environment-fallback>
 ```text
 ✂──── 여기부터 복사 ────✂
 
-ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 3회차 PASS 0.81을 사용자가 PASS-with-debt로 수용(2026-10-04), Implementation Kickoff Approval 전. 수용은 Kickoff 승인이 아니다.
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 3회차 PASS 0.81을 사용자가 PASS-with-debt로 수용(2026-10-04), Implementation Kickoff Approval 전. 수용은 Kickoff 승인이 아니다. 공유 plan 브랜치의 통합 경로는 아직 미정이고, Kickoff 승인만으로 /moai run에 진입하지 않는다.
 applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
 source_session_id: <not-available — environment-fallback>
 
@@ -352,8 +376,9 @@ source_session_id: <not-available — environment-fallback>
 1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
 2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → git rev-parse HEAD와 같은지, git status --short → 추적 파일 변경 없음
 3) git ls-files --error-unmatch .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → exit 0, grep -c "^Verdict: PASS" 같은 파일 → 1 (커밋된 추적 파일이라 다른 PC도 fetch·checkout으로 받는다)
+4) git rev-list --count --left-right origin/main...origin/plan/b2c-launch-readiness → 0 N(N≥1, plan이 main에 아직 없음), gh pr list --head plan/b2c-launch-readiness --state all → [] (이 상태가 바뀌었으면 §15 "run 진입 조건 보완"의 현재 상태 열을 먼저 갱신한다)
 
-실행: .moai/reports/b2c-launch-readiness/RESUME.md §15와 §11의 재개 순서를 따른다 — ① 승인 전 확인([K-전]: 작업 트리·divergence·동시 세션은 run 직전에 다시 읽고, LAUNCH design 경로 판단은 U2(N5) 확정 전이라 미판단 상태. U1~U5·N1~N11은 현황만 공유하고 전부 해결을 요구하지 않는다. 승인 전에 사용자가 정할 항목은 남지 않았다) → ② 실제 사용자 승인(Implementation Kickoff Approval — LAUNCH 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate(artifact-hash 재검증 — LAUNCH는 spec·plan·acceptance가 감사 대상 ba4602e와 같아 skip 조건을 충족하고, 본문을 고치면 재실행) → ⑤ 구현. 수용한 debt는 해소가 아니며 LAUNCH progress.md "PASS-with-debt 수용 선택 기록"에 있다. 나머지 미확정은 시점별로 관리한다: U2는 M2 진입 전, U3는 로컬 시험 시작 전, U1·U4·U5는 확인 권장(U4·U5는 M1 전), N4는 M4 전, N1·N3·N6~N8·N10·N11은 해당 마일스톤·공개 전, N2는 시점 미기재. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §15의 순서를 따른다(§11의 ①~⑤에 run 진입 조건 확인 단계 ④가 하나 더해졌다) — ① 승인 전 확인([K-전]: 작업 트리·divergence·동시 세션은 run 직전에 다시 읽고, LAUNCH design 경로 판단은 U2(N5) 확정 전이라 미판단 상태. U1~U5·N1~N11은 현황만 공유하고 전부 해결을 요구하지 않는다. 승인 전에 사용자가 정할 항목은 남지 않았다) → ② 실제 사용자 승인(Implementation Kickoff Approval — LAUNCH 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ run 진입 조건 확인(Kickoff 승인만으로 /moai run에 진입하지 않는다. spec-workflow Phase Transitions의 Plan to Run 조건을 실제로 충족한 뒤 진입한다: plan 산출물의 main 반영 — Route A는 main에 push, Route B는 plan PR MERGED이며 공유 plan 브랜치 통합 경로는 미정이다. §15의 선택지 (가) 개별 plan PR 3건 또는 (나) 공유 plan PR 1건(권고, 사용자의 명시적 예외 승인과 병합 방식 결정 필요) — 각 SPEC progress.md의 plan_complete_at·plan_status: audit-ready 기록, run 체크아웃 위치 확정. 이 plan 통합 경로는 N9(run-phase 커밋 경로)와 별개이며, 아직 충족하지 않은 조건은 완료로 기록하지 않는다) → ⑤ /moai run Phase 1 Plan Audit Gate(artifact-hash 재검증 — LAUNCH는 spec·plan·acceptance가 감사 대상 ba4602e와 같아 skip 조건을 충족하고, 본문을 고치면 재실행) → ⑥ 구현. 수용한 debt는 해소가 아니며 LAUNCH progress.md "PASS-with-debt 수용 선택 기록"에 있다. 나머지 미확정은 시점별로 관리한다: U2는 M2 진입 전, U3는 로컬 시험 시작 전, U1·U4·U5는 확인 권장(U4·U5는 M1 전), N4는 M4 전, N1·N3·N6~N8·N10·N11은 해당 마일스톤·공개 전, N2는 시점 미기재. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
 
 후속: 구현이 끝나면 SPEC별 /moai sync
 
