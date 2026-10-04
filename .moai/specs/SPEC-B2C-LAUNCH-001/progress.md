@@ -7,7 +7,7 @@
 - 작성된 산출물(Tier M): `spec.md`, `plan.md`, `acceptance.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-LAUNCH-001/` 안의 파일이며 `main@99993bf` 위의 초안이다.
 - 요구사항 16건(Tier M 상한 16), AC 16건(상한 16). 상한에 맞추려고 합친 후보와 뺀 후보는 아래 "Plan-phase Observations" 4번에 적었다.
 - 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리·감사 보고서는 변경하지 않았고, 운영 VM·운영 DB·운영 플래그에는 접근하지 않았다.
-- **plan-audit 범위 고지 (3차 정밀 교정, 2026-10-03)**: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`의 PASS 판정(0.88, Tier M 기준 0.80, iteration 1/3 — 상세는 아래 §G)은 **D-LAUNCH-01~09 사용자 인터뷰 결정이 반영된 원본 결정-기록 패스(커밋 c89dae7)까지만 감사했다.** 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등)과 이번 3차 정밀 교정(§2.4 단계 표·캐이브아웃 통합, L-01·L-05·R-04 적용 시점 명시, L-08 표면별 G 차단)은 모두 그 감사 이후에 추가된 새 내용이며 **아직 재감사되지 않았다.** `plan_status`는 여전히 `draft`이고, 기존 0.88 PASS를 현재 HEAD의 PASS로 선언하지 않는다. 이 SPEC은 plan-auditor를 1회차만 거쳤으므로(`spec-workflow.md`의 3회 상한 안) Implementation Kickoff Approval 전에 **2회차 재감사가 가능하다** — ENGINE-001·CONSULTOPS-001처럼 이미 3회를 소진한 SPEC과는 처리 경로가 다르다(상세: `.moai/reports/b2c-launch-readiness/RESUME.md` §4). 2회차를 호출하지 않고 run-phase로 진입하면 `/moai run` Phase 1 Plan Audit Gate가 artifact-hash 변경(이 교정으로 spec.md·plan.md·acceptance.md가 바뀜)을 감지해 자동으로 재실행된다 — 이는 plan-phase 재감사와는 별도의, run-phase 진입 시점의 독립된 게이트다.
+- **plan-audit 범위 고지 (3차 정밀 교정 2026-10-03, 4차 정렬 교정 2026-10-04 정정)**: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`의 PASS 판정(0.88, Tier M 기준 0.80, iteration 1/3 — 상세는 아래 §G)은 **D-LAUNCH-01~09 사용자 결정이 반영되기 전 상태를 감사한 것**이다. 근거: 보고서를 커밋한 `643dec1`(2026-10-03 10:28)은 결정 반영 커밋 `c89dae7`(2026-10-03 12:04)의 선조이고(`git merge-base --is-ancestor 643dec1 c89dae7` 성공), 보고서 자신도 D-LAUNCH-01~09를 미결정으로 적었다(Testability 평가의 "undecided D-LAUNCH-NN options", Recommendation의 "9 D-LAUNCH-01..09 decisions"를 사용자에게 확인받아야 한다는 문장). 정확히 어느 SHA(또는 커밋 전 작업 트리)를 감사했는지는 보고서에 적혀 있지 않아 **미확인**이며 추정하지 않는다. 결정 반영 커밋 `c89dae7`, 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등), 3차 정밀 교정(§2.4 단계 표·캐이브아웃 통합, L-01·L-05·R-04 적용 시점 명시, L-08 표면별 G 차단), 4차 정렬 교정(실행 환경 입력, 아래 "4차 정렬 교정 기록")은 모두 그 감사 이후에 추가된 새 내용이며 **아직 재감사되지 않았다.** `plan_status`는 여전히 `draft`이고, 기존 0.88 PASS를 현재 HEAD의 PASS로 선언하지 않는다. 이 SPEC은 plan-auditor를 1회차만 거쳤으므로(`spec-workflow.md`의 3회 상한 안) Implementation Kickoff Approval 전에 **2회차 재감사가 가능하다** — ENGINE-001·CONSULTOPS-001처럼 이미 3회를 소진한 SPEC과는 처리 경로가 다르다(상세: `.moai/reports/b2c-launch-readiness/RESUME.md` §4). 2회차를 호출하지 않고 run-phase로 진입하면 `/moai run` Phase 1 Plan Audit Gate가 artifact-hash 변경(이 교정으로 spec.md·plan.md·acceptance.md가 바뀜)을 감지해 자동으로 재실행된다 — 이는 plan-phase 재감사와는 별도의, run-phase 진입 시점의 독립된 게이트다.
 
 ## §E.2 Run-phase Evidence
 
@@ -31,7 +31,7 @@ _<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기
 
 | Iteration | Date | Score | Verdict | Key Findings | Reflected Changes |
 |---|---|---|---|---|---|
-| 1/3 | 2026-10-03 | 0.88 (Tier M 기준 0.80) | PASS | D1 (minor, optional) — AC-B2CLAUNCH-012 오라클 정규식의 주석 제외가 2단계 절차(정규식+주석 필터) 전체에서만 성립한다는 설명이 `acceptance.md:104`에 명확하지 않음. D2 (minor, optional) — SPEC ID 정규식이 SSOT와 불일치(선례 형식 공유, 수정 불요). 7개 Must-Pass 전부 PASS/N/A(차단 사유 없음). 전문: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md` | 이 audit은 D-LAUNCH-01~09 사용자 인터뷰 결정-기록 패스(커밋 c89dae7)까지만 감사했다. D1·D2는 사소·선택 항목이라 반영을 미뤘다. 이후의 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등, 본 파일 §E.1 참조)은 이 iteration 뒤에 추가된 내용이라 이 행이 다루지 않으며, D1·D2 반영 여부와 함께 다음 재감사에서 다뤄야 한다. |
+| 1/3 | 2026-10-03 | 0.88 (Tier M 기준 0.80) | PASS | D1 (minor, optional) — AC-B2CLAUNCH-012 오라클 정규식의 주석 제외가 2단계 절차(정규식+주석 필터) 전체에서만 성립한다는 설명이 `acceptance.md:104`에 명확하지 않음. D2 (minor, optional) — SPEC ID 정규식이 SSOT와 불일치(선례 형식 공유, 수정 불요). 7개 Must-Pass 전부 PASS/N/A(차단 사유 없음). 전문: `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md` | 이 audit은 D-LAUNCH-01~09 사용자 결정이 반영되기 전 상태를 감사했다(보고서 커밋 `643dec1`이 결정 반영 커밋 `c89dae7`보다 앞서고 보고서도 결정 미정을 적었다. 정확한 피감사 SHA는 미확인 — 본 파일 §E.1). D1·D2는 사소·선택 항목이라 반영을 미뤘다. 이후의 결정 반영(`c89dae7`), 2차 정밀 교정(D-LAUNCH-07 사유 2종 추가 등), 3차 정밀 교정, 4차 정렬 교정은 이 iteration 뒤에 추가된 내용이라 이 행이 다루지 않으며, D1·D2 반영 여부와 함께 다음 재감사에서 다뤄야 한다. |
 
 ## Open Decisions for User
 
@@ -66,6 +66,13 @@ D-LAUNCH-01~09 9건은 2026-10-03 사용자 인터뷰에서 모두 결정됐다(
 ### 결정 외 확인 사항
 
 `spec.md` Open Clarification의 N1~N11은 결정이 아니라 기존 SPEC과의 충돌·소유 확인이다. 요약: N1 단계 정의 소유 이관과 형제 문구, N2 "내부 시험"의 세 용법(ENGINE `design.md:184`·CONSULTOPS-001·DIAGNOSIS-001), N3 E-08 G 면제와 E-17 I 면제의 확인, N4 완료된 DIAGNOSIS-001 smoke 트리거의 틈(`ENABLE_DIAGNOSIS_DEV_STATES` 단독), N5 01·02 푸터의 소유, N6 ENGINE-001 런타임 게이트와 조합표, N7 CONSULTOPS-001 REQ-B2CCONSULTOPS-013의 범위, N8 롤백 목표 범위(dark 복귀만), N9 run-phase 커밋 경로와 배포(Route A는 모든 커밋이 운영 재시작), N10 Tier 상한, N11 이행 집행의 한계.
+
+### 4차 정렬 교정 기록 (2026-10-04)
+
+기준은 `origin/plan/b2c-launch-readiness@0553039`다. D-LAUNCH-01~09의 사용자 결정은 바꾸지 않았고 새 결정 인터뷰도 하지 않았다. 이 교정은 재감사를 받지 않았다. 요구사항·AC 번호와 개수(16/16)는 유지했다.
+
+- **로컬 내부 시험의 적용 조건**: 이전에는 L-01·L-05·R-04의 "적용 시점" 문장이 항목 칸 안에만 있었고, 점검기가 어떤 환경으로 실행되는지는 계약에 없었으며 단계 표의 "내부 시험 공개" 행이 로컬 시험과 운영 노출을 한 칸에 섞어 적었다. 정렬 결과: 점검기는 실행 환경(`local`/`production`)을 명시적으로 입력받고 기본값이 없으며 입력이 없거나 열거 밖이면 거부한다. `local`에서는 운영 한정 항목 L-01·L-05·R-04를 적용하지 않고(`해당 없음(local)`), `production`에서는 I·G 열 표대로 계속 필수다. 그 셋 밖의 항목은 환경과 무관하게 적용된다. `일반 사용자 공개`는 운영 호스트에서만 성립하므로 `local`로 G를 점검하는 입력은 거부한다(이 거부 규칙은 위 계약에서 따라 나온 경계이며 새 사용자 결정이 아니다 — 필요 없다고 판단하면 지시해 달라). 바뀐 곳: `spec.md` REQ-B2CLAUNCH-002, §2.4(실행 환경 항목 신설, 단계 문장, 단계 표 두 행, 로컬 시험과 운영 상태의 구분 문단, L-01·L-05·R-04 칸), `acceptance.md` AC-001(Then (4) 추가·(5)로 번호 이동)·AC-002(실행 환경 입력, fixture 아홉 가지에서 열다섯 가지로 — (차)~(거) 여섯 추가, 보지 못하는 것), `plan.md` M1. 항목 정의표 I/G 칸의 열거값과 조합 분포는 바꾸지 않았다.
+- **감사 범위 기록**: 위 §E.1·§G의 "`c89dae7`까지 감사" 서술을 지우고 "사용자 결정 반영 전 상태, 정확한 피감사 SHA 미확인"으로 통일했다. 근거와 확인한 명령은 §E.1에 적었다. 감사 보고서(`.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-1.md`)·점수 0.88·iteration 1/3은 바꾸지 않았다.
 
 ## Plan-phase Observations
 
