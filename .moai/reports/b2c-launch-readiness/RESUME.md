@@ -201,7 +201,7 @@ source_session_id: <not-available — environment-fallback>
   분류는 `plan.md` 항목 문구의 시점 표현을 읽어 나눈 것이며 `plan.md`의 체크 상태(`53c6954` 기준 ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6)와 문구는 바꾸지 않았다. 기준선 기록과 운영 접근 제한을 [K-후]로, 작업 트리·동시 세션·결정 기록 존재를 [K-전]으로 읽은 것은 문구에서 따라 나온 해석이며 사용자 결정이 아니다. [R]·[I-local]·[I-production]·[G] 차단 구분, 기존 사용자 결정, 미확정 사용자 결정 5건과 로컬 입력 계약은 바꾸지 않았다.
 - **재개 순서(갱신, §10을 대체)**: ① 승인 전 확인 — LAUNCH STOP 처리는 사용자가 정한다(범위 축소, PASS-with-debt, 명시적 예외 중 하나이며 그 선택 전에는 3회차 감사를 시작하지 않는다). [K-전] 항목(상태·기록 읽기, 감사 판정 확인, design 경로 판단)을 확인한다 → ② 실제 사용자 승인: Implementation Kickoff Approval(승인 질문 안에서 [K-시] 항목을 정한다 — LAUNCH의 진행 모드 축·N9, ENGINE의 §9.1·§9.2·서명 토큰 형태) → ③ 승인 완료 체크: 실제 승인 **뒤에** Pre-flight의 "Implementation Kickoff Approval 완료"를 체크하고 [K-후]의 나머지(기준선 기록, 운영 접근 제한)를 run 진입 직전에 확인한다. 승인 없이 체크하지 않는다 → ④ `/moai run` Phase 1 Plan Audit Gate(artifact-hash 재검증) → ⑤ 구현(마일스톤마다 해당 [R] 차단을 확인). [R]·[I-local]·[I-production]·[G] 외부 항목과 미확정 사용자 결정은 `external-confirmations-20261004.md`에서 미결 상태·담당·처리 계획을 관리하며 착수 선결이 아니다.
 
-### 갱신 재개 메시지 (§10의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+### 갱신 재개 메시지 [SUPERSEDED by §13 — LAUNCH 3회차 PASS 반영 전 상태 기준. 기록으로 보존] (§10의 메시지를 대체, 새 세션에 그대로 붙여넣기)
 
 ```text
 ✂──── 여기부터 복사 ────✂
@@ -231,3 +231,33 @@ source_session_id: <not-available — environment-fallback>
 - **재감사는 아직 수행하지 않았다**: 이 절을 쓰는 시점에 3회차 plan-auditor 감사는 시작 전이다. 공식 감사 결과는 계속 2회차 **FAIL 0.75(기준 0.80)·STOP**이고 감사 PASS가 아니다. 3회차는 이 절을 담은 커밋을 대상으로 시작한다. 결과가 FAIL이면 자동 4회차 없이 최종 에스컬레이션한다.
 - **불변**: 어떤 SPEC의 "Implementation Kickoff Approval 완료"도 체크하지 않았고 `/moai run`은 시작하지 않았다. `plan.md` 체크 상태(ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6), ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건, 미확정 사용자 결정 5건과 열린 확인 사항은 바꾸지 않았다. 운영 DB·플래그·호스트·main도 건드리지 않았다.
 - **잔여 사항**: review-2 선택 결함 D-05~D-15의 해소 여부(특히 D-11·D-14·D-15와 일부 대응 D-05~D-07·D-09)는 재감사가 판정한다.
+
+## 13. 후속 기록 6 (2026-10-04, 3회차 감사 결과 — 현재 안내)
+
+**현재 안내는 §13이다.** §11의 재개 순서(승인 순서 ①~⑤)는 그대로 유효하되 ①의 "LAUNCH STOP 처리"는 아래 결과로 갈음된다.
+
+- **감사 결과(공식)**: LAUNCH-001 plan-auditor 3회차 **PASS 0.81(기준 0.80)**, 여유 얇음. 감사 대상 커밋 `ba4602e0520bd19e8d6c1c61e6b9002995d4c930`, 산출물 blob SHA는 spec.md `6fba2af8be24b7fe860e13035d6180c01bf96854`, plan.md `99cda75e497082c7358165b9ec44bd58085eadc5`, acceptance.md `e67a8d245ae85bd8f0318ce9aaad3cb6dbda0759`. 보고서 `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md`. 점수 Clarity 0.70, Completeness 0.90, Testability 0.80, Traceability 0.85. 이전 점수 0.88 → 0.75 → 0.81. PASS는 감사 판정일 뿐 구현 시험이 아니고 Implementation Kickoff Approval도 아니다. `/moai run`은 시작하지 않았다.
+- **review-2 결함 처리 상태**: 차단 D-01~D-04 해소(D-01은 실질 해소, 문자 그대로는 아님). 선택 D-05·D-07·D-08·D-10·D-12·D-13 해소, D-06·D-09 일부 해소, D-11·D-14·D-15 미해소. 신규 선택 결함 D-16~D-22(보고서 참조). 감사 후 문서는 바꾸지 않았다.
+- **승인 전에 사용자가 정할 것(미해소, 이 PASS로 해소되지 않음)**: U1 D-LAUNCH-07 (e)(f) 승인 또는 폐기, U2 01·02 푸터 요소 기록 소유(N5), U3 로컬 시험의 I 서명 필요 여부와 서명자, U4 로컬 시험에 R-02/R-03 등 비운영 전용 항목 요구 여부(D-17 포함), U5 `local`+단계 거부 규칙·추가 표면 규칙(D-16 포함). spec.md의 [NEEDS CLARIFICATION] N1~N11도 열려 있다(N9는 승인 시 결정). 3회차는 최종 회차이므로 자동 4회차는 없다.
+- **불변**: 어떤 SPEC의 "Implementation Kickoff Approval 완료"도 체크하지 않았고 `plan.md` 체크 상태(ENGINE 0/6, CONSULTOPS 1/6, LAUNCH 0/6), ENGINE·CONSULTOPS 감사 이력, 기존 결정 32건은 그대로다. 운영 DB·플래그·호스트·main은 건드리지 않았다.
+
+### 갱신 재개 메시지 (§11의 메시지를 대체, 새 세션에 그대로 붙여넣기)
+
+```text
+✂──── 여기부터 복사 ────✂
+
+ultrathink. 세 SPEC(ENGINE-001·CONSULTOPS-001·LAUNCH-001) plan-phase 마무리 이어서 진행 — LAUNCH 3회차 PASS 0.81(여유 얇음), Implementation Kickoff Approval 전.
+applied lessons: bosang-radar-tooling-gotchas, feedback-manager-spec-history-commit-claim
+source_session_id: <not-available — environment-fallback>
+
+전제 검증:
+1) git branch --show-current → plan/b2c-launch-readiness (또는 worktree 안이면 같은 브랜치)
+2) git ls-remote origin refs/heads/plan/b2c-launch-readiness → git rev-parse HEAD와 같은지, git status --short → 추적 파일 변경 없음
+3) grep -c "^Verdict: PASS" .moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-3.md → 1 (보고서는 gitignored라 같은 worktree에서만 보인다)
+
+실행: .moai/reports/b2c-launch-readiness/RESUME.md §13과 §11의 재개 순서를 따른다 — ① 승인 전 확인(미해소 사용자 확인 U1~U5와 N1~N11을 사용자에게 질문으로 확인, [K-전] 상태·기록 읽기) → ② 실제 사용자 승인(Implementation Kickoff Approval — 진행 모드 축·N9, ENGINE §9.1·§9.2·서명 토큰 형태는 이 승인 안에서 정한다) → ③ 승인 뒤에만 Pre-flight "Implementation Kickoff Approval 완료"를 체크(승인 없이 체크하지 않는다) → ④ /moai run Phase 1 Plan Audit Gate → ⑤ 구현. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력 유지
+
+후속: 구현이 끝나면 SPEC별 /moai sync
+
+✂──── 여기까지 복사 ────✂
+```
