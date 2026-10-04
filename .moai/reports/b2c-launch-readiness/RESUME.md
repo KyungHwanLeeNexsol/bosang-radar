@@ -98,3 +98,12 @@ source_session_id: <not-available — environment-fallback>
 
 ✂──── 여기까지 복사 ────✂
 ```
+
+## 8. 후속 기록 (2026-10-04, `3c56b47` 기준)
+
+앞 절의 기록은 그대로 두고, 이후 확인된 사실만 덧붙인다.
+
+- **원격 반영 확인**: §5·§6이 "정렬 교정 커밋은 push 전 로컬 커밋"이라고 적은 것은 그 시점의 기록이다. 이후 `git push origin plan/b2c-launch-readiness`(force 없음)로 `0553039..3c56b47`이 올라갔다. `git ls-remote origin refs/heads/plan/b2c-launch-readiness`가 `3c56b47`을 가리키고, `git fetch` 뒤 `git rev-list --count --left-right origin/plan/b2c-launch-readiness...HEAD`가 `0 0`임을 확인했다. 정렬 교정 커밋 3건(`dc72040`·`c071d3c`·`3c56b47`)은 원격에 있다. 이 절을 담은 커밋은 새 로컬 커밋이며 push 전이다.
+- **LAUNCH-001 2회차 감사**: `3c56b47` 기준 **FAIL 0.75**(기준 0.80), STOP 신호다(1회차 0.88보다 낮다. 다만 1회차는 결정 반영 전 상태를 감사해 두 점수는 서로 다른 내용을 잰다). 차단 결함 4건·선택 결함 11건이며 보고서는 `.moai/reports/plan-audit/SPEC-B2C-LAUNCH-001-review-2.md`(저장소 무시 규칙이 걸린 경로라 `git add -f`로 추적한다)다. §4 1번의 "LAUNCH-001만 2회차 가능"은 이 감사로 사용했고, 3회차는 무조건 진행하지 않으며 사용자가 범위 축소·PASS-with-debt·명시적 예외 중 정한 뒤에만 한다. ENGINE-001·CONSULTOPS-001은 3회 소진·PASS-with-debt 이력이 그대로이고 새 plan-auditor iteration을 시작하지 않았다.
+- **외부 확인 항목 정리**: `.moai/reports/b2c-launch-readiness/external-confirmations-20261004.md`에 SPEC별 확인 대상·담당 역할·필요한 증거·차단 단계를 정리했다. §3 "그래도 남아있는 것"의 역할 귀속 오류와 누락 항목의 정오표, 감사 잔여 중 사용자 결정이 필요한 것도 그 문서에 있다.
+- **현재 위치**: §4 순서 ①(외부 확인·계획 마무리) 진행 중이다. Implementation Kickoff Approval은 받지 않았고 `/moai run`은 시작하지 않았다. 운영 DB·플래그 변경과 main 병합은 하지 않았다.
