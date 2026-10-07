@@ -5,9 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { CONSENT_POLICY_VERSION } from "../lib/consult/consent-policy";
 import { ConsultationRequestSchema } from "../lib/consult/schema";
+import { planCrossCombinations, type CrossCombinationPlan } from "../lib/launch/cross-combination";
+import { GATE_STATE_FIXTURE } from "../lib/launch/gate-state-table.fixture";
 import {
   CLOSED_TITLE,
+  assembleCrossCombinationEnv,
   assembleGateReachabilityEnv,
+  buildCrossObservation,
   buildMismatchProbe,
   checkPreconditions,
   compareGateReachability,
@@ -259,6 +263,150 @@ describe("findEnvFileViolation / checkPreconditions — 환경 파일과 원격 
   });
 });
 
+// ---- M3c (AC-B2CLAUNCH-010 시나리오 3) — 교차 조합 세 가지 -----------------------------------------------------
+
+function crossPlans(): CrossCombinationPlan[] {
+  const result = planCrossCombinations(GATE_STATE_FIXTURE);
+  if (!result.ok) throw new Error(result.errors.join("; "));
+  return result.plans;
+}
+
+describe("assembleCrossCombinationEnv — 교차 조합 서버의 자식 프로세스 환경", () => {
+  it("진단 production 경로 열림 × C·P 참: 진단 셋과 상담 둘이 계획대로 설정된다", () => {
+    const env = assembleCrossCombinationEnv(crossPlans()[0], { dbUrl: DB_URL, secret: SECRET });
+
+    expect(env.ENABLE_DIAGNOSIS_FLOW).toBe("true");
+    expect(env.DIAGNOSIS_ENGINE_READY).toBe("true");
+    expect(env.ENABLE_DIAGNOSIS_DEV_STATES).toBe("false");
+    expect(env.ENABLE_CONSULT_FLOW).toBe("true");
+    expect(env.CONSULT_POLICY_READY).toBe("true");
+  });
+
+  it("진단 닫힘 × C·P 참: 진단 셋은 모두 거짓이고 상담 둘은 참이다", () => {
+    const env = assembleCrossCombinationEnv(crossPlans()[1], { dbUrl: DB_URL, secret: SECRET });
+
+    expect(env.ENABLE_DIAGNOSIS_FLOW).toBe("false");
+    expect(env.DIAGNOSIS_ENGINE_READY).toBe("false");
+    expect(env.ENABLE_DIAGNOSIS_DEV_STATES).toBe("false");
+    expect(env.ENABLE_CONSULT_FLOW).toBe("true");
+    expect(env.CONSULT_POLICY_READY).toBe("true");
+  });
+
+  it("진단 닫힘 × C 거짓·P 참: 화면 플래그만 거짓이고 정책 플래그는 참이다", () => {
+    const env = assembleCrossCombinationEnv(crossPlans()[2], { dbUrl: DB_URL, secret: SECRET });
+
+    expect(env.ENABLE_CONSULT_FLOW).toBe("false");
+    expect(env.CONSULT_POLICY_READY).toBe("true");
+    expect(env.ENABLE_DIAGNOSIS_FLOW).toBe("false");
+  });
+
+  it("DB는 인자로 받은 로컬 file: 주소이고 시크릿은 인자로 받은 시험용 값이다(고정 리터럴이 아니다)", () => {
+    const env = assembleCrossCombinationEnv(crossPlans()[0], { dbUrl: DB_URL, secret: SECRET });
+
+    expect(env.TURSO_DATABASE_URL).toBe(DB_URL);
+    expect(env.TURSO_AUTH_TOKEN).toBe("");
+    expect(env.RATE_LIMIT_HMAC_SECRET).toBe(SECRET);
+    expect(env.LLM_PROVIDER_MODE).toBe("deterministic");
+  });
+
+  it("인자로 받은 DB 주소가 file:이 아니면 주소를 되풀이하지 않고 거부한다", () => {
+    const attempt = () =>
+      assembleCrossCombinationEnv(crossPlans()[0], {
+        dbUrl: "libsql://synthetic-host-example",
+        secret: SECRET,
+      });
+
+    expect(attempt).toThrow(/file:/);
+    try {
+      attempt();
+    } catch (error) {
+      expect((error as Error).message).not.toContain("synthetic-host-example");
+    }
+  });
+
+  it("시크릿이 비어 있으면 거부한다", () => {
+    expect(() =>
+      assembleCrossCombinationEnv(crossPlans()[0], { dbUrl: DB_URL, secret: "" })
+    ).toThrow(/시크릿/);
+  });
+
+  it("부모 프로세스 환경을 바꾸지 않는다", () => {
+    const before = { ...process.env };
+
+    assembleCrossCombinationEnv(crossPlans()[0], { dbUrl: DB_URL, secret: SECRET });
+
+    expect({ ...process.env }).toEqual(before);
+  });
+});
+
+describe("buildCrossObservation — 응답에서 읽은 도달 상태", () => {
+  const OPEN_HOME = '<title>보상 진단</title><script>self.x={\\"enableDevStates\\":false}</script>';
+  const OPEN_RESULT =
+    '<title>보상 진단 결과</title><script>self.x={\\"enableDevFixture\\":false}</script>';
+  const CLOSED_PAGE = "<title>서비스 준비 중</title><p>서비스 준비 중입니다</p>";
+  const OPEN_CONSULT = "<title>상담 신청</title><main>상담 폼</main>";
+  const API_BODY = '{"status":"error","code":"consent_version_mismatch"}';
+
+  it("세 경로가 모두 열려 있고 접수가 409 consent_version_mismatch인 응답을 읽는다", () => {
+    const observed = buildCrossObservation({
+      homeHtml: OPEN_HOME,
+      resultHtml: OPEN_RESULT,
+      consultHtml: OPEN_CONSULT,
+      apiStatus: 409,
+      apiBodyText: API_BODY,
+      rowsBefore: 3,
+      rowsAfter: 3,
+    });
+
+    expect(observed).toEqual({
+      home: "open",
+      result: "open",
+      consult: "open",
+      apiStatus: 409,
+      apiCode: "consent_version_mismatch",
+      rowsBefore: 3,
+      rowsAfter: 3,
+    });
+  });
+
+  it("/·/result·/consult가 placeholder인 응답은 placeholder로 읽는다", () => {
+    const observed = buildCrossObservation({
+      homeHtml: CLOSED_PAGE,
+      resultHtml: CLOSED_PAGE,
+      consultHtml: CLOSED_PAGE,
+      apiStatus: 409,
+      apiBodyText: API_BODY,
+      rowsBefore: 0,
+      rowsAfter: 0,
+    });
+
+    expect([observed.home, observed.result, observed.consult]).toEqual([
+      "placeholder",
+      "placeholder",
+      "placeholder",
+    ]);
+  });
+
+  it("신호가 모호한 응답(placeholder 문구와 열림 표지가 함께 있거나 둘 다 없음)은 unknown이다", () => {
+    const observed = buildCrossObservation({
+      homeHtml: `${OPEN_HOME}${CLOSED_PAGE}`,
+      resultHtml: "<title>다른 페이지</title>",
+      consultHtml: "<title>다른 페이지</title>",
+      apiStatus: 500,
+      apiBodyText: "not json",
+      rowsBefore: 0,
+      rowsAfter: 0,
+    });
+
+    expect([observed.home, observed.result, observed.consult]).toEqual([
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
+    expect(observed.apiCode).toBeNull();
+  });
+});
+
 describe("스크립트 소스의 안전 규칙(정적 확인)", () => {
   it("환경 파일을 읽는 호출이 없다", () => {
     expect(SCRIPT_SOURCE).not.toMatch(/readFile|createReadStream|loadEnvConfig|dotenv|@next\/env/);
@@ -270,5 +418,12 @@ describe("스크립트 소스의 안전 규칙(정적 확인)", () => {
 
   it("원격 주소 문자열이 없다", () => {
     expect(SCRIPT_SOURCE).not.toMatch(/https?:\/\//);
+  });
+
+  it("엔진 준비 변수의 이름을 적지 않는다(교차 조합의 플래그는 fixture 행에서 오고 자식 환경은 assembleEnv가 만든다)", () => {
+    expect(SCRIPT_SOURCE).not.toContain("DIAGNOSIS_ENGINE_READY");
+    expect(SCRIPT_SOURCE).toMatch(
+      /import \{[^}]*\bassembleEnv\b[^}]*\} from "\.\/verify-flag-runtime\.ts"/
+    );
   });
 });

@@ -8,6 +8,12 @@
 //   3) 요청 전후 consultations 행 수가 같다.
 // 이 관측은 게이트 함수·경로의 일반 검증이다. 운영 호스트에서의 노출 증거로 쓰지 않는다(acceptance.md AC-B2CLAUNCH-009).
 //
+// M3c (REQ-B2CLAUNCH-010, AC-B2CLAUNCH-010 시나리오 3) — 교차 조합 세 가지의 로컬 관측. 위 관측 뒤에 같은 빌드를 재사용해
+// 조합마다 서버를 새로 시작하고 `/`, `/result`, `/consult`와 접수 API의 도달 상태를 읽어 spec.md §2.3의 경로별 도달
+// 규칙과 대조한다. 기대값은 독립된 fixture(lib/launch/gate-state-table.fixture.ts)에서만 고르고(lib/launch/
+// cross-combination.ts) 시작 환경은 verify-flag-runtime.ts의 assembleEnv가 만든다. 교차 조합 셋:
+//   (1) 진단 production 경로 열림 × 상담 C=참·P=참   (2) 진단 닫힘 × 상담 C=참·P=참   (3) 진단 닫힘 × 상담 C=거짓·P=참
+//
 // 안전 규칙:
 //   - DB 주소가 "file:"로 시작하는 로컬 파일이 아니면 실행을 거부한다.
 //   - 환경 파일을 읽지 않는다. 프로덕션 빌드·시작이 읽는 환경 파일이 프로젝트 루트에 있으면 자식 프로세스가 읽을 수
@@ -17,7 +23,8 @@
 //   - 원격 호스트에 접속하지 않는다. 요청은 서버가 알려 준 로컬 주소로만 보낸다.
 //
 // 실행: pnpm exec tsx scripts/verify-gate-reachability.ts (빌드 + 서버 시작이라 몇 분 걸린다)
-//   종료 코드: 0 = 세 관측이 모두 기대와 같음, 1 = 불일치, 2 = 실행 거부(사전 점검 위반)
+//   종료 코드: 0 = 시나리오 2의 세 관측과 시나리오 3의 세 조합이 모두 기대와 같음, 1 = 불일치,
+//   2 = 실행 거부(사전 점검 위반 또는 기대 표에서 교차 조합을 읽지 못함)
 
 import { randomInt, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
@@ -25,7 +32,18 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@libsql/client";
-import { extractTitle } from "./verify-flag-runtime.ts";
+import {
+  checkCrossObservation,
+  crossMismatches,
+  formatCrossReport,
+  planCrossCombinations,
+  readConsultReach,
+  reachFromGate,
+  type CrossCombinationPlan,
+  type CrossObservation,
+} from "../lib/launch/cross-combination.ts";
+import { GATE_STATE_FIXTURE } from "../lib/launch/gate-state-table.fixture.ts";
+import { assembleEnv, buildDiagnosisObservation, extractTitle } from "./verify-flag-runtime.ts";
 import { findRemoteDatabaseViolation } from "./visual-verify-db-guard.ts";
 import { startManagedServer } from "./visual-verify-server.ts";
 
@@ -196,6 +214,64 @@ export function buildMismatchProbe(): Record<string, unknown> {
   };
 }
 
+/**
+ * 교차 조합 서버의 자식 프로세스 환경. 플래그는 계획(독립된 기대 표의 조합 키에서 읽은 값)에서 오고 환경은
+ * verify-flag-runtime.ts의 assembleEnv가 만든다 — 부모의 DB·플래그·시크릿·키 계열 변수는 물려주지 않는다. 여기서는
+ * DB 주소와 시크릿만 이 스크립트의 로컬 파일 DB와 실행 시점에 만든 시험용 값으로 바꾼다. 부모 환경 객체는 바꾸지
+ * 않는다.
+ */
+export function assembleCrossCombinationEnv(
+  plan: CrossCombinationPlan,
+  options: { dbUrl: string; secret: string }
+): NodeJS.ProcessEnv {
+  if (!options.dbUrl.startsWith("file:")) {
+    throw new Error('시험 DB 주소가 "file:"로 시작하는 로컬 파일이 아니다 — 실행을 거부한다');
+  }
+  if (options.secret === "") {
+    throw new Error(
+      "시험용 시크릿이 비어 있다 — 비어 있으면 앱이 시크릿이 설정되지 않은 것으로 읽는다"
+    );
+  }
+  const env = assembleEnv({
+    label: plan.label,
+    consult: plan.flags.consult,
+    policy: plan.flags.policy,
+    diag: plan.flags.diag,
+  });
+  env.TURSO_DATABASE_URL = options.dbUrl;
+  env.RATE_LIMIT_HMAC_SECRET = options.secret;
+  const violation = findRemoteDatabaseViolation(env);
+  if (violation) throw new Error(violation);
+  return env;
+}
+
+export interface CrossObservationInput {
+  readonly homeHtml: string;
+  readonly resultHtml: string;
+  readonly consultHtml: string;
+  readonly apiStatus: number;
+  readonly apiBodyText: string;
+  readonly rowsBefore: number;
+  readonly rowsAfter: number;
+}
+
+/** 세 경로의 응답 본문과 접수 응답에서 도달 상태를 읽는다(순수 함수). */
+export function buildCrossObservation(input: CrossObservationInput): CrossObservation {
+  const diagnosis = buildDiagnosisObservation(input.homeHtml, input.resultHtml);
+  return {
+    home: reachFromGate(diagnosis.homeGate),
+    result: reachFromGate(diagnosis.resultGate),
+    consult: readConsultReach(
+      extractTitle(input.consultHtml),
+      input.consultHtml.includes(PLACEHOLDER_TEXT)
+    ),
+    apiStatus: input.apiStatus,
+    apiCode: extractApiCode(input.apiBodyText),
+    rowsBefore: input.rowsBefore,
+    rowsAfter: input.rowsAfter,
+  };
+}
+
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LOG_DIR = path.join(PROJECT_ROOT, ".moai", "state", "verify", "gate-reachability");
 const DB_FILE = path.join(PROJECT_ROOT, ".tmp", "gate-reachability.db");
@@ -244,10 +320,67 @@ async function observe(baseURL: string): Promise<GateReachabilityObservation> {
   };
 }
 
+async function observeCross(baseURL: string): Promise<CrossObservation> {
+  const homeHtml = await (await fetch(`${baseURL}/`)).text();
+  const resultHtml = await (await fetch(`${baseURL}/result`)).text();
+  const consultHtml = await (await fetch(`${baseURL}/consult`)).text();
+  const rowsBefore = await countConsultations();
+  const api = await fetch(`${baseURL}/api/consultations`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(buildMismatchProbe()),
+  });
+  const apiBodyText = await api.text();
+  const rowsAfter = await countConsultations();
+  return buildCrossObservation({
+    homeHtml,
+    resultHtml,
+    consultHtml,
+    apiStatus: api.status,
+    apiBodyText,
+    rowsBefore,
+    rowsAfter,
+  });
+}
+
+/** 자식 환경으로 `pnpm start` 서버를 시작해 관측하고 반드시 종료한다. */
+async function observeWithServer<T>(
+  env: NodeJS.ProcessEnv,
+  observeAt: (baseURL: string) => Promise<T>
+): Promise<T> {
+  const managed = await startManagedServer({
+    readyTimeoutMs: 60_000,
+    spawnOnPort: (port) =>
+      spawn("pnpm", ["start"], {
+        cwd: PROJECT_ROOT,
+        env: { ...env, PORT: String(port) },
+        shell: true,
+        stdio: "ignore",
+      }),
+  });
+  try {
+    return await observeAt(managed.baseURL);
+  } finally {
+    managed.stop();
+  }
+}
+
 export async function main(): Promise<number> {
   const violations = checkPreconditions(process.env, PROJECT_ROOT);
   if (violations.length > 0) {
     console.error(violations.join("\n"));
+    return 2;
+  }
+
+  // 교차 조합의 기대값은 독립된 표에서 고른다. 표에서 읽지 못하면 빌드 전에 거부한다(fail-closed).
+  const planned = planCrossCombinations(GATE_STATE_FIXTURE);
+  if (!planned.ok) {
+    console.error(
+      [
+        "[verify-gate-reachability] 실행을 거부합니다 — 교차 조합의 기대 도달 상태를 기대 표에서 읽지 못했습니다.",
+        ...planned.errors,
+      ].join("\n")
+    );
     return 2;
   }
 
@@ -265,28 +398,36 @@ export async function main(): Promise<number> {
   const buildCode = runPnpm(["build"], env, path.join(LOG_DIR, "build.log"));
   if (buildCode !== 0) throw new Error(`pnpm build 실패(exit ${buildCode}) — 로그: ${LOG_DIR}`);
 
-  const managed = await startManagedServer({
-    readyTimeoutMs: 60_000,
-    spawnOnPort: (port) =>
-      spawn("pnpm", ["start"], {
-        cwd: PROJECT_ROOT,
-        env: { ...env, PORT: String(port) },
-        shell: true,
-        stdio: "ignore",
-      }),
-  });
-  let observed: GateReachabilityObservation;
-  try {
-    observed = await observe(managed.baseURL);
-  } finally {
-    managed.stop();
-  }
-
+  // 시나리오 2(AC-B2CLAUNCH-009): 위 빌드 하나로 서버를 시작한다.
+  const observed = await observeWithServer(env, observe);
   const mismatches = compareGateReachability(observed);
-  console.log(
-    [...formatGateReachabilityReport(observed), `불일치 관측 합계: ${mismatches.length}`].join("\n")
+  const lines = [
+    ...formatGateReachabilityReport(observed),
+    `불일치 관측 합계: ${mismatches.length}`,
+  ];
+
+  // 시나리오 3(AC-B2CLAUNCH-010): 같은 빌드를 재사용해 교차 조합마다 서버를 새로 시작한다. 빌드 환경에는 진단·상담 화면
+  // 플래그가 없으므로 모든 조합이 "빌드 뒤에 바뀐 환경"으로 시작한다(요청 시점에 읽는지도 함께 드러난다).
+  lines.push("", "## 교차 조합 로컬 관측 (AC-B2CLAUNCH-010 시나리오 3)");
+  lines.push(
+    "시작 환경: assembleEnv(플래그는 기대 표의 조합 키에서), 시크릿=설정(값 미출력), DB=로컬 file"
   );
-  return mismatches.length === 0 ? 0 : 1;
+  let crossMismatchCount = 0;
+  for (const plan of planned.plans) {
+    const crossEnv = assembleCrossCombinationEnv(plan, {
+      dbUrl: DB_URL,
+      secret: `gate-test-${randomUUID()}`,
+    });
+    const crossObserved = await observeWithServer(crossEnv, observeCross);
+    crossMismatchCount += crossMismatches(checkCrossObservation(plan, crossObserved)).length;
+    lines.push(...formatCrossReport(plan, crossObserved));
+  }
+  lines.push(`교차 조합 불일치 관측 합계: ${crossMismatchCount}`);
+
+  const total = mismatches.length + crossMismatchCount;
+  lines.push(`전체 불일치 관측 합계: ${total}`);
+  console.log(lines.join("\n"));
+  return total === 0 ? 0 : 1;
 }
 
 const isDirectExecution =
