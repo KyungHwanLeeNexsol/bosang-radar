@@ -23,7 +23,7 @@ export type StageTableResult = { ok: true; rows: StageRow[] } | { ok: false; err
 
 const HEADER_LABELS = COLUMNS.map((column) => column.label);
 
-function splitCells(line: string): string[] {
+export function splitCells(line: string): string[] {
   return line
     .trim()
     .replace(/^\|/, "")

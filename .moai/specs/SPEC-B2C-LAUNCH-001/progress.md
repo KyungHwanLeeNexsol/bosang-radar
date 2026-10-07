@@ -82,6 +82,44 @@ RED의 한계: 시험 파일이 모듈을 불러오지 못해 스위트가 통�
 
 **잔여 위험**: 파서는 헤더 줄이 정확히 `단계|정의|게이트 상태 벡터|도달 대상|판정` 다섯 열인 첫 표만 읽는다. 문서에 같은 헤더의 표가 둘 이상이면 첫 표만 검사한다(현재 `spec.md`·런북 모두 하나뿐이고 시험이 대조한다). 칸 안에 `|` 문자가 들어가는 표는 이 파서가 칸을 잘못 나눈다 — 현재 두 표에는 없다. 런북 시험은 파일을 불러올 때 문서가 없으면 스위트 전체가 실패하도록 되어 있다.
 
+### M1b (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `9aac310` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M1b-*.log`다. 이 커밋의 SHA는 이 기록이 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **변경 파일**: 신규 `lib/launch/{markdown-table,item-table,gate-record,target-check}.ts`와 각 시험 3개(`item-table`·`gate-record`·`target-check`), 신규 `scripts/check-launch-gate.ts`와 `scripts/check-launch-gate.test.ts`, `lib/launch/stage-table.ts`(`splitCells`에 `export`만 붙임, 동작·시험 불변), `.moai/docs/launch-gate-runbook.md`(`## 기록 양식` 절만 추가, 기존 절 불변), 이 파일. `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았고 plan.md 체크박스도 건드리지 않았다.
+- **구현한 것**: 항목 정의표 파서(칸 7개·빈 칸 없음·I/G 열거·` / ` 구분자 정확히 1개), 기록 모델·마크다운 파서(상태는 `READY`/`BLOCKED`/`UNVERIFIED`만, 빈 값·열거 밖 값·식별자만 있는 행·출력 전용 표지 `해당 없음(local)`을 항목 식별자를 적은 오류로 거부), 항목 점검기(요청 두 형태와 거부 네 조합, `결정 대기` fail-closed와 항목·열 단위 면제, 표면 열 규칙, 운영 한정 항목의 `해당 없음(local)` 출력 표지), 대상 값·무효화 사건 판정(`READY`를 `UNVERIFIED`로 되돌리기만 한다)과 덮는 파일 목록 검사. 서명 점검은 구현하지 않았다(AC-B2CLAUNCH-008은 M1c).
+
+**RED**(모듈을 함수는 있되 틀린 기본값을 돌려주는 틀로 두고 시험 4개 파일을 실행, `M1b-red.log`): `Test Files 4 failed (4)`, `Tests 88 failed | 18 passed (106)`, `exit=1`. 실패 88건은 모두 단언 실패이고(`Cannot find module` 0건) 파일별로 gate-record 19, item-table 17, target-check 11, check-launch-gate 41이다. 대표 단언: `expected +0 to be 1`(운영 불가 fixture가 틀 때문에 종료 코드 0), `expected +0 to be 2`(요청 형태 오류가 거부되지 않음), `expected 'READY' to be 'UNVERIFIED'`(대상 값 불일치가 READY로 남음), `expected [] to have a length of 1 but got +0`(기록 파일을 덮는 목록이 거부되지 않음), `런북에 '## 기록 양식' 절이 없다`. 틀과 우연히 일치해 RED에서 통과한 18건은 틀의 기본값(빈 목록·READY 그대로)과 같은 결과를 기대한 시험이다.
+
+**GREEN**: 구현 뒤 첫 실행에서 새 시험 전부가 통과했다(`M1b-green-1.log`, 130 passed = M1a 24 + 새 106). 이후 `runCli`의 인자·JSON 입력 읽기 분기를 프로세스 안에서 시험하는 6건을 더했다. 마지막 실행은 `M1b-green-final.log`: `Test Files 5 passed (5)`, `Tests 136 passed (136)`, `exit=0`. 시험이 실제로 물리는지 보려고 `PRODUCTION_ONLY_ITEMS`에서 `R-04`를 잠깐 빼 보았고(`M1b-mutation-check.log`) (차)·로컬 CLI 시험 등 4건이 실패하는 것을 확인한 뒤 되돌렸다.
+
+**E1 판정표**(명령: `pnpm exec vitest run lib/launch scripts/check-launch-gate.test.ts --reporter=verbose`, 로그 `M1b-green-final.log`):
+
+| AC | fixture | 기대 | 관측 |
+|---|---|---|---|
+| AC-B2CLAUNCH-002 | 열아홉 가지 (가)~(머) 꼬리표대로(운영 10·로컬 4·형태 오류 5) | 종료 코드 0은 (가)(바)(사)(차) 넷, 0이 아닌 것 열다섯, 출력이 AC가 적은 식별자·문구를 담음 | PASS — `fixture는 정확히 열아홉 가지…`, `(가)`~`(머)` 각 시험, `종료 코드 0은 (가)(바)(사)(차) 넷이고 0이 아닌 것은 열다섯이다` |
+| AC-B2CLAUNCH-002 | (차) 기록 불변, 비필수 항목 BLOCKED, 런북 표 입력 | 상태 칸 불변, (가)와 같은 결과, 런북 표도 같은 결과 | PASS — 얼린 입력으로 점검해 `UNVERIFIED` 값이 그대로임을 확인 |
+| AC-B2CLAUNCH-002 | spec.md·런북 항목 표 | 14행·7칸·열거 안·구분자 1개·I/G 분포 8/2/1/1/1/1 | PASS — `실제 문서의 항목 정의표` 4건 |
+| AC-B2CLAUNCH-003 | (가)~(바) | (가)(마) 통과, (나)(다)(라)(바) 식별자를 적은 오류 | PASS — `AC-B2CLAUNCH-003 fixture (가)~(바)` 6건, Definition of Done 문장은 M1a 시험이 계속 확인 |
+| AC-B2CLAUNCH-005 | (가)~(마) | (가)(라) READY 유지, (나)(다) UNVERIFIED, (마) 항목 식별자와 함께 거부 | PASS — `resolveEffectiveStatus`·`(라) 기록 파일만 바뀐 변경`·`coveringFileListErrors` 시험, 런북·spec 표 모두 기록 파일 0개 |
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`, 출력 없음(`M1b-tsc-2.log`). **E3 린트**: `pnpm exec eslint lib/launch scripts/check-launch-gate.ts scripts/check-launch-gate.test.ts` → `exit=0`(`M1b-eslint-2.log`), 저장소 전체 `pnpm lint` → `exit=0`(`M1b-lint-2.log`), `prettier --check` 통과(`M1b-prettier-2.log`). **E4 전체 시험**: `pnpm test` → `Test Files 108 passed (108)`, `Tests 1075 passed (1075)`, `exit=0`(`M1b-test-full-2.log`) — M1a 이후 963 + 새 112.
+**E5 커버리지**: 설정의 `coverage.exclude`가 `.claude/**`를 담고 이 작업 폴더가 `.claude/worktrees/` 아래라서 설정대로 실행하면 `All files 0/0`이 나온다(`M1b-cov.log`, 측정이 아니다). 명령줄에서 `--coverage.include`·`--coverage.exclude`를 덮어쓰고 `json-summary`로 뽑은 실제 수치는 `lib/launch` 5개 파일 모두 구문·분기·함수·줄 100%(합계 구문 201/201, 분기 107/107; 텍스트 요약은 `M1b-cov2.log`, 파일별 수치는 `M1b-cov3.log` 실행의 `json-summary`를 임시 폴더에서 읽은 것이라 로그에는 종료 코드만 있다), `scripts/check-launch-gate.ts`는 구문 123/131, 분기 98/105, 함수 25/26(`M1b-cov-script2.log` 실행의 `json-summary`; 미덮개는 프로세스 안에서 도는 시험이 닿지 못하는 `isMain` 진입부와 예외 재던짐이다).
+
+**SPEC 문서에서 발견한 것**(고치지 않았다, 적힌 대로 진행):
+
+1. AC-B2CLAUNCH-005 (다)는 "사건 기록에 관측 뒤의 EV-L2가 있음"이라 쓰지만 사건 기록이 어디에 있는지(기록 문서의 칸인지 별도 입력인지)는 SPEC이 정하지 않는다. AC-002·§2.4 READY 항은 점검기가 사건을 스스로 감지하지 못한다고 적었으므로 호출하는 절차가 넘기는 입력(`eventsAfterObservation`)으로 모델링했다. 기록 문서의 `무효화 사건` 칸은 그 항목에 적힌 사건 종류(EV-L1~EV-L5)로 읽는다.
+2. §2.4 "항목 기록 필드"는 상태 외 칸이 비어도 되는지 말하지 않는다. AC-003 (라)(식별자만 있는 행 거부)를 만족하는 가장 작은 규칙으로, 상태는 항상 검사하고 보관 위치·역할·날짜·대상·무효화 사건은 `READY` 항목에만 필수로 했다(§2.4 READY 정의에서 가져옴).
+3. `결정 대기` 칸의 면제 결정 기록(D-LAUNCH-05 등)의 형식·보관 위치는 SPEC에 없다. 점검기 입력으로 `{itemId, column}` 목록만 받는다. 면제는 그 항목의 그 열의 `결정 대기` 칸에만 적용한다(§2.4 "그 칸만 `해당 없음`이 된다").
+4. 목적 벡터가 비어 있는 요청과 S1·S2·S3 밖의 표면 값은 §2.4의 거부 조합에 없다. 빈 벡터는 규칙대로 적용(표면을 적은 항목은 모두 비적용)하고, 열거 밖 표면 값은 입력 오류로 거부했다.
+5. 종료 코드 0 외의 값은 SPEC에 없다. 불가 판정은 1, 입력 거부(요청 형태·표·기록·사용법 오류)는 2로 했다.
+6. 점검기는 서명을 보지 않고도 `내부 시험 공개 가능`·`로컬 시험 가능` 판정 문구를 낸다. AC-002가 서명 점검은 통과한 것으로 두라고 했기 때문이며, M1c가 서명 점검을 붙일 때 이 판정 문구를 서명 결과와 함께 내도록 합쳐야 한다.
+7. M1a가 적은 한계 그대로, 항목별 덮는 파일 목록은 표 칸에 적힌 것(L-04 여섯 개, L-05 하나)만 읽는다. 다른 항목의 목록은 만들지 않았다.
+8. 승인된 대로 U3(로컬 I 서명자 구성)·U5(`local` + 단계 거부)는 SPEC 문구대로 구현했고 U5는 fixture (거)(러)가 적힌 대로 거부한다. 문구가 틀렸다고 판단하지 않았다.
+
+**Gaps(관측하지 못한 것)**: `pnpm build`·`pnpm test:e2e`·`pnpm visual:verify`는 M1b가 `lib/launch/`·`scripts/`·문서만 건드려 실행하지 않았다(새 `lib/launch` 모듈을 앱이 아직 가져오지 않으므로 빌드에 영향이 없다고 판단했을 뿐 이 변경 뒤에 측정하지 않았다). 서명 점검(AC-008)·형제 증거 참조(AC-004)·법무 확인(AC-006)·표지값 검사는 M1c 이후다. 실제 기록 파일에 대한 점검(기록 파일 위치 미정)은 하지 않았다. 대상 값을 계산하는 수단은 만들지 않았다(`(라)` 시험의 계산은 시험용 예시다).
+
+**잔여 위험**: 파서는 헤더 줄이 정확히 같은 첫 표만 읽고 칸 안의 `|` 문자는 칸을 잘못 나눈다(현재 두 표에는 없다). 항목 표의 `표면` 칸을 `·`로만 나누므로 다른 구분자를 쓰면 입력 오류로 거부된다. 점검기가 읽는 사건·대상 값이 사실인지는 호출하는 절차가 책임진다. CLI 시험은 `node tsx/cli` 자식 프로세스 5건이며 각 한 번씩만 실행했다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
