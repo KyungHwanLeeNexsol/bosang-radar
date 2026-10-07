@@ -1,0 +1,240 @@
+# Progress — SPEC-B2C-ENGINE-001
+
+## §E.1 Plan-phase Audit-Ready Signal
+
+- `plan_status: draft`
+- 이 문서는 plan-phase 초안이다. `audit-ready` 판정과 완료 시각은 plan-auditor 감사 이후 오케스트레이터가 기록한다. plan-auditor iteration 1(FAIL 0.726), iteration 2(FAIL 0.807), iteration 3(**PASS**, 0.857, thin margin, PASS-with-debt — `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-3.md`)의 결함을 반영한 개정본이다.
+- **2026-10-03 교정 라운드(이 PASS 이후의 새 변경, 미재감사)**: iteration 3의 0.857 PASS는 그 감사 시점에 읽은 작업 트리 스냅샷에 대한 판정이다. 이 PASS 이후 사용자 요청으로 `spec.md`·`plan.md`·`acceptance.md` 본문을 추가로 교정했다(D-ENGINE-03 유형별 준비 상태 매트릭스·AND-게이트, "진단 대상 유형" 용어 수정, D-ENGINE-11 생산 준비 검증 게이트, D-ENGINE-05/07 미해결 범위 보강, review-3의 D29·D30·D32·D33 반영 — 아래 §G 표의 "2026-10-03 교정 라운드" 행 참고). **이 교정 내용은 iteration 3 감사 대상이 아니었으므로 그 PASS가 검증한 적이 없다 — 오늘의 변경을 iteration 3의 0.857 PASS가 그대로 뒤덮는 것처럼 읽어서는 안 되며, 오늘의 변경은 재감사 대기(pending re-audit) 상태다.**
+- 작성된 산출물(Tier L): `spec.md`, `plan.md`, `acceptance.md`, `design.md`, `research.md`, `progress.md`(이 파일). 모두 `.moai/specs/SPEC-B2C-ENGINE-001/` 안의 커밋되지 않은 파일이다(`main@99993bf` 위의 초안).
+- 요구사항 25건(Tier L 상한 25), AC 25건(상한 25). 번호는 iteration 1과 같다.
+- 응용 코드·설정·워크플로·환경 파일·기존 SPEC 디렉터리는 변경하지 않았다.
+
+## §E.2 Run-phase Evidence
+
+_<pending run-phase>_
+
+## §E.3 Run-phase Audit-Ready Signal
+
+_<pending run-phase>_
+
+## §E.4 Sync-phase Audit-Ready Signal
+
+_<pending sync-phase>_
+
+## §F Phase 4 Mode Selection
+
+_<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기록>_
+
+## §G Plan-Auditor Iteration Log
+
+이 표는 실제 plan-auditor 호출 결과만 기록한다. iteration 3 행까지가 실제 감사 결과다. **iteration 3 PASS 이후의 "2026-10-03 교정 라운드" 행은 plan-auditor 호출이 아니라 사용자 정밀 교정이며, 재감사를 받지 않았다 — 이 문서는 그 교정의 통과를 주장하지 않는다.**
+
+| Iteration | Date | Score | Verdict | Key Findings | Reflected Changes |
+|---|---|---|---|---|---|
+| 1 | 2026-10-02 | 0.726 | FAIL | Must-pass 7/7 PASS(MP-3, MP-7에 관찰 있음). 종합 0.726 < Tier L 임계값 0.85. 차단 결함 10건(major): D1 REQ-012/AC-012의 02 mock 표기 부재·계획 없음, D2 AC-012의 번들 검색이 §9.1 미결정 옵션을 강제, D3 요구사항이 결정 대기 옵션 선점(REQ-006/009/011/015, plan.md 오인용), D4 REQ-B2CCONSULT-009 TTL 금지와의 충돌 누락, D5 REQ-RESEARCH-012(완료 SPEC)와의 충돌 누락, D6 REQ-023이 완료 계약과 `scripts/verify-flag-runtime.ts`를 바꾸는데 누락 + research.md:46 오류, D7 AC-005 통과 판정 없음, D8 REQ-019/AC-019 검증 수단 없음, D9 운영 상태를 관측 없이 사실로 서술, D10 D-ENGINE-06/09/10 대안 비교 부재·평가적 표현. 선택 결함 9건(D11~D19). 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-1.md` | 아래 "iteration 1 결함 처리" 표 참조 — 결함 19건 전부 직접 검증한 뒤 처리 — 전부 수정 또는 일부 수정이며, 부분 반박 2건(D3의 REQ-008 서술, D18의 RESULT-025 강도)과 일부 보류 2건(D11, D13)은 사유를 적었다. 요구사항·AC 번호와 개수(25/25)는 유지, 결정 대기 항목을 선점하던 요구사항은 구조 중립 또는 조건부로 변경, 기존 SPEC과의 충돌 N6~N8 추가 |
+| 2 | 2026-10-02 | 0.807 | FAIL | Must-pass 6 PASS + 1 N/A(MP-4), MP-3 관찰 유지. 종합 0.807 < Tier L 임계값 0.85(iteration 1 대비 +0.081, 회귀 없음). iteration 1 결함 D1~D19: 수정 14·일부 수정 2(D8, D13)·반박 수용 3(D11 일부, D18, D19). 신규 차단 결함 5건(major 3, minor 2 — 보고서 머리글은 4건이라 적었으나 결함 목록에서 Class: blocking은 D20~D24 5건이다): D20 이 SPEC의 REQ에 `DIAGNOSIS_ENGINE_READY` 설정 금지 없음(AC-023이 타 SPEC의 범위가 좁은 REQ를 인용), D21 REQ-023/AC-023이 design §9.2의 런타임 증거 방식을 강제(옵션 (b) 선점), D22 준비·법무 게이트가 페이지 렌더링만 막고 엔진 경계는 막지 않음, D23 design §4 (b)만 "양립"으로 서술, D24 AC-012 시나리오 1에 fixture와 엔진 결과를 가르는 관찰 가능한 기준 없음. 선택 결함 D25~D28. 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-2.md` | 아래 "iteration 2 결함 처리" 표 참조 — D20~D28과 D8·D13 잔여를 직접 검증한 뒤 처리 — D20·D21·D22·D23·D24·D25·D26·D27·D28 수정(D21은 REQ 문구 중립화 + 시나리오 조건화, D22는 REQ-020 (나) 추가), D13 잔여는 REQ-015 절과 AC-015 시나리오 3으로 수정, D8 잔여는 D22와 같은 수정에 §9.3 기록 형태 서술 추가. 요구사항·AC 25/25 유지, 신규 결정 없음, 신규 확인 사항(N 마커) 없음(N7 내용 확장) |
+| 3 | 2026-10-03 | 0.857 | **PASS**(thin margin, with recorded debt) | Must-pass 7/7 PASS/N/A(margin +0.007 — Testability 0.02만 떨어져도 종합이 약 0.846으로 FAIL). iteration 2 차단 결함 D20~D24: 4건 FIXED, D24는 REBUTTAL ACCEPTED(저자의 호출-기록 기준이 감사의 제안보다 우수함을 확인). 선택 결함 D25~D28 전부 FIXED, D8·D13 잔여 전부 FIXED. 신규 결함(모두 minor, text-level, must-pass 불만족 아님): D29 "정의된 거절 결과" 미정의, D30 AC-023 시나리오 5 grep이 대괄호·JSON 키 대입을 놓침(거짓 음성 직접 확인), D31 REQ/AC 25/25 안의 시나리오 수(약 35개)가 tier-up/split 신호(사용자 결정 사항), D32 plan.md M7의 `verify-flag-runtime` 갱신이 §9.2 선택과 무관하게 무조건으로 적힘, D33 AC-009 "사고 유형 특정 표현"에 전체 목록 없음, D35 REQ-023이 독립된 두 의무(증거 게이트 + 불변 조건)를 한 REQ에 묶음(D31과 같은 tier 질문에 연결). 근거: `.moai/reports/plan-audit/SPEC-B2C-ENGINE-001-review-3.md` | Retry Loop Contract 최대 3회 소진 — PASS-with-debt로 종료(D29~D33, D35를 기록된 debt로 수용, 감사 권고: "D30은 Kickoff 전에 고칠 가치가 있다"). 이 PASS는 iteration 3이 읽은 작업 트리 스냅샷에 대한 판정이며, 그 이후의 추가 교정에는 자동으로 적용되지 않는다 — 아래 "2026-10-03 교정 라운드" 행 참고 |
+| 2026-10-03 교정 라운드(plan-auditor 호출 아님, 미재감사) | 2026-10-03 | — | — | iteration 3 PASS 이후 사용자가 인터뷰 기록을 정밀 교정하며 지시한 항목. (1) D-ENGINE-03 6유형 범위에 유형별 준비 상태 매트릭스(AND-게이트, acceptance.md AC-023) 추가 + "사고 유형" 용어를 "진단 대상 유형"으로 수정(spec.md·plan.md·acceptance.md 본문, HISTORY 제외). (2) D-ENGINE-11 2회 호출 설계는 유지하고 REQ-021·AC-021에 운영 투입 전 실제 공급자 한도·지연·재시도 검증 게이트, REQ-019·AC-019에 01-B 답변 비전송 교차 확인 추가. (3) D-ENGINE-05/07 미해결 범위 재확인(acceptance.md AC-015 선결 보강). (4) iteration 3의 D29·D30·D32·D33 반영(REQ-020 정의, AC-023 시나리오 5 grep 보강, plan.md M7 조건화, AC-009 고정 목록 명시) | 요구사항·AC 번호·개수(25/25) 유지, REQ↔AC 1:1 재확인(스크립트로 검증). **재감사 미수행** — 이 행의 변경은 PASS/FAIL 판정이 없다 |
+
+### iteration 1 결함 처리
+
+모든 결함은 코드·SPEC 원문에 대조해 직접 검증한 뒤 처리했다. "수정"은 이 디렉터리의 문서만 바꾼 것이다.
+
+| ID | 판정 | 검증 근거와 조치 |
+|---|---|---|
+| D1 | 수정 | `components/result/`·`app/result/`를 `mock\|목업\|데모\|검토용`으로 검색 → 렌더링되는 표기 없음(주석과 `vi.mock`뿐). `result-view.tsx:82-87,153`이 표기 없이 fixture를 표시 — 사실. REQ-012의 둘째 절을 01-D·01-E의 출처 조건부 표기로 좁히고 02 표기는 계획하지 않았다(추가하면 02 시각 기준선이 바뀌어 REQ-B2CCONSULT-025와 부딪친다). 이 선택은 새 확인 사항 N8로 올렸다. plan M5·AC-012 시나리오 3 정렬 |
+| D2 | 수정 | `force-dynamic`(`app/page.tsx:49`, `app/result/page.tsx:38`, `app/consult/page.tsx:30`), `playwright.config.ts:82-84` 확인 — 사실. 번들 검색은 AC-012 시나리오 2로 분리해 §9.1 (c)가 선택된 경우에만 적용하고, 별도 review 빌드 필요를 design §9.1·plan §B·N8에 비용으로 기록 |
+| D3 | 수정 + 일부 반박 | REQ-006/009/011/015를 구조 중립 또는 조건부(`Where D-ENGINE-xx`)로 재작성. design의 "미충족/양립 불가"(§3 결과 식별 행, §4 (a), §7 (a), §9.2 (a))를 "적용되지 않는다 / amendment 필요 / 결정 간 결합"으로 교체. `plan.md` 기존 §G의 "REQ-003/004" 인용이 LLM의 status·금액 결정 금지를 담지 않음을 확인 — 사실, 안티패턴 문구를 REQ-003/004의 실제 내용으로 고치고 LLM 구성은 design §2.3의 (3) 속성으로 재서술. REQ-011은 `mockJudge`를 명명하지 않고 동작(엔진 결과만으로 전이)으로 서술. **일부 반박(REQ-008)**: "01-D는 실제 결과로 표시된다"는 문구·경로를 D-ENGINE-08에 위임했으므로 (b)를 배제하지 않았다(`design.md` §8도 세 옵션 모두 양립). 다만 "01-D 계열" 명명이 (c)를 배제하는 것처럼 읽힐 수 있어 화면 서술을 REQ-008에서 제거하고 REQ-012로 옮겼다 |
+| D4 | 수정 | `SPEC-B2C-CONSULT-001/spec.md:79`(REQ-B2CCONSULT-009 TTL 금지), `:104`(REQ-B2CCONSULT-019), `design.md:62`(잔여 위험 수용) 확인 — 사실. §2.3 두 행, N1, design §4, REQ-015의 만료 절(조건부), AC-015 시나리오 2에 반영. 만료 없는 서명 토큰은 충돌하지 않는다고 구분 |
+| D5 | 수정 | `SPEC-RESEARCH-001/spec.md:62`(completed), `lib/env.ts:130-136`, `lib/env.test.ts:94,105-107` 확인 — 사실. §2.3 행, N6(amendment 대 후속 기록, D-ENGINE-01이 LLM 구조면 충돌 없음), design §2.2 행, AC-024 선결에 반영 |
+| D6 | 수정 | (i) REQ-B2CDIAG-025가 `productionReady`를 정확히 정의 — 사실, §2.3을 "유지"에서 "amendment 필요"로 정정하고 N7 추가. (ii) `scripts/verify-flag-runtime.ts:165-181`, `:447-449` 확인 — M7 파일 목록에 스크립트와 시험을 추가하고 `pnpm verify:flag-runtime`을 완료 확인에 포함, AC-023 시나리오 2. (iii) `research.md:46`의 "대입하는 비-테스트 코드 없음"은 `scripts/verify-flag-runtime.ts:174,293`이 대입하므로 **거짓** — 정정. AC-023 grep은 비-테스트 코드 범위를 정의하고 해당 스크립트를 시험 코드로 분류. 정의한 명령을 `main@99993bf`에서 실행해 출력 0줄을 관찰 |
+| D7 | 수정 | AC-005를 시나리오 1(도메인 전문가 소유 고정 변형 목록의 각 항목이 기대 분류와 일치하면 통과 — 이진)과 시나리오 2(D-ENGINE-09 기준값 충족이면 통과, 결정 전 BLOCKED)로 분리. 수치는 정하지 않았다. AC-022 합격 판정도 같은 방식 |
+| D8 | 수정 | 법무 확인 기록을 REQ-023의 증거 항목 (iv)로 편입(외부 AI 사용 시). 증명하는 것·서명 역할(법무)·담기는 값·저장 위치(§9.2 선택을 따름)를 design §9.3에 정의했다. 법적 결론은 쓰지 않았다. REQ-019는 필드 최소화로 좁히고 AC-019는 페이로드 ⊆ 허용 집합으로, AC-023 시나리오 1이 (iv) 부재 시 `productionReady` 거짓을 시험 |
+| D9 | 수정 | `SPEC-B2C-CONSULT-001/progress.md:4081,4153`의 관측이 병합 이전(가동 커밋 `f7ef4ec`, 병합 `99993bf`는 2026-10-02 13:58 +0900)임을 확인. `spec.md` §1을 코드 사실(병합됨)과 운영 사실(병합 이전 관측, 병합 후 미관측)로 분리. `research.md` §3·§4 정정 |
+| D10 | 수정 | design §10.1(D-ENGINE-06), §10.4(D-ENGINE-09), §10.5(D-ENGINE-10)를 설명·함의·실패 모드·요구 사항의 중립 표로 추가. §2.2의 "안전한 방향"과 "환각의 영향이 분류 정확도로 한정된다"를 제거하고 분류 오류가 다른 유형의 담보 내용 노출로 이어질 수 있다는 사실을 병기. 권고와 "Recommended when"은 §11에 분리 유지 |
+| D11 | 일부 수정 + 보류 | 번호를 바꾸지 않고 상한 25를 유지하며 복합을 줄였다. REQ-010의 비노출 절과 REQ-019의 법무 게이트를 REQ-023의 증거 집합으로 이동, REQ-023의 소유 주체 문장은 §2.2로·`true` 설정 금지 문장은 기존 REQ-B2CDIAG-025/REQ-B2CRESULT-024 유지 + AC-023 시나리오 3으로 이동, REQ-008의 화면 서술은 REQ-012로 이동, REQ-022·REQ-025는 한 행위로 좁히고 REQ-025의 "고정 문장 비의존"은 AC-025(REQ-005 인용)로 이동. **보류**: REQ-001/002/004의 두 절은 각각 하나의 불변식(계약 호환성, 구별되는 세 결과, 근거 없는 금액 금지)이고 더 쪼개면 상한을 넘는다. 범위가 크다는 관찰(마일스톤 8개, 후보 파일 다수, 5개 도메인)은 SPEC 분리·tier 상향 여부를 Kickoff에서 판단하도록 남긴다. REQ-012는 감사의 복합 목록에 없었고 두 절이 "mock을 실제처럼 제시하지 않는다"는 한 불변식이다 |
+| D12 | 수정 | REQ-011에서 `mockJudge`를, REQ-025에서 `lib/ai/providers/deterministic.ts` 경로를 제거. AC-011의 grep(비-테스트 소스에서 `app/result/page.tsx:21`, `fracture-case.ts:6,12`의 주석이 일치 — 사실)을 3개 결과 × 3개 입력 행렬의 행동 시험으로 교체 |
+| D13 | 일부 수정 + 보류 | M7의 게이트 확장을 M4가 엔진을 도달 가능하게 만들기 전에 적용한다는 커밋 순서 제약을 plan §F에 추가. 서명 비밀의 주입·부팅 검증·회전 영향은 plan §B 리스크와 M3·M8 산출물로 추가. **보류**: 별도 REQ·AC는 두지 않았다 — 상한 25 때문이며 D-ENGINE-05 (b)가 선택될 때만 생기는 항목이다 |
+| D14 | 수정 | `deterministic.ts:10-60`이 B2B 후보 형태를 시도함을 확인 — 사실. design §2.4 추가, plan 리스크·M4, REQ-025를 구조 중립(세 결과 재현)으로, AC-025에 입력별 응답 필요를 명시 |
+| D15 | 수정 | `spec.md` §2.2 "처리하지 않는 것"과 plan §H에 REQ-B2CDIAG-023, AC-B2CDIAG-024(`spec.md:99`, `acceptance.md:55`)를 소유 주체로 인용 |
+| D16 | 수정 | design §11 D-ENGINE-01의 전제 ③을 결정 시점이 아니라 M1 이후 되돌릴 수 있는 사후 게이트로 재서술. 아래 Open Decisions에도 반영 |
+| D17 | 수정 | D-ENGINE-02의 질문·옵션 설명에 각 데이터의 공개·비공개 분류를 포함(plan §B, design §5, 아래 Open Decisions). REQ-013이 이 분류를 참조하고 AC-013은 분류 목록이 없으면 데이터 검색을 BLOCKED로 처리 |
+| D18 | 수정(일부 정정) | `SPEC-B2C-CONSULT-001/spec.md:122`가 15화면 정의·`TOLERANCE`·승인 debt 수정을 금지(기록된 예외 하나)함을 확인. `SPEC-B2C-RESULT-001/spec.md:106`은 더 약해서 기존 10화면 커버리지를 깨지 말고 추가 방식으로만 확장하라는 내용이다 — 감사가 둘을 같은 강도로 묶은 것은 약간 과장이다. §2.3 행, plan §D 동결, N8, acceptance Quality Gate에 "빌드·플래그 배선만 변경"을 명시 |
+| D19 | 수정 + 유지 | `module:`에서 산문을 제거하고 형제 SPEC 선례처럼 경로 목록만 남겼다(변경 경로: `lib/consult/`, `lib/env.ts`, `scripts/`, `e2e/` 추가). `§G` 문자는 RESULT-001이 쓰고 `§E.*`와 충돌하지 않아 유지. 비-문자 섹션(`Plan-phase Observations`, `Open Decisions for User`)은 CONSULT-001 선례와 같아 유지 |
+
+### iteration 2 결함 처리
+
+모든 결함은 파일을 직접 읽어 검증한 뒤 처리했다(감사 보고서와 오케스트레이터 사전 확인을 주장으로 취급). 위 iteration 1 표의 AC-023 시나리오 번호는 당시 기준이다. 현재 AC-023은 시나리오 1 게이트 행렬, 2 CI 증거 검사, 3 플래그 런타임 검증, 4 서버 경계 차단, 5 설정 지점 부재다.
+
+| ID | 판정 | 검증 근거와 조치 |
+|---|---|---|
+| D20 | 수정 | `SPEC-B2C-RESULT-001/spec.md:105`는 "이 SPEC이 전달하는 코드 범위 안에서 ... 만들어서는 안 된다", `SPEC-B2C-DIAGNOSIS-001/spec.md:104`는 "이 SPEC이 전달하는 코드 자체에는 ... 존재하지 않는다"로 둘 다 자기 SPEC 산출물에 한정 — 사실(오케스트레이터 사전 grep이 못 잡은 것은 표현·줄 차이이며 원문은 확인됨). DIAG-025에는 범위 한정이 없는 문장("`DIAGNOSIS_ENGINE_READY`를 테스트 편의를 위해 거짓으로 `true` 설정해서는 안 된다")이 있으나 `reviewEnabled` 경로 설명 안의 테스트 편의 금지라 이 SPEC 산출물 일반의 금지로 읽는 것은 해석이다. REQ-023에 "이 SPEC의 산출물 중 시험 코드가 아닌 것은 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 지점을 만들어서는 안 된다"를 직접 넣었다. §2.2 행·§2.3 두 행(DIAG-025, RESULT-024)을 "유지"에서 "재진술(타 SPEC REQ는 각 SPEC 범위에 한정)"로 바꿨고 AC-023의 헤더에서 REQ-B2CRESULT-024 인용을 제거했다. 설정 지점 부재 검사는 시나리오 5로 이동(grep 명령은 그대로) |
+| D21 | 수정 | `design.md` §9.2 (b)는 `productionReady`를 런타임에 바꾸지 않으므로 기존 REQ-023 문구("`productionReady`는 거짓이어야 한다")와 양립하지 않음 — 사실. REQ-023의 결과를 "증거가 없는 동안 일반 사용자 노출 경로가 열려서는 안 된다"로 중립화하고 구현 방식(런타임 게이트/CI)은 §9.2가 정하게 했다. AC-023을 방식별로 조건화(시나리오 1·3·4는 §9.2 (c)·(d), 시나리오 2는 (b)·(d))하고 (b)용 CI 검사 시나리오를 추가했다. design §9.2 표에 (b)는 `productionReady` 정의를 바꾸지 않는 대신 CI가 운영 환경 변수를 관측하지 못하는 범위 한계를, (c)·(d)는 DIAG-025 amendment 필요를 적었고, 그 충분성은 N7로 올렸다(N7 내용 확장, 새 N 없음). "어떤 옵션도 요구사항이 미리 배제하지 않는다"는 design 첫 단락의 약속과 일치 |
+| D22 | 수정 | 전제 직접 검증: `computeDiagnosisFlags`·`computeConsultFlags` 소비 파일은 `app/page.tsx`, `app/result/page.tsx`, `app/consult/page.tsx`, `components/result/result-view.tsx`, `components/result/result-cta-bar.tsx`, `lib/diagnosis/flags.ts`와 시험·스크립트·`playwright.config.ts`·`e2e/consult-flow-03.spec.ts`뿐이고 `app/api/`는 `consultations/` 하나이며 게이트를 쓰지 않는다(`grep`). `.github/workflows/deploy.yml:3-7`은 `main` push마다 실행 — 사실. REQ-020을 (가) 동의 표지 없음, (나) `shouldRenderDiagnosis`가 거짓인 상태의 직접 호출 둘 다 처리 없이 거절·외부 AI 호출 없음으로 확장했다(D-ENGINE-04 서버 경계 옵션에 중립: (1)이면 서버 경계가 없어 적용되지 않고 페이지 게이트가 유일한 게이트). REQ-023의 과장 문장("(iv)가 없는 동안 ... 외부 AI 호출은 일어나지 않는다")을 제거하고 같은 차단이 서버 경계에도 적용됨을 REQ-020 (나)로 연결했다. AC-020 시나리오 2(게이트 거짓 직접 호출 → 거절·공급자 호출 0), AC-023 시나리오 4((iv) 부재 직접 호출 → 거절·공급자 호출 0) 추가. design §9.3에 페이지 경로와 서버 경계가 다른 진입점임을 코드 사실과 함께 서술, plan §B·M4에 반영 |
+| D23 | 수정 | `design.md` §4 (b)의 "양립(통과만 있고 저장 없음, N2)"을 "양립 여부는 N2 확인 대상이다(통과만 있고 저장은 없다)"로 교체 — spec.md §2.3·N2와 일치 |
+| D24 | 수정 | AC-012 시나리오 1을 호출 기록으로 판정하게 바꿨다: fixture 결과 생성 함수(현재 `buildFractureResult`, `fracture-case.ts:209`)에 스파이를 걸고 01 경로·`/result?devFixture=fracture` 경로 모두 호출 0, 01에서 화면에 도달한 결과는 엔진 호출 지점 대역이 돌려준 값과 같아야 한다. 항목 id·`resultId` 패턴은 판정에 쓰지 않는다. 감사가 예로 든 "근거 식별자·버전 필드 부재" 관찰은 쓰지 않았다 — 현행 계약에는 그 필드가 없고(`types.ts:105-118`에는 선택 필드 `evidenceRefs`가 서류 이름용으로 있을 뿐이며 fixture는 `evidenceRefs`를 쓰지 않는다 — `lib`·`components`·`app` grep) 그 필드는 REQ-001의 부가적 확장으로 생길 것이라, 이후 fixture 빌더가 그 필드를 채우면 구별 수단이 사라지기 때문이다 |
+| D25 | 수정 | AC-016: "파일 시스템 기록"을 시험이 엔진 호출의 쓰기 가능 위치로 지정한 디렉터리(임시·로그 포함)의 파일 내용으로 한정. AC-018: 캡처 대상을 stdout·stderr와 시험이 지정한 로그 경로로 명시하고, "관측 도구"는 `package.json`에서 sentry·datadog·posthog·analytics·opentelemetry·newrelic·logrocket 이름으로 검색해 의존성이 없었음을 적었으며(그 이름 목록 한정의 관찰) 이후 도입되면 캡처에 포함한다고 했다 |
+| D26 | 수정 | design §11의 D-ENGINE-10 전제를 "현행 문구에 대한 법무 검토 기록이 확인되지 않을 때"로 바꿨다(항상 참이던 전제 제거). `.moai`·`docs`에서 "면책"과 "법무"가 60자 안에 함께 나오는 줄을 검색했으나 ENGINE-001 문서 외에는 없었다 — 이 검색은 법무 검토 기록이 없다는 증명이 아니고 저장소 밖의 기록은 관측하지 못했으므로 미검증으로 적었고, 기록이 이미 있으면 (a)가 성립한다고 병기. 아래 Open Decisions에도 반영 |
+| D27 | 수정 | §2.3 DIAG-024 행, N8 (1), Out of Scope의 문구를 "N8이 결정되기 전에는 계획하지 않는다"로 바꿨다 |
+| D28 | 수정 | (D18 잔여) §2.3 visual 동결 행을 CONSULT-025(15화면·`TOLERANCE`·debt 불변, 기록된 예외 하나)와 RESULT-025(기존 10화면 커버리지를 깨지 않고 추가 방식으로만, 허용 오차·debt 언급 없음)로 분리 서술하고 plan §D, acceptance Quality Gate에 같은 구분을 적었다. 이 SPEC은 더 강한 CONSULT-025를 따른다. (D13 잔여) 아래 D13 항목 |
+| D8 잔여 | 수정 | (1) 게이트가 페이지 렌더링만 막는 문제는 D22와 같은 수정(REQ-020 (나))으로 닫았다. (2) 허용 필드 집합 기록의 이름 있는 기계 판독 가능 산출물이 없다는 지적은 design §9.3에 "형태는 run-phase에서 정하며 저장소 내 버전 관리되는 데이터 파일이 후보"로 적고, 시험이 읽어야 하므로 AC-019 선결에 반영(형태가 없으면 BLOCKED). 파일명·스키마는 정하지 않았다 |
+| D13 잔여 | 수정 | REQ-015에 "(b)로 확정된 경우 서명 비밀이 없거나 비어 있으면 `resultId`를 발급하지 않고 접수 검증은 어떤 값도 통과시키지 않는다 — 빈 키로 서명·검증하지 않는다(fail-closed)" 절을 추가했다(번호·개수 불변, 상한 25 유지). AC-015 시나리오 3(비밀 부재 → 발급 실패, 빈 키로 만든 후보 거부, 행 0) 추가, plan §B 리스크·M3 RED 갱신. 비밀의 주입·회전 시 발급분 무효화의 문서화는 요구사항이 아니라 M3·M8 산출물로 남겼다 |
+| D11 잔여 | 보류(변경 없음) | REQ-015·020·023에 절이 늘어 복합이 약간 증가했다. 상한 25를 지키려고 새 REQ를 만들지 않았고, 25/25 REQ와 조건부 AC 다수가 tier 상향이나 SPEC 분리를 시사하는지는 감사가 지적한 대로 사용자가 Kickoff에서 정할 사항이라 그대로 둔다 |
+
+### iteration 3 결함 처리 (2026-10-03 교정 라운드 — plan-auditor 재호출 아님)
+
+iteration 3(PASS, 0.857)의 신규 결함 D29·D30·D32·D33·D35와 D31을 이번 교정 라운드에서 직접 검증한 뒤 처리했다. before/after 위치와 검증 방법을 적는다(자가 검증 1번 항목).
+
+| ID | 판정 | before 위치 | after 위치 | 변경 내용과 검증 방법 |
+|---|---|---|---|---|
+| D29 | 수정 | review-3.md 인용은 `spec.md:124`, `acceptance.md:169,203`; 이번 교정 라운드 착수 시 직접 읽은 줄 번호는 `spec.md:125`(REQ-020), `acceptance.md:169`(AC-020 s2), `:203`(AC-023 s4) — 1줄 차이는 두 시점 사이 문서 줄 수 변화로 보이며 대상 문장(정의된 거절 결과)은 동일하다. 세 위치 모두 "정의된 거절 결과"가 어디에도 정의되지 않음 | `spec.md` REQ-B2CENGINE-020 본문(정의 문장 추가), `acceptance.md` AC-B2CENGINE-020 시나리오 2·AC-B2CENGINE-023 시나리오 4(정의 인용 추가) | REQ-020에 "이 '정의된 거절 결과'는 REQ-B2CENGINE-002가 정한 `error` 결과의 사유 코드로 표현하며(네 번째 결과 종류를 새로 만들지 않는다), 01 화면에는 01-E로 매핑한다 — 사유 코드의 정확한 값·형태는 M2에서 정한다"를 추가했다(감사 권고 문구와 같은 방향). AC-020 s2·AC-023 s4의 "정의된 거절 결과" 뒤에 괄호로 이 정의를 인용했다. 검증: 세 파일을 다시 읽어 REQ 쪽에 정의가 있고 두 AC가 그 정의를 가리키는지 grep(`정의된 거절 결과`)으로 대조 |
+| D30 | 수정 | `acceptance.md`(교정 전) AC-B2CENGINE-023 시나리오 5 — `grep -rnE "DIAGNOSIS_ENGINE_READY[[:space:]]*(=\|:)[[:space:]]*[^=[:space:]]" app components lib instrumentation.ts playwright.config.ts .github/workflows --exclude="*.test.*" \| grep -vE "^[^:]+:[0-9]+:[[:space:]]*(//\|\*\|#)"` | `acceptance.md` AC-B2CENGINE-023 시나리오 5(패턴·경로 목록 교체) | 대괄호·JSON 키 대입 형태를 잡도록 패턴을 `DIAGNOSIS_ENGINE_READY[]"']*[[:space:]]*(=\|:)[[:space:]]*["'\`]?[^=[:space:]]`로 바꾸고 경로 목록에 `scripts`·`package.json`·`.env.local.example`을 추가했다(`SPEC-B2C-LAUNCH-001/acceptance.md` AC-012가 쓰는 패턴 형태를 참고 — 그 파일은 읽기만 하고 수정하지 않았다). 검증(같은 방법 — LAUNCH-001 감사가 쓴 방법): 스크래치패드에 양성·음성 샘플 10개(`DIAGNOSIS_ENGINE_READY=true`, `process.env.DIAGNOSIS_ENGINE_READY = "true"`, `process.env["DIAGNOSIS_ENGINE_READY"] = "true"`, JSON 키 `{ "DIAGNOSIS_ENGINE_READY": "true" }`, `{ DIAGNOSIS_ENGINE_READY: 'true' }`, `export DIAGNOSIS_ENGINE_READY=1`, 주석 줄, `ENV DIAGNOSIS_ENGINE_READY true`, `??=`, `===`)을 만들어 구 패턴과 신 패턴을 각각 실행했다 — 구 패턴은 대괄호·JSON 키 두 샘플을 놓쳤고(거짓 음성 직접 확인) 신 패턴은 그 둘을 잡으면서 나머지 거짓 양성 후보(공백 구분·`??=`·`===`·주석)는 그대로 걸러냈다. 이어서 이 작업 트리에 신 패턴을 실제로 실행해(`grep -rnE ... app components lib instrumentation.ts playwright.config.ts scripts package.json .github/workflows .env.local.example --exclude="*.test.*"`) `scripts/verify-flag-runtime.ts:174,293`(선언된 하네스 예외) 두 줄만 나오고, `--exclude="verify-flag-runtime*"`를 더하면 0줄임을 직접 관찰했다 |
+| D32 | 수정 | `plan.md`(교정 전) M7 — "`scripts/verify-flag-runtime.ts`(+`scripts/verify-flag-runtime.test.ts`) ... 함께 갱신해야 하며" (조건 없이 항상 갱신하는 것처럼 읽힘) | `plan.md` M7 해당 문장 | "**`design.md` §9.2 (c)·(d)를 택한 경우에만**"을 조건으로 앞에 붙이고, (b)-단독이면 `computeDiagnosisFlags` 입력이 바뀌지 않아 이 스크립트가 갱신 대상이 아니라는 문장과 `pnpm verify:flag-runtime`을 완료 확인에 포함하는 조건도 같은 조건으로 묶었다(AC-023 시나리오 3의 조건과 일치시킴). 검증: `plan.md` M7 문단을 다시 읽어 `acceptance.md` AC-023 시나리오 3의 선결("§9.2 (c)·(d)")과 조건이 같은 문구로 맞는지 대조 |
+| D33 | 수정 | `acceptance.md`(교정 전) AC-B2CENGINE-009 — "사고 유형 특정 표현(예: "무릎", "골절")이 없다"(전체 목록 없음) | `acceptance.md` AC-B2CENGINE-009 Then·선결 | "'진단 대상 유형 특정 표현'의 전체 목록은 도메인 전문가가 D-ENGINE-03 범위(최초 공개 6개 진단 대상 유형)를 기준으로 정하는 고정 목록이다(AC-B2CENGINE-005 시나리오 1의 고정 변형 목록과 같은 방식) — '무릎', '골절'은 그 목록의 예시 두 건일 뿐"이라는 문장을 추가하고, 선결에 "도메인 전문가의 고정 표현 목록이 없는 동안 일반 질문 세트 조건만 추가로 BLOCKED"를 더했다(감사가 제안한 AC-005 s1 방식과 동일한 구조). 검증: AC-005 시나리오 1과 AC-009의 "고정 목록" 서술이 같은 구조(도메인 전문가 소유, 결정되기 전 BLOCKED)인지 대조 |
+| D31 | 보류(변경 없음, 사용자 결정 사항) | — | — | 25/25 REQ·AC 안에서 시나리오 수(약 35개)가 많다는 지적은 "tier 상향 또는 SPEC 분리"를 Kickoff에서 사용자가 판단할 사항이며, 이 교정 라운드가 임의로 분리·상향하지 않았다(D11 잔여와 같은 판단) |
+| D35 | 보류(변경 없음, D31과 결합) | — | — | REQ-023이 증거 게이트(While)와 불변 조건(Unwanted)을 한 REQ에 묶은 것은 D31의 tier 질문과 같은 결정에 묶여 있다 — 사용자가 tier를 올리거나 SPEC을 쪼개기로 하면 그때 불변 조건을 별도 REQ로 분리한다 |
+
+### 의미가 바뀐 요구사항·AC (번호 유지)
+
+- 구조 중립 또는 조건부로 바뀐 REQ: 004, 006, 007, 009(조건부), 010(조건부), 013, 015(조건부), 019(조건부), 020, 024(조건부).
+- 범위를 좁힌 REQ: 002, 005, 008, 011, 012, 014, 022, 023(증거 집합 정의), 025.
+- 위에 대응해 바뀐 AC: 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 019, 020, 021, 022, 023, 024, 025. 모든 AC에 "선결"과 "통과 판정"을 붙였다.
+- iteration 2 반영으로 바뀐 REQ: 015(서명 비밀 부재 시 닫힘 절 추가), 020(노출 게이트가 거짓인 직접 호출 거절 추가), 023(차단 결과를 구현 방식 중립으로, 이 SPEC 산출물의 `DIAGNOSIS_ENGINE_READY` 설정 금지 추가, 과장 문장 제거). 바뀐 AC: 012(시나리오 1 판정 기준), 015(시나리오 3), 016·018(범위 명시), 019(선결), 020(시나리오 2), 023(시나리오 5개로 재구성).
+- 버전: `0.1.0`을 유지했다. 형제 SPEC은 개정 때 버전을 일관되게 올리지 않았다(`SPEC-B2C-RESULT-001`·`SPEC-B2C-CONSULT-001`·`SPEC-B2C-FOUNDATION-001`은 많은 개정 뒤에도 `0.1.0`, `SPEC-B2C-DIAGNOSIS-001`은 `0.1.2`).
+
+## Plan-phase Observations
+
+작성 중 확인한 사실과 불일치다. 모두 이 SPEC의 요구사항이 아니라 오케스트레이터·감사자에게 전달하는 관찰이다.
+
+### 1. SPEC ID 정규식 불일치
+
+- SSOT(`.claude/rules/moai/development/spec-frontmatter-schema.md`)의 `id` 제약은 `^SPEC-[A-Z][A-Z0-9]+-[0-9]{3}$`다. 도메인 세그먼트에 하이픈이 없다. 선례 `SPEC-B2C-CONSULT-001`처럼 `SPEC-B2C-ENGINE-001`은 세그먼트가 둘이라 이 정규식과 **글자 그대로는 일치하지 않는다**.
+- manager-spec의 사전 점검 정규식(`^SPEC(-[A-Z][A-Z0-9]*)+-[0-9]{3}$`)은 실행 결과 `PASS`였다. 두 정규식이 서로 다르다.
+- 선례 형식을 유지했다. 스키마 파일을 고치는 것은 이 SPEC의 범위가 아니다.
+
+### 2. 증거 팩 정오
+
+- 증거 팩 A는 "01-B questions are fixed to 3 and fracture-worded"라고 했으나 골절 문구는 Q1뿐이다. Q2("입원한 적이 있나요?")와 Q3("사고나 증상이 발생한 장소는 어디인가요?")는 일반 문구다(`components/diagnosis/step-questions.tsx:39,45,51`). 사실상 영향은 작으나 부정확하다.
+- 증거 팩에 **없는** 새 발견: ① 01-D·01-E의 "데모/검토용 목업입니다" 표기가 게이트 상태와 무관하게 항상 렌더링된다(`step-result-none.tsx:104-106`, `step-error.tsx:81`). 실제 엔진이 켜지면 실제 "판단 불가" 결과에 거짓 표기가 남는다. ② 01-D 안내 예시에 디스크 사례가 있다(`step-result-none.tsx:22`). ③ 상담 e2e가 고정 표본 문장에 의존한다(`e2e/consult-flow-03.spec.ts:63,105`). ④ 03은 유효한 handoff가 없으면 no-data 화면이라 "판단 불가 → 상담" 경로에는 별도 설계가 필요하다(`components/consult/consult-view.tsx:453-472`).
+- 증거 팩의 나머지 `path:line` 인용(`step-loading.tsx:54-62`, `fracture-case.ts:14,209-229`, `result-view.tsx:82-87,153,185-193`, `lib/consult/schema.ts:23`, `lib/env.ts:134-136,143-145`, `consent-detail-content.tsx:13-18`, `consent-policy.ts:8`, `deploy.yml:96-101`, `playwright.config.ts:82`, `e2e/diagnosis-flow-01.spec.ts:28-29,81`)은 직접 읽어 일치함을 확인했다.
+
+### 3. 기존 SPEC 요구사항과의 충돌 가능성
+
+- REQ-B2CRESULT-011과 현행 e2e는 "무릎 골절로 수술을 받았어요"를 result-none으로 고정한다. 실제 엔진이 골절을 지원하면 충돌한다(`spec.md` §2.3, N3).
+- REQ-B2CDIAG-004/021("서버 저장 금지", "클라이언트 메모리 안 관리")은 서버 경계 뒤의 엔진과 양립 여부가 불분명하다(N2).
+- REQ-B2CDIAG-025와 REQ-B2CRESULT-024는 `DIAGNOSIS_ENGINE_READY` 전환을 "후속 SPEC의 몫"이라고만 적었다. 이 SPEC은 소유를 SPEC-B2C-LAUNCH-001로 적었는데 그 SPEC과 SPEC-B2C-CONSULTOPS-001은 현재 저장소에 없다(N5).
+- REQ-B2CRESULT-024와 REQ-B2CDIAG-025의 `DIAGNOSIS_ENGINE_READY` 설정 지점 금지 문장은 각 SPEC이 전달하는 코드 범위에 한정된다(`SPEC-B2C-RESULT-001/spec.md:105`, `SPEC-B2C-DIAGNOSIS-001/spec.md:104`). 이 SPEC 산출물의 같은 제약은 REQ-B2CENGINE-023이 직접 규정한다.
+- iteration 1 감사가 짚은 추가 충돌: REQ-B2CCONSULT-009 신선도 검사 금지와 `resultId` 만료(N1), REQ-RESEARCH-012의 `GEMINI_API_KEY` 부팅 요구(N6), REQ-B2CDIAG-025의 `productionReady` 정의와 `verify:flag-runtime`(N7), 02 mock 표기 부재와 `visual:verify` 동결(N8).
+
+### 4. 미검증 목록
+
+`research.md` §4를 따른다. 요약: 병합 뒤 운영 플래그 상태와 배포 성공 여부(마지막 관찰은 병합 이전), 운영의 `GEMINI_API_KEY` 주입 경로, 공급자 한도·약관, 담보 지식 원천의 소유·라이선스, 디자인 `.pen`의 담보 약 15개 목록, `pull_request` CI 부재 주장, PM2 환경 변수 재읽기, 번들의 fixture 포함 여부, 새 분류 스키마에서 결정론적 공급자가 응답을 만들 수 있는지.
+
+### 5. 프런트매터 선택
+
+- `phase`는 `"v0.20.0 target"`이다(CONSULT-001이 `"v0.19.0 target"`). 릴리스 태그가 저장소에 없어 다음 미출시 버전으로 둔 값이며 사용자가 바꿀 수 있다.
+- `depends_on`은 두지 않았다. run 진입 시 의존 SPEC의 `status: completed`를 요구하는데 이 SPEC의 의존은 결정이고 CONSULT-001은 `in-progress`다. `related_specs`로 비차단 참조만 남겼다.
+- `module`은 경로 목록만 담는다. 엔진 경계 위치는 D-ENGINE-04 확정 후 조정한다.
+
+### 6. plan-phase 작업 위치(worktree 이탈)
+
+이 SPEC의 plan-phase 작업은 `.claude/worktrees/launch-readiness` worktree 안에서, 3개 SPEC이 공유하는 plan 브랜치(`plan/b2c-launch-readiness`) 위에서 진행됐다 — `.claude/rules/moai/workflow/spec-workflow.md` § SPEC Phase Discipline(Step 1 plan-phase는 main checkout에서 진행하도록 정하며 worktree를 금지)과의 이탈이다. 전체 경위는 `.moai/reports/b2c-launch-readiness/RESUME.md`를 참고.
+
+## Open Decisions for User
+
+각 결정은 옵션(중립) → 추천(전제 포함) → 차단 대상 → 결정 주체 역할 순이다. 추천은 결정이 아니다. **2026-10-03 사용자 인터뷰에서 D-ENGINE-01~06·08~11(11건 중 10건)이 결정되었다** — 각 항목 아래 "**결정 (2026-10-03, 사용자 인터뷰)**" 줄에 선택한 옵션을 적었다(기존 옵션·추천·귀결 서술은 그대로 보존했다). D-ENGINE-07(진단 동의 상세 6개 문구)은 선행 결정 네 건(D-ENGINE-01/04/05/06)이 모두 확정되어 작성 가능 상태로 차단은 해제됐으나, 법무의 실제 문구 작성이 아직 이뤄지지 않아 미결정으로 남는다. 코드에서 얻은 근거와 옵션별 귀결의 상세는 `design.md`다. 요구사항은 어느 옵션도 선점하지 않으며, 옵션이 기존 요구사항과 부딪치면 그 amendment를 충돌로 기록했다.
+
+### D-ENGINE-01 — 매칭 아키텍처
+- **질문**: 사용자의 자유 문장을 4카테고리 담보 목록으로 바꾸는 방식은 무엇인가?
+- **옵션**: (1) 정적 규칙·매핑 표 (2) LLM(`lib/ai`, Gemini) 분류·판정 (3) 하이브리드 — 규칙이 판정하고 LLM은 분류·추출만
+- **옵션별 귀결**: (1)은 `GEMINI_API_KEY` 부팅 요구를 제거하므로 완료된 REQ-RESEARCH-012의 amendment가 필요하다(N6). (2)·(3)은 D-ENGINE-06이 외부 전송을 허용해야 하고 법무 확인 기록(REQ-023 (iv))이 필요하다. (2)는 판정 값을 규칙 선언값과 대조할 수 없다(AC-006은 귀속만 검증). 상세는 `design.md` §2.2.
+- **추천**: (3). **Recommended when** 결정 시점에 D-ENGINE-06이 동의 이후 자유 문장 전송을 허용하고 최소 한 사고 유형의 규칙 데이터가 확보될 때(D-ENGINE-02). D-ENGINE-06이 전송을 금지하면 (1)로 대체. 정답 집합에서 분류 정확도가 어휘 기반 기준선보다 개선되는지는 M1이 정답 집합과 기준선을 만든 뒤에야 측정할 수 있으므로 결정 시점의 전제가 아니라 M1 이후 선택을 되돌릴 수 있는 사후 게이트다.
+- **차단 대상**: M2 이후 전체, D-ENGINE-06/07/11, 진단 동의 상세의 "처리 목적"·"외부 AI 전송 여부", REQ-024와 N6
+- **결정 주체**: 제품 책임자 + 엔지니어링 (보험 도메인 전문가 자문)
+- **결정 (2026-10-03, 사용자 인터뷰)**: (3) 하이브리드 — 규칙이 판정, LLM은 분류·추출만. 추천 (3)과 일치한다. 이 결정으로 D-ENGINE-01이 LLM을 쓰는 구조가 확정되어 N6(완료된 REQ-RESEARCH-012와의 충돌)은 해소됐다 — `GEMINI_API_KEY` 부팅 요구를 제거하지 않는다.
+
+### D-ENGINE-02 — 담보 판정 규칙 소유자와 약관·상품 데이터 원천, 공개·비공개 분류, 갱신 절차
+- **질문**: 누가 담보 판정 규칙을 소유·검수하고, 약관·상품·증권 데이터는 어디서 오며, 각 데이터는 공개인가 비공개인가(클라이언트 번들에 포함될 수 있는가), 개정은 어떻게 반영하는가?
+- **옵션**: (a) 도메인 전문가가 작성하는 저장소 내 버전 관리 규칙표 (b) 라이선스된 상품·약관 데이터 (c) 공개 표준약관 요약
+- **추천**: (a). **Recommended when** 보험 도메인 전문가가 작성과 독립된 검토 서명을 줄 수 있고 최초 공개 범위가 작을 때.
+- **차단 대상**: M1, 정답 집합, 엔진 준비 증거(REQ-023), REQ-013·AC-013의 데이터 검색
+- **결정 주체**: 보험 도메인 전문가 + 제품 책임자 (데이터 라이선스와 공개·비공개 분류는 법무)
+- **결정 (2026-10-03, 사용자 인터뷰)**: (a) 도메인 전문가가 작성하는 저장소 내 버전관리 규칙표. 추천 (a)와 일치한다. D-ENGINE-03이 (d)(사고 유형 6개 전부)로 결정되어, 이 규칙표의 데이터 확보·전문가 검수 범위도 사고 유형 1개가 아니라 6개로 확대된다 — 아래 D-ENGINE-03의 결정 메모와 `plan.md` §B 전문가 병목 리스크를 참고.
+
+### D-ENGINE-03 — 최초 공개 사고 유형 범위
+- **질문**: 일반 사용자 공개 시 어떤 사고 유형까지 진짜 판정을 제공하는가?
+- **옵션**: (a) 골절 단독 (b) 골절 + 계단에서 낙상 + 운동 중 부상 (c) (b) + 교통사고 (d) 01 칩 6개 전부(교통사고, 계단에서 낙상, 운동 중 부상, 허리 디스크, 어깨 회전근개, 암 진단 — `step-input.tsx:43-50`)
+- **추천**: (a). **Recommended when** D-ENGINE-02의 확보 데이터가 골절 계열에 한정되고 정답 집합을 도메인 전문가가 검수 가능한 크기로 유지해야 할 때.
+- **차단 대상**: M1, M4, 01-B 질문, 01-D 안내 예시, 정답 집합 크기
+- **결정 주체**: 제품 책임자 + 보험 도메인 전문가
+- **결정 (2026-10-03, 사용자 인터뷰)**: (d) 01 화면의 사고 유형 6개 전부(교통사고, 계단에서 낙상, 운동 중 부상, 허리 디스크, 어깨 회전근개, 암 진단). **추천과 다른 선택이다(추천은 (a) 골절 단독)** — 추천의 전제("D-ENGINE-02의 확보 데이터가 골절 계열에 한정되고 정답 집합을 도메인 전문가가 검수 가능한 크기로 유지해야 할 때")가 더는 성립하지 않는다. D-ENGINE-02 (a)의 규칙표 데이터 확보·전문가 검수 부담과 정답 집합 규모가 사고 유형 1개가 아니라 6개로 확대된다(`plan.md` §B 전문가 병목 리스크, M1·M4 영향). N3(완료된 RESULT-001 요구사항과의 충돌)도 골절 사례 하나가 아니라 공개되는 모든 사고 유형에 걸쳐 발생할 수 있다.
+
+### D-ENGINE-04 — 실행 위치
+- **질문**: 엔진을 어디서 실행하는가?
+- **옵션**: (1) 클라이언트 정적 엔진 (2) 서버 API 라우트 (3) 서버 액션(이 저장소에 선례 없음)
+- **옵션별 귀결**: (1)은 D-ENGINE-05 (b)~(d)와 함께 선택할 수 없다(서버가 발급 주체가 될 수 없음 — 결정 간 결합). (1)이면 REQ-017/020/021은 적용되지 않고(노출 게이트는 페이지 경로에서 평가된다) N2는 생기지 않는다. (2)·(3)은 입력이 서버를 통과하므로 N2의 해석이 필요하고, 새 진입점이 노출 게이트를 평가해야 한다(REQ-020 (나), `design.md` §9.3). 상세는 `design.md` §3.
+- **추천**: (2). **Recommended when** D-ENGINE-01이 LLM을 쓰거나 규칙 데이터가 비공개이거나 서버 검증 가능한 `resultId`가 필요할 때. 정적·공개 데이터·상담 연동 불필요이면 (1)도 성립.
+- **차단 대상**: M3~M5, 미해결 확인 사항 N1/N2, 동의 상세 "서버 저장 여부", REQ-017/020/021의 적용 여부
+- **결정 주체**: 엔지니어링 (서버 통과 해석은 법무)
+- **결정 (2026-10-03, 사용자 인터뷰)**: (2) 서버 API 라우트. 추천 (2)와 일치한다. REQ-017/020/021이 적용되며, N1/N2는 더는 가설적 조합이 아니라 이 SPEC에 실제로 해당하는 질문으로 좁혀졌다(아래 N1/N2 해결 상태 참고).
+
+### D-ENGINE-05 — 결과 영속성·보존과 `resultId` 검증
+- **질문**: 결과를 서버에 저장하는가, 저장하지 않고 `resultId`를 어떻게 검증하는가, 서명 토큰이면 만료를 두는가, 보존 기간은?
+- **옵션**: (a) 현행(서버 검증 없음) (b) 무저장 + 서명 토큰 — 하위 선택 (b-1) 만료 없음 (b-2) 만료 있음 (c) 최소 메타데이터 저장 (d) 결과 전체 저장
+- **옵션별 귀결**: (a)는 REQ-015가 적용되지 않고 CONSULT-001의 잔여 위험 수용(REQ-B2CCONSULT-019)이 유지된다. (b)~(d)는 그 수용을 뒤집는다(N1). (b-2)는 REQ-B2CCONSULT-009(별도 신선도 검사 금지)의 amendment가 선행해야 한다. (b-1)은 충돌하지 않는다. (c)·(d)는 REQ-B2CDIAG-004/021, REQ-B2CRESULT-016의 amendment와 신규 테이블·마이그레이션이 필요하다. (b)는 서버 비밀의 주입·부팅 검증·회전 영향이 운영 항목으로 추가되며, 비밀이 없을 때는 발급·접수 모두 닫힌다(REQ-015, AC-015 시나리오 3). 상세는 `design.md` §4.
+- **추천**: (b). **Recommended when** 법무가 건강 정보 서버 저장을 피하길 원하고 상담 담당자가 진단 상세를 서버에서 조회할 필요가 없을 때. 만료 유무는 REQ-B2CCONSULT-009 amendment 여부와 함께 정한다.
+- **차단 대상**: M3, REQ-015/016, CONSULT-001 계약 변경(N1: REQ-B2CCONSULT-009/019), REQ-B2CDIAG-004/021·REQ-B2CRESULT-016 해석(N2), 동의 상세 "서버 저장 여부"·"보유·이용 기간"
+- **결정 주체**: 법무 + 제품 책임자 + 엔지니어링
+- **결정 (2026-10-03, 사용자 인터뷰)**: (b) 무저장 + 서명 토큰. 추천 (b)와 일치한다. **만료 유무(하위 선택 b-1 무만료 / b-2 유만료)는 아직 결정하지 않았다** — 이 SPEC이 적은 대로 "후속 결정"으로 남긴다(REQ-B2CCONSULT-009 amendment 여부와 함께 정한다). N1의 REQ-B2CCONSULT-019(잔여 위험 수용) 뒤집힘 부분은 이 결정으로 확정됐으나, 신선도 검사 금지 충돌(N1의 (1) 부분)은 만료 유무 결정 전까지 여전히 미해결이다.
+
+### D-ENGINE-06 — 자유 문장의 외부 AI 서비스 전송 허용 여부
+- **질문**: 사용자의 자유 문장(건강 정보를 포함할 수 있음)을 외부 AI 서비스로 보내도 되는가? 보낸다면 어떤 필드까지인가?
+- **옵션**: (a) 전송 금지(로컬·정적 처리만) (b) 자유 문장만, 동의 이후 (c) 자유 문장 + 추가 질문 답변, 동의 이후 (d) (b) + 사전 비식별화 단계
+- **옵션별 귀결**: 옵션별 외부 전송 데이터, D-ENGINE-01에 대한 함의, 개인정보 노출면, 동의 상세 영향, 실패 모드, 추가로 필요한 것은 `design.md` §10.1에 중립 비교로 있다. (a)이면 REQ-019와 REQ-023 (iv)는 적용되지 않는다.
+- **추천**: (b). **Recommended when** 법무가 공급자의 데이터 보존·학습 사용 약관을 확인·수용하고(현재 미검증) 진단 동의 상세 문구가 전송 사실을 명시하며 전화번호·주민등록번호 형식 사전 차단이 유지될 때.
+- **차단 대상**: D-ENGINE-01, 동의 상세 "외부 AI 서비스 전송 여부"(D-ENGINE-07), REQ-019/020, 법무 확인 기록(REQ-023 (iv))
+- **결정 주체**: 법무 + 제품 책임자
+- **결정 (2026-10-03, 사용자 인터뷰)**: (b) 자유 문장만, 동의 이후. 추천 (b)와 일치한다. 이 결정으로 REQ-019/020이 적용되며, D-ENGINE-07(동의 상세 "외부 AI 서비스 전송 여부" 문구)의 차단 조건 중 하나가 해소됐다.
+
+### D-ENGINE-07 — 진단 동의 상세 6개 문구 (법무 작성, 이 SPEC은 문구를 쓰지 않음)
+- **대상**: 처리 목적 / 처리하는 건강정보 항목 / 서버 저장 여부 / 보유·이용 기간 / 외부 AI 서비스 전송 여부 / 동의 거부 권리 및 진단 이용 제한(`components/diagnosis/consent-detail-content.tsx:13-18`, 모두 placeholder)
+- **옵션**: 해당 없음 — 문구는 법무의 작성 사항이다. 이 SPEC은 어느 결정이 어느 항목을 좌우하는지만 기록한다(`design.md` §10.2).
+- **현재 상태**: **D-ENGINE-01/04/05/06이 확정되어야 작성 가능**(blocked-by-architecture).
+- **차단 대상**: `ENABLE_DIAGNOSIS_FLOW=true`(SPEC-B2C-LAUNCH-001), 일반 공개, 진단 동의 버전 식별자(N4), 법무 확인 기록(REQ-023 (iv))의 문구 식별자
+- **결정 주체**: 법무
+- **차단 해제 (2026-10-03, 사용자 인터뷰)**: 선행 결정 D-ENGINE-01(하이브리드)·D-ENGINE-04(서버 API 라우트)·D-ENGINE-05(무저장+서명 토큰)·D-ENGINE-06(자유 문장만, 동의 이후)이 모두 확정되어 "D-ENGINE-01/04/05/06이 확정되어야 작성 가능"의 blocked-by-architecture 조건은 해소됐다 — 법무가 이제 문구 6개의 작성에 착수할 수 있다. **이 항목 자체(실제 문구 6개)는 아직 작성되지 않았으므로 D-ENGINE-07은 여전히 미결정으로 남는다.**
+
+### D-ENGINE-08 — 엔진이 판단 불가일 때의 문구와 경로
+- **질문**: `cannot-determine`에서 무엇을 보여 주고 어디로 안내하는가?
+- **옵션**: (a) 01-D 유지 + 입력 수정 경로, 목업 표기 제거 (b) 01-D + 상담 안내(결과 없는 상담 경로 설계 필요) (c) 추가 정보 요청 후 재입력
+- **추천**: (a). **Recommended when** 결과 없는 상담 경로가 설계되지 않았을 때(03은 유효한 handoff가 없으면 no-data 화면 — `consult-view.tsx:453-472`).
+- **차단 대상**: M5, REQ-008, 상담 운영 범위(CONSULTOPS)와의 경계
+- **결정 주체**: 제품 책임자 (문구: 법무, 상담 경로: 운영)
+- **결정 (2026-10-03, 사용자 인터뷰)**: (a) 01-D 유지 + 입력 수정 경로, 목업 표기 제거. 추천 (a)와 일치한다.
+
+### D-ENGINE-09 — 정확도·합격 기준값과 서명자 (내부 시험 / 일반 공개 분리)
+- **질문**: 정답 집합에서 어떤 지표가 어느 수준 이상이어야 엔진을 노출할 수 있고, 누가 서명하는가? 내부 시험 공개와 일반 사용자 공개의 기준이 같은가?
+- **옵션**: (a) 단일 기준 (b) 내부 시험 공개 / 일반 공개 이중 기준 (c) 항목 status별 오류 비용을 달리한 이중 기준. **수치는 이 SPEC이 정하지 않는다.**
+- **옵션별 귀결**: 옵션별 의미, 준비 증거에 필요한 기록, 정답 집합 요구, 실패 모드, AC 영향은 `design.md` §10.4에 중립 비교로 있다. 결정 전에는 AC-005 시나리오 2와 AC-022 합격 판정이 BLOCKED다.
+- **추천**: (c). **Recommended when** 제품 책임자와 도메인 전문가가 둘 다 서명할 수 있고 오류 유형별 비용 차이에 합의할 수 있을 때(예: 근거 없는 `review` 오류와 `needs-info` 오류의 비용이 다르다고 판단할 때).
+- **차단 대상**: M6, M7, 일반 공개(LAUNCH 입력), AC-005 시나리오 2, AC-022 합격 판정
+- **결정 주체**: 제품 책임자 + 보험 도메인 전문가
+- **결정 (2026-10-03, 사용자 인터뷰)**: (c) 항목 status별 오류 비용을 달리한 이중 기준. 추천 (c)와 일치한다. 수치 기준값은 이 SPEC이 정하지 않으며 별도 서명 기록으로 남긴다(AC-005 시나리오 2·AC-022 합격 판정의 BLOCKED 상태는 수치 기준값이 서명되기 전까지 유지).
+
+### D-ENGINE-10 — 02 면책 문구의 법무 검토 필요 여부
+- **질문**: 현행 면책 문구(`components/result/result-disclaimer.tsx:19-22`)를 법무가 검토해야 하는가?
+- **옵션**: (a) 현행 유지 (b) 법무 검토 후 확정 (c) 법무 수정
+- **옵션별 귀결**: 옵션별 노출 문구, 필요한 증거, 코드·시험·시각 기준선 영향, 실패 모드는 `design.md` §10.5에 중립 비교로 있다. (c)는 02 시각 기준선 영향으로 REQ-B2CCONSULT-025·REQ-B2CRESULT-025의 동결과 부딪칠 수 있다.
+- **추천**: (b). **Recommended when** 현행 문구에 대한 법무 검토 기록이 확인되지 않을 때(이 plan-phase는 `.moai` 안에서 그런 기록을 찾지 못했으나 저장소 밖의 기록은 관측하지 못했다 — 미검증). 검토 기록이 이미 있으면 (a)가 성립한다.
+- **차단 대상**: 일반 공개
+- **결정 주체**: 법무
+- **결정 (2026-10-03, 사용자 인터뷰)**: (b) 법무 검토 후 확정. 추천 (b)와 일치한다.
+
+### D-ENGINE-11 — 01-B 질문의 입력 적응 방식
+- **질문**: 질문 3개가 입력에 따라 어떻게 바뀌는가?
+- **옵션**: (a) 고정 3문항 유지 (b) 일반 질문만 (c) 분류 호출 후 질문 선택(호출 2회) (d) 클라이언트 경량 분류로 질문 세트 선택
+- **옵션별 귀결**: REQ-009는 (c)·(d)가 확정된 경우에만 적용된다. (a)는 비골절 입력에도 골절 문구 질문(Q1)이 표시되며 입력과 질문의 불일치를 막는 요구사항이 이 SPEC에 없다 — 결정 주체가 그 결과를 수용하는 것이 된다. (b)는 항목별 필요 정보를 못 얻어 `needs-info`가 늘 수 있다. 상세는 `design.md` §7.
+- **추천**: D-ENGINE-01이 하이브리드·LLM이면 (c), 정적이면 (d). **Recommended when** (c)는 D-ENGINE-06이 동의→질문 전환 시점 전송을 허용할 때, (d)는 정적 분류가 질문 세트 선택에 충분할 때.
+- **차단 대상**: M4, M5, REQ-009의 적용 여부, 동의 상세 문구의 전송 시점
+- **결정 주체**: 제품 책임자 + 엔지니어링 + 보험 도메인 전문가
+- **결정 (2026-10-03, 사용자 인터뷰)**: (c) 분류 호출 후 질문 선택(호출 2회). D-ENGINE-01이 (3) 하이브리드로 결정되어 추천의 전제("D-ENGINE-01이 하이브리드·LLM이면 (c)")가 충족됐다 — 추천과 일치한다. REQ-009가 적용된다.
