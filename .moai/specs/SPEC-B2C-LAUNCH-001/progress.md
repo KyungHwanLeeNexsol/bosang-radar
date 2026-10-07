@@ -612,6 +612,86 @@ CLI 실제 출력: `단계 1: 통과` / `단계 2: BLOCKED — 전 벡터가 결
 
 **잔여 위험**: 설계 (a)는 게이트가 열려도 배포를 통과시키므로, 진단 플래그가 의도치 않게 열려도 배포 smoke는 그것을 잡지 못한다(D-LAUNCH-06의 "의도한 상태인지는 L-01·사후 확인(REQ-B2CLAUNCH-014)·조합표(REQ-B2CLAUNCH-010)로 본다"가 이 위험을 다른 장치에 맡긴다). 새 smoke는 한국어 UI 문구 하나(`서비스 준비 중입니다`)를 정보용 게이트 관측에 쓰므로 그 문구가 바뀌면 관측이 "열림"으로 흘러도 판정은 변하지 않는다(정보가 틀릴 뿐). 이 변경은 병합 전까지 어떤 배포에도 영향을 주지 않는다.
 
+### M5 (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `85c3c2e` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M5-*.log`다. 이 커밋의 SHA는 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **범위(사용자 결정)**: REQ-B2CLAUNCH-014(롤백)·016(사후 관측), 항목 L-06·L-07·L-09와 R-04 참조 형식. D-LAUNCH-07(선언 (iii), 실행 (1), 사유는 CONSULTOPS-001 §2.4 작성자 기본 목록 4종)과 D-LAUNCH-08(내용 (b), 담당 (1) 운영 책임자)은 기록된 결정대로 따랐고 N8(롤백 목표는 dark 하나)은 열린 채로 적힌 대로 구현했다. 진단 표면 전용 사유 (e)(f)는 어떤 사유 목록·코드·fixture·런북 문장에도 넣지 않았다(런북 시험이 그 문구가 없음을 고정한다). `spec.md`·`plan.md`·`acceptance.md`, `app/`·`components/`·`lib/diagnosis`·`lib/consult`·`lib/env.ts`·`package.json`·`pnpm-lock.yaml`·`.github`·`.env*`·M1~M4 모듈과 M3b 오라클은 바꾸지 않았다. `scripts/verify-flag-runtime.ts`도 바꾸지 않았다(M4b에서 이미 `export`된 `assembleEnv`·`runPnpm`·`extractTitle`을 import만 했다).
+- **변경 파일**: 신규 `lib/launch/rollback-observation.ts`(+시험, AC-014 판정·출력·행 해시·롤백 환경 점검), `scripts/verify-rollback-dark.ts`(+시험, 로컬 서버 롤백 시험 하네스), `lib/launch/observation-record.ts`(+시험, AC-016 검사기), 신규 시험 `lib/launch/runbook-rollback.test.ts`(런북 열람 조건의 기계 확인), `.moai/docs/launch-gate-runbook.md`(`## 롤백 절차`·`## 사후 관측 기록 양식` 두 절만 추가, 기존 절 불변), 이 파일.
+- **구현한 것**: (1) AC-014 하네스: 열린 벡터(진단 production 경로 두 플래그 + 상담 두 플래그 + 실행 시점에 만든 시험용 시크릿)로 로컬 서버를 시작하고 실제 `POST /api/consultations`로 합성 접수 1건(201)을 저장한 뒤 서버를 내리고 행 수·전체 열 해시를 기록하고, 5종 플래그를 모두 `"false"` 문자열로 둔 환경으로 새 서버를 시작해(롤백 재시작) 세 경로·접수 API(AC-009 시나리오 2의 요청)·행 수·해시·환경의 플래그와 시크릿 설정 여부를 관측한다. 환경 조립은 `assembleEnv`를 재사용했고 이 파일에는 엔진 준비 변수를 대입하는 줄이 없다(아래 오라클). DB는 `.tmp/rollback-dark.db`(gitignore, 절대 `file:` 주소)이고 `.next` 빌드 폴더를 다른 verify 스크립트와 같이 쓰므로 동시에 실행하지 않는다. (2) AC-016 검사기: 관측 수단 하나에 한 행인 표(`관측 대상`·`담당 역할`·`기록 위치`·`관측 수단`·`구분`·`도입 SPEC 또는 BLOCKED 사유`·`관측 시점`)를 읽어 빈 칸·구분 어휘·신규 수단의 도입 칸을 점검하고 출력은 행 번호와 칸 이름뿐이다. (3) 런북 두 절(역할은 이름으로만, 사유 목록은 가리키기만, 운영 값 없음).
+
+**RED**(구현 전의 틀: 판정 함수는 항상 빈 결과·빈 해시, 검사기는 항상 통과, 하네스 환경 조립은 닫힌 환경만 돌려줌, 런북에는 두 절이 없음; 새 시험 4개 파일, `M5-red.log`): `Test Files 4 failed (4)`, `Tests 62 failed | 13 passed (75)`, `exit=1`. 실패 오류 종류는 `AssertionError` 하나뿐이다(대표: `expected [] to deeply equal [ { id: 'a', n: 1 }, …(1) ]`, `expected 'flag-runtime-throwaway-secret' to be 'synthetic-secret-for-unit-test'`, `expected [Function] to throw an error`, `오류가 있어야 하는 관측 기록이 통과했다: expected true to be false`, `expected '' to contain '허용된 칸 밖의 칸'`). 모듈 없음·타입 오류·`TypeError` 0건이다(`grep -cE "TypeError|ReferenceError|Cannot find|Failed to resolve"` → 0). 통과한 13건은 틀이 우연히 맞는 경우(빈 입력 시험 등)다. **첫 RED 실행은 이 로그가 아니다**: 시험 한 건이 빈 틀의 `rows[0].introducedBy`를 읽다 `TypeError`를 냈다(단언 실패 아님). 그 시험에 `toHaveLength(1)` 단언을 먼저 두고 다시 실행한 것이 `M5-red.log`이며 구현 코드는 두 실행 사이에 바꾸지 않았다(첫 실행의 원문은 같은 이름으로 덮어써 보존하지 않았다).
+
+**GREEN**: 1차(`M5-green-1.log`)는 `Tests 1 failed | 74 passed (75)` — 실패 1건은 **시험의 결함**이었다(런북 문장은 `` `true`가 아닌 값 ``처럼 백틱을 쓰는데 시험이 백틱 없는 문자열을 찾았다). 시험의 기대 문자열을 고쳤다. 2차(`M5-green-2.log`): `Test Files 4 passed (4)`, `Tests 75 passed (75)`, `exit=0`. 이후 `tsc`가 시험의 BigInt 리터럴을 거부해(`TS2737`, 대상이 ES2020 미만) `BigInt(5)`로 바꿨고, 새 파일 일곱 개 모두 첫 `prettier --check`에서 어긋나(`M5-prettier-0.log`) `prettier --write`로 정리했다.
+
+**변이 확인**(일부러 바꾼 코드를 시험이 잡는지, 원문 복구 확인됨): (a) 하네스의 롤백 환경에서 상담 접수 정책 플래그를 `true`로 두면 실제 로컬 실행이 `롤백 뒤 접수 API 상태: 기대 503 / 관측 409`, `오류 코드: … consent_version_mismatch`, `롤백 환경의 플래그: … true인 플래그: CONSULT_POLICY_READY`로 `불일치 관측 합계: 3`, `exit=1`(`M5-mutation-policy-stays-open.log`). (b) 검사기의 신규 수단 규칙을 `신규`에서 `기존`으로 뒤집으면 13건 실패(`M5-mutation-new-means.log`). (c) 해시 비교를 길이 비교로 약화하면 1건 실패(`M5-mutation-hash-compare.log`).
+
+**E1 AC-B2CLAUNCH-014 — 로컬 롤백 시험**(`pnpm exec tsx scripts/verify-rollback-dark.ts`, `M5-rollback-run-final.log`, `exit=0` — 이 실행·빌드·`verify:flag-runtime`·smoke 하네스 실행 뒤에 바뀐 것은 시험 파일 하나(`rollback-observation.test.ts`에 시험 한 건)뿐이고 앱·스크립트·lib 코드는 그대로다. 실제 `next build` 한 번 + 서버 두 번(열림, 롤백), 합성 값은 실행 시점에 무작위로 만들었고 시크릿·DB 경로는 출력하지 않는다):
+
+| 관측 | 기대 | 관측 | 판정 |
+|---|---|---|---|
+| 롤백 전 합성 접수 상태(열린 서버) | 201 | 201 | OK |
+| 롤백 전 `/` · `/result` · `/consult` | 열림(placeholder 아님) | 제목 `보상 진단` · `보상 진단 결과` · `상담 신청`, placeholder 문구 없음 | OK ×3 |
+| 롤백 전 행 수 | 1 | 1 | OK |
+| 롤백 뒤 `/` · `/result` · `/consult` | placeholder(제목 `서비스 준비 중` + 문구 `서비스 준비 중입니다`) | 세 경로 모두 제목 `서비스 준비 중`, 문구 있음 | OK ×3 |
+| 롤백 뒤 `POST /api/consultations` 상태 | 503 | 503 | OK |
+| 롤백 뒤 접수 API 오류 코드 | `policy_unavailable` | `policy_unavailable` | OK |
+| 롤백 뒤 행 수 | 롤백 전과 같음(1) | 1 | OK |
+| 롤백 뒤 전체 열 해시 | 롤백 전과 같음(`c0765df1a2aa`) | `c0765df1a2aa` | OK |
+| 롤백 재시작에 넘긴 환경의 5종 플래그 | 모두 `true`가 아님 | 모두 `true`가 아님 | OK |
+| 롤백 재시작에 넘긴 환경의 시크릿 | 설정됨(값 미출력) | 설정됨(값 미출력) | OK |
+
+`불일치 관측 합계: 0`. 변이 확인 전 같은 하네스의 첫 실행(`M5-rollback-run.log`)도 `exit=0`이고 해시 앞 12자는 실행마다 다르다(합성 값이 무작위라서다 — `9580b9f5d907` 대 `c0765df1a2aa`, 각 실행 안에서는 롤백 전후가 같다). 해시는 `consultations`의 모든 열 값을 키 정렬 JSON으로 직렬화해 행 정렬 뒤 SHA-256한 값이고 단위 시험이 열·행 순서 불변, 한 칸·행 수 변화 민감, `null`과 빈 문자열·숫자와 문자열 구분, bigint·바이트 배열 직렬화를 확인한다.
+
+**E1 AC-B2CLAUNCH-014 — 문서 열람 조건**(`lib/launch/runbook-rollback.test.ts`가 런북 `## 롤백 절차` 절을 읽어 확인, 현재 트리에서 통과):
+
+| 조건 | 관측 | 판정 |
+|---|---|---|
+| L-06이 기록한 사유 목록·선언 역할·실행 역할을 가리킨다 | L-06·D-LAUNCH-07 결정 기록(`progress.md`)을 가리키고 선언은 `운영 책임자` 또는 `제품 책임자`(둘 중 누구나), 실행은 `운영 호스트 접근 보유자`로 역할 이름만 적었다. 사유 목록은 `.moai/specs/SPEC-B2C-CONSULTOPS-001/spec.md` §2.4의 작성자 기본 목록을 가리키기만 하고 옮겨 적지 않았다(시험이 기본 목록의 종류 문구가 절에 없음을 고정한다) | PASS(발견 3) |
+| "롤백은 저장된 행과 시크릿 설정을 지우지 않는다" | 그 문장이 있다 | PASS |
+| 상담 행 처분은 REQ-B2CCONSULTOPS-006·016을 가리킨다 | 두 식별자를 처분 절차(006)와 시험 행 식별 정확성 조건(016)으로 가리킨다 | PASS |
+| 재시작 전략은 R-04(E-03)를 가리킨다 | R-04·CONSULTOPS-001 E-03을 가리키고 "바뀐 환경을 다시 읽는지"와 "평범한 재시작이 dark 상태를 유지하는지"를 이 절이 대신 판정하지 않는다고 적었다 | PASS |
+| 값 금지 | 주소·이메일·연락처·기간 값이 절에 없다(시험이 정규식으로 확인) | PASS |
+
+**E1 AC-B2CLAUNCH-016 — 사후 관측 기록 fixture 네 가지**(시험 `lib/launch/observation-record.test.ts` 20건과 같은 입력을 직접 실행한 `M5-ac016-fixtures.log`, 출력은 행 번호와 칸 이름뿐):
+
+| fixture | 기대 | 관측 | 판정 |
+|---|---|---|---|
+| (가) 관측 대상·담당 역할·기록 위치·관측 수단·구분·관측 시점이 모두 있음(둘째 행은 신규 수단에 도입 SPEC 식별자 있음) | 통과 | 통과 | PASS |
+| (나) 관측 수단 하나에 기존/신규 구분이 없음 | 거부, 항목과 필드 | `2번째 행의 "구분" 칸이 비어 있다` | PASS |
+| (다) 신규 수단인데 도입 SPEC 식별자·BLOCKED 사유가 없음 | 거부, 항목과 필드 | `1번째 행의 "도입 SPEC 또는 BLOCKED 사유" 칸이 비어 있다 — 신규 수단은 도입하는 SPEC 식별자나 BLOCKED 사유가 필요하다` | PASS |
+| (라) 관측 시점 칸이 비어 있음 | 거부, 항목과 필드 | `1번째 행의 "관측 시점" 칸이 비어 있다` | PASS |
+
+(가)만 통과하고 (나)(다)(라)는 거부한다(시험이 직접 확인). 추가로 시험한 것: 필수 칸 네 가지(관측 대상·담당 역할·기록 위치·관측 수단)가 비면 칸 이름을 적어 거부, 구분 어휘 밖의 값 거부, 기존 수단은 도입 칸이 비어도 통과, 한 행의 여러 칸 오류가 행 번호와 함께 칸마다 나옴, 표 없음·행 없는 표(런북 양식 자체)·허용된 칸 밖의 칸(칸 이름도 되풀이하지 않음)·칸 개수 불일치 거부, 시크릿·연락처·이름처럼 보이는 합성 값을 넣은 기록의 거부 출력에 그 값이 없음. "기존"으로 적힌 수단이 저장소에 실제로 있는지는 열람 항목이고 이 단위의 양식은 값이 든 행이 없어 열람 대상이 아직 없다.
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`(`M5-tsc-final.log`; 처음 실행은 BigInt 리터럴로 실패, 위 GREEN). **E3 린트**: `pnpm lint` → `exit=0`(`M5-lint-final.log`), 새 TS 일곱 개 `prettier --check` 통과(`M5-prettier.log`). **E4 전체 시험**: `pnpm test` → `Test Files 136 passed (136)`, `Tests 1597 passed (1597)`, `exit=0`(`M5-test-full.log`; M4b 기준선 1521 + 새 76 — GREEN 2차의 75건에 커버리지 확인 뒤 바이트 배열 뷰 시험 한 건을 더했다; 같은 파일들을 다시 `tsc`·`lint`·`prettier --check` 하고 위 전체 시험을 다시 돌린 결과다). 이번에는 알려진 일시 실패 `scripts/verify-remote-consult.test.ts`가 나타나지 않았다. **E5 커버리지**(명령줄 덮어쓰기: `--coverage.include=<파일>`과 `--coverage.exclude=**/*.test.ts`로 기본 `.claude/**` 제외를 풀었다, `M5-cov.log`·`M5-cov-observation-record.log`): `lib/launch/rollback-observation.ts` 구문 100%·분기 95.83%(미덮개 63행은 제목 없음 `(없음)` 분기; 처음 측정은 구문 97.91%·분기 91.66%로 바이트 배열 뷰 분기가 비어 있어 시험 한 건을 더했다), `lib/launch/observation-record.ts` 구문 100%(37/37)·분기 100%(22/22), `scripts/verify-rollback-dark.ts` 구문 30.76%(미덮개 126~235·242~248행은 빌드·서버 기동 배선 `main`·`observePages`·`snapshotRows`이며 실제 로컬 실행이 덮는다; 순수 함수 세 개 `assembleRollbackEnvs`·`buildSeedProbe`·`toRecords`는 시험이 덮는다). 순수 로직(lib) 두 파일은 85% 이상이다. **E6 빌드**: `pnpm build` → `exit=0`(`M5-build.log`). **E7** `pnpm verify:flag-runtime` → `불일치 관측 합계: 0`, `exit=0`(`M5-flag-runtime.log`), `pnpm exec tsx scripts/verify-smoke-check.ts` → 아홉 행 모두 OK, `불일치 관측 합계: 0`, `exit=0`(`M5-smoke-harness.log`). `pnpm test:e2e`·`pnpm visual:verify`는 화면이 바뀌지 않아 실행하지 않았다.
+
+**M3b 엔진 준비 오라클**: 최종 트리에서 오라클 자신의 출력(`M5-oracle-observed.log`)은 `scripts/verify-flag-runtime.ts:174` `DIAGNOSIS_ENGINE_READY: String(start.engine),`와 `:293` `env.DIAGNOSIS_ENGINE_READY = String(flags.diag.engine);` 두 줄뿐이고 없는 경로는 0개로, M3b·M4b 기준선과 같다. 새 파일에는 그 변수를 대입하는 줄이 없다(하네스는 `assembleEnv(FlagScenario)`를 재사용하고 시험 파일은 오라클이 제외한다).
+
+**변경 범위 확인**: `git diff --stat 85c3c2e HEAD -- app components lib/diagnosis lib/consult lib/env.ts package.json pnpm-lock.yaml .github`와 `spec.md`·`plan.md`·`acceptance.md`의 diff는 비어 있다(보고에 원문).
+
+**발견(SPEC 문서는 고치지 않았다, 적힌 대로 진행하고 말하지 않은 곳은 닫았다)**:
+
+1. **"true가 아닌 값"의 두 형태**: AC-014는 5종 플래그를 "`true`가 아닌 값으로" 되돌린다고만 적었다. 하네스는 문자열 `"false"`(`assembleEnv`의 닫힘 환경)로 관측했고 변수를 아예 지우는(미설정) 형태는 따로 관측하지 않았다. 게이트가 정확히 `"true"`만 켜짐으로 읽으므로(LF-05) 두 형태는 같은 결과여야 하나 미설정 형태의 로컬 관측은 이 단위에 없다. 런북은 "미설정 포함"으로 적었다.
+2. **L-06 "기록"의 위치**: AC가 "L-06이 기록한 사유 목록·선언 역할·실행 역할을 가리키고"라고 적었으나 L-06 기록이 놓일 곳(go/no-go 기록 파일의 위치는 D-LAUNCH-04가 정하지 않았다)이 없다. 런북은 역할·사유의 유일한 기록인 `progress.md`의 D-LAUNCH-07 결정 기록과 `spec.md`의 L-06 항목을 가리킨다. 기록 위치가 정해지면 포인터를 갱신해야 한다.
+3. **사유 목록을 옮겨 적을지**: AC는 목록을 "가리키고"라고만 적었다. 목록을 옮겨 적으면 형제 SPEC §2.4와 어긋날 수 있어 가리키기만 했다(시험이 종류 문구가 절에 없음을 고정). "최소 4종"의 "최소"가 4종 밖의 종류가 있을 수 있음을 뜻하는지(D-LAUNCH-07 결정은 "그대로 쓴다"만 말한다)는 SPEC이 말하지 않았다.
+4. **롤백 확인 기록의 담당**: REQ-014는 되돌린 뒤 "확인해 기록하며"라고만 적어 기록하는 역할을 말하지 않는다. 런북 순서 5는 역할 없이 "확인한 결과를 기록한다"로 적었다.
+5. **운영 호스트의 확인 요청**: 런북 순서 4는 운영 API에 AC-009 시나리오 2의 합성 요청을 보내는 것을 확인 방법으로 적었다(REQ-014가 "접수 행을 만들지 않는 읽기·요청"을 요구하고 그 요청이 이 조건을 충족한다). 운영 API에 요청을 보내는 것이 허용된 확인 방법인지는 SPEC이 정하지 않았다(D-LAUNCH-06 설계 (d)의 같은 문제 참조).
+6. **"롤백 재시작"의 의미**: 하네스의 재시작은 같은 빌드·같은 DB로 새 서버 프로세스를 시작하는 것이다. PM2·`pm2 restart`·환경 소스 해석은 흉내 내지 않았고(R-04가 다룬다) 그래서 이 관측은 "5종 플래그가 거짓인 환경에서 앱이 닫힌 상태를 보인다"까지만 말한다.
+7. **시크릿 유지의 관측 범위**: AC-014가 적은 대로 "하네스가 롤백 재시작에 넘긴 환경에서 설정 여부만" 읽는다. 앱이 읽는 효과적 시크릿이나 롤백이 시크릿을 지우지 않는다는 사실의 실제 관측이 아니라 하네스가 시크릿을 계속 넘겼다는 사실이다(AC가 이 한계를 적었다).
+8. **L-07 증거 파일 집합**: 항목 정의표는 L-07의 대상을 "롤백 시험이 실행한 절차 문서·스크립트·제품 코드의 파일 집합"이라고 적지만 덮는 파일 목록은 정하지 않았다("이 골격은 …덮는 파일 목록을 정하지 않는다"). 이 단위의 후보 집합은 런북 두 절, `scripts/verify-rollback-dark.ts`, `lib/launch/rollback-observation.ts`와 시험이 읽은 제품 코드이며 목록으로 확정하지 않았다. 이 파일(진행 기록)과 `.moai/state/` 로그는 덮는 파일 집합에 넣지 않는다(REQ-B2CLAUNCH-005).
+9. **AC-016의 시험 파일 이름**: AC 후보는 `lib/launch/observation-plan.test.ts`이고 이 단위의 지시는 `observation-record`다. 지시대로 `lib/launch/observation-record.ts`(+시험)로 만들었다. "관측 계획"(L-09의 이름)과 "관측 기록"(REQ-016·지시문의 이름) 중 어느 것이 검사 대상인지도 SPEC이 하나로 쓰지 않는다 — L-09는 "사후 관측 **계획** 기록", REQ-016은 관측해 "기록"한다.
+10. **표 모양**: AC-016은 필드 다섯(관측 대상·담당 역할·기록 위치·관측 수단(기존/신규 구분)·관측 시점)만 적고 표 모양은 말하지 않는다. 관측 수단 하나에 한 행으로 정했고, fixture (다)에서 따라 나오는 `도입 SPEC 또는 BLOCKED 사유` 칸을 더했다. `기록 위치`가 기록 전체의 칸인지 행마다의 칸인지도 말하지 않아 행마다 필수로 닫았다.
+11. **검사기가 강제하지 않는 것(SPEC이 말하지 않은 곳)**: 관측 대상의 어휘와 D-LAUNCH-08 결정 (b)의 대상 전부(효과적 플래그 상태·smoke·프로세스 상태·접수 행 존재·오류 응답 확인)를 다 덮는지, 담당 역할이 결정의 `운영 책임자`인지, 관측 시점의 표기(결정 기록에는 담당·내용만 있고 시점 표기가 없다 — D-LAUNCH-08은 "시점의 표기와 값은 이 결정이 정한다"고 적었으나 기록 문장에는 없다)는 검사하지 않는다. 행 하나만 있는 기록도 통과한다. 이들을 강제하려면 SPEC이 어휘를 정해야 한다. 칸이 찼는지만 본다(fail-closed는 빈 칸·빈 표·알 수 없는 구분 값·허용 밖 칸에 적용했다).
+12. **`기존` 수단의 도입 칸**: `기존`이면 도입 SPEC 칸이 비어 있어도 통과하고 값이 있어도 통과한다. 말하지 않은 곳이라 막지 않았다.
+13. **AC-016 선결**: AC는 "D-LAUNCH-08 — 결정 전 BLOCKED"라고 적는다. D-LAUNCH-08은 2026-10-03에 결정돼 BLOCKED가 아니나 결정 기록이 시점 표기·기록 위치를 담지 않아 그 두 칸의 값 어휘는 정해지지 않은 채다(발견 11).
+14. **상담 행 처분**: 하네스는 시험 행을 지우지도 정리하지도 않는다(DB 파일은 다음 실행이 시작 전에 지운다). L-07이 말하는 대로 상담 행 처분은 CONSULTOPS-001의 롤백 시험(E-06)과 시험 행 정리 절차의 몫이다.
+
+**편차(보고 대상)**: (a) `package.json` 스크립트 미등록 — 기존 검증 스크립트는 등록돼 있어 등록이 확립된 패턴이지만 `package.json`은 이 단위의 범위 밖이라 등록하지 않았다. 실행은 `pnpm exec tsx scripts/verify-rollback-dark.ts`다. (b) AC-016 검사기는 CLI를 만들지 않았다(M3a 노출 기록 검사기도 CLI가 없고 입력은 문서 내용뿐이다). (c) 하네스의 DB는 `verify:flag-runtime`이 쓰는 `.tmp/flag-runtime.db`가 아니라 `.tmp/rollback-dark.db`다(지시는 flag-runtime DB를 공유한다고 알렸으나 따로 두는 쪽이 동시 실행 위험을 줄인다; `.next` 빌드 폴더는 여전히 공유라 순차 실행은 지킨다). (d) RED 첫 실행의 단언 실패 아닌 오류(`TypeError`)를 고쳐 다시 실행했다. (e) GREEN 1차의 실패 1건은 시험의 기대 문자열 결함이었다. (f) `prettier --write`는 이 단위의 새 파일에만 적용했다.
+
+**Gaps(관측하지 못한 것)**: 운영 PM2가 바뀐 환경을 다시 읽는지, 롤백 뒤 이후 `main` 배포의 평범한 재시작이 dark 상태를 유지하는지(R-04·E-03), 운영 호스트에서 롤백이 실제로 수행되는지와 그 소요, 앱이 읽는 효과적 시크릿 자체. 변수를 지우는(미설정) 롤백 형태의 로컬 관측. 롤백이 저장 행을 지우지 않는다는 사실의 제품 코드 쪽 확인(이 하네스는 서버가 롤백 동안 행을 건드리지 않았음만 본다). 하네스의 열린 서버는 한 번의 실행이고 열린 상태에서 접수가 201이었다는 사실이 시험의 안정성을 증명하지는 않는다(실행 두 번이 모두 통과했다). "기존" 관측 수단의 실재(열람 항목, 값이 든 기록이 아직 없다)와 실제 관측 수행. `moai` CLI·MCP가 연결되지 않아 `moai spec lint`·@MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 변이 확인은 세 가지만 했다.
+
+**잔여 위험**: 하네스는 `"false"` 문자열 환경으로만 롤백을 관측하므로(발견 1) 운영의 롤백이 변수를 지우는 방식이면 그 형태는 로컬 증거가 없다. 열린 서버 관측이 `/`·`/result`·`/consult`의 제목·placeholder 문구에 기대는데 화면 문구가 바뀌면 시험이 어긋난다(`서비스 준비 중입니다`는 smoke 검사와 같은 문구라 함께 바뀐다). 런북 롤백 절은 사람이 고치는 문서라 D-LAUNCH-07(e)(f)가 승인되면 사유 목록 포인터와 AC를 함께 갱신해야 하고 런북 시험은 그 두 사유 문구가 절에 없음을 고정하므로 승인 시 그 시험도 갱신해야 한다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
