@@ -1,6 +1,6 @@
-# 출시 게이트 런북 (SPEC-B2C-LAUNCH-001 골격)
+# 출시 게이트 런북 (SPEC-B2C-LAUNCH-001)
 
-이 문서는 출시 게이트의 단계 정의와 증거 항목의 정의표를 담는 골격이다. 정의는 `.moai/specs/SPEC-B2C-LAUNCH-001/spec.md` §2.4를 그대로 옮겼고, 파서 시험(`lib/launch/stage-table.test.ts`)이 이 문서의 표가 spec의 표와 다르지 않은지 대조한다.
+이 문서는 출시 게이트의 단계 정의, 증거 항목의 정의표, 기록 양식, 절차, 점검 도구의 사용법을 담는다. 정의는 `.moai/specs/SPEC-B2C-LAUNCH-001/spec.md` §2.4를 그대로 옮겼고, 파서 시험(`lib/launch/stage-table.test.ts`)이 이 문서의 표가 spec의 표와 다르지 않은지 대조한다. 문서 끝의 `## 단계 이행 절차`, `## 항목 상태 갱신 절차`, `## 점검 도구와 실행 방법`, `## 형제 SPEC 연결`은 구현이 끝난 점검과 양식을 순서대로 묶은 절이다.
 
 이 문서는 기록·서명·연락처·값·주소·보관 위치를 담지 않는다. 항목의 상태를 적은 기록과 서명 기록은 이 문서의 구역이 아니다.
 
@@ -361,3 +361,143 @@ go 서명 기록은 D-LAUNCH-04가 형식을 마크다운 문서로 정했다. �
 통과: (0)의 대조가 심은 값을 찾고, (1)(2)의 일치가 0건이고, (3)의 위치가 모두 인정되고, (4)의 값이 모두 다르다. 시험은 `scripts/launch-marker-check.test.ts`이며 만든 임시 폴더와 심은 파일은 실패하는 경우에도 지운다. 실패 출력에는 표지값의 라벨만 적고 값은 적지 않는다.
 
 이 검사로는 미리 알지 못하는 실제 값의 유출, 표지값을 인코딩하거나 자른 형태, 저장소 밖과 무시되는 경로에 있는 기록의 내용, 열거 칸(기록 상태·법무 확인 결과·실행 환경)에 잘못 들어간 값이 오류 메시지에 되풀이되는지를 알 수 없다. 두 번의 실행이 서로 다르다는 사실은 값이 매번 새로 생성된다는 증명이 아니다.
+
+## 단계 이행 절차
+
+이 절은 운영 호스트에서 노출 확대 단계(`spec.md` §2.4: 표면 S1·S2·S3 중 하나 이상이 닫힘에서 열림으로 바뀌는 환경 변경과 재시작, 또는 D-LAUNCH-01이 기록한 도달 제한 수단의 해제·완화) 앞에 밟는 순서를 적는다(REQ-B2CLAUNCH-002·008·009·011·012). 순서만 적고 서명 세부·연락처·값·주소·보관 위치는 담지 않는다. 표면을 닫는 변경은 노출 확대 단계가 아니라 롤백이며 `## 롤백 절차`가 다룬다. 참여자의 로컬 시험은 단계가 아니라 위 `## 로컬 시험 판정`이 다룬다. 배포(`main` push)도 노출 확대 단계의 수행이 아니다 — 배포 완료(dark)는 운영 호스트의 상태일 뿐 어느 공개 단계의 판정도 충족하지 않는다.
+
+아래 번호는 순서이고 단계 정의 표의 단계와 다르다.
+
+1. **목적 단계와 목적 벡터를 정한다.** 목적 단계는 `I`(내부 시험 공개) 또는 `G`(일반 사용자 공개)이고 목적 벡터는 이번에 여는 표면 집합이다. 이번 전환은 `### 노출 순서 기록`의 순서 표에서 현재 벡터와 인접한 벡터로 가는 것이어야 한다. 순서 표에 `결정 대기`인 자리가 끼면 그 전환은 정할 수 없으므로 수행하지 않는다. 현재 결정(D-LAUNCH-01 (e))에서 `내부 시험 공개`는 운영 호스트에서 일어나지 않는다.
+2. **노출 기록을 쓴다**(REQ-B2CLAUNCH-009, 항목 L-02). `## 노출 기록 양식`의 표를 채운다. 칸이 차 있는지는 `lib/launch/exposure-record.ts`의 `parseExposureRecord`가 본다(명령줄이 없고 `lib/launch/exposure-record.test.ts`가 호출한다).
+3. **항목 상태를 갱신한다**(`## 항목 상태 갱신 절차`). 목적 단계의 열에서 필수인 항목은 모두 `READY`여야 한다. L-01·L-05·R-04는 운영 한정 항목이라 `production`에서 필수다. R-01~R-05는 형제 SPEC이 소유한 증거의 참조 줄이라 이 문서가 판정하지 않고 `## 형제 증거 참조 양식`으로 형제 상태만 옮겨 적는다.
+4. **전환을 적고 점검한다**(REQ-B2CLAUNCH-011). `## 플래그 변경 절차`의 단계 표 형태로 이번 전환을 적고 `scripts/check-launch-transitions.ts`를 실행한다. 종료 코드가 0이 아니면 수행하지 않는다. 종료 코드 3(BLOCKED)도 통과가 아니다.
+5. **엔진 준비 변수를 참으로 설정하는 단계는 R-02가 `READY`일 때만 둔다**(REQ-B2CLAUNCH-012). 운영 호스트에서 `DIAGNOSIS_ENGINE_READY`를 `true`로 설정하는 단계가 있으면 그 단계 목록을 `lib/launch/engine-ready-step.ts`의 `evaluateEngineReadySteps`로 점검한다(명령줄이 없다). R-02의 상태를 받아 오는 소스는 정해지지 않았고 이 문서도 정하지 않는다.
+6. **go 서명 기록을 받는다**(REQ-B2CLAUNCH-008). `## 서명 기록 양식`의 표 둘을 쓴다. 서명이 덮는 항목은 목적 단계의 필수 항목 집합과 같아야 하고, 서명의 실행 환경은 `production`이며, 서명 역할은 D-LAUNCH-04가 정한 허용 목록 안이어야 한다. 서명 세부(이름·연락처)는 저장소에 두지 않는다(D-LAUNCH-04).
+7. **운영 단계 점검을 실행한다**(REQ-B2CLAUNCH-002). 실행 환경 `production`과 목적 단계 `I` 또는 `G`로 `scripts/check-launch-gate.ts`를 실행한다(명령은 `## 점검 도구와 실행 방법`). 종료 코드 0과 판정 문구(`내부 시험 공개 가능` 또는 `일반 사용자 공개 가능`)가 함께 나올 때만 다음 순서로 간다. 종료 코드 1·2에서는 노출 확대 단계를 수행하지 않는다.
+8. **노출 확대 단계를 수행한다.** 이것은 운영 행위이고 이 문서의 어떤 도구도 수행하지 않는다. 점검기는 절차이며 운영 호스트에서 접근 권한을 가진 사람이 환경 변수를 손으로 바꾸는 것을 막지 못한다(N11). 순서 7의 판정 없이 수행하는 것은 REQ-B2CLAUNCH-002·008 위반이다. 한 번의 수행은 하나의 재시작이고 하나의 전환이다.
+9. **수행 직후 항목을 다시 읽는다.** 게이트 상태 벡터가 기록 시점과 달라졌으므로 무효화 사건 EV-L2가 일어났다. 정의표에서 EV-L2를 사건으로 가진 항목은 L-01·L-02이고, 이 항목들은 `UNVERIFIED`가 되어 다음 노출 확대 단계 앞에서 다시 관측해야 `READY`가 된다(`## 항목 상태 갱신 절차`).
+10. **사후 관측을 기록한다**(REQ-B2CLAUNCH-016, 항목 L-09). `## 사후 관측 기록 양식`의 표를 쓴다. 관측은 D-LAUNCH-08 결정이 정한 담당 역할이 하고, 관측을 수행하는 일 자체는 운영 행위다.
+11. 롤백 사유가 선언되면 `## 롤백 절차`를 따른다. 롤백은 노출 확대 단계가 아니므로 순서 7의 판정을 요구하지 않는다(REQ-B2CLAUNCH-002는 노출 확대 단계 하나만 막는다).
+
+배포가 일으키는 사건은 `spec.md` §2.4의 사건 정의를 따른다: `main`의 모든 push가 운영 프로세스를 재시작하므로(`spec.md` LF-03) 덮는 파일을 바꾸는 배포는 EV-L1이고, 재시작이 환경 값을 바꾸면 EV-L2이며, `deploy.yml`의 재시작·smoke 단계를 바꾸면 EV-L5다. 덮는 파일을 하나도 바꾸지 않는 커밋은 EV-L1이 아니다.
+
+smoke 검사 교체(REQ-B2CLAUNCH-013, 항목 L-05)는 진단 플래그를 바꾸는 어떤 노출 확대 단계보다 먼저 `main`에 병합돼 배포되고 그 배포의 smoke가 통과해야 한다. 그 병합은 운영 배포를 일으키는 운영 행위이며, 구현 착수 승인 때 L-01 기준선 관측 기록이 있은 뒤에만 병합하기로 했다(`.moai/specs/SPEC-B2C-LAUNCH-001/progress.md` §E.1).
+
+## 항목 상태 갱신 절차
+
+항목의 기록 상태(`READY` / `BLOCKED` / `UNVERIFIED`)를 바꾸는 순서다(REQ-B2CLAUNCH-003·005, `spec.md` §2.4 "READY"·"무효화 사건"). 이 문서는 상태를 적은 기록을 담지 않고 갱신하는 방법만 적는다. 점검기(`scripts/check-launch-gate.ts`)는 기록 파일을 쓰거나 바꾸지 않는다 — 상태 칸을 바꾸는 것은 사람이 하는 문서 편집이다. 기록 파일의 위치는 정하지 않았다. D-LAUNCH-04 결정은 저장소 안에는 항목 식별자·상태·참조만 두고 서명 세부를 담는 기록은 저장소 밖에 두는 것이다.
+
+1. **관측한다.** 항목 정의표의 `항목` 칸이 증명하라는 것을 관측한다. 아직 관측하지 못한 칸은 `UNVERIFIED`로 둔다. 관측한 결과가 기대와 다르면 `BLOCKED`다.
+2. **행을 쓴다.** `## 기록 양식`의 표에 항목 식별자마다 한 행을 쓴다. `READY`로 쓰려면 산출물 보관 위치, 서명 또는 관측 역할, 날짜, 대상, 무효화 사건 칸이 모두 차 있어야 한다. 무효화 사건 칸은 정의표가 그 항목에 적은 사건 종류(`EV-L1`~`EV-L5`)를 그대로 쓴다.
+3. **대상 값을 계산해 `대상` 칸에 적는다.** 무엇에서 계산하는지는 정의표의 `대상 / 무효화 사건` 칸 앞부분이 정한다. 계산 수단은 `spec.md`도 이 저장소도 정하지 않았고 이 저장소에는 대상 값을 계산하는 도구가 없다. 계산은 호출하는 절차의 몫이다. 정의표의 `대상` 칸에 파일 경로가 적힌 항목은 그 경로가 덮는 파일 목록이고(`lib/launch/item-table.ts`의 `coveringFilesOf`가 읽는다), 그 밖의 코드 종류 항목의 덮는 파일 목록은 이 문서가 정하지 않았다. 어느 목록에도 이 기록 파일과 증거 기록 파일을 넣지 않는다(REQ-B2CLAUNCH-005) — `lib/launch/target-check.ts`의 `coveringFileListErrors`가 그 검사이고 시험이 호출하며 점검기 명령줄에는 연결되어 있지 않다.
+4. **사건과 현재 대상 값을 점검기에 넘긴다.** 기록 뒤에 항목에 적힌 무효화 사건이 일어났는지 알아내는 것은 호출하는 절차의 몫이고 점검기는 사건을 스스로 감지하지 못한다. 일어난 사건은 `--events`로, 현재 대상 값은 `--targets`로 넘긴다. 점검기는 `READY`를 `UNVERIFIED`로만 읽고 올리지는 않는다. 현재 대상 값을 넘기지 않으면 모든 `READY`가 `UNVERIFIED`다.
+5. **사건이 일어난 항목은 즉시 `UNVERIFIED`다.** 기록의 상태 칸도 `UNVERIFIED`로 고치고, 사건 뒤에 다시 관측해 새 대상 값과 날짜를 적은 뒤에야 `READY`로 올린다. 점검기가 읽을 때 강등해 주는 것으로 상태 칸의 갱신을 대신하지 않는다.
+6. **`결정 대기` 칸은 결정 기록이 있을 때만 바뀐다.** 결정이 항목별 면제를 기록하면 그 칸만 `해당 없음`이 된다. 정의표 자체는 `spec.md`가 소유하므로 이 문서의 표를 고쳐 면제하지 않고, 점검기에는 면제 결정 기록이 있는 칸만 `--exemptions`로 넘긴다. 면제 결정 기록의 형식과 보관 위치는 정해지지 않았다.
+7. **참조 항목(R-nn)은 형제 기록의 상태를 옮겨 적을 뿐이다.** 형제 기록의 상태나 대상 값이 참조 줄과 달라지면(EV-L3) 연결 필드가 가리키는 이 SPEC의 항목이 `UNVERIFIED`다. 이 SPEC은 형제 증거의 상태를 형제 기록과 다르게 판정하지 않는다.
+8. **서명은 항목 상태를 따라 효력을 잃는다.** 서명 뒤에 서명이 덮은 항목 하나가 `UNVERIFIED`가 되면 그 서명은 효력이 없고 새 서명이 필요하다(REQ-B2CLAUNCH-008). 정의표나 점검 규칙이 바뀌어 필수 항목 집합이 달라지면 이미 받은 서명이 집합 불일치로 거부될 수 있으므로 서명을 다시 받는다.
+9. **기록만 바꾸는 커밋도 배포된다.** `main` push마다 배포되므로(`spec.md` LF-03) 기록 파일을 저장소 안에 두려면 값 없는 식별자·상태·참조만 둔다(REQ-B2CLAUNCH-007). 시크릿 값, 실제 사용자 입력, 담당자·서명자의 연락처와 개인 식별 정보, 법적 판단 세부는 저장소 밖에 둔다.
+
+## 점검 도구와 실행 방법
+
+이 절은 이 SPEC이 만든 점검과 실행 방법을 모두 적는다. **어느 것도 `package.json`의 npm 스크립트로 등록되어 있지 않다.** `package.json`의 `verify:flag-runtime`과 `verify:remote-consult`는 이 SPEC 이전의 스크립트이고, 이 SPEC의 스크립트는 등록하지 않았다. 아래 명령은 저장소 루트에서 `pnpm exec tsx <파일>` 또는 `pnpm exec vitest run <파일>`로 직접 실행한다. 점검기는 파일 경로를 인자로만 받고 기본 위치가 없으며, 문서와 입력을 읽기만 하고 기록을 쓰거나 바꾸지 않는다. `pnpm test`는 단위 시험을 모두 돌리지만 빌드와 서버 기동을 하는 관측 스크립트(`scripts/verify-gate-reachability.ts`, `scripts/verify-smoke-check.ts`, `scripts/verify-rollback-dark.ts`)는 돌리지 않는다 — 별도로 실행한다.
+
+| 점검 | 근거 | 실행 방법 | 코드 |
+|---|---|---|---|
+| 항목·서명 점검기 | REQ-B2CLAUNCH-002·003·004·005·008 | 명령줄(A) | `scripts/check-launch-gate.ts` |
+| 전환 목록 점검기 | REQ-B2CLAUNCH-011 | 명령줄(B) | `scripts/check-launch-transitions.ts` |
+| 엔진 준비 단계 점검 | REQ-B2CLAUNCH-012 | 시험이 호출한다 | `lib/launch/engine-ready-step.ts` |
+| 엔진 준비 저장소 코드 오라클 | REQ-B2CLAUNCH-012 | 한 줄 명령(C) | `lib/launch/engine-ready-oracle.ts` |
+| 게이트 상태 표 대조 | REQ-B2CLAUNCH-010 | 시험(D) | `lib/launch/gate-state-table.ts` |
+| 로컬 도달 관측 | REQ-B2CLAUNCH-009 | 명령줄(D) | `scripts/verify-gate-reachability.ts` |
+| 노출 기록 검사기 | REQ-B2CLAUNCH-009 | 시험이 호출한다 | `lib/launch/exposure-record.ts` |
+| smoke 검사 | REQ-B2CLAUNCH-013 | 명령줄(E) | `scripts/smoke-check.ts` |
+| smoke 일곱 상태 관측 | REQ-B2CLAUNCH-013 | 명령줄(E) | `scripts/verify-smoke-check.ts` |
+| 롤백 로컬 시험 | REQ-B2CLAUNCH-014 | `## 롤백 절차`의 명령 | `scripts/verify-rollback-dark.ts` |
+| 사후 관측 기록 검사기 | REQ-B2CLAUNCH-016 | 시험이 호출한다 | `lib/launch/observation-record.ts` |
+| 푸터 요소 분류와 표면별 G 판정 | REQ-B2CLAUNCH-015 | 시험(F) | `lib/launch/footer-element-state.ts`, `lib/launch/legal-notice-gate.ts` |
+| 법무 확인 기록 검사기 | REQ-B2CLAUNCH-006 | 시험이 호출한다 | `lib/launch/legal-confirmation.ts` |
+| 형제 증거 참조 줄 점검 | REQ-B2CLAUNCH-004 | 점검기의 `--sibling-refs`(A) | `lib/launch/sibling-reference.ts` |
+| 표지값 검사 | REQ-B2CLAUNCH-007 | 시험(G) | `scripts/launch-marker-check.ts` |
+
+**A. 항목·서명 점검기.** 인자는 `--이름 값` 쌍이고 `=`로 잇지 않는다.
+
+```text
+pnpm exec tsx scripts/check-launch-gate.ts --items <항목 정의표 문서> --record <기록 문서> --environment <local 또는 production> [--stage <I 또는 G>] --surfaces <S1,S2,S3 중 목적 벡터> --signature <go 서명 기록 문서> --allowed-roles <역할,역할> [--targets <대상 값 JSON>] [--events <사건 JSON>] [--exemptions <면제 결정 JSON>] [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
+```
+
+- `--environment`는 필수이고 기본값이 없다. `local`이면 `--stage`를 주지 않고, `production`이면 `--stage`가 필수다(`## 점검 요청의 두 형태`).
+- JSON 입력의 형태: `--targets`는 `{"항목 ID": "대상 값"}`, `--events`는 `{"항목 ID": ["EV-L1"]}`, `--exemptions`는 `[{"itemId": "R-02", "column": "I"}]`, `--sibling-defs`는 `{"형제 SPEC id": {"file": "정의표 문서 경로", "labels": ["ID", "…"]}}`, `--sibling-records`는 `{"형제 SPEC id/형제 항목 id": {"status": "READY", "target": "대상 값"}}`다. `--sibling-defs`와 `--sibling-records`는 `--sibling-refs`와 함께만 쓴다. 이 JSON 파일에도 시크릿·연락처·실제 사용자 입력을 적지 않는다.
+- 종료 코드 0은 통과이고 판정 문구가 함께 나온다. 1은 항목 점검 또는 서명 점검이 통과하지 못한 불가다. 2는 입력 거부(요청 형태, 표, 기록, 서명 기록의 칸 오류, 사용법 오류)다. 서명 점검을 건너뛰거나 통과한 것으로 두는 인자는 없고 `--signature`와 `--allowed-roles` 어느 쪽이든 빠지면 통과하지 못한다.
+- 이 점검으로는 알 수 없다(AC-B2CLAUNCH-002·003·004·005·008이 적은 것): 점검기는 기록의 상태 칸과 넘겨 준 현재 대상 값·사건만 읽으므로 무효화 사건의 발생을 스스로 감지하지 못하고 어떤 커밋이 EV-L1인지도 판정하지 못한다 — 대상 값을 계산해 넘기고 사건이 일어난 항목을 `UNVERIFIED`로 되돌리는 것은 호출하는 절차의 몫이다. 점검기가 막는 것은 절차이며 운영 호스트에서 접근 권한을 가진 사람이 환경 변수를 손으로 바꾸는 것은 막지 못한다(N11). 점검기는 실행 환경 입력이 사실인지도 알 수 없다 — 호출한 절차가 `local`이라고 넘기고 실제로는 운영 호스트에서 노출 확대 단계를 수행하는 경우는 절차 규칙의 몫이다(N11). 기록의 상태 값이 사실인지(기록의 정직성), 형제 기록 자체의 진실성, 형제 문서가 식별자를 다시 매기는 경우(식별자 조회 실패로 거부되며 값 비교가 아니다), 대상 값 계산이 덮는 파일의 모든 변경을 실제로 반영하는지(계산 수단 자체의 몫), 서명이 실제 사람의 것인지(서명 진위)와 서명 기록의 날짜가 사실인지를 알 수 없다. 서명자 구성(세 역할이 모두 서명해야 하는지)은 확인 대기라 점검기는 역할의 허용 목록 소속만 본다. AC-B2CLAUNCH-005가 적은 배포 워크플로의 `paths:` 필터 부재 확인(`grep`)은 GitHub 저장소 설정(브랜치 보호 등)이나 다른 워크플로의 경로 필터를 보지 못한다.
+
+**B. 전환 목록 점검기.**
+
+```text
+pnpm exec tsx scripts/check-launch-transitions.ts --steps <이 문서> --order <이 문서>
+```
+
+종료 코드 0·1·2·3의 뜻은 `## 플래그 변경 절차`에 있다. 보지 못하는 것은 같은 절의 마지막 문단과 같다: 운영 호스트에서 재시작이 실제로 한 번만 일어났는지(절차 기록의 정직성), 재시작이 바뀐 환경을 읽는지(R-04가 가리키는 CONSULTOPS-001 E-03이 다룬다), 단계 표의 벡터가 설정 변수의 결과와 같은지, 앞 단계의 후 벡터와 다음 단계의 전 벡터가 이어지는지.
+
+**C. 엔진 준비 저장소 코드 오라클.** 명령줄 도구가 없어 한 줄로 부른다. 출력은 비시험 코드·스크립트·워크플로·`package.json`·`.env.local.example`에서 엔진 준비 변수를 대입하는 줄이고 `missing=`은 찾지 못한 검색 경로의 수다.
+
+```text
+pnpm exec tsx -e "import('./lib/launch/engine-ready-oracle.ts').then((m) => { const r = m.scanTree(process.cwd()); for (const h of r.hits) console.log(h.file + ':' + h.line + ' ' + h.text); console.log('missing=' + r.missing.length); })"
+```
+
+허용 목록(시험 하네스의 임시 서버 환경 대입 줄)은 `lib/launch/engine-ready-oracle.test.ts`가 (파일, 줄 내용)으로 들고 있고, 허용 목록 밖의 줄이 생기거나 허용 항목이 트리에서 사라지면 그 시험이 실패한다. 이 오라클로는 알 수 없다(AC-B2CLAUNCH-012가 적은 것): 실제 `.env*` 파일과 운영 호스트의 PM2 저장 환경·셸 프로필(비추적이라 열지 않았다), 변수 이름을 계산해 만드는 대입, 공백으로 구분하는 `ENV … true` 형태와 `??=` 대입(이 명령의 맹점), 시험 파일(별도 열람). 엔진 준비 단계 점검(`evaluateEngineReadySteps`)은 R-02의 상태를 입력으로만 받으며 R-02의 실제 판정은 상태 소스가 정해지기 전이라 할 수 없다.
+
+**D. 게이트 상태 표 대조와 로컬 도달 관측.**
+
+```text
+pnpm exec vitest run lib/diagnosis/flags.gate-table.test.ts lib/env.boot-combination.test.ts lib/launch/gate-state-table.test.ts
+pnpm exec tsx scripts/verify-gate-reachability.ts
+```
+
+첫 명령은 `## 게이트 상태 표`를 독립된 기대값, 두 게이트 함수의 출력, `validateEnv("app")`의 출력과 대조한다. 둘째 명령은 빌드와 서버 기동이 있어 시간이 걸리고 다른 verify 스크립트와 동시에 실행하지 않는다. 종료 코드 0은 세 관측이 모두 기대와 같음, 1은 불일치, 2는 실행 거부다. 실행 거부는 DB 주소가 로컬 `file:`이 아니거나 프로덕션 빌드·시작이 읽는 환경 파일이 프로젝트 루트에 있을 때다. 이 점검으로는 알 수 없다(AC-B2CLAUNCH-009·010이 적은 것): 운영의 환경 변수 소스(PM2 저장 환경·`.env`) 해석, 값에 공백이 붙은 운영 입력 실수(엄격 일치는 함수 수준에서만 확인한다), 프록시·방화벽·실제 네트워크 노출과 운영 호스트의 구성과 동작, 저장소 밖 제한 수단이 실제로 작동하는지(외부 관측 기록 식별자의 존재만 본다). 로컬 도달 관측은 게이트 함수와 경로의 일반 검증이며 운영 호스트에서의 내부 시험 노출 증거로 쓰지 않는다. 로컬 도달 관측 스크립트는 상담 화면 플래그 미설정과 정책 플래그 참의 한 조합만 서버로 시작한다 — AC-B2CLAUNCH-010 시나리오 3의 교차 조합 셋(진단 production 경로 열림 × 상담 두 플래그 참, 진단 닫힘 × 상담 두 플래그 참, 진단 닫힘 × 상담 화면 플래그 거짓·정책 플래그 참)을 서버로 시작해 읽는 관측은 이 스크립트에 없다.
+
+**E. smoke 검사.** 인자는 `--이름=값` 형태다.
+
+```text
+pnpm exec tsx scripts/smoke-check.ts --base-url=<기준 주소> [--attempts=<횟수>] [--retry-delay-ms=<밀리초>]
+pnpm exec tsx scripts/verify-smoke-check.ts
+```
+
+smoke 검사의 기준 주소는 환경 입력 `SMOKE_BASE_URL`로도 줄 수 있고 인자가 우선하며 기본 주소는 없다. 읽기 전용 요청(GET)만 보낸다. 종료 코드 0은 통과, 1은 실패(홈이 2xx가 아니거나 CSS 청크가 없거나 서빙되지 않음), 2는 사용법 오류다. D-LAUNCH-06 설계 (a)에 따라 진단 게이트가 닫혀 있든 열려 있든 같은 규칙으로 판정하고 게이트 상태는 정보로만 출력한다. 일곱 상태 관측(`verify-smoke-check.ts`)은 빌드와 서버 기동이 있어 시간이 걸리며 종료 코드 0은 모든 상태가 기대와 같음, 1은 불일치, 2는 실행 거부(사전 점검 위반)다. 이 점검으로는 알 수 없다(AC-B2CLAUNCH-013이 적은 것): `appleboy/ssh-action`을 거친 실제 워크플로 실행, VM에서 `pm2 restart` 직후의 응답 시점(재시도 루프의 타이밍), 운영 환경 변수, 운영 호스트의 `curl`·`grep` 동작 차이. 교체 뒤의 검사는 Node의 `fetch`를 쓰므로 실제로 해당하는 것은 운영 호스트의 Node 실행 환경과 그곳에서 `pnpm exec tsx`가 실행되는지이고, 이 둘은 관측하지 않았다. 설계 (a)는 진단 플래그가 의도치 않게 열려도 배포를 통과시키므로 의도한 상태인지는 L-01의 기준선 관측, 롤백 뒤 확인, 게이트 상태 표로 본다.
+
+**F. 푸터 요소 분류와 표면별 G 판정.**
+
+```text
+pnpm exec vitest run lib/launch/footer-element-state.test.ts lib/launch/legal-notice-gate.test.ts components/diagnosis/diagnosis-footer.legal-notice.test.tsx components/result/result-footer.legal-notice.test.tsx components/consult/consult-footer.legal-notice.test.tsx
+```
+
+`lib/launch/legal-notice-gate.ts`는 S1 요소 상태 여섯과 S2 요소 확정 여부(CONSULTOPS-001 D-OPS-04 기록)를 입력으로 받는 함수이고 `scripts/check-launch-gate.ts`에 연결되어 있지 않다. 항목 점검기는 L-08 행의 상태 칸만 읽으며, 요소 단위 판정과 행 상태의 관계는 `spec.md`가 정하지 않았다. 분류는 빈 `href`를 `# 앵커`로 읽고(`spec.md`가 이름을 말하지 않은 곳을 목적지 없음 쪽으로 닫았다), 정확히 `#`가 아니면서 `#`로 시작하는 값은 `목적지 있음`으로 읽는다(글자 그대로 읽은 것이며 그것이 법적 고지의 목적지로 인정되는지는 `spec.md`가 말하지 않았다). 이 점검으로는 알 수 없다(AC-B2CLAUNCH-015가 적은 것): 링크가 가리키는 문서의 내용이나 법적 충분성, 모바일에서 숨는 03 푸터(`md` 미만)의 모바일 상태, 동적으로 만든 `href`, 분류가 법적 요건을 충족하는지(이 SPEC은 판단하지 않는다), D-OPS-04 판정 자체의 사실 여부(CONSULTOPS-001의 기록을 그대로 가져온다).
+
+**G. 명령줄이 없는 점검과 표지값 검사.** 노출 기록·사후 관측 기록·법무 확인 기록·형제 증거 참조 줄의 검사와 덮는 파일 목록 검사는 라이브러리 함수이고 해당 시험이 호출한다. 표지값 검사는 아래 명령으로 실행하며 순서와 한계는 `## 표지값 검사 절차`에 있다.
+
+```text
+pnpm exec vitest run scripts/launch-marker-check.test.ts
+```
+
+전체 확인은 `pnpm test`, `pnpm lint`, `pnpm exec tsc --noEmit`이다. 요구사항·AC별 구현 파일과 검증 현황은 이 문서에 적지 않고 진행 기록(`.moai/specs/SPEC-B2C-LAUNCH-001/progress.md` §E.2의 M6 절)이 담는다.
+
+## 형제 SPEC 연결
+
+이 절은 형제 SPEC(SPEC-B2C-ENGINE-001, SPEC-B2C-CONSULTOPS-001)과 다른 SPEC·런북을 SPEC 식별자와 항목 식별자로 가리키기만 한다. 형제 항목의 정의·상태·목록을 옮겨 적지 않고 형제 문서를 수정하지 않는다(REQ-B2CLAUNCH-004). 형제 증거를 이 SPEC의 항목으로 참조하는 방식은 `## 형제 증거 참조 양식`이다.
+
+| 이 SPEC의 항목·절 | 가리키는 문서 | 식별자 |
+|---|---|---|
+| R-01 | SPEC-B2C-CONSULTOPS-001 | §2.4 증거 항목 표, D-OPS-12, REQ-B2CCONSULTOPS-002 |
+| R-04 | SPEC-B2C-CONSULTOPS-001 | E-03, REQ-B2CCONSULTOPS-013 |
+| L-02 (G 칸) | SPEC-B2C-CONSULTOPS-001 | E-08 |
+| L-07 | SPEC-B2C-CONSULTOPS-001 | E-06 |
+| L-08 (S2) | SPEC-B2C-CONSULTOPS-001 | D-OPS-04 |
+| `## 플래그 변경 절차`의 시크릿 단계 | SPEC-B2C-CONSULTOPS-001 | REQ-B2CCONSULTOPS-011 |
+| `## 롤백 절차` | SPEC-B2C-CONSULTOPS-001 | §2.4 작성자 기본 목록, REQ-B2CCONSULTOPS-006, REQ-B2CCONSULTOPS-016 |
+| R-02 | SPEC-B2C-ENGINE-001 | REQ-B2CENGINE-023, D-ENGINE-09 |
+| R-03 | SPEC-B2C-ENGINE-001 | D-ENGINE-07 |
+| R-05 | SPEC-B2C-ENGINE-001 | D-ENGINE-10 |
+| L-05 | SPEC-B2C-DIAGNOSIS-001 | REQ-B2CDIAG-023, AC-B2CDIAG-024 |
+| `## 단계 정의 표`의 `내부 시험 공개` | SPEC-B2C-DIAGNOSIS-001 | REQ-B2CDIAG-017, REQ-B2CDIAG-025 |
+| L-08 푸터 변경의 시각 기준선 | SPEC-B2C-CONSULT-001, SPEC-B2C-RESULT-001 | REQ-B2CCONSULT-025, REQ-B2CRESULT-025 |
+| `## 플래그 변경 절차`·`## 롤백 절차`의 재시작 | `.moai/docs/runtime-runbook.md` | §11 상담 플래그 변경 절차, §12 앱 인스턴스 수 |
