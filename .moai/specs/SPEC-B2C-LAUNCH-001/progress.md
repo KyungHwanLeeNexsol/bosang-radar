@@ -367,6 +367,95 @@ S1 벡터에서 BLOCKED는 (나)뿐이고 S2 벡터에서는 (가)(다)뿐이다
 
 **잔여 위험**: 요소 기록 거울과 런북 스냅샷은 푸터 컴포넌트가 바뀌면 낡는다(시험은 기록과 어긋나면 실패하나 런북 표는 사람이 고쳐야 한다, EV-L1). 분류기는 속성만 보므로 동적으로 계산한 목적지, 링크 대상의 실재, 법적 충분성은 보지 못한다. 점검기는 D-OPS-04 기록의 진위를 알 수 없고 입력으로 받은 확정 여부를 그대로 읽는다.
 
+### M3a (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `ebfe670` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M3a-*.log`다. 이 커밋의 SHA는 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **범위(사용자 결정)**: M3의 앞 절반 — REQ-B2CLAUNCH-009·010, 곧 AC-010 시나리오 1·2와 AC-009 시나리오 1·2. AC-010 시나리오 3(교차 조합 세 가지의 로컬 서버 관측), AC-011(전환 목록 점검기), AC-012(`DIAGNOSIS_ENGINE_READY` 설정 단계 점검)은 M3b 이후라 구현하지 않았다. `spec.md`·`plan.md`·`acceptance.md`, `app/`, `components/`, `lib/diagnosis/flags.ts`, `lib/consult/`, `lib/env.ts`, `.github/`, `package.json`은 바꾸지 않았다.
+- **변경 파일**: 신규 `lib/launch/gate-state-table.ts`(+`.fixture.ts`, `.test.ts`), 신규 `lib/launch/exposure-record.ts`(+시험), 신규 시험 `lib/diagnosis/flags.gate-table.test.ts`, `lib/env.boot-combination.test.ts`, 신규 `scripts/verify-gate-reachability.ts`(+시험), `.moai/docs/launch-gate-runbook.md`(`## 게이트 상태 표`·`## 노출 기록 양식` 절만 추가, 기존 절 불변), 이 파일.
+- **구현한 것**: (1) 런북 게이트 상태 표 셋(진단 8행, 상담 4행, 시크릿 설정 여부와 부팅 4행)과 파서·칸 단위 대조 함수(`parseGateStateTables`, `compareGateStateTables` — 불일치는 표 이름·조합·칸 이름으로만 적고 칸 값은 되풀이하지 않음). (2) 독립 기대값 `GATE_STATE_FIXTURE` — `spec.md` §2.3을 손으로 옮긴 리터럴이고 두 게이트 함수를 호출해 만들지 않는다. (3) 노출 기록 검사기 `parseExposureRecord`. (4) 로컬 도달 관측 스크립트.
+
+**RED**(`parseGateStateTables`는 항상 실패, `compareGateStateTables`는 항상 불일치 없음, `parseExposureRecord`는 항상 통과, 도달 관측 함수들은 빈 값을 돌려주는 틀 + 아직 런북 표 없음, 새 시험 5개 파일, `M3a-red.log`): `Test Files 5 failed (5)`, `Tests 55 failed | 20 passed (75)`, `exit=1`. 모듈 없음·타입 오류·TypeError는 0건이고 실패는 모두 단언 실패다(대표: `런북의 게이트 상태 표가 파서를 통과해야 한다: expected false to be true`, `expected [] to deeply equal [ StringContaining "/consult 제목" ]`, `expected [ '가', '나', '다', '라' ] to deeply equal [ '가' ]`, `expected [Function] to throw an error`). 통과한 20건은 틀이 우연히 맞는 경우(제품 코드가 이미 맞는 부팅 검증·게이트 함수의 직접 호출 시험, 소스 정적 규칙 시험 셋, `일치하면 불일치 없음` 류)다.
+
+**GREEN**: 새 시험 5개 파일 `Test Files 5 passed (5)`, `Tests 77 passed (77)`, `exit=0`(`M3a-green-2.log`, verbose). RED 뒤에 도달 관측의 보고 형식 시험 2건을 더해 75건이 77건이 됐다.
+
+**E1 AC-B2CLAUNCH-010 시나리오 1 — 12행 대조**(런북 표 ↔ 독립 기대값, 함수 출력 ↔ 독립 기대값, 기대값 ↔ `spec.md` §2.3 옮김 확인, 세 가지 모두 `compareGateStateTables` 결과 빈 배열):
+
+| 표 | 행 | 런북 표 | 함수 출력 | spec.md §2.3과 기대값 |
+|---|---|---|---|---|
+| 진단 | F0E0D0 | 일치 | 일치(닫힘) | 일치 |
+| 진단 | F0E0D1 | 일치 | 일치(열림 review, 문서 금지 D) | 일치 |
+| 진단 | F0E1D0 | 일치 | 일치(닫힘) | 일치 |
+| 진단 | F0E1D1 | 일치 | 일치(열림 review, 문서 금지 D) | 일치 |
+| 진단 | F1E0D0 | 일치 | 일치(닫힘) | 일치 |
+| 진단 | F1E0D1 | 일치 | 일치(열림 review, 문서 금지 D) | 일치 |
+| 진단 | F1E1D0 | 일치 | 일치(열림 production) | 일치 |
+| 진단 | F1E1D1 | 일치 | 일치(열림 둘 다, 문서 금지 D) | 일치 |
+| 상담 | C0P0 | 일치 | 일치(화면 닫힘, 접수 닫힘 503) | 일치 |
+| 상담 | C0P1 | 일치 | 일치(화면 닫힘, 접수 열림) | 일치 |
+| 상담 | C1P0 | 일치 | 일치(화면 열림, 접수 닫힘 503) | 일치 |
+| 상담 | C1P1 | 일치 | 일치(화면 열림, 접수 열림) | 일치 |
+
+경로별 도달 칸(`/`, `/result`, `/consult`, `POST /api/consultations`)은 `spec.md` §2.3 "경로별 도달 규칙" 문단을 칸으로 옮긴 것이며 기대값·런북 표·함수 출력(게이트 출력에 그 규칙을 적용)이 같다. 변이 시험(일부러 바꾼 값을 대조가 그 행·칸 이름으로 잡는지): 기대값 F1E1D0의 `productionReady` 반전 → 런북 대조가 `F1E1D0`·`productionReady`를 적고 실패, 기대값 C0P1의 상담 접수 칸 변경 → 함수 출력 대조가 `C0P1`·`상담 접수`를 적고 실패, 런북 표 F1E0D0의 게이트 칸 변경 → 대조가 `F1E0D0`·`진단 게이트`를 적고 실패, 런북 표의 `문서 금지(D)` 표시 하나 삭제 → `표시` 칸 불일치, 게이트 함수를 어긋나게 바꾼 대용(F만으로 productionReady) → F1E0D0·F1E0D1이 실패. 엄격 일치 변종(`TRUE`·`1`·`yes`·앞뒤 공백·빈 문자열) 여섯 가지는 두 함수 모두 전부 거짓이다.
+
+**E1 AC-B2CLAUNCH-010 시나리오 2 — 부팅 조합**(`validateEnv("app")`, 시험용 시크릿은 실행 시점에 만든 값, `LLM_PROVIDER_MODE=deterministic`로 `GEMINI_API_KEY` 게이트를 면제):
+
+| P | S | 기대(표) | 관측 |
+|---|---|---|---|
+| 0 | 0 | 가능 | 통과 |
+| 0 | 1 | 가능 | 통과 |
+| 1 | 0 | 부팅 불가 | `EnvValidationError`, 누락 목록이 정확히 `["RATE_LIMIT_HMAC_SECRET"]` |
+| 1 | 1 | 가능 | 통과, 시크릿 값이 결과에 담김 |
+
+관측한 4행은 독립 기대값과도 런북 표의 부팅 칸과도 같다. 런북 표의 부팅 칸을 바꾸면(불가→가능, 가능→불가) 대조가 `P1S0`/`P1S1`·`부팅`을 적고 실패한다. 추가로 관측한 것: `CONSULT_POLICY_READY`가 `TRUE`·`1`·`yes`·` true`·`true `·빈 문자열이면 시크릿 없이 부팅하고, 시크릿이 빈 문자열이면 미설정으로 읽혀 부팅 불가다. 제품 코드는 AC와 다르게 동작하는 곳이 없어 바꾸지 않았다.
+
+**E1 AC-B2CLAUNCH-009 시나리오 1 — 노출 기록 fixture**(합성 값만, 출력은 경로·칸 이름만 적고 값은 되풀이하지 않음):
+
+| fixture | 기대 | 관측 |
+|---|---|---|
+| (가) 다섯 경로 모두 도달 대상·제한 수단·수단 위치(저장소 밖 둘은 외부 관측 기록 식별자 있음) | 통과 | PASS — 통과 |
+| (나) `/consult` 행 없음 | 거부, 빠진 경로 | PASS — `도달 경로 "/consult" 행이 없다` |
+| (다) 제한 없음인데 수용 역할·날짜 없음 | 거부, 누락 칸 | PASS — `"수용 역할"`·`"수용 날짜"` 칸이 비어 있다(경로 `/result`) |
+| (라) 저장소 밖인데 외부 관측 기록 식별자 없음 | 거부 | PASS — `도달 경로 "POST /api/consultations"의 "외부 관측 기록" 칸이 비어 있다` |
+
+네 fixture 중 통과는 (가) 하나뿐이다(시험이 직접 확인). 추가 규칙 시험: 제한 없음 + 수용 역할·날짜는 통과, 제한 없음인데 제한 수단 칸이 채워진 모순은 거부, 도달 대상·제한 수단·수단 위치 빈 칸, 열거 밖 수단 위치(값 미반복), 다섯 경로 밖 경로(값 미반복), 같은 경로 중복, 경로 칸의 백틱 표기, 칸 수 오류, 허용 칸 밖의 칸(`담당자 연락처` 같은 이름은 칸 이름만 적고 거부), 표 없음.
+
+**E1 AC-B2CLAUNCH-009 시나리오 2 — 로컬 도달 관측**(명령 `pnpm exec tsx scripts/verify-gate-reachability.ts`, 로그 `M3a-reachability.log`, `exit=0`). 시작 조합은 화면 플래그 미설정, 정책 플래그 `true`, 실행 시점에 만든 시험용 시크릿, 로컬 `file:` DB다:
+
+| 관측 | 기대 | 관측 | 판정 |
+|---|---|---|---|
+| `/consult` 제목 | `서비스 준비 중` | `서비스 준비 중` | OK |
+| `/consult` placeholder 문구 | 있음 | 있음 | OK |
+| `POST /api/consultations` 상태 | 409 | 409 | OK |
+| `POST /api/consultations` 오류 코드 | `consent_version_mismatch` | `consent_version_mismatch` | OK |
+| `consultations` 행 수 | 요청 전과 같음 | 전 0 후 0 | OK |
+
+AC가 "이 예상은 `route.ts:284-296`을 읽고 파생한 것이며 이 세션은 서버를 실행하지 않았다"고 적은 예상이 이 실행으로 관측됐다(스키마를 통과하는 요청, 동의 버전은 무작위 접두사가 붙은 값이라 어떤 정책 버전과도 다름). 관측 시점의 코드 기준이며 로컬 서버에서만 확인한 것이다.
+
+**안전 규칙 구현**: (a) 부모 환경의 DB 주소가 `file:`이 아니거나 시험 DB 주소가 `file:`이 아니면 거부(스킴만 적고 호스트는 적지 않음). (b) 환경 파일을 읽는 호출이 없다 — 이에 더해 프로덕션 빌드·시작이 프로젝트 루트에서 읽는 환경 파일(`.env`, `.env.local`, `.env.production`, `.env.production.local`)이 하나라도 있으면 파일 이름만 확인하고 실행을 거부한다(자식 프로세스가 읽을 수 있기 때문). (c) 플래그는 스크립트가 만든 자식 환경 객체에만 두고 부모 `process.env`는 바꾸지 않는다(시험이 부모 객체 불변과 소스에 `process.env` 대입이 없음을 확인). (d) 원격 주소 문자열이 소스에 없고 요청은 서버가 알려 준 로컬 주소로만 간다. 이 실행에서 작업 트리에는 `.env.local.example` 외의 환경 파일이 없었다.
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`(`M3a-tsc.log`). **E3 린트**: `pnpm lint` → `exit=0`(`M3a-lint.log`), 새 TS 아홉 개 `prettier --check` 통과(`M3a-prettier.log`). **E4 전체 시험**: `pnpm test` → `Test Files 122 passed (122)`, `Tests 1347 passed (1347)`, `exit=0`(`M3a-test-full.log`; M2 기준선 1270 + 새 77). **E5 `pnpm verify:flag-runtime`** → `불일치 관측 합계: 0`, `exit=0`(`M3a-flag-runtime.log`). **E6 `pnpm build`** → `exit=0`(`M3a-build.log`, 라우트 `/`, `/_not-found`, `/api/consultations`, `/consult`, `/result`; 빌드 로그에 환경 변수 없는 빌드의 `instrumentation` 부팅 검증 메시지가 있으나 종료 코드는 0이다). **E7 커버리지**(명령줄 덮어쓰기, `M3a-cov-json.log`): `gate-state-table.ts` 구문·분기·함수·줄 100%(93/93), `exposure-record.ts` 100%(60/60), `verify-gate-reachability.ts` 구문 60.37%(64/106)·분기 67.21%. 스크립트의 미덮개는 `main`·`runPnpm`·`countConsultations`·`observe`(빌드·서버 실행 배선)이며 단위 시험이 아니라 위 실제 실행이 덮는다. 순수 판정·안전 함수는 모두 시험으로 덮인다.
+
+**변경 범위 확인**: `git diff --stat ebfe670 HEAD -- app components lib/diagnosis lib/consult lib/env.ts .github package.json pnpm-lock.yaml`(커밋 뒤)는 새 시험 `lib/diagnosis/flags.gate-table.test.ts` 한 줄만 낸다.
+
+**발견(SPEC 문서는 고치지 않았다, 적힌 대로 진행하고 말하지 않은 곳은 닫았다)**:
+
+1. **REQ-010의 표 모양**: REQ-B2CLAUNCH-010은 "진단 3종(8)·상담 2종(4)·시크릿 설정 여부의 조합마다" 네 경로의 도달 상태를 적으라고 하는데, AC-010 시나리오 1과 `spec.md` §2.3은 8행 + 4행 = 12행이다. 곱(64조합)이 아니라 §2.3의 12행으로 읽었고 시크릿 차원은 P×S 4행의 별도 표(부팅 가능/부팅 불가)로 두었다(S는 P=0에서 도달 상태에 영향이 없다고 §2.3이 적었다). 경로별 도달 칸은 §2.3의 표에 없고 "경로별 도달 규칙" 문단에 산문으로만 있어 그 규칙을 칸으로 옮겼다.
+2. **`/result`의 상담 CTA**: "`/result`가 열렸을 때 상담 CTA는 C가 참일 때만 활성"이라는 규칙은 표의 `/result` 칸(본 화면/placeholder)에 담기지 않아 런북 문장으로만 있다. 표가 이 차원을 보지 못한다.
+3. **`C0P1`이 부팅 가능한가**: §2.3 상담 표는 `C=0 P=1` 행을 "접수 열림"으로 적지만 시크릿이 없으면 그 상태로 부팅하지 못한다. 상담 표 행에는 표시를 붙이지 않고 별도 부팅 표가 그 조건을 적었다.
+4. **부팅 누락 목록의 다른 항목**: `validateEnv("app")`은 `LLM_PROVIDER_MODE`가 `deterministic`이 아니면 `GEMINI_API_KEY`도 요구한다. AC는 이를 말하지 않는다. 시험은 `deterministic`을 두어 시크릿 게이트만 분리했고, 실제 운영 환경의 누락 목록은 이 둘을 함께 낼 수 있다. 빈 문자열 시크릿이 미설정으로 읽히는 것(`!source[name]`)도 현재 코드의 동작을 시험으로 고정한 것이며 SPEC은 "설정 여부"의 정의를 적지 않았다.
+5. **"제한 없음"의 표현**: AC-009 시나리오 1은 (다)에서 "제한이 없다고 적었는데"를 말하지만 그것을 어떻게 적는지 어휘를 정하지 않았고(제한 수단 어휘는 D-LAUNCH-01 대기) (가)는 수단 위치를 "저장소 안/밖" 둘로만 적는다. `수단 위치` 칸의 세 번째 값 `제한 없음`을 만들었다. 제한이 없다면서 제한 수단이 채워진 기록은 모순이라 거부했다(SPEC에 없는 fail-closed 규칙). 다른 표현(예: 별도 열)이 맞는지는 SPEC이 정해야 한다.
+6. **노출 기록의 칸 이름·경로 식별자**: SPEC은 열 이름과 다섯 번째 경로의 식별자(`?devStep=`·`?devFixture=` 질의)를 정하지 않았다. 열 일곱(도달 경로·도달 대상·제한 수단·수단 위치·외부 관측 기록·수용 역할·수용 날짜)과 경로 식별자 `?devStep=·?devFixture=`(질의 둘을 한 행으로)를 임의로 붙였다. 질의 둘을 한 행으로 볼지 두 행으로 볼지도 SPEC이 말하지 않았다(AC는 "다섯 종류"라 한 행으로 읽었다).
+7. **외부 관측 기록 식별자**: 검사기는 칸이 차 있는지만 보고 식별자 형식도, 그 칸에 주소나 연락처가 적혔는지도 보지 않는다. AC가 "식별자의 존재만 본다"고 적은 한계와 같다.
+8. **AC-009 시나리오 2의 행 수 측정 방법**: AC는 "행 수가 요청 전과 같다"고만 적고 읽는 수단을 정하지 않았다. 서버가 쓰는 같은 로컬 파일 DB를 별도 클라이언트로 직접 세었다. 관측 요청의 값(결과 식별자·이름·연락처·동의 버전·멱등 키)은 호출마다 실행 시점에 만든다.
+9. **환경 파일 거부와 `.worktreeinclude`**: Next.js 프로덕션 빌드·시작은 프로젝트 루트의 환경 파일을 읽는다. 안전 규칙 "환경 파일·실제 시크릿을 읽지 않는다"를 지키려고 그 파일이 있으면 실행을 거부하는데, `.worktreeinclude`가 새 격리 폴더에 `.env.local`을 복사하므로 새 폴더에서는 지우기 전에 이 스크립트가 거부한다(기존 기준선 측정에서도 같은 파일을 지웠다).
+10. **AC-009 시나리오 2와 AC-010 시나리오 3은 같은 후보 스크립트**: AC들은 둘 다 `scripts/verify-gate-reachability.ts`를 후보로 적었다. 이번 단위는 시나리오 2의 한 시작 조합만 구현했다. 시나리오 3의 교차 조합 셋(진단 production 열림×C·P, 진단 닫힘×C·P, 진단 닫힘×C=거짓·P=참)을 추가할 때 같은 스크립트의 시작 조합을 늘리면 된다(시작마다 서버 기동이 필요하다).
+
+**편차(보고 대상)**: (a) `package.json`의 기존 검증 스크립트(`verify:flag-runtime`, `verify:remote-consult`)는 등록돼 있어 새 스크립트를 등록하는 것이 확립된 패턴이지만 `package.json`은 이 단위의 범위 밖이라 등록하지 않았다. 실행은 `pnpm exec tsx scripts/verify-gate-reachability.ts`다. (b) `scripts/verify-flag-runtime.ts`의 `runPnpm`·`assembleEnv`·`FLAG_KEY_RE`는 export돼 있지 않고 그 파일 수정은 범위 밖이라 같은 15줄가량을 새 스크립트에 다시 적었다(`extractTitle`, `startManagedServer`, `findRemoteDatabaseViolation`은 import해 재사용). (c) 런북 머리말은 "기록·서명·연락처·값·주소·보관 위치를 담지 않는다"고 적는데 새 `## 게이트 상태 표`는 코드에서 얻은 사실 표이고 `## 노출 기록 양식`은 양식만 적었다(값이 든 행 없음).
+
+**Gaps(관측하지 못한 것)**: 운영 호스트·프록시·실제 네트워크 노출, 운영 환경 변수 소스 해석, 값에 공백이 붙은 운영 입력 실수(함수 수준의 엄격 일치만 시험). 도달 관측은 한 번의 로컬 실행이며 한 번 통과했다는 사실이 불안정이 없다는 증명은 아니다. AC-010 시나리오 3의 교차 조합 로컬 관측은 하지 않았다. `pnpm test:e2e`·`pnpm visual:verify`는 화면이 바뀌지 않아 실행하지 않았다. `moai` CLI·MCP가 연결되지 않아 `moai spec lint`·@MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 독립 기대값은 `spec.md` §2.3을 같은 사람이 옮긴 것이라 SPEC 읽기가 틀리면 기대값과 표가 같이 틀린다(`spec.md`와의 대조 시험이 옮김 자체의 실수는 잡는다). 노출 기록 검사기의 열·어휘 선택(발견 5·6)은 SPEC이 정하지 않은 부분의 임시 닫음이다.
+
+**잔여 위험**: 런북 표가 사람이 고치는 문서라 게이트 함수·페이지·부팅 검증이 바뀌면(EV-L1, ENGINE-001이 게이트 입력을 바꾸면 N6) 이 표와 기대값 리터럴을 함께 갱신해야 한다 — 시험은 어긋나면 실패하게 해 두었으나 기대값 리터럴 자체를 자동으로 고치지는 않는다. 로컬 도달 관측은 운영 호스트의 노출 증거가 아니다(D-LAUNCH-01 (e)). 스크립트의 배선 부분(빌드·서버 기동)은 단위 시험이 없고 실제 실행으로만 덮인다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
