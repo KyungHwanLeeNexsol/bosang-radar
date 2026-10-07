@@ -223,6 +223,30 @@ RED의 한계: 시험 파일이 모듈을 불러오지 못해 스위트가 통�
 
 **잔여 위험**: 서명 파서는 헤더 줄이 정확히 같은 첫 표만 읽고 칸 안의 `|` 문자는 칸을 잘못 나눈다. 서명 점검은 서명이 덮는 항목의 완전성(위 1)과 서명 시점 대상 값의 일치(위 2)를 보지 않는다. 표지값 검사의 임시 폴더 정리는 `afterEach`에 있어 프로세스가 강제 종료되면 OS 임시 폴더에 남을 수 있다. 저장소를 검색하는 `git grep`은 작업 트리 전체를 도는 자식 프로세스라 저장소가 커지면 시험 시간이 늘어난다(현재 시험 파일 전체 2~8초대).
 
+### M1 종합 검증 (오케스트레이터, 2026-10-07)
+
+- **단위 구성**: 모드 선택(§F)에서 M1을 M1a→M1b→M1c로 나눠 위임한다고 적었으나 실제로는 네 단위(M1a, M1b, M1c, M1d)로 나눴다 — M1c(AC-004·006)와 M1d(AC-007·008)로 갈랐다. 커밋: `cb27b35`(§E.1) · `49646f7`(§F·기준선) · `de48d01`(M1a) · `9aac310`(런북 DoD 문장 정정, 오케스트레이터) · `bd06157`(M1b) · `e180214`(M1c) · `bac8662`(M1d). 위임은 단위마다 `Agent(general-purpose)`에 manager-develop 역할을 적어 보냈고, 쓰기 가능한 에이전트는 한 번에 하나만 돌렸다.
+- **독립 검증**: 각 단위가 끝날 때마다 에이전트 보고를 믿지 않고 오케스트레이터가 직접 `git show --stat`, SPEC 본문 불변 여부, 전체 `pnpm test`·`pnpm lint`·`pnpm exec tsc --noEmit`을 다시 실행했다. 최종(HEAD `bac8662`)의 원문 로그는 `.moai/state/verify/launch-run/V11-test.log`~`V15-flag-runtime.log`이고 종료 코드는 로그의 `exit=` 줄에서 읽었다.
+
+| 명령 | 로그 | 관측 결과 (HEAD `bac8662`) |
+|---|---|---|
+| `pnpm test` | `V11-test.log` | Test Files 112 passed (112), Tests 1199 passed (1199), `exit=0` — 기준선 939 + M1a 24 + M1b 112 + M1c 60 + M1d 64 |
+| `pnpm lint` | `V12-lint.log` | `exit=0` |
+| `pnpm exec tsc --noEmit` | `V13-tsc.log` | `exit=0`, 출력 없음 |
+| `pnpm build` | `V14-build.log` | `exit=0` |
+| `pnpm verify:flag-runtime` | `V15-flag-runtime.log` | `불일치 관측 합계: 0`, `exit=0` |
+
+- **변경 범위 확인**: `git diff --stat 2c244e0 HEAD`로 `app/`·`components/`·`.github/`·`package.json`·`pnpm-lock.yaml`·`vitest.config.ts`·`.env.local.example`의 변경이 0건임을 확인했다. `spec.md`는 frontmatter `status`·`updated` 두 줄만(M1a), `plan.md`·`acceptance.md`는 한 줄도 바뀌지 않았다. 측정 뒤 `git status --short`는 비어 있다.
+- **AC 현황(M1 몫)**: AC-B2CLAUNCH-001~008 전부 해당 fixture가 통과한다(각 단위의 판정표는 위 M1a~M1d 절). 단 BLOCKED가 남은 부분이 있다 — AC-004의 실제 형제 증거 기록과의 비교(형제 기록 형식·위치 미정), AC-008 (마)(바)(사)의 서명자 구성(U3, 사용자 확인 대기). 모두 acceptance.md가 선결로 적은 그대로다.
+- **에이전트 보고에서 옮겨 적은 값(오케스트레이터가 직접 관측하지 않은 것)**: 커버리지 수치(`lib/launch` 100%, `scripts/check-launch-gate.ts` 174/181 구문 등). 이 작업 폴더에서는 저장소 설정의 `coverage.exclude`가 `.claude/**`를 담아 설정대로 실행하면 0/0이 나오므로 에이전트가 명령줄 덮어쓰기로 측정했다. RED 출력과 변이 검사 결과도 에이전트 로그(`M1*-red.log`, `M1*-mutation-check.log`)에서 읽은 것이다.
+- **미측정(Gap)**: `pnpm test:e2e`·`pnpm visual:verify`(M1은 화면에 닿지 않는다. M2 착수 전에 측정). `moai` CLI·MCP가 연결되지 않아 `moai spec lint`, `moai session list`, @MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 불안정 시험: 단위 M1c의 첫 전체 실행에서 `scripts/verify-remote-consult.test.ts` 1건이 실패했고 단독 재실행과 이후 모든 전체 실행에서는 통과했다(원인 미조사 — 자동 메모리에 적힌 윈도우 EPERM 증상일 가능성은 추정일 뿐이다).
+- **사용자 확인이 필요한 발견(M1 중 쌓인 것, SPEC은 고치지 않았다)**:
+  1. ENGINE-001에는 id가 붙은 증거 표가 없다(`design.md` §9.3 행은 설명 칸 안의 `(i)`~`(iv)`). 그래서 R-02·R-03·R-05를 식별자로 참조하는 형제 증거 참조 줄은 지금 거부된다(M1c 발견 5). ENGINE-001이 식별자를 정하거나 이 SPEC이 다른 참조 방식을 정해야 한다.
+  2. M1c가 참조 줄에 "이 SPEC 항목" 칸을 더해 6열로 했다(REQ-004의 다섯 필드에는 줄과 항목을 잇는 필드가 없어서). 이 열이 마음에 들지 않으면 SPEC이 연결 방식을 정해야 한다.
+  3. 기존 오류 메시지는 열거 밖 값(기록 상태·법무 결과·실행 환경 칸)을 되풀이한다. 서명 기록 쪽은 값을 되풀이하지 않게 만들었으나 기록·법무 쪽은 시험이 되풀이를 확인한다(M1d 발견 5). 그 칸에 비밀·연락처가 잘못 들어가면 출력에 나타난다.
+  4. 서명이 덮는 항목 범위와 서명 행이 여럿일 때의 서명자 구성(U3)은 SPEC이 정하지 않았다 — 지금은 역할의 허용 목록 소속만 강제한다.
+- **plan.md 체크박스(`plan.md:63`)**: 아직 체크하지 않았다. 체크하면 해시 대상인 `plan.md`가 바뀌어 이후 Phase 1 게이트가 다시 실행될 수 있고, 재감사가 규칙 해석 debt(§E.1)와 얽혀 다른 판정이 날 위험이 있다. run 종료 시점으로 미뤘으며, 사용자의 "Phase 1 결과를 읽은 뒤" 조건과 어긋나지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
