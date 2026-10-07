@@ -6,7 +6,8 @@
 //         [--targets <현재 대상 값 JSON>] [--events <관측 뒤 사건 JSON>] [--exemptions <면제 결정 JSON>]
 //         [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
 // 종료 코드: 0 = 통과, 1 = 항목 점검 또는 서명 점검이 통과하지 못해 불가(서명 없음·서명 뒤 UNVERIFIED가 된 항목·
-//         허용되지 않은 역할·서명의 실행 환경이 요청 형태와 다름 포함), 2 = 입력 거부(요청 형태·표·기록·서명 기록의
+//         허용되지 않은 역할·서명의 실행 환경이 요청 형태와 다름·서명이 덮는 항목이 필수 항목 집합과 다름 포함),
+//         2 = 입력 거부(요청 형태·표·기록·서명 기록의
 //         칸 오류·사용법 오류).
 //
 // 점검기는 기록의 상태 칸과 넘겨 받은 현재 대상 값·사건만 읽는다. 사건 발생을 스스로 감지하지 못하고
@@ -209,6 +210,8 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     `목적 벡터: ${request.vector.length === 0 ? "없음" : request.vector.join("·")}`,
   ];
   const failed: string[] = [];
+  /** 이 요청이 읽는 필수 항목 식별자(서명이 덮어야 하는 집합). 판정에서 빠지는 항목은 담지 않는다. */
+  const requiredItemIds: string[] = [];
 
   for (const row of input.items) {
     if (!appliesToVector(row, request.vector)) continue;
@@ -228,6 +231,7 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       continue;
     }
 
+    requiredItemIds.push(row.id);
     const note = cell === "결정 대기" ? " [결정 대기 칸 — 결정 기록이 없어 필수로 취급]" : "";
     const recorded = recordById.get(row.id);
     if (recorded === undefined) {
@@ -256,6 +260,7 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
   const signatureProblems = judgeSignature(input.signature, {
     allowedRoles: input.allowedRoles ?? [],
     requestEnvironment: request.form,
+    requiredItemIds,
     currentStatus: (id) => {
       const recorded = recordById.get(id);
       return recorded === undefined ? undefined : effectiveStatusOf(recorded).status;

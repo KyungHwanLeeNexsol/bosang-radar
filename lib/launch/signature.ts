@@ -2,8 +2,9 @@
 //
 // 서명 기록은 마크다운 문서이고(D-LAUNCH-04 형식 (i)) 표 둘을 담는다 — 서명 행(역할·날짜·실행 환경)과
 // 서명 시점의 항목 상태·대상 값 전체. 허용 역할 목록은 D-LAUNCH-04의 결정이며 코드에 박지 않고 호출하는 쪽이
-// 넘긴다(결정이 바뀌는 것은 무효화 사건이다). 이 모듈이 강제하는 것은 역할의 목록 소속뿐이다 — 세 역할이 모두
-// 서명해야 하는지(서명자 구성, U3)는 확인 대기라 정하지 않았다.
+// 넘긴다(결정이 바뀌는 것은 무효화 사건이다). 서명자에 대해 이 모듈이 강제하는 것은 역할의 목록 소속뿐이다 — 세 역할이
+// 모두 서명해야 하는지(서명자 구성, U3)는 확인 대기라 정하지 않았다. 서명이 덮는 항목은 요청의 필수 항목 집합과
+// 같아야 한다(필수 항목 집합은 호출하는 쪽이 넘긴다).
 //
 // 오류·판정 메시지는 서명 행의 역할·날짜 칸 값과 열거 밖 칸의 값을 적지 않고 서명 행 번호와 칸 이름만 적는다:
 // 그 칸에 이름·연락처가 잘못 들어가도 검증 출력에 되풀이되지 않게 하려는 것이다(REQ-B2CLAUNCH-007).
@@ -124,11 +125,14 @@ export interface SignatureContext {
   requestEnvironment: SignatureEnvironment;
   /** 서명 시점 항목의 점검 시점 유효 상태. 현재 기록에 없는 항목이면 undefined. */
   currentStatus: (id: string) => ItemStatus | undefined;
+  /** 이 요청이 읽는 단계(또는 로컬 시험 판정)의 필수 항목 식별자. 서명이 덮는 항목 집합이 이와 같아야 한다. */
+  requiredItemIds: readonly string[];
 }
 
 /**
  * 서명 점검. 문제가 없으면 빈 목록이다. 서명 기록이 없거나 서명 행이 없으면 서명 없음이고(기본값은 통과가 아니다),
- * 허용 목록 밖의 역할·요청 형태와 다른 실행 환경·서명 뒤 UNVERIFIED가 된 항목을 각각 이유로 적는다.
+ * 허용 목록 밖의 역할·요청 형태와 다른 실행 환경·서명이 덮는 항목 집합과 필수 항목 집합의 불일치·서명 뒤
+ * UNVERIFIED가 된 항목을 각각 이유로 적는다.
  * 서명 시점의 대상 값은 기록에 담긴 사실로 보존할 뿐 이 점검이 현재 값과 비교하지는 않는다 — 항목이 현재도
  * 유효한지는 항목 점검의 유효 상태가 정한다.
  */
@@ -153,7 +157,22 @@ export function judgeSignature(
   });
 
   if (record.snapshot.length === 0) {
+    // 아무것도 덮지 않은 서명은 이 한 줄로 끝낸다 — 필수 항목마다 덮지 않았다고 되풀이하지 않는다.
     problems.push("서명이 덮는 항목이 없다 — 서명 시점 항목 표가 비어 있다");
+  } else {
+    // 서명이 덮는 항목 집합은 요청의 필수 항목 집합과 같아야 한다(REQ-B2CLAUNCH-008, AC (카)). SPEC 문구 그대로
+    // 집합 동일성이므로 필수 항목을 빠뜨린 서명도, 필수가 아닌 항목(목적 단계 열이 해당 없음·열지 않는 표면·local의
+    // 운영 한정 항목·면제된 결정 대기 칸의 항목)을 덮은 서명도 거부한다. 이유에는 식별자만 적고 값은 적지 않는다.
+    const signed = new Set(record.snapshot.map((item) => item.id));
+    const required = new Set(context.requiredItemIds);
+    const uncovered = context.requiredItemIds.filter((id) => !signed.has(id));
+    const outside = record.snapshot.map((item) => item.id).filter((id) => !required.has(id));
+    if (uncovered.length > 0) {
+      problems.push(`서명이 덮지 않은 필수 항목 식별자: ${uncovered.join(", ")}`);
+    }
+    if (outside.length > 0) {
+      problems.push(`서명이 필수 항목 집합 밖의 항목을 덮는다 — 식별자: ${outside.join(", ")}`);
+    }
   }
   for (const item of record.snapshot) {
     const current = context.currentStatus(item.id);

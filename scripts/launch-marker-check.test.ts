@@ -306,7 +306,10 @@ function runProcedures(set: MarkerSet): ProcedureRun {
     JSON.stringify(Object.fromEntries(ITEM_ROWS.map((row) => [row.id, `대상-${row.id}`])))
   );
 
-  const snapshot = recordRows.map((row) => [row[0], "READY", row[5]]);
+  // 서명은 요청(운영 단계 I, 표면 전체)의 필수 항목 집합과 같은 항목만 덮는다 — I 열이 해당 없음인 항목은 뺀다.
+  const snapshot = recordRows
+    .filter((_, index) => ITEM_ROWS[index].i !== "해당 없음")
+    .map((row) => [row[0], "READY", row[5]]);
   const goodSignature = writeInput(
     "signature.md",
     `${table(SIGNER_COLUMNS, [["제품 책임자", "날짜-예시", "production"]])}\n\n${table(SNAPSHOT_COLUMNS, snapshot)}`

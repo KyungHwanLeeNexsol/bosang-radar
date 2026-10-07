@@ -126,6 +126,19 @@ describe("AC-B2CLAUNCH-004 — 참조 줄 파서", () => {
     expect(errorsOf("문단만 있다")[0]).toContain("참조 줄 표");
   });
 
+  it("줄과 이 SPEC 항목을 잇는 연결 칸이 헤더에 없는 표(REQ-B2CLAUNCH-004의 다섯 필드만 적은 표)는 표를 찾지 못한 것으로 거부한다", () => {
+    const withoutLink = SIBLING_REF_COLUMNS.slice(1);
+    const markdown = [
+      `| ${withoutLink.join(" | ")} |`,
+      `|${withoutLink.map(() => "---").join("|")}|`,
+      `| ${CONSULTOPS_SPEC} | E-03 | READY | 대상값-예시-1 | 형제기록위치-예시 |`,
+    ].join("\n");
+
+    expect(errorsOf(markdown)).toHaveLength(1);
+    expect(errorsOf(markdown)[0]).toContain("참조 줄 표");
+    expect(errorsOf(markdown)[0]).toContain("이 SPEC 항목");
+  });
+
   it("옮겨 적은 상태가 READY·BLOCKED·UNVERIFIED 밖이면 항목 식별자를 적어 거부한다", () => {
     for (const status of ["GO", "미정", ""]) {
       const errors = errorsOf(refTable(refRow("R-04", "E-03", status)));

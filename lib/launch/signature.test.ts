@@ -49,6 +49,8 @@ function context(overrides: Partial<SignatureContext> = {}): SignatureContext {
     allowedRoles: ALLOWED_ROLES,
     requestEnvironment: "production",
     currentStatus: () => "READY",
+    // 기본 필수 항목 집합은 GOOD_SNAPSHOT이 덮는 두 항목과 정확히 같다.
+    requiredItemIds: GOOD_SNAPSHOT.map(([id]) => id),
     ...overrides,
   };
 }
@@ -244,5 +246,52 @@ describe("judgeSignature — 서명 점검", () => {
     const single = parsed(signatureDoc([["법무", "날짜-예시", "production"]], GOOD_SNAPSHOT));
 
     expect(judgeSignature(single, context())).toEqual([]);
+  });
+});
+
+// REQ-B2CLAUNCH-008·AC-B2CLAUNCH-008 (카): 서명이 담은 항목 집합은 요청이 읽는 필수 항목 집합과 같아야 한다.
+describe("judgeSignature — 서명이 필수 항목 전체를 덮는지", () => {
+  const record = parsed(signatureDoc([GOOD_SIGNER], GOOD_SNAPSHOT));
+
+  it("필수 항목을 하나 빠뜨린 서명은 덮지 않은 필수 항목 식별자를 적어 거부한다", () => {
+    const problems = judgeSignature(record, context({ requiredItemIds: ["L-04", "R-05", "L-06"] }));
+
+    expect(problems).toEqual(["서명이 덮지 않은 필수 항목 식별자: L-06"]);
+  });
+
+  it("빠뜨린 필수 항목이 여럿이면 식별자를 모두 적고 서명 시점 값은 적지 않는다", () => {
+    const problems = judgeSignature(
+      record,
+      context({ requiredItemIds: ["L-04", "R-05", "L-06", "R-03"] })
+    );
+
+    expect(problems).toEqual(["서명이 덮지 않은 필수 항목 식별자: L-06, R-03"]);
+    expect(problems.join("\n")).not.toContain("대상-");
+  });
+
+  it("필수 항목 집합 밖의 항목을 덮은 서명도 집합이 같지 않으므로 거부하고 식별자를 적는다", () => {
+    const problems = judgeSignature(record, context({ requiredItemIds: ["L-04"] }));
+
+    expect(problems).toEqual(["서명이 필수 항목 집합 밖의 항목을 덮는다 — 식별자: R-05"]);
+  });
+
+  it("빠뜨린 항목과 넘치는 항목이 함께 있으면 두 이유를 모두 적는다", () => {
+    const problems = judgeSignature(record, context({ requiredItemIds: ["L-04", "L-06"] }));
+
+    expect(problems).toEqual([
+      "서명이 덮지 않은 필수 항목 식별자: L-06",
+      "서명이 필수 항목 집합 밖의 항목을 덮는다 — 식별자: R-05",
+    ]);
+  });
+
+  it("필수 항목 집합과 서명이 덮는 항목이 순서만 다르면 같은 집합이다", () => {
+    expect(judgeSignature(record, context({ requiredItemIds: ["R-05", "L-04"] }))).toEqual([]);
+  });
+
+  it("서명이 덮는 항목이 하나도 없으면 그 이유 하나만 적는다(필수 항목마다 덮지 않았다고 되풀이하지 않는다)", () => {
+    const problems = judgeSignature(parsed(signatureDoc([GOOD_SIGNER], [])), context());
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("서명이 덮는 항목이 없다");
   });
 });
