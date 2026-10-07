@@ -34,6 +34,54 @@
 - **측정 뒤 작업 트리**: `git status --short`가 §F를 편집한 `progress.md` 한 파일만 보였다(측정이 추적 파일을 바꾸지 않았다).
 - **미측정(Gap)**: `pnpm test:e2e`와 `pnpm visual:verify`는 이 기준선에 넣지 않았다. M1은 `lib/`·`scripts/`·문서만 건드리므로 화면 기준선에 닿지 않으며, 푸터 컴포넌트를 바꾸는 M2 착수 전에 측정한다. 이 측정은 한 번의 실행이며 `test`가 한 번 통과했다는 사실이 불안정 시험이 없다는 증명은 아니다.
 
+### M1a (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `49646f7` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)에 `M1a-*.log`로 있다. 이 커밋의 SHA는 이 기록이 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **변경 파일**: `lib/launch/stage-table.ts`(신규), `lib/launch/stage-table.test.ts`(신규), `.moai/docs/launch-gate-runbook.md`(신규 골격), `.moai/specs/SPEC-B2C-LAUNCH-001/spec.md`(frontmatter `status: draft` → `in-progress`, `updated: 2026-10-04` → `2026-10-07` 두 줄만. `git diff -U0`로 확인), 이 파일(§E.2 하위 절 추가).
+- **런북 표 출처**: 단계 표 5줄(`spec.md` 135~139행), 항목 정의표 16줄(165~180행), 항목 읽는 법 1줄(147행)을 줄 번호로 잘라 스크립트로 붙였다. 손으로 다시 적지 않았고, 시험이 두 표를 줄 단위로 `spec.md`와 대조한다.
+
+**RED**(구현 파일이 없는 상태에서 시험 파일만 있을 때, `M1a-red.log`):
+
+```
+$ pnpm exec vitest run lib/launch/stage-table.test.ts
+ FAIL  lib/launch/stage-table.test.ts [ lib/launch/stage-table.test.ts ]
+Error: Cannot find module './stage-table' imported from .../lib/launch/stage-table.test.ts
+ Test Files  1 failed (1)
+      Tests  no tests
+exit=1
+```
+
+RED의 한계: 시험 파일이 모듈을 불러오지 못해 스위트가 통째로 실패한 것이며, 개별 단언이 구현의 동작 때문에 실패한 출력이 아니다. 런북도 이때 없었다.
+
+**GREEN**: 첫 실행은 `Tests 1 failed | 23 passed (24)`였다(그 출력은 같은 경로의 로그를 다음 실행이 덮어써 로그에는 남아 있지 않고 실행 당시 화면에서 읽었다). 실패 원인은 구현이 아니라 시험의 단언 하나 — 런북의 시작 조건을 `(1)`~`(5)` 문자열로 찾도록 썼으나 런북은 번호 목록(`1.`~`5.`)이다. 시험을 "번호 목록 다섯 항목이고 여섯째는 없다"로 고쳐 다시 실행했다(구현은 이 사이에 바뀌지 않았다). 이후 prettier로 두 TS 파일 서식만 맞추고 아래 결과를 다시 얻었다.
+
+**E1 AC-B2CLAUNCH-001 판정표** (명령: `pnpm exec vitest run lib/launch/stage-table.test.ts --reporter=verbose`, 로그 `M1a-green-verbose.log`, 결과 `Test Files 1 passed (1)` / `Tests 24 passed (24)` / `exit=0`):
+
+| 항목 | 판정 | 근거 시험(관측된 ✓) |
+|---|---|---|
+| (1) 세 단계 한 행씩, 정의·벡터·도달 대상·판정 칸이 비어 있지 않음 | PASS | `런북의 단계 표가 파서를 통과한다(AC-B2CLAUNCH-001 (1)(2))`, 음성: 빈 칸·단계 누락·초과 행·중복·칸 수 오류 fixture |
+| (2) 벡터 칸이 정규식과 일치 | PASS | 같은 시험 + `벡터 칸이 정규식과 맞지 않으면…`, `…닫힘/열림 밖이거나 참조 토큰 뒤에 서술이 붙으면 거부한다`, `벡터 정규식은 acceptance.md AC-B2CLAUNCH-001 (2)에 적힌 정규식과 같다` |
+| (3) 문서가 "배포 완료는 어느 공개 단계의 판정도 충족하지 않는다"를 적음 | PASS | `(3) 배포 완료가 어느 공개 단계의 판정도 충족하지 않는다고 적는다` |
+| (4) 단계=운영 호스트 상태, 로컬 시험=별도 판정, 시작 조건 다섯 가지·I 서명 규칙·운영 한정 항목 규칙, 점검 요청의 두 형태와 거부 조합 | PASS | `(4) 단계는 운영 호스트의 상태이고…`, `(4) 로컬 시험 판정 절이…`, `(4) 점검 요청의 두 형태 절이…` |
+| (5) `spec.md` §2.4 단계 표가 같은 파서를 통과 | PASS | `spec.md §2.4 단계 표가 같은 파서를 통과한다(AC-B2CLAUNCH-001 (5))`, `런북 단계 표의 내용은 spec.md §2.4 표와 한 글자도 다르지 않다` |
+
+이 밖에 같은 파일의 시험이 항목 정의표 14행(L-01~L-09, R-01~R-05)이 `spec.md`와 줄 단위로 같음, AC-B2CLAUNCH-003이 요구하는 Definition of Done 문장이 런북에 있음, 런북에 주소(`http(s)://`)·이메일 형태 문자열이 없음을 확인한다.
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`, 출력 없음(오류 0건). 로그 `M1a-tsc.log`.
+**E3 린트**: `pnpm exec eslint lib/launch` → `exit=0`(`M1a-eslint.log`). 저장소 전체 `pnpm lint` → `exit=0`, 출력은 `$ eslint .` 한 줄(`M1a-lint.log`). `pnpm exec prettier --check`는 새 TS 파일 두 개가 처음엔 서식 경고를 냈고 `--write` 뒤 정리했다(기존 파일은 같은 검사를 통과한다).
+**E4 전체 시험**: `pnpm test` → `Test Files 104 passed (104)`, `Tests 963 passed (963)`, `exit=0`(`M1a-test-full.log`). 기준선 939 + 새 시험 24 = 963이다.
+**E5 커버리지**: `pnpm exec vitest run lib/launch --coverage "--coverage.include=lib/launch/stage-table.ts"`는 `All files | 0 | 0 | 0 | 0`, `Statements: Unknown% (0/0)`를 냈다(`M1a-cov.log`). include 경로가 설정과 맞지 않아 측정이 되지 않은 것이고 실제 커버리지 수치가 아니다 — **Gap**.
+
+**SPEC 문서에서 발견한 것**(고치지 않았다, 적힌 대로 진행):
+
+1. `acceptance.md` AC-B2CLAUNCH-003은 "이 문서의 Definition of Done 문장"이라 쓰는데, 같은 문장이 이미 `acceptance.md` 144행(§Quality Gate · Definition of Done)에 있다. 지시에 따라 런북에도 같은 문장을 넣었다. "이 문서"가 가리키는 문서가 `acceptance.md`인지 런북인지 문서상으로 하나로 정해져 있지 않다.
+2. AC-B2CLAUNCH-005와 `spec.md` §2.4 "대상"은 코드 종류 항목의 덮는 파일 목록을 런북이 항목마다 적는다고 하지만 `spec.md` 항목 표는 L-04 칸에만 파일 집합을 적는다. 지시대로 표를 그대로 옮겼고 나머지 항목의 목록은 만들지 않았다. 런북 골격에는 "표의 칸에 이미 적힌 파일 집합 외에 덮는 파일 목록을 정하지 않는다"고 적었다. AC-005 쪽 검사(목록에 기록 파일이 들어 있으면 거부)가 읽을 목록은 M1b 이후에 정해야 한다.
+3. `acceptance.md` AC-B2CLAUNCH-001 (2)의 정규식은 `spec.md` 단계 표의 세 벡터를 모두 통과시키지만, 벡터 칸 중 "내부 시험 공개"의 Q2 집합과 "일반 사용자 공개"의 Q1 집합은 참조 토큰만 허용해 표면 집합의 실제 내용은 이 AC가 보지 못한다(AC 본문이 이미 "이 AC가 보지 못하는 것"으로 적은 한계와 같다).
+
+**Gaps(관측하지 못한 것)**: 커버리지 수치(위 E5). `pnpm build`·`pnpm test:e2e`·`pnpm visual:verify`는 M1a가 `lib/launch/`·문서만 건드려 실행하지 않았다(`pnpm build`는 새 `lib/launch` 모듈을 앱이 아직 가져오지 않아 영향이 없다고 판단했을 뿐 이 변경 뒤에 다시 측정하지 않았다). M1b·M1c의 항목(기록 모델·점검기·서명·형제 참조·법무 확인·표지값 검사)은 구현하지 않았다. 단계 표의 칸 내용이 사실인지, U3(로컬 I 서명자 구성)·U5(`local` + 단계 거부 규칙)는 문서에 적힌 그대로 두었고 이 변경이 해소하지 않는다.
+
+**잔여 위험**: 파서는 헤더 줄이 정확히 `단계|정의|게이트 상태 벡터|도달 대상|판정` 다섯 열인 첫 표만 읽는다. 문서에 같은 헤더의 표가 둘 이상이면 첫 표만 검사한다(현재 `spec.md`·런북 모두 하나뿐이고 시험이 대조한다). 칸 안에 `|` 문자가 들어가는 표는 이 파서가 칸을 잘못 나눈다 — 현재 두 표에는 없다. 런북 시험은 파일을 불러올 때 문서가 없으면 스위트 전체가 실패하도록 되어 있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

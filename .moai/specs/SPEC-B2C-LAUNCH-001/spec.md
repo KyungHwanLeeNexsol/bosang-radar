@@ -2,9 +2,9 @@
 id: SPEC-B2C-LAUNCH-001
 title: "B2C 출시 게이트: 단계 정의·플래그 순서·deploy smoke 교체·go/no-go 기록·롤백 (Plan-Phase)"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-10-02
-updated: 2026-10-04
+updated: 2026-10-07
 author: Nexsol
 priority: P1
 phase: "v0.20.0 target"
