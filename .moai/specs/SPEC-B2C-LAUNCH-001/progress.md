@@ -305,6 +305,68 @@ RED의 한계: 시험 파일이 모듈을 불러오지 못해 스위트가 통�
 
 **잔여 위험**: 필수 항목 집합은 점검 루프가 판정에서 읽는 항목이므로 점검 규칙(결정 대기 칸 면제·표면 열·운영 한정 항목)이 바뀌면 서명이 덮어야 하는 집합도 함께 바뀌어, 이미 받은 서명이 새 규칙에서 집합 불일치로 거부될 수 있다(규칙 변경은 서명의 재작성을 부르는 사건이다). 서명 점검은 서명 시점 대상 값의 일치와 서명자 구성(U3)을 여전히 보지 않는다.
 
+### M2 (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `0e18ece` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M2-*.log`다. 이 커밋의 SHA는 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **범위(사용자 결정)**: "화면 변화 없음". 푸터 분류 시험, L-08 표면별 G 점검기, 현황 기록만 만들었다. `components/`·`app/`의 비시험 파일, `design/`, `e2e/`, `scripts/visual-verify.ts`, `scripts/check-launch-gate.ts`, `spec.md`·`plan.md`·`acceptance.md`는 바꾸지 않았다.
+- **변경 파일**: `lib/launch/footer-element-state.ts`(+시험), `lib/launch/legal-notice-gate.ts`(+시험), `lib/launch/legal-notice-record.fixture.ts`, `components/diagnosis/diagnosis-footer.legal-notice.test.tsx`, `components/result/result-footer.legal-notice.test.tsx`, `components/consult/consult-footer.legal-notice.test.tsx`, `.moai/docs/launch-gate-runbook.md`(`## L-08 법적 고지 표면 현황 (M2 스냅샷)` 절 추가), 이 파일. 기존 푸터 시험(`result-footer.test.tsx`, `consult-footer.test.tsx`)은 완료된 SPEC의 것이라 고치지 않고 새 파일을 옆에 두었다.
+- **구현한 것**: (1) 분류기 `classifyFooterElement` — `aria-disabled="true"`면 `비활성 표시`, href 속성이 없으면 `텍스트만`, href가 비었거나 정확히 `#`이면 `# 앵커`, 그 밖은 `목적지 있음`. 요소는 렌더링 결과에서 화면 라벨로 시작하는 `a`·`[role="link"]`·`span`을 정확히 하나 찾아(`findFooterElement`, 하나가 아니면 던진다) 분류한다. (2) 점검기 `evaluateLegalNoticeGate` — 입력은 S1 요소 상태 여섯, S2 요소 확정 여부 여섯(D-OPS-04 기록을 입력으로만 받는다), 목적 벡터. 목적 벡터가 여는 표면의 요소만 읽는다: S1은 여섯 요소가 모두 `목적지 있음`이어야 하고, S2는 여섯 요소가 모두 `확정`이어야 한다. 출력은 `READY`/`BLOCKED`와 차단 요소 식별자, 문제 종류 코드(`empty-target`·`unknown-target`·`no-applicable-surface`·`unknown-s1-element`·`unknown-s2-element`)이며 입력 값을 되풀이하지 않는다. (3) 시험용 요소 기록 거울(`legal-notice-record.fixture.ts`)과 D-LAUNCH-09 허용 칸(G: `목적지 있음`, I: `목적지 있음`·`비활성 표시`).
+
+**RED**(`classifyFooterElement`는 항상 `텍스트만`, `evaluateLegalNoticeGate`는 항상 `READY`를 돌려주는 틀로 두고 새 시험 5개 파일 실행, `M2-red.log`): `Test Files 5 failed (5)`, `Tests 36 failed | 16 passed (52)`, `exit=1`. 모듈 없음·타입 오류는 0건이고 실패는 모두 단언 실패다(대표: `expected '텍스트만' to be '# 앵커'` 4건, `expected '텍스트만' to be '비활성 표시'` 2건, `expected '텍스트만' to be '목적지 있음'` 2건, `expected 'READY' to be 'BLOCKED'` 7건, `expected [] to deeply equal [ '나' ]`, `expected [] to deeply equal [ '가', '다' ]`, `expected [] to deeply equal [ '02-footer-terms' ]`). 통과한 16건은 틀이 우연히 맞는 경우(02 고객 문의의 `텍스트만`, 목적지 있음 요소의 READY 등)다.
+
+**GREEN**(`M2-green-1.log`, verbose): `Test Files 5 passed (5)`, `Tests 52 passed (52)`, `exit=0`. prettier 정리 뒤 새 시험 5개 파일 + 기존 푸터 시험 둘(`M2-green-final.log`): `Test Files 7 passed (7)`, `Tests 64 passed (64)`, `exit=0`(새 52 + 기존 12). 그 뒤 커버리지 보강으로 `footer-element-state.test.ts`에 요소 찾기 시험 4건(jsdom)을 더해 새 시험은 56건이 됐고 전체 실행(E4)과 커버리지 실행(E5)이 이를 포함한다.
+
+**E1 AC-B2CLAUNCH-015 시나리오 2 판정표**(여덟 칸, 명령 `pnpm exec tsx .moai/state/verify/launch-run/M2-cells.ts`의 출력 `M2-cells.log`와 단위 시험 `lib/launch/legal-notice-gate.test.ts`; 차단 요소는 식별자만):
+
+| fixture | 목적 벡터 | 기대 | 관측 |
+|---|---|---|---|
+| (가) S1 여섯 `목적지 있음`, S2 6개 미확정 | S1 | BLOCKED 아님 | PASS — `READY`, 차단 없음 |
+| (나) S1 하나 `# 앵커`, S2 6개 확정 | S1 | BLOCKED | PASS — `BLOCKED`, `02-footer-terms` |
+| (다) S1 여섯 `목적지 있음`, S2 일부 확정 | S1 | BLOCKED 아님 | PASS — `READY`, 차단 없음 |
+| (라) S1 여섯 `목적지 있음`, S2 6개 확정 | S1 | BLOCKED 아님 | PASS — `READY`, 차단 없음 |
+| (가) | S2 | BLOCKED | PASS — `BLOCKED`, `03-C`·`03-B`·`03-D`·`03-footer-contact`·`03-footer-privacy`·`03-footer-terms` |
+| (나) | S2 | BLOCKED 아님 | PASS — `READY`, 차단 없음 |
+| (다) | S2 | BLOCKED | PASS — `BLOCKED`, `03-D`·`03-footer-contact`·`03-footer-privacy`·`03-footer-terms` |
+| (라) | S2 | BLOCKED 아님 | PASS — `READY`, 차단 없음 |
+
+S1 벡터에서 BLOCKED는 (나)뿐이고 S2 벡터에서는 (가)(다)뿐이다(시험이 이 집합을 직접 확인한다). 어느 fixture에서도 S2의 미확정이 스스로 READY가 되지 않으며 점검기는 D-OPS-04를 판정하지 않는다. 추가 시험: 두 표면을 함께 여는 벡터는 두 판정의 합집합(S1 요소 → S2 요소 순서), G가 `# 앵커`·`비활성 표시`·`텍스트만`을 허용하지 않음, `확정`이 아닌 값·알 수 없는 상태 값은 차단, 빈 S1·S2 입력은 여섯 요소 전부 차단, 입력 객체가 빠져도 통과 없음, 빈·없는 목적 벡터(`empty-target`)·알 수 없는 표면(`unknown-target`, 값을 출력에 되풀이하지 않음)·S3만(`no-applicable-surface`), 알 수 없는 요소 식별자(`unknown-s1-element`·`unknown-s2-element`, 식별자를 되풀이하지 않음, 열지 않는 표면의 입력은 읽지 않음), 입력을 바꾸지 않음.
+
+**E1 AC-B2CLAUNCH-015 시나리오 1 관측 분류표**(세 푸터 렌더링 시험, 로그 `M2-green-final.log`; 요소 기록의 현재 상태 칸과 같음):
+
+| 표면 | 요소 | 관측 분류 | G 허용 | I 허용 |
+|---|---|---|---|---|
+| 01 | 개인정보처리방침 | `# 앵커` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 01 | 이용약관 | `# 앵커` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 01 | 고객 문의 | `# 앵커` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 02 | 개인정보처리방침 | `# 앵커` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 02 | 이용약관 | `# 앵커` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 02 | 고객 문의(`고객 문의: 준비 중` 텍스트) | `텍스트만` | 아니오 | 결정 침묵(아니오로 읽음) |
+| 03 | 개인정보처리방침 | `비활성 표시` | 아니오 | 예 |
+| 03 | 이용약관 | `비활성 표시` | 아니오 | 예 |
+| 03 | 고객 문의 | `비활성 표시` | 아니오 | 예 |
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`, 출력 없음(`M2-tsc-2.log`). **E3 린트**: `pnpm lint` → `exit=0`(`M2-lint.log`), 새 TS 여덟 개 `prettier --check` 통과(`M2-prettier-2.log`). **E4 전체 시험**: `pnpm test` → `Test Files 117 passed (117)`, `Tests 1270 passed (1270)`, `exit=0`(`M2-test-full.log`; M1e 기준선 1214 + 새 56). **E5 커버리지**(명령줄 덮어쓰기, `M2-cov-2.log`): 새 두 모듈 합계 구문 100%(47/47), 분기 97.82%(45/46), 함수 100%, 줄 100%. `footer-element-state.ts`는 분기 91.66%(미덮개 31행, `textContent ?? ""`의 null 쪽)이고 `legal-notice-gate.ts`는 텍스트 보고서가 100% 파일을 접어 목록에 없다(합계 수치로 확인, 파일별 수치를 따로 읽지는 않았다). 요소 찾기의 DOM 경로는 컴포넌트 시험이 아니라 `footer-element-state.test.ts`의 jsdom 시험이 덮는다.
+
+**변경 범위 확인**: `git diff --stat 0e18ece -- components app`(커밋 뒤)는 새 `*.legal-notice.test.tsx` 세 개만 낸다. `app/`은 0건.
+
+**발견(SPEC 문서는 고치지 않았다, 적힌 대로 진행하고 말하지 않은 곳은 닫았다)**:
+
+1. **빈 href의 이름**: REQ-015·AC-015가 `# 앵커`를 이름으로 주고 `목적지 있음`의 조건에 "href가 `#`도 빈 값도 아님"을 적었으나 빈 href가 어느 분류인지 말하지 않는다. 목적지 없음 쪽으로 닫아 `# 앵커`로 분류했다. 다른 이름(예: 별도 분류)이 맞는지는 SPEC이 정해야 한다.
+2. **`#`로 시작하는 그 밖의 값**: 글자 그대로 읽어 정확히 `#`가 아니면(예: 쪽 안 이동을 뜻하는 값) `목적지 있음`이다. 그것이 법적 고지의 목적지로 인정되는지는 SPEC이 말하지 않는다. `#`로 시작하는 값을 모두 `# 앵커`로 읽을지 SPEC이 정해야 한다(fail-closed로 닫으려면 후자).
+3. **I 단계에서 `# 앵커`·`텍스트만`의 허용**: D-LAUNCH-09 (2)는 "준비 중" 비활성 표시를 허용한다고만 적었다. `텍스트만`("고객 문의: 준비 중")이 그 허용에 드는지, `# 앵커`가 드는지 결정 기록이 침묵한다. 허용으로 읽지 않았다(허용 칸 I = `목적지 있음`·`비활성 표시`). `목적지 있음`이 I를 충족한다는 읽기도 결정 기록이 직접 적은 것이 아니라 읽어낸 것이다. 이 점검기는 G만 판정하므로 I 허용은 요소 기록·런북에만 쓰였고 판정에 쓰이지 않는다.
+4. **요소 식별자 체계**: SPEC은 S1 요소의 식별자를 정하지 않았다(L-08은 "요소별 기록"이라고만 적었다). `01-footer-privacy` 같은 `표면 번호-footer-요소`를 임의로 붙였다. S2의 여섯 식별자는 CONSULTOPS-001 D-OPS-04의 이름(03-C·03-B·03-D와 03 푸터 셋)을 옮겼으나 03 푸터 셋의 식별자(`03-footer-*`)는 이 점검기가 붙인 것이며 CONSULTOPS-001 기록의 실제 식별자와 같은지는 확인하지 못했다(그 기록의 형식·위치가 미정이다).
+5. **S1·S2 모두 열지 않는 벡터**: L-08은 표면이 S1·S2인 항목이라 S3만 여는 벡터에서는 적용되지 않는다. SPEC은 적용되지 않을 때 이 점검기가 무엇을 내야 하는지 말하지 않아, 빈 벡터와 S3만 있는 벡터를 모두 BLOCKED(`empty-target`·`no-applicable-surface`)로 닫았다. 호출하는 쪽이 L-08이 적용되지 않는 벡터에서는 이 점검기를 부르지 않는 것이 자연스럽다.
+6. **요소 기록의 위치**: AC-015는 "항목의 현재 상태 칸이 분류 결과와 같다"고 쓰지만 요소별 항목 기록의 위치·형식을 정하지 않았다(D-LAUNCH-04 (α)는 저장소에 식별자·상태·참조만 두라고만 한다). 시험용 거울을 `lib/launch/legal-notice-record.fixture.ts`에 두고 같은 내용을 런북 스냅샷 절에 사람이 읽는 표로 옮겼다. 정식 기록의 위치가 정해지면 그쪽으로 옮겨야 한다.
+7. **런북 머리말과의 긴장**: 런북 3~5행은 "항목의 상태를 적은 기록과 서명 기록은 이 문서의 구역이 아니다"라고 적는다. 이번 절은 푸터 요소의 분류 현황이지 L-08 항목의 상태(`READY` 등)가 아니라고 읽고 넣었으나(사용자 지시), 이 절이 증거 표 구역으로 읽히면 "기록 파일은 어느 항목의 덮는 파일 목록에도 넣지 않는다"는 규칙과 닿을 수 있다. L-08의 `대상` 칸은 세 푸터 컴포넌트와 결정 기록이고 런북은 거기 없어서 지금은 충돌하지 않는다.
+8. **AC-015 후보 시험 파일명**: AC는 후보로 `diagnosis-footer.test.tsx` 등 기존 이름을 적었다. 01은 시험이 없었으나 02·03에는 완료된 SPEC의 시험이 있어 모두 새 `*.legal-notice.test.tsx`를 옆에 두었다.
+9. **03 푸터의 모바일 상태**: `ConsultFooter`는 `md` 미만에서 숨는다(CSS 클래스). jsdom은 CSS를 계산하지 않아 시험은 모바일에서 숨는 사실을 보지 못한다(AC-015가 보지 못하는 것 목록과 같다).
+
+**배선 공백(D)**: `scripts/check-launch-gate.ts`에는 목적 벡터(`--surfaces`)와 목적 단계(`I`·`G`) 개념이 이미 있으나 새 점검기에 꽂는 일은 "아주 작은 변경"이 아니라 하지 않았다. 이유: (a) 점검기는 요소 단위 입력(S1 요소 상태 여섯, S2 확정 여부 여섯)을 받는데 현재 입력 표면은 항목 단위 기록(`READY` 등)과 항목별 대상 값·사건뿐이라 새 입력(예: `--legal-notice <JSON>`)과 그 검증이 필요하다. (b) L-08 기록 행의 `READY` 상태와 요소 판정이 어떤 관계인지(요소 판정이 행 상태를 대신하는지, 둘 다 필요한지)를 SPEC이 정하지 않았다. (c) I 단계에서 요소 단위 판정은 허용 칸 해석(발견 3)이 열려 있어 쓸 수 없다. 제안: 결정이 나면 `evaluateLaunchGate`의 항목 루프에서 `row.id === "L-08"`이고 `request.column === "G"`일 때만 `evaluateLegalNoticeGate({ ..., target: request.vector })`를 불러, `BLOCKED`면 그 항목을 불가로 두고 `blocking` 식별자를 `불가 사유`에 적는다. 이 연결은 발견 3·5와 (b)가 정해진 뒤의 후속 단위로 둔다.
+
+**Gaps(관측하지 못한 것)**: `pnpm build`·`pnpm test:e2e`·`pnpm visual:verify`는 화면이 바뀌지 않아 실행하지 않았다(M1 종합 검증이 "M2 착수 전에 측정"으로 미룬 것도 이 단위의 범위 밖 지시에 따라 실행하지 않았다). 변이 시험은 하지 않았다. 점검기와 분류기의 기대값을 시험이 같은 사람의 읽기로 적었으므로 SPEC 읽기가 틀리면 두 곳이 같이 틀린다(발견 1~3). `moai` CLI·MCP가 연결되지 않아 `moai spec lint`·@MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 불안정 시험 `scripts/verify-remote-consult.test.ts`는 이번 전체 실행에서 실패하지 않았다.
+
+**잔여 위험**: 요소 기록 거울과 런북 스냅샷은 푸터 컴포넌트가 바뀌면 낡는다(시험은 기록과 어긋나면 실패하나 런북 표는 사람이 고쳐야 한다, EV-L1). 분류기는 속성만 보므로 동적으로 계산한 목적지, 링크 대상의 실재, 법적 충분성은 보지 못한다. 점검기는 D-OPS-04 기록의 진위를 알 수 없고 입력으로 받은 확정 여부를 그대로 읽는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
