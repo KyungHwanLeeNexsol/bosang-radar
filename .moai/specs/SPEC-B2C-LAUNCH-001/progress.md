@@ -840,7 +840,19 @@ CLI 실제 출력: `단계 1: 통과` / `단계 2: BLOCKED — 전 벡터가 결
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- `run_status: audit-ready` — **조건부**: 구현은 끝났고 아래 한계를 알고서 sync 단계와 감사로 넘길 수 있다는 뜻이다. "출시 가능"이나 "운영 반영"이 아니다(REQ-B2CLAUNCH-001). 사람의 서명은 어느 AC에서도 받지 않았다.
+- `run_complete_at: 2026-10-07T08:51:54Z` — 이 시각에 오케스트레이터가 아래 검증을 마쳤다. 기준 HEAD는 `504f3d4`(브랜치 `worktree-launch-run`, `git rev-list --count origin/main..HEAD`가 23, 이 기록 커밋 전; push·PR 없음)이고 이 기록은 그 위의 커밋으로 남는다(자기 SHA를 자기 커밋에 적을 수 없다).
+- **마일스톤**: M1a~M1d(이전 세션), M1e `0e18ece`, M2 `ebfe670`, M3a `4c466fc`, M3b `3acb6db`, M4 `cb3740b`+`85c3c2e`, M5 `cb386e6`, M6 `067ed1b`, M3c `56d7e4a`. 마일스톤별 증거는 §E.2의 각 절이고 REQ-001~016 대 AC 추적표는 §E.2 "### M6"에 있다.
+- **오케스트레이터가 직접 관측한 것**(원문 로그 `.moai/state/verify/launch-run/`, 종료 코드는 로그의 `exit=` 줄):
+  - HEAD `504f3d4`: `pnpm test` 137개 파일·1635개 통과 `exit=0`(`VB1-test.log`), `pnpm lint` `exit=0`(`VB2-lint.log`), `pnpm exec tsc --noEmit` `exit=0`(`VB3-tsc.log`), `pnpm build` `exit=0`(`VC1-build.log`; 로그에 `Ecmascript file had an error` 경고가 있고 에이전트는 M3a 로그에도 있던 기존 경고라고 했으나 원본 `main`과 대조하지 않았다).
+  - 보류 브랜치 `smoke-deploy-workflow`(HEAD `dd7122c`): `pnpm test` 138개 파일·1643개 통과 `exit=0`(`VB4-test-A.log`). 이 브랜치만 `deploy.yml` 변경과 그 정적 시험을 담는다.
+  - 서버를 띄우는 하네스는 각자의 시점에 직접 다시 돌렸고 모두 불일치 0이었다: `pnpm verify:flag-runtime`(`V65`), `scripts/verify-smoke-check.ts` 아홉 행(`V64`), `scripts/verify-rollback-dark.ts` 열네 항목(`V74`), `scripts/verify-gate-reachability.ts` 시나리오 2와 교차 조합 셋(`V94`, `56d7e4a`). 그 이후 `scripts/`·`lib/`·`app/`·`components/`의 코드는 바뀌지 않았다(`git diff 56d7e4a HEAD --stat`이 문서 4개 — 런북·`spec.md`·`acceptance.md`·`progress.md` —, `deploy.yml` 되돌림, 정적 시험 한 파일 삭제만 보여 주고 `app`·`components`·`lib`·`scripts`는 그 정적 시험 삭제 하나뿐이다). 하네스 네 개를 `504f3d4`에서 한 번 더 돌리지는 않았다.
+  - M3b 저장소 코드 오라클(`DIAGNOSIS_ENGINE_READY`)은 `scripts/verify-flag-runtime.ts`의 허용된 두 줄만 찾는다(M5·M3c 단위 로그). M4 단위가 만든 우회는 `85c3c2e`로 되돌렸다.
+- **Phase 1 관문**: 최종 PASS 0.81(비반올림 0.8102, HEAD `1100866`, 보고서 `...-2026-10-07-recheck-2.md`). 여유가 채점 오차 안쪽이고 열린 선택 결함 N4·N5·R2-1~R2-4·D3~D13이 있다(§E.1, §G). 이 이후 plan 산출물은 고치지 않았다(`git diff 1100866 HEAD -- spec.md plan.md acceptance.md`가 비어 있다).
+- **BLOCKED·fixture only·검증 불가로 남은 것**(사유는 §E.2 M6 추적표): 실제 R-02·R-03 증거, L-01 운영 기준선, go 서명 기록, 사람의 서명 열다섯, D-LAUNCH-03 벡터 순서(상담 쪽 전환 BLOCKED), 내부 시험 단계(I)의 `# 앵커`·텍스트만 허용 해석, 서명·기록 위치, U1·U3·U5, 로컬 I 서명자 구성, 요소 판정과 L-08 행 상태의 연결(점검기에 미연결), 운영 호스트·GitHub Actions·VM에서의 실제 동작.
+- **이 run에서 하지 않은 것**: push, PR 생성, `main` 병합, 운영 호스트·운영 DB·운영 플래그 접근, 푸터 화면 변경, `pnpm test:e2e`, `pnpm visual:verify`(화면 변경이 없어 실행하지 않았고 M1이 미뤄 둔 e2e·visual 기준선은 끝내 측정하지 않았다), `moai spec lint`·@MX 점검(`moai` CLI·MCP 미연결), sync 단계와 sync 감사.
+- **알려진 불안정**: `scripts/verify-remote-consult.test.ts`가 전체 시험 중 몇 번 한 번씩 일시 실패했고 단독 재실행에서는 통과했다(원인 미조사). 이 기록의 `exit=0` 실행에서는 나타나지 않았다.
+- **PR 구조(사용자 선택, 2026-10-07)**: run PR은 `worktree-launch-run`(`deploy.yml` 불변)이고 `deploy.yml` 교체는 보류 브랜치 `smoke-deploy-workflow`의 커밋 하나로 L-01 기준선 기록이 생긴 뒤에만 별도 PR로 병합한다. run PR이 `main`에 병합되면 `main` push마다 배포되므로 운영이 한 번 재시작되며 앱 동작은 바뀌지 않는다(`app/`·`components/`·`lib/consult`·`lib/env.ts` 변경 없음).
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
