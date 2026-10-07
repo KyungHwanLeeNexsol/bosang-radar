@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { computeDiagnosisFlags } from "../lib/diagnosis/flags";
 import {
@@ -21,8 +21,6 @@ import {
 // SPEC-B2C-LAUNCH-001 M4 (AC-B2CLAUNCH-013) — 로컬 일곱 상태 관측 하네스의 시험.
 // 빌드·Next 서버 기동은 하지 않는다(실제 실행으로만 덮인다). 여기서는 상태 표, 환경 조립의 안전 규칙,
 // 임시 HTTP 서버 상태, 비교·출력을 확인한다. 임시 서버는 실제 네트워크 소켓(루프백)이다.
-
-const DB = "file:./.tmp/smoke-fixture.db";
 
 /** 검사 이름·결과 쌍과 상세 문구를 TypeError 없이 읽는 도우미. */
 const outcome = (report: SmokeReport) => report.checks.map((c) => [c.name, c.ok]);
@@ -75,10 +73,10 @@ describe("SMOKE_STATES — AC-B2CLAUNCH-013의 일곱 상태", () => {
   });
 });
 
-describe("assembleSmokeStateEnv — 안전 규칙", () => {
-  const parent = {
-    PATH: "/usr/bin",
-    TURSO_DATABASE_URL: "file:./other.db",
+describe("assembleSmokeStateEnv — verify-flag-runtime의 assembleEnv 재사용 + 안전 규칙", () => {
+  // assembleEnv는 process.env를 부모로 읽는다 — 시험은 vi.stubEnv로 부모 환경을 만든다.
+  const PARENT: Record<string, string> = {
+    TURSO_DATABASE_URL: "libsql://remote.invalid",
     TURSO_AUTH_TOKEN: "parent-token",
     ENABLE_DIAGNOSIS_FLOW: "true",
     DIAGNOSIS_ENGINE_READY: "true",
@@ -91,67 +89,51 @@ describe("assembleSmokeStateEnv — 안전 규칙", () => {
   };
   const none = { flow: false, engine: false, dev: false };
 
-  it("부모의 DB·플래그·시크릿·키는 물려주지 않고 무관한 변수(PATH)는 남긴다", () => {
-    const env = assembleSmokeStateEnv(parent, { dbUrl: DB, secret: "fixture-secret", diag: none });
-    expect(env.PATH).toBe("/usr/bin");
-    expect(env.TURSO_DATABASE_URL).toBe(DB);
+  beforeEach(() => {
+    for (const [key, value] of Object.entries(PARENT)) vi.stubEnv(key, value);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("부모의 원격 DB·플래그·시크릿·키는 물려주지 않고 로컬 file DB·시험용 시크릿으로 바꾼다", () => {
+    const env = assembleSmokeStateEnv(none);
+    expect(env.TURSO_DATABASE_URL?.startsWith("file:")).toBe(true);
     expect(env.TURSO_AUTH_TOKEN).toBe("");
     expect(env.GEMINI_API_KEY).toBeUndefined();
     expect(env.PORT).toBeUndefined();
     expect(env.LLM_PROVIDER_MODE).toBe("deterministic");
-    expect(env.RATE_LIMIT_HMAC_SECRET).toBe("fixture-secret");
+    expect(env.RATE_LIMIT_HMAC_SECRET).toMatch(/^smoke-test-/);
+    expect(env.RATE_LIMIT_HMAC_SECRET).not.toBe("parent-secret");
+    expect(env.PATH).toBe(process.env.PATH);
   });
 
   it("진단 플래그는 참인 것만 자식 환경에 두고 나머지는 미설정이다(닫힘 상태 = 플래그 미설정)", () => {
     const keys = ["ENABLE_DIAGNOSIS_FLOW", "DIAGNOSIS_ENGINE_READY", "ENABLE_DIAGNOSIS_DEV_STATES"];
-    const dark = assembleSmokeStateEnv(parent, { dbUrl: DB, secret: "s", diag: none });
+    const dark = assembleSmokeStateEnv(none);
     for (const key of keys) expect(dark[key]).toBeUndefined();
-    const prod = assembleSmokeStateEnv(parent, {
-      dbUrl: DB,
-      secret: "s",
-      diag: { flow: true, engine: true, dev: false },
-    });
+    const prod = assembleSmokeStateEnv({ flow: true, engine: true, dev: false });
     expect(prod.ENABLE_DIAGNOSIS_FLOW).toBe("true");
     expect(prod.DIAGNOSIS_ENGINE_READY).toBe("true");
     expect(prod.ENABLE_DIAGNOSIS_DEV_STATES).toBeUndefined();
-    const review = assembleSmokeStateEnv(parent, {
-      dbUrl: DB,
-      secret: "s",
-      diag: { flow: false, engine: false, dev: true },
-    });
+    const review = assembleSmokeStateEnv({ flow: false, engine: false, dev: true });
     expect(review.ENABLE_DIAGNOSIS_DEV_STATES).toBe("true");
     expect(review.ENABLE_DIAGNOSIS_FLOW).toBeUndefined();
+    expect(review.DIAGNOSIS_ENGINE_READY).toBeUndefined();
   });
 
   it("상담 플래그는 어느 상태에서도 두지 않는다", () => {
-    const all = { flow: true, engine: true, dev: true };
-    const env = assembleSmokeStateEnv(parent, { dbUrl: DB, secret: "s", diag: all });
+    const env = assembleSmokeStateEnv({ flow: true, engine: true, dev: true });
     expect(env.ENABLE_CONSULT_FLOW).toBeUndefined();
     expect(env.CONSULT_POLICY_READY).toBeUndefined();
   });
 
-  it("부모 환경 객체를 바꾸지 않는다", () => {
-    const snapshot = { ...parent };
-    assembleSmokeStateEnv(parent, { dbUrl: DB, secret: "s", diag: none });
-    expect(parent).toEqual(snapshot);
-  });
-
-  it("부모 환경의 DB가 원격이면 거부한다", () => {
-    expect(() =>
-      assembleSmokeStateEnv(
-        { ...parent, TURSO_DATABASE_URL: "libsql://remote.invalid" },
-        { dbUrl: DB, secret: "s", diag: none }
-      )
-    ).toThrow();
-  });
-
-  it('시험 DB 주소가 "file:"이 아니거나 시크릿이 비면 거부한다', () => {
-    expect(() =>
-      assembleSmokeStateEnv(parent, { dbUrl: "libsql://remote.invalid", secret: "s", diag: none })
-    ).toThrow(/file:/);
-    expect(() => assembleSmokeStateEnv(parent, { dbUrl: DB, secret: "", diag: none })).toThrow(
-      /시크릿/
-    );
+  it("부모 환경(process.env)을 바꾸지 않고 시크릿은 호출마다 새로 만든다", () => {
+    const a = assembleSmokeStateEnv(none);
+    const b = assembleSmokeStateEnv(none);
+    expect(process.env.ENABLE_DIAGNOSIS_FLOW).toBe("true");
+    expect(process.env.RATE_LIMIT_HMAC_SECRET).toBe("parent-secret");
+    expect(a.RATE_LIMIT_HMAC_SECRET).not.toBe(b.RATE_LIMIT_HMAC_SECRET);
   });
 });
 
