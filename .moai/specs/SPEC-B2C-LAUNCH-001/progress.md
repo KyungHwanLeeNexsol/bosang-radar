@@ -120,6 +120,51 @@ RED의 한계: 시험 파일이 모듈을 불러오지 못해 스위트가 통�
 
 **잔여 위험**: 파서는 헤더 줄이 정확히 같은 첫 표만 읽고 칸 안의 `|` 문자는 칸을 잘못 나눈다(현재 두 표에는 없다). 항목 표의 `표면` 칸을 `·`로만 나누므로 다른 구분자를 쓰면 입력 오류로 거부된다. 점검기가 읽는 사건·대상 값이 사실인지는 호출하는 절차가 책임진다. CLI 시험은 `node tsx/cli` 자식 프로세스 5건이며 각 한 번씩만 실행했다.
 
+### M1c (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `bd06157` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M1c-*.log`다. 이 커밋의 SHA는 이 기록이 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **변경 파일**: 신규 `lib/launch/{sibling-reference,legal-confirmation}.ts`와 각 시험, `lib/launch/markdown-table.ts`(덧붙은 칸을 허용하는 헤더 찾기 `findTableWithExtras` 추가만, 기존 함수 불변), `scripts/check-launch-gate.ts`(선택 입력 추가만)와 그 시험(새 `describe` 두 개 추가, 기존 시험 불변), `.moai/docs/launch-gate-runbook.md`(끝에 `## 형제 증거 참조 양식`·`## 법무 확인 기록 양식` 절 추가, 기존 절 불변), 이 파일. `spec.md`·`plan.md`·`acceptance.md`와 다른 SPEC 디렉터리는 바꾸지 않았고 plan.md 체크박스도 건드리지 않았다.
+- **구현한 것**: (1) 형제 증거 참조 줄 — 표 파서(헤더 뒤 허용되지 않은 칸을 칸마다 거부, 빈 칸·칸 수 오류·열거 밖 상태 거부), 형제 정의표 조회(`siblingItemIds`가 입력으로 받은 문서와 헤더 칸으로 식별자 집합을 읽는다), 평가(없는 식별자·정의표 없음은 거부, 상태·대상 값이 형제 기록과 다르거나 형제 기록이 입력되지 않았으면 그 줄이 속한 항목을 EV-L3로 UNVERIFIED), 점검기 연결(거부는 종료 코드 2, UNVERIFIED는 기존 종료 코드 1 경로)과 CLI 인자 `--sibling-refs`·`--sibling-defs`·`--sibling-records`. (2) 법무 확인 기록 — 다섯 칸 표 파서(밖의 칸·빈 칸·결과 열거 밖 거부)와 판정 함수. (3) 런북 양식 두 절(양식과 (가)~(라)·(가)~(바) 결과만, 값·연락처·주소·보관 위치 없음). 서명·표지값 검사(M1d)는 구현하지 않았다.
+
+**RED**(모듈을 함수는 있되 틀린 기본값을 돌려주는 틀로 두고 시험 3개 파일을 실행, `M1c-red.log`): `Test Files 3 failed (3)`, `Tests 48 failed | 63 passed (111)`, `exit=1`. `Cannot find module` 0건이며 실패는 모두 단언 실패 또는 틀이 통과시킨 입력에 대한 도우미의 "오류가 있어야 하는 … 통과했다" 오류다. 대표 단언: `expected +0 to be 2`(없는 형제 항목·자체 판정 칸이 거부되지 않음), `expected 'READY' to be 'UNVERIFIED'`(버전 불일치), `expected 'READY' to be 'BLOCKED'`(결과 불일치), `expected 2 to be 1`(형제 값 어긋남이 불가 판정이 되지 않음), 런북 절 없음. 실패 파일별로 sibling-reference 20, legal-confirmation 16, check-launch-gate 12이다(`grep -E "^ FAIL "` 집계).
+
+**GREEN**: 첫 실행(`M1c-green-1.log`)은 `Tests 7 failed | 189 passed (196)`였고 실패 7건은 구현이 아니라 내가 쓴 시험 fixture의 실수였다 — 자체 판정 칸을 덧붙이는 표 조립이 칸 사이 `|`를 잃어 헤더가 합쳐졌고(5건), 칸 수 기대값이 하나 틀렸고(2건 중 1건씩 sibling·legal), 도우미의 기본 매개변수가 `undefined`를 삼켰다(1건). 시험만 고치고 구현은 바꾸지 않은 채 다시 실행해 `M1c-green-2.log`: `Test Files 7 passed (7)`, `Tests 196 passed (196)`, `exit=0`(M1b 마지막 136 + 새 60). 시험이 실제로 물리는지 보려고 (다) 거부 조건과 법무 `불일치` 판정을 잠깐 바꿔 보았고(`M1c-mutation-check.log`) 7건이 실패하는 것을 확인한 뒤 되돌렸다(복사본과 `diff` 일치 확인).
+
+**E1 판정표**(명령: `pnpm exec vitest run lib/launch scripts/check-launch-gate.test.ts --reporter=verbose`, 로그 `M1c-green-2.log`):
+
+| AC | fixture | 기대 | 관측 |
+|---|---|---|---|
+| AC-B2CLAUNCH-004 | (가) 존재하는 형제 항목(CONSULTOPS-001 `E-03`, 실제 정의표 파일로 조회)을 가리키고 형제 기록 stub과 같은 값 | 통과 | PASS — `(가) 존재하는 형제 항목을 …`(평가), 점검기 `(가) … 점검을 막지 않는다`(종료 코드 0, `R-04: READY`), CLI 통과 판정 |
+| AC-B2CLAUNCH-004 | (나) 존재하지 않는 식별자 `E-99` | 거부, 식별자를 적음 | PASS — 평가 거부와 점검기 종료 코드 2, 출력에 `존재하지 않는 형제 항목 식별자`·`E-99` |
+| AC-B2CLAUNCH-004 | (다) 자체 판정 칸이 있는 참조 줄 | 거부 "참조 줄은 형제 상태만 옮길 수 있다" | PASS — 파서와 점검기 종료 코드 2, 같은 문구와 칸 이름 `"판정"` |
+| AC-B2CLAUNCH-004 | (라) 옮겨 적은 대상 값이 형제 기록과 다름 | 그 줄의 항목 UNVERIFIED | PASS — `R-04: UNVERIFIED`와 `EV-L3`, 종료 코드 1, 출력에 값은 없음 |
+| AC-B2CLAUNCH-004 | 식별자 조회 | 항목 목록 복제 없이 조회 | PASS — 같은 줄이 입력한 정의표에서 `E-03` 행을 빼면 거부됨, 실제 CONSULTOPS-001 정의표에서 식별자 `E-03` 조회·`F-xx`(다른 표) 비혼입 |
+| AC-B2CLAUNCH-006 | (가) 다섯 칸이 모두 있고 결과 `일치 확인`, 버전이 현재와 같음 | READY | PASS |
+| AC-B2CLAUNCH-006 | (나) 결과 `적법` | 거부 | PASS — 식별자·`"결과"` 칸·열거를 적음 |
+| AC-B2CLAUNCH-006 | (다) 자유 서술 칸 `의견`·`결론` | 거부 | PASS — 칸마다 거부(2건) |
+| AC-B2CLAUNCH-006 | (라) 역할 칸 빔 | 거부 | PASS — 식별자와 `"확인한 역할"` |
+| AC-B2CLAUNCH-006 | (마) 버전이 현재와 다름 | UNVERIFIED | PASS |
+| AC-B2CLAUNCH-006 | (바) 결과 `불일치` | BLOCKED | PASS — `READY`로 인정되는 fixture는 (가) 하나뿐임을 한 시험이 함께 확인 |
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`, 출력 없음(`M1c-tsc.log`). **E3 린트**: `pnpm exec eslint lib/launch scripts/check-launch-gate.ts scripts/check-launch-gate.test.ts` → `exit=0`(`M1c-eslint.log`), 저장소 전체 `pnpm lint` → `exit=0`(`M1c-lint.log`), 바뀐 TS 파일 일곱 개 `prettier --check` 통과(`M1c-prettier.log`). **E4 전체 시험**: 첫 `pnpm test`(`M1c-test-full.log`)는 `Test Files 1 failed | 109 passed (110)`, `Tests 1 failed | 1134 passed (1135)`였다 — 실패한 것은 이 변경과 무관한 `scripts/verify-remote-consult.test.ts`의 `run이 관측을 정직하게 기록하고, cleanup은 원장 행만 정확히 지운다`(`expected 0 to be greater than 0`, 4465ms). 같은 파일만 다시 실행하면 `61 passed`(`M1c-flaky-recheck.log`)였고 전체를 다시 실행하면 `Test Files 110 passed (110)`, `Tests 1135 passed (1135)`, `exit=0`(`M1c-test-full-2.log`)다 — 기준선 1075 + 새 60. 첫 실패의 원인은 조사하지 않았다(불안정 시험일 가능성이 있다는 추정일 뿐 확인하지 않았다).
+**E5 커버리지**: 설정대로 실행하면 이 작업 폴더가 `.claude/worktrees/` 아래라서 0/0이 나오므로 명령줄에서 include·exclude·reporter를 덮어썼다(`pnpm exec vitest run lib/launch scripts/check-launch-gate.test.ts --coverage --coverage.include=lib/launch/*.ts --coverage.include=scripts/check-launch-gate.ts "--coverage.exclude=**/*.test.ts" --coverage.reporter=json-summary …`, 로그 `M1c-cov.log`, 파일별 수치 `M1c-cov-summary.log`). `sibling-reference.ts` 구문 67/67·분기 40/40, `legal-confirmation.ts` 38/38·22/22, `markdown-table.ts` 23/23·14/14(`lib/launch` 7개 파일 모두 100%), `scripts/check-launch-gate.ts` 구문 157/165·분기 128/136·함수 35/36(미덮개 8구문은 M1b와 같은 `isMain` 진입부와 예외 재던짐이다).
+
+**SPEC 문서에서 발견한 것**(고치지 않았다, 적힌 대로 진행):
+
+1. REQ-B2CLAUNCH-004는 참조 줄이 담는 것을 형제 SPEC id·항목 id·옮겨 적은 상태와 대상 값·형제 기록 위치 다섯 가지로 적지만, AC (라)는 "그 줄의 항목"을 UNVERIFIED로 판정하라고 한다. 줄이 이 SPEC의 어느 항목(R-nn)의 것인지를 정하는 칸이 SPEC에 없다. 그 연결 없이는 점검기가 어느 항목을 강등할지 알 수 없어 판정 칸이 아닌 포인터 칸 `이 SPEC 항목` 하나를 더했다(여섯 칸). 다섯 칸만으로 정하려면 SPEC이 연결 방식을 정해야 한다.
+2. AC (다)는 "형제 상태와 **다른** 자체 판정 상태 칸"이라 쓰지만 REQ가 참조 줄을 다섯 필드로만 한정하므로, 자체 판정 칸은 값이 형제 상태와 같아도 허용된 칸 밖이라 거부했다.
+3. 옮겨 적은 상태의 어휘가 SPEC에 없다. 이 SPEC이 이름 붙인 READY·BLOCKED·UNVERIFIED만 받고 다른 이름의 형제 상태는 거부한다(fail-closed).
+4. 형제 기록 내용이 입력되지 않았을 때의 결과가 AC에 없다. 비교할 수 없으므로 EV-L3로 UNVERIFIED로 했다. 실제 형제 기록과의 비교는 AC 선결대로 BLOCKED이며(형제 기록의 형식·위치 미정, CONSULTOPS-001 D-OPS-11·ENGINE-001 `design.md` §9.2) 시험의 형제 기록은 입력으로 만든 합성 stub이다.
+5. ENGINE-001에는 식별자로 조회할 수 있는 증거 항목 표가 없다. `design.md` §9.3 표의 첫 칸은 `(i) 판정 근거 데이터 확인 기록`처럼 식별자와 설명이 한 칸에 섞여 있고 별도 ID 칸이 없다(R-02·R-03·R-05가 이 SPEC 정의표에서 ENGINE-001을 참조하는데 그쪽 식별자가 아직 없다). 식별자나 표를 지어내지 않았고, 정의표를 입력하지 않은 형제 SPEC의 참조는 `정의표가 입력되지 않았다`로 거부된다. CONSULTOPS-001 §2.4(`| ID | 증거 항목 | I | G | 근거 | 대상 / 무효화 사건 |`)만 실제 파일로 조회 시험했다.
+6. 점검기는 참조 줄의 UNVERIFIED 강등을 기록의 `무효화 사건` 칸에 EV-L3가 적혀 있는지와 무관하게 적용한다(기록 칸이 사건을 빠뜨려도 어긋남이 통과하지 않게 하려는 fail-closed 선택이며 SPEC에 없는 규칙이다). 이미 BLOCKED·UNVERIFIED인 항목은 바꾸지 않고, `local`에서 운영 한정 항목(R-04)은 적용 제외라 참조 줄이 어긋나도 `해당 없음(local)`이다.
+7. REQ-B2CLAUNCH-006은 `미확인` 결과의 판정을 정하지 않는다. 확인이 이뤄지지 않았으므로 UNVERIFIED로 했다. `불일치`는 버전이 낡았어도 BLOCKED를 우선한다. 날짜 칸의 형식 규칙은 없어 비어 있지 않은지만 본다. 확인 대상의 "식별자와 버전"은 두 칸(`확인 대상 식별자`·`확인 대상 버전`)으로 읽었다.
+8. 법무 확인 기록 검사기는 점검기에 연결하지 않았다(AC-B2CLAUNCH-006은 기록 검사기 단독 시험이고 어느 항목에 이 기록이 대응하는지 SPEC이 정하지 않는다). 확인 기록의 저장 위치·서명 역할 목록은 D-LAUNCH-04 몫이라 정하지 않았다.
+9. 승인된 대로 U3(로컬 I 서명자 구성)·U5(`local` + 단계 거부)는 이 마일스톤에서 건드리지 않았다.
+
+**Gaps(관측하지 못한 것)**: `pnpm build`·`pnpm test:e2e`·`pnpm visual:verify`는 M1c가 `lib/launch/`·`scripts/`·문서만 건드려 실행하지 않았다(새 모듈을 앱이 가져오지 않으므로 빌드에 영향이 없다고 판단했을 뿐 이 변경 뒤에 측정하지 않았다). 새 CLI 인자 세 개는 프로세스 안 `runCli` 시험으로만 확인했고 자식 프로세스로는 시험하지 않았다. 실제 형제 증거 기록과의 비교, 법무 확인 기록의 점검기 연결, 서명(AC-008)·표지값 검사(AC-007)는 하지 않았다. 형제 SPEC·ENGINE-001의 항목 식별자 체계가 바뀌면 조회가 실패하는지는 이 시험이 보지 못한다(AC가 적은 한계).
+
+**잔여 위험**: 파서는 헤더 줄이 같은 칸으로 시작하는 첫 표만 읽고 칸 안의 `|` 문자는 칸을 잘못 나눈다. 허용된 칸 안에 결론 문구를 적는 것은 감지하지 못한다(AC-B2CLAUNCH-006 한계, 시험이 이 한계를 문서로 고정한다). 형제 기록·현재 버전·현재 대상 값이 사실인지는 호출하는 절차가 책임진다. 전체 시험의 첫 실행에서 무관한 시험 하나가 한 번 실패했다(위 E4) — 불안정 가능성은 열려 있다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

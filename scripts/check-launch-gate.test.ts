@@ -8,6 +8,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { RECORD_COLUMNS, parseGateRecord } from "../lib/launch/gate-record";
 import { parseItemTable, type ItemRow } from "../lib/launch/item-table";
 import {
+  SIBLING_REF_COLUMNS,
+  siblingRecordKey,
+  type SiblingDefinitionSource,
+} from "../lib/launch/sibling-reference";
+import {
   checkLaunchGate,
   evaluateLaunchGate,
   runCli,
@@ -779,6 +784,271 @@ describe("runCli — 인자와 입력 파일 읽기", () => {
     for (const result of [unknownFlag, notAFlag, noValue, noSurfaces]) {
       expect(result.exitCode).toBe(2);
     }
+  });
+});
+
+// ---- M1c: 형제 증거 참조 줄 (AC-B2CLAUNCH-004) ---------------------------------------------
+
+describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", () => {
+  const CONSULTOPS_SPEC = "SPEC-B2C-CONSULTOPS-001";
+  const consultopsDefinitions: Readonly<Record<string, SiblingDefinitionSource>> = {
+    [CONSULTOPS_SPEC]: {
+      markdown: readText(path.join(projectRoot, ".moai", "specs", CONSULTOPS_SPEC, "spec.md")),
+      labels: ["ID", "증거 항목", "I", "G", "근거", "대상 / 무효화 사건"],
+    },
+  };
+
+  // 형제 기록 stub: 실제 형제 증거 기록은 아직 없으므로 시험이 입력으로 만든 합성 값이다.
+  const siblingRecords = {
+    [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
+  };
+
+  function refTable(...rows: string[]): string {
+    const header = `| ${SIBLING_REF_COLUMNS.join(" | ")} |`;
+    const separator = `|${SIBLING_REF_COLUMNS.map(() => "---").join("|")}|`;
+    return [header, separator, ...rows].join("\n");
+  }
+
+  function refRow(
+    launchItem: string,
+    siblingItem: string,
+    status = "READY",
+    target = "형제값-예시-1"
+  ) {
+    return `| ${launchItem} | ${CONSULTOPS_SPEC} | ${siblingItem} | ${status} | ${target} | 형제위치-예시 |`;
+  }
+
+  function runWithRefs(
+    markdown: string,
+    options: {
+      statuses?: Record<string, string>;
+      records?: Record<string, { status: string; target: string }>;
+      definitions?: Readonly<Record<string, SiblingDefinitionSource>>;
+      request?: CheckRequest;
+    } = {}
+  ): CheckResult {
+    return checkLaunchGate({
+      itemTableMarkdown: SPEC_MARKDOWN,
+      recordMarkdown: recordFor(options.statuses ?? {}),
+      currentTargets: CURRENT_TARGETS,
+      request: options.request ?? production("I", ALL_SURFACES),
+      siblingReferenceMarkdown: markdown,
+      siblingDefinitions: options.definitions ?? consultopsDefinitions,
+      siblingRecords: options.records ?? siblingRecords,
+    });
+  }
+
+  it("(가) 존재하는 형제 항목을 가리키고 형제 기록과 같은 값을 옮긴 참조 줄은 점검을 막지 않는다", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03")));
+
+    expect([result.exitCode, result.verdict]).toEqual([0, "내부 시험 공개 가능"]);
+    expect(result.output).toContain("R-04: READY");
+  });
+
+  it("(나) 존재하지 않는 형제 항목 식별자는 종료 코드 2로 거부하고 식별자를 적는다", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-99")));
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain("존재하지 않는 형제 항목 식별자");
+    expect(result.output).toContain("E-99");
+  });
+
+  it("(다) 자체 판정 칸이 있는 참조 줄은 종료 코드 2로 거부한다", () => {
+    const markdown = [
+      `| ${SIBLING_REF_COLUMNS.join(" | ")} | 판정 |`,
+      `|${[...SIBLING_REF_COLUMNS, "판정"].map(() => "---").join("|")}|`,
+      `${refRow("R-04", "E-03")} READY |`,
+    ].join("\n");
+
+    const result = runWithRefs(markdown);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain("참조 줄은 형제 상태만 옮길 수 있다");
+    expect(result.output).toContain("형제 참조 오류");
+  });
+
+  it("(라) 옮겨 적은 대상 값이 형제 기록의 현재 값과 다르면 그 줄의 항목이 EV-L3로 UNVERIFIED가 되어 점검이 불가다", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03", "READY", "형제값-예시-9")));
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("R-04: UNVERIFIED");
+    expect(result.output).toContain("EV-L3");
+    expect(result.output).toContain("내부 시험 공개 불가");
+    expect(result.output).not.toContain("형제값-예시");
+  });
+
+  it("형제 기록 내용을 넘기지 않으면 비교할 수 없어 같은 항목이 UNVERIFIED다(fail-closed)", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03")), { records: {} });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("R-04: UNVERIFIED");
+    expect(result.output).toContain("비교할 수");
+  });
+
+  it("이미 BLOCKED인 항목은 참조 줄이 어긋나도 BLOCKED 그대로다(올리거나 바꾸지 않는다)", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03", "READY", "형제값-예시-9")), {
+      statuses: { "R-04": "BLOCKED" },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("R-04: BLOCKED");
+  });
+
+  it("이 SPEC 항목 칸이 항목 정의표에 없는 식별자이면 종료 코드 2로 거부한다", () => {
+    const result = runWithRefs(refTable(refRow("R-99", "E-03")));
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain("R-99");
+  });
+
+  it("정의표가 입력되지 않은 형제 SPEC의 참조는 종료 코드 2로 거부한다", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03")), { definitions: {} });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain(CONSULTOPS_SPEC);
+  });
+
+  it("운영 한정 항목(R-04)은 local에서 적용되지 않으므로 참조 줄이 어긋나도 판정을 바꾸지 않는다", () => {
+    const result = runWithRefs(refTable(refRow("R-04", "E-03", "READY", "형제값-예시-9")), {
+      request: local(ALL_SURFACES),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("R-04: 해당 없음(local)");
+  });
+
+  it("참조 줄을 넘기지 않은 점검은 M1b와 결과가 같다", () => {
+    const base = {
+      itemTableMarkdown: SPEC_MARKDOWN,
+      recordMarkdown: recordFor(),
+      currentTargets: CURRENT_TARGETS,
+      request: production("I", ALL_SURFACES),
+    };
+
+    expect(
+      checkLaunchGate({ ...base, siblingRecords, siblingDefinitions: consultopsDefinitions })
+    ).toEqual(checkLaunchGate(base));
+  });
+});
+
+describe("runCli — 형제 증거 참조 인자", () => {
+  const CONSULTOPS_SPEC = "SPEC-B2C-CONSULTOPS-001";
+  const files: Record<string, string> = {
+    "items.md": SPEC_MARKDOWN,
+    "record.md": recordFor(),
+    "targets.json": JSON.stringify(CURRENT_TARGETS),
+    "consultops.md": readText(path.join(projectRoot, ".moai", "specs", CONSULTOPS_SPEC, "spec.md")),
+    "defs.json": JSON.stringify({
+      [CONSULTOPS_SPEC]: {
+        file: "consultops.md",
+        labels: ["ID", "증거 항목", "I", "G", "근거", "대상 / 무효화 사건"],
+      },
+    }),
+    "records.json": JSON.stringify({
+      [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
+    }),
+  };
+  const refsFor = (target: string) =>
+    [
+      `| ${SIBLING_REF_COLUMNS.join(" | ")} |`,
+      `|${SIBLING_REF_COLUMNS.map(() => "---").join("|")}|`,
+      `| R-04 | ${CONSULTOPS_SPEC} | E-03 | READY | ${target} | 형제위치-예시 |`,
+    ].join("\n");
+
+  const reader =
+    (extra: Record<string, string>) =>
+    (file: string): string => {
+      const all = { ...files, ...extra };
+      if (!(file in all)) throw new Error(`없는 파일: ${file}`);
+      return all[file];
+    };
+  const baseArgs = [
+    "--items",
+    "items.md",
+    "--record",
+    "record.md",
+    "--environment",
+    "production",
+    "--stage",
+    "I",
+    "--surfaces",
+    "S1,S2,S3",
+    "--targets",
+    "targets.json",
+  ];
+  const siblingArgs = [
+    "--sibling-refs",
+    "refs.md",
+    "--sibling-defs",
+    "defs.json",
+    "--sibling-records",
+    "records.json",
+  ];
+
+  it("세 인자로 참조 줄·정의표·형제 기록을 읽어 통과 판정을 낸다", () => {
+    const result = runCli(
+      [...baseArgs, ...siblingArgs],
+      reader({ "refs.md": refsFor("형제값-예시-1") })
+    );
+
+    expect([result.exitCode, result.verdict]).toEqual([0, "내부 시험 공개 가능"]);
+  });
+
+  it("옮겨 적은 대상 값이 다르면 종료 코드 1이다", () => {
+    const result = runCli(
+      [...baseArgs, ...siblingArgs],
+      reader({ "refs.md": refsFor("형제값-예시-9") })
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("R-04: UNVERIFIED");
+  });
+
+  it("--sibling-records를 넘기지 않으면 비교할 수 없어 UNVERIFIED다", () => {
+    const result = runCli(
+      [...baseArgs, "--sibling-refs", "refs.md", "--sibling-defs", "defs.json"],
+      reader({ "refs.md": refsFor("형제값-예시-1") })
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("비교할 수");
+  });
+
+  it("--sibling-defs·--sibling-records만 있고 --sibling-refs가 없으면 사용법 오류다", () => {
+    const withDefs = runCli([...baseArgs, "--sibling-defs", "defs.json"], reader({}));
+    const withRecords = runCli([...baseArgs, "--sibling-records", "records.json"], reader({}));
+
+    for (const result of [withDefs, withRecords]) {
+      expect(result.exitCode).toBe(2);
+      expect(result.output).toContain("--sibling-refs");
+    }
+  });
+
+  it("정의표 입력이 JSON이 아니거나 모양이 다르거나 가리킨 파일을 읽지 못하면 종료 코드 2다", () => {
+    const run = (defs: string) =>
+      runCli(
+        [...baseArgs, ...siblingArgs],
+        reader({ "refs.md": refsFor("형제값-예시-1"), "defs.json": defs })
+      );
+
+    expect(run("{").output).toContain("--sibling-defs 파일이 JSON이 아니다");
+    expect(run("[]").output).toContain("--sibling-defs 파일은");
+    expect(run('{"SPEC-X": {"file": 3, "labels": []}}').output).toContain("형태여야 한다");
+    const missing = run(
+      JSON.stringify({ [CONSULTOPS_SPEC]: { file: "없는-정의표.md", labels: ["ID"] } })
+    );
+    expect(missing.exitCode).toBe(2);
+    expect(missing.output).toContain("없는-정의표.md");
+  });
+
+  it("형제 기록 입력의 모양이 다르면 종료 코드 2다", () => {
+    const result = runCli(
+      [...baseArgs, ...siblingArgs],
+      reader({ "refs.md": refsFor("형제값-예시-1"), "records.json": '{"a": {"status": 1}}' })
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain("--sibling-records 파일은");
   });
 });
 

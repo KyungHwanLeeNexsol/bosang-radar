@@ -3,6 +3,7 @@
 // 사용: pnpm exec tsx scripts/check-launch-gate.ts --items <항목 정의표 문서> --record <기록 문서>
 //         --environment <local|production> [--stage <I|G>] --surfaces <S1,S2,S3 중 목적 벡터>
 //         [--targets <현재 대상 값 JSON>] [--events <관측 뒤 사건 JSON>] [--exemptions <면제 결정 JSON>]
+//         [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
 // 종료 코드: 0 = 통과, 1 = 필수 항목이 READY가 아니어서 불가, 2 = 입력 거부(요청 형태·표·기록·사용법 오류).
 //
 // 점검기는 기록의 상태 칸과 넘겨 받은 현재 대상 값·사건만 읽는다. 사건 발생을 스스로 감지하지 못하고
@@ -19,6 +20,13 @@ import {
   type ItemRow,
   type Surface,
 } from "../lib/launch/item-table";
+import {
+  evaluateSiblingReferences,
+  parseSiblingReferences,
+  type SiblingDefinitionSource,
+  type SiblingRecord,
+  type SiblingRefInput,
+} from "../lib/launch/sibling-reference";
 import { resolveEffectiveStatus } from "../lib/launch/target-check";
 
 export type ExitCode = 0 | 1 | 2;
@@ -54,12 +62,20 @@ export interface EvaluateInput {
   /** 항목 식별자 → 관측 뒤에 일어났다고 호출하는 절차가 넘긴 무효화 사건. */
   eventsAfterObservation?: Readonly<Record<string, readonly string[]>>;
   exemptions?: readonly Exemption[];
+  /** 형제 증거 참조 줄(REQ-B2CLAUNCH-004). 넘기지 않으면 점검은 M1b와 똑같이 동작한다. */
+  siblingReferences?: SiblingRefInput;
   request: CheckRequest;
 }
 
-export interface CheckInput extends Omit<EvaluateInput, "items" | "record"> {
+export interface CheckInput extends Omit<EvaluateInput, "items" | "record" | "siblingReferences"> {
   itemTableMarkdown: string;
   recordMarkdown: string;
+  /** 형제 증거 참조 줄 표(마크다운). 있으면 정의표 조회와 기록 비교를 함께 입력해야 의미가 있다. */
+  siblingReferenceMarkdown?: string;
+  /** 형제 SPEC id → 그 SPEC의 항목 정의표 문서와 헤더 칸. 항목 목록은 이 입력에서만 조회한다. */
+  siblingDefinitions?: Readonly<Record<string, SiblingDefinitionSource>>;
+  /** `형제 SPEC id/형제 항목 id` → 형제 기록의 현재 상태와 대상 값. */
+  siblingRecords?: Readonly<Record<string, SiblingRecord>>;
 }
 
 /** 운영 한정 항목: `local`에서는 적용하지 않고 `production`에서는 I·G 열 표대로 필수다(spec.md §2.4 "실행 환경"). */
@@ -136,6 +152,22 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     };
   }
 
+  // 형제 증거 참조 줄(REQ-B2CLAUNCH-004): 조회할 수 없는 줄·없는 항목은 입력 거부, 값이 어긋난 줄은 그 항목의 EV-L3 강등이다.
+  let siblingUnverified: Readonly<Record<string, readonly string[]>> = {};
+  if (input.siblingReferences !== undefined) {
+    const evaluation = evaluateSiblingReferences(input.siblingReferences);
+    const rejections = [
+      ...input.siblingReferences.lines
+        .filter((line) => !knownIds.has(line.launchItem))
+        .map((line) => `형제 참조 줄의 이 SPEC 항목 "${line.launchItem}"이 항목 정의표에 없다`),
+      ...evaluation.rejections,
+    ];
+    if (rejections.length > 0) {
+      return { exitCode: 2, output: rejections.map((message) => `거부: ${message}`).join("\n") };
+    }
+    siblingUnverified = evaluation.unverified;
+  }
+
   const recordById = new Map(input.record.map((item) => [item.id, item]));
   const lines: string[] = [
     `실행 환경: ${request.form}`,
@@ -172,11 +204,15 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       continue;
     }
 
-    const effective = resolveEffectiveStatus(
+    let effective = resolveEffectiveStatus(
       recorded,
       input.currentTargets[row.id],
       input.eventsAfterObservation?.[row.id] ?? []
     );
+    const referenceProblems = siblingUnverified[row.id];
+    if (effective.status === "READY" && referenceProblems !== undefined) {
+      effective = { status: "UNVERIFIED", reason: referenceProblems.join("; ") };
+    }
     if (effective.status === "READY") {
       lines.push(`${row.id}: READY${note}`);
     } else {
@@ -213,12 +249,29 @@ export function checkLaunchGate(input: CheckInput): CheckResult {
     return { exitCode: 2, output: record.errors.map((e) => `기록 오류: ${e}`).join("\n") };
   }
 
+  let siblingReferences: SiblingRefInput | undefined;
+  if (input.siblingReferenceMarkdown !== undefined) {
+    const references = parseSiblingReferences(input.siblingReferenceMarkdown);
+    if (!references.ok) {
+      return {
+        exitCode: 2,
+        output: references.errors.map((e) => `형제 참조 오류: ${e}`).join("\n"),
+      };
+    }
+    siblingReferences = {
+      lines: references.lines,
+      definitions: input.siblingDefinitions ?? {},
+      records: input.siblingRecords,
+    };
+  }
+
   return evaluateLaunchGate({
     items: table.rows,
     record: record.items,
     currentTargets: input.currentTargets,
     eventsAfterObservation: input.eventsAfterObservation,
     exemptions: input.exemptions,
+    siblingReferences,
     request: input.request,
   });
 }
@@ -234,6 +287,9 @@ const FLAGS = [
   "targets",
   "events",
   "exemptions",
+  "sibling-refs",
+  "sibling-defs",
+  "sibling-records",
 ] as const;
 type Flag = (typeof FLAGS)[number];
 
@@ -279,10 +335,42 @@ const isExemptionList = (value: unknown): value is Exemption[] =>
       (e.column === "I" || e.column === "G")
   );
 
+/** 형제 정의표 입력: 형제 SPEC id → 그 정의표 문서의 파일 경로와 표의 헤더 칸. */
+interface SiblingDefinitionFile {
+  file: string;
+  labels: string[];
+}
+
+const isSiblingDefinitionFiles = (value: unknown): value is Record<string, SiblingDefinitionFile> =>
+  isObjectOf(
+    value,
+    (v) =>
+      typeof v === "object" &&
+      v !== null &&
+      typeof (v as SiblingDefinitionFile).file === "string" &&
+      Array.isArray((v as SiblingDefinitionFile).labels) &&
+      (v as SiblingDefinitionFile).labels.every((label) => typeof label === "string")
+  );
+
+const isSiblingRecords = (value: unknown): value is Record<string, SiblingRecord> =>
+  isObjectOf(
+    value,
+    (v) =>
+      typeof v === "object" &&
+      v !== null &&
+      typeof (v as SiblingRecord).status === "string" &&
+      typeof (v as SiblingRecord).target === "string"
+  );
+
 function runCliUnchecked(argv: readonly string[], readText: (file: string) => string): CheckResult {
   const flags = parseFlags(argv);
   for (const required of ["items", "record", "surfaces"] as const) {
     if (flags[required] === undefined) throw new UsageError(`--${required} 인자가 필요하다`);
+  }
+  for (const dependent of ["sibling-defs", "sibling-records"] as const) {
+    if (flags[dependent] !== undefined && flags["sibling-refs"] === undefined) {
+      throw new UsageError(`--${dependent}는 --sibling-refs와 함께 써야 한다`);
+    }
   }
 
   const read = (flag: Flag): string => {
@@ -310,9 +398,35 @@ function runCliUnchecked(argv: readonly string[], readText: (file: string) => st
     return parsed;
   };
 
+  const definitionFiles = readJson(
+    "sibling-defs",
+    isSiblingDefinitionFiles,
+    '{"형제 SPEC id": {"file": "정의표 문서 경로", "labels": ["ID", "…"]}}'
+  );
+  const siblingDefinitions =
+    definitionFiles === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(definitionFiles).map(([spec, { file, labels }]) => {
+            try {
+              return [spec, { markdown: readText(file), labels }];
+            } catch {
+              throw new UsageError(`--sibling-defs의 ${spec} 정의표 파일을 읽지 못했다(${file})`);
+            }
+          })
+        );
+
   return checkLaunchGate({
     itemTableMarkdown: read("items"),
     recordMarkdown: read("record"),
+    siblingReferenceMarkdown:
+      flags["sibling-refs"] === undefined ? undefined : read("sibling-refs"),
+    siblingDefinitions,
+    siblingRecords: readJson(
+      "sibling-records",
+      isSiblingRecords,
+      '{"형제 SPEC id/형제 항목 id": {"status": "READY", "target": "대상 값"}}'
+    ),
     // 대상 값을 넘기지 않으면 모든 READY 항목이 UNVERIFIED가 된다(fail-closed).
     currentTargets: readJson("targets", isStringRecord, '{"항목 ID": "대상 값"}') ?? {},
     eventsAfterObservation: readJson("events", isEventsRecord, '{"항목 ID": ["EV-L1"]}'),
