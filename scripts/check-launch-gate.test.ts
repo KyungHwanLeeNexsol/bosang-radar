@@ -13,9 +13,16 @@ import {
   type SiblingDefinitionSource,
 } from "../lib/launch/sibling-reference";
 import {
+  SIGNER_COLUMNS,
+  SNAPSHOT_COLUMNS,
+  parseSignatureRecord,
+  type SignatureRecord,
+} from "../lib/launch/signature";
+import {
   checkLaunchGate,
   evaluateLaunchGate,
   runCli,
+  type CheckInput,
   type CheckRequest,
   type CheckResult,
   type Exemption,
@@ -66,6 +73,68 @@ const CURRENT_TARGETS: Readonly<Record<string, string>> = Object.fromEntries(
 
 const ALL_SURFACES = ["S1", "S2", "S3"];
 
+// ---- 서명 도우미(시험 전용) -----------------------------------------------------------------
+// 허용 역할은 D-LAUNCH-04 결정 기록의 세 역할 이름을 시험 입력으로만 쓴 것이다(코드에는 박혀 있지 않다).
+// 서명자 구성(세 역할 전부가 서명해야 하는지, U3)은 확인 대기라 시험도 강제하지 않는다.
+
+const ALLOWED_ROLES = ["제품 책임자", "운영 책임자", "법무"];
+const ALLOWED_ROLES_ARG = ALLOWED_ROLES.join(",");
+const PRODUCTION_ONLY = ["L-01", "L-05", "R-04"];
+
+function renderSignature(signers: readonly string[][], snapshot: readonly string[][]): string {
+  const table = (columns: readonly string[], rows: readonly string[][]) =>
+    [
+      `| ${columns.join(" | ")} |`,
+      `|${columns.map(() => "---").join("|")}|`,
+      ...rows.map((row) => `| ${row.join(" | ")} |`),
+    ].join("\n");
+  return `${table(SIGNER_COLUMNS, signers)}\n\n${table(SNAPSHOT_COLUMNS, snapshot)}`;
+}
+
+/**
+ * 기록 문서에서 유효한 서명 기록을 만든다 — AC-B2CLAUNCH-002의 "서명 점검은 통과한 것으로 둔다"를 시험 코드에서
+ * 충족하는 도우미이며 점검기에는 이런 우회가 없다. 서명 시점 항목은 기록에서 READY인 항목이고, 로컬 서명은
+ * 운영 한정 항목(L-01·L-05·R-04)을 서명 대상으로 삼지 않는다(spec.md §2.4, AC-B2CLAUNCH-008 (마)).
+ */
+function signatureFor(
+  recordMarkdown: string,
+  environment: string,
+  role = ALLOWED_ROLES[0]
+): string {
+  const parsed = parseGateRecord(recordMarkdown);
+  const items = parsed.ok
+    ? parsed.items.filter(
+        (item) =>
+          item.status === "READY" && !(environment === "local" && PRODUCTION_ONLY.includes(item.id))
+      )
+    : [];
+  return renderSignature(
+    [[role, "날짜-예시", environment]],
+    items.map((item) => [item.id, item.status, item.target])
+  );
+}
+
+/** 서명 기록을 함께 넘기는 checkLaunchGate. 서명 환경은 요청의 실행 환경과 같게 둔다. */
+function signedCheck(input: CheckInput): CheckResult {
+  return checkLaunchGate({
+    signatureMarkdown: signatureFor(
+      input.recordMarkdown,
+      input.request.environment ?? "production"
+    ),
+    allowedRoles: ALLOWED_ROLES,
+    ...input,
+  });
+}
+
+/** 서명 기록과 허용 역할 인자를 더한 runCli(프로세스 안). record.md의 내용에서 서명 기록을 만든다. */
+function signedCli(args: readonly string[], read: (file: string) => string): CheckResult {
+  const environment = args[args.indexOf("--environment") + 1] ?? "production";
+  return runCli(
+    [...args, "--signature", "signature.md", "--allowed-roles", ALLOWED_ROLES_ARG],
+    (file) => (file === "signature.md" ? signatureFor(read("record.md"), environment) : read(file))
+  );
+}
+
 function production(stage: string | undefined, surfaces: readonly string[]): CheckRequest {
   return { environment: "production", stage, surfaces };
 }
@@ -86,7 +155,7 @@ function run(
   request: CheckRequest,
   extras: RunExtras = {}
 ): CheckResult {
-  return checkLaunchGate({
+  return signedCheck({
     itemTableMarkdown: extras.itemTableMarkdown ?? SPEC_MARKDOWN,
     recordMarkdown: recordFor(statuses),
     currentTargets: extras.currentTargets ?? CURRENT_TARGETS,
@@ -358,16 +427,26 @@ describe("AC-B2CLAUNCH-002 — 판정 출력과 기록 불변", () => {
     const record = deepFreeze(parsedItems.items);
     const before = JSON.stringify(record);
 
+    const signature = parseSignatureRecord(
+      signatureFor(recordFor(UNVERIFIED_PRODUCTION_ONLY), "local")
+    );
+    if (!signature.ok) throw new Error(signature.errors.join("|"));
+    const signatureBefore = JSON.stringify(signature.record);
+    const frozenSignature: SignatureRecord = deepFreeze(signature.record);
+
     // 얼린 입력을 쓰므로 점검기가 기록을 고치려 하면 TypeError로 드러난다.
     const result = evaluateLaunchGate({
       items: deepFreeze(ITEM_ROWS.map((row) => ({ ...row }))),
       record,
       currentTargets: CURRENT_TARGETS,
+      signature: frozenSignature,
+      allowedRoles: ALLOWED_ROLES,
       request: local(["S1"]),
     });
 
     expect(result.exitCode).toBe(0);
     expect(JSON.stringify(record)).toBe(before);
+    expect(JSON.stringify(frozenSignature)).toBe(signatureBefore);
     for (const id of ["L-01", "L-05", "R-04"]) {
       expect(record.find((item) => item.id === id)?.status).toBe("UNVERIFIED");
     }
@@ -453,7 +532,7 @@ describe("결정 대기 칸의 fail-closed 처리와 면제", () => {
 
 describe("기록과 입력의 어긋남(fail-closed)", () => {
   it("필수 항목이 기록에 없으면 항목 식별자를 적고 판정하지 못한다", () => {
-    const result = checkLaunchGate({
+    const result = signedCheck({
       itemTableMarkdown: SPEC_MARKDOWN,
       recordMarkdown: recordFor({}, ["L-06"]),
       currentTargets: CURRENT_TARGETS,
@@ -468,7 +547,7 @@ describe("기록과 입력의 어긋남(fail-closed)", () => {
   it("정의표에 없는 식별자가 기록에 있으면 그 식별자를 적고 입력을 거부한다", () => {
     const withExtra = `${recordFor()}\n| L-99 | 증명 | 위치-예시 | 역할-예시 | 날짜-예시 | 대상 | EV-L1 | READY |`;
 
-    const result = checkLaunchGate({
+    const result = signedCheck({
       itemTableMarkdown: SPEC_MARKDOWN,
       recordMarkdown: withExtra,
       currentTargets: CURRENT_TARGETS,
@@ -560,13 +639,18 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
     tmpDir = "";
   });
 
-  function files(statuses: Record<string, string>): { record: string; targets: string } {
+  function files(
+    statuses: Record<string, string>,
+    signatureEnvironment = "production"
+  ): { record: string; targets: string; signature: string } {
     tmpDir = mkdtempSync(path.join(tmpdir(), "check-launch-gate-"));
     const record = path.join(tmpDir, "record.md");
     const targets = path.join(tmpDir, "targets.json");
+    const signature = path.join(tmpDir, "signature.md");
     writeFileSync(record, recordFor(statuses), "utf-8");
     writeFileSync(targets, JSON.stringify(CURRENT_TARGETS), "utf-8");
-    return { record, targets };
+    writeFileSync(signature, signatureFor(recordFor(statuses), signatureEnvironment), "utf-8");
+    return { record, targets, signature };
   }
 
   function runCli(args: string[]) {
@@ -577,7 +661,7 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
   }
 
   it("통과하는 로컬 시험 판정은 종료 코드 0이고 판정과 해당 없음(local) 표지를 stdout에 적는다", () => {
-    const { record, targets } = files(UNVERIFIED_PRODUCTION_ONLY);
+    const { record, targets, signature } = files(UNVERIFIED_PRODUCTION_ONLY, "local");
 
     const result = runCli([
       "--items",
@@ -586,6 +670,10 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
       record,
       "--targets",
       targets,
+      "--signature",
+      signature,
+      "--allowed-roles",
+      ALLOWED_ROLES_ARG,
       "--environment",
       "local",
       "--surfaces",
@@ -618,6 +706,60 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("L-04");
     expect(result.stdout).toContain("내부 시험 공개 불가");
+  });
+
+  it("--signature 없이 실행하면 항목이 모두 READY여도 종료 코드 1이고 서명 없음을 stdout에 적는다(fail-closed)", () => {
+    const { record, targets } = files({});
+
+    const result = runCli([
+      "--items",
+      SPEC_PATH,
+      "--record",
+      record,
+      "--targets",
+      targets,
+      "--allowed-roles",
+      ALLOWED_ROLES_ARG,
+      "--environment",
+      "production",
+      "--stage",
+      "G",
+      "--surfaces",
+      "S1,S2,S3",
+    ]);
+
+    expect(result.status, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain("서명 없음");
+    expect(result.stdout).toContain("일반 사용자 공개 불가");
+    expect(result.stdout).not.toContain("일반 사용자 공개 가능");
+  });
+
+  it("서명의 실행 환경 칸 오류는 종료 코드 2로 거부하고 이유를 stderr에 적는다", () => {
+    const { record, targets, signature } = files({});
+    writeFileSync(signature, signatureFor(recordFor(), "staging"), "utf-8");
+
+    const result = runCli([
+      "--items",
+      SPEC_PATH,
+      "--record",
+      record,
+      "--targets",
+      targets,
+      "--signature",
+      signature,
+      "--allowed-roles",
+      ALLOWED_ROLES_ARG,
+      "--environment",
+      "production",
+      "--stage",
+      "I",
+      "--surfaces",
+      "S1,S2,S3",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("서명 기록 오류");
+    expect(result.stdout).toBe("");
   });
 
   it("열거 밖 실행 환경은 종료 코드 2로 거부하고 이유를 stderr에 적는다", () => {
@@ -703,7 +845,7 @@ describe("runCli — 인자와 입력 파일 읽기", () => {
       "exemptions.json": JSON.stringify([{ itemId: "R-02", column: "I" }]),
     };
 
-    const result = runCli(
+    const result = signedCli(
       [...baseArgs, "--targets", "targets.json", "--exemptions", "exemptions.json"],
       reader(files)
     );
@@ -827,7 +969,7 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
       request?: CheckRequest;
     } = {}
   ): CheckResult {
-    return checkLaunchGate({
+    return signedCheck({
       itemTableMarkdown: SPEC_MARKDOWN,
       recordMarkdown: recordFor(options.statuses ?? {}),
       currentTargets: CURRENT_TARGETS,
@@ -926,8 +1068,8 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
     };
 
     expect(
-      checkLaunchGate({ ...base, siblingRecords, siblingDefinitions: consultopsDefinitions })
-    ).toEqual(checkLaunchGate(base));
+      signedCheck({ ...base, siblingRecords, siblingDefinitions: consultopsDefinitions })
+    ).toEqual(signedCheck(base));
   });
 });
 
@@ -986,7 +1128,7 @@ describe("runCli — 형제 증거 참조 인자", () => {
   ];
 
   it("세 인자로 참조 줄·정의표·형제 기록을 읽어 통과 판정을 낸다", () => {
-    const result = runCli(
+    const result = signedCli(
       [...baseArgs, ...siblingArgs],
       reader({ "refs.md": refsFor("형제값-예시-1") })
     );
@@ -1049,6 +1191,372 @@ describe("runCli — 형제 증거 참조 인자", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.output).toContain("--sibling-records 파일은");
+  });
+});
+
+// ---- M1d: go 서명 점검 (AC-B2CLAUNCH-008, REQ-B2CLAUNCH-008) --------------------------------
+// 서명자 구성(D-LAUNCH-04 (c)의 세 역할 전부가 서명해야 하는지, U3)은 확인 대기라 이 시험도 강제하지 않는다:
+// 아래 (마)(바)(사)의 "서명자 구성" 부분은 acceptance.md AC-B2CLAUNCH-008 선결대로 BLOCKED로 남고,
+// 시험은 역할 목록 소속(허용 역할)만 본다.
+
+describe("AC-B2CLAUNCH-008 — 서명 fixture 열 가지(가)~(차)", () => {
+  const ALL_READY = recordFor();
+
+  /** 서명 시점 항목 표: 기록의 모든 항목을 READY 값 그대로 담되 `exclude`는 뺀다. */
+  function snapshotOf(recordMarkdown: string, exclude: readonly string[] = []): string[][] {
+    const parsed = parseGateRecord(recordMarkdown);
+    if (!parsed.ok) throw new Error(parsed.errors.join("|"));
+    return parsed.items
+      .filter((item) => !exclude.includes(item.id))
+      .map((item) => [item.id, item.status, item.target]);
+  }
+
+  const sign = (environment: string, role = "제품 책임자", exclude: readonly string[] = []) =>
+    renderSignature([[role, "날짜-예시", environment]], snapshotOf(ALL_READY, exclude));
+
+  interface SignatureFixture {
+    tag: string;
+    form: "운영" | "로컬";
+    describe: string;
+    requests: CheckRequest[];
+    statuses?: Record<string, string>;
+    signature: string | undefined;
+    exitCode: 0 | 1 | 2;
+    outputHas: string[];
+    outputLacks?: string[];
+  }
+
+  const FIXTURES_008: SignatureFixture[] = [
+    {
+      tag: "가",
+      form: "운영",
+      describe: "목적 단계의 서명 기록이 있고 서명 이후 항목이 모두 READY",
+      requests: [production("I", ALL_SURFACES)],
+      signature: sign("production"),
+      exitCode: 0,
+      outputHas: ["서명 점검: 통과", "내부 시험 공개 가능"],
+    },
+    {
+      tag: "나",
+      form: "운영",
+      describe: "서명 기록이 없음",
+      requests: [production("G", ALL_SURFACES)],
+      signature: undefined,
+      exitCode: 1,
+      outputHas: ["서명 없음", "일반 사용자 공개 불가"],
+      outputLacks: ["일반 사용자 공개 가능"],
+    },
+    {
+      tag: "다",
+      form: "운영",
+      describe: "서명 이후 기록 안의 항목(R-05) 하나가 UNVERIFIED가 됨",
+      requests: [production("I", ALL_SURFACES)],
+      statuses: { "R-05": "UNVERIFIED" },
+      signature: sign("production"),
+      exitCode: 1,
+      outputHas: ["서명 점검: 서명 뒤 R-05가 UNVERIFIED가 되었다", "내부 시험 공개 불가"],
+      outputLacks: ["내부 시험 공개 가능"],
+    },
+    {
+      tag: "라",
+      form: "운영",
+      describe: "서명한 역할이 허용 역할 목록에 없음",
+      requests: [production("I", ALL_SURFACES)],
+      signature: sign("production", "역할-밖-예시"),
+      exitCode: 1,
+      outputHas: ["서명 점검: 서명 행 1의 역할이 허용 역할 목록에 없다"],
+      outputLacks: ["내부 시험 공개 가능", "역할-밖-예시"],
+    },
+    {
+      tag: "마",
+      form: "로컬",
+      describe:
+        "실행 환경 local의 I 서명 기록(운영 한정 항목은 서명 대상이 아님)이 있고 이후 모두 READY",
+      requests: [local(["S1"])],
+      signature: sign("local", "운영 책임자", PRODUCTION_ONLY),
+      exitCode: 0,
+      outputHas: ["서명 점검: 통과", "로컬 시험 가능"],
+    },
+    {
+      tag: "바",
+      form: "로컬",
+      describe: "로컬 시험 판정에 서명 기록이 없음",
+      requests: [local(["S1"])],
+      signature: undefined,
+      exitCode: 1,
+      outputHas: ["서명 없음", "로컬 시험 불가"],
+      outputLacks: ["로컬 시험 가능"],
+    },
+    {
+      tag: "사",
+      form: "로컬",
+      describe: "로컬 시험 판정의 서명 뒤 R-02가 UNVERIFIED가 됨",
+      requests: [local(["S1"])],
+      statuses: { "R-02": "UNVERIFIED" },
+      signature: sign("local", "법무", PRODUCTION_ONLY),
+      exitCode: 1,
+      outputHas: ["서명 점검: 서명 뒤 R-02가 UNVERIFIED가 되었다", "로컬 시험 불가"],
+      outputLacks: ["로컬 시험 가능"],
+    },
+    {
+      tag: "아",
+      form: "운영",
+      describe: "서명 기록의 실행 환경 칸이 없거나 local·production 밖의 값(요청 형태와 무관)",
+      requests: [production("I", ALL_SURFACES), local(["S1"])],
+      signature: undefined, // 아래에서 변형별로 만든다
+      exitCode: 2,
+      outputHas: ["서명 기록 오류", "실행 환경"],
+      outputLacks: ["공개 가능", "로컬 시험 가능", "staging"],
+    },
+    {
+      tag: "자",
+      form: "운영",
+      describe: "운영 단계 점검에 실행 환경 칸이 local인 서명 기록만 있음",
+      requests: [production("I", ALL_SURFACES)],
+      signature: sign("local", "제품 책임자", PRODUCTION_ONLY),
+      exitCode: 1,
+      outputHas: ["서명 점검: 서명 행 1의 실행 환경(local)이 요청 형태(production)와 다르다"],
+      outputLacks: ["내부 시험 공개 가능"],
+    },
+    {
+      tag: "차",
+      form: "로컬",
+      describe: "로컬 시험 판정에 실행 환경 칸이 production인 서명 기록만 있음",
+      requests: [local(["S1"])],
+      signature: sign("production", "제품 책임자", PRODUCTION_ONLY),
+      exitCode: 1,
+      outputHas: ["서명 점검: 서명 행 1의 실행 환경(production)이 요청 형태(local)와 다르다"],
+      outputLacks: ["로컬 시험 가능"],
+    },
+  ];
+
+  function check(fixture: SignatureFixture, request: CheckRequest, signature = fixture.signature) {
+    return checkLaunchGate({
+      itemTableMarkdown: SPEC_MARKDOWN,
+      recordMarkdown: recordFor(fixture.statuses),
+      currentTargets: CURRENT_TARGETS,
+      signatureMarkdown: signature,
+      allowedRoles: ALLOWED_ROLES,
+      request,
+    });
+  }
+
+  it("fixture는 정확히 열 가지이고 꼬리표가 acceptance.md와 같다", () => {
+    expect(FIXTURES_008.map((fixture) => fixture.tag).join("")).toBe("가나다라마바사아자차");
+    expect(FIXTURES_008.filter((fixture) => fixture.form === "운영")).toHaveLength(6);
+    expect(FIXTURES_008.filter((fixture) => fixture.form === "로컬")).toHaveLength(4);
+  });
+
+  for (const fixture of FIXTURES_008.filter((f) => f.tag !== "아")) {
+    it(`(${fixture.tag}) [${fixture.form}] ${fixture.describe} → 종료 코드 ${fixture.exitCode}`, () => {
+      const result = check(fixture, fixture.requests[0]);
+
+      expect(result.exitCode, result.output).toBe(fixture.exitCode);
+      for (const text of fixture.outputHas) expect(result.output).toContain(text);
+      for (const text of fixture.outputLacks ?? []) expect(result.output).not.toContain(text);
+    });
+  }
+
+  const ENVIRONMENT_CELL_ERRORS: Array<[string, string]> = [
+    ["칸이 비어 있음", ""],
+    ["local·production 밖의 값", "staging"],
+  ];
+  const fixtureAh = FIXTURES_008.find((f) => f.tag === "아") as SignatureFixture;
+  for (const [what, cell] of ENVIRONMENT_CELL_ERRORS) {
+    for (const request of fixtureAh.requests) {
+      it(`(아) 서명의 실행 환경 ${what} → 요청 형태 ${request.environment}에서도 종료 코드 2`, () => {
+        const signature = renderSignature(
+          [["제품 책임자", "날짜-예시", cell]],
+          snapshotOf(ALL_READY, request.environment === "local" ? PRODUCTION_ONLY : [])
+        );
+
+        const result = check(fixtureAh, request, signature);
+
+        expect(result.exitCode, result.output).toBe(2);
+        for (const text of fixtureAh.outputHas) expect(result.output).toContain(text);
+        for (const text of fixtureAh.outputLacks ?? []) expect(result.output).not.toContain(text);
+      });
+    }
+  }
+
+  it("서명 점검을 통과하는 것은 (가)(마) 둘이고 (나)(다)(라)(바)(사)(아)(자)(차) 여덟은 종료 코드가 0이 아니다", () => {
+    const exits = FIXTURES_008.map((fixture) => ({
+      tag: fixture.tag,
+      exitCode:
+        fixture.tag === "아"
+          ? check(
+              fixture,
+              fixture.requests[0],
+              renderSignature([["제품 책임자", "날짜-예시", ""]], snapshotOf(ALL_READY))
+            ).exitCode
+          : check(fixture, fixture.requests[0]).exitCode,
+    }));
+
+    expect(exits.filter((e) => e.exitCode === 0).map((e) => e.tag)).toEqual(["가", "마"]);
+    expect(exits.filter((e) => e.exitCode !== 0)).toHaveLength(8);
+  });
+
+  it("(가)는 목적 단계 G에서도 같은 production 서명으로 일반 사용자 공개 가능을 낸다", () => {
+    const result = check(FIXTURES_008[0], production("G", ALL_SURFACES));
+
+    expect([result.exitCode, result.verdict]).toEqual([0, "일반 사용자 공개 가능"]);
+  });
+
+  it("fail-closed 기본값: 서명이 없으면 항목이 모두 READY여도 통과가 아니고 판정 문구는 불가다", () => {
+    for (const request of [
+      production("I", ALL_SURFACES),
+      production("G", ALL_SURFACES),
+      local(["S1"]),
+    ]) {
+      const result = evaluateLaunchGate({
+        items: ITEM_ROWS,
+        record: (() => {
+          const parsed = parseGateRecord(ALL_READY);
+          if (!parsed.ok) throw new Error(parsed.errors.join("|"));
+          return parsed.items;
+        })(),
+        currentTargets: CURRENT_TARGETS,
+        allowedRoles: ALLOWED_ROLES,
+        request,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.output).toContain("서명 없음");
+      expect(result.verdict).toMatch(/불가$/);
+      expect(result.output).not.toMatch(/공개 가능|로컬 시험 가능/);
+    }
+  });
+
+  it("허용 역할 목록이 비어 있으면(넘기지 않으면) 모든 역할이 거부된다", () => {
+    const result = checkLaunchGate({
+      itemTableMarkdown: SPEC_MARKDOWN,
+      recordMarkdown: ALL_READY,
+      currentTargets: CURRENT_TARGETS,
+      signatureMarkdown: sign("production"),
+      request: production("I", ALL_SURFACES),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("서명 행 1의 역할이 허용 역할 목록에 없다");
+  });
+
+  it("서명 시점 항목이 현재 기록의 항목 정의표에 없는 식별자를 담으면 현재 기록에 없다고 거부한다", () => {
+    const signature = renderSignature(
+      [["제품 책임자", "날짜-예시", "production"]],
+      [...snapshotOf(ALL_READY), ["L-99", "READY", "대상-L-99"]]
+    );
+
+    const result = check(FIXTURES_008[0], production("I", ALL_SURFACES), signature);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("서명 대상 항목 L-99가 현재 기록에 없다");
+  });
+
+  it("항목 점검과 서명 점검이 모두 실패하면 두 이유를 함께 적는다", () => {
+    const result = check(
+      { ...FIXTURES_008[1], statuses: { "L-04": "BLOCKED" } },
+      production("I", ALL_SURFACES)
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("L-04: BLOCKED");
+    expect(result.output).toContain("서명 없음");
+    expect(result.output).toContain("불가 사유: 필수 항목이 READY가 아니다 — L-04");
+  });
+
+  it("서명이 있어도 항목 점검이 실패하면 통과가 아니다(서명은 항목 점검을 대신하지 않는다)", () => {
+    const result = check(
+      { ...FIXTURES_008[0], statuses: { "L-04": "BLOCKED" } },
+      production("I", ALL_SURFACES),
+      sign("production")
+    );
+
+    expect([result.exitCode, result.verdict]).toEqual([1, "내부 시험 공개 불가"]);
+  });
+
+  it("서명 점검 출력은 서명 기록의 역할·날짜 칸 값을 적지 않는다", () => {
+    const result = check(
+      FIXTURES_008[0],
+      production("I", ALL_SURFACES),
+      renderSignature([["역할-밖-예시", "날짜-밖-예시", "production"]], snapshotOf(ALL_READY))
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).not.toContain("역할-밖-예시");
+    expect(result.output).not.toContain("날짜-밖-예시");
+  });
+});
+
+describe("runCli — 서명 인자(--signature, --allowed-roles)", () => {
+  const record = recordFor();
+  const baseFiles: Record<string, string> = {
+    "items.md": SPEC_MARKDOWN,
+    "record.md": record,
+    "targets.json": JSON.stringify(CURRENT_TARGETS),
+    "signature.md": signatureFor(record, "production"),
+  };
+  const read = (file: string): string => {
+    if (!(file in baseFiles)) throw new Error(`없는 파일: ${file}`);
+    return baseFiles[file];
+  };
+  const baseArgs = [
+    "--items",
+    "items.md",
+    "--record",
+    "record.md",
+    "--targets",
+    "targets.json",
+    "--environment",
+    "production",
+    "--stage",
+    "I",
+    "--surfaces",
+    "S1,S2,S3",
+  ];
+
+  it("두 인자를 읽어 서명이 있는 통과 판정을 낸다", () => {
+    const result = runCli(
+      [...baseArgs, "--signature", "signature.md", "--allowed-roles", ALLOWED_ROLES_ARG],
+      read
+    );
+
+    expect([result.exitCode, result.verdict]).toEqual([0, "내부 시험 공개 가능"]);
+  });
+
+  it("--signature를 넘기지 않으면 서명 없음으로 종료 코드 1이다(우회 인자가 없다)", () => {
+    const result = runCli([...baseArgs, "--allowed-roles", ALLOWED_ROLES_ARG], read);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("서명 없음");
+    expect(result.verdict).toBe("내부 시험 공개 불가");
+  });
+
+  it("--allowed-roles를 넘기지 않으면 어떤 역할도 허용되지 않아 종료 코드 1이다", () => {
+    const result = runCli([...baseArgs, "--signature", "signature.md"], read);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("허용 역할 목록에 없다");
+  });
+
+  it("--allowed-roles의 쉼표 목록은 앞뒤 공백과 빈 항목을 무시하고 읽는다", () => {
+    const result = runCli(
+      [...baseArgs, "--signature", "signature.md", "--allowed-roles", " 법무 , ,제품 책임자,"],
+      read
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("읽지 못하는 서명 파일과 표가 깨진 서명 파일은 종료 코드 2다", () => {
+    const missing = runCli([...baseArgs, "--signature", "없는-서명.md"], read);
+    const broken = runCli([...baseArgs, "--signature", "broken.md"], (file) =>
+      file === "broken.md" ? "# 표 없음" : read(file)
+    );
+
+    expect(missing.exitCode).toBe(2);
+    expect(missing.output).toContain("--signature 파일을 읽지 못했다(없는-서명.md)");
+    expect(broken.exitCode).toBe(2);
+    expect(broken.output).toContain("서명 기록 오류");
   });
 });
 

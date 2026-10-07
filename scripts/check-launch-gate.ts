@@ -1,13 +1,17 @@
-// SPEC-B2C-LAUNCH-001 M1b: 출시 게이트 항목 점검기 (REQ-B2CLAUNCH-002, AC-B2CLAUNCH-002).
+// SPEC-B2C-LAUNCH-001 M1b·M1d: 출시 게이트 점검기 (REQ-B2CLAUNCH-002·008, AC-B2CLAUNCH-002·008).
 //
 // 사용: pnpm exec tsx scripts/check-launch-gate.ts --items <항목 정의표 문서> --record <기록 문서>
 //         --environment <local|production> [--stage <I|G>] --surfaces <S1,S2,S3 중 목적 벡터>
+//         --signature <go 서명 기록 문서> --allowed-roles <서명 허용 역할, 쉼표로 구분>
 //         [--targets <현재 대상 값 JSON>] [--events <관측 뒤 사건 JSON>] [--exemptions <면제 결정 JSON>]
 //         [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
-// 종료 코드: 0 = 통과, 1 = 필수 항목이 READY가 아니어서 불가, 2 = 입력 거부(요청 형태·표·기록·사용법 오류).
+// 종료 코드: 0 = 통과, 1 = 항목 점검 또는 서명 점검이 통과하지 못해 불가(서명 없음·서명 뒤 UNVERIFIED가 된 항목·
+//         허용되지 않은 역할·서명의 실행 환경이 요청 형태와 다름 포함), 2 = 입력 거부(요청 형태·표·기록·서명 기록의
+//         칸 오류·사용법 오류).
 //
 // 점검기는 기록의 상태 칸과 넘겨 받은 현재 대상 값·사건만 읽는다. 사건 발생을 스스로 감지하지 못하고
-// 기록을 쓰거나 바꾸지 않으며, 서명 점검은 하지 않는다(AC-B2CLAUNCH-008은 이 마일스톤 밖이다).
+// 기록을 쓰거나 바꾸지 않는다. 판정 문구(`…가능`)는 항목 점검과 서명 점검이 모두 통과했을 때만 낸다 — 서명 기록이
+// 없으면 통과가 아니며(fail-closed) 서명 점검을 건너뛰거나 통과한 것으로 두는 인자·옵션은 없다.
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -27,7 +31,12 @@ import {
   type SiblingRecord,
   type SiblingRefInput,
 } from "../lib/launch/sibling-reference";
-import { resolveEffectiveStatus } from "../lib/launch/target-check";
+import {
+  judgeSignature,
+  parseSignatureRecord,
+  type SignatureRecord,
+} from "../lib/launch/signature";
+import { resolveEffectiveStatus, type EffectiveStatus } from "../lib/launch/target-check";
 
 export type ExitCode = 0 | 1 | 2;
 
@@ -64,12 +73,21 @@ export interface EvaluateInput {
   exemptions?: readonly Exemption[];
   /** 형제 증거 참조 줄(REQ-B2CLAUNCH-004). 넘기지 않으면 점검은 M1b와 똑같이 동작한다. */
   siblingReferences?: SiblingRefInput;
+  /** go 서명 기록(REQ-B2CLAUNCH-008). 없으면 판정은 통과가 아니다(fail-closed). */
+  signature?: SignatureRecord;
+  /** 서명 역할 허용 목록. D-LAUNCH-04의 결정을 코드에 박지 않고 호출하는 쪽이 넘긴다. */
+  allowedRoles?: readonly string[];
   request: CheckRequest;
 }
 
-export interface CheckInput extends Omit<EvaluateInput, "items" | "record" | "siblingReferences"> {
+export interface CheckInput extends Omit<
+  EvaluateInput,
+  "items" | "record" | "siblingReferences" | "signature"
+> {
   itemTableMarkdown: string;
   recordMarkdown: string;
+  /** go 서명 기록 문서(마크다운). */
+  signatureMarkdown?: string;
   /** 형제 증거 참조 줄 표(마크다운). 있으면 정의표 조회와 기록 비교를 함께 입력해야 의미가 있다. */
   siblingReferenceMarkdown?: string;
   /** 형제 SPEC id → 그 SPEC의 항목 정의표 문서와 헤더 칸. 항목 목록은 이 입력에서만 조회한다. */
@@ -169,6 +187,20 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
   }
 
   const recordById = new Map(input.record.map((item) => [item.id, item]));
+
+  /** 항목의 점검 시점 유효 상태: 대상 값·사건 판정에 형제 참조 줄의 EV-L3 강등을 더한다. */
+  const effectiveStatusOf = (recorded: RecordItem): EffectiveStatus => {
+    const effective = resolveEffectiveStatus(
+      recorded,
+      input.currentTargets[recorded.id],
+      input.eventsAfterObservation?.[recorded.id] ?? []
+    );
+    const referenceProblems = siblingUnverified[recorded.id];
+    return effective.status === "READY" && referenceProblems !== undefined
+      ? { status: "UNVERIFIED", reason: referenceProblems.join("; ") }
+      : effective;
+  };
+
   const lines: string[] = [
     `실행 환경: ${request.form}`,
     request.form === "local"
@@ -204,15 +236,7 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       continue;
     }
 
-    let effective = resolveEffectiveStatus(
-      recorded,
-      input.currentTargets[row.id],
-      input.eventsAfterObservation?.[row.id] ?? []
-    );
-    const referenceProblems = siblingUnverified[row.id];
-    if (effective.status === "READY" && referenceProblems !== undefined) {
-      effective = { status: "UNVERIFIED", reason: referenceProblems.join("; ") };
-    }
+    const effective = effectiveStatusOf(recorded);
     if (effective.status === "READY") {
       lines.push(`${row.id}: READY${note}`);
     } else {
@@ -227,9 +251,25 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     request.form === "local"
       ? { pass: "로컬 시험 가능", fail: "로컬 시험 불가" }
       : PRODUCTION_VERDICTS[request.column];
-  const passed = failed.length === 0;
+  // 서명 점검(REQ-B2CLAUNCH-008): 서명 기록이 없으면 통과가 아니다. 서명 시점 항목의 현재 상태는 위 항목 점검과 같은
+  // 유효 상태로 읽는다(서명 뒤 UNVERIFIED가 된 항목은 서명의 효력을 없앤다).
+  const signatureProblems = judgeSignature(input.signature, {
+    allowedRoles: input.allowedRoles ?? [],
+    requestEnvironment: request.form,
+    currentStatus: (id) => {
+      const recorded = recordById.get(id);
+      return recorded === undefined ? undefined : effectiveStatusOf(recorded).status;
+    },
+  });
+  if (signatureProblems.length === 0) {
+    lines.push(`서명 점검: 통과 (서명 ${input.signature?.signers.length ?? 0}건)`);
+  } else {
+    for (const problem of signatureProblems) lines.push(`서명 점검: ${problem}`);
+  }
+
+  const passed = failed.length === 0 && signatureProblems.length === 0;
   const verdict = passed ? verdicts.pass : verdicts.fail;
-  if (!passed) lines.push(`불가 사유: 필수 항목이 READY가 아니다 — ${failed.join(", ")}`);
+  if (failed.length > 0) lines.push(`불가 사유: 필수 항목이 READY가 아니다 — ${failed.join(", ")}`);
   lines.push(`판정: ${verdict}`);
 
   return { exitCode: passed ? 0 : 1, output: lines.join("\n"), verdict };
@@ -265,6 +305,19 @@ export function checkLaunchGate(input: CheckInput): CheckResult {
     };
   }
 
+  // 서명 기록의 칸 오류(실행 환경 칸이 비었거나 열거 밖 등)는 요청 형태와 무관한 입력 거부다.
+  let signature: SignatureRecord | undefined;
+  if (input.signatureMarkdown !== undefined) {
+    const parsedSignature = parseSignatureRecord(input.signatureMarkdown);
+    if (!parsedSignature.ok) {
+      return {
+        exitCode: 2,
+        output: parsedSignature.errors.map((e) => `서명 기록 오류: ${e}`).join("\n"),
+      };
+    }
+    signature = parsedSignature.record;
+  }
+
   return evaluateLaunchGate({
     items: table.rows,
     record: record.items,
@@ -272,6 +325,8 @@ export function checkLaunchGate(input: CheckInput): CheckResult {
     eventsAfterObservation: input.eventsAfterObservation,
     exemptions: input.exemptions,
     siblingReferences,
+    signature,
+    allowedRoles: input.allowedRoles,
     request: input.request,
   });
 }
@@ -290,6 +345,8 @@ const FLAGS = [
   "sibling-refs",
   "sibling-defs",
   "sibling-records",
+  "signature",
+  "allowed-roles",
 ] as const;
 type Flag = (typeof FLAGS)[number];
 
@@ -427,6 +484,12 @@ function runCliUnchecked(argv: readonly string[], readText: (file: string) => st
       isSiblingRecords,
       '{"형제 SPEC id/형제 항목 id": {"status": "READY", "target": "대상 값"}}'
     ),
+    // 서명 기록·허용 역할을 넘기지 않으면 서명 없음(또는 허용되는 역할 없음)이라 어떤 판정도 통과하지 못한다.
+    signatureMarkdown: flags.signature === undefined ? undefined : read("signature"),
+    allowedRoles: (flags["allowed-roles"] ?? "")
+      .split(",")
+      .map((role) => role.trim())
+      .filter((role) => role !== ""),
     // 대상 값을 넘기지 않으면 모든 READY 항목이 UNVERIFIED가 된다(fail-closed).
     currentTargets: readJson("targets", isStringRecord, '{"항목 ID": "대상 값"}') ?? {},
     eventsAfterObservation: readJson("events", isEventsRecord, '{"항목 ID": ["EV-L1"]}'),
