@@ -456,6 +456,88 @@ AC가 "이 예상은 `route.ts:284-296`을 읽고 파생한 것이며 이 세션
 
 **잔여 위험**: 런북 표가 사람이 고치는 문서라 게이트 함수·페이지·부팅 검증이 바뀌면(EV-L1, ENGINE-001이 게이트 입력을 바꾸면 N6) 이 표와 기대값 리터럴을 함께 갱신해야 한다 — 시험은 어긋나면 실패하게 해 두었으나 기대값 리터럴 자체를 자동으로 고치지는 않는다. 로컬 도달 관측은 운영 호스트의 노출 증거가 아니다(D-LAUNCH-01 (e)). 스크립트의 배선 부분(빌드·서버 기동)은 단위 시험이 없고 실제 실행으로만 덮인다.
 
+### M3b (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `4c466fc` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M3b-*.log`다. 이 커밋의 SHA는 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **범위(사용자 결정)**: M3의 뒤 절반 — REQ-B2CLAUNCH-011·012, 곧 AC-011(전환 목록 점검기)과 AC-012(`DIAGNOSIS_ENGINE_READY` 설정 단계 점검과 저장소 코드 오라클). AC-010 시나리오 3(교차 조합 세 가지의 로컬 서버 관측)은 이 단위에 없어 구현하지 않았다. `spec.md`·`plan.md`·`acceptance.md`, `app/`, `components/`, `lib/diagnosis`, `lib/consult`, `lib/env.ts`, `.github/`, `package.json`, M3a 모듈은 바꾸지 않았다. SPEC 문구의 틈은 고치지 않고 적힌 대로 구현하되 말하지 않은 곳은 닫았으며 아래 "발견"에 모았다.
+- **변경 파일**: 신규 `lib/launch/procedure-steps.ts`(+시험, 절차 단계 표 파서와 벡터 어휘), `lib/launch/transition-list.ts`(+시험, 순서 표 파서와 전환 점검), `scripts/check-launch-transitions.ts`(+시험, CLI), `lib/launch/engine-ready-step.ts`(+시험), `lib/launch/engine-ready-oracle.ts`(+시험), 신규 시험 `lib/launch/runbook-procedure.test.ts`, `.moai/docs/launch-gate-runbook.md`(`## 플래그 변경 절차` 절만 추가, 기존 절 불변), 이 파일.
+- **구현한 것**: (1) 공유 단계 모델: 단계 표(`단계`·`대상 환경`·`설정 변수`·`재시작 횟수`·`전 벡터`·`후 벡터`)와 벡터 어휘(`진단 게이트`·`상담 화면`·`상담 접수`·`시크릿` 네 칸, §2.3). 변수 이름은 §2.3의 여섯 개로, 플래그 값은 `true`·`false`로, 시크릿 변수는 `설정됨` 표지로만 받는다(값 금지). (2) AC-011 점검기: 순서(노출 순서 표)가 입력이고 코드에 박힌 순서가 없으며 순서가 없으면 BLOCKED(종료 코드 3). (3) 런북 절차 절: 순서 표(기록된 벡터 둘과 `결정 대기` 하나)와 단계 표 둘. (4) AC-012 단계 점검: R-02 상태가 입력이다. (5) AC-012 저장소 코드 오라클: AC가 적은 명령을 옮긴 정규식·주석 필터·`*.test.*` 제외, 허용 목록은 호출하는 쪽이 넘긴다.
+
+**RED**(구현 전의 틀: 파서는 항상 실패, 점검은 항상 통과, 오라클은 항상 빈 결과, 새 시험 6개 파일, `M3b-red.log`): `Test Files 6 failed (6)`, `Tests 95 failed | 20 passed (115)`, `exit=1`. 실패 오류 종류는 `AssertionError` 하나뿐이다(대표: `expected 'PASS' to be 'REJECT'`, `expected +0 to be 3`, `expected [] to deeply equal [ 1 ]`, `미구현: expected false to be true`). 모듈 없음·타입 오류·TypeError는 0건이다. 통과한 20건은 틀이 우연히 맞는 경우(어휘 밖 벡터가 `null`, 비일치 샘플이 빈 결과 등)다. **첫 RED 실행은 이 로그가 아니다**: 처음에는 시험 도우미가 틀의 실패를 `throw`로 올리고 한 시험 파일이 수집 단계에서 던져 `Tests 81 failed | 20 passed (101)` 중 일부가 단언 실패가 아니었다(`M3b-red-first-run.log`에 보존). 도우미를 단언 먼저(`expect(parsed.ok)…`)로 고치고 fixture를 시험 안에서 만들도록 바꾼 뒤 다시 실행한 것이 `M3b-red.log`다. 구현 코드는 두 실행 사이에 바꾸지 않았다.
+
+**GREEN**: 1차(`M3b-green-1.log`)는 `Tests 1 failed | 114 passed (115)` — 실패 1건은 **시험 도우미의 결함**이었다(기본값이 있는 매개변수에 `undefined`를 넘기면 기본 순서가 쓰여 "순서 없음" 시험이 순서 있음으로 돌았다). 도우미를 `null`로 바꾸고 고쳤다. 2차(`M3b-green-2.log`): `Test Files 6 passed (6)`, `Tests 115 passed (115)`, `exit=0`. 이후 새 파일 8개를 `prettier --write`로 정리했고 정리 뒤 커버리지 실행(`M3b-cov.log`)과 전체 시험이 다시 통과했다.
+
+**변이 확인**(일부러 바꾼 코드를 시험이 잡는지, 원문 복구 확인됨): (a) 재시작 검사를 `!== 1`에서 `< 1`로 → `M3b-mutation-restarts.log` 3건 실패. (b) 인접 검사를 `!== 1`에서 `=== 0`으로 → `M3b-mutation-adjacent.log` 2건 실패. (c) R-02 검사를 `&& false`로 → `M3b-mutation-r02.log` 6건 실패. (d) 비시험 파일에 엔진 준비 변수 대입 줄 하나를 심으면 저장소 오라클 시험이 그 파일과 줄을 적고 실패(`M3b-mutation-oracle.log`, 2건), 심은 파일은 지웠다.
+
+**E1 AC-B2CLAUNCH-011 — 전환 목록 fixture 네 가지**(합성 순서 벡터 넷 V1~V4 위, 시험이 순서·단계 표를 마크다운으로 만들어 `checkTransitionsFromMarkdown`에 넘김. "위반 번호"는 출력의 `위반한 전환 번호:` 줄):
+
+| fixture | 기대 | 관측(종료 코드·출력) | 판정 |
+|---|---|---|---|
+| (가) 모든 전환이 순서의 인접한 두 벡터 사이이고 재시작 한 번(단계 3개, 단계 3은 시크릿과 `CONSULT_POLICY_READY=true`가 같은 단계) | 통과 | 0, `단계 1~3: 통과`, `판정: 통과` | PASS |
+| (나) 단계 2의 후 벡터가 순서에 없음 | 거부, 전환 번호 2 | 1, `단계 2: 거부 — 후 벡터가 순서에 기록된 벡터가 아니다`, `위반한 전환 번호: 2` | PASS |
+| (다) 단계 2가 재시작 2회 | 거부, 전환 번호 2 | 1, `단계 2: 거부 — 재시작 횟수가 1이 아니다`, `위반한 전환 번호: 2` | PASS |
+| (라) 단계 2가 전·후 벡터를 적지 않음 | 거부, 전환 번호 2 | 1, `단계 2: 거부 — 전 벡터를 적지 않았다; 후 벡터를 적지 않았다`, `위반한 전환 번호: 2` | PASS |
+
+네 fixture의 종료 코드는 `[0, 1, 1, 1]`이라 통과는 (가) 하나뿐이다(시험이 직접 확인). 추가로 시험한 것: 순서가 없으면 BLOCKED(입력 없음·표 없는 문서·행 없는 표·`결정 대기` 행뿐인 표 모두 종료 코드 3, (가) fixture도 통과가 아니다), 기록된 벡터를 건너뛴 비인접 전환·전·후가 같은 단계·재시작 0회·순서에 없는 전 벡터 거부, 두 벡터 사이에 `결정 대기` 항목이 있으면 BLOCKED, 결정 대기 벡터가 있는 단계는 BLOCKED이고 확정된 위반이 있으면 거부가 우선, 시크릿 설정과 `CONSULT_POLICY_READY=true` 불일치(양방향) 거부, 표 칸 오류·순서 표 오류는 종료 코드 2, 출력이 칸의 값을 되풀이하지 않음, CLI 사용법 오류 종료 코드 2.
+
+**E1 AC-B2CLAUNCH-011 — 런북 열람 두 조건**(`lib/launch/runbook-procedure.test.ts`가 런북 `## 플래그 변경 절차` 절을 점검기와 같은 파서로 읽음; CLI 실제 실행 `pnpm exec tsx scripts/check-launch-transitions.ts --steps .moai/docs/launch-gate-runbook.md --order .moai/docs/launch-gate-runbook.md`, `M3b-cli-runbook.log`):
+
+| 조건 | 관측 | 판정 |
+|---|---|---|
+| 플래그 변경 단계마다 "전 벡터 → 후 벡터"가 §2.3 어휘로 적혀 있다 | 단계 1은 네 칸 벡터 둘을 적었다. **단계 2는 전·후 벡터가 `결정 대기`다** — 상담 쪽 벡터와 순서가 결정 기록에 없어 지어내지 않았다(발견 1). 그래서 이 조건은 단계 1에만 충족이고 단계 2는 결정 대기 표지다 | 부분(단계 2 BLOCKED) |
+| 시크릿 설정 단계가 `CONSULT_POLICY_READY`를 `true`로 바꾸는 같은 재시작 단계 안에 있고 CONSULTOPS-001 REQ-B2CCONSULTOPS-011을 가리킨다 | 단계 2가 `CONSULT_POLICY_READY=true`와 `RATE_LIMIT_HMAC_SECRET=설정됨`을 한 단계(재시작 1)에 담고, 절이 `REQ-B2CCONSULTOPS-011`을 가리킨다. 시크릿 변수가 있는 단계는 이 하나뿐이고 `CONSULT_POLICY_READY`를 `true`로 바꾸는 단계도 이 하나뿐이다 | PASS |
+
+CLI 실제 출력: `단계 1: 통과` / `단계 2: BLOCKED — 전 벡터가 결정 대기다; 후 벡터가 결정 대기다` / `BLOCKED 전환 번호: 2` / `판정: BLOCKED`, `exit=3`. 단계 1만 따로 점검하면 순서 표의 두 기록된 벡터에서 통과한다(시험).
+
+**E1 AC-B2CLAUNCH-012 — 항목·절차 fixture 다섯 가지**(R-02 상태는 fixture가 정한 입력이다. 실제 R-02 판정은 ENGINE-001 증거 기록의 형식이 정해지기 전이라 **BLOCKED**이며 이 단위는 상태 소스를 지어내지 않았다. 상태 입력 없이 점검하면 출력이 `R-02 실제 판정: BLOCKED — …`를 적는다):
+
+| fixture | 입력 | 기대 | 관측 | 판정 |
+|---|---|---|---|---|
+| (가) | R-02 UNVERIFIED, 운영 호스트 단계가 엔진 준비 변수만 `true`로 설정 | 거부 | `단계 1: 거부 — 이 단계가 운영 호스트에서 DIAGNOSIS_ENGINE_READY를 참으로 설정한다 — R-02가 READY가 아니다` | PASS |
+| (나) | R-02 READY, 같은 단계 | 통과 | `단계 1: 통과`, `판정: 통과` | PASS |
+| (다) | R-02 UNVERIFIED, 운영 호스트 절차가 `ENABLE_DIAGNOSIS_FLOW`만 설정 | 통과 | `단계 1: 통과` | PASS |
+| (라) | R-02 UNVERIFIED, 한 재시작에 `ENABLE_DIAGNOSIS_FLOW`와 엔진 준비 변수를 함께 `true`로 설정 | 거부 | (가)와 같은 거부 줄 | PASS |
+| (마) | R-02 UNVERIFIED, 대상 환경이 별도 환경인 단계가 엔진 준비 변수를 `true`로 설정 | 통과 | `단계 1: 통과` | PASS |
+
+기대 결과 `[거부, 통과, 통과, 거부, 통과]`가 시험의 실제 관측과 같다. 추가: READY가 아닌 모든 값(`BLOCKED`·소문자·빈 값·알 수 없는 값)은 READY로 읽지 않고 알 수 없는 입력 값은 출력에 되풀이하지 않음, 로컬 환경 단계와 엔진 준비 변수를 `false`로 두는 운영 호스트 단계는 통과, 여러 단계 중 위반한 번호만 적음. 런북 절차에 같은 점검을 적용하면 R-02가 READY가 아닐 때 단계 1이 거부되고(`위반한 단계 번호: 1`) READY이면 통과한다(시험).
+
+**E1 AC-B2CLAUNCH-012 — 저장소 코드 오라클**(현재 트리 `4c466fc` + 이 단위의 새 파일, 이 세션 실행):
+
+| 구현 | 명령 | 관측 |
+|---|---|---|
+| TypeScript 오라클 | `pnpm exec tsx -e "import('./lib/launch/engine-ready-oracle.ts').then(…scanTree(process.cwd())…)"`(`M3b-oracle-ts-observed.log`) | 2줄: `scripts/verify-flag-runtime.ts:174` `DIAGNOSIS_ENGINE_READY: String(start.engine),`, `scripts/verify-flag-runtime.ts:293` `env.DIAGNOSIS_ENGINE_READY = String(flags.diag.engine);`. 없는 경로 0개 |
+| AC 명령 그대로(교차 확인) | `grep -rnE -f <패턴 파일> app components lib scripts instrumentation.ts playwright.config.ts package.json .github .env.local.example --exclude='*.test.*'`(`M3b-oracle-grep-raw.log`)와 `//`·`*`·`#` 줄 거르기(`M3b-oracle-grep-filtered.log`) | 거르기 전 3줄(위 둘과 `components/diagnosis/step-loading.tsx:42`의 `// @MX:UPGRADE: …` 주석 한 줄), 거른 뒤 위 두 줄. `app`·`components`·`lib`·`.github`는 0줄 |
+
+허용 목록(시험 `lib/launch/engine-ready-oracle.test.ts`): 파일 `scripts/verify-flag-runtime.ts`의 위 두 줄 내용. 시험은 "찾은 줄 = 허용 목록, 정확히 같음"(허용 목록 밖의 줄도 트리에서 사라진 허용 항목도 실패)이고 둘 다 통과했다. AC가 적은 샘플 — 일치: `DIAGNOSIS_ENGINE_READY=true`, 점 접근·대괄호 접근 `process.env…= "true"`, JSON 키, 객체 `: 'true'`, 백틱 값, `export …=1` — 불일치: 공백 구분 `ENV … true`, `??=`, `===` 비교, `//` 주석 줄 — 를 모두 시험했다. `ENV … true`와 `??=`는 이 명령의 맹점이라 일치하지 않는 것이 맞는 결과이고(시험이 그 사실을 고정했을 뿐 이 오라클이 그것을 잡는다고 말하지 않는다), 변수 이름을 계산해 만드는 대입, 실제 `.env*` 파일, 운영 호스트의 PM2 저장 환경·셸 프로필, 시험 파일은 이 오라클이 보지 못한다.
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`(`M3b-tsc.log`). **E3 린트**: `pnpm lint` → `exit=0`(`M3b-lint.log`), 새 TS 열한 개 `prettier --check` 통과(`M3b-prettier.log`; 처음 검사(`M3b-prettier-0.log`)에서 8개가 어긋나 `prettier --write`로 정리했다). **E4 전체 시험**: 1차 `pnpm test` → `Test Files 1 failed | 127 passed (128)`, `Tests 1 failed | 1461 passed (1462)`, `exit=1`(`M3b-test-full.log`) — 실패는 기존의 일시 실패 `scripts/verify-remote-consult.test.ts`(`gateCase.checks.length` `expected 0 to be greater than 0`) 하나뿐이었다. 그 파일만 다시 실행하면 `Tests 61 passed (61)`, `exit=0`(`M3b-remote-consult-rerun.log`). 전체 2차 → `Test Files 128 passed (128)`, `Tests 1462 passed (1462)`, `exit=0`(`M3b-test-full-2.log`; M3a 기준선 1347 + 새 115). **E5 커버리지**(명령줄 덮어쓰기, `M3b-cov.log`·`M3b-cov-summary.log`): `procedure-steps.ts` 구문 100%(90/90)·분기 100%, `transition-list.ts` 100%(114/114)·분기 100%, `engine-ready-step.ts` 100%(20/20)·분기 100%, `engine-ready-oracle.ts` 구문 97.77%(44/45)·분기 92%, `scripts/check-launch-transitions.ts` 구문 82.35%(28/34)·분기 78.94%(미덮개는 사용법 오류가 아닌 예외를 다시 던지는 줄과 `isMain` 출력 블록이며 CLI 실제 실행이 덮는다). 새 lib 네 파일 모두 85% 이상. 이 단위는 화면·런타임을 바꾸지 않아 `pnpm build`·`pnpm test:e2e`·`pnpm visual:verify`·`pnpm verify:flag-runtime`은 실행하지 않았다.
+
+**변경 범위 확인**: `git diff --stat 4c466fc -- app components lib/diagnosis lib/consult lib/env.ts .github package.json pnpm-lock.yaml`와 `spec.md`·`plan.md`·`acceptance.md`의 diff는 비어 있다(보고에 원문).
+
+**발견(SPEC 문서는 고치지 않았다, 적힌 대로 진행하고 말하지 않은 곳은 닫았다)**:
+
+1. **D-LAUNCH-03 결정 기록에 벡터 순서가 없다**: 결정 기록은 `Q1 (a) 진단 먼저, 상담은 이후 별도 노출 확대. Q2 (4) 첫 표면만`뿐이고 AC-011이 말하는 "순서(벡터의 순서)"는 담지 않았다. 런북 순서 표에는 결정 기록과 단계 정의 표에서 따라 나오는 두 벡터(배포 완료 dark, 진단만 production 경로로 열림)만 적고 나머지는 `결정 대기`로 두었다. AC-011의 선결(`D-LAUNCH-03 — 결정 전에는 BLOCKED`)은 D-LAUNCH-03이 2026-10-03에 결정된 지금도 상담 쪽 전환에서 충족되지 않는다 — 결정이 벡터 순서까지 기록해야 점검기가 BLOCKED를 벗어난다. 상담 화면(`C`)과 접수(`P`)를 같은 재시작에서 여는지, `C`만 거짓·`P`만 참인 조합(§2.3 상담 표 둘째 행)이 어느 벡터에 들어가는지도 결정 기록에 없다.
+2. **벡터의 시크릿 칸**: §2.3 "벡터와 전환"은 시크릿 설정 여부를 벡터의 칸으로 적지만 값 이름은 정하지 않았다. 단계 정의 표의 벡터는 세 칸(정규식 `STAGE_VECTOR_PATTERN`)이라 네 칸 벡터와 다르다. §2.3이 쓰는 어휘(`설정됨`, `설정되지 않음`)로 네 번째 칸을 적었고, 순서 표 1·2번의 `설정되지 않음`은 결정 기록이 아니라 REQ-B2CCONSULTOPS-011("`CONSULT_POLICY_READY=true` 설정과 같은 재시작에 함께 설정")에서 따라 나오는 추론이다(근거 칸에 적음).
+3. **진단 게이트의 열림 표기**: AC는 "§2.3의 어휘"라고만 적었다. §2.3 진단 표의 `열림(production 경로)`·`열림(review 경로)`·`열림(둘 다)`를 썼고, 단계 정의 표의 벡터 정규식은 경로 구분 없는 `열림`만 허용한다 — 두 표기가 다르다.
+4. **전환 번호**: AC가 "위반한 전환 번호"라고만 적어 단계 표의 `단계` 칸 값을 전환 번호로 읽었다(한 단계 = 전환 하나).
+5. **재시작 횟수 0**: (가)는 "재시작 한 번", (다)는 "재시작 둘"만 말한다. 0회는 말하지 않았고 환경을 바꾸는 전환에는 재시작이 있어야 하므로 정확히 1이 아니면 거부한다.
+6. **벡터가 안 바뀌는 단계**: REQ-011은 "인접한 두 벡터 사이"만 말한다. 전·후 벡터가 같은 단계(예: `ENABLE_DIAGNOSIS_FLOW`만 설정)는 거부한다. 그런데 AC-012 (다)는 바로 그런 단계(`ENABLE_DIAGNOSIS_FLOW`만 설정)를 통과시킨다 — 두 점검은 다른 질문에 답하므로 충돌은 아니지만, 같은 절차를 두 점검에 모두 넘기면 AC-012에서 통과한 단계가 AC-011에서 거부될 수 있다. SPEC은 벡터를 바꾸지 않는 플래그 변경 단계를 어떻게 다룰지 말하지 않았다.
+7. **전환의 방향**: "인접한 두 벡터 사이"를 방향 없이 읽어 역방향 인접 전환도 통과한다(롤백은 M5 범위이고 L-06이 따로 다룬다).
+8. **순서 안의 `결정 대기` 항목**: 기록된 두 벡터 사이에 `결정 대기` 항목이 있으면 인접 여부를 알 수 없어 BLOCKED로 읽는다. 순서에 없는 벡터는 `결정 대기` 항목이 있어도 거부다("기록되지 않은 벡터를 거치지 않는다"의 문자 그대로).
+9. **시크릿 규칙의 범위**: AC는 시크릿과 `CONSULT_POLICY_READY=true`가 같은 단계라는 것을 "런북 열람" 조건으로만 적었다. 점검기 규칙으로도 구현했고 양방향이다(시크릿만 따로 설정하는 단계도 거부) — AC가 요구한 것보다 넓다.
+10. **변수·값 어휘의 제한**: 단계 표는 §2.3의 여섯 변수 이름만 받고(그 밖의 변수는 시크릿 값을 담을 수 있어 거부) 플래그 값은 `true`·`false`만 받는다. 게이트가 정확히 `"true"`만 켜짐으로 읽으므로(LF-05) `TRUE`·`1`을 적은 절차는 점검 대상이 아니라 입력 거부(종료 코드 2)다.
+11. **오라클 허용 목록의 키**: AC는 하네스 두 줄을 줄 번호(`:174`, `:293`)로 적었다. 줄 번호는 하네스 파일을 한 줄만 고쳐도 어긋나서 허용 목록은 (파일, 줄 내용)으로 두고 줄 번호는 관측 출력에만 적었다. 하네스의 해당 줄 내용이 바뀌면 시험이 실패하고 허용 목록을 사람이 갱신해야 한다.
+12. **오라클 주석 필터**: "`//`·`*`·`#`로 시작하는 줄"을 앞 공백을 뺀 줄 시작으로 읽었다. 줄 끝 주석과 `/*`로 시작하는 줄은 거르지 않는다(대입처럼 보이면 허용 목록 밖으로 걸리는 보수적 방향이며 시험이 이 동작을 고정한다).
+13. **오라클 범위**: 지시문은 "추적 소스 트리"라고 했으나 AC의 명령은 디렉터리를 훑는다. AC의 명령을 따랐고 미추적 파일도 읽는다(`git ls-files`를 쓰지 않았다).
+14. **R-02의 의미**: REQ-012는 R-02가 `READY`가 아닌 동안 `true` 설정 단계의 "수행"을 막는다. 점검기는 R-02 상태를 입력으로 받아 그 단계가 절차에 있으면 거부한다. 따라서 정적 런북에서는 R-02가 `READY`가 아닌 한 단계 1이 항상 거부된다 — 이 절이 단계를 적는 것 자체는 허용으로 읽었다(수행이 아니다).
+15. **순서 표 입력 규칙**: 순번이 1부터 연속이어야 하고 근거 칸이 비어 있으면 안 되며 같은 벡터가 겹치면 안 된다는 규칙은 SPEC에 없는 fail-closed 닫음이다.
+
+**편차(보고 대상)**: (a) `package.json`의 기존 검증 스크립트는 등록돼 있어 새 스크립트를 등록하는 것이 확립된 패턴이지만 `package.json`은 이 단위의 범위 밖이라 등록하지 않았다. 실행은 `pnpm exec tsx scripts/check-launch-transitions.ts`다. (b) AC-012 점검은 지시대로 lib와 시험만 만들고 CLI를 만들지 않았다(R-02의 실제 상태 소스가 없어 CLI가 입력받을 수 있는 것은 fixture 상태뿐이다). (c) RED 첫 실행의 단언 실패 아닌 오류(시험 도우미 `throw`·수집 단계 예외)를 고쳐 다시 실행했다(위 RED). (d) GREEN 1차의 실패 1건은 시험 도우미의 결함이었다(위 GREEN). (e) `prettier --write`는 이 단위의 새 파일에만 적용했다.
+
+**Gaps(관측하지 못한 것)**: 운영 호스트에서 재시작이 실제로 한 번만 일어났는지, 재시작이 바뀐 환경을 읽는지(R-04가 가리키는 E-03). 점검기는 단계 표가 적은 벡터를 설정 변수에서 다시 계산하지 않고 앞 단계의 후 벡터와 다음 단계의 전 벡터가 이어지는지도 보지 않는다. R-02의 실제 상태(상태 소스 없음). 실제 `.env*` 파일과 운영 호스트의 PM2 저장 환경·셸 프로필, 변수 이름을 계산해 만드는 대입, `ENV … true`·`??=` 대입 형태. 두 번째 이후 노출 확대 단계(상담)의 벡터와 순서. `moai` CLI·MCP가 연결되지 않아 `moai spec lint`·@MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 변이 확인은 네 가지만 했다.
+
+**잔여 위험**: 런북 순서 표와 단계 표는 사람이 고치는 문서라 D-LAUNCH-03 결정이 벡터 순서를 기록하면 `결정 대기` 항목과 단계 2의 벡터를 사람이 채워야 하고 그때 점검기가 BLOCKED를 벗어난다(시험 `runbook-procedure.test.ts`는 현재의 두 기록 벡터와 `결정 대기` 하나를 고정하므로 그 변경 때 함께 갱신해야 한다). 오라클 허용 목록은 하네스 줄 내용에 묶여 있다(발견 11). 벡터 어휘의 시크릿 칸·경로 칸은 SPEC이 값 이름을 정하지 않은 부분의 임시 닫음이다(발견 2·3).
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
