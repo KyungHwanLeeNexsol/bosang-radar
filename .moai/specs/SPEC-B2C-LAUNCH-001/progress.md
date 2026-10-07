@@ -18,7 +18,21 @@
 
 ## §E.2 Run-phase Evidence
 
-_<pending run-phase>_
+### 기준선 (M1 착수 전, 2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `cb27b35`(기준 `main@2c244e0` 위에 §E.1 기록 커밋 1개). 새 격리 폴더이고 `.worktreeinclude`가 복사한 `.env.local`은 측정 전에 삭제했다(내용은 열지 않았다).
+- **원문 로그**: `.moai/state/verify/launch-run/`(git이 무시하는 경로). 각 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 아래 종료 코드는 백그라운드 알림이 아니라 로그의 `exit=` 줄에서 읽었다.
+
+| 명령 | 로그 | 관측 결과 |
+|---|---|---|
+| `pnpm install --frozen-lockfile` | `0-install.log` | `exit=0` (22.2초) |
+| `pnpm lint` | `1-lint.log` | `exit=0`, 출력은 `$ eslint .` 한 줄뿐(경고·오류 없음) |
+| `pnpm test` | `2-test.log` | Test Files 103 passed (103), Tests 939 passed (939), `exit=0` (147.22초) |
+| `pnpm build` | `3-build.log` | `exit=0`, 라우트 `/`, `/_not-found`, `/api/consultations`, `/consult`, `/result` |
+| `pnpm verify:flag-runtime` | `4-flag-runtime.log` | `불일치 관측 합계: 0`, `exit=0` (시작 조합 8개 관측) |
+
+- **측정 뒤 작업 트리**: `git status --short`가 §F를 편집한 `progress.md` 한 파일만 보였다(측정이 추적 파일을 바꾸지 않았다).
+- **미측정(Gap)**: `pnpm test:e2e`와 `pnpm visual:verify`는 이 기준선에 넣지 않았다. M1은 `lib/`·`scripts/`·문서만 건드리므로 화면 기준선에 닿지 않으며, 푸터 컴포넌트를 바꾸는 M2 착수 전에 측정한다. 이 측정은 한 번의 실행이며 `test`가 한 번 통과했다는 사실이 불안정 시험이 없다는 증명은 아니다.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -30,7 +44,22 @@ _<pending sync-phase>_
 
 ## §F Phase 4 Mode Selection
 
-_<pending — 오케스트레이터가 run-phase 첫 `Agent()` 위임 전에 기록>_
+Decision: serial
+
+- 기록 시각: 2026-10-07, 첫 run-phase `Agent()` 위임 전이다. 오케스트레이터의 자율 결정이며 Implementation Kickoff Approval(§E.1)이 이미 통과한 뒤다.
+- **입력 값**: Tier M. 범위는 `plan.md` §F의 M1~M6 후보 목록 기준으로 수십 개 파일이고(`lib/launch/*`, `scripts/*`, `.moai/docs/launch-gate-runbook.md`, `.github/workflows/deploy.yml`, 푸터 컴포넌트와 시험), M1만 보면 후보 파일이 9개(시험 포함)다. 영역은 TypeScript 모듈, 검증 스크립트, 런북 문서, CI 워크플로, UI 컴포넌트로 3개를 넘는다. 파일 언어는 TypeScript + 마크다운 + YAML이다. 동시 처리 이득은 낮다 — 새 코드 작성이고 기록 모델 → 점검기 순으로 서로 의존한다. Agent Teams 명시 요청은 없다.
+
+| 모드 | 판정 | 사유 |
+|---|---|---|
+| `direct` | 선택 안 함 | 사소한 작업이 아니다(새 모듈과 시험 다수) |
+| `serial` | **선택** | 코딩 중심 작업의 기본 경로이고 모듈 간 의존이 있다 |
+| `fanout` | 선택 안 함 | 영역 3개 이상·파일 10개 이상 기준에는 걸리지만 연구 중심이 아니라 코딩 중심이다(§B.2 "코딩 중심 + 다영역 → serial") |
+| `sweep` | 선택 안 함 | 한 가지 기계적 변환 규칙이 아니고 파일 간 의존이 있으며 대상이 약 30개 파일 기준에 미치지 못한다 |
+| `agent-team` | 요청 없음 | 자동 선택 대상이 아니다(§C.1) |
+
+- **Boundary Case**: M1 후보 파일 수가 10개 기준 바로 아래(9개)이고 영역 수가 3개 기준 이상이다. §B.2의 동률 규칙대로 더 단순한 모드(`serial`)로 풀었다.
+- **Justification**: 이 SPEC의 구현은 새 코드 작성이 중심이고 M1의 기록 모델이 M2~M6 점검기의 입력 형태를 정한다. 코딩 중심 작업은 병렬화할 수 있는 몫이 적다는 Anthropic의 지적에 따라 마일스톤을 순서대로 하나씩 위임한다. M1은 크기가 커서(점검기·기록 모델·런북 골격) 같은 `serial` 안에서 하위 단위 M1a→M1b→M1c로 나눠 위임한다. 쓰기 가능한 에이전트는 한 번에 하나만 돌린다.
+- **위임 수단과 한계**: 구현 위임은 `manager-develop` 서브에이전트 유형이 아니라 현재 작업 폴더에서 `Agent(general-purpose)`에 manager-develop 역할을 적어 보낸다. 근거는 자동 메모리에 기록된 교훈(`manager-develop`가 원격 기본 브랜치에서 자기 worktree를 새로 만들어 이 브랜치를 못 쓴다)이며 이번 run에서 다시 측정하지 않았다. `/moai goal`(`ac_converge`)은 `moai` CLI와 MCP가 이 환경에서 연결되지 않아 쓰지 못하므로 수동 턴 진행으로 낮춘다(`run.md` Run-phase Autonomy의 graceful degradation).
 
 ## §G Plan-Auditor Iteration Log
 
