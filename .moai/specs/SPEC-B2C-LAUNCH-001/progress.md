@@ -538,6 +538,78 @@ CLI 실제 출력: `단계 1: 통과` / `단계 2: BLOCKED — 전 벡터가 결
 
 **잔여 위험**: 런북 순서 표와 단계 표는 사람이 고치는 문서라 D-LAUNCH-03 결정이 벡터 순서를 기록하면 `결정 대기` 항목과 단계 2의 벡터를 사람이 채워야 하고 그때 점검기가 BLOCKED를 벗어난다(시험 `runbook-procedure.test.ts`는 현재의 두 기록 벡터와 `결정 대기` 하나를 고정하므로 그 변경 때 함께 갱신해야 한다). 오라클 허용 목록은 하네스 줄 내용에 묶여 있다(발견 11). 벡터 어휘의 시크릿 칸·경로 칸은 SPEC이 값 이름을 정하지 않은 부분의 임시 닫음이다(발견 2·3).
 
+### M4 (2026-10-07)
+
+- **측정 대상**: 브랜치 `worktree-launch-run`, HEAD `3acb6db` 위의 작업 트리(커밋 전). 모든 명령은 `> 로그 2>&1; echo "exit=$?" >> 로그` 형태로 실행했고 종료 코드는 로그의 `exit=` 줄에서 읽었다. 원문 로그는 `.moai/state/verify/launch-run/`(git이 무시하는 경로)의 `M4-*.log`다. 이 커밋의 SHA는 같은 커밋에 들어가므로 여기에 적을 수 없고 보고에 적는다.
+- **범위(사용자 결정)**: REQ-B2CLAUNCH-013 / AC-B2CLAUNCH-013 — D-LAUNCH-06(2026-10-03) 설계 (a) "두 상태(게이트 닫힘·열림) 모두 수용", 위치 (ii) "저장소 스크립트". 커밋 경로는 `--pr`(Route B, M1~M6이 한 run PR)이다. **`deploy.yml` 변경은 이 단위에서 만들었을 뿐 `main`에 병합하지도, 푸시하지도, 어디에 적용하지도 않았다. L-01 운영 기준선 관측 기록이 생긴 뒤에만 병합할 수 있으며(별도의 사람 작업) 그 전에는 병합 대상이 아니다.** N4(완료된 DIAGNOSIS-001 smoke 트리거 문장의 정리 여부)는 열린 채로 두고 이 SPEC 문구(L-05·REQ-013, DIAGNOSIS-001보다 넓게 읽음)대로 구현했다. `spec.md`·`plan.md`·`acceptance.md`는 고치지 않았다.
+- **변경 파일**: 신규 `lib/launch/smoke-check.ts`(+시험, 판정 로직), `scripts/smoke-check.ts`(+시험, CLI), `scripts/verify-smoke-check.ts`(+시험, 로컬 상태 관측 하네스), `scripts/deploy-workflow-static.test.ts`(워크플로 정적 시험), 변경 `.github/workflows/deploy.yml`(smoke 세 단계 → 스크립트 호출 한 단계, 아래 표), 이 파일. `app/`·`components/`·`lib/diagnosis`·`lib/consult`·`lib/env.ts`·`package.json`·`pnpm-lock.yaml`·다른 워크플로·M1~M3b 모듈은 바꾸지 않았다.
+- **예전 `deploy.yml` smoke가 한 일**(읽은 사실, `pm2 restart`·`pm2 save` 다음 단계): (1) `GET /`을 최대 10회(요청당 5초 상한, 사이 2초 대기) 시도해 2xx가 오면 본문을 임시 파일에 저장하고 끝까지 2xx가 아니면 `exit 1`. (2) 그 본문에 `서비스 준비 중입니다`가 `grep -q`로 없으면 `exit 1` — **진단 게이트가 열리면 이 문구가 사라져(LF-04·LF-12, 열린 실제 서버 응답에서도 이번에 관측: 아래 (나)(다)(라)의 게이트 상태 "열림") 정상 배포가 실패한다.** (3) 본문의 첫 CSS 청크 경로를 `grep -oE`로 뽑아 없으면 `exit 1`, 있으면 그 경로를 한 번 요청해 2xx가 아니면 `exit 1`. 그 뒤 제거된 B2B 라우트 두 곳을 요청해 상태만 적는 정보용 블록(배포를 실패시키지 않음)이 이어진다.
+
+**RED**(구현 전의 틀: 로직 함수는 항상 실패 값, 하네스 표는 빈 배열, 예전 `deploy.yml` 그대로; 새 시험 3개 파일, `M4-red.log`): `Test Files 3 failed (3)`, `Tests 43 failed | 12 passed (55)`, `exit=1`. 실패 오류 종류는 `AssertionError` 하나뿐이다(대표: `expected [] to deeply equal [ [ 'home', true ], …]`, `expected 'name: Deploy to Oracle Cloud VM…' not to contain '서비스 준비 중입니다'`, `expected [Function] to throw an error`). 통과한 12건은 틀이 우연히 맞는 경우다. **첫 RED 실행은 이 로그가 아니다**: 시험 도우미(`stateById`)가 표에 상태가 없을 때 `throw`해 6건이 단언 실패가 아니었다(`M4-red-first-run.log`에 보존). 도우미를 단언 먼저로 고치고 다시 실행한 것이 `M4-red.log`이며 구현 코드는 두 실행 사이에 바꾸지 않았다.
+
+**GREEN**: 로직·하네스·CLI를 구현하자 `M4-green-1.log`는 `Tests 52 passed (52)`(`scripts/smoke-check.test.ts` 9건 포함, 이 CLI 시험은 로직 GREEN 뒤에 썼다 — 스무 줄 남짓한 래퍼라 RED를 따로 두지 않았다). `deploy.yml`을 바꾼 뒤 `M4-green-2.log`: `Test Files 4 passed (4)`, `Tests 60 passed (60)`, `exit=0`. 이후 `tsc`가 `/s` 정규식 플래그를 거부해(`TS1501`, 대상이 es2018 미만) `[\s\S]`로 바꿨고(`M4-tsc.log` 최종 `exit=0`), 엔진 준비 오라클 시험이 새 하네스의 대입 줄을 잡아 하네스를 표 형태로 고쳤다(발견 8). 최종: 새 시험 4개 파일 61건 통과(`M4-green-4.log` 등).
+
+**변이 확인**(일부러 바꾼 코드를 시험이 잡는지, 원문 복구 확인됨): (a) 판정에 `&& gateState === "closed"`를 더해 상태 인지 설계로 → `M4-mutation-gate-aware.log` 7건 실패. (b) 2xx 경계를 `< 300`에서 `<= 300`으로 → `M4-mutation-boundary.log` 1건 실패(300을 실패 목록에 더한 뒤). (c) CSS 청크 응답 검사를 `ok: true`로 → `M4-mutation-css-served.log` 4건 실패.
+
+**E1 AC-B2CLAUNCH-013 — 로컬 일곱 상태**(`pnpm exec tsx scripts/verify-smoke-check.ts`, `M4-seven-states.log`, `exit=0`. (가)~(라)는 로컬 file DB로 시작한 실제 Next 프로덕션 서버(빌드 한 번, 서버 시작 환경만 다름), (마)(바)(사)는 루프백 임시 HTTP 서버. 각 상태에 실제 smoke CLI를 `--attempts=2 --retry-delay-ms=200`으로 돌렸다. 게이트 상태는 정보용 출력이며 판정은 종료 코드다):
+
+| 상태 | 서버 | 기대(종료 코드 / 게이트·정보) | 관측 | 판정 |
+|---|---|---|---|---|
+| (가) | 플래그 미설정(게이트 닫힘, 변경을 싣는 배포의 상태) | 0 / 닫힘 | 0 / 닫힘 | PASS |
+| (나) | `ENABLE_DIAGNOSIS_FLOW`·`DIAGNOSIS_ENGINE_READY`=`true`(production 경로) | 0 / 열림 | 0 / 열림 | PASS |
+| (다) | `ENABLE_DIAGNOSIS_DEV_STATES`=`true`(review 경로) | 0 / 열림 | 0 / 열림 | PASS |
+| (라) | 둘 다 열림 | 0 / 열림 | 0 / 열림 | PASS |
+| (마-1) | 정상 응답, 열림 표지(placeholder 없음) | 0 / 열림 | 0 / 열림 | PASS |
+| (마-2) | 정상 응답, 닫힘 표지(placeholder 있음) | 0 / 닫힘 | 0 / 닫힘 | PASS |
+| (바) | HTTP 500 | 1 / 알 수 없음 | 1 / 알 수 없음(2회 시도 모두 500) | PASS |
+| (사-1) | 200이지만 CSS 청크 참조 없음 | 1 / 열림 | 1 / 열림(`CSS 청크 참조: 본문에 CSS 청크 참조가 없다`) | PASS |
+| (사-2) | 200, CSS 청크를 참조하지만 청크가 404 | 1 / 닫힘 | 1 / 닫힘(`CSS 청크 응답: … 상태 404 → 실패`) | PASS |
+
+`불일치 관측 합계: 0`. 설계 (a)에는 기대 상태 입력이 없어 (나)(다)(라)는 (가)와 같은 구성(인자는 기준 주소뿐)으로 통과했다. (마)는 설계 (a)에서 통과가 맞다("두 상태 수용 설계는 통과") — 열림 표지·닫힘 표지 두 방향을 모두 관측했다. 이 설계는 REQ-B2CLAUNCH-013의 (가)(변경을 싣는 배포 = 닫힘에서 통과)·(나)(열림 상태에서도 통과)·(다)(2xx 아님·CSS 청크 미서빙은 게이트 상태와 무관하게 실패)와 어긋나지 않는다(열람: (가)~(라) 통과, (바)(사) 실패 — 위 표).
+
+**E1 AC-B2CLAUNCH-013 — `deploy.yml` 열람·파서**(`scripts/deploy-workflow-static.test.ts`가 파일을 YAML 파서로 읽어 확인, 워크플로를 실행하거나 흉내 내지 않음): 파싱 성공, 트리거(`main` push·수동)·동시성 그룹·`runs-on`·단일 단계 구조 불변, 시크릿 참조는 기존 다섯 개 그대로(새로 늘지 않음), smoke는 `pnpm exec tsx scripts/smoke-check.ts --base-url=…` 한 줄로 호출되며 호출 줄에 파이프·`||`·`& `가 없어 실패하면 `set -e`로 배포 단계가 실패한다, 예전 인라인 검사(placeholder 문구·`smoke-body.html`·`CSS_PATH`·`SMOKE_URL`·`grep -q`)가 파일 어디에도 없다, 순서는 `git reset` → 설치 → 마이그레이션 → 빌드 → 정적 자산 복사 → `pm2 describe` → `pm2 restart` → `pm2 save` → smoke 호출 → 정보용 제거 라우트 확인으로 예전과 같다.
+
+**예전 인라인 검사 대 새 스크립트(`deploy.yml`)**:
+
+| 경우 | 예전(인라인 셸) | 새(저장소 스크립트) |
+|---|---|---|
+| 게이트 닫힘, 홈 2xx, CSS 청크 서빙 | 통과 | 통과 |
+| **진단 게이트 열림(production 경로·review 경로·둘 다), 홈 2xx, CSS 청크 서빙** — 교체의 동기 | **실패**(본문에 placeholder 문구 없음 → `exit 1`, 새 빌드는 이미 가동 중인데 Actions만 빨개짐; LF-03·LF-04·LF-19) | **통과**(게이트 상태는 출력만) |
+| 홈이 2xx가 아님(500 등)·연결 불가 | 10회 시도 뒤 실패 | 같음(기본 10회, 사이 2초 — 스크립트 기본값) |
+| 홈이 3xx | 실패(curl이 따라가지 않음) | 실패(`redirect: manual`, 시험으로 고정) |
+| 200이지만 CSS 청크 참조 없음 | 실패 | 실패 |
+| 참조한 CSS 청크가 2xx가 아님·전송 실패 | 실패(한 번 요청) | 실패(한 번 요청, 요청당 5초 상한) |
+| 요청 시간 상한 | `curl --max-time 5` | `AbortSignal.timeout(5000)`(본문 읽기 포함) |
+| 출력 | 영어 `ERROR:`/`OK:` 줄 | 한국어 관측 줄(상태 코드·CSS 청크 경로·게이트 상태), 응답 본문·기준 주소는 출력하지 않음 |
+| 기준 주소 | 워크플로 안의 인라인 리터럴 세 곳 | 인자로 한 곳(`SMOKE_BASE_URL` 셸 변수에 기존 로컬 리터럴을 옮김; 스크립트에는 기본 주소 없음) |
+
+변경한 줄: `pm2 save` 다음 세 smoke 블록(예전 64~118행, 55줄)을 스크립트 호출 한 블록(8줄)으로 바꿨다. 그 앞(`git reset`~`pm2 save`)과 뒤(정보용 제거 라우트 확인 블록)는 바이트 단위로 같다(`git diff`: `+8 −55`, 변경 파일 `.github/workflows/deploy.yml` 하나).
+
+**E2 타입 검사**: `pnpm exec tsc --noEmit` → `exit=0`(`M4-tsc.log`). **E3 린트**: `pnpm lint` → `exit=0`(`M4-lint.log`), 새 TS 일곱 개 `prettier --check` 통과(`M4-prettier.log`; 처음 검사(`M4-prettier-0.log`)에서 6개가 어긋나 새 파일에만 `prettier --write`를 적용했다). **E4 전체 시험**: 1차 `pnpm test` → `Test Files 1 failed | 131 passed (132)`, `Tests 1 failed | 1522 passed (1523)`(`M4-test-full.log`) — 실패는 일시 실패가 아니라 새 하네스가 M3b 엔진 준비 오라클 시험(`lib/launch/engine-ready-oracle.test.ts`)에 걸린 것이다(발견 8). 고친 뒤 2차 → `Test Files 132 passed (132)`, `Tests 1523 passed (1523)`, `exit=0`(`M4-test-full-2.log`; M3b 기준선 1462 + 새 61). **E5 커버리지**(명령줄 덮어쓰기, `M4-cov.log`): `lib/launch/smoke-check.ts` 구문 100%·분기 98.5%(미덮개 분기 1곳은 인자 오류 문구의 삼항), `scripts/smoke-check.ts` 구문 66.66%(미덮개는 기본 출력 함수와 `isMain` 블록 — 실제 CLI 실행이 덮음), `scripts/verify-smoke-check.ts` 구문 60.49%(미덮개는 빌드·서버 기동 배선 `main`·`observeState` — 실제 일곱 상태 실행이 덮음). 순수 로직(lib)은 85% 이상. **E6 빌드**: `pnpm build` → `exit=0`(`M4-build.log`; 로그에 `Ecmascript file had an error`(instrumentation의 edge 런타임 `process.exit` 경고)가 있으나 M3a 빌드 로그에도 같은 줄이 있는 기존 경고). **E7** `pnpm verify:flag-runtime` → `불일치 관측 합계: 0`, `exit=0`(`M4-flag-runtime.log`). `pnpm test:e2e`·`pnpm visual:verify`는 화면이 바뀌지 않아 실행하지 않았다.
+
+**변경 범위 확인**: `git diff --stat 3acb6db -- app components lib/diagnosis lib/consult lib/env.ts package.json pnpm-lock.yaml .github`는 `.github/workflows/deploy.yml` 한 파일(`8 insertions(+), 55 deletions(-)`)만 보이고, `spec.md`·`plan.md`·`acceptance.md`의 diff는 비어 있다.
+
+**발견(SPEC 문서는 고치지 않았다, 적힌 대로 진행하고 말하지 않은 곳은 닫았다)**:
+
+1. **(마)의 "설계가 기대하는 구성과 반대 상태"**: 설계 (a)에는 기대 상태 입력이 없어 "반대"가 하나로 정해지지 않는다. 열림 표지 응답과 닫힘 표지 응답 두 방향을 모두 관측했다((마-1), (마-2)). (사)도 "참조가 없거나 청크가 404"의 두 경우를 모두 관측해(사-1, 사-2) 일곱 상태가 표의 아홉 행이다.
+2. **(나)(다)(라)의 "각 상태를 기대하는 구성"**: 설계 (a)에서는 구성이 하나(기준 주소 입력뿐)라 네 서버가 같은 구성으로 통과한다. 이 AC 문구는 상태 인지 설계((b))를 염두에 둔 것으로 읽혔다.
+3. **"현행 placeholder 문구 검사가 설계가 정한 형태 밖에 남아 있지 않다"**: 설계 (a)가 placeholder 읽기를 어떤 형태로 허용하는지는 결정 기록에 없다. 워크플로에는 그 문구를 두지 않았고 스크립트가 정보용 게이트 상태 한 줄로만 읽으며 판정에 쓰지 않는다. 정보 출력이 "설계가 정한 형태"인지는 SPEC이 정하지 않았다.
+4. **"예전 인라인 title 검사"라는 지시 표현**: 예전 smoke는 `<title>`이 아니라 본문의 placeholder 문구 `grep -q`였다(LF-04). `<title>`은 식별자 후보(LF-12)였을 뿐 예전 검사에는 쓰이지 않았다. 새 검사도 `<title>`을 쓰지 않는다.
+5. **정보용 제거 라우트 블록**: "인라인 smoke를 교체"의 대상에 이 블록이 들어가는지 SPEC이 말하지 않는다. 배포를 실패시키지 않는 정보 출력이고 본문 임시 파일에 의존하지 않아 바이트 그대로 두었다.
+6. **워크플로의 기준 주소**: 값 금지선(spec.md §D)이 "워크플로 문구에 URL을 더하지 않는다"인데 스크립트는 기본 주소가 없으므로 호출하는 쪽이 주소를 넘겨야 한다. 예전 인라인에 있던 로컬 리터럴을 `SMOKE_BASE_URL` 변수 한 줄로 옮겼다(리터럴 줄 수는 세 곳에서 둘로 줄었다: 이 변수 줄과 정보용 블록의 요청). 이것이 "새 참조를 더한 것"인지는 SPEC 소유자가 판단할 일이다. 환경 입력으로 받는 길도 스크립트에 열어 두었다(`SMOKE_BASE_URL`, 인자가 우선).
+7. **재시도·3xx·CSS 재시도 정책**: REQ·AC는 "2xx가 아니면 실패"와 "CSS 청크 미서빙은 실패"만 말한다. 예전 정책(홈 최대 10회·사이 2초·요청당 5초, CSS는 한 번)을 기본값으로 이어받았고 3xx는 따라가지 않는다(curl과 같다). SPEC은 이 숫자들을 정하지 않았다.
+8. **M3b 엔진 준비 오라클과의 충돌**: AC-B2CLAUNCH-012의 저장소 코드 오라클은 `DIAGNOSIS_ENGINE_READY`를 대입하는 비시험 줄을 허용 목록(`scripts/verify-flag-runtime.ts` 두 줄)에서만 허용한다. 상태 (나)(라)를 위해 로컬 시험 서버의 자식 환경에 그 변수를 `true`로 두는 새 하네스가 `if (…) env.…= "true"` 줄로 이 시험에 걸렸다(`M4-test-full.log`). 허용 목록은 M3b 시험 파일 안에 있어 이 단위의 범위 밖이다(M1~M3b 모듈 수정 금지). 그래서 변수 이름을 표(`DIAGNOSIS_FLAG_ENV`)로 두고 반복으로 대입하는 형태로 바꿨다 — M3b가 오라클의 알려진 맹점이라고 적은 "변수 이름을 계산해 만드는 대입"에 해당하므로 **오라클을 정직하게 통과한 것이 아니라 맹점으로 지나간 것**이다. 하네스는 원격 DB·`file:` 아님을 거부하는 로컬 전용이다. 허용 목록에 이 하네스를 올리는 것이 맞는지(그러면 줄 단위 대입 형태로 되돌릴 수 있다)는 허용 목록 소유자의 결정이 필요하다.
+9. **YAML 파서**: 저장소에 YAML 파서가 직접 의존성으로 없다(`package.json`에 없고 루트 `node_modules`에 `yaml`·`js-yaml` 링크도 없다). 시험은 직접 의존성 `eslint`가 끌어오는 `js-yaml`을 `createRequire`로 eslint 쪽에서 해석해 쓴다. 새 의존성을 더하지 않았고 해석에 실패하면 시험이 실패한다(건너뛰지 않는다). eslint가 `js-yaml` 의존을 버리면 이 시험이 깨진다.
+10. **로컬 서버 시험의 위치**: AC의 후보는 `scripts/smoke-check.test.ts`가 서버 (가)~(라)를 `startManagedServer`로 시작하는 것이다. 빌드·서버 네 번 기동은 몇 분이 걸려 `pnpm test`에 넣지 않고 `verify-gate-reachability.ts`와 같은 별도 하네스(`scripts/verify-smoke-check.ts`)로 나눴다. `scripts/smoke-check.test.ts`는 CLI를 임시 서버에 돌리는 빠른 시험이다.
+11. **`package.json` 스크립트 미등록**: 기존 검증 스크립트는 등록돼 있어 등록이 확립된 패턴이지만 `package.json`은 이 단위의 범위 밖이라 등록하지 않았다. 워크플로는 `pnpm exec tsx`로 부르고 하네스는 `pnpm exec tsx scripts/verify-smoke-check.ts`로 돌린다.
+12. **run PR과 deploy.yml**: 커밋 경로가 M1~M6이 한 run PR(`--pr`)인데 이 커밋은 그 브랜치에 `deploy.yml` 변경을 싣는다. **그 PR이 L-01 기준선 관측 기록보다 먼저 `main`에 병합되면 이 변경이 같이 병합·배포된다**(`main` push마다 배포, LF-03). 이 변경을 PR에서 떼어 낼지(별도 브랜치·PR로 옮기거나 병합 직전에 이 파일의 변경을 되돌릴지)는 PR을 만들기 전에 정해야 한다 — 이 단위는 푸시도 PR도 만들지 않았다.
+
+**편차(보고 대상)**: (a) `package.json` 미등록(발견 11). (b) `scripts/verify-flag-runtime.ts`의 `FLAG_KEY_RE`·`runPnpm`·`assembleEnv`를 export하지 않고 그 파일 수정이 범위 밖이라 새 하네스에 같은 15줄가량을 다시 적었다(`startManagedServer`·`findRemoteDatabaseViolation`·`checkPreconditions`는 import해 재사용). (c) RED 첫 실행의 단언 실패 아닌 오류를 고쳐 다시 실행했다(위 RED). (d) `scripts/smoke-check.test.ts`는 RED 없이 GREEN 뒤에 썼다. (e) 엔진 준비 변수 대입 형태(발견 8). (f) `prettier --write`는 이 단위의 새 파일에만 적용했다.
+
+**Gaps(관측하지 못한 것)**: `appleboy/ssh-action`을 거친 GitHub Actions의 실제 워크플로 실행(새 호출 줄의 실제 동작은 미관측이다). VM에서 `pnpm exec tsx scripts/smoke-check.ts`가 실행되는지 — VM의 `pnpm install --frozen-lockfile`과 `pnpm run db:migrate`(스크립트 정의가 `tsx`를 씀)가 같은 배포 단계에 이미 있어 `tsx`가 있을 것으로 읽었을 뿐 관측하지 않았다. `pm2 restart` 직후의 응답 시점과 재시도 루프의 실제 타이밍(하네스는 `--attempts=2 --retry-delay-ms=200`으로 돌렸고 기본값 10회·2초는 단위 시험의 호출 횟수·대기 횟수로만 확인했다). 운영 환경 변수, 운영 호스트의 Node 버전·네트워크 동작(예전은 호스트의 `curl`, 새것은 Node `fetch`). 열린 상태의 `data-testid`는 설계가 쓰지 않아 관측하지 않았다. 일곱 상태 관측은 한 번의 로컬 실행이며 한 번 통과했다는 사실이 불안정이 없다는 증명은 아니다. `moai` CLI·MCP가 연결되지 않아 `moai spec lint`·@MX 태그 점검은 실행하지 못했고 @MX 태그는 추가하지 않았다. 변이 확인은 세 가지만 했다.
+
+**잔여 위험**: 설계 (a)는 게이트가 열려도 배포를 통과시키므로, 진단 플래그가 의도치 않게 열려도 배포 smoke는 그것을 잡지 못한다(D-LAUNCH-06의 "의도한 상태인지는 L-01·사후 확인(REQ-B2CLAUNCH-014)·조합표(REQ-B2CLAUNCH-010)로 본다"가 이 위험을 다른 장치에 맡긴다). 새 smoke는 한국어 UI 문구 하나(`서비스 준비 중입니다`)를 정보용 게이트 관측에 쓰므로 그 문구가 바뀌면 관측이 "열림"으로 흘러도 판정은 변하지 않는다(정보가 틀릴 뿐). 오라클 맹점(발견 8). 이 변경은 병합 전까지 어떤 배포에도 영향을 주지 않는다.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
