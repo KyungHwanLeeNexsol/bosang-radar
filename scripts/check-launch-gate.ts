@@ -7,6 +7,9 @@
 //         [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
 //         형제 증거 인자는 문법상 생략할 수 있지만 선택 사항이 아니다: 이 요청에 실제로 적용되는 필수 R 항목은 참조 줄·형제
 //         정의표·현재 형제 기록이 갖춰지고 형제 기록의 현재 상태가 READY일 때만 READY가 되며, 생략하면 그 항목이 불가다.
+//         R 항목(R-nn)의 현재 대상 값은 `--targets`가 아니라 이 형제 증거(참조한 형제 SPEC·항목과 그 형제 기록의 현재 상태·
+//         대상 값)에서 점검기가 계산한다 — `--targets`의 R 항목 값은 쓰지 않는다. R 항목의 기록 `대상` 칸과 서명 시점 대상
+//         값은 이 계산 값과 같아야 하므로, 형제 증거가 바뀌면 기록 `대상` 칸을 새 값으로 고치고 새로 서명해야 한다.
 // 종료 코드: 0 = 통과, 1 = 항목 점검 또는 서명 점검이 통과하지 못해 불가(서명 없음·서명 뒤 UNVERIFIED가 된 항목·
 //         허용되지 않은 역할·서명의 실행 환경이 요청 형태와 다름·서명이 덮는 항목이 필수 항목 집합과 다름 포함),
 //         2 = 입력 거부(요청 형태·표·기록·서명 기록의
@@ -28,6 +31,7 @@ import {
   type Surface,
 } from "../lib/launch/item-table";
 import {
+  computeSiblingEvidenceTarget,
   evaluateSiblingReferences,
   isSiblingReferenceItem,
   parseSiblingReferences,
@@ -71,7 +75,10 @@ export interface Exemption {
 export interface EvaluateInput {
   items: readonly ItemRow[];
   record: readonly RecordItem[];
-  /** 항목 식별자 → 호출하는 절차가 계산한 현재 대상 값. */
+  /**
+   * 항목 식별자 → 호출하는 절차가 계산한 현재 대상 값. 형제 증거를 참조하는 R 항목(`R-nn`)의 값은 읽지 않는다 — R 항목의
+   * 현재 대상 값은 `siblingReferences`(참조 줄과 현재 형제 기록)에서 점검기가 계산한다(REQ-B2CLAUNCH-005).
+   */
   currentTargets: Readonly<Record<string, string>>;
   /** 항목 식별자 → 관측 뒤에 일어났다고 호출하는 절차가 넘긴 무효화 사건. */
   eventsAfterObservation?: Readonly<Record<string, readonly string[]>>;
@@ -223,21 +230,32 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     (input.siblingReferences?.lines ?? []).map((line) => line.launchItem)
   );
 
+  /** R 항목의 현재 대상 값: 현재 형제 증거(참조 줄이 가리키는 형제 기록의 현재 내용)에서 계산한다. 계산할 수 없으면 undefined. */
+  const siblingEvidenceTargetOf = (id: string): string | undefined =>
+    computeSiblingEvidenceTarget(
+      id,
+      input.siblingReferences?.lines ?? [],
+      input.siblingReferences?.records
+    );
+
   /**
    * 항목의 점검 시점 유효 상태. 대상 값·사건 판정(정의표가 그 항목에 정한 사건을 기록의 사건 칸에 더해 감시한다)에
    * 형제 증거 판정을 더한다 — 형제 참조 항목(R-nn)은 참조 줄이 있어야 하고, 참조 줄이 어긋나면(EV-L3) UNVERIFIED,
    * 형제 기록의 현재 상태가 READY가 아니면 그 상태를 따른다. READY만 내리고 올리는 일은 없다.
+   *
+   * R 항목은 형제 증거 판정을 먼저 하고, 형제 증거가 모두 일치하는 READY일 때만 기록 `대상` 칸을 현재 형제 증거 대상 값
+   * (`--targets`가 아니라 계산 값)과 비교한 뒤 사건 판정을 한다. 다른 항목은 `--targets` 값으로 대상 값·사건을 판정한다.
    */
   const effectiveStatusOf = (recorded: RecordItem): EffectiveStatus => {
-    const effective = resolveEffectiveStatus(
-      recorded,
-      input.currentTargets[recorded.id],
-      input.eventsAfterObservation?.[recorded.id] ?? [],
-      rowById.get(recorded.id)?.events ?? []
-    );
+    const isSiblingItem = isSiblingReferenceItem(recorded.id);
+    const events = input.eventsAfterObservation?.[recorded.id] ?? [];
+    const definedEvents = rowById.get(recorded.id)?.events ?? [];
+    const effective: EffectiveStatus = isSiblingItem
+      ? { status: recorded.status }
+      : resolveEffectiveStatus(recorded, input.currentTargets[recorded.id], events, definedEvents);
     if (effective.status !== "READY") return effective;
 
-    if (isSiblingReferenceItem(recorded.id) && !referencedItems.has(recorded.id)) {
+    if (isSiblingItem && !referencedItems.has(recorded.id)) {
       return {
         status: "UNVERIFIED",
         reason:
@@ -249,9 +267,23 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     if (notReady !== undefined) {
       return { status: notReady.status, reason: [...mismatches, ...notReady.reasons].join("; ") };
     }
-    return mismatches.length > 0
-      ? { status: "UNVERIFIED", reason: mismatches.join("; ") }
-      : effective;
+    if (mismatches.length > 0) return { status: "UNVERIFIED", reason: mismatches.join("; ") };
+    if (!isSiblingItem) return effective;
+
+    const current = siblingEvidenceTargetOf(recorded.id);
+    if (current === undefined) {
+      return {
+        status: "UNVERIFIED",
+        reason: "현재 형제 증거 대상 값을 계산할 수 없다 — 참조 줄이 가리키는 형제 기록이 없다",
+      };
+    }
+    if (recorded.target !== current) {
+      return {
+        status: "UNVERIFIED",
+        reason: `기록의 "대상" 칸이 현재 형제 증거 대상 값과 다르다 — 이 항목의 대상 칸에 현재 형제 증거 대상 값을 적고 새로 서명해야 한다. 현재 형제 증거 대상 값: ${current}`,
+      };
+    }
+    return resolveEffectiveStatus(recorded, current, events, definedEvents);
   };
 
   const lines: string[] = [
@@ -317,7 +349,10 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       const recorded = recordById.get(id);
       return recorded === undefined ? undefined : effectiveStatusOf(recorded).status;
     },
-    currentTarget: (id) => recordById.get(id)?.target,
+    // R 항목은 서명이 현재 형제 증거에 묶인다 — 증거를 계산할 수 없는 R 항목은 이미 READY가 아니라서 기록 값으로 둔다.
+    currentTarget: (id) =>
+      (isSiblingReferenceItem(id) ? siblingEvidenceTargetOf(id) : undefined) ??
+      recordById.get(id)?.target,
   });
   if (signatureProblems.length === 0) {
     lines.push(`서명 점검: 통과 (서명 ${input.signature?.signers.length ?? 0}건)`);

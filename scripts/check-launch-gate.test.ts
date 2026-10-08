@@ -14,13 +14,19 @@ import {
 } from "../lib/launch/item-table";
 import {
   SIBLING_REF_COLUMNS,
+  computeSiblingEvidenceTarget,
+  parseSiblingReferences,
   siblingRecordKey,
   type SiblingDefinitionSource,
+  type SiblingRecord,
+  type SiblingRefLine,
 } from "../lib/launch/sibling-reference";
 import {
   SYNTHETIC_SIBLING_SPEC,
   syntheticSiblingEvidence,
+  syntheticSiblingTarget,
   type SyntheticSiblingEvidence,
+  type SyntheticSiblingOptions,
 } from "../lib/launch/sibling-evidence.fixture";
 import {
   SIGNER_COLUMNS,
@@ -60,8 +66,31 @@ const ITEM_ROWS: ItemRow[] = parsedTable.rows;
 // ---- fixture 도우미 ------------------------------------------------------------------------
 // 값은 모두 눈에 띄게 합성한 것이다(실제 역할·날짜·위치·값이 아니다).
 
+// 형제 증거를 참조하는 R 항목(spec.md §2.4)의 대상 칸은 형제 증거에서 계산한 대상 값이다(REQ-B2CLAUNCH-005).
+// 그래서 R 항목의 기본 대상 값은 합성 형제 증거로 계산한 값이고, 나머지 항목은 합성 문자열이다.
+const SIBLING_ITEM_IDS = ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id)).map((row) => row.id);
+const DEFAULT_SIBLING_EVIDENCE = syntheticSiblingEvidence(SIBLING_ITEM_IDS);
+
+/** 참조 줄·형제 기록에서 항목별 현재 형제 증거 대상 값을 계산한다(줄이 없는 항목은 빠진다). */
+function evidenceTargetsFor(
+  lines: readonly SiblingRefLine[],
+  records: Readonly<Record<string, SiblingRecord>> | undefined
+): Record<string, string> {
+  const targets: Record<string, string> = {};
+  for (const id of SIBLING_ITEM_IDS) {
+    const target = computeSiblingEvidenceTarget(id, lines, records);
+    if (target !== undefined) targets[id] = target;
+  }
+  return targets;
+}
+
+const evidenceTargetsOf = (evidence: SyntheticSiblingEvidence): Record<string, string> =>
+  evidenceTargetsFor(evidence.lines, evidence.records);
+
+const DEFAULT_EVIDENCE_TARGETS = evidenceTargetsOf(DEFAULT_SIBLING_EVIDENCE);
+
 function targetOf(id: string): string {
-  return `대상-${id}`;
+  return DEFAULT_EVIDENCE_TARGETS[id] ?? `대상-${id}`;
 }
 
 /**
@@ -100,8 +129,6 @@ const ALL_SURFACES = ["S1", "S2", "S3"];
 // `syntheticSiblingEvidence`를 직접 쓴다. (EV-L3를 사건으로 적었다고 R 항목은 아니다 — L-08은 S2 판정에만 형제
 // 결정 기록을 쓰고 참조 줄 대상이 아니다.)
 
-const SIBLING_ITEM_IDS = ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id)).map((row) => row.id);
-
 /** 형제 증거 입력을 하나도 넘기지 않은 점검 입력에만 합성 형제 증거를 채운다. */
 function withDefaultSibling(input: CheckInput): CheckInput {
   if (
@@ -125,14 +152,24 @@ function siblingCliParts(
   evidence: SyntheticSiblingEvidence,
   at: (name: string) => string = (name) => name
 ): { files: Record<string, string>; args: string[] } {
-  const definitionLabels = evidence.definitions[SYNTHETIC_SIBLING_SPEC].labels;
+  // 형제 SPEC마다 정의표 문서 하나를 둔다(기본 형제 SPEC은 `syn-defs-table.md`).
+  const tableName = (spec: string): string =>
+    spec === SYNTHETIC_SIBLING_SPEC ? "syn-defs-table.md" : `syn-defs-table-${spec}.md`;
+  const specs = Object.keys(evidence.definitions);
   return {
     files: {
       [at("syn-refs.md")]: evidence.markdown,
-      [at("syn-defs-table.md")]: evidence.definitions[SYNTHETIC_SIBLING_SPEC].markdown,
-      [at("syn-defs.json")]: JSON.stringify({
-        [SYNTHETIC_SIBLING_SPEC]: { file: at("syn-defs-table.md"), labels: definitionLabels },
-      }),
+      ...Object.fromEntries(
+        specs.map((spec) => [at(tableName(spec)), evidence.definitions[spec].markdown])
+      ),
+      [at("syn-defs.json")]: JSON.stringify(
+        Object.fromEntries(
+          specs.map((spec) => [
+            spec,
+            { file: at(tableName(spec)), labels: evidence.definitions[spec].labels },
+          ])
+        )
+      ),
       [at("syn-records.json")]: JSON.stringify(evidence.records),
     },
     args: [
@@ -1143,17 +1180,21 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
       request?: CheckRequest;
     } = {}
   ): CheckResult {
+    const mergedRecords = { ...baseEvidence.records, ...(options.records ?? siblingRecords) };
+    // R 항목의 대상 칸은 현재 형제 증거 대상 값이다 — 이 시험의 형제 증거(CONSULTOPS 줄)로 계산한 값을 적는다.
+    const parsed = parseSiblingReferences(markdown);
+    const recordTargets = parsed.ok ? evidenceTargetsFor(parsed.lines, mergedRecords) : {};
     return signedCheck({
       itemTableMarkdown: SPEC_MARKDOWN,
-      recordMarkdown: recordFor(options.statuses ?? {}),
-      currentTargets: CURRENT_TARGETS,
+      recordMarkdown: recordFor(options.statuses ?? {}, [], {}, recordTargets),
+      currentTargets: { ...CURRENT_TARGETS, ...recordTargets },
       request: options.request ?? production("I", ALL_SURFACES),
       siblingReferenceMarkdown: markdown,
       siblingDefinitions: {
         ...baseEvidence.definitions,
         ...(options.definitions ?? consultopsDefinitions),
       },
-      siblingRecords: { ...baseEvidence.records, ...(options.records ?? siblingRecords) },
+      siblingRecords: mergedRecords,
     });
   }
 
@@ -1280,10 +1321,29 @@ describe("runCli — 형제 증거 참조 인자", () => {
   const CONSULTOPS_SPEC = "SPEC-B2C-CONSULTOPS-001";
   // R-04 한 줄은 실제 CONSULTOPS-001 정의표를 조회하고, 나머지 형제 참조 항목은 합성 형제 증거로 채운다.
   const others = syntheticSiblingEvidence(SIBLING_ITEM_IDS.filter((id) => id !== "R-04"));
+  const cliSiblingRecords = {
+    ...others.records,
+    [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
+  };
+  // R 항목의 대상 칸은 현재 형제 증거 대상 값이다 — R-04는 CONSULTOPS 줄로 계산한 값을 적는다.
+  const cliRecordTargets = evidenceTargetsFor(
+    [
+      {
+        launchItem: "R-04",
+        siblingSpec: CONSULTOPS_SPEC,
+        siblingItem: "E-03",
+        status: "READY",
+        target: "형제값-예시-1",
+        location: "형제위치-예시",
+      },
+      ...others.lines,
+    ],
+    cliSiblingRecords
+  );
   const files: Record<string, string> = {
     "items.md": SPEC_MARKDOWN,
-    "record.md": recordFor(),
-    "targets.json": JSON.stringify(CURRENT_TARGETS),
+    "record.md": recordFor({}, [], {}, cliRecordTargets),
+    "targets.json": JSON.stringify({ ...CURRENT_TARGETS, ...cliRecordTargets }),
     "consultops.md": readText(path.join(projectRoot, ".moai", "specs", CONSULTOPS_SPEC, "spec.md")),
     "syn-defs-table.md": others.definitions[SYNTHETIC_SIBLING_SPEC].markdown,
     "defs.json": JSON.stringify({
@@ -1296,10 +1356,7 @@ describe("runCli — 형제 증거 참조 인자", () => {
         labels: others.definitions[SYNTHETIC_SIBLING_SPEC].labels,
       },
     }),
-    "records.json": JSON.stringify({
-      ...others.records,
-      [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
-    }),
+    "records.json": JSON.stringify(cliSiblingRecords),
   };
   const refsFor = (target: string) =>
     [
@@ -2365,6 +2422,339 @@ describe("PR #24 재현 결함 3건 회귀 — 수정 전 통과하던 입력을
       });
     }
   }
+});
+
+// ---- PR #24 잔여 결함 F1 회귀 — 형제 증거 대상 값을 R 항목의 대상·서명에 묶는다 ---------------------
+// 수정 전 점검기는 형제 기록의 대상 값이 바뀌어도(EV-L3) 참조 줄과 현재 형제 기록만 새 값으로 고치고 R 항목의 기록 `대상`
+// 칸·`--targets` 값·옛 서명을 그대로 두면 통과시켰다 — 대상 값과 서명이 R 항목 자기 기록의 `대상` 칸하고만 비교됐기
+// 때문이다. 이제 R 항목의 현재 대상 값은 현재 형제 증거(참조한 형제 SPEC·항목·현재 상태·현재 대상 값)에서 계산하고,
+// `--targets` 값은 R 항목에 쓰지 않는다. 아래 입력은 모두 기록 `대상` 칸·`--targets`·서명을 증거 V1 값으로 두고 점검 시점
+// 형제 증거만 V2로 바꾼다. 세 경로(checkLaunchGate, runCli, 자식 프로세스 CLI)를 같은 방식으로 시험한다.
+
+const SECOND_SYNTHETIC_SPEC = "SPEC-SYNTHETIC-SIBLING-002";
+const F1_CHANGED_VALUE = "형제값-변경됨";
+
+/** 기록 `대상` 칸·`--targets`·서명은 `v1` 증거 값이고 점검 시점 형제 증거는 `v2`다. */
+function f1Inputs(
+  v1: SyntheticSiblingEvidence,
+  v2: SyntheticSiblingEvidence,
+  overrides: Partial<RegressionInputs> = {}
+): RegressionInputs {
+  const v1Targets = evidenceTargetsOf(v1);
+  return regressionInputs({
+    record: recordFor({}, [], {}, v1Targets),
+    targets: { ...CURRENT_TARGETS, ...v1Targets },
+    sibling: v2,
+    ...overrides,
+  });
+}
+
+const evidence = (options: SyntheticSiblingOptions = {}): SyntheticSiblingEvidence =>
+  syntheticSiblingEvidence(SIBLING_ITEM_IDS, options);
+
+/** R-02에 참조 줄이 둘인 증거(줄 하나 변경·추가·삭제 시험의 기준). */
+const TWO_LINES = { "R-02": ["SYN-R-02", "SYN-R-02-b"] } as const;
+
+/** 막힌 R 항목의 출력: UNVERIFIED 표시와, 기록 `대상` 칸에 적어야 할 현재 형제 증거 대상 값(digest). */
+const f1BlockedOutput = (id: string, v2: SyntheticSiblingEvidence): string[] => [
+  `${id}: UNVERIFIED`,
+  `현재 형제 증거 대상 값: ${evidenceTargetsOf(v2)[id]}`,
+];
+
+/** 모두 종료 코드 1이어야 한다(수정 전에는 (B)를 빼고 종료 코드 0이었다). */
+const F1_BLOCKED_CASES: RegressionCase[] = [
+  // (A) 형제 기록의 대상 값이 바뀌고 참조 줄·현재 형제 기록만 새 값으로 고쳤다
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => {
+    const v2 = evidence({ siblingTarget: { [`SYN-${id}`]: F1_CHANGED_VALUE } });
+    return {
+      tag: "F1-A",
+      name: `${id}: 형제 기록의 대상 값이 바뀌어 참조 줄·형제 기록만 새 값인데 기록 대상 칸·--targets·서명은 옛 값`,
+      inputs: () => f1Inputs(evidence(), v2),
+      exitCode: 1,
+      verdict: INTERNAL_BLOCKED,
+      outputHas: f1BlockedOutput(id, v2),
+      outputLacks: ["공개 가능", F1_CHANGED_VALUE],
+      child: id === "R-02",
+    };
+  }),
+  // (B) 기록 대상 칸은 새 digest로 고쳤지만 서명은 옛 증거에 한 것 그대로다
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => {
+    const v1 = evidence();
+    const v2 = evidence({ siblingTarget: { [`SYN-${id}`]: F1_CHANGED_VALUE } });
+    return {
+      tag: "F1-B",
+      name: `${id}: 기록 대상 칸을 새 형제 증거 digest로 고쳤지만 서명은 옛 증거에 한 것`,
+      inputs: () =>
+        regressionInputs({
+          record: recordFor({}, [], {}, { ...evidenceTargetsOf(v1), ...evidenceTargetsOf(v2) }),
+          targets: { ...CURRENT_TARGETS, ...evidenceTargetsOf(v2) },
+          signature: signatureFor(
+            recordFor({}, [], {}, evidenceTargetsOf(v1)),
+            "production",
+            PROD_I_REQUEST
+          ),
+          sibling: v2,
+        }),
+      exitCode: 1,
+      verdict: INTERNAL_BLOCKED,
+      outputHas: [
+        `${id}: READY`,
+        `서명 점검: 서명 시점 ${id}의 대상 값이 현재 유효 항목의 대상 값과 다르다`,
+      ],
+      outputLacks: ["공개 가능", F1_CHANGED_VALUE],
+    };
+  }),
+  // (C) 참조 줄이 다른 형제 항목을 가리키도록 바뀌었다(상태·대상 값은 같고 식별자만 다르다)
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => {
+    const v2 = evidence({
+      siblingItems: { [id]: [`SYN-${id}-alt`] },
+      siblingTarget: { [`SYN-${id}-alt`]: syntheticSiblingTarget(id) },
+    });
+    return {
+      tag: "F1-C",
+      name: `${id}: 참조 줄이 같은 값을 가진 다른 형제 항목을 가리키도록 바뀜`,
+      inputs: () => f1Inputs(evidence(), v2),
+      exitCode: 1,
+      verdict: INTERNAL_BLOCKED,
+      outputHas: f1BlockedOutput(id, v2),
+      outputLacks: ["공개 가능"],
+    };
+  }),
+  // (D) 참조 줄이 다른 형제 SPEC을 가리키도록 바뀌었다
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => {
+    const v2 = evidence({ siblingSpec: { [id]: SECOND_SYNTHETIC_SPEC } });
+    return {
+      tag: "F1-D",
+      name: `${id}: 참조 줄이 같은 값을 가진 다른 형제 SPEC의 같은 항목을 가리키도록 바뀜`,
+      inputs: () => f1Inputs(evidence(), v2),
+      exitCode: 1,
+      verdict: INTERNAL_BLOCKED,
+      outputHas: f1BlockedOutput(id, v2),
+      outputLacks: ["공개 가능"],
+    };
+  }),
+  // (E) 한 항목에 참조 줄이 여럿일 때: 한 줄의 값 변경, 줄 추가, 줄 삭제
+  ...(
+    [
+      [
+        "한 줄의 형제 값이 바뀜",
+        evidence({ siblingItems: TWO_LINES, siblingTarget: { "SYN-R-02-b": F1_CHANGED_VALUE } }),
+        true,
+      ],
+      [
+        "셋째 줄이 추가됨",
+        evidence({ siblingItems: { "R-02": [...TWO_LINES["R-02"], "SYN-R-02-c"] } }),
+        false,
+      ],
+      ["한 줄이 삭제됨", evidence(), false],
+    ] as const
+  ).map(([what, v2, child]): RegressionCase => ({
+    tag: "F1-E",
+    name: `R-02에 참조 줄이 둘인데 ${what} — 기록 대상 칸·서명은 줄 둘일 때의 값`,
+    inputs: () => f1Inputs(evidence({ siblingItems: TWO_LINES }), v2),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: f1BlockedOutput("R-02", v2),
+    outputLacks: ["공개 가능", F1_CHANGED_VALUE],
+    child,
+  })),
+  // (F) 일반 사용자 공개(G)에서는 R-05가 필수다
+  {
+    tag: "F1-F",
+    name: "운영 단계 G: R-05의 형제 증거가 바뀌었는데 기록 대상 칸·서명은 옛 값",
+    inputs: () =>
+      f1Inputs(evidence(), evidence({ siblingTarget: { "SYN-R-05": F1_CHANGED_VALUE } }), {
+        request: production("G", ALL_SURFACES),
+      }),
+    exitCode: 1,
+    verdict: "일반 사용자 공개 불가",
+    outputHas: ["R-05: UNVERIFIED", "현재 형제 증거 대상 값: sibling-evidence:v1:"],
+    outputLacks: ["일반 사용자 공개 가능", F1_CHANGED_VALUE],
+  },
+  // (G) 로컬 시험 판정: 적용되는 R-02는 막는다(운영 한정 R-04는 아래 양성 대조에서 영향이 없음을 본다)
+  {
+    tag: "F1-G",
+    name: "로컬 시험 판정: R-02의 형제 증거가 바뀌었는데 기록 대상 칸·서명은 옛 값",
+    inputs: () =>
+      f1Inputs(evidence(), evidence({ siblingTarget: { "SYN-R-02": F1_CHANGED_VALUE } }), {
+        request: local(["S1"]),
+      }),
+    exitCode: 1,
+    verdict: "로컬 시험 불가",
+    outputHas: ["R-02: UNVERIFIED", "현재 형제 증거 대상 값: sibling-evidence:v1:"],
+    outputLacks: ["로컬 시험 가능", F1_CHANGED_VALUE],
+  },
+  // (H) --targets는 R 항목의 현재 대상 값을 덮어쓰지 못한다
+  {
+    tag: "F1-H",
+    name: "R-02의 형제 증거가 바뀌었고 호출자가 옛 기록 대상 값을 R-02의 현재 대상 값으로 넘김",
+    inputs: () =>
+      f1Inputs(evidence(), evidence({ siblingTarget: { "SYN-R-02": F1_CHANGED_VALUE } }), {
+        targets: { ...CURRENT_TARGETS, "R-02": evidenceTargetsOf(evidence())["R-02"] },
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-02: UNVERIFIED", "현재 형제 증거 대상 값: sibling-evidence:v1:"],
+    outputLacks: ["공개 가능", F1_CHANGED_VALUE],
+  },
+  {
+    tag: "F1-H",
+    name: "R-02의 형제 증거가 바뀌었고 호출자가 새 digest를 R-02의 현재 대상 값으로 넘겼지만 기록 대상 칸은 옛 값",
+    inputs: () => {
+      const v2 = evidence({ siblingTarget: { "SYN-R-02": F1_CHANGED_VALUE } });
+      return f1Inputs(evidence(), v2, {
+        targets: { ...CURRENT_TARGETS, "R-02": evidenceTargetsOf(v2)["R-02"] },
+      });
+    },
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-02: UNVERIFIED", "현재 형제 증거 대상 값: sibling-evidence:v1:"],
+    outputLacks: ["공개 가능", F1_CHANGED_VALUE],
+  },
+  // 항목 독립: R-01·R-02 증거가 모두 바뀌었는데 R-01의 기록 대상 칸만 고쳤다(서명은 옛 값)
+  {
+    tag: "F1-독립",
+    name: "R-01·R-02 증거가 바뀌었고 R-01 기록 대상 칸만 새로 고침 — R-01은 READY 그대로, R-02는 UNVERIFIED",
+    inputs: () => {
+      const v2 = evidence({
+        siblingTarget: { "SYN-R-01": F1_CHANGED_VALUE, "SYN-R-02": F1_CHANGED_VALUE },
+      });
+      return regressionInputs({
+        record: recordFor(
+          {},
+          [],
+          {},
+          { ...evidenceTargetsOf(evidence()), "R-01": evidenceTargetsOf(v2)["R-01"] }
+        ),
+        targets: { ...CURRENT_TARGETS, ...evidenceTargetsOf(v2) },
+        sibling: v2,
+      });
+    },
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-01: READY", "R-02: UNVERIFIED"],
+    outputLacks: ["공개 가능"],
+  },
+];
+
+/** 양성 대조: 유효한 새 증거 서명·같은 증거·줄 순서만 다른 증거는 같은 길로 통과한다. */
+const F1_PASSING_CASES: RegressionCase[] = [
+  {
+    tag: "F1-양성",
+    name: "형제 증거가 기록·서명과 같으면 통과한다",
+    inputs: () => f1Inputs(evidence(), evidence()),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+    child: true,
+  },
+  {
+    tag: "F1-양성",
+    name: "형제 증거가 바뀌어도 새 증거 digest를 기록 대상 칸에 쓰고 새로 서명하면 통과한다",
+    inputs: () => {
+      const v2 = evidence({ siblingTarget: { "SYN-R-02": F1_CHANGED_VALUE } });
+      return f1Inputs(v2, v2);
+    },
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+    outputLacks: [F1_CHANGED_VALUE],
+  },
+  {
+    tag: "F1-양성",
+    name: "참조 줄이 늘었다가 새 증거로 다시 기록·서명하면 통과한다",
+    inputs: () => {
+      const v2 = evidence({ siblingItems: { "R-02": [...TWO_LINES["R-02"], "SYN-R-02-c"] } });
+      return f1Inputs(v2, v2);
+    },
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+  },
+  {
+    tag: "F1-양성",
+    name: "참조 줄이 줄었다가 새 증거로 다시 기록·서명하면 통과한다",
+    inputs: () => {
+      const v1 = evidence({ siblingItems: TWO_LINES });
+      return f1Inputs(v1, evidence(), {
+        record: recordFor({}, [], {}, evidenceTargetsOf(evidence())),
+        targets: { ...CURRENT_TARGETS, ...evidenceTargetsOf(evidence()) },
+      });
+    },
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+  },
+  {
+    tag: "F1-양성",
+    name: "참조 줄 순서만 바뀌면 같은 증거라서 통과한다",
+    inputs: () =>
+      f1Inputs(
+        evidence({ siblingItems: TWO_LINES }),
+        evidence({ siblingItems: TWO_LINES, reverseLines: true })
+      ),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+  },
+  {
+    tag: "F1-양성",
+    name: "운영 단계 I: I 열이 해당 없음인 R-05의 증거가 바뀌어도 내부 시험 판정은 달라지지 않는다",
+    inputs: () =>
+      f1Inputs(evidence(), evidence({ siblingTarget: { "SYN-R-05": F1_CHANGED_VALUE } })),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["서명 점검: 통과"],
+    outputLacks: ["R-05"],
+  },
+  {
+    tag: "F1-양성",
+    name: "로컬 시험 판정: 운영 한정 R-04의 증거가 바뀌어도 해당 없음(local) 그대로이고 판정은 달라지지 않는다",
+    inputs: () =>
+      f1Inputs(evidence(), evidence({ siblingTarget: { "SYN-R-04": F1_CHANGED_VALUE } }), {
+        request: local(["S1"]),
+      }),
+    exitCode: 0,
+    verdict: "로컬 시험 가능",
+    outputHas: ["R-04: 해당 없음(local)", "서명 점검: 통과"],
+  },
+  {
+    tag: "F1-양성",
+    name: "--targets에 R 항목이 없어도 R 항목의 현재 대상 값은 형제 증거에서 계산하므로 통과한다(--targets는 R 항목에 쓰지 않는다)",
+    inputs: () =>
+      f1Inputs(evidence(), evidence(), {
+        targets: Object.fromEntries(
+          Object.entries(CURRENT_TARGETS).filter(([id]) => !SIBLING_ITEM_IDS.includes(id))
+        ),
+      }),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-02: READY", "서명 점검: 통과"],
+  },
+];
+
+describe("PR #24 잔여 결함 F1 회귀 — 형제 증거 대상 값이 바뀌면 R 항목의 기록·서명이 따라가지 못한다", () => {
+  for (const c of [...F1_BLOCKED_CASES, ...F1_PASSING_CASES]) {
+    const paths: RegressionPath[] = c.child
+      ? ["checkLaunchGate", "runCli", "자식 프로세스 CLI"]
+      : ["checkLaunchGate", "runCli"];
+    for (const pathName of paths) {
+      it(`${c.tag} ${c.name} → ${pathName}: 종료 코드 ${c.exitCode}`, { timeout: 60_000 }, () => {
+        const result = runRegression(pathName, c.inputs());
+
+        expect(result.exitCode, result.output).toBe(c.exitCode);
+        expect(result.output).toContain(`판정: ${c.verdict}`);
+        for (const text of c.outputHas) expect(result.output).toContain(text);
+        for (const text of c.outputLacks ?? []) expect(result.output).not.toContain(text);
+      });
+    }
+  }
+
+  it("F1 시험은 요청서의 (A)~(H)와 항목 독립 시험을 모두 담는다", () => {
+    expect(new Set(F1_BLOCKED_CASES.map((c) => c.tag))).toEqual(
+      new Set(["F1-A", "F1-B", "F1-C", "F1-D", "F1-E", "F1-F", "F1-G", "F1-H", "F1-독립"])
+    );
+  });
 });
 
 function deepFreeze<T>(value: T): T {

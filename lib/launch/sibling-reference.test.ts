@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   SIBLING_REF_COLUMNS,
+  SIBLING_TARGET_PREFIX,
+  computeSiblingEvidenceTarget,
   evaluateSiblingReferences,
   isSiblingReferenceItem,
   parseSiblingReferences,
@@ -412,5 +414,114 @@ describe("런북 `## 형제 증거 참조 양식` 절 — 양식만 적는다", 
     expect(section).toContain("EV-L3");
     expect(section).not.toMatch(/https?:\/\//);
     expect(section).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  });
+});
+
+describe("computeSiblingEvidenceTarget — 형제 증거 대상 값 (F1)", () => {
+  const records = {
+    [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "대상값-예시-1" },
+    [siblingRecordKey(CONSULTOPS_SPEC, "E-04")]: { status: "READY", target: "대상값-예시-2" },
+  };
+  const lineE03 = linesOf(refTable(refRow("R-04", "E-03")))[0];
+  const lineE04 = linesOf(refTable(refRow("R-04", "E-04")))[0];
+  const compute = (
+    lines: readonly SiblingRefLine[],
+    recs: Parameters<typeof computeSiblingEvidenceTarget>[2] = records,
+    launchItem = "R-04"
+  ) => computeSiblingEvidenceTarget(launchItem, lines, recs);
+
+  it("접두사와 소문자 16진 64자 SHA-256 digest 형태이고 같은 입력이면 같은 값이다", () => {
+    const value = compute([lineE03, lineE04]);
+
+    expect(value).toMatch(new RegExp(`^${SIBLING_TARGET_PREFIX}[0-9a-f]{64}$`));
+    expect(SIBLING_TARGET_PREFIX).toBe("sibling-evidence:v1:");
+    expect(compute([lineE03, lineE04])).toBe(value);
+  });
+
+  it("줄 순서와 무관하다", () => {
+    expect(compute([lineE04, lineE03])).toBe(compute([lineE03, lineE04]));
+  });
+
+  it("참조한 형제 SPEC id·형제 항목 id·형제 기록의 현재 상태·현재 대상 값이 바뀌면 값이 바뀐다", () => {
+    const base = compute([lineE03]);
+    const key = siblingRecordKey(CONSULTOPS_SPEC, "E-03");
+    const otherSpec = { ...lineE03, siblingSpec: "SPEC-다른-예시" };
+    const otherItem = { ...lineE03, siblingItem: "E-04" };
+
+    expect(
+      compute([otherSpec], { [siblingRecordKey("SPEC-다른-예시", "E-03")]: records[key] })
+    ).not.toBe(base);
+    expect(compute([otherItem])).not.toBe(base);
+    expect(compute([lineE03], { [key]: { status: "BLOCKED", target: "대상값-예시-1" } })).not.toBe(
+      base
+    );
+    expect(compute([lineE03], { [key]: { status: "READY", target: "대상값-예시-9" } })).not.toBe(
+      base
+    );
+  });
+
+  it("이 SPEC 항목이 다르면 값이 다르다", () => {
+    expect(compute([{ ...lineE03, launchItem: "R-02" }], records, "R-02")).not.toBe(
+      compute([lineE03])
+    );
+  });
+
+  it("줄이 늘거나 줄면 값이 바뀐다", () => {
+    expect(compute([lineE03, lineE04])).not.toBe(compute([lineE03]));
+    expect(compute([lineE03])).not.toBe(compute([lineE04]));
+  });
+
+  it("다른 이 SPEC 항목의 줄은 계산에 넣지 않는다", () => {
+    expect(compute([lineE03, { ...lineE04, launchItem: "R-02" }])).toBe(compute([lineE03]));
+  });
+
+  it("참조 줄의 위치와 옮겨 적은 상태·대상 값은 값에 영향을 주지 않는다(현재 형제 기록만 읽는다)", () => {
+    const base = compute([lineE03]);
+
+    expect(compute([{ ...lineE03, location: "다른-위치-예시" }])).toBe(base);
+    expect(compute([{ ...lineE03, status: "BLOCKED", target: "옮겨-적은-다른-값" }])).toBe(base);
+  });
+
+  it("줄이 하나도 없으면 undefined다", () => {
+    expect(compute([])).toBeUndefined();
+    expect(compute([{ ...lineE03, launchItem: "R-02" }])).toBeUndefined();
+  });
+
+  it("줄이 가리키는 형제 기록이 하나라도 없으면 undefined다(fail-closed)", () => {
+    const onlyE03 = {
+      [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]:
+        records[siblingRecordKey(CONSULTOPS_SPEC, "E-03")],
+    };
+
+    expect(compute([lineE03], {})).toBeUndefined();
+    expect(computeSiblingEvidenceTarget("R-04", [lineE03], undefined)).toBeUndefined();
+    expect(compute([lineE03, lineE04], onlyE03)).toBeUndefined();
+  });
+
+  it("형제 기록은 자기 속성으로만 찾는다(상속 속성은 기록이 아니다)", () => {
+    const inherited = Object.create({
+      [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "대상값-예시-1" },
+    });
+
+    expect(compute([lineE03], inherited)).toBeUndefined();
+  });
+
+  it("digest에는 형제 대상 값·상태 본문이 드러나지 않는다", () => {
+    const value = compute([lineE03, lineE04]) as string;
+
+    expect(value).not.toContain("대상값-예시");
+    expect(value).not.toContain("READY");
+  });
+
+  it("입력을 바꾸지 않는다", () => {
+    const frozenRecords = Object.freeze(
+      Object.fromEntries(Object.entries(records).map(([k, v]) => [k, Object.freeze({ ...v })]))
+    );
+    const frozenLines = Object.freeze([
+      Object.freeze({ ...lineE03 }),
+      Object.freeze({ ...lineE04 }),
+    ]);
+
+    expect(() => compute(frozenLines, frozenRecords)).not.toThrow();
   });
 });

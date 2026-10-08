@@ -32,7 +32,11 @@ import {
   SYNTHETIC_SIBLING_SPEC,
   syntheticSiblingEvidence,
 } from "../lib/launch/sibling-evidence.fixture";
-import { SIBLING_REF_COLUMNS, siblingRecordKey } from "../lib/launch/sibling-reference";
+import {
+  SIBLING_REF_COLUMNS,
+  computeSiblingEvidenceTarget,
+  siblingRecordKey,
+} from "../lib/launch/sibling-reference";
 import { SIGNER_COLUMNS, SNAPSHOT_COLUMNS } from "../lib/launch/signature";
 import { runCli } from "./check-launch-gate";
 import {
@@ -290,6 +294,29 @@ function runProcedures(set: MarkerSet): ProcedureRun {
     "L-08": { proves: set.legal },
     "L-09": { date: set.ownerContact },
   };
+  // 적용되는 필수 R 항목은 모두 완전한 형제 증거가 있어야 하므로 R-04는 실제 CONSULTOPS-001 정의표를 조회하고
+  // 나머지 형제 참조 항목은 합성 형제 증거로 채운다(위치 칸에는 표지값을 그대로 써서 통과 경로의 누출을 본다).
+  const others = syntheticSiblingEvidence(
+    ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id) && row.id !== "R-04").map((row) => row.id)
+  );
+  const siblingRecordContents = {
+    ...others.records,
+    [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
+  };
+  // R 항목의 기록 대상 칸은 현재 형제 증거 대상 값이다(REQ-B2CLAUNCH-005) — 이 입력의 형제 증거로 계산한다.
+  const siblingLines = [
+    {
+      launchItem: "R-04",
+      siblingSpec: CONSULTOPS_SPEC,
+      siblingItem: "E-03",
+      status: "READY" as const,
+      target: "형제값-예시-1",
+      location: set.ownerContact,
+    },
+    ...others.lines,
+  ];
+  const targetOf = (id: string): string =>
+    computeSiblingEvidenceTarget(id, siblingLines, siblingRecordContents) ?? `대상-${id}`;
   const recordRows = ITEM_ROWS.map((row) => {
     const extra = freeText[row.id] ?? {};
     return [
@@ -298,7 +325,7 @@ function runProcedures(set: MarkerSet): ProcedureRun {
       extra.location ?? "위치-예시",
       extra.role ?? "역할-예시",
       extra.date ?? "날짜-예시",
-      `대상-${row.id}`,
+      targetOf(row.id),
       row.events.join(", "),
       "READY",
     ];
@@ -307,7 +334,7 @@ function runProcedures(set: MarkerSet): ProcedureRun {
   const recordFile = writeInput("record.md", record);
   const targetsFile = writeInput(
     "targets.json",
-    JSON.stringify(Object.fromEntries(ITEM_ROWS.map((row) => [row.id, `대상-${row.id}`])))
+    JSON.stringify(Object.fromEntries(ITEM_ROWS.map((row) => [row.id, targetOf(row.id)])))
   );
 
   // 서명은 요청(운영 단계 I, 표면 전체)의 필수 항목 집합과 같은 항목만 덮는다 — I 열이 해당 없음인 항목은 뺀다.
@@ -324,11 +351,6 @@ function runProcedures(set: MarkerSet): ProcedureRun {
     `${table(SIGNER_COLUMNS, [[set.ownerName, set.ownerContact, "production"]])}\n\n${table(SNAPSHOT_COLUMNS, snapshot)}`
   );
 
-  // 적용되는 필수 R 항목은 모두 완전한 형제 증거가 있어야 하므로 R-04는 실제 CONSULTOPS-001 정의표를 조회하고
-  // 나머지 형제 참조 항목은 합성 형제 증거로 채운다(위치 칸에는 표지값을 그대로 써서 통과 경로의 누출을 본다).
-  const others = syntheticSiblingEvidence(
-    ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id) && row.id !== "R-04").map((row) => row.id)
-  );
   const siblingRefs = writeInput(
     "sibling-refs.md",
     table(SIBLING_REF_COLUMNS, [
@@ -353,13 +375,7 @@ function runProcedures(set: MarkerSet): ProcedureRun {
       },
     })
   );
-  const siblingRecords = writeInput(
-    "sibling-records.json",
-    JSON.stringify({
-      ...others.records,
-      [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
-    })
-  );
+  const siblingRecords = writeInput("sibling-records.json", JSON.stringify(siblingRecordContents));
 
   const baseArgs = [
     "--items",

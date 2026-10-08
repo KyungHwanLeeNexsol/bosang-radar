@@ -5,6 +5,8 @@
 // 실제 형제 증거 기록의 형식과 위치는 형제 SPEC이 아직 정하지 않았으므로(acceptance.md AC-B2CLAUNCH-004 선결)
 // 형제 기록 내용은 호출하는 쪽이 넘기는 입력이고, 넘기지 않으면 비교하지 못한 것으로 보아 UNVERIFIED다.
 
+import { createHash } from "node:crypto";
+
 import { ITEM_STATUSES, type ItemStatus } from "./gate-record";
 import { findTableBody, findTableWithExtras } from "./markdown-table";
 import { splitCells } from "./stage-table";
@@ -112,6 +114,46 @@ export interface SiblingRecord {
 
 export function siblingRecordKey(siblingSpec: string, siblingItem: string): string {
   return `${siblingSpec}/${siblingItem}`;
+}
+
+/** 형제 증거 대상 값의 접두사. 계산 방식이 바뀌면 버전을 올려 옛 값이 새 값으로 읽히지 않게 한다. */
+export const SIBLING_TARGET_PREFIX = "sibling-evidence:v1:";
+
+/**
+ * 이 SPEC 항목(R-nn)의 현재 형제 증거 대상 값(REQ-B2CLAUNCH-005): 그 항목의 참조 줄이 가리키는 형제 SPEC·항목과 그
+ * 형제 기록의 **현재** 상태·대상 값으로 계산한 digest다. 항목이 무엇에 대해 증명하는지에 참조한 형제 기록의 상태와 대상
+ * 값이 들어가므로(spec.md §2.4 "대상") 형제 증거가 바뀌면 이 값이 바뀌고, R 항목의 기록 `대상` 칸과 서명은 새 값에 다시
+ * 적어야 한다. 참조 줄이 옮겨 적은 상태·대상 값과 위치는 쓰지 않는다 — 줄이 아니라 형제 기록의 현재 내용을 읽는다.
+ *
+ * 줄이 없거나 줄이 가리키는 형제 기록이 하나라도 없으면 undefined다(fail-closed). 결과는 줄 순서와 무관하고 digest
+ * 하나만 담아 형제 대상 값을 그대로 드러내지 않는다.
+ */
+export function computeSiblingEvidenceTarget(
+  launchItem: string,
+  lines: readonly SiblingRefLine[],
+  records: Readonly<Record<string, SiblingRecord>> | undefined
+): string | undefined {
+  const own = lines.filter((line) => line.launchItem === launchItem);
+  if (own.length === 0 || records === undefined) return undefined;
+
+  const entries: string[][] = [];
+  for (const line of own) {
+    const key = siblingRecordKey(line.siblingSpec, line.siblingItem);
+    if (!Object.hasOwn(records, key)) return undefined;
+    const { status, target } = records[key];
+    entries.push([line.siblingSpec, line.siblingItem, status, target]);
+  }
+  // 코드 단위 순서로 정렬한다(localeCompare는 환경마다 순서가 달라질 수 있다).
+  entries.sort((a, b) => {
+    const left = JSON.stringify(a);
+    const right = JSON.stringify(b);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+
+  const digest = createHash("sha256")
+    .update(JSON.stringify([launchItem, entries]))
+    .digest("hex");
+  return SIBLING_TARGET_PREFIX + digest;
 }
 
 /** 형제 정의표의 첫 칸(식별자) 집합. 헤더 칸이 맞는 표가 없으면 null이다. */

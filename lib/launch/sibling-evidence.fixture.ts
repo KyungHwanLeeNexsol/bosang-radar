@@ -26,6 +26,14 @@ export interface SyntheticSiblingOptions {
   recordStatus?: Readonly<Record<string, string>>;
   /** 이 SPEC 항목 → 참조 줄에 옮겨 적은 상태. 기본은 형제 기록의 현재 상태와 같다(값이 같은 줄). */
   lineStatus?: Readonly<Record<string, "READY" | "BLOCKED" | "UNVERIFIED">>;
+  /** 이 SPEC 항목 → 참조 줄이 가리키는 형제 항목 목록(줄이 여럿인 항목). 기본은 항목마다 `SYN-<항목>` 하나다. */
+  siblingItems?: Readonly<Record<string, readonly string[]>>;
+  /** 이 SPEC 항목 → 참조 줄이 가리키는 형제 SPEC id. 기본은 `SYNTHETIC_SIBLING_SPEC`이다. */
+  siblingSpec?: Readonly<Record<string, string>>;
+  /** 형제 항목 id → 형제 기록의 현재 대상 값(참조 줄이 옮겨 적는 값도 같이 바뀐다). */
+  siblingTarget?: Readonly<Record<string, string>>;
+  /** 참조 줄의 순서를 뒤집는다(줄 순서가 결과에 영향을 주지 않는지 보는 시험용). */
+  reverseLines?: boolean;
 }
 
 export interface SyntheticSiblingEvidence {
@@ -60,17 +68,28 @@ export function syntheticSiblingEvidence(
   const recordStatusOf = (id: string): string => options.recordStatus?.[id] ?? "READY";
   const lineStatusOf = (id: string): "READY" | "BLOCKED" | "UNVERIFIED" =>
     options.lineStatus?.[id] ?? (recordStatusOf(id) as "READY" | "BLOCKED" | "UNVERIFIED");
+  const itemsOf = (id: string): readonly string[] =>
+    options.siblingItems?.[id] ?? [syntheticSiblingItem(id)];
+  const specOf = (id: string): string => options.siblingSpec?.[id] ?? SYNTHETIC_SIBLING_SPEC;
+  const targetOfSibling = (launchItem: string, siblingItem: string): string =>
+    options.siblingTarget?.[siblingItem] ??
+    (siblingItem === syntheticSiblingItem(launchItem)
+      ? syntheticSiblingTarget(launchItem)
+      : `형제값-${siblingItem}`);
 
   const lines: SiblingRefLine[] = launchItems
     .filter((id) => !options.omitLines?.includes(id))
-    .map((id) => ({
-      launchItem: id,
-      siblingSpec: SYNTHETIC_SIBLING_SPEC,
-      siblingItem: syntheticSiblingItem(id),
-      status: lineStatusOf(id),
-      target: syntheticSiblingTarget(id),
-      location: "형제위치-예시",
-    }));
+    .flatMap((id) =>
+      itemsOf(id).map((siblingItem) => ({
+        launchItem: id,
+        siblingSpec: specOf(id),
+        siblingItem,
+        status: lineStatusOf(id),
+        target: targetOfSibling(id, siblingItem),
+        location: "형제위치-예시",
+      }))
+    );
+  if (options.reverseLines) lines.reverse();
 
   const rows = lines.map((line) => [
     line.launchItem,
@@ -81,28 +100,33 @@ export function syntheticSiblingEvidence(
     line.location,
   ]);
 
+  // 형제 SPEC id → 그 SPEC 정의표에 올릴 형제 항목. 기본 형제 SPEC에는 줄이 없는 항목도 올린다.
+  const itemsBySpec = new Map<string, string[]>([
+    [SYNTHETIC_SIBLING_SPEC, launchItems.map(syntheticSiblingItem)],
+  ]);
   const records: Record<string, SiblingRecord> = {};
   for (const id of launchItems) {
-    if (options.omitRecords?.includes(id)) continue;
-    records[siblingRecordKey(SYNTHETIC_SIBLING_SPEC, syntheticSiblingItem(id))] = {
-      status: recordStatusOf(id),
-      target: syntheticSiblingTarget(id),
+    const spec = specOf(id);
+    for (const siblingItem of itemsOf(id)) {
+      itemsBySpec.set(spec, [...(itemsBySpec.get(spec) ?? []), siblingItem]);
+      if (options.omitRecords?.includes(id)) continue;
+      records[siblingRecordKey(spec, siblingItem)] = {
+        status: recordStatusOf(id),
+        target: targetOfSibling(id, siblingItem),
+      };
+    }
+  }
+
+  const definitions: Record<string, SiblingDefinitionSource> = {};
+  for (const [spec, items] of itemsBySpec) {
+    definitions[spec] = {
+      markdown: markdownTable(
+        SYNTHETIC_DEFINITION_LABELS,
+        [...new Set(items)].map((item) => [item, "합성 형제 항목"])
+      ),
+      labels: SYNTHETIC_DEFINITION_LABELS,
     };
   }
 
-  return {
-    rows,
-    markdown: markdownTable(SIBLING_REF_COLUMNS, rows),
-    lines,
-    definitions: {
-      [SYNTHETIC_SIBLING_SPEC]: {
-        markdown: markdownTable(
-          SYNTHETIC_DEFINITION_LABELS,
-          launchItems.map((id) => [syntheticSiblingItem(id), "합성 형제 항목"])
-        ),
-        labels: SYNTHETIC_DEFINITION_LABELS,
-      },
-    },
-    records,
-  };
+  return { rows, markdown: markdownTable(SIBLING_REF_COLUMNS, rows), lines, definitions, records };
 }
