@@ -397,6 +397,9 @@ interface FullObservation {
   readonly diagnosis: DiagnosisObservation;
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 세 화면 GET과 접수 POST의 fetch 거부·본문 읽기 실패가 그대로 reject된다
+// @MX:REASON: 잡지 않는 것이 계약이다. 이 함수를 부르는 곳은 startAndObserve뿐이고, 거기서 reject가 main으로 전파되어 파일 하단의 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 이 함수가 직접 연 자원은 없고, 관측 대상 서버는 startAndObserve의 try/finally에서 managed.stop()이 정상·오류 양쪽 경로에서 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observe(baseURL: string): Promise<FullObservation> {
   const homeHtml = await (await fetch(`${baseURL}/`)).text();
   const consultHtml = await (await fetch(`${baseURL}/consult`)).text();
@@ -425,6 +428,9 @@ async function observe(baseURL: string): Promise<FullObservation> {
   };
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — 서버 시작 실패와 관측 실패가 reject로 전파된다
+// @MX:REASON: 오류는 삼키지 않고 호출자 main으로 전파한다(최상위 main().then(…, 오류 처리)가 exitCode 1로 끝낸다). 자원 정리는 두 갈래다. 서버가 준비되기 전의 실패는 startManagedServer가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던지므로(scripts/visual-verify-server.ts) 이 호출이 try 밖에 있어도 새는 서버가 없고, 준비된 뒤의 관측 실패는 finally의 managed.stop()이 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function startAndObserve(start: FlagScenario, server: ServerMode): Promise<FullObservation> {
   const env = assembleEnv(start);
   const managed = await startManagedServer({
@@ -479,6 +485,9 @@ const fmtConsult = (f: { consult: boolean; policy: boolean }) =>
   `consult=${f.consult} policy=${f.policy}`;
 const fmtDiag = (d: DiagnosisFlagInput) => `flow=${d.flow} engine=${d.engine} dev=${d.dev}`;
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 잘못된 인자, db:migrate·빌드 실패, 관측 중 reject가 throw로 전파된다
+// @MX:REASON: 실패를 반환 코드로 바꾸지 않고 던지는 것이 계약이다. 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 관측 불일치는 throw가 아니라 반환 코드(--observe가 아니면 1)로 알린다. 이 함수가 직접 쥐는 자원은 없다 — runPnpm은 동기 spawnSync이고 서버는 startAndObserve의 try/finally 안에서만 열리고 닫힌다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(argv: string[]): Promise<number> {
   const observeOnly = argv.includes("--observe");
   const buildFilter = argv.find((a) => a.startsWith("--build="))?.slice("--build=".length);

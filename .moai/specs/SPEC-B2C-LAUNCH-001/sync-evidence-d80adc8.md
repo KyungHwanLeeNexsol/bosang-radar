@@ -4,6 +4,7 @@
 
 - 대상: `main` = 병합 커밋 `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`. 실행한 작업 트리는 sync 브랜치 `dde263be744903a4e509b1295938e1d156a15a36`이고 코드는 `d80adc8`과 같다(`git diff --name-status d80adc8 dde263b`가 `.moai/specs/SPEC-B2C-LAUNCH-001/progress.md`와 `CHANGELOG.md` 둘만 보여 준다).
 - §5.6(Phase 9 해소)만 sync 브랜치 `98d5827` 위의 작업 트리에서 실행했다. 이 트리는 `d80adc8`과 코드 논리가 같고 주석 27줄(코드 4개 파일)만 다르다.
+- §5.7(Phase 9 P2 정정)은 sync 브랜치 `ec316dd` 위의 작업 트리에서 실행했다. 이 트리는 `d80adc8`과 코드 논리가 같고 주석 81줄(코드 8개 파일 — §5.6의 27줄에 §5.7의 54줄)만 다르다. §5.7은 §5.6.4의 "`@MX:WARN` 추가 0건"과 §5.6.5 끝의 Phase 9 충족 판정을 대체한다.
 - 구분: **직접** = 이 교정 작업에서 실행해 출력을 읽은 것. **재사용** = 앞선 기록을 쓰되 관측 시각과 이후 변경 범위를 확인한 것. **미확인** = 하지 못했거나 근거가 성립하지 않은 것.
 - 이 문서에는 시크릿 값, 운영 호스트 접속 정보, 개인 식별 정보, 패키지별 취약점 목록을 적지 않았다. 원문 로그는 git이 무시하는 `.moai/state/verify/sync-launch001/`에 있고(§8) 이 저장소에 올라가지 않는다. 아래 인용은 그 로그의 핵심 줄이다.
 
@@ -21,7 +22,8 @@
 | 5 | Consistency | `pnpm exec prettier --check <PR #24 변경 TS/TSX 65개>` | 0 | 직접 |
 | 5 | Consistency | `moai spec lint .moai/specs/SPEC-B2C-LAUNCH-001/spec.md` | 0 | 직접 |
 | 5 | sync Phase 9 | @MX P1/P2 읽기 전용 스캔(스크립트) — 해소 전 | 0 | 직접 |
-| 5.6 | sync Phase 9 해소 | 태그 추가(주석 27줄), P1 재점검 두 방식, P2 14건 판독, `prettier`·`eslint`·영향받는 시험 28개 파일, `moai mx scan` | 0 | 직접 |
+| 5.6 | sync Phase 9 해소 | 태그 추가(주석 27줄), P1 재점검 두 방식, P2 14건 판독(오류 처리 경로 — WARN 태그 요건은 §5.7이 따로 다룬다), `prettier`·`eslint`·영향받는 시험 28개 파일, `moai mx scan` | 0 | 직접 |
+| 5.7 | sync Phase 9 P2 정정 | 자체 `catch`가 없는 async 함수 18개에 `@MX:WARN`·`@MX:REASON`·`@MX:SPEC` 추가(주석 54줄), 주석만 바뀌었는지(diff·컴파일 비교), 태그 연결·개수·REASON, `prettier`·`eslint`·`moai mx scan`·직접 닿는 시험 7개 파일 | 0 | 직접 |
 | 6 | S-2 | `pnpm exec tsx scripts/check-launch-gate.ts …` 두 번 | 0, 1 | 직접 |
 
 ## 2. Security — 수치만 (판정 변경 없음)
@@ -371,6 +373,8 @@ fan_in은 "이 함수를 부르는 곳의 수"다. 규칙 문구는 `Function ha
 
 #### 5.6.4 P2 후보 14건 — 개별 판독
 
+> **정정(§5.7)**: 이 절은 "오류 처리·자원 정리 경로가 타당한가"에 답한다. 규칙(`sync/quality-gates-quality.md` Step 0.6.3)의 `@MX:WARN` 태그 요건은 이 절의 기준이 아니다. 그래서 아래 "결과"의 `@MX:WARN` 추가 0건과 §5.6.5 끝의 Phase 9 충족 판정은 §5.7이 대체한다. 판독 표 자체는 보존한다.
+
 기준: TypeScript `async ` 패턴의 설명은 "Async function may require try/catch"(`mx.yaml`)다. 문자열이 아니라 실패 경로를 봐서, **실패가 어디서도 처리되지 않거나 실패했을 때 자원이 새면** 위반으로 본다. 위치는 `d80adc8` 기준이다.
 
 공통 근거 두 가지: ① `startManagedServer`(`scripts/visual-verify-server.ts:268-282`)는 준비 확인이 실패하면 자식 프로세스 트리를 정리하고 원래 오류를 다시 던진다 — 그래서 호출자가 `await startManagedServer(…)`를 `try` 밖에 둬도 새는 자원이 없다. ② 각 스크립트의 `main`은 직접 실행될 때 최상위 `main().then(ok, 오류 처리)`가 메시지를 출력하고 `process.exitCode = 1`로 끝낸다.
@@ -392,7 +396,7 @@ fan_in은 "이 함수를 부르는 곳의 수"다. 규칙 문구는 `Function ha
 | 13 | `scripts/verify-smoke-check.ts:311` `run`(`observeState` 안 화살표 함수) | 두 갈래의 `try` 안에서만 불린다. `runSmokeCli`는 자식 프로세스 오류를 `reject`로 돌려주고 자체 자원이 없다 | 위반 아님 |
 | 14 | `scripts/verify-smoke-check.ts:343` `main` | 사전 점검 실패는 반환 코드 2, 빌드·마이그레이션 실패는 `throw`되고 최상위 `.then(ok, 오류 처리)`(381-389)가 처리한다. 서버는 `observeState`의 `finally`에서만 열린다 | 위반 아님 |
 
-- 결과: 위반 0건, `UNVERIFIED` 0건, `@MX:WARN` 추가 0건. 같은 스캔의 나머지 async 함수 7개(`drain`·`attemptFetch`·`runSmokeCheck`·`startAndObserve`·`countConsultations`·`observeWithServer`·`verify-rollback-dark`의 `main`)는 직접 `try/catch`·`try/finally`가 있어 처음부터 후보가 아니었다.
+- 결과(오류 처리 경로 기준): 위반 0건, `UNVERIFIED` 0건. ~~`@MX:WARN` 추가 0건~~ — 이 부분은 철회했다(§5.7). 같은 스캔의 나머지 async 함수 7개 중 `drain`·`attemptFetch`·`runSmokeCheck`는 자체 `try/catch`가 있어 `@MX:WARN` 대상이 아니다. 나머지 4개(`startAndObserve`·`countConsultations`·`observeWithServer`·`verify-rollback-dark`의 `main`)는 `try/finally`만 있고 `catch`가 없어, 이 절의 후보에서만 빠졌을 뿐 §5.7에서 `@MX:WARN` 대상이 됐다.
 - **남은 관찰(범위 밖, 바꾸지 않음)**: 3·5·6·8·9번이 부르는 `fetch`에는 시간 상한(`signal`)이 없다. 응답이 영영 오지 않으면 `finally`의 서버 정리까지 가지 못하고 멈춘다. 오류 처리의 결함이 아니라 대기 문제이며 이번 범위(주석만)에서 다루지 않았다.
 
 #### 5.6.5 검증 출력 (직접, 작업 트리 = 원격 HEAD `98d5827` + 위 주석)
@@ -410,7 +414,84 @@ $ moai mx scan                                       → OK: wrote 34 tags (ANCH
 - 재사용: `tsc --noEmit`·`pnpm lint` 전체·전체 시험 137개 파일은 다시 돌리지 않았다. 코드가 §5의 `exit=0` 실행 때와 같고 이번 변경은 주석 27줄뿐이다(위 diff). 서버를 띄우는 하네스(`verify:*`)와 `pnpm build`도 다시 돌리지 않았다.
 - 한계: P2는 코드를 읽은 판단이고 오류를 일부러 일으켜 보지는 않았다. 권고 등급인 P3(긴 exported 함수의 `@MX:NOTE`)·P4(시험 없는 public 함수의 `@MX:TODO`)는 보지 않았다. `moai mx scan`은 기존 태그를 색인할 뿐 누락을 판정하지 않으므로 누락 여부는 위 두 가지 직접 계산이 근거다.
 
-**판정(Phase 9)**: P1 — 호출 함수 수 기준 9개 모두 태그됨(외부 import 파일 수 기준 4개도 포함). P2 — 14건 모두 위반 아님. Phase 9는 **충족**이다. 이것은 4차원 판정과 전체 판정(FAIL)을 바꾸지 않는다.
+**판정(Phase 9) — §5.6 시점(`ec316dd`)의 기록**: P1 — 호출 함수 수 기준 9개 모두 태그됨(외부 import 파일 수 기준 4개도 포함). P2 — 오류 처리 경로 14건 모두 타당. ~~Phase 9는 충족이다~~ — 이 시점의 "충족"은 P2의 `@MX:WARN` 태그 요건을 채운 것이 아니었으므로 철회하고 §5.7이 대체한다. 이것은 4차원 판정과 전체 판정(FAIL)을 바꾸지 않는다.
+
+### 5.7 sync Phase 9 P2 정정 — `@MX:WARN` 태그 추가 (직접, 2026-10-08)
+
+사용자가 지시한 대로 sync 브랜치(원격 HEAD `ec316dd`와 같은 작업 트리)에서 **주석만** 추가했다. 실행 로직·오류 처리 흐름·API·환경 설정·`spec.md`·`plan.md`·`acceptance.md`·운영 DB·플래그·환경 변수·워크플로·의존성은 바꾸지 않았고, `catch`를 새로 넣거나 오류를 삼키지 않았으며, `--skip-mx`·규칙 수정·프로필 예외도 쓰지 않았다.
+
+#### 5.7.1 무엇이 틀렸고 무엇을 고쳤나
+
+- 규칙 원문: `.claude/skills/moai/workflows/sync/quality-gates-quality.md` Step 0.6.3 "Frontend Languages (TypeScript, JavaScript)" 3항 — "**async/await**: Add `@MX:WARN` for async functions without try/catch". `mx.yaml`의 TypeScript `warn_patterns`는 `async ` → "Async function may require try/catch"다. 이 "may"는 패턴의 설명이고 Step 0.6.3의 명시 지시를 줄이지 못한다.
+- §5.6.4는 "실패가 어디서도 처리되지 않거나 실패했을 때 자원이 새는가"를 기준으로 14건을 읽고 `@MX:WARN` 불필요로 판정했다. 그 기준은 규칙의 기준이 아니다. 규칙은 오류 처리가 타당한지가 아니라 **자체 `catch`가 없는 async 함수**를 태그 대상으로 정한다.
+- 그래서 질문을 둘로 나눈다. (a) 오류 처리 경로가 타당한가 — §5.6.4의 판독이 답하고 18개 모두 그렇다(아래). (b) `@MX:WARN` 태그 요건을 채웠는가 — 이 절이 채운다. 한쪽이 참이어도 다른 쪽을 대신하지 않는다.
+- 대상 수 정리: 구현 소스의 async 함수 21개 = 자체 `catch` 없음 **18** (§5.6.4의 후보 14 + `try/finally`만 있는 4) + 자체 `try/catch` 있음 3(`drain`·`attemptFetch`·`runSmokeCheck`, 대상 아님). §5.5의 휴리스틱(`try {`·`.catch(` 유무)은 `try/finally`를 "있음"으로 세어 4개를 후보에서 뺐다.
+
+#### 5.7.2 추가한 태그 — 대상 18개
+
+각 함수(또는 화살표 함수) 바로 위에 `@MX:WARN: [AUTO] …`, `@MX:REASON: …`, `@MX:SPEC: SPEC-B2C-LAUNCH-001` 세 줄을 한국어(`code_comments: ko`)로 달았다. JSDoc이 있는 `observeWithServer`·`startTempServer`는 JSDoc이 함수에 붙어 있도록 JSDoc 위에 달았다. 아래 위치는 `@MX:WARN` 줄 번호(이 정정을 반영한 작업 트리 기준)이고, REASON이 적은 계약은 코드를 읽고 확인한 것이다(`startManagedServer`의 정리 동작은 `scripts/visual-verify-server.ts:236-284`에서 직접 확인).
+
+| # | 위치(WARN 줄) | 함수 | REASON이 적은 계약 |
+|---|---|---|---|
+| 1 | `lib/launch/smoke-check.ts:84` | `createSmokeFetch`가 돌려주는 화살표 함수 | `fetch` 거부를 잡지 않는다. 부르는 곳은 `attemptFetch`뿐이고 그 `try/catch`가 상태 0(전송 실패)으로 바꾼다. 응답 본문은 `runSmokeCheck`가 읽거나 `drain`이 읽어 버린다 |
+| 2 | `scripts/smoke-check.ts:16` | `main` | 인자 오류(`parseSmokeArgs` → 종료 코드 2)와 네트워크 실패(`attemptFetch` → 종료 코드 1)는 값으로 처리한다. 그 밖의 reject는 하단 `main().then(…, 오류 처리)`가 `exitCode = 1`로 끝낸다 |
+| 3 | `scripts/verify-flag-runtime.ts:400` | `observe` | reject는 `startAndObserve` → `main` → 최상위 처리기로 전파된다. 서버는 `startAndObserve`의 `finally`가 끈다 |
+| 4 | `scripts/verify-flag-runtime.ts:431` | `startAndObserve` | `try/finally`만 있다. 서버 준비 전 실패는 `startManagedServer`가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던지고, 준비 뒤 실패는 `finally`의 `managed.stop()`이 끈다 |
+| 5 | `scripts/verify-flag-runtime.ts:488` | `main` | 잘못된 인자·`db:migrate`·빌드 실패는 throw → 하단 처리기가 `exitCode = 1`. 관측 불일치는 반환 코드로 알린다. 직접 쥐는 자원 없음(`runPnpm`은 동기 `spawnSync`) |
+| 6 | `scripts/verify-gate-reachability.ts:302` | `countConsultations` | `try/finally`만 있다. 조회 실패는 reject로 전파되고 DB 클라이언트는 `finally`의 `client.close()`가 닫는다 |
+| 7 | `scripts/verify-gate-reachability.ts:315` | `observe` | `observeWithServer(env, observe)`로만 불린다(`main`의 한 곳). reject는 `main`으로 전파되고 서버는 `observeWithServer`의 `finally`가 끈다 |
+| 8 | `scripts/verify-gate-reachability.ts:338` | `observeCross` | 7번과 같다(`observeWithServer(crossEnv, observeCross)`, `main`의 한 곳) |
+| 9 | `scripts/verify-gate-reachability.ts:364` | `observeWithServer` | `try/finally`만 있다. 서버 시작 실패는 `startManagedServer`가 정리 후 재던지고, 관측 실패는 `finally`의 `managed.stop()`이 서버를 끈다 |
+| 10 | `scripts/verify-gate-reachability.ts:389` | `main` | 사전 점검 위반·교차 조합 계획 실패는 반환 코드 2, 마이그레이션·빌드 실패는 throw → 하단 처리기가 `exitCode = 1`. 서버는 `observeWithServer`의 `finally`에서만 열리고 닫힌다 |
+| 11 | `scripts/verify-rollback-dark.ts:138` | `observePages` | 호출 지점 두 곳(열린·롤백 서버)이 모두 `main`의 `try/finally` 안이라 서버가 먼저 꺼진 뒤 reject가 전파된다 |
+| 12 | `scripts/verify-rollback-dark.ts:150` | `postConsultation` | 11번과 같다(시드 접수·불일치 접수 두 곳, 모두 `main`의 `try/finally` 안) |
+| 13 | `scripts/verify-rollback-dark.ts:165` | `snapshotRows` | `try/finally`만 있다. 조회 실패는 `main`으로 전파되고(두 호출 지점은 서버 종료 뒤) DB 클라이언트는 `finally`가 닫는다 |
+| 14 | `scripts/verify-rollback-dark.ts:182` | `main` | `catch` 없이 `finally`만 있다. 사전 점검 위반은 반환 코드 2, 마이그레이션·빌드 실패는 throw → 하단 처리기. 열린·롤백 서버는 각자의 `try/finally`의 `stop()`으로 끈다 |
+| 15 | `scripts/verify-smoke-check.ts:195` | `startTempServer` | `listen` 오류는 `once("error", reject)`로 호출자에게 전달된다. 금지 포트는 닫고 다시 고르며 20번 모두 실패하면 throw. 정상 반환한 서버는 호출자가 `stop()`으로 닫는다(`observeState`와 시험 모두 `try/finally` 또는 시작 직후) |
+| 16 | `scripts/verify-smoke-check.ts:311` | `observeState` | `try/finally`만 있다. 두 갈래(임시 서버·실제 서버) 모두 `finally`에서 서버를 끈다. 서버 시작 실패와 CLI 실행 실패는 `main`으로 전파된다 |
+| 17 | `scripts/verify-smoke-check.ts:317` | `observeState` 안의 `run` 화살표 함수 | `runSmokeCli`의 reject(자식 프로세스 오류)가 그대로 전파된다. 호출 지점 두 곳이 모두 `observeState`의 `try` 안이라 서버 정리를 먼저 거친다 |
+| 18 | `scripts/verify-smoke-check.ts:352` | `main` | 사전 점검 위반은 반환 코드 2, 마이그레이션·빌드 실패는 throw → 하단 처리기. 서버는 `observeState`의 `try/finally` 안에서만 열리고 닫힌다 |
+
+파일별 개수(한도: ANCHOR 3·WARN 5·NOTE 10·TODO 5). 모든 `@MX:WARN`에 `@MX:REASON`이 바로 다음 줄에 있고 그 다음 줄에 `@MX:SPEC`이 있다.
+
+| 파일 | WARN | REASON | SPEC | 같은 파일의 기존 ANCHOR |
+|---|---|---|---|---|
+| `lib/launch/smoke-check.ts` | 1 | 1 | 1 | 0 |
+| `scripts/smoke-check.ts` | 1 | 1 | 1 | 0 |
+| `scripts/verify-flag-runtime.ts` | 3 | 3 | 3 | 3 |
+| `scripts/verify-gate-reachability.ts` | 5 | 5 | 5 | 3 |
+| `scripts/verify-rollback-dark.ts` | 4 | 4 | 4 | 0 |
+| `scripts/verify-smoke-check.ts` | 4 | 4 | 4 | 0 |
+| 합계 | **18** | 18 | 18 | 6 |
+
+`verify-gate-reachability.ts`는 WARN 5개로 파일당 한도(5)에 정확히 닿는다. 한도를 넘는 파일은 없다.
+
+REASON의 서술 원칙: 오류를 어디서 받는지(호출자 또는 하단의 `main().then(…, 오류 처리)`)와 자원을 어디서 정리하는지(해당 `finally`)를 코드에서 확인한 대로만 적었다. 이미 처리되는 오류를 "미처리 오류"나 "누수 결함"으로 적지 않았다. 코드에서 확인하지 못한 주장(예: 실패한 `listen`이 소켓을 남기는지 여부)은 적지 않았다.
+
+#### 5.7.3 검증 출력 (직접, 작업 트리 = 원격 HEAD `ec316dd` + 위 주석)
+
+```text
+$ node verify-mx.cjs <작업 트리> <편집 전 HEAD 파일 6개>        → 45 PASS / 0 FAIL, exit=0   (p2-warn-verify.log)
+    diff: +54 -0, 주석이 아닌 추가 줄 0
+    주석 제거 컴파일 결과가 HEAD와 동일: 6개 파일 모두(5750·1003·16730·12155·6383·10893 bytes)
+    WARN 개수 1·1·3·5·4·4 = 18, 파일당 한도 5 이내, 기존 ANCHOR 한도 3 이내
+    WARN→REASON→SPEC 연결 18개 모두 ok (REASON 142~316자)
+$ git diff --stat d80adc8 -- lib scripts                     → 8 files changed, 81 insertions(+)   (삭제 0, 주석 아닌 추가 줄 0)
+$ pnpm exec prettier --check <변경 코드 6개>                  → All matched files use Prettier code style!, exit=0   (대조군 const a=1 → const a = 1;)
+$ pnpm exec eslint <변경 코드 6개>                            → exit=0, 출력 없음
+$ moai mx scan                                               → OK: wrote 52 tags (ANCHOR 27, NOTE 4, WARN 20, DEBT 1), exit=0
+    색인 확인: 이번 6개 파일의 WARN 18개(파일별 1·1·3·5·4·4), REASON 비어 있는 것 0
+    스캐너 경고 2건(MissingReasonForWarn: lib/pipeline/evidence-retriever.ts:16, scripts/env-local-safety.ts:132)은 §5.6.3과 같은 기존 범위 밖 파일이다. 스캔 오류 5건(비치명)은 §5.6.3과 같은 건수이고 내용은 확인하지 못했다
+$ vitest run scripts/verify-gate-reachability.test.ts scripts/verify-rollback-dark.test.ts scripts/verify-flag-runtime.test.ts \
+    scripts/verify-smoke-check.test.ts scripts/smoke-check.test.ts lib/launch/smoke-check.test.ts lib/launch/engine-ready-oracle.test.ts
+                                                             → Test Files 7 passed (7), Tests 149 passed (149), exit=0
+```
+
+- "주석 제거 컴파일 비교"는 TypeScript `transpileModule`(`removeComments`)로 편집 전 HEAD 파일과 현재 파일을 각각 변환해 결과 문자열이 같은지 본 것이다. 식별자·구문·순서가 같음을 보이지만 타입 검사는 아니다. 타입은 주석이 바꿀 수 없으므로 아래처럼 재사용했다.
+- 재사용: `tsc --noEmit`, 전체 `pnpm lint`, §5.6.5의 영향받는 시험 28개 파일 591개, 전체 시험 137개 파일, `pnpm build`, 서버를 띄우는 하네스(`verify:*`) 관측, 커버리지. 근거 — 이번 변경은 주석 54줄뿐이고 주석 제거 컴파일 결과가 HEAD와 같다. 소스를 글자로 읽는 시험(`engine-ready-oracle`, `verify-gate-reachability`·`verify-rollback-dark` 소스 읽기 시험)은 위 7개 파일에 포함해 직접 다시 돌렸다. 전체 감사는 다시 하지 않았다.
+- 한계: 오류 처리 경로는 코드를 읽은 판단이고 오류를 일부러 일으켜 보지는 않았다. 권고 등급 P3·P4는 보지 않았다. `moai mx scan`은 존재·REASON 색인을 확인할 뿐 태그 문장의 의미를 판정하지 않는다 — REASON의 내용은 위 표와 코드를 대조해 확인한 것이다.
+
+**판정(Phase 9) — §5.7 시점**: P1 — `@MX:ANCHOR` 9개(호출 함수 수 기준). P2 — 자체 `catch`가 없는 async 함수 18개 모두 `@MX:WARN`·`@MX:REASON`을 달았고, 오류 처리 경로(§5.6.4 + `try/finally`만 있던 4개)가 타당함을 구분해 적었다. 두 요건을 실제로 채웠으므로 Phase 9는 **충족**이다. 이것은 4차원 판정과 전체 판정(FAIL), sync 미종결(`status: in-progress`), 운영 공개 안 함을 바꾸지 않는다.
 
 ## 6. S-2 — 점검기가 부분 정의표로 "공개 가능"을 출력하는지
 
@@ -507,8 +588,8 @@ exit=1
 - `pnpm test` 전체(137 파일)와 `pnpm build`의 `d80adc8` 재실행(코드가 같은 `7bda045`·`45c1a32` 기록을 재사용 — 변경 범위: 문서 둘), `pnpm test:e2e`, `pnpm visual:verify`.
 - `reachability`·`flag-runtime` 하네스의 `d80adc8` 재관측(재사용: 관측 시각 17:09·16:02 이후 앱·하네스 관련 경로의 변경은 `56d7e4a`뿐이고 `V94`는 그 뒤에 실행됐다).
 - LSP security 진단원, 전용 비밀 스캐너(`git diff 2c244e0 d80adc8`를 grep으로만 훑었고 실제 자격증명 형태 0건), 교차 모델 감사(`audit_multi`·codex·GLM: MCP 연결 실패).
-- P2 후보 14건은 §5.6.4에서 코드를 읽어 판단했다. 오류를 일부러 일으키는 시험과 권고 등급 P3·P4 점검은 하지 않았다.
+- async 함수의 오류 처리 경로(§5.6.4의 14건과 `try/finally`만 있던 4건, §5.7)는 코드를 읽어 판단했다. 오류를 일부러 일으키는 시험과 권고 등급 P3·P4 점검은 하지 않았다. `@MX:WARN` 18개의 존재·연결·REASON은 도구로 확인했지만(§5.7.3) 태그 문장의 의미를 도구가 판정한 것은 아니다.
 
 ## 8. 로컬 증거 위치 (git이 무시, 저장소에 올라가지 않음)
 
-`.moai/state/verify/sync-launch001/`: `r2-coverage.log`, `coverage-r2/coverage-summary.json`, `r2-tsc.log`, `r2-lint.log`, `r2-prettier.log`, `r2-rollback-dark.log`, `r2-deploy-yml.diff`, `s2/`(S-2 입력 4개와 `run-A.out`·`run-B.out`), 앞선 감사의 `vitest-coverage.log`·`vitest-coverage-v2.log`·`coverage/coverage-summary.json`·`pnpm-audit*.json`·`deploy-run-37729280763.log`·`sync-audit-report.md`. `.moai/state/verify/launch-run/`의 `V64`·`V65`·`V74`·`V94`·`VB4-test-A.log`.
+`.moai/state/verify/sync-launch001/`: `r2-coverage.log`, `coverage-r2/coverage-summary.json`, `r2-tsc.log`, `r2-lint.log`, `r2-prettier.log`, `r2-rollback-dark.log`, `r2-deploy-yml.diff`, `s2/`(S-2 입력 4개와 `run-A.out`·`run-B.out`), 앞선 감사의 `vitest-coverage.log`·`vitest-coverage-v2.log`·`coverage/coverage-summary.json`·`pnpm-audit*.json`·`deploy-run-37729280763.log`·`sync-audit-report.md`. `.moai/state/verify/launch-run/`의 `V64`·`V65`·`V74`·`V94`·`VB4-test-A.log`. §5.7의 로그: `.moai/state/verify/sync-launch001/`의 `p2-warn-verify.log`(주석만 변경·컴파일 동일·태그 연결), `p2-prettier.log`, `p2-eslint.log`, `p2-mx-scan.log`, `p2-mx-index-check.log`, `p2-oracle-test.log`, `p2-affected-tests.log`. 같은 폴더에 검증 스크립트 `verify-mx.cjs`·`check-index.cjs`와 편집 전 HEAD 파일 6개의 복사본 `p2-head-baseline/`이 있다. 스크립트는 커밋 전 작업 트리에서 `node verify-mx.cjs <작업 트리> <p2-head-baseline 경로>`로 돌렸다. 커밋한 뒤에는 `git diff`(작업 트리 대 인덱스)가 비므로 diff 검사는 `git diff ec316dd <커밋> -- lib scripts`로 읽어야 하고, 컴파일 비교와 태그 검사는 같은 기준선(`ec316dd`의 파일)으로 그대로 다시 돌릴 수 있다.

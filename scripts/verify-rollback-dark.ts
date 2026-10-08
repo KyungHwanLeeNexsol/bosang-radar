@@ -135,6 +135,9 @@ function startServer(env: NodeJS.ProcessEnv) {
   });
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 닫힘 화면 GET의 fetch 거부·본문 읽기 실패가 그대로 reject된다
+// @MX:REASON: 잡지 않는 것이 계약이다. 호출 지점 두 곳(열린 서버·롤백 서버 관측)은 모두 main의 try/finally 안이라 reject가 먼저 서버를 끈 뒤 main으로 전파되고, 파일 하단의 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 이 함수가 직접 연 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observePages(baseURL: string): Promise<Record<ClosedPage, PageObservation>> {
   const pages = {} as Record<ClosedPage, PageObservation>;
   for (const route of CLOSED_PAGES) {
@@ -144,6 +147,9 @@ async function observePages(baseURL: string): Promise<Record<ClosedPage, PageObs
   return pages;
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 접수 POST의 fetch 거부·본문 읽기 실패가 그대로 reject된다
+// @MX:REASON: observePages와 같은 계약이다. 호출 지점 두 곳(열린 서버의 시드 접수·롤백 서버의 불일치 접수)은 모두 main의 try/finally 안이라 reject가 먼저 서버를 끈 뒤 main으로 전파된다. 응답 코드 해석(extractApiCode)은 JSON이 아니면 null을 돌려주는 값 처리이고 이 함수가 직접 연 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function postConsultation(
   baseURL: string,
   body: Record<string, unknown>
@@ -156,6 +162,9 @@ async function postConsultation(
   return { status: response.status, code: extractApiCode(await response.text()) };
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — DB 조회(execute) 실패가 그대로 reject된다
+// @MX:REASON: 조회 실패는 삼키지 않고 호출자 main으로 전파된다(두 호출 지점은 서버 종료 뒤라 열려 있는 서버가 없다). 자원인 DB 클라이언트는 이 함수의 finally에서 client.close()로 정상·오류 양쪽 경로에서 닫는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function snapshotRows(): Promise<{ count: number; hash: string }> {
   const client = createClient({ url: DB_URL });
   try {
@@ -170,6 +179,9 @@ async function snapshotRows(): Promise<{ count: number; hash: string }> {
   }
 }
 
+// @MX:WARN: [AUTO] catch 없이 finally만 있는 async 함수 — db:migrate·빌드 실패와 서버 시작·관측 reject가 throw로 전파된다
+// @MX:REASON: 사전 점검 위반은 메시지를 출력하고 반환 코드 2로 돌려준다. 마이그레이션·빌드 실패와 그 밖의 reject는 던지고, 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 열린 서버와 롤백 서버는 각각 자기 try/finally의 stop()으로 정상·오류 양쪽 경로에서 끈다. 서버 시작 자체의 실패는 startManagedServer가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던진다(scripts/visual-verify-server.ts).
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(): Promise<number> {
   const violations = checkPreconditions(process.env, PROJECT_ROOT);
   if (violations.length > 0) {

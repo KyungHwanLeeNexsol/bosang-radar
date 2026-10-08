@@ -81,6 +81,9 @@ export function observeGateState(html: string): GateState {
  * 시간 상한을 둔다(예전 `--max-time 5`).
  */
 export function createSmokeFetch(timeoutMs: number = REQUEST_TIMEOUT_MS): SmokeFetch {
+  // @MX:WARN: [AUTO] 자체 try/catch가 없는 async 화살표 함수 — fetch 거부(연결 거부·AbortSignal.timeout 만료)가 그대로 reject된다
+  // @MX:REASON: 잡지 않는 것이 계약이다. 이 함수를 부르는 곳은 attemptFetch뿐이고(runSmokeCheck가 홈은 재시도 루프에서, CSS 청크는 한 번 거친다), attemptFetch의 try/catch가 거부를 상태 0(전송 실패)으로 바꾼다. 상태 0은 홈에서는 재시도 또는 실패 판정이 되고 CSS 청크에서는 css-served 실패가 된다. 이 함수가 직접 연 자원은 없고, 응답 본문은 runSmokeCheck가 읽거나 drain이 읽어 버린다.
+  // @MX:SPEC: SPEC-B2C-LAUNCH-001
   return async (url) => {
     const response = await fetch(url, {
       redirect: "manual",

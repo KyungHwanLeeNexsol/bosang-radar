@@ -299,6 +299,9 @@ function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): numbe
   return result.status ?? 1;
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — DB 조회(execute) 실패가 그대로 reject된다
+// @MX:REASON: 조회 실패는 삼키지 않고 호출자(observe·observeCross)를 거쳐 observeWithServer의 호출자 main으로 전파된다. 자원인 DB 클라이언트는 이 함수의 finally에서 client.close()로 정상·오류 양쪽 경로에서 닫는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function countConsultations(): Promise<number> {
   const client = createClient({ url: DB_URL });
   try {
@@ -309,6 +312,9 @@ async function countConsultations(): Promise<number> {
   }
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — fetch 거부·본문 읽기 실패·countConsultations 실패가 그대로 reject된다
+// @MX:REASON: 잡지 않는 것이 계약이다. 이 함수는 observeWithServer(env, observe)로만 불리고, reject는 거기서 main으로 전파되어 파일 하단의 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 직접 연 자원은 없다 — DB 클라이언트는 countConsultations의 finally가 닫고, 서버는 observeWithServer의 try/finally가 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observe(baseURL: string): Promise<GateReachabilityObservation> {
   const consultHtml = await (await fetch(`${baseURL}/consult`)).text();
   const rowsBefore = await countConsultations();
@@ -329,6 +335,9 @@ async function observe(baseURL: string): Promise<GateReachabilityObservation> {
   };
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 세 화면 GET·접수 POST의 fetch 거부와 countConsultations 실패가 그대로 reject된다
+// @MX:REASON: observe와 같은 계약이다. 이 함수는 observeWithServer(crossEnv, observeCross)로만 불리고, reject는 main으로 전파되어 최상위 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 직접 연 자원은 없다 — DB 클라이언트는 countConsultations의 finally가 닫고, 서버는 observeWithServer의 try/finally가 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observeCross(baseURL: string): Promise<CrossObservation> {
   const homeHtml = await (await fetch(`${baseURL}/`)).text();
   const resultHtml = await (await fetch(`${baseURL}/result`)).text();
@@ -352,6 +361,9 @@ async function observeCross(baseURL: string): Promise<CrossObservation> {
   });
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — 서버 시작 실패와 관측(observeAt) 실패가 reject로 전파된다
+// @MX:REASON: 오류는 삼키지 않고 호출자 main으로 전파한다. 서버 정리는 두 갈래다. 준비 전의 실패는 startManagedServer가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던지고(scripts/visual-verify-server.ts), 준비된 뒤의 관측 실패는 finally의 managed.stop()이 끈다. 그래서 정상·오류 모든 경로에서 서버가 남지 않는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 자식 환경으로 `pnpm start` 서버를 시작해 관측하고 반드시 종료한다. */
 async function observeWithServer<T>(
   env: NodeJS.ProcessEnv,
@@ -374,6 +386,9 @@ async function observeWithServer<T>(
   }
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — db:migrate·빌드 실패와 관측 중 reject가 throw로 전파된다
+// @MX:REASON: 예상되는 거부는 값으로 처리한다 — 사전 점검 위반과 교차 조합 계획 실패는 메시지를 출력하고 반환 코드 2로 돌려준다. 마이그레이션·빌드 실패와 그 밖의 reject는 던지고, 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 서버는 observeWithServer의 try/finally 안에서만 열리고 닫혀 이 함수가 직접 쥐는 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(): Promise<number> {
   const violations = checkPreconditions(process.env, PROJECT_ROOT);
   if (violations.length > 0) {
