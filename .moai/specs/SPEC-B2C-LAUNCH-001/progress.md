@@ -990,10 +990,142 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 - **갱신(2026-10-08)**: 위 점검기 관련 서술과 수치(시험 개수, 서명이 대상 값을 비교하지 않는다는 한계, 형제 증거 참조 줄의 선택 입력 취급)는 §E.2 "PR #24 재현 결함 3건 수정" 절의 수정으로 대체됐다. 최신 전체 검증은 그 절의 `Tests 1725 passed (1725)`다. `spec.md`·`plan.md`·`acceptance.md`는 바뀌지 않아 이 신호의 계획 감사 근거(PASS 0.81)는 그대로다.
 - **갱신(2026-10-08, F1 수정 뒤)**: 최신 전체 검증은 `Tests 1805 passed (1805)`(137개 파일, `7bda045` 트리, `exit=0`)이고 HEAD `45c1a32`에서 `pnpm build`도 `exit=0`이다. 점검기 수정에 대한 독립 구현 감사 ②는 F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인이다(SPEC 전체 4차원 감사는 기존 일정대로 run PR 병합 뒤 `/moai sync`에서 수행한다). 감사·검토 종류 구분, 검증 재사용 판단, 병합 전 조건, 운영 공개 전 조건은 §E.2 "### 병합 전 검증과 구현 감사 정리 (2026-10-08, 기준 HEAD `45c1a32`)"에 있다. `run_status: audit-ready`는 여전히 조건부이며 운영 공개 가능을 뜻하지 않는다. 이 신호의 계획 감사 근거(PASS 0.81)는 SPEC 문서 해시가 같아 그대로이고, 구현 감사 결과와 합산하지 않는다.
 - **PR 구조(사용자 선택, 2026-10-07)**: run PR은 `worktree-launch-run`(`deploy.yml` 불변)이고 `deploy.yml` 교체는 보류 브랜치 `smoke-deploy-workflow`의 커밋 하나로 L-01 기준선 기록이 생긴 뒤에만 별도 PR로 병합한다. run PR이 `main`에 병합되면 `main` push마다 배포되므로 운영이 한 번 재시작되며 앱 동작은 바뀌지 않는다(`app/`·`components/`·`lib/consult`·`lib/env.ts` 변경 없음).
+- **갱신(2026-10-08, PR #24 병합과 SPEC 전체 sync 감사 뒤)**: run PR #24는 병합 커밋 `d80adc8`로 `main`에 들어갔고, SPEC 전체 4차원 감사를 새 대상으로 수행했다. 결과는 **FAIL**이며 sync는 닫지 않았다. 결과·근거·상태 구분은 아래 §E.4다. 이 신호(`run_status: audit-ready`)의 의미는 바뀌지 않았다 — 구현이 끝났다는 조건부 신호일 뿐, sync 통과나 출시 가능이 아니다. 2026-10-08 교정: AC-013은 FAIL이 아니라 UNVERIFIED이고 AC 집계는 PASS 1·FAIL 0·UNVERIFIED 15다(§E.4 "교정 기록").
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- `sync_audit_verdict: FAIL` — 활성 프로필 `default` 기준 SPEC 전체 4차원 감사의 결과다. **sync를 닫지 않았다**(`sync_closure: not-closed`). 이 절은 `audit-ready`를 선언하지 않는다. `spec.md`의 `status`는 `in-progress` 그대로이고 이 sync 작업은 `spec.md`·`plan.md`·`acceptance.md`를 고치지 않았다.
+- 기록일 2026-10-08. 감사 대상 SPEC 전체(REQ 16, AC 16, Tier M), 기준 SHA `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`(= PR #24 병합 커밋 = 감사 시점 `origin/main`), 감사 시작과 끝에서 작업 트리 깨끗(`git status --short` 빈 출력).
+- **이 감사는 새 감사다.** 대상(SPEC 전체)·기준 SHA(`d80adc8`)·증거·결론이 모두 아래에 따로 있다. 앞선 기록을 소급해 바꾸지 않는다: 계획 감사 PASS 0.81은 `spec.md`·`plan.md`·`acceptance.md`의 문서 해시에 대한 결과이고 코드 품질의 근거가 아니다. 구현 감사 ②는 "F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인."으로만 읽는다. 감사 ②의 약 87.2는 합격 근거가 아니며 이번에도 쓰지 않았다.
+- **교정 기록 (2026-10-08, PR #25 외부 검토 반영)**: 같은 기준 SHA `d80adc8`에 대한 교정이고 새 감사가 아니다(코드는 이 기록을 담은 sync 브랜치 `dde263b` 위에서도 같다). 고친 것: ① `acceptance.md` 도입부·AC-013 "이 AC가 보지 못하는 것"·Definition of Done이 `deploy.yml` 변경의 `main` 병합과 그 배포를 AC 밖으로 명시하므로 "교체본이 `main`에 없다"는 사실만으로 AC-013을 FAIL로 판정하지 않는다 — **AC-013: FAIL → UNVERIFIED**(구현 인수 조건은 보류 브랜치 `dd7122c`로 확인했고 남은 것은 요구된 서명 둘이다). ② AC 표를 구현 인수·AC가 선결로 적은 BLOCKED·요구된 서명·AC 밖 항목으로 다시 나눴다(교정 전후는 표의 마지막 열). ③ 커버리지 98.69%의 명령·범위를 밝히고 하네스를 포함한 범위를 추가 측정했다. ④ `moai` CLI는 PATH에만 없었음을 확인해 `moai spec lint`를 직접 실행하고 @MX(sync Phase 9)를 직접 점검했다. ⑤ 발견 S-2를 직접 재현해 분류했다. ⑥ AC-014의 롤백 로컬 관측은 의존 파일이 관측 뒤 바뀌어 재사용 근거가 성립하지 않아 한 번 다시 실행했다. **바뀌지 않은 것**: 전체 판정 FAIL(Security 하드 임계값), sync 미종결(`status: in-progress`), 운영 공개 안 함, 계획 감사 PASS 0.81과 구현 감사 ②의 제한된 결론, `spec.md`·`plan.md`·`acceptance.md`(수정 안 함). 명령·종료 코드·원문 출력은 `.moai/specs/SPEC-B2C-LAUNCH-001/sync-evidence-d80adc8.md`에 있다.
+- **Phase 9 해소 기록 (2026-10-08, PR #25)**: 코드 논리는 `d80adc8`과 같고 **주석 27줄만 추가**했다(파일 4개, 삭제 0줄, 주석이 아닌 추가 줄 0줄). ① P1 — fan_in 3 이상인 exported 함수 **9개**에 `@MX:ANCHOR`·`@MX:REASON`(·`@MX:SPEC`)을 달았다. 처음 확인한 5개(`splitCells`·`findTableWithExtras`·`findTableBody`·`assembleEnv`·`runPnpm`)에 더해, 호출하는 함수 수로 다시 센 재점검에서 `extractTitle`·`checkPreconditions`·`extractApiCode`·`buildMismatchProbe` 4개가 더 나와 사용자 결정으로 함께 달았다(기준·숫자·정정은 증거 문서 §5.6). 앞서 적은 `fan_in` 값은 호출 지점 수와 import 파일 수가 섞인 값이었다. 특히 `runPnpm`은 이름이 같은 비공개 지역 함수가 있는 `verify-gate-reachability.ts`까지 세어 올라간 값이고, 바로잡으면 호출 지점 6·호출 함수 4·파일 3·외부 import 파일 2다(호출 함수 기준으로는 충족, import 파일 기준으로는 미달인 경계 사례). ② P2 — 후보 14건의 오류 처리·호출자 처리·최상위 catch·자원 정리 경로를 읽었고 **14건 모두 위반이 아니다**(`@MX:WARN` 추가 0). 판정 기준은 "async 함수의 실패가 어디서도 처리되지 않거나, 실패했을 때 자원이 새는가"이다. **[정정됨 — 바로 아래 "Phase 9 P2 정정 기록"]** 오류 처리·자원 정리 경로가 타당하다는 판독 결과는 그대로 유효하다. 그러나 이 판정 기준은 규칙(`sync/quality-gates-quality.md` Step 0.6.3)이 요구하는 `@MX:WARN` 태그 요건이 아니어서, 이 단계의 "WARN 추가 0"과 거기에 근거한 Phase 9 충족 판정은 철회했다. ③ `--skip-mx`와 프로필 예외는 쓰지 않았다. 바뀌지 않은 것: 전체 판정 FAIL, Security FAIL, Functionality 미충족, LSP security 진단원 미확인, sync 미종결(`status: in-progress`), 운영 공개 안 함.
+- **Phase 9 P2 정정 기록 (2026-10-08, PR #25 외부 검토 반영)**: 앞의 ② 판정을 서로 다른 두 질문으로 나눠 다시 적는다. (a) **오류 처리 경로가 타당한가** — 그렇다. 판독 기록(증거 문서 §5.6.4)은 그대로 보존한다. (b) **`@MX:WARN` 태그 요건을 채웠는가** — 앞선 기록은 채우지 않았고, 이 요건을 판정 기준으로 쓰지도 않았다. `sync/quality-gates-quality.md` Step 0.6.3 TypeScript 3항은 "Add `@MX:WARN` for async functions without try/catch"라고 명시한다. 이것은 오류 처리가 타당한지를 묻지 않고 자체 `catch`가 없는 async 함수에 태그를 달라는 지시이며, `mx.yaml`의 "Async function may require try/catch"(may)는 이 명시 지시를 줄이지 못한다. **대상**: 구현 소스의 async 함수 21개 중 자체 `catch`가 없는 **18개**다 — 앞선 후보 14개와, 휴리스틱이 `try/finally`를 "있음"으로 세어 후보에서 뺐던 4개(`startAndObserve`·`countConsultations`·`observeWithServer`·`verify-rollback-dark`의 `main`). 자체 `try/catch`가 있는 3개(`drain`·`attemptFetch`·`runSmokeCheck`)는 대상이 아니다. **조치**: 18개 각각에 `@MX:WARN`·`@MX:REASON`·`@MX:SPEC` 주석(54줄)을 달았다. 파일별 WARN 수는 `lib/launch/smoke-check.ts` 1, `scripts/smoke-check.ts` 1, `scripts/verify-flag-runtime.ts` 3, `scripts/verify-gate-reachability.ts` 5, `scripts/verify-rollback-dark.ts` 4, `scripts/verify-smoke-check.ts` 4이고 한도(파일당 5) 안이다(`verify-gate-reachability.ts`는 5로 한도에 닿는다). REASON에는 함수별 실제 계약만 적었다 — 오류는 삼키지 않고 호출자나 파일 하단의 `main().then(…, 오류 처리)`로 전파하고, 자원(서버·DB 클라이언트)은 해당 `finally`에서 정리한다. "미처리 오류"나 "누수 결함"으로 적은 REASON은 없다. `catch` 추가·오류 삼키기·`--skip-mx`·규칙 수정·프로필 예외는 없다. **코드**: `d80adc8` 대비 누적 파일 8개 +81줄(P1 27 + P2 54), 삭제 0, 주석 아닌 줄 0이고, 주석을 뺀 TypeScript 컴파일 결과가 이번에 바꾼 6개 파일 모두 HEAD(`ec316dd`)와 같다. **판정**: P1(`@MX:ANCHOR` 9개)과 P2(`@MX:WARN` 18개)의 태그 요건을 실제로 채운 이 정정부터 Phase 9는 충족이다. 이 충족은 4차원 판정과 전체 판정(FAIL), sync 미종결(`status: in-progress`), 운영 공개 안 함을 바꾸지 않는다. 명령과 원문 출력은 증거 문서 §5.7에 있다.
+
+#### 상태 구분 (서로 다른 세 가지)
+
+| 상태 | 값 | 근거 |
+|---|---|---|
+| run 병합 | **완료** | PR #24 `merged: true`, 2026-10-08T04:48:47Z, 병합 커밋 `d80adc8`(부모 `2c244e0`·`cfe08a4`, **merge commit 방식 — 확정해 둔 squash가 아니다**). 개별 커밋(`7bda045`·`45c1a32` 등)이 `main` 이력에 그대로 들어 있고 브랜치 `worktree-launch-run`도 원격에 보존돼 있다. |
+| sync 종결 | **닫지 않음** | 프로필 기준 감사 결과가 FAIL이다(Security 하드 임계값). Functionality must-pass 미충족(AC PASS 1, FAIL 0, UNVERIFIED 15)도 종결을 막는다. sync 필수 단계 Phase 9(@MX)는 충족이다(위 해소 기록과 P2 정정 기록: `@MX:ANCHOR` 9개 + `@MX:WARN` 18개). `status`는 `in-progress` 유지. 아래 "PASS로 바꾸는 데 필요한 증거"가 채워질 때까지 닫지 않는다. |
+| 운영 공개 | **하지 않았고 가능하다고 선언하지 않는다** | 이 SPEC은 공개 게이트(기록·점검기·런북)이지 공개 자체가 아니다. 어떤 노출 플래그도 켜지 않았다. 사람의 서명은 AC-002를 뺀 15개 AC에 하나도 없다(REQ-B2CLAUNCH-001). |
+
+#### 병합 직후 자동 배포 (대상 SHA `d80adc8`)
+
+- 실행: GitHub Actions `Deploy to Oracle Cloud VM` run #36(id 37729280763), 이벤트 `push` on `main`, `head_sha` = `d80adc8`, 2026-10-08T04:48:52Z~04:53:35Z, 결론 `success`. URL `https://github.com/KyungHwanLeeNexsol/bosang-radar/actions/runs/37729280763`. PR 이벤트 CI나 다른 SHA의 성공을 대신 쓰지 않았다(이 PR에는 PR 이벤트 CI가 없었다).
+- 로그에서 읽은 것(`gh run view 37729280763 --log`, 로컬 사본 `.moai/state/verify/sync-launch001/deploy-run-37729280763.log`): 서버 저장소가 `d80adc8`로 갱신됨, `db migrate` 단계가 `마이그레이션 완료`를 출력, `next build`가 `Compiled successfully`, `pm2 restart` 뒤 `online`, smoke 검사 세 가지(`/` 2xx, placeholder 문구, CSS 청크 2xx)가 모두 OK.
+- 관측 한계(UNVERIFIED): 검사는 서버 안(`127.0.0.1`)에서 한 것이라 외부에서의 접근, 노출 플래그의 실제 상태, DB 내용은 확인하지 못했다. `db migrate`가 새로 적용한 마이그레이션이 0개인지는 로그만으로 알 수 없다(PR #24에 마이그레이션 파일은 없다). 이 PR은 `app/`·`components/`·`lib/`의 비시험 런타임 파일을 바꾸지 않았다(`lib/launch`와 `scripts/`의 점검·관측 도구, `.moai` 문서, 시험 파일 5개뿐이고 `lib/launch`를 앱 코드가 가져다 쓰지 않는다). `.github`·`package.json`·`pnpm-lock.yaml`·마이그레이션 변경은 없다.
+
+#### 활성 프로필과 출처
+
+- `.moai/config/sections/harness.yaml:6` `default_profile: "default"`. 기준표는 `.moai/config/evaluator-profiles/default.md`: Functionality 40%(모든 인수 기준 PASS, 부분 점수 없음), Security 25%(Critical/High 없음), Craft 20%(커버리지 85% 이상), Consistency 15%(주요 패턴 위반 없음). 규칙: PASS마다 구체적 증거, 확인 못 한 기준은 UNVERIFIED, Security FAIL이면 전체 FAIL.
+- `.moai/config/sections/quality.yaml`: `test_coverage_target: 85`, sync LSP 게이트 `max_errors 0 / max_warnings 10 / require_clean_lsp true`.
+- 판정은 must-pass와 하드 임계값으로 낸다. 점수는 합격 근거로 쓰지 않았다.
+
+#### 직접 실행한 검증과 재사용한 검증
+
+| 구분 | 내용 | 결과 | 근거 |
+|---|---|---|---|
+| 직접(오케스트레이터, `d80adc8`) | `vitest run lib/launch` + 점검 CLI 시험 4 + 런북을 읽는 시험 2 (28개 파일), `--coverage` | 783개 통과 `exit=0` | `.moai/state/verify/sync-launch001/vitest-coverage-v2.log`. 런북이 바뀌어(`7bda045`→`d80adc8`) 런북을 읽는 시험은 새로 돌렸다 |
+| 직접(오케스트레이터) | 커버리지 집계(앞선 실행 `vitest-coverage-v2.log`의 `coverage-summary.json`) | **범위: 제품 코드 24개 파일**(`lib/launch` 모듈 20 + 점검·smoke CLI 4, 시험 지원 fixture 3 제외) 줄 98.69%·문장 98.38%·분기 96.99%·함수 98.90%. `lib/launch` 제품 코드 줄 100%. 점검 CLI 4개 줄 93.70%. **하네스 `scripts/verify-*.ts` 4개는 이 집계에 없다** | `coverage/coverage-summary.json`. 첫 실행은 0/0이었다 — 작업 공간이 `.claude/worktrees/` 아래라 `vitest.config.ts`의 `.claude/**` 제외에 걸린 측정 문제였고(`vitest-coverage.log`), 그 제외만 명령줄에서 덮어 다시 측정했다. 교정에서 명령 전문과 범위별 집계를 `sync-evidence-d80adc8.md` §3에 적었고 같은 24개 파일의 값을 다시 얻었다 |
+| 직접(오케스트레이터) | `pnpm audit`(전체·`--prod`) | prod `{low 4, moderate 22, high 13, critical 4}`, 전체 `{7, 29, 18, 4}`, `exit=1` | `pnpm-audit.json`, `pnpm-audit-prod.json`. `package.json`·`pnpm-lock.yaml`은 이 SPEC이 바꾸지 않았다(`git diff 2c244e0 d80adc8 -- package.json pnpm-lock.yaml` 빈 출력) |
+| 직접(독립 감사자) | `tsc --noEmit`, 변경된 TS/TSX 65개 `eslint`, `prettier --check`, 푸터 시험 3개(16개 통과), 엔진 준비 오라클 | 모두 `exit=0` / 통과, 오라클 `verify-flag-runtime.ts:174`·`:293`, `missing=0` | 감사자 보고(`sync-audit-report.md`, 로컬) |
+| 직접(독립 감사자) | 스크래치 사본에서 변이 30개 | 26개 사망, 4개 생존(2개는 사유 문구만 다른 동등 변이, 2개는 실제 시험 공백 F-9) | 감사자 보고. 추적 파일은 바꾸지 않았다 |
+| 재사용 | 전체 시험 137개 파일·1805개, `pnpm lint`, `tsc`, 변경 파일 `prettier --check` | `exit=0` | `7bda045` 기준 기록(§E.2). 재사용 이유: `git diff --name-status 7bda045 d80adc8`가 `.moai/docs/launch-gate-runbook.md`와 이 파일(`progress.md`) 둘만 보여 준다(코드·설정·패키지 동일) |
+| 재사용 | `pnpm build` | `exit=0` | `45c1a32` 기준 기록. 같은 이유. 추가로 병합 커밋 `d80adc8`의 CI 배포 로그에 `Compiled successfully`가 있다(서버에서의 빌드) |
+| 재사용 | 서버를 띄우는 하네스의 관측: `verify-flag-runtime`(`V65`)·`verify-smoke-check`(`V64`)·`verify-gate-reachability`(`V94`) | 불일치 0 | 기존 기록. 교정에서 관측 시각 뒤 앱·하네스 관련 경로의 변경을 확인했다: 변경은 `56d7e4a`(2026-10-07 17:05) 하나뿐이고 `V94`(17:09)는 그 뒤에 실행됐으며 smoke 관련 파일은 변경 0이다(`sync-evidence-d80adc8.md` §4.3·§7). `d80adc8`에서 다시 관측하지는 않았다. 롤백 하네스(`V74`)는 재사용 근거가 성립하지 않아 아래 교정 행에서 다시 실행했다 |
+| 직접(교정) | 커버리지 재측정 — 명령·범위를 기록한 실행(시험 30개 파일) | 845개 통과 `exit=0`. 구현 소스 28개 합산 줄 85.20%·문장 85.30%·분기 89.25%·함수 86.40%(하네스 포함). 하네스 4개만 줄 50.20% | `r2-coverage.log`, `coverage-r2/coverage-summary.json`. 명령 전문·범위별 표는 증거 문서 §3 |
+| 직접(교정) | `tsc --noEmit`, `pnpm lint`, `prettier --check`(PR #24 변경 TS/TSX 65개) | 모두 `exit=0`, 린트 경고·오류 줄 없음 | `r2-tsc.log`, `r2-lint.log`, `r2-prettier.log` |
+| 직접(교정) | `moai spec lint .moai/specs/SPEC-B2C-LAUNCH-001/spec.md` | `✓ No findings — all SPEC documents are valid`, `exit=0` | 앞서 "도구 미연결"이라 쓴 것은 PATH 문제였다(증거 문서 §5.2) |
+| 직접(교정) | @MX Phase 9 읽기 전용 스캔 (`d80adc8` 기준, 해소 전) | 구현 소스 28개 파일에 `@MX:` 태그 0개, P1 위반 5건, P2 후보 14건(UNVERIFIED) | 증거 문서 §5.5 |
+| 직접(Phase 9 해소) | P1 재점검 두 방식(import 파일 수·호출 함수 수) + 태그 추가 + `moai mx scan` | 호출 함수 기준 9개 모두 `@MX:ANCHOR`(파일당 1·2·3·3개, 한도 3), 색인에 태그 34개 인식·내 ANCHOR 9개 REASON 누락 0 | 증거 문서 §5.6.2–5.6.3 |
+| 직접(Phase 9 해소) | 변경 diff, `prettier --check`(대조군 포함), `eslint`, 영향받는 시험 | 파일 4개 +27줄·삭제 0·주석 아닌 줄 0 / prettier 통과 / eslint `exit=0` / 시험 28개 파일 591개 통과 | 증거 문서 §5.6.5 |
+| 직접(Phase 9 해소) | P2 후보 14건 개별 판독(오류 처리·호출자·최상위 catch·자원 정리) | 14건 모두 오류 처리·자원 정리 경로가 타당하다(판독 보존). 이 단계의 "`@MX:WARN` 추가 0"과 Phase 9 충족 판정은 WARN 태그 요건을 본 것이 아니어서 철회 — 아래 두 행 | 증거 문서 §5.6.4 |
+| 직접(Phase 9 P2 정정) | 자체 `catch`가 없는 async 함수 18개의 오류 전파·자원 정리 계약을 코드로 확인(`startManagedServer` 정리 동작 포함)하고 `@MX:WARN`·`@MX:REASON`·`@MX:SPEC` 주석 추가 | 파일 6개 +54줄·삭제 0·주석 아닌 줄 0 / 주석 제거 후 컴파일 결과 6개 모두 HEAD와 동일 / WARN 18·REASON 18·SPEC 18, 파일별 1·1·3·5·4·4(한도 5) | 증거 문서 §5.7.2–5.7.3 |
+| 직접(Phase 9 P2 정정) | `prettier --check`(대조군 포함), `eslint`, `moai mx scan`, `engine-ready-oracle` 시험 | 통과 / `exit=0` / WARN 20개 색인(내 18 + 범위 밖 기존 2), 내 18개 REASON 누락 0·스캐너 경고 2건은 기존 범위 밖 파일 / 32개 통과 | 증거 문서 §5.7.3 |
+| 직접(교정) | 보류 브랜치 교체본 `deploy.yml`(`dd7122c`)과 정적 시험 8개를 스크래치 폴더에서 실행 | 8개 통과 `exit=0` | 증거 문서 §4.4–4.5 |
+| 재사용(교정에서 변경 범위 확인) | smoke 일곱 상태(아홉 행) 로컬 관측 `V64`(2026-10-07 16:01) | 불일치 0 | smoke 관련 파일 6개와 `.github`가 `504f3d4`~`d80adc8`에서 변경 0건, 마지막 변경(15:44·15:57)이 관측 앞이다(증거 문서 §4.3) |
+| 직접(교정) | 롤백 로컬 시험 `scripts/verify-rollback-dark.ts` 재실행 | 관측 14개 일치, 불일치 0, `exit=0` | 이 하네스가 import하는 `verify-gate-reachability.ts`가 이전 관측 `V74`(16:28) 뒤에 바뀌었다(`56d7e4a`). 증거 문서 §4b, `r2-rollback-dark.log` |
+| 직접(교정) | S-2 재현: 실제 `check-launch-gate.ts` 두 번 | A(1행 표) `exit=0` 공개 가능 / B(정식 `spec.md` 표) `exit=1` 필수 11개 누락 | 증거 문서 §6 |
+
+#### 4차원 판정
+
+| 차원 | 기준(출처) | 판정 | 이유 |
+|---|---|---|---|
+| Functionality (40%, must-pass) | 모든 SPEC 인수 기준 PASS, 부분 점수 없음(`default.md`) | **UNVERIFIED** — must-pass 미충족. 교정 전 FAIL | 16개 AC 중 PASS 1(AC-002), FAIL 0, UNVERIFIED 15. 15개 모두 AC가 요구한 사람의 서명이 없고, 그중 7개(AC-004·007·008·009·011·012·015)는 AC가 선결로 적은 결정·산출물이 없어 일부가 BLOCKED다. 불합격(FAIL)으로 확인된 AC는 없다. PASS가 아니므로 Functionality는 어느 쪽으로도 합격이 아니다 |
+| Security (25%, 하드 임계값) | Critical/High 없음(`default.md`) | **FAIL**(문자 그대로) — 변경 없음 | prod 의존성에 Critical 4·High 13이 있다(수치 재추출: `sync-evidence-d80adc8.md` §2). **이 SPEC이 도입한 것이 아니다**(의존성 파일 무변경). 이 SPEC이 쓴 코드만 보면 감사자가 Critical/High 0건으로 판단했다 |
+| Craft (20%, 커버리지 85% 이상) | 커버리지 85% 이상(`default.md`). 파일별 기준은 없다 | **PASS** — 커버리지 기준에 한정, 범위 명시 | PR #24가 추가·수정한 구현 소스 28개 파일 합산 줄 85.20%·문장 85.30%·분기 89.25%·함수 86.40%로 네 지표 모두 85% 이상이다. 여유가 얇다(줄 0.20%p). 제품 코드 24개만 보면 줄 98.69%(앞서 보고한 값). **하네스 4개는 줄 50.20%**이고, 줄 85% 미만 파일 6개는 sync Phase 10의 갭 후보로 기록했다(판정 기준 아님, 발견 C-1). 이 PASS는 저장소 전체 커버리지·하네스의 프로세스 밖 실행 경로·run 단계 커밋별 커버리지를 포함하지 않는다 |
+| Consistency (15%) | 주요 패턴 위반 없음(`default.md`) | **PASS** — 린트·타입·서식·spec lint 근거 범위에 한정. 교정 전 "PASS(도구 공백)"은 철회 | `tsc --noEmit`·`eslint .`·`prettier --check`(65개)·`moai spec lint` 모두 `exit=0`(직접). **이 PASS는 @MX 규칙 준수를 포함하지 않는다** — 바로 아래 행 |
+| sync 필수 단계 Phase 9 (@MX 검증, 4차원 점수와 별개) | P1·P2 위반은 sync를 차단한다(`sync/quality-gates-quality.md` Phase 9, 우회는 `--skip-mx`와 보고서 기록뿐) | **충족** (해소 전: 미충족) | P1: fan_in 3 이상인 exported 함수 9개 모두 `@MX:ANCHOR`·`@MX:REASON`이 있다(호출 함수 수 기준, 사용자 결정으로 5→9). P2: 자체 `catch`가 없는 async 함수 18개 모두 `@MX:WARN`·`@MX:REASON`이 있다(Step 0.6.3 TypeScript 3항). 앞서 읽은 14건의 오류 처리 판독은 보존하되 태그 요건 충족과는 별개의 질문이다(이 정정 전의 "충족"은 WARN 태그 요건을 채운 것이 아니었다). `--skip-mx`·프로필 예외는 쓰지 않았다. **한계**: 오류 처리 경로는 정적 읽기이고 오류 주입 시험은 하지 않았다. 권고 등급인 P3·P4는 보지 않았다. 이 충족은 4차원 판정과 전체 판정을 바꾸지 않는다(증거 문서 §5.6–5.7) |
+| LSP 게이트 (`quality.yaml` `lsp_quality_gates.sync`) | 오류 0·경고 10 이하·LSP 깨끗함 | typecheck·lint 진단원 충족, security 진단원 UNVERIFIED | `lsp.yaml`이 `lsp.enabled: false`라 LSP 서버는 쓰지 않는다. `quality.yaml`의 `lsp_integration.diagnostic_sources: [typecheck, lint, security]`에 따라 typecheck = `tsc`(오류 0), lint = `eslint`(오류 0·경고 0)로 대체했다. security 진단원은 전용 도구가 없어 실행하지 못했다. PASS로 닫지 않는다 |
+| **전체** | Security FAIL이면 전체 FAIL, Functionality must-pass 미충족이면 PASS 불가(`default.md`) | **FAIL** — 변경 없음 | Security 하드 임계값이 FAIL을 정한다. Functionality must-pass 미충족도 sync 종결을 막는다(Phase 9는 충족). 이 판정은 출시 가능이나 운영 공개 가능을 뜻하지 않는다 |
+
+#### Functionality — AC별 판정
+
+기준(교정 후): AC가 요구하는 것을 네 갈래로 따로 적고 판정은 (가)~(다)에서만 낸다. (가) 구현 인수 = AC의 "통과 판정"을 저장소의 시험·관측으로 충족했는가. (나) 선결 = AC가 "선결"로 적은 결정·산출물이 없어 BLOCKED인 부분과 그 사유(AC 원문 근거). (다) 서명 = AC가 "서명"으로 요구한 사람의 확인(AC-002만 불필요) — 15개 AC 모두 미수령이다. (라) AC 밖 = AC가 "보지 못하는 것"으로 적었거나 "이 SPEC의 AC가 아닌 운영 행위"로 정한 것, 그리고 운영 공개 조건 — **이 열은 미충족 근거로 쓰지 않는다.** PASS는 (가)가 충족이고 (나)의 BLOCKED가 없고 (다)가 충족(또는 불필요)일 때만이다. (가)가 충족인데 (나)·(다) 때문에 PASS가 아니면 UNVERIFIED다. 판정은 독립 감사자(`d80adc8`)의 AC 판정을 출발점으로 하되 AC 원문으로 다시 대조했다. 고위험 AC 6개(002·003·004·008·009·010)는 감사자가 실제 시험과 코드를 읽어 공허한 단언이 없음을 확인했다고 보고했다.
+
+| AC | (가) 구현 인수(저장소 증거) | (나) 선결 미충족 → BLOCKED 부분과 사유 | (다) 요구된 서명 | (라) AC 밖 — 미충족 근거 아님 | 판정 (교정 전 → 후) |
+|---|---|---|---|---|---|
+| 001 | 충족: 단계 표 파서·런북 구조 시험, 런북 표와 `spec.md` §2.4 표의 줄 단위 대조 | 없음 | 제품 책임자(단계 정의) — 미수령 | 칸 서술의 사실성, 참조 토큰이 가리키는 결정 기록의 내용 | UNVERIFIED → UNVERIFIED |
+| 002 | 충족: 19 fixture의 종료 코드·출력 단언, 4/15 합계 단언, `spec.md` 항목 표 파싱 | 없음(파일 입력 형식은 D-LAUNCH-04 형식 (i) 마크다운으로 결정됨) | 불필요 | 실제 go/no-go 기록 파일이 없음(운영 공개 조건), 사건 자체의 감지·운영 호스트의 손 변경(N11)·실행 환경 입력의 진위. 점검기가 입력 정의표의 출처를 확인하지 않는 한계(발견 S-2)도 이 AC가 시험하는 범위 밖이다 | **PASS → PASS** (변경 없음) |
+| 003 | 충족: 여섯 fixture, Definition of Done 문장 시험 | 없음(D-LAUNCH-04 형식 (i) 결정됨) | 제품 책임자(기록 양식) — 미수령 | 상태 값의 사실성. 서명 기록 위치는 AC-003이 아니라 Definition of Done 항목이다(아래 DoD 문단) | UNVERIFIED → UNVERIFIED. 교정 전 사유 "기록 위치 미정"은 이 칸에서 뺐다 |
+| 004 | 충족: 네 fixture, 연결 필드 시험, stub 형제 기록 | **실제 형제 기록과의 비교**: 형제 증거 기록의 형식·위치가 정해지지 않았다(CONSULTOPS-001 D-OPS-11, ENGINE-001 `design.md` §9.2 — AC-004 선결) | 엔지니어링 — 미수령 | 형제 기록 자체의 진실성, 형제 문서의 식별자 재매김 | UNVERIFIED → UNVERIFIED |
+| 005 | 충족: 다섯 fixture, 덮는 파일 목록 검사 함수 시험, 배포 경로 필터 확인(`grep` 일치 0). 한계: 목록 검사는 점검기 명령줄에 연결돼 있지 않다 | 없음(대상 값 계산 수단은 run-phase가 호출 절차의 몫으로 정함) | 엔지니어링 — 미수령 | 대상 값 계산이 덮는 파일의 모든 변경을 반영하는지, 점검기가 사건을 스스로 감지하지 못한다는 점, `grep`이 GitHub 설정을 못 본다는 점 | UNVERIFIED → UNVERIFIED |
+| 006 | 충족: 여섯 fixture | 없음(D-LAUNCH-04 서명자 (c) 결정됨) | 법무 — 미수령 | 확인이 실제로 이뤄졌는지, 허용된 칸에 숨긴 결론, 법적 결론의 의미 | UNVERIFIED → UNVERIFIED. 교정 전 사유 "서명 역할·기록 위치"는 결정이 있고 위치는 DoD 항목이라 뺐다 |
+| 007 | 충족: (0)(1)(2)(4) 시험. 한계: "런북 갱신"·"검증 출력 절차"를 실행하는 코드는 없다 | **(3) 정식 값 기록 위치**: D-LAUNCH-04가 "저장소 밖"만 정하고 위치를 정하지 않았다(AC-007 선결). (3)만 BLOCKED | 엔지니어링 — 미수령 | 미리 알지 못하는 실제 값의 유출, 인코딩·절단 값, 무시되는 경로의 내용 | UNVERIFIED → UNVERIFIED |
+| 008 | 충족: 열한 fixture(집합 동일성·실행 환경 일치·대상 값 대조) | **(마)(바)(사)의 서명자 부분**: 로컬 I 서명자 구성(D-LAUNCH-04 (c)의 세 역할 전부가 서명해야 하는지)이 확인 대기다(AC-008 선결) | 제품 책임자 — 미수령 | 서명이 실제 사람의 것인지(서명 진위), 서명 날짜의 사실성 | UNVERIFIED → UNVERIFIED. 교정 전 사유 "서명 진위"는 AC가 보지 못한다고 적은 것이라 뺐다 |
+| 009 | 충족: 시나리오 1 네 fixture(필드 존재 시험), 시나리오 2 로컬 서버 관측 재사용(`409 consent_version_mismatch`, 행 0→0) | **시나리오 1의 제한 수단 어휘 대조**: D-LAUNCH-01이 (e) 로컬 한정으로 결정돼 어휘가 기록에 없다(AC-009 선결). 어휘 대조만 BLOCKED | 운영 책임자 — 미수령 | 프록시·방화벽·실제 네트워크 노출, 저장소 밖 제한 수단의 작동 | UNVERIFIED → UNVERIFIED |
+| 010 | 충족: 시나리오 1·2를 독립 리터럴·런북·함수와 대조, 시나리오 3(교차 조합 셋) 로컬 관측 재사용 | 없음(로컬 빌드 가능) | 엔지니어링 — 미수령 | 운영의 env 소스 해석, 운영 입력 실수, 운영 호스트 | UNVERIFIED → UNVERIFIED |
+| 011 | 충족: 네 fixture, 런북 문장 시험, 전환 점검기 실행(단계 1 통과) | **상담 쪽 순서와 단계 2의 벡터**: D-LAUNCH-03 결정 기록이 벡터 순서를 담지 않았다(AC-011 선결) | 제품 책임자·운영 책임자 — 미수령 | 운영 호스트에서 재시작이 한 번만 일어났는지, 재시작이 바뀐 환경을 읽는지(R-04가 가리키는 E-03) | UNVERIFIED → UNVERIFIED |
+| 012 | 충족: 다섯 fixture, 저장소 코드 오라클 재실행 일치(`verify-flag-runtime.ts:174`·`:293`, `missing=0`) | **실제 R-02 판정**: R-02의 상태 소스(ENGINE-001 증거 기록 형식, `design.md` §9.2)가 없다(AC-012 선결) | 엔지니어링 — 미수령 | 오라클이 보지 못하는 `.env*`·PM2 저장 환경 등. 실제 R-02·R-03 증거는 운영 공개 조건이다 | UNVERIFIED → UNVERIFIED |
+| 013 | 충족: ① 일곱 서버 (가)~(사)의 기대 결과(로컬 아홉 행 불일치 0, `V64`, 변경 범위를 확인한 재사용) ② (마) 결과 기록과 REQ-013 (가)~(다) 대조 ③ 교체본 `deploy.yml`(`dd7122c`)에 placeholder 문구 검사가 설계 밖에 남지 않음 ④ 워크플로 YAML 파싱(정적 시험 8개 직접 실행 `exit=0`) | 없음(D-LAUNCH-06 결정됨: 설계 (a), 위치 (ii)). `data-testid`는 쓰지 않아 해당 없음 | 엔지니어링·제품 책임자(배포 동작 변경 승인) — 미수령 | 교체본의 `main` 병합과 그 운영 배포(N9, `acceptance.md` 도입부·DoD), `appleboy/ssh-action`을 거친 실제 실행, VM 재시작 직후 타이밍, 운영 환경 변수, 운영 호스트의 `curl`·`grep` 차이. "L-01 기준선 기록 뒤에만 병합"이라는 보류는 병합 순서에 관한 사용자 결정이며 이 AC의 판정에 쓰지 않는다 | **FAIL → UNVERIFIED**. 교정 전 FAIL의 근거("`main`의 `deploy.yml:96-101`에 placeholder 검사가 남아 있음")는 AC 밖이다 |
+| 014 | 충족: 런북 열람 시험, 로컬 롤백 시험 **직접 재실행**(세 경로 placeholder·503 `policy_unavailable`·행 수와 전체 열 해시 불변·시크릿 설정 유지, 불일치 0, `exit=0`) | 없음(추가 사유 (e)(f)의 승인 대기는 이 AC의 어느 부분도 BLOCKED로 만들지 않는다는 것이 AC-014 선결 문구다) | 운영 책임자 — 미수령 | 운영 PM2가 바뀐 환경을 다시 읽는지, 롤백 뒤 평범한 재시작이 dark를 유지하는지(E-03·R-04), 앱이 읽는 효과적 시크릿 자체, 운영 호스트 — **AC가 "보지 못하는 것"으로 명시** | UNVERIFIED → UNVERIFIED. 교정 전 사유 "운영 PM2의 환경 재읽기"를 뺐다. 롤백 관측은 재사용 근거가 성립하지 않아 다시 실행했다 |
+| 015 | 충족: 푸터 시험 3종(16개), 시나리오 2의 8칸 | **S2의 G 허용 칸**: CONSULTOPS-001 D-OPS-04의 6개 요소가 전부 미확정이다(AC-015 선결, 이 BLOCKED는 S2에만 적용) | 제품 책임자·법무 — 미수령 | 01·02 푸터에 `href="#"`가 남아 있음(현황 기록이며 화면 변경은 M2 사용자 결정으로 이 SPEC 밖 — 푸터·법무 연결은 운영 공개 조건), 링크가 가리키는 문서의 내용, 모바일에서 숨는 03 푸터, 법적 충분성. 한계: 결정 기록이 `# 앵커`·`텍스트만`의 I 허용을 말하지 않아 `아니오`로 읽었다 | UNVERIFIED → UNVERIFIED. 교정 전 사유 "`href="#"`가 남아 있다"는 운영 공개 조건이라 뺐다 |
+| 016 | 충족: 네 fixture, 런북 시험 | 없음(선결은 D-LAUNCH-08의 관측 대상·담당이고 (b)·(1)로 결정됨). 관측 시점 표기·기록 위치의 어휘는 결정 기록에 없어 칸이 찼는지만 본다(SPEC 미정, 한계) | 운영 책임자 — 미수령 | 관측이 실제로 수행됐는지, 기존·신규 구분이 사실인지, 운영에서의 관측 결과(노출 확대 직후 관측은 이 SPEC의 AC 밖). "기존" 수단의 실재 열람은 값이 든 기록이 없어 하지 못했다 | UNVERIFIED → UNVERIFIED. 교정 전 사유 "D-LAUNCH-08 어휘(BLOCKED)"는 AC가 적은 선결이 아니라서 BLOCKED에서 한계로 옮겼다 |
+
+**집계(교정 후)**: PASS 1(AC-002), FAIL 0, UNVERIFIED 15. 교정 전은 PASS 1, FAIL 1(AC-013), UNVERIFIED 14. 15개 UNVERIFIED는 모두 (다) 서명 미수령을 가지며, 그중 7개(004·007·008·009·011·012·015)는 (나)의 BLOCKED 부분도 있다. 사람의 서명은 AC-002를 뺀 15개 어디에도 없다 — 이 조건은 그대로 유지했다.
+
+SPEC 자체의 Definition of Done(`acceptance.md`)은 프로필과 별개의 완료 기준이다. 항목별 상태: (1) run 단계 완료 조건(REQ 16건 각각이 AC 통과 또는 사유가 기록된 BLOCKED, 남은 BLOCKED의 선결이 `progress.md`에 열려 있음) — 서명이 필요한 15개 AC의 서명이 없어 "AC 통과"가 아직 아니다(run 단계 M6 추적표도 같은 판단이다). (2) go/no-go 결과는 완료 조건이 아니다 — 해당 없음. (3) 서명 기록을 증거 항목 표에 연결하고 D-LAUNCH-04가 정한 위치에 둔다 — D-LAUNCH-04가 위치를 정하지 않아 미충족(F-3). (4) TDD·커버리지 85% — 구현 소스 28개 합산으로 충족(Craft). (5) 운영 호스트·운영 DB 절차, 플래그 변경과 재시작, **`deploy.yml` 변경의 `main` 병합과 그 배포**, 저장소 밖 제한 수단·외부 관측은 완료 조건에 포함되지 않는다 — **AC-013의 보류는 이 기준의 미충족이 아니다.** 교정 전 감사자 판단의 "AC-013의 보류는 해석 여지가 있고"는 이 문구(DoD 147행)로 해소돼 철회한다. 이 기준으로 프로필의 판정을 바꾸지 않는다.
+
+#### 발견 목록 (감사자 보고; 오케스트레이터가 확인한 것은 표시)
+
+| ID | 심각도 | 차단 | 위치 | 내용과 최소 수정 범위 | 출처 |
+|---|---|---|---|---|---|
+| S-1 | Critical·High 권고가 있고 적용성은 UNVERIFIED | 프로필상 차단. 이 SPEC 범위 밖 | `package.json`·`pnpm-lock.yaml` | prod 의존성 감사 결과(위 수치, 오케스트레이터가 직접 측정·확인). Windows 호스트 한정 권고는 호스트가 Linux(PM2 경로·`ens3`)라 해당하지 않을 가능성이 크고, 나머지는 런타임 도달 여부가 미확인이다. **패키지별 권고 목록은 공개 저장소에 적지 않고 로컬 증거 파일에만 두었다.** 최소 수정 범위: 프레임워크와 하위 의존성의 패치 버전 갱신(별도 변경), 그 뒤 `pnpm audit --prod` 재실행 | 이 SPEC이 도입하지 않음(기존 상태) |
+| F-1 | — (철회) | 아님 | 위 AC 표 AC-013 | 교정 전: "AC-013 교체 미병합, High·차단 — ① 보류 브랜치 병합 또는 ② 보류를 인수 기준에 반영(SPEC 수정)". **철회**: `acceptance.md` 도입부·AC-013·Definition of Done이 `deploy.yml` 변경의 `main` 병합과 그 배포를 AC 밖으로 명시하므로, 이 사실은 AC-013의 FAIL 근거도, 보류 브랜치 병합이나 인수 기준 변경(SPEC 수정)을 요구할 근거도 아니다. 남은 것은 AC-013의 서명 둘뿐이다. 보류는 사용자 결정대로 유지한다(L-01 기준선 기록 뒤 별도 PR) | 의도된 보류(확인함) |
+| F-2 | High | 차단(프로필) | 위 AC 표 | UNVERIFIED 15개와 서명 15개 부재. 외부 의존 | 외부 증거 부재 |
+| F-3 | Medium | 선택 | `acceptance.md` DoD | 서명 기록 위치·연결 미충족(D-LAUNCH-04 결정 대기) | SPEC 미결정 |
+| S-2 | Medium | 선택(sync 비차단) | `scripts/check-launch-gate.ts:298-318`(`requiredItemIds`), `lib/launch/item-table.ts` | **직접 재현함**(교정 전: 감사자의 탐침, 오케스트레이터는 재현하지 않음). `--items`를 항목 1행(L-04)짜리 표로 주면 production/G/S1에서 `exit 0`, `서명 점검: 통과`, `판정: 일반 사용자 공개 가능`이다. 같은 기록·서명에 정식 `spec.md` 표를 주면 `exit 1`, 필수 항목 11개(L-01·L-02·L-05~L-09·R-02~R-05) 누락으로 거부한다(`sync-evidence-d80adc8.md` §6). **분류: 기존 명시 요구 위반이 아니다 — 신뢰 전제의 한계다.** 어떤 REQ·AC도 점검기에 입력 표의 출처·완전성 확인을 맡기지 않았고, SPEC은 집행을 출시 절차에 둔다(REQ-002, §2.4 147행, N11). 전제: 호출 절차가 `--items`로 `spec.md` §2.4의 정식 정의표 전체를 넘긴다. 보장 주체: SPEC 기준 출시 절차(호출하는 쪽). 실제 보장 절차: **미확인** — 런북에 `--items`를 정하는 문장도, 출력의 필수 항목 목록을 §2.4와 대조하는 단계도, CI 검사도 없다. 서명도 같은 입력 표를 기준으로 "필수 항목 전체를 덮는다"를 보므로 이 전제가 깨지면 함께 약해진다. 수정은 이번 범위에 넣지 않았다. 출력에 항목 수·digest를 덧붙이는 것만으로 이 우회가 막힌다고 보지 않는다(불일치를 눈에 띄게 할 뿐이다) | SPEC 설계 + 런북 공백 |
+| S-3 | Low | 선택 | `lib/launch/sibling-reference.ts:204`, `scripts/check-launch-gate.ts:609,616-617` | 형제 SPEC 이름이 `__proto__` 등이면 `TypeError`. 오염은 없고 `exit 1`이 "불가"와 구분되지 않는다. 최소 수정: `Object.hasOwn(input.definitions, spec)` 한 줄 | 기존 부채(구현 감사 ① F3, ② F-5) |
+| S-4 | Low | 선택 | `lib/launch/target-check.ts:62-67,84-85` | 경로 정규화가 `..`·glob을 풀지 않는다(읽기 근거, 미탐침, 점검기에 미연결) | SPEC |
+| F-9 | Low | 선택 | `scripts/check-launch-gate.test.ts:690-702`, `lib/launch/smoke-check.ts:85` | 생존 변이 2개: 열 일치 조건 제거, `redirect:"manual"`→`"follow"`. 시험 단언 추가로 해소 | 시험 공백 |
+| C-1 | Low | 선택 | 점검·smoke CLI 4개와 하네스 4개 | 줄 85% 미만 파일 6개 — sync Phase 10 갭 후보이고 판정 기준이 아니다: `verify-rollback-dark.ts` 31.94%, `verify-flag-runtime.ts` 50.29%(이 PR 이전부터 있던 파일 전체 수치), `verify-gate-reachability.ts` 52.27%, `verify-smoke-check.ts` 58.53%, `scripts/smoke-check.ts` 64.28%, `check-launch-transitions.ts` 83.33%. 하네스의 미커버 줄은 빌드·서버 기동·`main` 구간이라 `pnpm test` 밖의 별도 실행으로 관측한다. `evaluateLaunchGate` 194줄, CRLF 분할 반복 12곳 | 관찰 |
+| K-1 | Low·Info | 선택 | `package.json`, `spec.md:3,13,15` | 새 스크립트가 `package.json`에 미등록(런북이 명시, 사용자 결정 대기). `spec.md`에 "Plan-Phase"·`plan-only` 표식 잔존. `related_specs`는 정규 필드 밖 | 관찰 |
+| K-2 | Info | 선택 | `lib/launch/legal-notice-gate.ts` | 점검기에 미연결(M2 배선 공백) | 기존 기록 |
+| M-1 | Medium(sync 필수 단계에서는 차단) | **해소** (Phase 9 충족) | PR #24 구현 소스 28개 파일 | 해소 전: @MX P1 위반 5건 — exported 함수 5개가 fan_in 3 이상인데 `@MX:ANCHOR`가 없었다(`splitCells`·`findTableWithExtras`·`findTableBody`·`assembleEnv`·`runPnpm`). 구현 소스 28개 파일에 `@MX:` 태그가 0개였다(run 단계가 `moai` CLI를 못 써서 점검하지 않았다). **해소**: 호출 함수 수로 다시 센 재점검에서 4개(`extractTitle`·`checkPreconditions`·`extractApiCode`·`buildMismatchProbe`)가 더 나와 사용자 결정으로 9개 모두에 `@MX:ANCHOR`·`@MX:REASON`·`@MX:SPEC`을 주석으로 달았다. 파일당 ANCHOR 수는 1·2·3·3개(한도 3). 코드 동작은 바꾸지 않았다. `--skip-mx`는 쓰지 않았다. 앞서 적은 괄호 안 숫자(`splitCells` 11곳 등)는 호출·import 위치 수가 섞인 값이었고 정정한 숫자는 증거 문서 §5.6.2에 있다 | 직접 스캔·재점검(`sync-evidence-d80adc8.md` §5.5–5.6) |
+| M-2 | Low(sync 필수 단계에서는 차단) | **해소** (오류 처리 경로 타당 + `@MX:WARN` 18개 추가) | 구현 소스의 async 함수 21개 | **정정**: 앞선 판정은 "위반 아님, WARN 불필요"였으나 Step 0.6.3은 자체 `catch`가 없는 async 함수에 `@MX:WARN`을 달라고 명시하므로 대상 18개(아래 14개 + `try/finally`만 있던 4개)에 달았다(증거 문서 §5.7). 아래 판독은 오류 처리 경로가 타당하다는 근거로 보존한다. 본문에 `try`/`.catch`가 없다고 휴리스틱이 잡은 14개를 함수별로 읽었다. 14개 모두 호출자의 `try/catch`·`try/finally`나 최상위 오류 처리로 실패가 처리되고, 실패 시 새는 자원이 없었다(증거 문서 §5.6.4). 휴리스틱은 반환 타입의 `{`를 본문으로 오인해 `snapshotRows`·`observeState`(둘 다 `try/finally`가 있다)를 잘못 잡았다. 남은 관찰: 서버를 띄우는 하네스의 `fetch`에는 시간 상한이 없어 응답이 오지 않으면 `finally`의 서버 정리까지 가지 못한다 — 오류 처리가 아니라 대기 문제이고 이번 범위 밖이라 바꾸지 않았다 | 직접 읽기 |
+
+선택 항목과 기존 부채(S-2~S-4, F-9, C-1, K-1, K-2)는 수정 범위에 넣지 않았다. M-1·M-2는 선택 항목이 아니라 sync 필수 단계(Phase 9)의 미충족이었고, 태그 주석을 다는 것(코드 동작 변경 없음)으로 해소했다. M-1의 ANCHOR 9개는 사용자 결정에 따랐고, M-2의 WARN 18개는 규칙 문구와 외부 검토에 따랐다.
+
+#### 관측하지 못한 것(Gaps)과 잔여 위험
+
+- 운영 호스트·프록시·외부 도달성, 노출 플래그와 PM2 저장 환경, 운영 DB, `reachability`·`flag-runtime` 서버 하네스의 `d80adc8` 재관측(재사용 — 근거는 증거 문서 §7), `pnpm test:e2e`, `pnpm visual:verify`, 저장소 전체 커버리지, 하네스의 프로세스 밖 실행 경로의 커버리지, run 단계의 커밋별 커버리지. 롤백 하네스(`verify-rollback-dark`)는 교정에서 다시 실행했다.
+- 교차 모델 감사(`audit_multi`·codex·GLM)는 MCP 서버 `moai`의 연결 실패로 하지 못했다. `moai spec lint`와 @MX 점검은 CLI가 PATH에만 없던 것이라 교정에서 직접 실행했다(증거 문서 §5). LSP security 진단원과 전용 비밀 스캐너는 없다 — 비밀은 `git diff 2c244e0 d80adc8`를 grep으로만 훑었고(실제 자격증명 형태 0건, 합성 시험 상수만) 스캐너 결과가 아니다.
+- 취약점 권고 본문은 감사 JSON에 없어 제목 기준으로 적용성을 판단했다. S-2 전제의 보장 절차는 미확인이다. P2: async 함수의 오류 처리 경로(후보 14건과 `try/finally`만 있던 4건)는 코드를 읽어 판단했고 오류 주입 시험은 하지 않았다. WARN 태그 18개는 존재·연결·REASON을 도구로 확인했다(증거 문서 §5.7).
+- 잔여 위험: 단계 이행 순서·EV-L2 해석은 SPEC이 정하지 않은 해석이다(§E.2 M6 발견 2·3). 점검기의 `exit 0`은 사람의 승인이나 운영 상태의 증거가 아니며, 점검기는 입력 정의표가 정식인지 확인하지 않는다(S-2). 의존성 취약점은 가동 중인 호스트에 그대로 있다(S-1).
+
+#### PASS로 바꾸는 데 필요한 증거 (코드 변경이 아니라 증거·결정)
+
+- Security: `pnpm audit --prod`에서 Critical/High 0을 보이는 별도 의존성 변경, 또는 프로필 예외를 사용자가 명시적으로 기록.
+- Functionality: AC-013에 필요한 것은 보류 브랜치 병합이나 SPEC 변경이 아니라 **엔지니어링·제품 책임자의 서명 기록**이다(구현 인수 조건은 충족). 나머지 AC도 서명 기록이 필요하다(AC-002 제외 15개). 그 밖에 AC가 선결로 적은 것: 서명 기록 위치(D-LAUNCH-04, AC-007의 (3)과 Definition of Done), 로컬 I 서명자 구성 확인(AC-008), D-LAUNCH-03의 벡터 순서(AC-011), CONSULTOPS-001·ENGINE-001의 실제 증거 기록 형식과 식별자(AC-004·012), 제한 수단 어휘(AC-009), D-OPS-04 확정(AC-015의 S2 G).
+- sync Phase 9: 충족했다 — 발견 M-1은 9개 함수의 `@MX:ANCHOR` 주석으로, M-2는 14건 개별 판독(오류 처리 경로 타당)과 자체 `catch`가 없는 async 함수 18개의 `@MX:WARN` 주석으로 해소했다. 이 목록에서 남은 조건은 위 Security·Functionality다.
+- 운영 공개 전(이 SPEC의 AC가 아니다): L-01 운영 기준선 관측 기록, R-02·R-03 실제 증거, go 서명 기록, 푸터·법무 연결, 운영 관측, `deploy.yml` 교체의 병합(L-01 기록 뒤 별도 PR)과 그 배포. S-2의 전제(점검기에 정식 정의표를 넘긴다)를 지키는 절차를 정하는 일은 사용자 결정이다(제안이며 필수로 올리지 않았다).
+- Craft·Consistency는 위에 적은 범위에서 PASS다. 선택 항목은 전환 조건이 아니다.
+
+#### 증거 위치
+
+- 저장소에 올라간 것: `.moai/specs/SPEC-B2C-LAUNCH-001/sync-evidence-d80adc8.md` — 이 교정이 기대는 명령·종료 코드·핵심 원문 출력(커버리지 범위별 집계, AC-013 교체본 diff와 정적 시험 출력, 롤백 재실행, `moai spec lint`·@MX 스캔, S-2 재현 입력과 출력). 패키지별 취약점 목록·로컬 경로·접속 정보는 없다.
+- 로컬(git이 무시하는 경로, 이 저장소에는 올라가지 않는다): `.moai/state/verify/sync-launch001/` — `target-sha.txt`, `vitest-coverage.log`(0/0 측정 문제 실행), `vitest-coverage-v2.log`, `coverage/coverage-summary.json`, 교정에서 추가한 `r2-*.log`·`coverage-r2/`·`s2/`·`r2-deploy-yml.diff`, `pnpm-audit.json`, `pnpm-audit-prod.json`, `deploy-run-37729280763.log`, `sync-audit-report.md`(독립 감사자의 전체 보고서).
+- 원격에서 대조할 수 있는 것: PR #24, 병합 커밋 `d80adc8`, 배포 run #36, PR #25, 이 파일과 위 증거 문서.
 
 ## §F Phase 4 Mode Selection
 

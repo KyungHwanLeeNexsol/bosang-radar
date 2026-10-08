@@ -13,6 +13,9 @@ import { formatSmokeReport, parseSmokeArgs, runSmokeCheck } from "../lib/launch/
 
 export type SmokeExitCode = 0 | 1 | 2;
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — runSmokeCheck 등 안쪽 호출의 예기치 못한 reject가 그대로 전파된다
+// @MX:REASON: 예상되는 실패는 이 함수가 값으로 처리한다. 인자 오류는 parseSmokeArgs가 ok:false로 돌려줘 종료 코드 2가 되고, 네트워크 실패는 runSmokeCheck 안의 attemptFetch가 받아 종료 코드 1이 된다. 그 밖의 reject는 호출자인 이 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 이 함수가 연 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,

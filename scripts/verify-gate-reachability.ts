@@ -170,6 +170,9 @@ export function findEnvFileViolation(
   );
 }
 
+// @MX:ANCHOR: [AUTO] 하네스 실행 전 안전 점검 — 프로젝트 루트의 프로덕션 환경 파일과 부모 환경의 원격 DB 주소를 검사해 위반 사유 목록을 돌려준다(빈 배열이면 실행 가능)
+// @MX:REASON: 호출 지점 3곳(호출 함수 3개·파일 3개: 이 파일·verify-rollback-dark·verify-smoke-check의 main)이 빌드 전에 부른다. 점검 항목이 바뀌면 세 하네스가 원격 DB·환경 파일을 거부하는 기준이 함께 바뀐다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 실행 전에 확인하는 위반 사유 목록(환경 파일, 원격 DB 주소). 빈 배열이면 실행해도 된다. */
 export function checkPreconditions(
   parentEnv: EnvLike,
@@ -181,6 +184,9 @@ export function checkPreconditions(
   );
 }
 
+// @MX:ANCHOR: [AUTO] 오류 응답 본문(JSON)의 문자열 `code`를 읽는다 — JSON이 아니거나 문자열 code가 없으면 null
+// @MX:REASON: 호출 지점 3곳(호출 함수 3개·파일 2개: 이 파일의 buildCrossObservation·observe, verify-rollback-dark의 postConsultation)이 접수 응답을 판정할 때 쓴다. 파싱 규칙이 바뀌면 접수 거부 코드 관측이 함께 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 오류 응답 본문의 `code`. JSON이 아니거나 문자열 code가 없으면 null. */
 export function extractApiCode(bodyText: string): string | null {
   try {
@@ -195,6 +201,9 @@ export function extractApiCode(bodyText: string): string | null {
   return null;
 }
 
+// @MX:ANCHOR: [AUTO] 스키마는 통과하지만 동의 버전이 활성 정책 버전과 달라 접수 행을 만들지 않는 합성 요청 본문을 호출마다 새로 만든다
+// @MX:REASON: 호출 지점 4곳(호출 함수 4개·파일 2개: 이 파일의 observe·observeCross, verify-rollback-dark의 buildSeedProbe·main)이 쓴다. 값을 실행 시점에 만든다는 규칙(고정 리터럴 금지)과 동의 버전이 어떤 정책 버전과도 같을 수 없다는 성질이 바뀌면 접수 행 수 관측이 깨진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /**
  * 스키마를 통과하지만 acknowledgedConsentVersion이 활성 정책 버전과 다른 요청 본문. 모든 값은 호출마다 실행
  * 시점에 새로 만든다(고정 리터럴이 아니다 — AC-B2CLAUNCH-007). 동의 버전은 무작위 접두사를 붙여 어떤 정책 버전과도
@@ -290,6 +299,9 @@ function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): numbe
   return result.status ?? 1;
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — DB 조회(execute) 실패가 그대로 reject된다
+// @MX:REASON: 조회 실패는 삼키지 않고 호출자(observe·observeCross)를 거쳐 observeWithServer의 호출자 main으로 전파된다. 자원인 DB 클라이언트는 이 함수의 finally에서 client.close()로 정상·오류 양쪽 경로에서 닫는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function countConsultations(): Promise<number> {
   const client = createClient({ url: DB_URL });
   try {
@@ -300,6 +312,9 @@ async function countConsultations(): Promise<number> {
   }
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — fetch 거부·본문 읽기 실패·countConsultations 실패가 그대로 reject된다
+// @MX:REASON: 잡지 않는 것이 계약이다. 이 함수는 observeWithServer(env, observe)로만 불리고, reject는 거기서 main으로 전파되어 파일 하단의 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 직접 연 자원은 없다 — DB 클라이언트는 countConsultations의 finally가 닫고, 서버는 observeWithServer의 try/finally가 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observe(baseURL: string): Promise<GateReachabilityObservation> {
   const consultHtml = await (await fetch(`${baseURL}/consult`)).text();
   const rowsBefore = await countConsultations();
@@ -320,6 +335,9 @@ async function observe(baseURL: string): Promise<GateReachabilityObservation> {
   };
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 세 화면 GET·접수 POST의 fetch 거부와 countConsultations 실패가 그대로 reject된다
+// @MX:REASON: observe와 같은 계약이다. 이 함수는 observeWithServer(crossEnv, observeCross)로만 불리고, reject는 main으로 전파되어 최상위 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 직접 연 자원은 없다 — DB 클라이언트는 countConsultations의 finally가 닫고, 서버는 observeWithServer의 try/finally가 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observeCross(baseURL: string): Promise<CrossObservation> {
   const homeHtml = await (await fetch(`${baseURL}/`)).text();
   const resultHtml = await (await fetch(`${baseURL}/result`)).text();
@@ -343,6 +361,9 @@ async function observeCross(baseURL: string): Promise<CrossObservation> {
   });
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — 서버 시작 실패와 관측(observeAt) 실패가 reject로 전파된다
+// @MX:REASON: 오류는 삼키지 않고 호출자 main으로 전파한다. 서버 정리는 두 갈래다. 준비 전의 실패는 startManagedServer가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던지고(scripts/visual-verify-server.ts), 준비된 뒤의 관측 실패는 finally의 managed.stop()이 끈다. 그래서 정상·오류 모든 경로에서 서버가 남지 않는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 자식 환경으로 `pnpm start` 서버를 시작해 관측하고 반드시 종료한다. */
 async function observeWithServer<T>(
   env: NodeJS.ProcessEnv,
@@ -365,6 +386,9 @@ async function observeWithServer<T>(
   }
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — db:migrate·빌드 실패와 관측 중 reject가 throw로 전파된다
+// @MX:REASON: 예상되는 거부는 값으로 처리한다 — 사전 점검 위반과 교차 조합 계획 실패는 메시지를 출력하고 반환 코드 2로 돌려준다. 마이그레이션·빌드 실패와 그 밖의 reject는 던지고, 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 서버는 observeWithServer의 try/finally 안에서만 열리고 닫혀 이 함수가 직접 쥐는 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(): Promise<number> {
   const violations = checkPreconditions(process.env, PROJECT_ROOT);
   if (violations.length > 0) {
