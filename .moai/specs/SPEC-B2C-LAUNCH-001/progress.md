@@ -867,7 +867,7 @@ PR #24(`worktree-launch-run`, 원격 HEAD `df9b27a`)에서 출시 점검기(`scr
 
 - **결함**: 형제 기록의 대상 값이 바뀐 뒤(EV-L3) 참조 줄과 `--sibling-records`만 새 값으로 맞추고 R 항목의 기록 `대상` 칸·`--targets` 값·이전 서명을 그대로 두면 점검기가 종료 코드 0(`내부 시험 공개 가능`)을 냈다. 서명 점검(`currentTarget`)과 대상 점검(`--targets`)이 둘 다 R 항목의 기록 대상 칸에만 묶여 있었기 때문이다.
 - **이전 판단의 정정**: 위 F1 줄은 "R 항목의 `대상` 칸이 무엇을 담는지를 SPEC이 정하지 않아 점검기가 강제할 근거가 없다 — 사용자 결정 필요"라고 적었다. **이 판단은 틀렸다.** `spec.md` §2.4 "대상"(150행)은 대상을 "코드, 운영 환경, 결정 기록, **참조한 형제 기록의 상태와 대상 값**"으로 정의하고 "대상 값을 계산하는 수단은 run-phase가 정하며 이 SPEC은 정하지 않는다"고 적는다. 같은 절 "서명 기록"(159행)은 서명이 "대상과 대상 값"을 담는다고 하고, "READY"(157행)는 "대상이 현재 값과 같다"고 한다. 항목 정의표의 R-01~R-05 대상 칸도 모두 "참조한 형제 기록의 상태와 대상 값 / EV-L3…"로 시작한다(R-04는 EV-L3, EV-L5). 즉 R 항목의 대상은 SPEC이 정했고 계산 수단만 run-phase에 맡겼으므로, 점검기가 강제할 근거도 사용자 결정도 필요 없었다. 감사 보고를 받고 SPEC의 대상 정의 절을 다시 읽지 않은 채 "SPEC이 정하지 않았다"고 옮겨 적은 것이 오류의 원인이다.
-- **수정**: R 항목(`/^R-\d+$/`)의 현재 대상 값을 점검기가 형제 증거에서 계산한다. `computeSiblingEvidenceTarget`(`lib/launch/sibling-reference.ts`)이 그 항목의 참조 줄이 가리키는 형제 SPEC id·형제 항목 id와 **현재 형제 기록**의 상태·대상 값을 `[spec, item, status, target]` 목록으로 만들어 코드 단위 순서로 정렬하고 `JSON.stringify([항목, 목록])`의 SHA-256을 `sibling-evidence:v1:<hex64>`로 낸다. 줄 순서와 무관하고, 참조 줄이 옮겨 적은 상태·대상 값과 위치 칸은 쓰지 않으며, 줄이 없거나 형제 기록이 하나라도 없으면 계산하지 않는다(fail-closed). `scripts/check-launch-gate.ts`는 R 항목에서 형제 증거 판정(줄 없음·형제 상태 따름·EV-L3)을 먼저 하고 모두 일치하는 READY일 때만 기록 `대상` 칸을 계산 값과 비교하며(다르면 UNVERIFIED, 출력에 `현재 형제 증거 대상 값:` digest), 서명 점검의 현재 대상 값도 R 항목은 이 계산 값으로 한다. `--targets`의 R 항목 값은 읽지 않는다. 적용 필터(목적 벡터, `local`의 L-01·L-05·R-04 제외, 해당 없음 칸, 면제)와 R 아닌 항목의 판정은 바꾸지 않았다.
+- **수정**: R 항목(`/^R-\d+$/`)의 현재 대상 값을 점검기가 형제 증거에서 계산한다. `computeSiblingEvidenceTarget`(`lib/launch/sibling-reference.ts`)이 그 항목의 참조 줄이 가리키는 형제 SPEC id·형제 항목 id와 **현재 형제 기록**의 상태·대상 값을 `[spec, item, status, target]` 목록으로 만들어 코드 단위 순서로 정렬하고 `JSON.stringify([항목, 목록])`의 SHA-256을 `sibling-evidence:v1:<hex64>`로 낸다. 줄 순서와 무관하고, 참조 줄이 옮겨 적은 상태·대상 값과 위치 칸은 쓰지 않으며, 줄이 없거나 형제 기록이 하나라도 없으면 계산하지 않는다(fail-closed). `scripts/check-launch-gate.ts`는 R 항목에서 형제 증거 판정(줄 없음·형제 상태 따름·EV-L3)을 먼저 하고 모두 일치하는 READY일 때만 기록 `대상` 칸을 계산 값과 비교하며(다르면 UNVERIFIED, 출력에 `현재 형제 증거 대상 값:` digest), 서명 점검의 현재 대상 값도 R 항목은 이 계산 값으로 한다(항목 점검이 이미 기록 칸 = 계산 값을 강제하므로 이 분기는 종료 코드를 바꾸지 않는 중복 방어선이고 서명 거부 문구를 하나 더 낸다 — 구현 감사 F-3). `--targets`의 R 항목 값은 읽지 않는다. 적용 필터(목적 벡터, `local`의 L-01·L-05·R-04 제외, 해당 없음 칸, 면제)와 R 아닌 항목의 판정은 바꾸지 않았다.
 - **실제 CLI 수정 전후 관측**(오케스트레이터가 직접 실행, 같은 입력 파일, `pnpm exec tsx`, 운영 단계 I·표면 S1,S2,S3, 합성 형제 증거만 사용):
 
   | 입력 | 수정 전 `9b63ba5` | 수정 후 `7bda045` |
@@ -881,8 +881,97 @@ PR #24(`worktree-launch-run`, 원격 HEAD `df9b27a`)에서 출시 점검기(`scr
 - **GREEN·전체 검증**(오케스트레이터가 `7bda045` 트리에서 직접 실행, 로그 `.moai/state/verify/launch-run/O-*.log`의 `exit=` 줄): `pnpm test` → `Test Files  137 passed (137)`, `Tests  1805 passed (1805)`, `exit=0`(알려진 불안정 시험 `verify-remote-consult` 포함 전체; 이전 기준선 137개 파일·1725개). `pnpm lint` `exit=0`, `pnpm exec tsc --noEmit` `exit=0`, 바꾼 6개 파일 `prettier --check` `exit=0`. 회귀 시험은 `checkLaunchGate`, `runCli`(프로세스 안), 대표 3건은 자식 프로세스 CLI 세 경로로 돌고, 기존 여섯 음성 시험(①~⑥)과 양성 대조는 그대로이며 다음이 더해졌다: (A) 형제 값 변경 (B) 기록 칸만 고치고 이전 서명 유지 (C) 다른 형제 항목으로 바꿈 (D) 다른 형제 SPEC으로 바꿈 (E) 참조 줄 둘인 항목의 한 줄 변경·한 줄 추가·한 줄 삭제 (F) 단계 G의 R-05 변경은 막고 단계 I에서는 영향 없음 (G) `local`에서 R-04 변경은 영향 없고 R-02 변경은 막음 (H) `--targets`로 덮어쓰기 불가, 그리고 양성 대조(증거 유지, 새 증거 재기록·재서명, 줄 순서 뒤집기, 줄 추가/삭제 재기록, R 항목 둘 독립).
 - **함께 고친 기존 시험(단언 삭제·약화 없음, 새 규칙의 직접 결과)**: `scripts/check-launch-gate.test.ts`의 `targetOf`(R 항목 기록 칸·현재 값이 합성 형제 증거 digest), AC-004 describe의 `runWithRefs`(CONSULTOPS 줄로 계산한 digest), `runCli — 형제 증거 참조 인자`의 R-04 칸, `siblingCliParts`(형제 SPEC마다 정의표 파일); `scripts/launch-marker-check.test.ts`(R 항목 기록 칸·`targets.json`·서명 snapshot이 digest); `lib/launch/sibling-evidence.fixture.ts`(옵션 `siblingItems`·`siblingSpec`·`siblingTarget`·`reverseLines` 추가, 옵션 없으면 이전과 같은 결과).
 - **SPEC 변경 없음 · 감사 영향**: `spec.md`·`plan.md`·`acceptance.md`는 고치지 않았다. git blob SHA는 수정 전후 같다 — `spec.md 6d461bd7cb22667faf5b67d7113d4225872a4055`, `plan.md 755670b40f029e93ef7de3ff38d43e940ae9513b`, `acceptance.md 9865bebcd988fc7b67d2e43555edfca9a6cd0c73`(`git rev-parse HEAD:<path>`로 `7bda045`에서 측정). 따라서 Phase 1 계획 감사 캐시(PASS 0.81)는 해시 기준으로 그대로 유효하다. **이것은 "이 코드 변경이 감사를 통과했다"는 뜻이 아니다.** 기존 PASS 0.81은 plan 산출물(SPEC 문서)에 대한 것이고, 이번 점검기 변경은 새 감사(`sync-auditor`)를 받지 않았다. SPEC 변경이 필요 없었으므로 재감사도 일으키지 않았다.
-- **이 수정이 보지 못하는 것(Gaps)**: ① `pnpm build`·e2e·`visual:verify`·서버 하네스(`verify:flag-runtime` 등)는 돌리지 않았다 — `lib/launch`를 `app/`·`components/`의 비시험 코드가 가져다 쓰지 않는 것은 `grep`으로 확인했지만(`lib/launch` 안의 다른 모듈과 시험 파일만 가져다 쓴다) `node:crypto`가 번들에 들어가지 않는지는 빌드로 직접 보지 않았다. ② 참조 줄과 형제 기록을 함께 새 값으로 고치고 점검기가 알려 준 digest를 대상 칸에 적고 새 서명까지 받는 일이 실제로 형제 증거를 다시 관측한 뒤에 일어났는지는 점검기가 알 수 없다(절차·서명의 몫). ③ 실제 형제 증거 기록의 형식·위치는 계속 미정이고 ENGINE 식별자·증거는 만들어내지 않았다 — 시험은 합성 형제(`SPEC-SYNTHETIC-SIBLING-001`/`SYN-R-nn`)와 입력으로 읽은 실제 CONSULTOPS 정의표만 쓴다. ④ 같은 형제 항목을 가리키는 동일 줄이 두 번 있으면 거부하지 않고 digest만 달라진다(SPEC이 정하지 않은 입력). ⑤ 같은 R 항목에 형제 쪽 사유와 `--targets` 불일치·사건이 겹치면 사유 문구는 이제 형제 쪽이 먼저 나온다(상태 결과는 그대로이고 기존 시험에 이 조합을 단언한 것이 없었다). ⑥ 사람의 서명은 여전히 없다. ⑦ `moai spec lint`·@MX 점검은 `moai` CLI·MCP 미연결로 하지 못했다. ⑧ F3(형제 SPEC 이름 `constructor`·`__proto__`)는 그대로다.
+- **이 수정이 보지 못하는 것(Gaps)**: ① `pnpm build`·e2e·`visual:verify`·서버 하네스(`verify:flag-runtime` 등)는 돌리지 않았다 — `lib/launch`를 `app/`·`components/`의 비시험 코드가 가져다 쓰지 않는 것은 `grep`으로 확인했지만(`lib/launch` 안의 다른 모듈과 시험 파일만 가져다 쓴다) `node:crypto`가 번들에 들어가지 않는지는 빌드로 직접 보지 않았다(**[닫힘]** 이 절을 쓴 뒤 HEAD `45c1a32`에서 `pnpm build`를 실행해 `exit=0`이고 `.next`에 새 코드 문자열이 없음을 확인했다 — 아래 "병합 전 검증과 구현 감사 정리" 절). ② 참조 줄과 형제 기록을 함께 새 값으로 고치고 점검기가 알려 준 digest를 대상 칸에 적고 새 서명까지 받는 일이 실제로 형제 증거를 다시 관측한 뒤에 일어났는지는 점검기가 알 수 없다(절차·서명의 몫). ③ 실제 형제 증거 기록의 형식·위치는 계속 미정이고 ENGINE 식별자·증거는 만들어내지 않았다 — 시험은 합성 형제(`SPEC-SYNTHETIC-SIBLING-001`/`SYN-R-nn`)와 입력으로 읽은 실제 CONSULTOPS 정의표만 쓴다. ④ 같은 형제 항목을 가리키는 동일 줄이 두 번 있으면 거부하지 않고 digest만 달라진다(SPEC이 정하지 않은 입력). ⑤ 같은 R 항목에 형제 쪽 사유와 `--targets` 불일치·사건이 겹치면 사유 문구는 이제 형제 쪽이 먼저 나온다(기존 시험에 이 조합을 단언한 것이 없었다). **[정정 — 구현 감사 F-4, 아래 "병합 전 검증과 구현 감사 정리" 절]**: "상태 결과는 그대로"라고 적었으나 정확하지 않다 — 형제 기록이 BLOCKED이고 같은 R 항목에 사건(EV-L5)이 겹치면 상태 이름이 `9b63ba5`의 `UNVERIFIED`(사건 사유)에서 `7bda045`의 `BLOCKED`(형제 사유)로 바뀌고 사건 사유는 출력에서 가려진다. 둘 다 READY가 아니고 종료 코드는 같아 판정은 안전하다. ⑥ 사람의 서명은 여전히 없다. ⑦ `moai spec lint`·@MX 점검은 `moai` CLI·MCP 미연결로 하지 못했다. ⑧ F3(형제 SPEC 이름 `constructor`·`__proto__`)는 그대로다.
 - **이 수정으로 하지 않은 것**: main 병합, 운영 호스트·운영 DB·운영 플래그 접근, `deploy.yml` 반영(보류 브랜치 `smoke-deploy-workflow`는 그대로), PR을 Ready로 바꾸는 일.
+
+### 병합 전 검증과 구현 감사 정리 (2026-10-08, 기준 HEAD `45c1a32`)
+
+사용자 지시(외부 검토에서 F1 수정과 음성·양성 사례가 확인됐다고 전달받음)로 PR #24 병합 전 검증을 현재 HEAD 기준으로 정리했다. 코드는 바꾸지 않았다 — 감사한 코드(`7bda045`)가 병합 후보 코드와 같다(`git diff 7bda045 45c1a32`는 런북·`progress.md`뿐이다).
+
+**결론**: 출시 점검기(`scripts/check-launch-gate.ts`, `lib/launch/`)의 수정은 끝났다. 결함 3건 수정과 F1 수정에 대해 독립 구현 감사가 차단 결함(BLOCKER)·주요 결함(MAJOR)을 찾지 못했다. 이것은 **구현 변경에 대한 결론이며 출시 가능이나 운영 공개 가능이 아니다**(REQ-B2CLAUNCH-001). 운영 공개 전 조건은 아래 "운영 공개 전 조건"에 따로 있고 병합과 무관하게 모두 남아 있다.
+
+#### 감사·검토의 종류 구분
+
+| 종류 | 대상과 시점 | 수행 | 결과 | 이 결과가 뜻하지 않는 것 |
+|---|---|---|---|---|
+| 계획 감사 (plan-auditor, Phase 1 관문 run-gate 3) | `spec.md`·`plan.md`·`acceptance.md`, 2026-10-07 HEAD `1100866` | Claude 단독 | **PASS 0.81** (비반올림 0.8102, Tier M 기준 0.80, 여유 0.010은 채점 오차 안쪽) | 코드 감사가 아니다. 이후 세 파일 diff가 비어 있어(`git diff 1100866 HEAD`) 해시 기준으로만 유효하다 |
+| 구현 감사 ① (sync-auditor) | 결함 3건 수정, `df9b27a`→`9b63ba5`, 2026-10-08 | 구현과 분리, 읽기 전용 | 세 결함 CLOSED, 회귀 없음. 지적 F1~F6: F1은 아래 ②의 대상으로 수정, F2 수정, F3은 기존 부채로 수용, F4~F6은 설계상 한계 | F1 수정은 보지 않았다(그 뒤에 만들어졌다) |
+| 외부 검토 (사용자 전달) | F1 수정, HEAD `45c1a32` | 사용자가 전달한 내용 | 통과, 기존 6가지 결함 차단과 F1의 음성·양성 사례 확인 | 이 세션은 검토자·방법·산출물을 보지 못했다. 사용자 전달로만 기록하며 이 세션의 감사로 세지 않는다 |
+| **구현 감사 ② (sync-auditor, 이번)** | **F1 수정 코드 delta `9b63ba5..7bda045`**(문서 전용 `45c1a32` 제외), 기준 HEAD `45c1a32`, 2026-10-08 | 구현 에이전트·오케스트레이터와 분리, 읽기 전용, Claude 단독(`moai` MCP의 교차 모델 감사 미연결) | **PASS, BLOCKER 0, MAJOR 0**, MINOR 2·INFO 4(모두 선택) | 계획 감사 PASS 0.81을 연장하거나 대체하지 않는다. 첫 구현 감사 ①이 본 코드 범위를 다시 감사한 것도 아니다 |
+| sync 단계 4차원 감사 | SPEC 전체 대 인수 기준 | 미수행 | — | 병합 뒤 `/moai sync SPEC-B2C-LAUNCH-001`의 몫(`§E.4`는 pending) |
+| 사람 서명·법무 확인 | — | 없음 | — | 어느 AC에도 받지 않았다 |
+
+**구현 감사 ② 방법과 수치**(감사자 보고. 오케스트레이터는 보고를 받은 뒤 작업 트리가 그대로인지(`git status --short` 빈 출력, HEAD `45c1a32`) 확인했고, 전체 시험·린트·타입 검사·실제 CLI 수정 전후 관측은 감사 전에 따로 직접 했다 — 아래 재사용 표):
+
+- 공격 입력 22개 항목: 형제 값·상태 변경, 다른 형제 항목·SPEC으로 재지정, 줄 추가·삭제·중복·순서 뒤집기, 구분자·인용부호·개행·NUL·2MB 값, `__proto__`·`constructor` 키, 이 SPEC 항목 id 변형(`r-01`, `R-1`, 전각 등), 서명의 다른 R 항목 digest·기록식 값, `--targets` 쓰레기 값, 사건 겹침, `local`·단계 G·표면 부분 집합·면제. 모두 기대와 일치했고 **옛 점검기(`9b63ba5`)에서 비-READY였던 입력이 새 점검기에서 READY가 되는 승격 경로는 없었다**. 출력 위생 시험에서 형제 값·역할·날짜 누출은 0건이다.
+- 옛 점검기와의 차분: 단계 G의 R-05 변경, `local`의 R-02 변경, 단계 I의 R-04 변경이 옛 점검기에서는 종료 코드 0이었고 새 점검기에서는 1이다(그 밖은 종료 코드가 같다).
+- 변이 시험: 두 시험 파일(`check-launch-gate.test.ts`, `sibling-reference.test.ts`) 287개에 변이를 넣었다. 보고서 표 기준 15항목 중 12개를 잡았고 3개가 살아남았다(M1·M11·M14, 아래 F-1~F-3).
+- 기존 시험 단언: 제거된 `expect(` 0건, 제거된 `it(`/`describe(` 0건.
+- 감사자가 직접 돌린 것: 3개 시험 파일 `Tests 301 passed (301)` `exit=0`, 변경 6개 파일 `prettier --check`·`eslint` `exit=0`.
+- 4차원 점수(프로필 `default`, 플랫 가중 40/25/20/15, 가중 조화평균): Functionality 88, Security 90, Craft 82, Consistency 88 → 약 87.2. **감사자가 프로필의 통과 임계값표를 끝까지 읽지 않았으므로 이 점수는 임계값 대비 판정이 아니다.** 계획 감사의 0~1 점수와 직접 비교하지 않는다.
+
+**구현 감사 ② 발견 사항**(BLOCKER 없음, MAJOR 없음):
+
+| ID | 심각도 | 내용 | 처리 |
+|---|---|---|---|
+| F-1 | MINOR (선택) | `--targets`의 R 항목 값을 무시한다는 규칙을 직접 고정하는 시험이 없다(변이 M14 생존). 현재 코드 동작은 맞다 | 이번에 시험을 더하지 않았다 — 후속 선택 |
+| F-2 | MINOR (선택) | 동일 줄 중복 시 digest가 바뀌는 동작을 고정하는 시험이 없다(변이 M11 생존). 우회 경로는 아니다 | 후속 선택 |
+| F-3 | INFO | 서명 점검의 R 항목 `currentTarget` 분기는 종료 코드를 바꾸지 않는 중복 방어선이다(변이 M1 생존). 항목 점검이 이미 기록 칸 = digest를 강제한다 | 위 F1 절에 반영했다 |
+| F-4 | INFO | 위 F1 절 Gap ⑤의 "상태 결과는 그대로"가 부정확하다(형제 BLOCKED + 사건이 겹치면 상태 이름이 `UNVERIFIED`→`BLOCKED`) | 이 커밋에서 정정했다 |
+| F-5 | INFO | 형제 SPEC 이름 `__proto__`이면 `siblingItemIds`에서 `TypeError` — `9b63ba5`에도 있던 기존 부채(감사 ① F3). 새 코드의 `Object.hasOwn(records, key)`는 키에 항상 `/`가 있어 오염 경로가 아니다 | 기존 부채로 유지 |
+| F-6 | INFO | 불일치 사유에 digest를 출력한다. 형제 상태·대상 값의 SHA-256이라 값은 노출되지 않는다 | 의도된 동작 |
+
+감사자가 보지 못한 것: `tsc`·`pnpm build`·e2e·서버 하네스·전체 시험(허용 범위 밖, 오케스트레이터가 아래 표로 따로 확인), 커버리지, 유니코드 정규화·CRLF·매우 많은 참조 줄, 실제 ENGINE/CONSULTOPS 형제 기록(없음), 서명 진위와 재관측 사실성(점검기도 알 수 없다). 감사자는 저장소 추적 파일·브랜치를 바꾸지 않았다(`git status --short` 빈 출력, HEAD `45c1a32`). 감사자의 에이전트 메모리는 gitignore 대상 경로에 있다.
+
+#### 기존 검증의 재사용 판단
+
+| 검증 | 마지막 증거 | 그 뒤 바뀐 것과 적용 범위 | 판단 | 결과 |
+|---|---|---|---|---|
+| `pnpm test` 전체 | `7bda045` 트리, `O-test.log` | HEAD는 이 커밋 위에 런북·`progress.md`만 더했다. `progress.md`를 읽는 시험은 없다(`runbook-rollback.test.ts`는 런북 안의 문자열만 본다) | 재사용 | `Test Files  137 passed (137)`, `Tests  1805 passed (1805)`, `exit=0`(불안정 시험 포함) |
+| 런북을 읽는 시험 | 런북 수정 뒤 `lib/launch`·점검기·marker 시험, `O-docs-test.log` | 이후 런북은 바뀌지 않았다 | 재사용 | `Test Files  24 passed (24)`, `Tests  746 passed (746)`, `exit=0` |
+| `pnpm lint`, `pnpm exec tsc --noEmit`, 바꾼 6개 파일 `prettier --check` | `7bda045` 트리, `O-lint.log`·`O-tsc.log`·`O-prettier.log` | 코드 변경 없음 | 재사용 | 모두 `exit=0` |
+| `pnpm build` | 이전 `504f3d4`(`VC1-build.log` `exit=0`) | 그 뒤 코드 2커밋은 `lib/launch` 점검기 모듈과 `scripts/check-launch-gate.ts`뿐이고 앱·컴포넌트·`package.json`은 바뀌지 않았다. 바뀐 모듈을 가져다 쓰는 곳은 점검기 자신과 시험뿐이다(`grep`) | 증명상 재사용 가능했으나 `node:crypto` 항목을 직접 열어 둔 상태라 **HEAD에서 확인 실행** | `exit=0`(`O2-build.log`), `.next`에서 `sibling-evidence:v1`·`computeSiblingEvidenceTarget` 문자열 0개 파일, 경고 4줄이 이전 빌드와 동일(`instrumentation.ts:33`의 Node 전용 `process.exit`, 이 PR이 건드리지 않은 파일의 기존 경고) |
+| 서버 하네스 4종(`verify:flag-runtime` 등) | `V65`·`V64`·`V74`·`V94`, 마지막 `56d7e4a` | `56d7e4a` 뒤 바뀐 비시험 모듈(`sibling-reference`, `signature`, `target-check`, fixture, `check-launch-gate`)을 하네스 스크립트·앱이 가져다 쓰지 않는다(`grep`: 가져오는 파일은 점검기 자신·fixture·시험 7개뿐) | 재사용, 재실행 안 함 | 불일치 0(해당 시점 기록) |
+| e2e, `visual:verify` | 이 PR 범위에는 해당 없음 | 병합 범위에 앱 런타임 파일(`app/`·`components/`·`lib/`의 `lib/launch` 밖 비시험 코드, 설정, 패키지, `.github`)이 0개(`git diff origin/main...HEAD`: `lib/launch`·`scripts`의 점검·관측 도구, `.moai` 문서, 앱 밖 시험 5개뿐이고 배포 워크플로는 이 도구들을 호출하지 않는다) | 해당 없음, 미실행 | — |
+| 워크플로 불변 | `git diff origin/main HEAD -- .github` | 보류된 `deploy.yml` 변경은 별도 브랜치 `smoke-deploy-workflow`에만 있다 | 확인 | 출력 0줄 |
+| 계획 산출물 해시 | `1100866` 감사 | `git diff 1100866 HEAD -- spec.md plan.md acceptance.md` | 확인 | 출력 0줄, blob `6d461bd`·`755670b`·`9865bec` 그대로 |
+| PR 상태 | `gh api` 읽기 | — | 확인 | 열림, **Draft**, 병합 가능 `clean`, 커밋 27·파일 70, 리뷰 0·코멘트 0·커밋 상태 0·체크 0(PR에서 도는 CI 없음), `origin/main`은 분기점 `2c244e0`에서 앞서지 않음(`0 27`) |
+
+#### 병합 전 조건 (PR #24 → `main`)
+
+충족(관측 근거 있음):
+1. 코드 검증: 시험·린트·타입 검사·prettier·빌드 `exit=0`(위 표).
+2. 구현 감사 ②에서 BLOCKER·MAJOR 없음. 선택 항목 F-1·F-2는 후속이다.
+3. 병합 범위에 앱 런타임 코드 변경이 없다(`scripts/`는 로컬 점검·관측 도구이고 배포 워크플로가 호출하지 않는다) — 병합 뒤 배포가 일어나도 앱 동작은 바뀌지 않는다.
+4. 워크플로(`.github`)와 `deploy.yml`은 이 PR에서 불변이다. smoke 검사 교체는 보류 브랜치에 있고 L-01 운영 기준선 기록이 생기기 전에는 병합하지 않는다.
+5. 계획 산출물 해시가 계획 감사 시점과 같다.
+6. PR이 병합 가능(`clean`)하고 `origin/main`이 앞서지 않았다.
+
+병합하는 사람의 판단·행동이 필요한 것(이 세션은 하지 않았다):
+7. Draft → Ready 전환과 병합 방식·시점. 이 세션은 PR을 Draft로 유지하고 병합하지 않았다.
+8. `main` push마다 배포되므로 병합하면 운영이 한 번 재시작된다. 플래그를 켜는 변경은 없고 앱 동작은 바뀌지 않는다.
+9. 열린 계획 감사 결함(N4·N5·R2-1~R2-4·D3~D13)과 얇은 PASS 여유(0.010)를 알고서 수용하는 판단.
+10. 외부 검토는 사용자 전달로만 확인됐다. 이 PR에는 리뷰·코멘트·CI 기록이 없다.
+11. 선택: 결함 1·2번 규칙(서명 시점 READY·참조 줄 필수)의 SPEC 문구 보완은 SPEC 수정과 재감사(여유 0.010)가 필요한 별도 결정이다. 병합의 전제는 아니다.
+
+병합 직후:
+12. `/moai sync SPEC-B2C-LAUNCH-001`: 문서 동기화와 sync-auditor 4차원 감사, `§E.4` 기록, 3단계 닫기.
+13. 로컬 주 체크아웃 정리: 이 세션 시작 시점에 로컬 `main`이 원격보다 34 뒤처졌고 이 SPEC 디렉터리의 추적되지 않은 사본이 있어 `pull`이 충돌할 수 있다.
+
+#### 운영 공개 전 조건 (병합과 무관하게 모두 남아 있다)
+
+운영 단계 점검(`production` I·G)은 지금 통과할 수 없다. 의도된 결과이며 이 PR의 목적이 아니다.
+
+- **서명**: 서명이 필요한 AC 15개에 사람의 서명이 없다. go 서명 기록이 없다. 서명자 구성(U3: 세 역할이 모두 서명해야 하는지)과 로컬 I 서명자 구성은 확인 대기이고 점검기는 허용 역할 소속만 본다.
+- **기록 파일과 실제 증거**: L-01 운영 기준선 관측 기록, R-02(엔진 준비 증거)·R-03(진단 동의 상세 문구 확정 기록) 기록 파일이 없다. ENGINE-001에는 항목 식별자 표가 없고 형제 증거 기록의 형식·위치도 미정이라 실제 형제 증거로는 R-02·R-03을 READY로 만들 수 없다(합성 fixture로만 시험했다). 적용되는 단계에서는 R-01(상담 표면을 여는 경우)·R-04(운영 재시작 관측)·R-05(일반 공개)도 필요하다.
+- **열린 결정**: D-LAUNCH-03 노출 순서(상담 쪽 전환 AC-011이 BLOCKED), 내부 시험 단계의 `# 앵커`·텍스트만 허용 해석, 서명·기록 보관 위치(D-LAUNCH-04), U1·U3·U5, `결정 대기` 칸(L-02 G, R-02 I, R-03 I, R-05 G, D-ENGINE-09 G 서명)은 결정 기록이 있기 전에는 필수로 취급한다(fail-closed).
+- **법적 고지**: L-08의 01·02·03 푸터 요소 목적지(`href="#"` 등) 연결은 이 PR에 없다. 법무 확인 기록과 요소 판정이 L-08 행 상태로 이어지는 연결은 점검기에 붙어 있지 않다.
+- **운영 관측**: 운영 호스트·GitHub Actions·VM에서의 실제 동작(재시작이 환경을 다시 읽는지, smoke 검사 교체, 노출 확대 단계 수행)은 관측하지 못했다. 점검기는 운영 호스트에서 접근 권한을 가진 사람이 환경 변수를 손으로 바꾸는 것을 막지 못한다(N11) — 노출 확대 단계 앞의 점검기 판정과 서명은 절차 규칙이다.
+- **보류 변경**: `deploy.yml` smoke 교체(`smoke-deploy-workflow`)는 L-01 기준선 기록이 생긴 뒤 별도 PR로만 병합한다.
+
+#### 선택 후속 (차단 아님)
+
+F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, 위 11번의 SPEC 문구 보완, 감사자가 보지 못한 유니코드 정규화·CRLF 입력 확인.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
@@ -899,6 +988,7 @@ PR #24(`worktree-launch-run`, 원격 HEAD `df9b27a`)에서 출시 점검기(`scr
 - **이 run에서 하지 않은 것**: push, PR 생성, `main` 병합, 운영 호스트·운영 DB·운영 플래그 접근, 푸터 화면 변경, `pnpm test:e2e`, `pnpm visual:verify`(화면 변경이 없어 실행하지 않았고 M1이 미뤄 둔 e2e·visual 기준선은 끝내 측정하지 않았다), `moai spec lint`·@MX 점검(`moai` CLI·MCP 미연결), sync 단계와 sync 감사.
 - **알려진 불안정**: `scripts/verify-remote-consult.test.ts`가 전체 시험 중 몇 번 한 번씩 일시 실패했고 단독 재실행에서는 통과했다(원인 미조사). 이 기록의 `exit=0` 실행에서는 나타나지 않았다.
 - **갱신(2026-10-08)**: 위 점검기 관련 서술과 수치(시험 개수, 서명이 대상 값을 비교하지 않는다는 한계, 형제 증거 참조 줄의 선택 입력 취급)는 §E.2 "PR #24 재현 결함 3건 수정" 절의 수정으로 대체됐다. 최신 전체 검증은 그 절의 `Tests 1725 passed (1725)`다. `spec.md`·`plan.md`·`acceptance.md`는 바뀌지 않아 이 신호의 계획 감사 근거(PASS 0.81)는 그대로다.
+- **갱신(2026-10-08, F1 수정 뒤)**: 최신 전체 검증은 `Tests 1805 passed (1805)`(137개 파일, `7bda045` 트리, `exit=0`)이고 HEAD `45c1a32`에서 `pnpm build`도 `exit=0`이다. 점검기 수정에 대한 독립 구현 감사 ②가 BLOCKER·MAJOR 없이 PASS했다. 감사·검토 종류 구분, 검증 재사용 판단, 병합 전 조건, 운영 공개 전 조건은 §E.2 "### 병합 전 검증과 구현 감사 정리 (2026-10-08, 기준 HEAD `45c1a32`)"에 있다. `run_status: audit-ready`는 여전히 조건부이며 운영 공개 가능을 뜻하지 않는다. 이 신호의 계획 감사 근거(PASS 0.81)는 SPEC 문서 해시가 같아 그대로이고, 구현 감사 결과와 합산하지 않는다.
 - **PR 구조(사용자 선택, 2026-10-07)**: run PR은 `worktree-launch-run`(`deploy.yml` 불변)이고 `deploy.yml` 교체는 보류 브랜치 `smoke-deploy-workflow`의 커밋 하나로 L-01 기준선 기록이 생긴 뒤에만 별도 PR로 병합한다. run PR이 `main`에 병합되면 `main` push마다 배포되므로 운영이 한 번 재시작되며 앱 동작은 바뀌지 않는다(`app/`·`components/`·`lib/consult`·`lib/env.ts` 변경 없음).
 
 ## §E.4 Sync-phase Audit-Ready Signal
