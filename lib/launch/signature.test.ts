@@ -49,6 +49,8 @@ function context(overrides: Partial<SignatureContext> = {}): SignatureContext {
     allowedRoles: ALLOWED_ROLES,
     requestEnvironment: "production",
     currentStatus: () => "READY",
+    // 기본 현재 유효 대상 값은 서명 시점 대상 값과 같다(대상이 바뀌지 않은 경우).
+    currentTarget: (id) => GOOD_SNAPSHOT.find(([snapshotId]) => snapshotId === id)?.[2],
     // 기본 필수 항목 집합은 GOOD_SNAPSHOT이 덮는 두 항목과 정확히 같다.
     requiredItemIds: GOOD_SNAPSHOT.map(([id]) => id),
     ...overrides,
@@ -246,6 +248,87 @@ describe("judgeSignature — 서명 점검", () => {
     const single = parsed(signatureDoc([["법무", "날짜-예시", "production"]], GOOD_SNAPSHOT));
 
     expect(judgeSignature(single, context())).toEqual([]);
+  });
+});
+
+// REQ-B2CLAUNCH-008 (PR #24 재현 결함 2): 서명이 덮은 필수 항목은 서명 시점에 READY였어야 하고, 서명 시점의
+// 대상 값이 현재 유효 항목의 대상 값과 같아야 한다. 이유에는 식별자와 상태 이름만 적고 대상 값은 적지 않는다.
+describe("judgeSignature — 서명 시점 상태와 대상 값", () => {
+  const snapshotWith = (rows: string[][]) => parsed(signatureDoc([GOOD_SIGNER], rows));
+
+  it("서명 시점에 BLOCKED였던 필수 항목은 현재 READY여도 거부한다", () => {
+    const record = snapshotWith([
+      ["L-04", "BLOCKED", "대상-L-04"],
+      ["R-05", "READY", "대상-R-05"],
+    ]);
+
+    expect(judgeSignature(record, context())).toEqual([
+      "서명 시점 L-04의 상태가 READY가 아니다(서명 시점 상태: BLOCKED)",
+    ]);
+  });
+
+  it("서명 시점에 UNVERIFIED였던 필수 항목도 같은 이유로 거부한다", () => {
+    const record = snapshotWith([
+      ["L-04", "READY", "대상-L-04"],
+      ["R-05", "UNVERIFIED", "대상-R-05"],
+    ]);
+
+    expect(judgeSignature(record, context())).toEqual([
+      "서명 시점 R-05의 상태가 READY가 아니다(서명 시점 상태: UNVERIFIED)",
+    ]);
+  });
+
+  it("서명 시점 대상 값이 현재 유효 항목의 대상 값과 다르면 식별자만 적고 두 값은 적지 않는다", () => {
+    const record = snapshotWith([
+      ["L-04", "READY", "대상-L-04-이전"],
+      ["R-05", "READY", "대상-R-05"],
+    ]);
+
+    const problems = judgeSignature(record, context());
+
+    expect(problems).toEqual([
+      "서명 시점 L-04의 대상 값이 현재 유효 항목의 대상 값과 다르다 — 이전 대상에 대한 서명은 새 대상에 쓸 수 없다",
+    ]);
+    expect(problems.join("\n")).not.toContain("대상-L-04");
+  });
+
+  it("현재 유효 대상 값을 알 수 없으면(undefined) 같다고 확인할 수 없어 거부한다(fail-closed)", () => {
+    const problems = judgeSignature(
+      snapshotWith(GOOD_SNAPSHOT),
+      context({ currentTarget: () => undefined })
+    );
+
+    expect(problems).toHaveLength(2);
+    expect(problems.every((p) => p.includes("대상 값이 현재 유효 항목의 대상 값과 다르다"))).toBe(
+      true
+    );
+  });
+
+  it("필수 항목 집합 밖의 항목은 집합 불일치로만 거부하고 상태·대상 값 이유를 더하지 않는다", () => {
+    const record = snapshotWith([
+      ["L-04", "READY", "대상-L-04"],
+      ["R-05", "BLOCKED", "대상-R-05-이전"],
+    ]);
+
+    expect(judgeSignature(record, context({ requiredItemIds: ["L-04"] }))).toEqual([
+      "서명이 필수 항목 집합 밖의 항목을 덮는다 — 식별자: R-05",
+    ]);
+  });
+
+  it("현재 기록에 없는 항목은 현재 기록에 없다는 이유만 적는다(대상 값 이유를 겹치지 않는다)", () => {
+    const problems = judgeSignature(
+      snapshotWith(GOOD_SNAPSHOT),
+      context({
+        currentStatus: (id) => (id === "L-04" ? undefined : "READY"),
+        currentTarget: (id) => (id === "L-04" ? undefined : "대상-R-05"),
+      })
+    );
+
+    expect(problems).toEqual(["서명 대상 항목 L-04가 현재 기록에 없다"]);
+  });
+
+  it("상태가 READY이고 대상 값이 현재와 같으면 문제가 없다(양성)", () => {
+    expect(judgeSignature(snapshotWith(GOOD_SNAPSHOT), context())).toEqual([]);
   });
 });
 

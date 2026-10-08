@@ -125,6 +125,11 @@ export interface SignatureContext {
   requestEnvironment: SignatureEnvironment;
   /** 서명 시점 항목의 점검 시점 유효 상태. 현재 기록에 없는 항목이면 undefined. */
   currentStatus: (id: string) => ItemStatus | undefined;
+  /**
+   * 서명 시점 항목의 현재 유효 항목의 대상 값(현재 기록이 담은 대상). 현재 기록에 없는 항목이면 undefined.
+   * 필수 입력이다 — 이 값이 없으면 서명이 어느 대상에 대한 것인지 현재 항목과 대조할 수 없다.
+   */
+  currentTarget: (id: string) => string | undefined;
   /** 이 요청이 읽는 단계(또는 로컬 시험 판정)의 필수 항목 식별자. 서명이 덮는 항목 집합이 이와 같아야 한다. */
   requiredItemIds: readonly string[];
 }
@@ -133,8 +138,13 @@ export interface SignatureContext {
  * 서명 점검. 문제가 없으면 빈 목록이다. 서명 기록이 없거나 서명 행이 없으면 서명 없음이고(기본값은 통과가 아니다),
  * 허용 목록 밖의 역할·요청 형태와 다른 실행 환경·서명이 덮는 항목 집합과 필수 항목 집합의 불일치·서명 뒤
  * UNVERIFIED가 된 항목을 각각 이유로 적는다.
- * 서명 시점의 대상 값은 기록에 담긴 사실로 보존할 뿐 이 점검이 현재 값과 비교하지는 않는다 — 항목이 현재도
- * 유효한지는 항목 점검의 유효 상태가 정한다.
+ *
+ * 서명이 덮은 필수 항목마다 두 가지를 더 본다(REQ-B2CLAUNCH-008, spec.md §2.4 "서명 기록"의 "대상과 대상 값").
+ * (1) 서명 시점의 상태가 READY여야 한다 — 서명 시점에 BLOCKED·UNVERIFIED였던 항목을 서명이 보증했을 수 없다.
+ * (2) 서명 시점의 대상 값이 현재 유효 항목의 대상 값과 같아야 한다 — 항목이 새 대상으로 READY가 되어도 이전 대상에
+ *     대한 서명이 자동으로 이어지지 않으며, 새 대상에는 새 서명이 필요하다. 서명 뒤 UNVERIFIED가 된 항목은 위의
+ *     "서명 뒤 UNVERIFIED" 이유로 따로 적는다. 필수 항목 집합 밖의 항목은 집합 불일치로 이미 거부하므로 여기서
+ *     상태·대상을 다시 따지지 않는다. 이유에는 식별자와 상태 이름만 적고 대상 값은 적지 않는다.
  */
 export function judgeSignature(
   record: SignatureRecord | undefined,
@@ -174,12 +184,23 @@ export function judgeSignature(
       problems.push(`서명이 필수 항목 집합 밖의 항목을 덮는다 — 식별자: ${outside.join(", ")}`);
     }
   }
+  const requiredIds = new Set(context.requiredItemIds);
   for (const item of record.snapshot) {
     const current = context.currentStatus(item.id);
     if (current === undefined) {
       problems.push(`서명 대상 항목 ${item.id}가 현재 기록에 없다`);
     } else if (current === "UNVERIFIED") {
       problems.push(`서명 뒤 ${item.id}가 UNVERIFIED가 되었다`);
+    }
+
+    if (!requiredIds.has(item.id)) continue;
+    if (item.status !== "READY") {
+      problems.push(`서명 시점 ${item.id}의 상태가 READY가 아니다(서명 시점 상태: ${item.status})`);
+    }
+    if (current !== undefined && context.currentTarget(item.id) !== item.target) {
+      problems.push(
+        `서명 시점 ${item.id}의 대상 값이 현재 유효 항목의 대상 값과 다르다 — 이전 대상에 대한 서명은 새 대상에 쓸 수 없다`
+      );
     }
   }
   return problems;

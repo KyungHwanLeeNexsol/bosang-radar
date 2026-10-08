@@ -64,6 +64,49 @@ describe("resolveEffectiveStatus — AC-B2CLAUNCH-005 (가)(나)(다)", () => {
     expect(resolveEffectiveStatus(item(), "대상-값-가", ["EV-L4"])).toEqual({ status: "READY" });
   });
 
+  // PR #24 재현 결함 3: 기록의 무효화 사건 칸에서 정의표가 정한 사건을 빼도 그 사건이 일어나면 강등되어야 한다.
+  it("정의표가 정한 사건이 기록의 사건 칸에 없어도 관측 뒤에 일어나면 UNVERIFIED이고 정의표가 정한 사건임을 적는다", () => {
+    const record = item({ events: ["EV-L3"] });
+
+    const result = resolveEffectiveStatus(record, "대상-값-가", ["EV-L5"], ["EV-L3", "EV-L5"]);
+
+    expect(result.status).toBe("UNVERIFIED");
+    expect(result.reason).toContain("EV-L5");
+    expect(result.reason).toContain("항목 정의표가 정한 사건");
+  });
+
+  it("기록의 사건 칸에만 있는 사건도 그대로 감시한다(합집합이며 기록이 더 적을 수만 있는 것이 아니다)", () => {
+    const record = item({ events: ["EV-L1", "EV-L2"] });
+
+    const result = resolveEffectiveStatus(record, "대상-값-가", ["EV-L2"], ["EV-L1"]);
+
+    expect(result.status).toBe("UNVERIFIED");
+    expect(result.reason).not.toContain("항목 정의표가 정한 사건");
+  });
+
+  it("정의표에도 기록에도 없는 사건은 무효화 사건이 아니다(과차단하지 않는다)", () => {
+    const record = item({ events: ["EV-L3"] });
+
+    expect(resolveEffectiveStatus(record, "대상-값-가", ["EV-L2"], ["EV-L3", "EV-L5"])).toEqual({
+      status: "READY",
+    });
+  });
+
+  it("같은 사건이 여러 번 넘어와도 이유에 한 번만 적고, 정의표 사건 인자를 생략하면 기록 칸만 본다", () => {
+    const record = item({ events: ["EV-L1"] });
+
+    const result = resolveEffectiveStatus(record, "대상-값-가", ["EV-L1", "EV-L1"], ["EV-L1"]);
+
+    expect(result.reason).toBe("관측 뒤에 무효화 사건 EV-L1이(가) 일어났다");
+    expect(resolveEffectiveStatus(record, "대상-값-가", ["EV-L5"])).toEqual({ status: "READY" });
+  });
+
+  it("READY가 아닌 기록은 정의표 사건이 일어나도 그대로다(상태를 올리지도 바꾸지도 않는다)", () => {
+    expect(
+      resolveEffectiveStatus(item({ status: "BLOCKED" }), "대상-값-가", ["EV-L5"], ["EV-L5"])
+    ).toEqual({ status: "BLOCKED" });
+  });
+
   it("현재 대상 값이 넘어오지 않은 READY 항목은 같다고 확인할 수 없으므로 UNVERIFIED다", () => {
     const result = resolveEffectiveStatus(item(), undefined, []);
 

@@ -5,6 +5,8 @@
 //         --signature <go 서명 기록 문서> --allowed-roles <서명 허용 역할, 쉼표로 구분>
 //         [--targets <현재 대상 값 JSON>] [--events <관측 뒤 사건 JSON>] [--exemptions <면제 결정 JSON>]
 //         [--sibling-refs <참조 줄 문서> [--sibling-defs <형제 정의표 JSON>] [--sibling-records <형제 기록 JSON>]]
+//         형제 증거 인자는 문법상 생략할 수 있지만 선택 사항이 아니다: 이 요청에 실제로 적용되는 필수 R 항목은 참조 줄·형제
+//         정의표·현재 형제 기록이 갖춰지고 형제 기록의 현재 상태가 READY일 때만 READY가 되며, 생략하면 그 항목이 불가다.
 // 종료 코드: 0 = 통과, 1 = 항목 점검 또는 서명 점검이 통과하지 못해 불가(서명 없음·서명 뒤 UNVERIFIED가 된 항목·
 //         허용되지 않은 역할·서명의 실행 환경이 요청 형태와 다름·서명이 덮는 항목이 필수 항목 집합과 다름 포함),
 //         2 = 입력 거부(요청 형태·표·기록·서명 기록의
@@ -27,9 +29,11 @@ import {
 } from "../lib/launch/item-table";
 import {
   evaluateSiblingReferences,
+  isSiblingReferenceItem,
   parseSiblingReferences,
   type SiblingDefinitionSource,
   type SiblingRecord,
+  type SiblingRefEvaluation,
   type SiblingRefInput,
 } from "../lib/launch/sibling-reference";
 import {
@@ -72,7 +76,10 @@ export interface EvaluateInput {
   /** 항목 식별자 → 관측 뒤에 일어났다고 호출하는 절차가 넘긴 무효화 사건. */
   eventsAfterObservation?: Readonly<Record<string, readonly string[]>>;
   exemptions?: readonly Exemption[];
-  /** 형제 증거 참조 줄(REQ-B2CLAUNCH-004). 넘기지 않으면 점검은 M1b와 똑같이 동작한다. */
+  /**
+   * 형제 증거 참조 줄·형제 정의표·현재 형제 기록(REQ-B2CLAUNCH-004). 선택 입력이 아니다 — 넘기지 않으면 참조 줄이 하나도
+   * 없는 것이므로 이 요청에 실제로 적용되는 필수 R 항목은 모두 READY가 될 수 없다(UNVERIFIED, fail-closed).
+   */
   siblingReferences?: SiblingRefInput;
   /** go 서명 기록(REQ-B2CLAUNCH-008). 없으면 판정은 통과가 아니다(fail-closed). */
   signature?: SignatureRecord;
@@ -150,6 +157,9 @@ function validateRequest(request: CheckRequest): ValidRequest {
     : { ok: true, form: "production", column: stage as "I" | "G", vector };
 }
 
+/** 무효화 사건 이름 형태(spec.md §2.4 EV-L1~EV-L5, 기록 파서의 사건 칸 검사와 같다). */
+const EVENT_NAME = /^EV-L[1-5]$/;
+
 const PRODUCTION_VERDICTS = {
   I: { pass: "내부 시험 공개 가능", fail: "내부 시험 공개 불가" },
   G: { pass: "일반 사용자 공개 가능", fail: "일반 사용자 공개 불가" },
@@ -171,8 +181,27 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
     };
   }
 
-  // 형제 증거 참조 줄(REQ-B2CLAUNCH-004): 조회할 수 없는 줄·없는 항목은 입력 거부, 값이 어긋난 줄은 그 항목의 EV-L3 강등이다.
+  // 관측 뒤 사건 입력(REQ-B2CLAUNCH-005): 사건 이름이 EV-L1~EV-L5 형태가 아니거나 항목 정의표에 없는 항목의 사건은
+  // 입력 거부다. 대소문자·공백이 어긋난 사건 이름이나 오타 난 항목 키를 조용히 무시하면 일어난 무효화 사건이 통과로
+  // 읽히므로(fail-open) 거부한다. 거부 메시지에는 사건 이름 값을 되풀이하지 않고 항목 키만 적는다.
+  const eventProblems = Object.entries(input.eventsAfterObservation ?? {}).flatMap(
+    ([itemId, events]) => [
+      ...(knownIds.has(itemId)
+        ? []
+        : [`관측 뒤 사건 입력의 "${itemId}" 항목이 항목 정의표에 없다`]),
+      ...(events.every((event) => EVENT_NAME.test(event))
+        ? []
+        : [`관측 뒤 사건 입력의 "${itemId}" 항목에 EV-L1~EV-L5 형태가 아닌 사건 이름이 있다`]),
+    ]
+  );
+  if (eventProblems.length > 0) {
+    return { exitCode: 2, output: eventProblems.map((message) => `거부: ${message}`).join("\n") };
+  }
+
+  // 형제 증거 참조 줄(REQ-B2CLAUNCH-004): 조회할 수 없는 줄·없는 항목은 입력 거부, 값이 어긋난 줄은 그 항목의 EV-L3 강등,
+  // 형제 기록의 현재 상태가 READY가 아닌 줄은 그 상태를 따라 그 항목을 READY에서 내린다.
   let siblingUnverified: Readonly<Record<string, readonly string[]>> = {};
+  let siblingNotReady: SiblingRefEvaluation["notReady"] = {};
   if (input.siblingReferences !== undefined) {
     const evaluation = evaluateSiblingReferences(input.siblingReferences);
     const rejections = [
@@ -185,20 +214,43 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       return { exitCode: 2, output: rejections.map((message) => `거부: ${message}`).join("\n") };
     }
     siblingUnverified = evaluation.unverified;
+    siblingNotReady = evaluation.notReady;
   }
 
   const recordById = new Map(input.record.map((item) => [item.id, item]));
+  const rowById = new Map(input.items.map((row) => [row.id, row]));
+  const referencedItems = new Set(
+    (input.siblingReferences?.lines ?? []).map((line) => line.launchItem)
+  );
 
-  /** 항목의 점검 시점 유효 상태: 대상 값·사건 판정에 형제 참조 줄의 EV-L3 강등을 더한다. */
+  /**
+   * 항목의 점검 시점 유효 상태. 대상 값·사건 판정(정의표가 그 항목에 정한 사건을 기록의 사건 칸에 더해 감시한다)에
+   * 형제 증거 판정을 더한다 — 형제 참조 항목(R-nn)은 참조 줄이 있어야 하고, 참조 줄이 어긋나면(EV-L3) UNVERIFIED,
+   * 형제 기록의 현재 상태가 READY가 아니면 그 상태를 따른다. READY만 내리고 올리는 일은 없다.
+   */
   const effectiveStatusOf = (recorded: RecordItem): EffectiveStatus => {
     const effective = resolveEffectiveStatus(
       recorded,
       input.currentTargets[recorded.id],
-      input.eventsAfterObservation?.[recorded.id] ?? []
+      input.eventsAfterObservation?.[recorded.id] ?? [],
+      rowById.get(recorded.id)?.events ?? []
     );
-    const referenceProblems = siblingUnverified[recorded.id];
-    return effective.status === "READY" && referenceProblems !== undefined
-      ? { status: "UNVERIFIED", reason: referenceProblems.join("; ") }
+    if (effective.status !== "READY") return effective;
+
+    if (isSiblingReferenceItem(recorded.id) && !referencedItems.has(recorded.id)) {
+      return {
+        status: "UNVERIFIED",
+        reason:
+          "필수 형제 참조 항목인데 이 항목의 참조 줄이 없다 — 참조 줄·형제 정의표·현재 형제 기록이 갖춰지기 전에는 READY로 볼 수 없다",
+      };
+    }
+    const notReady = siblingNotReady[recorded.id];
+    const mismatches = siblingUnverified[recorded.id] ?? [];
+    if (notReady !== undefined) {
+      return { status: notReady.status, reason: [...mismatches, ...notReady.reasons].join("; ") };
+    }
+    return mismatches.length > 0
+      ? { status: "UNVERIFIED", reason: mismatches.join("; ") }
       : effective;
   };
 
@@ -265,6 +317,7 @@ export function evaluateLaunchGate(input: EvaluateInput): CheckResult {
       const recorded = recordById.get(id);
       return recorded === undefined ? undefined : effectiveStatusOf(recorded).status;
     },
+    currentTarget: (id) => recordById.get(id)?.target,
   });
   if (signatureProblems.length === 0) {
     lines.push(`서명 점검: 통과 (서명 ${input.signature?.signers.length ?? 0}건)`);

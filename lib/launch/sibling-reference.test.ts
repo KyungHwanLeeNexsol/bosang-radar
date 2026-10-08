@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   SIBLING_REF_COLUMNS,
   evaluateSiblingReferences,
+  isSiblingReferenceItem,
   parseSiblingReferences,
   siblingItemIds,
   siblingRecordKey,
@@ -209,7 +210,7 @@ describe("AC-B2CLAUNCH-004 — 참조 줄 평가 fixture (가)(나)(라)", () =>
     linesOf(refTable(refRow("R-04", siblingItem, status, target)))[0];
 
   it("(가) 존재하는 형제 항목을 가리키고 형제 기록의 상태·대상 값을 그대로 옮겼으면 통과한다", () => {
-    expect(evaluate(line())).toEqual({ rejections: [], unverified: {} });
+    expect(evaluate(line())).toEqual({ rejections: [], unverified: {}, notReady: {} });
   });
 
   it("(나) 존재하지 않는 항목 식별자는 식별자를 적어 거부한다", () => {
@@ -261,6 +262,71 @@ describe("AC-B2CLAUNCH-004 — 참조 줄 평가 fixture (가)(나)(라)", () =>
     expect(result.unverified["R-04"]).toHaveLength(2);
     expect(result.unverified["R-04"][0]).toContain("E-03");
     expect(result.unverified["R-04"][1]).toContain("E-05");
+  });
+
+  // PR #24 재현 결함 1: 참조 줄과 형제 기록의 값이 같아도 형제 기록의 현재 상태가 READY가 아니면 그 항목은 READY가
+  // 될 수 없다. 상태는 형제 기록을 그대로 따르고(BLOCKED→BLOCKED, 그 밖→UNVERIFIED) 값은 출력하지 않는다.
+  it("값이 같아도 형제 기록의 현재 상태가 BLOCKED이면 그 줄의 항목은 BLOCKED다", () => {
+    const result = evaluate(line("E-03", "대상값-예시-1", "BLOCKED"), stubRecord("BLOCKED"));
+
+    expect(result.unverified).toEqual({});
+    expect(result.notReady["R-04"].status).toBe("BLOCKED");
+    expect(result.notReady["R-04"].reasons.join("|")).toContain(
+      "형제 기록의 현재 상태가 READY가 아니다(BLOCKED)"
+    );
+    expect(JSON.stringify(result)).not.toContain("대상값-예시");
+  });
+
+  it("값이 같아도 형제 기록의 현재 상태가 UNVERIFIED이면 그 줄의 항목은 UNVERIFIED다", () => {
+    const result = evaluate(line("E-03", "대상값-예시-1", "UNVERIFIED"), stubRecord("UNVERIFIED"));
+
+    expect(result.notReady["R-04"].status).toBe("UNVERIFIED");
+    expect(result.notReady["R-04"].reasons.join("|")).toContain("(UNVERIFIED)");
+  });
+
+  it("형제 기록의 현재 상태가 열거 밖 값이면 값을 되풀이하지 않고 UNVERIFIED로 읽는다", () => {
+    const result = evaluate(line("E-03", "대상값-예시-1", "READY"), stubRecord("ready-예시"));
+
+    expect(result.notReady["R-04"].status).toBe("UNVERIFIED");
+    expect(result.notReady["R-04"].reasons.join("|")).toContain("열거 밖 값");
+    expect(JSON.stringify(result)).not.toContain("ready-예시");
+  });
+
+  it("한 항목의 줄이 여럿이고 하나라도 BLOCKED이면 항목은 BLOCKED다(READY 줄은 이유에 들지 않는다)", () => {
+    const first = line("E-03", "대상값-예시-1", "UNVERIFIED");
+    const second = { ...line("E-05", "대상값-예시-1", "BLOCKED"), launchItem: "R-04" };
+    const third = { ...line("E-07", "대상값-예시-1", "READY"), launchItem: "R-04" };
+    const records = {
+      ...stubRecord("UNVERIFIED"),
+      [siblingRecordKey(CONSULTOPS_SPEC, "E-05")]: { status: "BLOCKED", target: "대상값-예시-1" },
+      [siblingRecordKey(CONSULTOPS_SPEC, "E-07")]: { status: "READY", target: "대상값-예시-1" },
+    };
+
+    const result = evaluateSiblingReferences({
+      lines: [first, second, third],
+      definitions,
+      records,
+    });
+
+    expect(result.notReady["R-04"].status).toBe("BLOCKED");
+    expect(result.notReady["R-04"].reasons).toHaveLength(2);
+    expect(result.notReady["R-04"].reasons.join("|")).not.toContain("E-07");
+  });
+
+  it("형제 기록이 READY이고 값이 같으면 notReady에도 unverified에도 오르지 않는다", () => {
+    const result = evaluate(line());
+
+    expect(result.notReady).toEqual({});
+    expect(result.unverified).toEqual({});
+  });
+
+  it("isSiblingReferenceItem — R-nn만 형제 참조 항목이다(EV-L3를 적은 L-08은 아니다)", () => {
+    for (const id of ["R-01", "R-02", "R-03", "R-04", "R-05"]) {
+      expect(isSiblingReferenceItem(id), id).toBe(true);
+    }
+    for (const id of ["L-08", "L-01", "R-", "R-0a", "XR-01", "R-01x", ""]) {
+      expect(isSiblingReferenceItem(id), id).toBe(false);
+    }
   });
 
   it("정의표가 입력되지 않은 형제 SPEC(예: 항목 식별자 표가 없는 ENGINE-001)의 참조는 조회할 수 없어 거부한다", () => {

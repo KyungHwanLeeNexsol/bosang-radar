@@ -28,6 +28,10 @@ import {
   judgeLegalConfirmation,
   parseLegalConfirmation,
 } from "../lib/launch/legal-confirmation";
+import {
+  SYNTHETIC_SIBLING_SPEC,
+  syntheticSiblingEvidence,
+} from "../lib/launch/sibling-evidence.fixture";
 import { SIBLING_REF_COLUMNS, siblingRecordKey } from "../lib/launch/sibling-reference";
 import { SIGNER_COLUMNS, SNAPSHOT_COLUMNS } from "../lib/launch/signature";
 import { runCli } from "./check-launch-gate";
@@ -320,11 +324,21 @@ function runProcedures(set: MarkerSet): ProcedureRun {
     `${table(SIGNER_COLUMNS, [[set.ownerName, set.ownerContact, "production"]])}\n\n${table(SNAPSHOT_COLUMNS, snapshot)}`
   );
 
+  // 적용되는 필수 R 항목은 모두 완전한 형제 증거가 있어야 하므로 R-04는 실제 CONSULTOPS-001 정의표를 조회하고
+  // 나머지 형제 참조 항목은 합성 형제 증거로 채운다(위치 칸에는 표지값을 그대로 써서 통과 경로의 누출을 본다).
+  const others = syntheticSiblingEvidence(
+    ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id) && row.id !== "R-04").map((row) => row.id)
+  );
   const siblingRefs = writeInput(
     "sibling-refs.md",
     table(SIBLING_REF_COLUMNS, [
       ["R-04", CONSULTOPS_SPEC, "E-03", "READY", "형제값-예시-1", set.ownerContact],
+      ...others.rows.map((cells) => [...cells.slice(0, 5), set.ownerContact]),
     ])
+  );
+  const syntheticDefinitions = writeInput(
+    "sibling-synthetic-defs.md",
+    others.definitions[SYNTHETIC_SIBLING_SPEC].markdown
   );
   const siblingDefs = writeInput(
     "sibling-defs.json",
@@ -333,11 +347,16 @@ function runProcedures(set: MarkerSet): ProcedureRun {
         file: CONSULTOPS_SPEC_PATH,
         labels: ["ID", "증거 항목", "I", "G", "근거", "대상 / 무효화 사건"],
       },
+      [SYNTHETIC_SIBLING_SPEC]: {
+        file: syntheticDefinitions,
+        labels: others.definitions[SYNTHETIC_SIBLING_SPEC].labels,
+      },
     })
   );
   const siblingRecords = writeInput(
     "sibling-records.json",
     JSON.stringify({
+      ...others.records,
       [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
     })
   );

@@ -18,6 +18,11 @@ import {
   type SiblingDefinitionSource,
 } from "../lib/launch/sibling-reference";
 import {
+  SYNTHETIC_SIBLING_SPEC,
+  syntheticSiblingEvidence,
+  type SyntheticSiblingEvidence,
+} from "../lib/launch/sibling-evidence.fixture";
+import {
   SIGNER_COLUMNS,
   SNAPSHOT_COLUMNS,
   parseSignatureRecord,
@@ -59,11 +64,21 @@ function targetOf(id: string): string {
   return `대상-${id}`;
 }
 
-/** 표의 모든 항목을 한 행씩 적은 기록 마크다운. 기본 상태는 READY이고 `statuses`가 항목별로 덮어쓴다. */
-function recordFor(statuses: Readonly<Record<string, string>> = {}, omit: readonly string[] = []) {
+/**
+ * 표의 모든 항목을 한 행씩 적은 기록 마크다운. 기본 상태는 READY이고 `statuses`가 항목별로 덮어쓴다.
+ * `eventsOf`·`targetsOf`는 항목별로 기록의 무효화 사건 칸·대상 칸을 정의표 값 대신 적는다(우회 회귀 시험용).
+ */
+function recordFor(
+  statuses: Readonly<Record<string, string>> = {},
+  omit: readonly string[] = [],
+  eventsOf: Readonly<Record<string, readonly string[]>> = {},
+  targetsOf: Readonly<Record<string, string>> = {}
+) {
   const rows = ITEM_ROWS.filter((row) => !omit.includes(row.id)).map((row) => {
     const status = row.id in statuses ? statuses[row.id] : "READY";
-    return `| ${row.id} | 증명 ${row.id} | 위치-예시 | 역할-예시 | 날짜-예시 | ${targetOf(row.id)} | ${row.events.join(", ")} | ${status} |`;
+    const events = (eventsOf[row.id] ?? row.events).join(", ");
+    const target = targetsOf[row.id] ?? targetOf(row.id);
+    return `| ${row.id} | 증명 ${row.id} | 위치-예시 | 역할-예시 | 날짜-예시 | ${target} | ${events} | ${status} |`;
   });
   return [
     `| ${RECORD_COLUMNS.join(" | ")} |`,
@@ -77,6 +92,61 @@ const CURRENT_TARGETS: Readonly<Record<string, string>> = Object.fromEntries(
 );
 
 const ALL_SURFACES = ["S1", "S2", "S3"];
+
+// ---- 형제 증거 도우미(시험 전용, 합성 값) ---------------------------------------------------
+// 실제로 적용되는 필수 R 항목은 완전한 형제 증거(참조 줄·형제 정의표·현재 형제 기록)가 있어야 READY가 된다.
+// 양성 시험은 R-nn 항목(spec.md §2.4: 형제 SPEC이 소유한 증거를 참조하는 이 SPEC의 항목)마다 합성 형제 증거를
+// 넘겨 이 조건을 채운다 — 점검기에는 이런 기본값이 없다. 형제 증거를 일부러 빼거나 어긋나게 하는 시험은
+// `syntheticSiblingEvidence`를 직접 쓴다. (EV-L3를 사건으로 적었다고 R 항목은 아니다 — L-08은 S2 판정에만 형제
+// 결정 기록을 쓰고 참조 줄 대상이 아니다.)
+
+const SIBLING_ITEM_IDS = ITEM_ROWS.filter((row) => /^R-\d+$/.test(row.id)).map((row) => row.id);
+
+/** 형제 증거 입력을 하나도 넘기지 않은 점검 입력에만 합성 형제 증거를 채운다. */
+function withDefaultSibling(input: CheckInput): CheckInput {
+  if (
+    input.siblingReferenceMarkdown !== undefined ||
+    input.siblingDefinitions !== undefined ||
+    input.siblingRecords !== undefined
+  ) {
+    return input;
+  }
+  const evidence = syntheticSiblingEvidence(SIBLING_ITEM_IDS);
+  return {
+    ...input,
+    siblingReferenceMarkdown: evidence.markdown,
+    siblingDefinitions: evidence.definitions,
+    siblingRecords: evidence.records,
+  };
+}
+
+/** 명령줄 형태의 합성 형제 증거: 파일 이름(`at`이 경로로 바꾼다) → 내용, 그리고 세 인자. */
+function siblingCliParts(
+  evidence: SyntheticSiblingEvidence,
+  at: (name: string) => string = (name) => name
+): { files: Record<string, string>; args: string[] } {
+  const definitionLabels = evidence.definitions[SYNTHETIC_SIBLING_SPEC].labels;
+  return {
+    files: {
+      [at("syn-refs.md")]: evidence.markdown,
+      [at("syn-defs-table.md")]: evidence.definitions[SYNTHETIC_SIBLING_SPEC].markdown,
+      [at("syn-defs.json")]: JSON.stringify({
+        [SYNTHETIC_SIBLING_SPEC]: { file: at("syn-defs-table.md"), labels: definitionLabels },
+      }),
+      [at("syn-records.json")]: JSON.stringify(evidence.records),
+    },
+    args: [
+      "--sibling-refs",
+      at("syn-refs.md"),
+      "--sibling-defs",
+      at("syn-defs.json"),
+      "--sibling-records",
+      at("syn-records.json"),
+    ],
+  };
+}
+
+const DEFAULT_SIBLING_CLI = siblingCliParts(syntheticSiblingEvidence(SIBLING_ITEM_IDS));
 
 // ---- 서명 도우미(시험 전용) -----------------------------------------------------------------
 // 허용 역할은 D-LAUNCH-04 결정 기록의 세 역할 이름을 시험 입력으로만 쓴 것이다(코드에는 박혀 있지 않다).
@@ -159,7 +229,7 @@ function signedCheck(input: CheckInput): CheckResult {
       { exemptions: input.exemptions }
     ),
     allowedRoles: ALLOWED_ROLES,
-    ...input,
+    ...withDefaultSibling(input),
   });
 }
 
@@ -172,26 +242,33 @@ function flagValue(args: readonly string[], name: string): string | undefined {
 function signedCli(args: readonly string[], read: (file: string) => string): CheckResult {
   const environment = flagValue(args, "environment") ?? "production";
   const exemptionsFile = flagValue(args, "exemptions");
+  // 형제 증거 인자를 하나도 넘기지 않았으면 합성 형제 증거를 더한다(양성 경로의 기본 입력).
+  const hasSiblingFlag = ["sibling-refs", "sibling-defs", "sibling-records"].some(
+    (name) => flagValue(args, name) !== undefined
+  );
+  const siblingArgs = hasSiblingFlag ? [] : DEFAULT_SIBLING_CLI.args;
   return runCli(
-    [...args, "--signature", "signature.md", "--allowed-roles", ALLOWED_ROLES_ARG],
+    [...args, ...siblingArgs, "--signature", "signature.md", "--allowed-roles", ALLOWED_ROLES_ARG],
     (file) =>
-      file === "signature.md"
-        ? signatureFor(
-            read("record.md"),
-            environment,
-            {
+      file in DEFAULT_SIBLING_CLI.files
+        ? DEFAULT_SIBLING_CLI.files[file]
+        : file === "signature.md"
+          ? signatureFor(
+              read("record.md"),
               environment,
-              stage: flagValue(args, "stage"),
-              surfaces: (flagValue(args, "surfaces") ?? "").split(",").filter((s) => s !== ""),
-            },
-            {
-              exemptions:
-                exemptionsFile === undefined
-                  ? []
-                  : (JSON.parse(read(exemptionsFile)) as Exemption[]),
-            }
-          )
-        : read(file)
+              {
+                environment,
+                stage: flagValue(args, "stage"),
+                surfaces: (flagValue(args, "surfaces") ?? "").split(",").filter((s) => s !== ""),
+              },
+              {
+                exemptions:
+                  exemptionsFile === undefined
+                    ? []
+                    : (JSON.parse(read(exemptionsFile)) as Exemption[]),
+              }
+            )
+          : read(file)
   );
 }
 
@@ -494,11 +571,20 @@ describe("AC-B2CLAUNCH-002 — 판정 출력과 기록 불변", () => {
     const signatureBefore = JSON.stringify(signature.record);
     const frozenSignature: SignatureRecord = deepFreeze(signature.record);
 
+    const sibling = syntheticSiblingEvidence(SIBLING_ITEM_IDS);
+    const frozenSibling = deepFreeze({
+      lines: sibling.lines,
+      definitions: sibling.definitions,
+      records: sibling.records,
+    });
+    const siblingBefore = JSON.stringify(frozenSibling);
+
     // 얼린 입력을 쓰므로 점검기가 기록을 고치려 하면 TypeError로 드러난다.
     const result = evaluateLaunchGate({
       items: deepFreeze(ITEM_ROWS.map((row) => ({ ...row }))),
       record,
       currentTargets: CURRENT_TARGETS,
+      siblingReferences: frozenSibling,
       signature: frozenSignature,
       allowedRoles: ALLOWED_ROLES,
       request: local(["S1"]),
@@ -507,6 +593,7 @@ describe("AC-B2CLAUNCH-002 — 판정 출력과 기록 불변", () => {
     expect(result.exitCode).toBe(0);
     expect(JSON.stringify(record)).toBe(before);
     expect(JSON.stringify(frozenSignature)).toBe(signatureBefore);
+    expect(JSON.stringify(frozenSibling)).toBe(siblingBefore);
     for (const id of ["L-01", "L-05", "R-04"]) {
       expect(record.find((item) => item.id === id)?.status).toBe("UNVERIFIED");
     }
@@ -703,7 +790,7 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
     statuses: Record<string, string>,
     request: CheckRequest,
     signatureEnvironment = request.environment ?? "production"
-  ): { record: string; targets: string; signature: string } {
+  ): { record: string; targets: string; signature: string; siblingArgs: string[] } {
     tmpDir = mkdtempSync(path.join(tmpdir(), "check-launch-gate-"));
     const record = path.join(tmpDir, "record.md");
     const targets = path.join(tmpDir, "targets.json");
@@ -715,7 +802,12 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
       signatureFor(recordFor(statuses), signatureEnvironment, request),
       "utf-8"
     );
-    return { record, targets, signature };
+    const sibling = siblingCliParts(syntheticSiblingEvidence(SIBLING_ITEM_IDS), (name) =>
+      path.join(tmpDir, name)
+    );
+    for (const [file, content] of Object.entries(sibling.files))
+      writeFileSync(file, content, "utf-8");
+    return { record, targets, signature, siblingArgs: sibling.args };
   }
 
   function runCli(args: string[]) {
@@ -726,7 +818,10 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
   }
 
   it("통과하는 로컬 시험 판정은 종료 코드 0이고 판정과 해당 없음(local) 표지를 stdout에 적는다", () => {
-    const { record, targets, signature } = files(UNVERIFIED_PRODUCTION_ONLY, local(["S1"]));
+    const { record, targets, signature, siblingArgs } = files(
+      UNVERIFIED_PRODUCTION_ONLY,
+      local(["S1"])
+    );
 
     const result = runCli([
       "--items",
@@ -735,6 +830,7 @@ describe("CLI — pnpm exec tsx scripts/check-launch-gate.ts", () => {
       record,
       "--targets",
       targets,
+      ...siblingArgs,
       "--signature",
       signature,
       "--allowed-roles",
@@ -1014,10 +1110,19 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
     [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
   };
 
+  // 이 describe의 시험은 R-04 한 줄을 시험 대상으로 삼는다. 실제로 적용되는 다른 필수 R 항목도 완전한 형제 증거가
+  // 있어야 하므로 `refTable`이 줄을 적지 않은 형제 참조 항목에 합성 참조 줄을 더하고, `runWithRefs`가 합성
+  // 정의표·형제 기록을 더한다. 줄을 일부러 뺀 경우는 아래 "필수 형제 참조" 회귀 describe가 따로 시험한다.
+  const baseEvidence = syntheticSiblingEvidence(SIBLING_ITEM_IDS);
+
   function refTable(...rows: string[]): string {
     const header = `| ${SIBLING_REF_COLUMNS.join(" | ")} |`;
     const separator = `|${SIBLING_REF_COLUMNS.map(() => "---").join("|")}|`;
-    return [header, separator, ...rows].join("\n");
+    const covered = rows.map((row) => row.split("|")[1]?.trim());
+    const baseRows = baseEvidence.rows
+      .filter((cells) => !covered.includes(cells[0]))
+      .map((cells) => `| ${cells.join(" | ")} |`);
+    return [header, separator, ...rows, ...baseRows].join("\n");
   }
 
   function refRow(
@@ -1044,8 +1149,11 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
       currentTargets: CURRENT_TARGETS,
       request: options.request ?? production("I", ALL_SURFACES),
       siblingReferenceMarkdown: markdown,
-      siblingDefinitions: options.definitions ?? consultopsDefinitions,
-      siblingRecords: options.records ?? siblingRecords,
+      siblingDefinitions: {
+        ...baseEvidence.definitions,
+        ...(options.definitions ?? consultopsDefinitions),
+      },
+      siblingRecords: { ...baseEvidence.records, ...(options.records ?? siblingRecords) },
     });
   }
 
@@ -1151,34 +1259,45 @@ describe("AC-B2CLAUNCH-004 — 점검기의 형제 증거 참조 줄 처리", ()
     expect(result.output).toContain("R-04: 해당 없음(local)");
   });
 
-  it("참조 줄을 넘기지 않은 점검은 M1b와 결과가 같다", () => {
-    const base = {
+  it("참조 줄 문서 없이 정의표와 형제 기록만 넘겨도 적용되는 필수 R 항목은 통과하지 못한다(참조 줄은 선택이 아니다)", () => {
+    const result = signedCheck({
       itemTableMarkdown: SPEC_MARKDOWN,
       recordMarkdown: recordFor(),
       currentTargets: CURRENT_TARGETS,
       request: production("I", ALL_SURFACES),
-    };
+      siblingRecords,
+      siblingDefinitions: consultopsDefinitions,
+    });
 
-    expect(
-      signedCheck({ ...base, siblingRecords, siblingDefinitions: consultopsDefinitions })
-    ).toEqual(signedCheck(base));
+    expect(result.exitCode).toBe(1);
+    for (const id of ["R-01", "R-02", "R-03", "R-04"]) {
+      expect(result.output).toContain(`${id}: UNVERIFIED`);
+    }
   });
 });
 
 describe("runCli — 형제 증거 참조 인자", () => {
   const CONSULTOPS_SPEC = "SPEC-B2C-CONSULTOPS-001";
+  // R-04 한 줄은 실제 CONSULTOPS-001 정의표를 조회하고, 나머지 형제 참조 항목은 합성 형제 증거로 채운다.
+  const others = syntheticSiblingEvidence(SIBLING_ITEM_IDS.filter((id) => id !== "R-04"));
   const files: Record<string, string> = {
     "items.md": SPEC_MARKDOWN,
     "record.md": recordFor(),
     "targets.json": JSON.stringify(CURRENT_TARGETS),
     "consultops.md": readText(path.join(projectRoot, ".moai", "specs", CONSULTOPS_SPEC, "spec.md")),
+    "syn-defs-table.md": others.definitions[SYNTHETIC_SIBLING_SPEC].markdown,
     "defs.json": JSON.stringify({
       [CONSULTOPS_SPEC]: {
         file: "consultops.md",
         labels: ["ID", "증거 항목", "I", "G", "근거", "대상 / 무효화 사건"],
       },
+      [SYNTHETIC_SIBLING_SPEC]: {
+        file: "syn-defs-table.md",
+        labels: others.definitions[SYNTHETIC_SIBLING_SPEC].labels,
+      },
     }),
     "records.json": JSON.stringify({
+      ...others.records,
       [siblingRecordKey(CONSULTOPS_SPEC, "E-03")]: { status: "READY", target: "형제값-예시-1" },
     }),
   };
@@ -1187,6 +1306,7 @@ describe("runCli — 형제 증거 참조 인자", () => {
       `| ${SIBLING_REF_COLUMNS.join(" | ")} |`,
       `|${SIBLING_REF_COLUMNS.map(() => "---").join("|")}|`,
       `| R-04 | ${CONSULTOPS_SPEC} | E-03 | READY | ${target} | 형제위치-예시 |`,
+      ...others.rows.map((cells) => `| ${cells.join(" | ")} |`),
     ].join("\n");
 
   const reader =
@@ -1454,14 +1574,16 @@ describe("AC-B2CLAUNCH-008 — 서명 fixture 열한 가지(가)~(카)", () => {
   ];
 
   function check(fixture: SignatureFixture, request: CheckRequest, signature = fixture.signature) {
-    return checkLaunchGate({
-      itemTableMarkdown: SPEC_MARKDOWN,
-      recordMarkdown: recordFor(fixture.statuses),
-      currentTargets: CURRENT_TARGETS,
-      signatureMarkdown: signature,
-      allowedRoles: ALLOWED_ROLES,
-      request,
-    });
+    return checkLaunchGate(
+      withDefaultSibling({
+        itemTableMarkdown: SPEC_MARKDOWN,
+        recordMarkdown: recordFor(fixture.statuses),
+        currentTargets: CURRENT_TARGETS,
+        signatureMarkdown: signature,
+        allowedRoles: ALLOWED_ROLES,
+        request,
+      })
+    );
   }
 
   it("fixture는 정확히 열한 가지이고 꼬리표가 acceptance.md와 같다", () => {
@@ -1587,15 +1709,17 @@ describe("AC-B2CLAUNCH-008 — 서명 fixture 열한 가지(가)~(카)", () => {
     const exemptions: Exemption[] = [{ itemId: "R-02", column: "I" }];
     const request = PROD_I;
     const signed = (extra: string[]) =>
-      checkLaunchGate({
-        itemTableMarkdown: SPEC_MARKDOWN,
-        recordMarkdown: ALL_READY,
-        currentTargets: CURRENT_TARGETS,
-        exemptions,
-        allowedRoles: ALLOWED_ROLES,
-        signatureMarkdown: signatureFor(ALL_READY, "production", request, { exemptions, extra }),
-        request,
-      });
+      checkLaunchGate(
+        withDefaultSibling({
+          itemTableMarkdown: SPEC_MARKDOWN,
+          recordMarkdown: ALL_READY,
+          currentTargets: CURRENT_TARGETS,
+          exemptions,
+          allowedRoles: ALLOWED_ROLES,
+          signatureMarkdown: signatureFor(ALL_READY, "production", request, { exemptions, extra }),
+          request,
+        })
+      );
 
     expect(requiredIdsFor(request, exemptions)).not.toContain("R-02");
     expect(signed([]).exitCode).toBe(0);
@@ -1709,9 +1833,10 @@ describe("runCli — 서명 인자(--signature, --allowed-roles)", () => {
     "targets.json": JSON.stringify(CURRENT_TARGETS),
     "signature.md": signatureFor(record, "production", production("I", ALL_SURFACES)),
   };
+  const allFiles: Record<string, string> = { ...baseFiles, ...DEFAULT_SIBLING_CLI.files };
   const read = (file: string): string => {
-    if (!(file in baseFiles)) throw new Error(`없는 파일: ${file}`);
-    return baseFiles[file];
+    if (!(file in allFiles)) throw new Error(`없는 파일: ${file}`);
+    return allFiles[file];
   };
   const baseArgs = [
     "--items",
@@ -1726,6 +1851,7 @@ describe("runCli — 서명 인자(--signature, --allowed-roles)", () => {
     "I",
     "--surfaces",
     "S1,S2,S3",
+    ...DEFAULT_SIBLING_CLI.args,
   ];
 
   it("두 인자를 읽어 서명이 있는 통과 판정을 낸다", () => {
@@ -1772,6 +1898,473 @@ describe("runCli — 서명 인자(--signature, --allowed-roles)", () => {
     expect(broken.exitCode).toBe(2);
     expect(broken.output).toContain("서명 기록 오류");
   });
+});
+
+// ---- PR #24 재현 결함 3건 회귀 (형제 증거 · 서명 대상 · 무효화 사건) ---------------------------
+// 수정 전 점검기는 아래 입력을 통과시켰다. 세 경로 — checkLaunchGate(마크다운 입력), runCli(프로세스 안, 파일
+// 읽기는 가짜), 자식 프로세스 CLI(실제 명령줄과 종료 코드) — 모두 실제 공개 판정에 연결된 길이다.
+// ①~⑥은 요청서의 여섯 시험이고 그 옆의 양성 대조는 유효한 증거·서명이면 같은 길로 통과함을 보인다.
+
+interface RegressionInputs {
+  request: CheckRequest;
+  record: string;
+  targets: Readonly<Record<string, string>>;
+  events?: Readonly<Record<string, readonly string[]>>;
+  signature: string;
+  /** undefined이면 형제 증거 인자(참조 줄·정의표·형제 기록)를 아예 넘기지 않는다. */
+  sibling?: SyntheticSiblingEvidence;
+}
+
+/** 기본값은 모든 증거가 유효한 운영 단계 I 점검이다. `overrides`가 결함 하나씩을 만든다. */
+function regressionInputs(overrides: Partial<RegressionInputs> = {}): RegressionInputs {
+  const request = overrides.request ?? production("I", ALL_SURFACES);
+  const record = overrides.record ?? recordFor();
+  return {
+    request,
+    record,
+    targets: CURRENT_TARGETS,
+    signature: signatureFor(record, request.environment ?? "production", request),
+    sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS),
+    ...overrides,
+  };
+}
+
+function regressionCliInputs(
+  inputs: RegressionInputs,
+  at: (name: string) => string
+): { files: Record<string, string>; args: string[] } {
+  const files: Record<string, string> = {
+    [at("items.md")]: SPEC_MARKDOWN,
+    [at("record.md")]: inputs.record,
+    [at("targets.json")]: JSON.stringify(inputs.targets),
+    [at("signature.md")]: inputs.signature,
+  };
+  const args = [
+    "--items",
+    at("items.md"),
+    "--record",
+    at("record.md"),
+    "--targets",
+    at("targets.json"),
+    "--signature",
+    at("signature.md"),
+    "--allowed-roles",
+    ALLOWED_ROLES_ARG,
+    "--environment",
+    inputs.request.environment ?? "",
+    ...(inputs.request.stage === undefined ? [] : ["--stage", inputs.request.stage]),
+    "--surfaces",
+    inputs.request.surfaces.join(","),
+  ];
+  if (inputs.events !== undefined) {
+    files[at("events.json")] = JSON.stringify(inputs.events);
+    args.push("--events", at("events.json"));
+  }
+  if (inputs.sibling !== undefined) {
+    const sibling = siblingCliParts(inputs.sibling, at);
+    Object.assign(files, sibling.files);
+    args.push(...sibling.args);
+  }
+  return { files, args };
+}
+
+type RegressionPath = "checkLaunchGate" | "runCli" | "자식 프로세스 CLI";
+
+function runRegression(
+  pathName: RegressionPath,
+  inputs: RegressionInputs
+): { exitCode: number | null; output: string } {
+  if (pathName === "checkLaunchGate") {
+    const result = checkLaunchGate({
+      itemTableMarkdown: SPEC_MARKDOWN,
+      recordMarkdown: inputs.record,
+      currentTargets: inputs.targets,
+      eventsAfterObservation: inputs.events,
+      signatureMarkdown: inputs.signature,
+      allowedRoles: ALLOWED_ROLES,
+      siblingReferenceMarkdown: inputs.sibling?.markdown,
+      siblingDefinitions: inputs.sibling?.definitions,
+      siblingRecords: inputs.sibling?.records,
+      request: inputs.request,
+    });
+    return { exitCode: result.exitCode, output: result.output };
+  }
+  if (pathName === "runCli") {
+    const { files, args } = regressionCliInputs(inputs, (name) => name);
+    const result = runCli(args, (file) => {
+      if (!(file in files)) throw new Error(`없는 파일: ${file}`);
+      return files[file];
+    });
+    return { exitCode: result.exitCode, output: result.output };
+  }
+  const dir = mkdtempSync(path.join(tmpdir(), "launch-gate-regression-"));
+  try {
+    const { files, args } = regressionCliInputs(inputs, (name) => path.join(dir, name));
+    for (const [file, content] of Object.entries(files)) writeFileSync(file, content, "utf-8");
+    const child = spawnSync(process.execPath, [tsxCliPath, scriptPath, ...args], {
+      cwd: projectRoot,
+      encoding: "utf-8",
+    });
+    return { exitCode: child.status, output: `${child.stdout}${child.stderr}` };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+interface RegressionCase {
+  tag: string;
+  name: string;
+  inputs: () => RegressionInputs;
+  exitCode: 0 | 1;
+  /** `판정: …` 줄의 판정 문구. */
+  verdict: string;
+  outputHas: string[];
+  outputLacks?: string[];
+  /** 자식 프로세스 경로까지 시험할지(느리므로 대표 입력에만). */
+  child?: boolean;
+}
+
+const PROD_I_REQUEST = production("I", ALL_SURFACES);
+const INTERNAL_BLOCKED = "내부 시험 공개 불가";
+/** 운영 단계 I·표면 전체 점검에서 실제로 필수인 R 항목(R-05는 I 칸이 해당 없음). */
+const REQUIRED_SIBLING_ITEMS_AT_I = requiredIdsFor(PROD_I_REQUEST).filter((id) =>
+  SIBLING_ITEM_IDS.includes(id)
+);
+
+/** 요청서 ①~⑥: 수정 전 통과하던 입력이며 모두 종료 코드 1이어야 한다. */
+const BLOCKED_CASES: RegressionCase[] = [
+  // ① 필수 형제 참조 전체 누락
+  {
+    tag: "①",
+    name: "필수 형제 참조 전체 누락 — 참조 줄·정의표·형제 기록 인자를 하나도 넘기지 않음",
+    inputs: () => regressionInputs({ sibling: undefined }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: [
+      "R-01: UNVERIFIED",
+      "R-02: UNVERIFIED",
+      "R-03: UNVERIFIED",
+      "R-04: UNVERIFIED",
+      "참조 줄",
+    ],
+    outputLacks: ["공개 가능"],
+    child: true,
+  },
+  {
+    tag: "①",
+    name: "참조 줄 표에 헤더만 있고 줄이 0개",
+    inputs: () =>
+      regressionInputs({
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, { omitLines: SIBLING_ITEM_IDS }),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-01: UNVERIFIED", "R-04: UNVERIFIED", "참조 줄"],
+    outputLacks: ["공개 가능"],
+  },
+  {
+    tag: "①",
+    name: "참조 줄이 R-04 한 줄뿐이고 R-01·R-02·R-03 줄이 없음(수정 전에는 이 입력이 통과했다)",
+    inputs: () =>
+      regressionInputs({
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, {
+          omitLines: ["R-01", "R-02", "R-03"],
+        }),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-01: UNVERIFIED", "R-02: UNVERIFIED", "R-03: UNVERIFIED", "R-04: READY"],
+    outputLacks: ["공개 가능"],
+  },
+  {
+    tag: "①",
+    name: "로컬 시험 판정: R-02·R-03 줄 누락은 막고 운영 한정 R-04는 여전히 해당 없음(local)",
+    inputs: () => regressionInputs({ request: local(["S1"]), sibling: undefined }),
+    exitCode: 1,
+    verdict: "로컬 시험 불가",
+    outputHas: ["R-02: UNVERIFIED", "R-03: UNVERIFIED", "R-04: 해당 없음(local)"],
+    outputLacks: ["R-04: UNVERIFIED", "로컬 시험 가능"],
+  },
+  // ② 형제 기록·참조 줄이 모두 BLOCKED
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => ({
+    tag: "②",
+    name: `${id}: 형제 기록의 현재 상태와 참조 줄이 모두 BLOCKED(값이 같아도 통과하지 못한다)`,
+    inputs: () =>
+      regressionInputs({
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, { recordStatus: { [id]: "BLOCKED" } }),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: [`${id}: BLOCKED`, "형제 기록의 현재 상태가 READY가 아니다(BLOCKED)"],
+    outputLacks: ["공개 가능"],
+    child: id === "R-02",
+  })),
+  // ② 독립 감사가 짚은 공백: 일반 사용자 공개(G)의 R-05와 로컬 시험 판정에서도 같은 규칙이다
+  {
+    tag: "②",
+    name: "운영 단계 G: R-05의 형제 기록과 참조 줄이 BLOCKED",
+    inputs: () =>
+      regressionInputs({
+        request: production("G", ALL_SURFACES),
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, {
+          recordStatus: { "R-05": "BLOCKED" },
+        }),
+      }),
+    exitCode: 1,
+    verdict: "일반 사용자 공개 불가",
+    outputHas: ["R-05: BLOCKED"],
+    outputLacks: ["공개 가능"],
+  },
+  {
+    tag: "②",
+    name: "운영 단계 G: R-05의 참조 줄이 없음",
+    inputs: () =>
+      regressionInputs({
+        request: production("G", ALL_SURFACES),
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, { omitLines: ["R-05"] }),
+      }),
+    exitCode: 1,
+    verdict: "일반 사용자 공개 불가",
+    outputHas: ["R-05: UNVERIFIED", "참조 줄"],
+    outputLacks: ["일반 사용자 공개 가능"],
+  },
+  {
+    tag: "②",
+    name: "로컬 시험 판정: R-02의 형제 기록과 참조 줄이 BLOCKED",
+    inputs: () =>
+      regressionInputs({
+        request: local(["S1"]),
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, {
+          recordStatus: { "R-02": "BLOCKED" },
+        }),
+      }),
+    exitCode: 1,
+    verdict: "로컬 시험 불가",
+    outputHas: ["R-02: BLOCKED"],
+    outputLacks: ["로컬 시험 가능"],
+  },
+  // ③ 형제 기록·참조 줄이 모두 UNVERIFIED
+  ...REQUIRED_SIBLING_ITEMS_AT_I.map((id): RegressionCase => ({
+    tag: "③",
+    name: `${id}: 형제 기록의 현재 상태와 참조 줄이 모두 UNVERIFIED(값이 같아도 통과하지 못한다)`,
+    inputs: () =>
+      regressionInputs({
+        sibling: syntheticSiblingEvidence(SIBLING_ITEM_IDS, {
+          recordStatus: { [id]: "UNVERIFIED" },
+        }),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: [`${id}: UNVERIFIED`, "형제 기록의 현재 상태가 READY가 아니다(UNVERIFIED)"],
+    outputLacks: ["공개 가능"],
+    child: id === "R-03",
+  })),
+  // ④ 이전 대상에 대한 서명 + 새 대상의 READY 기록
+  {
+    tag: "④",
+    name: "L-04의 이전 대상 값으로 한 서명 + 같은 항목이 새 대상 값으로 READY",
+    inputs: () =>
+      regressionInputs({
+        signature: signatureFor(
+          recordFor({}, [], {}, { "L-04": "대상-L-04-이전" }),
+          "production",
+          PROD_I_REQUEST
+        ),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: [
+      "L-04: READY",
+      "서명 점검: 서명 시점 L-04의 대상 값이 현재 유효 항목의 대상 값과 다르다",
+    ],
+    outputLacks: ["공개 가능", "대상-L-04-이전"],
+    child: true,
+  },
+  {
+    tag: "④",
+    name: "로컬 시험 판정: R-03의 이전 대상 값으로 한 서명",
+    inputs: () => {
+      const request = local(["S1"]);
+      return regressionInputs({
+        request,
+        signature: signatureFor(
+          recordFor({}, [], {}, { "R-03": "대상-R-03-이전" }),
+          "local",
+          request
+        ),
+      });
+    },
+    exitCode: 1,
+    verdict: "로컬 시험 불가",
+    outputHas: ["서명 점검: 서명 시점 R-03의 대상 값이 현재 유효 항목의 대상 값과 다르다"],
+    outputLacks: ["로컬 시험 가능", "대상-R-03-이전"],
+  },
+  // ⑤ 서명 snapshot이 READY가 아닌데 현재 기록은 READY
+  {
+    tag: "⑤",
+    name: "서명 snapshot의 L-04가 BLOCKED이고 현재 기록은 READY",
+    inputs: () =>
+      regressionInputs({
+        signature: signatureFor(recordFor({ "L-04": "BLOCKED" }), "production", PROD_I_REQUEST),
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: [
+      "L-04: READY",
+      "서명 점검: 서명 시점 L-04의 상태가 READY가 아니다(서명 시점 상태: BLOCKED)",
+    ],
+    outputLacks: ["공개 가능"],
+    child: true,
+  },
+  {
+    tag: "⑤",
+    name: "서명 snapshot의 R-02가 UNVERIFIED이고 현재 기록은 READY(로컬 시험 판정)",
+    inputs: () => {
+      const request = local(["S1"]);
+      return regressionInputs({
+        request,
+        signature: signatureFor(recordFor({ "R-02": "UNVERIFIED" }), "local", request),
+      });
+    },
+    exitCode: 1,
+    verdict: "로컬 시험 불가",
+    outputHas: ["서명 점검: 서명 시점 R-02의 상태가 READY가 아니다(서명 시점 상태: UNVERIFIED)"],
+    outputLacks: ["로컬 시험 가능"],
+  },
+  // ⑥ 기록의 무효화 사건 칸에서 정의표의 사건을 뺐고 관측 뒤에 그 사건이 일어남
+  {
+    tag: "⑥",
+    name: "R-04 기록에 EV-L3만 적혀 있고(정의표는 EV-L3·EV-L5) 관측 뒤에 EV-L5가 일어남",
+    inputs: () =>
+      regressionInputs({
+        record: recordFor({}, [], { "R-04": ["EV-L3"] }),
+        events: { "R-04": ["EV-L5"] },
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["R-04: UNVERIFIED", "EV-L5"],
+    outputLacks: ["공개 가능"],
+    child: true,
+  },
+  {
+    tag: "⑥",
+    name: "L-05 기록에 EV-L1만 적혀 있고(정의표는 EV-L1·EV-L5) 관측 뒤에 EV-L5가 일어남",
+    inputs: () =>
+      regressionInputs({
+        record: recordFor({}, [], { "L-05": ["EV-L1"] }),
+        events: { "L-05": ["EV-L5"] },
+      }),
+    exitCode: 1,
+    verdict: INTERNAL_BLOCKED,
+    outputHas: ["L-05: UNVERIFIED", "EV-L5"],
+    outputLacks: ["공개 가능"],
+  },
+];
+
+/** 같은 길로 유효한 증거·서명이 통과한다는 양성 대조(수정 전후 모두 종료 코드 0이어야 한다). */
+const PASSING_CASES: RegressionCase[] = [
+  {
+    tag: "양성",
+    name: "운영 단계 I: 형제 증거·서명·사건이 모두 유효하면 내부 시험 공개 가능",
+    inputs: () => regressionInputs(),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-04: READY", "서명 점검: 통과"],
+    child: true,
+  },
+  {
+    tag: "양성",
+    name: "운영 단계 G: 일반 사용자 공개 가능",
+    inputs: () => regressionInputs({ request: production("G", ALL_SURFACES) }),
+    exitCode: 0,
+    verdict: "일반 사용자 공개 가능",
+    outputHas: ["R-05: READY", "서명 점검: 통과"],
+  },
+  {
+    tag: "양성",
+    name: "로컬 시험 판정: R-02·R-03 형제 증거가 유효하면 로컬 시험 가능",
+    inputs: () => regressionInputs({ request: local(["S1"]) }),
+    exitCode: 0,
+    verdict: "로컬 시험 가능",
+    outputHas: ["R-04: 해당 없음(local)", "서명 점검: 통과"],
+  },
+  {
+    tag: "양성",
+    name: "새 대상 값으로 다시 서명하면 통과한다(이전 서명은 재사용되지 않지만 새 서명은 인정된다)",
+    inputs: () => {
+      const record = recordFor({}, [], {}, { "L-04": "대상-L-04-새" });
+      return regressionInputs({
+        record,
+        targets: { ...CURRENT_TARGETS, "L-04": "대상-L-04-새" },
+      });
+    },
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["L-04: READY", "서명 점검: 통과"],
+  },
+  {
+    tag: "양성",
+    name: "기록에 EV-L3만 적힌 R-04도 정의표·기록 어디에도 없는 사건(EV-L2)이 일어났을 뿐이면 READY 그대로",
+    inputs: () =>
+      regressionInputs({
+        record: recordFor({}, [], { "R-04": ["EV-L3"] }),
+        events: { "R-04": ["EV-L2"] },
+      }),
+    exitCode: 0,
+    verdict: "내부 시험 공개 가능",
+    outputHas: ["R-04: READY"],
+  },
+];
+
+describe("PR #24 재현 결함 3건 회귀 — 수정 전 통과하던 입력을 공개 판정 경로에서 거부한다", () => {
+  // 독립 감사(sync-auditor)가 찾은 우회: 사건 이름이 EV-L1~EV-L5 형태가 아니거나 항목 키가 어긋나면 일어난 사건이
+  // 조용히 무시되어 통과했다. 이제 입력 거부(종료 코드 2)다. 이 시험은 코드 수정 뒤에 더했다(수정 전 실패 증거 없음).
+  const MALFORMED_EVENTS: Array<[string, Record<string, string[]>]> = [
+    ["소문자 사건 이름", { "R-04": ["ev-l5"] }],
+    ["앞 공백이 붙은 사건 이름", { "R-04": [" EV-L5"] }],
+    ["뒤에 보이지 않는 문자가 붙은 사건 이름", { "R-04": ["EV-L5​"] }],
+    ["EV-L1~EV-L5 밖의 사건 이름", { "R-04": ["EV-L9"] }],
+    ["소문자 항목 키", { "r-04": ["EV-L5"] }],
+    ["항목 정의표에 없는 항목 키", { "R-99": ["EV-L5"] }],
+  ];
+  for (const [what, events] of MALFORMED_EVENTS) {
+    for (const pathName of ["checkLaunchGate", "runCli"] as const) {
+      it(`⑥ 관측 뒤 사건 입력이 잘못됐다(${what}) → ${pathName}: 종료 코드 2로 거부하고 통과 판정을 내지 않는다`, () => {
+        const result = runRegression(
+          pathName,
+          regressionInputs({ record: recordFor({}, [], { "R-04": ["EV-L3"] }), events })
+        );
+
+        expect(result.exitCode, result.output).toBe(2);
+        expect(result.output).toContain("거부: 관측 뒤 사건 입력의");
+        expect(result.output).not.toMatch(/공개 가능|로컬 시험 가능|판정:/);
+        expect(result.output).not.toContain("EV-L9");
+      });
+    }
+  }
+
+  it("요청서의 여섯 시험(①~⑥)이 모두 있다", () => {
+    expect(new Set(BLOCKED_CASES.map((c) => c.tag))).toEqual(
+      new Set(["①", "②", "③", "④", "⑤", "⑥"])
+    );
+  });
+
+  const allCases = [...BLOCKED_CASES, ...PASSING_CASES];
+  for (const c of allCases) {
+    const paths: RegressionPath[] = c.child
+      ? ["checkLaunchGate", "runCli", "자식 프로세스 CLI"]
+      : ["checkLaunchGate", "runCli"];
+    for (const pathName of paths) {
+      it(`${c.tag} ${c.name} → ${pathName}: 종료 코드 ${c.exitCode}`, { timeout: 60_000 }, () => {
+        const result = runRegression(pathName, c.inputs());
+
+        expect(result.exitCode, result.output).toBe(c.exitCode);
+        expect(result.output).toContain(`판정: ${c.verdict}`);
+        for (const text of c.outputHas) expect(result.output).toContain(text);
+        for (const text of c.outputLacks ?? []) expect(result.output).not.toContain(text);
+      });
+    }
+  }
 });
 
 function deepFreeze<T>(value: T): T {

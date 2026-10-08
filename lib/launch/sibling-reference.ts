@@ -129,17 +129,34 @@ export interface SiblingRefInput {
   records?: Readonly<Record<string, SiblingRecord>>;
 }
 
+/**
+ * 형제 SPEC이 소유한 증거를 참조하는 이 SPEC의 항목(`R-nn`, spec.md §2.4 "항목 정의표 읽는 법")인지.
+ * 이런 항목은 형제 증거를 참조 줄로만 참조하므로 적용되는 요청에서는 참조 줄이 있어야 READY가 될 수 있다.
+ * EV-L3를 사건으로 적었다고 R 항목은 아니다 — L-08은 S2 판정에만 형제 결정 기록을 쓰고 참조 줄 대상이 아니다.
+ */
+export function isSiblingReferenceItem(itemId: string): boolean {
+  return /^R-\d+$/.test(itemId);
+}
+
 export interface SiblingRefEvaluation {
   /** 거부(입력 오류): 조회할 수 없거나 존재하지 않는 형제 항목. 줄을 평가하지 않는다. */
   rejections: string[];
   /** 이 SPEC 항목 식별자 → EV-L3 이유 목록(형제 기록과 달라졌거나 비교할 수 없음). */
   unverified: Record<string, string[]>;
+  /**
+   * 이 SPEC 항목 식별자 → 형제 기록의 현재 상태가 READY가 아니라서 이 항목이 READY가 될 수 없다는 이유.
+   * 참조 줄과 형제 기록의 값이 같아도 형제 증거가 READY가 아니면 이 항목도 READY가 아니다. 상태는 형제 기록의
+   * 현재 상태를 그대로 따른다(BLOCKED면 BLOCKED, 그 밖에는 UNVERIFIED) — 이 SPEC은 형제 증거의 상태를 형제 기록과
+   * 다르게 판정하지 않는다(REQ-B2CLAUNCH-004). 한 항목에 줄이 여럿이면 하나라도 BLOCKED일 때 BLOCKED다.
+   */
+  notReady: Record<string, { status: "BLOCKED" | "UNVERIFIED"; reasons: string[] }>;
 }
 
 export function evaluateSiblingReferences(input: SiblingRefInput): SiblingRefEvaluation {
   const idsBySpec = new Map<string, Set<string> | null>();
   const rejections: string[] = [];
   const unverified: Record<string, string[]> = {};
+  const notReady: SiblingRefEvaluation["notReady"] = {};
 
   const idsOf = (spec: string): Set<string> | null | undefined => {
     const source = input.definitions[spec];
@@ -178,6 +195,18 @@ export function evaluateSiblingReferences(input: SiblingRefInput): SiblingRefEva
         `${siblingSpec}/${siblingItem}: 형제 기록 내용이 입력되지 않아 옮겨 적은 값을 현재 값과 비교할 수 없다(EV-L3)`
       );
     } else {
+      if (record.status !== "READY") {
+        // 값이 참조 줄과 같아도 형제 증거 자체가 READY가 아니면 이 항목은 READY가 될 수 없다. 열거 밖 값은 그대로
+        // 되풀이하지 않고 "열거 밖 값"으로 적는다.
+        const shown = (ITEM_STATUSES as readonly string[]).includes(record.status)
+          ? record.status
+          : "열거 밖 값";
+        const entry = (notReady[launchItem] ??= { status: "UNVERIFIED", reasons: [] });
+        if (record.status === "BLOCKED") entry.status = "BLOCKED";
+        entry.reasons.push(
+          `${siblingSpec}/${siblingItem}: 형제 기록의 현재 상태가 READY가 아니다(${shown})`
+        );
+      }
       if (record.status !== line.status) {
         reasons.push(
           `${siblingSpec}/${siblingItem}: 옮겨 적은 상태가 형제 기록의 현재 상태와 다르다(EV-L3)`
@@ -193,5 +222,5 @@ export function evaluateSiblingReferences(input: SiblingRefInput): SiblingRefEva
       unverified[launchItem] = [...(unverified[launchItem] ?? []), ...reasons];
   }
 
-  return { rejections, unverified };
+  return { rejections, unverified, notReady };
 }
