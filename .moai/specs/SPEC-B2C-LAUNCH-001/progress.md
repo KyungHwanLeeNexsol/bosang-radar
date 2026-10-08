@@ -998,13 +998,14 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 - 기록일 2026-10-08. 감사 대상 SPEC 전체(REQ 16, AC 16, Tier M), 기준 SHA `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`(= PR #24 병합 커밋 = 감사 시점 `origin/main`), 감사 시작과 끝에서 작업 트리 깨끗(`git status --short` 빈 출력).
 - **이 감사는 새 감사다.** 대상(SPEC 전체)·기준 SHA(`d80adc8`)·증거·결론이 모두 아래에 따로 있다. 앞선 기록을 소급해 바꾸지 않는다: 계획 감사 PASS 0.81은 `spec.md`·`plan.md`·`acceptance.md`의 문서 해시에 대한 결과이고 코드 품질의 근거가 아니다. 구현 감사 ②는 "F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인."으로만 읽는다. 감사 ②의 약 87.2는 합격 근거가 아니며 이번에도 쓰지 않았다.
 - **교정 기록 (2026-10-08, PR #25 외부 검토 반영)**: 같은 기준 SHA `d80adc8`에 대한 교정이고 새 감사가 아니다(코드는 이 기록을 담은 sync 브랜치 `dde263b` 위에서도 같다). 고친 것: ① `acceptance.md` 도입부·AC-013 "이 AC가 보지 못하는 것"·Definition of Done이 `deploy.yml` 변경의 `main` 병합과 그 배포를 AC 밖으로 명시하므로 "교체본이 `main`에 없다"는 사실만으로 AC-013을 FAIL로 판정하지 않는다 — **AC-013: FAIL → UNVERIFIED**(구현 인수 조건은 보류 브랜치 `dd7122c`로 확인했고 남은 것은 요구된 서명 둘이다). ② AC 표를 구현 인수·AC가 선결로 적은 BLOCKED·요구된 서명·AC 밖 항목으로 다시 나눴다(교정 전후는 표의 마지막 열). ③ 커버리지 98.69%의 명령·범위를 밝히고 하네스를 포함한 범위를 추가 측정했다. ④ `moai` CLI는 PATH에만 없었음을 확인해 `moai spec lint`를 직접 실행하고 @MX(sync Phase 9)를 직접 점검했다. ⑤ 발견 S-2를 직접 재현해 분류했다. ⑥ AC-014의 롤백 로컬 관측은 의존 파일이 관측 뒤 바뀌어 재사용 근거가 성립하지 않아 한 번 다시 실행했다. **바뀌지 않은 것**: 전체 판정 FAIL(Security 하드 임계값), sync 미종결(`status: in-progress`), 운영 공개 안 함, 계획 감사 PASS 0.81과 구현 감사 ②의 제한된 결론, `spec.md`·`plan.md`·`acceptance.md`(수정 안 함). 명령·종료 코드·원문 출력은 `.moai/specs/SPEC-B2C-LAUNCH-001/sync-evidence-d80adc8.md`에 있다.
+- **Phase 9 해소 기록 (2026-10-08, PR #25)**: 코드 논리는 `d80adc8`과 같고 **주석 27줄만 추가**했다(파일 4개, 삭제 0줄, 주석이 아닌 추가 줄 0줄). ① P1 — fan_in 3 이상인 exported 함수 **9개**에 `@MX:ANCHOR`·`@MX:REASON`(·`@MX:SPEC`)을 달았다. 처음 확인한 5개(`splitCells`·`findTableWithExtras`·`findTableBody`·`assembleEnv`·`runPnpm`)에 더해, 호출하는 함수 수로 다시 센 재점검에서 `extractTitle`·`checkPreconditions`·`extractApiCode`·`buildMismatchProbe` 4개가 더 나와 사용자 결정으로 함께 달았다(기준·숫자·정정은 증거 문서 §5.6). 앞서 적은 `fan_in` 값은 호출 지점 수와 import 파일 수가 섞인 값이었다. 특히 `runPnpm`은 이름이 같은 비공개 지역 함수가 있는 `verify-gate-reachability.ts`까지 세어 올라간 값이고, 바로잡으면 호출 지점 6·호출 함수 4·파일 3·외부 import 파일 2다(호출 함수 기준으로는 충족, import 파일 기준으로는 미달인 경계 사례). ② P2 — 후보 14건의 오류 처리·호출자 처리·최상위 catch·자원 정리 경로를 읽었고 **14건 모두 위반이 아니다**(`@MX:WARN` 추가 0). 판정 기준은 "async 함수의 실패가 어디서도 처리되지 않거나, 실패했을 때 자원이 새는가"이다. ③ `--skip-mx`와 프로필 예외는 쓰지 않았다. 바뀌지 않은 것: 전체 판정 FAIL, Security FAIL, Functionality 미충족, LSP security 진단원 미확인, sync 미종결(`status: in-progress`), 운영 공개 안 함.
 
 #### 상태 구분 (서로 다른 세 가지)
 
 | 상태 | 값 | 근거 |
 |---|---|---|
 | run 병합 | **완료** | PR #24 `merged: true`, 2026-10-08T04:48:47Z, 병합 커밋 `d80adc8`(부모 `2c244e0`·`cfe08a4`, **merge commit 방식 — 확정해 둔 squash가 아니다**). 개별 커밋(`7bda045`·`45c1a32` 등)이 `main` 이력에 그대로 들어 있고 브랜치 `worktree-launch-run`도 원격에 보존돼 있다. |
-| sync 종결 | **닫지 않음** | 프로필 기준 감사 결과가 FAIL이다(Security 하드 임계값). Functionality must-pass 미충족(AC PASS 1, FAIL 0, UNVERIFIED 15)과 sync 필수 단계 Phase 9(@MX) 미충족도 종결을 막는다. `status`는 `in-progress` 유지. 아래 "PASS로 바꾸는 데 필요한 증거"가 채워질 때까지 닫지 않는다. |
+| sync 종결 | **닫지 않음** | 프로필 기준 감사 결과가 FAIL이다(Security 하드 임계값). Functionality must-pass 미충족(AC PASS 1, FAIL 0, UNVERIFIED 15)도 종결을 막는다. sync 필수 단계 Phase 9(@MX)는 충족으로 바뀌었다(위 해소 기록). `status`는 `in-progress` 유지. 아래 "PASS로 바꾸는 데 필요한 증거"가 채워질 때까지 닫지 않는다. |
 | 운영 공개 | **하지 않았고 가능하다고 선언하지 않는다** | 이 SPEC은 공개 게이트(기록·점검기·런북)이지 공개 자체가 아니다. 어떤 노출 플래그도 켜지 않았다. 사람의 서명은 AC-002를 뺀 15개 AC에 하나도 없다(REQ-B2CLAUNCH-001). |
 
 #### 병합 직후 자동 배포 (대상 SHA `d80adc8`)
@@ -1034,7 +1035,10 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 | 직접(교정) | 커버리지 재측정 — 명령·범위를 기록한 실행(시험 30개 파일) | 845개 통과 `exit=0`. 구현 소스 28개 합산 줄 85.20%·문장 85.30%·분기 89.25%·함수 86.40%(하네스 포함). 하네스 4개만 줄 50.20% | `r2-coverage.log`, `coverage-r2/coverage-summary.json`. 명령 전문·범위별 표는 증거 문서 §3 |
 | 직접(교정) | `tsc --noEmit`, `pnpm lint`, `prettier --check`(PR #24 변경 TS/TSX 65개) | 모두 `exit=0`, 린트 경고·오류 줄 없음 | `r2-tsc.log`, `r2-lint.log`, `r2-prettier.log` |
 | 직접(교정) | `moai spec lint .moai/specs/SPEC-B2C-LAUNCH-001/spec.md` | `✓ No findings — all SPEC documents are valid`, `exit=0` | 앞서 "도구 미연결"이라 쓴 것은 PATH 문제였다(증거 문서 §5.2) |
-| 직접(교정) | @MX Phase 9 읽기 전용 스캔 | 구현 소스 28개 파일에 `@MX:` 태그 0개, P1 위반 5건, P2 후보 14건(UNVERIFIED) | 증거 문서 §5.5 |
+| 직접(교정) | @MX Phase 9 읽기 전용 스캔 (`d80adc8` 기준, 해소 전) | 구현 소스 28개 파일에 `@MX:` 태그 0개, P1 위반 5건, P2 후보 14건(UNVERIFIED) | 증거 문서 §5.5 |
+| 직접(Phase 9 해소) | P1 재점검 두 방식(import 파일 수·호출 함수 수) + 태그 추가 + `moai mx scan` | 호출 함수 기준 9개 모두 `@MX:ANCHOR`(파일당 1·2·3·3개, 한도 3), 색인에 태그 34개 인식·내 ANCHOR 9개 REASON 누락 0 | 증거 문서 §5.6.2–5.6.3 |
+| 직접(Phase 9 해소) | 변경 diff, `prettier --check`(대조군 포함), `eslint`, 영향받는 시험 | 파일 4개 +27줄·삭제 0·주석 아닌 줄 0 / prettier 통과 / eslint `exit=0` / 시험 28개 파일 591개 통과 | 증거 문서 §5.6.5 |
+| 직접(Phase 9 해소) | P2 후보 14건 개별 판독(오류 처리·호출자·최상위 catch·자원 정리) | 14건 모두 위반 아님, `@MX:WARN` 추가 0 | 증거 문서 §5.6.4 |
 | 직접(교정) | 보류 브랜치 교체본 `deploy.yml`(`dd7122c`)과 정적 시험 8개를 스크래치 폴더에서 실행 | 8개 통과 `exit=0` | 증거 문서 §4.4–4.5 |
 | 재사용(교정에서 변경 범위 확인) | smoke 일곱 상태(아홉 행) 로컬 관측 `V64`(2026-10-07 16:01) | 불일치 0 | smoke 관련 파일 6개와 `.github`가 `504f3d4`~`d80adc8`에서 변경 0건, 마지막 변경(15:44·15:57)이 관측 앞이다(증거 문서 §4.3) |
 | 직접(교정) | 롤백 로컬 시험 `scripts/verify-rollback-dark.ts` 재실행 | 관측 14개 일치, 불일치 0, `exit=0` | 이 하네스가 import하는 `verify-gate-reachability.ts`가 이전 관측 `V74`(16:28) 뒤에 바뀌었다(`56d7e4a`). 증거 문서 §4b, `r2-rollback-dark.log` |
@@ -1048,9 +1052,9 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 | Security (25%, 하드 임계값) | Critical/High 없음(`default.md`) | **FAIL**(문자 그대로) — 변경 없음 | prod 의존성에 Critical 4·High 13이 있다(수치 재추출: `sync-evidence-d80adc8.md` §2). **이 SPEC이 도입한 것이 아니다**(의존성 파일 무변경). 이 SPEC이 쓴 코드만 보면 감사자가 Critical/High 0건으로 판단했다 |
 | Craft (20%, 커버리지 85% 이상) | 커버리지 85% 이상(`default.md`). 파일별 기준은 없다 | **PASS** — 커버리지 기준에 한정, 범위 명시 | PR #24가 추가·수정한 구현 소스 28개 파일 합산 줄 85.20%·문장 85.30%·분기 89.25%·함수 86.40%로 네 지표 모두 85% 이상이다. 여유가 얇다(줄 0.20%p). 제품 코드 24개만 보면 줄 98.69%(앞서 보고한 값). **하네스 4개는 줄 50.20%**이고, 줄 85% 미만 파일 6개는 sync Phase 10의 갭 후보로 기록했다(판정 기준 아님, 발견 C-1). 이 PASS는 저장소 전체 커버리지·하네스의 프로세스 밖 실행 경로·run 단계 커밋별 커버리지를 포함하지 않는다 |
 | Consistency (15%) | 주요 패턴 위반 없음(`default.md`) | **PASS** — 린트·타입·서식·spec lint 근거 범위에 한정. 교정 전 "PASS(도구 공백)"은 철회 | `tsc --noEmit`·`eslint .`·`prettier --check`(65개)·`moai spec lint` 모두 `exit=0`(직접). **이 PASS는 @MX 규칙 준수를 포함하지 않는다** — 바로 아래 행 |
-| sync 필수 단계 Phase 9 (@MX 검증, 4차원 점수와 별개) | P1·P2 위반은 sync를 차단한다(`sync/quality-gates-quality.md` Phase 9, 우회는 `--skip-mx`와 보고서 기록뿐) | **미충족** | 직접 스캔: P1 위반 5건 확인(`splitCells`·`findTableWithExtras`·`findTableBody`·`assembleEnv`·`runPnpm`: exported, fan_in 3 이상, `@MX:ANCHOR` 없음). 구현 소스 28개 파일에 `@MX:` 태그가 0개다. P2(async 오류 처리) 후보 14건은 UNVERIFIED. 태그 추가(코드 주석 변경)도 `--skip-mx` 우회도 하지 않았다 — 사용자 결정(발견 M-1) |
+| sync 필수 단계 Phase 9 (@MX 검증, 4차원 점수와 별개) | P1·P2 위반은 sync를 차단한다(`sync/quality-gates-quality.md` Phase 9, 우회는 `--skip-mx`와 보고서 기록뿐) | **충족** (해소 전: 미충족) | P1: fan_in 3 이상인 exported 함수 9개 모두 `@MX:ANCHOR`·`@MX:REASON`이 있다(호출 함수 수 기준, 사용자 결정으로 5→9). P2: 후보 14건을 읽어 위반이 아님을 확인했다. `--skip-mx`·프로필 예외는 쓰지 않았다. **한계**: P2는 정적 읽기이고 오류 주입 시험은 하지 않았다. 권고 등급인 P3·P4는 보지 않았다. 이 충족은 4차원 판정과 전체 판정을 바꾸지 않는다(증거 문서 §5.6) |
 | LSP 게이트 (`quality.yaml` `lsp_quality_gates.sync`) | 오류 0·경고 10 이하·LSP 깨끗함 | typecheck·lint 진단원 충족, security 진단원 UNVERIFIED | `lsp.yaml`이 `lsp.enabled: false`라 LSP 서버는 쓰지 않는다. `quality.yaml`의 `lsp_integration.diagnostic_sources: [typecheck, lint, security]`에 따라 typecheck = `tsc`(오류 0), lint = `eslint`(오류 0·경고 0)로 대체했다. security 진단원은 전용 도구가 없어 실행하지 못했다. PASS로 닫지 않는다 |
-| **전체** | Security FAIL이면 전체 FAIL, Functionality must-pass 미충족이면 PASS 불가(`default.md`) | **FAIL** — 변경 없음 | Security 하드 임계값이 FAIL을 정한다. Functionality must-pass 미충족과 Phase 9 미충족도 sync 종결을 막는다. 이 판정은 출시 가능이나 운영 공개 가능을 뜻하지 않는다 |
+| **전체** | Security FAIL이면 전체 FAIL, Functionality must-pass 미충족이면 PASS 불가(`default.md`) | **FAIL** — 변경 없음 | Security 하드 임계값이 FAIL을 정한다. Functionality must-pass 미충족도 sync 종결을 막는다(Phase 9는 충족). 이 판정은 출시 가능이나 운영 공개 가능을 뜻하지 않는다 |
 
 #### Functionality — AC별 판정
 
@@ -1094,23 +1098,23 @@ SPEC 자체의 Definition of Done(`acceptance.md`)은 프로필과 별개의 완
 | C-1 | Low | 선택 | 점검·smoke CLI 4개와 하네스 4개 | 줄 85% 미만 파일 6개 — sync Phase 10 갭 후보이고 판정 기준이 아니다: `verify-rollback-dark.ts` 31.94%, `verify-flag-runtime.ts` 50.29%(이 PR 이전부터 있던 파일 전체 수치), `verify-gate-reachability.ts` 52.27%, `verify-smoke-check.ts` 58.53%, `scripts/smoke-check.ts` 64.28%, `check-launch-transitions.ts` 83.33%. 하네스의 미커버 줄은 빌드·서버 기동·`main` 구간이라 `pnpm test` 밖의 별도 실행으로 관측한다. `evaluateLaunchGate` 194줄, CRLF 분할 반복 12곳 | 관찰 |
 | K-1 | Low·Info | 선택 | `package.json`, `spec.md:3,13,15` | 새 스크립트가 `package.json`에 미등록(런북이 명시, 사용자 결정 대기). `spec.md`에 "Plan-Phase"·`plan-only` 표식 잔존. `related_specs`는 정규 필드 밖 | 관찰 |
 | K-2 | Info | 선택 | `lib/launch/legal-notice-gate.ts` | 점검기에 미연결(M2 배선 공백) | 기존 기록 |
-| M-1 | Medium(sync 필수 단계에서는 차단) | 차단(Phase 9) | PR #24 구현 소스 28개 파일 | @MX P1 위반 5건 확인: exported 함수 5개가 fan_in 3 이상인데 `@MX:ANCHOR`가 없다 — `lib/launch/stage-table.ts` `splitCells`(11곳이 사용), `lib/launch/markdown-table.ts` `findTableWithExtras`(6)·`findTableBody`(5), `scripts/verify-flag-runtime.ts` `assembleEnv`(호출 6)·`runPnpm`(호출 6). 괄호는 호출·import 위치 수이고 `assembleEnv`·`runPnpm`은 이 PR이 export했다(`85c3c2e`). 구현 소스 28개 파일에 `@MX:` 태그가 0개다(run 단계가 `moai` CLI를 못 써서 점검하지 않았다). 최소 수정 범위: 이 5개에 `@MX:ANCHOR`(+`@MX:REASON`)를 다는 코드 주석 변경, 또는 `--skip-mx`와 사유 기록. 어느 쪽도 하지 않았다 — 사용자 결정 | 직접 스캔(`sync-evidence-d80adc8.md` §5.5) |
-| M-2 | Low·UNVERIFIED | 후보 | 구현 소스의 async 함수 21개 | 본문에 `try`/`.catch`가 없는 async 함수 14개(휴리스틱). P2 기준이 "async 함수에 오류 처리 없음"으로만 적혀 있어 함수별 오류 전파를 읽어야 판단할 수 있고, 읽지 않았다 | 직접 스캔 |
+| M-1 | Medium(sync 필수 단계에서는 차단) | **해소** (Phase 9 충족) | PR #24 구현 소스 28개 파일 | 해소 전: @MX P1 위반 5건 — exported 함수 5개가 fan_in 3 이상인데 `@MX:ANCHOR`가 없었다(`splitCells`·`findTableWithExtras`·`findTableBody`·`assembleEnv`·`runPnpm`). 구현 소스 28개 파일에 `@MX:` 태그가 0개였다(run 단계가 `moai` CLI를 못 써서 점검하지 않았다). **해소**: 호출 함수 수로 다시 센 재점검에서 4개(`extractTitle`·`checkPreconditions`·`extractApiCode`·`buildMismatchProbe`)가 더 나와 사용자 결정으로 9개 모두에 `@MX:ANCHOR`·`@MX:REASON`·`@MX:SPEC`을 주석으로 달았다. 파일당 ANCHOR 수는 1·2·3·3개(한도 3). 코드 동작은 바꾸지 않았다. `--skip-mx`는 쓰지 않았다. 앞서 적은 괄호 안 숫자(`splitCells` 11곳 등)는 호출·import 위치 수가 섞인 값이었고 정정한 숫자는 증거 문서 §5.6.2에 있다 | 직접 스캔·재점검(`sync-evidence-d80adc8.md` §5.5–5.6) |
+| M-2 | Low | **해소** (위반 아님) | 구현 소스의 async 함수 21개 | 본문에 `try`/`.catch`가 없다고 휴리스틱이 잡은 14개를 함수별로 읽었다. 14개 모두 호출자의 `try/catch`·`try/finally`나 최상위 오류 처리로 실패가 처리되고, 실패 시 새는 자원이 없었다(증거 문서 §5.6.4). 휴리스틱은 반환 타입의 `{`를 본문으로 오인해 `snapshotRows`·`observeState`(둘 다 `try/finally`가 있다)를 잘못 잡았다. 남은 관찰: 서버를 띄우는 하네스의 `fetch`에는 시간 상한이 없어 응답이 오지 않으면 `finally`의 서버 정리까지 가지 못한다 — 오류 처리가 아니라 대기 문제이고 이번 범위 밖이라 바꾸지 않았다 | 직접 읽기 |
 
-선택 항목과 기존 부채(S-2~S-4, F-9, C-1, K-1, K-2)는 수정 범위에 넣지 않았다. M-1은 선택 항목이 아니라 sync 필수 단계(Phase 9)의 미충족이지만, 해소 방법(태그 주석 추가 또는 우회)이 코드 변경이거나 사용자 결정이라 이 교정에서 코드를 바꾸지 않았다.
+선택 항목과 기존 부채(S-2~S-4, F-9, C-1, K-1, K-2)는 수정 범위에 넣지 않았다. M-1은 선택 항목이 아니라 sync 필수 단계(Phase 9)의 미충족이었고, 사용자 결정에 따라 태그 주석을 다는 것(코드 동작 변경 없음)으로 해소했다.
 
 #### 관측하지 못한 것(Gaps)과 잔여 위험
 
 - 운영 호스트·프록시·외부 도달성, 노출 플래그와 PM2 저장 환경, 운영 DB, `reachability`·`flag-runtime` 서버 하네스의 `d80adc8` 재관측(재사용 — 근거는 증거 문서 §7), `pnpm test:e2e`, `pnpm visual:verify`, 저장소 전체 커버리지, 하네스의 프로세스 밖 실행 경로의 커버리지, run 단계의 커밋별 커버리지. 롤백 하네스(`verify-rollback-dark`)는 교정에서 다시 실행했다.
 - 교차 모델 감사(`audit_multi`·codex·GLM)는 MCP 서버 `moai`의 연결 실패로 하지 못했다. `moai spec lint`와 @MX 점검은 CLI가 PATH에만 없던 것이라 교정에서 직접 실행했다(증거 문서 §5). LSP security 진단원과 전용 비밀 스캐너는 없다 — 비밀은 `git diff 2c244e0 d80adc8`를 grep으로만 훑었고(실제 자격증명 형태 0건, 합성 시험 상수만) 스캐너 결과가 아니다.
-- 취약점 권고 본문은 감사 JSON에 없어 제목 기준으로 적용성을 판단했다. P2(async 오류 처리) 후보 14건의 개별 판단과 S-2 전제의 보장 절차는 미확인이다.
+- 취약점 권고 본문은 감사 JSON에 없어 제목 기준으로 적용성을 판단했다. S-2 전제의 보장 절차는 미확인이다. P2(async 오류 처리) 후보 14건은 코드를 읽어 판단했고 오류 주입 시험은 하지 않았다.
 - 잔여 위험: 단계 이행 순서·EV-L2 해석은 SPEC이 정하지 않은 해석이다(§E.2 M6 발견 2·3). 점검기의 `exit 0`은 사람의 승인이나 운영 상태의 증거가 아니며, 점검기는 입력 정의표가 정식인지 확인하지 않는다(S-2). 의존성 취약점은 가동 중인 호스트에 그대로 있다(S-1).
 
 #### PASS로 바꾸는 데 필요한 증거 (코드 변경이 아니라 증거·결정)
 
 - Security: `pnpm audit --prod`에서 Critical/High 0을 보이는 별도 의존성 변경, 또는 프로필 예외를 사용자가 명시적으로 기록.
 - Functionality: AC-013에 필요한 것은 보류 브랜치 병합이나 SPEC 변경이 아니라 **엔지니어링·제품 책임자의 서명 기록**이다(구현 인수 조건은 충족). 나머지 AC도 서명 기록이 필요하다(AC-002 제외 15개). 그 밖에 AC가 선결로 적은 것: 서명 기록 위치(D-LAUNCH-04, AC-007의 (3)과 Definition of Done), 로컬 I 서명자 구성 확인(AC-008), D-LAUNCH-03의 벡터 순서(AC-011), CONSULTOPS-001·ENGINE-001의 실제 증거 기록 형식과 식별자(AC-004·012), 제한 수단 어휘(AC-009), D-OPS-04 확정(AC-015의 S2 G).
-- sync Phase 9: 발견 M-1의 해소 — 5개 함수에 `@MX:ANCHOR` 주석을 다는 변경, 또는 `--skip-mx`와 사유 기록(사용자 결정). P2 후보의 개별 판단.
+- sync Phase 9: 충족했다 — 발견 M-1은 9개 함수의 `@MX:ANCHOR` 주석으로, M-2는 14건 개별 판독으로 해소했다. 이 목록에서 남은 조건은 위 Security·Functionality다.
 - 운영 공개 전(이 SPEC의 AC가 아니다): L-01 운영 기준선 관측 기록, R-02·R-03 실제 증거, go 서명 기록, 푸터·법무 연결, 운영 관측, `deploy.yml` 교체의 병합(L-01 기록 뒤 별도 PR)과 그 배포. S-2의 전제(점검기에 정식 정의표를 넘긴다)를 지키는 절차를 정하는 일은 사용자 결정이다(제안이며 필수로 올리지 않았다).
 - Craft·Consistency는 위에 적은 범위에서 PASS다. 선택 항목은 전환 조건이 아니다.
 

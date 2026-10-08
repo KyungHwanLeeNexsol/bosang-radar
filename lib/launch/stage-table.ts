@@ -23,6 +23,9 @@ export type StageTableResult = { ok: true; rows: StageRow[] } | { ok: false; err
 
 const HEADER_LABELS = COLUMNS.map((column) => column.label);
 
+// @MX:ANCHOR: [AUTO] 마크다운 표 한 줄을 칸 배열로 자르는 공용 규칙 — 앞뒤 공백 제거, 맨 앞·맨 뒤 `|` 한 개씩 제거, `|`로 분리, 칸마다 공백 제거(`\|` 이스케이프는 없다)
+// @MX:REASON: 비시험 호출 지점 17곳(호출 함수 15개·파일 12개 = lib/launch의 다른 11개 모듈 15곳 + 이 파일 안 2곳)이 같은 규칙을 공유한다. 바뀌면 lib/launch의 표 파서 전부가 칸 수·칸 내용을 다르게 읽는다. 시험 파일 1개(2곳)는 세지 않았다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export function splitCells(line: string): string[] {
   return line
     .trim()

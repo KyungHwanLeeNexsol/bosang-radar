@@ -3,6 +3,7 @@
 `progress.md` §E.4의 교정(2026-10-08, PR #25 외부 검토 반영)이 기대는 명령·종료 코드·원문 출력을 검토 가능한 형태로 모은 문서다. `spec.md`·`plan.md`·`acceptance.md`가 아니므로 계획 감사의 해시 대상이 아니다(해시 대상은 그 세 파일과 `design.md`·`research.md`·`tasks.md`다).
 
 - 대상: `main` = 병합 커밋 `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`. 실행한 작업 트리는 sync 브랜치 `dde263be744903a4e509b1295938e1d156a15a36`이고 코드는 `d80adc8`과 같다(`git diff --name-status d80adc8 dde263b`가 `.moai/specs/SPEC-B2C-LAUNCH-001/progress.md`와 `CHANGELOG.md` 둘만 보여 준다).
+- §5.6(Phase 9 해소)만 sync 브랜치 `98d5827` 위의 작업 트리에서 실행했다. 이 트리는 `d80adc8`과 코드 논리가 같고 주석 27줄(코드 4개 파일)만 다르다.
 - 구분: **직접** = 이 교정 작업에서 실행해 출력을 읽은 것. **재사용** = 앞선 기록을 쓰되 관측 시각과 이후 변경 범위를 확인한 것. **미확인** = 하지 못했거나 근거가 성립하지 않은 것.
 - 이 문서에는 시크릿 값, 운영 호스트 접속 정보, 개인 식별 정보, 패키지별 취약점 목록을 적지 않았다. 원문 로그는 git이 무시하는 `.moai/state/verify/sync-launch001/`에 있고(§8) 이 저장소에 올라가지 않는다. 아래 인용은 그 로그의 핵심 줄이다.
 
@@ -19,7 +20,8 @@
 | 5 | Consistency | `pnpm lint` | 0 | 직접 |
 | 5 | Consistency | `pnpm exec prettier --check <PR #24 변경 TS/TSX 65개>` | 0 | 직접 |
 | 5 | Consistency | `moai spec lint .moai/specs/SPEC-B2C-LAUNCH-001/spec.md` | 0 | 직접 |
-| 5 | sync Phase 9 | @MX P1/P2 읽기 전용 스캔(스크립트) | 0 | 직접 |
+| 5 | sync Phase 9 | @MX P1/P2 읽기 전용 스캔(스크립트) — 해소 전 | 0 | 직접 |
+| 5.6 | sync Phase 9 해소 | 태그 추가(주석 27줄), P1 재점검 두 방식, P2 14건 판독, `prettier`·`eslint`·영향받는 시험 28개 파일, `moai mx scan` | 0 | 직접 |
 | 6 | S-2 | `pnpm exec tsx scripts/check-launch-gate.ts …` 두 번 | 0, 1 | 직접 |
 
 ## 2. Security — 수치만 (판정 변경 없음)
@@ -306,6 +308,110 @@ TypeScript의 P2 기준은 문서에 "async functions without try/catch"라고�
 
 판정: Phase 9는 **미충족**(P1 5건 확인). 이것은 4차원 점수(Consistency)와 별개의 sync 필수 단계이고, 규칙대로면 sync 종결을 막는다. 해소하는 길은 둘이다 — 태그를 다는 코드 주석 변경을 별도로 하거나, `--skip-mx`와 사유 기록으로 건너뛰는 것. 어느 쪽도 이 교정에서 하지 않았다(코드 변경과 우회 모두 사용자 결정).
 
+> 위 §5.5는 해소 전(`d80adc8` 기준) 기록이다. 해소는 아래 §5.6이다.
+
+### 5.6 sync Phase 9 해소 — 태그 추가와 재점검 (직접, 2026-10-08)
+
+사용자가 지시한 대로 sync 브랜치(원격 HEAD `98d5827`과 같은 작업 트리)에서 **주석만** 추가했다. 실행 로직·오류 처리 흐름·API·환경 설정·`spec.md`·`plan.md`·`acceptance.md`·운영 DB·플래그·워크플로는 바꾸지 않았고 `--skip-mx`와 프로필 예외는 쓰지 않았다.
+
+#### 5.6.1 변경 범위
+
+```text
+$ git diff --stat
+ lib/launch/markdown-table.ts        | 6 ++++++
+ lib/launch/stage-table.ts           | 3 +++
+ scripts/verify-flag-runtime.ts      | 9 +++++++++
+ scripts/verify-gate-reachability.ts | 9 +++++++++
+ 4 files changed, 27 insertions(+)
+삭제된 줄: 0 / 주석(`//`)으로 시작하지 않는 추가 줄: 0
+```
+
+(이 문서와 `progress.md`의 변경은 위 코드 diff에 포함하지 않았다.)
+
+#### 5.6.2 fan_in 재점검 — 두 가지 세는 방식
+
+fan_in은 "이 함수를 부르는 곳의 수"다. 규칙 문구는 `Function has fan_in >= 3 callers`(`mx-tag-protocol.md`)이고 TypeScript용 계산 도구는 없다. `moai mx query`의 `fan_in` 필드는 TypeScript 색인에 채워지지 않는다(JSON에 필드 자체가 없음). 그래서 PR #24가 추가·수정한 비시험·비fixture `.ts`/`.tsx` 28개 파일의 내보낸 함수·상수 154개를 두 방식으로 직접 셌다.
+
+- **방식 A — 외부 import 파일 수**: `import` 문 기준으로 정의 파일을 뺀 서로 다른 비시험 파일 수(단어 일치가 아니다). 4개가 3 이상이다: `splitCells` 11, `findTableWithExtras` 6, `findTableBody` 5, `assembleEnv` 3.
+- **방식 B — 호출하는 함수 수**: 파일 안 호출을 포함해 서로 다른 호출 함수 수(규칙 문구 "callers"의 가장 자연스러운 읽기). 9개가 3 이상이다. **사용자 결정으로 방식 B를 채택했다.**
+
+두 방식 모두 호출 지점은 `git grep`으로 손으로 대조했다. 스캐너의 오탐 두 가지를 걸렀다 — 문자열 안의 `assembleEnv(`(`verify-gate-reachability.ts:413`), 전개 호출 `...buildMismatchProbe()`를 놓친 것.
+
+| 함수 | 위치(`d80adc8`) | 호출 지점 | 호출 함수 | 호출 파일 | 외부 import 파일 | 구분 |
+|---|---|---|---|---|---|---|
+| `splitCells` | `lib/launch/stage-table.ts:26` | 17 | 15 | 12 | 11 | 처음 5개 |
+| `findTableWithExtras` | `lib/launch/markdown-table.ts:11` | 6 | 6 | 6 | 6 | 처음 5개 |
+| `findTableBody` | `lib/launch/markdown-table.ts:34` | 6 | 5 | 5 | 5 | 처음 5개 |
+| `assembleEnv` | `scripts/verify-flag-runtime.ts:284` | 6 | 6 | 4 | 3 | 처음 5개 |
+| `runPnpm` | `scripts/verify-flag-runtime.ts:303` | 6 | 4 | 3 | 2 | 처음 5개, **경계 사례** |
+| `extractTitle` | `scripts/verify-flag-runtime.ts:84` | 6 | 5 | 3 | 2 | 재점검에서 추가 |
+| `checkPreconditions` | `scripts/verify-gate-reachability.ts:174` | 3 | 3 | 3 | 2 | 재점검에서 추가 |
+| `extractApiCode` | `scripts/verify-gate-reachability.ts:185` | 3 | 3 | 2 | 1 | 재점검에서 추가 |
+| `buildMismatchProbe` | `scripts/verify-gate-reachability.ts:203` | 4 | 4 | 2 | 1 | 재점검에서 추가 |
+
+- 시험 파일은 세지 않았다. 시험 파일이 부르는 것은 `splitCells`(2곳)와 `findTableBody`(2곳, 모두 `lib/diagnosis/flags.gate-table.test.ts`)뿐이다. `assembleEnv`·`runPnpm`은 시험 파일이 직접 부르지 않는다.
+- **같은 이름의 함수**: `verify-gate-reachability.ts:281`에 비공개 지역 `runPnpm`이 따로 있다(자기 `main`에서 2곳 호출). `verify-flag-runtime.ts`가 내보낸 `runPnpm`과 다른 함수이고 import 관계도 없어 세지 않았다. 호출 함수는 이 파일의 `build`·`main`, `verify-rollback-dark.ts`의 `main`, `verify-smoke-check.ts`의 `main`이다.
+- **§5.5 표 정정**: 위 §5.5 표의 `fan_in` 열은 호출 지점 수와 파일 수가 섞인 값이었다. `runPnpm`이 3개 다른 파일에서 쓰인다고 센 것은 이름이 같은 지역 함수가 있는 `verify-gate-reachability.ts`를 한 파일로 센 결과였다. 바로잡은 값이 위 표다. `runPnpm`은 호출 함수 기준으로는 4라 충족하지만 외부 import 파일 기준으로는 2라 미달이므로, 처음 5개 중 어느 기준을 쓰느냐에 따라 필수 여부가 갈리는 것은 `runPnpm`뿐이다.
+- 처음 5개와 재점검에서 나온 4개 모두 내보낸(exported) 함수이고, 재점검 4개는 PR #24가 추가·수정한 파일에 정의돼 있다.
+
+#### 5.6.3 추가한 태그
+
+각 함수 바로 위에 `@MX:ANCHOR: [AUTO] …`, `@MX:REASON: …`, `@MX:SPEC: SPEC-B2C-LAUNCH-001` 세 줄을 한국어(`language.yaml` `code_comments: ko`)로 달았다. REASON에 호출 지점·호출 함수·파일 수를 적었다. 파일당 개수(한도: ANCHOR 3·WARN 5·NOTE 10·TODO 5):
+
+| 파일 | ANCHOR | REASON | WARN·NOTE·TODO |
+|---|---|---|---|
+| `lib/launch/stage-table.ts` | 1 | 1 | 0 |
+| `lib/launch/markdown-table.ts` | 2 | 2 | 0 |
+| `scripts/verify-flag-runtime.ts` | 3 | 3 | 0 |
+| `scripts/verify-gate-reachability.ts` | 3 | 3 | 0 |
+
+`moai mx scan`(CLI `moai-adk 3.1.2`, 전체 경로로 호출) 결과: 태그 34개 기록(ANCHOR 27·NOTE 4·WARN 2·DEBT 1), 내 ANCHOR 9개 모두 색인되고 REASON이 비어 있지 않다. 스캐너 경고 2건(`lib/pipeline/evidence-retriever.ts:16`, `scripts/env-local-safety.ts:132`의 REASON 누락)은 PR #24의 28개 파일 밖이며 이번에 고치지 않았다. 스캔 오류 5건(비치명)의 내용은 확인하지 못했다.
+
+엔진 준비 오라클(`lib/launch/engine-ready-oracle.test.ts`)은 줄 번호가 아니라 줄 내용으로 대조하고 `//` 시작 줄을 거른다. `verify-flag-runtime.ts`의 허용 줄은 주석 때문에 `:174`·`:293`에서 `:177`·`:299`로 밀렸다(`grep -n`으로 확인). 시험은 통과한다.
+
+#### 5.6.4 P2 후보 14건 — 개별 판독
+
+기준: TypeScript `async ` 패턴의 설명은 "Async function may require try/catch"(`mx.yaml`)다. 문자열이 아니라 실패 경로를 봐서, **실패가 어디서도 처리되지 않거나 실패했을 때 자원이 새면** 위반으로 본다. 위치는 `d80adc8` 기준이다.
+
+공통 근거 두 가지: ① `startManagedServer`(`scripts/visual-verify-server.ts:268-282`)는 준비 확인이 실패하면 자식 프로세스 트리를 정리하고 원래 오류를 다시 던진다 — 그래서 호출자가 `await startManagedServer(…)`를 `try` 밖에 둬도 새는 자원이 없다. ② 각 스크립트의 `main`은 직접 실행될 때 최상위 `main().then(ok, 오류 처리)`가 메시지를 출력하고 `process.exitCode = 1`로 끝낸다.
+
+| # | 함수 | 오류 처리·호출자·최상위 catch·자원 정리 | 판정 |
+|---|---|---|---|
+| 1 | `lib/launch/smoke-check.ts:84` `createSmokeFetch`가 돌려주는 화살표 함수 | `fetch` 거부(연결 실패·시간 초과)를 이 함수는 잡지 않는다. 이 함수를 부르는 곳은 `attemptFetch`(113-120)뿐이고 `try/catch`로 상태 0으로 바꾼다. 응답 본문은 `drain`(`try/catch`)이 읽어 버린다 | 위반 아님 |
+| 2 | `scripts/smoke-check.ts:16` `main` | 인자 오류는 `parseSmokeArgs`가 결과 값으로 돌려준다(주소 파싱은 `try/catch`). 네트워크 실패는 `runSmokeCheck` 안 `attemptFetch`가 처리한다. 최상위 `.then(ok, 오류 처리)`(40-51)가 있고 자원이 없다. 시험은 서버를 `try/finally`로 닫는다 | 위반 아님 |
+| 3 | `scripts/verify-flag-runtime.ts:391` `observe` | 직접 처리는 없다. 부르는 곳은 `startAndObserve`뿐이고 `try { return await observe(…) } finally { managed.stop() }`로 서버를 반드시 끈다. 실패는 `main`을 거쳐 최상위로 간다 | 위반 아님 |
+| 4 | `scripts/verify-flag-runtime.ts:473` `main` | 잘못된 인자·마이그레이션·빌드 실패는 `throw`되고 최상위 `.then(ok, 오류 처리)`(551-559)가 `exitCode = 1`로 끝낸다. 서버는 `startAndObserve`의 `try/finally`에만 있고 동기 `spawnSync`(`runPnpm`)는 새는 자원이 없다 | 위반 아님 |
+| 5 | `scripts/verify-gate-reachability.ts:303` `observe` | 부르는 곳은 `observeWithServer`(347-366)뿐이고 `try/finally`로 서버를 끈다. 안에서 쓰는 `countConsultations`(293-301)는 `try/finally`로 DB 클라이언트를 닫는다 | 위반 아님 |
+| 6 | `scripts/verify-gate-reachability.ts:323` `observeCross` | 5번과 같다(`observeWithServer`의 `try/finally`, `countConsultations`의 `finally`) | 위반 아님 |
+| 7 | `scripts/verify-gate-reachability.ts:368` `main` | 사전 점검·계획 실패는 반환 코드 2, 빌드·마이그레이션 실패는 `throw`되고 최상위 `.then(ok, 오류 처리)`(436-445)가 처리한다. 서버는 `observeWithServer`의 `try/finally`에서만 열린다 | 위반 아님 |
+| 8 | `scripts/verify-rollback-dark.ts:138` `observePages` | `main`의 `try/finally`(198-204, 211-217) 안에서만 불리고 `finally`가 서버를 끈다 | 위반 아님 |
+| 9 | `scripts/verify-rollback-dark.ts:147` `postConsultation` | 8번과 같다 | 위반 아님 |
+| 10 | `scripts/verify-rollback-dark.ts:159` `snapshotRows` | 함수 안에 `try/finally { client.close() }`가 있다(휴리스틱이 반환 타입의 `{`를 본문으로 오인해 놓쳤다). 실패는 `main`을 거쳐 최상위로 간다 | 위반 아님 |
+| 11 | `scripts/verify-smoke-check.ts:196` `startTempServer` | `listen` 오류는 `reject`로 전파되고 그때 서버는 바인딩되지 않아 닫을 것이 없다. 금지 포트면 서버를 닫고 다시 고른다. 호출자는 반환된 서버를 닫는다 — `observeState`와 시험 3곳은 `try/finally`로, 시험 1곳(`verify-smoke-check.test.ts:194`)은 시작 직후 곧바로 `stop()`을 부른다 | 위반 아님 |
+| 12 | `scripts/verify-smoke-check.ts:308` `observeState` | 두 갈래 모두 `try { … } finally { 서버 정리 }`가 있다(휴리스틱이 반환 타입의 `{`를 오인해 놓쳤다) | 위반 아님 |
+| 13 | `scripts/verify-smoke-check.ts:311` `run`(`observeState` 안 화살표 함수) | 두 갈래의 `try` 안에서만 불린다. `runSmokeCli`는 자식 프로세스 오류를 `reject`로 돌려주고 자체 자원이 없다 | 위반 아님 |
+| 14 | `scripts/verify-smoke-check.ts:343` `main` | 사전 점검 실패는 반환 코드 2, 빌드·마이그레이션 실패는 `throw`되고 최상위 `.then(ok, 오류 처리)`(381-389)가 처리한다. 서버는 `observeState`의 `finally`에서만 열린다 | 위반 아님 |
+
+- 결과: 위반 0건, `UNVERIFIED` 0건, `@MX:WARN` 추가 0건. 같은 스캔의 나머지 async 함수 7개(`drain`·`attemptFetch`·`runSmokeCheck`·`startAndObserve`·`countConsultations`·`observeWithServer`·`verify-rollback-dark`의 `main`)는 직접 `try/catch`·`try/finally`가 있어 처음부터 후보가 아니었다.
+- **남은 관찰(범위 밖, 바꾸지 않음)**: 3·5·6·8·9번이 부르는 `fetch`에는 시간 상한(`signal`)이 없다. 응답이 영영 오지 않으면 `finally`의 서버 정리까지 가지 못하고 멈춘다. 오류 처리의 결함이 아니라 대기 문제이며 이번 범위(주석만)에서 다루지 않았다.
+
+#### 5.6.5 검증 출력 (직접, 작업 트리 = 원격 HEAD `98d5827` + 위 주석)
+
+```text
+$ pnpm exec prettier --check <변경 코드 4개>        → All matched files use Prettier code style!   (대조군: 서식이 틀린 입력이 const a = 1; 로 고쳐짐)
+$ pnpm exec eslint <변경 코드 4개>                   → exit=0, 출력 없음
+$ vitest run lib/launch lib/diagnosis/flags.gate-table.test.ts scripts/verify-flag-runtime.test.ts \
+    scripts/verify-gate-reachability.test.ts scripts/verify-rollback-dark.test.ts \
+    scripts/verify-smoke-check.test.ts scripts/smoke-check.test.ts
+                                                     → Test Files 28 passed (28), Tests 591 passed (591), exit=0
+$ moai mx scan                                       → OK: wrote 34 tags (ANCHOR 27), exit=0
+```
+
+- 재사용: `tsc --noEmit`·`pnpm lint` 전체·전체 시험 137개 파일은 다시 돌리지 않았다. 코드가 §5의 `exit=0` 실행 때와 같고 이번 변경은 주석 27줄뿐이다(위 diff). 서버를 띄우는 하네스(`verify:*`)와 `pnpm build`도 다시 돌리지 않았다.
+- 한계: P2는 코드를 읽은 판단이고 오류를 일부러 일으켜 보지는 않았다. 권고 등급인 P3(긴 exported 함수의 `@MX:NOTE`)·P4(시험 없는 public 함수의 `@MX:TODO`)는 보지 않았다. `moai mx scan`은 기존 태그를 색인할 뿐 누락을 판정하지 않으므로 누락 여부는 위 두 가지 직접 계산이 근거다.
+
+**판정(Phase 9)**: P1 — 호출 함수 수 기준 9개 모두 태그됨(외부 import 파일 수 기준 4개도 포함). P2 — 14건 모두 위반 아님. Phase 9는 **충족**이다. 이것은 4차원 판정과 전체 판정(FAIL)을 바꾸지 않는다.
+
 ## 6. S-2 — 점검기가 부분 정의표로 "공개 가능"을 출력하는지
 
 ### 6.1 최소 입력 (이 문서에 전문을 적는다 — 파일은 비추적 폴더에 두었다)
@@ -401,7 +507,7 @@ exit=1
 - `pnpm test` 전체(137 파일)와 `pnpm build`의 `d80adc8` 재실행(코드가 같은 `7bda045`·`45c1a32` 기록을 재사용 — 변경 범위: 문서 둘), `pnpm test:e2e`, `pnpm visual:verify`.
 - `reachability`·`flag-runtime` 하네스의 `d80adc8` 재관측(재사용: 관측 시각 17:09·16:02 이후 앱·하네스 관련 경로의 변경은 `56d7e4a`뿐이고 `V94`는 그 뒤에 실행됐다).
 - LSP security 진단원, 전용 비밀 스캐너(`git diff 2c244e0 d80adc8`를 grep으로만 훑었고 실제 자격증명 형태 0건), 교차 모델 감사(`audit_multi`·codex·GLM: MCP 연결 실패).
-- P2(async 오류 처리) 후보 14건의 개별 판단.
+- P2 후보 14건은 §5.6.4에서 코드를 읽어 판단했다. 오류를 일부러 일으키는 시험과 권고 등급 P3·P4 점검은 하지 않았다.
 
 ## 8. 로컬 증거 위치 (git이 무시, 저장소에 올라가지 않음)
 

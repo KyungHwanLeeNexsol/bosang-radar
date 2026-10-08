@@ -81,6 +81,9 @@ export function expectedObservation(start: ConsultFlagInput): {
   };
 }
 
+// @MX:ANCHOR: [AUTO] HTML 본문의 첫 `<title>` 내용(앞뒤 공백 제거)을 돌려준다 — 없으면 null. 화면이 열렸는지 닫혔는지 읽는 하네스의 공통 관측 수단이다
+// @MX:REASON: 호출 지점 6곳(호출 함수 5개·파일 3개: 이 파일의 buildDiagnosisObservation(2곳)·observe, verify-gate-reachability의 buildCrossObservation·observe, verify-rollback-dark의 observePages)이 쓴다. 정규식이 바뀌면 세 하네스의 열림·닫힘 관측이 함께 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export function extractTitle(html: string): string | null {
   const match = /<title[^>]*>([^<]*)<\/title>/.exec(html);
   return match ? match[1].trim() : null;
@@ -280,6 +283,9 @@ export interface FlagScenario {
   readonly diag: DiagnosisFlagInput;
 }
 
+// @MX:ANCHOR: [AUTO] 하네스 자식 프로세스(마이그레이션·빌드·서버)의 환경 조립 — 부모 env에서 TURSO_·ENABLE_·CONSULT_·DIAGNOSIS_·RATE_LIMIT_·LLM_PROVIDER_·GEMINI_ 접두 변수와 PORT·HOSTNAME을 지우고 로컬 DB·결정적 LLM·시험용 시크릿·플래그 값만 채운 뒤, 원격 DB가 남아 있으면 던진다
+// @MX:REASON: 호출 지점 6곳(호출 함수 6개·파일 4개: 이 파일의 build·startAndObserve·main, verify-gate-reachability의 assembleCrossCombinationEnv, verify-rollback-dark의 assembleRollbackEnvs, verify-smoke-check의 assembleSmokeStateEnv)이 쓴다. 부모 환경의 DB·시크릿을 자식에게 넘기지 않는 제거 규칙이 이 함수에만 있어서, 바뀌면 네 하네스가 함께 영향받는다. 모듈 변수 dbUrl을 읽는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 // 부모 셸에서 물려받을 수 있는 원격 DB·플래그 계열 env를 모두 제거하고 필요한 값만 채운다.
 export function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
@@ -300,6 +306,9 @@ export function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   return env;
 }
 
+// @MX:ANCHOR: [AUTO] `pnpm <args>`를 PROJECT_ROOT에서 동기 실행(spawnSync, shell)해 stdout·stderr를 logFile에 쓰고 종료 코드를 돌려준다(상태 코드가 없으면 1)
+// @MX:REASON: 호출 지점 6곳(호출 함수 4개·파일 3개: 이 파일의 build·main, verify-rollback-dark의 main, verify-smoke-check의 main)이 쓴다. verify-gate-reachability.ts에는 이름이 같은 비공개 지역 함수가 따로 있어(호출 2곳) 세지 않았다. 반환 규칙과 로그 기록이 바뀌면 세 하네스의 마이그레이션·빌드 판정이 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): number {
   const result = spawnSync("pnpm", args, {
     cwd: PROJECT_ROOT,

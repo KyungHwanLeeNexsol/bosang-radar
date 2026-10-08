@@ -170,6 +170,9 @@ export function findEnvFileViolation(
   );
 }
 
+// @MX:ANCHOR: [AUTO] 하네스 실행 전 안전 점검 — 프로젝트 루트의 프로덕션 환경 파일과 부모 환경의 원격 DB 주소를 검사해 위반 사유 목록을 돌려준다(빈 배열이면 실행 가능)
+// @MX:REASON: 호출 지점 3곳(호출 함수 3개·파일 3개: 이 파일·verify-rollback-dark·verify-smoke-check의 main)이 빌드 전에 부른다. 점검 항목이 바뀌면 세 하네스가 원격 DB·환경 파일을 거부하는 기준이 함께 바뀐다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 실행 전에 확인하는 위반 사유 목록(환경 파일, 원격 DB 주소). 빈 배열이면 실행해도 된다. */
 export function checkPreconditions(
   parentEnv: EnvLike,
@@ -181,6 +184,9 @@ export function checkPreconditions(
   );
 }
 
+// @MX:ANCHOR: [AUTO] 오류 응답 본문(JSON)의 문자열 `code`를 읽는다 — JSON이 아니거나 문자열 code가 없으면 null
+// @MX:REASON: 호출 지점 3곳(호출 함수 3개·파일 2개: 이 파일의 buildCrossObservation·observe, verify-rollback-dark의 postConsultation)이 접수 응답을 판정할 때 쓴다. 파싱 규칙이 바뀌면 접수 거부 코드 관측이 함께 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 오류 응답 본문의 `code`. JSON이 아니거나 문자열 code가 없으면 null. */
 export function extractApiCode(bodyText: string): string | null {
   try {
@@ -195,6 +201,9 @@ export function extractApiCode(bodyText: string): string | null {
   return null;
 }
 
+// @MX:ANCHOR: [AUTO] 스키마는 통과하지만 동의 버전이 활성 정책 버전과 달라 접수 행을 만들지 않는 합성 요청 본문을 호출마다 새로 만든다
+// @MX:REASON: 호출 지점 4곳(호출 함수 4개·파일 2개: 이 파일의 observe·observeCross, verify-rollback-dark의 buildSeedProbe·main)이 쓴다. 값을 실행 시점에 만든다는 규칙(고정 리터럴 금지)과 동의 버전이 어떤 정책 버전과도 같을 수 없다는 성질이 바뀌면 접수 행 수 관측이 깨진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /**
  * 스키마를 통과하지만 acknowledgedConsentVersion이 활성 정책 버전과 다른 요청 본문. 모든 값은 호출마다 실행
  * 시점에 새로 만든다(고정 리터럴이 아니다 — AC-B2CLAUNCH-007). 동의 버전은 무작위 접두사를 붙여 어떤 정책 버전과도
