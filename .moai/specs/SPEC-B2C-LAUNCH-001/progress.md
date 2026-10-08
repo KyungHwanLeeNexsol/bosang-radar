@@ -990,10 +990,118 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 - **갱신(2026-10-08)**: 위 점검기 관련 서술과 수치(시험 개수, 서명이 대상 값을 비교하지 않는다는 한계, 형제 증거 참조 줄의 선택 입력 취급)는 §E.2 "PR #24 재현 결함 3건 수정" 절의 수정으로 대체됐다. 최신 전체 검증은 그 절의 `Tests 1725 passed (1725)`다. `spec.md`·`plan.md`·`acceptance.md`는 바뀌지 않아 이 신호의 계획 감사 근거(PASS 0.81)는 그대로다.
 - **갱신(2026-10-08, F1 수정 뒤)**: 최신 전체 검증은 `Tests 1805 passed (1805)`(137개 파일, `7bda045` 트리, `exit=0`)이고 HEAD `45c1a32`에서 `pnpm build`도 `exit=0`이다. 점검기 수정에 대한 독립 구현 감사 ②는 F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인이다(SPEC 전체 4차원 감사는 기존 일정대로 run PR 병합 뒤 `/moai sync`에서 수행한다). 감사·검토 종류 구분, 검증 재사용 판단, 병합 전 조건, 운영 공개 전 조건은 §E.2 "### 병합 전 검증과 구현 감사 정리 (2026-10-08, 기준 HEAD `45c1a32`)"에 있다. `run_status: audit-ready`는 여전히 조건부이며 운영 공개 가능을 뜻하지 않는다. 이 신호의 계획 감사 근거(PASS 0.81)는 SPEC 문서 해시가 같아 그대로이고, 구현 감사 결과와 합산하지 않는다.
 - **PR 구조(사용자 선택, 2026-10-07)**: run PR은 `worktree-launch-run`(`deploy.yml` 불변)이고 `deploy.yml` 교체는 보류 브랜치 `smoke-deploy-workflow`의 커밋 하나로 L-01 기준선 기록이 생긴 뒤에만 별도 PR로 병합한다. run PR이 `main`에 병합되면 `main` push마다 배포되므로 운영이 한 번 재시작되며 앱 동작은 바뀌지 않는다(`app/`·`components/`·`lib/consult`·`lib/env.ts` 변경 없음).
+- **갱신(2026-10-08, PR #24 병합과 SPEC 전체 sync 감사 뒤)**: run PR #24는 병합 커밋 `d80adc8`로 `main`에 들어갔고, SPEC 전체 4차원 감사를 새 대상으로 수행했다. 결과는 **FAIL**이며 sync는 닫지 않았다. 결과·근거·상태 구분은 아래 §E.4다. 이 신호(`run_status: audit-ready`)의 의미는 바뀌지 않았다 — 구현이 끝났다는 조건부 신호일 뿐, sync 통과나 출시 가능이 아니다.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- `sync_audit_verdict: FAIL` — 활성 프로필 `default` 기준 SPEC 전체 4차원 감사의 결과다. **sync를 닫지 않았다**(`sync_closure: not-closed`). 이 절은 `audit-ready`를 선언하지 않는다. `spec.md`의 `status`는 `in-progress` 그대로이고 이 sync 작업은 `spec.md`·`plan.md`·`acceptance.md`를 고치지 않았다.
+- 기록일 2026-10-08. 감사 대상 SPEC 전체(REQ 16, AC 16, Tier M), 기준 SHA `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`(= PR #24 병합 커밋 = 감사 시점 `origin/main`), 감사 시작과 끝에서 작업 트리 깨끗(`git status --short` 빈 출력).
+- **이 감사는 새 감사다.** 대상(SPEC 전체)·기준 SHA(`d80adc8`)·증거·결론이 모두 아래에 따로 있다. 앞선 기록을 소급해 바꾸지 않는다: 계획 감사 PASS 0.81은 `spec.md`·`plan.md`·`acceptance.md`의 문서 해시에 대한 결과이고 코드 품질의 근거가 아니다. 구현 감사 ②는 "F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인."으로만 읽는다. 감사 ②의 약 87.2는 합격 근거가 아니며 이번에도 쓰지 않았다.
+
+#### 상태 구분 (서로 다른 세 가지)
+
+| 상태 | 값 | 근거 |
+|---|---|---|
+| run 병합 | **완료** | PR #24 `merged: true`, 2026-10-08T04:48:47Z, 병합 커밋 `d80adc8`(부모 `2c244e0`·`cfe08a4`, **merge commit 방식 — 확정해 둔 squash가 아니다**). 개별 커밋(`7bda045`·`45c1a32` 등)이 `main` 이력에 그대로 들어 있고 브랜치 `worktree-launch-run`도 원격에 보존돼 있다. |
+| sync 종결 | **닫지 않음** | 프로필 기준 감사 결과가 FAIL이다(Security 하드 임계값, Functionality must-pass 미충족). `status`는 `in-progress` 유지. 아래 "PASS로 바꾸는 데 필요한 증거"가 채워질 때까지 닫지 않는다. |
+| 운영 공개 | **하지 않았고 가능하다고 선언하지 않는다** | 이 SPEC은 공개 게이트(기록·점검기·런북)이지 공개 자체가 아니다. 어떤 노출 플래그도 켜지 않았다. 사람의 서명은 AC-002를 뺀 15개 AC에 하나도 없다(REQ-B2CLAUNCH-001). |
+
+#### 병합 직후 자동 배포 (대상 SHA `d80adc8`)
+
+- 실행: GitHub Actions `Deploy to Oracle Cloud VM` run #36(id 37729280763), 이벤트 `push` on `main`, `head_sha` = `d80adc8`, 2026-10-08T04:48:52Z~04:53:35Z, 결론 `success`. URL `https://github.com/KyungHwanLeeNexsol/bosang-radar/actions/runs/37729280763`. PR 이벤트 CI나 다른 SHA의 성공을 대신 쓰지 않았다(이 PR에는 PR 이벤트 CI가 없었다).
+- 로그에서 읽은 것(`gh run view 37729280763 --log`, 로컬 사본 `.moai/state/verify/sync-launch001/deploy-run-37729280763.log`): 서버 저장소가 `d80adc8`로 갱신됨, `db migrate` 단계가 `마이그레이션 완료`를 출력, `next build`가 `Compiled successfully`, `pm2 restart` 뒤 `online`, smoke 검사 세 가지(`/` 2xx, placeholder 문구, CSS 청크 2xx)가 모두 OK.
+- 관측 한계(UNVERIFIED): 검사는 서버 안(`127.0.0.1`)에서 한 것이라 외부에서의 접근, 노출 플래그의 실제 상태, DB 내용은 확인하지 못했다. `db migrate`가 새로 적용한 마이그레이션이 0개인지는 로그만으로 알 수 없다(PR #24에 마이그레이션 파일은 없다). 이 PR은 `app/`·`components/`·`lib/`의 비시험 런타임 파일을 바꾸지 않았다(`lib/launch`와 `scripts/`의 점검·관측 도구, `.moai` 문서, 시험 파일 5개뿐이고 `lib/launch`를 앱 코드가 가져다 쓰지 않는다). `.github`·`package.json`·`pnpm-lock.yaml`·마이그레이션 변경은 없다.
+
+#### 활성 프로필과 출처
+
+- `.moai/config/sections/harness.yaml:6` `default_profile: "default"`. 기준표는 `.moai/config/evaluator-profiles/default.md`: Functionality 40%(모든 인수 기준 PASS, 부분 점수 없음), Security 25%(Critical/High 없음), Craft 20%(커버리지 85% 이상), Consistency 15%(주요 패턴 위반 없음). 규칙: PASS마다 구체적 증거, 확인 못 한 기준은 UNVERIFIED, Security FAIL이면 전체 FAIL.
+- `.moai/config/sections/quality.yaml`: `test_coverage_target: 85`, sync LSP 게이트 `max_errors 0 / max_warnings 10 / require_clean_lsp true`.
+- 판정은 must-pass와 하드 임계값으로 낸다. 점수는 합격 근거로 쓰지 않았다.
+
+#### 직접 실행한 검증과 재사용한 검증
+
+| 구분 | 내용 | 결과 | 근거 |
+|---|---|---|---|
+| 직접(오케스트레이터, `d80adc8`) | `vitest run lib/launch` + 점검 CLI 시험 4 + 런북을 읽는 시험 2 (28개 파일), `--coverage` | 783개 통과 `exit=0` | `.moai/state/verify/sync-launch001/vitest-coverage-v2.log`. 런북이 바뀌어(`7bda045`→`d80adc8`) 런북을 읽는 시험은 새로 돌렸다 |
+| 직접(오케스트레이터) | 커버리지 집계 | 제품 코드(시험 지원 파일 제외) 줄 98.69%·문장 98.38%·분기 96.99%·함수 98.90%. `lib/launch` 제품 코드 줄 100%. 점검 CLI 4개 줄 93.70% | `coverage/coverage-summary.json`. 첫 실행은 0/0이었다 — 작업 공간이 `.claude/worktrees/` 아래라 `vitest.config.ts`의 `.claude/**` 제외에 걸린 측정 문제였고(`vitest-coverage.log`), 그 제외만 명령줄에서 덮어 다시 측정했다 |
+| 직접(오케스트레이터) | `pnpm audit`(전체·`--prod`) | prod `{low 4, moderate 22, high 13, critical 4}`, 전체 `{7, 29, 18, 4}`, `exit=1` | `pnpm-audit.json`, `pnpm-audit-prod.json`. `package.json`·`pnpm-lock.yaml`은 이 SPEC이 바꾸지 않았다(`git diff 2c244e0 d80adc8 -- package.json pnpm-lock.yaml` 빈 출력) |
+| 직접(독립 감사자) | `tsc --noEmit`, 변경된 TS/TSX 65개 `eslint`, `prettier --check`, 푸터 시험 3개(16개 통과), 엔진 준비 오라클 | 모두 `exit=0` / 통과, 오라클 `verify-flag-runtime.ts:174`·`:293`, `missing=0` | 감사자 보고(`sync-audit-report.md`, 로컬) |
+| 직접(독립 감사자) | 스크래치 사본에서 변이 30개 | 26개 사망, 4개 생존(2개는 사유 문구만 다른 동등 변이, 2개는 실제 시험 공백 F-9) | 감사자 보고. 추적 파일은 바꾸지 않았다 |
+| 재사용 | 전체 시험 137개 파일·1805개, `pnpm lint`, `tsc`, 변경 파일 `prettier --check` | `exit=0` | `7bda045` 기준 기록(§E.2). 재사용 이유: `git diff --name-status 7bda045 d80adc8`가 `.moai/docs/launch-gate-runbook.md`와 이 파일(`progress.md`) 둘만 보여 준다(코드·설정·패키지 동일) |
+| 재사용 | `pnpm build` | `exit=0` | `45c1a32` 기준 기록. 같은 이유. 추가로 병합 커밋 `d80adc8`의 CI 배포 로그에 `Compiled successfully`가 있다(서버에서의 빌드) |
+| 재사용 | 서버를 띄우는 하네스(`verify-flag-runtime`·`verify-smoke-check`·`verify-rollback-dark`·`verify-gate-reachability`)의 관측 | 불일치 0 | 기존 기록(`V44`·`V64`·`V74`·`V94`). 이 하네스가 쓰는 모듈은 그 뒤 바뀌지 않았다. **`d80adc8`에서 다시 관측하지 않았다** |
+
+#### 4차원 판정
+
+| 차원 | 기준(출처) | 판정 | 이유 |
+|---|---|---|---|
+| Functionality (40%, must-pass) | 모든 SPEC 인수 기준 PASS, 부분 점수 없음(`default.md`) | **FAIL** | 16개 AC 중 PASS 1(AC-002), FAIL 1(AC-013, 문구 기준), UNVERIFIED 14. 사람의 서명·결정 대기·형제 SPEC의 실제 증거·보류된 `deploy.yml` 교체 때문이다. 구현 본체의 결함 발견이 아니다 |
+| Security (25%, 하드 임계값) | Critical/High 없음(`default.md`) | **FAIL**(문자 그대로) | prod 의존성에 Critical 4·High 13이 있다. **이 SPEC이 도입한 것이 아니다**(의존성 파일 무변경). 이 SPEC이 쓴 코드만 보면 감사자가 Critical/High 0건으로 판단했다 |
+| Craft (20%, 커버리지 85% 이상) | 커버리지 85% 이상(`default.md`) | **PASS**(측정 범위 한정) | 위 커버리지 수치. 측정하지 못한 것은 아래 Gaps |
+| Consistency (15%) | 주요 패턴 위반 없음(`default.md`) | **PASS**(도구 공백) | lint·tsc·서식 `exit=0`, 주요 위반 없음. `moai spec lint`·@MX 점검은 `moai` CLI·MCP가 연결되지 않아 UNVERIFIED |
+| **전체** | Security FAIL이면 전체 FAIL, Functionality must-pass 미충족이면 PASS 불가(`default.md`) | **FAIL** | 위 두 사유. 이 판정은 출시 가능이나 운영 공개 가능을 뜻하지 않는다 |
+
+#### Functionality — AC별 판정
+
+기준: AC가 요구하는 모든 장면이 저장소의 증거로 충족돼야 PASS. 외부(사람 서명·형제 SPEC 실제 증거·운영 호스트)나 미결정에 기대는 부분이 있으면 그 부분은 UNVERIFIED이고 AC는 PASS가 아니다. 판정은 독립 감사자의 것이며, 고위험 AC 6개(002·003·004·008·009·010)는 감사자가 실제 시험과 코드를 읽어 공허한 단언이 없음을 확인했다고 보고했다.
+
+| AC | 저장소에서 확인된 것(`d80adc8`) | 저장소 밖이거나 미결정인 것 | 판정 |
+|---|---|---|---|
+| 001 | 단계 표·런북 구조 시험, `spec.md` 표 파서 | 제품 책임자 서명 | UNVERIFIED |
+| 002 | 19개 fixture의 종료 코드와 출력 단언, 4/15 합계 단언 | 실제 기록 파일 없음(fixture only). 서명은 이 AC에 필요 없다 | **PASS** |
+| 003 | 6 fixture | 기록 위치 미정, 서명 | UNVERIFIED |
+| 004 | 4 fixture, 연결 필드 | 실제 형제 기록의 형식·위치 미정(BLOCKED), 서명 | UNVERIFIED |
+| 005 | 5 fixture, 덮는 파일 목록 검사(fixture) | 목록 검사가 점검기 명령줄에 미연결, 서명 | UNVERIFIED |
+| 006 | 6 fixture | 서명 역할·기록 위치, 법무 서명 | UNVERIFIED |
+| 007 | (0)(1)(2)(4) | (3)의 정식 값 기록 위치(BLOCKED), "런북 갱신"·"검증 출력 절차"를 실행하는 코드 없음, 서명 | UNVERIFIED |
+| 008 | 11 fixture | 로컬 I 서명자 구성 확인 대기, 서명 진위 | UNVERIFIED |
+| 009 | 시나리오 1의 4 fixture, 시나리오 2는 재사용(`409 consent_version_mismatch`, 행 0→0) | 제한 수단 어휘(BLOCKED), 서명 | UNVERIFIED |
+| 010 | 시나리오 1·2를 독립 리터럴·런북·함수와 대조, 시나리오 3은 재사용 | 서명 | UNVERIFIED |
+| 011 | 4 fixture, 런북 문장 시험 | D-LAUNCH-03의 벡터 순서 미결정(BLOCKED), 서명 | UNVERIFIED |
+| 012 | 5 fixture, 오라클 재실행 일치 | 실제 R-02 증거 소스(BLOCKED), 서명 | UNVERIFIED |
+| 013 | 검사 로직과 로컬 7상태(재사용) | **교체된 `deploy.yml`과 YAML 정적 시험이 이 트리에 없다.** AC 문구는 "교체 뒤 `deploy.yml`에 현행 placeholder 검사가 남아 있지 않다"인데 `.github/workflows/deploy.yml:96-101`에 그 검사가 있고 `scripts/deploy-workflow-static.test.ts`도 없다. 교체본은 Kickoff 때 정한 대로 보류 브랜치 `smoke-deploy-workflow`(`dd7122c`, 원격에 없음)에만 있고, L-01 운영 기준선 관측 기록이 생긴 뒤에만 병합한다 | **FAIL**(AC 문구 기준; 의도된 보류의 결과이며 코드 결함이 아니다) |
+| 014 | 런북 열람 시험, 롤백 관측은 재사용(503, 행 해시 불변) | 운영 PM2의 환경 재읽기, 서명 | UNVERIFIED |
+| 015 | 푸터 시험 3종, 8칸 시험 | S2의 G는 D-OPS-04 미확정(BLOCKED), I 허용 칸 해석, 서명. 01·02 푸터에 `href="#"`가 남아 있다 | UNVERIFIED |
+| 016 | 4 fixture, 런북 시험 | D-LAUNCH-08 어휘(BLOCKED), 서명 | UNVERIFIED |
+
+SPEC 자체의 Definition of Done(`acceptance.md`)은 프로필과 별개의 완료 기준이다. 감사자 판단: 서명 기록을 증거 항목 표에 연결하고 D-LAUNCH-04가 정한 위치에 두라는 항목은 위치 미정이라 미충족, AC-013의 보류는 해석 여지가 있고, "go/no-go 결과가 완료 조건이 아니다"는 해당 없음, TDD·85%는 측정 범위에서 충족. 이 기준으로 프로필의 판정을 바꾸지 않는다.
+
+#### 발견 목록 (감사자 보고; 오케스트레이터가 확인한 것은 표시)
+
+| ID | 심각도 | 차단 | 위치 | 내용과 최소 수정 범위 | 출처 |
+|---|---|---|---|---|---|
+| S-1 | Critical·High 권고가 있고 적용성은 UNVERIFIED | 프로필상 차단. 이 SPEC 범위 밖 | `package.json`·`pnpm-lock.yaml` | prod 의존성 감사 결과(위 수치, 오케스트레이터가 직접 측정·확인). Windows 호스트 한정 권고는 호스트가 Linux(PM2 경로·`ens3`)라 해당하지 않을 가능성이 크고, 나머지는 런타임 도달 여부가 미확인이다. **패키지별 권고 목록은 공개 저장소에 적지 않고 로컬 증거 파일에만 두었다.** 최소 수정 범위: 프레임워크와 하위 의존성의 패치 버전 갱신(별도 변경), 그 뒤 `pnpm audit --prod` 재실행 | 이 SPEC이 도입하지 않음(기존 상태) |
+| F-1 | High(AC 문구 기준) | 차단 | `.github/workflows/deploy.yml:96-101` | AC-013 교체 미병합. ① L-01 기준선 관측 기록이 생긴 뒤 보류 브랜치를 병합하거나 ② 보류를 인수 기준에 반영(SPEC 수정이라 계획 감사 여유 0.010 안에서 재감사 필요). 사용자 결정 사항이며 자동으로 범위에 넣지 않는다 | 의도된 보류(확인함) |
+| F-2 | High | 차단(프로필) | 위 AC 표 | UNVERIFIED 14개와 서명 15개 부재. 외부 의존 | 외부 증거 부재 |
+| F-3 | Medium | 선택 | `acceptance.md` DoD | 서명 기록 위치·연결 미충족(D-LAUNCH-04 결정 대기) | SPEC 미결정 |
+| S-2 | Medium | 선택 | `scripts/check-launch-gate.ts:176-369`, `lib/launch/item-table.ts:50-135` | 감사자의 탐침: `--items`가 고정되지 않아 항목 1행(L-04)짜리 표와 기록·서명으로 `production --stage G`가 `exit 0`, `판정: 일반 사용자 공개 가능`을 냈다. 서명은 평문이라 진위·날짜 형식을 검증하지 않는다(AC가 인정한 한계). **오케스트레이터는 재현하지 않았다.** 선택 수정: 출력에 항목 수·표 digest 표시 | SPEC 설계 |
+| S-3 | Low | 선택 | `lib/launch/sibling-reference.ts:204`, `scripts/check-launch-gate.ts:609,616-617` | 형제 SPEC 이름이 `__proto__` 등이면 `TypeError`. 오염은 없고 `exit 1`이 "불가"와 구분되지 않는다. 최소 수정: `Object.hasOwn(input.definitions, spec)` 한 줄 | 기존 부채(구현 감사 ① F3, ② F-5) |
+| S-4 | Low | 선택 | `lib/launch/target-check.ts:62-67,84-85` | 경로 정규화가 `..`·glob을 풀지 않는다(읽기 근거, 미탐침, 점검기에 미연결) | SPEC |
+| F-9 | Low | 선택 | `scripts/check-launch-gate.test.ts:690-702`, `lib/launch/smoke-check.ts:85` | 생존 변이 2개: 열 일치 조건 제거, `redirect:"manual"`→`"follow"`. 시험 단언 추가로 해소 | 시험 공백 |
+| C-1 | Low | 선택 | `scripts/check-launch-transitions.ts`(줄 83.33%), `scripts/smoke-check.ts`(줄 64.28%) | 85% 미만. 둘 다 자식 프로세스로 도는 얇은 진입부라 v8 프로세스 내 측정에 잡히지 않는다. `evaluateLaunchGate` 194줄, CRLF 분할 반복 12곳 | 관찰 |
+| K-1 | Low·Info | 선택 | `package.json`, `spec.md:3,13,15` | 새 스크립트가 `package.json`에 미등록(런북이 명시, 사용자 결정 대기). `spec.md`에 "Plan-Phase"·`plan-only` 표식 잔존. `related_specs`는 정규 필드 밖 | 관찰 |
+| K-2 | Info | 선택 | `lib/launch/legal-notice-gate.ts` | 점검기에 미연결(M2 배선 공백) | 기존 기록 |
+
+선택 항목과 기존 부채(S-2~S-4, F-9, C-1, K-1, K-2)는 수정 범위에 넣지 않았다.
+
+#### 관측하지 못한 것(Gaps)과 잔여 위험
+
+- 운영 호스트·프록시·외부 도달성, 노출 플래그와 PM2 저장 환경, 운영 DB, 서버 하네스의 `d80adc8` 재관측(재사용만), `pnpm test:e2e`, `pnpm visual:verify`, 저장소 전체 커버리지, `scripts/verify-*.ts` 하네스의 커버리지, 자식 프로세스 경로의 커버리지.
+- `moai spec lint`, @MX 태그 점검, 교차 모델 감사(`audit_multi`·codex·GLM): `moai` CLI·MCP 미연결. 전용 비밀 스캐너도 설치돼 있지 않아 `git diff 2c244e0 d80adc8`를 grep으로만 훑었고(실제 자격증명 형태 0건, 합성 시험 상수만) 이는 스캐너 결과가 아니다.
+- 취약점 권고 본문은 감사 JSON에 없어 제목 기준으로 적용성을 판단했다.
+- 잔여 위험: 단계 이행 순서·EV-L2 해석은 SPEC이 정하지 않은 해석이다(§E.2 M6 발견 2·3). 점검기의 `exit 0`은 사람의 승인이나 운영 상태의 증거가 아니다. 의존성 취약점은 가동 중인 호스트에 그대로 있다(S-1).
+
+#### PASS로 바꾸는 데 필요한 증거 (코드 변경이 아니라 증거·결정)
+
+- Security: `pnpm audit --prod`에서 Critical/High 0을 보이는 별도 의존성 변경, 또는 프로필 예외를 사용자가 명시적으로 기록.
+- Functionality: AC-013은 F-1의 결정(보류 브랜치 병합 또는 인수 기준 반영)과 그 결과 증거. 15개 AC의 사람 서명 기록과 기록 위치 결정(D-LAUNCH-04). D-LAUNCH-01·03·08과 로컬 I 서명자 구성의 결정. CONSULTOPS-001·ENGINE-001의 실제 증거 기록 형식과 식별자. D-OPS-04 확정(S2의 G). 서버 하네스를 `d80adc8`에서 재관측(선택).
+- 운영 공개 전: L-01 운영 기준선 관측 기록, R-02·R-03 실제 증거, go 서명 기록, 푸터·법무 연결, 운영 관측.
+- Craft·Consistency는 이미 PASS다. 선택 항목은 전환 조건이 아니다.
+
+#### 증거 위치
+
+- 로컬(git이 무시하는 경로, 이 저장소에는 올라가지 않는다): `.moai/state/verify/sync-launch001/` — `target-sha.txt`, `vitest-coverage.log`(0/0 측정 문제 실행), `vitest-coverage-v2.log`, `coverage/coverage-summary.json`, `pnpm-audit.json`, `pnpm-audit-prod.json`, `deploy-run-37729280763.log`, `sync-audit-report.md`(독립 감사자의 전체 보고서).
+- 원격에서 대조할 수 있는 것: PR #24, 병합 커밋 `d80adc8`, 배포 run #36, 이 파일.
 
 ## §F Phase 4 Mode Selection
 

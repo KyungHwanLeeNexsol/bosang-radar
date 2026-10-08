@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+### Added — SPEC-B2C-LAUNCH-001: B2C 출시 게이트(기록 모델 · 점검기 · 런북 · 관측 도구), run 단계 병합 — SPEC은 아직 종결되지 않음
+
+노출 확대 전에 사람이 확인해야 할 항목과 서명을 기록하고 점검하는 **게이트 도구**를 추가했습니다(PR #24, merge commit 방식 병합 `d80adc8`). 이 변경은 **출시나 운영 공개가 아닙니다.** 어떤 노출 플래그도 켜지 않았고 `app/`·`components/`의 화면과 API, `.github`, `package.json`, 마이그레이션은 바뀌지 않았습니다. 병합으로 `main` push 배포가 한 번 일어났고(run #36, 대상 `d80adc8`, 결론 `success`) 앱 동작은 달라지지 않습니다.
+
+추가한 것: `lib/launch/`(단계 표·항목 증거 기록·go/no-go 서명·형제 SPEC 증거 참조·법무 확인 기록·노출 기록·롤백 관측·smoke 검사 로직 등 제품 코드 20개 모듈과 시험), 점검 CLI `scripts/check-launch-gate.ts`·`scripts/check-launch-transitions.ts`·`scripts/launch-marker-check.ts`·`scripts/smoke-check.ts`, 로컬 관측 스크립트 `scripts/verify-gate-reachability.ts`·`scripts/verify-rollback-dark.ts`·`scripts/verify-smoke-check.ts`, 런북 `.moai/docs/launch-gate-runbook.md`. 새 스크립트는 `package.json`에 등록하지 않았고 런북이 `pnpm exec tsx` 실행 형태를 적습니다.
+
+**이 SPEC의 `deploy.yml` smoke 검사 교체는 이 병합에 포함되지 않았습니다.** 교체본은 별도 브랜치에 보류돼 있고 L-01 운영 기준선 관측 기록이 생긴 뒤에만 병합합니다. 따라서 `.github/workflows/deploy.yml`의 placeholder 문구 검사는 그대로입니다.
+
+**검증**(sync 단계에서 병합 커밋 `d80adc8` 기준 직접 실행): 관련 28 files / 783 tests PASS, 제품 코드 커버리지 줄 98.69%·분기 96.99%(`lib/launch` 줄 100%, 점검 CLI 4개 줄 93.70%). 전체 시험 1805개·lint·tsc·빌드는 코드가 동일한 `7bda045`·`45c1a32` 기준 기록을 재사용했습니다.
+
+**SPEC 전체 4차원 감사(프로필 `default`)의 결과는 FAIL이며 sync는 닫지 않았습니다.** 인수 기준 16개 중 PASS는 1개이고 14개는 사람의 서명·미결정 사항·형제 SPEC의 실제 증거가 필요해 확인되지 않았으며(UNVERIFIED), 1개(AC-013)는 위의 보류 때문에 문구를 충족하지 못했습니다. 보안 임계값은 이 SPEC이 바꾸지 않은 프로젝트 의존성 감사 결과로 충족하지 못했고 별도 변경으로 다룹니다. 상세·근거·PASS로 바꾸는 데 필요한 증거는 `.moai/specs/SPEC-B2C-LAUNCH-001/progress.md` §E.4에 있습니다.
+
 ### Added — SPEC-B2C-RESULT-001: B2C 02 보상 진단 결과 화면, 플래그 게이트 뒤 구현
 
 B2C 3단계 퍼널의 두 번째 단계인 02 보상 진단 결과 화면을 구현했습니다(PR #19, squash 병합 `e0b5bab`). 화면은 Desktop 02(4카테고리 전체 펼침) + Mobile M02/M02-B/M02-C/M02-D(카테고리 단일 탭) 5개이며, `app/result/page.tsx`, `components/result/*`, `lib/diagnosis/`(types·schema·aggregate·handoff·flags·fixtures)로 구성됩니다.
