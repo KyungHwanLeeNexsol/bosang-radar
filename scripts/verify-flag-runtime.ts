@@ -281,7 +281,7 @@ export interface FlagScenario {
 }
 
 // 부모 셸에서 물려받을 수 있는 원격 DB·플래그 계열 env를 모두 제거하고 필요한 값만 채운다.
-function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
+export function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
     if (FLAG_KEY_RE.test(key)) delete env[key];
@@ -300,7 +300,7 @@ function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   return env;
 }
 
-function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): number {
+export function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): number {
   const result = spawnSync("pnpm", args, {
     cwd: PROJECT_ROOT,
     env,
