@@ -994,6 +994,8 @@ F-1·F-2 시험 보강, 형제 SPEC 이름 `__proto__` 크래시(F-5) 수정, �
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
+> **후속 기록 안내 (2026-10-12)**: 새 `main` `1296890` 기준의 PR #26·#27, 배포 #37·#38, 배포 후 관측은 이 절의 맨 끝 "후속 기록" 소절에 따로 있다. 아래 `d80adc8` 기준 감사 본문은 역사적 기록으로 그대로 보존했다(이 안내 외에 바뀐 곳 없음).
+
 - `sync_audit_verdict: FAIL` — 활성 프로필 `default` 기준 SPEC 전체 4차원 감사의 결과다. **sync를 닫지 않았다**(`sync_closure: not-closed`). 이 절은 `audit-ready`를 선언하지 않는다. `spec.md`의 `status`는 `in-progress` 그대로이고 이 sync 작업은 `spec.md`·`plan.md`·`acceptance.md`를 고치지 않았다.
 - 기록일 2026-10-08. 감사 대상 SPEC 전체(REQ 16, AC 16, Tier M), 기준 SHA `d80adc877e8f0258aa8c4f7dd24b87814ead2f3c`(= PR #24 병합 커밋 = 감사 시점 `origin/main`), 감사 시작과 끝에서 작업 트리 깨끗(`git status --short` 빈 출력).
 - **이 감사는 새 감사다.** 대상(SPEC 전체)·기준 SHA(`d80adc8`)·증거·결론이 모두 아래에 따로 있다. 앞선 기록을 소급해 바꾸지 않는다: 계획 감사 PASS 0.81은 `spec.md`·`plan.md`·`acceptance.md`의 문서 해시에 대한 결과이고 코드 품질의 근거가 아니다. 구현 감사 ②는 "F1 변경분 검토: 차단·주요 결함 없음. 프로필 기준 4차원 품질 판정은 미확인."으로만 읽는다. 감사 ②의 약 87.2는 합격 근거가 아니며 이번에도 쓰지 않았다.
@@ -1126,6 +1128,56 @@ SPEC 자체의 Definition of Done(`acceptance.md`)은 프로필과 별개의 완
 - 저장소에 올라간 것: `.moai/specs/SPEC-B2C-LAUNCH-001/sync-evidence-d80adc8.md` — 이 교정이 기대는 명령·종료 코드·핵심 원문 출력(커버리지 범위별 집계, AC-013 교체본 diff와 정적 시험 출력, 롤백 재실행, `moai spec lint`·@MX 스캔, S-2 재현 입력과 출력). 패키지별 취약점 목록·로컬 경로·접속 정보는 없다.
 - 로컬(git이 무시하는 경로, 이 저장소에는 올라가지 않는다): `.moai/state/verify/sync-launch001/` — `target-sha.txt`, `vitest-coverage.log`(0/0 측정 문제 실행), `vitest-coverage-v2.log`, `coverage/coverage-summary.json`, 교정에서 추가한 `r2-*.log`·`coverage-r2/`·`s2/`·`r2-deploy-yml.diff`, `pnpm-audit.json`, `pnpm-audit-prod.json`, `deploy-run-37729280763.log`, `sync-audit-report.md`(독립 감사자의 전체 보고서).
 - 원격에서 대조할 수 있는 것: PR #24, 병합 커밋 `d80adc8`, 배포 run #36, PR #25, 이 파일과 위 증거 문서.
+
+#### 후속 기록 — 새 `main` 기준 `1296890` (2026-10-12, PR #25)
+
+- 이 소절은 **새 감사가 아니다.** 위의 `d80adc8` 기준 감사·교정·Phase 9 기록은 역사적 기록으로 그대로 두었고, 이 소절은 그 뒤 `main`에 들어간 PR #26·#27, 배포 #37·#38, 그 뒤의 읽기 전용 관측을 따로 적는다. 명령·종료 코드·원문 출력은 `.moai/specs/SPEC-B2C-LAUNCH-001/sync-followup-1296890.md`에 있다.
+- 작업 기준: sync 브랜치에 최신 `main`(`1296890`)을 **일반 merge**했다(merge 커밋 `50b263f`, 부모 `0504976`·`1296890`, 충돌 없음, 강제 push 없음). merge로 들어온 파일은 `.github/workflows/deploy.yml`·`package.json`·`pnpm-lock.yaml`·`pnpm-workspace.yaml` 넷이고 `lib/`·`scripts/`·`app/`·`components/`·시험 파일은 0개다.
+- **바뀌지 않은 것**: 전체 판정 **FAIL**, Security **FAIL**, Functionality **UNVERIFIED**(AC PASS 1 / FAIL 0 / UNVERIFIED 15), LSP security 진단원 **UNVERIFIED**, **sync 미종결**(`status: in-progress`), 운영 공개 안 함. `spec.md`·`plan.md`·`acceptance.md`는 수정하지 않았다(blob `6d461bd`/`755670b`/`9865beb`가 `d80adc8`·`0504976`·현재 HEAD에서 같다).
+
+##### 사건 순서 (직접: GitHub API·실행 로그, 시각 UTC)
+
+| 시각 | 사건 | 근거 |
+|---|---|---|
+| 2026-10-12 00:37:37 | PR #26(`next` 16.3.2 → 16.3.8, `overrides` 추가)이 `eee8281`로 병합 | `gh api …/pulls/26` |
+| 00:37:39 ~ 00:47:50 | 배포 **#37**(run `38188727993`) **실패** — `Compiled successfully in 4.8min` 뒤 `Running TypeScript ...`에서 `Run Command Timeout`. `Finished TypeScript` 줄이 없어 **TypeScript 결과는 관측되지 않았다** | 실행 로그 사본 |
+| 01:39 ~ 01:42 (병합 전) | 읽기 전용 관측: 프로세스 제목 `v16.3.2`, 작업 폴더 삭제, `standalone`·`BUILD_ID` 없음, 참조 CSS·JS **500** | 이 대화의 앞선 관측 |
+| 02:04:33 | PR #27(`deploy.yml`에 `command_timeout: 20m` 한 줄)이 `1296890`으로 병합 | `gh api …/pulls/27` |
+| 02:04:36 ~ 02:06:56 | 배포 **#38**(run `38194369077`) **success** — `Next.js 16.3.8`, `Compiled successfully in 35.7s`, `Finished TypeScript in 35.5s`, PM2 재시작 `online`, 서버 안 smoke 3종 OK | 실행 로그 사본 |
+| 02:12:23 ~ 02:12:29 | 읽기 전용 관측(아래) | 증거 문서 §4 |
+
+##### 상태 구분에 추가 — 배포 장애 복구
+
+| 상태 | 값 | 근거 |
+|---|---|---|
+| 배포 장애(정적 자산 500, 앱 작업 폴더 삭제) | **복구 확인** — 2026-10-12T02:12Z ~ 02:12:29Z 관측 기준 | PM2 `online`, 프로세스 제목 `next-server (v16.3.8)`(저장소 HEAD로 확정하지 않았다), 작업 폴더 정상, `standalone`·`server.js`·`BUILD_ID` 존재, 남은 build·TypeScript 프로세스 0개. 홈 HTML이 참조하는 CSS 1/1·JS 12/12가 서버 안과 공개 주소에서 모두 **200**. 배포 #38 로그의 PM2 표(pid·재시작 횟수 36)와 VM의 PM2 값이 같다 |
+| L-01 기준선 기록 | **아니다. 작성하지 않았다** | L-01은 가동 커밋과 플래그 5종의 설정 여부, 효과적 게이트 상태를 요구한다. 이번에는 플래그·환경·DB를 읽지 않았다 |
+| 운영 공개 | **하지 않았고 이 관측은 승인이 아니다** | 위 두 행 참조 |
+
+##### 새 `main` 기준 차원별 상태 (`d80adc8` 기준 표는 위에 보존)
+
+| 차원 | `d80adc8` 기준(보존) | 새 `main` 기준 | 근거와 구분 |
+|---|---|---|---|
+| Security (하드 임계값) | **FAIL** — prod `{critical 4, high 13, moderate 22, low 4}`(43건) | **FAIL 유지** — prod `{critical 0, high 1, moderate 0, low 0}`(1건: `braces`) | **직접**: `pnpm audit --prod --json`, 2026-10-12T02:16:01Z, 작업 트리 `50b263f`, `exit=1`. **부분 개선**(Critical 4 → 0, High 13 → 1)이지만 임계값 "Critical/High 없음"은 High 1건이 남아 미충족. 이 SPEC이 도입한 것이 아니다. `braces` 수정 릴리스가 없다는 점은 2026-10-08 조사 기록이며 이번에 다시 확인하지 않았다. devDependencies 포함 전체 감사는 이번에 하지 않았다(미확인) |
+| Functionality (must-pass) | UNVERIFIED (PASS 1 / FAIL 0 / UNVERIFIED 15) | **UNVERIFIED 유지** | AC 문서 불변, 새 서명 없음 |
+| Craft | PASS (커버리지 기준, 범위 명시) | PASS 유지 — **재사용** | 소스·시험 파일 변경 0, 측정 도구 본체 버전 불변. 새 의존성 트리에서 다시 재지는 않았다 |
+| Consistency | PASS (린트·타입·서식·spec lint 범위) | PASS 유지 — **재사용** | 같은 근거. `spec.md` blob 불변 |
+| sync Phase 9 (@MX) | 충족 (`@MX:ANCHOR` 9 + `@MX:WARN` 18) | **충족 유지** — 재사용 + 직접 재집계 | 병합 HEAD에서 `git diff d80adc8 HEAD -- lib scripts`: 추가된 `@MX:ANCHOR` 줄 9, `@MX:WARN` 줄 18, 주석이 아닌 추가 줄 0, 삭제 0 |
+| LSP 게이트 | typecheck·lint 충족, security UNVERIFIED | 변경 없음 | `lsp.enabled: false`, 전용 도구 없음 |
+| **전체** | **FAIL** | **FAIL 유지** | Security High 1건이 정한다. 출시 가능이나 운영 공개 가능을 뜻하지 않는다 |
+
+##### 재사용한 것과 확인하지 못한 것
+
+- **재사용(변경 범위 확인)**: Phase 9, Craft, Consistency, `moai spec lint`, AC 집계. 근거는 `d80adc8` 이후 `main`이 바꾼 파일이 위 4개뿐이고 소스·시험 파일 변경이 0이라는 점, 측정 도구 본체(`vitest`·`@vitest/coverage-v8`·`typescript`·`eslint`·`prettier`·`tsx`)의 버전이 같다는 점이다. 전이 의존성 갱신(`overrides` 포함)은 있었으므로 이것은 **새 트리에서의 관측이 아니다.**
+- **다시 실행하지 않은 것(미확인)**: 새 트리에서 `pnpm test`·`pnpm lint`·`tsc --noEmit`·`prettier --check`·커버리지·`pnpm build`. 서버를 띄우는 하네스(`verify-flag-runtime`·`verify-smoke-check`·`verify-gate-reachability`·롤백)의 관측은 `next` 16.3.2 트리 기준이고 16.3.8 트리에서 다시 관측하지 않았다. 재사용 근거가 이번에 약해졌지만, AC가 서명 부재로 이미 UNVERIFIED여서 현재 판정은 바뀌지 않는다. 배포 #38 로그의 `Finished TypeScript`는 보충 관측이며 `tsc --noEmit` 재사용을 대체하지 않는다.
+- **운영 관측의 한계**: 배포 약 5분 뒤의 한 번이다. 응답 코드만 봤다(브라우저 렌더링, 홈 밖 경로, 지연 로드 청크 제외). 시간이 지난 뒤의 안정성, PM2 systemd 서비스 유닛(앞선 관측에서 `inactive`)과 재부팅 뒤 자동 시작, 노출 플래그·PM2 저장 환경·운영 DB는 **미확인**이다.
+- **보존**: 로컬 전용 `smoke-deploy-workflow`(`dd7122c`)와 원격 브랜치 `worktree-launch-run`(`cfe08a4`)·`security/deps-g1-g3`(`b5c8689`)·`fix/deploy-command-timeout`(`f63b8e1`)을 그대로 뒀다. `smoke-deploy-workflow`는 새 `main`과 `git merge-tree`(읽기 전용)에서 충돌 표식 0개였다. 병합 순서 보류(L-01 기록 뒤 별도 PR)는 그대로다.
+
+##### 승격하지 않는 것
+
+- 배포 장애 복구 확인은 **정적 자산이 다시 제공된다**는 뜻이다. L-01 PASS도, 일부 충족도 아니고, 점검기 항목의 상태를 바꾸지 않았다.
+- 이 기록은 **운영 공개 승인이 아니다.** 배포 smoke가 확인한 placeholder 문구도 노출 플래그의 관측이 아니다.
+- sync는 **닫지 않았다.** Security High 1건, 서명 15개 부재, 열린 결정이 그대로 남아 있다. PR #25는 Draft·open으로 두며 병합하지 않는다.
 
 ## §F Phase 4 Mode Selection
 
