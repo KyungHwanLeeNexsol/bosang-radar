@@ -20,6 +20,7 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
+          command_timeout: 20m
           script: |
             set -euo pipefail
 
