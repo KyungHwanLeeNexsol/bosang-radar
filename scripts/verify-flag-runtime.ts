@@ -81,6 +81,9 @@ export function expectedObservation(start: ConsultFlagInput): {
   };
 }
 
+// @MX:ANCHOR: [AUTO] HTML 본문의 첫 `<title>` 내용(앞뒤 공백 제거)을 돌려준다 — 없으면 null. 화면이 열렸는지 닫혔는지 읽는 하네스의 공통 관측 수단이다
+// @MX:REASON: 호출 지점 6곳(호출 함수 5개·파일 3개: 이 파일의 buildDiagnosisObservation(2곳)·observe, verify-gate-reachability의 buildCrossObservation·observe, verify-rollback-dark의 observePages)이 쓴다. 정규식이 바뀌면 세 하네스의 열림·닫힘 관측이 함께 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export function extractTitle(html: string): string | null {
   const match = /<title[^>]*>([^<]*)<\/title>/.exec(html);
   return match ? match[1].trim() : null;
@@ -280,6 +283,9 @@ export interface FlagScenario {
   readonly diag: DiagnosisFlagInput;
 }
 
+// @MX:ANCHOR: [AUTO] 하네스 자식 프로세스(마이그레이션·빌드·서버)의 환경 조립 — 부모 env에서 TURSO_·ENABLE_·CONSULT_·DIAGNOSIS_·RATE_LIMIT_·LLM_PROVIDER_·GEMINI_ 접두 변수와 PORT·HOSTNAME을 지우고 로컬 DB·결정적 LLM·시험용 시크릿·플래그 값만 채운 뒤, 원격 DB가 남아 있으면 던진다
+// @MX:REASON: 호출 지점 6곳(호출 함수 6개·파일 4개: 이 파일의 build·startAndObserve·main, verify-gate-reachability의 assembleCrossCombinationEnv, verify-rollback-dark의 assembleRollbackEnvs, verify-smoke-check의 assembleSmokeStateEnv)이 쓴다. 부모 환경의 DB·시크릿을 자식에게 넘기지 않는 제거 규칙이 이 함수에만 있어서, 바뀌면 네 하네스가 함께 영향받는다. 모듈 변수 dbUrl을 읽는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 // 부모 셸에서 물려받을 수 있는 원격 DB·플래그 계열 env를 모두 제거하고 필요한 값만 채운다.
 export function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
@@ -300,6 +306,9 @@ export function assembleEnv(flags: FlagScenario): NodeJS.ProcessEnv {
   return env;
 }
 
+// @MX:ANCHOR: [AUTO] `pnpm <args>`를 PROJECT_ROOT에서 동기 실행(spawnSync, shell)해 stdout·stderr를 logFile에 쓰고 종료 코드를 돌려준다(상태 코드가 없으면 1)
+// @MX:REASON: 호출 지점 6곳(호출 함수 4개·파일 3개: 이 파일의 build·main, verify-rollback-dark의 main, verify-smoke-check의 main)이 쓴다. verify-gate-reachability.ts에는 이름이 같은 비공개 지역 함수가 따로 있어(호출 2곳) 세지 않았다. 반환 규칙과 로그 기록이 바뀌면 세 하네스의 마이그레이션·빌드 판정이 달라진다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export function runPnpm(args: string[], env: NodeJS.ProcessEnv, logFile: string): number {
   const result = spawnSync("pnpm", args, {
     cwd: PROJECT_ROOT,
@@ -388,6 +397,9 @@ interface FullObservation {
   readonly diagnosis: DiagnosisObservation;
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 세 화면 GET과 접수 POST의 fetch 거부·본문 읽기 실패가 그대로 reject된다
+// @MX:REASON: 잡지 않는 것이 계약이다. 이 함수를 부르는 곳은 startAndObserve뿐이고, 거기서 reject가 main으로 전파되어 파일 하단의 main().then(…, 오류 처리)가 exitCode 1로 끝낸다. 이 함수가 직접 연 자원은 없고, 관측 대상 서버는 startAndObserve의 try/finally에서 managed.stop()이 정상·오류 양쪽 경로에서 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observe(baseURL: string): Promise<FullObservation> {
   const homeHtml = await (await fetch(`${baseURL}/`)).text();
   const consultHtml = await (await fetch(`${baseURL}/consult`)).text();
@@ -416,6 +428,9 @@ async function observe(baseURL: string): Promise<FullObservation> {
   };
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — 서버 시작 실패와 관측 실패가 reject로 전파된다
+// @MX:REASON: 오류는 삼키지 않고 호출자 main으로 전파한다(최상위 main().then(…, 오류 처리)가 exitCode 1로 끝낸다). 자원 정리는 두 갈래다. 서버가 준비되기 전의 실패는 startManagedServer가 자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던지므로(scripts/visual-verify-server.ts) 이 호출이 try 밖에 있어도 새는 서버가 없고, 준비된 뒤의 관측 실패는 finally의 managed.stop()이 끈다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function startAndObserve(start: FlagScenario, server: ServerMode): Promise<FullObservation> {
   const env = assembleEnv(start);
   const managed = await startManagedServer({
@@ -470,6 +485,9 @@ const fmtConsult = (f: { consult: boolean; policy: boolean }) =>
   `consult=${f.consult} policy=${f.policy}`;
 const fmtDiag = (d: DiagnosisFlagInput) => `flow=${d.flow} engine=${d.engine} dev=${d.dev}`;
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — 잘못된 인자, db:migrate·빌드 실패, 관측 중 reject가 throw로 전파된다
+// @MX:REASON: 실패를 반환 코드로 바꾸지 않고 던지는 것이 계약이다. 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 관측 불일치는 throw가 아니라 반환 코드(--observe가 아니면 1)로 알린다. 이 함수가 직접 쥐는 자원은 없다 — runPnpm은 동기 spawnSync이고 서버는 startAndObserve의 try/finally 안에서만 열리고 닫힌다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(argv: string[]): Promise<number> {
   const observeOnly = argv.includes("--observe");
   const buildFilter = argv.find((a) => a.startsWith("--build="))?.slice("--build=".length);

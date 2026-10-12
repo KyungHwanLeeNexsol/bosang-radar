@@ -192,6 +192,9 @@ function handlerFor(kind: TempServerKind): http.RequestListener {
   };
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — server.listen의 error 이벤트가 reject로 전파된다
+// @MX:REASON: listen 오류는 once("error", reject)로 호출자에게 그대로 전달한다. 금지 포트가 걸리면 그 서버를 닫고 다시 고르며, 20번 모두 실패하면 throw한다. 정상 반환한 서버는 돌려준 stop()으로 호출자가 닫는다 — 호출 지점 observeState는 try/finally로, 시험은 try/finally 또는 시작 직후에 stop()을 부른다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 /** 루프백에서만 듣는 임시 HTTP 서버. Node fetch가 거부하는 금지 포트가 걸리면 다시 고른다. */
 export async function startTempServer(kind: TempServerKind): Promise<TempServer> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -305,9 +308,15 @@ function runSmokeCli(baseUrl: string): Promise<{ exitCode: number; output: strin
   });
 }
 
+// @MX:WARN: [AUTO] catch 없이 try/finally만 있는 async 함수 — 서버 시작 실패와 smoke CLI 실행 실패가 reject로 전파된다
+// @MX:REASON: 오류는 삼키지 않고 호출자 main으로 전파한다. 두 갈래(임시 서버·실제 서버) 모두 서버를 연 뒤의 작업을 try/finally로 감싸 server.stop() 또는 managed.stop()이 정상·오류 양쪽 경로에서 서버를 끈다. 서버가 준비되기 전의 실패는 각각 startTempServer(reject 전파)와 startManagedServer(자식 프로세스 트리를 정리한 뒤 원래 오류를 다시 던짐)가 맡는다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 async function observeState(
   state: SmokeStateCase
 ): Promise<{ observed: StateObservation; output: string }> {
+  // @MX:WARN: [AUTO] 자체 try/catch가 없는 async 화살표 함수 — runSmokeCli의 reject(자식 프로세스 오류)가 그대로 전파된다
+  // @MX:REASON: 호출 지점 두 곳은 모두 observeState의 try 안이라 reject가 먼저 finally의 서버 정리를 거친 뒤 호출자로 전파된다. runSmokeCli는 자식 프로세스 오류를 reject로 돌려주고 close 이벤트를 기다린 뒤 종료 코드와 출력을 값으로 돌려준다. 이 함수가 직접 연 자원은 없다.
+  // @MX:SPEC: SPEC-B2C-LAUNCH-001
   const run = async (baseUrl: string) => {
     const { exitCode, output } = await runSmokeCli(baseUrl);
     return { observed: { exitCode, gateState: extractObservedGate(output) }, output };
@@ -340,6 +349,9 @@ async function observeState(
   }
 }
 
+// @MX:WARN: [AUTO] 자체 try/catch가 없는 async 함수 — db:migrate·빌드 실패와 observeState의 reject가 throw로 전파된다
+// @MX:REASON: 사전 점검 위반은 메시지를 출력하고 반환 코드 2로 돌려준다. 마이그레이션·빌드 실패와 그 밖의 reject는 던지고, 직접 실행하면 파일 하단의 main().then(…, 오류 처리)가 메시지를 출력하고 process.exitCode = 1로 끝낸다. 서버는 observeState의 try/finally 안에서만 열리고 닫혀 이 함수가 직접 쥐는 자원은 없다.
+// @MX:SPEC: SPEC-B2C-LAUNCH-001
 export async function main(): Promise<number> {
   const violations = checkPreconditions(process.env, PROJECT_ROOT);
   if (violations.length > 0) {

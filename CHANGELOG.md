@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+### Added — SPEC-B2C-LAUNCH-001: B2C 출시 게이트(기록 모델 · 점검기 · 런북 · 관측 도구), run 단계 병합 — SPEC은 아직 종결되지 않음
+
+노출 확대 전에 사람이 확인해야 할 항목과 서명을 기록하고 점검하는 **게이트 도구**를 추가했습니다(PR #24, merge commit 방식 병합 `d80adc8`). 이 변경은 **출시나 운영 공개가 아닙니다.** 어떤 노출 플래그도 켜지 않았고 `app/`·`components/`의 화면과 API, `.github`, `package.json`, 마이그레이션은 바뀌지 않았습니다. 병합으로 `main` push 배포가 한 번 일어났고(run #36, 대상 `d80adc8`, 결론 `success`) 앱 동작은 달라지지 않습니다.
+
+추가한 것: `lib/launch/`(단계 표·항목 증거 기록·go/no-go 서명·형제 SPEC 증거 참조·법무 확인 기록·노출 기록·롤백 관측·smoke 검사 로직 등 제품 코드 20개 모듈과 시험), 점검 CLI `scripts/check-launch-gate.ts`·`scripts/check-launch-transitions.ts`·`scripts/launch-marker-check.ts`·`scripts/smoke-check.ts`, 로컬 관측 스크립트 `scripts/verify-gate-reachability.ts`·`scripts/verify-rollback-dark.ts`·`scripts/verify-smoke-check.ts`, 런북 `.moai/docs/launch-gate-runbook.md`. 새 스크립트는 `package.json`에 등록하지 않았고 런북이 `pnpm exec tsx` 실행 형태를 적습니다.
+
+**이 SPEC의 `deploy.yml` smoke 검사 교체는 이 병합에 포함되지 않았습니다.** 교체본은 별도 브랜치에 보류돼 있고 L-01 운영 기준선 관측 기록이 생긴 뒤에만 병합합니다. 따라서 `.github/workflows/deploy.yml`의 placeholder 문구 검사는 그대로입니다. 교체의 병합은 이 SPEC의 인수 기준이 아니라 운영 순서에 관한 결정입니다(`acceptance.md` 도입부·Definition of Done).
+
+**검증**(병합 커밋 `d80adc8`과 코드가 같은 트리에서 직접 실행): 관련 28 files / 783 tests PASS. 커버리지는 범위를 나눠 적습니다 — 제품 코드 24개 파일(`lib/launch` 모듈 20 + 점검 CLI 4)은 줄 98.69%·분기 96.99%이고, 여기에 하네스 `scripts/verify-*.ts` 4개를 더한 구현 소스 28개 합산은 줄 85.20%·분기 89.25%입니다(하네스 4개만 보면 줄 50.20%이고 저장소 전체 커버리지는 재지 않았습니다). `tsc`·`eslint`·`prettier --check`(65개 파일)·`moai spec lint`는 `exit=0`이고, 롤백 로컬 시험은 다시 실행해 불일치 0이었습니다. 전체 시험 1805개·빌드는 코드가 동일한 `7bda045`·`45c1a32` 기준 기록을 재사용했습니다. 명령과 원문 출력은 `.moai/specs/SPEC-B2C-LAUNCH-001/sync-evidence-d80adc8.md`에 있습니다.
+
+**SPEC 전체 4차원 감사(프로필 `default`)의 결과는 FAIL이며 sync는 닫지 않았습니다.** 인수 기준 16개 중 PASS는 1개(AC-002)이고 나머지 15개는 AC가 요구한 사람의 서명이 없어 확인되지 않았으며(UNVERIFIED), 그중 7개는 AC가 선결로 적은 결정이나 형제 SPEC의 실제 증거가 없어 일부가 BLOCKED입니다. 불합격(FAIL)으로 확인된 인수 기준은 없습니다. 보류 중인 `deploy.yml` 교체본은 AC-013의 구현 인수 조건을 충족하는 것을 확인했고, 남은 것은 서명입니다. 보안 임계값은 이 SPEC이 바꾸지 않은 프로젝트 의존성 감사 결과로 충족하지 못했고 별도 변경으로 다룹니다. sync 필수 단계인 @MX 검증(Phase 9)은 주석만 다는 것(코드 동작 변경 없음)으로 충족했습니다. fan_in 3 이상인 exported 함수 9개에 `@MX:ANCHOR`를, 자체 `catch`가 없는 async 함수 18개에 `@MX:WARN`과 `@MX:REASON`을 달았습니다(`d80adc8` 대비 코드 8개 파일, 주석 81줄, 삭제 0줄). async 함수의 오류 처리 경로가 타당한지(코드를 읽어 확인했고 18개 모두 오류를 호출자나 최상위 처리기로 전파하고, 서버나 DB 클라이언트를 쥐는 함수는 해당 `finally`에서 정리합니다)와 `@MX:WARN` 태그 요건을 채웠는지는 서로 다른 질문이라 따로 기록했습니다. `--skip-mx`는 쓰지 않았습니다. 상세·근거·PASS로 바꾸는 데 필요한 증거는 `.moai/specs/SPEC-B2C-LAUNCH-001/progress.md` §E.4에 있습니다.
+
 ### Added — SPEC-B2C-RESULT-001: B2C 02 보상 진단 결과 화면, 플래그 게이트 뒤 구현
 
 B2C 3단계 퍼널의 두 번째 단계인 02 보상 진단 결과 화면을 구현했습니다(PR #19, squash 병합 `e0b5bab`). 화면은 Desktop 02(4카테고리 전체 펼침) + Mobile M02/M02-B/M02-C/M02-D(카테고리 단일 탭) 5개이며, `app/result/page.tsx`, `components/result/*`, `lib/diagnosis/`(types·schema·aggregate·handoff·flags·fixtures)로 구성됩니다.
