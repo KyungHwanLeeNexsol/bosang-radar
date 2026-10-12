@@ -4,3 +4,21 @@ allowBuilds:
   protobufjs: true
   sharp: false
   unrs-resolver: false
+
+# 보안 권고 대응용 overrides (G3). 일반 `pnpm update`로 움직이지 않은 항목에만 적용한다.
+# 모두 부모가 선언한 범위 안의 수정 버전이다.
+# 제거 조건: 부모(express, @modelcontextprotocol/sdk, ajv, minimatch 등)가 수정 버전 이상을
+# 스스로 요구하게 되거나, override 없이 새로 풀어도 수정 버전 이상으로 해석될 때 해당 줄을 지운다.
+overrides:
+  # express 5.x가 쓰는 proxy-addr (critical, >=2.0.8)
+  proxy-addr: 2.0.8
+  # express/body-parser가 쓰는 qs (moderate, >=6.16.0)
+  qs: 6.16.0
+  # MCP SDK / @hono/node-server가 쓰는 hono (moderate, >=4.13.7)
+  hono: 4.13.7
+  # ajv가 쓰는 fast-uri (high, >=3.1.8)
+  fast-uri: 3.1.8
+  # minimatch 10이 쓰는 brace-expansion 5.x만 올린다. minimatch 3의 1.x 연결은 건드리지 않는다. (>=5.0.12)
+  "brace-expansion@^5.0.8": 5.0.12
+  # 하한 범위로 둔다. 정확한 10.7.1로 고정하면 이미 안전한 10.7.3 가지가 내려가기 때문이다. (>=10.7.1)
+  ip-address: ^10.7.1
