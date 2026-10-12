@@ -1176,6 +1176,14 @@ SPEC 자체의 Definition of Done(`acceptance.md`)은 프로필과 별개의 완
 - **운영 관측의 한계**: 배포 약 5분 뒤의 한 번이다. 응답 코드만 봤다(브라우저 렌더링, 홈 밖 경로, 지연 로드 청크 제외). 시간이 지난 뒤의 안정성, PM2 systemd 서비스 유닛(앞선 관측에서 `inactive`)과 재부팅 뒤 자동 시작, 노출 플래그·PM2 저장 환경·운영 DB는 **미확인**이다.
 - **보존**: 로컬 전용 `smoke-deploy-workflow`(`dd7122c`)와 원격 브랜치 `worktree-launch-run`(`cfe08a4`)·`security/deps-g1-g3`(`b5c8689`)·`fix/deploy-command-timeout`(`f63b8e1`)을 그대로 뒀다. `smoke-deploy-workflow`는 새 `main`과 `git merge-tree`(읽기 전용)에서 충돌 표식 0개였다. 병합 순서 보류(L-01 기록 뒤 별도 PR)는 그대로다.
 
+##### LSP security 진단원 — 규칙 원문·설치 도구 대조 (2026-10-12, 대상 `e77f6b6`)
+
+- 위 차원별 표의 "LSP 게이트 | 변경 없음 | `lsp.enabled: false`, 전용 도구 없음" 줄을 **고치지 않고** 그 근거를 직접 실행으로 보탠다. 명령·종료 코드·출력·한계는 `.moai/specs/SPEC-B2C-LAUNCH-001/sync-lspsec-e77f6b6.md`에 있다. 이 소절은 새 감사가 아니다.
+- **규칙 원문(직접 읽음, 기본 체크아웃과 `e77f6b6`에서 blob 동일)**: `quality.yaml`은 진단원 **종류**(`typecheck`·`lint`·`security`)와 통과 조건 `lsp_security_warnings == 0`만 정하고 도구를 정하지 않는다. sync 규칙(`workflows/sync/quality-gates-quality.md` 88~93줄)의 LSP 게이트는 errors 0 / warnings ≤ 10 / clean 세 항목뿐이며 LSP 비활성 시의 **대체 수단 문장이 없다**. 가장 가까운 두 문장 — `lsp.yaml` 머리 주석("LSP 바이너리가 없으면 ast-grep이 품질 게이트를 제공")과 `gate.yaml`의 `ast_grep_gate`(pre-commit 게이트의 **조언 단계**, "commits never blocked", `sg`가 없으면 건너뜀) — 은 security 진단원의 대체를 지정하지 않는다.
+- **설치 도구(직접 실행)**: `sg`·`ast-grep`·`semgrep`이 PATH에도 작업 공간 `node_modules/.bin`에도 없다. `moai ast-grep --lang=typescript --format=json lib`(HEAD `e77f6b6`, 2026-10-12 13:16 KST)는 **종료 코드 1**, "ast-grep (sg) CLI not found … scan did not run"이었다. 이 실행은 코드를 검사하지 않았으므로 "발견 0건"이 아니라 **스캔 미실행**이다.
+- **판정**: LSP security 진단원 **UNVERIFIED 유지**. 규칙이 허용하는 진단원으로 확정된 도구가 없고, 후보 도구는 이 HEAD에서 실행되지 않는다. 도구 설치나 설정 변경은 하지 않았고, 그 결과가 규칙상 인정되는지는 이 기록이 정하지 않았다. 코드 결함은 관측되지 않았을 뿐이다.
+- **별도 축**: npm 의존성 감사 `braces` High(Security 차원 FAIL, 같은 날 `origin/main` 의존성 3파일 복사본에서 `pnpm audit --prod` 직접 실행 `{high 1}`)는 이 판정과 다른 근거다. 한쪽으로 다른 쪽을 PASS 처리하지 않았다. `braces` 처리(V/W)는 사용자가 아직 선택하지 않았고 의존성·CSS 변경은 시작하지 않았다.
+
 ##### 승격하지 않는 것
 
 - 배포 장애 복구 확인은 **정적 자산이 다시 제공된다**는 뜻이다. L-01 PASS도, 일부 충족도 아니고, 점검기 항목의 상태를 바꾸지 않았다.
