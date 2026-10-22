@@ -21,33 +21,36 @@ Semgrep을 설치하지도, 실행하지도 않는다. 모든 시험은 합성 �
 
 ## 모듈과 소유 범위
 
-| 파일                                                                                         | 책임                                                                            | 단계       |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------- |
-| `types.ts`, `status.ts`                                                                      | 공용 계약, 실패 상태 우선순위, 사유→상태 표                                     | 계약(고정) |
-| `sha.ts`                                                                                     | sha256, git blob SHA-1, 줄 목록 해시                                            | A          |
-| `framing.ts`                                                                                 | Content-Length JSON-RPC 인코더·점진 디코더(fail-closed)                         | A          |
-| `jsonrpc.ts`                                                                                 | 요청·알림 생성, id 생성기, id 기반 응답 라우터                                  | A          |
-| `clock.ts`                                                                                   | `SystemClock`, `VirtualClock`(결정적 시험용)                                    | A          |
-| `streams.ts`                                                                                 | 비동기 바이트 큐, 줄 조립기, stdout·stderr 독립 수집기                          | A          |
-| `testing/fake-process.ts`                                                                    | 메모리 상의 `ProcessPort`·`ChildHandle`                                         | A          |
-| `testing/memory-fs.ts`, `testing/memory-git.ts`                                              | 메모리 `FsPort`·`GitPort`                                                       | A          |
-| `rules-manifest.ts`                                                                          | 규칙 파일·기대 목록 파싱, 최종 ID 모델, 목록 해시, 규칙 트리 대조               | B          |
-| `scope.ts`                                                                                   | 대상 SHA에서 E 계산, 스캔 트리 생성·대조                                        | B          |
-| `log-matcher.ts`                                                                             | stderr 줄 인식(메시지 본문 전체 일치)                                           | B          |
-| `aggregate.ts`                                                                               | 진단 집계(중복 제거, 심각도 규칙, 소계)                                         | B          |
-| `settings.ts`                                                                                | `initializationOptions` 생성, 허용 키 검사(알 수 없는 키 거부)                  | B          |
-| `precheck.ts`                                                                                | PH0 사전 검사(서버 없이)                                                        | B          |
-| `evaluate.ts`                                                                                | 트랜스크립트 → `Verdict` (순수 함수)                                            | B          |
-| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조                                             | B          |
-| `evidence.ts`                                                                                | `RunRecord` 구성, 정규 JSON 직렬화, 증거 파일 작성                              | B          |
-| `testing/transcript-builder.ts`                                                              | 합성 트랜스크립트 작성기                                                        | B          |
-| `testing/evaluate-fixtures.ts`, `testing/evaluate-scenarios.ts`, `testing/synthetic-data.ts` | 판정·CLI 시험이 공유하는 합성 입력과 시나리오 표(시험 전용)                     | B·C        |
-| `session.ts`                                                                                 | PH1~PH4 세션 제어기(포트·시계 주입)                                             | C          |
-| `process-node.ts`, `git-node.ts`, `fs-node.ts`                                               | 실제 어댑터(자식 프로세스·git·파일)                                             | C          |
-| `harness.ts`                                                                                 | 범위 계산 → 사전 검사 → 세션 → 판정 → 증거를 잇는 함수                          | C          |
-| `cli.ts`                                                                                     | 명령줄 진입점, 실제 실행 방지 장치                                              | C          |
-| `testing/stub-lsp.ts`, `testing/stub-child.mjs`                                              | 시험용 LSP 스텁(메모리·`node`로 띄우는 별도 프로세스). Semgrep이 아니다         | C          |
-| `structure.test.ts`                                                                          | 구조 보장 시험(프로세스·네트워크 사용 위치, 기존 게이트 비연결, 규칙 원문 부재) | C          |
+| 파일                                                                                         | 책임                                                                                    | 단계       |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `types.ts`, `status.ts`                                                                      | 공용 계약, 실패 상태 우선순위, 사유→상태 표                                             | 계약(고정) |
+| `sha.ts`                                                                                     | sha256, git blob SHA-1, 줄 목록 해시                                                    | A          |
+| `framing.ts`                                                                                 | Content-Length JSON-RPC 인코더·점진 디코더(fail-closed)                                 | A          |
+| `jsonrpc.ts`                                                                                 | 요청·알림 생성, id 생성기, id 기반 응답 라우터                                          | A          |
+| `clock.ts`                                                                                   | `SystemClock`, `VirtualClock`(결정적 시험용)                                            | A          |
+| `streams.ts`                                                                                 | 비동기 바이트 큐, 줄 조립기, stdout·stderr 독립 수집기                                  | A          |
+| `testing/fake-process.ts`                                                                    | 메모리 상의 `ProcessPort`·`ChildHandle`                                                 | A          |
+| `testing/memory-fs.ts`, `testing/memory-git.ts`                                              | 메모리 `FsPort`·`GitPort`                                                               | A          |
+| `rules-manifest.ts`                                                                          | 규칙 파일·기대 목록 파싱, 최종 ID 모델, 목록 해시, 규칙 트리 대조                       | B          |
+| `scope.ts`                                                                                   | 대상 SHA에서 E 계산, 스캔 트리 생성·대조                                                | B          |
+| `log-matcher.ts`                                                                             | stderr 줄 인식(메시지 본문 전체 일치)                                                   | B          |
+| `aggregate.ts`                                                                               | 진단 집계(중복 제거, 심각도 규칙, 소계)                                                 | B          |
+| `settings.ts`                                                                                | `initializationOptions` 생성, 허용 키 검사(알 수 없는 키 거부)                          | B          |
+| `precheck.ts`                                                                                | PH0 사전 검사(서버 없이)                                                                | B          |
+| `evaluate.ts`                                                                                | 트랜스크립트 → `Verdict` (순수 함수)                                                    | B          |
+| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조                                                     | B          |
+| `canonical.ts`                                                                               | 정규 JSON 직렬화(키 정렬, 2칸, LF) — `evidence.ts`와 `fingerprint.ts`가 함께 쓴다       | B          |
+| `fingerprint.ts`                                                                             | 하네스·대조 지문, 도구·규칙·하네스·대조를 묶는 결합(binding) 해시                       | B          |
+| `reference.ts`                                                                               | 대조 참조 자격(`qualifyControlRun`)과 target 쪽 사실 확인(`checkControlReferenceFacts`) | B          |
+| `evidence.ts`                                                                                | `RunRecord` 구성(`reference_qualification` 포함), 증거 파일 9개 작성                    | B          |
+| `testing/transcript-builder.ts`                                                              | 합성 트랜스크립트 작성기                                                                | B          |
+| `testing/evaluate-fixtures.ts`, `testing/evaluate-scenarios.ts`, `testing/synthetic-data.ts` | 판정·CLI 시험이 공유하는 합성 입력과 시나리오 표(시험 전용)                             | B·C        |
+| `session.ts`                                                                                 | PH1~PH4 세션 제어기(포트·시계 주입)                                                     | C          |
+| `process-node.ts`, `git-node.ts`, `fs-node.ts`                                               | 실제 어댑터(자식 프로세스·git·파일)                                                     | C          |
+| `harness.ts`                                                                                 | 범위 계산 → 사전 검사 → 세션 → 판정 → 증거를 잇는 함수                                  | C          |
+| `cli.ts`                                                                                     | 명령줄 진입점, 실제 실행 방지 장치                                                      | C          |
+| `testing/stub-lsp.ts`, `testing/stub-child.mjs`                                              | 시험용 LSP 스텁(메모리·`node`로 띄우는 별도 프로세스). Semgrep이 아니다                 | C          |
+| `structure.test.ts`                                                                          | 구조 보장 시험(프로세스·네트워크 사용 위치, 기존 게이트 비연결, 규칙 원문 부재)         | C          |
 
 ## 순수 판정의 규칙
 
@@ -63,6 +66,11 @@ Semgrep을 설치하지도, 실행하지도 않는다. 모든 시험은 합성 �
 - 사유는 전부 `Reason[]`에 담고 대표 상태는 `representativeStatus`가 정한다. 필수 증거(로그 줄, 응답,
   장벽, echo 응답)가 없으면 그 부재가 사유다 — 사유가 비어 있는 채 `COMPLETE`가 되는 경로는 없다.
 - 프레임이 깨졌거나(`MALFORMED`) 잘렸으면(`TRUNCATED`) 그 시점부터 stdout은 신뢰하지 않는다.
+- `Found M matches`는 게시 진단의 **원시** 개수 D(스캔 송신 이후 게시분)와 `D ≤ M`이고 `M > 0`이면 `D ≥ 1`이어야 한다
+  (고정 소스: 진단은 같은 매치 목록에서 파일별로 만들어지고 JSON이 같은 것만 합쳐진다). 어기면 `MATCH_COUNT_DIAGNOSTICS_*`(→ `PARTIAL`)다.
+  `D < M`은 서버 쪽 중복 제거로 정상이다. 하네스의 집계 키는 서버 키와 달라서 집계 합계가 아니라 원시 D와 비교한다.
+- 확정된 `s0`(관측 값이 있고 설명됨)는 `Semgrep skipped S rules`의 S와 0을 포함해 같아야 한다(`SKIPPED_RULES_S0_MISMATCH`).
+  확정되지 않았으면 S = 0이어야 하고 S > 0은 `ENGINE_SKIPPED_RULES_UNEXPLAINED`다.
 
 stderr 줄은 **메시지 본문 전체 일치**로만 인식한다(접두 일치 금지). 실제 형식(접두어·시각)은 미확인이라
 `LogFormat.extractMessage`로 주입하고, 기본값은 줄 전체(앞뒤 공백 제거)다.
@@ -90,6 +98,21 @@ stderr 줄은 **메시지 본문 전체 일치**로만 인식한다(접두 일�
 | `foundMatches`                                   | `Found <M> matches`                                                                 | `:184`                               |
 
 위 형식은 모두 **소스 문자열**이다. 실제 stderr에 이 모양으로 나오는지는 미확인(ADR U3)이다.
+
+## 대조 참조 자격 (ADR D11)
+
+target 실행은 "양성·정상 쌍 단언이 `PASS`였다"는 이유만으로 대조 참조를 받지 않는다.
+
+- 음성 대조 R1~R9는 `preflight`(서버 없이 거부, 7개)와 `engine`(실제 엔진 진단 실행, 9개) 두 층이며 서로 대신하지 못한다.
+  항목마다 결과를 얻은 조합의 결합 해시(`binding_sha256`)를 단다.
+- `RunRecord.reference_qualification`이 control 실행의 자격(`eligible`)을 따로 기록한다. 음성 대조가 `NOT_RUN`이어도
+  `control_assertions`의 `PASS`는 그대로 남고, 대신 자격이 불충족이다.
+- `control_reference`는 판정이 아니라 사실(지문, 음성 대조 요약)을 싣는다. target 판정은 자기 선언 `eligible`을 믿지 않고
+  이번 실행의 지문과 다시 맞춘다. 없는 지문은 없는 지문과도 일치하지 않는다.
+- 하네스 지문: `scripts/semgrep-lsp/` 아래 `.ts`·`.mjs` 구현 파일(`*.test.*`, 최상위 `testing/`·`data/` 제외)을
+  경로 바이트순으로 `<경로>\t<원시 바이트 sha256>\n` 매니페스트로 만든 해시. 대조 지문: 대조 기대 파일과 `.in` 예제의 실제 바이트.
+- 지금은 `engine` 항목을 `PASS`로 표시하는 운영 코드가 없어서, 실제 control 실행도 자격이 없다. 즉 이 변경만으로는
+  어떤 target 실행도 `COMPLETE`가 될 수 없다(의도한 fail-closed).
 
 ## 실행 방지 장치
 
@@ -125,4 +148,5 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
 2. 같은 트리의 다른 서버 프로세스 검사(`foreignServerProcesses`)와 실제 실행 잠금(지금은 실행별 `run.lock` 표지뿐이다).
 3. 하네스가 여는 루프백 메트릭 수신기(`metricsReceiverHits`). 이 변경에는 수신기가 없다.
 4. target 실행에 쓸 대조 실행 기록(`controlReference`)을 `run.json`에서 읽어 연결하는 코드.
-5. 실행 인자 `lsp --debug`, `SEMGREP_*` 환경변수 이름, 단계별 시간 한도, `scan` 설정값은 모두 **미확인**이다(ADR U3·U8·U12).
+5. 엔진 음성 대조 실행기와 그 결과를 `PASS`로 표시·기록하는 코드(없으면 실제 control 실행도 `eligible=false`다).
+6. 실행 인자 `lsp --debug`, `SEMGREP_*` 환경변수 이름, 단계별 시간 한도, `scan` 설정값은 모두 **미확인**이다(ADR U3·U8·U12).

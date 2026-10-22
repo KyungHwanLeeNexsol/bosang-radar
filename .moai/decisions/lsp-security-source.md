@@ -60,6 +60,7 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | 로그 순서 | `Scanned workspace`(`Legacy_scan_helpers.ml:259`)는 진단 전송 **전**, `Scanning workspace complete`(`Legacy_notification_handler.ml:213`, debug)는 전송 **후**에 찍힌다 |
 | 게시 범위 | 진단은 세션에 누적된 `scanned_files` 전체에 대해 게시된다(`Legacy_scan_helpers.ml:239-246`, `Legacy_session.ml:529-540`). 한 프로세스의 두 번째 스캔은 이전 파일을 빈 진단으로 다시 게시할 수 있다 |
 | 대상 | JS는 `.cjs .js .jsx .mjs`, TS는 `.ts .tsx`(`.min.js`·`.d.ts` 제외). `paths`가 없는 regex 규칙 `detect-insecure-websocket` 하나가 JS/TS가 아닌 파일도 스캔 대상으로 끌어들인다 |
+| 건수 관계 | `Found M matches`의 M은 skipped fingerprint·git-dirty 필터를 거친 **뒤**의 매치 수다(`Legacy_scan_helpers.ml:162-166`, `:184`, `Legacy_processed_run.ml:72-78`). 진단은 같은 목록에서 파일마다 `path = file`인 매치만 골라 하나씩 만들고 **직렬화된 JSON이 같은 것만** 합친다(`Legacy_diagnostics.ml:61-70`, 심각도·규칙 필터 없음). 그래서 게시 진단의 원시 개수 D에 대해 `D ≤ M`이고 `M > 0`이면 `D ≥ 1`이다. `D < M`은 정상이다. 하네스의 집계 키(파일·`code`·범위)는 서버 키(진단 JSON 전체)와 달라서 비교는 집계 합계가 아니라 원시 D로 한다 |
 
 ### 미확인 (실행해야만 확인된다 — 스텁 결과로 채우지 않는다)
 
@@ -124,11 +125,11 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | C1 | PH1 | 새 프로세스, `initialize` 응답의 서버 버전이 핀과 같고 `initialized`는 1회. 이 구간 진단 0건 |
 | C2 | PH2 | 기대 YAML 205개 각각에 `loading local config from`·`Done loading local config from`이 정확히 1회씩(경로 구분자 정규화 비교), `Got N errors`가 정확히 1회이고 N = 0, `skipping rule` 0개, `rulesRefreshed` 정확히 1회, 레지스트리 접속 흔적 0회, `Scanned open documents` 관측, echo-pre-scan 응답 뒤 진단 0건 |
 | C3 | PH3 시작 | 설정 효과의 **간접 증거**: `CI disabled, not checking API token` 1회, `Scanning workspace, full: true` 1회, 로딩 경로가 모두 구성 디렉터리 아래. 파싱 결과는 로그에 남지 않으므로(F9) `maxTargetBytes`·`timeout`·`timeoutThreshold`·`pro_intrafile`의 효과는 관측하지 못하고 요청값만 기록한다. `scan`·`metrics`에는 허용 키만 보낸다 |
-| C4 | PH3 로그 | `Scanning workspace` 1회, `Running Semgrep with N rules`의 N = 기대 규칙 수, `Semgrep errors:` 뒤가 비어 있음, `Semgrep skipped S rules`의 S가 0(또는 `s0`로 설명되어 확정된 값), `Scanned K files`, `Found M matches`, `Scanned workspace` 1회. 두 번째 `Scanning workspace`·`Scanning single file`·추가 `Scanning open documents`·두 번째 `Refreshing rules`는 0회 |
+| C4 | PH3 로그 | `Scanning workspace` 1회, `Running Semgrep with N rules`의 N = 기대 규칙 수, `Semgrep errors:` 뒤가 비어 있음, `Semgrep skipped S rules`의 S가 `s0`와 같다(`s0`가 확정됐으면 0을 포함해 정확히 그 값, 확정되지 않았으면 0), `Scanned K files`, `Found M matches`(게시 진단 원시 개수 D와 `D ≤ M`이고 `M > 0`이면 `D ≥ 1`), `Scanned workspace` 1회. 두 번째 `Scanning workspace`·`Scanning single file`·추가 `Scanning open documents`·두 번째 `Refreshing rules`는 0회 |
 | C5 | PH3~PH4 | 장벽 정확히 1회 + 장벽 뒤 echo 응답. 스캔 송신 이후 echo 응답 이전의 `publishDiagnostics`만 P로 센다. 응답 이후 진단이 있으면 `LATE_DIAGNOSTIC` |
 | C6 | 집합 | P의 각 URI는 정규화 후 **정확히 1회** 게시, `E ∖ P = ∅`, `P ∖ E = ∅`, `K = \|P\| = \|E\|`. `K = \|P\|`는 새 프로세스에서 구성상 항상 참이라 전송 손실만 잡는다. 완료의 증거는 C4~C6의 조합이다 |
 | C7 | 종료 | `exit` 후 제한 시간 안에 프로세스가 끝나고 종료 코드가 기록된다(0이 기대값, 미확인 U9) |
-| C8 | 대조 참조 | **target 모드만.** 같은 도구·규칙 핀·하네스 해시의 `control` 실행이 `provenance=real`이고 측정 COMPLETE이며 `control_assertions=PASS`이고 `n0.confirmed=true`다 |
+| C8 | 대조 참조 | **target 모드만.** 같은 도구(버전·휠)·규칙 핀·하네스 지문·대조 지문(D11)의 `control` 실행이어야 한다. 그 실행은 `provenance=real`이고 측정 COMPLETE이며 `control_assertions=PASS`이고 `n0.confirmed=true`이며 `reference_qualification.eligible=true`다 — 필수 음성 대조 R1~R9의 사전 검사 층과 엔진 층이 **각각** 모두 `PASS`이고 같은 결합(binding)에서 얻은 결과여야 한다. 참조의 `eligible` 선언은 믿지 않고 지문·결합·음성 대조 사실로 다시 계산한다 |
 | C9 | 격리 | 하네스가 연 루프백 수신기가 작동하고 그 수신기에서 관찰한 요청이 0건. 다른 목적지로의 연결이 없었다는 뜻이 아니다 |
 
 ### D3. 상태와 우선순위 (확정)
@@ -161,8 +162,8 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | 14 | `DUPLICATE_PUBLISH` | 같은 URI 2회 이상 | 마지막 게시를 임의로 채택하지 않는다 |
 | 15 | `TARGET_MISMATCH` | `E ∖ P`, `P ∖ E`, `K` 불일치, URI 정규화 불가 | |
 | 16 | `UNKNOWN_RULE_ID` | 게시 `code`가 기대 목록에 없음 | 키는 **전체 최종 ID** |
-| 17 | `PARTIAL` | `Semgrep errors:` 비어 있지 않음, 엔진 보고 줄 부재, 설명되지 않은 S > 0 | |
-| 18 | `CONTROL_MISSING` | 대조 참조 없음·PASS 아님·핀 불일치·합성(stub), `n0` 미확정 | target 전용 |
+| 17 | `PARTIAL` | `Semgrep errors:` 비어 있지 않음, 엔진 보고 줄 부재, 설명되지 않은 S > 0, 확정된 `s0`와 다른 S(0 포함), `Found M matches`와 게시 진단의 모순(`D > M`, 또는 `M > 0`인데 `D = 0`) | `D < M`은 서버 쪽 중복 제거로 정상이라 사유가 아니다 |
+| 18 | `CONTROL_MISSING` | 대조 참조 없음·PASS 아님·핀 불일치·합성(stub), `n0` 미확정, 지문(하네스·대조·도구·결합)이 없거나 다름, 필수 음성 대조 미충족, 자격(`eligible`) 불충족 | target 전용 |
 | 19 | `ISOLATION_VIOLATION` | 메트릭 수신기에 요청, 수신기가 관찰 중임을 증명하지 못함 | |
 
 ### D4. 겹치는 조합의 확정
@@ -181,6 +182,12 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | 대조 PASS 참조 + 진단 0건 | (없음) | `COMPLETE`, `value` 0, 평가 `WOULD_PASS` (스텁이면 `UNVERIFIED`) | |
 | 스캔 전 빈 게시 + 스캔 구간 게시 없음 | `PRE_SCAN_DIAGNOSTIC`, `URI_EXPECTED_NOT_PUBLISHED` | `CONTAMINATED` | 오염이 집합 불일치보다 앞섬 |
 | 같은 URI 2회 게시 (내용이 같든 다르든) | `DUPLICATE_URI` | `DUPLICATE_PUBLISH` | |
+| `Found 1 matches`인데 모든 URI가 빈 진단으로 게시 | `MATCH_COUNT_DIAGNOSTICS_MISSING` | `PARTIAL`, `value` null | 건수와 게시의 모순은 0건으로 읽히지 않는다 |
+| `Found 0 matches`인데 게시 진단 양수, 또는 게시 진단이 `M`보다 많음 | `MATCH_COUNT_DIAGNOSTICS_EXCESS` | `PARTIAL`, `value` null | 소스상 불가능한 관계(`D > M`) |
+| `Found 3 matches`, 게시 진단 2건(서버 쪽 중복 제거) | (없음) | `COMPLETE` | `D < M`은 정상이다. 차이는 `observed.scan.matchesDeduplicated`에 기록한다 |
+| 확정된 `s0`=2인데 로그 `Semgrep skipped 0 rules` | `SKIPPED_RULES_S0_MISMATCH` | `PARTIAL`, `value` null | S = 0도 확정된 S0와 비교한다 |
+| 양성·정상 단언 `PASS` + 음성 대조 전부 `NOT_RUN`인 참조를 target에 넣음 | `CONTROL_REFERENCE_NEGATIVE_INCOMPLETE`, `CONTROL_REFERENCE_NOT_ELIGIBLE` | `CONTROL_MISSING`, `value` null | 단언 `PASS`는 참조 자격이 아니다 |
+| 핀이 같지만 하네스 지문이 다른 참조 | `CONTROL_REFERENCE_HARNESS_MISMATCH`, `CONTROL_REFERENCE_NOT_ELIGIBLE` | `CONTROL_MISSING`, `value` null | 옛 참조는 재사용할 수 없다 |
 
 필수 증거(로그 줄, 응답, 장벽, echo 응답)가 없거나 프레임이 깨졌는데 `COMPLETE`·0건이 되는 경로는 없다.
 증거의 부재는 그 자체가 사유다.
@@ -194,6 +201,7 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | `measurement` | 측정이 끝났는가(`status`, `complete`, `reasons`, `phases_reached`) | 보안 기준 통과 여부가 아니다 |
 | `control_assertions` | 필수 탐지·금지 탐지·정상 쌍·음성 대조의 성공 여부(`PASS`/`FAIL`/`REVIEW_REQUIRED`/`NOT_RUN`/`NOT_APPLICABLE`) | 의도적 취약 예제를 탐지한 control 실행은 `PASS`이면서 진단 합계가 양수일 수 있다 |
 | `candidate_gate` | 제안된 기준(`== 0`)으로 계산한 평가 | `evaluation`은 `WOULD_PASS`/`WOULD_FAIL`/`UNVERIFIED`/`NOT_APPLICABLE`. `policy_accepted`·`counts_as_lsp_security_warnings`는 타입이 리터럴 `false`. target이고 `COMPLETE`일 때만 `value`가 숫자 |
+| `reference_qualification` | control 실행이 target의 **대조 참조가 될 자격**이 있는가(`applicable`, `eligible`, 요구 8개의 `satisfied`) | `control_assertions`의 `PASS`와 별개다. 음성 대조가 미실행이면 단언은 `PASS`여도 `eligible`은 `false`다. target 모드는 `{applicable:false, eligible:false}` |
 | `existing_gates` | 기존 내장 수집기와 공식 게이트 | `builtin_collector`는 `UNVERIFIED`·`changed:false`, `official_gate`는 `effect:"NONE"`·`changed:false` |
 | `not_executed` | 아직 실행해 확인하지 못한 값 | `null`·`NOT_RUN`·`UNVERIFIED`만 허용. 스텁 결과로 채우지 않는다 |
 
@@ -229,7 +237,8 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
   - **A4** 금지: 금지 ID가 있으면 실패.
   - 정상 쌍은 같은 계열의 양성이 A1을 통과하고 정상이 A3을 통과해야 쌍이 통과한다.
 - `eval.nosource.js`는 "대상 규칙(`detect-eval-with-expression`)의 미탐"과 "전체 묶음의 진단 0건"이 다른 단언임을 보인다. `eval-detected`가 이 호출을 잡을 것으로 예상하므로 A1(필수 `eval-detected`)과 A4(금지 `detect-eval-with-expression`)로 판정하고, 0건이면 오히려 실패다.
-- 음성 대조(R1~R9)는 `control_assertions.negative_controls`에 기록한다. 이 변경에서는 엔진이 필요한 것을 실행하지 않았으므로 모두 `NOT_RUN`이다. 서버 없는 사전 검사(R1~R5의 `MANIFEST_MISMATCH`)는 단위 시험이 합성 규칙 트리로 확인한다.
+- 음성 대조(R1~R9)는 `control_assertions.negative_controls`에 **두 층**으로 기록한다. `preflight`는 서버 없이 사전 검사·설정 검사가 거부했는지(R1~R5, R7, R9: 7개), `engine`은 실제 엔진을 띄운 진단 실행의 관측(R1~R9: 9개)이다. 두 층은 서로 대신하지 못한다 — 사전 검사 `PASS`는 "엔진 없이 거부했다"만 증명하며 엔진 실행을 대체하지 않는다. 각 항목은 그 결과를 얻은 도구·규칙·하네스·대조 조합의 지문(`binding_sha256`)을 달고 있어야 `PASS`로 인정된다.
+- 이 변경에서는 엔진이 필요한 것을 실행하지 않았으므로 `engine` 9개는 항상 `NOT_RUN`이고, 하네스가 기록하는 `preflight` 7개도 `NOT_RUN`이다(단위 시험이 합성 규칙 트리로 R1~R5의 `MANIFEST_MISMATCH`와 R7·R9의 허용 키 거부를 확인한다). `NOT_RUN` 음성 대조는 양성·정상 쌍 단언의 `PASS`를 `FAIL`로 바꾸지 않는다(성공 기록을 거짓 실패로 덮지 않는다). 대신 `reference_qualification`이 불충족으로 남아 target의 대조 참조가 될 수 없다(D11). `engine` 항목을 `PASS`로 표시하는 운영 코드는 아직 없다.
 
 ### D9. 격리와 메트릭 서술
 
@@ -240,8 +249,37 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 ### D10. 실행 방지와 증거
 
 - 실제 도구를 띄우는 코드는 `process-node.ts`에만 있고, `cli.ts run`은 `--allow-real-semgrep` + `MOAI_SEMGREP_LSP_ALLOW_REAL=1` + `--semgrep-bin <절대 경로>`가 모두 있을 때만 시작한다. 하나라도 없으면 `NOT_RUN`(종료 코드 3)이며 `spawn`을 호출하지 않는다. PATH 탐색·자동 설치·`package.json` 스크립트가 없다.
-- 증거는 `.moai/state/verify/semgrep-lsp/<run-id>/`(gitignore)에 정규 JSON(키 정렬, 2칸, LF)으로 쓰며 이미 있는 파일은 덮어쓰지 않는다. 구성은 `run.json`, `diagnostics.jsonl`(받은 `publishDiagnostics` 원문), `lsp-transcript.jsonl`, `stderr.log`, `files.expected.txt`, `files.published.txt`, `files.missing.txt`, `scope.tsv`다. `run.json`의 SHA-256만 `progress.md`에 한 줄로 연결하는 일은 이 변경의 범위 밖이다.
+- 증거는 `.moai/state/verify/semgrep-lsp/<run-id>/`(gitignore)에 정규 JSON(키 정렬, 2칸, LF)으로 쓰며 이미 있는 파일은 덮어쓰지 않는다. 구성은 `run.json`, `diagnostics.jsonl`(받은 `publishDiagnostics` 원문), `lsp-transcript.jsonl`, `stderr.log`, `files.expected.txt`, `files.published.txt`, `files.missing.txt`, `scope.tsv`, `fingerprints.txt`(하네스·대조 지문 값과 두 매니페스트 — 참조가 거절됐을 때 어느 파일이 달랐는지 진단하는 용도)의 9개이고 `run.json`이 마지막에 쓰인다. `run.json`의 SHA-256만 `progress.md`에 한 줄로 연결하는 일은 이 변경의 범위 밖이다.
 - 환경변수 값·토큰·기밀은 증거에 쓰지 않는다. 이름과 판정 사유만 남긴다.
+
+### D11. 대조 참조 자격과 지문 (C8의 구현)
+
+target 실행이 받는 대조 참조는 "양성·정상 단언이 `PASS`였다"만으로 수락하지 않는다. 참조는 **이번 실행과 같은 도구·규칙·하네스·대조 조합**에서 얻은, **필수 음성 대조가 모두 통과한** control 실행이어야 한다.
+
+**지문 규칙** (`scripts/semgrep-lsp/fingerprint.ts`)
+
+| 지문 | 범위 | 정렬·해시 |
+| --- | --- | --- |
+| `harness_sha256` | `scripts/semgrep-lsp/` 아래 `.ts`·`.mjs` 구현 파일. **제외**: `*.test.ts`·`*.test.mjs`, 하네스 루트 바로 아래의 `testing/`·`data/` 전부, 그 밖의 확장자(README 포함). 중첩 경로의 `testing/` 같은 이름은 제외하지 않는다(더 많이 해시하는 쪽이 안전하다) | 하네스 루트 기준 상대 경로('/' 구분)의 UTF-8 바이트순. 파일마다 **원시 바이트**의 sha256(줄바꿈 정규화 없음 — CRLF 체크아웃은 지문이 달라지며 이는 fail-closed다). 매니페스트 = `semgrep-lsp-harness-fingerprint/1\n` + 파일마다 `<경로>\t<sha256>\n`. 지문 = 매니페스트의 sha256. 포함 파일이 0개이면 빈 집합의 해시가 아니라 "확인하지 못함"(null) |
+| `control_sha256` | 대조 기대값(`data/control-expectations.json`)과 대조 예제 `.in` 9개 | 매니페스트 = `semgrep-lsp-control-fingerprint/1\n` + `expectations\t<기대 파일 바이트의 sha256>\n` + 사례를 `path` 바이트순으로 `case\t<path>\t<fixture>\t<실제로 읽은 예제 바이트의 sha256>\n`. 기대 파일 안의 해시 값은 "주장"이라 쓰지 않는다(사전 검사가 따로 대조한다). 읽지 못하면 null |
+| `binding_sha256` | 도구(`tool_version`, `wheel_sha256`) + `pin_sha256` + 규칙(`rules_list_sha256`, `rules_expected_sha256`) + `harness_sha256` + `control_sha256` | `sha256(canonicalJson({schema:"semgrep-lsp-binding/1", tool:{version, wheel_sha256}, pin_sha256, rules:{list_sha256, expected_sha256}, harness_sha256, control_sha256}))`. 구성 요소가 **하나라도 null이면 null** — 확인하지 못한 두 실행이 같은 결합으로 보이지 않게 한다 |
+
+하네스 지문에서 `data/`를 제외하는 근거: `pin.json`과 규칙 목록은 `pin_sha256`·`rules_*_sha256`으로, 대조 기대값과 예제는 `control_sha256`으로 묶이고, `scope.json`은 target의 범위(E)에만 쓰여 대조 참조에는 영향이 없다. `testing/`·테스트 파일을 제외하는 근거가 구멍이 되지 않도록 구조 시험이 "운영 소스는 `testing/`을 가져오지 않는다"를 지킨다.
+
+**참조 자격** (`reference_qualification`, `scripts/semgrep-lsp/reference.ts`) — control 실행이 아래 요구를 **모두** 충족할 때만 `eligible`이다: `PROVENANCE_REAL`, `MEASUREMENT_COMPLETE`, `CONTROL_ASSERTIONS_PASS`, `N0_CONFIRMED`, `FINGERPRINTS_COMPLETE`(다섯 값이 모두 있고 결합이 구성 요소로 다시 만든 값과 같다), `NEGATIVE_PREFLIGHT_PASS`(7개 모두 정확히 하나씩 `PASS`), `NEGATIVE_ENGINE_PASS`(9개 모두 정확히 하나씩 `PASS`), `NEGATIVE_BINDING_MATCH`(모든 `PASS` 항목의 `binding_sha256`이 이 실행의 결합과 같다). 스텁 실행은 어떤 경우에도 `eligible`이 아니다.
+
+**target의 확인** — `control_reference`는 판정이 아니라 사실(지문, 음성 대조 요약)을 싣고, target 판정은 자기 선언 `eligible`을 믿지 않고 이번 실행의 지문(`currentFingerprints`)과 다시 맞춘다. 기존 확인(없음·합성·PASS 아님·핀·`n0`) 뒤에 아래가 더해진다. 모두 `CONTROL_MISSING`으로 이어지고 `value`는 `null`이다.
+
+| 사유 | 조건 |
+| --- | --- |
+| `CONTROL_REFERENCE_FINGERPRINT_MISSING` | 참조 또는 이번 실행에 하네스·대조·결합·도구 버전·휠 지문 중 비어 있는 것이 있다. 없는 값은 없는 값과도 일치하지 않는다 |
+| `CONTROL_REFERENCE_HARNESS_MISMATCH` / `_CONTROL_MISMATCH` | 하네스 지문 / 대조 지문이 다르다(핀이 같아도) |
+| `CONTROL_REFERENCE_TOOL_MISMATCH` | 도구 버전·휠·규칙 목록·규칙 기대 목록 중 다른 것이 있다 |
+| `CONTROL_REFERENCE_BINDING_MISMATCH` | 결합이 이번 실행과 다르거나, 참조의 결합이 자기 구성 요소(자기 `pin_sha256` 포함)로 다시 만든 값과 다르다 |
+| `CONTROL_REFERENCE_NEGATIVE_INCOMPLETE` | 요구된 (id, 층) 쌍 16개 중 없거나·중복이거나·`NOT_RUN`·`FAIL`이거나·결합이 다른 항목이 있다(상세는 `R3:engine(NOT_RUN)` 같은 토큰만) |
+| `CONTROL_REFERENCE_NOT_ELIGIBLE` | 참조가 `eligible:true`를 선언하지 않았거나, 선언했는데 위 사실 확인이 하나라도 실패했다 |
+
+**현재 상태의 결과**: 엔진 음성 대조를 실행해 `PASS`로 표시하는 운영 코드가 아직 없으므로(D8) **실제 control 실행도 `eligible=false`**다. 따라서 이 변경만으로는 어떤 target 실행도 `COMPLETE`가 될 수 없다. 이는 의도한 fail-closed 상태이며, 엔진 음성 대조 실행기와 그 결과의 표시·기록 읽기 어댑터가 별도 변경으로 들어와야 풀린다.
 
 ## Consequences
 
@@ -261,16 +299,20 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 **유지되는 위험**
 
 - 이 변경이 병합되어도 `lsp_security_warnings`의 진단원은 UNVERIFIED다. 인정은 `Accepted`와 별도 연결 변경을 거쳐야 한다.
+- 엔진 음성 대조를 실행·표시하는 코드와 이전 실행 기록(`run.json`)을 읽어 `controlReference`를 만드는 어댑터가 없다. 그래서 실제 실행에서도 target은 `CONTROL_MISSING`에서 벗어날 수 없다(D11).
+- 지문은 메모리 파일시스템에서만 검증했다. 실제 파일시스템에서의 줄바꿈(CRLF 체크아웃), 심볼릭 링크, 하네스 루트 아래 `node_modules` 같은 경우는 시험하지 않았다.
 - 규칙 커밋 `16b9e6d4`는 2026-10-21자라 채택 시점에 14일 이상 된 커밋으로 다시 고정하려면 목록·해시·기대 목록을 같은 방식으로 다시 계산해야 한다.
 
-**다음 단계(실행이 필요한 것)**: 해시 고정 설치 → 규칙 캐시 고정과 목록 재대조 → 대조 1차(관측 전용, 기준값 확정 안 함) → N0·S0 확정 절차 → 음성·시간 시험(엔진 필요분) → 재현성 → target 실행. 각 단계는 별도 승인이 필요하다.
+**다음 단계(실행이 필요한 것)**: 해시 고정 설치 → 규칙 캐시 고정과 목록 재대조 → 대조 1차(관측 전용, 기준값 확정 안 함) → N0·S0 확정 절차 → 음성·시간 시험(엔진 필요분) → 재현성 → target 실행. 각 단계는 별도 승인이 필요하다. 그 전에 **코드 전제**가 필요하다: 엔진 음성 대조 실행기와 그 결과를 `PASS`로 표시·기록하는 코드, 이전 `run.json`을 읽어 `controlReference`를 만드는 어댑터, 도구 버전·휠 해시 관측, 다른 서버 프로세스 검사와 실제 잠금, 루프백 메트릭 수신기(README "실제 실행 전에 남은 전제").
 
 ## Appendix A. 시험 근거
 
 이 변경의 시험은 전부 **합성 트랜스크립트·시험용 스텁**으로만 돈다. 통과는 "하네스의 판정 로직이 합성 입력에서
 의도대로 동작한다"만 뜻한다. 실제 Semgrep의 호환성, 탐지 성공, 로그·URI 형식, `debug/echo` 동작은 증명하지 않는다.
 
-### A.1 시험 구성 (이 변경이 추가하는 시험 1029개, 파일 32개)
+### A.1 시험 구성 (최초 전달 1029개·32개 파일, 외부 검토 반영 후 1229개·35개 파일)
+
+아래 표의 시험 수는 최초 전달 시점의 값이다. 검토 반영으로 새 파일 3개(174개)가 더해졌고, 기존 파일에 26개가 더해졌다.
 
 | 영역 | 파일 | 시험 수 | 무엇을 증명하는가 |
 | --- | --- | --- | --- |
@@ -280,6 +322,7 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | 순수 판정 | `evaluate*`, `testing/transcript-builder` | 216 + 6 | S1~S19(S13a·T1 제외), ADR D4의 12행 전체와 요청된 7개 조합(대표 상태와 사유 집합 모두), 필수 증거를 하나씩 빼도·중간까지만 잘라도 `COMPLETE`가 되지 않음, 사유 코드 전수 분류(`REASON_EMITTERS`) |
 | 세션·하네스 | `session`, `testing/stub-lsp`, `harness` | 148 | T1a~d(가상 시계), 스캔 요청 정확히 1회, 실패·취소·종료마다 정리 1회·타이머 0개, 사전 검사 실패 시 프로세스 미생성, 스텁 기록의 `SYNTHETIC`·`UNVERIFIED` 고정 |
 | 실제 어댑터·CLI·구조 | `fs-node`, `git-node`, `process-node`(+통합), `cli`, `structure` | 115 | 실제 파일·읽기 전용 git·`node` 스텁 자식과의 통합, 방지 장치 조합(하나라도 빠지면 `NOT_RUN`·종료 코드 3·프로세스 생성 호출 0회), `child_process`·네트워크 사용 위치, 기존 게이트 비연결 |
+| 외부 검토 회귀 (검토 반영) | `evaluate.review-regressions`, `fingerprint`, `reference` | 82 + 40 + 52 | 건수↔진단 모순 거절과 정상 중복 제거 수락, S0 비교(0 포함), 음성 대조 두 층과 참조 자격, 하네스·대조 지문과 결합, 위조된 `eligible`과 null끼리의 일치 거절. 수정 **전** 코드에서 `[RED]` 58개가 실패하고 `[GUARD]` 24개가 통과함을 확인한 뒤 구현했다 |
 
 ### A.2 요청된 겹침 조합과 시험 ID
 
@@ -293,12 +336,23 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | echo 이후 늦은 진단 | `D4-8`, `S5b` |
 | 대조 참조 누락 + 정상적인 0건 | `D4-9`, `S17-no-reference` |
 
+외부 검토(PR #28, 검토 HEAD `8ebf8b2`)가 재현한 4건은 `evaluate.review-regressions.test.ts`의 `[RED]` 시험이 고정한다.
+
+| 검토 지적 | 수정 후 결과 |
+| --- | --- |
+| `happyTarget({ m: 1 })` + 전부 빈 게시가 `COMPLETE`·0건 | `PARTIAL`, `MATCH_COUNT_DIAGNOSTICS_MISSING`, `value` null |
+| 음성 대조 `NOT_RUN` 참조를 target이 수락 | `CONTROL_MISSING`, `..._NEGATIVE_INCOMPLETE`·`..._NOT_ELIGIBLE`, `value` null (대조 기록의 단언 `PASS`·측정 `COMPLETE`는 그대로) |
+| 핀이 같으면 하네스·대조가 바뀐 참조도 수락 | 하네스·대조·도구·결합 지문이 다르거나 없으면 `CONTROL_MISSING` |
+| `skippedS > 0`일 때만 S0 비교 | 확정된 S0는 S = 0도 비교(`SKIPPED_RULES_S0_MISMATCH`) |
+
 ### A.3 증명하지 않는 것
 
 - 실제 Semgrep 프로세스·Windows 파이프 동작(스텁 자식을 `taskkill /T /F`로 끝내는 것만 확인했다), 로그 형식, URI 형식, 종료 코드 (U3, U7, U9, U10).
 - 실제 규칙 로딩 수(N)·건너뛴 규칙 수(S)·대조 예제 탐지 (U1, U2, U5, U6).
 - `initializationOptions` 키 이름이 실제 서버가 읽는 이름과 같은지 (U8).
-- 음성 대조 R1~R9의 엔진 진단 실행(모두 `NOT_RUN`)과 시간 시험 T2·T3. 음성 대조가 `NOT_RUN`이어도 `control_assertions`는 필수·금지·정상 쌍 단언만으로 `PASS`가 될 수 있다. 기록에는 `NOT_RUN`이 그대로 남는다.
+- 음성 대조 R1~R9의 엔진 진단 실행(모두 `NOT_RUN`)과 시간 시험 T2·T3. 음성 대조가 `NOT_RUN`이어도 `control_assertions`는 필수·금지·정상 쌍 단언만으로 `PASS`가 될 수 있다. 기록에는 `NOT_RUN`이 그대로 남고, 대신 `reference_qualification`이 불충족이라 target의 대조 참조가 될 수 없다.
+- 자격을 갖춘 참조가 **실제 control 실행에서 만들어지는 경로**. 시험은 손으로 만든 참조로 수락 경로를 확인했을 뿐이고, 엔진 음성 대조를 `PASS`로 표시하는 운영 코드와 이전 `run.json`을 읽는 어댑터는 없다.
+- `Found M matches`와 게시 진단의 관계는 고정 소스를 읽어 도출했다(소스 인용은 "확인한 사실"의 건수 관계 행). 실제 서버가 그 관계를 지키는지는 실행해 보지 않았다.
 - 시험 대부분은 구현과 같은 단계에서 작성됐다. 단위별 일부 시험은 구현 전에 실패를 확인했고, 나머지는 소스를 일부러 망가뜨리는 변이 점검으로 시험이 실제로 잡아내는지 확인했다.
 
 ## Appendix B. 개정 2에서 이 문서가 확정한 것
@@ -319,3 +373,8 @@ sync 규칙, `lsp.yaml`, `gate.yaml`)에는 security 진단원을 특정 도구�
 | 12 | 대상 범위는 상수 목록이 아니라 대상 SHA에서 매번 계산한다 |
 | 13 | 구현 중 사유 코드 3개를 추가했다. `INITIALIZED_NOT_SENT`·`INITIALIZED_REPEATED`(→ `INIT_FAILED`), `CLEANUP_FAILED`(→ `ENGINE_FAILED`). 프로세스를 띄웠다면 자식 정리 성공 기록이 필수 증거다 — 없거나 실패면 `COMPLETE`가 될 수 없다 |
 | 14 | 사유→상태 표의 정본은 `scripts/semgrep-lsp/status.ts`다. 이 문서의 D3 표는 상태 단위 요약이다 |
+| 15 | (외부 검토) `Found M matches`와 게시 진단의 관계를 고정 소스에서 도출해 `D ≤ M`, `M > 0 ⇒ D ≥ 1`로 확정했다. `M = D`를 강제하지 않는다. 사유 `MATCH_COUNT_DIAGNOSTICS_MISSING`·`_EXCESS`(→ `PARTIAL`) |
+| 16 | (외부 검토) 확정된 `s0`는 관측 S = 0도 비교한다. 사유 `SKIPPED_RULES_S0_MISMATCH`(→ `PARTIAL`) |
+| 17 | (외부 검토) 음성 대조를 `preflight`/`engine` 두 층으로 나누고, 항목마다 결합(`binding_sha256`)을 단다. 양성·정상 쌍 단언의 `PASS`와 별개로 `reference_qualification`을 둔다 |
+| 18 | (외부 검토) 하네스·대조 지문과 결합을 정의하고(D11) 실행 기록의 `inputs`와 대조 참조에 보존한다. 증거 파일에 `fingerprints.txt`를 더해 9개로 한다 |
+| 19 | (외부 검토) 사유 코드 10개를 더했다: `MATCH_COUNT_DIAGNOSTICS_MISSING`·`_EXCESS`, `SKIPPED_RULES_S0_MISMATCH`(→ `PARTIAL`), `CONTROL_REFERENCE_FINGERPRINT_MISSING`·`_HARNESS_MISMATCH`·`_CONTROL_MISMATCH`·`_TOOL_MISMATCH`·`_BINDING_MISMATCH`·`_NEGATIVE_INCOMPLETE`·`_NOT_ELIGIBLE`(→ `CONTROL_MISSING`). 상태 우선순위는 바뀌지 않았다 |
