@@ -1350,6 +1350,76 @@ describe("runHarness — 저장된 대조 기록을 어댑터로 읽어 잇는�
     await expectNeverCompleteWithoutEvidence(env, r);
   });
 
+  // PR #29 외부 검토: 기록 안의 세부 값이 서로 모순이거나 근거와 다른 기록은 어댑터가 거절한다. 도구 버전·휠·잠금 같은
+  // 운영 관측은 이 시험이 주입한 값이라 정상 기록이면 위 첫 시험처럼 COMPLETE·0건이 된다 — 같은 환경에서 모순 기록은
+  // 참조 없이(CONTROL_MISSING) 끝나고 0건 평가값도 만들지 않는다. 기록은 전부 시험이 손으로 구성한 합성이다.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type Plain = Record<string, any>;
+  const contradictory: [string, (r: Plain) => void, string][] = [
+    [
+      "음성 대조 PASS인데 엔진 항목의 observed가 null",
+      (r) => (r.control_assertions.negative_controls[0].observed = null),
+      "R1:engine(observed-null)",
+    ],
+    [
+      "음성 대조 PASS인데 observed가 기대와 다름",
+      (r) => (r.control_assertions.negative_controls[0].observed = "COMPLETE"),
+      "R1:engine(observed)",
+    ],
+    [
+      "음성 대조 PASS인데 expected가 기준과 다름",
+      (r) => {
+        r.control_assertions.negative_controls[0].expected = "COMPLETE";
+        r.control_assertions.negative_controls[0].observed = "COMPLETE";
+      },
+      "R1:engine(expected)",
+    ],
+    [
+      "세부 검사가 FAIL인데 요약은 PASS",
+      (r) => (r.control_assertions.checks[0].status = "FAIL"),
+      "ASSERTION_SUMMARY_MISMATCH",
+    ],
+    [
+      "design_errors가 있는데 요약은 PASS",
+      (r) => r.control_assertions.design_errors.push("대조 설계의 오류"),
+      "ASSERTION_DESIGN_ERRORS(1)",
+    ],
+    [
+      "COMPLETE인데 reasons가 있음",
+      (r) => r.measurement.reasons.push({ code: "ENGINE_EXCEPTION_LOG" }),
+      "MEASUREMENT_REASONS_INCONSISTENT",
+    ],
+    [
+      "checks에 null 항목",
+      (r) => (r.control_assertions.checks = [null]),
+      "control_assertions.checks[0](type)",
+    ],
+    ["checks가 비어 있음", (r) => (r.control_assertions.checks = []), "ASSERTION_CHECKS_EMPTY"],
+  ];
+  it.each(contradictory)(
+    "자기 모순 기록(%s)은 참조로 잇지 않는다 — COMPLETE도 0건도 아니다",
+    async (_name, mutate, token) => {
+      const record = JSON.parse(recordText()) as Plain;
+      mutate(record);
+      const { env, loaded } = await envWith(JSON.stringify(record));
+      expect(loaded.reference).toBeNull();
+      expect(loaded.rejection).toContain(token);
+      const r = await env.go();
+      const rec = r.record as RunRecord;
+      expect(rec.measurement.status).toBe("CONTROL_MISSING");
+      expect(rec.measurement.complete).toBe(false);
+      expect(reasonCodes(r)).toEqual(
+        ["CONTROL_REFERENCE_MISSING", "CONTROL_REFERENCE_RECORD_REJECTED"].sort()
+      );
+      expect(
+        rec.measurement.reasons.find((x) => x.code === "CONTROL_REFERENCE_RECORD_REJECTED")?.detail
+      ).toContain(token);
+      expect(rec.control_reference).toBeNull();
+      expect(rec.candidate_gate.value).toBeNull(); // 0건이라는 값이 만들어지지 않았다
+      await expectNeverCompleteWithoutEvidence(env, r);
+    }
+  );
+
   it("기록을 명시하지 않으면(null, 거절 이유 없음) 기존대로 MISSING만 나온다", async () => {
     const env = await makeEnv({ mode: "target", options: { controlReference: null } });
     const r = await env.go();

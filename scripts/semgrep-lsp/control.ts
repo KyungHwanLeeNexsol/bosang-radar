@@ -22,6 +22,9 @@
 //   NEGATIVE_CONTROL_TABLE: R1~R9 자료(기대 상태·사전 검사 사유)
 //   defaultNegativeControls(): NegativeControlResult[]     엔진 9 + 사전 검사 7 = 16개, 전부 observed=null, NOT_RUN, 결합 null
 //   markPreflightNegativeControls(base, produced, binding) 사전 검사 층만, 사전 검사가 실제로 낸 사유가 있을 때만 PASS
+//   summarizeControlAssertions(parts): 세부 결과(검사·음성 대조·설계 오류)가 정하는 전체 상태. evaluateControlAssertions가
+//                                      쓰고, 저장된 기록의 요약이 세부 결과와 모순인지 보는 reference-record.ts도 같은 함수를 쓴다
+//   hasCaseChecks(checks): 사례 검사(A1·A3)가 하나라도 있는가
 //
 // 음성 대조는 "층"을 가진다: preflight(서버 없는 사전 검사의 거부)와 engine(실제 엔진을 띄운 진단 실행). 사전 검사 PASS는 엔진
 // 항목을 바꾸지 않으며, 엔진 항목을 PASS로 표시하는 운영 함수는 없다(엔진 실행은 이 변경의 범위 밖이다). 각 PASS에는 그 결과를
@@ -222,6 +225,37 @@ function listText(ids: readonly string[]): string {
   return ids.join(", ");
 }
 
+/** 사례 검사(A1·A3): 기대 사례마다 정확히 하나가 만들어진다. 하나도 없으면 아무 사례도 검사하지 않은 기록이다. */
+export function hasCaseChecks(checks: readonly Pick<ControlCheck, "kind">[]): boolean {
+  return checks.some((c) => c.kind === "A1" || c.kind === "A3");
+}
+
+/**
+ * 세부 결과가 정하는 전체 상태. 우선순위: FAIL(검사·음성 대조·설계 오류) > 결과 없는 검사(사례 검사가 전부 비었으면
+ * NOT_RUN, 일부만 비었으면 FAIL — 불완전한 대조는 참조가 될 수 없다) > REVIEW > PASS.
+ * NOT_RUN인 음성 대조는 막지 않는다(엔진이 필요한 것은 이 변경에서 실행하지 않는다) — FAIL인 음성 대조만 막는다.
+ * 검사가 비어 있으면 PASS가 계산되므로, 기록을 읽는 쪽은 hasCaseChecks로 따로 막는다.
+ */
+export function summarizeControlAssertions(parts: {
+  checks: readonly Pick<ControlCheck, "kind" | "status">[];
+  negatives: readonly Pick<NegativeControlResult, "status">[];
+  designErrorCount: number;
+}): ControlAssertions["status"] {
+  const { checks, negatives, designErrorCount } = parts;
+  if (
+    checks.some((c) => c.status === "FAIL") ||
+    negatives.some((n) => n.status === "FAIL") ||
+    designErrorCount > 0
+  ) {
+    return "FAIL";
+  }
+  if (checks.some((c) => c.status === "NOT_RUN")) {
+    const cases = checks.filter((c) => c.kind === "A1" || c.kind === "A3");
+    return cases.length > 0 && cases.every((c) => c.status === "NOT_RUN") ? "NOT_RUN" : "FAIL";
+  }
+  return checks.some((c) => c.status === "REVIEW") ? "REVIEW_REQUIRED" : "PASS";
+}
+
 function validateObserved(observed: ControlObserved): void {
   const total = observed.wholeBundleTotal;
   if (total !== null && (!Number.isInteger(total) || total < 0)) {
@@ -387,29 +421,13 @@ export function evaluateControlAssertions(
     ? options.negativeControls.map((n) => ({ ...n }))
     : defaultNegativeControls();
 
-  // 전체 상태: FAIL(검사·음성 대조·설계 오류) > 일부 결과 없음 > REVIEW > 전부 결과 없음 > PASS.
-  // NOT_RUN인 음성 대조는 막지 않는다(엔진이 필요한 것은 이 변경에서 실행하지 않는다) — FAIL인 음성 대조만 막는다.
-  const noResultCount = expectations.cases.filter(
-    (c) => observed.cases[c.path] === undefined
-  ).length;
-  let status: ControlAssertions["status"];
-  if (
-    checks.some((c) => c.status === "FAIL") ||
-    negatives.some((n) => n.status === "FAIL") ||
-    designErrors.length > 0
-  ) {
-    status = "FAIL";
-  } else if (noResultCount > 0) {
-    status = noResultCount === expectations.cases.length ? "NOT_RUN" : "FAIL";
-  } else if (checks.some((c) => c.status === "REVIEW")) {
-    status = "REVIEW_REQUIRED";
-  } else {
-    status = "PASS";
-  }
-
   return {
     applicable: true,
-    status,
+    status: summarizeControlAssertions({
+      checks,
+      negatives,
+      designErrorCount: designErrors.length,
+    }),
     checks,
     negative_controls: negatives,
     design_errors: designErrors,

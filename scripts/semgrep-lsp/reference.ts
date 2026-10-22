@@ -6,10 +6,16 @@
 //    참조의 eligible 필드는 자기 선언일 뿐이라 믿지 않는다 — 사실이 선언과 모순되면 NOT_ELIGIBLE도 낸다.
 //
 // 음성 대조는 두 층(preflight·engine)이 서로 대신하지 못하고, PASS마다 이 실행과 같은 결합(binding_sha256)이 찍혀 있어야 한다.
+// 실행 쪽 자격(qualifyControlRun)은 여기에 더해 PASS의 근거도 본다: 기록의 expected가 현재 NEGATIVE_CONTROL_TABLE의 기준
+// (엔진은 spec.expected, 사전 검사는 spec.preflight.status — 두 층의 기대는 같다고 가정하지 않는다)과 같고, observed가
+// null이 아니며 그 기대와 같아야 한다. target 쪽 사실 확인(checkControlReferenceFacts)은 이 검사를 하지 못한다: 참조 요약
+// (toControlReference)은 id·층·status·결합만 싣고 expected·observed를 버리기 때문이다. 그 근거는 전체 기록을 보는 쪽(자격
+// 계산과 reference-record.ts 어댑터)에서 확인한다. 잘못된 관측을 보정하거나 PASS로 덮어쓰지 않는다.
 // 사유의 상세에는 필드 이름과 "R3:engine(NOT_RUN)" 같은 토큰만 쓴다(해시 값을 적지 않는다).
 //
 // 공개 API:
 //   requiredNegativeControlKeys()
+//   negativeControlProblems(list): string[]     전체 기록 기준으로 어긋난 (id, 층) 토큰(어댑터가 거절 사유에 싣는다)
 //   qualifyControlRun(args): ReferenceQualification
 //   checkControlReferenceFacts(ref, current): Reason[]     새 검사만(기존 MISSING·SYNTHETIC·NOT_PASS·PIN·N0는 evaluate.ts의 몫)
 
@@ -28,14 +34,21 @@ import type {
 
 type Layer = "preflight" | "engine";
 
-/** NEGATIVE_CONTROL_TABLE이 요구하는 (id, 층) 쌍: 엔진은 전부(9), 사전 검사는 preflight가 있는 id만(7). */
-export function requiredNegativeControlKeys(): { id: string; layer: Layer }[] {
-  const out: { id: string; layer: Layer }[] = [];
+/** 필수 (id, 층) 쌍과 그 층의 기대 상태. 엔진은 spec.expected, 사전 검사는 spec.preflight.status다(서로 다를 수 있다). */
+function requiredNegatives(): { id: string; layer: Layer; expected: MeasurementStatus }[] {
+  const out: { id: string; layer: Layer; expected: MeasurementStatus }[] = [];
   for (const spec of NEGATIVE_CONTROL_TABLE) {
-    out.push({ id: spec.id, layer: "engine" });
-    if (spec.preflight !== null) out.push({ id: spec.id, layer: "preflight" });
+    out.push({ id: spec.id, layer: "engine", expected: spec.expected });
+    if (spec.preflight !== null) {
+      out.push({ id: spec.id, layer: "preflight", expected: spec.preflight.status });
+    }
   }
   return out;
+}
+
+/** NEGATIVE_CONTROL_TABLE이 요구하는 (id, 층) 쌍: 엔진은 전부(9), 사전 검사는 preflight가 있는 id만(7). */
+export function requiredNegativeControlKeys(): { id: string; layer: Layer }[] {
+  return requiredNegatives().map(({ id, layer }) => ({ id, layer }));
 }
 
 const isStr = (value: unknown): value is string => typeof value === "string";
@@ -45,6 +58,8 @@ interface NegativeLike {
   layer: unknown;
   status: unknown;
   binding_sha256?: unknown;
+  expected?: unknown;
+  observed?: unknown;
 }
 
 const asList = (value: unknown): NegativeLike[] =>
@@ -52,21 +67,40 @@ const asList = (value: unknown): NegativeLike[] =>
     ? (value as NegativeLike[]).filter((e) => typeof e === "object" && e !== null)
     : [];
 
-/** 한 층에서 요구되는 쌍마다 "정확히 하나이고 PASS"인지 본다. 어긋난 쌍은 토큰으로 돌려준다. */
-function layerProblems(list: readonly NegativeLike[], layer: Layer): string[] {
+/**
+ * 한 층에서 요구되는 쌍마다 "정확히 하나이고 PASS"인지 본다. 어긋난 쌍은 토큰으로 돌려준다.
+ * verifyObservation이면 PASS 항목의 근거도 본다: expected가 현재 표의 기준과 같고, observed가 null이 아니며 그 기준과 같다.
+ * (참조 요약처럼 expected·observed가 없는 목록에는 켜지 않는다.) NOT_RUN·FAIL 항목은 상태 사유만 낸다.
+ */
+function layerProblems(
+  list: readonly NegativeLike[],
+  layer: Layer,
+  verifyObservation: boolean
+): string[] {
   const problems: string[] = [];
-  for (const key of requiredNegativeControlKeys().filter((k) => k.layer === layer)) {
-    const found = list.filter((e) => e.id === key.id && e.layer === key.layer);
-    const label = `${key.id}:${key.layer}`;
+  for (const req of requiredNegatives().filter((k) => k.layer === layer)) {
+    const found = list.filter((e) => e.id === req.id && e.layer === req.layer);
+    const label = `${req.id}:${req.layer}`;
     if (found.length === 0) problems.push(`${label}(missing)`);
     else if (found.length > 1) problems.push(`${label}(duplicate)`);
     else if (found[0].status !== "PASS") {
       const status =
         found[0].status === "NOT_RUN" || found[0].status === "FAIL" ? found[0].status : "invalid";
       problems.push(`${label}(${status})`);
+    } else if (verifyObservation) {
+      const { expected, observed } = found[0];
+      if (expected !== req.expected) problems.push(`${label}(expected)`);
+      if (observed === null || observed === undefined) problems.push(`${label}(observed-null)`);
+      else if (observed !== req.expected) problems.push(`${label}(observed)`);
     }
   }
   return problems;
+}
+
+/** 전체 기록(expected·observed 포함)에서 어긋난 필수 (id, 층) 토큰. 비어 있으면 두 층의 음성 대조가 모두 근거와 맞다. */
+export function negativeControlProblems(list: readonly NegativeControlResult[]): string[] {
+  const entries = asList(list);
+  return [...layerProblems(entries, "preflight", true), ...layerProblems(entries, "engine", true)];
 }
 
 const listText = (items: readonly string[]): string =>
@@ -152,8 +186,8 @@ export function qualifyControlRun(args: {
         : "결합(binding_sha256)이 구성 요소로 다시 만든 값과 다르다"
   );
 
-  const preflightProblems = layerProblems(negatives, "preflight");
-  const engineProblems = layerProblems(negatives, "engine");
+  const preflightProblems = layerProblems(negatives, "preflight", true);
+  const engineProblems = layerProblems(negatives, "engine", true);
   add(
     "NEGATIVE_PREFLIGHT_PASS",
     preflightProblems.length === 0,
@@ -270,7 +304,11 @@ export function checkControlReferenceFacts(
   // 4. 음성 대조: 요구된 (id, 층)마다 정확히 하나, PASS, 참조의 결합과 같은 결합.
   const list = asList(ref?.negative_controls);
   const refBinding = isStr(refFp.binding_sha256) ? refFp.binding_sha256 : null;
-  const problems = [...layerProblems(list, "preflight"), ...layerProblems(list, "engine")];
+  // 참조 요약은 expected·observed를 싣지 않으므로 상태·결합만 본다(근거 검사는 qualifyControlRun·어댑터 몫).
+  const problems = [
+    ...layerProblems(list, "preflight", false),
+    ...layerProblems(list, "engine", false),
+  ];
   for (const key of requiredNegativeControlKeys()) {
     const found = list.filter((e) => e.id === key.id && e.layer === key.layer);
     if (found.length === 1 && found[0].status === "PASS") {

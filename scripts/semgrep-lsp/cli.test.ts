@@ -1129,6 +1129,81 @@ describe("main — run: 대조 기록(--control-record)", () => {
         },
         "FINGERPRINTS_COMPLETE",
       ],
+      // PR #29 외부 검토 발견 1: 음성 대조 PASS는 기대·관측이 현재 표(NEGATIVE_CONTROL_TABLE)와 맞아야 한다.
+      [
+        "음성 대조 PASS인데 엔진 항목의 observed가 null",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.negative_controls[0].observed = null;
+          return r;
+        },
+        "R1:engine(observed-null)",
+      ],
+      [
+        "음성 대조 PASS인데 observed가 기대와 다름",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.negative_controls[0].observed = "COMPLETE";
+          return r;
+        },
+        "R1:engine(observed)",
+      ],
+      [
+        "음성 대조 PASS인데 expected·observed가 모두 COMPLETE",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.negative_controls[0].expected = "COMPLETE";
+          r.control_assertions.negative_controls[0].observed = "COMPLETE";
+          return r;
+        },
+        "R1:engine(expected)",
+      ],
+      // PR #29 외부 검토 발견 2: 세부 결과와 요약 상태가 모순이면 거절한다.
+      [
+        "세부 검사가 FAIL인데 요약은 PASS",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks[0].status = "FAIL";
+          return r;
+        },
+        "ASSERTION_SUMMARY_MISMATCH",
+      ],
+      [
+        "design_errors가 있는데 요약은 PASS",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.design_errors.push("대조 설계의 오류");
+          return r;
+        },
+        "ASSERTION_DESIGN_ERRORS(1)",
+      ],
+      [
+        "COMPLETE인데 reasons에 ENGINE_EXCEPTION_LOG",
+        () => {
+          const r = asPlain(control());
+          r.measurement.reasons.push({ code: "ENGINE_EXCEPTION_LOG" });
+          return r;
+        },
+        "MEASUREMENT_REASONS_INCONSISTENT",
+      ],
+      [
+        "checks에 null 항목",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = [null];
+          return r;
+        },
+        "control_assertions.checks[0](type)",
+      ],
+      [
+        "checks가 비어 있음",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = [];
+          return r;
+        },
+        "ASSERTION_CHECKS_EMPTY",
+      ],
     ];
 
     it.each(scenarios)("%s", async (_name, make, token) => {

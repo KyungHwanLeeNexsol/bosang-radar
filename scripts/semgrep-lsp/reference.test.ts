@@ -393,6 +393,88 @@ describe("qualifyControlRun: 대조 실행의 참조 자격", () => {
     qualifyControlRun(args);
     expect(args).toEqual(copy);
   });
+
+  // PR #29 외부 검토 발견 1: PASS 항목은 observed가 있고 현재 표(NEGATIVE_CONTROL_TABLE)의 기대 상태와 같아야 한다.
+  // 두 층의 기대 상태는 서로 다를 수 있다(R9). 기대 상태는 이 시험이 표에서 따로 읽는다.
+  const REQUIRED_PAIRS = NEGATIVE_CONTROL_TABLE.flatMap((spec) => [
+    { id: spec.id, layer: "engine" as const, expected: spec.expected },
+    ...(spec.preflight === null
+      ? []
+      : [{ id: spec.id, layer: "preflight" as const, expected: spec.preflight.status }]),
+  ]);
+  const requirementOf = (layer: "engine" | "preflight"): ReqId =>
+    layer === "engine" ? "NEGATIVE_ENGINE_PASS" : "NEGATIVE_PREFLIGHT_PASS";
+  const detailOf = (q: ReferenceQualification, id: ReqId): string =>
+    q.requirements.find((r) => (r.id as string) === id)?.detail ?? "";
+
+  function qualifyWith(mutate: (list: Entry[]) => void) {
+    const negatives = asEntries(qualifiedNegatives(fullFingerprints().binding_sha256));
+    mutate(negatives);
+    return qualifyControlRun(
+      qualifyArgs({ negativeControls: negatives as unknown as NegativeControlResult[] })
+    );
+  }
+
+  it("[RED] 필수 16쌍 각각에서 observed=null인 PASS는 그 층의 요구만 불충족으로 만든다", () => {
+    expect(REQUIRED_PAIRS).toHaveLength(16);
+    for (const p of REQUIRED_PAIRS) {
+      const q = qualifyWith((list) => (find(list, p.id, p.layer).observed = null));
+      expectOnlyUnsatisfied(q, [requirementOf(p.layer)]);
+      expect(detailOf(q, requirementOf(p.layer)), `${p.id}:${p.layer}`).toContain(
+        `${p.id}:${p.layer}(observed-null)`
+      );
+    }
+  });
+
+  it("[RED] 필수 16쌍 각각에서 observed가 기대와 다른 PASS는 불충족이다", () => {
+    for (const p of REQUIRED_PAIRS) {
+      const q = qualifyWith((list) => (find(list, p.id, p.layer).observed = "COMPLETE"));
+      expectOnlyUnsatisfied(q, [requirementOf(p.layer)]);
+      expect(detailOf(q, requirementOf(p.layer))).toContain(`${p.id}:${p.layer}(observed)`);
+    }
+  });
+
+  it("[RED] 필수 16쌍 각각에서 expected가 표의 기준과 다른 PASS는 불충족이다(observed가 같아도)", () => {
+    for (const p of REQUIRED_PAIRS) {
+      const q = qualifyWith((list) => {
+        const e = find(list, p.id, p.layer);
+        e.expected = "COMPLETE";
+        e.observed = "COMPLETE";
+      });
+      expectOnlyUnsatisfied(q, [requirementOf(p.layer)]);
+      expect(detailOf(q, requirementOf(p.layer))).toContain(`${p.id}:${p.layer}(expected)`);
+    }
+  });
+
+  it("[RED] 두 층의 기대 상태를 같다고 가정하지 않는다(R9: engine ≠ preflight)", () => {
+    const engine = REQUIRED_PAIRS.find((p) => p.id === "R9" && p.layer === "engine")!;
+    const preflight = REQUIRED_PAIRS.find((p) => p.id === "R9" && p.layer === "preflight")!;
+    expect(engine.expected).not.toBe(preflight.expected); // 시험 전제
+    const pre = qualifyWith((list) =>
+      Object.assign(find(list, "R9", "preflight"), {
+        expected: engine.expected,
+        observed: engine.expected,
+      })
+    );
+    expectOnlyUnsatisfied(pre, ["NEGATIVE_PREFLIGHT_PASS"]);
+    const eng = qualifyWith((list) =>
+      Object.assign(find(list, "R9", "engine"), {
+        expected: preflight.expected,
+        observed: preflight.expected,
+      })
+    );
+    expectOnlyUnsatisfied(eng, ["NEGATIVE_ENGINE_PASS"]);
+  });
+
+  it("[RED] 기존 검사는 유지된다: 기준과 맞는 16쌍 PASS는 충족이고, NOT_RUN·FAIL 항목은 observed 검사와 별개로 불충족이다", () => {
+    expect(qualifyControlRun(qualifyArgs()).eligible).toBe(true);
+    // 기본 기록(observed=null, NOT_RUN)은 기대·관측 토큰이 아니라 기존 NOT_RUN 사유로 불충족이다.
+    const q = qualifyWith((list) => {
+      for (const e of list) Object.assign(e, { observed: null, status: "NOT_RUN" });
+    });
+    expect(detailOf(q, "NEGATIVE_ENGINE_PASS")).toContain("R1:engine(NOT_RUN)");
+    expect(detailOf(q, "NEGATIVE_ENGINE_PASS")).not.toContain("(observed");
+  });
 });
 
 // ── checkControlReferenceFacts ──────────────────────────────────
@@ -435,6 +517,16 @@ describe("checkControlReferenceFacts: target 판정이 사실로 다시 확인�
     expect(
       checkControlReferenceFacts(qualifiedRef() as unknown as Ref, fullFingerprints())
     ).toEqual([]);
+  });
+
+  it("참조 요약은 expected·observed를 싣지 않는다(toControlReference가 버린다): 사실 확인은 id·층·status·결합만 본다", () => {
+    // 기대·관측 상태의 근거 검사는 전체 기록이 있는 qualifyControlRun(과 어댑터)에서 한다. 요약에서는 그 필드가 없다는 이유로
+    // 거절하지 않는다 — 그러면 수락된 요약이 모두 거절된다.
+    const ref = qualifiedRef();
+    for (const n of ref.negative_controls as Record<string, unknown>[]) {
+      expect(Object.keys(n).sort()).toEqual(["binding_sha256", "id", "layer", "status"]);
+    }
+    expect(facts(ref)).toEqual([]);
   });
 
   it("[RED] 새 검사만 한다: 기존 검사 대상(provenance·상태·단언·N0)이 틀려도 이 함수는 사유를 내지 않는다", () => {

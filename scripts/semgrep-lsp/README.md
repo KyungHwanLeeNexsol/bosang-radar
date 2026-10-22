@@ -38,7 +38,7 @@ Semgrep을 설치하지도, 실행하지도 않는다. 모든 시험은 합성 �
 | `settings.ts`                                                                                | `initializationOptions` 생성, 허용 키 검사(알 수 없는 키 거부)                          | B          |
 | `precheck.ts`                                                                                | PH0 사전 검사(서버 없이)                                                                | B          |
 | `evaluate.ts`                                                                                | 트랜스크립트 → `Verdict` (순수 함수)                                                    | B          |
-| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조                                                     | B          |
+| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조, 전체 상태 규칙                                     | B          |
 | `canonical.ts`                                                                               | 정규 JSON 직렬화(키 정렬, 2칸, LF) — `evidence.ts`와 `fingerprint.ts`가 함께 쓴다       | B          |
 | `fingerprint.ts`                                                                             | 하네스·대조 지문, 도구·규칙·하네스·대조를 묶는 결합(binding) 해시                       | B          |
 | `reference.ts`                                                                               | 대조 참조 자격(`qualifyControlRun`)과 target 쪽 사실 확인(`checkControlReferenceFacts`) | B          |
@@ -168,6 +168,19 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
   `reference_qualification`을 믿지 않고 기록의 사실로 `qualifyControlRun`을 **다시 돌린 자격이 충족**이며 저장된 선언(`eligible`과
   요구별 충족 표시)이 재계산과 어긋나지 않을 것 — 측정 `COMPLETE`, 대조 단언 `PASS`, N0 확정, 지문 값과 결합 완비, 음성 대조 두 층
   16쌍이 정확히 하나씩 `PASS`이고 같은 결합. `eligible:true`를 선언해도 사실이 받쳐 주지 않으면 거절한다.
+  - **음성 대조 `PASS`의 근거**(`qualifyControlRun`): 기록의 `expected`가 현재 `NEGATIVE_CONTROL_TABLE`의 기준과 같아야 한다 — 엔진은
+    `spec.expected`, 사전 검사는 `spec.preflight.status`이며 두 층의 기대 상태는 같다고 가정하지 않는다(R9: 엔진
+    `ISOLATION_VIOLATION`, 사전 검사 `SETTINGS_MISMATCH`). `observed`는 `null`이 아니고 그 기대 상태와 같아야 한다. 어긋나면
+    관측을 보정하거나 `PASS`로 덮어쓰지 않고 거절하며, 거절 상세에 `R1:engine(observed-null)`·`(observed)`·`(expected)` 같은
+    (id, 층) 토큰을 남긴다. target 쪽 사실 확인(`checkControlReferenceFacts`)은 이 검사를 하지 않는다 — 참조 요약은
+    `expected`·`observed`를 싣지 않으므로, 근거는 전체 기록을 보는 자격 계산과 이 어댑터에서 확인한다.
+  - **세부 결과와 요약 상태의 모순 거절**(기록의 자기 일관성만 본다): `COMPLETE`·`NOT_RUN` 측정에 `reasons`가 있으면
+    `MEASUREMENT_REASONS_INCONSISTENT`(기록 생성 계약과 같다). `control_assertions.checks`는 항목마다 `id`·`kind`·`file`·`status`·
+    `detail`을 검사하고, 사례 검사(A1·A3)가 하나도 없으면 `ASSERTION_CHECKS_EMPTY`다. `design_errors`는 문자열 배열이며 비어
+    있지 않으면 `ASSERTION_DESIGN_ERRORS(개수)`다(내용은 사유에 옮기지 않는다). 저장된 `control_assertions.status`는 세부 결과
+    (검사·음성 대조·설계 오류)로 계산한 값과 같아야 하며 다르면 `ASSERTION_SUMMARY_MISMATCH(stored=…, derived=…)`다. 계산 규칙은
+    `control.ts`의 `summarizeControlAssertions` 하나이고 `evaluateControlAssertions`도 같은 함수를 쓴다. FAIL·REVIEW·NOT_RUN인
+    세부 검사(A1~A4·PAIR 어느 종류든)와 FAIL인 음성 대조 항목, 설계 오류는 전체 `PASS`로 인정하지 않는다.
 - 수락한 요약은 기존 `toControlReference`로 만들고(자격은 재계산한 값), target 판정이 **이번 실행의** 핀·도구·규칙·하네스·대조 지문과
   결합을 다시 맞춘다. 기록의 지문을 이번 실행의 지문으로 바꾸거나, 이번 실행이 관측하지 못한 값(도구 버전·휠·결합)을 기록의
   값으로 채우지 않는다.
@@ -175,7 +188,9 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
   `CONTROL_REFERENCE_MISSING`이 함께 남고 대표 상태는 `CONTROL_MISSING`이며 `COMPLETE`가 될 수 없다. 출력 JSON의
   `control_record`에 경로·수락 여부·거절 이유가 있다.
 - **한계**: 기록 파일은 서명되어 있지 않다. 어댑터는 기록의 자기 일관성과 이번 실행과의 지문 일치를 확인할 뿐 파일이 실제 Semgrep
-  실행에서 나왔다는 것은 증명하지 못한다(출처 위조는 막지 못한다). 지금은 엔진 음성 대조를 `PASS`로 기록하는 운영 코드가 없어
+  실행에서 나왔다는 것은 증명하지 못한다(출처 위조는 막지 못한다). 자기 일관성에는 위의 두 검사(음성 대조 `PASS`의 근거, 세부
+  결과와 요약의 모순)가 포함되지만, 서명·출처 인증 체계나 원시 트랜스크립트 전체 재검증은 하지 않는다 — 위조자가 `checks`와
+  `negative_controls`를 서로 맞게 꾸미면 이 어댑터로는 구별할 수 없다. 지금은 엔진 음성 대조를 `PASS`로 기록하는 운영 코드가 없어
   이 저장소가 만든 어떤 기록도 수락 조건을 채우지 못한다 — 수락 경로는 시험용 합성 기록으로만 시험했다.
 
 종료 코드: 0 통과, 1 불일치·거부·실패, 2 사용법 오류, 3 NOT_RUN(실행 방지 장치).

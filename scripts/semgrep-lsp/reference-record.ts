@@ -10,6 +10,14 @@
 //  4. 출처가 real이고 trust가 REAL_UNREVIEWED다(stub·SYNTHETIC 기록은 참조가 아니다).
 //  5. 저장된 `reference_qualification`(eligible 포함)을 믿지 않는다 — 기록의 사실(출처·측정·단언·N0·지문·음성 대조)로
 //     `qualifyControlRun`을 다시 돌려 자격을 재계산하고, 저장된 선언과 한 치도 어긋나지 않으며 모든 요구가 충족될 때만 수락한다.
+//     음성 대조 PASS의 근거(기대 상태는 현재 NEGATIVE_CONTROL_TABLE의 기준, observed는 null이 아니며 그 기대와 같다)도
+//     `qualifyControlRun`이 본다 — 이 모듈에 따로 구현하지 않는다.
+//  6. 세부 결과와 요약 상태가 서로 모순이 아니다(기록의 자기 일관성이다 — 서명·출처 인증이나 원시 트랜스크립트 재검증이 아니다):
+//     · COMPLETE·NOT_RUN 측정에는 reasons가 없다(기록 생성 계약, evidence.ts의 checkVerdict와 같다).
+//     · control_assertions.checks는 항목마다 id·kind·file·status·detail을 검사하고, 사례 검사(A1·A3)가 하나 이상 있다.
+//     · design_errors는 문자열 배열이고 비어 있다.
+//     · 저장된 control_assertions.status가 세부 결과(검사·음성 대조·설계 오류)로 계산한 값과 같다. 계산 규칙은
+//       control.ts의 `summarizeControlAssertions`이며 evaluateControlAssertions가 쓰는 함수와 같다(두 구현이 갈라지지 않는다).
 //
 // 이 모듈이 하지 않는 것:
 //  · 이번 실행(target)의 핀·도구·규칙·하네스·대조 지문과의 비교 — 그것은 수락된 요약을 받는 판정(evaluate, 기존
@@ -25,12 +33,14 @@
 //   controlReferenceFromValue(value: unknown): ReferenceRecordResult   이미 파싱한 값에서. 던지지 않는다.
 //   ReferenceRecordResult / MAX_RECORD_BYTES
 
+import { hasCaseChecks, summarizeControlAssertions } from "./control";
 import { toControlReference } from "./harness";
-import { qualifyControlRun } from "./reference";
+import { negativeControlProblems, qualifyControlRun } from "./reference";
 import { STATUS_PRIORITY, type MeasurementStatus } from "./status";
 import {
   SCHEMAS,
   type ControlAssertions,
+  type ControlCheck,
   type FsPort,
   type NegativeControlResult,
   type Provenance,
@@ -50,6 +60,7 @@ export const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 const MAX_REJECTION_CHARS = 600;
 const MAX_LIST = 64;
 const MAX_REASONS = 1000;
+const MAX_NEGATIVE_TOKENS = 8;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
@@ -68,6 +79,8 @@ const ASSERTION_STATUSES: readonly ControlAssertions["status"][] = [
   "NOT_RUN",
   "NOT_APPLICABLE",
 ];
+const CHECK_KINDS: readonly ControlCheck["kind"][] = ["A1", "A2", "A3", "A4", "PAIR", "NEGATIVE"];
+const CHECK_STATUSES: readonly ControlCheck["status"][] = ["PASS", "FAIL", "REVIEW", "NOT_RUN"];
 const REQUIREMENT_IDS: readonly ReferenceRequirementId[] = [
   "PROVENANCE_REAL",
   "MEASUREMENT_COMPLETE",
@@ -169,6 +182,21 @@ function arr(
   return v;
 }
 
+/** 배열 필드의 항목을 하나씩 본다: 객체가 아니면 `<경로>[i](type)`을 기록하고, 객체이면 visit이 필드를 검사한다. */
+function eachObject(
+  list: unknown[] | undefined,
+  path: string,
+  key: string,
+  p: Problems,
+  visit: (entry: Obj, where: string) => void
+): void {
+  list?.forEach((entry, i) => {
+    const where = `${at(path, key)}[${i}]`;
+    if (!isObject(entry)) return void p.add(`${where}(type)`);
+    visit(entry, where);
+  });
+}
+
 const sha256 = (s: string): boolean => HEX64.test(s);
 
 // ── 구조 검증 ────────────────────────────────────────────────────
@@ -178,9 +206,11 @@ interface ControlRunView {
   provenance: Provenance;
   trust: RunRecord["trust"];
   inputs: RunRecord["inputs"];
-  measurement: { status: MeasurementStatus; complete: boolean };
+  measurement: { status: MeasurementStatus; complete: boolean; reasonCount: number };
   control_assertions: {
     status: ControlAssertions["status"];
+    checks: ControlCheck[];
+    design_errors: string[];
     negative_controls: NegativeControlResult[];
   };
   qualification: {
@@ -249,9 +279,7 @@ function parseNegativeControls(
   if (list === undefined) return undefined;
   const out: NegativeControlResult[] = [];
   const before = p.list.length;
-  list.forEach((entry, i) => {
-    const where = `${at(path, "negative_controls")}[${i}]`;
-    if (!isObject(entry)) return void p.add(`${where}(type)`);
+  eachObject(list, path, "negative_controls", p, (entry, where) => {
     const id = str(entry, "id", where, p, (s) => s.length > 0 && s.length <= 16);
     const layer = oneOf(entry, "layer", where, p, ["preflight", "engine"] as const);
     const expected = oneOf(entry, "expected", where, p, MEASUREMENT_STATUSES);
@@ -275,6 +303,42 @@ function parseNegativeControls(
   return p.list.length === before ? out : undefined;
 }
 
+/** checks는 소비하는 필드(id·kind·file·status·detail)를 항목마다 검사해 새 객체로 옮긴다. */
+function parseChecks(o: Obj, path: string, p: Problems): ControlCheck[] | undefined {
+  const list = arr(o, "checks", path, p, MAX_REASONS);
+  if (list === undefined) return undefined;
+  const out: ControlCheck[] = [];
+  const before = p.list.length;
+  eachObject(list, path, "checks", p, (entry, where) => {
+    const id = str(entry, "id", where, p);
+    const kind = oneOf(entry, "kind", where, p, CHECK_KINDS);
+    const file = nullableStr(entry, "file", where, p);
+    const status = oneOf(entry, "status", where, p, CHECK_STATUSES);
+    const detail = str(entry, "detail", where, p);
+    if (
+      id !== undefined &&
+      kind !== undefined &&
+      file !== undefined &&
+      status !== undefined &&
+      detail !== undefined
+    ) {
+      out.push({ id, kind, file, status, detail });
+    }
+  });
+  return p.list.length === before ? out : undefined;
+}
+
+/** design_errors는 문자열 배열이다. 내용은 사유에 옮기지 않는다(개수만 쓴다). */
+function parseDesignErrors(o: Obj, path: string, p: Problems): string[] | undefined {
+  const list = arr(o, "design_errors", path, p);
+  if (list === undefined) return undefined;
+  const before = p.list.length;
+  list.forEach((entry, i) => {
+    if (typeof entry !== "string") p.add(`${at(path, "design_errors")}[${i}](type)`);
+  });
+  return p.list.length === before ? (list as string[]) : undefined;
+}
+
 function parseQualification(root: Obj, p: Problems): ControlRunView["qualification"] | undefined {
   const o = obj(root, "reference_qualification", "", p);
   if (o === undefined) return undefined;
@@ -286,9 +350,7 @@ function parseQualification(root: Obj, p: Problems): ControlRunView["qualificati
   const requirements: { id: ReferenceRequirementId; satisfied: boolean }[] = [];
   if (list !== undefined) {
     const before = p.list.length;
-    list.forEach((entry, i) => {
-      const where = `${path}.requirements[${i}]`;
-      if (!isObject(entry)) return void p.add(`${where}(type)`);
+    eachObject(list, path, "requirements", p, (entry, where) => {
       const id = oneOf(entry, "id", where, p, REQUIREMENT_IDS);
       const satisfied = bool(entry, "satisfied", where, p);
       str(entry, "detail", where, p);
@@ -320,11 +382,16 @@ function parseControlRun(root: Obj, p: Problems): ControlRunView | undefined {
     const complete = bool(m, "complete", "measurement", p);
     const reasons = arr(m, "reasons", "measurement", p, MAX_REASONS);
     arr(m, "phases_reached", "measurement", p);
-    reasons?.forEach((r, i) => {
-      if (!isObject(r)) return void p.add(`measurement.reasons[${i}](type)`);
-      str(r, "code", `measurement.reasons[${i}]`, p);
-    });
-    if (status !== undefined && complete !== undefined) measurement = { status, complete };
+    eachObject(
+      reasons,
+      "measurement",
+      "reasons",
+      p,
+      (reason, where) => void str(reason, "code", where, p)
+    );
+    if (status !== undefined && complete !== undefined && reasons !== undefined) {
+      measurement = { status, complete, reasonCount: reasons.length };
+    }
   }
 
   let assertions: ControlRunView["control_assertions"] | undefined;
@@ -334,11 +401,21 @@ function parseControlRun(root: Obj, p: Problems): ControlRunView | undefined {
     const status = oneOf(a, "status", path, p, ASSERTION_STATUSES);
     const applicable = bool(a, "applicable", path, p);
     if (applicable === false) p.add(`${path}.applicable(value)`);
-    arr(a, "checks", path, p, MAX_REASONS);
-    arr(a, "design_errors", path, p);
+    const checks = parseChecks(a, path, p);
+    const designErrors = parseDesignErrors(a, path, p);
     const negatives = parseNegativeControls(a, path, p);
-    if (status !== undefined && negatives !== undefined) {
-      assertions = { status, negative_controls: negatives };
+    if (
+      status !== undefined &&
+      checks !== undefined &&
+      designErrors !== undefined &&
+      negatives !== undefined
+    ) {
+      assertions = {
+        status,
+        checks,
+        design_errors: designErrors,
+        negative_controls: negatives,
+      };
     }
   }
 
@@ -415,6 +492,30 @@ export function controlReferenceFromValue(value: unknown): ReferenceRecordResult
     if (view.measurement.complete !== (view.measurement.status === "COMPLETE")) {
       found.push("MEASUREMENT_FIELDS_INCONSISTENT");
     }
+    // 기록 생성 계약(evidence.ts checkVerdict): COMPLETE·NOT_RUN 측정에는 사유가 없다.
+    if (
+      (view.measurement.status === "COMPLETE" || view.measurement.status === "NOT_RUN") &&
+      view.measurement.reasonCount > 0
+    ) {
+      found.push("MEASUREMENT_REASONS_INCONSISTENT");
+    }
+
+    // 세부 결과와 요약 상태의 모순: 요약은 세부 결과가 정하는 값(evaluateControlAssertions와 같은 함수)과 같아야 한다.
+    const assertions = view.control_assertions;
+    if (assertions.design_errors.length > 0) {
+      found.push(`ASSERTION_DESIGN_ERRORS(${assertions.design_errors.length})`);
+    }
+    if (!hasCaseChecks(assertions.checks)) found.push("ASSERTION_CHECKS_EMPTY");
+    const derivedStatus = summarizeControlAssertions({
+      checks: assertions.checks,
+      negatives: assertions.negative_controls,
+      designErrorCount: assertions.design_errors.length,
+    });
+    if (derivedStatus !== assertions.status) {
+      found.push(
+        `ASSERTION_SUMMARY_MISMATCH(stored=${assertions.status}, derived=${derivedStatus})`
+      );
+    }
 
     // 저장된 자격 선언은 믿지 않는다: 같은 사실로 현재 로직을 다시 돌려 비교한다.
     const n0 = view.qualification.requirements.find((r) => r.id === "N0_CONFIRMED");
@@ -443,6 +544,13 @@ export function controlReferenceFromValue(value: unknown): ReferenceRecordResult
     if (!recomputed.eligible) {
       const unsatisfied = recomputed.requirements.filter((r) => !r.satisfied).map((r) => r.id);
       found.push(`NOT_QUALIFIED(${unsatisfied.join(", ")})`);
+      // 음성 대조는 어느 (id, 층)이 왜 어긋났는지(missing·상태·expected·observed)까지 토큰으로 남긴다.
+      const negatives = negativeControlProblems(view.control_assertions.negative_controls);
+      if (negatives.length > 0) {
+        const shown = negatives.slice(0, MAX_NEGATIVE_TOKENS);
+        const more = negatives.length - shown.length;
+        found.push(`NEGATIVE_CONTROL_PROBLEMS(${shown.join(", ")}${more > 0 ? `, +${more}` : ""})`);
+      }
     }
     if (found.length > 0) return reject(found.join("; "));
 

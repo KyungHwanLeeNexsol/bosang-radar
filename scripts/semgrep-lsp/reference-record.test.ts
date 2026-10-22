@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canonicalJson } from "./canonical";
+import { NEGATIVE_CONTROL_TABLE } from "./control";
 import { checkControlReferenceFacts } from "./reference";
 import { toControlReference } from "./harness";
 import { loadControlReference, controlReferenceFromValue } from "./reference-record";
@@ -397,6 +398,381 @@ describe("loadControlReference — 저장된 eligible 선언은 믿지 않는다
       (q: { id: string; satisfied: boolean }) => q.id === "NEGATIVE_BINDING_MATCH"
     ).satisfied = false;
     expectRejected(await load(r), "QUALIFICATION_DECLARATION_MISMATCH", "NEGATIVE_BINDING_MATCH");
+  });
+});
+
+// ── PR #29 외부 검토 발견 1: 음성 대조 PASS의 근거 ────────────────
+// 이전에는 status=PASS와 결합만 봐서, observed가 null이거나 기대와 다른 PASS 항목도 수락됐다. 필수 (id, layer)의 기대
+// 상태는 현재 NEGATIVE_CONTROL_TABLE에서 오며 두 층은 서로 다를 수 있다(R9: engine ISOLATION_VIOLATION, preflight
+// SETTINGS_MISMATCH). 기대값은 운영 코드가 아니라 이 시험이 표에서 따로 읽는다.
+
+interface RequiredPair {
+  id: string;
+  layer: "engine" | "preflight";
+  expected: string;
+}
+
+const REQUIRED_PAIRS: RequiredPair[] = NEGATIVE_CONTROL_TABLE.flatMap((spec) => [
+  { id: spec.id, layer: "engine" as const, expected: spec.expected },
+  ...(spec.preflight === null
+    ? []
+    : [{ id: spec.id, layer: "preflight" as const, expected: spec.preflight.status }]),
+]);
+
+const entryOf = (r: Plain, id: string, layer: string): Plain => {
+  const found = r.control_assertions.negative_controls.find(
+    (n: Plain) => n.id === id && n.layer === layer
+  );
+  if (!found) throw new Error(`시험 오류: ${id}:${layer} 항목이 없다`);
+  return found as Plain;
+};
+
+/** 기대와 다른 상태 하나(어느 쌍이든 COMPLETE는 기대가 아니다 — 시험 전제로 확인한다). */
+const WRONG = "COMPLETE";
+
+describe("loadControlReference — 음성 대조 PASS는 기대·관측이 기준과 맞아야 한다", () => {
+  it("시험 전제: 필수는 16쌍이고, 기대 상태는 COMPLETE가 아니며, 두 층의 기대가 다른 id가 있다", () => {
+    expect(REQUIRED_PAIRS).toHaveLength(16);
+    expect(REQUIRED_PAIRS.every((p) => p.expected !== WRONG)).toBe(true);
+    const r9 = REQUIRED_PAIRS.filter((p) => p.id === "R9");
+    expect(new Set(r9.map((p) => p.expected)).size).toBe(2);
+    // 정상 기록은 16쌍 전부 기준과 일치한다.
+    const ok = plain();
+    for (const p of REQUIRED_PAIRS) {
+      const e = entryOf(ok, p.id, p.layer);
+      expect([e.expected, e.observed, e.status]).toEqual([p.expected, p.expected, "PASS"]);
+    }
+  });
+
+  // 외부 검토가 보고한 재현 세 가지(엔진 항목 하나).
+  const reported: [string, (e: Plain) => void, string][] = [
+    ["status=PASS, observed=null", (e) => (e.observed = null), "R1:engine(observed-null)"],
+    [
+      "status=PASS, observed=COMPLETE, expected는 원래 값",
+      (e) => (e.observed = WRONG),
+      "R1:engine(observed)",
+    ],
+    [
+      "status=PASS, expected=COMPLETE, observed=COMPLETE",
+      (e) => {
+        e.expected = WRONG;
+        e.observed = WRONG;
+      },
+      "R1:engine(expected)",
+    ],
+  ];
+  it.each(reported)("검토 재현: %s → 거절", async (_name, mutate, token) => {
+    const r = plain();
+    mutate(entryOf(r, "R1", "engine"));
+    expectRejected(await load(r), "NOT_QUALIFIED", "NEGATIVE_ENGINE_PASS", token);
+  });
+
+  // 필수 16쌍 모두에서: 관측 없음 / 관측이 기대와 다름 / 기대가 기준과 다름.
+  const everyPair = REQUIRED_PAIRS.flatMap((p) => [
+    [
+      `${p.id}:${p.layer} observed=null`,
+      p,
+      (e: Plain) => (e.observed = null),
+      `${p.id}:${p.layer}(observed-null)`,
+    ],
+    [
+      `${p.id}:${p.layer} observed가 기대와 다름`,
+      p,
+      (e: Plain) => (e.observed = WRONG),
+      `${p.id}:${p.layer}(observed)`,
+    ],
+    [
+      `${p.id}:${p.layer} expected가 기준과 다름`,
+      p,
+      (e: Plain) => (e.expected = WRONG),
+      `${p.id}:${p.layer}(expected)`,
+    ],
+  ]) as [string, RequiredPair, (e: Plain) => void, string][];
+  it.each(everyPair)("%s → 거절하고 그 쌍을 토큰으로 남긴다", async (_name, p, mutate, token) => {
+    const r = plain();
+    mutate(entryOf(r, p.id, p.layer));
+    const requirement = p.layer === "engine" ? "NEGATIVE_ENGINE_PASS" : "NEGATIVE_PREFLIGHT_PASS";
+    expectRejected(await load(r), "NOT_QUALIFIED", requirement, token);
+  });
+
+  it("두 층의 기대 상태는 같다고 가정하지 않는다: R9 사전 검사에 엔진의 기대를 쓰거나 그 반대면 거절한다", async () => {
+    const engine = REQUIRED_PAIRS.find((p) => p.id === "R9" && p.layer === "engine")!;
+    const preflight = REQUIRED_PAIRS.find((p) => p.id === "R9" && p.layer === "preflight")!;
+    const swappedPre = plain();
+    Object.assign(entryOf(swappedPre, "R9", "preflight"), {
+      expected: engine.expected,
+      observed: engine.expected,
+    });
+    expectRejected(await load(swappedPre), "R9:preflight(expected)", "R9:preflight(observed)");
+    const swappedEng = plain();
+    Object.assign(entryOf(swappedEng, "R9", "engine"), {
+      expected: preflight.expected,
+      observed: preflight.expected,
+    });
+    expectRejected(await load(swappedEng), "R9:engine(expected)", "R9:engine(observed)");
+  });
+
+  it("관측이 기대와 같아도 기대가 기준과 다르면(둘 다 같은 잘못된 값) 거절한다", async () => {
+    const r = plain();
+    Object.assign(entryOf(r, "R6", "engine"), { expected: "TIMEOUT", observed: "TIMEOUT" });
+    expectRejected(await load(r), "R6:engine(expected)", "R6:engine(observed)");
+  });
+
+  it("잘못된 관측을 보정하지 않는다: 입력 값을 바꾸지 않고, 수락하지 않으며, 같은 입력은 같은 결과를 낸다", () => {
+    const r = plain();
+    entryOf(r, "R2", "preflight").observed = null;
+    const before = structuredClone(r);
+    const first = controlReferenceFromValue(r);
+    const second = controlReferenceFromValue(r);
+    expect(r).toEqual(before); // observed를 채우거나 status를 덮어쓰지 않았다
+    expect(entryOf(r, "R2", "preflight").status).toBe("PASS");
+    expect(first.reference).toBeNull();
+    expect(first).toEqual(second);
+  });
+
+  it("이미 NOT_RUN·FAIL인 항목은 기존 사유 그대로다(기대·관측 토큰으로 가리지 않는다)", async () => {
+    const r = plain();
+    const e = entryOf(r, "R3", "engine");
+    e.status = "FAIL";
+    expectRejected(await load(r), "R3:engine(FAIL)");
+    expect((await load(r)).rejection).not.toContain("R3:engine(observed");
+  });
+
+  it("기존 검사는 그대로다: 16쌍 필수·중복 거절·결합 일치는 기대·관측 검사와 함께 동작한다", async () => {
+    const dropped = plain();
+    dropped.control_assertions.negative_controls =
+      dropped.control_assertions.negative_controls.filter(
+        (n: Plain) => !(n.id === "R5" && n.layer === "engine")
+      );
+    expectRejected(await load(dropped), "R5:engine(missing)");
+    const duplicated = plain();
+    duplicated.control_assertions.negative_controls.push({
+      ...entryOf(duplicated, "R5", "engine"),
+    });
+    expectRejected(await load(duplicated), "R5:engine(duplicate)");
+    const unbound = plain();
+    entryOf(unbound, "R5", "engine").binding_sha256 = "f".repeat(64);
+    expectRejected(await load(unbound), "NEGATIVE_BINDING_MATCH");
+  });
+});
+
+// ── PR #29 외부 검토 발견 2: 세부 결과와 요약 상태의 모순 ───────────
+// 이전에는 control_assertions.checks·design_errors·measurement.reasons를 배열이라는 사실만 확인하고 버려서, 세부 결과가
+// 요약과 모순되는 기록도 수락됐다. 이 검사는 기록의 자기 일관성이며 서명·출처 인증이나 원시 트랜스크립트 재검증이 아니다.
+
+describe("loadControlReference — 세부 결과와 요약 상태의 모순을 거절한다", () => {
+  it("시험 전제: 정상 합성 기록은 검사가 있고 전부 PASS이며, design_errors·reasons가 비어 있다", () => {
+    const r = plain();
+    expect(r.control_assertions.status).toBe("PASS");
+    expect(r.control_assertions.checks.length).toBeGreaterThan(0);
+    expect(r.control_assertions.checks.every((c: Plain) => c.status === "PASS")).toBe(true);
+    expect(r.control_assertions.checks.some((c: Plain) => c.kind === "A1" || c.kind === "A3")).toBe(
+      true
+    );
+    expect(r.control_assertions.design_errors).toEqual([]);
+    expect(r.measurement.status).toBe("COMPLETE");
+    expect(r.measurement.complete).toBe(true);
+    expect(r.measurement.reasons).toEqual([]);
+  });
+
+  // 외부 검토가 보고한 재현 다섯 가지.
+  const reported: [string, (r: Plain) => void, string][] = [
+    [
+      "control_assertions.checks[0].status = FAIL",
+      (r) => (r.control_assertions.checks[0].status = "FAIL"),
+      "ASSERTION_SUMMARY_MISMATCH(stored=PASS, derived=FAIL)",
+    ],
+    [
+      "control_assertions.design_errors에 오류 추가",
+      (r) => r.control_assertions.design_errors.push("대조 설계의 오류"),
+      "ASSERTION_DESIGN_ERRORS(1)",
+    ],
+    [
+      "measurement COMPLETE·complete=true인데 reasons에 ENGINE_EXCEPTION_LOG",
+      (r) => r.measurement.reasons.push({ code: "ENGINE_EXCEPTION_LOG" }),
+      "MEASUREMENT_REASONS_INCONSISTENT",
+    ],
+    [
+      "control_assertions.checks = [null]",
+      (r) => (r.control_assertions.checks = [null]),
+      "control_assertions.checks[0](type)",
+    ],
+    [
+      "control_assertions.checks = []",
+      (r) => (r.control_assertions.checks = []),
+      "ASSERTION_CHECKS_EMPTY",
+    ],
+  ];
+  it.each(reported)("검토 재현: %s → 거절", async (_name, mutate, token) => {
+    const r = plain();
+    mutate(r);
+    expectRejected(await load(r), token);
+  });
+
+  it("FAIL·REVIEW·NOT_RUN인 세부 검사를 전체 PASS로 인정하지 않는다(어느 종류의 검사든)", async () => {
+    const base = plain();
+    const kinds = new Set<string>(base.control_assertions.checks.map((c: Plain) => c.kind));
+    expect([...kinds].sort()).toEqual(["A1", "A2", "A3", "A4", "PAIR"]); // 시험 전제
+    for (const kind of kinds) {
+      for (const status of ["FAIL", "REVIEW", "NOT_RUN"]) {
+        const r = plain();
+        const index = r.control_assertions.checks.findIndex((c: Plain) => c.kind === kind);
+        r.control_assertions.checks[index].status = status;
+        const result = await load(r);
+        expectRejected(result, "ASSERTION_SUMMARY_MISMATCH(stored=PASS");
+      }
+    }
+  });
+
+  it("전체 요약이 세부 결과가 정하는 값과 다르면(FAIL·REVIEW_REQUIRED로 적었는데 세부는 전부 PASS) 거절한다", async () => {
+    for (const status of ["FAIL", "REVIEW_REQUIRED", "NOT_RUN"]) {
+      const r = plain();
+      r.control_assertions.status = status;
+      expectRejected(await load(r), `ASSERTION_SUMMARY_MISMATCH(stored=${status}, derived=PASS)`);
+    }
+  });
+
+  it("FAIL인 음성 대조 항목이 하나라도 있으면(필수가 아닌 id여도) 요약 PASS는 모순이다", async () => {
+    const r = plain();
+    r.control_assertions.negative_controls.push({
+      id: "R99",
+      layer: "engine",
+      expected: "COMPLETE",
+      observed: null,
+      status: "FAIL",
+      binding_sha256: null,
+    });
+    expectRejected(await load(r), "ASSERTION_SUMMARY_MISMATCH(stored=PASS, derived=FAIL)");
+  });
+
+  it("사례 검사(A1·A3)가 하나도 없으면(PAIR 등만 남아도) PASS의 근거로 인정하지 않는다", async () => {
+    const r = plain();
+    r.control_assertions.checks = r.control_assertions.checks.filter(
+      (c: Plain) => c.kind !== "A1" && c.kind !== "A3"
+    );
+    expect(r.control_assertions.checks.length).toBeGreaterThan(0); // 시험 전제
+    expectRejected(await load(r), "ASSERTION_CHECKS_EMPTY");
+  });
+
+  it("NOT_RUN 검사 일부가 PASS로 위장된 요약도 거절한다(결과 없는 사례가 하나라도 있으면 PASS가 아니다)", async () => {
+    const r = plain();
+    const a3 = r.control_assertions.checks.find((c: Plain) => c.kind === "A3");
+    a3.status = "NOT_RUN";
+    expectRejected(await load(r), "ASSERTION_SUMMARY_MISMATCH(stored=PASS, derived=FAIL)");
+  });
+
+  it("COMPLETE가 아닌 측정은 reasons가 있는 것이 정상이라 이 검사의 대상이 아니다(기존 사유 그대로)", async () => {
+    const timeout = plain(record({ variant: "timeout" }));
+    expect(timeout.measurement.reasons.length).toBeGreaterThan(0); // 시험 전제
+    const result = await load(timeout);
+    expectRejected(result, "MEASUREMENT_COMPLETE");
+    expect(result.rejection).not.toContain("MEASUREMENT_REASONS_INCONSISTENT");
+  });
+
+  it("NOT_RUN 측정인데 reasons가 있으면 모순이다(기록 생성 계약: COMPLETE·NOT_RUN은 사유가 없다)", async () => {
+    const r = plain();
+    r.measurement.status = "NOT_RUN";
+    r.measurement.complete = false;
+    r.measurement.reasons.push({ code: "ENGINE_EXCEPTION_LOG" });
+    expectRejected(await load(r), "MEASUREMENT_REASONS_INCONSISTENT");
+  });
+
+  // checks 항목의 소비 필드를 항목별로 검사한다.
+  const badChecks: [string, (c: unknown[]) => void, string][] = [
+    ["항목이 문자열", (c) => (c[1] = "PASS"), "control_assertions.checks[1](type)"],
+    ["항목이 배열", (c) => (c[1] = []), "control_assertions.checks[1](type)"],
+    ["항목이 숫자", (c) => (c[1] = 7), "control_assertions.checks[1](type)"],
+    ["id 없음", (c) => delete (c[1] as Plain).id, "control_assertions.checks[1].id(missing)"],
+    ["id가 숫자", (c) => ((c[1] as Plain).id = 5), "control_assertions.checks[1].id(type)"],
+    [
+      "kind가 알 수 없는 값",
+      (c) => ((c[1] as Plain).kind = "A9"),
+      "control_assertions.checks[1].kind(value)",
+    ],
+    ["kind 없음", (c) => delete (c[1] as Plain).kind, "control_assertions.checks[1].kind(missing)"],
+    ["file이 숫자", (c) => ((c[1] as Plain).file = 1), "control_assertions.checks[1].file(type)"],
+    [
+      "file 키 없음",
+      (c) => delete (c[1] as Plain).file,
+      "control_assertions.checks[1].file(missing)",
+    ],
+    [
+      "status가 알 수 없는 값",
+      (c) => ((c[1] as Plain).status = "OK"),
+      "control_assertions.checks[1].status(value)",
+    ],
+    [
+      "status 없음",
+      (c) => delete (c[1] as Plain).status,
+      "control_assertions.checks[1].status(missing)",
+    ],
+    [
+      "status가 불리언",
+      (c) => ((c[1] as Plain).status = true),
+      "control_assertions.checks[1].status(type)",
+    ],
+    [
+      "detail이 객체",
+      (c) => ((c[1] as Plain).detail = {}),
+      "control_assertions.checks[1].detail(type)",
+    ],
+    [
+      "detail 없음",
+      (c) => delete (c[1] as Plain).detail,
+      "control_assertions.checks[1].detail(missing)",
+    ],
+  ];
+  it.each(badChecks)("checks %s → 거절하고 필드 경로를 남긴다", async (_name, mutate, token) => {
+    const r = plain();
+    mutate(r.control_assertions.checks);
+    expectRejected(await load(r), token);
+  });
+
+  it("checks가 배열이 아니거나 너무 길면 거절한다", async () => {
+    const notArray = plain();
+    notArray.control_assertions.checks = {};
+    expectRejected(await load(notArray), "control_assertions.checks(type)");
+    const tooLong = plain();
+    tooLong.control_assertions.checks = Array.from({ length: 1001 }, () => ({
+      ...tooLong.control_assertions.checks[0],
+    }));
+    expectRejected(await load(tooLong), "control_assertions.checks(too-long)");
+  });
+
+  const badDesignErrors: [string, unknown, string][] = [
+    ["항목이 문자열이 아님(null)", [null], "control_assertions.design_errors[0](type)"],
+    ["항목이 문자열이 아님(객체)", [{ message: "x" }], "control_assertions.design_errors[0](type)"],
+    ["배열이 아님", "none", "control_assertions.design_errors(type)"],
+    ["키 없음", undefined, "control_assertions.design_errors(missing)"],
+  ];
+  it.each(badDesignErrors)("design_errors %s → 거절한다", async (_name, value, token) => {
+    const r = plain();
+    if (value === undefined) delete r.control_assertions.design_errors;
+    else r.control_assertions.design_errors = value;
+    expectRejected(await load(r), token);
+  });
+
+  it("design_errors의 내용은 사유에 옮기지 않는다(개수만 남긴다)", async () => {
+    const r = plain();
+    r.control_assertions.design_errors = ["/secret/path/설계 오류 원문"];
+    const result = await load(r);
+    expectRejected(result, "ASSERTION_DESIGN_ERRORS(1)");
+    expect(result.rejection).not.toContain("secret");
+  });
+
+  it("정합성 검사는 값을 보정하지 않는다: 입력을 바꾸지 않고 거절한다", () => {
+    const r = plain();
+    r.control_assertions.checks[0].status = "FAIL";
+    const before = structuredClone(r);
+    const result = controlReferenceFromValue(r);
+    expect(r).toEqual(before);
+    expect(result.reference).toBeNull();
+  });
+
+  it("정상 기록은 계속 수락된다(검사·사유·design_errors가 일관됨)", async () => {
+    const result = await load(plain());
+    expect(result.rejection).toBeNull();
+    expect(result.reference).not.toBeNull();
   });
 });
 

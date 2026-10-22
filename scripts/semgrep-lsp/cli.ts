@@ -134,9 +134,12 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   검사 대상(--repo), 대조 예제(--control-fixtures-root), 대조 기록(--control-record)은 서로 다른 세 경로다.
   생략하면 대조 참조가 없어 CONTROL_REFERENCE_MISSING이다(기존 동작).
   기록은 구조가 맞는 control 실행 기록이어야 하고, 저장된 eligible 선언은 믿지 않고 기록의 사실로 자격을 다시 계산한다:
-  출처 real, 측정 COMPLETE, 대조 단언 PASS, N0 확정, 지문 값과 결합이 모두 있고, 음성 대조 두 층 16쌍이 PASS이며 같은 결합.
+  출처 real, 측정 COMPLETE, 대조 단언 PASS, N0 확정, 지문 값과 결합이 모두 있고, 음성 대조 두 층 16쌍이 PASS이며 같은 결합이다.
+  음성 대조 PASS는 expected가 현재 표의 기준과 같고 observed가 null이 아니며 그 기대와 같아야 한다(보정하지 않고 거절한다).
+  세부 결과와 요약이 모순이면 거절한다: COMPLETE 측정의 reasons·design_errors는 비어 있고, checks는 항목별 구조가 맞으며,
+  저장된 대조 단언 상태는 세부 결과로 계산한 값과 같아야 한다(기록의 자기 일관성이며 서명·출처 인증은 아니다).
   target 기록과 stub(SYNTHETIC) 기록은 참조가 될 수 없다. 수락한 기록도 이번 실행의 핀·도구·규칙·하네스·대조 지문 및 결합과 다시 맞춘다.
-  명시했는데 수락하지 못하면(없음·읽기 실패·깨진 JSON·스키마나 필드 오류·자격 불충족) 참조 없이 진행하고
+  명시했는데 수락하지 못하면(없음·읽기 실패·깨진 JSON·스키마나 필드 오류·자격 불충족·기록 내부 모순) 참조 없이 진행하고
   CONTROL_REFERENCE_RECORD_REJECTED(이유 토큰)와 CONTROL_REFERENCE_MISSING을 남기며 COMPLETE가 될 수 없다. control 모드에서는 쓸 수 없다.
 
 종료 코드: 0 통과 / 1 불일치·거부·실패 / 2 사용법 오류 / 3 NOT_RUN(실행 방지 장치)
