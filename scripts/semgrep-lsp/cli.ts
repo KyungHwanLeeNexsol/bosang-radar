@@ -114,8 +114,9 @@ const USAGE = `semgrep-lsp 하네스 CLI (ADR-001, Proposed) — Semgrep을 설�
   cli.ts precheck --rules-cache <dir> [--scan-tree <dir> --repo <dir> --target-sha <40자 SHA>]
   cli.ts scope --repo <dir> --target-sha <40자 SHA> [--format json|tsv]
   cli.ts run --mode control|target --run-id <id> --rules-cache <dir> --evidence-root <dir>
-             [--repo <dir> --target-sha <40자 SHA> --scan-root <dir>]          (target)
-             [--control-fixtures-root <dir> --control-tree-root <dir>]         (control)
+             --repo <dir> --target-sha <40자 SHA> --scan-root <dir>
+                 [--control-fixtures-root <dir>]                               (target)
+             --control-fixtures-root <dir> --control-tree-root <dir>           (control)
              --allow-real-semgrep --semgrep-bin <절대 경로>
   cli.ts --help
 
@@ -123,6 +124,10 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   1. --allow-real-semgrep
   2. 환경변수 ${ENV_ALLOW_REAL}=1
   3. --semgrep-bin <존재하는 절대 경로>   (PATH 탐색·자동 설치·기본값 없음)
+
+--control-fixtures-root: 대조 예제(.in)가 놓인 저장소 루트. 두 모드 모두 대조 지문을 이 위치의 파일 바이트로 계산한다.
+  target에서는 검사 대상인 --repo와 별개의 경로다(대상 SHA에는 예제가 없을 수 있다). target에서 생략하거나 읽을 수 없으면
+  대조 지문은 null(확인하지 못함)이고 대조 참조는 거절된다. --control-tree-root는 control에서만 쓴다.
 
 종료 코드: 0 통과 / 1 불일치·거부·실패 / 2 사용법 오류 / 3 NOT_RUN(실행 방지 장치)
 `;
@@ -476,8 +481,13 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   if (mode === "target") {
     targetSha = needSha(parsed);
     scanRoot = need(parsed, "scan-root");
-    controlFixturesRoot = unused;
-    controlTreeRoot = unused;
+    // 하네스는 target에서도 대조 지문을 계산하므로 대조 예제의 실제 위치가 필요하다. 이 위치는 --repo(검사 대상)와 별개다:
+    // 대상 SHA에는 예제가 없을 수 있어 --repo 아래에 있다고 가정하지 않는다. 주지 않으면 존재하지 않는 자리표시 경로를 넘겨
+    // 지문이 null(확인하지 못함)이 되고 대조 참조는 거절된다 — 거짓 지문도, 참조 값 복사도 없다.
+    controlFixturesRoot =
+      parsed.options.get("control-fixtures-root") ??
+      joinPath(joinPath(evidenceRoot, runId), "CONTROL-FIXTURES-NOT-GIVEN");
+    controlTreeRoot = unused; // target은 대조 트리를 쓰지 않는다.
     git = deps.makeGit(need(parsed, "repo"));
   } else {
     scanRoot = unused;

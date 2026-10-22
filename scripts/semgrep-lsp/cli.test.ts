@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
 import { EXIT, main, type CliDeps } from "./cli";
-import { harnessFingerprintOf, isHarnessImplementationFile } from "./fingerprint";
+import {
+  controlFingerprintOf,
+  harnessFingerprintOf,
+  isHarnessImplementationFile,
+} from "./fingerprint";
 import { buildScanTree, computeScope } from "./scope";
 import { sha256Hex } from "./sha";
 import { MemoryFs } from "./testing/memory-fs";
@@ -589,5 +593,226 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
       expect(path).toMatch(/^\/(harness|cache|evidence|scan|opt\/semgrep|repo|ctl)(\/|$)/);
       expect(path).not.toMatch(/quality\.yaml|lsp\.yaml|\.moai\/config|hooks/);
     }
+  });
+});
+
+// ── run: 대조 예제 경로(--control-fixtures-root) ─────────────────
+// target 모드도 대조 지문을 계산하므로(harness.ts) 대조 예제의 실제 위치가 필요하다. 이 위치는 검사 대상 저장소(--repo)와
+// 별개다: 대상 SHA에는 예제가 없을 수 있다. 모든 시험은 CLI(main) → 하네스 → 증거 파일(run.json)의 실제 경로로 확인한다.
+
+describe("main — run: 대조 예제 경로", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+  const EXPECTATIONS_TEXT = data.dataFiles["control-expectations.json"];
+  const cases = data.controlExpectations.cases;
+  /** --repo(/r)와 다른 경로. 대상 SHA의 트리에는 이 예제들이 없다. */
+  const FIXTURES_REPO = "/ctl-repo";
+  const decoder = new TextDecoder();
+
+  function fixtureText(tag: string, path: string): string {
+    return `// 합성 대조 예제 ${tag}: ${path}\n`;
+  }
+  function fixtureFiles(root: string, tag: string): Record<string, string> {
+    return Object.fromEntries(cases.map((c) => [`${root}/${c.fixture}`, fixtureText(tag, c.path)]));
+  }
+  /** CLI·하네스를 거치지 않고, 같은 파일의 바이트로 직접 계산한 대조 지문. */
+  function directFingerprint(tag: string): string {
+    return controlFingerprintOf(
+      sha256Hex(EXPECTATIONS_TEXT),
+      cases.map((c) => ({
+        path: c.path,
+        fixture: c.fixture,
+        sha256: sha256Hex(fixtureText(tag, c.path)),
+      }))
+    );
+  }
+  const targetArgv = (fixturesRoot: string | null): string[] => [
+    ...withGuard({}),
+    ...(fixturesRoot === null ? [] : ["--control-fixtures-root", fixturesRoot]),
+  ];
+  async function runJson(
+    w: World,
+    runId = "run-cli-1"
+  ): Promise<{ inputs: Record<string, unknown> }> {
+    return JSON.parse(decoder.decode(await w.fs.readFile(`/evidence/${runId}/run.json`)));
+  }
+  async function fingerprintsTxt(w: World, runId = "run-cli-1"): Promise<string> {
+    return decoder.decode(await w.fs.readFile(`/evidence/${runId}/fingerprints.txt`));
+  }
+  function reasonCodes(w: World): string[] {
+    const body = jsonOut(w) as { record: { measurement: { reasons: { code: string }[] } } };
+    return body.record.measurement.reasons.map((r) => r.code);
+  }
+
+  it("target: --repo와 다른 경로의 대조 예제로 지문을 계산하고, run.json 값이 같은 파일의 직접 계산과 같다", async () => {
+    const w = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, "v1") });
+    const touched: string[] = [];
+    const inner = w.deps.fs;
+    w.deps.fs = {
+      readFile: async (p) => (touched.push(p), inner.readFile(p)),
+      writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
+      mkdirp: (p) => inner.mkdirp(p),
+      listFilesRecursive: (p) => inner.listFilesRecursive(p),
+      exists: (p) => inner.exists(p),
+    };
+    expect(await main(targetArgv(FIXTURES_REPO), w.deps)).toBe(EXIT.failed);
+
+    const direct = directFingerprint("v1");
+    const run = await runJson(w);
+    expect(run.inputs.control_sha256).toBe(direct);
+    expect(await fingerprintsTxt(w)).toContain(`control_sha256\t${direct}`);
+    // 전달한 위치의 파일을 실제로 읽었다. 자리표시 경로에서는 예제를 읽으려 하지 않았다.
+    expect(touched).toContain(`${FIXTURES_REPO}/${cases[0].fixture}`);
+    expect(
+      touched.filter((p) => p.includes("UNUSED-IN-THIS-MODE") && p.includes(".moai/fixtures"))
+    ).toEqual([]);
+    // 검사 대상 저장소는 git으로만 열리고, 예제 위치와 섞이지 않는다.
+    expect(w.gitCalls).toEqual(["/r"]);
+    // 프로세스는 여전히 뜨지 않고, 대조 참조(CLI는 연결하지 않는다)는 계속 거절된다.
+    expect(w.spawnCalls).toEqual([]);
+    expect(reasonCodes(w)).toContain("CONTROL_REFERENCE_MISSING");
+    expect((jsonOut(w) as { complete: boolean }).complete).toBe(false);
+  });
+
+  it("target: 예제가 바뀌면 대조 지문이 달라지고 각각 직접 계산과 같다", async () => {
+    const hashes: string[] = [];
+    for (const tag of ["v1", "v2"]) {
+      const w = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, tag) });
+      await main(targetArgv(FIXTURES_REPO), w.deps);
+      const hash = (await runJson(w)).inputs.control_sha256;
+      expect(hash).toBe(directFingerprint(tag));
+      hashes.push(hash as string);
+    }
+    expect(hashes[0]).not.toBe(hashes[1]);
+
+    // 한 사례의 예제만 바꿔도 달라진다.
+    const files = fixtureFiles(FIXTURES_REPO, "v1");
+    files[`${FIXTURES_REPO}/${cases[0].fixture}`] += "// 한 줄 추가\n";
+    const w = makeWorld({ env: passEnv, extraFiles: files });
+    await main(targetArgv(FIXTURES_REPO), w.deps);
+    const changed = (await runJson(w)).inputs.control_sha256;
+    expect(changed).not.toBe(hashes[0]);
+    expect(changed).not.toBeNull();
+  });
+
+  it("target: --control-fixtures-root를 주지 않으면 지문은 null이고 대조 참조는 거절된다(참조 값을 만들어 내지 않는다)", async () => {
+    const w = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, "v1") });
+    expect(await main(targetArgv(null), w.deps)).toBe(EXIT.failed);
+    const run = await runJson(w);
+    expect(run.inputs.control_sha256).toBeNull();
+    expect(run.inputs.binding_sha256).toBeNull();
+    expect(await fingerprintsTxt(w)).toContain("control_sha256\t(확인하지 못함)");
+    expect(reasonCodes(w)).toContain("CONTROL_REFERENCE_MISSING");
+    expect(w.spawnCalls).toEqual([]);
+    expect((jsonOut(w) as { complete: boolean }).complete).toBe(false);
+  });
+
+  it("target: 예제 위치가 없거나 일부를 읽을 수 없으면 지문은 null이다", async () => {
+    // (a) 존재하지 않는 위치
+    const missing = makeWorld({ env: passEnv });
+    await main(targetArgv("/no-such-fixtures"), missing.deps);
+    expect((await runJson(missing)).inputs.control_sha256).toBeNull();
+    expect(reasonCodes(missing)).toContain("CONTROL_REFERENCE_MISSING");
+
+    // (b) 한 사례의 예제 파일이 없다
+    const files = fixtureFiles(FIXTURES_REPO, "v1");
+    delete files[`${FIXTURES_REPO}/${cases[1].fixture}`];
+    const partial = makeWorld({ env: passEnv, extraFiles: files });
+    await main(targetArgv(FIXTURES_REPO), partial.deps);
+    expect((await runJson(partial)).inputs.control_sha256).toBeNull();
+
+    // (c) 파일은 있으나 읽기가 실패한다
+    const unreadable = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, "v1") });
+    const inner = unreadable.deps.fs;
+    const bad = `${FIXTURES_REPO}/${cases[0].fixture}`;
+    unreadable.deps.fs = {
+      readFile: async (p) => {
+        if (p === bad) throw new Error("EACCES: 시험용 읽기 실패");
+        return inner.readFile(p);
+      },
+      writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
+      mkdirp: (p) => inner.mkdirp(p),
+      listFilesRecursive: (p) => inner.listFilesRecursive(p),
+      exists: (p) => inner.exists(p),
+    };
+    await main(targetArgv(FIXTURES_REPO), unreadable.deps);
+    const run = await runJson(unreadable);
+    expect(run.inputs.control_sha256).toBeNull();
+    expect(run.inputs.binding_sha256).toBeNull();
+    expect(reasonCodes(unreadable)).toContain("CONTROL_REFERENCE_MISSING");
+    for (const w of [missing, partial, unreadable]) {
+      expect(w.spawnCalls).toEqual([]);
+      expect((jsonOut(w) as { complete: boolean }).complete).toBe(false);
+    }
+  });
+
+  it("target: 쓰이지 않는 대조 트리 위치는 자리표시 경로로 남고 아무것도 만들지 않는다", async () => {
+    const w = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, "v1") });
+    await main(targetArgv(FIXTURES_REPO), w.deps);
+    expect(await w.fs.exists("/evidence/run-cli-1/UNUSED-IN-THIS-MODE")).toBe(false);
+    expect(await w.fs.exists("/ctl")).toBe(false);
+  });
+
+  it("control: 기존 경로 처리 유지 — 같은 옵션으로 대조 예제를 읽어 지문을 계산한다", async () => {
+    const w = makeWorld({ env: passEnv, extraFiles: fixtureFiles(FIXTURES_REPO, "v1") });
+    const argv = [
+      "run",
+      "--mode",
+      "control",
+      "--run-id",
+      "run-cli-ctl",
+      "--rules-cache",
+      `/cache/${SYNTHETIC_CACHE_DIR}`,
+      "--evidence-root",
+      "/evidence",
+      "--control-fixtures-root",
+      FIXTURES_REPO,
+      "--control-tree-root",
+      "/ctl",
+      FLAG,
+      "--semgrep-bin",
+      BIN,
+    ];
+    expect(await main(argv, w.deps)).toBe(EXIT.failed);
+    expect(w.gitCalls).toEqual([]);
+    expect(w.spawnCalls).toEqual([]);
+    expect((await runJson(w, "run-cli-ctl")).inputs.control_sha256).toBe(directFingerprint("v1"));
+  });
+
+  it("control: 두 경로 중 하나라도 없으면 여전히 사용법 오류(2)이고 포트를 만들지 않는다", async () => {
+    for (const omit of ["--control-fixtures-root", "--control-tree-root"]) {
+      const w = makeWorld({ env: passEnv });
+      const given: Record<string, string> = {
+        "--control-fixtures-root": FIXTURES_REPO,
+        "--control-tree-root": "/ctl",
+      };
+      delete given[omit];
+      const argv = [
+        "run",
+        "--mode",
+        "control",
+        "--run-id",
+        "run-cli-ctl",
+        "--rules-cache",
+        `/cache/${SYNTHETIC_CACHE_DIR}`,
+        "--evidence-root",
+        "/evidence",
+        ...Object.entries(given).flat(),
+        FLAG,
+        "--semgrep-bin",
+        BIN,
+      ];
+      expect(await main(argv, w.deps), omit).toBe(EXIT.usage);
+      expect(w.portCalls, omit).toEqual([]);
+    }
+  });
+
+  it("도움말: target의 경로 계약 — 대조 예제 위치는 --repo와 별개이고 생략하면 지문이 null이다", async () => {
+    const w = makeWorld();
+    await main(["--help"], w.deps);
+    const help = w.out.join("");
+    expect(help).toMatch(/--control-fixtures-root[^\n]*\(target\)/);
+    expect(help).toMatch(/--control-fixtures-root[^\n]*\(control\)/);
+    expect(help).toContain("--repo와 별개");
+    expect(help).toContain("null");
   });
 });
