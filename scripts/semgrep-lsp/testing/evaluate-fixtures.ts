@@ -5,8 +5,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
+import { NEGATIVE_CONTROL_TABLE } from "../control";
 import { buildRunRecord } from "../evidence";
 import type { EvaluateInputs } from "../evaluate";
+import { buildBinding } from "../fingerprint";
 import { normalizeLoadingPath } from "../log-matcher";
 import { parseExpectedRules, parseRulesFiles } from "../rules-manifest";
 import { sha256Hex } from "../sha";
@@ -15,7 +17,9 @@ import type {
   ControlExpectations,
   ExpectedRule,
   Mode,
+  NegativeControlResult,
   Pin,
+  ReferenceFingerprints,
   RuleFileEntry,
   RunRecord,
   ScopeEntry,
@@ -81,14 +85,89 @@ export const LOADING_PATHS: readonly string[] = RULES_FILES.map((f) =>
   normalizeLoadingPath(`${PIN.rules.cache_dir_name}/${f.path}`)
 );
 
-export const CONTROL_REFERENCE_PASS: NonNullable<RunRecord["control_reference"]> = {
-  run_id: "control-run-1",
-  provenance: "real",
-  status: "COMPLETE",
-  control_assertions_status: "PASS",
-  pin_sha256: PIN_SHA256,
-  n0_confirmed: true,
-};
+/**
+ * 시험 전용: 필요한 (id, 층) 16쌍이 전부 PASS이고 같은 결합을 가진 음성 대조 기록. 운영 코드에는 엔진 항목을 PASS로
+ * 표시하는 함수가 없다(엔진 실행은 범위 밖) — 완전히 자격을 갖춘 참조는 시험이 손으로 만든다.
+ */
+export function qualifiedNegativeControls(bindingSha256: string): NegativeControlResult[] {
+  const out: NegativeControlResult[] = [];
+  for (const spec of NEGATIVE_CONTROL_TABLE) {
+    out.push({
+      id: spec.id,
+      layer: "engine",
+      expected: spec.expected,
+      observed: spec.expected,
+      status: "PASS",
+      binding_sha256: bindingSha256,
+    });
+    if (spec.preflight !== null) {
+      out.push({
+        id: spec.id,
+        layer: "preflight",
+        expected: spec.preflight.status,
+        observed: spec.preflight.status,
+        status: "PASS",
+        binding_sha256: bindingSha256,
+      });
+    }
+  }
+  return out;
+}
+
+/** 시험 전용: 모든 값이 채워지고 결합이 구성 요소(PIN_SHA256 포함)와 맞는 지문. over로 값을 바꾸면 결합도 다시 만든다. */
+export function fullFingerprints(over: Partial<ReferenceFingerprints> = {}): ReferenceFingerprints {
+  const merged = {
+    harness_sha256: sha256Hex("harness-fixture"),
+    control_sha256: sha256Hex("control-fixture"),
+    rules_list_sha256: PIN.rules.yaml_list_sha256,
+    rules_expected_sha256: PIN.rules.expected_rules_sha256,
+    tool_version: PIN.semgrep.version,
+    wheel_sha256: sha256Hex("wheel-fixture"),
+    ...over,
+  } as Omit<ReferenceFingerprints, "binding_sha256">;
+  const binding =
+    over.binding_sha256 !== undefined
+      ? over.binding_sha256
+      : buildBinding({
+          tool_version: merged.tool_version,
+          wheel_sha256: merged.wheel_sha256,
+          pin_sha256: PIN_SHA256,
+          rules_list_sha256: merged.rules_list_sha256,
+          rules_expected_sha256: merged.rules_expected_sha256,
+          harness_sha256: merged.harness_sha256,
+          control_sha256: merged.control_sha256,
+        });
+  return { ...merged, binding_sha256: binding };
+}
+
+/** 지문과 음성 대조를 사실로 싣고 eligible을 선언한, 완전히 자격을 갖춘 대조 참조(real 출처). */
+export function qualifiedReference(
+  fingerprints: ReferenceFingerprints = fullFingerprints(),
+  over: Partial<NonNullable<RunRecord["control_reference"]>> = {}
+): NonNullable<RunRecord["control_reference"]> {
+  return {
+    run_id: "control-run-1",
+    provenance: "real",
+    status: "COMPLETE",
+    control_assertions_status: "PASS",
+    pin_sha256: PIN_SHA256,
+    n0_confirmed: true,
+    eligible: true,
+    fingerprints,
+    negative_controls: qualifiedNegativeControls(fingerprints.binding_sha256 as string).map(
+      (n) => ({
+        id: n.id,
+        layer: n.layer,
+        status: n.status,
+        binding_sha256: n.binding_sha256,
+      })
+    ),
+    ...over,
+  };
+}
+
+export const CONTROL_REFERENCE_PASS: NonNullable<RunRecord["control_reference"]> =
+  qualifiedReference();
 
 export function targetInputs(over: Partial<EvaluateInputs> = {}): EvaluateInputs {
   return {
@@ -102,6 +181,7 @@ export function targetInputs(over: Partial<EvaluateInputs> = {}): EvaluateInputs
     precheckReasons: [],
     pinSha256: PIN_SHA256,
     controlReference: CONTROL_REFERENCE_PASS,
+    currentFingerprints: fullFingerprints(),
     metricsReceiverHits: 0,
     ...over,
   };
@@ -119,6 +199,7 @@ export function controlInputs(over: Partial<EvaluateInputs> = {}): EvaluateInput
     precheckReasons: [],
     pinSha256: PIN_SHA256,
     controlReference: null,
+    currentFingerprints: null,
     metricsReceiverHits: 0,
     ...over,
   };
@@ -211,9 +292,15 @@ export function buildRecord(
       rules_list_sha256: PIN.rules.yaml_list_sha256,
       rules_expected_sha256: PIN.rules.expected_rules_sha256,
       control_tree_sha256: mode === "control" ? sha256Hex("control-tree") : null,
+      harness_sha256: fullFingerprints().harness_sha256,
+      control_sha256: fullFingerprints().control_sha256,
+      tool_version_observed: fullFingerprints().tool_version,
+      wheel_sha256_observed: fullFingerprints().wheel_sha256,
+      binding_sha256: fullFingerprints().binding_sha256,
     },
     phasesReached: PHASES,
     controlReference: mode === "target" ? inputs.controlReference : null,
+    n0Confirmed: inputs.pin.n0.confirmed,
   });
 }
 

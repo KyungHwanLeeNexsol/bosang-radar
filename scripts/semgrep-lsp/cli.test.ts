@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
 import { EXIT, main, type CliDeps } from "./cli";
+import { harnessFingerprintOf, isHarnessImplementationFile } from "./fingerprint";
 import { buildScanTree, computeScope } from "./scope";
+import { sha256Hex } from "./sha";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
-import { SYNTHETIC_CACHE_DIR, buildSyntheticData } from "./testing/synthetic-data";
+import {
+  SYNTHETIC_CACHE_DIR,
+  SYNTHETIC_HARNESS_ROOT,
+  SYNTHETIC_HARNESS_FILES,
+  buildSyntheticData,
+  harnessFilesAt,
+} from "./testing/synthetic-data";
 import type { GitPort, ProcessPort, Provenance, SpawnSpec } from "./types";
 
 // 이 시험은 아무 프로세스도 띄우지 않는다. `makeProcessPort`는 항상 주입된 가짜이고, 그 가짜의 spawn은 불리면 던진다.
@@ -15,6 +23,7 @@ const SHA_UNKNOWN = "c".repeat(40);
 const ENV_NAME = "MOAI_SEMGREP_LSP_ALLOW_REAL";
 
 const data = buildSyntheticData();
+const HARNESS_ROOT = SYNTHETIC_HARNESS_ROOT;
 
 interface World {
   deps: CliDeps;
@@ -37,7 +46,11 @@ function makeWorld(
   } = {}
 ): World {
   const files: Record<string, string> = {};
-  for (const [name, text] of Object.entries(data.dataFiles)) files[`/data/${name}`] = text;
+  // 고정 입력 폴더(data/)의 부모가 하네스 루트다: cli는 부모를 하네스 지문 계산에 넘긴다.
+  for (const [name, text] of Object.entries(data.dataFiles)) {
+    files[`${HARNESS_ROOT}/data/${name}`] = text;
+  }
+  Object.assign(files, harnessFilesAt(HARNESS_ROOT)); // 하네스 지문이 읽는 합성 구현 파일
   for (const [rel, text] of Object.entries(data.cacheFiles)) {
     files[`/cache/${SYNTHETIC_CACHE_DIR}/${rel}`] = text;
   }
@@ -82,7 +95,7 @@ function makeWorld(
       envCalls.push(name);
       return env[name];
     },
-    dataDir: "/data",
+    dataDir: `${HARNESS_ROOT}/data`,
     platform: options.platform ?? "linux",
   };
   return { deps, fs, git, out, err, portCalls, gitCalls, envCalls, spawnCalls };
@@ -539,6 +552,27 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
     expect(w.spawnCalls).toEqual([]);
   });
 
+  it("run은 고정 입력 폴더(data/)의 부모를 하네스 루트로 넘겨 하네스 지문을 계산한다", async () => {
+    const w = makeWorld({ env: passEnv });
+    await main(withGuard({}), w.deps);
+    const decoder = new TextDecoder();
+    const run = JSON.parse(decoder.decode(await w.fs.readFile("/evidence/run-cli-1/run.json"))) as {
+      inputs: Record<string, unknown>;
+    };
+    const expected = harnessFingerprintOf(
+      Object.entries(SYNTHETIC_HARNESS_FILES)
+        .filter(([rel]) => isHarnessImplementationFile(rel))
+        .map(([rel, text]) => ({ path: rel, sha256: sha256Hex(text) }))
+    );
+    expect(run.inputs.harness_sha256).toBe(expected);
+    // 관측하지 못한 도구 사실이 있으므로 결합은 null이고, 대조 고정 입력이 이 세계에 없어 대조 지문도 null이다.
+    expect(run.inputs.binding_sha256).toBeNull();
+    expect(run.inputs.control_sha256).toBeNull();
+    const text = decoder.decode(await w.fs.readFile("/evidence/run-cli-1/fingerprints.txt"));
+    expect(text).toContain(`harness_sha256	${expected}`);
+    expect(text).toContain("binding_sha256	(확인하지 못함)");
+  });
+
   it("다른 파일(설정·임계값·훅)은 읽거나 쓰지 않는다: 접근한 곳은 고정 입력·지정한 경로뿐이다", async () => {
     const w = makeWorld({ env: passEnv });
     const touched: string[] = [];
@@ -552,7 +586,7 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
     };
     await main(withGuard({}), w.deps);
     for (const path of touched) {
-      expect(path).toMatch(/^\/(data|cache|evidence|scan|opt\/semgrep|repo|ctl)(\/|$)/);
+      expect(path).toMatch(/^\/(harness|cache|evidence|scan|opt\/semgrep|repo|ctl)(\/|$)/);
       expect(path).not.toMatch(/quality\.yaml|lsp\.yaml|\.moai\/config|hooks/);
     }
   });

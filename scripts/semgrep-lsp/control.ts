@@ -20,8 +20,12 @@
 // 공개 API:
 //   evaluateControlAssertions(expectations, observed, { applicable, negativeControls? }): ControlAssertions
 //   NEGATIVE_CONTROL_TABLE: R1~R9 자료(기대 상태·사전 검사 사유)
-//   defaultNegativeControls(): NegativeControlResult[]     전부 observed=null, NOT_RUN
-//   markPreflightNegativeControls(base, produced)          사전 검사가 실제로 낸 사유가 있을 때만 PASS
+//   defaultNegativeControls(): NegativeControlResult[]     엔진 9 + 사전 검사 7 = 16개, 전부 observed=null, NOT_RUN, 결합 null
+//   markPreflightNegativeControls(base, produced, binding) 사전 검사 층만, 사전 검사가 실제로 낸 사유가 있을 때만 PASS
+//
+// 음성 대조는 "층"을 가진다: preflight(서버 없는 사전 검사의 거부)와 engine(실제 엔진을 띄운 진단 실행). 사전 검사 PASS는 엔진
+// 항목을 바꾸지 않으며, 엔진 항목을 PASS로 표시하는 운영 함수는 없다(엔진 실행은 이 변경의 범위 밖이다). 각 PASS에는 그 결과를
+// 얻은 결합(binding_sha256)이 찍혀 다른 실행의 PASS를 빌려 쓸 수 없다.
 
 import {
   REASON_STATUS,
@@ -128,14 +132,30 @@ export const NEGATIVE_CONTROL_TABLE: readonly NegativeControlSpec[] = [
   },
 ];
 
-/** 기본 기록: 이 변경에서 엔진이 필요한 것은 실행하지 않았으므로 전부 관측 없음·NOT_RUN. */
+/** 기본 기록: 모든 id의 엔진 항목 + 사전 검사가 있는 id의 사전 검사 항목. 아무것도 실행하지 않았으므로 전부 관측 없음·NOT_RUN·결합 null. */
 export function defaultNegativeControls(): NegativeControlResult[] {
-  return NEGATIVE_CONTROL_TABLE.map((spec) => ({
-    id: spec.id,
-    expected: spec.expected,
-    observed: null,
-    status: "NOT_RUN" as const,
-  }));
+  const out: NegativeControlResult[] = [];
+  for (const spec of NEGATIVE_CONTROL_TABLE) {
+    out.push({
+      id: spec.id,
+      layer: "engine",
+      expected: spec.expected,
+      observed: null,
+      status: "NOT_RUN",
+      binding_sha256: null,
+    });
+    if (spec.preflight !== null) {
+      out.push({
+        id: spec.id,
+        layer: "preflight",
+        expected: spec.preflight.status,
+        observed: null,
+        status: "NOT_RUN",
+        binding_sha256: null,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -143,12 +163,14 @@ export function defaultNegativeControls(): NegativeControlResult[] {
  * · PASS: 넘긴 사유 목록에 그 id의 사전 검사 사유가 들어 있다. `expected`·`observed`는 사전 검사가 가리키는 상태다
  *   (R9에서 PASS는 "보내기 전에 거부했다"만 뜻한다 — ISOLATION_VIOLATION 관측은 엔진이 필요해 여전히 미실행이다).
  * · FAIL: 사유 목록에 그 사유가 없다(막아야 할 것을 못 막았다). observed는 넘긴 사유의 대표 상태(없으면 COMPLETE).
- * · 넘기지 않은 id는 기록을 그대로 둔다. 엔진이 필요한 id(R6·R8)나 알 수 없는 id는 던진다 — 사전 검사로
+ * · 표시한 항목에는 bindingSha256을 찍는다(그 결과를 얻은 결합).
+ * · 넘기지 않은 id와 모든 엔진 항목은 기록을 그대로 둔다. 엔진이 필요한 id(R6·R8)나 알 수 없는 id는 던진다 — 사전 검사로
  *   PASS를 표시할 수 없다. 원본 배열은 바꾸지 않는다.
  */
 export function markPreflightNegativeControls(
   base: readonly NegativeControlResult[],
-  produced: Readonly<Record<string, readonly Reason[]>>
+  produced: Readonly<Record<string, readonly Reason[]>>,
+  bindingSha256: string
 ): NegativeControlResult[] {
   const specs = new Map(NEGATIVE_CONTROL_TABLE.map((s) => [s.id, s]));
   for (const id of Object.keys(produced)) {
@@ -159,23 +181,27 @@ export function markPreflightNegativeControls(
   }
   return base.map((entry) => {
     const reasons = produced[entry.id];
-    if (reasons === undefined) return { ...entry };
+    if (entry.layer !== "preflight" || reasons === undefined) return { ...entry };
     const preflight = (specs.get(entry.id) as NegativeControlSpec).preflight as NonNullable<
       NegativeControlSpec["preflight"]
     >;
     if (reasons.some((r) => r.code === preflight.reason)) {
       return {
         id: entry.id,
+        layer: "preflight" as const,
         expected: preflight.status,
         observed: preflight.status,
         status: "PASS" as const,
+        binding_sha256: bindingSha256,
       };
     }
     return {
       id: entry.id,
+      layer: "preflight" as const,
       expected: preflight.status,
       observed: representativeStatus(reasons),
       status: "FAIL" as const,
+      binding_sha256: bindingSha256,
     };
   });
 }

@@ -14,8 +14,21 @@ import {
   expectedRulesSha256,
   rulesListSha256,
 } from "../rules-manifest";
+import {
+  buildBinding,
+  controlFingerprintOf,
+  harnessFingerprintOf,
+  isHarnessImplementationFile,
+} from "../fingerprint";
 import { gitBlobSha1, sha256Hex } from "../sha";
-import type { ControlExpectations, ExpectedRule, Pin, RuleFileEntry, ScopeConfig } from "../types";
+import type {
+  ControlExpectations,
+  ExpectedRule,
+  Pin,
+  ReferenceFingerprints,
+  RuleFileEntry,
+  ScopeConfig,
+} from "../types";
 
 export function dataFileText(name: string): string {
   return readFileSync(fileURLToPath(new URL(`../data/${name}`, import.meta.url)), "utf8");
@@ -121,5 +134,77 @@ export function buildSyntheticData(): SyntheticData {
     rulesFiles,
     dataFiles,
     cacheFiles,
+  };
+}
+
+// ── 합성 하네스 구현 파일(하네스 지문 시험용) ─────────────────────
+
+export const SYNTHETIC_HARNESS_ROOT = "/harness";
+
+/**
+ * 하네스 루트 기준 상대 경로 → 내용. 앞의 세 개는 지문에 들어가는 구현 파일(중첩 포함)이고, 나머지는 지문 범위 밖
+ * (시험·testing·문서)이라 바꿔도 지문이 달라지지 않아야 한다. 실제 하네스 소스가 아니라 자리표시 내용이다.
+ */
+export const SYNTHETIC_HARNESS_FILES: Readonly<Record<string, string>> = {
+  "evaluate.ts": "// 합성 하네스 구현 파일 A\nexport const a = 1;\n",
+  "sub/stub-child.mjs": "// 합성 하네스 구현 파일 B\nexport const b = 2;\n",
+  "sub/deep/helper.ts": "// 합성 하네스 구현 파일 C\nexport const c = 3;\n",
+  "evaluate.test.ts": "// 지문 범위 밖: 시험 파일\n",
+  "testing/support.ts": "// 지문 범위 밖: 시험 지원 파일\n",
+  "README.md": "# 지문 범위 밖: 문서\n",
+};
+
+/** SYNTHETIC_HARNESS_FILES를 root 아래의 절대 경로 → 내용으로 바꾼다(MemoryFs 초기값에 펼쳐 쓴다). */
+export function harnessFilesAt(root: string = SYNTHETIC_HARNESS_ROOT): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(SYNTHETIC_HARNESS_FILES)) {
+    out[`${root.replace(/\/+$/, "")}/${rel}`] = text;
+  }
+  return out;
+}
+
+/**
+ * 합성 실행 환경이 하네스 계산으로 얻을 이번 실행의 지문을 순수 함수로 미리 계산한다. 시험이 완전히 자격을 갖춘 대조 참조를
+ * 만들 때 쓴다(하네스가 같은 값을 계산하면 target 판정이 일치로 읽는다).
+ */
+export function syntheticFingerprints(args: {
+  toolVersion: string;
+  wheelSha256: string;
+  pinSha256: string;
+  rulesListSha256: string;
+  rulesExpectedSha256: string;
+  expectationsText: string;
+  controlExpectations: ControlExpectations;
+  fixtureBytes: (fixture: string) => Uint8Array;
+}): ReferenceFingerprints {
+  const harness = harnessFingerprintOf(
+    Object.entries(SYNTHETIC_HARNESS_FILES)
+      .filter(([rel]) => isHarnessImplementationFile(rel))
+      .map(([rel, text]) => ({ path: rel, sha256: sha256Hex(text) }))
+  );
+  const control = controlFingerprintOf(
+    sha256Hex(args.expectationsText),
+    args.controlExpectations.cases.map((c) => ({
+      path: c.path,
+      fixture: c.fixture,
+      sha256: sha256Hex(args.fixtureBytes(c.fixture)),
+    }))
+  );
+  return {
+    harness_sha256: harness,
+    control_sha256: control,
+    rules_list_sha256: args.rulesListSha256,
+    rules_expected_sha256: args.rulesExpectedSha256,
+    tool_version: args.toolVersion,
+    wheel_sha256: args.wheelSha256,
+    binding_sha256: buildBinding({
+      tool_version: args.toolVersion,
+      wheel_sha256: args.wheelSha256,
+      pin_sha256: args.pinSha256,
+      rules_list_sha256: args.rulesListSha256,
+      rules_expected_sha256: args.rulesExpectedSha256,
+      harness_sha256: harness,
+      control_sha256: control,
+    }),
   };
 }

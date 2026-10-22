@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,12 +16,20 @@ import {
   assertConsistent,
   buildRecord,
   codesOf,
+  qualifiedReference,
   targetInputs,
   targetSpec,
 } from "./testing/evaluate-fixtures";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
-import { SYNTHETIC_CACHE_DIR, SYNTHETIC_WHEEL, buildSyntheticData } from "./testing/synthetic-data";
+import {
+  SYNTHETIC_CACHE_DIR,
+  SYNTHETIC_HARNESS_ROOT,
+  SYNTHETIC_WHEEL,
+  buildSyntheticData,
+  harnessFilesAt,
+  syntheticFingerprints,
+} from "./testing/synthetic-data";
 import { happyScript, type StubPatch, type StubScript } from "./testing/stub-lsp";
 import { validateTranscript } from "./testing/transcript-builder";
 import { expectedUri } from "./uri";
@@ -336,7 +345,7 @@ describe("process-node + 스텁 자식 — 취소", () => {
 // ── 하네스 끝에서 끝까지(MemoryFs·MemoryGit 위, 자식만 진짜) ─────
 
 describe("process-node + 스텁 자식 — 하네스", () => {
-  it("runHarness(target)가 스텁 자식으로 증거 8개를 쓰고 레코드는 stub·SYNTHETIC·UNVERIFIED다", async () => {
+  it("runHarness(target)가 스텁 자식으로 증거 9개를 쓰고 레코드는 stub·SYNTHETIC·UNVERIFIED다", async () => {
     const data = buildSyntheticData();
     const { pin, ruleModel, rulesFiles, scopeConfig } = data;
     const SHA = "a".repeat(40);
@@ -345,7 +354,14 @@ describe("process-node + 스텁 자식 — 하네스", () => {
     for (const [rel, text] of Object.entries(data.cacheFiles)) {
       files[`/cache/${SYNTHETIC_CACHE_DIR}/${rel}`] = text;
     }
-    const fs = new MemoryFs(files);
+    Object.assign(files, harnessFilesAt()); // 하네스 지문이 읽는 합성 구현 파일
+    // 대조 고정 입력(.in)은 대조 지문 계산에 읽힌다 — 저장소의 정적 입력 바이트를 그대로 둔다.
+    const fixtureBytes = (fixture: string): Uint8Array =>
+      readFileSync(fileURLToPath(new URL(`../../${fixture}`, import.meta.url)));
+    const bytesFiles: Record<string, string | Uint8Array> = { ...files };
+    for (const c of data.controlExpectations.cases)
+      bytesFiles[`/repo/${c.fixture}`] = fixtureBytes(c.fixture);
+    const fs = new MemoryFs(bytesFiles);
     const git = new MemoryGit({
       [SHA]: {
         "src/a.ts": "export const a = 1;\n",
@@ -370,6 +386,7 @@ describe("process-node + 스텁 자식 — 하네스", () => {
       targetSha: SHA,
       runId: "run-integration-harness",
       dataDir: "/data",
+      harnessRoot: SYNTHETIC_HARNESS_ROOT,
       evidenceRoot: "/evidence",
       rulesCacheRoot: `/cache/${SYNTHETIC_CACHE_DIR}`,
       scanRoot,
@@ -378,14 +395,20 @@ describe("process-node + 스텁 자식 — 하네스", () => {
       spawn: spawnSpec(script),
       limits: GENEROUS,
       settings: { timeout: 5, timeoutThreshold: 3 },
-      controlReference: {
-        run_id: "control-ref-synthetic",
-        provenance: "real",
-        status: "COMPLETE",
-        control_assertions_status: "PASS",
-        pin_sha256: data.pinSha256,
-        n0_confirmed: true,
-      },
+      // 음성 대조 16개가 PASS이고 지문이 일치하는 "가정"의 real 참조(실제 실행으로 얻은 것이 아니다).
+      controlReference: qualifiedReference(
+        syntheticFingerprints({
+          toolVersion: pin.semgrep.version,
+          wheelSha256: SYNTHETIC_WHEEL,
+          pinSha256: data.pinSha256,
+          rulesListSha256: pin.rules.yaml_list_sha256,
+          rulesExpectedSha256: pin.rules.expected_rules_sha256,
+          expectationsText: data.dataFiles["control-expectations.json"],
+          controlExpectations: data.controlExpectations,
+          fixtureBytes,
+        }),
+        { run_id: "control-ref-synthetic", pin_sha256: data.pinSha256 }
+      ),
       toolVersionObserved: pin.semgrep.version,
       wheelSha256Observed: SYNTHETIC_WHEEL,
       lockHeld: true,

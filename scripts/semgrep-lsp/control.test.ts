@@ -292,6 +292,8 @@ describe("applicable=false (target 모드)", () => {
   });
 });
 
+const BINDING = "d".repeat(64);
+
 describe("음성 대조 R1~R9", () => {
   it("표는 R1~R9를 순서대로 가지며 기대 상태는 rev2 4.1과 같다", () => {
     expect(NEGATIVE_CONTROL_TABLE.map((e) => e.id)).toEqual([
@@ -326,12 +328,15 @@ describe("음성 대조 R1~R9", () => {
     for (const id of ["R1", "R2", "R3", "R4", "R5", "R7", "R9"]) expect(byId[id]).not.toBeNull();
   });
 
-  it("기본 기록은 전부 observed=null, status NOT_RUN이다", () => {
+  it("기본 기록은 엔진 9개 + 사전 검사 7개이고 전부 observed=null, status NOT_RUN, 결합 null이다", () => {
     const base = defaultNegativeControls();
-    expect(base).toHaveLength(9);
+    expect(base).toHaveLength(16);
+    expect(base.filter((n) => n.layer === "engine")).toHaveLength(9);
+    expect(base.filter((n) => n.layer === "preflight")).toHaveLength(7);
     for (const n of base) {
       expect(n.observed).toBeNull();
       expect(n.status).toBe("NOT_RUN");
+      expect(n.binding_sha256).toBeNull();
     }
     const result = run(detected());
     expect(result.negative_controls).toEqual(base);
@@ -395,15 +400,22 @@ describe("음성 대조 R1~R9", () => {
           return validateInitializationOptions(o);
         })(),
       };
-      const marked = markPreflightNegativeControls(defaultNegativeControls(), produced);
-      const byId = Object.fromEntries(marked.map((n) => [n.id, n]));
+      const marked = markPreflightNegativeControls(defaultNegativeControls(), produced, BINDING);
+      const byId = Object.fromEntries(
+        marked.filter((n) => n.layer === "preflight").map((n) => [n.id, n])
+      );
       for (const id of ["R1", "R2", "R3", "R4", "R5", "R7", "R9"]) {
         expect(byId[id].status).toBe("PASS");
         expect(byId[id].observed).not.toBeNull();
+        expect(byId[id].binding_sha256).toBe(BINDING);
       }
+      // 사전 검사 PASS는 엔진 항목을 바꾸지 않는다.
+      expect(marked.filter((n) => n.layer === "engine").every((n) => n.status === "NOT_RUN")).toBe(
+        true
+      );
       // 엔진이 필요한 것은 그대로다.
-      expect(byId.R6.status).toBe("NOT_RUN");
-      expect(byId.R8.status).toBe("NOT_RUN");
+      expect(marked.find((n) => n.id === "R6")?.status).toBe("NOT_RUN");
+      expect(marked.find((n) => n.id === "R8")?.status).toBe("NOT_RUN");
       // 표시한 결과를 평가에 넣어도 전체 상태는 PASS(NOT_RUN 음성 대조는 막지 않는다).
       const result = evaluateControlAssertions(expectations, detected(), {
         applicable: true,
@@ -415,8 +427,8 @@ describe("음성 대조 R1~R9", () => {
   });
 
   it("맞는 사유가 나오지 않았으면 PASS가 아니라 FAIL이고 전체 control_assertions도 FAIL이다", () => {
-    const marked = markPreflightNegativeControls(defaultNegativeControls(), { R1: [] });
-    const r1 = marked.find((n) => n.id === "R1");
+    const marked = markPreflightNegativeControls(defaultNegativeControls(), { R1: [] }, BINDING);
+    const r1 = marked.find((n) => n.id === "R1" && n.layer === "preflight");
     expect(r1?.status).toBe("FAIL");
     expect(r1?.observed).toBe("COMPLETE");
     const result = evaluateControlAssertions(expectations, detected(), {
@@ -427,30 +439,42 @@ describe("음성 대조 R1~R9", () => {
   });
 
   it("다른 사유가 났다고 PASS가 되지 않는다", () => {
-    const marked = markPreflightNegativeControls(defaultNegativeControls(), {
-      R7: [{ code: "LOCK_NOT_ACQUIRED" }],
-    });
-    expect(marked.find((n) => n.id === "R7")?.status).toBe("FAIL");
+    const marked = markPreflightNegativeControls(
+      defaultNegativeControls(),
+      { R7: [{ code: "LOCK_NOT_ACQUIRED" }] },
+      BINDING
+    );
+    expect(marked.find((n) => n.id === "R7" && n.layer === "preflight")?.status).toBe("FAIL");
   });
 
   it("제공하지 않은 id는 NOT_RUN을 유지하고, 알 수 없는 id는 거부한다", () => {
-    const marked = markPreflightNegativeControls(defaultNegativeControls(), {
-      R3: [{ code: "RULES_FILE_ADDED", detail: "x" }],
-    });
-    expect(marked.filter((n) => n.status === "PASS").map((n) => n.id)).toEqual(["R3"]);
-    expect(marked.filter((n) => n.status === "NOT_RUN")).toHaveLength(8);
-    expect(() => markPreflightNegativeControls(defaultNegativeControls(), { R10: [] })).toThrow();
+    const marked = markPreflightNegativeControls(
+      defaultNegativeControls(),
+      { R3: [{ code: "RULES_FILE_ADDED", detail: "x" }] },
+      BINDING
+    );
+    expect(marked.filter((n) => n.status === "PASS").map((n) => `${n.id}:${n.layer}`)).toEqual([
+      "R3:preflight",
+    ]);
+    expect(marked.filter((n) => n.status === "NOT_RUN")).toHaveLength(15);
+    expect(() =>
+      markPreflightNegativeControls(defaultNegativeControls(), { R10: [] }, BINDING)
+    ).toThrow();
   });
 
   it("엔진이 필요한 R6·R8은 사유를 줘도 표시하지 않고 거부한다", () => {
     expect(() =>
-      markPreflightNegativeControls(defaultNegativeControls(), { R6: [{ code: "TIMEOUT_RULES" }] })
+      markPreflightNegativeControls(
+        defaultNegativeControls(),
+        { R6: [{ code: "TIMEOUT_RULES" }] },
+        BINDING
+      )
     ).toThrow();
   });
 
   it("원본 배열을 바꾸지 않는다", () => {
     const base = defaultNegativeControls();
-    markPreflightNegativeControls(base, { R3: [{ code: "RULES_FILE_ADDED" }] });
-    expect(base.every((n) => n.status === "NOT_RUN")).toBe(true);
+    markPreflightNegativeControls(base, { R3: [{ code: "RULES_FILE_ADDED" }] }, BINDING);
+    expect(base.every((n) => n.status === "NOT_RUN" && n.binding_sha256 === null)).toBe(true);
   });
 });

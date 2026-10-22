@@ -50,12 +50,13 @@ function observed(t: Totals | null): ObservedFacts {
     scan: {
       scannedFilesK: null,
       foundMatchesM: null,
+      matchesDeduplicated: null,
       engineErrorsText: null,
       barrierSeen: false,
       preScanEchoSeen: false,
       postBarrierEchoSeen: false,
     },
-    published: { uris: [], duplicates: [], missing: [], unexpected: [] },
+    published: { diagnosticCount: null, uris: [], duplicates: [], missing: [], unexpected: [] },
     totals: t,
     perFile: {},
     perRule: {},
@@ -113,6 +114,12 @@ const INPUTS = {
   rules_list_sha256: "3".repeat(64),
   rules_expected_sha256: "4".repeat(64),
   control_tree_sha256: null,
+  // 지문은 이 파일의 시험이 보는 대상이 아니다(reference.test·regression 시험이 본다): 확인하지 못한 값으로 둔다.
+  harness_sha256: null,
+  control_sha256: null,
+  tool_version_observed: null,
+  wheel_sha256_observed: null,
+  binding_sha256: null,
 };
 
 const CONTROL_REFERENCE = {
@@ -122,6 +129,17 @@ const CONTROL_REFERENCE = {
   control_assertions_status: "PASS" as const,
   pin_sha256: "1".repeat(64),
   n0_confirmed: true,
+  eligible: false,
+  fingerprints: {
+    harness_sha256: null,
+    control_sha256: null,
+    rules_list_sha256: "3".repeat(64),
+    rules_expected_sha256: "4".repeat(64),
+    tool_version: null,
+    wheel_sha256: null,
+    binding_sha256: null,
+  },
+  negative_controls: [],
 };
 
 function args(
@@ -138,6 +156,7 @@ function args(
     inputs: mode === "target" ? INPUTS : { ...INPUTS, target_sha: null, scope_sha256: null },
     phasesReached: ["PH0", "PH1"] as Phase[],
     controlReference: mode === "target" ? CONTROL_REFERENCE : null,
+    n0Confirmed: true,
     ...patch,
   };
 }
@@ -225,6 +244,7 @@ describe("buildRunRecord: 필드 분리 (ADR D5)", () => {
         "not_executed",
         "observed",
         "provenance",
+        "reference_qualification",
         "run_id",
         "schema",
         "trust",
@@ -555,6 +575,7 @@ function bundle(): EvidenceBundle {
     filesPublished: ["src/a.ts", "src/b.ts"],
     filesMissing: [],
     scopeTsv: "src/a.ts\tabc\tinclude\t\n",
+    fingerprintsTxt: "harness_sha256\t(확인하지 못함)\n",
   };
 }
 
@@ -572,6 +593,7 @@ describe("writeEvidence", () => {
         "files.expected.txt",
         "files.missing.txt",
         "files.published.txt",
+        "fingerprints.txt",
         "lsp-transcript.jsonl",
         "run.json",
         "scope.tsv",

@@ -8,12 +8,12 @@
 //   HarnessDeps / HarnessOptions / HarnessResult
 //
 // 결과의 읽는 법:
-//  · ok = 파이프라인이 끝까지 돌았고 증거 파일 8개가 모두 쓰였다는 뜻이다. 측정이 완료됐다는 뜻이 아니다
+//  · ok = 파이프라인이 끝까지 돌았고 증거 파일 9개가 모두 쓰였다는 뜻이다. 측정이 완료됐다는 뜻이 아니다
 //    (사전 검사 거부·시간 초과도 ok:true이며 record.measurement.status가 그 이유를 담는다).
 //  · ok:false = 하드 실패(입력을 읽지 못함, 범위 계산·트리 쓰기·증거 쓰기에서 무결성 예외, 잘못된 설정,
 //    이미 있는 증거). 이때 record는 null이다 — 증거가 모두 쓰이지 않은 채 측정 레코드를 내보내지 않는다.
 //    하드 실패는 어떤 경우에도 COMPLETE로 읽히지 않는다.
-//  · record.measurement.complete === true는 증거 8개가 모두 쓰이고 다시 읽어 확인된 뒤에만 반환된다.
+//  · record.measurement.complete === true는 증거 9개가 모두 쓰이고 다시 읽어 확인된 뒤에만 반환된다.
 //  · started = 프로세스가 실제로 떴는가(spawn 사건이 있는가).
 //
 // 사전 검사가 하나라도 사유를 내면 서버를 띄우지 않는다. 이때의 판정은 "아무것도 시작하지 않은" 빈 트랜스크립트를
@@ -32,6 +32,7 @@ import {
   writeEvidence,
   type WriteEvidenceResult,
 } from "./evidence";
+import { buildBinding, computeControlFingerprint, computeHarnessFingerprint } from "./fingerprint";
 import type { LogFormat } from "./log-matcher";
 import { buildControlTree, runPrecheck } from "./precheck";
 import {
@@ -57,6 +58,7 @@ import {
   type Phase,
   type Pin,
   type ProcessPort,
+  type ReferenceFingerprints,
   type RuleFileEntry,
   type RunRecord,
   type ScopeConfig,
@@ -84,6 +86,8 @@ export interface HarnessOptions {
   runId: string;
   /** pin.json·scope.json·rules-files.tsv·rules-expected.tsv·control-expectations.json이 있는 폴더. */
   dataDir: string;
+  /** 하네스 구현 파일이 있는 폴더(scripts/semgrep-lsp). 하네스 지문을 계산할 때 읽는다. */
+  harnessRoot: string;
   /** 증거를 쓸 기준 폴더. 증거는 `<evidenceRoot>/<runId>/`에 쓴다(이미 있는 파일은 덮어쓰지 않는다). */
   evidenceRoot: string;
   /** 규칙 캐시(`semgrep-rules`) 자신. */
@@ -273,6 +277,29 @@ function transcriptJsonl(transcript: Transcript): string {
   return toJsonl([{ kind: "meta", ...transcript.meta }, ...transcript.events]);
 }
 
+/** 지문 불일치를 진단할 수 있게 값과 매니페스트를 남긴다. 계산하지 못한 지문은 그 사실을 적는다. */
+function fingerprintsText(
+  f: ReferenceFingerprints,
+  harnessManifest: string | null,
+  controlManifest: string | null
+): string {
+  const field = (name: string, value: string | null) =>
+    name + "\t" + (value ?? "(확인하지 못함)") + "\n";
+  const section = (title: string, manifest: string | null) =>
+    "\n[" + title + "]\n" + (manifest ?? "(계산하지 못했다)\n");
+  return (
+    field("harness_sha256", f.harness_sha256) +
+    field("control_sha256", f.control_sha256) +
+    field("tool_version_observed", f.tool_version) +
+    field("wheel_sha256_observed", f.wheel_sha256) +
+    field("rules_list_sha256", f.rules_list_sha256) +
+    field("rules_expected_sha256", f.rules_expected_sha256) +
+    field("binding_sha256", f.binding_sha256) +
+    section("harness manifest", harnessManifest) +
+    section("control manifest", controlManifest)
+  );
+}
+
 function scopeTsv(mode: Mode, scope: ScopeResult | null, controls: ControlExpectations): string {
   if (mode === "target") {
     return (scope?.entries ?? [])
@@ -309,6 +336,7 @@ function checkOptions(options: HarnessOptions): void {
   }
   const paths = [
     "dataDir",
+    "harnessRoot",
     "evidenceRoot",
     "rulesCacheRoot",
     "scanRoot",
@@ -369,6 +397,35 @@ async function execute(
     throw new HardFailure("inputs", errorText(error));
   }
   const pinSha256 = sha256Hex(pinBytes);
+
+  // 1b. 지문과 결합: 읽기 실패는 던지지 않고 null(확인하지 못함)이다. null이 섞인 결합은 null이라 어떤 참조와도 일치하지 않는다.
+  const [harnessFp, controlFp] = await Promise.all([
+    computeHarnessFingerprint(fs, options.harnessRoot),
+    computeControlFingerprint(fs, {
+      expectationsPath: joinPath(options.dataDir, "control-expectations.json"),
+      fixturesRoot: options.controlFixturesRoot,
+      expectations: controlExpectations,
+    }),
+  ]);
+  const listSha = rulesListSha256(rulesFiles);
+  const expectedSha = expectedRulesSha256(expectedRules);
+  const currentFingerprints: ReferenceFingerprints = {
+    harness_sha256: harnessFp?.sha256 ?? null,
+    control_sha256: controlFp?.sha256 ?? null,
+    rules_list_sha256: listSha,
+    rules_expected_sha256: expectedSha,
+    tool_version: options.toolVersionObserved,
+    wheel_sha256: options.wheelSha256Observed,
+    binding_sha256: buildBinding({
+      tool_version: options.toolVersionObserved,
+      wheel_sha256: options.wheelSha256Observed,
+      pin_sha256: pinSha256,
+      rules_list_sha256: listSha,
+      rules_expected_sha256: expectedSha,
+      harness_sha256: harnessFp?.sha256 ?? null,
+      control_sha256: controlFp?.sha256 ?? null,
+    }),
+  };
 
   // 2. 서버로 보낼 설정(허용 키 검사는 보내기 전에 한다)과 세션 설정 검사
   const serverRoot = mode === "target" ? options.scanRoot : options.controlTreeRoot;
@@ -480,6 +537,7 @@ async function execute(
     precheckReasons: refusals,
     pinSha256,
     controlReference: mode === "target" ? options.controlReference : null,
+    currentFingerprints,
     metricsReceiverHits: options.metricsReceiverHits,
   };
 
@@ -523,12 +581,18 @@ async function execute(
       target_sha: resolvedSha,
       pin_sha256: pinSha256,
       scope_sha256: scope?.scopeSha256 ?? null,
-      rules_list_sha256: rulesListSha256(rulesFiles),
-      rules_expected_sha256: expectedRulesSha256(expectedRules),
+      rules_list_sha256: listSha,
+      rules_expected_sha256: expectedSha,
       control_tree_sha256: controlTreeSha,
+      harness_sha256: currentFingerprints.harness_sha256,
+      control_sha256: currentFingerprints.control_sha256,
+      tool_version_observed: currentFingerprints.tool_version,
+      wheel_sha256_observed: currentFingerprints.wheel_sha256,
+      binding_sha256: currentFingerprints.binding_sha256,
     },
     phasesReached: phasesOf(transcript),
     controlReference: mode === "target" ? options.controlReference : null,
+    n0Confirmed: pin.n0.confirmed,
   });
 
   const expectedPaths =
@@ -549,6 +613,11 @@ async function execute(
         filesPublished: verdict.observed.published.uris,
         filesMissing: verdict.observed.published.missing,
         scopeTsv: scopeTsv(mode, scope, controlExpectations),
+        fingerprintsTxt: fingerprintsText(
+          currentFingerprints,
+          harnessFp?.manifest ?? null,
+          controlFp?.manifest ?? null
+        ),
       },
       { secrets }
     );
@@ -556,7 +625,7 @@ async function execute(
     throw new HardFailure("evidence", errorText(error));
   }
 
-  // 쓴 것을 다시 확인한다: 증거 8개가 모두 있고 run.json의 해시가 반환값과 같을 때만 레코드를 내보낸다.
+  // 쓴 것을 다시 확인한다: 증거 9개가 모두 있고 run.json의 해시가 반환값과 같을 때만 레코드를 내보낸다.
   for (const name of EVIDENCE_FILE_NAMES) {
     if (!(await fs.exists(joinPath(evidenceDir, name)))) {
       throw new HardFailure("evidence", `쓴 증거를 다시 확인하지 못했다: ${name}`);
@@ -598,6 +667,9 @@ export async function runHarness(
  * control 실행의 레코드를 target 실행이 받는 대조 참조 요약으로 바꾼다. provenance는 레코드 그대로 옮기므로
  * 스텁 실행의 요약은 "stub"이고, target 판정(evaluate)은 이를 CONTROL_REFERENCE_SYNTHETIC으로 거부한다.
  * n0Confirmed는 레코드에 없는 사실(핀의 N0 확정 여부)이라 호출자가 넘긴다.
+ * 요약은 판정이 아니라 사실을 싣는다: 지문 묶음과 음성 대조(층·결합 포함). eligible은 레코드가 계산한 자격과 n0Confirmed의
+ * 논리곱일 뿐 자기 선언이며, target 판정은 이 값을 믿지 않고 사실로 다시 계산한다. 자격이 없는 레코드도 던지지 않고
+ * eligible:false로 그대로 요약한다.
  */
 export function toControlReference(
   record: RunRecord,
@@ -613,5 +685,21 @@ export function toControlReference(
     control_assertions_status: record.control_assertions.status,
     pin_sha256: record.inputs.pin_sha256,
     n0_confirmed: n0Confirmed,
+    eligible: record.reference_qualification.eligible && n0Confirmed,
+    fingerprints: {
+      harness_sha256: record.inputs.harness_sha256,
+      control_sha256: record.inputs.control_sha256,
+      rules_list_sha256: record.inputs.rules_list_sha256,
+      rules_expected_sha256: record.inputs.rules_expected_sha256,
+      tool_version: record.inputs.tool_version_observed,
+      wheel_sha256: record.inputs.wheel_sha256_observed,
+      binding_sha256: record.inputs.binding_sha256,
+    },
+    negative_controls: record.control_assertions.negative_controls.map((n) => ({
+      id: n.id,
+      layer: n.layer,
+      status: n.status,
+      binding_sha256: n.binding_sha256,
+    })),
   };
 }

@@ -355,3 +355,45 @@ describe("구조 (9) — 규칙 원문은 저장소에 없다", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", () => {
+  it("운영 소스(시험·testing/ 제외)는 testing/ 아래를 가져오지 않는다", () => {
+    const production = nonTest.filter((s) => !s.rel.startsWith("testing/"));
+    expect(production.length).toBeGreaterThan(20); // 검사가 헛돌지 않는다
+    const offenders = production
+      .filter((s) => specifiersOf(s.code).some((spec) => /(^|\/)testing(\/|$)/.test(spec)))
+      .map((s) => s.rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it("지문·참조·정규 직렬화 모듈은 순수하다: node:fs·child_process·net·process 접근이 없다", () => {
+    const pure = ["fingerprint.ts", "reference.ts", "canonical.ts"];
+    const FORBIDDEN = new Set([
+      "fs",
+      "child_process",
+      "net",
+      "http",
+      "https",
+      "dgram",
+      "dns",
+      "process",
+    ]);
+    for (const rel of pure) {
+      const s = byRel(rel);
+      const imported = specifiersOf(s.code).map((spec) => bare(spec).split("/")[0]);
+      expect(
+        imported.filter((m) => FORBIDDEN.has(m)),
+        rel
+      ).toEqual([]);
+      expect(s.code, rel).not.toMatch(/\bprocess\s*\.\s*(env|argv|exit|exitCode|binding)\b/);
+      expect(s.code, rel).not.toMatch(/(?<![.\w\\])fetch\s*\(/);
+    }
+  });
+
+  it("지문 계산은 FsPort로만 읽는다: fingerprint.ts는 FsPort를 받고 node:* 중 crypto 계열(sha.ts 경유)만 쓴다", () => {
+    const s = byRel("fingerprint.ts");
+    expect(s.code).toMatch(/computeHarnessFingerprint\(\s*fs:\s*FsPort/);
+    expect(s.code).toMatch(/computeControlFingerprint\(\s*fs:\s*FsPort/);
+    expect(specifiersOf(s.code).filter((spec) => spec.startsWith("node:"))).toEqual([]);
+  });
+});

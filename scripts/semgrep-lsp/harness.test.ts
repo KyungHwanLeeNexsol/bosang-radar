@@ -18,6 +18,12 @@ import { representativeStatus, type ReasonCode } from "./status";
 import { FakeChild, FakePort } from "./testing/fake-process";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
+import { qualifiedReference } from "./testing/evaluate-fixtures";
+import {
+  SYNTHETIC_HARNESS_ROOT,
+  harnessFilesAt,
+  syntheticFingerprints,
+} from "./testing/synthetic-data";
 import {
   StubLsp,
   drive,
@@ -157,18 +163,27 @@ function baseFiles(): Record<string, string | Uint8Array> {
   };
   for (const r of ruleModel) files[`/cache/${CACHE_DIR}/${r.file}`] = ruleContent(r.file);
   for (const c of controlExpectations.cases) files[`/repo/${c.fixture}`] = fixtureBytes(c.fixture);
+  Object.assign(files, harnessFilesAt()); // 하네스 지문이 읽는 합성 구현 파일
   return files;
 }
 
 const LIMITS = { init: 1000, rules: 2000, scan: 5000, echo: 1500, exit: 3000, killGrace: 200 };
-const SYNTHETIC_REAL_REFERENCE = {
+/** 이 환경에서 하네스가 계산할 이번 실행의 지문(순수 계산). 합성 대조 참조는 이 지문과 일치하도록 만든다. */
+const SYNTHETIC_FINGERPRINTS = syntheticFingerprints({
+  toolVersion: syntheticPin.semgrep.version,
+  wheelSha256: WHEEL,
+  pinSha256: PIN_SHA256,
+  rulesListSha256: syntheticPin.rules.yaml_list_sha256,
+  rulesExpectedSha256: syntheticPin.rules.expected_rules_sha256,
+  expectationsText: dataText("control-expectations.json"),
+  controlExpectations,
+  fixtureBytes,
+});
+// 음성 대조 16개가 모두 PASS이고 지문이 일치하는 "가정"의 real 대조 참조. 실제 실행으로 얻은 것이 아니다.
+const SYNTHETIC_REAL_REFERENCE = qualifiedReference(SYNTHETIC_FINGERPRINTS, {
   run_id: "control-ref-synthetic",
-  provenance: "real" as const,
-  status: "COMPLETE" as const,
-  control_assertions_status: "PASS" as const,
   pin_sha256: PIN_SHA256,
-  n0_confirmed: true,
-};
+});
 
 interface Env {
   fs: MemoryFs;
@@ -254,6 +269,7 @@ async function makeEnv(input: EnvInput): Promise<Env> {
     targetSha: input.mode === "target" ? sha : null,
     runId: "run-harness-1",
     dataDir: "/data",
+    harnessRoot: SYNTHETIC_HARNESS_ROOT,
     evidenceRoot: "/evidence",
     rulesCacheRoot: `/cache/${CACHE_DIR}`,
     scanRoot,
@@ -297,7 +313,7 @@ function reasonCodes(r: HarnessResult): ReasonCode[] {
   return [...new Set((r.record?.measurement.reasons ?? []).map((x) => x.code))].sort();
 }
 
-/** 어떤 결과든 지켜져야 하는 일관성: complete는 증거 8개가 모두 쓰인 뒤에만 나온다. */
+/** 어떤 결과든 지켜져야 하는 일관성: complete는 증거 9개가 모두 쓰인 뒤에만 나온다. */
 async function expectNeverCompleteWithoutEvidence(env: Env, r: HarnessResult): Promise<void> {
   if (r.record?.measurement.complete === true) {
     expect(r.ok).toBe(true);
@@ -811,7 +827,7 @@ describe("runHarness — 무결성 예외는 하드 실패다(COMPLETE로 읽히
 // ── 증거 ────────────────────────────────────────────────────────
 
 describe("runHarness — 증거 파일", () => {
-  it("D10의 8개 파일이 모두 쓰이고 run.json 해시가 반환값과 같다", async () => {
+  it("D10의 9개 파일이 모두 쓰이고 run.json 해시가 반환값과 같다", async () => {
     const env = await makeEnv({ mode: "target" });
     const r = await env.go();
     const files = await evidenceFiles(env);
@@ -829,7 +845,8 @@ describe("runHarness — 증거 파일", () => {
         !p.startsWith("scan/") &&
         !p.startsWith("data/") &&
         !p.startsWith("cache/") &&
-        !p.startsWith("repo/")
+        !p.startsWith("repo/") &&
+        !p.startsWith("harness/") // 하네스 지문이 읽는 합성 구현 파일(읽기 전용)
     );
     expect(outside).toEqual([]);
     expect(all.length).toBeGreaterThan(base);
@@ -1003,7 +1020,7 @@ describe("runHarness — 증거 없이는 record.measurement.complete === true�
     expect(r.failure?.message).toContain("run.json");
   });
 
-  it("여러 시나리오를 돌려도 complete는 항상 증거 8개와 함께만 나온다", async () => {
+  it("여러 시나리오를 돌려도 complete는 항상 증거 9개와 함께만 나온다", async () => {
     const scenarios: Partial<EnvInput>[] = [
       { mode: "target" },
       { mode: "control" },
@@ -1128,6 +1145,137 @@ describe("runHarness — 환경변수 값·기밀은 어디에도 나오지 않�
     expect(r.failure?.message).not.toContain(leak);
     expect(r.record).toBeNull();
     expect(await evidenceFiles(env)).toEqual({});
+  });
+});
+
+// ── 지문과 결합(PR #28 검토 발견 3) ─────────────────────────────
+
+describe("runHarness — 하네스·대조 지문과 결합", () => {
+  const FP = SYNTHETIC_FINGERPRINTS;
+
+  it("control 실행은 계산한 지문 일곱 값을 inputs에 싣고 fingerprints.txt에 값과 매니페스트를 남긴다", async () => {
+    const env = await makeEnv({ mode: "control" });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(rec.inputs.harness_sha256).toBe(FP.harness_sha256);
+    expect(rec.inputs.control_sha256).toBe(FP.control_sha256);
+    expect(rec.inputs.tool_version_observed).toBe(FP.tool_version);
+    expect(rec.inputs.wheel_sha256_observed).toBe(FP.wheel_sha256);
+    expect(rec.inputs.binding_sha256).toBe(FP.binding_sha256);
+    const text = (await evidenceFiles(env))["fingerprints.txt"];
+    expect(text).toContain(`harness_sha256\t${FP.harness_sha256}`);
+    expect(text).toContain(`binding_sha256\t${FP.binding_sha256}`);
+    expect(text).toContain("[harness manifest]\nsemgrep-lsp-harness-fingerprint/1\n");
+    expect(text).toContain("evaluate.ts\t"); // 포함 파일의 해시가 매니페스트에 있다
+    expect(text).not.toContain("evaluate.test.ts"); // 시험 파일은 지문 범위 밖이다
+    expect(text).toContain("[control manifest]\nsemgrep-lsp-control-fingerprint/1\n");
+  });
+
+  it("엔진 음성 대조를 실행하지 않은 control 실행은 reference_qualification이 불충족이고 요약은 eligible:false다", async () => {
+    const env = await makeEnv({ mode: "control" });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(rec.control_assertions.negative_controls).toHaveLength(16);
+    expect(rec.control_assertions.negative_controls.every((n) => n.status === "NOT_RUN")).toBe(
+      true
+    );
+    expect(rec.reference_qualification.applicable).toBe(true);
+    expect(rec.reference_qualification.eligible).toBe(false);
+    const unsatisfied = rec.reference_qualification.requirements
+      .filter((q) => !q.satisfied)
+      .map((q) => q.id);
+    // 출처(스텁)와 음성 대조 두 층이 불충족이다. 측정·단언·N0·지문은 충족이다.
+    expect(unsatisfied.sort()).toEqual(
+      ["NEGATIVE_ENGINE_PASS", "NEGATIVE_PREFLIGHT_PASS", "PROVENANCE_REAL"].sort()
+    );
+    const ref = toControlReference(rec, true);
+    expect(ref.eligible).toBe(false);
+    expect(ref.fingerprints).toEqual(FP);
+    expect(ref.negative_controls).toHaveLength(16);
+  });
+
+  it("target 실행의 reference_qualification은 해당 없음이다", async () => {
+    const env = await makeEnv({ mode: "target" });
+    const r = await env.go();
+    expect((r.record as RunRecord).reference_qualification).toEqual({
+      applicable: false,
+      eligible: false,
+      requirements: [],
+    });
+  });
+
+  it("하네스 구현 파일이 하나 달라지면 같은 참조라도 HARNESS_MISMATCH·BINDING_MISMATCH로 거부한다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      files: { [`${SYNTHETIC_HARNESS_ROOT}/evaluate.ts`]: "export const a = 2; // 수정\n" },
+    });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(rec.measurement.status).toBe("CONTROL_MISSING");
+    expect(reasonCodes(r)).toEqual(
+      expect.arrayContaining([
+        "CONTROL_REFERENCE_HARNESS_MISMATCH",
+        "CONTROL_REFERENCE_BINDING_MISMATCH",
+        "CONTROL_REFERENCE_NOT_ELIGIBLE",
+      ])
+    );
+    expect(rec.inputs.harness_sha256).not.toBe(FP.harness_sha256);
+    expect(rec.candidate_gate.value).toBeNull();
+  });
+
+  it("시험·testing·문서 파일을 바꿔도 지문과 판정은 그대로다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      files: {
+        [`${SYNTHETIC_HARNESS_ROOT}/evaluate.test.ts`]: "// 다른 시험\n",
+        [`${SYNTHETIC_HARNESS_ROOT}/testing/support.ts`]: "// 다른 지원\n",
+        [`${SYNTHETIC_HARNESS_ROOT}/README.md`]: "# 다른 문서\n",
+      },
+    });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(rec.inputs.harness_sha256).toBe(FP.harness_sha256);
+    expect(rec.measurement.status).toBe("COMPLETE");
+  });
+
+  it("하네스 루트를 읽지 못해도 던지지 않고 지문은 null이며 target은 FINGERPRINT_MISSING으로 거부한다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: { harnessRoot: "/no-such-harness" },
+    });
+    const r = await env.go();
+    expect(r.ok).toBe(true);
+    const rec = r.record as RunRecord;
+    expect(rec.inputs.harness_sha256).toBeNull();
+    expect(rec.inputs.binding_sha256).toBeNull();
+    expect(rec.measurement.status).toBe("CONTROL_MISSING");
+    expect(reasonCodes(r)).toEqual(
+      expect.arrayContaining([
+        "CONTROL_REFERENCE_FINGERPRINT_MISSING",
+        "CONTROL_REFERENCE_NOT_ELIGIBLE",
+      ])
+    );
+    const text = (await evidenceFiles(env))["fingerprints.txt"];
+    expect(text).toContain("harness_sha256\t(확인하지 못함)");
+    expect(text).toContain("[harness manifest]\n(계산하지 못했다)");
+  });
+
+  it("도구 버전을 관측하지 못하면 결합은 null이다(서버를 띄우지 않는 거부 실행에서도 기록한다)", async () => {
+    const env = await makeEnv({ mode: "control", options: { toolVersionObserved: null } });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(r.started).toBe(false);
+    expect(rec.inputs.tool_version_observed).toBeNull();
+    expect(rec.inputs.binding_sha256).toBeNull();
+    expect(rec.inputs.harness_sha256).toBe(FP.harness_sha256);
+  });
+
+  it("harnessRoot가 비어 있으면 config 단계의 하드 실패다", async () => {
+    const env = await makeEnv({ mode: "target", options: { harnessRoot: "" } });
+    const r = await env.go();
+    expect(r.ok).toBe(false);
+    expect(r.failure?.stage).toBe("config");
+    expect(r.failure?.message).toContain("harnessRoot");
   });
 });
 

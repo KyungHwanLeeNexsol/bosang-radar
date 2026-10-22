@@ -13,6 +13,8 @@
 //   writeEvidence(fs, dir, bundle, opts?): Promise<WriteEvidenceResult>
 //   DEFAULT_NOT_EXECUTED / EVIDENCE_FILE_NAMES / EvidenceWriteError
 
+import { canonicalJson } from "./canonical";
+import { qualifyControlRun } from "./reference";
 import { sha256Hex } from "./sha";
 import { representativeStatus, sortReasons, type Reason } from "./status";
 import {
@@ -29,87 +31,11 @@ import {
 
 // ── 정규 JSON ────────────────────────────────────────────────────
 
+// 직렬화 구현은 canonical.ts에 있다(지문 모듈과의 순환을 피하려고 옮겼다). 공개 이름은 여기서 그대로 내보낸다.
+export { canonicalJson, canonicalJsonLine, toJsonl } from "./canonical";
+
 function compareBytes(a: string, b: string): number {
   return Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
-}
-
-function serialize(
-  value: unknown,
-  pretty: boolean,
-  level: number,
-  stack: object[],
-  where: string
-): string {
-  if (value === null) return "null";
-  switch (typeof value) {
-    case "string":
-      return JSON.stringify(value);
-    case "boolean":
-      return value ? "true" : "false";
-    case "number":
-      if (!Number.isFinite(value)) throw new Error(`정규 JSON에 쓸 수 없는 숫자다: ${where}`);
-      return JSON.stringify(value);
-    case "object":
-      break;
-    default:
-      // undefined, function, symbol, bigint
-      throw new Error(`정규 JSON에 쓸 수 없는 값(${typeof value})이다: ${where}`);
-  }
-
-  const obj = value as object;
-  if (stack.includes(obj)) throw new Error(`순환 참조다: ${where}`);
-  const pad = (n: number) => (pretty ? "  ".repeat(n) : "");
-  const nl = pretty ? "\n" : "";
-  const sep = pretty ? ": " : ":";
-
-  if (Array.isArray(obj)) {
-    if (obj.length === 0) return "[]";
-    const next = [...stack, obj];
-    const items: string[] = [];
-    for (let i = 0; i < obj.length; i++) {
-      items.push(
-        `${pad(level + 1)}${serialize(obj[i], pretty, level + 1, next, `${where}[${i}]`)}`
-      );
-    }
-    return `[${nl}${items.join(`,${nl}`)}${nl}${pad(level)}]`;
-  }
-
-  const proto = Object.getPrototypeOf(obj);
-  if (
-    (proto !== Object.prototype && proto !== null) ||
-    Object.getOwnPropertySymbols(obj).length > 0
-  ) {
-    throw new Error(`평범한 객체가 아니다: ${where}`);
-  }
-  const keys = Object.keys(obj).sort(compareBytes);
-  if (keys.length === 0) return "{}";
-  const next = [...stack, obj];
-  const items = keys.map(
-    (key) =>
-      `${pad(level + 1)}${JSON.stringify(key)}${sep}${serialize(
-        (obj as Record<string, unknown>)[key],
-        pretty,
-        level + 1,
-        next,
-        `${where}.${key}`
-      )}`
-  );
-  return `{${nl}${items.join(`,${nl}`)}${nl}${pad(level)}}`;
-}
-
-/** 키 정렬, 2칸 들여쓰기, LF, 끝 줄바꿈. undefined·NaN·Infinity·함수 등은 던진다(fail-closed). */
-export function canonicalJson(value: unknown): string {
-  return `${serialize(value, true, 0, [], "$")}\n`;
-}
-
-/** JSONL 한 줄용: 키 정렬, 들여쓰기·끝 줄바꿈 없음. */
-export function canonicalJsonLine(value: unknown): string {
-  return serialize(value, false, 0, [], "$");
-}
-
-/** 값마다 한 줄. 빈 목록은 빈 문자열. */
-export function toJsonl(values: readonly unknown[]): string {
-  return values.map((v) => `${canonicalJsonLine(v)}\n`).join("");
 }
 
 // ── RunRecord ────────────────────────────────────────────────────
@@ -139,6 +65,8 @@ export interface BuildRunRecordArgs {
   phasesReached: readonly Phase[];
   /** target 모드에서 쓴 대조 실행의 요약. control 모드에서는 null이어야 한다. */
   controlReference: RunRecord["control_reference"];
+  /** 핀의 N0 확정 여부(레코드에 없는 사실이라 호출자가 넘긴다). control 실행의 참조 자격 계산에 쓴다. */
+  n0Confirmed: boolean;
   /** 기본 집합에 덮어쓰거나 더할 항목. 값은 null·NOT_RUN·UNVERIFIED만 허용한다. */
   notExecuted?: Readonly<Record<string, NotExecutedValue>>;
 }
@@ -243,7 +171,18 @@ export function buildRunRecord(args: BuildRunRecordArgs): RunRecord {
     },
     observed: structuredClone(verdict.observed),
     control_assertions: structuredClone(verdict.control_assertions),
-    control_reference: args.controlReference === null ? null : { ...args.controlReference },
+    control_reference:
+      args.controlReference === null ? null : structuredClone(args.controlReference),
+    // 참조 자격은 Verdict의 음성 대조(층·결합 포함)와 이 실행의 지문으로 여기서 다시 계산한다. 스텁 출처는 eligible이 될 수 없다.
+    reference_qualification: qualifyControlRun({
+      mode,
+      provenance,
+      measurementStatus: verdict.status,
+      controlAssertionsStatus: verdict.control_assertions.status,
+      n0Confirmed: args.n0Confirmed === true,
+      inputs: args.inputs,
+      negativeControls: verdict.control_assertions.negative_controls,
+    }),
     candidate_gate: candidateGate(mode, provenance, verdict),
     existing_gates: {
       builtin_collector: { status: "UNVERIFIED", changed: false },
@@ -264,6 +203,7 @@ export const EVIDENCE_FILE_NAMES = [
   "files.published.txt",
   "files.missing.txt",
   "scope.tsv",
+  "fingerprints.txt",
   "run.json",
 ] as const;
 
@@ -278,6 +218,8 @@ export interface EvidenceBundle {
   filesPublished: readonly string[];
   filesMissing: readonly string[];
   scopeTsv: string;
+  /** 하네스·대조 지문의 매니페스트(불일치를 진단할 수 있게 파일별 해시를 남긴다). 계산하지 못한 지문은 그 사실을 적는다. */
+  fingerprintsTxt: string;
 }
 
 export interface WriteEvidenceOptions {
@@ -331,6 +273,7 @@ export async function writeEvidence(
     "files.published.txt": lines("files.published.txt", bundle.filesPublished),
     "files.missing.txt": lines("files.missing.txt", bundle.filesMissing),
     "scope.tsv": bundle.scopeTsv,
+    "fingerprints.txt": bundle.fingerprintsTxt,
     "run.json": canonicalJson(bundle.run),
   };
 

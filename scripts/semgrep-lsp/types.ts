@@ -318,10 +318,47 @@ export interface ControlCheck {
 }
 
 export interface NegativeControlResult {
+  /** "R1".."R9". */
   id: string;
+  /** preflight: 서버 없는 사전 검사의 거부 / engine: 실제 엔진을 띄운 진단 실행. 두 층은 서로 대신하지 못한다. */
+  layer: "preflight" | "engine";
   expected: MeasurementStatus;
   observed: MeasurementStatus | null;
   status: "PASS" | "FAIL" | "NOT_RUN";
+  /** 이 결과를 얻은 도구·규칙·하네스·대조 조합의 지문(inputs.binding_sha256). NOT_RUN이면 null이다. */
+  binding_sha256: string | null;
+}
+
+/**
+ * 대조 참조를 이번 실행에 묶는 지문 묶음. 값이 null이면 "확인하지 못함"이며 null끼리는 일치로 치지 않는다.
+ * rules_*는 핀·규칙 목록에서 항상 계산되므로 null이 아니다.
+ */
+export interface ReferenceFingerprints {
+  harness_sha256: string | null;
+  control_sha256: string | null;
+  rules_list_sha256: string;
+  rules_expected_sha256: string;
+  tool_version: string | null;
+  wheel_sha256: string | null;
+  binding_sha256: string | null;
+}
+
+export type ReferenceRequirementId =
+  | "PROVENANCE_REAL"
+  | "MEASUREMENT_COMPLETE"
+  | "CONTROL_ASSERTIONS_PASS"
+  | "N0_CONFIRMED"
+  | "FINGERPRINTS_COMPLETE"
+  | "NEGATIVE_PREFLIGHT_PASS"
+  | "NEGATIVE_ENGINE_PASS"
+  | "NEGATIVE_BINDING_MATCH";
+
+/** control 실행이 target의 대조 참조가 될 자격. target 모드에서는 applicable:false다. */
+export interface ReferenceQualification {
+  applicable: boolean;
+  /** applicable이고 모든 요구가 충족될 때만 true. 스텁 출처는 절대 true가 아니다. */
+  eligible: boolean;
+  requirements: { id: ReferenceRequirementId; satisfied: boolean; detail: string }[];
 }
 
 /** 의도적 취약 예제의 필수·금지 탐지, 정상 쌍, 음성 대조의 성공 여부. 보안 판정이 아니다. */
@@ -362,12 +399,16 @@ export interface ObservedFacts {
   scan: {
     scannedFilesK: number | null;
     foundMatchesM: number | null;
+    /** M − D (서버가 JSON이 같은 진단을 합친 개수). D ≤ M이고 M>0이면 D ≥ 1일 때만 숫자, 아니면 null. */
+    matchesDeduplicated: number | null;
     engineErrorsText: string | null;
     barrierSeen: boolean;
     preScanEchoSeen: boolean;
     postBarrierEchoSeen: boolean;
   };
   published: {
+    /** 스캔 송신 이후 게시된 진단의 원시 개수 D(하네스 집계·중복 제거 전). 평가할 수 없으면 null. */
+    diagnosticCount: number | null;
     uris: string[];
     duplicates: string[];
     missing: string[];
@@ -405,6 +446,15 @@ export interface RunRecord {
     rules_list_sha256: string;
     rules_expected_sha256: string;
     control_tree_sha256: string | null;
+    /** 하네스 구현 파일(.ts/.mjs, 시험·testing·data 제외) 지문. 계산하지 못했으면 null. */
+    harness_sha256: string | null;
+    /** control-expectations.json + 실제 고정 입력(.in) 바이트 지문. 계산하지 못했으면 null. */
+    control_sha256: string | null;
+    /** 호출자가 관측한 도구 버전. 관측하지 못했으면 null. */
+    tool_version_observed: string | null;
+    wheel_sha256_observed: string | null;
+    /** 도구·규칙·핀·하네스·대조 지문의 결합. 구성 요소가 하나라도 null이면 null. */
+    binding_sha256: string | null;
   };
   /** 측정 완료 여부. 보안 기준 통과 여부가 아니다. */
   measurement: {
@@ -423,7 +473,18 @@ export interface RunRecord {
     control_assertions_status: ControlAssertions["status"];
     pin_sha256: string;
     n0_confirmed: boolean;
+    /** 참조 쪽의 자기 선언. evaluate는 이 값을 믿지 않고 아래 사실로 자격을 다시 계산한다. */
+    eligible: boolean;
+    fingerprints: ReferenceFingerprints;
+    negative_controls: {
+      id: string;
+      layer: "preflight" | "engine";
+      status: "PASS" | "FAIL" | "NOT_RUN";
+      binding_sha256: string | null;
+    }[];
   } | null;
+  /** control 모드에서 이 실행이 대조 참조가 될 자격이 있는지. target 모드는 applicable:false. */
+  reference_qualification: ReferenceQualification;
   candidate_gate: CandidateGate;
   /** 기존 내장 수집기와 공식 게이트는 이 작업으로 바뀌지 않는다. */
   existing_gates: {

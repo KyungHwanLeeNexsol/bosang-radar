@@ -7,7 +7,9 @@ import { evaluateTranscript, type EvaluateInputs } from "../evaluate";
 import { expectedUri } from "../uri";
 import type { ReasonCode } from "../status";
 import type { MeasurementStatus } from "../status";
-import type { Mode, Pin, Transcript, Verdict } from "../types";
+import { buildBinding } from "../fingerprint";
+import { sha256Hex } from "../sha";
+import type { Mode, Pin, ReferenceFingerprints, Transcript, Verdict } from "../types";
 import {
   CONTROL_EXPECTATIONS,
   CONTROL_REFERENCE_PASS,
@@ -21,8 +23,10 @@ import {
   buildRecord,
   codesOf,
   controlInputs,
+  fullFingerprints,
   happyControl,
   happyTarget,
+  qualifiedReference,
   scopeOf,
   targetInputs,
 } from "./evaluate-fixtures";
@@ -138,6 +142,25 @@ const posRange = (line: number) => ({
   start: { line, character: 0 },
   end: { line, character: 5 },
 });
+
+const OTHER_PIN = "f".repeat(64);
+
+/** 결합을 다른 핀 해시로 만든 지문(나머지 값은 기본 지문과 같다). */
+function fingerprintsForPin(pin: string): ReferenceFingerprints {
+  const base = fullFingerprints();
+  return {
+    ...base,
+    binding_sha256: buildBinding({
+      tool_version: base.tool_version,
+      wheel_sha256: base.wheel_sha256,
+      pin_sha256: pin,
+      rules_list_sha256: base.rules_list_sha256,
+      rules_expected_sha256: base.rules_expected_sha256,
+      harness_sha256: base.harness_sha256,
+      control_sha256: base.control_sha256,
+    }),
+  };
+}
 
 function diag(severity: unknown, code: unknown, line: number) {
   return { severity, code, range: posRange(line), message: "m" };
@@ -280,7 +303,11 @@ export const S_SCENARIOS: Scenario[] = [
     id: "S5b",
     title: "늦은 진단: echo 응답 이후에 도착한다",
     mode: "target",
-    build: () => target([insertPublish(uri(TARGET_PATHS[0]), [diag(2, RULE_A, 0)], "late")]),
+    // 늦은 진단도 Found M matches의 몫이다(M = 1 = D). M = 0으로 두면 D > M이라 EXCESS가 함께 나온다.
+    build: () =>
+      target([insertPublish(uri(TARGET_PATHS[0]), [diag(2, RULE_A, 0)], "late")], {
+        spec: { m: 1 },
+      }),
     status: "LATE_DIAGNOSTIC",
     codes: ["DIAGNOSTIC_AFTER_ECHO"],
     check: (v) => {
@@ -639,7 +666,10 @@ export const S_SCENARIOS: Scenario[] = [
     title: "집계: 심각도 1·2·3·4·누락·미상, 같은 위치 다른 규칙, 같은 규칙 같은 위치 중복",
     mode: "target",
     build: () =>
-      target([], { spec: { diagnostics: { [TARGET_PATHS[2]]: S18_DIAGNOSTICS }, m: 7 } }),
+      // 원시 진단은 8건(마지막은 하네스 집계 키가 같은 중복)이므로 M은 8이다. D ≤ M이어야 모순이 아니다.
+      target([], {
+        spec: { diagnostics: { [TARGET_PATHS[2]]: S18_DIAGNOSTICS }, m: S18_DIAGNOSTICS.length },
+      }),
     status: "COMPLETE",
     codes: [],
     check: (v) => {
@@ -1408,7 +1438,7 @@ export const REASON_SCENARIOS: Scenario[] = [
   },
   {
     id: "R-skipped-other-count",
-    title: "핀의 s0가 다른 값(3)으로만 설명하면 S = 4는 설명되지 않는다",
+    title: "핀의 s0가 확정한 값(3)과 S = 4가 다르면 S0 불일치다(확정된 S0는 정확히 같아야 한다)",
     mode: "target",
     build: () =>
       target([], {
@@ -1416,7 +1446,23 @@ export const REASON_SCENARIOS: Scenario[] = [
         inputs: { pin: { ...PIN, s0: { observed: 3, explained: true } } as Pin },
       }),
     status: "PARTIAL",
-    codes: ["ENGINE_SKIPPED_RULES_UNEXPLAINED"],
+    codes: ["SKIPPED_RULES_S0_MISMATCH"],
+    check: (v) =>
+      expect(v.reasons.find((r) => r.code === "SKIPPED_RULES_S0_MISMATCH")?.detail).toBe(
+        "S=4, S0=3"
+      ),
+  },
+  {
+    id: "R-skipped-s0-zero-regression",
+    title: "핀의 s0가 확정한 값(2)인데 S = 0이다(건너뜀이 사라진 것도 불일치다)",
+    mode: "target",
+    build: () =>
+      target([], {
+        spec: { s: 0 },
+        inputs: { pin: { ...PIN, s0: { observed: 2, explained: true } } as Pin },
+      }),
+    status: "PARTIAL",
+    codes: ["SKIPPED_RULES_S0_MISMATCH"],
   },
   {
     id: "R-extra-uri-no-echo",
@@ -1463,10 +1509,17 @@ export const REASON_SCENARIOS: Scenario[] = [
     id: "R-ref-pin-mismatch",
     title: "대조 참조의 pin 해시가 이번 실행과 다르다",
     mode: "target",
-    build: () =>
-      target([], {
-        inputs: { controlReference: { ...CONTROL_REFERENCE_PASS, pin_sha256: "f".repeat(64) } },
-      }),
+    // 참조가 다른 핀 해시로 만든 결합까지 자기 안에서 일관된 경우(핀 해시 불일치만 격리한다). 현실에서는 핀이 다르면 이번 실행의
+    // 결합도 달라져 R-ref-pin-mismatch-binding처럼 결합 불일치가 함께 나온다.
+    build: () => {
+      const fp = fingerprintsForPin(OTHER_PIN);
+      return target([], {
+        inputs: {
+          controlReference: qualifiedReference(fp, { pin_sha256: OTHER_PIN }),
+          currentFingerprints: fp,
+        },
+      });
+    },
     status: "CONTROL_MISSING",
     codes: ["CONTROL_REFERENCE_PIN_MISMATCH"],
   },
@@ -1562,6 +1615,178 @@ export const REASON_SCENARIOS: Scenario[] = [
     status: "COMPLETE",
     codes: [],
     check: (v) => expect(v.control_assertions.status).toBe("FAIL"),
+  },
+
+  // ── PR #28 검토: M과 게시 진단 수, 대조 참조의 사실 확인 ──────────────────────
+  {
+    id: "R-match-diagnostics-missing",
+    title: "Found 1 matches인데 스캔 이후 게시된 진단이 없다(M > 0, D = 0)",
+    mode: "target",
+    build: () => target([], { spec: { m: 1 } }),
+    status: "PARTIAL",
+    codes: ["MATCH_COUNT_DIAGNOSTICS_MISSING"],
+    check: (v) => {
+      expect(v.observed.published.diagnosticCount).toBe(0);
+      expect(v.observed.scan.matchesDeduplicated).toBeNull();
+      expect(v.candidate_gate.value).toBeNull();
+    },
+  },
+  {
+    id: "R-match-diagnostics-excess",
+    title: "Found 0 matches인데 진단이 한 건 게시됐다(D > M)",
+    mode: "target",
+    build: () =>
+      target([], { spec: { m: 0, diagnostics: { [TARGET_PATHS[0]]: [diag(2, RULE_A, 0)] } } }),
+    status: "PARTIAL",
+    codes: ["MATCH_COUNT_DIAGNOSTICS_EXCESS"],
+    check: (v) => {
+      expect(v.observed.published.diagnosticCount).toBe(1);
+      expect(v.observed.scan.matchesDeduplicated).toBeNull();
+      expect(v.candidate_gate.value).toBeNull();
+    },
+  },
+  {
+    id: "R-match-diagnostics-merged",
+    title: "M = 3, D = 2: 서버가 JSON이 같은 진단을 합친 정상 경우는 M = D를 요구하지 않는다",
+    mode: "target",
+    build: () =>
+      target([], {
+        spec: {
+          m: 3,
+          diagnostics: { [TARGET_PATHS[0]]: [diag(2, RULE_A, 0), diag(2, RULE_A, 1)] },
+        },
+      }),
+    status: "COMPLETE",
+    codes: [],
+    check: (v) => {
+      expect(v.observed.published.diagnosticCount).toBe(2);
+      expect(v.observed.scan.matchesDeduplicated).toBe(1);
+    },
+  },
+  {
+    id: "R-ref-fingerprint-missing",
+    title: "대조 참조의 하네스 지문을 확인하지 못했다(null은 null과도 일치하지 않는다)",
+    mode: "target",
+    build: () => {
+      const ref = qualifiedReference({ ...fullFingerprints(), harness_sha256: null });
+      return target([], { inputs: { controlReference: ref } });
+    },
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_FINGERPRINT_MISSING", "CONTROL_REFERENCE_NOT_ELIGIBLE"],
+  },
+  {
+    id: "R-ref-current-fingerprints-null",
+    title: "이번 실행의 지문을 하나도 계산하지 못했다(currentFingerprints = null)",
+    mode: "target",
+    build: () => target([], { inputs: { currentFingerprints: null } }),
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_FINGERPRINT_MISSING", "CONTROL_REFERENCE_NOT_ELIGIBLE"],
+  },
+  {
+    id: "R-ref-harness-mismatch",
+    title: "핀 해시가 같아도 하네스 구현 지문이 다르다",
+    mode: "target",
+    build: () =>
+      target([], {
+        inputs: {
+          currentFingerprints: fullFingerprints({ harness_sha256: sha256Hex("other-harness") }),
+        },
+      }),
+    status: "CONTROL_MISSING",
+    codes: [
+      "CONTROL_REFERENCE_HARNESS_MISMATCH",
+      "CONTROL_REFERENCE_BINDING_MISMATCH",
+      "CONTROL_REFERENCE_NOT_ELIGIBLE",
+    ],
+  },
+  {
+    id: "R-ref-control-mismatch",
+    title: "핀 해시가 같아도 대조 지문(기대 파일·고정 입력)이 다르다",
+    mode: "target",
+    build: () =>
+      target([], {
+        inputs: {
+          currentFingerprints: fullFingerprints({ control_sha256: sha256Hex("other-control") }),
+        },
+      }),
+    status: "CONTROL_MISSING",
+    codes: [
+      "CONTROL_REFERENCE_CONTROL_MISMATCH",
+      "CONTROL_REFERENCE_BINDING_MISMATCH",
+      "CONTROL_REFERENCE_NOT_ELIGIBLE",
+    ],
+  },
+  {
+    id: "R-ref-tool-mismatch",
+    title: "핀 해시가 같아도 도구 버전이 다르다",
+    mode: "target",
+    build: () =>
+      target([], { inputs: { currentFingerprints: fullFingerprints({ tool_version: "9.9.9" }) } }),
+    status: "CONTROL_MISSING",
+    codes: [
+      "CONTROL_REFERENCE_TOOL_MISMATCH",
+      "CONTROL_REFERENCE_BINDING_MISMATCH",
+      "CONTROL_REFERENCE_NOT_ELIGIBLE",
+    ],
+  },
+  {
+    id: "R-ref-binding-mismatch",
+    title: "구성 요소 지문은 같지만 이번 실행의 결합 값만 다르다",
+    mode: "target",
+    build: () =>
+      target([], {
+        inputs: {
+          currentFingerprints: fullFingerprints({ binding_sha256: sha256Hex("other-binding") }),
+        },
+      }),
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_BINDING_MISMATCH", "CONTROL_REFERENCE_NOT_ELIGIBLE"],
+  },
+  {
+    id: "R-ref-pin-mismatch-binding",
+    title: "참조의 핀 해시가 다르면 이번 실행의 결합도 달라 핀·결합 불일치가 함께 나온다",
+    mode: "target",
+    build: () => {
+      const fp = fingerprintsForPin(OTHER_PIN);
+      return target([], {
+        inputs: { controlReference: qualifiedReference(fp, { pin_sha256: OTHER_PIN }) },
+      });
+    },
+    status: "CONTROL_MISSING",
+    codes: [
+      "CONTROL_REFERENCE_PIN_MISMATCH",
+      "CONTROL_REFERENCE_BINDING_MISMATCH",
+      "CONTROL_REFERENCE_NOT_ELIGIBLE",
+    ],
+  },
+  {
+    id: "R-ref-negative-incomplete",
+    title: "대조 참조의 엔진 음성 대조가 실행되지 않았다(NOT_RUN)",
+    mode: "target",
+    build: () => {
+      const ref = qualifiedReference();
+      ref.negative_controls = ref.negative_controls.map((n) =>
+        n.layer === "engine" ? { ...n, status: "NOT_RUN", binding_sha256: null } : n
+      );
+      return target([], { inputs: { controlReference: ref } });
+    },
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_NEGATIVE_INCOMPLETE", "CONTROL_REFERENCE_NOT_ELIGIBLE"],
+    check: (v) =>
+      expect(
+        v.reasons.find((r) => r.code === "CONTROL_REFERENCE_NEGATIVE_INCOMPLETE")?.detail
+      ).toContain("R3:engine(NOT_RUN)"),
+  },
+  {
+    id: "R-ref-not-eligible",
+    title: "사실은 모두 맞지만 참조가 eligible:false를 선언했다",
+    mode: "target",
+    build: () =>
+      target([], {
+        inputs: { controlReference: qualifiedReference(undefined, { eligible: false }) },
+      }),
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_NOT_ELIGIBLE"],
   },
 ];
 

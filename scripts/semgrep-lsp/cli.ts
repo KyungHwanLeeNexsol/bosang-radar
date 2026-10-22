@@ -512,6 +512,8 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
     targetSha,
     runId,
     dataDir: deps.dataDir,
+    // 하네스 구현 파일이 있는 폴더 = 고정 입력 폴더(data/)의 부모. 하네스 지문을 계산할 때 읽는다.
+    harnessRoot: parentOf(deps.dataDir),
     evidenceRoot,
     rulesCacheRoot: rulesCache,
     scanRoot,

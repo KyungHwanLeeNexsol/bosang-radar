@@ -37,6 +37,7 @@ import {
   type LogFormat,
   type LogKey,
 } from "./log-matcher";
+import { checkControlReferenceFacts } from "./reference";
 import { representativeStatus, sortReasons, type Reason, type ReasonCode } from "./status";
 import type {
   CandidateGate,
@@ -47,6 +48,7 @@ import type {
   NegativeControlResult,
   ObservedFacts,
   Pin,
+  ReferenceFingerprints,
   RuleFileEntry,
   RunRecord,
   ScopeResult,
@@ -79,6 +81,11 @@ export interface EvaluateInputs {
   pinSha256: string;
   /** target 모드의 대조 참조(control_reference 모양). 없으면 null. control 모드에서는 무시한다. */
   controlReference: RunRecord["control_reference"];
+  /**
+   * 이번 실행의 지문(하네스·대조·도구·결합). target 모드에서 대조 참조의 지문과 맞춰 본다. null이면 모든 값을 확인하지
+   * 못한 것이라 CONTROL_REFERENCE_FINGERPRINT_MISSING이다. control 모드에서는 무시한다.
+   */
+  currentFingerprints: ReferenceFingerprints | null;
   /** 하네스가 연 루프백 수신기가 받은 요청 수. null이면 수신기가 관찰 중임을 증명하지 못한 것이다. */
   metricsReceiverHits: number | null;
   /** control 모드의 음성 대조 기록(기본: 전부 NOT_RUN). */
@@ -196,12 +203,22 @@ export const REASON_EMITTERS = {
   ENGINE_ERRORS_NONEMPTY: "evaluate",
   ENGINE_REPORT_LOG_MISSING: "evaluate",
   ENGINE_SKIPPED_RULES_UNEXPLAINED: "evaluate",
+  SKIPPED_RULES_S0_MISMATCH: "evaluate",
+  MATCH_COUNT_DIAGNOSTICS_MISSING: "evaluate",
+  MATCH_COUNT_DIAGNOSTICS_EXCESS: "evaluate",
 
   CONTROL_REFERENCE_MISSING: "evaluate",
   CONTROL_REFERENCE_NOT_PASS: "evaluate",
   CONTROL_REFERENCE_PIN_MISMATCH: "evaluate",
   CONTROL_REFERENCE_SYNTHETIC: "evaluate",
   N0_UNCONFIRMED: "evaluate",
+  CONTROL_REFERENCE_FINGERPRINT_MISSING: "evaluate",
+  CONTROL_REFERENCE_HARNESS_MISMATCH: "evaluate",
+  CONTROL_REFERENCE_CONTROL_MISMATCH: "evaluate",
+  CONTROL_REFERENCE_TOOL_MISMATCH: "evaluate",
+  CONTROL_REFERENCE_BINDING_MISMATCH: "evaluate",
+  CONTROL_REFERENCE_NEGATIVE_INCOMPLETE: "evaluate",
+  CONTROL_REFERENCE_NOT_ELIGIBLE: "evaluate",
 
   METRICS_RECEIVER_HIT: "evaluate",
   METRICS_RECEIVER_NOT_OBSERVING: "evaluate",
@@ -388,12 +405,13 @@ function emptyObserved(): ObservedFacts {
     scan: {
       scannedFilesK: null,
       foundMatchesM: null,
+      matchesDeduplicated: null,
       engineErrorsText: null,
       barrierSeen: false,
       preScanEchoSeen: false,
       postBarrierEchoSeen: false,
     },
-    published: { uris: [], duplicates: [], missing: [], unexpected: [] },
+    published: { diagnosticCount: null, uris: [], duplicates: [], missing: [], unexpected: [] },
     totals: null,
     perFile: {},
     perRule: {},
@@ -864,9 +882,18 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
   }
   const skipped = all("skippedRules");
   const skippedS = skipped.length > 0 ? params<"skippedRules">(skipped[0]).s : null;
-  if (skippedS !== null && skippedS > 0) {
-    const explained = pin.s0.explained && pin.s0.observed === skippedS;
-    if (!explained) sink.add("ENGINE_SKIPPED_RULES_UNEXPLAINED", `S=${skippedS}`);
+  // S0 비교: 확정된 S0(관측 값이 있고 설명됨)이면 S = 0을 포함해 S와 정확히 같아야 한다. 확정되지 않았으면 S = 0은 괜찮고
+  // S > 0은 설명되지 않은 건너뜀이다. S를 알 수 없으면(null) 로그 부재 쪽 사유가 다룬다.
+  const s0Observed = typeof pin.s0.observed === "number" ? pin.s0.observed : null;
+  const s0Confirmed = pin.s0.explained === true && s0Observed !== null;
+  if (skippedS !== null) {
+    if (s0Confirmed) {
+      if (skippedS !== s0Observed) {
+        sink.add("SKIPPED_RULES_S0_MISMATCH", `S=${skippedS}, S0=${s0Observed}`);
+      }
+    } else if (skippedS > 0) {
+      sink.add("ENGINE_SKIPPED_RULES_UNEXPLAINED", `S=${skippedS}`);
+    }
   }
   const scannedFiles = all("scannedFiles");
   const scannedK = scannedFiles.length > 0 ? params<"scannedFiles">(scannedFiles[0]).k : null;
@@ -899,6 +926,8 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
   let preScan = 0;
   let late = 0;
   let badPublish = 0;
+  // 스캔 송신 이후 게시된 진단의 원시 개수 D(스캔 구간 + 늦은 게시, 하네스 집계·중복 제거 전). 스캔 전·초기화 전 게시는 오염이라 뺀다.
+  let rawDiagnosticsD = 0;
   const scanPubs: { key: string; rel: string | null; diagnostics: LspDiagnostic[] }[] = [];
   for (const rec of trusted) {
     if (methodOf(rec.msg) !== "textDocument/publishDiagnostics") continue;
@@ -909,8 +938,11 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
     const { uri, diagnostics } = rec.msg.params;
     if (initRec === undefined || rec.index < initIdx) beforeInit++;
     else if (rec.index < scanCursor) preScan++;
-    else if (postRec !== undefined && rec.index > postIdx) late++;
-    else {
+    else if (postRec !== undefined && rec.index > postIdx) {
+      late++;
+      rawDiagnosticsD += diagnostics.length;
+    } else {
+      rawDiagnosticsD += diagnostics.length;
       let rel: string | null = null;
       try {
         rel = normalizePublishedUri(uri, inputs.scanRoot);
@@ -926,6 +958,24 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
   if (beforeInit > 0) sink.add("DIAGNOSTIC_BEFORE_INIT", `${beforeInit}건`);
   if (preScan > 0) sink.add("PRE_SCAN_DIAGNOSTIC", `${preScan}건`);
   if (late > 0) sink.add("DIAGNOSTIC_AFTER_ECHO", `${late}건`);
+
+  // Found M matches(필터 뒤의 개수)와 게시 진단 D의 관계(Semgrep v1.180.0 소스 기준): D ≤ M이고 M > 0이면 D ≥ 1이다.
+  // D < M은 서버가 JSON이 같은 진단을 합친 정상 경우라 M = D를 요구하지 않는다. 하네스 집계 키(파일·code·범위)는 서버 키와
+  // 다르므로 totals가 아니라 원시 D와 비교한다. 스캔 증거를 평가할 수 없으면(장벽·echo 응답·M 부재, 프레임 오류) 더하지 않는다.
+  const matchCountEvaluable =
+    barrierValid && echoDone && frameError === null && foundM !== null && initOk;
+  let diagnosticCountD: number | null = null;
+  let matchesDeduplicated: number | null = null;
+  if (matchCountEvaluable && foundM !== null) {
+    diagnosticCountD = rawDiagnosticsD;
+    if (rawDiagnosticsD > foundM) {
+      sink.add("MATCH_COUNT_DIAGNOSTICS_EXCESS", `M=${foundM}, D=${rawDiagnosticsD}`);
+    } else if (foundM > 0 && rawDiagnosticsD === 0) {
+      sink.add("MATCH_COUNT_DIAGNOSTICS_MISSING", `M=${foundM}, D=0`);
+    } else {
+      matchesDeduplicated = foundM - rawDiagnosticsD;
+    }
+  }
 
   // 기대 집합 E
   const expectedPaths: string[] =
@@ -1067,6 +1117,10 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
       if (ref.pin_sha256 !== inputs.pinSha256)
         sink.add("CONTROL_REFERENCE_PIN_MISMATCH", ref.run_id);
       if (!ref.n0_confirmed || !pin.n0.confirmed) sink.add("N0_UNCONFIRMED");
+      // 참조의 자기 선언(eligible)은 믿지 않는다: 지문·결합·음성 대조를 이번 실행과 다시 맞춰 본다.
+      for (const reason of checkControlReferenceFacts(ref, inputs.currentFingerprints ?? null)) {
+        sink.addVerbatim(reason);
+      }
     }
   }
   if (inputs.metricsReceiverHits === null) {
@@ -1092,12 +1146,14 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
     scan: {
       scannedFilesK: scannedK,
       foundMatchesM: foundM,
+      matchesDeduplicated,
       engineErrorsText,
       barrierSeen: barrierValid,
       preScanEchoSeen: preEchoOk,
       postBarrierEchoSeen: echoDone,
     },
     published: {
+      diagnosticCount: diagnosticCountD,
       uris: publishedKeys,
       duplicates,
       missing,

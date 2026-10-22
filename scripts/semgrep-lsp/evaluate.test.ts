@@ -63,7 +63,7 @@ describe("REASON_EMITTERS", () => {
     const settingsSource = source("settings.ts");
     const evaluateUsage = `${source("evaluate.ts").split("export const REASON_EMITTERS")[0]}${
       source("evaluate.ts").split("} as const satisfies Record<ReasonCode, ReasonEmitter>;")[1]
-    }${source("aggregate.ts")}`;
+    }${source("aggregate.ts")}${source("reference.ts")}`; // reference.ts: C8 사실 확인(checkControlReferenceFacts)의 사유
     const wrong: string[] = [];
     for (const [code, emitter] of Object.entries(REASON_EMITTERS)) {
       const quoted = `"${code}"`;
@@ -300,7 +300,9 @@ describe("control 모드: 단언과 후보 평가의 분리", () => {
     const controlTranscript = happyControl();
     const cv = evaluateTranscript(controlTranscript, controlInputs());
     const record = buildRecord(cv, controlTranscript, controlInputs());
+    // 지문·음성 대조·eligible은 완전히 자격을 갖춘 고정 참조에서 가져온다 — 이 시험이 보는 것은 출처(stub)뿐이다.
     const reference = {
+      ...CONTROL_REFERENCE_PASS,
       run_id: record.run_id,
       provenance: record.provenance,
       status: record.measurement.status,
@@ -318,7 +320,7 @@ describe("control 모드: 단언과 후보 평가의 분리", () => {
 
   it("negativeControls 입력은 그대로 control_assertions에 실린다(기본은 전부 NOT_RUN)", () => {
     const v = evaluateTranscript(happyControl(), controlInputs());
-    expect(v.control_assertions.negative_controls).toHaveLength(9);
+    expect(v.control_assertions.negative_controls).toHaveLength(16);
     expect(v.control_assertions.negative_controls.every((n) => n.status === "NOT_RUN")).toBe(true);
   });
 });
