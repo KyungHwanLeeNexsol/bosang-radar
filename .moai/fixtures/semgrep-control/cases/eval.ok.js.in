@@ -1,0 +1,7 @@
+// 기대: 진단 0건 (전체 규칙 묶음 기준)
+eval('alert')
+window.eval('alert')
+
+// eval.pos.js (2)와 같은 source, 상수 sink
+let label = new URLSearchParams(window.location.search).get('a')
+var y = new Function('return 1')

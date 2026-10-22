@@ -1,0 +1,8 @@
+import { exec } from 'child_process'
+
+// 기대: 진단 0건 (전체 규칙 묶음 기준)
+exec('ls')
+
+function runConstant(args) {
+  exec('ls')
+}

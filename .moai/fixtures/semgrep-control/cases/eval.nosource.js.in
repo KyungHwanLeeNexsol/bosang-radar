@@ -1,0 +1,6 @@
+// 대상 규칙 detect-eval-with-expression 은 탐지하지 않아야 한다.
+// (location/URL 입력 source가 없음)
+// 전체 규칙 묶음에서는 eval-detected 가 이 호출을 탐지할 것으로 예상한다.
+function g(x) {
+  return eval(x)
+}

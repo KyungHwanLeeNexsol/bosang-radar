@@ -1,0 +1,11 @@
+// 기대: 진단 0건 (전체 규칙 묶음 기준)
+const el = document.body
+
+function okConstant() {
+  const name = "<div>it's ok</div>"
+  el.innerHTML = name
+}
+
+function okLiteral() {
+  document.body.innerHTML = "<div>it's ok</div>"
+}

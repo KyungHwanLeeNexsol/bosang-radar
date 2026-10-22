@@ -1,0 +1,4 @@
+// 기대: 대상 규칙 insecure-innerhtml 1건
+function setBody(userInput) {
+  document.body.innerHTML = userInput;
+}

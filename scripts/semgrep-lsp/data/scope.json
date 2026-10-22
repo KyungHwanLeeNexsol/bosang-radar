@@ -1,0 +1,55 @@
+{
+  "schema": "semgrep-lsp-scope/1",
+  "note": "검사 대상 SHA의 추적 파일에서 E(기대 URI 집합)를 만드는 명시적 포함·제외 규칙이다. 규칙은 위에서 아래로 처음 맞는 것이 결정한다.",
+  "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"],
+  "language_excluded_suffixes": [".min.js", ".d.ts"],
+  "semgrep_default_ignore": {
+    "source": "semgrep v1.180.0 src/targeting/default.semgrepignore (blob b85fb717f)",
+    "dir_names": [
+      ".git",
+      ".svn",
+      ".hg",
+      "_darcs",
+      "CVS",
+      "build",
+      "vendor",
+      "dist",
+      ".env",
+      ".tox",
+      "node_modules",
+      ".npm",
+      ".yarn",
+      ".venv",
+      "_opam",
+      "_build",
+      "_cargo",
+      "test",
+      "tests",
+      "testsuite"
+    ],
+    "file_globs": ["*.min.js"]
+  },
+  "explicit_excludes": [
+    {
+      "id": "test-or-spec-file",
+      "reason": "테스트·스펙 파일(소음 방지)",
+      "match": { "kind": "basename-regex", "value": "\\.(test|spec)\\.[A-Za-z0-9]+$" }
+    },
+    {
+      "id": "e2e-directory",
+      "reason": "E2E 전용 디렉터리",
+      "match": { "kind": "dir-prefix", "value": "e2e/" }
+    },
+    {
+      "id": "tool-scaffold-claude",
+      "reason": "도구 스크립트(.claude/), 제품 코드가 아님",
+      "match": { "kind": "dir-prefix", "value": ".claude/" }
+    },
+    {
+      "id": "tool-metadata-moai",
+      "reason": "MoAI 메타데이터와 대조용 고정 입력(.moai/), 제품 코드가 아님",
+      "match": { "kind": "dir-prefix", "value": ".moai/" }
+    }
+  ],
+  "max_target_bytes": 1000000
+}

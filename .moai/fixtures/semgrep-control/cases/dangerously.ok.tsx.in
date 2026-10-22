@@ -1,0 +1,21 @@
+import React from "react"
+import DOMPurify from "dompurify"
+
+// 기대: 진단 0건 (전체 규칙 묶음 기준)
+
+// 정화 함수를 거침 (공식 시험의 ok 형태보다 엄격: 매개변수 source가 있다)
+function SanitizedForm(foo) {
+  return <li className={"foobar"} dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(foo)}} />;
+}
+
+// 상수 문자열 (공식 시험 ok 형태)
+function ConstantForm() {
+  let params = {smth: 'test123', dangerouslySetInnerHTML: {__html: "hi"}, a: 1};
+  return React.createElement('div', params);
+}
+
+// dangerously.pos.tsx (2)와 같은 구조에서 입력 흐름만 없앤 형태
+function NoInputForm() {
+  const html = "<b>fixed</b>";
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}

@@ -1,0 +1,13 @@
+// 기대: 대상 규칙 detect-eval-with-expression 3건
+// (1) source: location.href  ->  sink: window.eval(템플릿 문자열)
+window.eval(`alert('${location.href}')`)
+
+// (2) source: URLSearchParams(window.location.search).get('a') -> 변수 funcName
+//     sink: new Function(템플릿 문자열)
+let funcName = new URLSearchParams(window.location.search).get('a')
+var x = new Function(`return ${funcName}(a,b)`)
+
+// (3) source: location.hash  ->  sink: eval(...)  (공식 시험에는 없는 형태)
+function runFromHash() {
+  return eval(location.hash.slice(1))
+}
