@@ -1,0 +1,13 @@
+import { exec } from 'child_process'
+import * as cp from 'child_process';
+
+// 기대: 대상 규칙 detect-child-process (lang) 2건
+// source: 함수 매개변수 args  ->  sink: exec(템플릿 문자열)
+function runCat(args) {
+  exec(`cat *.js ${args[0]}| wc -l`, (error, stdout, stderr) => {});
+}
+
+// source: 함수 매개변수 userInput  ->  sink: cp.spawnSync(userInput)
+function runWith(userInput) {
+  cp.spawnSync(userInput);
+}

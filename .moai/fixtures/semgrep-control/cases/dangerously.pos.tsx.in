@@ -1,0 +1,15 @@
+import React from "react"
+
+// 기대: 대상 규칙 react-dangerouslysetinnerhtml 2건
+// (1) 공식 시험(ruleid)과 같은 형태: 객체 리터럴 + createElement
+//     source: 함수 매개변수 foo  ->  sink: dangerouslySetInnerHTML: {__html: foo.bar}
+function ObjectForm(foo) {
+  let params = {smth: 'test123', dangerouslySetInnerHTML: {__html: foo.bar}, a: 1};
+  return React.createElement('div', params);
+}
+
+// (2) JSX 형태: 규칙 조건은 충족하지만 공식 시험에 ruleid 줄이 없다.
+//     source: 함수 매개변수 html  ->  sink: <div dangerouslySetInnerHTML={{__html: html}} />
+function JsxForm(html) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
