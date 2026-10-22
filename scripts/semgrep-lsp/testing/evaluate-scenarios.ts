@@ -662,6 +662,24 @@ export const S_SCENARIOS: Scenario[] = [
     check: (v) => expect(v.candidate_gate.value).toBeNull(),
   },
   {
+    id: "S17-record-rejected",
+    title:
+      "대조 기록을 명시했지만 참조로 수락하지 못함 → 참조 없음(MISSING)과 거절 이유가 함께 남고 CONTROL_MISSING",
+    mode: "target",
+    build: () =>
+      target([], {
+        inputs: { controlReference: null, controlReferenceRejection: "INVALID_JSON" },
+      }),
+    status: "CONTROL_MISSING",
+    codes: ["CONTROL_REFERENCE_MISSING", "CONTROL_REFERENCE_RECORD_REJECTED"],
+    check: (v) => {
+      expect(v.candidate_gate.value).toBeNull();
+      expect(v.reasons.find((r) => r.code === "CONTROL_REFERENCE_RECORD_REJECTED")?.detail).toBe(
+        "INVALID_JSON"
+      );
+    },
+  },
+  {
     id: "S18-mapping",
     title: "집계: 심각도 1·2·3·4·누락·미상, 같은 위치 다른 규칙, 같은 규칙 같은 위치 중복",
     mode: "target",
