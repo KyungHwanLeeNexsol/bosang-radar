@@ -1,0 +1,49 @@
+{
+  "schema": "semgrep-lsp-pin/1",
+  "note": "ADR-001(Proposed)의 고정 입력이다. 이 값은 검증 입력이며 승인된 기준이 아니다. null·false·UNVERIFIED는 실제 실행 전의 정직한 상태이므로 스텁 결과로 채우지 않는다.",
+  "policy_accepted": false,
+  "semgrep": {
+    "version": "1.180.0",
+    "commit": "a35fe8306115b3e55274969098cc46f8451d6b4d",
+    "wheel": {
+      "filename": null,
+      "size_bytes_rev1_reported": 58108036,
+      "sha256": null,
+      "sha256_rev1_reported": "b403865e64f5ba0691630adf9bc13592cc38830726d4a114960d7e2d3fb21fc6",
+      "verified": false
+    }
+  },
+  "rules": {
+    "repo": "https://github.com/semgrep/semgrep-rules",
+    "commit": "16b9e6d45f10649f6a531ec4838ed9924372c3bc",
+    "commit_date": "2026-10-21",
+    "trees": {
+      "javascript": "8338de5576b4f81b8ed8913d502cac864f639c75",
+      "typescript": "a2299bdc97c3a38567e808e598d5e2c0b512c146"
+    },
+    "cache_dir_name": "semgrep-rules",
+    "config_dirs": ["semgrep-rules/javascript", "semgrep-rules/typescript"],
+    "yaml_files": 205,
+    "yaml_list_sha256": "70233e5310bee60200e9142b5fd43d042306452dcc9562885faaa435ba80c4c8",
+    "expected_rules": 214,
+    "expected_rules_sha256": "aaae3b7cd10225f302c574df859cd63555c45e3041d83c246d45b78edb19df30",
+    "expected_final_ids_sorted_sha256": "9084344e84e92a75c6857ed17369b22970ec953fb87be2546a7d3b74d965ad1f",
+    "distinct_original_ids": 205,
+    "duplicate_original_id_groups": 7,
+    "expected_rules_basis": "js-yaml 4.3.1로 센 상한값이다. Semgrep 파서의 결과가 아니다."
+  },
+  "n0": { "expected": 214, "observed": null, "confirmed": false, "value": null },
+  "s0": { "observed": null, "explained": false },
+  "log_format": { "status": "UNVERIFIED", "prefix_regex": null },
+  "unverified": [
+    "rule_count_observed",
+    "engine_skipped_rules",
+    "positive_detection",
+    "log_format",
+    "windows_uri_form",
+    "debug_echo_behavior",
+    "windows_stdio_compat",
+    "exit_code_zero_after_exit_notification",
+    "metrics_receiver_behavior"
+  ]
+}
