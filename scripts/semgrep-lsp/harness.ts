@@ -24,6 +24,11 @@
 // 스텁 프로세스 포트의 provenance는 "stub"이라 레코드는 trust SYNTHETIC, candidate_gate.evaluation UNVERIFIED다.
 // 스텁 실행은 어느 대상의 대조 참조로도 쓸 수 없다(evaluate가 CONTROL_REFERENCE_SYNTHETIC으로 거부한다).
 
+import {
+  CONTROL_EXPECTATIONS_FILE,
+  controlExpectationsPath,
+  parseControlExpectations,
+} from "./control-expectations";
 import { evaluateTranscript, type EvaluateInputs } from "./evaluate";
 import {
   EVIDENCE_FILE_NAMES,
@@ -227,13 +232,6 @@ function checkScopeConfig(raw: Record<string, unknown>): ScopeConfig {
   return raw as unknown as ScopeConfig;
 }
 
-function checkControlExpectations(raw: Record<string, unknown>): ControlExpectations {
-  if (raw.schema !== SCHEMAS.controlExpectations || !Array.isArray(raw.cases)) {
-    throw new HardFailure("inputs", "control-expectations.json: 스키마·필수 필드가 맞지 않는다");
-  }
-  return raw as unknown as ControlExpectations;
-}
-
 async function hasFiles(fs: FsPort, root: string): Promise<boolean> {
   try {
     return (await fs.listFilesRecursive(root)).length > 0;
@@ -389,13 +387,13 @@ async function execute(
     read("scope.json"),
     read("rules-files.tsv"),
     read("rules-expected.tsv"),
-    read("control-expectations.json"),
+    read(CONTROL_EXPECTATIONS_FILE),
   ]);
   const pin = checkPin(parseJson(pinBytes, "pin.json"));
   const scopeConfig = checkScopeConfig(parseJson(scopeBytes, "scope.json"));
-  const controlExpectations = checkControlExpectations(
-    parseJson(controlBytes, "control-expectations.json")
-  );
+  const parsedExpectations = parseControlExpectations(controlBytes);
+  if (!parsedExpectations.ok) throw new HardFailure("inputs", parsedExpectations.message);
+  const controlExpectations = parsedExpectations.expectations;
   let rulesFiles: RuleFileEntry[];
   let expectedRules: ExpectedRule[];
   try {
@@ -410,7 +408,7 @@ async function execute(
   const [harnessFp, controlFp] = await Promise.all([
     computeHarnessFingerprint(fs, options.harnessRoot),
     computeControlFingerprint(fs, {
-      expectationsPath: joinPath(options.dataDir, "control-expectations.json"),
+      expectationsPath: controlExpectationsPath(options.dataDir),
       fixturesRoot: options.controlFixturesRoot,
       expectations: controlExpectations,
     }),

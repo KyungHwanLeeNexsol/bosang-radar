@@ -136,6 +136,9 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   기록은 구조가 맞는 control 실행 기록이어야 하고, 저장된 eligible 선언은 믿지 않고 기록의 사실로 자격을 다시 계산한다:
   출처 real, 측정 COMPLETE, 대조 단언 PASS, N0 확정, 지문 값과 결합이 모두 있고, 음성 대조 두 층 16쌍이 PASS이며 같은 결합이다.
   음성 대조 PASS는 expected가 현재 표의 기준과 같고 observed가 null이 아니며 그 기대와 같아야 한다(보정하지 않고 거절한다).
+  검사 목록은 완전해야 한다: 기록의 checks가 기대 사례(하네스가 쓰는 data/control-expectations.json, 대조 지문과 같은 입력)에서
+  도출한 필요한 검사(사례별 A1 또는 A3, 적용되는 A2·A4, 정상 쌍 PAIR)와 id·kind·file까지 같아야 한다(순서는 상관없다).
+  누락·중복·예상 밖 검사·잘못된 조합은 거절하고, 기대 입력을 읽거나 검증하지 못하면 EXPECTATIONS_UNAVAILABLE로 거절한다.
   세부 결과와 요약이 모순이면 거절한다: COMPLETE 측정의 reasons·design_errors는 비어 있고, checks는 항목별 구조가 맞으며,
   저장된 대조 단언 상태는 세부 결과로 계산한 값과 같아야 한다(기록의 자기 일관성이며 서명·출처 인증은 아니다).
   target 기록과 stub(SYNTHETIC) 기록은 참조가 될 수 없다. 수락한 기록도 이번 실행의 핀·도구·규칙·하네스·대조 지문 및 결합과 다시 맞춘다.
@@ -535,7 +538,7 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   let controlReference: HarnessOptions["controlReference"] = null;
   let controlReferenceRejection: string | null = null;
   if (recordPath !== undefined) {
-    const loaded = await loadControlReference(deps.fs, recordPath);
+    const loaded = await loadControlReference(deps.fs, recordPath, deps.dataDir);
     controlReference = loaded.reference;
     controlReferenceRejection = loaded.rejection;
   }

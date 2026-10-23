@@ -11,10 +11,12 @@ import {
   type SyntheticControlRecordOptions,
 } from "./testing/control-record-fixtures";
 import {
+  CONTROL_EXPECTATIONS,
   PIN_SHA256,
   fullFingerprints,
   qualifiedNegativeControls,
 } from "./testing/evaluate-fixtures";
+import { dataFileText } from "./testing/synthetic-data";
 import type { FsPort, RunRecord } from "./types";
 
 // 이 시험의 기록은 전부 시험이 손으로 구성한 합성 기록이다(testing/control-record-fixtures.ts). provenance를 "real"로
@@ -26,6 +28,10 @@ type Plain = Record<string, any>;
 
 const FP = fullFingerprints();
 const PATH = "/records/control/run.json";
+// 하네스가 쓰는 기대 입력과 같은 파일(data/control-expectations.json)을 같은 파일시스템의 DATA_DIR 아래에 둔다.
+const DATA_DIR = "/data";
+const EXPECTATIONS_PATH = `${DATA_DIR}/control-expectations.json`;
+const EXPECTATIONS_TEXT = dataFileText("control-expectations.json");
 
 function record(over: Partial<SyntheticControlRecordOptions> = {}): RunRecord {
   return syntheticControlRunRecord({ fingerprints: FP, pinSha256: PIN_SHA256, ...over });
@@ -36,13 +42,20 @@ function plain(r: RunRecord = record()): Plain {
   return JSON.parse(canonicalJson(r)) as Plain;
 }
 
-function fsWith(content: string | Uint8Array | null): MemoryFs {
-  return new MemoryFs(content === null ? {} : { [PATH]: content });
+/** 기록 파일(없으면 null)과 기대 입력 파일(기본: 실제 data/control-expectations.json, 없으면 null)을 가진 파일시스템. */
+function fsWith(
+  content: string | Uint8Array | null,
+  expectations: string | Uint8Array | null = EXPECTATIONS_TEXT
+): MemoryFs {
+  const files: Record<string, string | Uint8Array> = {};
+  if (content !== null) files[PATH] = content;
+  if (expectations !== null) files[EXPECTATIONS_PATH] = expectations;
+  return new MemoryFs(files);
 }
 
 async function load(content: unknown) {
   const text = typeof content === "string" ? content : JSON.stringify(content);
-  return loadControlReference(fsWith(text), PATH);
+  return loadControlReference(fsWith(text), PATH, DATA_DIR);
 }
 
 function expectRejected(
@@ -77,30 +90,31 @@ describe("loadControlReference — 수락", () => {
 
   it("수락된 요약은 기록과 별개의 복사본이다(요약을 바꿔도 다음 읽기가 영향받지 않는다)", async () => {
     const fs = fsWith(canonicalJson(record()));
-    const first = await loadControlReference(fs, PATH);
+    const first = await loadControlReference(fs, PATH, DATA_DIR);
     first.reference!.fingerprints.harness_sha256 = "x";
-    const second = await loadControlReference(fs, PATH);
+    const second = await loadControlReference(fs, PATH, DATA_DIR);
     expect(second.reference!.fingerprints.harness_sha256).toBe(FP.harness_sha256);
   });
 });
 
 describe("loadControlReference — 읽기·파싱 실패는 던지지 않고 거절한다", () => {
   it("파일이 없다", async () => {
-    expectRejected(await loadControlReference(fsWith(null), PATH), "FILE_NOT_FOUND");
+    expectRejected(await loadControlReference(fsWith(null), PATH, DATA_DIR), "FILE_NOT_FOUND");
   });
 
   it("파일은 있으나 읽기가 실패한다", async () => {
     const inner = fsWith("{}");
     const failing: FsPort = {
-      readFile: async () => {
-        throw new Error("EACCES: 시험용 읽기 실패");
+      readFile: async (p) => {
+        if (p === PATH) throw new Error("EACCES: 시험용 읽기 실패"); // 기록 파일만 실패한다(기대 입력은 읽힌다)
+        return inner.readFile(p);
       },
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
-    expectRejected(await loadControlReference(failing, PATH), "READ_FAILED");
+    expectRejected(await loadControlReference(failing, PATH, DATA_DIR), "READ_FAILED");
   });
 
   it("존재 확인 자체가 던져도 던지지 않는다", async () => {
@@ -114,7 +128,7 @@ describe("loadControlReference — 읽기·파싱 실패는 던지지 않고 거
         throw new Error("EIO");
       },
     };
-    const result = await loadControlReference(failing, PATH);
+    const result = await loadControlReference(failing, PATH, DATA_DIR);
     expect(result.reference).toBeNull();
     expect(result.rejection).not.toBeNull();
   });
@@ -134,12 +148,12 @@ describe("loadControlReference — 읽기·파싱 실패는 던지지 않고 거
 
   it("UTF-8이 아닌 바이트", async () => {
     const bad = new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]);
-    expectRejected(await loadControlReference(fsWith(bad), PATH), "INVALID_ENCODING");
+    expectRejected(await loadControlReference(fsWith(bad), PATH, DATA_DIR), "INVALID_ENCODING");
   });
 
   it("너무 큰 파일은 파싱하기 전에 거절한다", async () => {
     const big = new Uint8Array(17 * 1024 * 1024).fill(0x20);
-    expectRejected(await loadControlReference(fsWith(big), PATH), "TOO_LARGE");
+    expectRejected(await loadControlReference(fsWith(big), PATH, DATA_DIR), "TOO_LARGE");
   });
 });
 
@@ -522,8 +536,8 @@ describe("loadControlReference — 음성 대조 PASS는 기대·관측이 기�
     const r = plain();
     entryOf(r, "R2", "preflight").observed = null;
     const before = structuredClone(r);
-    const first = controlReferenceFromValue(r);
-    const second = controlReferenceFromValue(r);
+    const first = controlReferenceFromValue(r, CONTROL_EXPECTATIONS);
+    const second = controlReferenceFromValue(r, CONTROL_EXPECTATIONS);
     expect(r).toEqual(before); // observed를 채우거나 status를 덮어쓰지 않았다
     expect(entryOf(r, "R2", "preflight").status).toBe("PASS");
     expect(first.reference).toBeNull();
@@ -764,7 +778,7 @@ describe("loadControlReference — 세부 결과와 요약 상태의 모순을 �
     const r = plain();
     r.control_assertions.checks[0].status = "FAIL";
     const before = structuredClone(r);
-    const result = controlReferenceFromValue(r);
+    const result = controlReferenceFromValue(r, CONTROL_EXPECTATIONS);
     expect(r).toEqual(before);
     expect(result.reference).toBeNull();
   });
@@ -773,6 +787,403 @@ describe("loadControlReference — 세부 결과와 요약 상태의 모순을 �
     const result = await load(plain());
     expect(result.rejection).toBeNull();
     expect(result.reference).not.toBeNull();
+  });
+});
+
+describe("loadControlReference — 검사 목록은 기대 사례에서 도출한 목록과 같아야 한다", () => {
+  const checksOf = (r: Plain): Plain[] => r.control_assertions.checks;
+  const MISSING = (...ids: string[]) => `CHECKS_MISSING(${ids.join(", ")})`;
+
+  /** 기대 입력 파일(data/control-expectations.json)을 시험이 바꾼 사본. */
+  function expectationsWith(mutate: (e: Plain) => void): string {
+    const e = JSON.parse(EXPECTATIONS_TEXT) as Plain;
+    mutate(e);
+    return JSON.stringify(e);
+  }
+  async function loadWith(r: Plain, expectations: string | Uint8Array | null) {
+    return loadControlReference(fsWith(JSON.stringify(r), expectations), PATH, DATA_DIR);
+  }
+  /** 검사 한 항목(결과는 PASS). 기대 구성을 바꾼 시험이 "그 구성에 맞는 기록"을 만들 때 쓴다. */
+  const passCheck = (kind: string, file: string, id = `${kind}:${file}`): Plain => ({
+    id,
+    kind,
+    file,
+    status: "PASS",
+    detail: "시험용 합성 검사",
+  });
+
+  it("시험 전제: 실제 기대 입력에서 만든 정상 합성 기록은 검사 20개(A1 5·A2 5·A3 4·A4 2·PAIR 4)이고 id가 모두 다르다", () => {
+    const checks = checksOf(plain());
+    const count = (kind: string) => checks.filter((c) => c.kind === kind).length;
+    expect(checks).toHaveLength(20);
+    expect(["A1", "A2", "A3", "A4", "PAIR"].map(count)).toEqual([5, 5, 4, 2, 4]);
+    expect(new Set(checks.map((c) => c.id)).size).toBe(20);
+    // id·kind·file의 관계: 사례 검사는 `<kind>:<file>`, PAIR는 `PAIR:<계열>`이고 file이 양성 사례다.
+    for (const c of checks.filter((x) => x.kind !== "PAIR"))
+      expect(c.id).toBe(`${c.kind}:${c.file}`);
+    for (const c of checks.filter((x) => x.kind === "PAIR")) expect(c.file).toMatch(/\.pos\./);
+  });
+
+  it("정상 기록은 수락된다(검사 목록이 기대 사례에서 도출한 목록과 같다)", async () => {
+    const result = await loadWith(plain(), EXPECTATIONS_TEXT);
+    expect(result.rejection).toBeNull();
+    expect(result.reference).not.toBeNull();
+  });
+
+  // 외부 검토가 재현한 네 가지: 요약은 PASS로 일관되지만 검사 목록이 불완전하다.
+  const reported: [string, (checks: Plain[]) => Plain[], string[]][] = [
+    [
+      "검사 20개 중 첫 1개만 유지",
+      (c) => c.slice(0, 1),
+      [
+        `${MISSING(
+          "A2:cases/child-process.pos.ts",
+          "A4:cases/child-process.pos.ts",
+          "A3:cases/child-process.ok.ts",
+          "A1:cases/eval.pos.js",
+          "A2:cases/eval.pos.js",
+          "A3:cases/eval.ok.js"
+        ).slice(0, -1)}, +13)`,
+      ],
+    ],
+    [
+      "한 사례의 검사 전체 삭제(A1·A2·A4와 그 사례가 양성인 PAIR)",
+      (c) => c.filter((x) => x.file !== "cases/child-process.pos.ts"),
+      [
+        MISSING(
+          "A1:cases/child-process.pos.ts",
+          "A2:cases/child-process.pos.ts",
+          "A4:cases/child-process.pos.ts",
+          "PAIR:child-process"
+        ),
+      ],
+    ],
+    [
+      "A4 검사 전체 삭제",
+      (c) => c.filter((x) => x.kind !== "A4"),
+      [MISSING("A4:cases/child-process.pos.ts", "A4:cases/eval.nosource.js")],
+    ],
+    [
+      "첫 검사만 20번 복제(개수는 20 그대로)",
+      (c) => Array.from({ length: c.length }, () => ({ ...c[0] })),
+      ["CHECKS_MISSING(", "CHECKS_DUPLICATE(A1:cases/child-process.pos.ts)"],
+    ],
+  ];
+  it.each(reported)("검토 재현: %s → 거절", async (_name, mutate, tokens) => {
+    const r = plain();
+    r.control_assertions.checks = mutate(checksOf(r));
+    // 시험 전제: 요약은 여전히 PASS로 일관된다(이전 검사가 잡는 모순이 아니다).
+    expect(r.control_assertions.status).toBe("PASS");
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expectRejected(result, ...tokens);
+    expect(result.rejection).not.toContain("ASSERTION_");
+  });
+
+  it("'첫 검사만 20번 복제'는 개수가 20 그대로다(개수만 같다고 수락하지 않는다는 시험 전제)", () => {
+    const [, mutate] = reported[3];
+    expect(mutate(checksOf(plain()))).toHaveLength(20);
+  });
+
+  // 필수 검사 각각을 하나씩 제거한다(20개 전수).
+  const everyCheck = plain().control_assertions.checks.map((c: Plain, i: number) => [
+    `${i}: ${c.id}`,
+    i,
+    c.id as string,
+  ]) as [string, number, string][];
+  it.each(everyCheck)("필수 검사 제거 %s → 그 검사만 누락으로 거절", async (_name, index, id) => {
+    const r = plain();
+    checksOf(r).splice(index, 1);
+    expect(checksOf(r)).toHaveLength(19);
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expectRejected(result);
+    expect(result.rejection).toBe(MISSING(id));
+  });
+
+  it.each(everyCheck)(
+    "같은 개수를 유지하며 중복 검사로 대체 %s → 누락과 중복을 모두 남긴다",
+    async (_name, index, id) => {
+      const r = plain();
+      const checks = checksOf(r);
+      const other = checks[(index + 1) % checks.length];
+      checks[index] = { ...other };
+      expect(checks).toHaveLength(20); // 개수는 그대로
+      const result = await loadWith(r, EXPECTATIONS_TEXT);
+      expectRejected(result);
+      expect(result.rejection).toBe(`${MISSING(id)}; CHECKS_DUPLICATE(${other.id})`);
+    }
+  );
+
+  // 존재하지 않는 사례, 잘못된 id·kind·file 조합. 첫 검사는 A1:cases/child-process.pos.ts다.
+  const FIRST = "A1:cases/child-process.pos.ts";
+  const wrong: [string, (c: Plain) => void, string][] = [
+    [
+      "존재하지 않는 사례",
+      (c) => Object.assign(c, { id: "A1:cases/ghost.js", file: "cases/ghost.js" }),
+      `${MISSING(FIRST)}; CHECKS_UNEXPECTED(checks[0])`,
+    ],
+    [
+      "id가 비슷하지만 다름(끝에 공백)",
+      (c) => (c.id = `${FIRST} `),
+      `${MISSING(FIRST)}; CHECKS_UNEXPECTED(checks[0])`,
+    ],
+    [
+      "id는 맞는데 kind가 다름(A3)",
+      (c) => (c.kind = "A3"),
+      `${MISSING(FIRST)}; CHECK_IDENTITY_MISMATCH(${FIRST})`,
+    ],
+    [
+      "id는 맞는데 kind가 NEGATIVE",
+      (c) => (c.kind = "NEGATIVE"),
+      `${MISSING(FIRST)}; CHECK_IDENTITY_MISMATCH(${FIRST})`,
+    ],
+    [
+      "id는 맞는데 file이 다른 사례",
+      (c) => (c.file = "cases/eval.pos.js"),
+      `${MISSING(FIRST)}; CHECK_IDENTITY_MISMATCH(${FIRST})`,
+    ],
+    [
+      "id는 맞는데 file이 null",
+      (c) => (c.file = null),
+      `${MISSING(FIRST)}; CHECK_IDENTITY_MISMATCH(${FIRST})`,
+    ],
+    [
+      "다른 필수 검사의 id를 가져옴(kind·file은 그대로)",
+      (c) => (c.id = "A2:cases/child-process.pos.ts"),
+      `${MISSING(FIRST)}; CHECK_IDENTITY_MISMATCH(A2:cases/child-process.pos.ts)`,
+    ],
+  ];
+  it.each(wrong)("잘못된 검사: %s → 거절", async (_name, mutate, expected) => {
+    const r = plain();
+    mutate(checksOf(r)[0]);
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expectRejected(result);
+    expect(result.rejection).toBe(expected);
+    // 기록이 주장한 문자열은 사유에 옮기지 않는다(알려진 id만 적는다).
+    expect(result.rejection).not.toContain("ghost");
+  });
+
+  it("PAIR의 file이 양성 사례가 아니면(정상 쪽을 가리키면) 잘못된 조합이다", async () => {
+    const r = plain();
+    const pair = checksOf(r).find((c) => c.id === "PAIR:eval");
+    pair!.file = "cases/eval.ok.js";
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expect(result.rejection).toBe(`${MISSING("PAIR:eval")}; CHECK_IDENTITY_MISMATCH(PAIR:eval)`);
+  });
+
+  it("예상 밖 검사가 더해진 기록은 거절한다(요약이 PASS여도)", async () => {
+    const r = plain();
+    checksOf(r).push(passCheck("A1", "cases/extra.pos.js"));
+    expect(r.control_assertions.status).toBe("PASS");
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expect(result.rejection).toBe("CHECKS_UNEXPECTED(checks[20])");
+  });
+
+  it("같은 검사를 한 번 더 더한 기록(21개)도 중복으로 거절한다", async () => {
+    const r = plain();
+    checksOf(r).push({ ...checksOf(r)[7] });
+    const result = await loadWith(r, EXPECTATIONS_TEXT);
+    expect(result.rejection).toBe(`CHECKS_DUPLICATE(${checksOf(r)[7].id})`);
+  });
+
+  it("검사 순서만 다른 정상 기록은 수락한다(역순·교차 배치)", async () => {
+    const base = plain();
+    const reversed = plain();
+    checksOf(reversed).reverse();
+    const interleaved = plain();
+    const list = checksOf(base);
+    interleaved.control_assertions.checks = [
+      ...list.filter((_c, i) => i % 2 === 1),
+      ...list.filter((_c, i) => i % 2 === 0),
+    ];
+    for (const r of [reversed, interleaved]) {
+      expect(checksOf(r).map((c) => c.id)).not.toEqual(list.map((c) => c.id)); // 시험 전제: 순서가 다르다
+      const result = await loadWith(r, EXPECTATIONS_TEXT);
+      expect(result.rejection).toBeNull();
+      expect(result.reference).toEqual(toControlReference(record(), true));
+    }
+  });
+
+  it("거절해도 값을 보정하지 않는다: 입력 기록을 바꾸지 않고, 같은 입력은 같은 결과를 낸다", () => {
+    const r = plain();
+    r.control_assertions.checks = r.control_assertions.checks.slice(0, 1);
+    const before = structuredClone(r);
+    const first = controlReferenceFromValue(r, CONTROL_EXPECTATIONS);
+    const second = controlReferenceFromValue(r, CONTROL_EXPECTATIONS);
+    expect(r).toEqual(before);
+    expect(first.reference).toBeNull();
+    expect(second).toEqual(first);
+  });
+
+  // 기대 사례 구성이 바뀌면 필요한 검사 목록도 따라 바뀐다. 개수를 상수로 쓰지 않는다는 증거다.
+  describe("기대 사례 구성이 바뀌면 필요한 검사 목록도 따라 바뀐다", () => {
+    it("사례(양성·정상 쌍)를 빼면 그 사례의 검사가 예상 밖이 되고, 그 검사를 뺀 기록은 수락된다", async () => {
+      const smaller = expectationsWith((e) => {
+        e.cases = e.cases.filter((c: Plain) => !c.path.startsWith("cases/dangerously."));
+      });
+      const r = plain();
+      const dangerous = checksOf(r)
+        .map((c, i) => [c, i] as const)
+        .filter(([c]) => c.file.startsWith("cases/dangerously."))
+        .map(([, i]) => i);
+      expect(dangerous).toHaveLength(4); // A1·A2·A3·PAIR
+      const rejected = await loadWith(r, smaller);
+      expect(rejected.rejection).toBe(
+        `CHECKS_UNEXPECTED(${dangerous.map((i) => `checks[${i}]`).join(", ")})`
+      );
+      r.control_assertions.checks = checksOf(r).filter((_c, i) => !dangerous.includes(i));
+      expect(checksOf(r)).toHaveLength(16);
+      expect((await loadWith(r, smaller)).rejection).toBeNull();
+    });
+
+    it("사례를 더하면 그 사례의 검사(A1·A2, 금지가 있으면 A4)가 필수가 되고, 더한 기록은 수락된다", async () => {
+      const larger = expectationsWith((e) => {
+        e.cases.push({
+          path: "cases/extra.pos.js",
+          fixture: ".moai/fixtures/semgrep-control/cases/extra.pos.js.in",
+          sha256: "0".repeat(64),
+          kind: "positive",
+          family: "extra",
+          pair: null,
+          required: ["semgrep-rules.javascript.extra"],
+          allowed: [],
+          forbidden: ["semgrep-rules.javascript.extra-forbidden"],
+          expect_zero: false,
+          official_backing: "시험용 합성 사례",
+        });
+      });
+      const r = plain();
+      const rejected = await loadWith(r, larger);
+      expect(rejected.rejection).toBe(
+        MISSING("A1:cases/extra.pos.js", "A2:cases/extra.pos.js", "A4:cases/extra.pos.js")
+      );
+      checksOf(r).push(
+        passCheck("A1", "cases/extra.pos.js"),
+        passCheck("A2", "cases/extra.pos.js"),
+        passCheck("A4", "cases/extra.pos.js")
+      );
+      expect((await loadWith(r, larger)).rejection).toBeNull();
+    });
+
+    it("금지 ID가 생기면 A4가 필수가 되고, 없어지면 A4가 예상 밖이 된다", async () => {
+      const withForbidden = expectationsWith((e) => {
+        e.cases.find((c: Plain) => c.path === "cases/eval.pos.js").forbidden = ["x.y"];
+      });
+      expect((await loadWith(plain(), withForbidden)).rejection).toBe(
+        MISSING("A4:cases/eval.pos.js")
+      );
+      const withoutForbidden = expectationsWith((e) => {
+        e.cases.find((c: Plain) => c.path === "cases/child-process.pos.ts").forbidden = [];
+      });
+      const r = plain();
+      const index = checksOf(r).findIndex((c) => c.id === "A4:cases/child-process.pos.ts");
+      expect((await loadWith(r, withoutForbidden)).rejection).toBe(
+        `CHECKS_UNEXPECTED(checks[${index}])`
+      );
+    });
+
+    it("짝(pair)이 없어지면 PAIR 검사가 예상 밖이 된다", async () => {
+      const noPair = expectationsWith((e) => {
+        e.cases.find((c: Plain) => c.path === "cases/child-process.pos.ts").pair = null;
+      });
+      const r = plain();
+      const index = checksOf(r).findIndex((c) => c.id === "PAIR:child-process");
+      expect((await loadWith(r, noPair)).rejection).toBe(`CHECKS_UNEXPECTED(checks[${index}])`);
+    });
+
+    it("정상 사례로 바뀌면(expect_zero) A1·A2 대신 A3이 필수가 된다", async () => {
+      const asNormal = expectationsWith((e) => {
+        e.cases.find((c: Plain) => c.path === "cases/eval.nosource.js").expect_zero = true;
+      });
+      const result = await loadWith(plain(), asNormal);
+      expect(result.rejection).toContain(MISSING("A3:cases/eval.nosource.js"));
+      expect(result.rejection).toContain("CHECKS_UNEXPECTED(");
+    });
+  });
+
+  // 기대 입력을 읽거나 검증하지 못하면 불완전한 검증으로 수락하지 않고 명시적으로 실패한다.
+  describe("기대 입력을 읽거나 검증하지 못하면 수락하지 않고 명시적으로 실패한다", () => {
+    const unavailable = (why: string) => `EXPECTATIONS_UNAVAILABLE(${why})`;
+
+    it("기대 입력 파일이 없다", async () => {
+      const result = await loadWith(plain(), null);
+      expectRejected(result, unavailable("READ_FAILED"));
+    });
+
+    it("기대 입력 파일 읽기가 실패한다", async () => {
+      const inner = fsWith(JSON.stringify(plain()));
+      const failing: FsPort = {
+        readFile: async (p) => {
+          if (p === EXPECTATIONS_PATH) throw new Error("EACCES: 시험용 읽기 실패");
+          return inner.readFile(p);
+        },
+        writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
+        mkdirp: (p) => inner.mkdirp(p),
+        listFilesRecursive: (p) => inner.listFilesRecursive(p),
+        exists: (p) => inner.exists(p),
+      };
+      const result = await loadControlReference(failing, PATH, DATA_DIR);
+      expectRejected(result, unavailable("READ_FAILED"));
+      expect(result.rejection).not.toContain("EACCES"); // 오류 메시지는 사유에 옮기지 않는다
+    });
+
+    it("기록 파일이 정상이어도 기대 입력이 없으면 수락하지 않는다(다른 검사를 모두 통과하는 기록)", async () => {
+      expect((await loadWith(plain(), EXPECTATIONS_TEXT)).rejection).toBeNull(); // 시험 전제
+      expect((await loadWith(plain(), null)).reference).toBeNull();
+    });
+
+    it.each([
+      ["JSON이 아님", "not json", "INVALID_JSON"],
+      ["빈 파일", "", "INVALID_JSON"],
+      ["최상위가 배열", "[]", "NOT_AN_OBJECT"],
+      ["스키마가 다름", JSON.stringify({ schema: "x", cases: [] }), "SCHEMA_UNSUPPORTED"],
+      [
+        "cases가 배열이 아님",
+        JSON.stringify({ schema: "semgrep-lsp-control-expectations/1", cases: {} }),
+        "SCHEMA_UNSUPPORTED",
+      ],
+    ])("기대 입력이 %s → 명시적으로 실패", async (_name, text, why) => {
+      const result = await loadWith(plain(), text);
+      expectRejected(result, unavailable(why));
+    });
+
+    // 검사 목록 도출에 쓰는 필드를 사례마다 검증한다.
+    const badCases: [string, (cases: Plain[]) => void, string][] = [
+      ["사례가 하나도 없음", (c) => void c.splice(0, c.length), "cases(empty)"],
+      ["사례가 객체가 아님", (c) => (c[2] = "x" as unknown as Plain), "cases[2](type)"],
+      ["path가 비어 있음", (c) => (c[1].path = ""), "cases[1].path(value)"],
+      ["path가 숫자", (c) => (c[1].path = 5), "cases[1].path(type)"],
+      ["path가 중복", (c) => (c[1].path = c[0].path), "cases[1].path(duplicate)"],
+      ["kind가 알 수 없는 값", (c) => (c[3].kind = "weird"), "cases[3].kind(value)"],
+      ["family가 숫자", (c) => (c[3].family = 1), "cases[3].family(type)"],
+      ["pair가 숫자", (c) => (c[0].pair = 1), "cases[0].pair(type)"],
+      ["forbidden이 배열이 아님", (c) => (c[0].forbidden = "x"), "cases[0].forbidden(type)"],
+      [
+        "forbidden에 문자열이 아닌 항목",
+        (c) => (c[0].forbidden = [1]),
+        "cases[0].forbidden[0](type)",
+      ],
+      ["forbidden 키 없음", (c) => delete c[0].forbidden, "cases[0].forbidden(missing)"],
+      [
+        "expect_zero가 불리언이 아님",
+        (c) => (c[4].expect_zero = "no"),
+        "cases[4].expect_zero(type)",
+      ],
+    ];
+    it.each(badCases)("기대 사례가 %s → 명시적으로 실패", async (_name, mutate, token) => {
+      const text = expectationsWith((e) => mutate(e.cases));
+      const result = await loadWith(plain(), text);
+      expectRejected(result, "EXPECTATIONS_UNAVAILABLE(INVALID_CASES(", token);
+    });
+
+    it("controlReferenceFromValue도 검증하지 못한 기대로는 수락하지 않는다(호출자가 검증을 빼먹어도)", () => {
+      const bad = { ...CONTROL_EXPECTATIONS, cases: [] };
+      const result = controlReferenceFromValue(plain(), bad);
+      expectRejected(result, "EXPECTATIONS_UNAVAILABLE(INVALID_CASES(cases(empty))");
+    });
+
+    it("기록 파일 자체의 실패는 기존 이유 그대로다(기대 입력은 있다)", async () => {
+      expectRejected(await loadControlReference(fsWith(null), PATH, DATA_DIR), "FILE_NOT_FOUND");
+    });
   });
 });
 
@@ -790,19 +1201,19 @@ describe("controlReferenceFromValue — 던지지 않는다", () => {
     { mode: "control" },
     Object.create(null),
   ])("평범하지 않은 값 %#도 거절로 끝난다", (value) => {
-    const result = controlReferenceFromValue(value);
+    const result = controlReferenceFromValue(value, CONTROL_EXPECTATIONS);
     expect(result.reference).toBeNull();
     expect(result.rejection).not.toBeNull();
   });
 
   it("정상 기록은 같은 결과를 낸다(파일 읽기 없이)", () => {
-    const direct = controlReferenceFromValue(plain());
+    const direct = controlReferenceFromValue(plain(), CONTROL_EXPECTATIONS);
     expect(direct.rejection).toBeNull();
     expect(direct.reference).toEqual(toControlReference(record(), true));
   });
 
   it("음성 대조를 시험이 직접 만든 명시 목록으로 줘도 같은 규칙으로 재계산한다", () => {
     const r = record({ negatives: qualifiedNegativeControls(String(FP.binding_sha256)) });
-    expect(controlReferenceFromValue(plain(r)).rejection).toBeNull();
+    expect(controlReferenceFromValue(plain(r), CONTROL_EXPECTATIONS).rejection).toBeNull();
   });
 });

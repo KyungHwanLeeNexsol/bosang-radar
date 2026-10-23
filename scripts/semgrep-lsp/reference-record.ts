@@ -15,9 +15,15 @@
 //  6. 세부 결과와 요약 상태가 서로 모순이 아니다(기록의 자기 일관성이다 — 서명·출처 인증이나 원시 트랜스크립트 재검증이 아니다):
 //     · COMPLETE·NOT_RUN 측정에는 reasons가 없다(기록 생성 계약, evidence.ts의 checkVerdict와 같다).
 //     · control_assertions.checks는 항목마다 id·kind·file·status·detail을 검사하고, 사례 검사(A1·A3)가 하나 이상 있다.
+//       (이것은 최소 조건이다. 목록이 갖춰야 할 모습은 아래 7번이 기대 사례로 정한다.)
 //     · design_errors는 문자열 배열이고 비어 있다.
 //     · 저장된 control_assertions.status가 세부 결과(검사·음성 대조·설계 오류)로 계산한 값과 같다. 계산 규칙은
 //       control.ts의 `summarizeControlAssertions`이며 evaluateControlAssertions가 쓰는 함수와 같다(두 구현이 갈라지지 않는다).
+//  7. 검사 목록이 완전하다: 기록의 checks는 기대 사례(하네스가 쓰는 data/control-expectations.json, 대조 지문 계산과 같은 입력)에서
+//     도출한 필요한 검사 목록과 (id, kind, file)의 다중집합으로 같다. 누락·중복·예상 밖 검사·잘못된 id/kind/file 조합은 거절하고
+//     순서만 다른 목록은 수락한다. 도출 규칙은 control.ts의 `requiredControlChecks`이며 evaluateControlAssertions가 검사를 만들 때
+//     쓰는 계획과 같다. 기록이 주장하는 목록·개수는 기준이 아니고, 기대 입력을 읽거나 검증하지 못하면 수락하지 않는다
+//     (`EXPECTATIONS_UNAVAILABLE(...)`). 결과(status)는 채우지 않는다.
 //
 // 이 모듈이 하지 않는 것:
 //  · 이번 실행(target)의 핀·도구·규칙·하네스·대조 지문과의 비교 — 그것은 수락된 요약을 받는 판정(evaluate, 기존
@@ -29,11 +35,17 @@
 // 거절 상세(rejection)에는 필드 경로와 토큰만 쓴다. 해시 값·도구 버전 같은 값은 적지 않는다.
 //
 // 공개 API:
-//   loadControlReference(fs, path): Promise<ReferenceRecordResult>     파일 읽기 → 파싱 → 검증. 던지지 않는다.
-//   controlReferenceFromValue(value: unknown): ReferenceRecordResult   이미 파싱한 값에서. 던지지 않는다.
+//   loadControlReference(fs, path, dataDir): Promise<ReferenceRecordResult>   기대 입력(dataDir) 읽기 → 기록 읽기 → 파싱 → 검증. 던지지 않는다.
+//   controlReferenceFromValue(value: unknown, expectations): ReferenceRecordResult   이미 파싱한 값과 기대에서. 던지지 않는다.
 //   ReferenceRecordResult / MAX_RECORD_BYTES
 
-import { hasCaseChecks, summarizeControlAssertions } from "./control";
+import {
+  controlCaseProblems,
+  controlCheckListProblems,
+  hasCaseChecks,
+  summarizeControlAssertions,
+} from "./control";
+import { readControlExpectations } from "./control-expectations";
 import { toControlReference } from "./harness";
 import { negativeControlProblems, qualifyControlRun } from "./reference";
 import { STATUS_PRIORITY, type MeasurementStatus } from "./status";
@@ -41,6 +53,7 @@ import {
   SCHEMAS,
   type ControlAssertions,
   type ControlCheck,
+  type ControlExpectations,
   type FsPort,
   type NegativeControlResult,
   type Provenance,
@@ -61,6 +74,7 @@ const MAX_REJECTION_CHARS = 600;
 const MAX_LIST = 64;
 const MAX_REASONS = 1000;
 const MAX_NEGATIVE_TOKENS = 8;
+const MAX_EXPECTATION_TOKENS = 6;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
@@ -465,8 +479,25 @@ const reject = (rejection: string): ReferenceRecordResult => ({
   rejection: rejection.slice(0, MAX_REJECTION_CHARS),
 });
 
-export function controlReferenceFromValue(value: unknown): ReferenceRecordResult {
+/** 앞의 max개만 보이고 나머지는 `+N`으로 센다. */
+function shown(items: readonly string[], max: number): string {
+  const head = items.slice(0, max);
+  const more = items.length - head.length;
+  return `${head.join(", ")}${more > 0 ? `, +${more}` : ""}`;
+}
+
+export function controlReferenceFromValue(
+  value: unknown,
+  expectations: ControlExpectations
+): ReferenceRecordResult {
   try {
+    // 기대를 검증하지 못하면 검사 목록을 대조할 기준이 없다: 불완전한 검증으로 수락하지 않고 명시적으로 거절한다.
+    const expectationProblems = controlCaseProblems(expectations);
+    if (expectationProblems.length > 0) {
+      return reject(
+        `EXPECTATIONS_UNAVAILABLE(INVALID_CASES(${shown(expectationProblems, MAX_EXPECTATION_TOKENS)}))`
+      );
+    }
     if (!isObject(value)) return reject("NOT_AN_OBJECT");
 
     // 스키마와 모드는 나머지 구조를 볼 가치가 있는지 가른다.
@@ -516,6 +547,8 @@ export function controlReferenceFromValue(value: unknown): ReferenceRecordResult
         `ASSERTION_SUMMARY_MISMATCH(stored=${assertions.status}, derived=${derivedStatus})`
       );
     }
+    // 검사 목록의 완전성: 기대 사례에서 도출한 필요한 검사와 (id, kind, file)의 다중집합으로 같아야 한다. 순서는 보지 않는다.
+    found.push(...controlCheckListProblems(assertions.checks, expectations));
 
     // 저장된 자격 선언은 믿지 않는다: 같은 사실로 현재 로직을 다시 돌려 비교한다.
     const n0 = view.qualification.requirements.find((r) => r.id === "N0_CONFIRMED");
@@ -547,9 +580,7 @@ export function controlReferenceFromValue(value: unknown): ReferenceRecordResult
       // 음성 대조는 어느 (id, 층)이 왜 어긋났는지(missing·상태·expected·observed)까지 토큰으로 남긴다.
       const negatives = negativeControlProblems(view.control_assertions.negative_controls);
       if (negatives.length > 0) {
-        const shown = negatives.slice(0, MAX_NEGATIVE_TOKENS);
-        const more = negatives.length - shown.length;
-        found.push(`NEGATIVE_CONTROL_PROBLEMS(${shown.join(", ")}${more > 0 ? `, +${more}` : ""})`);
+        found.push(`NEGATIVE_CONTROL_PROBLEMS(${shown(negatives, MAX_NEGATIVE_TOKENS)})`);
       }
     }
     if (found.length > 0) return reject(found.join("; "));
@@ -579,9 +610,15 @@ export function controlReferenceFromValue(value: unknown): ReferenceRecordResult
 
 export async function loadControlReference(
   fs: FsPort,
-  path: string
+  path: string,
+  dataDir: string
 ): Promise<ReferenceRecordResult> {
   try {
+    // 기대 입력은 하네스가 쓰는 것과 같은 파일(dataDir/control-expectations.json)이다. 읽거나 파싱하지 못하면 기록을 보지 않고
+    // 거절한다(사례 필드 검증은 controlReferenceFromValue가 한다). 오류 메시지는 경로가 섞일 수 있어 코드만 적는다.
+    const expectations = await readControlExpectations(fs, dataDir);
+    if (!expectations.ok) return reject(`EXPECTATIONS_UNAVAILABLE(${expectations.code})`);
+
     let present: boolean;
     try {
       present = await fs.exists(path);
@@ -611,7 +648,7 @@ export async function loadControlReference(
     } catch {
       return reject("INVALID_JSON");
     }
-    return controlReferenceFromValue(value);
+    return controlReferenceFromValue(value, expectations.expectations);
   } catch {
     return reject("INTERNAL_ERROR");
   }

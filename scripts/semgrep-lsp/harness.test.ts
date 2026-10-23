@@ -1312,7 +1312,7 @@ describe("runHarness — 저장된 대조 기록을 어댑터로 읽어 잇는�
 
   async function envWith(text: string | null, options: Partial<HarnessOptions> = {}) {
     const env = await makeEnv({ mode: "target", files: text === null ? {} : { [RECORD]: text } });
-    const loaded = await loadControlReference(env.fs, RECORD);
+    const loaded = await loadControlReference(env.fs, RECORD, env.options.dataDir);
     env.options.controlReference = loaded.reference;
     env.options.controlReferenceRejection = loaded.rejection;
     Object.assign(env.options, options);
@@ -1395,6 +1395,36 @@ describe("runHarness — 저장된 대조 기록을 어댑터로 읽어 잇는�
       "control_assertions.checks[0](type)",
     ],
     ["checks가 비어 있음", (r) => (r.control_assertions.checks = []), "ASSERTION_CHECKS_EMPTY"],
+    // PR #29 외부 재검토: 요약은 PASS로 일관되지만 검사 목록이 기대 사례(data/control-expectations.json)에서 도출한 목록과 다르다.
+    [
+      "검사 20개 중 첫 1개만 유지",
+      (r) => (r.control_assertions.checks = r.control_assertions.checks.slice(0, 1)),
+      "CHECKS_MISSING(A2:cases/child-process.pos.ts",
+    ],
+    [
+      "한 사례의 검사 전체 삭제",
+      (r) =>
+        (r.control_assertions.checks = r.control_assertions.checks.filter(
+          (c: Plain) => c.file !== "cases/child-process.pos.ts"
+        )),
+      "CHECKS_MISSING(A1:cases/child-process.pos.ts, A2:cases/child-process.pos.ts",
+    ],
+    [
+      "A4 검사 전체 삭제",
+      (r) =>
+        (r.control_assertions.checks = r.control_assertions.checks.filter(
+          (c: Plain) => c.kind !== "A4"
+        )),
+      "CHECKS_MISSING(A4:cases/child-process.pos.ts, A4:cases/eval.nosource.js)",
+    ],
+    [
+      "첫 검사만 20번 복제",
+      (r) =>
+        (r.control_assertions.checks = Array.from({ length: 20 }, () => ({
+          ...r.control_assertions.checks[0],
+        }))),
+      "CHECKS_DUPLICATE(A1:cases/child-process.pos.ts)",
+    ],
   ];
   it.each(contradictory)(
     "자기 모순 기록(%s)은 참조로 잇지 않는다 — COMPLETE도 0건도 아니다",
@@ -1481,7 +1511,7 @@ describe("runHarness — 저장된 대조 기록을 어댑터로 읽어 잇는�
     await control.go();
     const written = (await evidenceFiles(control))["run.json"];
     expect(written).toBeDefined();
-    const loaded = controlReferenceFromValue(JSON.parse(written));
+    const loaded = controlReferenceFromValue(JSON.parse(written), controlExpectations);
     expect(loaded.reference).toBeNull();
     expect(loaded.rejection).not.toContain("INVALID_FIELDS"); // 운영 형식을 구조 검증이 거절하지 않는다
     expect(loaded.rejection).toContain("TRUST_SYNTHETIC");

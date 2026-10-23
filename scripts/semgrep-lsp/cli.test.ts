@@ -1091,6 +1091,31 @@ describe("main — run: 대조 기록(--control-record)", () => {
       expect(stdout(w).control_record.rejection).toContain("READ_FAILED");
       expect(codesOfRun(run)).toContain("CONTROL_REFERENCE_RECORD_REJECTED");
     });
+
+    it("기대 입력(data/control-expectations.json)을 읽지 못하면 기록을 수락하지 않고 명시적으로 실패한다", async () => {
+      const w = worldWith(canonicalJson(control()));
+      const inner = w.deps.fs;
+      const expectationsPath = `${w.deps.dataDir}/control-expectations.json`;
+      w.deps.fs = {
+        readFile: async (p) => {
+          if (p === expectationsPath) throw new Error("EACCES: 시험용 읽기 실패");
+          return inner.readFile(p);
+        },
+        writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
+        mkdirp: (p) => inner.mkdirp(p),
+        listFilesRecursive: (p) => inner.listFilesRecursive(p),
+        exists: (p) => inner.exists(p),
+      };
+      // 하네스도 같은 파일을 읽으므로 고정 입력 단계에서 하드 실패한다: 기록은 수락되지 않고 서버도 뜨지 않는다.
+      expect(await main(argvWithRecord(), w.deps)).toBe(EXIT.failed);
+      const out = stdout(w);
+      expect(out.started).toBe(false);
+      expect(out.complete).toBe(false);
+      expect(out.control_record).toMatchObject({ given: true, accepted: false, run_id: null });
+      expect(out.control_record.rejection).toContain("EXPECTATIONS_UNAVAILABLE(READ_FAILED)");
+      expect(out.control_record.rejection).not.toContain("EACCES");
+      expect(w.spawnCalls).toEqual([]);
+    });
   });
 
   describe("참조가 될 수 없는 기록은 수락하지 않는다", () => {
@@ -1203,6 +1228,49 @@ describe("main — run: 대조 기록(--control-record)", () => {
           return r;
         },
         "ASSERTION_CHECKS_EMPTY",
+      ],
+      // PR #29 외부 재검토: 요약은 PASS로 일관되지만 검사 목록이 기대 사례(data/control-expectations.json)와 다르다.
+      [
+        "검사 20개 중 첫 1개만 유지",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = r.control_assertions.checks.slice(0, 1);
+          return r;
+        },
+        "CHECKS_MISSING(A2:cases/child-process.pos.ts",
+      ],
+      [
+        "한 사례의 검사 전체 삭제",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = r.control_assertions.checks.filter(
+            (c: Plain) => c.file !== "cases/child-process.pos.ts"
+          );
+          return r;
+        },
+        "CHECKS_MISSING(A1:cases/child-process.pos.ts, A2:cases/child-process.pos.ts",
+      ],
+      [
+        "A4 검사 전체 삭제",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = r.control_assertions.checks.filter(
+            (c: Plain) => c.kind !== "A4"
+          );
+          return r;
+        },
+        "CHECKS_MISSING(A4:cases/child-process.pos.ts, A4:cases/eval.nosource.js)",
+      ],
+      [
+        "첫 검사만 20번 복제",
+        () => {
+          const r = asPlain(control());
+          r.control_assertions.checks = Array.from({ length: 20 }, () => ({
+            ...r.control_assertions.checks[0],
+          }));
+          return r;
+        },
+        "CHECKS_DUPLICATE(A1:cases/child-process.pos.ts)",
       ],
     ];
 
