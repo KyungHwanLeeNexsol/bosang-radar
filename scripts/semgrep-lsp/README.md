@@ -38,13 +38,16 @@ Semgrep을 설치하지도, 실행하지도 않는다. 모든 시험은 합성 �
 | `settings.ts`                                                                                | `initializationOptions` 생성, 허용 키 검사(알 수 없는 키 거부)                          | B          |
 | `precheck.ts`                                                                                | PH0 사전 검사(서버 없이)                                                                | B          |
 | `evaluate.ts`                                                                                | 트랜스크립트 → `Verdict` (순수 함수)                                                    | B          |
-| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조                                                     | B          |
+| `control.ts`                                                                                 | 대조 단언 A1~A4, 정상 쌍, 음성 대조, 전체 상태 규칙, 필요한 검사 목록                   | B          |
+| `control-expectations.ts`                                                                    | 대조 기대 입력(`data/control-expectations.json`) 읽기 — 하네스·어댑터 공용              | B          |
 | `canonical.ts`                                                                               | 정규 JSON 직렬화(키 정렬, 2칸, LF) — `evidence.ts`와 `fingerprint.ts`가 함께 쓴다       | B          |
 | `fingerprint.ts`                                                                             | 하네스·대조 지문, 도구·규칙·하네스·대조를 묶는 결합(binding) 해시                       | B          |
 | `reference.ts`                                                                               | 대조 참조 자격(`qualifyControlRun`)과 target 쪽 사실 확인(`checkControlReferenceFacts`) | B          |
+| `reference-record.ts`                                                                        | 명시한 control `run.json`을 읽어 구조·자격을 다시 확인하고 target의 대조 참조로 변환    | B          |
 | `evidence.ts`                                                                                | `RunRecord` 구성(`reference_qualification` 포함), 증거 파일 9개 작성                    | B          |
 | `testing/transcript-builder.ts`                                                              | 합성 트랜스크립트 작성기                                                                | B          |
 | `testing/evaluate-fixtures.ts`, `testing/evaluate-scenarios.ts`, `testing/synthetic-data.ts` | 판정·CLI 시험이 공유하는 합성 입력과 시나리오 표(시험 전용)                             | B·C        |
+| `testing/control-record-fixtures.ts`                                                         | 합성 control 기록 빌더(시험 전용 — 실제 실행에서 나온 기록이 아니다)                    | B·C        |
 | `session.ts`                                                                                 | PH1~PH4 세션 제어기(포트·시계 주입)                                                     | C          |
 | `process-node.ts`, `git-node.ts`, `fs-node.ts`                                               | 실제 어댑터(자식 프로세스·git·파일)                                                     | C          |
 | `harness.ts`                                                                                 | 범위 계산 → 사전 검사 → 세션 → 판정 → 증거를 잇는 함수                                  | C          |
@@ -145,6 +148,7 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
 | `--scan-root`             | 필수. 대상 SHA에서 만든(또는 대조할) 스캔 트리 | 쓰지 않는다 |
 | `--control-fixtures-root` | 선택. 대조 지문 계산에 읽는 대조 예제의 저장소 | 필수        |
 | `--control-tree-root`     | 쓰지 않는다(자리표시 경로로 남는다)            | 필수        |
+| `--control-record`        | 선택. 대조 실행의 `run.json` 한 개(명시만)     | 쓸 수 없다  |
 
 - `--control-fixtures-root`는 **두 모드 모두** 대조 지문(`inputs.control_sha256`)을 계산하는 데 쓴다. target에서도 하네스가
   대조 지문을 계산하기 때문이다. 이 위치는 `--repo`와 **별개의 경로**다. 검사 대상 SHA에는 대조 예제가 없을 수 있어서
@@ -152,8 +156,59 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
 - target에서 `--control-fixtures-root`를 생략하거나, 위치가 없거나, 예제 하나라도 읽을 수 없으면 대조 지문은 `null`
   (확인하지 못함)이고 결합 해시도 `null`이다. 거짓 지문을 만들지 않고 대조 참조의 값을 복사하지도 않는다. 대조 참조는
   기존대로 거절된다.
-- 대조 참조(`controlReference`) 자체를 `run.json`에서 읽어 연결하는 코드는 여전히 없다(아래 4번). 이 옵션은 이번 실행의
-  대조 지문을 정확히 계산하는 경로만 잇는다.
+
+`--control-record`(대조 기록 읽기, `reference-record.ts`):
+
+- 세 경로는 서로 다르다: 검사 대상 저장소(`--repo`), 대조 예제 저장소(`--control-fixtures-root`), 대조 기록(`--control-record`).
+  **최신 기록 자동 탐색도 기본 경로도 없다.** 경로는 하나만 명시하고, control 모드에서는 쓸 수 없다(사용법 오류).
+  방지 장치를 통과하지 못하면(NOT_RUN) 기록 파일을 읽지도 않는다.
+- 옵션을 생략하면 기존 동작 그대로다: 대조 참조가 없어 `CONTROL_REFERENCE_MISSING`만 남는다.
+- 파일에서 읽은 값은 전부 `unknown`으로 다루고 소비하는 필드를 하나씩 검사해 새 객체로 옮긴다(타입 단언으로 `RunRecord`라고
+  간주하지 않는다). 읽기 실패·깨진 JSON·UTF-8 오류·크기 초과(16 MiB)·지원하지 않는 스키마·필드 누락·잘못된 타입은 던지지 않고 거절한다.
+- 수락 조건: control 실행 기록이고(target 기록은 거절), 출처 `real`·trust `REAL_UNREVIEWED`(stub·SYNTHETIC 거절), 그리고 저장된
+  `reference_qualification`을 믿지 않고 기록의 사실로 `qualifyControlRun`을 **다시 돌린 자격이 충족**이며 저장된 선언(`eligible`과
+  요구별 충족 표시)이 재계산과 어긋나지 않을 것 — 측정 `COMPLETE`, 대조 단언 `PASS`, N0 확정, 지문 값과 결합 완비, 음성 대조 두 층
+  16쌍이 정확히 하나씩 `PASS`이고 같은 결합. `eligible:true`를 선언해도 사실이 받쳐 주지 않으면 거절한다.
+  - **음성 대조 `PASS`의 근거**(`qualifyControlRun`): 기록의 `expected`가 현재 `NEGATIVE_CONTROL_TABLE`의 기준과 같아야 한다 — 엔진은
+    `spec.expected`, 사전 검사는 `spec.preflight.status`이며 두 층의 기대 상태는 같다고 가정하지 않는다(R9: 엔진
+    `ISOLATION_VIOLATION`, 사전 검사 `SETTINGS_MISMATCH`). `observed`는 `null`이 아니고 그 기대 상태와 같아야 한다. 어긋나면
+    관측을 보정하거나 `PASS`로 덮어쓰지 않고 거절하며, 거절 상세에 `R1:engine(observed-null)`·`(observed)`·`(expected)` 같은
+    (id, 층) 토큰을 남긴다. target 쪽 사실 확인(`checkControlReferenceFacts`)은 이 검사를 하지 않는다 — 참조 요약은
+    `expected`·`observed`를 싣지 않으므로, 근거는 전체 기록을 보는 자격 계산과 이 어댑터에서 확인한다.
+  - **세부 결과와 요약 상태의 모순 거절**(기록의 자기 일관성만 본다): `COMPLETE`·`NOT_RUN` 측정에 `reasons`가 있으면
+    `MEASUREMENT_REASONS_INCONSISTENT`(기록 생성 계약과 같다). `control_assertions.checks`는 항목마다 `id`·`kind`·`file`·`status`·
+    `detail`을 검사하고, 사례 검사(A1·A3)가 하나도 없으면 `ASSERTION_CHECKS_EMPTY`다(목록이 갖춰야 할 모습은 다음 항목이 기대 사례로 정한다). `design_errors`는 문자열 배열이며 비어
+    있지 않으면 `ASSERTION_DESIGN_ERRORS(개수)`다(내용은 사유에 옮기지 않는다). 저장된 `control_assertions.status`는 세부 결과
+    (검사·음성 대조·설계 오류)로 계산한 값과 같아야 하며 다르면 `ASSERTION_SUMMARY_MISMATCH(stored=…, derived=…)`다. 계산 규칙은
+    `control.ts`의 `summarizeControlAssertions` 하나이고 `evaluateControlAssertions`도 같은 함수를 쓴다. FAIL·REVIEW·NOT_RUN인
+    세부 검사(A1~A4·PAIR 어느 종류든)와 FAIL인 음성 대조 항목, 설계 오류는 전체 `PASS`로 인정하지 않는다.
+  - **검사 목록의 완전성**(기록의 자기 일관성): 기록의 `checks`는 **기대 사례에서 도출한 필요한 검사 목록**과 `(id, kind, file)`의
+    다중집합으로 같아야 한다. 기대 사례는 하네스가 쓰는 `data/control-expectations.json`이며 대조 지문(`control_sha256`)을 계산할 때
+    읽는 파일과 같은 입력이다(`--repo`에서 찾지 않고, 기록이 주장하는 목록이나 검사 개수를 기준으로 삼지 않으며, 별도의 기대 목록
+    파일도 없다). 도출 규칙은 `control.ts`의 `requiredControlChecks` 하나다: 정상 사례(`normal`이거나 `expect_zero`)는 A3 하나,
+    그 밖의 사례는 A1·A2이고 금지 ID가 있으면 A4가 더해지며, 짝이 있는 양성마다 PAIR(`PAIR:<계열>`, file은 양성 사례) 하나다.
+    `evaluateControlAssertions`가 검사를 만들 때도 같은 계획(`planControlChecks`)을 순회하므로 생성과 검증이 갈라지지 않는다. 개수는
+    상수가 아니다(기대 사례가 바뀌면 필요한 검사 목록도 따라 바뀐다). 순서만 다른 목록은 수락하고, 아래는 거절한다:
+    `CHECKS_MISSING(id…)`(필수 검사 누락), `CHECKS_DUPLICATE(id…)`(같은 검사가 둘 이상 — 개수가 같아도 구성이 다르면 거절),
+    `CHECK_IDENTITY_MISMATCH(id…)`(필수 id인데 kind·file이 다른 잘못된 조합), `CHECKS_UNEXPECTED(checks[i]…)`(필수가 아닌 검사 —
+    기록이 주장한 문자열은 사유에 옮기지 않고 위치만 적는다). 한 토큰에는 6개까지 보이고 나머지는 `+N`이다. 검사 결과(`status`)는
+    기대에서 채우지 않는다 — 기록이 가진 값을 그대로 쓰고 요약과의 모순은 위 검사가 본다.
+  - **기대 입력을 읽거나 검증하지 못하면 수락하지 않는다**: 기대 파일이 없거나 읽기·JSON·스키마·사례 필드(`path`·`kind`·`family`·
+    `pair`·`forbidden`·`expect_zero`, `path` 중복, 사례 0개)가 맞지 않으면 기록을 보기 전에 `EXPECTATIONS_UNAVAILABLE(READ_FAILED
+| INVALID_JSON | NOT_AN_OBJECT | SCHEMA_UNSUPPORTED | INVALID_CASES(...))`로 거절한다. 불완전한 검증으로 수락하는 경로는 없다.
+    하네스도 같은 파일을 고정 입력 단계에서 읽으므로, 이때 target 실행은 서버를 띄우기 전에 하드 실패한다.
+- 수락한 요약은 기존 `toControlReference`로 만들고(자격은 재계산한 값), target 판정이 **이번 실행의** 핀·도구·규칙·하네스·대조 지문과
+  결합을 다시 맞춘다. 기록의 지문을 이번 실행의 지문으로 바꾸거나, 이번 실행이 관측하지 못한 값(도구 버전·휠·결합)을 기록의
+  값으로 채우지 않는다.
+- 거절하면 참조 없이 진행한다: 사유 `CONTROL_REFERENCE_RECORD_REJECTED`(상세 = 이유 토큰과 필드 경로, 값 없음)와
+  `CONTROL_REFERENCE_MISSING`이 함께 남고 대표 상태는 `CONTROL_MISSING`이며 `COMPLETE`가 될 수 없다. 출력 JSON의
+  `control_record`에 경로·수락 여부·거절 이유가 있다.
+- **한계**: 기록 파일은 서명되어 있지 않다. 어댑터는 기록의 자기 일관성과 이번 실행과의 지문 일치를 확인할 뿐 파일이 실제 Semgrep
+  실행에서 나왔다는 것은 증명하지 못한다(출처 위조는 막지 못한다). 자기 일관성에는 위의 세 검사(음성 대조 `PASS`의 근거, 세부
+  결과와 요약의 모순, 검사 목록의 완전성)가 포함되지만, 서명·출처 인증 체계나 원시 트랜스크립트 전체 재검증은 하지 않는다 —
+  완전한 목록의 각 검사 `status`가 실제 관측에서 나왔는지는 확인하지 않으므로, 위조자가 `checks`·`negative_controls`·요약을 서로
+  맞게 꾸미면 이 어댑터로는 구별할 수 없다. 지금은 엔진 음성 대조를 `PASS`로 기록하는 운영 코드가 없어
+  이 저장소가 만든 어떤 기록도 수락 조건을 채우지 못한다 — 수락 경로는 시험용 합성 기록으로만 시험했다.
 
 종료 코드: 0 통과, 1 불일치·거부·실패, 2 사용법 오류, 3 NOT_RUN(실행 방지 장치).
 
@@ -165,6 +220,6 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
 1. 도구 버전 관측(`toolVersionObserved`)과 휠 sha256 관측(`wheelSha256Observed`). `pin.json`의 휠 해시는 `verified: false`다.
 2. 같은 트리의 다른 서버 프로세스 검사(`foreignServerProcesses`)와 실제 실행 잠금(지금은 실행별 `run.lock` 표지뿐이다).
 3. 하네스가 여는 루프백 메트릭 수신기(`metricsReceiverHits`). 이 변경에는 수신기가 없다.
-4. target 실행에 쓸 대조 실행 기록(`controlReference`)을 `run.json`에서 읽어 연결하는 코드.
+4. (해결: `--control-record` 어댑터가 명시한 `run.json`을 읽어 연결한다. 다만 수락 조건을 채우는 기록은 아래 5번이 있어야 만들어진다.)
 5. 엔진 음성 대조 실행기와 그 결과를 `PASS`로 표시·기록하는 코드(없으면 실제 control 실행도 `eligible=false`다).
 6. 실행 인자 `lsp --debug`, `SEMGREP_*` 환경변수 이름, 단계별 시간 한도, `scan` 설정값은 모두 **미확인**이다(ADR U3·U8·U12).

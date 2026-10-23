@@ -82,6 +82,12 @@ export interface EvaluateInputs {
   /** target 모드의 대조 참조(control_reference 모양). 없으면 null. control 모드에서는 무시한다. */
   controlReference: RunRecord["control_reference"];
   /**
+   * 호출자가 대조 기록을 명시했지만 참조로 수락하지 못한 이유(토큰·필드 경로만, 값 없음). 없으면 null·생략.
+   * 값이 있으면 controlReference는 null이어야 하고, 참조가 없다는 사유(MISSING)와 별개로 이유를 사유로 남긴다.
+   * 기록을 아예 명시하지 않았다면 이 값은 없고 기존대로 MISSING만 나온다. control 모드에서는 무시한다.
+   */
+  controlReferenceRejection?: string | null;
+  /**
    * 이번 실행의 지문(하네스·대조·도구·결합). target 모드에서 대조 참조의 지문과 맞춰 본다. null이면 모든 값을 확인하지
    * 못한 것이라 CONTROL_REFERENCE_FINGERPRINT_MISSING이다. control 모드에서는 무시한다.
    */
@@ -208,6 +214,7 @@ export const REASON_EMITTERS = {
   MATCH_COUNT_DIAGNOSTICS_EXCESS: "evaluate",
 
   CONTROL_REFERENCE_MISSING: "evaluate",
+  CONTROL_REFERENCE_RECORD_REJECTED: "evaluate",
   CONTROL_REFERENCE_NOT_PASS: "evaluate",
   CONTROL_REFERENCE_PIN_MISMATCH: "evaluate",
   CONTROL_REFERENCE_SYNTHETIC: "evaluate",
@@ -1104,6 +1111,9 @@ function evaluateCore(transcript: Transcript, inputs: EvaluateInputs): Verdict {
   // ── 9. 대조 참조(C8, target 전용)와 격리(C9) ──
   if (mode === "target") {
     const ref = inputs.controlReference;
+    if (typeof inputs.controlReferenceRejection === "string") {
+      sink.add("CONTROL_REFERENCE_RECORD_REJECTED", inputs.controlReferenceRejection);
+    }
     if (ref === null) {
       sink.add("CONTROL_REFERENCE_MISSING");
     } else {

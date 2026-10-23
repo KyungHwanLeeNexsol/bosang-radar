@@ -22,6 +22,9 @@
 //   NEGATIVE_CONTROL_TABLE: R1~R9 자료(기대 상태·사전 검사 사유)
 //   defaultNegativeControls(): NegativeControlResult[]     엔진 9 + 사전 검사 7 = 16개, 전부 observed=null, NOT_RUN, 결합 null
 //   markPreflightNegativeControls(base, produced, binding) 사전 검사 층만, 사전 검사가 실제로 낸 사유가 있을 때만 PASS
+//   summarizeControlAssertions(parts): 세부 결과(검사·음성 대조·설계 오류)가 정하는 전체 상태. evaluateControlAssertions가
+//                                      쓰고, 저장된 기록의 요약이 세부 결과와 모순인지 보는 reference-record.ts도 같은 함수를 쓴다
+//   hasCaseChecks(checks): 사례 검사(A1·A3)가 하나라도 있는가
 //
 // 음성 대조는 "층"을 가진다: preflight(서버 없는 사전 검사의 거부)와 engine(실제 엔진을 띄운 진단 실행). 사전 검사 PASS는 엔진
 // 항목을 바꾸지 않으며, 엔진 항목을 PASS로 표시하는 운영 함수는 없다(엔진 실행은 이 변경의 범위 밖이다). 각 PASS에는 그 결과를
@@ -222,6 +225,183 @@ function listText(ids: readonly string[]): string {
   return ids.join(", ");
 }
 
+/** 사례 검사(A1·A3): 기대 사례마다 정확히 하나가 만들어진다. 하나도 없으면 아무 사례도 검사하지 않은 기록이다. */
+export function hasCaseChecks(checks: readonly Pick<ControlCheck, "kind">[]): boolean {
+  return checks.some((c) => c.kind === "A1" || c.kind === "A3");
+}
+
+/**
+ * 세부 결과가 정하는 전체 상태. 우선순위: FAIL(검사·음성 대조·설계 오류) > 결과 없는 검사(사례 검사가 전부 비었으면
+ * NOT_RUN, 일부만 비었으면 FAIL — 불완전한 대조는 참조가 될 수 없다) > REVIEW > PASS.
+ * NOT_RUN인 음성 대조는 막지 않는다(엔진이 필요한 것은 이 변경에서 실행하지 않는다) — FAIL인 음성 대조만 막는다.
+ * 검사가 비어 있으면 PASS가 계산되므로, 기록을 읽는 쪽은 hasCaseChecks로 따로 막는다.
+ */
+export function summarizeControlAssertions(parts: {
+  checks: readonly Pick<ControlCheck, "kind" | "status">[];
+  negatives: readonly Pick<NegativeControlResult, "status">[];
+  designErrorCount: number;
+}): ControlAssertions["status"] {
+  const { checks, negatives, designErrorCount } = parts;
+  if (
+    checks.some((c) => c.status === "FAIL") ||
+    negatives.some((n) => n.status === "FAIL") ||
+    designErrorCount > 0
+  ) {
+    return "FAIL";
+  }
+  if (checks.some((c) => c.status === "NOT_RUN")) {
+    const cases = checks.filter((c) => c.kind === "A1" || c.kind === "A3");
+    return cases.length > 0 && cases.every((c) => c.status === "NOT_RUN") ? "NOT_RUN" : "FAIL";
+  }
+  return checks.some((c) => c.status === "REVIEW") ? "REVIEW_REQUIRED" : "PASS";
+}
+
+// ── 필요한 검사 목록 ─────────────────────────────────────────────
+// 어떤 검사가 있어야 하는지는 기대 사례(data/control-expectations.json)가 정한다. 생성(evaluateControlAssertions)은 이 계획을
+// 순회하며 검사를 만들고, 기록을 읽는 쪽은 같은 계획에서 도출한 식별 목록과 기록의 검사 목록을 대조한다. 기록이 스스로
+// 주장하는 목록이나 개수는 기준이 아니다.
+
+/** 검사 하나의 식별. 결과(status·detail)는 관측이 정하며 이 식별에는 들어 있지 않다. */
+export interface ControlCheckIdentity {
+  id: string;
+  kind: ControlCheck["kind"];
+  file: string;
+}
+
+interface PlannedCheck {
+  id: string;
+  kind: Exclude<ControlCheck["kind"], "NEGATIVE">;
+  file: string;
+  source: ControlCase;
+}
+
+/** 정상 사례는 A3 하나다. 양성·nosource는 A1·A2이고 금지 ID가 있으면 A4가 더해진다. */
+const isNormalCase = (c: Pick<ControlCase, "kind" | "expect_zero">): boolean =>
+  c.kind === "normal" || c.expect_zero;
+
+/** 사례별 검사(기대 사례 순서), 이어서 짝이 있는 양성마다 PAIR 하나. PAIR는 A1·A3 결과를 쓰므로 항상 뒤에 온다. */
+function planControlChecks(cases: readonly ControlCase[]): PlannedCheck[] {
+  const plan: PlannedCheck[] = [];
+  for (const c of cases) {
+    const kinds: PlannedCheck["kind"][] = isNormalCase(c)
+      ? ["A3"]
+      : c.forbidden.length > 0
+        ? ["A1", "A2", "A4"]
+        : ["A1", "A2"];
+    for (const kind of kinds) plan.push({ id: `${kind}:${c.path}`, kind, file: c.path, source: c });
+  }
+  for (const c of cases) {
+    if (c.kind === "positive" && c.pair !== null) {
+      plan.push({ id: `PAIR:${c.family}`, kind: "PAIR", file: c.path, source: c });
+    }
+  }
+  return plan;
+}
+
+/** 기대 사례에서 도출한 필요한 검사의 식별 목록. 입력을 바꾸지 않고, 결과를 채우지 않는다. */
+export function requiredControlChecks(
+  expectations: Pick<ControlExpectations, "cases">
+): ControlCheckIdentity[] {
+  return planControlChecks(expectations.cases).map(({ id, kind, file }) => ({ id, kind, file }));
+}
+
+const MAX_LISTED = 6;
+
+function listed(items: readonly string[]): string {
+  const shown = items.slice(0, MAX_LISTED);
+  const more = items.length - shown.length;
+  return `${shown.join(", ")}${more > 0 ? `, +${more}` : ""}`;
+}
+
+/**
+ * 기록의 검사 목록을 기대에서 도출한 목록과 (id, kind, file)의 다중집합으로 대조한다. 순서는 보지 않고, 개수만 같다고
+ * 통과시키지 않는다. 어긋난 곳을 토큰으로 돌려준다(비어 있으면 같은 목록이다):
+ *   CHECKS_MISSING(필수 id…)   CHECKS_DUPLICATE(id…)   CHECK_IDENTITY_MISMATCH(id…: id는 필수인데 kind·file이 다르다)
+ *   CHECKS_UNEXPECTED(checks[i]…: 필수가 아닌 id)
+ * 기록이 주장한 문자열은 사유에 옮기지 않는다: 알려진(필수) id만 적고, 모르는 항목은 위치만 적는다.
+ */
+export function controlCheckListProblems(
+  recorded: readonly Pick<ControlCheck, "id" | "kind" | "file">[],
+  expectations: Pick<ControlExpectations, "cases">
+): string[] {
+  const required = requiredControlChecks(expectations);
+  const keyOf = (c: { id: string; kind: string; file: string | null }): string =>
+    JSON.stringify([c.id, c.kind, c.file]);
+  const need = new Map<string, number>();
+  for (const r of required) need.set(keyOf(r), (need.get(keyOf(r)) ?? 0) + 1);
+  const have = new Map<string, number>();
+  const requiredIds = new Set(required.map((r) => r.id));
+  const mismatched: string[] = [];
+  const unexpected: string[] = [];
+  recorded.forEach((c, i) => {
+    have.set(keyOf(c), (have.get(keyOf(c)) ?? 0) + 1);
+    if (need.has(keyOf(c))) return;
+    if (!requiredIds.has(c.id)) unexpected.push(`checks[${i}]`);
+    else if (!mismatched.includes(c.id)) mismatched.push(c.id);
+  });
+  const missing: string[] = [];
+  const duplicate: string[] = [];
+  for (const r of required) {
+    const key = keyOf(r);
+    const wanted = need.get(key) ?? 0;
+    const got = have.get(key) ?? 0;
+    need.delete(key); // 같은 식별은 한 번만 본다
+    if (got < wanted) missing.push(r.id);
+    else if (got > wanted && wanted > 0) duplicate.push(r.id);
+  }
+  const tokens: string[] = [];
+  if (missing.length > 0) tokens.push(`CHECKS_MISSING(${listed(missing)})`);
+  if (duplicate.length > 0) tokens.push(`CHECKS_DUPLICATE(${listed(duplicate)})`);
+  if (mismatched.length > 0) tokens.push(`CHECK_IDENTITY_MISMATCH(${listed(mismatched)})`);
+  if (unexpected.length > 0) tokens.push(`CHECKS_UNEXPECTED(${listed(unexpected)})`);
+  return tokens;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const CASE_KINDS: readonly string[] = ["positive", "normal", "nosource"];
+
+/**
+ * 검사 목록을 도출하는 데 쓰는 기대 사례 필드를 검증한다(path·kind·family·pair·forbidden·expect_zero, path는 서로 달라야 한다).
+ * 읽은 기대를 믿고 도출하지 않도록 기록을 읽는 쪽이 먼저 부른다. 문제 토큰이 없으면 도출이 의미 있는 입력이다.
+ */
+export function controlCaseProblems(expectations: unknown): string[] {
+  const cases = isRecord(expectations) ? expectations.cases : undefined;
+  if (!Array.isArray(cases)) return ["cases(type)"];
+  if (cases.length === 0) return ["cases(empty)"];
+  const problems: string[] = [];
+  const paths = new Set<string>();
+  cases.forEach((entry: unknown, i) => {
+    const at = `cases[${i}]`;
+    if (!isRecord(entry)) return void problems.push(`${at}(type)`);
+    const field = (key: string, ok: (v: unknown) => boolean): boolean => {
+      if (entry[key] === undefined) problems.push(`${at}.${key}(missing)`);
+      else if (!ok(entry[key])) problems.push(`${at}.${key}(type)`);
+      else return true;
+      return false;
+    };
+    if (field("path", (v) => typeof v === "string")) {
+      const path = entry.path as string;
+      if (path === "") problems.push(`${at}.path(value)`);
+      else if (paths.has(path)) problems.push(`${at}.path(duplicate)`);
+      else paths.add(path);
+    }
+    if (field("kind", (v) => typeof v === "string") && !CASE_KINDS.includes(entry.kind as string)) {
+      problems.push(`${at}.kind(value)`);
+    }
+    field("family", (v) => typeof v === "string");
+    field("pair", (v) => v === null || typeof v === "string");
+    if (field("forbidden", Array.isArray)) {
+      (entry.forbidden as unknown[]).forEach((id, j) => {
+        if (typeof id !== "string") problems.push(`${at}.forbidden[${j}](type)`);
+      });
+    }
+    field("expect_zero", (v) => typeof v === "boolean");
+  });
+  return problems;
+}
+
 function validateObserved(observed: ControlObserved): void {
   const total = observed.wholeBundleTotal;
   if (total !== null && (!Number.isInteger(total) || total < 0)) {
@@ -264,115 +444,100 @@ export function evaluateControlAssertions(
     }
   }
 
-  // 사례별 단언. PAIR가 쓸 수 있게 A1·A3 결과를 기억한다.
+  // 사례별 단언. 어떤 검사를 만드는지는 planControlChecks가 정한다(기록을 읽는 쪽이 같은 계획에서 도출한 목록과 대조한다).
+  // PAIR가 쓸 수 있게 A1·A3 결과를 기억한다. 계획에서 PAIR는 항상 사례 검사 뒤에 온다.
   const a1: Record<string, ControlCheck["status"]> = {};
   const a3: Record<string, ControlCheck["status"]> = {};
 
-  for (const c of expectations.cases) {
+  for (const p of planControlChecks(expectations.cases)) {
+    const c = p.source;
     const codes = codesOf(c);
-    const isNormal = c.kind === "normal" || c.expect_zero;
+    const put = (status: ControlCheck["status"], detail: string): void => {
+      checks.push(check(p.id, p.kind, p.file, status, detail));
+    };
 
-    if (isNormal) {
-      if (codes === undefined) {
-        a3[c.path] = "NOT_RUN";
-        checks.push(check(`A3:${c.path}`, "A3", c.path, "NOT_RUN", "결과가 없다"));
-      } else if (codes.size === 0) {
-        a3[c.path] = "PASS";
-        checks.push(check(`A3:${c.path}`, "A3", c.path, "PASS", "게시된 code가 0건이다"));
-      } else {
-        a3[c.path] = "FAIL";
-        const found = [...codes].sort();
-        checks.push(
-          check(
-            `A3:${c.path}`,
-            "A3",
-            c.path,
-            "FAIL",
-            `정상 파일에 code가 ${found.length}건: ${listText(found)}`
-          )
-        );
-        designErrors.push(
-          `${c.path}: 정상 파일의 게시 code가 0건이 아니다(대조 설계의 오류, 이 실행을 정상 기준으로 채택하지 않는다)`
-        );
+    switch (p.kind) {
+      case "A3": {
+        // 정상 파일: 게시된 code가 0건이어야 한다.
+        if (codes === undefined) {
+          a3[c.path] = "NOT_RUN";
+          put("NOT_RUN", "결과가 없다");
+        } else if (codes.size === 0) {
+          a3[c.path] = "PASS";
+          put("PASS", "게시된 code가 0건이다");
+        } else {
+          a3[c.path] = "FAIL";
+          const found = [...codes].sort();
+          put("FAIL", `정상 파일에 code가 ${found.length}건: ${listText(found)}`);
+          designErrors.push(
+            `${c.path}: 정상 파일의 게시 code가 0건이 아니다(대조 설계의 오류, 이 실행을 정상 기준으로 채택하지 않는다)`
+          );
+        }
+        break;
       }
-      continue;
-    }
-
-    // 양성·nosource: A1(필수), A2(허용 밖), A4(금지).
-    if (codes === undefined) {
-      a1[c.path] = "NOT_RUN";
-      checks.push(check(`A1:${c.path}`, "A1", c.path, "NOT_RUN", "결과가 없다"));
-      checks.push(check(`A2:${c.path}`, "A2", c.path, "NOT_RUN", "결과가 없다"));
-      if (c.forbidden.length > 0)
-        checks.push(check(`A4:${c.path}`, "A4", c.path, "NOT_RUN", "결과가 없다"));
-      continue;
-    }
-    const missing = c.required.filter((id) => !codes.has(id));
-    a1[c.path] = missing.length === 0 ? "PASS" : "FAIL";
-    checks.push(
-      check(
-        `A1:${c.path}`,
-        "A1",
-        c.path,
-        a1[c.path],
-        missing.length === 0
-          ? `필수 ${c.required.length}개가 모두 게시됐다`
-          : `필수 ID가 게시되지 않았다: ${listText(missing)}${codes.size === 0 ? " (이 파일의 진단이 0건이다)" : ""}`
-      )
-    );
-    const known = new Set([...c.required, ...c.allowed, ...c.forbidden]);
-    const unexpected = [...codes].filter((id) => !known.has(id)).sort();
-    checks.push(
-      check(
-        `A2:${c.path}`,
-        "A2",
-        c.path,
-        unexpected.length === 0 ? "PASS" : "REVIEW",
-        unexpected.length === 0
-          ? "허용 밖의 ID가 없다"
-          : `허용 밖의 ID(검토 필요): ${listText(unexpected)}`
-      )
-    );
-    if (c.forbidden.length > 0) {
-      const present = c.forbidden.filter((id) => codes.has(id));
-      checks.push(
-        check(
-          `A4:${c.path}`,
-          "A4",
-          c.path,
+      case "A1": {
+        if (codes === undefined) {
+          a1[c.path] = "NOT_RUN";
+          put("NOT_RUN", "결과가 없다");
+          break;
+        }
+        const missing = c.required.filter((id) => !codes.has(id));
+        a1[c.path] = missing.length === 0 ? "PASS" : "FAIL";
+        put(
+          a1[c.path],
+          missing.length === 0
+            ? `필수 ${c.required.length}개가 모두 게시됐다`
+            : `필수 ID가 게시되지 않았다: ${listText(missing)}${codes.size === 0 ? " (이 파일의 진단이 0건이다)" : ""}`
+        );
+        break;
+      }
+      case "A2": {
+        if (codes === undefined) {
+          put("NOT_RUN", "결과가 없다");
+          break;
+        }
+        const known = new Set([...c.required, ...c.allowed, ...c.forbidden]);
+        const unexpected = [...codes].filter((id) => !known.has(id)).sort();
+        put(
+          unexpected.length === 0 ? "PASS" : "REVIEW",
+          unexpected.length === 0
+            ? "허용 밖의 ID가 없다"
+            : `허용 밖의 ID(검토 필요): ${listText(unexpected)}`
+        );
+        break;
+      }
+      case "A4": {
+        if (codes === undefined) {
+          put("NOT_RUN", "결과가 없다");
+          break;
+        }
+        const present = c.forbidden.filter((id) => codes.has(id));
+        put(
           present.length === 0 ? "PASS" : "FAIL",
           present.length === 0 ? "금지 ID가 없다" : `금지 ID가 게시됐다: ${listText(present)}`
-        )
-      );
+        );
+        break;
+      }
+      case "PAIR": {
+        // 정상 쌍: 양성이 A1을, 정상이 A3을 통과해야 한다. 쌍은 양성 쪽에서 한 번만 만든다.
+        const partner = c.pair === null ? undefined : byPath.get(c.pair);
+        if (!partner) {
+          designErrors.push(`${c.path}: 짝 ${c.pair}가 기대 목록에 없다`);
+          put("FAIL", `짝 ${c.pair}가 기대 목록에 없다`);
+          break;
+        }
+        const positive = a1[c.path];
+        const normal = a3[partner.path];
+        if (positive === "PASS" && normal === "PASS") {
+          put("PASS", "양성은 탐지됐고 정상은 0건이다");
+        } else if (positive === "FAIL" || normal === "FAIL") {
+          put("FAIL", `양성 A1 ${positive ?? "없음"}, 정상 A3 ${normal ?? "없음"}`);
+        } else {
+          put("NOT_RUN", `양성 A1 ${positive ?? "없음"}, 정상 A3 ${normal ?? "없음"}`);
+        }
+        break;
+      }
     }
-  }
-
-  // 정상 쌍: 양성이 A1을, 정상이 A3을 통과해야 한다. 쌍은 양성 쪽에서 한 번만 만든다.
-  for (const c of expectations.cases) {
-    if (c.kind !== "positive" || c.pair === null) continue;
-    const partner = byPath.get(c.pair);
-    if (!partner) {
-      designErrors.push(`${c.path}: 짝 ${c.pair}가 기대 목록에 없다`);
-      checks.push(
-        check(`PAIR:${c.family}`, "PAIR", c.path, "FAIL", `짝 ${c.pair}가 기대 목록에 없다`)
-      );
-      continue;
-    }
-    const positive = a1[c.path];
-    const normal = a3[partner.path];
-    let status: ControlCheck["status"];
-    let detail: string;
-    if (positive === "PASS" && normal === "PASS") {
-      status = "PASS";
-      detail = "양성은 탐지됐고 정상은 0건이다";
-    } else if (positive === "FAIL" || normal === "FAIL") {
-      status = "FAIL";
-      detail = `양성 A1 ${positive ?? "없음"}, 정상 A3 ${normal ?? "없음"}`;
-    } else {
-      status = "NOT_RUN";
-      detail = `양성 A1 ${positive ?? "없음"}, 정상 A3 ${normal ?? "없음"}`;
-    }
-    checks.push(check(`PAIR:${c.family}`, "PAIR", c.path, status, detail));
   }
 
   // 입력의 모순: 사례에서 센 code 수가 전체 묶음 합계를 넘을 수는 없다. 합계의 크기를 판정에 쓰지는 않는다.
@@ -387,29 +552,13 @@ export function evaluateControlAssertions(
     ? options.negativeControls.map((n) => ({ ...n }))
     : defaultNegativeControls();
 
-  // 전체 상태: FAIL(검사·음성 대조·설계 오류) > 일부 결과 없음 > REVIEW > 전부 결과 없음 > PASS.
-  // NOT_RUN인 음성 대조는 막지 않는다(엔진이 필요한 것은 이 변경에서 실행하지 않는다) — FAIL인 음성 대조만 막는다.
-  const noResultCount = expectations.cases.filter(
-    (c) => observed.cases[c.path] === undefined
-  ).length;
-  let status: ControlAssertions["status"];
-  if (
-    checks.some((c) => c.status === "FAIL") ||
-    negatives.some((n) => n.status === "FAIL") ||
-    designErrors.length > 0
-  ) {
-    status = "FAIL";
-  } else if (noResultCount > 0) {
-    status = noResultCount === expectations.cases.length ? "NOT_RUN" : "FAIL";
-  } else if (checks.some((c) => c.status === "REVIEW")) {
-    status = "REVIEW_REQUIRED";
-  } else {
-    status = "PASS";
-  }
-
   return {
     applicable: true,
-    status,
+    status: summarizeControlAssertions({
+      checks,
+      negatives,
+      designErrorCount: designErrors.length,
+    }),
     checks,
     negative_controls: negatives,
     design_errors: designErrors,

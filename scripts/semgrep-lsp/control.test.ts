@@ -5,7 +5,9 @@ import {
   NEGATIVE_CONTROL_TABLE,
   defaultNegativeControls,
   evaluateControlAssertions,
+  hasCaseChecks,
   markPreflightNegativeControls,
+  summarizeControlAssertions,
   type ControlObserved,
 } from "./control";
 import { compareRulesTree } from "./rules-manifest";
@@ -476,5 +478,87 @@ describe("음성 대조 R1~R9", () => {
     const base = defaultNegativeControls();
     markPreflightNegativeControls(base, { R3: [{ code: "RULES_FILE_ADDED" }] }, BINDING);
     expect(base.every((n) => n.status === "NOT_RUN" && n.binding_sha256 === null)).toBe(true);
+  });
+});
+
+// PR #29 외부 검토 발견 2: 저장된 기록의 요약이 세부 결과와 모순인지 보는 규칙(reference-record.ts)은 이 모듈의 판정 규칙과
+// 같은 함수를 쓴다. 두 구현이 갈라지지 않도록, 실제 evaluateControlAssertions의 결과마다 같은 요약이 나오는지 고정한다.
+describe("summarizeControlAssertions: evaluateControlAssertions와 같은 규칙", () => {
+  const summarize = (r: ReturnType<typeof run>) =>
+    summarizeControlAssertions({
+      checks: r.checks,
+      negatives: r.negative_controls,
+      designErrorCount: r.design_errors.length,
+    });
+
+  const worlds: [string, ControlObserved][] = [
+    ["의도대로 전부 탐지(PASS)", detected()],
+    ["양성의 필수 탐지 누락(FAIL)", withCase(detected(), EVAL_POS, [])],
+    [
+      "허용 밖 ID(REVIEW_REQUIRED)",
+      withCase(detected(), EVAL_POS, [...caseOf(EVAL_POS).required, "other.unexpected-rule"]),
+    ],
+    ["결과가 전혀 없음(NOT_RUN)", { cases: {}, wholeBundleTotal: null }],
+    ["정상 파일의 결과만 없음(FAIL)", without(detected(), EVAL_OK)],
+    ["양성의 결과만 없음(FAIL)", without(detected(), DG_POS)],
+    ["기대에 없는 경로(설계 오류, FAIL)", withCase(detected(), "cases/unknown.js", [])],
+    ["정상 파일에 code(FAIL)", withCase(detected(), EVAL_OK, ["some.rule"])],
+    ["금지 ID 게시(FAIL)", withCase(detected(), EVAL_NOSRC, ["detect-eval-with-expression"])],
+  ];
+  it.each(worlds)("%s", (_name, observed) => {
+    const result = run(observed);
+    expect(summarize(result)).toBe(result.status);
+  });
+
+  it("세부 결과가 PASS·REVIEW·NOT_RUN·FAIL로 갈리는 세계를 모두 덮는다(시험 전제)", () => {
+    const statuses = new Set(worlds.map(([, observed]) => run(observed).status));
+    expect([...statuses].sort()).toEqual(["FAIL", "NOT_RUN", "PASS", "REVIEW_REQUIRED"]);
+  });
+
+  it("FAIL인 음성 대조가 있으면 검사가 모두 PASS여도 FAIL이다", () => {
+    const negatives = defaultNegativeControls().map((n) => ({ ...n }));
+    negatives[0].status = "FAIL";
+    const result = evaluateControlAssertions(expectations, detected(), {
+      applicable: true,
+      negativeControls: negatives,
+    });
+    expect(result.status).toBe("FAIL");
+    expect(summarize(result)).toBe("FAIL");
+  });
+
+  it("PAIR·A2·A4 같은 사례 외 검사의 NOT_RUN도 PASS를 막는다(사례 검사가 전부 PASS여도 FAIL)", () => {
+    const result = run(detected());
+    for (const kind of ["A2", "A4", "PAIR"] as const) {
+      const checks = result.checks.map((c) => ({ ...c }));
+      const target = checks.find((c) => c.kind === kind);
+      if (!target) throw new Error(`시험 오류: ${kind} 검사가 없다`);
+      target.status = "NOT_RUN";
+      expect(
+        summarizeControlAssertions({
+          checks,
+          negatives: result.negative_controls,
+          designErrorCount: 0,
+        }),
+        kind
+      ).toBe("FAIL");
+    }
+  });
+
+  it("검사가 비어 있으면 PASS가 계산된다(그래서 호출자가 hasCaseChecks로 따로 막는다)", () => {
+    expect(summarizeControlAssertions({ checks: [], negatives: [], designErrorCount: 0 })).toBe(
+      "PASS"
+    );
+    expect(hasCaseChecks([])).toBe(false);
+  });
+
+  it("hasCaseChecks: A1·A3가 하나라도 있으면 true이고 PAIR·A2·A4뿐이면 false다", () => {
+    const result = run(detected());
+    expect(hasCaseChecks(result.checks)).toBe(true);
+    expect(hasCaseChecks(result.checks.filter((c) => c.kind === "PAIR"))).toBe(false);
+    expect(hasCaseChecks(result.checks.filter((c) => c.kind === "A2" || c.kind === "A4"))).toBe(
+      false
+    );
+    expect(hasCaseChecks(result.checks.filter((c) => c.kind === "A1"))).toBe(true);
+    expect(hasCaseChecks(result.checks.filter((c) => c.kind === "A3"))).toBe(true);
   });
 });

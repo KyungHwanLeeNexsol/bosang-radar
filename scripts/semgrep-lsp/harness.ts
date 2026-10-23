@@ -24,6 +24,11 @@
 // 스텁 프로세스 포트의 provenance는 "stub"이라 레코드는 trust SYNTHETIC, candidate_gate.evaluation UNVERIFIED다.
 // 스텁 실행은 어느 대상의 대조 참조로도 쓸 수 없다(evaluate가 CONTROL_REFERENCE_SYNTHETIC으로 거부한다).
 
+import {
+  CONTROL_EXPECTATIONS_FILE,
+  controlExpectationsPath,
+  parseControlExpectations,
+} from "./control-expectations";
 import { evaluateTranscript, type EvaluateInputs } from "./evaluate";
 import {
   EVIDENCE_FILE_NAMES,
@@ -46,18 +51,21 @@ import { buildScanTree, computeScope, resolveTarget } from "./scope";
 import { assertSessionConfig, runSession, type SessionConfig, type SessionLimits } from "./session";
 import { buildInitializationOptions, validateInitializationOptions } from "./settings";
 import { sha256Hex } from "./sha";
-import { representativeStatus, sortReasons, type Reason } from "./status";
+import { representativeStatus, sortReasons, type MeasurementStatus, type Reason } from "./status";
 import {
   SCHEMAS,
   type Clock,
+  type ControlAssertions,
   type ControlExpectations,
   type ExpectedRule,
   type FsPort,
   type GitPort,
   type Mode,
+  type NegativeControlResult,
   type Phase,
   type Pin,
   type ProcessPort,
+  type Provenance,
   type ReferenceFingerprints,
   type RuleFileEntry,
   type RunRecord,
@@ -107,6 +115,11 @@ export interface HarnessOptions {
   initializationOptions?: unknown;
   /** target 모드의 대조 참조(control_reference 모양). null이면 CONTROL_REFERENCE_MISSING이다. */
   controlReference: RunRecord["control_reference"];
+  /**
+   * 호출자가 대조 기록을 명시했지만 참조로 수락하지 못한 이유(reference-record.ts의 거절 상세). 이 경우 controlReference는
+   * null이고 판정은 MISSING과 함께 이 이유를 CONTROL_REFERENCE_RECORD_REJECTED로 남긴다. 기록을 명시하지 않았으면 생략·null.
+   */
+  controlReferenceRejection?: string | null;
   /** 호출자가 관측한 사실. null은 "관측하지 못함"이며 해당 fail-closed 사유가 된다. */
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
@@ -217,13 +230,6 @@ function checkScopeConfig(raw: Record<string, unknown>): ScopeConfig {
     typeof raw.max_target_bytes === "number";
   if (!ok) throw new HardFailure("inputs", "scope.json: 스키마·필수 필드가 맞지 않는다");
   return raw as unknown as ScopeConfig;
-}
-
-function checkControlExpectations(raw: Record<string, unknown>): ControlExpectations {
-  if (raw.schema !== SCHEMAS.controlExpectations || !Array.isArray(raw.cases)) {
-    throw new HardFailure("inputs", "control-expectations.json: 스키마·필수 필드가 맞지 않는다");
-  }
-  return raw as unknown as ControlExpectations;
 }
 
 async function hasFiles(fs: FsPort, root: string): Promise<boolean> {
@@ -381,13 +387,13 @@ async function execute(
     read("scope.json"),
     read("rules-files.tsv"),
     read("rules-expected.tsv"),
-    read("control-expectations.json"),
+    read(CONTROL_EXPECTATIONS_FILE),
   ]);
   const pin = checkPin(parseJson(pinBytes, "pin.json"));
   const scopeConfig = checkScopeConfig(parseJson(scopeBytes, "scope.json"));
-  const controlExpectations = checkControlExpectations(
-    parseJson(controlBytes, "control-expectations.json")
-  );
+  const parsedExpectations = parseControlExpectations(controlBytes);
+  if (!parsedExpectations.ok) throw new HardFailure("inputs", parsedExpectations.message);
+  const controlExpectations = parsedExpectations.expectations;
   let rulesFiles: RuleFileEntry[];
   let expectedRules: ExpectedRule[];
   try {
@@ -402,7 +408,7 @@ async function execute(
   const [harnessFp, controlFp] = await Promise.all([
     computeHarnessFingerprint(fs, options.harnessRoot),
     computeControlFingerprint(fs, {
-      expectationsPath: joinPath(options.dataDir, "control-expectations.json"),
+      expectationsPath: controlExpectationsPath(options.dataDir),
       fixturesRoot: options.controlFixturesRoot,
       expectations: controlExpectations,
     }),
@@ -537,6 +543,8 @@ async function execute(
     precheckReasons: refusals,
     pinSha256,
     controlReference: mode === "target" ? options.controlReference : null,
+    controlReferenceRejection:
+      mode === "target" ? (options.controlReferenceRejection ?? null) : null,
     currentFingerprints,
     metricsReceiverHits: options.metricsReceiverHits,
   };
@@ -671,8 +679,26 @@ export async function runHarness(
  * 논리곱일 뿐 자기 선언이며, target 판정은 이 값을 믿지 않고 사실로 다시 계산한다. 자격이 없는 레코드도 던지지 않고
  * eligible:false로 그대로 요약한다.
  */
+/**
+ * toControlReference가 읽는 필드만 모은 구조. RunRecord는 그대로 들어가고(구조적으로 호환), 파일에서 읽은 값은 검사한 뒤
+ * 이 모양의 새 객체로 옮겨 넘긴다(reference-record.ts) — 외부 JSON을 RunRecord로 단언하지 않기 위해서다.
+ */
+export interface ControlReferenceSource {
+  mode: Mode;
+  run_id: string;
+  provenance: Provenance;
+  inputs: RunRecord["inputs"];
+  measurement: { status: MeasurementStatus };
+  control_assertions: {
+    status: ControlAssertions["status"];
+    negative_controls: readonly NegativeControlResult[];
+  };
+  /** 자격은 호출자가 정한다. 외부 기록을 받을 때는 저장된 선언이 아니라 재계산한 값을 넘겨야 한다. */
+  reference_qualification: { eligible: boolean };
+}
+
 export function toControlReference(
-  record: RunRecord,
+  record: ControlReferenceSource,
   n0Confirmed: boolean
 ): NonNullable<RunRecord["control_reference"]> {
   if (record.mode !== "control") {

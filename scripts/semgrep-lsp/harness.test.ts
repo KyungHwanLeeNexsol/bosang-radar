@@ -3,8 +3,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
 import { REASON_EMITTERS } from "./evaluate";
-import { DEFAULT_NOT_EXECUTED, EVIDENCE_FILE_NAMES } from "./evidence";
+import { DEFAULT_NOT_EXECUTED, EVIDENCE_FILE_NAMES, canonicalJson } from "./evidence";
+import { buildBinding } from "./fingerprint";
 import { runHarness, toControlReference, type HarnessOptions, type HarnessResult } from "./harness";
+import { controlReferenceFromValue, loadControlReference } from "./reference-record";
 import { buildInitializationOptions } from "./settings";
 import {
   deriveFinalId,
@@ -15,6 +17,7 @@ import {
 import { computeScope } from "./scope";
 import { gitBlobSha1, sha256Hex } from "./sha";
 import { representativeStatus, type ReasonCode } from "./status";
+import { syntheticControlRunRecord } from "./testing/control-record-fixtures";
 import { FakeChild, FakePort } from "./testing/fake-process";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
@@ -1280,6 +1283,241 @@ describe("runHarness — 하네스·대조 지문과 결합", () => {
 });
 
 // ── 포트가 provenance를 정한다 ──────────────────────────────────
+
+describe("runHarness — 저장된 대조 기록을 어댑터로 읽어 잇는다(하네스 수준 전체 연결)", () => {
+  // 시험용 기록: testing/control-record-fixtures.ts가 손으로 구성한 합성 control 기록(출처를 real이라고 *주장*한다).
+  // 운영 관측: 도구 버전·휠·잠금·다른 서버 프로세스·메트릭 수신기는 이 시험이 주입한 값이다. 운영 CLI(cli.ts)는 아직 이것들을
+  // 관측하지 않아 항상 null을 넘기므로, 이 파일의 COMPLETE 경로는 CLI로는 닿을 수 없다 — CLI 수준 시험은 cli.test.ts에 있다.
+  const RECORD = "/records/control/run.json";
+  const F = SYNTHETIC_FINGERPRINTS;
+
+  function bindingOf(f: typeof F, over: Partial<typeof F>, pinSha256: string): string | null {
+    const m = { ...f, ...over };
+    return buildBinding({
+      tool_version: m.tool_version,
+      wheel_sha256: m.wheel_sha256,
+      pin_sha256: pinSha256,
+      rules_list_sha256: m.rules_list_sha256,
+      rules_expected_sha256: m.rules_expected_sha256,
+      harness_sha256: m.harness_sha256,
+      control_sha256: m.control_sha256,
+    });
+  }
+
+  function recordText(over: Partial<typeof F> = {}, pinSha256 = PIN_SHA256): string {
+    const fingerprints = { ...F, ...over };
+    fingerprints.binding_sha256 = bindingOf(F, over, pinSha256);
+    return canonicalJson(syntheticControlRunRecord({ fingerprints, pinSha256 }));
+  }
+
+  async function envWith(text: string | null, options: Partial<HarnessOptions> = {}) {
+    const env = await makeEnv({ mode: "target", files: text === null ? {} : { [RECORD]: text } });
+    const loaded = await loadControlReference(env.fs, RECORD, env.options.dataDir);
+    env.options.controlReference = loaded.reference;
+    env.options.controlReferenceRejection = loaded.rejection;
+    Object.assign(env.options, options);
+    return { env, loaded };
+  }
+
+  it("자격을 갖춘 기록을 읽어 잇고 모든 관측이 맞으면 target이 COMPLETE가 된다(스텁 실행이라 평가는 UNVERIFIED)", async () => {
+    const { env, loaded } = await envWith(recordText());
+    expect(loaded.rejection).toBeNull();
+    const r = await env.go();
+    expect(r.ok).toBe(true);
+    const rec = r.record as RunRecord;
+    expect(rec.measurement.status).toBe("COMPLETE");
+    expect(reasonCodes(r)).toEqual([]);
+    expect(rec.control_reference).toEqual(loaded.reference);
+    expect(rec.candidate_gate.value).toBe(0);
+    expect(rec.candidate_gate.evaluation).toBe("UNVERIFIED"); // provenance stub
+    await expectNeverCompleteWithoutEvidence(env, r);
+  });
+
+  it("기록을 읽을 수 없으면(깨진 JSON) 참조 없이 진행하고 이유를 사유로 남긴다 — COMPLETE가 아니다", async () => {
+    const { env, loaded } = await envWith('{"schema":');
+    expect(loaded.reference).toBeNull();
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(rec.measurement.status).toBe("CONTROL_MISSING");
+    expect(reasonCodes(r)).toEqual(
+      ["CONTROL_REFERENCE_MISSING", "CONTROL_REFERENCE_RECORD_REJECTED"].sort()
+    );
+    expect(
+      rec.measurement.reasons.find((x) => x.code === "CONTROL_REFERENCE_RECORD_REJECTED")?.detail
+    ).toBe("INVALID_JSON");
+    expect(rec.control_reference).toBeNull();
+    expect(rec.candidate_gate.value).toBeNull();
+    await expectNeverCompleteWithoutEvidence(env, r);
+  });
+
+  // PR #29 외부 검토: 기록 안의 세부 값이 서로 모순이거나 근거와 다른 기록은 어댑터가 거절한다. 도구 버전·휠·잠금 같은
+  // 운영 관측은 이 시험이 주입한 값이라 정상 기록이면 위 첫 시험처럼 COMPLETE·0건이 된다 — 같은 환경에서 모순 기록은
+  // 참조 없이(CONTROL_MISSING) 끝나고 0건 평가값도 만들지 않는다. 기록은 전부 시험이 손으로 구성한 합성이다.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type Plain = Record<string, any>;
+  const contradictory: [string, (r: Plain) => void, string][] = [
+    [
+      "음성 대조 PASS인데 엔진 항목의 observed가 null",
+      (r) => (r.control_assertions.negative_controls[0].observed = null),
+      "R1:engine(observed-null)",
+    ],
+    [
+      "음성 대조 PASS인데 observed가 기대와 다름",
+      (r) => (r.control_assertions.negative_controls[0].observed = "COMPLETE"),
+      "R1:engine(observed)",
+    ],
+    [
+      "음성 대조 PASS인데 expected가 기준과 다름",
+      (r) => {
+        r.control_assertions.negative_controls[0].expected = "COMPLETE";
+        r.control_assertions.negative_controls[0].observed = "COMPLETE";
+      },
+      "R1:engine(expected)",
+    ],
+    [
+      "세부 검사가 FAIL인데 요약은 PASS",
+      (r) => (r.control_assertions.checks[0].status = "FAIL"),
+      "ASSERTION_SUMMARY_MISMATCH",
+    ],
+    [
+      "design_errors가 있는데 요약은 PASS",
+      (r) => r.control_assertions.design_errors.push("대조 설계의 오류"),
+      "ASSERTION_DESIGN_ERRORS(1)",
+    ],
+    [
+      "COMPLETE인데 reasons가 있음",
+      (r) => r.measurement.reasons.push({ code: "ENGINE_EXCEPTION_LOG" }),
+      "MEASUREMENT_REASONS_INCONSISTENT",
+    ],
+    [
+      "checks에 null 항목",
+      (r) => (r.control_assertions.checks = [null]),
+      "control_assertions.checks[0](type)",
+    ],
+    ["checks가 비어 있음", (r) => (r.control_assertions.checks = []), "ASSERTION_CHECKS_EMPTY"],
+    // PR #29 외부 재검토: 요약은 PASS로 일관되지만 검사 목록이 기대 사례(data/control-expectations.json)에서 도출한 목록과 다르다.
+    [
+      "검사 20개 중 첫 1개만 유지",
+      (r) => (r.control_assertions.checks = r.control_assertions.checks.slice(0, 1)),
+      "CHECKS_MISSING(A2:cases/child-process.pos.ts",
+    ],
+    [
+      "한 사례의 검사 전체 삭제",
+      (r) =>
+        (r.control_assertions.checks = r.control_assertions.checks.filter(
+          (c: Plain) => c.file !== "cases/child-process.pos.ts"
+        )),
+      "CHECKS_MISSING(A1:cases/child-process.pos.ts, A2:cases/child-process.pos.ts",
+    ],
+    [
+      "A4 검사 전체 삭제",
+      (r) =>
+        (r.control_assertions.checks = r.control_assertions.checks.filter(
+          (c: Plain) => c.kind !== "A4"
+        )),
+      "CHECKS_MISSING(A4:cases/child-process.pos.ts, A4:cases/eval.nosource.js)",
+    ],
+    [
+      "첫 검사만 20번 복제",
+      (r) =>
+        (r.control_assertions.checks = Array.from({ length: 20 }, () => ({
+          ...r.control_assertions.checks[0],
+        }))),
+      "CHECKS_DUPLICATE(A1:cases/child-process.pos.ts)",
+    ],
+  ];
+  it.each(contradictory)(
+    "자기 모순 기록(%s)은 참조로 잇지 않는다 — COMPLETE도 0건도 아니다",
+    async (_name, mutate, token) => {
+      const record = JSON.parse(recordText()) as Plain;
+      mutate(record);
+      const { env, loaded } = await envWith(JSON.stringify(record));
+      expect(loaded.reference).toBeNull();
+      expect(loaded.rejection).toContain(token);
+      const r = await env.go();
+      const rec = r.record as RunRecord;
+      expect(rec.measurement.status).toBe("CONTROL_MISSING");
+      expect(rec.measurement.complete).toBe(false);
+      expect(reasonCodes(r)).toEqual(
+        ["CONTROL_REFERENCE_MISSING", "CONTROL_REFERENCE_RECORD_REJECTED"].sort()
+      );
+      expect(
+        rec.measurement.reasons.find((x) => x.code === "CONTROL_REFERENCE_RECORD_REJECTED")?.detail
+      ).toContain(token);
+      expect(rec.control_reference).toBeNull();
+      expect(rec.candidate_gate.value).toBeNull(); // 0건이라는 값이 만들어지지 않았다
+      await expectNeverCompleteWithoutEvidence(env, r);
+    }
+  );
+
+  it("기록을 명시하지 않으면(null, 거절 이유 없음) 기존대로 MISSING만 나온다", async () => {
+    const env = await makeEnv({ mode: "target", options: { controlReference: null } });
+    const r = await env.go();
+    expect(reasonCodes(r)).toEqual(["CONTROL_REFERENCE_MISSING"]);
+  });
+
+  it("도구 버전을 관측하지 못하면 기록의 값으로 채우지 않는다: 지문 누락·미확인 사유로 거부되고 서버는 뜨지 않는다", async () => {
+    const { env } = await envWith(recordText(), { toolVersionObserved: null });
+    const r = await env.go();
+    const rec = r.record as RunRecord;
+    expect(r.started).toBe(false);
+    expect(rec.inputs.tool_version_observed).toBeNull(); // 기록의 tool_version으로 채우지 않았다
+    expect(rec.inputs.binding_sha256).toBeNull();
+    expect(reasonCodes(r)).toEqual(
+      expect.arrayContaining(["TOOL_VERSION_UNVERIFIED", "CONTROL_REFERENCE_FINGERPRINT_MISSING"])
+    );
+    expect(rec.control_reference?.fingerprints.tool_version).toBe(F.tool_version);
+  });
+
+  it("기록의 하네스 지문이 이번 실행과 다르면 수락된 기록도 HARNESS_MISMATCH·BINDING_MISMATCH로 거부된다", async () => {
+    const other = sha256Hex("다른 하네스 구현");
+    const { env, loaded } = await envWith(recordText({ harness_sha256: other }));
+    expect(loaded.rejection).toBeNull(); // 기록 자체는 자기 일관성을 지킨다
+    const r = await env.go();
+    expect(reasonCodes(r)).toEqual(
+      expect.arrayContaining([
+        "CONTROL_REFERENCE_HARNESS_MISMATCH",
+        "CONTROL_REFERENCE_BINDING_MISMATCH",
+        "CONTROL_REFERENCE_NOT_ELIGIBLE",
+      ])
+    );
+    expect((r.record as RunRecord).measurement.status).toBe("CONTROL_MISSING");
+    expect((r.record as RunRecord).inputs.harness_sha256).toBe(F.harness_sha256); // 이번 실행의 값
+  });
+
+  it("기록의 대조 지문이 이번 실행과 다르면 CONTROL_MISMATCH로 거부된다", async () => {
+    const { env } = await envWith(recordText({ control_sha256: sha256Hex("다른 예제") }));
+    const r = await env.go();
+    expect(reasonCodes(r)).toContain("CONTROL_REFERENCE_CONTROL_MISMATCH");
+    expect((r.record as RunRecord).measurement.status).toBe("CONTROL_MISSING");
+  });
+
+  it("기록의 핀이 이번 실행의 핀과 다르면 PIN_MISMATCH로 거부된다", async () => {
+    const otherPin = sha256Hex("다른 핀");
+    const { env } = await envWith(recordText({}, otherPin));
+    const r = await env.go();
+    expect(reasonCodes(r)).toContain("CONTROL_REFERENCE_PIN_MISMATCH");
+    expect((r.record as RunRecord).measurement.status).toBe("CONTROL_MISSING");
+  });
+
+  it("도구 버전이 다른 기록은 TOOL_MISMATCH로 거부된다", async () => {
+    const { env } = await envWith(recordText({ tool_version: "0.0.0-other" }));
+    const r = await env.go();
+    expect(reasonCodes(r)).toContain("CONTROL_REFERENCE_TOOL_MISMATCH");
+  });
+
+  it("하네스가 실제로 쓴 control run.json은 구조 검증을 통과하고, stub이라는 이유로만 거절된다", async () => {
+    const control = await makeEnv({ mode: "control" });
+    await control.go();
+    const written = (await evidenceFiles(control))["run.json"];
+    expect(written).toBeDefined();
+    const loaded = controlReferenceFromValue(JSON.parse(written), controlExpectations);
+    expect(loaded.reference).toBeNull();
+    expect(loaded.rejection).not.toContain("INVALID_FIELDS"); // 운영 형식을 구조 검증이 거절하지 않는다
+    expect(loaded.rejection).toContain("TRUST_SYNTHETIC");
+    expect(loaded.rejection).toContain("PROVENANCE_REAL");
+  });
+});
 
 describe("runHarness — provenance", () => {
   it("하네스는 provenance를 스스로 정하지 않는다: 포트가 선언한 값을 레코드에 옮긴다", async () => {

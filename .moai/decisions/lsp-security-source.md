@@ -278,8 +278,11 @@ target 실행이 받는 대조 참조는 "양성·정상 단언이 `PASS`였다"
 | `CONTROL_REFERENCE_BINDING_MISMATCH` | 결합이 이번 실행과 다르거나, 참조의 결합이 자기 구성 요소(자기 `pin_sha256` 포함)로 다시 만든 값과 다르다 |
 | `CONTROL_REFERENCE_NEGATIVE_INCOMPLETE` | 요구된 (id, 층) 쌍 16개 중 없거나·중복이거나·`NOT_RUN`·`FAIL`이거나·결합이 다른 항목이 있다(상세는 `R3:engine(NOT_RUN)` 같은 토큰만) |
 | `CONTROL_REFERENCE_NOT_ELIGIBLE` | 참조가 `eligible:true`를 선언하지 않았거나, 선언했는데 위 사실 확인이 하나라도 실패했다 |
+| `CONTROL_REFERENCE_RECORD_REJECTED` | 호출자가 대조 기록(`--control-record`)을 명시했지만 참조로 수락하지 못했다. 상세는 이유 토큰과 필드 경로뿐이다. 참조가 없으므로 `CONTROL_REFERENCE_MISSING`이 함께 남는다. 기록을 명시하지 않았으면 이 사유는 없고 `MISSING`만 남는다 |
 
-**현재 상태의 결과**: 엔진 음성 대조를 실행해 `PASS`로 표시하는 운영 코드가 아직 없으므로(D8) **실제 control 실행도 `eligible=false`**다. 따라서 이 변경만으로는 어떤 target 실행도 `COMPLETE`가 될 수 없다. 이는 의도한 fail-closed 상태이며, 엔진 음성 대조 실행기와 그 결과의 표시·기록 읽기 어댑터가 별도 변경으로 들어와야 풀린다.
+**저장된 기록 읽기** (`scripts/semgrep-lsp/reference-record.ts`) — target CLI는 명시한 control `run.json` 하나만 읽는다(최신 기록 탐색·기본 경로 없음). 파일에서 읽은 값은 전부 `unknown`으로 다루고 소비하는 필드를 검사해 새 객체로 옮긴다. 수락 조건: control 실행 기록, 출처 `real`·trust `REAL_UNREVIEWED`, 그리고 **저장된 `reference_qualification`을 믿지 않고** 기록의 사실로 `qualifyControlRun`을 다시 돌린 자격이 충족이며 저장된 선언(`eligible`·요구별 충족 표시)이 재계산과 어긋나지 않을 것. 재계산에는 음성 대조 `PASS`의 근거가 들어간다: 필수 (id, 층)마다 기록의 `expected`가 현재 `NEGATIVE_CONTROL_TABLE`의 기준(엔진은 `spec.expected`, 사전 검사는 `spec.preflight.status` — 두 층의 기대는 같다고 가정하지 않는다)과 같고, `observed`가 `null`이 아니며 그 기대와 같아야 한다(어긋난 관측은 보정하지 않고 거절한다). 이 근거 검사는 전체 기록을 보는 `qualifyControlRun`에서만 하며, `expected`·`observed`를 싣지 않는 참조 요약을 받는 target 쪽 사실 확인은 하지 않는다. 또한 세부 결과와 요약 상태가 모순이면 거절한다: `COMPLETE`·`NOT_RUN` 측정의 `reasons`는 비어 있어야 하고(기록 생성 계약), `control_assertions.checks`는 항목마다 구조를 검사하며 사례 검사(A1·A3)가 있어야 하고(목록의 완전성은 아래), `design_errors`는 비어 있는 문자열 배열이어야 하며, 저장된 `control_assertions.status`는 세부 결과로 계산한 값(`summarizeControlAssertions` — `evaluateControlAssertions`와 같은 함수)과 같아야 한다. 검사 목록은 완전해야 한다: 기록의 `checks`는 기대 사례(하네스가 쓰는 `data/control-expectations.json` — 대조 지문 계산에 쓰는 파일과 같은 입력이며 `--repo`에서 찾지 않고 별도의 기대 목록 파일도 만들지 않는다)에서 `requiredControlChecks`로 도출한 필요한 검사(사례별 A1 또는 A3, 적용되는 A2·A4, 정상 쌍 PAIR)와 `(id, kind, file)`의 다중집합으로 같아야 한다. 기록이 주장하는 목록·개수는 기준이 아니며, 순서만 다른 목록은 수락하고 누락·중복·예상 밖 검사·잘못된 조합은 거절한다. 도출 규칙은 `evaluateControlAssertions`가 검사를 만드는 계획과 같다. 기대 입력을 읽거나 검증하지 못하면 `EXPECTATIONS_UNAVAILABLE`로 거절한다(불완전한 검증으로 수락하지 않는다). 이 검사들은 기록의 자기 일관성이며 서명·출처 인증이나 원시 트랜스크립트 재검증이 아니다(완전한 목록의 각 검사 결과가 실제 관측에서 나왔는지는 확인하지 않는다). 수락한 요약은 `toControlReference`로 만들고 이번 실행의 핀·도구·규칙·하네스·대조 지문 및 결합과의 비교는 위 "target의 확인"이 그대로 한다. 기록의 지문을 이번 실행 값으로 바꾸거나 이번 실행이 관측하지 못한 값을 기록의 값으로 채우지 않는다. 파일의 출처 진위(실제 Semgrep 실행에서 나왔는가)는 이 경로로 증명할 수 없다.
+
+**현재 상태의 결과**: 엔진 음성 대조를 실행해 `PASS`로 표시하는 운영 코드가 아직 없으므로(D8) **실제 control 실행도 `eligible=false`**다. 따라서 이 변경만으로는 어떤 target 실행도 `COMPLETE`가 될 수 없다. 이는 의도한 fail-closed 상태이며, 엔진 음성 대조 실행기와 그 결과의 표시·기록이 별도 변경으로 들어와야 풀린다. 기록 읽기 어댑터는 이제 있지만 수락 경로는 시험용 합성 기록으로만 시험했다.
 
 ## Consequences
 
@@ -299,11 +302,11 @@ target 실행이 받는 대조 참조는 "양성·정상 단언이 `PASS`였다"
 **유지되는 위험**
 
 - 이 변경이 병합되어도 `lsp_security_warnings`의 진단원은 UNVERIFIED다. 인정은 `Accepted`와 별도 연결 변경을 거쳐야 한다.
-- 엔진 음성 대조를 실행·표시하는 코드와 이전 실행 기록(`run.json`)을 읽어 `controlReference`를 만드는 어댑터가 없다. 그래서 실제 실행에서도 target은 `CONTROL_MISSING`에서 벗어날 수 없다(D11).
+- 엔진 음성 대조를 실행·표시하는 코드가 없다. 이전 실행 기록(`run.json`)을 읽어 `controlReference`를 만드는 어댑터는 있지만 수락 조건을 채우는 기록을 만들 수 없으므로, 실제 실행에서도 target은 `CONTROL_MISSING`에서 벗어날 수 없다(D11). 기록 파일은 서명되지 않아 출처 위조는 어댑터가 막지 못한다.
 - 지문은 메모리 파일시스템에서만 검증했다. 실제 파일시스템에서의 줄바꿈(CRLF 체크아웃), 심볼릭 링크, 하네스 루트 아래 `node_modules` 같은 경우는 시험하지 않았다.
 - 규칙 커밋 `16b9e6d4`는 2026-10-21자라 채택 시점에 14일 이상 된 커밋으로 다시 고정하려면 목록·해시·기대 목록을 같은 방식으로 다시 계산해야 한다.
 
-**다음 단계(실행이 필요한 것)**: 해시 고정 설치 → 규칙 캐시 고정과 목록 재대조 → 대조 1차(관측 전용, 기준값 확정 안 함) → N0·S0 확정 절차 → 음성·시간 시험(엔진 필요분) → 재현성 → target 실행. 각 단계는 별도 승인이 필요하다. 그 전에 **코드 전제**가 필요하다: 엔진 음성 대조 실행기와 그 결과를 `PASS`로 표시·기록하는 코드, 이전 `run.json`을 읽어 `controlReference`를 만드는 어댑터, 도구 버전·휠 해시 관측, 다른 서버 프로세스 검사와 실제 잠금, 루프백 메트릭 수신기(README "실제 실행 전에 남은 전제").
+**다음 단계(실행이 필요한 것)**: 해시 고정 설치 → 규칙 캐시 고정과 목록 재대조 → 대조 1차(관측 전용, 기준값 확정 안 함) → N0·S0 확정 절차 → 음성·시간 시험(엔진 필요분) → 재현성 → target 실행. 각 단계는 별도 승인이 필요하다. 그 전에 **코드 전제**가 필요하다: 엔진 음성 대조 실행기와 그 결과를 `PASS`로 표시·기록하는 코드, 도구 버전·휠 해시 관측, 다른 서버 프로세스 검사와 실제 잠금, 루프백 메트릭 수신기(README "실제 실행 전에 남은 전제").
 
 ## Appendix A. 시험 근거
 
@@ -312,7 +315,7 @@ target 실행이 받는 대조 참조는 "양성·정상 단언이 `PASS`였다"
 
 ### A.1 시험 구성 (최초 전달 1029개·32개 파일, 외부 검토 반영 후 1229개·35개 파일)
 
-아래 표의 시험 수는 최초 전달 시점의 값이다. 검토 반영으로 새 파일 3개(174개)가 더해졌고, 기존 파일에 26개가 더해졌다.
+아래 표의 시험 수는 최초 전달 시점의 값이다. 검토 반영으로 새 파일 3개(174개)가 더해졌고, 기존 파일에 26개가 더해졌다. 기록 읽기 어댑터(`reference-record`)와 그 외부 검토 반영까지 포함한 현재 하네스 전체는 38개 파일·1639개다(첫 외부 검토 반영 직전 1355개, 두 번째 직전 1483개 — 기록 내부 근거·정합성·검사 목록 완전성 시험 추가, 실행 결과는 PR 본문에 있다).
 
 | 영역 | 파일 | 시험 수 | 무엇을 증명하는가 |
 | --- | --- | --- | --- |
@@ -378,3 +381,6 @@ target 실행이 받는 대조 참조는 "양성·정상 단언이 `PASS`였다"
 | 17 | (외부 검토) 음성 대조를 `preflight`/`engine` 두 층으로 나누고, 항목마다 결합(`binding_sha256`)을 단다. 양성·정상 쌍 단언의 `PASS`와 별개로 `reference_qualification`을 둔다 |
 | 18 | (외부 검토) 하네스·대조 지문과 결합을 정의하고(D11) 실행 기록의 `inputs`와 대조 참조에 보존한다. 증거 파일에 `fingerprints.txt`를 더해 9개로 한다 |
 | 19 | (외부 검토) 사유 코드 10개를 더했다: `MATCH_COUNT_DIAGNOSTICS_MISSING`·`_EXCESS`, `SKIPPED_RULES_S0_MISMATCH`(→ `PARTIAL`), `CONTROL_REFERENCE_FINGERPRINT_MISSING`·`_HARNESS_MISMATCH`·`_CONTROL_MISMATCH`·`_TOOL_MISMATCH`·`_BINDING_MISMATCH`·`_NEGATIVE_INCOMPLETE`·`_NOT_ELIGIBLE`(→ `CONTROL_MISSING`). 상태 우선순위는 바뀌지 않았다 |
+| 20 | (기록 읽기 어댑터) 사유 코드 `CONTROL_REFERENCE_RECORD_REJECTED`(→ `CONTROL_MISSING`)를 더했다. 대조 기록을 명시했지만 수락하지 못한 이유를 남기며, 기록을 명시하지 않은 경우의 `CONTROL_REFERENCE_MISSING` 동작은 그대로다. 기록은 `--control-record`로 한 개만 명시하고(자동 탐색 없음) 저장된 자격 선언을 믿지 않고 다시 계산한다 |
+| 21 | (기록 읽기 어댑터 외부 검토) 기록 내부의 근거·정합성 검사를 더했다. 새 사유 코드는 없고(거절은 `CONTROL_REFERENCE_RECORD_REJECTED`의 상세 토큰) 상태 우선순위도 바뀌지 않았다: ① 음성 대조 `PASS`는 `expected`가 현재 표의 층별 기준과 같고 `observed`가 `null`이 아니며 그 기대와 같아야 한다(`qualifyControlRun`) ② `COMPLETE`·`NOT_RUN` 측정의 `reasons`는 비어 있다 ③ `checks`는 항목별 구조·사례 검사 1개 이상 ④ `design_errors`는 빈 문자열 배열 ⑤ 저장된 대조 단언 상태는 세부 결과로 계산한 값과 같다(`summarizeControlAssertions`를 `evaluateControlAssertions`와 공유) |
+| 22 | (기록 읽기 어댑터 두 번째 외부 검토) 기록의 검사 목록이 완전한지 본다. 새 사유 코드나 상태 우선순위 변경은 없다(거절은 `CONTROL_REFERENCE_RECORD_REJECTED`의 상세 토큰 `CHECKS_MISSING`·`CHECKS_DUPLICATE`·`CHECK_IDENTITY_MISMATCH`·`CHECKS_UNEXPECTED`·`EXPECTATIONS_UNAVAILABLE`): ① 필요한 검사 목록을 기대 사례(`data/control-expectations.json`, 대조 지문과 같은 입력)에서 도출한다(`requiredControlChecks`) ② 검사 생성(`evaluateControlAssertions`)이 같은 계획을 순회한다 ③ 어댑터는 `(id, kind, file)` 다중집합으로 대조하고 순서는 보지 않는다 ④ 기대 입력을 읽거나 검증하지 못하면 수락하지 않는다 ⑤ `loadControlReference`에 `dataDir`가 필수 인자로 더해졌다. 검사 결과(`status`)는 채우지 않는다 |
