@@ -432,6 +432,49 @@ export interface Verdict {
 
 export type NotExecutedValue = null | "NOT_RUN" | "UNVERIFIED";
 
+// ── 실행 자원(공유 잠금·루프백 메트릭 수신기)의 관측 요약 ─────────────
+// 증거에는 건수와 상태만 남긴다: 경로·본문·헤더·토큰·다른 실행의 소유자 정보는 싣지 않는다.
+
+/** 서버가 스캔하는 트리 하나를 범위로 하는 공유 실행 잠금의 요약. */
+export interface RunLockSummary {
+  scope: "server-tree";
+  /** 정규화한 트리 경로 키의 sha256(경로 자체는 싣지 않는다). 해석하지 못했으면 null. */
+  tree_key_sha256: string | null;
+  /** ACQUIRED: 이 실행이 잠금을 얻었다. REFUSED: 다른 실행이 잡고 있거나 소유자를 읽을 수 없다. ERROR: 잠금을 시도하다 실패했다. */
+  state: "ACQUIRED" | "REFUSED" | "ERROR";
+  /** state가 ACQUIRED가 아닐 때의 원인 토큰(HELD_BY_OTHER·OWNER_UNREADABLE·TREE_UNRESOLVABLE·ACQUIRE_FAILED). */
+  reason: string | null;
+  /** 실행별 증거 표지(run.marker) 생성 여부. 공유 잠금이 아니다 — 같은 증거 폴더를 두 번 쓰지 않게 하는 표지다. */
+  evidence_marker: "CREATED" | "NOT_CREATED";
+}
+
+/**
+ * 하네스가 연 루프백 수신기의 관측 요약. hits가 null이면 관측하지 못했다는 뜻이며 0건으로 간주하지 않는다.
+ * hits = max(수락한 연결 수, 요청 수 + 잘못된 요청 수). 이 수치는 "이 수신기에서 관찰한 요청"일 뿐이며 다른 목적지로의
+ * 통신이 없었다는 뜻이 아니다.
+ */
+export interface MetricsReceiverSummary {
+  bind: "127.0.0.1";
+  /** LISTENING: 관측 중. CLOSED: 정상적으로 닫혔다(닫기 전까지의 관측은 유효). FAILED: 열지 못했거나 관측이 깨졌다. */
+  state: "LISTENING" | "CLOSED" | "FAILED";
+  /** state가 FAILED일 때의 원인 토큰(BIND_FAILED·NOT_LOOPBACK·SERVER_ERROR·CLOSED_EARLY·OBSERVE_FAILED). */
+  failure: string | null;
+  hits: number | null;
+  connections: number;
+  requests: number;
+  client_errors: number;
+}
+
+/** 판정 시점까지의 관측을 돌려주는 수신기 쪽 읽기 포트(하네스는 이것만 안다). */
+export interface MetricsObserver {
+  observe(): MetricsReceiverSummary;
+}
+
+export interface RunResources {
+  run_lock: RunLockSummary | null;
+  metrics_receiver: MetricsReceiverSummary | null;
+}
+
 export interface RunRecord {
   schema: typeof SCHEMAS.run;
   run_id: string;
@@ -493,4 +536,9 @@ export interface RunRecord {
   };
   /** 아직 실행해 확인하지 못한 값. 스텁 결과로 채우지 않는다. */
   not_executed: Record<string, NotExecutedValue>;
+  /**
+   * 이 실행이 쥔 자원의 관측 요약(공유 잠금·루프백 수신기). 자원을 연결한 호출자(CLI)가 있을 때만 있다.
+   * 판정 시점의 값이며 정리(해제·닫기)의 결과는 담지 않는다.
+   */
+  resources?: RunResources;
 }
