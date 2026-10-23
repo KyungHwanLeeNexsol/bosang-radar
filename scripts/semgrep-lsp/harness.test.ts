@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
 import { REASON_EMITTERS } from "./evaluate";
 import { DEFAULT_NOT_EXECUTED, EVIDENCE_FILE_NAMES, canonicalJson } from "./evidence";
 import { buildBinding } from "./fingerprint";
 import { runHarness, toControlReference, type HarnessOptions, type HarnessResult } from "./harness";
+import { startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import { controlReferenceFromValue, loadControlReference } from "./reference-record";
 import { buildInitializationOptions } from "./settings";
 import {
@@ -18,7 +19,9 @@ import { computeScope } from "./scope";
 import { gitBlobSha1, sha256Hex } from "./sha";
 import { representativeStatus, type ReasonCode } from "./status";
 import { syntheticControlRunRecord } from "./testing/control-record-fixtures";
+import { FakeMetricsReceiver } from "./testing/fake-metrics";
 import { FakeChild, FakePort } from "./testing/fake-process";
+import { canConnectLoopback, sendLoopbackRequest } from "./testing/loopback-client";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
 import { qualifiedReference } from "./testing/evaluate-fixtures";
@@ -1559,5 +1562,246 @@ describe("harness.ts — 구조", () => {
     expect(code.match(/buildRunRecord\(/g)).toHaveLength(1);
     expect(code.match(/writeEvidence\(/g)).toHaveLength(1);
     expect(code.match(/runSession\(/g)).toHaveLength(1);
+  });
+});
+
+// ── 판정 시점의 루프백 수신 관측과 자원 요약(공유 잠금·수신기) ─────────────
+
+describe("runHarness — 판정 시점의 루프백 수신 관측과 자원 요약", () => {
+  /** 서버를 띄우는 순간(spawn)에 hook을 실행하는 포트. */
+  const onSpawn =
+    (hook: (spec: SpawnSpec) => void | Promise<void>) =>
+    (inner: FakePort): ProcessPort => ({
+      provenance: "stub",
+      spawn: async (spec: SpawnSpec): Promise<ChildHandle> => {
+        await hook(spec);
+        return inner.spawn(spec);
+      },
+    });
+
+  async function runJson(env: Env) {
+    return JSON.parse((await evidenceFiles(env))["run.json"]) as {
+      resources?: {
+        run_lock: Record<string, unknown> | null;
+        metrics_receiver: Record<string, unknown> | null;
+      };
+      not_executed: Record<string, unknown>;
+    };
+  }
+
+  it("수신기를 주면 시작 시점이 아니라 판정 시점의 관측을 쓴다(서버를 띄운 뒤 늘어난 건수가 반영된다)", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    const env = await makeEnv({
+      mode: "target",
+      options: { metricsReceiver: receiver, metricsReceiverHits: 0 },
+      wrapPort: onSpawn(() => {
+        receiver.hits = 1; // 서버가 뜬 뒤, 판정 전에 들어온 요청
+      }),
+    });
+    const r = await env.go();
+    expect(r.started).toBe(true);
+    expect(reasonCodes(r)).toContain("METRICS_RECEIVER_HIT");
+    expect(r.record?.measurement.status).toBe("ISOLATION_VIOLATION");
+    expect(
+      r.record?.measurement.reasons.find((x) => x.code === "METRICS_RECEIVER_HIT")?.detail
+    ).toBe("1건");
+    expect(receiver.observeCalls).toBe(1); // 판정할 때 한 번 읽는다
+    expect(r.record?.resources?.metrics_receiver).toMatchObject({ state: "LISTENING", hits: 1 });
+    expect((await runJson(env)).resources?.metrics_receiver).toMatchObject({ hits: 1 });
+  });
+
+  it("수신기가 있으면 호출자가 정해 둔 metricsReceiverHits는 쓰지 않는다", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    const env = await makeEnv({
+      mode: "target",
+      options: { metricsReceiver: receiver, metricsReceiverHits: 99 }, // 99는 무시된다
+    });
+    const r = await env.go();
+    expect(reasonCodes(r)).not.toContain("METRICS_RECEIVER_HIT");
+    expect(r.record?.measurement.status).toBe("COMPLETE");
+  });
+
+  it("0건 관측: 서버가 돌았고 관측이 유효하면 COMPLETE이고, 관측은 '했으나 서버가 환경변수를 읽는지는 미확인'(UNVERIFIED)이다", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    const env = await makeEnv({ mode: "target", options: { metricsReceiver: receiver } });
+    const r = await env.go();
+    expect(r.started).toBe(true);
+    expect(r.record?.measurement.status).toBe("COMPLETE");
+    const run = await runJson(env);
+    expect(run.resources?.metrics_receiver).toMatchObject({
+      bind: "127.0.0.1",
+      state: "LISTENING",
+      failure: null,
+      hits: 0,
+    });
+    expect(run.not_executed.metrics_receiver_observation).toBe("UNVERIFIED");
+  });
+
+  it("관측 실패(FAILED)는 0건이 아니다 — NOT_OBSERVING이고, 관측했다고 쓰지 않는다(NOT_RUN)", async () => {
+    const receiver = new FakeMetricsReceiver({ state: "FAILED", failure: "SERVER_ERROR", hits: 0 });
+    const env = await makeEnv({ mode: "target", options: { metricsReceiver: receiver } });
+    const r = await env.go();
+    expect(reasonCodes(r)).toContain("METRICS_RECEIVER_NOT_OBSERVING");
+    expect(reasonCodes(r)).not.toContain("METRICS_RECEIVER_HIT");
+    expect(r.record?.measurement.status).toBe("ISOLATION_VIOLATION");
+    const run = await runJson(env);
+    expect(run.resources?.metrics_receiver).toMatchObject({
+      state: "FAILED",
+      failure: "SERVER_ERROR",
+      hits: null,
+    });
+    expect(run.not_executed.metrics_receiver_observation).toBe("NOT_RUN");
+  });
+
+  it("observe()가 던져도 0건으로 간주하지 않고 던지지도 않는다(OBSERVE_FAILED)", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    receiver.throwOnObserve = true;
+    const env = await makeEnv({ mode: "target", options: { metricsReceiver: receiver } });
+    const r = await env.go();
+    expect(r.ok).toBe(true);
+    expect(reasonCodes(r)).toContain("METRICS_RECEIVER_NOT_OBSERVING");
+    expect(r.record?.resources?.metrics_receiver).toMatchObject({
+      state: "FAILED",
+      failure: "OBSERVE_FAILED",
+      hits: null,
+    });
+  });
+
+  it("사전 검사가 거부해 서버를 띄우지 않아도 수신기를 읽고, 서버가 돌지 않았으므로 관측은 NOT_RUN으로 남긴다", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    const env = await makeEnv({
+      mode: "target",
+      options: { metricsReceiver: receiver, lockHeld: false, lockRefusal: "HELD_BY_OTHER" },
+    });
+    const r = await env.go();
+    expect(r.started).toBe(false);
+    expect(receiver.observeCalls).toBe(1);
+    expect(r.record?.resources?.metrics_receiver).toMatchObject({ state: "LISTENING", hits: 0 });
+    expect((await runJson(env)).not_executed.metrics_receiver_observation).toBe("NOT_RUN");
+  });
+
+  it("공유 잠금을 얻지 못한 이유 토큰은 LOCK_NOT_ACQUIRED의 상세에만 붙는다(경로·소유자 없음)", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: { lockHeld: false, lockRefusal: "HELD_BY_OTHER" },
+    });
+    const r = await env.go();
+    expect(r.started).toBe(false);
+    const reason = r.record?.measurement.reasons.find((x) => x.code === "LOCK_NOT_ACQUIRED");
+    expect(reason?.detail).toBe("실행 잠금을 얻지 못했다 (HELD_BY_OTHER)");
+    // 이유를 주지 않으면 기존 문구 그대로다.
+    const plain = await makeEnv({ mode: "target", options: { lockHeld: false } });
+    expect(
+      (await plain.go()).record?.measurement.reasons.find((x) => x.code === "LOCK_NOT_ACQUIRED")
+        ?.detail
+    ).toBe("실행 잠금을 얻지 못했다");
+  });
+
+  it("잠금 요약을 주면 증거에 남고, 수신기가 없으면 수신기 요약은 null이다", async () => {
+    const lockSummary = {
+      scope: "server-tree" as const,
+      tree_key_sha256: "a".repeat(64),
+      state: "ACQUIRED" as const,
+      reason: null,
+      evidence_marker: "CREATED" as const,
+    };
+    const env = await makeEnv({ mode: "target", options: { lockSummary } });
+    const r = await env.go();
+    expect(r.record?.measurement.status).toBe("COMPLETE");
+    expect((await runJson(env)).resources).toEqual({
+      run_lock: lockSummary,
+      metrics_receiver: null,
+    });
+  });
+
+  it("자원을 연결하지 않은 호출자의 레코드에는 resources 필드가 없다(기존 레코드와 같다)", async () => {
+    const env = await makeEnv({ mode: "target" });
+    const r = await env.go();
+    expect("resources" in (r.record as object)).toBe(false);
+    expect((await runJson(env)).resources).toBeUndefined();
+  });
+
+  it("control 모드에서도 같은 판정 시점 관측과 요약을 쓴다", async () => {
+    const receiver = new FakeMetricsReceiver({ hits: 0 });
+    const env = await makeEnv({ mode: "control", options: { metricsReceiver: receiver } });
+    const r = await env.go();
+    expect(receiver.observeCalls).toBe(1);
+    expect(r.record?.resources?.metrics_receiver).toMatchObject({ hits: 0 });
+  });
+
+  describe("실제 루프백 수신기와 연결(로컬 HTTP 요청)", () => {
+    const opened: MetricsReceiver[] = [];
+    afterEach(async () => {
+      await Promise.all(opened.splice(0).map((r) => r.close()));
+    });
+    async function openReceiver() {
+      const receiver = await startMetricsReceiver();
+      opened.push(receiver);
+      if (receiver.url === null) throw new Error("전제: 수신기가 열려야 한다");
+      return receiver as MetricsReceiver & { url: string };
+    }
+    const envWithUrl = (url: string): SpawnSpec => ({
+      command: "/stub/semgrep",
+      args: ["lsp"],
+      cwd: "/cache",
+      env: { PATH: "/usr/bin", SEMGREP_METRICS_URL: url },
+    });
+
+    it("서버가 환경의 주소로 요청을 보내면 실제 수신기가 세고 판정·증거에 반영된다(ISOLATION_VIOLATION)", async () => {
+      const receiver = await openReceiver();
+      const env = await makeEnv({
+        mode: "target",
+        options: { spawn: envWithUrl(receiver.url), metricsReceiver: receiver },
+        wrapPort: onSpawn(async (spec) => {
+          await sendLoopbackRequest(spec.env.SEMGREP_METRICS_URL, { body: "metrics-body" });
+        }),
+      });
+      const r = await env.go();
+      expect(r.started).toBe(true);
+      expect(r.record?.measurement.status).toBe("ISOLATION_VIOLATION");
+      expect(
+        r.record?.measurement.reasons.find((x) => x.code === "METRICS_RECEIVER_HIT")?.detail
+      ).toBe("1건");
+      const run = await runJson(env);
+      expect(run.resources?.metrics_receiver).toMatchObject({
+        state: "LISTENING",
+        hits: 1,
+        requests: 1,
+      });
+      // 본문은 증거 어디에도 없다.
+      expect(JSON.stringify(await evidenceFiles(env))).not.toContain("metrics-body");
+    });
+
+    it("요청이 없으면 실제 수신기에서 0건을 관측한 채 COMPLETE다", async () => {
+      const receiver = await openReceiver();
+      const env = await makeEnv({
+        mode: "target",
+        options: { spawn: envWithUrl(receiver.url), metricsReceiver: receiver },
+      });
+      const r = await env.go();
+      expect(r.record?.measurement.status).toBe("COMPLETE");
+      expect((await runJson(env)).resources?.metrics_receiver).toMatchObject({
+        state: "LISTENING",
+        hits: 0,
+        requests: 0,
+      });
+      await receiver.close();
+      expect(await canConnectLoopback(receiver.url)).toBe(false);
+    });
+
+    it("정상적으로 닫은 수신기는 닫기 전까지의 관측이 유효하다(CLOSED, 0건)", async () => {
+      const receiver = await openReceiver();
+      const env = await makeEnv({
+        mode: "target",
+        options: { spawn: envWithUrl(receiver.url), metricsReceiver: receiver },
+        wrapPort: onSpawn(async () => {
+          // 판정 전에 우리 쪽에서 정상적으로 닫는다.
+          await receiver.close();
+        }),
+      });
+      const r = await env.go();
+      // 비정상 종료(CLOSED_EARLY)는 0건이 아니라 관측 실패다 — metrics-node.integration.test.ts가 확인한다.
+      expect(r.record?.resources?.metrics_receiver).toMatchObject({ state: "CLOSED", hits: 0 });
+    });
   });
 });

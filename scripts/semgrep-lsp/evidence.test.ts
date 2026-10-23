@@ -258,6 +258,34 @@ describe("buildRunRecord: 필드 분리 (ADR D5)", () => {
     });
   });
 
+  it("자원 요약(resources)은 준 경우에만 레코드에 있고, 깊은 복사본이다", () => {
+    const base = args("target", "real", targetVerdict("COMPLETE", totals(0, 0, 0)));
+    expect("resources" in buildRunRecord(base)).toBe(false); // 주지 않으면 필드 자체가 없다
+    const resources = {
+      run_lock: {
+        scope: "server-tree" as const,
+        tree_key_sha256: "a".repeat(64),
+        state: "ACQUIRED" as const,
+        reason: null,
+        evidence_marker: "CREATED" as const,
+      },
+      metrics_receiver: {
+        bind: "127.0.0.1" as const,
+        state: "LISTENING" as const,
+        failure: null,
+        hits: 0,
+        connections: 0,
+        requests: 0,
+        client_errors: 0,
+      },
+    };
+    const record = buildRunRecord({ ...base, resources });
+    expect(record.resources).toEqual(resources);
+    resources.metrics_receiver.hits = 5; // 나중에 입력을 바꿔도 레코드는 그대로다
+    expect(record.resources?.metrics_receiver?.hits).toBe(0);
+    expect(Object.keys(record)).toContain("resources");
+  });
+
   it("existing_gates는 항상 고정이다", () => {
     for (const provenance of ["real", "stub"] as const) {
       const record = buildRunRecord(

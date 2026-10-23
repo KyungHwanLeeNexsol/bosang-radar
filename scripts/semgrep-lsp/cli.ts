@@ -23,6 +23,7 @@ import { SystemClock } from "./clock";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
+import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import { createNodeProcessPort } from "./process-node";
 import { loadControlReference } from "./reference-record";
 import {
@@ -33,6 +34,14 @@ import {
   parseRulesFiles,
   rulesTreeConfigFromPin,
 } from "./rules-manifest";
+import {
+  RECOVERY_HINT,
+  acquireRunLock,
+  lockSummaryOf,
+  releaseRunLock,
+  type RunLockPort,
+} from "./run-lock";
+import { createNodeRunLockPort } from "./run-lock-node";
 import { computeScope, resolveTarget, verifyScanTree } from "./scope";
 import type { SessionLimits } from "./session";
 import { representativeStatus, sortReasons, type Reason } from "./status";
@@ -59,6 +68,13 @@ export interface CliDeps {
   /** 실제 실행 방지 장치를 통과한 뒤에만 `run`이 "real"로 부른다. 그 밖의 경로는 부르지 않는다. */
   makeProcessPort(provenance: Provenance): ProcessPort;
   clock: Clock;
+  /** 공유 실행 잠금의 파일 시스템 포트. 서버가 스캔하는 트리 하나를 범위로 한다(run-lock.ts). */
+  runLock: RunLockPort;
+  /**
+   * 루프백 메트릭 수신기를 연다. 자식 프로세스를 띄우기 전에 준비되고 판정 시점까지 요청을 누적 관측한다. 열지 못해도 던지지
+   * 않고 관측 실패 상태(hits=null)의 수신기를 돌려준다 — 실패를 0건으로 바꾸지 않는다.
+   */
+  startMetricsReceiver(): Promise<MetricsReceiver>;
   stdout(text: string): void;
   stderr(text: string): void;
   /** 환경변수 한 개를 조회한다(없으면 undefined). main은 이 함수로만 환경을 본다. */
@@ -76,7 +92,10 @@ export interface CliDeps {
 const ENV_ALLOW_REAL = "MOAI_SEMGREP_LSP_ALLOW_REAL";
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
-/** 아무것도 듣지 않는 루프백 주소(포트 9). 메트릭·버전 확인·앱 URL이 밖으로 나가지 못하게 하려는 값이다. */
+/**
+ * 수신기를 열지 못했을 때의 자리표시: 아무것도 듣지 않는 루프백 주소(포트 9). 이때 metricsReceiverHits는 관측 실패(null)라
+ * 실행은 사전 검사가 아니라 판정에서 ISOLATION_VIOLATION으로 끝난다. 열었다면 환경에는 수신기의 실제 주소가 들어간다.
+ */
 const LOOPBACK_URL = "http://127.0.0.1:9";
 
 // UNVERIFIED(ADR U3/U12): 실제 서버가 이 인자로 LSP를 여는지는 실행해 보지 않았다.
@@ -97,10 +116,10 @@ const REAL_SETTINGS = { timeout: 30, timeoutThreshold: 3 } as const;
 const NOT_VERIFIED = [
   "도구 버전 관측(initialize 이전 `--version` 확인): 구현하지 않았다 — toolVersionObserved=null",
   "휠 sha256 관측: 구현하지 않았다 — wheelSha256Observed=null",
-  "같은 트리의 다른 서버 프로세스 검사: 구현하지 않았다 — foreignServerProcesses=null",
-  "메트릭 수신기(루프백 수신 0건 확인): 이 변경에 없다 — metricsReceiverHits=null",
+  "같은 트리의 다른 서버 프로세스 검사: 구현하지 않았다 — foreignServerProcesses=null (공유 잠금을 얻었다는 이유로 0으로 채우지 않는다)",
+  "루프백 메트릭 수신기: 127.0.0.1의 OS 할당 포트에 열어 판정 시점까지 누적 관측한다 — metricsReceiverHits는 그 관측이다(열지 못하면 null). 0건은 이 수신기에서 관찰한 요청이 없다는 뜻일 뿐 다른 목적지로의 통신이 없었다는 증거가 아니며, 실제 Semgrep이 SEMGREP_METRICS_URL 등을 읽는지는 미확인",
   "대조 참조(control_reference): --control-record로 명시한 control run.json만 읽어 잇는다(자동 탐색 없음), 생략하면 controlReference=null. 이 CLI는 엔진 음성 대조를 실행·기록하지 않으므로 자격을 갖춘 기록은 아직 이 CLI로 만들 수 없다",
-  "실행 잠금: 이 CLI가 만든 실행별 파일 하나뿐이다(실행 사이의 상호 배제·해제 없음)",
+  "공유 실행 잠금: 서버가 스캔하는 트리 하나를 범위로 한 배타 생성(O_EXCL) 파일이다. 오래된 잠금은 자동으로 지우지 않고 거절한다(복구는 README). 겹치는 트리·배타 생성을 보장하지 않는 파일 시스템은 보증하지 않는다. run.marker는 잠금이 아니라 실행별 증거 표지다",
   "서버 인자 `lsp --debug`: 미확인(ADR U3/U12)",
   "자식 환경변수 이름(SEMGREP_*): 하네스가 정한 이름이며 실제 서버가 읽는 이름과 같다는 것은 미확인",
   "SEMGREP_METRICS 계열 값: 필요하다고 확인된 것이 없어 보내지 않는다(메트릭은 initializationOptions로 끈다)",
@@ -144,6 +163,13 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   target 기록과 stub(SYNTHETIC) 기록은 참조가 될 수 없다. 수락한 기록도 이번 실행의 핀·도구·규칙·하네스·대조 지문 및 결합과 다시 맞춘다.
   명시했는데 수락하지 못하면(없음·읽기 실패·깨진 JSON·스키마나 필드 오류·자격 불충족·기록 내부 모순) 참조 없이 진행하고
   CONTROL_REFERENCE_RECORD_REJECTED(이유 토큰)와 CONTROL_REFERENCE_MISSING을 남기며 COMPLETE가 될 수 없다. control 모드에서는 쓸 수 없다.
+
+실행 자원(run): 서버가 스캔하는 트리(target은 --scan-root, control은 --control-tree-root) 하나를 범위로 공유 실행 잠금을 얻는다.
+  잠금 파일은 그 트리의 부모 폴더에 semgrep-lsp-tree-<키>.lock으로 만들고, 같은 트리면 --run-id·--evidence-root가 달라도 충돌한다.
+  오래된 잠금(해제하지 못하고 끝난 실행)은 소유자 상태를 확인하지 않고 자동으로 지우지 않는다 — 거절하고 출력의 lock.path·lock.holder를
+  알려 준다. 소유자가 끝났음을 확인한 뒤 운영자가 직접 지운다(README '오래된 잠금 복구'). 증거 폴더의 run.marker는 잠금이 아니라 표지다.
+  루프백 메트릭 수신기는 127.0.0.1의 OS 할당 포트에 자식 프로세스보다 먼저 열고, 판정 시점까지 요청 건수만 센다(본문·헤더 없음).
+  열지 못하거나 관측이 깨지면 0건이 아니라 관측 실패다. 끝나면 수신기를 닫고 잠금을 해제한다(출력의 cleanup).
 
 종료 코드: 0 통과 / 1 불일치·거부·실패 / 2 사용법 오류 / 3 NOT_RUN(실행 방지 장치)
 `;
@@ -432,7 +458,15 @@ async function missingGuardConditions(parsed: Parsed, deps: CliDeps): Promise<st
 }
 
 /** 자식 환경: 최소 허용 목록 + 루프백 URL + 증거 폴더 안의 상태 파일 경로. 토큰·기밀은 복사하지 않는다. */
-function buildChildEnv(deps: CliDeps, evidenceDir: string): Record<string, string> {
+/**
+ * 자식 프로세스 환경. 메트릭·버전 확인·앱 URL은 모두 하네스가 연 수신기의 실제 주소로 돌린다(metricsUrl). 수신기를 열지 못했으면
+ * 자리표시 주소(LOOPBACK_URL)를 쓰며, 이 경우 판정은 관측 실패로 끝난다.
+ */
+export function buildChildEnv(
+  deps: Pick<CliDeps, "getEnv" | "platform">,
+  evidenceDir: string,
+  metricsUrl: string | null
+): Record<string, string> {
   const names =
     deps.platform === "win32" ? ["PATH", "SYSTEMROOT", "TEMP", "TMP"] : ["PATH", "HOME"];
   const env: Record<string, string> = {};
@@ -441,11 +475,12 @@ function buildChildEnv(deps: CliDeps, evidenceDir: string): Record<string, strin
     if (value !== undefined && value !== "") env[name] = value;
   }
   const state = joinPath(evidenceDir, "semgrep-state");
+  const url = metricsUrl ?? LOOPBACK_URL;
   return {
     ...env,
-    SEMGREP_APP_URL: LOOPBACK_URL,
-    SEMGREP_METRICS_URL: LOOPBACK_URL,
-    SEMGREP_VERSION_CHECK_URL: LOOPBACK_URL,
+    SEMGREP_APP_URL: url,
+    SEMGREP_METRICS_URL: url,
+    SEMGREP_VERSION_CHECK_URL: url,
     SEMGREP_LOG_FILE: joinPath(state, "semgrep.log"),
     SEMGREP_SETTINGS_FILE: joinPath(state, "settings.yml"),
     SEMGREP_VERSION_CACHE_PATH: joinPath(state, "version-cache"),
@@ -520,71 +555,148 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   }
 
   const evidenceDir = joinPath(evidenceRoot, runId);
+  // 공유 잠금의 범위는 서버가 스캔하는 트리 하나다: target은 스캔 트리, control은 대조 트리.
+  const serverTree = mode === "target" ? scanRoot : controlTreeRoot;
 
-  // 3. 실행 잠금: 증거 폴더 안에 실행별 파일 하나를 배타적으로 만든다. 이미 있으면 잠금을 얻지 못한 것이다.
-  let lockHeld = false;
+  // 3. 자원: 공유 실행 잠금 → 실행별 증거 표지 → 루프백 수신기. 어떤 경로(정상·사전 검사 거부·예외·취소)로 끝나도 finally가
+  // 정리한다. 잠금은 얻은 실행만 자기 토큰으로 해제하고, 오래된 잠금을 자동으로 지우지 않는다.
+  const lock = await acquireRunLock(deps.runLock, { treePath: serverTree, runId, mode });
+  let markerCreated = false;
+  let receiver: MetricsReceiver = failedMetricsReceiver("BIND_FAILED");
+  let judgedHits: number | null | undefined;
+  const cleanup = {
+    lock: {
+      state: (lock.state === "ACQUIRED" ? "NOT_RELEASED" : "NOT_ACQUIRED") as
+        "RELEASED" | "NOT_RELEASED" | "NOT_ACQUIRED",
+      reason: null as string | null,
+      /** 해제하지 못했을 때만: 남은 잠금 파일의 경로와 복구 안내(자동으로 지우지 않는다). */
+      path: null as string | null,
+      recovery: null as string | null,
+    },
+    metrics_receiver: {
+      closed: false,
+      final_hits: null as number | null,
+      hits_after_judgment: null as number | null,
+    },
+  };
+  const releaseAll = async (): Promise<void> => {
+    try {
+      await receiver.close();
+      cleanup.metrics_receiver.closed = true;
+    } catch {
+      cleanup.metrics_receiver.closed = false;
+    }
+    // 판정 뒤 닫기까지 들어온 요청도 알린다(판정에는 반영하지 못한 건수).
+    // 정리는 던지지 않는다: 관측하지 못하면 null로 남긴다(0건으로 간주하지 않는다).
+    let finalHits: number | null = null;
+    try {
+      finalHits = receiver.observe().hits;
+    } catch {
+      finalHits = null;
+    }
+    cleanup.metrics_receiver.final_hits = finalHits;
+    if (typeof judgedHits === "number" && finalHits !== null) {
+      cleanup.metrics_receiver.hits_after_judgment = Math.max(0, finalHits - judgedHits);
+    }
+    if (lock.state === "ACQUIRED") {
+      const released = await releaseRunLock(deps.runLock, lock.handle);
+      cleanup.lock.state = released.state === "RELEASED" ? "RELEASED" : "NOT_RELEASED";
+      cleanup.lock.reason = released.state === "RELEASED" ? null : released.reason;
+      if (released.state !== "RELEASED") {
+        cleanup.lock.path = lock.handle.lockPath;
+        cleanup.lock.recovery = RECOVERY_HINT;
+      }
+    }
+  };
+
+  let body: Record<string, unknown>;
+  let complete = false;
   try {
-    await deps.fs.mkdirp(joinPath(evidenceDir, "semgrep-state"));
-    await deps.fs.writeFileExclusive(
-      joinPath(evidenceDir, "run.lock"),
-      new TextEncoder().encode(`${JSON.stringify({ run_id: runId, mode })}\n`)
+    if (lock.state === "ACQUIRED") {
+      // 실행별 증거 표지: 같은 증거 폴더를 두 번 쓰지 않게 한다. 공유 잠금이 아니다.
+      try {
+        await deps.fs.mkdirp(joinPath(evidenceDir, "semgrep-state"));
+        await deps.fs.writeFileExclusive(
+          joinPath(evidenceDir, "run.marker"),
+          new TextEncoder().encode(`${JSON.stringify({ run_id: runId, mode })}\n`)
+        );
+        markerCreated = true;
+      } catch {
+        markerCreated = false;
+      }
+    }
+    // 잠금을 얻었고 표지도 만든 경우에만 true다. 못 얻었거나 확인하지 못했으면 값을 보정하지 않는다.
+    const lockHeld = lock.state === "ACQUIRED" && markerCreated;
+    const lockRefusal =
+      lock.state !== "ACQUIRED"
+        ? lock.reason
+        : markerCreated
+          ? null
+          : "EVIDENCE_MARKER_NOT_CREATED";
+
+    // 수신기는 자식 프로세스를 띄우기 전에 준비한다.
+    try {
+      receiver = await deps.startMetricsReceiver();
+    } catch {
+      receiver = failedMetricsReceiver("BIND_FAILED");
+    }
+
+    // 명시한 기록을 읽고 구조·자격을 다시 확인한다(던지지 않는다). 수락하지 못하면 참조 없이 진행하고 이유를 판정에 남긴다.
+    let controlReference: HarnessOptions["controlReference"] = null;
+    let controlReferenceRejection: string | null = null;
+    if (recordPath !== undefined) {
+      const loaded = await loadControlReference(deps.fs, recordPath, deps.dataDir);
+      controlReference = loaded.reference;
+      controlReferenceRejection = loaded.rejection;
+    }
+
+    const spawn: SpawnSpec = {
+      command: bin,
+      args: [...SERVER_ARGS],
+      cwd: parentOf(rulesCache),
+      env: buildChildEnv(deps, evidenceDir, receiver.url),
+    };
+
+    const options: HarnessOptions = {
+      mode,
+      targetSha,
+      runId,
+      dataDir: deps.dataDir,
+      // 하네스 구현 파일이 있는 폴더 = 고정 입력 폴더(data/)의 부모. 하네스 지문을 계산할 때 읽는다.
+      harnessRoot: parentOf(deps.dataDir),
+      evidenceRoot,
+      rulesCacheRoot: rulesCache,
+      scanRoot,
+      controlFixturesRoot,
+      controlTreeRoot,
+      spawn,
+      limits: REAL_LIMITS,
+      settings: REAL_SETTINGS,
+      controlReference,
+      controlReferenceRejection,
+      // 관측하지 않은 사실은 관측한 척하지 않는다. 사전 검사가 이 null들을 사유로 읽는다.
+      toolVersionObserved: null,
+      wheelSha256Observed: null,
+      lockHeld,
+      lockRefusal,
+      lockSummary: lockSummaryOf(lock, markerCreated),
+      // 잠금을 얻었다는 이유로 0으로 채우지 않는다. 이 검사는 아직 구현하지 않았다.
+      foreignServerProcesses: null,
+      // 시작 시점의 스냅샷이 아니라, 하네스가 판정하는 시점에 수신기에서 읽은 누적 관측을 쓴다.
+      metricsReceiverHits: null,
+      metricsReceiver: receiver,
+      ...(deps.signal ? { signal: deps.signal } : {}),
+    };
+
+    // 4. 방지 장치를 통과한 이 경로에서만 "real" 포트를 만든다.
+    const result = await runHarness(
+      { fs: deps.fs, git, process: deps.makeProcessPort("real"), clock: deps.clock },
+      options
     );
-    lockHeld = true;
-  } catch {
-    lockHeld = false;
-  }
-
-  // 명시한 기록을 읽고 구조·자격을 다시 확인한다(던지지 않는다). 수락하지 못하면 참조 없이 진행하고 이유를 판정에 남긴다.
-  let controlReference: HarnessOptions["controlReference"] = null;
-  let controlReferenceRejection: string | null = null;
-  if (recordPath !== undefined) {
-    const loaded = await loadControlReference(deps.fs, recordPath, deps.dataDir);
-    controlReference = loaded.reference;
-    controlReferenceRejection = loaded.rejection;
-  }
-
-  const spawn: SpawnSpec = {
-    command: bin,
-    args: [...SERVER_ARGS],
-    cwd: parentOf(rulesCache),
-    env: buildChildEnv(deps, evidenceDir),
-  };
-
-  const options: HarnessOptions = {
-    mode,
-    targetSha,
-    runId,
-    dataDir: deps.dataDir,
-    // 하네스 구현 파일이 있는 폴더 = 고정 입력 폴더(data/)의 부모. 하네스 지문을 계산할 때 읽는다.
-    harnessRoot: parentOf(deps.dataDir),
-    evidenceRoot,
-    rulesCacheRoot: rulesCache,
-    scanRoot,
-    controlFixturesRoot,
-    controlTreeRoot,
-    spawn,
-    limits: REAL_LIMITS,
-    settings: REAL_SETTINGS,
-    controlReference,
-    controlReferenceRejection,
-    // 관측하지 않은 사실은 관측한 척하지 않는다. 사전 검사가 이 null들을 사유로 읽는다.
-    toolVersionObserved: null,
-    wheelSha256Observed: null,
-    lockHeld,
-    foreignServerProcesses: null,
-    metricsReceiverHits: null,
-    ...(deps.signal ? { signal: deps.signal } : {}),
-  };
-
-  // 4. 방지 장치를 통과한 이 경로에서만 "real" 포트를 만든다.
-  const result = await runHarness(
-    { fs: deps.fs, git, process: deps.makeProcessPort("real"), clock: deps.clock },
-    options
-  );
-  const record = result.record;
-  const complete = result.ok && record !== null && record.measurement.complete;
-  deps.stdout(
-    json({
+    const record = result.record;
+    complete = result.ok && record !== null && record.measurement.complete;
+    judgedHits = record?.resources?.metrics_receiver?.hits;
+    body = {
       command: "run",
       status: record?.measurement.status ?? "HARD_FAILURE",
       ok: result.ok,
@@ -601,6 +713,7 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
               trust: record.trust,
               measurement: record.measurement,
               candidate_gate: record.candidate_gate,
+              resources: record.resources ?? null,
             },
       control_record:
         recordPath === undefined
@@ -612,11 +725,30 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
               run_id: controlReference?.run_id ?? null,
               rejection: controlReferenceRejection,
             },
+      // 잠금 파일의 경로와 다른 실행의 소유자 정보는 운영자가 복구할 때 필요해서 여기(출력)에만 싣는다. 증거에는 싣지 않는다.
+      lock: {
+        state: lock.state,
+        reason: lock.state === "ACQUIRED" ? null : lock.reason,
+        scope: "server-tree",
+        tree_key_sha256: lock.keySha256,
+        path: lock.state === "ACQUIRED" ? lock.handle.lockPath : lock.lockPath,
+        evidence_marker: markerCreated ? "CREATED" : "NOT_CREATED",
+        holder: lock.state === "REFUSED" ? lock.holder : null,
+        error_code: lock.state === "ERROR" ? lock.code : null,
+        recovery: lock.state === "ACQUIRED" ? null : RECOVERY_HINT,
+      },
+      // 자식 환경에 연결한 수신기의 실제 주소(루프백, OS 할당 포트). 열지 못했으면 null이다.
+      metrics_receiver_url: receiver.url,
       evidence_dir: evidenceDir,
       not_implemented_or_not_verified: NOT_VERIFIED,
-    })
-  );
-  return complete ? EXIT.ok : EXIT.failed;
+    };
+  } finally {
+    await releaseAll();
+  }
+  // 정리에 실패하면(잠금을 해제하지 못함) 측정이 끝났어도 실패로 끝낸다 — 오래된 잠금을 남겼다는 뜻이다.
+  const cleanedUp = cleanup.lock.state !== "NOT_RELEASED" && cleanup.metrics_receiver.closed;
+  deps.stdout(json({ ...body, cleanup }));
+  return complete && cleanedUp ? EXIT.ok : EXIT.failed;
 }
 
 // ── main ────────────────────────────────────────────────────────
@@ -653,7 +785,11 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
 
 async function runEntry(): Promise<void> {
   const controller = new AbortController();
-  process.once("SIGINT", () => controller.abort());
+  // 취소(Ctrl+C·종료 요청)는 하네스를 멈추고 cmdRun의 finally가 잠금을 해제하고 수신기를 닫게 한다. 강제 종료(SIGKILL)·정전은
+  // 정리할 수 없어 잠금이 남는다 — README '오래된 잠금 복구'. Windows는 SIGTERM을 전달하지 않는다.
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => controller.abort());
+  }
   // 출력 파이프를 읽는 쪽이 먼저 닫혀도(`| head`) 충돌하지 않는다. 그 밖의 쓰기 오류는 그대로 올린다.
   for (const stream of [process.stdout, process.stderr]) {
     stream.on("error", (error: NodeJS.ErrnoException) => {
@@ -665,6 +801,8 @@ async function runEntry(): Promise<void> {
     makeGit: (repoDir) => createNodeGit({ repoDir, env: process.env }),
     makeProcessPort: (provenance) => createNodeProcessPort({ provenance }),
     clock: new SystemClock(),
+    runLock: createNodeRunLockPort(),
+    startMetricsReceiver: () => startMetricsReceiver(),
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     getEnv: (name) => process.env[name],

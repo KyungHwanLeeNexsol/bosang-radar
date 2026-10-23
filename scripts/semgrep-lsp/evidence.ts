@@ -26,6 +26,7 @@ import {
   type Phase,
   type Provenance,
   type RunRecord,
+  type RunResources,
   type Verdict,
 } from "./types";
 
@@ -69,6 +70,11 @@ export interface BuildRunRecordArgs {
   n0Confirmed: boolean;
   /** 기본 집합에 덮어쓰거나 더할 항목. 값은 null·NOT_RUN·UNVERIFIED만 허용한다. */
   notExecuted?: Readonly<Record<string, NotExecutedValue>>;
+  /**
+   * 이 실행이 쥔 자원(공유 잠금·루프백 수신기)의 판정 시점 관측 요약. 자원을 연결한 호출자만 준다. 주지 않으면 레코드에 이 필드가
+   * 없다(기존 레코드와 바이트 단위로 같다).
+   */
+  resources?: RunResources;
 }
 
 function checkVerdict(v: Verdict, mode: Mode): void {
@@ -189,6 +195,7 @@ export function buildRunRecord(args: BuildRunRecordArgs): RunRecord {
       official_gate: { effect: "NONE", changed: false },
     },
     not_executed: mergeNotExecuted(args.notExecuted),
+    ...(args.resources === undefined ? {} : { resources: structuredClone(args.resources) }),
   };
 }
 

@@ -60,6 +60,8 @@ import {
   type ExpectedRule,
   type FsPort,
   type GitPort,
+  type MetricsObserver,
+  type MetricsReceiverSummary,
   type Mode,
   type NegativeControlResult,
   type Phase,
@@ -68,6 +70,7 @@ import {
   type Provenance,
   type ReferenceFingerprints,
   type RuleFileEntry,
+  type RunLockSummary,
   type RunRecord,
   type ScopeConfig,
   type ScopeResult,
@@ -123,9 +126,23 @@ export interface HarnessOptions {
   /** 호출자가 관측한 사실. null은 "관측하지 못함"이며 해당 fail-closed 사유가 된다. */
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
+  /** 호출자가 공유 실행 잠금(과 실행별 증거 표지)을 얻었는가. null은 확인하지 못함이며 LOCK_NOT_ACQUIRED가 된다. */
   lockHeld: boolean | null;
+  /** 잠금을 얻지 못한 이유 토큰(사전 검사 사유 상세에만 쓴다). */
+  lockRefusal?: string | null;
+  /** 증거(run.json의 resources.run_lock)에 남길 공유 잠금 요약. 주지 않으면 남기지 않는다. */
+  lockSummary?: RunLockSummary | null;
   foreignServerProcesses: number | null;
+  /**
+   * 호출자가 이미 정해 둔 루프백 수신 건수(시험·수신기가 없는 호출자용). null은 관측하지 못함이다. metricsReceiver를 주면 이 값은
+   * 쓰지 않는다.
+   */
   metricsReceiverHits: number | null;
+  /**
+   * 하네스가 판정하는 **시점**에 observe()로 그때까지의 누적 관측을 읽는 수신기. 시작 시점의 스냅샷(metricsReceiverHits)이 아니라
+   * 이 관측을 판정과 증거(resources.metrics_receiver)에 쓴다. 관측 실패(state FAILED·observe 오류)는 0건이 아니라 null이다.
+   */
+  metricsReceiver?: MetricsObserver | null;
   logFormat?: LogFormat;
   signal?: AbortSignal;
   /** 어느 증거 파일에도 있으면 안 되는 값(추가분). spawn.env 중 기밀로 보이는 이름의 값은 자동으로 포함한다. */
@@ -313,6 +330,42 @@ function scopeTsv(mode: Mode, scope: ScopeResult | null, controls: ControlExpect
       .join("");
   }
   return controls.cases.map((c) => `${c.path}\t${c.sha256}\t${c.kind}\n`).join("");
+}
+
+interface MetricsObservation {
+  /** 증거에 남길 수신기 요약. 수신기가 없으면 null. */
+  summary: MetricsReceiverSummary | null;
+  /** 판정에 쓰는 건수. 관측하지 못했으면 null(0건으로 보지 않는다). */
+  hits: number | null;
+}
+
+/**
+ * 판정 시점의 루프백 수신 관측. 수신기가 있으면 지금 observe()한 누적 관측이고, 없으면 호출자가 정해 둔 값이다.
+ * 관측이 깨졌거나(state FAILED) observe()가 던지면 null이다 — 0건으로 간주하지 않는다.
+ */
+function observeMetrics(options: HarnessOptions): MetricsObservation {
+  const receiver = options.metricsReceiver;
+  if (receiver === undefined || receiver === null) {
+    return { summary: null, hits: options.metricsReceiverHits };
+  }
+  try {
+    const summary = receiver.observe();
+    const hits = summary.state === "FAILED" ? null : summary.hits;
+    return { summary: { ...summary, hits }, hits };
+  } catch {
+    return {
+      summary: {
+        bind: "127.0.0.1",
+        state: "FAILED",
+        failure: "OBSERVE_FAILED",
+        hits: null,
+        connections: 0,
+        requests: 0,
+        client_errors: 0,
+      },
+      hits: null,
+    };
+  }
 }
 
 /** 사전 검사가 거부해 서버를 띄우지 않은 실행의 판정. 사유의 대표 상태가 곧 상태다. */
@@ -525,6 +578,7 @@ async function execute(
       toolVersionObserved: options.toolVersionObserved,
       wheelSha256Observed: options.wheelSha256Observed,
       lockHeld: options.lockHeld,
+      lockRefusal: options.lockRefusal ?? null,
       foreignServerProcesses: options.foreignServerProcesses,
       evidenceRoot: evidenceDir,
     }
@@ -552,6 +606,7 @@ async function execute(
   // 5. 세션(사전 검사가 거부하면 띄우지 않는다) → 판정
   let transcript: Transcript;
   let verdict: Verdict;
+  let observation: MetricsObservation;
   if (refusals.length > 0) {
     transcript = {
       meta: {
@@ -563,7 +618,11 @@ async function execute(
       },
       events: [],
     };
-    verdict = neverStartedVerdict(transcript, evaluateInputs);
+    observation = observeMetrics(options);
+    verdict = neverStartedVerdict(transcript, {
+      ...evaluateInputs,
+      metricsReceiverHits: observation.hits,
+    });
   } else {
     transcript = await runSession(
       { process: deps.process, clock: deps.clock },
@@ -572,7 +631,12 @@ async function execute(
       runSpec
     );
     state.started = transcript.events.some((e) => e.kind === "spawn");
-    verdict = evaluateTranscript(transcript, evaluateInputs);
+    // 판정 시점의 관측: 세션이 끝난 뒤(자식 종료 뒤)까지의 누적 건수를 읽는다. 시작 시점 값을 쓰지 않는다.
+    observation = observeMetrics(options);
+    verdict = evaluateTranscript(transcript, {
+      ...evaluateInputs,
+      metricsReceiverHits: observation.hits,
+    });
   }
 
   // 6. 레코드와 증거
@@ -601,6 +665,19 @@ async function execute(
     phasesReached: phasesOf(transcript),
     controlReference: mode === "target" ? options.controlReference : null,
     n0Confirmed: pin.n0.confirmed,
+    // 서버가 실제로 떠서 유효하게 관측했을 때만 "관측했으나 서버가 환경변수를 읽는지는 미확인"(UNVERIFIED)이다. 그 밖에는
+    // 서버가 한 번도 돌지 않았으므로 기본값(NOT_RUN)을 그대로 둔다.
+    ...(state.started && observation.summary !== null && observation.hits !== null
+      ? { notExecuted: { metrics_receiver_observation: "UNVERIFIED" as const } }
+      : {}),
+    ...(options.lockSummary !== undefined || observation.summary !== null
+      ? {
+          resources: {
+            run_lock: options.lockSummary ?? null,
+            metrics_receiver: observation.summary,
+          },
+        }
+      : {}),
   });
 
   const expectedPaths =

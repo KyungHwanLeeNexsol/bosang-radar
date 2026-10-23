@@ -136,11 +136,16 @@ describe("구조 (1)(7) — child_process는 두 어댑터만 쓴다", () => {
 describe("구조 (2) — 네트워크 모듈과 fetch가 없다", () => {
   const NET = new Set(["net", "http", "https", "http2", "dgram", "dns", "tls", "dns/promises"]);
 
-  it("net·http·https·dgram·dns를 가져오는 파일이 없다(시험·스텁 포함)", () => {
+  // 루프백 수신기(ADR C9) 때문에 네트워크 모듈을 가져오는 파일은 정확히 둘이다: 수신기 어댑터와, 그 수신기에 로컬 요청을 보내는
+  // 시험 클라이언트. 그 밖의 파일(시험·스텁 포함)은 여전히 가져올 수 없다. 두 파일의 사용 범위는 아래 구조 (11)이 지킨다.
+  const NET_ALLOWED = ["metrics-node.ts", "testing/loopback-client.ts"];
+
+  it("net·http·https·dgram·dns를 가져오는 파일은 루프백 수신기 어댑터와 시험 클라이언트뿐이다(시험·스텁 포함)", () => {
     const offenders = sources
       .filter((s) => specifiersOf(s.code).some((spec) => NET.has(bare(spec))))
-      .map((s) => s.rel);
-    expect(offenders).toEqual([]);
+      .map((s) => s.rel)
+      .sort();
+    expect(offenders).toEqual([...NET_ALLOWED].sort());
   });
 
   it("fetch( 호출과 WebSocket·XMLHttpRequest 사용이 없다", () => {
@@ -262,8 +267,16 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
       .filter((s) => specifiersOf(s.code).some((spec) => bare(spec).split("/")[0] === "fs"))
       .map((s) => s.rel)
       .sort();
+    // 공유 실행 잠금의 노드 어댑터(run-lock-node.ts)와 그 경쟁 시험용 자식 프로세스(testing/lock-child.mjs)가 더해졌다.
+    // 잠금 어댑터는 잠금 파일만 만지고(만들기·읽기·지우기), 자식은 시험 폴더의 표지 파일과 잠금 파일만 만진다.
     expect(users).toEqual(
-      ["fs-node.ts", "testing/evaluate-fixtures.ts", "testing/synthetic-data.ts"].sort()
+      [
+        "fs-node.ts",
+        "run-lock-node.ts",
+        "testing/evaluate-fixtures.ts",
+        "testing/lock-child.mjs",
+        "testing/synthetic-data.ts",
+      ].sort()
     );
     for (const rel of users.filter((r) => r.startsWith("testing/"))) {
       const code = byRel(rel).code;
@@ -395,5 +408,178 @@ describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", (
     expect(s.code).toMatch(/computeHarnessFingerprint\(\s*fs:\s*FsPort/);
     expect(s.code).toMatch(/computeControlFingerprint\(\s*fs:\s*FsPort/);
     expect(specifiersOf(s.code).filter((spec) => spec.startsWith("node:"))).toEqual([]);
+  });
+});
+
+describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위", () => {
+  const NET_MODULES = new Set([
+    "net",
+    "http",
+    "https",
+    "http2",
+    "dgram",
+    "dns",
+    "tls",
+    "dns/promises",
+  ]);
+  const importLines = (code: string): string[] =>
+    code.split("\n").filter((line) => /^\s*import\b/.test(line));
+
+  describe("루프백 수신기(metrics-node.ts)", () => {
+    const code = (): string => byRel("metrics-node.ts").code;
+
+    it("127.0.0.1과 OS가 정하는 포트(0)에만 바인딩한다 — 다른 호스트·모든 인터페이스·호스트 이름이 없다", () => {
+      expect(code()).toMatch(/const HOST = "127\.0\.0\.1";/);
+      expect(code()).toMatch(/listen\(\{\s*host:\s*HOST,\s*port:\s*0\s*\}/);
+      for (const bad of ["0.0.0.0", '"::"', "localhost", "listen(0", "listen(8", "port: 9"]) {
+        expect(code(), bad).not.toContain(bad);
+      }
+      // 열린 주소가 127.0.0.1인지 다시 확인한다.
+      expect(code()).toMatch(/address\.address !== HOST/);
+    });
+
+    it("밖으로 나가는 호출이 없다 — 서버를 만들기만 하고 요청·접속 API를 쓰지 않는다", () => {
+      expect(code()).toMatch(/createServer/);
+      for (const bad of [
+        ".request(",
+        ".get(",
+        "createConnection",
+        "connect(",
+        "fetch",
+        "WebSocket",
+      ]) {
+        expect(code(), bad).not.toContain(bad);
+      }
+    });
+
+    it("요청의 본문·헤더·URL·토큰을 읽거나 저장하지 않는다 — 본문은 버리고 건수만 센다", () => {
+      for (const bad of [
+        "request.url",
+        ".headers",
+        ".rawHeaders",
+        "request.on(",
+        'on("data"',
+        "setEncoding",
+        "readFileSync",
+        "writeFile",
+      ]) {
+        expect(code(), bad).not.toContain(bad);
+      }
+      expect(code()).toMatch(/request\.resume\(\)/);
+    });
+
+    it("네트워크 모듈은 node:http 하나만 가져온다", () => {
+      const specs = specifiersOf(byRel("metrics-node.ts").code).map(bare);
+      expect(specs.filter((s) => NET_MODULES.has(s))).toEqual(["http"]);
+    });
+  });
+
+  describe("시험 클라이언트(testing/loopback-client.ts)", () => {
+    it("대상이 127.0.0.1이 아니면 접속하기 전에 던진다", () => {
+      const code = byRel("testing/loopback-client.ts").code;
+      expect(code).toMatch(/parsed\.hostname !== "127\.0\.0\.1"/);
+      expect(code).toMatch(/host: "127\.0\.0\.1"/);
+      expect(code).not.toMatch(/host:\s*parsed\.hostname/);
+    });
+  });
+
+  describe("공유 실행 잠금(run-lock.ts·run-lock-node.ts)", () => {
+    it("코어(run-lock.ts)는 런타임 import가 없다 — 타입만 가져온다(자식 프로세스가 Node로 직접 실행한다)", () => {
+      for (const line of importLines(byRel("run-lock.ts").code)) {
+        expect(line).toMatch(/^\s*import type\b/);
+      }
+    });
+
+    it("노드 어댑터(run-lock-node.ts)는 node: 모듈만 런타임으로 가져오고 프로젝트 모듈은 타입만 가져온다", () => {
+      for (const line of importLines(byRel("run-lock-node.ts").code)) {
+        if (/^\s*import type\b/.test(line)) continue;
+        expect(line).toMatch(/from "node:/);
+      }
+    });
+
+    it("오래된 잠금을 자동으로 지우지 않는다 — 코어에서 remove는 해제(releaseRunLock) 안에서 한 번만 쓰이고, 획득 경로에는 없다", () => {
+      const code = byRel("run-lock.ts").code;
+      const acquireAt = code.indexOf("export async function acquireRunLock");
+      const releaseAt = code.indexOf("export async function releaseRunLock");
+      expect(acquireAt).toBeGreaterThan(-1);
+      expect(releaseAt).toBeGreaterThan(acquireAt);
+      expect(code.slice(acquireAt, releaseAt)).not.toMatch(/\.remove\(|unlink|rm\(/);
+      expect(code.match(/port\.remove\(/g)).toHaveLength(1);
+      // 해제는 자기 토큰을 확인한 뒤에만 지운다.
+      const release = code.slice(releaseAt);
+      expect(release.indexOf("owner.token !== handle.token")).toBeGreaterThan(-1);
+      expect(release.indexOf("owner.token !== handle.token")).toBeLessThan(
+        release.indexOf("port.remove(")
+      );
+    });
+
+    it("소유자 프로세스의 생사를 확인하지 않는다 — 신호·프로세스 조회가 없다", () => {
+      for (const rel of ["run-lock.ts", "run-lock-node.ts"]) {
+        const code = byRel(rel).code;
+        for (const bad of ["process.kill", ".kill(", "tasklist", "child_process", "execFile"]) {
+          expect(code, `${rel}: ${bad}`).not.toContain(bad);
+        }
+      }
+    });
+
+    it("획득은 배타 생성('wx') 하나다 — 덮어쓰기 열기('w')나 존재 확인 뒤 만들기가 없다", () => {
+      const code = byRel("run-lock-node.ts").code;
+      expect(code).toMatch(/open\(path, "wx"/);
+      expect(code).not.toMatch(/open\([^)]*,\s*"w"\s*[,)]/);
+      expect(code).not.toMatch(/\b(access|stat|lstat|exists)\(/);
+      // 지우기(unlink)는 방금 만든 불완전한 파일의 정리와 remove뿐이다.
+      expect(code.match(/unlink\(/g)).toHaveLength(2);
+    });
+  });
+
+  describe("CLI 생명주기(cli.ts)", () => {
+    const code = (): string => byRel("cli.ts").code;
+
+    it("잠금 획득 → 수신기 시작 → 하네스 → finally에서 정리 순서이고, 정리는 finally 안에 있다", () => {
+      const c = code();
+      const acquire = c.indexOf("await acquireRunLock(");
+      const receiver = c.indexOf("await deps.startMetricsReceiver()");
+      const harness = c.indexOf("await runHarness(");
+      const finallyAt = c.indexOf("} finally {");
+      const releaseAll = c.indexOf("await releaseAll()");
+      expect(acquire).toBeGreaterThan(-1);
+      expect(acquire).toBeLessThan(receiver);
+      expect(receiver).toBeLessThan(harness);
+      expect(harness).toBeLessThan(finallyAt);
+      expect(finallyAt).toBeLessThan(releaseAll);
+      expect(c.match(/await releaseRunLock\(/g)).toHaveLength(1);
+    });
+
+    it("잠금은 서버가 스캔하는 트리에서 얻고, 증거 폴더나 runId에서 얻지 않는다", () => {
+      expect(code()).toMatch(/const serverTree = mode === "target" \? scanRoot : controlTreeRoot;/);
+      expect(code()).toMatch(/acquireRunLock\(deps\.runLock, \{ treePath: serverTree/);
+    });
+
+    it("lockHeld는 공유 잠금과 증거 표지가 모두 있을 때만 true다", () => {
+      expect(code()).toMatch(/const lockHeld = lock\.state === "ACQUIRED" && markerCreated;/);
+    });
+
+    it("관측하지 않은 값은 채우지 않는다 — foreignServerProcesses·도구 버전·휠은 null, 수신 건수는 수신기가 정한다", () => {
+      expect(code()).toMatch(/foreignServerProcesses: null,/);
+      expect(code()).toMatch(/toolVersionObserved: null,/);
+      expect(code()).toMatch(/wheelSha256Observed: null,/);
+      expect(code()).toMatch(/metricsReceiverHits: null,\s*metricsReceiver: receiver,/);
+    });
+
+    it("옛 이름 run.lock을 더 만들지 않는다(증거 표지는 run.marker)", () => {
+      expect(code()).toContain('"run.marker"');
+      expect(code()).not.toContain('"run.lock"');
+    });
+
+    it("취소 신호(SIGINT·SIGTERM)는 모두 AbortController로 이어져 정리 경로를 탄다", () => {
+      const c = code();
+      const entry = c.slice(c.indexOf("async function runEntry"));
+      expect(entry).toContain('["SIGINT", "SIGTERM"] as const');
+      expect(entry).toContain("process.once(signal, () => controller.abort())");
+    });
+
+    it("자식 환경의 주소는 열린 수신기의 주소를 쓴다", () => {
+      expect(code()).toMatch(/buildChildEnv\(deps, evidenceDir, receiver\.url\)/);
+    });
   });
 });

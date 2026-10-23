@@ -561,6 +561,31 @@ describe("runPrecheck: 잠금·다른 서버 프로세스", () => {
     expect(codes((await check(world, { lockHeld: null })).reasons)).toEqual(["LOCK_NOT_ACQUIRED"]);
   });
 
+  it("잠금을 얻지 못한 이유 토큰은 상세에만 붙고, 코드와 판정은 같다(이유를 주지 않으면 기존 문구)", async () => {
+    const world = await makeWorld();
+    const plain = (await check(world, { lockHeld: false })).reasons[0];
+    const withReason = (await check(world, { lockHeld: false, lockRefusal: "HELD_BY_OTHER" }))
+      .reasons[0];
+    expect(plain).toMatchObject({ code: "LOCK_NOT_ACQUIRED", detail: "실행 잠금을 얻지 못했다" });
+    expect(withReason).toMatchObject({
+      code: "LOCK_NOT_ACQUIRED",
+      detail: "실행 잠금을 얻지 못했다 (HELD_BY_OTHER)",
+    });
+    // 확인하지 못함(null)에도 같은 규칙이다. 잠금을 얻었으면(true) 이유가 있어도 사유가 없다.
+    expect(
+      (await check(world, { lockHeld: null, lockRefusal: "TREE_UNRESOLVABLE" })).reasons[0].detail
+    ).toBe("잠금 상태를 확인하지 못했다 (TREE_UNRESOLVABLE)");
+    expect((await check(world, { lockHeld: true, lockRefusal: "IGNORED" })).reasons).toEqual([]);
+  });
+
+  it("잠금을 얻어도 다른 서버 프로세스 검사는 별개다 — 잠금이 foreignServerProcesses를 채우지 않는다", async () => {
+    const world = await makeWorld();
+    const result = await check(world, { lockHeld: true, foreignServerProcesses: null });
+    expect(codes(result.reasons)).toEqual(["FOREIGN_SERVER_PROCESS"]);
+    expect(result.details.lock_held).toBe(true);
+    expect(result.details.foreign_server_processes).toBeNull();
+  });
+
   it("다른 서버 프로세스: null(미확인)과 1 이상은 FOREIGN_SERVER_PROCESS, 0은 통과", async () => {
     const world = await makeWorld();
     expect(codes((await check(world, { foreignServerProcesses: null })).reasons)).toEqual([

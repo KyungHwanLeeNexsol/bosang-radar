@@ -75,6 +75,8 @@ export interface PrecheckInput {
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
   lockHeld: boolean | null;
+  /** 잠금을 얻지 못한 이유 토큰(HELD_BY_OTHER 등). 사유 상세에만 쓰이고 판정에는 영향이 없다. 값·경로를 담지 않는다. */
+  lockRefusal?: string | null;
   foreignServerProcesses: number | null;
   /** 로그·설정 파일이 있어야 하는 증거 폴더. */
   evidenceRoot: string;
@@ -417,7 +419,9 @@ export async function runPrecheck(
   if (input.lockHeld !== true) {
     reasons.push({
       code: "LOCK_NOT_ACQUIRED",
-      detail: input.lockHeld === null ? "잠금 상태를 확인하지 못했다" : "실행 잠금을 얻지 못했다",
+      detail:
+        (input.lockHeld === null ? "잠금 상태를 확인하지 못했다" : "실행 잠금을 얻지 못했다") +
+        (input.lockRefusal ? ` (${input.lockRefusal})` : ""),
     });
   }
   details.lock_held = input.lockHeld;
