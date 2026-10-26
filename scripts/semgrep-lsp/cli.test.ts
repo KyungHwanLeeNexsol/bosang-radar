@@ -36,7 +36,9 @@ import {
 import { createNodeFs } from "./fs-node";
 import { FakeMetricsReceiver } from "./testing/fake-metrics";
 import { canConnectLoopback } from "./testing/loopback-client";
+import { recorded } from "./testing/call-recorder";
 import { routedFs } from "./testing/routed-fs";
+import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryRunLock } from "./testing/memory-run-lock";
 import { MemoryGit } from "./testing/memory-git";
@@ -2474,4 +2476,225 @@ describe("main — run: 실제 잠금(디스크)과 실제 루프백 수신기",
       expect(await listing(dir)).toEqual([]);
     });
   }
+
+  // ── --run-id 선검증(외부 재검토) ────────────────────────────────────────────────────────────────
+  //
+  // 재현: --evidence-root <base>/evidence, --run-id ../escaped. 서버 트리(<base>/scan)와 증거 폴더는 겹치지 않는다. 예전에는 CLI가
+  // run-id를 경로에 그대로 붙여 <base>/escaped/run.marker와 semgrep-state를 만든 뒤에야 하네스의 형식 검사가 거절했다. 이제 CLI가
+  // 인자를 받은 직후, 경로를 만들거나 자원을 얻기 전에 거절한다. 여기서는 증거 루트와 서버 트리를 모두 실제 디스크에 두고 확인한다.
+
+  /** 증거 루트 `<dir>/evidence`와 서버 트리 `<dir>/scan`을 실제 디스크에 두고, 파일 시스템·잠금 포트의 호출과 수신기 시작을 기록한다. */
+  async function runIdWorld() {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    const evidenceRoot = `${dir.replace(/\\/g, "/")}/evidence`;
+    const fsCalls: string[] = [];
+    const lockCalls: string[] = [];
+    let receiverStarts = 0;
+    w.deps.fs = recorded(w.deps.fs, fsCalls, "fs");
+    w.deps.runLock = recorded(w.deps.runLock, lockCalls, "lock");
+    const startReceiver = w.deps.startMetricsReceiver;
+    w.deps.startMetricsReceiver = () => {
+      receiverStarts++;
+      return startReceiver();
+    };
+    return {
+      w,
+      dir,
+      tree,
+      evidenceRoot,
+      fsCalls,
+      lockCalls,
+      receiverStarts: () => receiverStarts,
+      argvFor: (runId: string) => withEvidence(argv, evidenceRoot, runId),
+    };
+  }
+
+  it("재현 그대로: --run-id ../escaped는 <base>/escaped에 표지·상태 폴더·잠금을 만들기 전에 사용법 오류(2)로 거절한다", async () => {
+    const x = await runIdWorld();
+    const escaped = join(x.dir, "escaped");
+    expect(await exists(escaped)).toBe(false);
+
+    const code = await main(x.argvFor("../escaped"), x.w.deps);
+
+    expect(await exists(escaped)).toBe(false); // run.marker·semgrep-state가 있던 자리
+    expect(await listing(x.dir)).toEqual([]); // 증거 루트·서버 트리·잠금 파일 어느 것도 없다
+    expect(code).toBe(EXIT.usage);
+    expect(x.w.err.join("").startsWith("--run-id는 ")).toBe(true);
+  });
+
+  for (const c of INVALID_RUN_IDS) {
+    it(`--run-id ${c.name}(${JSON.stringify(c.value.slice(0, 24))})은 사용법 오류(2)이고, 실제 디스크 어디에도 아무것도 만들지 않으며 자원을 얻지 않는다`, async () => {
+      const x = await runIdWorld();
+      const baseBefore = await listing(base);
+
+      expect(await main(x.argvFor(c.value), x.w.deps)).toBe(EXIT.usage);
+
+      // 사용법 오류 첫 줄이 --run-id 오류다(뒤에 붙는 사용법 안내에 속지 않는다).
+      const firstLine = x.w.err.join("").split("\n")[0];
+      expect(firstLine.startsWith("--run-id는 ")).toBe(true);
+      // 입력 값은 되풀이하지 않는다(짧은 값은 규칙 설명 문구의 글자와 겹치므로 4자 이상만 본다).
+      if (c.value.length >= 4) expect(firstLine).not.toContain(c.value);
+      expect(x.w.out).toEqual([]); // 증거 레코드도 NOT_RUN 보고도 없다
+      // 실제 디스크: 증거 루트 안(<dir>/evidence), 밖(<dir>/escaped), 서버 트리·잠금 파일(<dir>/scan, *.lock), 그 위(<base>)까지.
+      expect(await listing(x.dir)).toEqual([]);
+      expect(await listing(base)).toEqual(baseBefore);
+      // 호출 기록: 방지 장치의 실행 파일 존재 확인(exists) 하나뿐이다. 만들기·쓰기·경로 풀기·기록 읽기가 없다.
+      expect(x.fsCalls).toEqual(["fs.exists"]);
+      expect(x.lockCalls).toEqual([]); // 잠금 경로 해석·획득·해제 모두 없다
+      expect(x.receiverStarts()).toBe(0);
+      expect(x.w.portCalls).toEqual([]); // 프로세스 포트를 만들지 않았다
+      expect(x.w.spawnCalls).toEqual([]);
+      expect(x.w.gitCalls).toEqual([]);
+    });
+  }
+
+  for (const c of [
+    VALID_RUN_IDS.find((v) => v.value === "a"),
+    VALID_RUN_IDS.find((v) => v.value === "a".repeat(128)),
+    VALID_RUN_IDS.find((v) => v.value === "a..b"),
+  ] as { name: string; value: string }[]) {
+    it(`정상 값 ${c.name}은 거절하지 않는다: 증거가 <증거 루트>/<run-id>/에 실제 디스크로 쓰이고 잠금은 해제된다`, async () => {
+      const x = await runIdWorld();
+
+      expect(await main(x.argvFor(c.value), x.w.deps)).toBe(EXIT.failed); // 다른 실행 전제가 비어 있어 거부된다(사용법 오류가 아니다)
+
+      expect(x.w.err.join("")).toBe("");
+      expect(await readdir(join(x.dir, "evidence", c.value))).toContain("run.json");
+      expect((await listing(x.dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+      expect(x.lockCalls.length).toBeGreaterThan(0);
+      expect(x.receiverStarts()).toBe(1);
+      expect(bodyOf(x.w).cleanup.lock.state).toBe("RELEASED");
+    });
+  }
+});
+
+// ── run: --run-id 선검증(메모리 파일 시스템, 포트 호출 기록) ─────────────────────────────────────
+
+describe("main — run: --run-id 선검증", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+
+  /** 호출을 기록하도록 감싼 세계. 실행 방지 장치는 통과한다. */
+  function recordedWorld(env: Record<string, string> = passEnv) {
+    const w = makeWorld({ env });
+    const fsCalls: string[] = [];
+    w.deps.fs = recorded(w.deps.fs, fsCalls, "fs");
+    return { w, fsCalls };
+  }
+
+  function argvWithRunId(runId: string, form: "pair" | "equals" = "pair"): string[] {
+    const argv = withGuard({});
+    const at = argv.indexOf("--run-id");
+    if (form === "equals") argv.splice(at, 2, `--run-id=${runId}`);
+    else argv[at + 1] = runId;
+    return argv;
+  }
+
+  function expectNothingAcquired(x: ReturnType<typeof recordedWorld>, label: string): void {
+    const { w, fsCalls } = x;
+    expect(fsCalls, label).toEqual(["fs.exists"]); // 방지 장치의 실행 파일 확인뿐 — 만들기·쓰기·경로 풀기·기록 읽기 없음
+    expect(w.lock.calls, label).toEqual([]);
+    expect(w.lock.files.size, label).toBe(0);
+    expect(w.receivers, label).toEqual([]);
+    expect(w.portCalls, label).toEqual([]);
+    expect(w.spawnCalls, label).toEqual([]);
+    expect(w.gitCalls, label).toEqual([]);
+    expect(w.out, label).toEqual([]);
+  }
+
+  for (const c of INVALID_RUN_IDS) {
+    it(`target: ${c.name}(${JSON.stringify(c.value.slice(0, 24))})은 2이고 파일 시스템·잠금·수신기·git·프로세스 포트를 쓰지 않는다`, async () => {
+      const x = recordedWorld();
+      const argv = argvWithRunId(c.value);
+      argv.push("--control-record", "/records/control-run.json"); // 기록 읽기도 일어나지 않아야 한다
+
+      expect(await main(argv, x.w.deps)).toBe(EXIT.usage);
+
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 ")).toBe(true);
+      expectNothingAcquired(x, c.name);
+      expect(await x.w.fs.exists("/evidence")).toBe(false);
+    });
+  }
+
+  it("--run-id=<값> 형식도 같은 규칙으로 거절한다", async () => {
+    for (const value of ["../escaped", "a/b", "..", "a".repeat(129)]) {
+      const x = recordedWorld();
+      expect(await main(argvWithRunId(value, "equals"), x.w.deps), value).toBe(EXIT.usage);
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 "), value).toBe(true);
+      expectNothingAcquired(x, value);
+    }
+  });
+
+  it("control 모드도 같다: 대조 트리·대조 예제 경로를 읽거나 만들기 전에 거절한다", async () => {
+    for (const value of ["../escaped", "a\\b", "."]) {
+      const x = recordedWorld();
+      const argv = [
+        "run",
+        "--mode",
+        "control",
+        "--run-id",
+        value,
+        "--rules-cache",
+        `/cache/${SYNTHETIC_CACHE_DIR}`,
+        "--evidence-root",
+        "/evidence",
+        "--control-fixtures-root",
+        "/fixtures",
+        "--control-tree-root",
+        "/ctl",
+        FLAG,
+        "--semgrep-bin",
+        BIN,
+      ];
+      expect(await main(argv, x.w.deps), value).toBe(EXIT.usage);
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 "), value).toBe(true);
+      expectNothingAcquired(x, value);
+    }
+  });
+
+  it("실행 방지 장치가 먼저다: 장치를 통과하지 못하면 잘못된 --run-id여도 NOT_RUN(3)이고 어떤 포트도 만들지 않는다", async () => {
+    const guardCases: {
+      name: string;
+      env: Record<string, string>;
+      argv: (id: string) => string[];
+    }[] = [
+      { name: "플래그 없음", env: passEnv, argv: (id) => withGuardId(id, { flag: false }) },
+      { name: "환경변수 없음", env: {}, argv: (id) => withGuardId(id, {}) },
+      { name: "실행 파일 없음", env: passEnv, argv: (id) => withGuardId(id, { bin: null }) },
+      { name: "셋 다 없음", env: {}, argv: (id) => withGuardId(id, { flag: false, bin: null }) },
+    ];
+    function withGuardId(id: string, parts: { flag?: boolean; bin?: string | null }): string[] {
+      const argv = withGuard(parts);
+      argv[argv.indexOf("--run-id") + 1] = id;
+      return argv;
+    }
+    for (const g of guardCases) {
+      for (const value of ["../escaped", "a".repeat(129)]) {
+        const x = recordedWorld(g.env);
+        const label = `${g.name} / ${value.slice(0, 12)}`;
+        expect(await main(g.argv(value), x.w.deps), label).toBe(EXIT.notRun);
+        expect((jsonOut(x.w) as { status: string }).status, label).toBe("NOT_RUN");
+        expect(x.w.err, label).toEqual([]);
+        expect(x.w.lock.calls, label).toEqual([]);
+        expect(x.w.receivers, label).toEqual([]);
+        expect(x.w.portCalls, label).toEqual([]);
+        expect(
+          x.fsCalls.filter((c) => c !== "fs.exists"),
+          label
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it.each(VALID_RUN_IDS)(
+    "정상 값 $name은 받아들인다: 사용법 오류가 아니고 증거가 /evidence/<run-id>/에 쓰인다",
+    async ({ value }) => {
+      const x = recordedWorld();
+      const code = await main(argvWithRunId(value), x.w.deps);
+      expect(code).toBe(EXIT.failed); // 다른 실행 전제가 비어 있어 거부된다(검증은 통과했다)
+      expect(x.w.err.join("")).toBe("");
+      expect(await x.w.fs.exists(`/evidence/${value}/run.json`)).toBe(true);
+      expect(x.w.lock.calls.length).toBeGreaterThan(0);
+    }
+  );
 });

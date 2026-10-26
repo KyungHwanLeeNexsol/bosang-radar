@@ -48,6 +48,7 @@ import {
   rulesListSha256,
   rulesTreeConfigFromPin,
 } from "./rules-manifest";
+import { RUN_ID_RULE, isValidRunId } from "./run-id";
 import { buildScanTree, computeScope, resolveTarget } from "./scope";
 import { assertSessionConfig, runSession, type SessionConfig, type SessionLimits } from "./session";
 import { buildInitializationOptions, validateInitializationOptions } from "./settings";
@@ -176,7 +177,6 @@ class HardFailure extends Error {
 }
 
 const SECRET_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL)/i;
-const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const decoder = new TextDecoder();
 
 function joinPath(root: string, name: string): string {
@@ -395,8 +395,8 @@ function checkOptions(options: HarnessOptions): void {
   if (options.mode !== "control" && options.mode !== "target") {
     throw new HardFailure("config", `알 수 없는 mode: ${String(options.mode)}`);
   }
-  if (typeof options.runId !== "string" || !RUN_ID.test(options.runId)) {
-    throw new HardFailure("config", "runId는 영숫자·`.`·`_`·`-`로만 이루어져야 한다");
+  if (!isValidRunId(options.runId)) {
+    throw new HardFailure("config", `runId는 ${RUN_ID_RULE}여야 한다`);
   }
   const paths = [
     "dataDir",

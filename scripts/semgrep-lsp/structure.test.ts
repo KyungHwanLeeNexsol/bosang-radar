@@ -380,7 +380,13 @@ describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", (
   });
 
   it("지문·참조·정규 직렬화 모듈은 순수하다: node:fs·child_process·net·process 접근이 없다", () => {
-    const pure = ["fingerprint.ts", "reference.ts", "canonical.ts", "path-containment.ts"];
+    const pure = [
+      "fingerprint.ts",
+      "reference.ts",
+      "canonical.ts",
+      "path-containment.ts",
+      "run-id.ts",
+    ];
     const FORBIDDEN = new Set([
       "fs",
       "child_process",
@@ -585,6 +591,59 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       const body = c.slice(start, c.indexOf("async readFile(", start));
       expect(body).toMatch(/canonicalTreePath\(/);
       expect(body).not.toMatch(/\b(mkdir|writeFile|unlink|rm|open|rename)\s*\(/);
+    });
+  });
+
+  describe("--run-id 선검증(run-id.ts)", () => {
+    it("runId 형식 규칙은 run-id.ts 한 곳에만 있다 — 다른 파일에 같은 규칙을 복제하지 않는다", () => {
+      const holders = nonTest
+        .filter((s) => /\[A-Za-z0-9\]\[A-Za-z0-9\._-\]/.test(s.code))
+        .map((s) => s.rel);
+      expect(holders).toEqual(["run-id.ts"]);
+    });
+
+    it("CLI·하네스·대조 기록 읽기 어댑터가 모두 같은 함수를 가져다 쓴다", () => {
+      for (const rel of ["cli.ts", "harness.ts", "reference-record.ts"]) {
+        const c = byRel(rel).code;
+        expect(c, rel).toMatch(/import \{[^}]*\bisValidRunId\b[^}]*\} from "\.\/run-id";/);
+        expect(c, rel).toMatch(/\bisValidRunId\(/);
+      }
+    });
+
+    it("CLI: 실행 방지 장치 다음, 경로를 만들거나 자원을 얻기 전에 run-id를 검증한다", () => {
+      const c = byRel("cli.ts").code;
+      const start = c.indexOf("async function cmdRun(");
+      expect(start).toBeGreaterThan(-1);
+      const guard = c.indexOf("await missingGuardConditions(parsed, deps)", start);
+      const check = c.indexOf("if (!isValidRunId(runId))", start);
+      expect(guard).toBeGreaterThan(start);
+      expect(check).toBeGreaterThan(guard); // 장치가 먼저: 장치를 못 넘으면 NOT_RUN(3)이다
+      expect(c.slice(check, check + 200)).toMatch(/throw new UsageError\(/);
+      // run-id가 들어가는 첫 경로, 그리고 읽기·git·겹침 검사·잠금·수신기·프로세스 포트·하네스보다 앞선다.
+      for (const later of [
+        "joinPath(evidenceRoot, runId)",
+        "const rulesCache = need(",
+        "deps.makeGit(",
+        "loadControlReference(deps.fs",
+        "await evidenceInsideServerTree(",
+        "await acquireRunLock(",
+        "await deps.startMetricsReceiver()",
+        "await runHarness(",
+      ]) {
+        const at = c.indexOf(later, start); // cmdRun 안에서 처음 나오는 자리
+        expect(at, later).toBeGreaterThan(-1);
+        expect(check, later).toBeLessThan(at);
+      }
+    });
+
+    it("하네스: runId 검사는 옵션 검사(checkOptions) 안에 있고, 증거 겹침 검사·파일 시스템 접근보다 앞선다", () => {
+      const c = byRel("harness.ts").code;
+      const inCheck = c.indexOf("if (!isValidRunId(options.runId))");
+      const callCheck = c.indexOf("checkOptions(options);");
+      expect(inCheck).toBeGreaterThan(-1);
+      expect(c.slice(c.indexOf("function checkOptions("), inCheck)).not.toMatch(/\bfs\./);
+      expect(callCheck).toBeGreaterThan(-1);
+      expect(callCheck).toBeLessThan(c.indexOf("await evidenceInsideServerTree("));
     });
   });
 

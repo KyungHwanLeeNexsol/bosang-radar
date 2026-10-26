@@ -42,6 +42,7 @@ import {
   releaseRunLock,
   type RunLockPort,
 } from "./run-lock";
+import { RUN_ID_RULE, isValidRunId } from "./run-id";
 import { createNodeRunLockPort } from "./run-lock-node";
 import { computeScope, resolveTarget, verifyScanTree } from "./scope";
 import type { SessionLimits } from "./session";
@@ -145,6 +146,9 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   1. --allow-real-semgrep
   2. 환경변수 ${ENV_ALLOW_REAL}=1
   3. --semgrep-bin <존재하는 절대 경로>   (PATH 탐색·자동 설치·기본값 없음)
+
+--run-id: 영숫자로 시작하고 영숫자·.·_·-만 쓴 1~128자(증거 폴더 이름). 어긋나면 경로를 만들거나 잠금 등을 얻기 전에 종료 코드 2로 끝난다.
+  단, 위 실행 방지 장치는 인자 검사보다 먼저 보므로 장치를 통과하지 못하면 --run-id와 관계없이 NOT_RUN(3)이다.
 
 --control-fixtures-root: 대조 예제(.in)가 놓인 저장소 루트. 두 모드 모두 대조 지문을 이 위치의 파일 바이트로 계산한다.
   target에서는 검사 대상인 --repo와 별개의 경로다(대상 SHA에는 예제가 없을 수 있다). target에서 생략하거나 읽을 수 없으면
@@ -521,6 +525,9 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   if (mode !== "control" && mode !== "target")
     throw new UsageError("--mode는 control 또는 target이다");
   const runId = need(parsed, "run-id");
+  // --run-id는 증거 폴더 이름이 되어 아래 모든 경로(증거·상태 폴더·표지)에 들어간다. 경로를 만들거나 읽기·잠금·수신기·프로세스
+  // 포트 같은 자원을 얻기 전에, 하네스와 같은 순수 규칙(run-id.ts)으로 거절한다. 값은 오류에 되풀이하지 않는다.
+  if (!isValidRunId(runId)) throw new UsageError(`--run-id는 ${RUN_ID_RULE}여야 한다`);
   const rulesCache = need(parsed, "rules-cache");
   const evidenceRoot = need(parsed, "evidence-root");
   const bin = need(parsed, "semgrep-bin");

@@ -36,11 +36,13 @@ import { computeScope } from "./scope";
 import { gitBlobSha1, sha256Hex } from "./sha";
 import { representativeStatus, type ReasonCode } from "./status";
 import { syntheticControlRunRecord } from "./testing/control-record-fixtures";
+import { recorded } from "./testing/call-recorder";
 import { FakeMetricsReceiver } from "./testing/fake-metrics";
 import { FakeChild, FakePort } from "./testing/fake-process";
 import { canConnectLoopback, sendLoopbackRequest } from "./testing/loopback-client";
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
+import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { qualifiedReference } from "./testing/evaluate-fixtures";
 import {
   SYNTHETIC_HARNESS_ROOT,
@@ -866,6 +868,55 @@ describe("runHarness — 무결성 예외는 하드 실패다(COMPLETE로 읽히
       "config"
     );
   });
+
+  // runHarness를 직접 부르는 호출자도 CLI와 같은 규칙(run-id.ts)으로 거절된다. 파일 시스템에는 아무 호출도 하지 않는다.
+  for (const mode of ["target", "control"] as const) {
+    for (const c of INVALID_RUN_IDS) {
+      it(`${mode}: runId ${c.name}(${JSON.stringify(c.value.slice(0, 24))})은 파일 시스템을 만지기 전에 config 단계에서 거부한다`, async () => {
+        const calls: string[] = [];
+        const env = await makeEnv({
+          mode,
+          options: { runId: c.value },
+          wrapFs: (inner) => recorded(inner, calls, "fs"),
+        });
+        const r = await env.go();
+        expect(r.ok).toBe(false);
+        expect(r.failure?.stage).toBe("config");
+        expect(r.failure?.message).toContain("runId");
+        expect(r.started).toBe(false);
+        expect(r.record).toBeNull();
+        expect(r.evidence).toBeNull();
+        expect(calls).toEqual([]); // 읽기·존재 확인·경로 풀기·쓰기 모두 없다
+        expect(env.port.spawnCalls).toHaveLength(0);
+        expect(env.fs.directories.filter((d) => d.startsWith("/evidence"))).toEqual([]);
+      });
+    }
+  }
+
+  it("runId가 문자열이 아니어도 config 단계에서 거부한다(CLI를 거치지 않는 호출자)", async () => {
+    for (const bad of [undefined, null, 7, ["run"], { toString: () => "run" }]) {
+      const calls: string[] = [];
+      const env = await makeEnv({
+        mode: "target",
+        options: { runId: bad as unknown as string },
+        wrapFs: (inner) => recorded(inner, calls, "fs"),
+      });
+      const r = await env.go();
+      expect(r.failure?.stage, String(typeof bad)).toBe("config");
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it.each(VALID_RUN_IDS)(
+    "정상 값 $name은 runId 검사를 통과한다(config 단계 거부가 아니다)",
+    async ({ value }) => {
+      const env = await makeEnv({ mode: "target", options: { runId: value } });
+      const r = await env.go();
+      expect(r.failure?.stage).not.toBe("config");
+      expect(r.ok).toBe(true);
+      expect(await env.fs.exists(`/evidence/${value}/run.json`)).toBe(true);
+    }
+  );
 
   it("initializationOptions를 만들 수 없는 설정(음수 시간)은 settings 단계의 하드 실패다", async () => {
     await expectHard(

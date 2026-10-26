@@ -48,6 +48,7 @@ import {
 import { readControlExpectations } from "./control-expectations";
 import { toControlReference } from "./harness";
 import { negativeControlProblems, qualifyControlRun } from "./reference";
+import { isValidRunId } from "./run-id";
 import { STATUS_PRIORITY, type MeasurementStatus } from "./status";
 import {
   SCHEMAS,
@@ -78,8 +79,6 @@ const MAX_EXPECTATION_TOKENS = 6;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
-// harness.ts의 runId 규칙과 같다(증거 폴더 이름이 될 수 있는 값만).
-const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const MEASUREMENT_STATUSES: readonly MeasurementStatus[] = [
   ...STATUS_PRIORITY,
@@ -384,7 +383,7 @@ function parseQualification(root: Obj, p: Problems): ControlRunView["qualificati
 /** 소비하는 필드를 검사해 새 객체로 옮긴다. 문제는 p에 모으며, 문제가 하나라도 있으면 undefined다. */
 function parseControlRun(root: Obj, p: Problems): ControlRunView | undefined {
   const start = p.list.length;
-  const run_id = str(root, "run_id", "", p, (s) => RUN_ID.test(s));
+  const run_id = str(root, "run_id", "", p, (s) => isValidRunId(s));
   const provenance = oneOf(root, "provenance", "", p, ["real", "stub"] as const);
   const trust = oneOf(root, "trust", "", p, ["SYNTHETIC", "REAL_UNREVIEWED"] as const);
   const inputs = parseInputs(root, p);
