@@ -162,6 +162,13 @@ export interface FsPort {
   /** root 기준 상대 경로('/' 구분), 점 파일 포함, 경로 오름차순. 디렉터리는 포함하지 않는다. */
   listFilesRecursive(root: string): Promise<string[]>;
   exists(path: string): Promise<boolean>;
+  /**
+   * 이 포트가 path로 **실제로 접근할 자리**를 비교 키로 바꾼다 — 심볼릭 링크·junction·`.`·`..`·상대 경로를 이 포트의 파일 접근과
+   * 같은 의미로 푼 정규 경로이고, 구분자는 '/'이며, 대소문자를 구분하지 않는 플랫폼은 소문자다. 아직 없는 끝부분은 존재하는 접두를
+   * 기준으로 붙인다. 두 키의 포함 관계(path-containment.ts)가 두 경로의 실제 포함 관계다. **읽기만 한다**(아무것도 만들지 않는다).
+   * 안전하게 풀 수 없으면 던진다 — 호출자는 쓰기 전에 거절한다.
+   */
+  physicalKey(path: string): Promise<string>;
 }
 
 export interface GitTreeEntry {

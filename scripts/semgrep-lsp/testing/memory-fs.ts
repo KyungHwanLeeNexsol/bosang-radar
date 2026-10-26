@@ -78,6 +78,11 @@ export class MemoryFs implements FsPort {
     return this.files.has(normalized) || this.dirs.has(normalized);
   }
 
+  /** 메모리 파일 시스템에는 링크가 없고 경로를 사전식으로 정규화해 접근한다 — 그 의미 그대로가 실제로 닿는 자리다. */
+  async physicalKey(path: string): Promise<string> {
+    return normalizePath(path);
+  }
+
   /** 시험 편의: mkdirp로 기록된 디렉터리 목록(오름차순). */
   get directories(): string[] {
     return [...this.dirs].sort(compareBytes);

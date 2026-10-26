@@ -684,6 +684,7 @@ describe("writeEvidence", () => {
     const flaky: FsPort = {
       readFile: (p) => inner.readFile(p),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
       writeFileExclusive: async (p, d) => {

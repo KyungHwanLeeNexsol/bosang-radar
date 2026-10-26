@@ -1,6 +1,16 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
 import { EXIT, buildChildEnv, main, type CliDeps } from "./cli";
@@ -625,6 +635,7 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: async (p, d) => (touched.push(p), inner.writeFileExclusive(p, d)),
       mkdirp: async (p) => (touched.push(p), inner.mkdirp(p)),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: async (p) => (touched.push(p), inner.listFilesRecursive(p)),
       exists: async (p) => (touched.push(p), inner.exists(p)),
     };
@@ -692,6 +703,7 @@ describe("main — run: 대조 예제 경로", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -772,6 +784,7 @@ describe("main — run: 대조 예제 경로", () => {
       },
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -973,6 +986,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -1109,6 +1123,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
         },
         writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
         mkdirp: (p) => inner.mkdirp(p),
+        physicalKey: (p) => inner.physicalKey(p),
         listFilesRecursive: (p) => inner.listFilesRecursive(p),
         exists: (p) => inner.exists(p),
       };
@@ -1129,6 +1144,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
         },
         writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
         mkdirp: (p) => inner.mkdirp(p),
+        physicalKey: (p) => inner.physicalKey(p),
         listFilesRecursive: (p) => inner.listFilesRecursive(p),
         exists: (p) => inner.exists(p),
       };
@@ -2188,6 +2204,241 @@ describe("main — run: 실제 잠금(디스크)과 실제 루프백 수신기",
     expect(await exists(tree)).toBe(false);
     expect(await listing(dir)).toEqual([]);
     expect(w.spawnCalls).toEqual([]);
+  });
+
+  // ── 증거 경로가 `..`·링크·상대 경로로 서버 트리 안에 돌아 들어가는 우회(외부 재검토) ──────────────
+  //
+  // 다른 실행이 서버 트리(`<base>/scan`)의 잠금을 쥔 채 target CLI를 돌린다. 문자열 비교는 `<base>/outside/../scan/evidence`(A)와
+  // `<base>/alias/evidence`(alias → scan, B)를 놓쳐서, 잠금이 거절돼도(`REFUSED`) 증거 9개가 보호 트리 안에 써졌다. 링크는
+  // Linux에서는 심볼릭 링크, Windows에서는 junction으로 만든다(이 컴퓨터는 Windows).
+
+  async function linkOrSkip(
+    ctx: { skip: () => never },
+    target: string,
+    path: string
+  ): Promise<void> {
+    try {
+      await symlink(target, path, "junction"); // POSIX에서는 type 인자가 무시되고 폴더 링크가 된다
+    } catch {
+      ctx.skip(); // 링크를 만들 수 없는 환경: 검증하지 못한 것으로 보고한다
+    }
+  }
+
+  /** 다른 실행이 잠금을 쥔 서버 트리. populated이면 트리에 파일이 미리 있다. */
+  async function protectedWorld(populated: boolean) {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    if (populated) {
+      await mkdir(join(tree, "src"), { recursive: true });
+      await writeFile(join(tree, "src", "a.ts"), "export const a = 1;\n");
+    }
+    const owner = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: tree,
+      runId: "other-process",
+      mode: "control",
+    });
+    if (owner.state !== "ACQUIRED") throw new Error("전제");
+    const snapshot = async () => ({
+      tree: await diskDigest(tree),
+      parent: await listing(dir),
+      lock: await readFile(owner.handle.lockPath, "utf8"),
+    });
+    return { w, dir, tree, argv, owner, snapshot };
+  }
+
+  const withEvidence = (argv: string[], evidenceRoot: string, runId?: string): string[] => {
+    const out = [...argv];
+    out[out.indexOf("--evidence-root") + 1] = evidenceRoot;
+    if (runId !== undefined) out[out.indexOf("--run-id") + 1] = runId;
+    return out;
+  };
+
+  const OVERLAP_CASES: {
+    name: string;
+    populated: boolean;
+    prepare?: (ctx: { skip: () => never }, dir: string, tree: string) => Promise<void>;
+    evidenceRoot: (dir: string, tree: string) => string;
+    runId?: (tree: string) => string;
+  }[] = [
+    {
+      name: "존재하는 outside를 지나 `..`로 서버 트리에 돌아오는 경로(A)",
+      populated: false,
+      prepare: async (_ctx, dir) => void (await mkdir(`${dir}/outside`, { recursive: true })),
+      evidenceRoot: (dir, tree) => `${dir}/outside/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "존재하는 outside를 지나 `..`로 돌아오는 경로(서버 트리에 파일이 있을 때)",
+      populated: true,
+      prepare: async (_ctx, dir) => void (await mkdir(`${dir}/outside`, { recursive: true })),
+      evidenceRoot: (dir, tree) => `${dir}/outside/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "아직 없는 폴더를 지나 `..`로 돌아오는 경로",
+      populated: false,
+      evidenceRoot: (dir, tree) => `${dir}/nowhere/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "서버 트리를 가리키는 링크(junction) 아래의 경로(B)",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/alias/evidence`,
+    },
+    {
+      name: "서버 트리를 가리키는 링크 아래의 아직 없는 하위 폴더",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/alias/a/b/c`,
+    },
+    {
+      name: "서버 트리 안을 상대 경로로 적은 경로(절대 경로와 같은 위치)",
+      populated: true,
+      prepare: async (ctx, _dir, tree) => {
+        if (isAbsolute(relative(process.cwd(), tree))) ctx.skip(); // 다른 드라이브라 상대 경로가 없다
+      },
+      evidenceRoot: (_dir, tree) => relative(process.cwd(), `${tree}/ev`),
+    },
+    {
+      name: "아직 없는 폴더를 지나 `..`로 돌아와 서버 트리를 가리키는 링크로 들어가는 경로",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/nowhere/../alias/evidence`,
+    },
+    {
+      name: "증거 실행 폴더 자체가 서버 트리를 가리키는 링크인 경로",
+      populated: true,
+      prepare: async (ctx, dir, tree) => {
+        await mkdir(`${dir}/evroot`, { recursive: true });
+        await linkOrSkip(ctx, tree, `${dir}/evroot/run-cli-1`);
+      },
+      evidenceRoot: (dir) => `${dir}/evroot`,
+    },
+    {
+      name: "서버 트리 안의 아직 없는 하위 폴더",
+      populated: false,
+      evidenceRoot: (_dir, tree) => `${tree}/x/y/z`,
+    },
+    {
+      name: "서버 트리와 같은 위치(증거 실행 폴더가 곧 서버 트리)",
+      populated: true,
+      evidenceRoot: (dir) => dir,
+      runId: (tree) => basename(tree),
+    },
+  ];
+
+  for (const c of OVERLAP_CASES) {
+    it(`증거 경로가 ${c.name}이면 run.marker·semgrep-state를 만들기 전에 사용법 오류로 거절하고 보호 트리·소유자의 잠금 파일이 그대로다`, async (ctx) => {
+      const p = await protectedWorld(c.populated);
+      try {
+        await c.prepare?.(ctx, p.dir, p.tree);
+        const before = await p.snapshot();
+        const argv = withEvidence(p.argv, c.evidenceRoot(p.dir, p.tree), c.runId?.(p.tree));
+
+        expect(await main(argv, p.w.deps)).toBe(EXIT.usage);
+
+        // 겹침이라서 거절한 것이어야 한다 — 경로를 풀지 못해서 거절한 것이면 이 시험이 겹침 감지를 지키지 못한다.
+        expect(p.w.err.join("")).toContain("같거나 그 안에");
+        expect(p.w.err.join("")).not.toContain("판별하지 못했다");
+        expect(p.w.spawnCalls).toEqual([]);
+        expect(await p.snapshot()).toEqual(before); // 트리·부모 폴더 목록·소유자의 잠금 파일 바이트
+      } finally {
+        await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+      }
+    });
+  }
+
+  // 링크 **뒤**의 `..`는 운영체제마다 다르게 풀린다(Linux·macOS: 링크 대상의 부모, Windows: `..`를 먼저 지움). 기대값을 어느 쪽으로
+  // 가정하지 않고 운영체제에게 묻는다. 사전식으로 접으면 Linux에서 틀린다.
+  for (const c of [
+    {
+      name: "링크가 서버 트리 안쪽 폴더를 가리킬 때 `링크/../x`",
+      target: (tree: string) => `${tree}/sub`,
+      evidence: (dir: string) => `${dir}/l/../x`,
+      leaf: "x",
+    },
+    {
+      name: "링크가 서버 트리 바깥 폴더를 가리킬 때 `링크/../scan/ev`",
+      target: (_tree: string, dir: string) => `${dir}/elsewhere/sub`,
+      evidence: (dir: string) => `${dir}/l/../scan/ev`,
+      leaf: "scan/ev",
+    },
+  ]) {
+    it(`링크 뒤 \`..\`(${c.name}): 겹침 여부가 운영체제가 푼 실제 위치와 같다(Windows·Linux가 다르게 풀어도 성립)`, async (ctx) => {
+      const p = await protectedWorld(true);
+      try {
+        const dir = p.dir.replace(/\\/g, "/");
+        const target = c.target(p.tree, dir);
+        await mkdir(target, { recursive: true });
+        await linkOrSkip(ctx, target, `${dir}/l`);
+        const actualDir = join(await realpath(`${dir}/l/..`), c.leaf); // 운영체제가 `l/..` 뒤를 푼 자리
+        const rel = relative(await realpath(p.tree), actualDir);
+        const expectInside = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+        const before = await p.snapshot();
+        p.w.err.length = 0;
+
+        const code = await main(withEvidence(p.argv, c.evidence(dir)), p.w.deps);
+
+        if (expectInside) {
+          expect(code).toBe(EXIT.usage);
+          expect(p.w.err.join("")).toContain("같거나 그 안에");
+        } else {
+          // 안이 아니면 정상 경로다: 잠금은 다른 실행이 쥐고 있어 거절되지만 증거는 운영체제가 푼 그 자리에 쓰인다.
+          expect(code).toBe(EXIT.failed);
+          expect(bodyOf(p.w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+          expect((await readdir(join(actualDir, "run-cli-1"))).sort()).toContain("run.json");
+        }
+        const after = await p.snapshot();
+        expect(after.tree).toEqual(before.tree);
+        expect(after.lock).toBe(before.lock);
+      } finally {
+        await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+      }
+    });
+  }
+
+  it("증거 경로나 서버 트리 경로를 안전하게 판별할 수 없으면(끊어진 링크) 잠금·표지보다 먼저 사용법 오류로 거절하고 아무것도 만들지 않는다", async (ctx) => {
+    const p = await protectedWorld(true);
+    try {
+      const gone = join(p.dir, "gone");
+      await mkdir(gone, { recursive: true });
+      await linkOrSkip(ctx, gone, join(p.dir, "dangling"));
+      await rm(gone, { recursive: true }); // 링크는 남고 대상이 사라졌다
+      const before = await p.snapshot();
+
+      const dangling = `${p.dir.replace(/\\/g, "/")}/dangling`;
+      const viaEvidence = withEvidence(p.argv, `${dangling}/evidence`);
+      const viaTree = [...p.argv];
+      viaTree[viaTree.indexOf("--scan-root") + 1] = `${dangling}/tree`;
+      for (const argv of [viaEvidence, viaTree]) {
+        p.w.err.length = 0;
+        expect(await main(argv, p.w.deps)).toBe(EXIT.usage);
+        expect(p.w.err.join("")).toContain("안전하게 판별하지 못했다");
+        expect(p.w.spawnCalls).toEqual([]);
+        expect(await p.snapshot()).toEqual(before);
+      }
+    } finally {
+      await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+    }
+  });
+
+  it("A·B가 아닌 정상 경우: 이름 접두만 비슷한 별도 폴더에 쓰는 증거는 기존대로 쓰이고(잠금은 거절) 보호 트리는 그대로다", async () => {
+    const p = await protectedWorld(true);
+    try {
+      const evidenceRoot = `${p.tree}-evidence`; // `scan-evidence`: 서버 트리 `scan`과 이름 접두만 같다
+      const before = (await p.snapshot()).tree;
+      const lock = (await p.snapshot()).lock;
+
+      expect(await main(withEvidence(p.argv, evidenceRoot), p.w.deps)).toBe(EXIT.failed);
+
+      expect(bodyOf(p.w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+      expect(statusAndCodes(p.w).codes).toContain("LOCK_NOT_ACQUIRED");
+      const written = await readdir(join(evidenceRoot, "run-cli-1"));
+      expect(written).toContain("run.json");
+      expect(written).toHaveLength(9); // 증거 9개가 별도 폴더에 실제 디스크로 쓰였다
+      expect((await p.snapshot()).tree).toEqual(before);
+      expect((await p.snapshot()).lock).toBe(lock);
+    } finally {
+      await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+    }
   });
 
   for (const [name, sabotage] of [

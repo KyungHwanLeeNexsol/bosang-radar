@@ -39,6 +39,7 @@ import {
 } from "./evidence";
 import { buildBinding, computeControlFingerprint, computeHarnessFingerprint } from "./fingerprint";
 import type { LogFormat } from "./log-matcher";
+import { evidenceInsideServerTree } from "./path-containment";
 import { buildControlTree, runPrecheck } from "./precheck";
 import {
   expectedRulesSha256,
@@ -180,21 +181,6 @@ const decoder = new TextDecoder();
 
 function joinPath(root: string, name: string): string {
   return `${root.replace(/[\\/]+$/, "")}/${name}`;
-}
-
-function unifyPath(path: string): string {
-  const unified = path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/, "");
-  return /^[A-Za-z]:/.test(unified) ? unified.toLowerCase() : unified; // 드라이브 경로는 대소문자를 구분하지 않는다(Windows)
-}
-
-/**
- * path가 root와 같거나 그 안인가(사전식 비교: 링크·`..`는 풀지 않는다). 증거 폴더가 서버 트리 안에 있으면 증거 쓰기가 잠금 없이
- * 서버 트리를 바꾸게 되므로, 하네스와 CLI가 이 검사로 그런 설정을 거절한다.
- */
-export function isSameOrInside(path: string, root: string): boolean {
-  const p = unifyPath(path);
-  const r = unifyPath(root);
-  return p === r || p.startsWith(`${r}/`);
 }
 
 function collectSecrets(options: HarnessOptions): string[] {
@@ -440,8 +426,20 @@ async function execute(
   const evidenceDir = joinPath(options.evidenceRoot, options.runId);
 
   // 증거는 서버 트리 밖에 쓴다: 안에 쓰면 잠금이 없는 실행도 다른 실행의 트리에 파일을 만들게 된다(서버 트리는 E에 해당하는 파일만
-  // 담아야 하기도 하다).
-  if (isSameOrInside(evidenceDir, mode === "target" ? options.scanRoot : options.controlTreeRoot)) {
+  // 담아야 하기도 하다). `lockHeld`와 무관하게 — 잠금을 가졌어도 증거를 트리 안에 쓰는 설정은 거절한다. 포함 관계는 문자열이 아니라
+  // 증거를 쓰게 될 그 포트가 실제로 접근할 자리(링크·junction·`..`·상대 경로를 푼 자리)로 판단하고(path-containment.ts), 안전하게
+  // 풀 수 없으면 쓰기 전에 거절한다. 확인은 읽기만 한다. 호출자의 "겹치지 않는다"는 주장을 받는 옵션은 없다.
+  const serverTreeRoot = mode === "target" ? options.scanRoot : options.controlTreeRoot;
+  let overlaps: boolean;
+  try {
+    overlaps = await evidenceInsideServerTree(fs, evidenceDir, serverTreeRoot);
+  } catch (error) {
+    throw new HardFailure(
+      "config",
+      `증거 폴더와 서버 트리의 위치 관계를 안전하게 판별하지 못했다: ${errorText(error)}`
+    );
+  }
+  if (overlaps) {
     throw new HardFailure("config", "증거 폴더가 서버 트리와 같거나 그 안에 있다");
   }
 

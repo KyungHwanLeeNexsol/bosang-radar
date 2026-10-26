@@ -380,7 +380,7 @@ describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", (
   });
 
   it("지문·참조·정규 직렬화 모듈은 순수하다: node:fs·child_process·net·process 접근이 없다", () => {
-    const pure = ["fingerprint.ts", "reference.ts", "canonical.ts"];
+    const pure = ["fingerprint.ts", "reference.ts", "canonical.ts", "path-containment.ts"];
     const FORBIDDEN = new Set([
       "fs",
       "child_process",
@@ -529,6 +529,62 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       expect(code).not.toMatch(/\b(access|stat|lstat|exists)\(/);
       // 지우기(unlink)는 방금 만든 불완전한 파일의 정리와 remove뿐이다.
       expect(code.match(/unlink\(/g)).toHaveLength(2);
+    });
+  });
+
+  describe("증거 경로 겹침 검사(path-containment.ts)", () => {
+    it("문자열 비교로 겹침을 판단하는 함수가 없다 — 포트가 실제로 접근할 자리(physicalKey)로만 판단한다", () => {
+      expect(nonTest.filter((s) => /\bisSameOrInside\b/.test(s.code)).map((s) => s.rel)).toEqual(
+        []
+      );
+      expect(byRel("path-containment.ts").code).toMatch(/fs\.physicalKey\(evidenceDir\)/);
+      expect(byRel("path-containment.ts").code).toMatch(/fs\.physicalKey\(serverTree\)/);
+    });
+
+    it("CLI: 겹침 검사는 잠금 획득과 run.marker·semgrep-state 쓰기보다 앞선다", () => {
+      const c = byRel("cli.ts").code;
+      const check = c.indexOf("await evidenceInsideServerTree(deps.fs, evidenceDir, serverTree)");
+      expect(check).toBeGreaterThan(-1);
+      expect(check).toBeLessThan(c.indexOf("await acquireRunLock("));
+      // 실제로 쓰는 호출(표지 파일 만들기, 상태 폴더 만들기)보다 앞선다 — buildChildEnv의 경로 문자열은 쓰기가 아니다.
+      expect(check).toBeLessThan(
+        c.indexOf('await deps.fs.mkdirp(joinPath(evidenceDir, "semgrep-state"))')
+      );
+      expect(check).toBeLessThan(c.indexOf('joinPath(evidenceDir, "run.marker")'));
+    });
+
+    it("하네스: 겹침 검사는 lockHeld와 무관하게 서버 트리 준비·증거 존재 확인·증거 쓰기보다 앞선다", () => {
+      const c = byRel("harness.ts").code;
+      const check = c.indexOf("await evidenceInsideServerTree(fs, evidenceDir, serverTreeRoot)");
+      expect(check).toBeGreaterThan(-1);
+      expect(check).toBeLessThan(c.indexOf("await buildScanTree("));
+      expect(check).toBeLessThan(c.indexOf("await buildControlTree("));
+      expect(check).toBeLessThan(c.indexOf("await fs.exists(joinPath(evidenceDir"));
+      expect(check).toBeLessThan(c.indexOf("await writeEvidence("));
+      // 검사 구간에 lockHeld를 읽는 분기가 없다: 잠금을 가져도 증거를 서버 트리 안에 쓰는 설정은 거절한다.
+      const region = c.slice(check - 400, check + 600);
+      expect(region).not.toMatch(/lockHeld/);
+    });
+
+    it("풀 수 없으면 쓰기 전에 거절한다 — 오류를 삼켜 '겹치지 않음'으로 보는 분기가 없다", () => {
+      for (const rel of ["cli.ts", "harness.ts"]) {
+        const c = byRel(rel).code;
+        const at = c.indexOf("evidenceInsideServerTree(");
+        const catchAt = c.indexOf("} catch (error) {", at);
+        expect(catchAt, rel).toBeGreaterThan(at);
+        expect(c.slice(catchAt, catchAt + 120), rel).toMatch(
+          /throw new (UsageError|HardFailure)\(/
+        );
+      }
+    });
+
+    it("fs-node의 physicalKey는 경로 해석(canonicalTreePath)만 쓰고 만들기·쓰기·지우기 호출이 없다(탐침 파일 금지)", () => {
+      const c = byRel("fs-node.ts").code;
+      const start = c.indexOf("async physicalKey(");
+      expect(start).toBeGreaterThan(-1);
+      const body = c.slice(start, c.indexOf("async readFile(", start));
+      expect(body).toMatch(/canonicalTreePath\(/);
+      expect(body).not.toMatch(/\b(mkdir|writeFile|unlink|rm|open|rename)\s*\(/);
     });
   });
 

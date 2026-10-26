@@ -148,6 +148,11 @@ export async function canonicalTreePath(
   }
 }
 
+/** 이 플랫폼의 파일 시스템이 대소문자를 구분하지 않는다고 보는가(win32·darwin). 잠금 키와 경로 겹침 판정이 같은 기준을 쓴다. */
+export function platformCaseInsensitive(): boolean {
+  return process.platform === "win32" || process.platform === "darwin";
+}
+
 /** 정규화한 경로 → 비교 키(구분자 통일, 끝의 `/` 제거, NFC, 필요하면 소문자). */
 export function treeKeyOf(canonical: string, caseInsensitive: boolean): string {
   let key = sep === "\\" ? canonical.replace(/\\/g, "/") : canonical;
@@ -157,8 +162,7 @@ export function treeKeyOf(canonical: string, caseInsensitive: boolean): string {
 }
 
 export function createNodeRunLockPort(options: NodeRunLockOptions = {}): RunLockPort {
-  const caseInsensitive =
-    options.caseInsensitive ?? (process.platform === "win32" || process.platform === "darwin");
+  const caseInsensitive = options.caseInsensitive ?? platformCaseInsensitive();
   const pathOps = options.pathOps ?? nodePathOps;
   return {
     async resolveTree(treePath): Promise<TreeResolution> {

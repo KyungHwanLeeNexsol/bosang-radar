@@ -22,8 +22,9 @@ import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
-import { isSameOrInside, runHarness, type HarnessOptions } from "./harness";
+import { runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
+import { evidenceInsideServerTree } from "./path-containment";
 import { createNodeProcessPort } from "./process-node";
 import { loadControlReference } from "./reference-record";
 import {
@@ -557,10 +558,20 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   const evidenceDir = joinPath(evidenceRoot, runId);
   // 공유 잠금의 범위는 서버가 스캔하는 트리 하나다: target은 스캔 트리, control은 대조 트리.
   const serverTree = mode === "target" ? scanRoot : controlTreeRoot;
-  // 증거(run.marker 포함)는 서버 트리 밖에 쓴다. 잠금을 얻기 전에 거절한다.
-  if (isSameOrInside(evidenceDir, serverTree)) {
+  // 증거(run.marker·semgrep-state 포함)는 서버 트리 밖에 쓴다. 잠금을 얻기 전, 아무것도 만들기 전에 거절한다. 포함 관계는 문자열이
+  // 아니라 증거를 쓰게 될 파일 시스템 포트가 실제로 접근할 자리(링크·junction·`..`·상대 경로를 푼 자리)로 판단하고, 안전하게 풀 수
+  // 없으면 거절한다. 확인은 읽기만 한다 — 보호 트리 안에 폴더나 탐침 파일을 만들지 않는다. (runHarness가 같은 검사를 독립적으로 한다.)
+  let overlaps: boolean;
+  try {
+    overlaps = await evidenceInsideServerTree(deps.fs, evidenceDir, serverTree);
+  } catch (error) {
     throw new UsageError(
-      "--evidence-root 아래의 실행 폴더가 서버 트리(--scan-root·--control-tree-root)와 같거나 그 안에 있다"
+      `증거 폴더(--evidence-root)와 서버 트리(--scan-root·--control-tree-root)의 위치 관계를 안전하게 판별하지 못했다: ${errorText(error)}`
+    );
+  }
+  if (overlaps) {
+    throw new UsageError(
+      "--evidence-root 아래의 실행 폴더가 서버 트리(--scan-root·--control-tree-root)와 같거나 그 안에 있다 (링크·`..`·상대 경로를 푼 실제 위치 기준)"
     );
   }
 
