@@ -1,6 +1,8 @@
+import { constants as fsConstants } from "node:fs";
 import {
   mkdir,
   mkdtemp,
+  open as openFile,
   readFile,
   readdir,
   realpath,
@@ -9,10 +11,11 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { createNodeArtifactHasher, readOnlyOpenFlags } from "./artifact-node";
 import { VirtualClock } from "./clock";
 import { EXIT, buildChildEnv, main, type CliDeps } from "./cli";
 import { canonicalJson } from "./canonical";
@@ -40,6 +43,7 @@ import { canConnectLoopback } from "./testing/loopback-client";
 import { recorded } from "./testing/call-recorder";
 import { FakeChild } from "./testing/fake-process";
 import { MemoryArtifactHasher } from "./testing/memory-artifact";
+import { LINUX_OPEN_CONSTANTS, PosixOpenEmulator } from "./testing/posix-open-emulator";
 import { routedFs } from "./testing/routed-fs";
 import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { MemoryFs } from "./testing/memory-fs";
@@ -56,6 +60,7 @@ import {
 import { drive } from "./testing/stub-lsp";
 import { AsyncByteQueue } from "./streams";
 import { createNodeProcessPort } from "./process-node";
+import type { ArtifactHashPort } from "./tool-observation";
 import type {
   ChildHandle,
   GitPort,
@@ -3296,6 +3301,279 @@ describe("main — run: 도구 버전·휠 sha256 관측", () => {
       expect(notes).toContain("설치 출처");
       expect(notes).toContain("foreignServerProcesses=null");
       expect(notes).not.toContain("구현하지 않았다 — toolVersionObserved=null"); // 낡은 문구가 남아 있지 않다
+    });
+  });
+
+  // ── 일반 파일이 아닌 휠 입력(FIFO): 열기가 막히지 않고, 거절 뒤에 잠금·수신기가 정리된다 ─────────────────────
+  //
+  // PR #32 외부 검토에서 재현된 결함: --wheel-artifact가 쓰기 쪽 없는 FIFO이면 해시 어댑터의 open이 운영체제 안에서 대기해, AbortSignal을
+  // 취소해도 CLI가 끝나지 않고 공유 잠금과 루프백 수신기가 유지됐다. 여기서는 실제 디스크 잠금과 실제 루프백 수신기를 쓰고(증거·규칙은
+  // 메모리), 실제 해시 어댑터를 통과해 CLI 전체가 시간 한도 안에 거절·정리까지 끝나는지 본다.
+  // 한도는 시험 쪽 장치다(제품 코드의 대기를 끊는 것이 아니다). 한도가 지나면 매달린 열기를 풀어, 실패하는 구현도 시험 프로세스에
+  // 잠금·수신기·열기 작업을 남기지 않게 한다.
+  describe("일반 파일이 아닌 휠 입력(FIFO) — 열기가 막히지 않고 거절·정리까지 끝난다", () => {
+    let base = "";
+    afterAll(async () => {
+      if (base !== "") await rm(base, { recursive: true, force: true });
+    });
+
+    /** work가 ms 안에 끝나면 true(성공·실패는 묻지 않는다), 아니면 false. */
+    async function settledWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ms);
+      });
+      try {
+        return await Promise.race([
+          work.then(
+            () => true,
+            () => true
+          ),
+          timeout,
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const linuxHasher = (emu: PosixOpenEmulator): ArtifactHashPort =>
+      createNodeArtifactHasher({
+        open: emu.open,
+        openFlags: readOnlyOpenFlags(LINUX_OPEN_CONSTANTS, "linux"),
+      });
+
+    async function setup(wheelPath: string, hasher: ArtifactHashPort) {
+      base ||= await mkdtemp(join(tmpdir(), "semgrep-lsp-cli-fifo-"));
+      const dir = await mkdtemp(join(base, "case-"));
+      const tree = join(dir, "scan").replace(/\\/g, "/");
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) });
+      w.deps.runLock = createNodeRunLockPort(); // 실제 디스크 잠금
+      w.deps.startMetricsReceiver = () => startMetricsReceiver(); // 실제 루프백 수신기
+      w.deps.hashArtifact = hasher; // 실제 해시 어댑터(열기만 에뮬레이트하거나 실제 파일을 연다)
+      const argv = argvWheel();
+      argv[argv.indexOf("--scan-root") + 1] = tree;
+      argv[argv.indexOf("--wheel-artifact") + 1] = wheelPath;
+      return { w, dir, argv };
+    }
+
+    /**
+     * CLI를 시간 한도 안에서 돌린다. 한도 안에 끝나지 않으면 hung=true다. 어느 경우든 마지막에 release로 매달린 열기를 풀고 main이
+     * 끝날 때까지 기다린다 — 그래서 실패하는 구현이어도 잠금·수신기·열기 작업이 시험 뒤에 남지 않는다.
+     */
+    async function runBounded(
+      w: World,
+      argv: string[],
+      release: () => void | Promise<void>,
+      ms = 5000
+    ): Promise<{ hung: boolean; code: number | null }> {
+      const pending = main(argv, w.deps);
+      const done = settledWithin(pending, ms);
+      const hung = !(await done);
+      if (hung) {
+        for (let i = 0; i < 20; i++) {
+          await release();
+          if (await settledWithin(pending, 100)) break;
+        }
+        await settledWithin(pending, 3000);
+      }
+      const code = hung ? null : await pending;
+      return { hung, code };
+    }
+
+    /** 거절·정리가 끝난 뒤의 공통 사실. 휠 해시는 없고, 잠금 파일·수신기·버전 확인 자식이 남지 않는다. */
+    async function expectRejectedAndCleaned(
+      w: World,
+      dir: string,
+      failures: string[]
+    ): Promise<ObsBody> {
+      const b = bodyOf(w);
+      expect(b.tool_observation.wheel_hash).toMatchObject({
+        status: "FAILED",
+        sha256: null,
+        size_bytes: null,
+      });
+      expect(failures).toContain(b.tool_observation.wheel_hash.failure);
+      const run = await runOf(w);
+      expect(run.inputs.wheel_sha256_observed).toBeNull(); // 성공 해시 없음 — 핀 값으로 채우지 않는다
+      expect(codesOf(b)).toContain("WHEEL_HASH_UNVERIFIED");
+      expect(b.started).toBe(false); // LSP 서버는 시작되지 않았다
+      expect(w.spawnCalls).toEqual([]);
+      // 정리
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+      expect(b.cleanup.version_check_process.state).toBe("EXITED");
+      expect((await readdir(dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+      const url = (jsonOut(w) as unknown as { metrics_receiver_url: string | null })
+        .metrics_receiver_url;
+      expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      expect(await canConnectLoopback(url!)).toBe(false);
+      return b;
+    }
+
+    it("쓰기 쪽이 없는 FIFO: CLI가 한도 안에 NOT_A_FILE로 거절하고 잠금·수신기·핸들을 남기지 않는다(에뮬레이트한 POSIX 열기)", async () => {
+      const emu = new PosixOpenEmulator({ "/artifacts/fifo.whl": { kind: "fifo" } });
+      const { w, dir, argv } = await setup("/artifacts/fifo.whl", linuxHasher(emu));
+      const r = await runBounded(w, argv, () => emu.releasePending());
+      expect(r.hung, "FIFO 열기에서 CLI가 매달렸다(쓰기 쪽을 아무도 열지 않았다)").toBe(false);
+      expect(r.code).toBe(EXIT.failed);
+      await expectRejectedAndCleaned(w, dir, ["NOT_A_FILE"]);
+      expect(emu.pendingOpens()).toBe(0);
+      expect(emu.openHandles()).toBe(0);
+      expect(emu.readCalls).toBe(0);
+      expect(emu.writeAttempts).toBe(0);
+    });
+
+    it("FIFO를 가리키는 링크도 같다(에뮬레이트한 POSIX 열기)", async () => {
+      const emu = new PosixOpenEmulator({
+        "/artifacts/fifo.whl": { kind: "fifo" },
+        "/artifacts/link.whl": { kind: "symlink", target: "/artifacts/fifo.whl" },
+      });
+      const { w, dir, argv } = await setup("/artifacts/link.whl", linuxHasher(emu));
+      const r = await runBounded(w, argv, () => emu.releasePending());
+      expect(r.hung, "링크를 따라 FIFO를 열다가 CLI가 매달렸다").toBe(false);
+      expect(r.code).toBe(EXIT.failed);
+      await expectRejectedAndCleaned(w, dir, ["NOT_A_FILE"]);
+      expect(emu.opens[0].resolvedKind).toBe("fifo");
+      expect(emu.openHandles()).toBe(0);
+    });
+
+    it("진행 중 취소(리뷰가 재현한 시나리오): FIFO를 여는 순간 신호를 취소해도 CLI가 끝나고 잠금·수신기가 정리된다", async () => {
+      const emu = new PosixOpenEmulator({ "/artifacts/fifo.whl": { kind: "fifo" } });
+      const { w, dir, argv } = await setup("/artifacts/fifo.whl", linuxHasher(emu));
+      const controller = new AbortController();
+      w.deps.signal = controller.signal;
+      const pending = main(argv, w.deps);
+      try {
+        for (let i = 0; i < 400 && emu.opens.length === 0; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        expect(emu.opens.length, "휠 열기 단계에 이르지 못했다").toBe(1);
+        controller.abort(); // 열기가 진행 중인 바로 그 순간에 취소한다 — 외부에서 FIFO 쓰기 쪽을 열어 주지 않는다
+        expect(await settledWithin(pending, 5000), "취소했는데 CLI가 끝나지 않는다").toBe(true);
+        expect(await pending).toBe(EXIT.failed);
+        await expectRejectedAndCleaned(w, dir, ["NOT_A_FILE", "CANCELLED"]);
+        expect(emu.pendingOpens()).toBe(0);
+        expect(emu.openHandles()).toBe(0);
+      } finally {
+        emu.releasePending(); // 실패하는 구현이 남긴 대기가 있다면 풀어 main이 끝나게 한다
+        await settledWithin(pending, 3000);
+      }
+    });
+
+    it("진행 중 취소: 읽는 도중 신호를 취소하면 CLI가 끝나고 CANCELLED로 남기며 잠금·수신기를 정리한다", async () => {
+      const emu = new PosixOpenEmulator({
+        "/artifacts/big.whl": { kind: "file", data: new Uint8Array(3 * 1024 * 1024 + 5).fill(3) },
+      });
+      let openGate!: () => void;
+      const gate = new Promise<void>((resolve) => (openGate = resolve));
+      let first = true;
+      emu.beforeRead = async () => {
+        if (first) {
+          first = false;
+          await gate; // 첫 조각을 읽는 중에 멈춘다
+        }
+      };
+      const { w, dir, argv } = await setup("/artifacts/big.whl", linuxHasher(emu));
+      const controller = new AbortController();
+      w.deps.signal = controller.signal;
+      const pending = main(argv, w.deps);
+      try {
+        for (let i = 0; i < 400 && emu.readCalls === 0; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        expect(emu.readCalls, "휠을 읽는 단계에 이르지 못했다").toBe(1);
+        controller.abort();
+        openGate();
+        expect(await settledWithin(pending, 5000), "취소했는데 CLI가 끝나지 않는다").toBe(true);
+        expect(await pending).toBe(EXIT.failed);
+        await expectRejectedAndCleaned(w, dir, ["CANCELLED"]);
+        expect(emu.readCalls).toBe(1); // 취소 뒤에는 더 읽지 않았다
+        expect(emu.openHandles()).toBe(0);
+      } finally {
+        openGate();
+        emu.releasePending();
+        await settledWithin(pending, 3000);
+      }
+    });
+
+    it("일반 파일은 그대로 읽는다: 실제 파일의 해시가 독립 계산값과 같고 run.json에 남으며 정리된다(실제 어댑터·실제 파일)", async () => {
+      base ||= await mkdtemp(join(tmpdir(), "semgrep-lsp-cli-fifo-"));
+      const wheel = join(base, "real-regular.whl");
+      await writeFile(wheel, WHEEL_BYTES);
+      const { w, dir, argv } = await setup(wheel, createNodeArtifactHasher());
+      const r = await runBounded(w, argv, () => {});
+      expect(r.hung).toBe(false);
+      expect(r.code).toBe(EXIT.failed); // 다른 전제(다른 서버 프로세스)가 비어 있어 실행은 거부된다 — 해시는 그와 별개다
+      const b = bodyOf(w);
+      expect(b.tool_observation.wheel_hash).toMatchObject({
+        status: "OBSERVED",
+        sha256: WHEEL_SHA,
+        size_bytes: WHEEL_BYTES.length,
+      });
+      const run = await runOf(w);
+      expect(run.inputs.wheel_sha256_observed).toBe(WHEEL_SHA);
+      // 실제 바이트의 해시가 합성 핀과 다르므로 비교 결과는 MISMATCH다(해시가 핀 값으로 채워지지 않았다는 뜻이다).
+      expect(run.resources?.tool_observation?.pin.wheel).toMatchObject({
+        observed: WHEEL_SHA,
+        comparison: "MISMATCH",
+      });
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+      expect((await readdir(dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+      expect(new Uint8Array(await readFile(wheel))).toEqual(WHEEL_BYTES); // 읽기만 했다
+    });
+
+    // 아래 두 시험은 실제 FIFO를 쓴다 — POSIX 전용이며 Windows에서는 건너뛴다. 개발 PC(Windows 11)에서는 돌리지 못했다.
+    // Linux/macOS에서 확인이 필요하다.
+    describe.skipIf(process.platform === "win32")("실제 POSIX FIFO", () => {
+      const randomHex = (): string => randomBytes(4).toString("hex");
+
+      async function makeFifo(dir: string, name: string): Promise<string> {
+        const path = join(dir, name);
+        const child = await createNodeProcessPort({ provenance: "stub" }).spawn({
+          command: "mkfifo",
+          args: [path],
+          cwd: dir,
+          env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+        });
+        const exit = await child.exited;
+        await child.dispose();
+        if (exit.code !== 0)
+          throw new Error(`시험 준비 실패: mkfifo가 종료 코드 ${exit.code}로 끝났다`);
+        return path;
+      }
+
+      /** 매달린 읽기 열기가 있다면 쓰기 쪽을 비차단으로 열었다 닫아 풀어 준다(기다리는 읽기 쪽이 없으면 ENXIO — 정상). */
+      async function releaseBlockedOpen(fifoPath: string): Promise<void> {
+        try {
+          const writer = await openFile(fifoPath, fsConstants.O_WRONLY | fsConstants.O_NONBLOCK);
+          await writer.close();
+        } catch {
+          /* ENXIO */
+        }
+      }
+
+      it("쓰기 쪽이 없는 FIFO: CLI가 한도 안에 NOT_A_FILE로 거절하고 잠금·수신기를 정리한다(외부에서 쓰기 쪽을 열어 주지 않는다)", async () => {
+        base ||= await mkdtemp(join(tmpdir(), "semgrep-lsp-cli-fifo-"));
+        const fifo = await makeFifo(base, `cli-${randomHex()}.fifo`);
+        const { w, dir, argv } = await setup(fifo, createNodeArtifactHasher());
+        const r = await runBounded(w, argv, () => releaseBlockedOpen(fifo));
+        expect(r.hung, "실제 FIFO 열기에서 CLI가 매달렸다").toBe(false);
+        expect(r.code).toBe(EXIT.failed);
+        await expectRejectedAndCleaned(w, dir, ["NOT_A_FILE"]);
+      });
+
+      it("FIFO를 가리키는 심볼릭 링크도 같다", async () => {
+        base ||= await mkdtemp(join(tmpdir(), "semgrep-lsp-cli-fifo-"));
+        const fifo = await makeFifo(base, `cli-target-${randomHex()}.fifo`);
+        const link = join(base, `cli-link-${randomHex()}.whl`);
+        await symlink(fifo, link);
+        const { w, dir, argv } = await setup(link, createNodeArtifactHasher());
+        const r = await runBounded(w, argv, () => releaseBlockedOpen(fifo));
+        expect(r.hung, "링크를 따라 실제 FIFO를 열다가 CLI가 매달렸다").toBe(false);
+        expect(r.code).toBe(EXIT.failed);
+        await expectRejectedAndCleaned(w, dir, ["NOT_A_FILE"]);
+      });
     });
   });
 

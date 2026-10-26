@@ -715,13 +715,33 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       expect(c).toMatch(/return complete && cleanedUp \? EXIT\.ok : EXIT\.failed;/);
     });
 
-    it('휠 해시 어댑터는 읽기 전용이다: 파일을 "r"로 열고 쓰기·지우기·옮기기·만들기 호출이 없다', () => {
+    it("휠 해시 어댑터는 읽기 전용이다: 열기 플래그에 쓰기 계열이 없고, 쓰기·지우기·옮기기·만들기 호출이 없다", () => {
       const c = byRel("artifact-node.ts").code;
-      expect(c).toMatch(/open\(path, "r"\)/);
+      // 파일을 여는 호출은 하나뿐이고, 그 플래그는 readOnlyOpenFlags가 만든 값이다(문자열 "r"로 되돌아가지 않는다 — 아래 항목).
+      expect(c.match(/\bopen\(/g)).toHaveLength(1);
+      expect(c).toMatch(/open\(path, flags\)/);
+      expect(c).toMatch(/readOnlyOpenFlags\(fsConstants, process\.platform\)/);
+      // 쓰기·생성·잘라내기·덧붙이기 플래그 이름은 소스(주석 제외) 어디에도 없다.
+      expect(c).not.toMatch(/\bO_(WRONLY|RDWR|CREAT|EXCL|TRUNC|APPEND|DIRECT|TMPFILE)\b/);
       expect(c).not.toMatch(
         /\b(writeFile|appendFile|createWriteStream|unlink|rm|rmdir|rename|copyFile|mkdir|truncate|chmod|symlink|link)\s*\(/
       );
       expect(c).not.toMatch(/\bhandle\.(write|truncate|appendFile|writeFile)\s*\(/);
+    });
+
+    it("휠 해시 어댑터의 열기는 대기하지 않는다: 비차단 플래그를 쓰고, 막힐 수 있는 문자열 'r' 열기로 되돌아가지 않으며, 플래그를 정할 수 없으면 열지 않는다", () => {
+      const c = byRel("artifact-node.ts").code;
+      // 열기 자체의 대기를 끊는 것이 아니라 생기지 않게 한다 — 그래서 O_NONBLOCK이 읽기 전용 플래그에 들어 있어야 한다.
+      const fn = c.slice(c.indexOf("export function readOnlyOpenFlags("));
+      const body = fn.slice(0, fn.indexOf("\n}\n"));
+      expect(body).toMatch(/O_NONBLOCK/);
+      expect(body).toMatch(/platform === "win32"/);
+      expect(c).not.toMatch(/\bopen\(path,\s*["'`]r["'`]\)/);
+      // 안쪽 열기를 남겨 두고 바깥 대기만 끊는 방식(race)이나 타이머로 취소를 흉내 내는 방식을 쓰지 않는다.
+      expect(c).not.toMatch(/Promise\.(race|any)\s*\(|setTimeout\s*\(/);
+      // 플래그를 정할 수 없으면(null) 열기 앞에서 거절한다.
+      expect(c.indexOf("flags === null")).toBeGreaterThan(-1);
+      expect(c.indexOf("flags === null")).toBeLessThan(c.indexOf("open(path, flags)"));
     });
 
     it("관측 코어는 PATH를 탐색하지 않는다 — 명령은 호출자가 준 절대 경로 그대로이고 셸을 쓰지 않는다", () => {
