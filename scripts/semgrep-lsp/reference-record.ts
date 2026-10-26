@@ -24,6 +24,8 @@
 //     순서만 다른 목록은 수락한다. 도출 규칙은 control.ts의 `requiredControlChecks`이며 evaluateControlAssertions가 검사를 만들 때
 //     쓰는 계획과 같다. 기록이 주장하는 목록·개수는 기준이 아니고, 기대 입력을 읽거나 검증하지 못하면 수락하지 않는다
 //     (`EXPECTATIONS_UNAVAILABLE(...)`). 결과(status)는 채우지 않는다.
+//  8. 엔진 진단 기록이 아니다: resources.engine_diagnostic이 있는 기록은 음성 대조의 엔진 층이 사전 검사 사유를 담은 채 엔진을 띄운
+//     실행이라 정상 control 실행이 아니다 — DIAGNOSTIC_RUN으로 거절한다.
 //
 // 이 모듈이 하지 않는 것:
 //  · 이번 실행(target)의 핀·도구·규칙·하네스·대조 지문과의 비교 — 그것은 수락된 요약을 받는 판정(evaluate, 기존
@@ -515,6 +517,10 @@ export function controlReferenceFromValue(
     if (view === undefined) return reject(`INVALID_FIELDS(${problems.list.join(", ")})`);
 
     const found: string[] = [];
+    // 엔진 진단 실행(음성 대조의 엔진 층)은 정상 control 실행이 아니다 — 사전 검사 사유를 담은 채 엔진을 띄운 기록이므로 참조가 될 수 없다.
+    if (isObject(value.resources) && isObject(value.resources.engine_diagnostic)) {
+      found.push("DIAGNOSTIC_RUN");
+    }
     if (view.trust === "SYNTHETIC") found.push("TRUST_SYNTHETIC");
     if ((view.provenance === "real") !== (view.trust === "REAL_UNREVIEWED")) {
       found.push("PROVENANCE_TRUST_INCONSISTENT");

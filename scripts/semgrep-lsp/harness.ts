@@ -3,7 +3,8 @@
 // 관측한 사실)은 옵션으로 명시한다 — process.env를 읽지 않고, 저장소 안 어디에도 쓰지 않으며, 경로는 전부 옵션에서 온다.
 //
 // 공개 API:
-//   runHarness(deps, options): Promise<HarnessResult>
+//   runHarness(deps, options): Promise<HarnessResult>              정상 진입점(시작 정책 "gated" 고정)
+//   runEngineDiagnostic(deps, options): Promise<HarnessResult>     음성 대조 엔진 층 전용 진입점(정책 "diagnostic", control 전용)
 //   toControlReference(record, n0Confirmed)   control 실행 레코드 → target이 받는 대조 참조 요약
 //   HarnessDeps / HarnessOptions / HarnessResult
 //
@@ -23,7 +24,18 @@
 //
 // 스텁 프로세스 포트의 provenance는 "stub"이라 레코드는 trust SYNTHETIC, candidate_gate.evaluation UNVERIFIED다.
 // 스텁 실행은 어느 대상의 대조 참조로도 쓸 수 없다(evaluate가 CONTROL_REFERENCE_SYNTHETIC으로 거부한다).
+//
+// 엔진 진단(runEngineDiagnostic): 음성 대조의 엔진 층만을 위한 **별도 진입점**이다. 같은 파이프라인(execute)을 쓰지만 시작 정책이
+// 하나 다르다 — 사전 검사가 입력 변형이 부른 사유로만 거부했다면 그 사유를 판정에 그대로 담은 채 엔진을 띄운다. 정상 진입점
+// (runHarness)은 정책이 "gated"로 고정되어 있어 옵션으로 이 정책을 바꿀 수 없다. 진단은 도구·휠·환경변수·잠금·다른 서버 프로세스
+// 같은 사유가 하나라도 있으면 시작하지 않고(정상 경로와 같다), 진단 기록은 resources.engine_diagnostic으로 표시되어 대조 참조가
+// 될 수 없다. 진단 실행은 control 모드에서만 쓴다.
+//
+// 음성 대조 스위트(HarnessOptions.negativeControlSuite): control 실행이 명시한 스위트 입력은 이번 실행의 결합·출처와 같을 때만
+// control_assertions의 항목이 된다(BINDING_MISMATCH / PROVENANCE_MISMATCH / BINDING_UNAVAILABLE이면 항목을 쓰지 않고 16개 모두
+// NOT_RUN으로 남는다). 항목의 PASS를 이 파일이 만들지 않는다 — 읽는 쪽이 사례별 증거에서 다시 도출한 값만 받는다.
 
+import { NEGATIVE_CONTROL_TABLE } from "./control";
 import {
   CONTROL_EXPECTATIONS_FILE,
   controlExpectationsPath,
@@ -53,7 +65,13 @@ import { buildScanTree, computeScope, resolveTarget } from "./scope";
 import { assertSessionConfig, runSession, type SessionConfig, type SessionLimits } from "./session";
 import { buildInitializationOptions, validateInitializationOptions } from "./settings";
 import { sha256Hex } from "./sha";
-import { representativeStatus, sortReasons, type MeasurementStatus, type Reason } from "./status";
+import {
+  representativeStatus,
+  sortReasons,
+  type MeasurementStatus,
+  type Reason,
+  type ReasonCode,
+} from "./status";
 import { foreignObservationConflict } from "./process-observation";
 import { completeToolObservation, toolObservationConflict } from "./tool-observation";
 import {
@@ -61,6 +79,7 @@ import {
   type Clock,
   type ControlAssertions,
   type ControlExpectations,
+  type EngineDiagnosticSummary,
   type ExpectedRule,
   type ForeignServerObservationSummary,
   type FsPort,
@@ -68,7 +87,9 @@ import {
   type MetricsObserver,
   type MetricsReceiverSummary,
   type Mode,
+  type NegativeControlInput,
   type NegativeControlResult,
+  type NegativeControlSuiteSummary,
   type Phase,
   type Pin,
   type ProcessPort,
@@ -169,6 +190,13 @@ export interface HarnessOptions {
    * 이 관측을 판정과 증거(resources.metrics_receiver)에 쓴다. 관측 실패(state FAILED·observe 오류)는 0건이 아니라 null이다.
    */
   metricsReceiver?: MetricsObserver | null;
+  /**
+   * control 모드의 음성 대조 스위트(negative-control.ts가 실행하고 읽는 쪽이 증거에서 다시 도출한 항목). 주지 않으면 16개 전부 NOT_RUN이다.
+   * 항목은 **이 실행의 결합**(도구·규칙·하네스·대조)과 출처가 스위트의 것과 같을 때만 받아들인다 — 다르면 항목을 쓰지 않고(NOT_RUN)
+   * 이유를 resources.negative_control_suite에 남긴다. target 모드에서는 쓸 수 없다. 이 옵션에서 PASS를 만들어 내는 길은 없다:
+   * 항목의 PASS는 스위트를 실행한 쪽의 관측에서만 나온다.
+   */
+  negativeControlSuite?: NegativeControlInput | null;
   logFormat?: LogFormat;
   signal?: AbortSignal;
   /** 어느 증거 파일에도 있으면 안 되는 값(추가분). spawn.env 중 기밀로 보이는 이름의 값은 자동으로 포함한다. */
@@ -272,6 +300,24 @@ function checkScopeConfig(raw: Record<string, unknown>): ScopeConfig {
     typeof raw.max_target_bytes === "number";
   if (!ok) throw new HardFailure("inputs", "scope.json: 스키마·필수 필드가 맞지 않는다");
   return raw as unknown as ScopeConfig;
+}
+
+/**
+ * 하네스가 서버로 보내는 기본 initializationOptions. 음성 대조의 실행기도 변형하지 않은 기준 옵션을 같은 함수로 만든다 — 기준이
+ * 실제 실행과 어긋나지 않도록 한 곳에 둔다.
+ */
+export function defaultInitializationOptions(
+  pin: Pick<Pin, "rules">,
+  scopeConfig: Pick<ScopeConfig, "max_target_bytes">,
+  settings: HarnessOptions["settings"]
+): ReturnType<typeof buildInitializationOptions> {
+  return buildInitializationOptions({
+    configuration: pin.rules.config_dirs,
+    maxTargetBytes: scopeConfig.max_target_bytes,
+    timeout: settings.timeout,
+    timeoutThreshold: settings.timeoutThreshold,
+    proIntrafile: settings.proIntrafile,
+  });
 }
 
 async function hasFiles(fs: FsPort, root: string): Promise<boolean> {
@@ -411,6 +457,56 @@ interface State {
   started: boolean;
 }
 
+/**
+ * 시작 정책. gated: 사전 검사가 사유를 하나라도 내면 서버를 띄우지 않는다(정상 실행). diagnostic: 음성 대조의 엔진 층 전용 — 사유가
+ * 전부 입력 변형이 부른 것(ENGINE_DIAGNOSTIC_STARTABLE)이고 서버 트리를 쓸 자격(잠금·다른 서버 0건)이 있을 때만 사유를 판정에 담은
+ * 채 띄운다. 정책은 진입점이 고정한다(runHarness = gated, runEngineDiagnostic = diagnostic) — 옵션으로 바꿀 수 없다.
+ */
+type StartPolicy = "gated" | "diagnostic";
+
+/**
+ * 엔진 진단이 사유가 있어도 시작할 수 있는 사유: NEGATIVE_CONTROL_TABLE의 사전 검사 사유(변형이 부르는 것)와, 규칙 파일이 바뀌면 항상
+ * 함께 나오는 목록 해시 불일치. 도구·휠·환경변수·잠금·다른 서버·핀·대조 트리·스캔 트리 같은 사유는 여기에 없다 — 그런 사유가 있으면
+ * 진단도 정상 실행처럼 띄우지 않는다.
+ */
+const ENGINE_DIAGNOSTIC_STARTABLE: ReadonlySet<ReasonCode> = new Set<ReasonCode>([
+  ...NEGATIVE_CONTROL_TABLE.flatMap((spec) =>
+    spec.preflight === null ? [] : [spec.preflight.reason]
+  ),
+  "RULES_LIST_HASH_MISMATCH",
+]);
+
+/** 호출자가 준 스위트를 이 실행의 결합·출처와 맞춰 본 결과. 항목을 쓰지 못하면 entries는 undefined(= 전부 NOT_RUN)다. */
+function resolveNegativeControls(
+  input: NegativeControlInput | null | undefined,
+  binding: string | null,
+  provenance: "real" | "stub"
+): { entries: NegativeControlResult[] | undefined; summary: NegativeControlSuiteSummary | null } {
+  if (input === undefined || input === null) return { entries: undefined, summary: null };
+  const base = input.summary;
+  const reject = (rejection: string) => ({
+    entries: undefined,
+    summary: { ...structuredClone(base), accepted: false, rejection },
+  });
+  if (!base.accepted) return reject(base.rejection ?? "SUITE_NOT_ACCEPTED");
+  if (binding === null || input.bindingSha256 === null) return reject("BINDING_UNAVAILABLE");
+  if (input.bindingSha256 !== binding) return reject("BINDING_MISMATCH");
+  if (input.provenance !== provenance) return reject("PROVENANCE_MISMATCH");
+  const entries = input.entries.map((e) => ({ ...e }));
+  const count = (status: NegativeControlResult["status"]): number =>
+    entries.filter((e) => e.status === status).length;
+  return {
+    entries,
+    summary: {
+      ...structuredClone(base),
+      accepted: true,
+      rejection: null,
+      // 개수는 받은 항목에서 다시 센다(요약의 선언을 믿지 않는다).
+      counts: { pass: count("PASS"), fail: count("FAIL"), not_run: count("NOT_RUN") },
+    },
+  };
+}
+
 function checkOptions(options: HarnessOptions): void {
   if (options.mode !== "control" && options.mode !== "target") {
     throw new HardFailure("config", `알 수 없는 mode: ${String(options.mode)}`);
@@ -450,17 +546,29 @@ function checkOptions(options: HarnessOptions): void {
       throw new HardFailure("config", `foreignProcessObservation: ${conflict}`);
     }
   }
+  // 음성 대조 스위트는 control 실행의 자격 계산 입력이다. target 실행은 대조 참조를 받을 뿐 음성 대조를 가지지 않는다.
+  if (options.negativeControlSuite && options.mode !== "control") {
+    throw new HardFailure("config", "negativeControlSuite는 control 모드에서만 쓴다");
+  }
 }
 
 async function execute(
   deps: HarnessDeps,
   options: HarnessOptions,
   secrets: readonly string[],
-  state: State
+  state: State,
+  policy: StartPolicy
 ): Promise<HarnessResult> {
   const { fs, git } = deps;
   checkOptions(options);
   const mode = options.mode;
+  // 진단은 control 모드의 음성 대조 전용이고, 자기 자신이 스위트를 가진 기록(= 참조 후보)이 되어서는 안 된다.
+  if (policy === "diagnostic") {
+    if (mode !== "control") throw new HardFailure("config", "엔진 진단은 control 모드에서만 쓴다");
+    if (options.negativeControlSuite) {
+      throw new HardFailure("config", "엔진 진단은 음성 대조 스위트를 가질 수 없다");
+    }
+  }
   const evidenceDir = joinPath(options.evidenceRoot, options.runId);
 
   // 증거는 서버 트리 밖에 쓴다: 안에 쓰면 잠금이 없는 실행도 다른 실행의 트리에 파일을 만들게 된다(서버 트리는 E에 해당하는 파일만
@@ -553,13 +661,7 @@ async function execute(
   try {
     initOptions =
       options.initializationOptions ??
-      buildInitializationOptions({
-        configuration: pin.rules.config_dirs,
-        maxTargetBytes: scopeConfig.max_target_bytes,
-        timeout: options.settings.timeout,
-        timeoutThreshold: options.settings.timeoutThreshold,
-        proIntrafile: options.settings.proIntrafile,
-      });
+      defaultInitializationOptions(pin, scopeConfig, options.settings);
   } catch (error) {
     throw new HardFailure("settings", errorText(error));
   }
@@ -658,6 +760,16 @@ async function execute(
   );
   const refusals = sortReasons([...precheck.reasons, ...treeReasons, ...settingsReasons]);
 
+  // 음성 대조 스위트: 이 실행의 결합·출처와 맞을 때만 항목을 쓴다(아니면 NOT_RUN, 이유는 증거에 남긴다).
+  const negatives =
+    mode === "control"
+      ? resolveNegativeControls(
+          options.negativeControlSuite,
+          currentFingerprints.binding_sha256,
+          deps.process.provenance
+        )
+      : { entries: undefined, summary: null };
+
   const evaluateInputs: EvaluateInputs = {
     mode,
     pin,
@@ -674,13 +786,22 @@ async function execute(
       mode === "target" ? (options.controlReferenceRejection ?? null) : null,
     currentFingerprints,
     metricsReceiverHits: options.metricsReceiverHits,
+    ...(negatives.entries === undefined ? {} : { negativeControls: negatives.entries }),
   };
 
   // 5. 세션(사전 검사가 거부하면 띄우지 않는다) → 판정
+  //
+  // 정상 실행(gated)은 사유가 하나라도 있으면 띄우지 않는다. 엔진 진단은 사유가 전부 입력 변형이 부른 것이고 서버 트리를 쓸 자격이
+  // 있을 때만 사유를 판정에 담은 채 띄운다 — 그 밖의 사유(도구·휠·환경·잠금·다른 서버·핀·트리)는 진단도 막는다.
+  const startsDespiteRefusals =
+    policy === "diagnostic" &&
+    refusals.length > 0 &&
+    mayWriteServerTree &&
+    refusals.every((r) => ENGINE_DIAGNOSTIC_STARTABLE.has(r.code));
   let transcript: Transcript;
   let verdict: Verdict;
   let observation: MetricsObservation;
-  if (refusals.length > 0) {
+  if (refusals.length > 0 && !startsDespiteRefusals) {
     transcript = {
       meta: {
         schema: SCHEMAS.transcript,
@@ -728,6 +849,24 @@ async function execute(
     mode === "control" && typeof precheck.details.control_tree_sha256 === "string"
       ? precheck.details.control_tree_sha256
       : null;
+  const notExecuted: Record<string, "UNVERIFIED"> = {};
+  if (state.started && observation.summary !== null && observation.hits !== null) {
+    notExecuted.metrics_receiver_observation = "UNVERIFIED";
+  }
+  if (
+    negatives.entries !== undefined &&
+    negatives.entries.some((e) => e.layer === "engine" && e.status !== "NOT_RUN")
+  ) {
+    notExecuted.negative_controls_engine = "UNVERIFIED";
+  }
+  const diagnostic: EngineDiagnosticSummary | null =
+    policy === "diagnostic"
+      ? {
+          policy: "ENGINE_DIAGNOSTIC",
+          started_despite_refusals: startsDespiteRefusals,
+          refusal_codes: [...new Set(refusals.map((r) => r.code as string))].sort(),
+        }
+      : null;
   const record = buildRunRecord({
     runId: options.runId,
     mode,
@@ -750,14 +889,15 @@ async function execute(
     controlReference: mode === "target" ? options.controlReference : null,
     n0Confirmed: pin.n0.confirmed,
     // 서버가 실제로 떠서 유효하게 관측했을 때만 "관측했으나 서버가 환경변수를 읽는지는 미확인"(UNVERIFIED)이다. 그 밖에는
-    // 서버가 한 번도 돌지 않았으므로 기본값(NOT_RUN)을 그대로 둔다.
-    ...(state.started && observation.summary !== null && observation.hits !== null
-      ? { notExecuted: { metrics_receiver_observation: "UNVERIFIED" as const } }
-      : {}),
+    // 서버가 한 번도 돌지 않았으므로 기본값(NOT_RUN)을 그대로 둔다. 엔진 음성 대조도 같다: 받아들인 스위트에 실행한 엔진 항목이
+    // 있어도 "관측했으나 실제 Semgrep으로 확인하지 않았다"(UNVERIFIED)일 뿐 확인(검증)이라고 쓰지 않는다.
+    ...(Object.keys(notExecuted).length === 0 ? {} : { notExecuted }),
     ...(options.lockSummary !== undefined ||
     observation.summary !== null ||
     toolObservation !== null ||
-    foreignObservation !== null
+    foreignObservation !== null ||
+    negatives.summary !== null ||
+    diagnostic !== null
       ? {
           resources: {
             run_lock: options.lockSummary ?? null,
@@ -768,6 +908,9 @@ async function execute(
             ...(foreignObservation === null
               ? {}
               : { foreign_server_observation: foreignObservation }),
+            // 음성 대조 스위트를 어떻게 받아들였는지(개수·토큰뿐). 엔진 진단 실행이면 그 표시.
+            ...(negatives.summary === null ? {} : { negative_control_suite: negatives.summary }),
+            ...(diagnostic === null ? {} : { engine_diagnostic: diagnostic }),
           },
         }
       : {}),
@@ -824,10 +967,31 @@ export async function runHarness(
   deps: HarnessDeps,
   options: HarnessOptions
 ): Promise<HarnessResult> {
+  return guarded(deps, options, "gated");
+}
+
+/**
+ * 엔진 진단: 음성 대조의 엔진 층 전용 진입점(control 모드만). 정상 실행(runHarness)과 같은 파이프라인이지만, 사전 검사 사유가 전부
+ * 입력 변형이 부른 것이고 서버 트리를 쓸 자격(잠금·다른 서버 0건)이 있을 때는 그 사유를 판정에 담은 채 엔진을 띄운다. 정상 실행의
+ * 검증은 하나도 줄이지 않는다 — 별도 함수라 정상 호출자는 이 동작에 닿지 않고, 진단 기록은 resources.engine_diagnostic으로
+ * 표시되어 대조 참조가 될 수 없다. 이 함수를 정상 control/target 실행 경로에서 부르면 안 된다(구조 시험이 지킨다).
+ */
+export async function runEngineDiagnostic(
+  deps: HarnessDeps,
+  options: HarnessOptions
+): Promise<HarnessResult> {
+  return guarded(deps, options, "diagnostic");
+}
+
+async function guarded(
+  deps: HarnessDeps,
+  options: HarnessOptions,
+  policy: StartPolicy
+): Promise<HarnessResult> {
   const secrets = collectSecrets(options);
   const state: State = { started: false };
   try {
-    return await execute(deps, options, secrets, state);
+    return await execute(deps, options, secrets, state, policy);
   } catch (error) {
     const stage = error instanceof HardFailure ? error.stage : "unexpected";
     const message = error instanceof HardFailure ? error.message : errorText(error);

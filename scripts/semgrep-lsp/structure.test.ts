@@ -54,7 +54,8 @@ const sources: Source[] = walk(BASE)
       code: stripComments(raw),
     };
   })
-  .filter((s) => s.rel !== SELF);
+  // 구조 시험 파일들은 패턴을 담고 있어 검사 대상에서 뺀다.
+  .filter((s) => s.rel !== SELF && s.rel !== "structure.negative-control.test.ts");
 
 const nonTest = sources.filter((s) => !s.isTest);
 const byRel = (rel: string): Source => {
@@ -79,6 +80,15 @@ function specifiersOf(code: string): string[] {
 }
 
 const bare = (spec: string): string => spec.replace(/^node:/, "");
+
+/** 최상위 `async function <name>(`의 본문(들여쓰기 없는 닫는 중괄호까지). 없으면 던진다 — 검사가 헛돌지 않게 한다. */
+function functionBody(code: string, name: string): string {
+  const start = code.indexOf(`async function ${name}(`);
+  if (start < 0) throw new Error(`함수를 찾지 못했다: ${name}`);
+  const end = code.indexOf("\n}\n", start);
+  if (end < 0) throw new Error(`함수 끝을 찾지 못했다: ${name}`);
+  return code.slice(start, end + 3);
+}
 
 describe("구조 — 소스 목록", () => {
   it("검사 대상이 비어 있지 않다(시험이 헛돌지 않는다)", () => {
@@ -320,7 +330,7 @@ describe("구조 (8) — 실제 프로세스 포트는 실수로 얻을 수 없�
     expect(call?.[1].trim()).toBe("provenance");
   });
 
-  it('"real"을 포트 공장에 넘기는 곳은 cli.ts의 run 한 곳이고 방지 장치 뒤에 있다', () => {
+  it('"real"을 포트 공장에 넘기는 곳은 cli.ts의 run과 negative-control 두 명령뿐이고, 각각 자기 방지 장치 뒤에 있다', () => {
     const offenders = nonTest
       .filter((s) => s.rel !== "cli.ts")
       .filter((s) => /makeProcessPort\s*\(\s*["']real["']/.test(s.code))
@@ -328,13 +338,18 @@ describe("구조 (8) — 실제 프로세스 포트는 실수로 얻을 수 없�
     expect(offenders).toEqual([]);
     const cli = byRel("cli.ts").code;
     const occurrences = [...cli.matchAll(/makeProcessPort\s*\(\s*["']real["']\s*\)/g)];
-    expect(occurrences).toHaveLength(1);
-    const at = occurrences[0].index as number;
-    const guard = cli.indexOf("await missingGuardConditions(");
-    const refusal = cli.indexOf("return EXIT.notRun");
-    expect(guard).toBeGreaterThan(-1);
-    expect(refusal).toBeGreaterThan(guard);
-    expect(at).toBeGreaterThan(refusal);
+    expect(occurrences).toHaveLength(2);
+    // 두 곳은 정확히 cmdRun과 cmdNegativeControl 안이다(다른 함수에는 없다). 각 함수 안에서 방지 장치 → 거절 반환 → 포트 순서다.
+    for (const name of ["cmdRun", "cmdNegativeControl"]) {
+      const body = functionBody(cli, name);
+      const guard = body.indexOf("await missingGuardConditions(");
+      const refusal = body.indexOf("return EXIT.notRun");
+      const real = body.search(/makeProcessPort\s*\(\s*["']real["']\s*\)/);
+      expect(guard, name).toBeGreaterThan(-1);
+      expect(refusal, name).toBeGreaterThan(guard);
+      expect(real, name).toBeGreaterThan(refusal);
+      expect(body.match(/makeProcessPort\s*\(\s*["']real["']\s*\)/g), name).toHaveLength(1);
+    }
   });
 
   it('시험은 createNodeProcessPort를 "stub"으로만 부른다', () => {
@@ -768,8 +783,8 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
   describe("CLI 생명주기(cli.ts)", () => {
     const code = (): string => byRel("cli.ts").code;
 
-    it("잠금 획득 → 수신기 시작 → 하네스 → finally에서 정리 순서이고, 정리는 finally 안에 있다", () => {
-      const c = code();
+    it("run: 잠금 획득 → 수신기 시작 → 하네스 → finally에서 정리 순서이고, 정리는 finally 안에 있다", () => {
+      const c = functionBody(code(), "cmdRun");
       const acquire = c.indexOf("await acquireRunLock(");
       const receiver = c.indexOf("await deps.startMetricsReceiver()");
       const harness = c.indexOf("await runHarness(");
@@ -781,6 +796,27 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       expect(harness).toBeLessThan(finallyAt);
       expect(finallyAt).toBeLessThan(releaseAll);
       expect(c.match(/await releaseRunLock\(/g)).toHaveLength(1);
+    });
+
+    it("negative-control: 자원은 한 곳(holding)에서 잠금 → 수신기 순서로 쥐고 finally에서 수신기를 닫고 잠금을 해제한다 — 모든 사례가 그 한 곳을 지난다", () => {
+      const c = functionBody(code(), "cmdNegativeControl");
+      const acquire = c.indexOf("await acquireRunLock(");
+      const receiver = c.indexOf("await deps.startMetricsReceiver()");
+      const finallyAt = c.indexOf("} finally {");
+      const close = c.indexOf("await receiver.close()");
+      const release = c.indexOf("await releaseRunLock(");
+      expect(acquire).toBeGreaterThan(-1);
+      expect(acquire).toBeLessThan(receiver);
+      expect(receiver).toBeLessThan(finallyAt);
+      expect(finallyAt).toBeLessThan(close);
+      expect(close).toBeLessThan(release);
+      expect(c.match(/await acquireRunLock\(/g)).toHaveLength(1);
+      expect(c.match(/await releaseRunLock\(/g)).toHaveLength(1);
+      // 도구 관측과 사례 실행은 모두 holding을 지난다(자원을 쥐지 않고 서버 트리를 쓰는 길이 없다).
+      expect(c).toMatch(/await holding\(suiteId, suiteTree,/);
+      expect(c).toMatch(/holding\(key\.runId, key\.treeRoot,/);
+      // 사례를 직접 하네스로 돌리지 않는다 — 실행은 실행기가 정한 층별 진입점뿐이다.
+      expect(c).not.toMatch(/runHarness\(|runEngineDiagnostic\(/);
     });
 
     it("잠금은 서버가 스캔하는 트리에서 얻고, 증거 폴더나 runId에서 얻지 않는다", () => {
@@ -871,7 +907,7 @@ describe("구조 (12) — 다른 서버 프로세스 관측은 읽기만 한다"
   });
 
   it("CLI: 조회 어댑터는 버전 확인·서버와 같은 포트로 만들고, 도구 관측 뒤 하네스 앞에서 관측하며, 잠금 여부를 함께 넘긴다", () => {
-    const c = cliCode();
+    const c = functionBody(cliCode(), "cmdRun");
     const tools = c.indexOf("await runToolObservation({");
     const observe = c.indexOf("await runForeignProcessObservation({");
     const harness = c.indexOf("await runHarness(");
@@ -882,8 +918,27 @@ describe("구조 (12) — 다른 서버 프로세스 관측은 읽기만 한다"
     expect(call).toMatch(/lister: deps\.makeProcessLister\(port\),/);
     expect(call).toMatch(/\blockHeld,/);
     expect(call).toMatch(/ownPid: deps\.ownPid/);
-    // 실제 포트는 여전히 run의 한 곳에서만 만든다.
-    expect([...c.matchAll(/makeProcessPort\s*\(\s*["']real["']\s*\)/g)]).toHaveLength(1);
+    // 실제 포트는 run과 negative-control 두 명령의 방지 장치 뒤에서만 만든다(위 구조 (8)).
+    expect([...cliCode().matchAll(/makeProcessPort\s*\(\s*["']real["']\s*\)/g)]).toHaveLength(2);
+  });
+
+  it("negative-control: 사례마다 같은 포트로 만든 조회 어댑터로, 자기 서버 트리에 대해, 잠금 여부를 함께 넘겨 관측한 뒤 사례를 돌린다", () => {
+    const c = functionBody(cliCode(), "cmdNegativeControl");
+    const tools = c.indexOf("runToolObservation({");
+    const observe = c.indexOf("await runForeignProcessObservation({");
+    const run = c.indexOf("await runNegativeControls(");
+    expect(tools).toBeGreaterThan(-1);
+    expect(tools).toBeLessThan(run);
+    expect(observe).toBeGreaterThan(run); // 사례 자원을 쥐는 콜백 안(실행기가 부른다)
+    const call = c.slice(observe, c.indexOf("});", observe));
+    expect(call).toMatch(/lister: deps\.makeProcessLister\(port\),/);
+    expect(call).toMatch(/lockHeld: held\.lockHeld,/);
+    expect(call).toMatch(/serverTree: key\.treeRoot/);
+    expect(call).toMatch(/ownPid: deps\.ownPid/);
+    // 관측하지 않은 값은 채우지 않는다.
+    expect(c).toMatch(/foreignServerProcesses: foreign\.foreignServerProcesses,/);
+    expect(c).not.toMatch(/foreignServerProcesses:\s*0\b/);
+    expect(c).toMatch(/metricsReceiverHits: null,/);
   });
 
   it("하네스: 서버 트리 준비 쓰기는 잠금을 가졌고 다른 서버가 0건으로 확정된 경우에만 한다", () => {
