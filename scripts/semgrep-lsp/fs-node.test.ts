@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createNodeFs } from "./fs-node";
+import { keyIsSameOrInside } from "./path-containment";
 import { MemoryFs } from "./testing/memory-fs";
 import type { FsPort } from "./types";
 
@@ -189,5 +190,110 @@ describe("createNodeFs — 심볼릭 링크는 거부한다", () => {
     await writeFile(join(real, "a.txt"), "a");
     await symlink(real, join(tmp, "rootlink"), "junction");
     await expect(fs.listFilesRecursive(join(tmp, "rootlink"))).rejects.toThrow(/심볼릭 링크/);
+  });
+});
+
+// ── physicalKey: 실제로 접근할 자리 ───────────────────────────────
+
+describe("createNodeFs — physicalKey (증거 경로 겹침 판정의 바탕)", () => {
+  async function linkOrSkip(ctx: { skip: () => never }, target: string, path: string) {
+    try {
+      await symlink(target, path, "junction"); // POSIX에서는 type 인자가 무시되고 폴더 링크가 된다
+    } catch {
+      ctx.skip(); // 링크를 만들 수 없는 환경: 검증하지 못한 것으로 보고한다
+    }
+  }
+
+  it("같은 위치를 절대·상대·`.`·`..`·끝 구분자·중복 구분자로 적어도 같은 키다", async () => {
+    const fs = createNodeFs();
+    const tree = join(tmp, "tree");
+    await mkdir(tree);
+    await mkdir(join(tmp, "outside"));
+    const expected = await fs.physicalKey(tree);
+    const spellings = [
+      `${tree}/`,
+      `${tree}/.`,
+      `${tmp}/outside/../tree`, // join()은 `..`를 미리 지우므로 원문 그대로 이어 붙인다
+      `${tmp}//tree`,
+      `${tmp}/nowhere/../tree`, // 아직 없는 폴더를 지나 돌아온다
+    ];
+    const rel = relative(process.cwd(), tree);
+    if (!isAbsolute(rel)) spellings.push(rel, `${rel}/`); // 다른 드라이브면 상대 경로가 없다
+    for (const spelled of spellings) expect(await fs.physicalKey(spelled), spelled).toBe(expected);
+  });
+
+  it("아직 없는 하위 폴더는 존재하는 접두를 기준으로 붙고, 서버 트리 안으로 판정된다", async () => {
+    const fs = createNodeFs();
+    const tree = join(tmp, "tree");
+    await mkdir(tree);
+    const treeKey = await fs.physicalKey(tree);
+    const deep = await fs.physicalKey(`${tree}/a/b/c`);
+    expect(deep).toBe(`${treeKey}/a/b/c`);
+    expect(keyIsSameOrInside(deep, treeKey)).toBe(true);
+    expect(keyIsSameOrInside(treeKey, treeKey)).toBe(true);
+  });
+
+  it("이름 접두만 비슷한 별도 폴더와 나란한 폴더는 안이 아니다", async () => {
+    const fs = createNodeFs();
+    const tree = join(tmp, "tree");
+    await mkdir(tree);
+    const treeKey = await fs.physicalKey(tree);
+    for (const other of [`${tmp}/tree-evidence/run`, `${tmp}/tree2`, `${tmp}/evidence`, tmp]) {
+      expect(keyIsSameOrInside(await fs.physicalKey(other), treeKey), other).toBe(false);
+    }
+  });
+
+  it("서버 트리를 가리키는 링크(junction) 아래의 경로는 같은 자리다 — 아직 없는 하위 폴더도, 링크로 적은 서버 트리도", async (ctx) => {
+    const fs = createNodeFs();
+    const tree = join(tmp, "tree");
+    await mkdir(tree);
+    await linkOrSkip(ctx, tree, join(tmp, "alias"));
+    const treeKey = await fs.physicalKey(tree);
+    expect(await fs.physicalKey(join(tmp, "alias"))).toBe(treeKey);
+    expect(keyIsSameOrInside(await fs.physicalKey(join(tmp, "alias", "evidence")), treeKey)).toBe(
+      true
+    );
+    expect(keyIsSameOrInside(await fs.physicalKey(`${tmp}/alias/a/b/c`), treeKey)).toBe(true);
+    // 서버 트리를 링크로 적고 증거를 원래 경로로 적어도 같다.
+    const viaAlias = await fs.physicalKey(join(tmp, "alias"));
+    expect(keyIsSameOrInside(await fs.physicalKey(join(tree, "ev")), viaAlias)).toBe(true);
+  });
+
+  it("끊어진 링크(대상이 사라진 junction)는 풀지 않고 던진다 — 호출자는 쓰기 전에 거절한다", async (ctx) => {
+    const fs = createNodeFs();
+    const gone = join(tmp, "gone");
+    await mkdir(gone);
+    await linkOrSkip(ctx, gone, join(tmp, "dangling"));
+    await rm(gone, { recursive: true });
+    await expect(fs.physicalKey(join(tmp, "dangling", "evidence"))).rejects.toMatchObject({
+      code: "DANGLING_LINK",
+    });
+  });
+
+  it("읽기만 한다: 없는 경로를 물어도, 존재하는 서버 트리 아래를 물어도 아무것도 만들지 않는다(탐침 폴더·파일 없음)", async () => {
+    const fs = createNodeFs();
+    const tree = join(tmp, "tree");
+    await mkdir(join(tree, "src"), { recursive: true });
+    await writeFile(join(tree, "src", "a.ts"), "export const a = 1;\n");
+    const before = {
+      top: (await readdir(tmp)).sort(),
+      tree: (await readdir(tree, { recursive: true })).sort(),
+      bytes: (await readFile(join(tree, "src", "a.ts"))).toString("hex"),
+    };
+    await fs.physicalKey(`${tmp}/nowhere/a/b`);
+    await fs.physicalKey(`${tree}/evidence/run-1`);
+    await fs.physicalKey(`${tmp}/outside/../tree/evidence`);
+    expect({
+      top: (await readdir(tmp)).sort(),
+      tree: (await readdir(tree, { recursive: true })).sort(),
+      bytes: (await readFile(join(tree, "src", "a.ts"))).toString("hex"),
+    }).toEqual(before);
+  });
+
+  it("대소문자를 구분하지 않는 플랫폼(옵션)에서는 소문자로 접은 키를 돌려준다", async () => {
+    const lower = createNodeFs({ caseInsensitive: true });
+    const exact = createNodeFs({ caseInsensitive: false });
+    const path = `${tmp}/Not-Yet/SubDir`;
+    expect(await lower.physicalKey(path)).toBe((await exact.physicalKey(path)).toLowerCase());
   });
 });

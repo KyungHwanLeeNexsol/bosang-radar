@@ -111,6 +111,7 @@ describe("loadControlReference — 읽기·파싱 실패는 던지지 않고 거
       },
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -123,6 +124,7 @@ describe("loadControlReference — 읽기·파싱 실패는 던지지 않고 거
       readFile: (p) => inner.readFile(p),
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: async () => {
         throw new Error("EIO");
@@ -1118,6 +1120,7 @@ describe("loadControlReference — 검사 목록은 기대 사례에서 도출�
         },
         writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
         mkdirp: (p) => inner.mkdirp(p),
+        physicalKey: (p) => inner.physicalKey(p),
         listFilesRecursive: (p) => inner.listFilesRecursive(p),
         exists: (p) => inner.exists(p),
       };

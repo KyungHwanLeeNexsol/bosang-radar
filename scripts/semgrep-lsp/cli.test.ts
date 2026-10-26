@@ -1,6 +1,19 @@
-import { describe, expect, it } from "vitest";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
-import { EXIT, main, type CliDeps } from "./cli";
+import { EXIT, buildChildEnv, main, type CliDeps } from "./cli";
 import { canonicalJson } from "./canonical";
 import {
   buildBinding,
@@ -9,6 +22,9 @@ import {
   isHarnessImplementationFile,
 } from "./fingerprint";
 import { toControlReference } from "./harness";
+import { startMetricsReceiver } from "./metrics-node";
+import { acquireRunLock, releaseRunLock } from "./run-lock";
+import { createNodeRunLockPort } from "./run-lock-node";
 import { expectedRulesSha256, rulesListSha256 } from "./rules-manifest";
 import { buildScanTree, computeScope } from "./scope";
 import { sha256Hex } from "./sha";
@@ -17,7 +33,14 @@ import {
   syntheticTargetRunRecord,
   type SyntheticControlRecordOptions,
 } from "./testing/control-record-fixtures";
+import { createNodeFs } from "./fs-node";
+import { FakeMetricsReceiver } from "./testing/fake-metrics";
+import { canConnectLoopback } from "./testing/loopback-client";
+import { recorded } from "./testing/call-recorder";
+import { routedFs } from "./testing/routed-fs";
+import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { MemoryFs } from "./testing/memory-fs";
+import { MemoryRunLock } from "./testing/memory-run-lock";
 import { MemoryGit } from "./testing/memory-git";
 import {
   SYNTHETIC_CACHE_DIR,
@@ -53,6 +76,10 @@ interface World {
   gitCalls: string[];
   envCalls: string[];
   spawnCalls: SpawnSpec[];
+  /** 공유 실행 잠금의 메모리 포트(파일 저장소를 직접 들여다볼 수 있다). */
+  lock: MemoryRunLock;
+  /** CLI가 연 수신기들(가짜). 시험이 건수·상태를 정한다. */
+  receivers: FakeMetricsReceiver[];
 }
 
 function makeWorld(
@@ -61,6 +88,8 @@ function makeWorld(
     platform?: string;
     extraFiles?: Record<string, string>;
     withBin?: boolean;
+    /** 수신기를 만드는 방법. 기본은 0건을 관측 중인 가짜. 던지면 열기 실패를 재현한다. */
+    receiver?: () => FakeMetricsReceiver;
   } = {}
 ): World {
   const files: Record<string, string> = {};
@@ -90,6 +119,8 @@ function makeWorld(
   const envCalls: string[] = [];
   const spawnCalls: SpawnSpec[] = [];
   const env = options.env ?? {};
+  const lock = new MemoryRunLock();
+  const receivers: FakeMetricsReceiver[] = [];
   const deps: CliDeps = {
     fs,
     makeGit: (dir): GitPort => {
@@ -107,6 +138,12 @@ function makeWorld(
       };
     },
     clock: new VirtualClock(),
+    runLock: lock,
+    startMetricsReceiver: async () => {
+      const receiver = options.receiver ? options.receiver() : new FakeMetricsReceiver();
+      receivers.push(receiver);
+      return receiver;
+    },
     stdout: (text) => void out.push(text),
     stderr: (text) => void err.push(text),
     getEnv: (name) => {
@@ -116,7 +153,7 @@ function makeWorld(
     dataDir: `${HARNESS_ROOT}/data`,
     platform: options.platform ?? "linux",
   };
-  return { deps, fs, git, out, err, portCalls, gitCalls, envCalls, spawnCalls };
+  return { deps, fs, git, out, err, portCalls, gitCalls, envCalls, spawnCalls, lock, receivers };
 }
 
 function jsonOut(w: World): Record<string, unknown> {
@@ -511,10 +548,11 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
     );
   });
 
-  it("실행 잠금 파일을 만들고, 같은 run-id를 다시 쓰면 LOCK_NOT_ACQUIRED로 거부된다", async () => {
+  it("실행별 증거 표지(run.marker)를 만들고, 같은 run-id를 다시 쓰면 거부된다 — 표지는 공유 잠금이 아니다", async () => {
     const w = makeWorld({ env: passEnv });
     await main(withGuard({}), w.deps);
-    expect(await w.fs.exists("/evidence/run-cli-1/run.lock")).toBe(true);
+    expect(await w.fs.exists("/evidence/run-cli-1/run.marker")).toBe(true);
+    expect(await w.fs.exists("/evidence/run-cli-1/run.lock")).toBe(false); // 옛 이름은 더 만들지 않는다
     const first = jsonOut(w) as { record: { measurement: { reasons: { code: string }[] } } };
     expect(first.record.measurement.reasons.map((r) => r.code)).not.toContain("LOCK_NOT_ACQUIRED");
 
@@ -599,6 +637,7 @@ describe("main — run: 방지 장치를 통과한 뒤", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: async (p, d) => (touched.push(p), inner.writeFileExclusive(p, d)),
       mkdirp: async (p) => (touched.push(p), inner.mkdirp(p)),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: async (p) => (touched.push(p), inner.listFilesRecursive(p)),
       exists: async (p) => (touched.push(p), inner.exists(p)),
     };
@@ -666,6 +705,7 @@ describe("main — run: 대조 예제 경로", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -746,6 +786,7 @@ describe("main — run: 대조 예제 경로", () => {
       },
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -947,6 +988,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
       readFile: async (p) => (touched.push(p), inner.readFile(p)),
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };
@@ -1083,6 +1125,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
         },
         writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
         mkdirp: (p) => inner.mkdirp(p),
+        physicalKey: (p) => inner.physicalKey(p),
         listFilesRecursive: (p) => inner.listFilesRecursive(p),
         exists: (p) => inner.exists(p),
       };
@@ -1103,6 +1146,7 @@ describe("main — run: 대조 기록(--control-record)", () => {
         },
         writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
         mkdirp: (p) => inner.mkdirp(p),
+        physicalKey: (p) => inner.physicalKey(p),
         listFilesRecursive: (p) => inner.listFilesRecursive(p),
         exists: (p) => inner.exists(p),
       };
@@ -1393,4 +1437,1264 @@ describe("main — run: 대조 기록(--control-record)", () => {
       expect(help, word).toContain(word);
     }
   });
+});
+
+// ── run: 공유 실행 잠금과 루프백 수신기의 생명주기 ─────────────────────
+
+describe("main — run: 공유 실행 잠금과 루프백 수신기의 생명주기", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+
+  interface RunBody {
+    ok: boolean;
+    started: boolean;
+    complete: boolean;
+    failure: { stage: string } | null;
+    record: {
+      measurement: { reasons: { code: string; detail: string | null }[] };
+      resources: {
+        run_lock: Record<string, unknown> | null;
+        metrics_receiver: Record<string, unknown> | null;
+      } | null;
+    } | null;
+    lock: {
+      state: string;
+      reason: string | null;
+      scope: string;
+      tree_key_sha256: string | null;
+      path: string | null;
+      evidence_marker: string;
+      holder: { run_id: string; pid: number } | null;
+      error_code: string | null;
+      recovery: string | null;
+    };
+    cleanup: {
+      lock: { state: string; reason: string | null; path: string | null; recovery: string | null };
+      metrics_receiver: {
+        closed: boolean;
+        final_hits: number | null;
+        hits_after_judgment: number | null;
+      };
+    };
+    metrics_receiver_url: string | null;
+  }
+  const bodyOf = (w: World): RunBody => jsonOut(w) as unknown as RunBody;
+  const reasonsOf = (b: RunBody) => b.record?.measurement.reasons ?? [];
+  const codesOf = (b: RunBody) => reasonsOf(b).map((r) => r.code);
+  const detailOf = (b: RunBody, code: string) => reasonsOf(b).find((r) => r.code === code)?.detail;
+
+  /** 증거 폴더에 쓰인 run.json(증거로 남은 실제 레코드). */
+  async function evidenceRun(w: World, dir = "/evidence/run-cli-1") {
+    return JSON.parse(decoder.decode(await w.fs.readFile(`${dir}/run.json`))) as {
+      resources?: {
+        run_lock: Record<string, unknown> | null;
+        metrics_receiver: Record<string, unknown> | null;
+      };
+      not_executed: Record<string, unknown>;
+    };
+  }
+
+  /** RUN_ARGS에서 옵션 값을 바꾼 인자 목록. */
+  function argvWith(overrides: Record<string, string>): string[] {
+    const argv = withGuard({});
+    for (const [flag, value] of Object.entries(overrides)) {
+      const at = argv.indexOf(flag);
+      if (at < 0) throw new Error(`없는 옵션: ${flag}`);
+      argv[at + 1] = value;
+    }
+    return argv;
+  }
+
+  it("서버가 스캔하는 트리 단위로 잠금을 얻고, 증거에는 상태만 남기며, 끝나면 해제한다", async () => {
+    const w = makeWorld({ env: passEnv });
+    expect(await main(withGuard({}), w.deps)).toBe(EXIT.failed); // 실제 실행 전제가 비어 있어 거부된다
+    const b = bodyOf(w);
+    expect(b.started).toBe(false);
+    expect(w.spawnCalls).toEqual([]);
+    expect(b.lock).toMatchObject({
+      state: "ACQUIRED",
+      reason: null,
+      scope: "server-tree",
+      evidence_marker: "CREATED",
+      holder: null,
+      error_code: null,
+      recovery: null,
+    });
+    // 잠금 파일은 트리(/scan/run-1)의 부모에 있고, 증거 폴더(/evidence/...)와 무관하다.
+    expect(b.lock.path).toMatch(/^\/scan\/semgrep-lsp-tree-[0-9a-f]{32}\.lock$/);
+    // 증거(run.json)에는 요약만 있다: 경로·소유자·토큰은 없다.
+    const run = await evidenceRun(w);
+    expect(run.resources?.run_lock).toEqual({
+      scope: "server-tree",
+      tree_key_sha256: b.lock.tree_key_sha256,
+      state: "ACQUIRED",
+      reason: null,
+      evidence_marker: "CREATED",
+    });
+    expect(JSON.stringify(run.resources)).not.toMatch(/semgrep-lsp-tree|\/scan\/|token|pid/);
+    // 정리: 해제했고 잠금 파일이 남지 않았다.
+    expect(b.cleanup.lock).toEqual({ state: "RELEASED", reason: null, path: null, recovery: null });
+    expect(w.lock.files.size).toBe(0);
+    expect(JSON.stringify(b)).not.toMatch(/"token"/);
+  });
+
+  it("실행별 증거 표지(run.marker)와 공유 잠금은 다르다 — 표지는 증거 폴더에, 잠금은 트리의 부모에 있다", async () => {
+    const w = makeWorld({ env: passEnv });
+    await main(withGuard({}), w.deps);
+    expect(await w.fs.exists("/evidence/run-cli-1/run.marker")).toBe(true);
+    expect(await w.fs.exists("/evidence/run-cli-1/run.lock")).toBe(false);
+    expect(bodyOf(w).lock.path).not.toContain("/evidence");
+  });
+
+  it("잠금을 얻어도 foreignServerProcesses는 0으로 채우지 않는다 — 계속 null이라 실행은 거부된다", async () => {
+    const w = makeWorld({ env: passEnv });
+    await main(withGuard({}), w.deps);
+    const b = bodyOf(w);
+    expect(b.lock.state).toBe("ACQUIRED");
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(detailOf(b, "FOREIGN_SERVER_PROCESS")).toContain("확인하지 못했다");
+    // 다른 실행 전제도 그대로다.
+    expect(codesOf(b)).toEqual(expect.arrayContaining(["TOOL_VERSION_UNVERIFIED"]));
+    expect(codesOf(b)).not.toContain("LOCK_NOT_ACQUIRED");
+    expect(codesOf(b)).not.toContain("METRICS_RECEIVER_NOT_OBSERVING");
+    expect(b.complete).toBe(false);
+  });
+
+  describe("같은 트리면 runId·evidenceRoot·mode가 달라도 충돌한다", () => {
+    it("다른 실행이 잡은 트리는 얻지 못하고, 그 잠금은 건드리지 않으며, 거절 사유와 복구 안내를 남긴다", async () => {
+      const w = makeWorld({ env: passEnv });
+      const other = await acquireRunLock(w.lock, {
+        treePath: "/scan/run-1",
+        runId: "other-run",
+        mode: "control",
+      });
+      if (other.state !== "ACQUIRED") throw new Error("전제");
+      const before = w.lock.files.get(other.handle.lockPath);
+
+      const argv = argvWith({ "--run-id": "run-cli-2", "--evidence-root": "/evidence-elsewhere" });
+      expect(await main(argv, w.deps)).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.started).toBe(false);
+      expect(w.spawnCalls).toEqual([]);
+      expect(b.lock).toMatchObject({
+        state: "REFUSED",
+        reason: "HELD_BY_OTHER",
+        evidence_marker: "NOT_CREATED",
+        holder: { run_id: "other-run" },
+      });
+      expect(b.lock.recovery).toContain("직접 지운다");
+      expect(codesOf(b)).toContain("LOCK_NOT_ACQUIRED");
+      expect(detailOf(b, "LOCK_NOT_ACQUIRED")).toContain("HELD_BY_OTHER");
+      // 증거에도 거절 상태가 남는다(경로·소유자 없이).
+      const run = await evidenceRun(w, "/evidence-elsewhere/run-cli-2");
+      expect(run.resources?.run_lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+      expect(JSON.stringify(run.resources)).not.toContain("other-run");
+      // 남의 잠금은 그대로고, 우리는 얻지 못했으니 해제할 것도 없다. 표지도 만들지 않았다.
+      expect(b.cleanup.lock.state).toBe("NOT_ACQUIRED");
+      expect(w.lock.files.get(other.handle.lockPath)).toBe(before);
+      expect(await w.fs.exists("/evidence-elsewhere/run-cli-2/run.marker")).toBe(false);
+      expect(w.lock.calls.some((c) => c.startsWith("remove:"))).toBe(false);
+    });
+
+    it("다른 실행이 끝나 잠금을 풀면 다음 실행은 얻는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      const other = await acquireRunLock(w.lock, {
+        treePath: "/scan/run-1",
+        runId: "other",
+        mode: "target",
+      });
+      if (other.state !== "ACQUIRED") throw new Error("전제");
+      await main(argvWith({ "--run-id": "run-a", "--evidence-root": "/ev-a" }), w.deps);
+      expect(bodyOf(w).lock.state).toBe("REFUSED");
+      await releaseRunLock(w.lock, other.handle);
+      w.out.length = 0;
+      await main(argvWith({ "--run-id": "run-b", "--evidence-root": "/ev-b" }), w.deps);
+      expect(bodyOf(w).lock.state).toBe("ACQUIRED");
+      expect(w.lock.files.size).toBe(0);
+    });
+
+    it("다른 트리를 잡은 실행은 막지 않는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      await acquireRunLock(w.lock, {
+        treePath: "/scan/another-tree",
+        runId: "other",
+        mode: "target",
+      });
+      await main(withGuard({}), w.deps);
+      expect(bodyOf(w).lock.state).toBe("ACQUIRED");
+      expect(w.lock.files.size).toBe(1); // 남은 것은 다른 트리의 잠금뿐이다
+    });
+
+    it("control 모드의 잠금 범위는 대조 트리다(스캔 트리가 아니다)", async () => {
+      const w = makeWorld({ env: passEnv });
+      const argv = [
+        "run",
+        "--mode",
+        "control",
+        "--run-id",
+        "run-ctl",
+        "--rules-cache",
+        `/cache/${SYNTHETIC_CACHE_DIR}`,
+        "--evidence-root",
+        "/evidence",
+        "--control-fixtures-root",
+        "/repo",
+        "--control-tree-root",
+        "/ctl/tree-1",
+        FLAG,
+        "--semgrep-bin",
+        BIN,
+      ];
+      await acquireRunLock(w.lock, {
+        treePath: "/scan/run-1",
+        runId: "scan-holder",
+        mode: "target",
+      });
+      await main(argv, w.deps);
+      const b = bodyOf(w);
+      expect(b.lock.state).toBe("ACQUIRED"); // 스캔 트리를 잡은 실행은 대조 트리를 막지 않는다
+      expect(b.lock.path).toMatch(/^\/ctl\/semgrep-lsp-tree-/);
+    });
+  });
+
+  describe("획득을 얻은 것으로 보정하지 않는다", () => {
+    it("잠금 파일을 만들 수 없으면 ERROR이고 LOCK_NOT_ACQUIRED로 거부된다(표지도 만들지 않는다)", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.lock.fail.create = Object.assign(new Error("EACCES: /secret/dir"), { code: "EACCES" });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(b.lock).toMatchObject({
+        state: "ERROR",
+        reason: "ACQUIRE_FAILED",
+        error_code: "EACCES",
+      });
+      expect(detailOf(b, "LOCK_NOT_ACQUIRED")).toContain("ACQUIRE_FAILED");
+      expect(await w.fs.exists("/evidence/run-cli-1/run.marker")).toBe(false);
+      expect(JSON.stringify(b)).not.toContain("secret");
+    });
+
+    it("트리를 해석하지 못하면 ERROR(TREE_UNRESOLVABLE)다", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.lock.fail.resolve = new Error("해석 실패");
+      await main(withGuard({}), w.deps);
+      expect(bodyOf(w).lock).toMatchObject({
+        state: "ERROR",
+        reason: "TREE_UNRESOLVABLE",
+        path: null,
+      });
+      expect(codesOf(bodyOf(w))).toContain("LOCK_NOT_ACQUIRED");
+    });
+
+    it("잠금은 얻었어도 증거 표지를 만들지 못하면(같은 증거 폴더 재사용) 잠금을 얻은 것으로 치지 않는다", async () => {
+      const w = makeWorld({
+        env: passEnv,
+        extraFiles: { "/evidence/run-cli-1/run.marker": "{}\n" },
+      });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(b.lock).toMatchObject({ state: "ACQUIRED", evidence_marker: "NOT_CREATED" });
+      expect(codesOf(b)).toContain("LOCK_NOT_ACQUIRED");
+      expect(detailOf(b, "LOCK_NOT_ACQUIRED")).toContain("EVIDENCE_MARKER_NOT_CREATED");
+      expect(b.cleanup.lock.state).toBe("RELEASED"); // 얻은 잠금은 그래도 해제한다
+      expect(w.lock.files.size).toBe(0);
+    });
+
+    it("해제하지 못하면 정리 결과에 남은 잠금의 경로와 복구 안내를 싣고, 자동으로 지우려 하지 않는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.lock.fail.remove = Object.assign(new Error("EPERM"), { code: "EPERM" });
+      expect(await main(withGuard({}), w.deps)).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.cleanup.lock).toMatchObject({ state: "NOT_RELEASED", reason: "FAILED" });
+      expect(b.cleanup.lock.path).toMatch(/semgrep-lsp-tree-/);
+      expect(b.cleanup.lock.recovery).toContain("직접 지운다");
+      expect(w.lock.files.size).toBe(1); // 남아 있다 — 운영자가 확인하고 지운다
+    });
+  });
+
+  describe("정상 종료·사전 검사 거부·예외·취소 어느 경로에서도 정리한다", () => {
+    it("예외로 끝나도(포트 생성 실패) 잠금을 해제하고 수신기를 닫는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.deps.makeProcessPort = () => {
+        throw new Error("시험: 포트 생성 실패");
+      };
+      expect(await main(withGuard({}), w.deps)).toBe(EXIT.failed);
+      expect(w.err.join("")).toContain("포트 생성 실패");
+      expect(w.lock.files.size).toBe(0);
+      expect(w.receivers).toHaveLength(1);
+      expect(w.receivers[0].closeCalls).toBe(1);
+    });
+
+    it("취소 신호가 이미 와 있어도 같은 정리를 한다", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.deps.signal = AbortSignal.abort();
+      await main(withGuard({}), w.deps);
+      expect(w.lock.files.size).toBe(0);
+      expect(w.receivers[0].closeCalls).toBe(1);
+      expect(bodyOf(w).cleanup.metrics_receiver.closed).toBe(true);
+    });
+
+    it("사전 검사가 거부해도(서버를 띄우지 않음) 해제하고 닫는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      await main(withGuard({}), w.deps);
+      expect(bodyOf(w).started).toBe(false);
+      expect(w.lock.files.size).toBe(0);
+      expect(w.receivers[0].closeCalls).toBe(1);
+    });
+
+    it("수신기를 닫지 못해도(CLOSE_TIMEOUT) 잠금 해제는 막히지 않고, 닫지 못했다는 사실을 알린다", async () => {
+      const receiver = new FakeMetricsReceiver({ hits: 0 });
+      receiver.failClose = true;
+      const w = makeWorld({ env: passEnv, receiver: () => receiver });
+      expect(await main(withGuard({}), w.deps)).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.cleanup.metrics_receiver.closed).toBe(false);
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(w.lock.files.size).toBe(0);
+    });
+
+    it("잠금을 못 얻어 거부된 실행도 수신기는 닫는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      await acquireRunLock(w.lock, { treePath: "/scan/run-1", runId: "other", mode: "target" });
+      await main(withGuard({}), w.deps);
+      expect(w.receivers[0].closeCalls).toBe(1);
+    });
+  });
+
+  describe("루프백 수신기는 자식 프로세스 전에 열리고, 판정 시점의 관측이 증거에 반영된다", () => {
+    it("수신기를 하네스보다 먼저 열고, 열린 주소를 출력에 알린다", async () => {
+      const w = makeWorld({ env: passEnv });
+      const order: string[] = [];
+      const original = w.deps.startMetricsReceiver;
+      w.deps.startMetricsReceiver = async () => {
+        order.push("receiver");
+        return original();
+      };
+      w.deps.makeProcessPort = (provenance) => {
+        order.push("process-port");
+        return { provenance, spawn: () => Promise.reject(new Error("시험: 띄우지 않는다")) };
+      };
+      await main(withGuard({}), w.deps);
+      expect(order).toEqual(["receiver", "process-port"]);
+      expect(bodyOf(w).metrics_receiver_url).toBe("http://127.0.0.1:41999");
+    });
+
+    it("0건 관측: 이유 없이 통과하고 증거에 건수 0과 상태가 남는다(0은 관측 중에 센 값이다)", async () => {
+      const w = makeWorld({ env: passEnv });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).not.toContain("METRICS_RECEIVER_HIT");
+      expect(codesOf(b)).not.toContain("METRICS_RECEIVER_NOT_OBSERVING");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({
+        bind: "127.0.0.1",
+        state: "LISTENING",
+        failure: null,
+        hits: 0,
+      });
+      const run = await evidenceRun(w);
+      expect(run.resources?.metrics_receiver).toMatchObject({ state: "LISTENING", hits: 0 });
+      // 서버가 한 번도 돌지 않았으므로 "관측했다"고 쓰지 않는다.
+      expect(run.not_executed.metrics_receiver_observation).toBe("NOT_RUN");
+    });
+
+    it("1건 이상 관측: 판정이 METRICS_RECEIVER_HIT로 남고 증거에 건수가 반영된다", async () => {
+      const w = makeWorld({ env: passEnv, receiver: () => new FakeMetricsReceiver({ hits: 2 }) });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("METRICS_RECEIVER_HIT");
+      expect(detailOf(b, "METRICS_RECEIVER_HIT")).toBe("2건");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({ hits: 2 });
+      expect((await evidenceRun(w)).resources?.metrics_receiver).toMatchObject({ hits: 2 });
+    });
+
+    it("시작 시점의 스냅샷이 아니라 판정 시점의 관측을 쓴다 — 열린 뒤에 늘어난 건수도 반영된다", async () => {
+      const w = makeWorld({ env: passEnv });
+      const original = w.deps.makeProcessPort;
+      // 수신기가 열린 뒤(시작 시점에는 0건), 하네스가 판정하기 전에 요청이 들어온 상황.
+      w.deps.makeProcessPort = (provenance) => {
+        w.receivers[0].hits = 3;
+        return original(provenance);
+      };
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(w.receivers[0].observeCalls).toBeGreaterThanOrEqual(1);
+      expect(detailOf(b, "METRICS_RECEIVER_HIT")).toBe("3건");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({ hits: 3 });
+    });
+
+    it("판정 뒤 닫기 전에 들어온 요청은 정리 결과에 따로 알린다", async () => {
+      const receiver = new FakeMetricsReceiver({ hits: 0 });
+      // 하네스가 처음 관측한 뒤 닫을 때까지 건수가 2 늘어난다.
+      receiver.onObserve = (call) => {
+        if (call >= 2) receiver.hits = 2;
+      };
+      const w2 = makeWorld({ env: passEnv, receiver: () => receiver });
+      await main(withGuard({}), w2.deps);
+      const b = bodyOf(w2);
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({ hits: 0 });
+      expect(b.cleanup.metrics_receiver).toMatchObject({
+        closed: true,
+        final_hits: 2,
+        hits_after_judgment: 2,
+      });
+    });
+
+    it("수신기를 열지 못하면 0건이 아니라 관측 실패다(NOT_OBSERVING, 상태 FAILED, 건수 null)", async () => {
+      const w = makeWorld({
+        env: passEnv,
+        receiver: () =>
+          new FakeMetricsReceiver({ url: null, state: "FAILED", failure: "BIND_FAILED", hits: 0 }),
+      });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("METRICS_RECEIVER_NOT_OBSERVING");
+      expect(codesOf(b)).not.toContain("METRICS_RECEIVER_HIT");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({
+        state: "FAILED",
+        failure: "BIND_FAILED",
+        hits: null,
+      });
+      expect(b.metrics_receiver_url).toBeNull();
+      expect(w.lock.files.size).toBe(0); // 잠금은 그래도 해제한다
+    });
+
+    it("수신기 시작이 던져도 같은 관측 실패로 끝나고 던지지 않는다", async () => {
+      const w = makeWorld({ env: passEnv });
+      w.deps.startMetricsReceiver = async () => {
+        throw new Error("시험: 시작 실패");
+      };
+      expect(await main(withGuard({}), w.deps)).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("METRICS_RECEIVER_NOT_OBSERVING");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({ state: "FAILED", hits: null });
+      expect(w.lock.files.size).toBe(0);
+    });
+
+    it("관측 중 observe()가 던져도 0건으로 간주하지 않는다(OBSERVE_FAILED)", async () => {
+      const receiver = new FakeMetricsReceiver({ hits: 0 });
+      receiver.throwOnObserve = true;
+      const w = makeWorld({ env: passEnv, receiver: () => receiver });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("METRICS_RECEIVER_NOT_OBSERVING");
+      expect(b.record?.resources?.metrics_receiver).toMatchObject({
+        state: "FAILED",
+        failure: "OBSERVE_FAILED",
+        hits: null,
+      });
+    });
+  });
+
+  describe("자식 환경은 수신기의 실제 주소를 쓴다", () => {
+    const getEnv = (name: string) => (name === "PATH" ? "/usr/bin" : undefined);
+    it("메트릭·버전 확인·앱 URL이 모두 같은 루프백 주소다", () => {
+      const env = buildChildEnv(
+        { getEnv, platform: "linux" },
+        "/evidence/run-x",
+        "http://127.0.0.1:43210"
+      );
+      expect(env.SEMGREP_METRICS_URL).toBe("http://127.0.0.1:43210");
+      expect(env.SEMGREP_VERSION_CHECK_URL).toBe("http://127.0.0.1:43210");
+      expect(env.SEMGREP_APP_URL).toBe("http://127.0.0.1:43210");
+    });
+
+    it("수신기가 없으면 아무것도 듣지 않는 자리표시 주소를 쓴다(이때 판정은 관측 실패다)", () => {
+      const env = buildChildEnv({ getEnv, platform: "linux" }, "/evidence/run-x", null);
+      expect(env.SEMGREP_METRICS_URL).toBe("http://127.0.0.1:9");
+    });
+
+    it("그 밖의 환경은 그대로다: 허용 목록·증거 폴더 안의 경로뿐", () => {
+      const env = buildChildEnv(
+        { getEnv, platform: "linux" },
+        "/evidence/run-x",
+        "http://127.0.0.1:1"
+      );
+      expect(Object.keys(env).sort()).toEqual([
+        "PATH",
+        "SEMGREP_APP_URL",
+        "SEMGREP_LOG_FILE",
+        "SEMGREP_METRICS_URL",
+        "SEMGREP_SETTINGS_FILE",
+        "SEMGREP_VERSION_CACHE_PATH",
+        "SEMGREP_VERSION_CHECK_URL",
+      ]);
+      expect(env.SEMGREP_LOG_FILE.startsWith("/evidence/run-x/")).toBe(true);
+    });
+  });
+});
+
+// ── run: 실제 디스크의 잠금과 실제 루프백 수신기를 CLI에 연결한 통합 ───────────
+
+describe("main — run: 실제 잠금(디스크)과 실제 루프백 수신기", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+  let base = "";
+
+  async function setup(extraFiles?: Record<string, string>) {
+    base = base || (await mkdtemp(join(tmpdir(), "semgrep-lsp-cli-res-")));
+    const dir = await mkdtemp(join(base, "case-"));
+    await mkdir(dir, { recursive: true });
+    const tree = join(dir, "scan").replace(/\\/g, "/");
+    const w = makeWorld({ env: passEnv, ...(extraFiles ? { extraFiles } : {}) });
+    // 증거와 규칙은 메모리 파일시스템이지만, 잠금은 실제 디스크에, 수신기는 실제 루프백에 둔다.
+    w.deps.runLock = createNodeRunLockPort();
+    w.deps.startMetricsReceiver = () => startMetricsReceiver();
+    const argv = withGuard({});
+    argv[argv.indexOf("--scan-root") + 1] = tree;
+    return { w, dir, tree, argv };
+  }
+
+  const bodyOf = (w: World) =>
+    jsonOut(w) as unknown as {
+      lock: {
+        state: string;
+        reason: string | null;
+        path: string | null;
+        holder: { run_id: string } | null;
+      };
+      cleanup: { lock: { state: string }; metrics_receiver: { closed: boolean } };
+      metrics_receiver_url: string | null;
+      record: {
+        measurement: { reasons: { code: string }[] };
+        resources: { metrics_receiver: Record<string, unknown> };
+      } | null;
+    };
+
+  afterAll(async () => {
+    if (base !== "") await rm(base, { recursive: true, force: true });
+  });
+
+  it("실제 잠금 파일을 만들었다 해제하고, 실제 수신기를 열었다 닫는다(0건 관측)", async () => {
+    const { w, dir, argv } = await setup();
+    expect(await main(argv, w.deps)).toBe(EXIT.failed); // 다른 실행 전제가 비어 있어 거부된다
+    const b = bodyOf(w);
+    expect(b.lock.state).toBe("ACQUIRED");
+    expect(b.cleanup.lock.state).toBe("RELEASED");
+    expect((await readdir(dir)).filter((n) => n.endsWith(".lock"))).toEqual([]); // 디스크에 남지 않았다
+    // 수신기: 판정 시점에 실제 루프백에서 LISTENING·0건이었고, 끝난 뒤에는 닫혀 접속이 거부된다.
+    expect(b.metrics_receiver_url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    expect(b.record?.resources.metrics_receiver).toMatchObject({ state: "LISTENING", hits: 0 });
+    expect(b.cleanup.metrics_receiver.closed).toBe(true);
+    expect(await canConnectLoopback(b.metrics_receiver_url!)).toBe(false);
+    const codes = b.record?.measurement.reasons.map((r) => r.code) ?? [];
+    expect(codes).not.toContain("LOCK_NOT_ACQUIRED");
+    expect(codes).not.toContain("METRICS_RECEIVER_NOT_OBSERVING");
+    expect(codes).toContain("FOREIGN_SERVER_PROCESS"); // 아직 구현하지 않은 검사는 그대로 거부 사유다
+  });
+
+  it("다른 실행(실제 디스크의 다른 포트 인스턴스)이 같은 트리를 잡고 있으면 증거 폴더가 달라도 거절되고, 그 잠금은 그대로다", async () => {
+    const { w, dir, tree, argv } = await setup();
+    const other = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: tree,
+      runId: "other-process",
+      mode: "control",
+    });
+    if (other.state !== "ACQUIRED") throw new Error("전제");
+    const before = await readFile(other.handle.lockPath, "utf8");
+    argv[argv.indexOf("--evidence-root") + 1] = "/another-evidence-root";
+    await main(argv, w.deps);
+    const b = bodyOf(w);
+    expect(b.lock).toMatchObject({
+      state: "REFUSED",
+      reason: "HELD_BY_OTHER",
+      holder: { run_id: "other-process" },
+    });
+    expect(b.record?.measurement.reasons.map((r) => r.code)).toContain("LOCK_NOT_ACQUIRED");
+    expect(await readFile(other.handle.lockPath, "utf8")).toBe(before);
+    expect(b.cleanup.metrics_receiver.closed).toBe(true); // 거절돼도 수신기는 닫는다
+    await releaseRunLock(createNodeRunLockPort(), other.handle);
+    expect((await readdir(dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+  });
+
+  // ── 잠금을 얻지 못한 실행은 서버 트리를 만들거나 바꾸지 않는다(실제 디스크의 파일 시스템) ─────────
+  //
+  // 위 시험들은 잠금만 실제 디스크에 두고 파일 시스템은 메모리였다 — 그래서 하네스가 스캔 트리를 (메모리에) 만들어도 보이지 않았다.
+  // 여기서는 서버가 스캔하는 트리를 실제 디스크에 두고, 다른 실행의 잠금을 실제 노드 포트로 쥐게 한다.
+
+  /** 서버가 스캔하는 트리가 있는 폴더만 실제 디스크로 보내고, 고정 입력·증거·규칙은 메모리에 둔다. */
+  function onDisk(w: World, dir: string): void {
+    w.deps.fs = routedFs(w.deps.fs, createNodeFs(), dir.replace(/\\/g, "/"));
+  }
+
+  async function listing(dir: string): Promise<string[]> {
+    return (await readdir(dir)).sort();
+  }
+
+  /** 디렉터리(끝에 /)와 파일(바이트 해시)의 상대 경로 목록. 트리가 없으면 null. */
+  async function diskDigest(root: string): Promise<Record<string, string> | null> {
+    try {
+      await stat(root);
+    } catch {
+      return null;
+    }
+    const out: Record<string, string> = {};
+    const walk = async (rel: string): Promise<void> => {
+      for (const entry of await readdir(join(root, rel), { withFileTypes: true })) {
+        const path = rel === "" ? entry.name : `${rel}/${entry.name}`;
+        if (entry.isDirectory()) {
+          out[`${path}/`] = "dir";
+          await walk(path);
+        } else {
+          out[path] = sha256Hex(new Uint8Array(await readFile(join(root, path))));
+        }
+      }
+    };
+    await walk("");
+    return out;
+  }
+
+  /** 기대 해시와 맞는 진짜 대조 예제(.in) 바이트를 메모리 저장소 사본으로 준다(합성 텍스트는 해시가 맞지 않는다). */
+  async function realFixtureFiles(root: string): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const c of cases) {
+      out[`${root}/${c.fixture}`] = await readFile(
+        new URL(`../../${c.fixture}`, import.meta.url),
+        "utf8"
+      );
+    }
+    return out;
+  }
+
+  const controlArgv = (dir: string): string[] => [
+    "run",
+    "--mode",
+    "control",
+    "--run-id",
+    "run-ctl",
+    "--rules-cache",
+    `/cache/${SYNTHETIC_CACHE_DIR}`,
+    "--evidence-root",
+    "/evidence",
+    "--control-fixtures-root",
+    FIXTURES_REPO,
+    "--control-tree-root",
+    `${dir.replace(/\\/g, "/")}/ctl`,
+    FLAG,
+    "--semgrep-bin",
+    BIN,
+  ];
+
+  const statusAndCodes = (w: World) => {
+    const b = jsonOut(w) as {
+      status: string;
+      record: { measurement: { reasons: { code: string; detail?: string }[] } } | null;
+    };
+    return {
+      status: b.status,
+      reasons: b.record?.measurement.reasons ?? [],
+      codes: (b.record?.measurement.reasons ?? []).map((r) => r.code),
+    };
+  };
+
+  async function exists(path: string): Promise<boolean> {
+    return (await diskDigest(path)) !== null;
+  }
+
+  it("target: 다른 실행이 비어 있는 스캔 트리의 잠금을 쥐고 있으면 증거 폴더가 달라도 거절되고, 스캔 트리는 만들어지지 않는다(외부 검토 재현)", async () => {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    const other = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: tree,
+      runId: "other-process",
+      mode: "control",
+    });
+    if (other.state !== "ACQUIRED") throw new Error("전제");
+    const lockBytes = await readFile(other.handle.lockPath, "utf8");
+    const before = await listing(dir); // 소유자의 잠금 파일뿐이다
+    expect(before).toHaveLength(1);
+    expect(await exists(tree)).toBe(false);
+
+    argv[argv.indexOf("--evidence-root") + 1] = "/another-evidence-root";
+    await main(argv, w.deps);
+
+    const b = bodyOf(w);
+    expect(b.lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+    const r = statusAndCodes(w);
+    expect(r.codes).toContain("LOCK_NOT_ACQUIRED");
+    expect(r.codes).not.toContain("SCAN_TREE_FILE_MISSING"); // 준비하지 않은 트리를 어긋남으로 판정하지 않는다
+    expect(r.status).toBe("ENV_MISMATCH");
+    expect(w.spawnCalls).toEqual([]);
+    // 보호 트리와 그 부모, 소유자의 잠금은 그대로다.
+    expect(await exists(tree)).toBe(false);
+    expect(await listing(dir)).toEqual(before);
+    expect(await readFile(other.handle.lockPath, "utf8")).toBe(lockBytes);
+    await releaseRunLock(createNodeRunLockPort(), other.handle);
+    expect(await listing(dir)).toEqual([]);
+  });
+
+  it("target: 이미 파일이 있는 스캔 트리도 다른 실행의 잠금 아래에서는 파일 목록·바이트가 그대로다", async () => {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    for (const [path, text] of [
+      ["src/a.ts", "export const a = 1;\n"],
+      ["src/b.tsx", "export const b = 2;\n"],
+    ]) {
+      await mkdir(dirname(join(tree, path)), { recursive: true });
+      await writeFile(join(tree, path), text);
+    }
+    const other = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: tree,
+      runId: "other-process",
+      mode: "target",
+    });
+    if (other.state !== "ACQUIRED") throw new Error("전제");
+    const before = await diskDigest(tree);
+    expect(before).not.toBeNull();
+
+    await main(argv, w.deps);
+
+    expect(bodyOf(w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+    expect(statusAndCodes(w).codes).toContain("LOCK_NOT_ACQUIRED");
+    expect(await diskDigest(tree)).toEqual(before);
+    await releaseRunLock(createNodeRunLockPort(), other.handle);
+  });
+
+  it("control: 다른 실행이 비어 있는 대조 트리의 잠금을 쥐고 있으면 거절되고, 대조 파일 9개가 만들어지지 않는다(외부 검토 재현)", async () => {
+    const { w, dir } = await setup(await realFixtureFiles(FIXTURES_REPO));
+    onDisk(w, dir);
+    const ctl = `${dir.replace(/\\/g, "/")}/ctl`;
+    const other = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: ctl,
+      runId: "other-process",
+      mode: "control",
+    });
+    if (other.state !== "ACQUIRED") throw new Error("전제");
+    const before = await listing(dir);
+
+    await main(controlArgv(dir), w.deps);
+
+    expect(bodyOf(w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+    const r = statusAndCodes(w);
+    expect(r.codes).toContain("LOCK_NOT_ACQUIRED");
+    expect(r.codes).not.toContain("CONTROL_TREE_MISMATCH");
+    expect(r.status).toBe("ENV_MISMATCH");
+    expect(await exists(ctl)).toBe(false);
+    expect(await listing(dir)).toEqual(before);
+    await releaseRunLock(createNodeRunLockPort(), other.handle);
+  });
+
+  it("잠금을 얻었지만 증거 표지를 만들 수 없으면 lockHeld가 false라 트리를 만들지 않고, 자기 잠금은 해제한다", async () => {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    const disk = w.deps.fs;
+    w.deps.fs = {
+      ...disk,
+      writeFileExclusive: (path, data) =>
+        path.endsWith("/run.marker")
+          ? Promise.reject(new Error("EACCES: 시험이 막았다"))
+          : disk.writeFileExclusive(path, data),
+    };
+
+    await main(argv, w.deps);
+
+    const b = bodyOf(w) as ReturnType<typeof bodyOf> & {
+      lock: { evidence_marker: string };
+    };
+    expect(b.lock).toMatchObject({ state: "ACQUIRED", evidence_marker: "NOT_CREATED" });
+    const r = statusAndCodes(w);
+    expect(r.codes).toContain("LOCK_NOT_ACQUIRED");
+    expect(r.reasons.find((x) => x.code === "LOCK_NOT_ACQUIRED")?.detail).toContain(
+      "EVIDENCE_MARKER_NOT_CREATED"
+    );
+    expect(await exists(tree)).toBe(false);
+    expect(b.cleanup.lock.state).toBe("RELEASED");
+    expect(await listing(dir)).toEqual([]);
+  });
+
+  it("증거 폴더가 서버 트리 안에 있으면 잠금을 얻기 전에 사용법 오류로 거절하고, 트리·잠금 파일을 만들지 않는다(독립 검토 F3)", async () => {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    argv[argv.indexOf("--evidence-root") + 1] = `${tree}/ev`;
+    expect(await main(argv, w.deps)).toBe(EXIT.usage);
+    expect(await exists(tree)).toBe(false);
+    expect(await listing(dir)).toEqual([]);
+    expect(w.spawnCalls).toEqual([]);
+  });
+
+  // ── 증거 경로가 `..`·링크·상대 경로로 서버 트리 안에 돌아 들어가는 우회(외부 재검토) ──────────────
+  //
+  // 다른 실행이 서버 트리(`<base>/scan`)의 잠금을 쥔 채 target CLI를 돌린다. 문자열 비교는 `<base>/outside/../scan/evidence`(A)와
+  // `<base>/alias/evidence`(alias → scan, B)를 놓쳐서, 잠금이 거절돼도(`REFUSED`) 증거 9개가 보호 트리 안에 써졌다. 링크는
+  // Linux에서는 심볼릭 링크, Windows에서는 junction으로 만든다(이 컴퓨터는 Windows).
+
+  async function linkOrSkip(
+    ctx: { skip: () => never },
+    target: string,
+    path: string
+  ): Promise<void> {
+    try {
+      await symlink(target, path, "junction"); // POSIX에서는 type 인자가 무시되고 폴더 링크가 된다
+    } catch {
+      ctx.skip(); // 링크를 만들 수 없는 환경: 검증하지 못한 것으로 보고한다
+    }
+  }
+
+  /** 다른 실행이 잠금을 쥔 서버 트리. populated이면 트리에 파일이 미리 있다. */
+  async function protectedWorld(populated: boolean) {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    if (populated) {
+      await mkdir(join(tree, "src"), { recursive: true });
+      await writeFile(join(tree, "src", "a.ts"), "export const a = 1;\n");
+    }
+    const owner = await acquireRunLock(createNodeRunLockPort(), {
+      treePath: tree,
+      runId: "other-process",
+      mode: "control",
+    });
+    if (owner.state !== "ACQUIRED") throw new Error("전제");
+    const snapshot = async () => ({
+      tree: await diskDigest(tree),
+      parent: await listing(dir),
+      lock: await readFile(owner.handle.lockPath, "utf8"),
+    });
+    return { w, dir, tree, argv, owner, snapshot };
+  }
+
+  const withEvidence = (argv: string[], evidenceRoot: string, runId?: string): string[] => {
+    const out = [...argv];
+    out[out.indexOf("--evidence-root") + 1] = evidenceRoot;
+    if (runId !== undefined) out[out.indexOf("--run-id") + 1] = runId;
+    return out;
+  };
+
+  const OVERLAP_CASES: {
+    name: string;
+    populated: boolean;
+    prepare?: (ctx: { skip: () => never }, dir: string, tree: string) => Promise<void>;
+    evidenceRoot: (dir: string, tree: string) => string;
+    runId?: (tree: string) => string;
+  }[] = [
+    {
+      name: "존재하는 outside를 지나 `..`로 서버 트리에 돌아오는 경로(A)",
+      populated: false,
+      prepare: async (_ctx, dir) => void (await mkdir(`${dir}/outside`, { recursive: true })),
+      evidenceRoot: (dir, tree) => `${dir}/outside/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "존재하는 outside를 지나 `..`로 돌아오는 경로(서버 트리에 파일이 있을 때)",
+      populated: true,
+      prepare: async (_ctx, dir) => void (await mkdir(`${dir}/outside`, { recursive: true })),
+      evidenceRoot: (dir, tree) => `${dir}/outside/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "아직 없는 폴더를 지나 `..`로 돌아오는 경로",
+      populated: false,
+      evidenceRoot: (dir, tree) => `${dir}/nowhere/../${basename(tree)}/evidence`,
+    },
+    {
+      name: "서버 트리를 가리키는 링크(junction) 아래의 경로(B)",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/alias/evidence`,
+    },
+    {
+      name: "서버 트리를 가리키는 링크 아래의 아직 없는 하위 폴더",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/alias/a/b/c`,
+    },
+    {
+      name: "서버 트리 안을 상대 경로로 적은 경로(절대 경로와 같은 위치)",
+      populated: true,
+      prepare: async (ctx, _dir, tree) => {
+        if (isAbsolute(relative(process.cwd(), tree))) ctx.skip(); // 다른 드라이브라 상대 경로가 없다
+      },
+      evidenceRoot: (_dir, tree) => relative(process.cwd(), `${tree}/ev`),
+    },
+    {
+      name: "아직 없는 폴더를 지나 `..`로 돌아와 서버 트리를 가리키는 링크로 들어가는 경로",
+      populated: true,
+      prepare: (ctx, dir, tree) => linkOrSkip(ctx, tree, `${dir}/alias`),
+      evidenceRoot: (dir) => `${dir}/nowhere/../alias/evidence`,
+    },
+    {
+      name: "증거 실행 폴더 자체가 서버 트리를 가리키는 링크인 경로",
+      populated: true,
+      prepare: async (ctx, dir, tree) => {
+        await mkdir(`${dir}/evroot`, { recursive: true });
+        await linkOrSkip(ctx, tree, `${dir}/evroot/run-cli-1`);
+      },
+      evidenceRoot: (dir) => `${dir}/evroot`,
+    },
+    {
+      name: "서버 트리 안의 아직 없는 하위 폴더",
+      populated: false,
+      evidenceRoot: (_dir, tree) => `${tree}/x/y/z`,
+    },
+    {
+      name: "서버 트리와 같은 위치(증거 실행 폴더가 곧 서버 트리)",
+      populated: true,
+      evidenceRoot: (dir) => dir,
+      runId: (tree) => basename(tree),
+    },
+  ];
+
+  for (const c of OVERLAP_CASES) {
+    it(`증거 경로가 ${c.name}이면 run.marker·semgrep-state를 만들기 전에 사용법 오류로 거절하고 보호 트리·소유자의 잠금 파일이 그대로다`, async (ctx) => {
+      const p = await protectedWorld(c.populated);
+      try {
+        await c.prepare?.(ctx, p.dir, p.tree);
+        const before = await p.snapshot();
+        const argv = withEvidence(p.argv, c.evidenceRoot(p.dir, p.tree), c.runId?.(p.tree));
+
+        expect(await main(argv, p.w.deps)).toBe(EXIT.usage);
+
+        // 겹침이라서 거절한 것이어야 한다 — 경로를 풀지 못해서 거절한 것이면 이 시험이 겹침 감지를 지키지 못한다.
+        expect(p.w.err.join("")).toContain("같거나 그 안에");
+        expect(p.w.err.join("")).not.toContain("판별하지 못했다");
+        expect(p.w.spawnCalls).toEqual([]);
+        expect(await p.snapshot()).toEqual(before); // 트리·부모 폴더 목록·소유자의 잠금 파일 바이트
+      } finally {
+        await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+      }
+    });
+  }
+
+  // 링크 **뒤**의 `..`는 운영체제마다 다르게 풀린다(Linux·macOS: 링크 대상의 부모, Windows: `..`를 먼저 지움). 기대값을 어느 쪽으로
+  // 가정하지 않고 운영체제에게 묻는다. 사전식으로 접으면 Linux에서 틀린다.
+  for (const c of [
+    {
+      name: "링크가 서버 트리 안쪽 폴더를 가리킬 때 `링크/../x`",
+      target: (tree: string) => `${tree}/sub`,
+      evidence: (dir: string) => `${dir}/l/../x`,
+      leaf: "x",
+    },
+    {
+      name: "링크가 서버 트리 바깥 폴더를 가리킬 때 `링크/../scan/ev`",
+      target: (_tree: string, dir: string) => `${dir}/elsewhere/sub`,
+      evidence: (dir: string) => `${dir}/l/../scan/ev`,
+      leaf: "scan/ev",
+    },
+  ]) {
+    it(`링크 뒤 \`..\`(${c.name}): 겹침 여부가 운영체제가 푼 실제 위치와 같다(Windows·Linux가 다르게 풀어도 성립)`, async (ctx) => {
+      const p = await protectedWorld(true);
+      try {
+        const dir = p.dir.replace(/\\/g, "/");
+        const target = c.target(p.tree, dir);
+        await mkdir(target, { recursive: true });
+        await linkOrSkip(ctx, target, `${dir}/l`);
+        const actualDir = join(await realpath(`${dir}/l/..`), c.leaf); // 운영체제가 `l/..` 뒤를 푼 자리
+        const rel = relative(await realpath(p.tree), actualDir);
+        const expectInside = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+        const before = await p.snapshot();
+        p.w.err.length = 0;
+
+        const code = await main(withEvidence(p.argv, c.evidence(dir)), p.w.deps);
+
+        if (expectInside) {
+          expect(code).toBe(EXIT.usage);
+          expect(p.w.err.join("")).toContain("같거나 그 안에");
+        } else {
+          // 안이 아니면 정상 경로다: 잠금은 다른 실행이 쥐고 있어 거절되지만 증거는 운영체제가 푼 그 자리에 쓰인다.
+          expect(code).toBe(EXIT.failed);
+          expect(bodyOf(p.w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+          expect((await readdir(join(actualDir, "run-cli-1"))).sort()).toContain("run.json");
+        }
+        const after = await p.snapshot();
+        expect(after.tree).toEqual(before.tree);
+        expect(after.lock).toBe(before.lock);
+      } finally {
+        await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+      }
+    });
+  }
+
+  it("증거 경로나 서버 트리 경로를 안전하게 판별할 수 없으면(끊어진 링크) 잠금·표지보다 먼저 사용법 오류로 거절하고 아무것도 만들지 않는다", async (ctx) => {
+    const p = await protectedWorld(true);
+    try {
+      const gone = join(p.dir, "gone");
+      await mkdir(gone, { recursive: true });
+      await linkOrSkip(ctx, gone, join(p.dir, "dangling"));
+      await rm(gone, { recursive: true }); // 링크는 남고 대상이 사라졌다
+      const before = await p.snapshot();
+
+      const dangling = `${p.dir.replace(/\\/g, "/")}/dangling`;
+      const viaEvidence = withEvidence(p.argv, `${dangling}/evidence`);
+      const viaTree = [...p.argv];
+      viaTree[viaTree.indexOf("--scan-root") + 1] = `${dangling}/tree`;
+      for (const argv of [viaEvidence, viaTree]) {
+        p.w.err.length = 0;
+        expect(await main(argv, p.w.deps)).toBe(EXIT.usage);
+        expect(p.w.err.join("")).toContain("안전하게 판별하지 못했다");
+        expect(p.w.spawnCalls).toEqual([]);
+        expect(await p.snapshot()).toEqual(before);
+      }
+    } finally {
+      await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+    }
+  });
+
+  it("A·B가 아닌 정상 경우: 이름 접두만 비슷한 별도 폴더에 쓰는 증거는 기존대로 쓰이고(잠금은 거절) 보호 트리는 그대로다", async () => {
+    const p = await protectedWorld(true);
+    try {
+      const evidenceRoot = `${p.tree}-evidence`; // `scan-evidence`: 서버 트리 `scan`과 이름 접두만 같다
+      const before = (await p.snapshot()).tree;
+      const lock = (await p.snapshot()).lock;
+
+      expect(await main(withEvidence(p.argv, evidenceRoot), p.w.deps)).toBe(EXIT.failed);
+
+      expect(bodyOf(p.w).lock).toMatchObject({ state: "REFUSED", reason: "HELD_BY_OTHER" });
+      expect(statusAndCodes(p.w).codes).toContain("LOCK_NOT_ACQUIRED");
+      const written = await readdir(join(evidenceRoot, "run-cli-1"));
+      expect(written).toContain("run.json");
+      expect(written).toHaveLength(9); // 증거 9개가 별도 폴더에 실제 디스크로 쓰였다
+      expect((await p.snapshot()).tree).toEqual(before);
+      expect((await p.snapshot()).lock).toBe(lock);
+    } finally {
+      await releaseRunLock(createNodeRunLockPort(), p.owner.handle);
+    }
+  });
+
+  for (const [name, sabotage] of [
+    [
+      "잠금 파일을 만들지 못하면(ACQUIRE_FAILED)",
+      {
+        createExclusive: async (): Promise<"CREATED" | "EXISTS"> => {
+          throw Object.assign(new Error("EACCES: 시험이 막았다"), { code: "EACCES" });
+        },
+      },
+    ],
+    [
+      "트리 경로를 해석하지 못하면(TREE_UNRESOLVABLE)",
+      {
+        resolveTree: async (): Promise<never> => {
+          throw Object.assign(new Error("EACCES: 시험이 막았다"), { code: "EACCES" });
+        },
+      },
+    ],
+  ] as const) {
+    it(`${name} ERROR이고 서버 트리를 만들지 않는다`, async () => {
+      const { w, dir, tree, argv } = await setup();
+      onDisk(w, dir);
+      w.deps.runLock = { ...createNodeRunLockPort(), ...sabotage };
+
+      await main(argv, w.deps);
+
+      expect(bodyOf(w).lock.state).toBe("ERROR");
+      const r = statusAndCodes(w);
+      expect(r.codes).toContain("LOCK_NOT_ACQUIRED");
+      expect(r.status).toBe("ENV_MISMATCH");
+      expect(await exists(tree)).toBe(false);
+      expect(await listing(dir)).toEqual([]);
+    });
+  }
+
+  // ── --run-id 선검증(외부 재검토) ────────────────────────────────────────────────────────────────
+  //
+  // 재현: --evidence-root <base>/evidence, --run-id ../escaped. 서버 트리(<base>/scan)와 증거 폴더는 겹치지 않는다. 예전에는 CLI가
+  // run-id를 경로에 그대로 붙여 <base>/escaped/run.marker와 semgrep-state를 만든 뒤에야 하네스의 형식 검사가 거절했다. 이제 CLI가
+  // 인자를 받은 직후, 경로를 만들거나 자원을 얻기 전에 거절한다. 여기서는 증거 루트와 서버 트리를 모두 실제 디스크에 두고 확인한다.
+
+  /** 증거 루트 `<dir>/evidence`와 서버 트리 `<dir>/scan`을 실제 디스크에 두고, 파일 시스템·잠금 포트의 호출과 수신기 시작을 기록한다. */
+  async function runIdWorld() {
+    const { w, dir, tree, argv } = await setup();
+    onDisk(w, dir);
+    const evidenceRoot = `${dir.replace(/\\/g, "/")}/evidence`;
+    const fsCalls: string[] = [];
+    const lockCalls: string[] = [];
+    let receiverStarts = 0;
+    w.deps.fs = recorded(w.deps.fs, fsCalls, "fs");
+    w.deps.runLock = recorded(w.deps.runLock, lockCalls, "lock");
+    const startReceiver = w.deps.startMetricsReceiver;
+    w.deps.startMetricsReceiver = () => {
+      receiverStarts++;
+      return startReceiver();
+    };
+    return {
+      w,
+      dir,
+      tree,
+      evidenceRoot,
+      fsCalls,
+      lockCalls,
+      receiverStarts: () => receiverStarts,
+      argvFor: (runId: string) => withEvidence(argv, evidenceRoot, runId),
+    };
+  }
+
+  it("재현 그대로: --run-id ../escaped는 <base>/escaped에 표지·상태 폴더·잠금을 만들기 전에 사용법 오류(2)로 거절한다", async () => {
+    const x = await runIdWorld();
+    const escaped = join(x.dir, "escaped");
+    expect(await exists(escaped)).toBe(false);
+
+    const code = await main(x.argvFor("../escaped"), x.w.deps);
+
+    expect(await exists(escaped)).toBe(false); // run.marker·semgrep-state가 있던 자리
+    expect(await listing(x.dir)).toEqual([]); // 증거 루트·서버 트리·잠금 파일 어느 것도 없다
+    expect(code).toBe(EXIT.usage);
+    expect(x.w.err.join("").startsWith("--run-id는 ")).toBe(true);
+  });
+
+  for (const c of INVALID_RUN_IDS) {
+    it(`--run-id ${c.name}(${JSON.stringify(c.value.slice(0, 24))})은 사용법 오류(2)이고, 실제 디스크 어디에도 아무것도 만들지 않으며 자원을 얻지 않는다`, async () => {
+      const x = await runIdWorld();
+      const baseBefore = await listing(base);
+
+      expect(await main(x.argvFor(c.value), x.w.deps)).toBe(EXIT.usage);
+
+      // 사용법 오류 첫 줄이 --run-id 오류다(뒤에 붙는 사용법 안내에 속지 않는다).
+      const firstLine = x.w.err.join("").split("\n")[0];
+      expect(firstLine.startsWith("--run-id는 ")).toBe(true);
+      // 입력 값은 되풀이하지 않는다(짧은 값은 규칙 설명 문구의 글자와 겹치므로 4자 이상만 본다).
+      if (c.value.length >= 4) expect(firstLine).not.toContain(c.value);
+      expect(x.w.out).toEqual([]); // 증거 레코드도 NOT_RUN 보고도 없다
+      // 실제 디스크: 증거 루트 안(<dir>/evidence), 밖(<dir>/escaped), 서버 트리·잠금 파일(<dir>/scan, *.lock), 그 위(<base>)까지.
+      expect(await listing(x.dir)).toEqual([]);
+      expect(await listing(base)).toEqual(baseBefore);
+      // 호출 기록: 방지 장치의 실행 파일 존재 확인(exists) 하나뿐이다. 만들기·쓰기·경로 풀기·기록 읽기가 없다.
+      expect(x.fsCalls).toEqual(["fs.exists"]);
+      expect(x.lockCalls).toEqual([]); // 잠금 경로 해석·획득·해제 모두 없다
+      expect(x.receiverStarts()).toBe(0);
+      expect(x.w.portCalls).toEqual([]); // 프로세스 포트를 만들지 않았다
+      expect(x.w.spawnCalls).toEqual([]);
+      expect(x.w.gitCalls).toEqual([]);
+    });
+  }
+
+  for (const c of [
+    VALID_RUN_IDS.find((v) => v.value === "a"),
+    VALID_RUN_IDS.find((v) => v.value === "a".repeat(128)),
+    VALID_RUN_IDS.find((v) => v.value === "a..b"),
+  ] as { name: string; value: string }[]) {
+    it(`정상 값 ${c.name}은 거절하지 않는다: 증거가 <증거 루트>/<run-id>/에 실제 디스크로 쓰이고 잠금은 해제된다`, async () => {
+      const x = await runIdWorld();
+
+      expect(await main(x.argvFor(c.value), x.w.deps)).toBe(EXIT.failed); // 다른 실행 전제가 비어 있어 거부된다(사용법 오류가 아니다)
+
+      expect(x.w.err.join("")).toBe("");
+      expect(await readdir(join(x.dir, "evidence", c.value))).toContain("run.json");
+      expect((await listing(x.dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+      expect(x.lockCalls.length).toBeGreaterThan(0);
+      expect(x.receiverStarts()).toBe(1);
+      expect(bodyOf(x.w).cleanup.lock.state).toBe("RELEASED");
+    });
+  }
+});
+
+// ── run: --run-id 선검증(메모리 파일 시스템, 포트 호출 기록) ─────────────────────────────────────
+
+describe("main — run: --run-id 선검증", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+
+  /** 호출을 기록하도록 감싼 세계. 실행 방지 장치는 통과한다. */
+  function recordedWorld(env: Record<string, string> = passEnv) {
+    const w = makeWorld({ env });
+    const fsCalls: string[] = [];
+    w.deps.fs = recorded(w.deps.fs, fsCalls, "fs");
+    return { w, fsCalls };
+  }
+
+  function argvWithRunId(runId: string, form: "pair" | "equals" = "pair"): string[] {
+    const argv = withGuard({});
+    const at = argv.indexOf("--run-id");
+    if (form === "equals") argv.splice(at, 2, `--run-id=${runId}`);
+    else argv[at + 1] = runId;
+    return argv;
+  }
+
+  function expectNothingAcquired(x: ReturnType<typeof recordedWorld>, label: string): void {
+    const { w, fsCalls } = x;
+    expect(fsCalls, label).toEqual(["fs.exists"]); // 방지 장치의 실행 파일 확인뿐 — 만들기·쓰기·경로 풀기·기록 읽기 없음
+    expect(w.lock.calls, label).toEqual([]);
+    expect(w.lock.files.size, label).toBe(0);
+    expect(w.receivers, label).toEqual([]);
+    expect(w.portCalls, label).toEqual([]);
+    expect(w.spawnCalls, label).toEqual([]);
+    expect(w.gitCalls, label).toEqual([]);
+    expect(w.out, label).toEqual([]);
+  }
+
+  for (const c of INVALID_RUN_IDS) {
+    it(`target: ${c.name}(${JSON.stringify(c.value.slice(0, 24))})은 2이고 파일 시스템·잠금·수신기·git·프로세스 포트를 쓰지 않는다`, async () => {
+      const x = recordedWorld();
+      const argv = argvWithRunId(c.value);
+      argv.push("--control-record", "/records/control-run.json"); // 기록 읽기도 일어나지 않아야 한다
+
+      expect(await main(argv, x.w.deps)).toBe(EXIT.usage);
+
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 ")).toBe(true);
+      expectNothingAcquired(x, c.name);
+      expect(await x.w.fs.exists("/evidence")).toBe(false);
+    });
+  }
+
+  it("--run-id=<값> 형식도 같은 규칙으로 거절한다", async () => {
+    for (const value of ["../escaped", "a/b", "..", "a".repeat(129)]) {
+      const x = recordedWorld();
+      expect(await main(argvWithRunId(value, "equals"), x.w.deps), value).toBe(EXIT.usage);
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 "), value).toBe(true);
+      expectNothingAcquired(x, value);
+    }
+  });
+
+  it("control 모드도 같다: 대조 트리·대조 예제 경로를 읽거나 만들기 전에 거절한다", async () => {
+    for (const value of ["../escaped", "a\\b", "."]) {
+      const x = recordedWorld();
+      const argv = [
+        "run",
+        "--mode",
+        "control",
+        "--run-id",
+        value,
+        "--rules-cache",
+        `/cache/${SYNTHETIC_CACHE_DIR}`,
+        "--evidence-root",
+        "/evidence",
+        "--control-fixtures-root",
+        "/fixtures",
+        "--control-tree-root",
+        "/ctl",
+        FLAG,
+        "--semgrep-bin",
+        BIN,
+      ];
+      expect(await main(argv, x.w.deps), value).toBe(EXIT.usage);
+      expect(x.w.err.join("").split("\n")[0].startsWith("--run-id는 "), value).toBe(true);
+      expectNothingAcquired(x, value);
+    }
+  });
+
+  it("실행 방지 장치가 먼저다: 장치를 통과하지 못하면 잘못된 --run-id여도 NOT_RUN(3)이고 어떤 포트도 만들지 않는다", async () => {
+    const guardCases: {
+      name: string;
+      env: Record<string, string>;
+      argv: (id: string) => string[];
+    }[] = [
+      { name: "플래그 없음", env: passEnv, argv: (id) => withGuardId(id, { flag: false }) },
+      { name: "환경변수 없음", env: {}, argv: (id) => withGuardId(id, {}) },
+      { name: "실행 파일 없음", env: passEnv, argv: (id) => withGuardId(id, { bin: null }) },
+      { name: "셋 다 없음", env: {}, argv: (id) => withGuardId(id, { flag: false, bin: null }) },
+    ];
+    function withGuardId(id: string, parts: { flag?: boolean; bin?: string | null }): string[] {
+      const argv = withGuard(parts);
+      argv[argv.indexOf("--run-id") + 1] = id;
+      return argv;
+    }
+    for (const g of guardCases) {
+      for (const value of ["../escaped", "a".repeat(129)]) {
+        const x = recordedWorld(g.env);
+        const label = `${g.name} / ${value.slice(0, 12)}`;
+        expect(await main(g.argv(value), x.w.deps), label).toBe(EXIT.notRun);
+        expect((jsonOut(x.w) as { status: string }).status, label).toBe("NOT_RUN");
+        expect(x.w.err, label).toEqual([]);
+        expect(x.w.lock.calls, label).toEqual([]);
+        expect(x.w.receivers, label).toEqual([]);
+        expect(x.w.portCalls, label).toEqual([]);
+        expect(
+          x.fsCalls.filter((c) => c !== "fs.exists"),
+          label
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it.each(VALID_RUN_IDS)(
+    "정상 값 $name은 받아들인다: 사용법 오류가 아니고 증거가 /evidence/<run-id>/에 쓰인다",
+    async ({ value }) => {
+      const x = recordedWorld();
+      const code = await main(argvWithRunId(value), x.w.deps);
+      expect(code).toBe(EXIT.failed); // 다른 실행 전제가 비어 있어 거부된다(검증은 통과했다)
+      expect(x.w.err.join("")).toBe("");
+      expect(await x.w.fs.exists(`/evidence/${value}/run.json`)).toBe(true);
+      expect(x.w.lock.calls.length).toBeGreaterThan(0);
+    }
+  );
 });

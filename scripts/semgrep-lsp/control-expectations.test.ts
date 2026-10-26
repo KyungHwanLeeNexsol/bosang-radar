@@ -87,6 +87,7 @@ describe("readControlExpectations", () => {
       },
       writeFileExclusive: (p, d) => inner.writeFileExclusive(p, d),
       mkdirp: (p) => inner.mkdirp(p),
+      physicalKey: (p) => inner.physicalKey(p),
       listFilesRecursive: (p) => inner.listFilesRecursive(p),
       exists: (p) => inner.exists(p),
     };

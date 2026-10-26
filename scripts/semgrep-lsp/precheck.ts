@@ -75,6 +75,14 @@ export interface PrecheckInput {
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
   lockHeld: boolean | null;
+  /** 잠금을 얻지 못한 이유 토큰(HELD_BY_OTHER 등). 사유 상세에만 쓰이고 판정에는 영향이 없다. 값·경로를 담지 않는다. */
+  lockRefusal?: string | null;
+  /**
+   * 서버 트리를 준비하지 않았다(잠금이 없어 호출자가 트리를 만들지 못하게 막았고 트리가 비어 있다). true이고 lockHeld가 true가 아니면
+   * 비어 있는 트리를 "어긋남"으로 판정하지 않는다 — 그 트리는 준비되지 않았을 뿐이고, 실행을 막는 원인은 LOCK_NOT_ACQUIRED다.
+   * lockHeld가 true이면 이 값은 무시한다(잠금을 가졌으면 트리를 검증한다). 생략하면 false(예전처럼 트리를 판정한다).
+   */
+  treeNotPrepared?: boolean;
   foreignServerProcesses: number | null;
   /** 로그·설정 파일이 있어야 하는 증거 폴더. */
   evidenceRoot: string;
@@ -358,6 +366,10 @@ export async function runPrecheck(
     });
   }
 
+  // 트리 판정을 건너뛰는 것은 잠금이 없을 때뿐이다 — 잠금을 가졌다면(lockHeld true) 호출자가 무엇을 주든 트리를 검증한다. 건너뛰어도
+  // LOCK_NOT_ACQUIRED가 반드시 붙으므로 검증하지 않은 트리로 서버가 뜨는 경로는 없다.
+  const skipTree = input.treeNotPrepared === true && input.lockHeld !== true;
+
   if (input.mode === "target") {
     // C0 (c): 대상 SHA → E → 스캔 트리.
     if (input.targetSha === null) {
@@ -373,9 +385,12 @@ export async function runPrecheck(
           details.scope_included = scope.included.length;
           details.scope_excluded_counts = scope.excludedCounts;
           try {
-            reasons.push(
-              ...(await verifyScanTree(fs, scope, input.scanTreeRoot, input.scopeConfig))
-            );
+            if (skipTree) details.server_tree = "NOT_PREPARED";
+            else {
+              reasons.push(
+                ...(await verifyScanTree(fs, scope, input.scanTreeRoot, input.scopeConfig))
+              );
+            }
           } catch (error) {
             reasons.push({
               code: "SCAN_TREE_FILE_MISSING",
@@ -394,9 +409,17 @@ export async function runPrecheck(
     // control 모드는 스캔 트리 대신 정적 입력으로 만든 대조 트리를 본다.
     details.control_cases = input.controlExpectations.cases.length;
     try {
-      const control = await checkControlTree(fs, input);
-      reasons.push(...control.reasons);
-      details.control_tree_sha256 = control.treeSha256;
+      if (skipTree) {
+        // 트리는 판정하지 않지만 정적 입력의 바이트 확인은 트리와 무관한 사실이라 그대로 한다.
+        details.server_tree = "NOT_PREPARED";
+        reasons.push(
+          ...(await checkControlSources(fs, input.controlExpectations, input.controlFixturesRoot))
+        );
+      } else {
+        const control = await checkControlTree(fs, input);
+        reasons.push(...control.reasons);
+        details.control_tree_sha256 = control.treeSha256;
+      }
     } catch (error) {
       reasons.push(controlMismatch(`대조 트리를 검사하지 못했다: ${errorText(error)}`));
     }
@@ -417,7 +440,9 @@ export async function runPrecheck(
   if (input.lockHeld !== true) {
     reasons.push({
       code: "LOCK_NOT_ACQUIRED",
-      detail: input.lockHeld === null ? "잠금 상태를 확인하지 못했다" : "실행 잠금을 얻지 못했다",
+      detail:
+        (input.lockHeld === null ? "잠금 상태를 확인하지 못했다" : "실행 잠금을 얻지 못했다") +
+        (input.lockRefusal ? ` (${input.lockRefusal})` : ""),
     });
   }
   details.lock_held = input.lockHeld;

@@ -561,6 +561,31 @@ describe("runPrecheck: 잠금·다른 서버 프로세스", () => {
     expect(codes((await check(world, { lockHeld: null })).reasons)).toEqual(["LOCK_NOT_ACQUIRED"]);
   });
 
+  it("잠금을 얻지 못한 이유 토큰은 상세에만 붙고, 코드와 판정은 같다(이유를 주지 않으면 기존 문구)", async () => {
+    const world = await makeWorld();
+    const plain = (await check(world, { lockHeld: false })).reasons[0];
+    const withReason = (await check(world, { lockHeld: false, lockRefusal: "HELD_BY_OTHER" }))
+      .reasons[0];
+    expect(plain).toMatchObject({ code: "LOCK_NOT_ACQUIRED", detail: "실행 잠금을 얻지 못했다" });
+    expect(withReason).toMatchObject({
+      code: "LOCK_NOT_ACQUIRED",
+      detail: "실행 잠금을 얻지 못했다 (HELD_BY_OTHER)",
+    });
+    // 확인하지 못함(null)에도 같은 규칙이다. 잠금을 얻었으면(true) 이유가 있어도 사유가 없다.
+    expect(
+      (await check(world, { lockHeld: null, lockRefusal: "TREE_UNRESOLVABLE" })).reasons[0].detail
+    ).toBe("잠금 상태를 확인하지 못했다 (TREE_UNRESOLVABLE)");
+    expect((await check(world, { lockHeld: true, lockRefusal: "IGNORED" })).reasons).toEqual([]);
+  });
+
+  it("잠금을 얻어도 다른 서버 프로세스 검사는 별개다 — 잠금이 foreignServerProcesses를 채우지 않는다", async () => {
+    const world = await makeWorld();
+    const result = await check(world, { lockHeld: true, foreignServerProcesses: null });
+    expect(codes(result.reasons)).toEqual(["FOREIGN_SERVER_PROCESS"]);
+    expect(result.details.lock_held).toBe(true);
+    expect(result.details.foreign_server_processes).toBeNull();
+  });
+
   it("다른 서버 프로세스: null(미확인)과 1 이상은 FOREIGN_SERVER_PROCESS, 0은 통과", async () => {
     const world = await makeWorld();
     expect(codes((await check(world, { foreignServerProcesses: null })).reasons)).toEqual([
@@ -570,6 +595,71 @@ describe("runPrecheck: 잠금·다른 서버 프로세스", () => {
       "FOREIGN_SERVER_PROCESS",
     ]);
     expect((await check(world, { foreignServerProcesses: 0 })).reasons).toEqual([]);
+  });
+});
+
+describe("runPrecheck: 준비하지 않은 서버 트리(treeNotPrepared)", () => {
+  const noTree = { scanTreeOverrides: Object.fromEntries(scanPaths().map((p) => [p, null])) };
+
+  function scanPaths(): string[] {
+    return Object.keys(productFiles).filter((p) => p.startsWith("src/"));
+  }
+
+  it("생략하면 예전처럼 비어 있는 스캔 트리를 SCAN_TREE_FILE_MISSING으로 판정한다", async () => {
+    const world = await makeWorld(noTree);
+    const result = await check(world, { lockHeld: false });
+    expect(codes(result.reasons)).toContain("SCAN_TREE_FILE_MISSING");
+    expect(result.details).not.toHaveProperty("server_tree");
+  });
+
+  it("true이면 비어 있는 스캔 트리를 판정하지 않아 대표 상태가 LOCK_NOT_ACQUIRED(ENV_MISMATCH)로 남는다", async () => {
+    const world = await makeWorld(noTree);
+    const result = await check(world, { lockHeld: false, treeNotPrepared: true });
+    expect(codes(result.reasons)).toEqual(["LOCK_NOT_ACQUIRED"]);
+    expect(representativeStatus(result.reasons)).toBe("ENV_MISMATCH");
+    expect(result.details.server_tree).toBe("NOT_PREPARED");
+    // 범위 E 자체는 트리와 무관하게 계산된다.
+    expect(result.details.scope_included).toBe(scanPaths().length);
+  });
+
+  it("잠금을 가졌으면(lockHeld true) treeNotPrepared를 무시하고 트리를 검증한다 — 검증하지 않은 트리로 통과하는 경로가 없다(독립 검토 F2)", async () => {
+    const world = await makeWorld(noTree);
+    const result = await check(world, { lockHeld: true, treeNotPrepared: true });
+    expect(codes(result.reasons)).toContain("SCAN_TREE_FILE_MISSING");
+    expect(representativeStatus(result.reasons)).toBe("MANIFEST_MISMATCH");
+    expect(result.details).not.toHaveProperty("server_tree");
+    // 건너뛸 때(잠금 없음)는 언제나 LOCK_NOT_ACQUIRED가 함께 있다.
+    for (const lockHeld of [false, null] as const) {
+      const skipped = await check(world, { lockHeld, treeNotPrepared: true });
+      expect(codes(skipped.reasons)).toContain("LOCK_NOT_ACQUIRED");
+    }
+  });
+
+  it("control 모드: 비어 있는 대조 트리는 판정하지 않지만 정적 입력의 바이트 확인은 그대로 한다", async () => {
+    const empty = Object.fromEntries(controlExpectations.cases.map((c) => [c.path, null]));
+    const clean = await makeWorld({ controlTreeOverrides: empty });
+    const ok = await check(clean, {
+      mode: "control",
+      targetSha: null,
+      lockHeld: false,
+      treeNotPrepared: true,
+    });
+    expect(codes(ok.reasons)).toEqual(["LOCK_NOT_ACQUIRED"]);
+    expect(ok.details.server_tree).toBe("NOT_PREPARED");
+    expect(ok.details.control_tree_sha256).toBeNull();
+
+    const fixture = controlExpectations.cases[0].fixture;
+    const tampered = await makeWorld({
+      controlTreeOverrides: empty,
+      controlSourceOverride: { [fixture]: "// 바이트가 달라졌다\n" },
+    });
+    const bad = await check(tampered, {
+      mode: "control",
+      targetSha: null,
+      lockHeld: false,
+      treeNotPrepared: true,
+    });
+    expect(codes(bad.reasons)).toEqual(["CONTROL_TREE_MISMATCH", "LOCK_NOT_ACQUIRED"]);
   });
 });
 

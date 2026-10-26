@@ -16,6 +16,12 @@
 
 import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import {
+  canonicalTreePath,
+  platformCaseInsensitive,
+  treeKeyOf,
+  type PathOps,
+} from "./run-lock-node";
 import type { FsPort } from "./types";
 
 function compareBytes(a: string, b: string): number {
@@ -45,8 +51,22 @@ async function walk(dir: string, prefix: string, out: string[]): Promise<void> {
   }
 }
 
-export function createNodeFs(): FsPort {
+export interface NodeFsOptions {
+  /** 경로 해석 기능. 기본은 운영체제. 시험이 POSIX 의미를 모의하려고 바꿀 수 있다(run-lock-node.ts의 PathOps). */
+  pathOps?: PathOps;
+  /** 대소문자를 구분하지 않는 플랫폼인가. 기본은 win32·darwin. */
+  caseInsensitive?: boolean;
+}
+
+export function createNodeFs(options: NodeFsOptions = {}): FsPort {
+  const caseInsensitive = options.caseInsensitive ?? platformCaseInsensitive();
   return {
+    // 공유 실행 잠금의 키와 같은 해석(canonicalTreePath)이다: `..`를 링크보다 먼저 지우지 않고 존재하는 가장 긴 접두를 운영체제
+    // realpath에 맡기며, 끊어진 링크 등 안전하게 풀 수 없는 경로는 던진다. 읽기만 한다.
+    async physicalKey(path) {
+      return treeKeyOf(await canonicalTreePath(path, options.pathOps), caseInsensitive);
+    },
+
     async readFile(path) {
       // Buffer 대신 순수 Uint8Array 사본을 돌려준다(MemoryFs와 같은 타입, 풀 메모리를 공유하지 않는다).
       return new Uint8Array(await readFile(path));
