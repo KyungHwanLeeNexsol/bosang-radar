@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
-import { runHarness, type HarnessOptions } from "./harness";
+import { isSameOrInside, runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import { createNodeProcessPort } from "./process-node";
 import { loadControlReference } from "./reference-record";
@@ -557,6 +557,12 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   const evidenceDir = joinPath(evidenceRoot, runId);
   // 공유 잠금의 범위는 서버가 스캔하는 트리 하나다: target은 스캔 트리, control은 대조 트리.
   const serverTree = mode === "target" ? scanRoot : controlTreeRoot;
+  // 증거(run.marker 포함)는 서버 트리 밖에 쓴다. 잠금을 얻기 전에 거절한다.
+  if (isSameOrInside(evidenceDir, serverTree)) {
+    throw new UsageError(
+      "--evidence-root 아래의 실행 폴더가 서버 트리(--scan-root·--control-tree-root)와 같거나 그 안에 있다"
+    );
+  }
 
   // 3. 자원: 공유 실행 잠금 → 실행별 증거 표지 → 루프백 수신기. 어떤 경로(정상·사전 검사 거부·예외·취소)로 끝나도 finally가
   // 정리한다. 잠금은 얻은 실행만 자기 토큰으로 해제하고, 오래된 잠금을 자동으로 지우지 않는다.

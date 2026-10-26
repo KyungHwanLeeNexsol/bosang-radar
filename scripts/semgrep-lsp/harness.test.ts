@@ -1,11 +1,24 @@
 import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { VirtualClock } from "./clock";
+import { createNodeFs } from "./fs-node";
+import { acquireRunLock, releaseRunLock } from "./run-lock";
+import { createNodeRunLockPort } from "./run-lock-node";
+import { routedFs } from "./testing/routed-fs";
 import { REASON_EMITTERS } from "./evaluate";
 import { DEFAULT_NOT_EXECUTED, EVIDENCE_FILE_NAMES, canonicalJson } from "./evidence";
 import { buildBinding } from "./fingerprint";
-import { runHarness, toControlReference, type HarnessOptions, type HarnessResult } from "./harness";
+import {
+  isSameOrInside,
+  runHarness,
+  toControlReference,
+  type HarnessOptions,
+  type HarnessResult,
+} from "./harness";
 import { startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import { controlReferenceFromValue, loadControlReference } from "./reference-record";
 import { buildInitializationOptions } from "./settings";
@@ -210,6 +223,9 @@ interface EnvInput {
   /** 이 파일들은 만들지 않는다. */
   without?: string[];
   scanRoot?: string;
+  controlTreeRoot?: string;
+  /** 실제 디스크 I/O가 섞인 실행이다: 가상 시계만 돌리지 않고 실제 I/O가 끝나기를 기다린다. */
+  realIo?: boolean;
   wrapFs?: (inner: MemoryFs) => FsPort;
   wrapPort?: (inner: FakePort) => ProcessPort;
   gitCommits?: ConstructorParameters<typeof MemoryGit>[0];
@@ -223,7 +239,7 @@ async function makeEnv(input: EnvInput): Promise<Env> {
   const clock = new VirtualClock();
   const sha = input.sha ?? SHA_A;
   const scanRoot = input.scanRoot ?? `/scan/${sha.slice(0, 7)}`;
-  const controlTreeRoot = "/ctl";
+  const controlTreeRoot = input.controlTreeRoot ?? "/ctl";
 
   let spec: HappySpec;
   if (input.mode === "target") {
@@ -301,8 +317,36 @@ async function makeEnv(input: EnvInput): Promise<Env> {
     stubs,
     script,
     options,
-    go: () => drive(clock, runHarness({ fs, git, process, clock }, options)),
+    go: () =>
+      (input.realIo ? driveWithRealIo : drive)(
+        clock,
+        runHarness({ fs, git, process, clock }, options)
+      ),
   };
+}
+
+/**
+ * drive()의 실제 I/O 판. 실제 디스크 I/O는 이벤트 루프 밖에서 끝나므로 약속 연쇄만 비워서는 기다릴 수 없다. 가상 타이머가 남아
+ * 있으면(세션이 한도를 기다리는 중) 시간을 보내고, 없으면 실제로 잠깐 기다리며 I/O가 끝나기를 본다.
+ */
+async function driveWithRealIo<T>(clock: VirtualClock, promise: Promise<T>): Promise<T> {
+  let done = false;
+  void promise.then(
+    () => {
+      done = true;
+    },
+    () => {
+      done = true;
+    }
+  );
+  for (let turn = 0; turn < 5000 && !done; turn += 1) {
+    await clock.flush();
+    if (done) break;
+    if (clock.pendingTimers > 0) await clock.advance(3_600_000);
+    else await new Promise<void>((resolve) => setTimeout(resolve, 2));
+  }
+  if (!done) throw new Error("실행이 끝나지 않았다(실제 I/O를 기다려도 약속이 이행되지 않는다)");
+  return promise;
 }
 
 async function evidenceFiles(env: Env, runId = "run-harness-1"): Promise<Record<string, string>> {
@@ -1804,4 +1848,186 @@ describe("runHarness — 판정 시점의 루프백 수신 관측과 자원 요�
       expect(r.record?.resources?.metrics_receiver).toMatchObject({ state: "CLOSED", hits: 0 });
     });
   });
+});
+
+// ── 잠금 없이는 서버 트리를 만들거나 바꾸지 않는다(실제 디스크) ─────────────────────
+//
+// 서버 트리(target은 스캔 트리, control은 대조 트리)만 실제 디스크에 두고 나머지(고정 입력·증거·규칙 캐시)는 메모리에 둔다.
+// 다른 실행이 잡은 잠금은 실제 노드 포트로 얻는다. 하네스를 직접 부르므로 CLI가 아닌 호출자도 같은 보장을 받는지 확인한다.
+
+interface DiskTree {
+  exists: boolean;
+  dirs: string[];
+  files: Record<string, string>;
+}
+
+async function walkDisk(root: string, rel: string, out: DiskTree): Promise<void> {
+  for (const entry of await readdir(join(root, rel), { withFileTypes: true })) {
+    const path = rel === "" ? entry.name : `${rel}/${entry.name}`;
+    if (entry.isDirectory()) {
+      out.dirs.push(path);
+      await walkDisk(root, path, out);
+    } else {
+      out.files[path] = sha256Hex(new Uint8Array(await readFile(join(root, path))));
+    }
+  }
+}
+
+/** 실제 디스크 트리의 스냅샷: 존재 여부·디렉터리 목록·파일별 바이트 해시. 없으면 exists:false. */
+async function snapshotDisk(root: string): Promise<DiskTree> {
+  try {
+    await stat(root);
+  } catch {
+    return { exists: false, dirs: [], files: {} };
+  }
+  const out: DiskTree = { exists: true, dirs: [], files: {} };
+  await walkDisk(root, "", out);
+  out.dirs.sort();
+  return out;
+}
+
+describe("runHarness — 잠금 없이는 서버 트리를 만들거나 바꾸지 않는다(실제 디스크)", () => {
+  let base = "";
+  afterAll(async () => {
+    if (base !== "") await rm(base, { recursive: true, force: true });
+  });
+
+  async function caseDir(): Promise<string> {
+    base = base || (await mkdtemp(join(tmpdir(), "semgrep-lsp-harness-lock-")));
+    return (await mkdtemp(join(base, "case-"))).replace(/\\/g, "/");
+  }
+  const treeOf = (mode: "target" | "control", dir: string): string =>
+    `${dir}/${mode === "target" ? "scan" : "ctl"}`;
+
+  function diskEnv(mode: "target" | "control", dir: string, options: Partial<HarnessOptions>) {
+    return makeEnv({
+      mode,
+      scanRoot: `${dir}/scan`,
+      controlTreeRoot: `${dir}/ctl`,
+      options,
+      realIo: true,
+      wrapFs: (memory) => routedFs(memory, createNodeFs(), dir),
+    });
+  }
+
+  async function writeDisk(path: string, data: string | Uint8Array): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, data);
+  }
+
+  /** 하네스가 만들었을 내용과 같은 파일로 미리 채워 둔다(이미 파일이 있는 트리). */
+  async function populate(mode: "target" | "control", tree: string): Promise<void> {
+    if (mode === "target") {
+      for (const path of EXPECTED_E[SHA_A])
+        await writeDisk(`${tree}/${path}`, reposByCommit[SHA_A][path]);
+    } else {
+      for (const c of controlExpectations.cases) {
+        await writeDisk(`${tree}/${c.path}`, fixtureBytes(c.fixture));
+      }
+    }
+  }
+
+  const sortedNames = async (dir: string): Promise<string[]> => (await readdir(dir)).sort();
+
+  for (const mode of ["target", "control"] as const) {
+    for (const state of ["absent", "populated"] as const) {
+      for (const lockHeld of [false, null] as const) {
+        it(`${mode} 모드·트리 ${state}·lockHeld=${String(lockHeld)}: 다른 실행이 잠금을 쥐고 있으면 보호 트리를 만들거나 바꾸지 않고 LOCK_NOT_ACQUIRED로 거부한다`, async () => {
+          const dir = await caseDir();
+          const tree = treeOf(mode, dir);
+          if (state === "populated") await populate(mode, tree);
+          const owner = await acquireRunLock(createNodeRunLockPort(), {
+            treePath: tree,
+            runId: "owner-run",
+            mode,
+          });
+          if (owner.state !== "ACQUIRED") throw new Error(`전제: ${owner.state}`);
+          try {
+            const lockBytes = await readFile(owner.handle.lockPath, "utf8");
+            const treeBefore = await snapshotDisk(tree);
+            const parentBefore = await sortedNames(dir);
+            expect(treeBefore.exists).toBe(state === "populated");
+
+            const env = await diskEnv(mode, dir, { lockHeld, lockRefusal: "HELD_BY_OTHER" });
+            const r = await env.go();
+
+            // 거절 사유와 자기 증거는 그대로 남는다.
+            expect(r.ok).toBe(true);
+            expect(r.started).toBe(false);
+            expect(env.port.spawnCalls).toHaveLength(0);
+            expect(r.record?.measurement.status).toBe("ENV_MISMATCH");
+            expect(reasonCodes(r)).toEqual(["LOCK_NOT_ACQUIRED"]);
+            expect(Object.keys(await evidenceFiles(env))).toEqual([...EVIDENCE_FILE_NAMES]);
+            // 보호 트리·그 부모·소유자의 잠금 파일은 실행 전과 같다.
+            expect(await snapshotDisk(tree)).toEqual(treeBefore);
+            expect(await sortedNames(dir)).toEqual(parentBefore);
+            expect(await readFile(owner.handle.lockPath, "utf8")).toBe(lockBytes);
+          } finally {
+            await releaseRunLock(createNodeRunLockPort(), owner.handle);
+          }
+        });
+      }
+    }
+  }
+
+  for (const mode of ["target", "control"] as const) {
+    it(`${mode} 모드: 증거 폴더가 서버 트리 안에 있으면 하드 실패이고 잠금이 없어도 있어도 트리에 아무것도 쓰지 않는다(독립 검토 F3)`, async () => {
+      for (const lockHeld of [false, true]) {
+        const dir = await caseDir();
+        const tree = treeOf(mode, dir);
+        const env = await diskEnv(mode, dir, { lockHeld, evidenceRoot: `${tree}/ev` });
+        const r = await env.go();
+        expect(r.ok).toBe(false);
+        expect(r.failure?.stage).toBe("config");
+        expect(r.started).toBe(false);
+        expect(await snapshotDisk(tree)).toEqual({ exists: false, dirs: [], files: {} });
+      }
+    });
+  }
+
+  it("서버 트리와 증거 폴더 비교: 같거나 안이면 겹침이고, 이름만 비슷하거나 바깥이면 겹침이 아니다", () => {
+    expect(isSameOrInside("/a/scan", "/a/scan")).toBe(true);
+    expect(isSameOrInside("/a/scan/ev/run-1", "/a/scan")).toBe(true);
+    expect(isSameOrInside("/a/scan//ev/", "/a/scan/")).toBe(true);
+    expect(isSameOrInside("C:\\A\\Scan\\ev", "c:/a/scan")).toBe(true);
+    expect(isSameOrInside("/a/scan-2/ev", "/a/scan")).toBe(false);
+    expect(isSameOrInside("/a/ev", "/a/scan")).toBe(false);
+    expect(isSameOrInside("/a", "/a/scan")).toBe(false);
+  });
+
+  it("이미 파일이 있는 스캔 트리는 잠금이 없어도 읽기만 한다: 어긋남은 사유로 남고 파일은 그대로다", async () => {
+    const dir = await caseDir();
+    const tree = treeOf("target", dir);
+    await populate("target", tree);
+    await writeDisk(`${tree}/src/extra.ts`, "export const extra = 0;\n");
+    const before = await snapshotDisk(tree);
+    const env = await diskEnv("target", dir, { lockHeld: false });
+    const r = await env.go();
+    expect(r.started).toBe(false);
+    expect(reasonCodes(r)).toEqual(["LOCK_NOT_ACQUIRED", "SCAN_TREE_FILE_ADDED"]);
+    expect(await snapshotDisk(tree)).toEqual(before);
+  });
+
+  for (const mode of ["target", "control"] as const) {
+    it(`${mode} 모드: 잠금을 가진 정상 소유자(lockHeld=true)는 실제 디스크에 트리를 준비하고 COMPLETE까지 간다`, async () => {
+      const dir = await caseDir();
+      const tree = treeOf(mode, dir);
+      const env = await diskEnv(mode, dir, { lockHeld: true });
+      const r = await env.go();
+      expect(r.failure).toBeUndefined();
+      expect(r.started).toBe(true);
+      expect(r.record?.measurement.status).toBe("COMPLETE");
+
+      const after = await snapshotDisk(tree);
+      expect(after.exists).toBe(true);
+      const expected: Record<string, string> = {};
+      if (mode === "target") {
+        for (const p of EXPECTED_E[SHA_A]) expected[p] = sha256Hex(reposByCommit[SHA_A][p]);
+      } else {
+        for (const c of controlExpectations.cases)
+          expected[c.path] = sha256Hex(fixtureBytes(c.fixture));
+      }
+      expect(after.files).toEqual(expected);
+    });
+  }
 });

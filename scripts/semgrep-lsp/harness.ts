@@ -126,7 +126,11 @@ export interface HarnessOptions {
   /** 호출자가 관측한 사실. null은 "관측하지 못함"이며 해당 fail-closed 사유가 된다. */
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
-  /** 호출자가 공유 실행 잠금(과 실행별 증거 표지)을 얻었는가. null은 확인하지 못함이며 LOCK_NOT_ACQUIRED가 된다. */
+  /**
+   * 호출자가 공유 실행 잠금(과 실행별 증거 표지)을 얻었는가. null은 확인하지 못함이며 LOCK_NOT_ACQUIRED가 된다.
+   * **true일 때만** 하네스가 서버 트리(스캔 트리·대조 트리)를 만들거나 쓴다. false·null이면 트리의 존재 여부·파일 목록·
+   * 파일 바이트에 손대지 않고 사전 검사가 거부한다.
+   */
   lockHeld: boolean | null;
   /** 잠금을 얻지 못한 이유 토큰(사전 검사 사유 상세에만 쓴다). */
   lockRefusal?: string | null;
@@ -176,6 +180,21 @@ const decoder = new TextDecoder();
 
 function joinPath(root: string, name: string): string {
   return `${root.replace(/[\\/]+$/, "")}/${name}`;
+}
+
+function unifyPath(path: string): string {
+  const unified = path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/, "");
+  return /^[A-Za-z]:/.test(unified) ? unified.toLowerCase() : unified; // 드라이브 경로는 대소문자를 구분하지 않는다(Windows)
+}
+
+/**
+ * path가 root와 같거나 그 안인가(사전식 비교: 링크·`..`는 풀지 않는다). 증거 폴더가 서버 트리 안에 있으면 증거 쓰기가 잠금 없이
+ * 서버 트리를 바꾸게 되므로, 하네스와 CLI가 이 검사로 그런 설정을 거절한다.
+ */
+export function isSameOrInside(path: string, root: string): boolean {
+  const p = unifyPath(path);
+  const r = unifyPath(root);
+  return p === r || p.startsWith(`${r}/`);
 }
 
 function collectSecrets(options: HarnessOptions): string[] {
@@ -420,6 +439,12 @@ async function execute(
   const mode = options.mode;
   const evidenceDir = joinPath(options.evidenceRoot, options.runId);
 
+  // 증거는 서버 트리 밖에 쓴다: 안에 쓰면 잠금이 없는 실행도 다른 실행의 트리에 파일을 만들게 된다(서버 트리는 E에 해당하는 파일만
+  // 담아야 하기도 하다).
+  if (isSameOrInside(evidenceDir, mode === "target" ? options.scanRoot : options.controlTreeRoot)) {
+    throw new HardFailure("config", "증거 폴더가 서버 트리와 같거나 그 안에 있다");
+  }
+
   // 이미 있는 증거는 서버를 띄우기 전에 거부한다(덮어쓰지 않는다 — 쓰는 단계에서 알면 이미 늦다).
   for (const name of EVIDENCE_FILE_NAMES) {
     if (await fs.exists(joinPath(evidenceDir, name))) {
@@ -516,6 +541,11 @@ async function execute(
   };
 
   // 3. 범위 E와 스캔 트리 / 대조 트리. 무결성 예외는 하드 실패로 올라간다.
+  //
+  // 서버 트리(target은 스캔 트리, control은 대조 트리)를 만들거나 쓰는 것은 유효한 잠금을 가진 호출자(lockHeld === true)뿐이다.
+  // 잠금을 얻지 못했거나(false) 확인하지 못했으면(null) 트리의 존재 여부·파일 목록·파일 바이트에 손대지 않는다 — 그 트리는
+  // 지금 다른 실행의 것일 수 있다. 이 보장은 CLI가 아니라 여기에 있어서 runHarness를 직접 부르는 호출자도 같은 보호를 받는다.
+  const mayWriteServerTree = options.lockHeld === true;
   let scope: ScopeResult | null = null;
   let resolvedSha: string | null = null;
   const treeReasons: Reason[] = [];
@@ -526,12 +556,12 @@ async function execute(
         if (resolved.ok) {
           resolvedSha = resolved.sha;
           scope = await computeScope(git, resolved.sha, scopeConfig);
-          if (!(await hasFiles(fs, options.scanRoot))) {
+          if (mayWriteServerTree && !(await hasFiles(fs, options.scanRoot))) {
             await buildScanTree(fs, git, scope, options.scanRoot);
           }
         }
       }
-    } else if (!(await hasFiles(fs, options.controlTreeRoot))) {
+    } else if (mayWriteServerTree && !(await hasFiles(fs, options.controlTreeRoot))) {
       treeReasons.push(
         ...(await buildControlTree(fs, {
           expectations: controlExpectations,
@@ -543,6 +573,10 @@ async function execute(
   } catch (error) {
     throw new HardFailure("scope", errorText(error));
   }
+  // 잠금이 없어서 준비를 보류한 빈 트리. 비어 있는 것은 어긋남이 아니라 "준비하지 않음"이므로 사전 검사가 내용을 판정하지 않는다
+  // (판정하면 MANIFEST_MISMATCH가 진짜 원인인 LOCK_NOT_ACQUIRED(ENV_MISMATCH)를 대표 상태에서 밀어낸다). 이미 파일이 있는 트리는
+  // 예전처럼 읽기만 하고 판정한다.
+  const treeNotPrepared = !mayWriteServerTree && !(await hasFiles(fs, serverRoot));
 
   const targetShaForRun = mode === "target" ? (resolvedSha ?? options.targetSha) : null;
   const runSpec = {
@@ -579,6 +613,7 @@ async function execute(
       wheelSha256Observed: options.wheelSha256Observed,
       lockHeld: options.lockHeld,
       lockRefusal: options.lockRefusal ?? null,
+      treeNotPrepared,
       foreignServerProcesses: options.foreignServerProcesses,
       evidenceRoot: evidenceDir,
     }
