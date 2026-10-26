@@ -56,6 +56,7 @@ import {
   ownRow,
   parentRow,
   plainRow,
+  row as processRow,
   serverRow,
   snapshotOf,
   versionRow,
@@ -71,9 +72,12 @@ import {
 import { drive } from "./testing/stub-lsp";
 import { AsyncByteQueue } from "./streams";
 import { createNodeProcessPort } from "./process-node";
+import { createProcProcessLister } from "./process-list-node";
+import { MemoryProcFs, cmdlineOf, statusText } from "./testing/memory-procfs";
 import type { ArtifactHashPort } from "./tool-observation";
 import type {
   ChildHandle,
+  Clock,
   ForeignServerObservationSummary,
   GitPort,
   ProcessLister,
@@ -3895,6 +3899,141 @@ describe("main — run: 같은 트리의 다른 서버 프로세스 관측", () 
     expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
     expect(w.spawnCalls).toEqual([]);
     await expectTreeUntouched(w);
+  });
+
+  it("인자 탐색 한도를 넘는 Python 실행기(한도 뒤에만 semgrep lsp)는 0건이 아니라 미확인이다 — 트리 준비 쓰기도 서버 기동도 없다", async () => {
+    // 외부 재현: python3 + 4095칸 + -m semgrep lsp (총 4099칸), 작업 폴더 = 서버 트리.
+    const args = ["python3", ...Array.from({ length: 4095 }, () => "-u"), "-m", "semgrep", "lsp"];
+    expect(args).toHaveLength(4099);
+    const huge = processRow({
+      pid: 601,
+      ppid: 1,
+      name: "python3",
+      executable: "/usr/bin/python3",
+      args,
+      cwd: SCAN_TREE,
+    });
+    const w = world(listerOf([...baseRows, huge]));
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "INCONCLUSIVE",
+      foreign_server_processes: null,
+      undetermined_reasons: { ARGS_SCAN_LIMIT: 1 },
+      counts: { role_undetermined: 1, servers_same_tree: 0 },
+    });
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(
+      b.record?.measurement.reasons.find((r) => r.code === "FOREIGN_SERVER_PROCESS")?.detail
+    ).toContain("확인하지 못했다");
+    expect(b.started).toBe(false);
+    expect(w.spawnCalls).toEqual([]); // LSP 서버 기동 시도 자체가 없다
+    await expectTreeUntouched(w); // 서버 트리 준비 쓰기도 없다
+    expect((await runOf(w)).resources?.foreign_server_observation).toEqual(
+      b.foreign_server_observation
+    );
+    // 인자 원문은 출력에도 증거에도 없다.
+    expect(JSON.stringify(await runOf(w)) + w.out.join("")).not.toContain("python3");
+  });
+
+  it("한도 안에서 끝까지 본 무관한 긴 인자는 그대로 0건으로 확정되어 트리를 준비한다(기존 판정 유지)", async () => {
+    const quiet = processRow({
+      pid: 601,
+      ppid: 1,
+      name: "python3",
+      executable: "/usr/bin/python3",
+      args: ["python3", ...Array.from({ length: 4095 }, () => "-u")], // 길이 = 한도(4096)
+      cwd: SCAN_TREE,
+    });
+    const w = world(listerOf([...baseRows, quiet]));
+    await main(argv(), w.deps);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "OBSERVED",
+      foreign_server_processes: 0,
+    });
+    expect(codesOf(b)).not.toContain("FOREIGN_SERVER_PROCESS");
+    expect((await w.fs.listFilesRecursive(SCAN_TREE)).length).toBeGreaterThan(0);
+    expect(w.spawnCalls).toHaveLength(1);
+  });
+
+  describe("/proc 어댑터가 마지막 배치에서 기한을 넘기면(외부 재현) TIMEOUT이 관측 요약과 null로 이어진다", () => {
+    /** 하네스(OWN_PID)와 부모가 있는 메모리 /proc. 마지막 PID를 읽는 순간 시각이 `finishAt`이 된다. */
+    function procLister(finishAt: number, extraProcesses = 0): ProcessLister {
+      const procFs = new MemoryProcFs()
+        .add(100, {
+          status: statusText("bash", 1),
+          cmdline: cmdlineOf("bash"),
+          exe: "/usr/bin/bash",
+          cwd: "/repo",
+        })
+        .add(OWN_PID, {
+          status: statusText("node", 100),
+          cmdline: cmdlineOf("node", "cli.ts"),
+          exe: "/usr/bin/node",
+          cwd: "/repo",
+        });
+      const last = OWN_PID + extraProcesses;
+      for (let pid = OWN_PID + 1; pid <= last; pid++) {
+        procFs.add(pid, {
+          status: statusText("sleep", 1),
+          cmdline: cmdlineOf("sleep", "1"),
+          exe: "/usr/bin/sleep",
+          cwd: "/",
+        });
+      }
+      let now = 0;
+      const clock: Clock = {
+        now: () => now,
+        setTimer: () => ({ cancel() {} }),
+        sleep: async () => {},
+      };
+      const readFile = procFs.readFile.bind(procFs);
+      procFs.readFile = async (path: string) => {
+        if (path === `/proc/${last}/status`) now = finishAt;
+        return readFile(path);
+      };
+      return createProcProcessLister({
+        procFs,
+        clock,
+        provenance: "stub",
+        limits: { timeoutMs: 5000 },
+      });
+    }
+
+    for (const [label, extra] of [
+      ["한 배치뿐", 0],
+      ["여러 배치의 마지막", 70],
+    ] as const) {
+      it(`${label}: 기한(5000ms)을 넘겨 끝나면 거부되고, 트리 준비 쓰기도 서버 기동도 없다 (기한 안 대조군은 0건 확정)`, async () => {
+        const late = world(procLister(6000, extra));
+        expect(await main(argv(), late.deps)).toBe(EXIT.failed);
+        const b = bodyOf(late);
+        expect(b.foreign_server_observation).toMatchObject({
+          status: "FAILED",
+          failure: "TIMEOUT",
+          foreign_server_processes: null,
+          listing: { source: "linux-proc", rows: null },
+        });
+        expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+        expect(b.started).toBe(false);
+        expect(late.spawnCalls).toEqual([]);
+        await expectTreeUntouched(late);
+        expect((await runOf(late)).resources?.foreign_server_observation).toEqual(
+          b.foreign_server_observation
+        );
+
+        // 대조군: 같은 세계에서 기한 안에 끝나면 0건으로 확정되어 트리를 준비하고 서버 기동을 시도한다.
+        const inTime = world(procLister(5000, extra));
+        await main(argv(), inTime.deps);
+        expect(bodyOf(inTime).foreign_server_observation).toMatchObject({
+          status: "OBSERVED",
+          foreign_server_processes: 0,
+        });
+        expect((await inTime.fs.listFilesRecursive(SCAN_TREE)).length).toBeGreaterThan(0);
+        expect(inTime.spawnCalls).toHaveLength(1);
+      });
+    }
   });
 
   it("다른 서버 후보가 보이지 않고 0건으로 확정되면: 거부 사유에서 빠지고, 서버 트리를 준비하며, 서버 기동을 시도한다(버전 확인·검사는 서버가 아니다)", async () => {

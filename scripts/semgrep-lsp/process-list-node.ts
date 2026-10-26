@@ -6,7 +6,8 @@
 //  · win32: ProcessPort로 `powershell.exe`(SystemRoot 아래 고정 경로, PATH 탐색 없음)를 셸 없이 인자 배열로 한 번 실행해 Win32_Process를 읽는다
 //    (스크립트는 process-list.ts). 시간 제한·출력 크기 제한·취소를 지키고 어떤 경로로 끝나도 dispose한다. 작업 폴더는 알 수 없다(null).
 //  · linux: /proc을 읽는다(디렉터리 나열, status·cmdline, exe·cwd 링크). 다른 사용자의 exe·cwd는 권한이 없어 null이다. 읽는 도중 사라진
-//    프로세스는 vanished로 표시한다. hidepid로 숨겨진 프로세스·다른 PID 이름공간은 보이지 않는다.
+//    프로세스는 vanished로 표시한다. hidepid로 숨겨진 프로세스·다른 PID 이름공간은 보이지 않는다. 시간·취소는 읽기가 돌아온 뒤 배치 사이와 마지막
+//    배치 뒤에 확인한다(기한을 넘겨 끝난 목록은 TIMEOUT이다. 돌아오지 않는 읽기를 끊지는 못한다).
 //  · 그 밖(darwin 등): 지원하지 않는다 — UNSUPPORTED_PLATFORM이며 호출자는 null(미확인)로 다룬다. macOS는 검증하지 않았다.
 //
 // 공개 API:
@@ -309,6 +310,8 @@ export function createProcProcessLister(options: ProcListerOptions): ProcessList
     source: "linux-proc",
     async list({ signal }: { signal?: AbortSignal }): Promise<ProcessListResult> {
       if (signal?.aborted) return fail("CANCELLED");
+      // 기한 = 조회 시작 시각 + timeoutMs. 끝난 시각이 기한을 **넘으면**(경과 > timeoutMs) TIMEOUT이고, 정확히 timeoutMs에 끝난 조회는 기한 안이다.
+      // 시각은 읽기가 돌아온 뒤에만 확인한다 — 돌아오지 않는 읽기를 끊지는 않는다(범위 밖).
       const deadline = clock.now() + limits.timeoutMs;
 
       let entries: string[];
@@ -344,7 +347,9 @@ export function createProcProcessLister(options: ProcListerOptions): ProcessList
           rows.push(row);
         }
       }
+      // 반복 앞의 검사는 다음 배치를 읽기 전에만 시각을 본다. 마지막 배치가 기한을 넘겨 끝나도 성공 목록을 내보내지 않도록 같은 기준으로 한 번 더 본다.
       if (signal?.aborted) return fail("CANCELLED");
+      if (clock.now() > deadline) return fail("TIMEOUT");
       return {
         ok: true,
         snapshot: { source: "linux-proc", parentLinkNeedsStartTime: false, rows },

@@ -11,10 +11,12 @@
 // ── 판별 근거 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 //  1) 자기 자신 구분: 하네스 프로세스(ownPid), 그 조상, 그 자손(조회 자식 포함)은 "다른" 프로세스가 아니다. Windows에서는 부모 PID가
 //     재사용되므로 부모 시작 시각이 자식보다 늦지 않을 때만 부모-자식으로 본다. 목록에 ownPid가 없으면 목록을 믿지 않는다.
-//  2) 역할: 인자 배열 **전체**(요소 단위, 비정상적으로 긴 목록만 자른다)에서 Semgrep 프로그램 이름(semgrep·pysemgrep·osemgrep·semgrep-core·
-//     semgrep-cli, 확장자·`-script` 제거, 대소문자 무시, `-m 모듈` 포함)을 찾고 그 뒤 인자를 본다. 실행기 옵션이나 공백이 든 경로가 이름을 앞쪽 몇 칸
-//     밖으로 밀어내도 놓치지 않기 위해서다.
+//  2) 역할: 인자 배열(요소 단위, 앞쪽 MAX_ARGS_SCANNED칸)에서 Semgrep 프로그램 이름(semgrep·pysemgrep·osemgrep·semgrep-core·
+//     semgrep-cli, 확장자·`-script` 제거, 대소문자 무시, `-m 모듈` 포함)을 찾고 그 뒤 인자 **전체**를 본다. 실행기 옵션이나 공백이 든 경로가 이름을
+//     앞쪽 몇 칸 밖으로 밀어내도 놓치지 않기 위해서다.
 //       · `lsp`(또는 `-lsp`)가 있다 → SERVER. · 없고 `--version`이 있다 → VERSION_CHECK(서버가 아니다). · 그 밖 → OTHER(검사 등).
+//       · 한도를 넘는 목록에서 앞쪽 MAX_ARGS_SCANNED칸에 이름이 없다 → UNSCANNED(다 보지 못함). 못 본 칸에 `semgrep lsp`가 있을 수 있으므로
+//         이미지 이름과 무관하게 판별 불가다(ARGS_SCAN_LIMIT) — 한도를 늘려서 가리지 않고, 못 본 부분을 서버 부재의 근거로 쓰지 않는다.
 //     프로그램 이름이 인자에 없어도 이미지 이름·실행 파일이 Semgrep 이름이거나 --semgrep-bin과 같은 이름이면 **후보**지만 역할을 알 수 없다.
 //     인자를 읽지 못한(또는 비어 있는) 프로세스는 이미지 이름·실행 파일이 Semgrep 이름이거나 Python 계열 실행기(python·pypy·py·uv·uvx·pipx)일 때만
 //     후보다. 살아 있는데 이름·실행 파일·인자를 모두 읽지 못한 프로세스는 무엇인지 알 수 없으므로 후보로 본다(ROW_UNREADABLE).
@@ -29,7 +31,7 @@
 // ── 판별 불가 조건(하나라도 있으면 건수를 0으로 채우지 않고 null) ───────────────────────────────────────────────────────────
 //  · 목록을 읽지 못함(미지원 환경·실행 실패·권한 부족·시간 초과·출력 한도·출력 파손·취소·읽기 실패) 또는 목록에 자기 자신이 없음.
 //  · 보이는 서버 후보가 같은 트리로 확인되지 않음(위 3).
-//  · 후보인데 역할을 알 수 없음(ARGS_UNAVAILABLE·ROLE_UNCLEAR·ROW_UNREADABLE) 또는 후보를 읽는 도중 사라짐(CANDIDATE_VANISHED).
+//  · 후보인데 역할을 알 수 없음(ARGS_UNAVAILABLE·ARGS_SCAN_LIMIT·ROLE_UNCLEAR·ROW_UNREADABLE) 또는 후보를 읽는 도중 사라짐(CANDIDATE_VANISHED).
 //  · 같은 트리의 서버가 확인되면 건수(숫자)를 돌려주되 다른 미확인 후보가 있으면 count_is_lower_bound로 표시한다.
 //
 // ── 0이 뜻하는 것 / 세워 주지 않는 것 ───────────────────────────────────────────────────────────────────────────────────────
@@ -59,9 +61,10 @@ import type {
 
 /**
  * 인자 배열에서 Semgrep 프로그램 이름을 찾는 상한(요소 수). 실행기 옵션(`python -W ignore -X utf8 -u -m semgrep`, `uv run --python 3.12 semgrep`)이나
- * 따옴표 없이 공백이 든 Windows 경로가 프로그램 이름을 앞쪽 몇 칸 밖으로 밀어내도 놓치지 않도록 인자 전체를 본다(비정상적으로 긴 목록만 자른다).
+ * 따옴표 없이 공백이 든 Windows 경로가 프로그램 이름을 앞쪽 몇 칸 밖으로 밀어내도 놓치지 않도록 인자 전체를 보되, 비정상적으로 긴 목록은 여기까지만 본다.
+ * 한도를 넘는 목록에서 이 안에 이름이 없으면 "없음"이 아니라 "다 보지 못함"(UNSCANNED)이다 — 못 본 칸이 서버 부재의 근거가 되지 않는다.
  */
-const MAX_ARGS_SCANNED = 4096;
+export const MAX_ARGS_SCANNED = 4096;
 /** 부모 연결을 따라가는 최대 단계(순환·비정상 자료에서 멈춘다). */
 const MAX_CHAIN = 256;
 
@@ -89,7 +92,11 @@ export function programIdOf(pathOrName: string): string {
   return id.replace(/-script$/, "");
 }
 
-export type ArgvRole = "SERVER" | "VERSION_CHECK" | "OTHER" | "NONE";
+/**
+ * NONE: 인자를 모두 보았고 Semgrep 프로그램 이름이 없다. UNSCANNED: 앞쪽 MAX_ARGS_SCANNED칸에 이름이 없고 목록이 그보다 길다 — 못 본 칸에
+ * 있을지 모르므로 "없음"이 아니다(호출자는 이를 판별 불가로 다룬다).
+ */
+export type ArgvRole = "SERVER" | "VERSION_CHECK" | "OTHER" | "NONE" | "UNSCANNED";
 
 export interface ArgvAnalysis {
   role: ArgvRole;
@@ -97,7 +104,10 @@ export interface ArgvAnalysis {
   programIndex: number;
 }
 
-/** 인자 배열의 역할 판정(파일 머리말 2). 인자 전체를 문자열로 보지 않고 **요소 단위**로 본다. */
+/**
+ * 인자 배열의 역할 판정(파일 머리말 2). 인자 전체를 문자열로 보지 않고 **요소 단위**로 본다. 프로그램 이름은 앞쪽 MAX_ARGS_SCANNED칸에서만 찾지만,
+ * 찾으면 역할 토큰(`lsp`·`--version`)은 그 뒤 **전체**에서 본다.
+ */
 export function argvRoleOf(args: readonly string[]): ArgvAnalysis {
   const limit = Math.min(args.length, MAX_ARGS_SCANNED);
   for (let i = 0; i < limit; i++) {
@@ -111,7 +121,8 @@ export function argvRoleOf(args: readonly string[]): ArgvAnalysis {
     if (rest.includes("--version")) return { role: "VERSION_CHECK", programIndex: i };
     return { role: "OTHER", programIndex: i };
   }
-  return { role: "NONE", programIndex: -1 };
+  // 앞쪽 limit칸에서 이름을 찾지 못했다. 목록이 더 길면 남은 칸은 보지 않았으므로 "없음"이 아니라 판정 불완전이다.
+  return { role: args.length > limit ? "UNSCANNED" : "NONE", programIndex: -1 };
 }
 
 const URL_LIKE = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
@@ -355,6 +366,12 @@ export async function observeForeignServers(
     }
 
     const analysis = argvRoleOf(row.args);
+    if (analysis.role === "UNSCANNED") {
+      // 인자를 끝까지 보지 못했다. 못 본 칸에 `semgrep lsp`가 있을 수 있으므로 이미지 이름과 무관하게 "서버가 아님"으로 확정하지 않는다.
+      counts.role_undetermined++;
+      undetermined(row.vanished ? "CANDIDATE_VANISHED" : "ARGS_SCAN_LIMIT");
+      continue;
+    }
     if (analysis.role === "NONE") {
       // 인자가 비어 있는 Python 계열 실행기(빈 명령줄·argv를 바꾼 프로세스)는 무엇을 돌리는지 알 수 없다.
       if (nameSignal || (hostLike && row.args.length === 0)) {

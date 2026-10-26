@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_ARGS_SCANNED,
   argvRoleOf,
   foreignObservationConflict,
   observeForeignServers,
@@ -99,6 +100,72 @@ describe("argvRoleOf — 인자 배열로 역할을 가른다(요소 단위)", (
 
   it("lsp와 --version이 함께 있으면 서버로 본다(보수적)", () => {
     expect(argvRoleOf([BIN, "--version", "lsp"]).role).toBe("SERVER");
+  });
+});
+
+// ── 인자 탐색 한도 ───────────────────────────────────────────────
+//
+// 프로그램 이름은 앞쪽 MAX_ARGS_SCANNED칸까지만 찾는다. 한도를 넘는 목록에서 그 안에 이름이 없으면 "없음"(NONE)이 아니라 "다 보지 못함"
+// (UNSCANNED)이다 — 보지 못한 칸에 `semgrep lsp`가 있을 수 있어서 서버 부재의 근거가 될 수 없다.
+
+const fill = (count: number, value = "-u"): string[] => Array.from({ length: count }, () => value);
+/** python3 + `filler`칸 + `semgrep lsp`. 프로그램 이름의 색인은 1 + filler, 전체 길이는 filler + 3이다. */
+const serverAfter = (filler: number): string[] => [
+  "python3",
+  ...fill(filler),
+  "/venv/bin/semgrep",
+  "lsp",
+];
+
+describe("argvRoleOf — 인자 탐색 한도(보지 못한 칸은 부재의 근거가 아니다)", () => {
+  const MAX = MAX_ARGS_SCANNED;
+
+  it("한도는 4096칸이고 시험이 그 상수에서 경계를 도출한다", () => {
+    expect(MAX).toBe(4096);
+  });
+
+  it("한도 직전·경계: 프로그램 이름이 본 칸 안이면 그대로 판정한다 — 역할 토큰(lsp)이 한도 밖이어도 뒤 전체에서 본다", () => {
+    // 프로그램이 마지막에서 두 번째 본 칸(전체 길이 = 한도): 모든 칸을 봤다.
+    const exact = serverAfter(MAX - 3);
+    expect(exact).toHaveLength(MAX);
+    expect(argvRoleOf(exact)).toEqual({ role: "SERVER", programIndex: MAX - 2 });
+    // 프로그램이 마지막으로 본 칸이고 `lsp`가 첫 번째 못 본 칸(전체 길이 = 한도 + 1).
+    const edge = serverAfter(MAX - 2);
+    expect(edge).toHaveLength(MAX + 1);
+    expect(argvRoleOf(edge)).toEqual({ role: "SERVER", programIndex: MAX - 1 });
+  });
+
+  it("한도 초과: 프로그램 이름이 첫 번째 못 본 칸이면 UNSCANNED다(NONE이 아니다)", () => {
+    const beyond = serverAfter(MAX - 1);
+    expect(beyond).toHaveLength(MAX + 2);
+    expect(argvRoleOf(beyond)).toEqual({ role: "UNSCANNED", programIndex: -1 });
+  });
+
+  it("외부 재현: python3 + 4095칸 + -m semgrep lsp (총 4099칸)는 UNSCANNED다", () => {
+    const args = ["python3", ...fill(4095), "-m", "semgrep", "lsp"];
+    expect(args).toHaveLength(4099);
+    expect(argvRoleOf(args).role).toBe("UNSCANNED");
+  });
+
+  it("`-m`이 마지막으로 본 칸이고 모듈 이름이 첫 번째 못 본 칸이어도 UNSCANNED다", () => {
+    const args = ["python3", ...fill(MAX - 2), "-m", "semgrep", "lsp"];
+    expect(args[MAX - 1]).toBe("-m");
+    expect(args[MAX]).toBe("semgrep");
+    expect(argvRoleOf(args).role).toBe("UNSCANNED");
+  });
+
+  it("프로그램 이름이 없는 목록: 길이가 한도 이하면 모두 봤으니 NONE, 한도를 넘으면 UNSCANNED", () => {
+    expect(argvRoleOf(["python3", ...fill(MAX - 2)])).toMatchObject({ role: "NONE" }); // 길이 한도 - 1
+    expect(argvRoleOf(["python3", ...fill(MAX - 1)])).toMatchObject({ role: "NONE" }); // 길이 한도
+    expect(argvRoleOf(["python3", ...fill(MAX)]).role).toBe("UNSCANNED"); // 길이 한도 + 1
+    expect(argvRoleOf([]).role).toBe("NONE");
+  });
+
+  it("프로그램 이름이 본 칸 안에 있으면 그 뒤가 아무리 길어도 UNSCANNED가 아니다(서버·버전 확인·검사 판정 유지)", () => {
+    expect(argvRoleOf([BIN, "lsp", ...fill(6000)]).role).toBe("SERVER");
+    expect(argvRoleOf([BIN, ...fill(6000), "lsp"]).role).toBe("SERVER");
+    expect(argvRoleOf([BIN, "--version", ...fill(6000)]).role).toBe("VERSION_CHECK");
+    expect(argvRoleOf([BIN, "scan", ...fill(6000)]).role).toBe("OTHER");
   });
 });
 
@@ -630,6 +697,116 @@ describe("observeForeignServers — 독립 검토가 재현한 구멍(B1·M1·mi
     const r = await observe([...baseRows(), serverRow(601, { cwd: `${TREE}/gone (deleted)` })]);
     expect(r).toMatchObject({ status: "INCONCLUSIVE", foreignServerProcesses: null });
     expect(r.undeterminedReasons).toEqual({ ANCHOR_UNRESOLVABLE: 1 });
+  });
+});
+
+describe("observeForeignServers — 인자 탐색 한도 초과는 서버 부재의 근거가 아니다(외부 재현)", () => {
+  const MAX = MAX_ARGS_SCANNED;
+  const python = (args: string[], over: Partial<ProcessRow> = {}): ProcessRow =>
+    row({
+      pid: 800,
+      ppid: 1,
+      name: "python3",
+      executable: "/usr/bin/python3",
+      args,
+      cwd: TREE,
+      ...over,
+    });
+
+  it("[외부 재현] python3 + 4095칸 + -m semgrep lsp (cwd = 서버 트리): 0건이 아니라 미확인이다", async () => {
+    const args = ["python3", ...fill(4095), "-m", "semgrep", "lsp"];
+    expect(args).toHaveLength(4099);
+    const r = await observe([...baseRows(), python(args)]);
+    expect(r).toMatchObject({
+      status: "INCONCLUSIVE",
+      foreignServerProcesses: null,
+      countIsLowerBound: false,
+    });
+    expect(r.undeterminedReasons).toEqual({ ARGS_SCAN_LIMIT: 1 });
+    expect(r.counts).toMatchObject({
+      role_undetermined: 1,
+      servers_undetermined: 0,
+      servers_same_tree: 0,
+      unreadable_unrelated: 0,
+    });
+  });
+
+  it("한도 직전·경계는 판정하고(같은 트리 서버는 센다), 한도 뒤에만 semgrep lsp가 있으면 미확인이다", async () => {
+    const inside = await observe([...baseRows(), python(serverAfter(MAX - 3))]); // 길이 = 한도
+    expect(inside).toMatchObject({ status: "OBSERVED", foreignServerProcesses: 1 });
+    const edge = await observe([...baseRows(), python(serverAfter(MAX - 2))]); // 프로그램 = 마지막 본 칸
+    expect(edge).toMatchObject({ status: "OBSERVED", foreignServerProcesses: 1 });
+    const beyond = await observe([...baseRows(), python(serverAfter(MAX - 1))]); // 프로그램 = 첫 못 본 칸
+    expect(beyond).toMatchObject({ status: "INCONCLUSIVE", foreignServerProcesses: null });
+    expect(beyond.undeterminedReasons).toEqual({ ARGS_SCAN_LIMIT: 1 });
+  });
+
+  it("프로그램 이름이 없는 목록: 한도 이하는 무관(0건), 한도를 넘으면 미확인 — 길이 하나 차이로 갈린다", async () => {
+    const atLimit = await observe([...baseRows(), python(["python3", ...fill(MAX - 1)])]);
+    expect(atLimit).toMatchObject({ status: "OBSERVED", foreignServerProcesses: 0 });
+    const over = await observe([...baseRows(), python(["python3", ...fill(MAX)])]);
+    expect(over).toMatchObject({ status: "INCONCLUSIVE", foreignServerProcesses: null });
+    expect(over.undeterminedReasons).toEqual({ ARGS_SCAN_LIMIT: 1 });
+  });
+
+  it("실행기 이미지가 아니어도 다 보지 못한 인자는 서버 부재의 근거가 아니다(이미지 이름과 무관하게 판별 불가)", async () => {
+    const big = plainRow(901, "node", { args: ["node", ...fill(MAX)] });
+    const r = await observe([...baseRows(), big]);
+    expect(r).toMatchObject({ status: "INCONCLUSIVE", foreignServerProcesses: null });
+    expect(r.undeterminedReasons).toEqual({ ARGS_SCAN_LIMIT: 1 });
+    const small = plainRow(902, "node", { args: ["node", ...fill(MAX - 1)] });
+    expect((await observe([...baseRows(), small])).foreignServerProcesses).toBe(0);
+  });
+
+  it("다 보지 못한 인자를 가진 프로세스가 읽는 도중 사라졌으면 CANDIDATE_VANISHED로 센다", async () => {
+    const r = await observe([...baseRows(), python(["python3", ...fill(MAX)], { vanished: true })]);
+    expect(r.foreignServerProcesses).toBeNull();
+    expect(r.undeterminedReasons).toEqual({ CANDIDATE_VANISHED: 1 });
+  });
+
+  it("기존 판정은 그대로다: 긴 인자의 서버(트리 안)는 센다, 버전 확인·검사는 서버가 아니다, 자기 자신은 한도와 무관하다", async () => {
+    const server = serverRow(601, { cwd: TREE, args: [BIN, "lsp", ...fill(6000)] });
+    expect((await observe([...baseRows(), server])).foreignServerProcesses).toBe(1);
+    const version = versionRow(602, { args: [BIN, "--version", ...fill(6000)] });
+    const scan = row({
+      pid: 603,
+      ppid: 1,
+      name: "semgrep",
+      executable: BIN,
+      args: [BIN, "scan", ...fill(6000)],
+      cwd: TREE,
+    });
+    const quiet = await observe([...baseRows(), version, scan]);
+    expect(quiet).toMatchObject({ status: "OBSERVED", foreignServerProcesses: 0 });
+    expect(quiet.counts).toMatchObject({ version_check: 1, other_semgrep: 1 });
+    // 자기 자신의 인자가 한도를 넘어도 자기 자신이다(분석하지 않는다).
+    const long = ownRow({ args: ["node", "cli.ts", ...fill(MAX + 10)] });
+    const own = await observe([long, parentRow()]);
+    expect(own).toMatchObject({ status: "OBSERVED", foreignServerProcesses: 0 });
+    expect(own.counts.own_process).toBe(1);
+  });
+
+  it("요약(증거)에는 사유 토큰과 건수만 남고 인자·경로는 없으며, 요약과 하네스 입력은 모순되지 않는다", async () => {
+    const args = ["python3", ...fill(4095), "-m", "semgrep", "lsp", "/very/private/path"];
+    const result = await runForeignProcessObservation({
+      lister: listerOf([...baseRows(), python(args)]),
+      fs: aliasFs(),
+      lockHeld: true,
+      context: CONTEXT,
+    });
+    expect(result.foreignServerProcesses).toBeNull();
+    expect(result.summary).toMatchObject({
+      status: "INCONCLUSIVE",
+      failure: null,
+      foreign_server_processes: null,
+      count_is_lower_bound: false,
+      undetermined_reasons: { ARGS_SCAN_LIMIT: 1 },
+      counts: { role_undetermined: 1 },
+    });
+    expect(foreignObservationConflict(result.summary, result.foreignServerProcesses)).toBeNull();
+    const text = JSON.stringify(result.summary);
+    expect(text).not.toContain("/very/private/path");
+    expect(text).not.toContain("python3");
   });
 });
 

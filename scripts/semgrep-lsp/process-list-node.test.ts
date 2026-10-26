@@ -9,10 +9,12 @@ import {
   createWindowsProcessLister,
 } from "./process-list-node";
 import { WINDOWS_EXIT_PERMISSION_DENIED, windowsListArgs } from "./process-list";
+import { foreignObservationConflict, runForeignProcessObservation } from "./process-observation";
 import { FakeChild, FakePort } from "./testing/fake-process";
 import { MemoryProcFs, cmdlineOf, statusText } from "./testing/memory-procfs";
 import { drive } from "./testing/stub-lsp";
-import type { Clock, ProcessListResult } from "./types";
+import { BIN, TREE, aliasFs } from "./testing/synthetic-processes";
+import type { Clock, ProcessListResult, ProcessLister } from "./types";
 
 // 어댑터 시험: 가짜 프로세스 포트와 메모리 /proc, 가상 시계만 쓴다 — **실제 운영체제를 읽지 않는다**(합성 자료). 여기서의 통과는 어댑터가
 // 실패 경로를 던지지 않고 토큰으로 바꾸며 자기 조회 자식만 정리한다는 뜻이다. 실제 운영체제를 읽는 시험은 process-list-node.integration.test.ts에 있다.
@@ -498,6 +500,158 @@ describe("createProcProcessLister — 메모리 /proc", () => {
     expect(
       Object.keys(Object.getPrototypeOf(procFs)).filter((k) => /write|unlink|rm|kill/i.test(k))
     ).toEqual([]);
+  });
+});
+
+// ── Linux /proc 어댑터: 기한 경계(마지막 배치 포함) ────────────────
+//
+// 기한 = 조회 시작 시각 + timeoutMs. 조회가 끝난 시각이 기한을 **넘으면**(경과 > timeoutMs) TIMEOUT이고, 정확히 timeoutMs에 끝난 조회는
+// 기한 안이다. 배치 앞에서만 시각을 보면 마지막 배치가 기한을 넘겨 끝나도 성공 목록이 나가므로, 마지막 배치 뒤에도 같은 기준으로 본다.
+// (반환되지 않는 읽기를 끊는 것은 이 범위가 아니다 — 시각은 읽기가 돌아온 뒤에만 확인한다.)
+
+describe("createProcProcessLister — 기한 경계(마지막 배치 포함)", () => {
+  const TIMEOUT_MS = 5000;
+  const OWN = 10;
+
+  /** 시각을 시험이 정하는 시계. */
+  function steppedClock(start: number) {
+    let now = start;
+    const clock: Clock = {
+      now: () => now,
+      setTimer: () => ({ cancel() {} }),
+      sleep: async () => {},
+    };
+    return {
+      clock,
+      set: (t: number): void => {
+        now = t;
+      },
+    };
+  }
+
+  /**
+   * PID 10부터 `count`개를 가진 메모리 /proc. `triggerPid`(기본: 마지막)의 상태 파일을 읽는 순간 시각이 `finishAt`이 된다 — 그 배치가
+   * 읽히는 동안 시간이 흘러 끝나는 시각을 흉내 낸다.
+   */
+  function setup(options: { count: number; start: number; finishAt: number; triggerPid?: number }) {
+    const procFs = new MemoryProcFs();
+    const pids = Array.from({ length: options.count }, (_, i) => OWN + i);
+    for (const pid of pids) {
+      procFs.add(pid, {
+        status: statusText("p", 1),
+        cmdline: cmdlineOf("p"),
+        exe: "/p",
+        cwd: "/",
+      });
+    }
+    const trigger = options.triggerPid ?? pids[pids.length - 1];
+    const stepped = steppedClock(options.start);
+    const readFile = procFs.readFile.bind(procFs);
+    procFs.readFile = async (path: string) => {
+      if (path === `/proc/${trigger}/status`) stepped.set(options.finishAt);
+      return readFile(path);
+    };
+    const lister = createProcProcessLister({
+      procFs,
+      clock: stepped.clock,
+      provenance: "stub",
+      limits: { timeoutMs: TIMEOUT_MS },
+    });
+    return { procFs, lister };
+  }
+
+  const BOUNDARY: { name: string; start: number; end: number; timesOut: boolean }[] = [
+    { name: "외부 재현값(시작 0, 끝 6000)", start: 0, end: 6000, timesOut: true },
+    { name: "기한을 1ms 넘김", start: 0, end: TIMEOUT_MS + 1, timesOut: true },
+    { name: "정확히 기한에 끝남은 기한 안", start: 0, end: TIMEOUT_MS, timesOut: false },
+    { name: "기한 1ms 전", start: 0, end: TIMEOUT_MS - 1, timesOut: false },
+    {
+      name: "시작이 0이 아니면 기한은 시작 + timeoutMs (1ms 넘김)",
+      start: 1000,
+      end: 1000 + TIMEOUT_MS + 1,
+      timesOut: true,
+    },
+    {
+      name: "시작이 0이 아니면 기한은 시작 + timeoutMs (정확히 기한)",
+      start: 1000,
+      end: 1000 + TIMEOUT_MS,
+      timesOut: false,
+    },
+    {
+      name: "절대 시각 5001이어도 시작 + timeoutMs 안이면 성공",
+      start: 1000,
+      end: TIMEOUT_MS + 1,
+      timesOut: false,
+    },
+  ];
+
+  const SHAPES: { name: string; count: number }[] = [
+    { name: "한 배치뿐(프로세스 1개)", count: 1 },
+    { name: "여러 배치의 마지막에서(70개 = 32 + 32 + 6)", count: 70 },
+  ];
+
+  for (const shape of SHAPES) {
+    describe(shape.name, () => {
+      for (const c of BOUNDARY) {
+        it(`${c.name}: ${c.timesOut ? "TIMEOUT이다" : "성공이다"}`, async () => {
+          const { lister } = setup({ count: shape.count, start: c.start, finishAt: c.end });
+          const result = await lister.list({});
+          if (c.timesOut) {
+            expect(result).toEqual({ ok: false, failure: "TIMEOUT" });
+          } else {
+            expect(result.ok).toBe(true);
+            expect(result.ok && result.snapshot.rows).toHaveLength(shape.count);
+          }
+        });
+      }
+    });
+  }
+
+  it("중간 배치가 기한을 넘기면 다음 배치를 읽기 전에 TIMEOUT이다(앞 배치의 검사는 그대로)", async () => {
+    const { lister, procFs } = setup({ count: 70, start: 0, finishAt: 6000, triggerPid: OWN });
+    expect(await lister.list({})).toEqual({ ok: false, failure: "TIMEOUT" });
+    expect(procFs.reads.some((p) => p.startsWith(`/proc/${OWN + 32}/`))).toBe(false);
+  });
+
+  it("취소와 기한 초과가 겹치면 CANCELLED가 먼저다(배치 앞 검사와 같은 순서)", async () => {
+    const controller = new AbortController();
+    const { lister, procFs } = setup({ count: 1, start: 0, finishAt: 6000 });
+    const readFile = procFs.readFile.bind(procFs);
+    procFs.readFile = async (path: string) => {
+      controller.abort();
+      return readFile(path);
+    };
+    expect(await lister.list({ signal: controller.signal })).toEqual({
+      ok: false,
+      failure: "CANCELLED",
+    });
+  });
+
+  describe("조회 실패는 관측 요약과 null 결과로 이어진다(외부 재현 경로)", () => {
+    const context = { ownPid: OWN, serverTree: TREE, semgrepBin: BIN };
+    const observe = (lister: ProcessLister) =>
+      runForeignProcessObservation({ lister, fs: aliasFs(), lockHeld: true, context });
+
+    for (const shape of SHAPES) {
+      it(`${shape.name}: 기한을 넘긴 목록은 건수 0이 아니라 FAILED 요약과 null이다 (기한 안 대조군은 0건 확정)`, async () => {
+        const late = await observe(setup({ count: shape.count, start: 0, finishAt: 6000 }).lister);
+        expect(late.foreignServerProcesses).toBeNull();
+        expect(late.summary).toMatchObject({
+          status: "FAILED",
+          failure: "TIMEOUT",
+          foreign_server_processes: null,
+          count_is_lower_bound: false,
+          listing: { source: "linux-proc", provenance: "stub", rows: null },
+        });
+        expect(foreignObservationConflict(late.summary, late.foreignServerProcesses)).toBeNull();
+
+        const inTime = await observe(
+          setup({ count: shape.count, start: 0, finishAt: 5000 }).lister
+        );
+        expect(inTime.foreignServerProcesses).toBe(0);
+        expect(inTime.summary).toMatchObject({ status: "OBSERVED", failure: null });
+      });
+    }
   });
 });
 

@@ -612,6 +612,7 @@ export type ForeignObservationFailure =
 /** 판별 불가 사유 토큰. 후보 프로세스가 이 사유로 분류되면 건수를 0으로 보정하지 않는다. */
 export type ForeignUndeterminedReason =
   | "ARGS_UNAVAILABLE"
+  | "ARGS_SCAN_LIMIT"
   | "ROLE_UNCLEAR"
   | "CWD_UNAVAILABLE"
   | "ANCHOR_UNRESOLVABLE"
