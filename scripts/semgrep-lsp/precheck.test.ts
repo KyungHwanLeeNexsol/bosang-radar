@@ -661,6 +661,70 @@ describe("runPrecheck: 준비하지 않은 서버 트리(treeNotPrepared)", () =
     });
     expect(codes(bad.reasons)).toEqual(["CONTROL_TREE_MISMATCH", "LOCK_NOT_ACQUIRED"]);
   });
+
+  it("잠금이 있어도 다른 서버가 있거나(1 이상) 확인하지 못했으면(null) 비어 있는 트리를 판정하지 않는다 — 막는 원인은 FOREIGN_SERVER_PROCESS다", async () => {
+    const world = await makeWorld(noTree);
+    for (const foreignServerProcesses of [null, 1, 4] as const) {
+      const result = await check(world, {
+        lockHeld: true,
+        treeNotPrepared: true,
+        foreignServerProcesses,
+      });
+      expect(codes(result.reasons), String(foreignServerProcesses)).toEqual([
+        "FOREIGN_SERVER_PROCESS",
+      ]);
+      expect(representativeStatus(result.reasons)).toBe("ENV_MISMATCH");
+      expect(result.details.server_tree).toBe("NOT_PREPARED");
+    }
+  });
+
+  it("잠금이 있고 다른 서버가 0건이면 treeNotPrepared를 무시하고 트리를 검증한다(트리를 만들 수 있었다)", async () => {
+    const world = await makeWorld(noTree);
+    const result = await check(world, {
+      lockHeld: true,
+      treeNotPrepared: true,
+      foreignServerProcesses: 0,
+    });
+    expect(codes(result.reasons)).toContain("SCAN_TREE_FILE_MISSING");
+    expect(result.details).not.toHaveProperty("server_tree");
+  });
+
+  it("검사를 건너뛸 때는 언제나 LOCK_NOT_ACQUIRED 또는 FOREIGN_SERVER_PROCESS가 함께 있다 — 검증하지 않은 트리로 통과하는 조합이 없다", async () => {
+    const world = await makeWorld(noTree);
+    for (const lockHeld of [true, false, null] as const) {
+      for (const foreignServerProcesses of [0, 1, null] as const) {
+        const result = await check(world, {
+          lockHeld,
+          foreignServerProcesses,
+          treeNotPrepared: true,
+        });
+        const skipped = result.details.server_tree === "NOT_PREPARED";
+        const label = `lockHeld=${String(lockHeld)} foreign=${String(foreignServerProcesses)}`;
+        expect(skipped, label).toBe(!(lockHeld === true && foreignServerProcesses === 0));
+        if (skipped) {
+          const got = codes(result.reasons);
+          expect(
+            got.includes("LOCK_NOT_ACQUIRED") || got.includes("FOREIGN_SERVER_PROCESS"),
+            label
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("control 모드: 다른 서버를 배제하지 못해도 정적 입력의 바이트 확인은 그대로 한다", async () => {
+    const empty = Object.fromEntries(controlExpectations.cases.map((c) => [c.path, null]));
+    const world = await makeWorld({ controlTreeOverrides: empty });
+    const result = await check(world, {
+      mode: "control",
+      targetSha: null,
+      lockHeld: true,
+      treeNotPrepared: true,
+      foreignServerProcesses: null,
+    });
+    expect(codes(result.reasons)).toEqual(["FOREIGN_SERVER_PROCESS"]);
+    expect(result.details.server_tree).toBe("NOT_PREPARED");
+  });
 });
 
 describe("runPrecheck: 사유는 전부 모은다(조기 반환 없음)", () => {

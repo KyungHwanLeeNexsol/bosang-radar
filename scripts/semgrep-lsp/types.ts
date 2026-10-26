@@ -543,11 +543,134 @@ export interface RunToolObservation extends ToolObservationSummary {
   };
 }
 
+// ── 다른 서버 프로세스 관측 ──────────────────────────────────────────
+// 조회 **시점**의 관측이다. 증거에는 상태·건수·이유 토큰만 남긴다: 명령줄·환경변수·경로·PID는 싣지 않는다.
+
+/**
+ * 운영체제가 알려 준 프로세스 한 줄. null은 "얻지 못함"(권한·미제공·읽는 도중 사라짐)이며 빈 값으로 보정하지 않는다.
+ * args는 인자 배열이다(Windows는 명령줄 문자열을 CommandLineToArgvW 규칙으로 나눈 것).
+ */
+export interface ProcessRow {
+  pid: number;
+  ppid: number | null;
+  /** 프로세스 시작 시각(epoch ms). 부모 PID 재사용을 가려내는 데만 쓴다. 얻지 못하면 null. */
+  startTime: number | null;
+  /** 운영체제가 알려 준 이미지 이름(경로 없이). */
+  name: string | null;
+  executable: string | null;
+  args: readonly string[] | null;
+  cwd: string | null;
+  /** 읽는 도중 프로세스가 끝났다. 읽은 필드는 있을 수 있으나 나머지는 null이다. */
+  vanished: boolean;
+}
+
+export type ProcessListSource = "windows-cim" | "linux-proc";
+
+export interface ProcessSnapshot {
+  source: ProcessListSource;
+  /**
+   * 부모 PID 연결이 그대로는 믿을 수 없는 운영체제인가(Windows: 부모가 끝나도 자식에 부모 PID가 남고 번호가 재사용된다).
+   * true이면 부모의 시작 시각이 자식보다 늦지 않을 때만 부모-자식으로 본다.
+   */
+  parentLinkNeedsStartTime: boolean;
+  rows: readonly ProcessRow[];
+}
+
+export type ProcessListFailure =
+  | "UNSUPPORTED_PLATFORM"
+  | "SPAWN_FAILED"
+  | "PERMISSION_DENIED"
+  | "TIMEOUT"
+  | "OUTPUT_LIMIT_EXCEEDED"
+  | "OUTPUT_MALFORMED"
+  | "NONZERO_EXIT"
+  | "READ_FAILED"
+  | "CANCELLED"
+  | "UNEXPECTED_ERROR";
+
+export type ProcessListResult =
+  { ok: true; snapshot: ProcessSnapshot } | { ok: false; failure: ProcessListFailure };
+
+/** 운영체제 프로세스 목록을 **읽기만** 하는 포트. 신호를 보내거나 프로세스를 끝내지 않는다(자기가 띄운 조회 자식은 제외). */
+export interface ProcessLister {
+  /** 조회에 쓴 자료의 출처. stub이면 합성 자료이며 실제 운영체제의 관측이 아니다. */
+  readonly provenance: Provenance;
+  /** 지원하지 않는 환경이면 null(조회는 UNSUPPORTED_PLATFORM으로 끝난다). */
+  readonly source: ProcessListSource | null;
+  list(options: { signal?: AbortSignal }): Promise<ProcessListResult>;
+}
+
+export type ForeignObservationStatus = "OBSERVED" | "INCONCLUSIVE" | "FAILED" | "NOT_ATTEMPTED";
+
+export type ForeignObservationFailure =
+  | ProcessListFailure
+  | "LOCK_NOT_HELD"
+  | "SELF_NOT_IN_LISTING"
+  | "SNAPSHOT_INCONSISTENT"
+  | "TREE_UNRESOLVABLE";
+
+/** 판별 불가 사유 토큰. 후보 프로세스가 이 사유로 분류되면 건수를 0으로 보정하지 않는다. */
+export type ForeignUndeterminedReason =
+  | "ARGS_UNAVAILABLE"
+  | "ARGS_SCAN_LIMIT"
+  | "ROLE_UNCLEAR"
+  | "CWD_UNAVAILABLE"
+  | "ANCHOR_UNRESOLVABLE"
+  | "ANCHOR_ENCLOSES_TREE"
+  | "TREE_BINDING_UNOBSERVABLE"
+  | "ROW_UNREADABLE"
+  | "CANDIDATE_VANISHED";
+
+export interface ForeignServerObservationSummary {
+  /** 고정값: 이 관측은 조회한 순간의 사실이다. 조회 이후 하네스 밖에서 시작되는 프로세스는 막지 않는다. */
+  scope: "POINT_IN_TIME";
+  /**
+   * OBSERVED: 건수가 확정됐다(foreign_server_processes가 숫자). INCONCLUSIVE: 목록은 읽었으나 판별하지 못한 후보가 있다(null).
+   * FAILED: 목록을 읽지 못했다(null). NOT_ATTEMPTED: 시작하지 않았다(null).
+   */
+  status: ForeignObservationStatus;
+  failure: ForeignObservationFailure | null;
+  /** 하네스의 foreignServerProcesses. 같은 트리에서 확인된 다른 서버 건수, 확정하지 못했으면 null. */
+  foreign_server_processes: number | null;
+  /** 확인된 건수 말고도 판별하지 못한 후보가 있어 실제로는 더 많을 수 있다. */
+  count_is_lower_bound: boolean;
+  listing: {
+    source: ProcessListSource | null;
+    provenance: Provenance | null;
+    rows: number | null;
+  };
+  counts: {
+    own_process: number;
+    own_ancestors: number;
+    own_descendants: number;
+    version_check: number;
+    other_semgrep: number;
+    servers_same_tree: number;
+    servers_undetermined: number;
+    role_undetermined: number;
+    unreadable_unrelated: number;
+    vanished_not_candidate: number;
+  };
+  /** 판별하지 못한 후보의 사유별 건수. */
+  undetermined_reasons: Partial<Record<ForeignUndeterminedReason, number>>;
+  /** 이 관측이 **세워 주지 않는** 것. */
+  not_established: {
+    /** 식별 규칙(프로그램 이름·인자 토큰)은 실제 Semgrep으로 확인하지 않았다. 합성·스텁 자료는 실제 식별 성공의 증거가 아니다. */
+    semgrep_server_identification: "UNVERIFIED";
+    /** LSP 서버의 작업 폴더는 stdio로 전달되어 목록에서 보이지 않는다. 같은 트리로 확인되지 않은 보이는 서버는 "다른 트리"가 아니라 판별 불가다. */
+    foreign_server_tree_binding: "UNVERIFIED";
+    /** 다른 사용자·다른 PID 이름공간(컨테이너)·다른 호스트의 프로세스는 관측하지 않는다. */
+    hidden_processes: "NOT_OBSERVED";
+  };
+}
+
 export interface RunResources {
   run_lock: RunLockSummary | null;
   metrics_receiver: MetricsReceiverSummary | null;
   /** 도구 버전·휠 해시 관측. 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
   tool_observation?: RunToolObservation | null;
+  /** 같은 트리의 다른 서버 프로세스 관측(조회 시점). 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
+  foreign_server_observation?: ForeignServerObservationSummary | null;
 }
 
 export interface RunRecord {
