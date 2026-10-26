@@ -134,7 +134,7 @@ export function parseVersionStdout(bytes: Uint8Array): ParsedVersion {
   return { ok: true, version: body };
 }
 
-interface Drain {
+export interface Drain {
   chunks: Uint8Array[];
   total: number;
   overflow: boolean;
@@ -142,7 +142,7 @@ interface Drain {
 }
 
 /** 스트림을 한도까지 모은다. 한도를 넘으면 onOverflow를 부르고 읽기를 그만둔다. 던지지 않는다. */
-async function drain(
+export async function drain(
   stream: AsyncIterable<Uint8Array>,
   acc: Drain,
   limit: number,
@@ -164,7 +164,7 @@ async function drain(
   return acc;
 }
 
-function joinChunks(chunks: readonly Uint8Array[]): Uint8Array {
+export function joinChunks(chunks: readonly Uint8Array[]): Uint8Array {
   const size = chunks.reduce((n, c) => n + c.byteLength, 0);
   const out = new Uint8Array(size);
   let at = 0;
@@ -176,7 +176,7 @@ function joinChunks(chunks: readonly Uint8Array[]): Uint8Array {
 }
 
 /** promise가 ms 안에 이행하면 true. 시간이 먼저 되면 false. 타이머는 항상 해제한다. */
-async function settledWithin(
+export async function settledWithin(
   clock: Clock,
   promise: Promise<unknown>,
   ms: number

@@ -54,6 +54,7 @@ import { assertSessionConfig, runSession, type SessionConfig, type SessionLimits
 import { buildInitializationOptions, validateInitializationOptions } from "./settings";
 import { sha256Hex } from "./sha";
 import { representativeStatus, sortReasons, type MeasurementStatus, type Reason } from "./status";
+import { foreignObservationConflict } from "./process-observation";
 import { completeToolObservation, toolObservationConflict } from "./tool-observation";
 import {
   SCHEMAS,
@@ -61,6 +62,7 @@ import {
   type ControlAssertions,
   type ControlExpectations,
   type ExpectedRule,
+  type ForeignServerObservationSummary,
   type FsPort,
   type GitPort,
   type MetricsObserver,
@@ -146,7 +148,17 @@ export interface HarnessOptions {
   lockRefusal?: string | null;
   /** 증거(run.json의 resources.run_lock)에 남길 공유 잠금 요약. 주지 않으면 남기지 않는다. */
   lockSummary?: RunLockSummary | null;
+  /**
+   * 같은 서버 트리의 다른 서버 프로세스 건수(조회 시점의 관측). null은 확인하지 못함이며 FOREIGN_SERVER_PROCESS가 된다. 잠금을 얻었다는
+   * 이유로 0을 넘기지 않는다. **0일 때만**(그리고 lockHeld가 true일 때만) 하네스가 서버 트리를 만들거나 쓴다 — 1 이상이거나 null이면
+   * 트리 준비 쓰기도 서버 기동도 하지 않는다.
+   */
   foreignServerProcesses: number | null;
+  /**
+   * 위 건수를 어떻게 관측했는지의 요약(process-observation.ts). 주면 run.json의 resources.foreign_server_observation에 싣는다. 요약의
+   * 건수가 위 값과 다르면 쓰기 전에 거절한다. 주지 않으면 이 필드는 레코드에 없다. 사전 검사의 입력이 아니다 — 판정은 위 건수만 본다.
+   */
+  foreignProcessObservation?: ForeignServerObservationSummary | null;
   /**
    * 호출자가 이미 정해 둔 루프백 수신 건수(시험·수신기가 없는 호출자용). null은 관측하지 못함이다. metricsReceiver를 주면 이 값은
    * 쓰지 않는다.
@@ -429,6 +441,15 @@ function checkOptions(options: HarnessOptions): void {
     );
     if (conflict !== null) throw new HardFailure("config", `toolObservation: ${conflict}`);
   }
+  if (options.foreignProcessObservation) {
+    const conflict = foreignObservationConflict(
+      options.foreignProcessObservation,
+      options.foreignServerProcesses
+    );
+    if (conflict !== null) {
+      throw new HardFailure("config", `foreignProcessObservation: ${conflict}`);
+    }
+  }
 }
 
 async function execute(
@@ -557,10 +578,12 @@ async function execute(
 
   // 3. 범위 E와 스캔 트리 / 대조 트리. 무결성 예외는 하드 실패로 올라간다.
   //
-  // 서버 트리(target은 스캔 트리, control은 대조 트리)를 만들거나 쓰는 것은 유효한 잠금을 가진 호출자(lockHeld === true)뿐이다.
-  // 잠금을 얻지 못했거나(false) 확인하지 못했으면(null) 트리의 존재 여부·파일 목록·파일 바이트에 손대지 않는다 — 그 트리는
-  // 지금 다른 실행의 것일 수 있다. 이 보장은 CLI가 아니라 여기에 있어서 runHarness를 직접 부르는 호출자도 같은 보호를 받는다.
-  const mayWriteServerTree = options.lockHeld === true;
+  // 서버 트리(target은 스캔 트리, control은 대조 트리)를 만들거나 쓰는 것은 유효한 잠금을 가졌고(lockHeld === true) 같은 트리의 다른 서버
+  // 프로세스 후보가 조회 시점에 보이지 않은(foreignServerProcesses === 0, "없음의 증명"이 아니라 식별 규칙에 맞는 후보가 없다는 뜻) 호출자뿐이다. 잠금을 얻지 못했거나(false) 확인하지 못했으면(null),
+  // 또는 다른 서버가 있거나(1 이상) 확인하지 못했으면(null) 트리의 존재 여부·파일 목록·파일 바이트에 손대지 않는다 — 그 트리는
+  // 지금 다른 실행·다른 서버의 것일 수 있다. 이 보장은 CLI가 아니라 여기에 있어서 runHarness를 직접 부르는 호출자도 같은 보호를 받는다.
+  // (조회 이후 시작되는 프로세스까지 막는다는 뜻이 아니다 — 관측은 조회 시점의 사실이다.)
+  const mayWriteServerTree = options.lockHeld === true && options.foreignServerProcesses === 0;
   let scope: ScopeResult | null = null;
   let resolvedSha: string | null = null;
   const treeReasons: Reason[] = [];
@@ -698,6 +721,9 @@ async function execute(
         options.wheelSha256Observed
       )
     : null;
+  const foreignObservation = options.foreignProcessObservation
+    ? structuredClone(options.foreignProcessObservation)
+    : null;
   const controlTreeSha =
     mode === "control" && typeof precheck.details.control_tree_sha256 === "string"
       ? precheck.details.control_tree_sha256
@@ -730,13 +756,18 @@ async function execute(
       : {}),
     ...(options.lockSummary !== undefined ||
     observation.summary !== null ||
-    toolObservation !== null
+    toolObservation !== null ||
+    foreignObservation !== null
       ? {
           resources: {
             run_lock: options.lockSummary ?? null,
             metrics_receiver: observation.summary,
             // 관측 요약과 핀과의 비교. 핀은 읽기만 했다(verified·승인 상태를 바꾸지 않는다).
             ...(toolObservation === null ? {} : { tool_observation: toolObservation }),
+            // 같은 트리의 다른 서버 프로세스 관측(조회 시점). 상태·건수·이유 토큰뿐이다.
+            ...(foreignObservation === null
+              ? {}
+              : { foreign_server_observation: foreignObservation }),
           },
         }
       : {}),

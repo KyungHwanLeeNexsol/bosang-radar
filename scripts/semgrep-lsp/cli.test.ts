@@ -50,6 +50,17 @@ import { MemoryFs } from "./testing/memory-fs";
 import { MemoryRunLock } from "./testing/memory-run-lock";
 import { MemoryGit } from "./testing/memory-git";
 import {
+  OWN_PID,
+  SyntheticLister,
+  listerOf,
+  ownRow,
+  parentRow,
+  plainRow,
+  serverRow,
+  snapshotOf,
+  versionRow,
+} from "./testing/synthetic-processes";
+import {
   SYNTHETIC_CACHE_DIR,
   SYNTHETIC_HARNESS_ROOT,
   SYNTHETIC_HARNESS_FILES,
@@ -63,7 +74,9 @@ import { createNodeProcessPort } from "./process-node";
 import type { ArtifactHashPort } from "./tool-observation";
 import type {
   ChildHandle,
+  ForeignServerObservationSummary,
   GitPort,
+  ProcessLister,
   ProcessPort,
   Provenance,
   ReferenceFingerprints,
@@ -106,6 +119,8 @@ interface World {
   versionChildren: ChildHandle[];
   /** 휠 아티팩트 해시 포트(메모리). */
   hasher: MemoryArtifactHasher;
+  /** 조회 어댑터를 만들 때 CLI가 넘긴 프로세스 포트들. */
+  listerPorts: ProcessPort[];
 }
 
 function makeWorld(
@@ -123,6 +138,11 @@ function makeWorld(
     versionChild?: (spec: SpawnSpec) => ChildHandle;
     /** 포트가 알리는 출처. 생략하면 CLI가 요청한 값 그대로다. 스크립트된 가짜 자식을 쓰는 시험은 "stub"으로 정직하게 표시한다. */
     portProvenance?: Provenance;
+    /**
+     * 프로세스 목록 조회 어댑터(합성). 생략하면 "지원하지 않는 환경"이라 foreignServerProcesses는 예전처럼 null이다. 이 어댑터가 읽은
+     * 목록은 합성 자료이며 실제 운영체제 관측이 아니다.
+     */
+    lister?: ProcessLister;
   } = {}
 ): World {
   const files: Record<string, string> = {};
@@ -157,6 +177,7 @@ function makeWorld(
   const env = options.env ?? {};
   const lock = new MemoryRunLock();
   const receivers: FakeMetricsReceiver[] = [];
+  const listerPorts: ProcessPort[] = [];
   const deps: CliDeps = {
     fs,
     makeGit: (dir): GitPort => {
@@ -189,6 +210,13 @@ function makeWorld(
       return receiver;
     },
     hashArtifact: hasher,
+    makeProcessLister: (port): ProcessLister => {
+      listerPorts.push(port);
+      return (
+        options.lister ?? new SyntheticLister({ ok: false, failure: "UNSUPPORTED_PLATFORM" }, null)
+      );
+    },
+    ownPid: OWN_PID,
     stdout: (text) => void out.push(text),
     stderr: (text) => void err.push(text),
     getEnv: (name) => {
@@ -213,6 +241,7 @@ function makeWorld(
     versionCalls,
     versionChildren,
     hasher,
+    listerPorts,
   };
 }
 
@@ -3678,5 +3707,278 @@ describe("main — run: 도구 버전·휠 sha256 관측", () => {
       expect(w.receivers[0].closeCalls).toBe(1);
       expect(w.hasher.calls).toEqual([]);
     });
+  });
+});
+
+// ── run: 같은 트리의 다른 서버 프로세스 관측 ──────────────────────────
+//
+// 이 구역의 프로세스 목록은 전부 **합성 자료**다(SyntheticLister, provenance "stub"). 실제 운영체제를 읽지 않으므로 여기서의 통과는
+// CLI → 관측 → 하네스 → run.json 연결과 거부 경로가 의도대로라는 뜻일 뿐, 실제 Semgrep 프로세스 식별의 증거가 아니다.
+// 실제 운영체제를 읽는 시험은 process-list-node.integration.test.ts에 있다.
+
+describe("main — run: 같은 트리의 다른 서버 프로세스 관측", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+  const PIN_VERSION = data.pin.semgrep.version;
+  const SCAN_TREE = "/scan/run-1";
+  const SECRET = "tok-SECRET-0123456789";
+  const baseRows = [ownRow(), parentRow()];
+
+  interface ForeignBody {
+    status: string;
+    started: boolean;
+    foreign_server_observation: ForeignServerObservationSummary;
+    record: { measurement: { reasons: { code: string; detail: string | null }[] } } | null;
+  }
+  const bodyOf = (w: World): ForeignBody => jsonOut(w) as unknown as ForeignBody;
+  const codesOf = (b: ForeignBody): string[] =>
+    (b.record?.measurement.reasons ?? []).map((r) => r.code);
+  const runOf = async (w: World) =>
+    JSON.parse(decoder.decode(await w.fs.readFile("/evidence/run-cli-1/run.json"))) as {
+      resources?: { foreign_server_observation?: ForeignServerObservationSummary };
+    };
+
+  /** 도구 관측까지 모두 맞춘 세계: 남은 거부 사유는 오직 다른 서버 프로세스 관측뿐이다. */
+  function world(
+    lister: ProcessLister | undefined,
+    over: Parameters<typeof makeWorld>[0] = {}
+  ): World {
+    const w = makeWorld({
+      env: passEnv,
+      portProvenance: "stub",
+      versionChild: versionOutput(`${PIN_VERSION}\n`),
+      extraFiles: fixtureFiles(FIXTURES_REPO, "v1"),
+      ...(lister ? { lister } : {}),
+      ...over,
+    });
+    w.hasher.forcedResult = { sha256: SYNTHETIC_WHEEL, sizeBytes: 31 };
+    return w;
+  }
+  const argv = (): string[] => [
+    ...targetArgv(FIXTURES_REPO),
+    "--wheel-artifact",
+    "/artifacts/semgrep-test-only.whl",
+  ];
+
+  /** 보호 대상 서버 트리에 아무것도 만들지 않았다(폴더도 파일도). */
+  async function expectTreeUntouched(w: World): Promise<void> {
+    const files = await w.fs.listFilesRecursive(SCAN_TREE).catch(() => []);
+    expect(files).toEqual([]);
+    expect(
+      w.fs.directories.filter((d) => d === SCAN_TREE || d.startsWith(`${SCAN_TREE}/`))
+    ).toEqual([]);
+  }
+
+  it("다른 서버가 같은 트리에 있으면: 거부되고, 서버를 띄우지 않고, 서버 트리를 만들지 않으며, 요약이 증거에 남는다", async () => {
+    const lister = listerOf([
+      ...baseRows,
+      serverRow(601, { cwd: SCAN_TREE, extraArgs: [`--token=${SECRET}`, "/very/private/path"] }),
+    ]);
+    const w = world(lister);
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+
+    const b = bodyOf(w);
+    expect(b.started).toBe(false);
+    expect(w.spawnCalls).toEqual([]); // LSP 서버 기동 시도 자체가 없다
+    expect(b.status).toBe("ENV_MISMATCH");
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(
+      b.record?.measurement.reasons.find((r) => r.code === "FOREIGN_SERVER_PROCESS")?.detail
+    ).toContain("1개");
+    // 비어 있는 트리를 어긋남으로 판정하지 않는다 — 막는 원인은 다른 서버다.
+    expect(codesOf(b).filter((c) => c.startsWith("SCAN_TREE_"))).toEqual([]);
+    await expectTreeUntouched(w);
+
+    const run = await runOf(w);
+    expect(run.resources?.foreign_server_observation).toEqual(b.foreign_server_observation);
+    expect(b.foreign_server_observation).toMatchObject({
+      scope: "POINT_IN_TIME",
+      status: "OBSERVED",
+      foreign_server_processes: 1,
+      listing: { source: "linux-proc", provenance: "stub", rows: 3 },
+      counts: { servers_same_tree: 1 },
+    });
+    // 명령줄·경로·토큰은 증거에도 출력에도 없다.
+    const text = JSON.stringify(run) + w.out.join("");
+    expect(text).not.toContain(SECRET);
+    expect(text).not.toContain("/very/private/path");
+    expect(text).not.toContain("--token");
+  });
+
+  it("관측에 실패하면 null이다 — 같은 거부, 서버·트리는 건드리지 않고, 실패 토큰이 증거에 남는다", async () => {
+    for (const failure of [
+      "TIMEOUT",
+      "PERMISSION_DENIED",
+      "OUTPUT_MALFORMED",
+      "UNSUPPORTED_PLATFORM",
+    ] as const) {
+      const lister = new SyntheticLister({ ok: false, failure });
+      const w = world(lister);
+      expect(await main(argv(), w.deps), failure).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(codesOf(b), failure).toContain("FOREIGN_SERVER_PROCESS");
+      expect(
+        b.record?.measurement.reasons.find((r) => r.code === "FOREIGN_SERVER_PROCESS")?.detail,
+        failure
+      ).toContain("확인하지 못했다");
+      expect(b.started, failure).toBe(false);
+      expect(w.spawnCalls, failure).toEqual([]);
+      await expectTreeUntouched(w);
+      expect(b.foreign_server_observation, failure).toMatchObject({
+        status: "FAILED",
+        failure,
+        foreign_server_processes: null,
+      });
+      expect((await runOf(w)).resources?.foreign_server_observation, failure).toEqual(
+        b.foreign_server_observation
+      );
+    }
+  });
+
+  it("후보를 판별하지 못하면(작업 폴더를 알 수 없는 서버) null이다 — 0으로 보정하지 않고 트리를 만들지 않는다", async () => {
+    const w = world(listerOf([...baseRows, serverRow(601, { cwd: null })]));
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "INCONCLUSIVE",
+      foreign_server_processes: null,
+      undetermined_reasons: { CWD_UNAVAILABLE: 1 },
+    });
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(w.spawnCalls).toEqual([]);
+    await expectTreeUntouched(w);
+  });
+
+  it("목록을 읽었지만 자기 자신이 없으면 null이다(잠금을 얻었다는 이유로 0이 되지 않는다)", async () => {
+    const w = world(listerOf([plainRow(1)]));
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+    const b = bodyOf(w);
+    expect(bodyOf(w).foreign_server_observation).toMatchObject({
+      status: "FAILED",
+      failure: "SELF_NOT_IN_LISTING",
+    });
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    await expectTreeUntouched(w);
+  });
+
+  it("잠금을 얻지 못했으면 목록을 읽지도 않는다 — 시도하지 않은 것으로 null이다", async () => {
+    const lister = listerOf(baseRows);
+    const w = world(lister);
+    const other = await acquireRunLock(w.lock, {
+      treePath: SCAN_TREE,
+      runId: "other-run",
+      mode: "control",
+    });
+    if (other.state !== "ACQUIRED") throw new Error("전제");
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+    expect(lister.calls).toBe(0);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "NOT_ATTEMPTED",
+      failure: "LOCK_NOT_HELD",
+      foreign_server_processes: null,
+    });
+    expect(codesOf(b)).toEqual(
+      expect.arrayContaining(["LOCK_NOT_ACQUIRED", "FOREIGN_SERVER_PROCESS"])
+    );
+    await expectTreeUntouched(w);
+  });
+
+  it("보이는 서버가 같은 트리로 확인되지 않으면(실행 위치만 다름) 0이 아니라 판별 불가다 — 트리도 서버도 건드리지 않는다", async () => {
+    const w = world(listerOf([...baseRows, serverRow(601, { cwd: "/elsewhere/project" })]));
+    expect(await main(argv(), w.deps)).toBe(EXIT.failed);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "INCONCLUSIVE",
+      foreign_server_processes: null,
+      undetermined_reasons: { TREE_BINDING_UNOBSERVABLE: 1 },
+    });
+    expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(w.spawnCalls).toEqual([]);
+    await expectTreeUntouched(w);
+  });
+
+  it("다른 서버 후보가 보이지 않고 0건으로 확정되면: 거부 사유에서 빠지고, 서버 트리를 준비하며, 서버 기동을 시도한다(버전 확인·검사는 서버가 아니다)", async () => {
+    const lister = listerOf([
+      ...baseRows,
+      plainRow(601),
+      versionRow(602, { cwd: SCAN_TREE }), // 버전 확인은 서버가 아니다
+    ]);
+    const w = world(lister);
+    await main(argv(), w.deps);
+    const b = bodyOf(w);
+    expect(b.foreign_server_observation).toMatchObject({
+      status: "OBSERVED",
+      foreign_server_processes: 0,
+      counts: { version_check: 1, servers_same_tree: 0, servers_undetermined: 0 },
+    });
+    expect(codesOf(b)).not.toContain("FOREIGN_SERVER_PROCESS");
+    // 트리를 준비했다(E에 해당하는 파일이 놓였다).
+    expect((await w.fs.listFilesRecursive(SCAN_TREE)).length).toBeGreaterThan(0);
+    // 서버 기동을 시도했다 — 인자는 LSP 서버의 것이다(가짜 포트가 던져 시도만 기록된다).
+    expect(w.spawnCalls).toHaveLength(1);
+    expect(w.spawnCalls[0].args).toEqual(["lsp", "--debug"]);
+  });
+
+  it("조회는 도구 관측(버전 확인) 뒤, 서버 기동 앞에서 한 번 일어나고 같은 프로세스 포트를 쓴다", async () => {
+    const log: string[] = [];
+    const lister = new SyntheticLister(async () => {
+      log.push("list");
+      return { ok: true, snapshot: snapshotOf(baseRows) };
+    });
+    const w = world(lister, {
+      versionChild: () => {
+        log.push("version");
+        return versionOutput(`${PIN_VERSION}\n`)();
+      },
+    });
+    const real = w.deps.makeProcessPort;
+    w.deps.makeProcessPort = (p) => {
+      log.push("port");
+      return real(p);
+    };
+    const spawn = w.deps.makeProcessLister;
+    w.deps.makeProcessLister = (port) => {
+      log.push("lister");
+      return spawn(port);
+    };
+    await main(argv(), w.deps);
+    expect(log).toEqual(["port", "version", "lister", "list"]); // 포트는 한 번만 만들었다
+    expect(lister.calls).toBe(1);
+    expect(w.portCalls).toEqual(["real"]);
+    expect(w.listerPorts).toHaveLength(1);
+  });
+
+  it("출력(stdout)과 증거(run.json)의 요약은 같고, 미구현·미검증 목록은 '조회 시점'과 식별 규칙 미검증을 밝힌다", async () => {
+    const w = world(listerOf(baseRows));
+    await main(argv(), w.deps);
+    const body = jsonOut(w) as unknown as { not_implemented_or_not_verified: string[] };
+    const note = body.not_implemented_or_not_verified.find((n) =>
+      n.startsWith("같은 트리의 다른 서버 프로세스 관측")
+    );
+    expect(note).toBeDefined();
+    for (const phrase of [
+      "조회",
+      "시점",
+      "끝내거나 정리하지 않는다",
+      "실제 Semgrep으로 확인하지 않았",
+      "foreignServerProcesses=null",
+    ]) {
+      expect(note, phrase).toContain(phrase);
+    }
+    expect(note).not.toMatch(/막는다|차단한다|보장한다/);
+  });
+
+  it("조회 도중 취소되면(신호) null이고 서버·트리는 그대로다", async () => {
+    const controller = new AbortController();
+    const lister = new SyntheticLister(async () => {
+      controller.abort();
+      return { ok: true, snapshot: snapshotOf(baseRows) };
+    });
+    const w = world(lister);
+    w.deps.signal = controller.signal;
+    await main(argv(), w.deps);
+    expect(w.spawnCalls).toEqual([]);
+    await expectTreeUntouched(w);
+    expect(w.lock.files.size).toBe(0); // 정리: 잠금 해제
   });
 });

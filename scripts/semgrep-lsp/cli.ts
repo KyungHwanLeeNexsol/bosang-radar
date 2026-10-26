@@ -26,7 +26,9 @@ import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import { evidenceInsideServerTree } from "./path-containment";
+import { createNodeProcessLister } from "./process-list-node";
 import { createNodeProcessPort } from "./process-node";
+import { runForeignProcessObservation } from "./process-observation";
 import { loadControlReference } from "./reference-record";
 import {
   RulesManifestParseError,
@@ -55,6 +57,7 @@ import {
   type FsPort,
   type GitPort,
   type Pin,
+  type ProcessLister,
   type ProcessPort,
   type Provenance,
   type ScopeConfig,
@@ -82,6 +85,13 @@ export interface CliDeps {
   startMetricsReceiver(): Promise<MetricsReceiver>;
   /** 명시한 휠 아티팩트 파일 하나의 실제 바이트로 SHA-256을 계산한다(읽기 전용). 경로를 찾거나 내려받지 않는다. */
   hashArtifact: ArtifactHashPort;
+  /**
+   * 운영체제 프로세스 목록을 읽는 어댑터를 만든다(읽기 전용). 방지 장치를 통과한 `run`이 버전 확인·LSP 서버와 **같은** 프로세스 포트를
+   * 넘겨 부른다(조회 자식을 띄우는 Windows 어댑터가 그 포트를 쓴다). 지원하지 않는 환경이면 UNSUPPORTED_PLATFORM으로 끝나는 어댑터다.
+   */
+  makeProcessLister(port: ProcessPort): ProcessLister;
+  /** 이 하네스(검사 프로그램 자신)의 PID. 목록에서 자기 자신·조상·자손을 가려내는 데 쓴다. */
+  ownPid: number;
   stdout(text: string): void;
   stderr(text: string): void;
   /** 환경변수 한 개를 조회한다(없으면 undefined). main은 이 함수로만 환경을 본다. */
@@ -127,7 +137,7 @@ const REAL_SETTINGS = { timeout: 30, timeoutThreshold: 3 } as const;
 const NOT_VERIFIED = [
   "도구 버전 관측: --semgrep-bin을 `--version` 인자 배열로 한 번 실행해(서버가 아니다) stdout의 한 줄 `숫자.숫자.숫자`만 버전으로 받는다. 실패·형식 불일치·미시도는 toolVersionObserved=null이며 핀 값으로 채우지 않는다. 이 해석 계약은 실제 Semgrep으로 확인하지 않았다(미확인)",
   "휠 sha256 관측: --wheel-artifact로 명시한 파일의 바이트 해시다. 주지 않거나 읽지 못하면 wheelSha256Observed=null. 핀의 휠 해시가 null이거나 verified가 아니면 관측해도 비교할 기준이 없어 WHEEL_HASH_UNVERIFIED로 거부된다. 이 해시는 그 파일의 바이트에 대한 사실일 뿐 실행 파일의 설치 출처(그 휠에서 설치되었는지)를 확인하지 않았다",
-  "같은 트리의 다른 서버 프로세스 검사: 구현하지 않았다 — foreignServerProcesses=null (공유 잠금을 얻었다는 이유로 0으로 채우지 않는다)",
+  "같은 트리의 다른 서버 프로세스 관측: 운영체제 프로세스 목록을 조회한 **그 시점**의 읽기 전용 관측이다(Windows는 PowerShell CIM, Linux는 /proc, 그 밖은 미지원=null). 조회 이후 하네스 밖에서 시작되는 프로세스는 막지 못하고, 어떤 프로세스도 끝내거나 정리하지 않는다. 목록을 읽지 못했거나 후보를 판별하지 못하면 foreignServerProcesses=null이며 0으로 채우지 않는다(공유 잠금을 얻었다는 이유로도). 식별 규칙(프로그램 이름·`lsp` 인자)은 실제 Semgrep으로 확인하지 않았고, LSP 서버의 작업 폴더는 목록에서 보이지 않아, 같은 트리로 확인되지 않은 보이는 서버는 '다른 트리'가 아니라 판별 불가(null)로 둔다. 건수 0은 식별 규칙에 맞는 다른 서버 후보가 보이지 않았다는 뜻이지 다른 서버가 없다는 증명이 아니다. 다른 사용자·컨테이너·다른 호스트의 프로세스는 관측하지 않는다. 합성 자료나 Node 스텁의 결과는 실제 Semgrep 프로세스 식별의 증거가 아니다. macOS는 지원·검증하지 않았다",
   "루프백 메트릭 수신기: 127.0.0.1의 OS 할당 포트에 열어 판정 시점까지 누적 관측한다 — metricsReceiverHits는 그 관측이다(열지 못하면 null). 0건은 이 수신기에서 관찰한 요청이 없다는 뜻일 뿐 다른 목적지로의 통신이 없었다는 증거가 아니며, 실제 Semgrep이 SEMGREP_METRICS_URL 등을 읽는지는 미확인",
   "대조 참조(control_reference): --control-record로 명시한 control run.json만 읽어 잇는다(자동 탐색 없음), 생략하면 controlReference=null. 이 CLI는 엔진 음성 대조를 실행·기록하지 않으므로 자격을 갖춘 기록은 아직 이 CLI로 만들 수 없다",
   "공유 실행 잠금: 서버가 스캔하는 트리 하나를 범위로 한 배타 생성(O_EXCL) 파일이다. 오래된 잠금은 자동으로 지우지 않고 거절한다(복구는 README). 겹치는 트리·배타 생성을 보장하지 않는 파일 시스템은 보증하지 않는다. run.marker는 잠금이 아니라 실행별 증거 표지다",
@@ -166,6 +176,14 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   · 휠: --wheel-artifact로 명시한 절대 경로 파일 하나의 실제 바이트로 SHA-256을 계산한다. 생략하거나 읽지 못하면 관측 실패(null)다. 기본 경로·
     자동 탐색·내려받기는 없다. 이 해시는 그 파일의 바이트에 대한 사실이며 실행 파일이 그 휠에서 설치되었다는 확인이 아니다.
   관측값은 핀의 기대값·verified 상태와 따로 기록한다. 관측했다는 이유로 pin.json을 바꾸지 않는다.
+
+다른 서버 프로세스 관측(run): 잠금과 증거 표지를 얻은 실행에서만, 도구 관측 뒤 서버를 띄우기 전에 운영체제 프로세스 목록을 **읽기만** 한다.
+  · 조회 시점의 관측이다. 조회 이후 하네스 밖에서 시작되는 프로세스까지 막는다는 뜻이 아니다. 다른 프로세스를 끝내거나 정리하지 않는다.
+  · 하네스 자신·조상·자손, 버전 확인(\`--version\`) 프로세스, 서버(\`lsp\`) 프로세스를 인자 배열로 구분한다. 프로세스 이름 한 가지만으로 판정하지 않는다.
+  · 서버 후보는 작업 폴더·인자 속 경로를 실제 위치(별칭·링크 해석)로 풀어 서버 트리와 견준다. 같은 트리면 건수에 세고, 관계를 확인하지 못하면
+    (작업 폴더를 알 수 없음·경로를 풀 수 없음·트리를 감싸는 폴더·역할 불명·읽는 도중 사라짐) 건수를 0으로 채우지 않고 null이다.
+  · 목록을 읽지 못하면(미지원 환경·실행 실패·권한 부족·시간 초과·출력 파손·취소) null이다. null이거나 1 이상이면 서버 트리를 준비하지 않고 서버를 띄우지 않는다.
+  · 요약(상태·건수·이유 토큰)만 증거에 싣는다. 명령줄·환경변수·경로·PID는 싣지 않는다.
 
 --control-fixtures-root: 대조 예제(.in)가 놓인 저장소 루트. 두 모드 모두 대조 지문을 이 위치의 파일 바이트로 계산한다.
   target에서는 검사 대상인 --repo와 별개의 경로다(대상 SHA에는 예제가 없을 수 있다). target에서 생략하거나 읽을 수 없으면
@@ -728,6 +746,17 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
     });
     cleanup.version_check_process.state = tools.versionChildProcess;
 
+    // 같은 서버 트리의 다른 Semgrep LSP 프로세스를 **조회 시점에** 관측한다(읽기만 한다 — 아무 프로세스도 끝내지 않는다). 공유 잠금과
+    // 증거 표지를 얻은 실행에서만 시작하고, 잠금을 얻었다는 이유로 건수를 0으로 채우지 않는다. 읽지 못하거나 판별하지 못하면 null이다.
+    // 이 건수가 0으로 확정되지 않으면 하네스는 서버 트리를 준비하지 않고 서버도 띄우지 않는다.
+    const foreign = await runForeignProcessObservation({
+      lister: deps.makeProcessLister(port),
+      fs: deps.fs,
+      lockHeld,
+      context: { ownPid: deps.ownPid, serverTree, semgrepBin: bin },
+      ...(deps.signal ? { signal: deps.signal } : {}),
+    });
+
     const spawn: SpawnSpec = {
       command: bin,
       args: [...SERVER_ARGS],
@@ -759,8 +788,9 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       lockHeld,
       lockRefusal,
       lockSummary: lockSummaryOf(lock, markerCreated),
-      // 잠금을 얻었다는 이유로 0으로 채우지 않는다. 이 검사는 아직 구현하지 않았다.
-      foreignServerProcesses: null,
+      // 조회 시점의 관측 결과만 넘긴다. 잠금을 얻었다는 이유로 0으로 채우지 않으며, 읽지 못했거나 판별하지 못했으면 null이다.
+      foreignServerProcesses: foreign.foreignServerProcesses,
+      foreignProcessObservation: foreign.summary,
       // 시작 시점의 스냅샷이 아니라, 하네스가 판정하는 시점에 수신기에서 읽은 누적 관측을 쓴다.
       metricsReceiverHits: null,
       metricsReceiver: receiver,
@@ -818,6 +848,8 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       },
       // 도구 버전·휠 해시 관측(출력 전용: 아티팩트 경로는 증거에 싣지 않는다). 시작하지 않았거나 실패했으면 값은 null이다.
       tool_observation: { ...tools.summary, wheel_artifact: wheelArtifact },
+      // 같은 트리의 다른 서버 프로세스 관측(조회 시점). 증거(run.json)에 싣는 것과 같은 요약이다.
+      foreign_server_observation: foreign.summary,
       // 자식 환경에 연결한 수신기의 실제 주소(루프백, OS 할당 포트). 열지 못했으면 null이다.
       metrics_receiver_url: receiver.url,
       evidence_dir: evidenceDir,
@@ -888,6 +920,20 @@ async function runEntry(): Promise<void> {
     runLock: createNodeRunLockPort(),
     startMetricsReceiver: () => startMetricsReceiver(),
     hashArtifact: createNodeArtifactHasher(),
+    makeProcessLister: (port) =>
+      createNodeProcessLister({
+        platform: process.platform,
+        process: port,
+        clock: new SystemClock(),
+        systemRoot: process.env.SystemRoot ?? process.env.SYSTEMROOT ?? null,
+        env: Object.fromEntries(
+          ["PATH", "SystemRoot", "SYSTEMROOT", "TEMP", "TMP"].flatMap((name) => {
+            const value = process.env[name];
+            return value === undefined || value === "" ? [] : [[name, value]];
+          })
+        ),
+      }),
+    ownPid: process.pid,
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     getEnv: (name) => process.env[name],

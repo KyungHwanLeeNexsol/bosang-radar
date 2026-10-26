@@ -44,6 +44,7 @@ import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
 import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { summaryOf } from "./testing/observation-fixtures";
+import { foreignSummaryOf } from "./testing/synthetic-processes";
 import { qualifiedReference } from "./testing/evaluate-fixtures";
 import {
   SYNTHETIC_HARNESS_ROOT,
@@ -2658,5 +2659,212 @@ describe("runHarness — 도구 관측 요약(toolObservation)", () => {
     expect(codesOf(r)).not.toContain("WHEEL_HASH_UNVERIFIED");
     expect(r.started).toBe(false);
     expect(env.port.spawnCalls).toHaveLength(0);
+  });
+});
+
+// ── 같은 트리의 다른 서버 프로세스(foreignServerProcesses) ───────────────────────────────────────
+//
+// 하네스는 foreignServerProcesses가 **0으로 확정**되고 잠금을 가졌을 때만 서버 트리를 만들거나 쓴다. 1 이상이거나 null(확인하지
+// 못함)이면 트리 준비 쓰기도 서버 기동도 하지 않는다. 이 보장은 CLI가 아니라 runHarness에 있다. 관측은 조회 시점의 사실이며,
+// 이 시험의 건수는 호출자가 정해 넘긴 값이다(실제 운영체제 관측이 아니다).
+
+describe("runHarness — 같은 트리의 다른 서버 프로세스", () => {
+  const SCAN = "/scan/tree";
+  const CTL = "/ctl";
+  const treeOf = (mode: "target" | "control"): string => (mode === "target" ? SCAN : CTL);
+  const codes = (r: HarnessResult): string[] =>
+    (r.record?.measurement.reasons ?? []).map((x) => x.code);
+
+  async function treeSnapshot(env: Env, tree: string): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    const files = await env.fs.listFilesRecursive(tree).catch(() => [] as string[]);
+    for (const f of files) out[f] = new TextDecoder().decode(await env.fs.readFile(`${tree}/${f}`));
+    return out;
+  }
+  const noTreeDirs = (env: Env, tree: string): string[] =>
+    env.fs.directories.filter((d) => d === tree || d.startsWith(`${tree}/`));
+
+  for (const mode of ["target", "control"] as const) {
+    for (const foreign of [null, 1, 3] as const) {
+      it(`${mode} 모드·잠금 있음·foreignServerProcesses=${String(foreign)}: 서버 트리를 만들지 않고 서버를 띄우지 않으며 FOREIGN_SERVER_PROCESS만 남는다`, async () => {
+        const env = await makeEnv({
+          mode,
+          scanRoot: SCAN,
+          controlTreeRoot: CTL,
+          options: { lockHeld: true, foreignServerProcesses: foreign },
+        });
+        const r = await env.go();
+        expect(r.ok).toBe(true);
+        expect(r.started).toBe(false);
+        expect(env.port.spawnCalls).toHaveLength(0);
+        expect(r.record?.measurement.status).toBe("ENV_MISMATCH");
+        expect(codes(r)).toEqual(["FOREIGN_SERVER_PROCESS"]);
+        // 비어 있는 트리를 어긋남으로 판정하지 않는다 — 막는 원인은 다른 서버다.
+        expect(await treeSnapshot(env, treeOf(mode))).toEqual({});
+        expect(noTreeDirs(env, treeOf(mode))).toEqual([]);
+        expect(Object.keys(await evidenceFiles(env))).toEqual([...EVIDENCE_FILE_NAMES]);
+      });
+    }
+  }
+
+  for (const mode of ["target", "control"] as const) {
+    it(`${mode} 모드·잠금 있음·foreignServerProcesses=0: 트리를 준비하고 서버를 띄워 COMPLETE까지 간다(0일 때만)`, async () => {
+      const env = await makeEnv({
+        mode,
+        scanRoot: SCAN,
+        controlTreeRoot: CTL,
+        options: { lockHeld: true, foreignServerProcesses: 0 },
+      });
+      const r = await env.go();
+      expect(r.started).toBe(true);
+      expect(r.record?.measurement.status).toBe("COMPLETE");
+      expect(Object.keys(await treeSnapshot(env, treeOf(mode))).length).toBeGreaterThan(0);
+    });
+  }
+
+  it("0이어도 잠금이 없으면 트리를 만들지 않는다(두 조건이 모두 필요하다)", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      scanRoot: SCAN,
+      options: { lockHeld: false, foreignServerProcesses: 0 },
+    });
+    const r = await env.go();
+    expect(codes(r)).toEqual(["LOCK_NOT_ACQUIRED"]);
+    expect(await treeSnapshot(env, SCAN)).toEqual({});
+    expect(env.port.spawnCalls).toHaveLength(0);
+  });
+
+  for (const mode of ["target", "control"] as const) {
+    for (const foreign of [null, 2] as const) {
+      it(`${mode} 모드·이미 파일이 있는 트리·foreignServerProcesses=${String(foreign)}: 읽기만 하고 파일은 그대로이며 어긋남은 사유로 남는다`, async () => {
+        const tree = treeOf(mode);
+        const populated: Record<string, string | Uint8Array> = {};
+        if (mode === "target") {
+          for (const p of EXPECTED_E[SHA_A]) populated[`${tree}/${p}`] = reposByCommit[SHA_A][p];
+          populated[`${tree}/src/extra.ts`] = "export const extra = 0;\n"; // 기대하지 않은 파일
+        } else {
+          for (const c of controlExpectations.cases)
+            populated[`${tree}/${c.path}`] = fixtureBytes(c.fixture);
+          populated[`${tree}/extra.ts`] = "export const extra = 0;\n";
+        }
+        const env = await makeEnv({
+          mode,
+          scanRoot: SCAN,
+          controlTreeRoot: CTL,
+          files: populated,
+          options: { lockHeld: true, foreignServerProcesses: foreign },
+        });
+        const before = await treeSnapshot(env, tree);
+        const r = await env.go();
+        expect(r.started).toBe(false);
+        expect(codes(r)).toContain("FOREIGN_SERVER_PROCESS");
+        expect(
+          codes(r).some((c) => c === "SCAN_TREE_FILE_ADDED" || c === "CONTROL_TREE_MISMATCH")
+        ).toBe(true);
+        expect(await treeSnapshot(env, tree)).toEqual(before);
+      });
+    }
+  }
+
+  describe("관측 요약(foreignProcessObservation)", () => {
+    interface ForeignRun {
+      resources?: {
+        foreign_server_observation?: unknown;
+        run_lock?: unknown;
+        tool_observation?: unknown;
+      };
+    }
+    const runJson = async (env: Env): Promise<ForeignRun> =>
+      JSON.parse((await evidenceFiles(env))["run.json"]) as ForeignRun;
+
+    it("요약을 주면 run.json의 resources.foreign_server_observation에 그대로 싣는다(상태·건수·이유 토큰뿐)", async () => {
+      const summary = foreignSummaryOf(1, {
+        listing: { source: "linux-proc", provenance: "stub", rows: 7 },
+      });
+      const env = await makeEnv({
+        mode: "target",
+        scanRoot: SCAN,
+        options: { foreignServerProcesses: 1, foreignProcessObservation: summary },
+      });
+      const r = await env.go();
+      expect(codes(r)).toEqual(["FOREIGN_SERVER_PROCESS"]);
+      const run = await runJson(env);
+      expect(run.resources?.foreign_server_observation).toEqual(summary);
+      // 요약은 판정의 입력이 아니다: 사유 상세는 건수에서 나온다.
+      expect(r.record?.measurement.reasons[0].detail).toContain("1개");
+    });
+
+    it("요약을 주지 않으면 이 필드는 레코드에 없다(기존 레코드와 같다)", async () => {
+      const env = await makeEnv({ mode: "target", scanRoot: SCAN, options: {} });
+      const r = await env.go();
+      expect(r.record?.measurement.status).toBe("COMPLETE");
+      const run = await runJson(env);
+      expect(JSON.stringify(run)).not.toContain("foreign_server_observation");
+    });
+
+    it("다른 자원 요약과 함께 있어도 서로 섞이지 않는다", async () => {
+      const summary = foreignSummaryOf(0);
+      const env = await makeEnv({
+        mode: "target",
+        scanRoot: SCAN,
+        options: {
+          foreignServerProcesses: 0,
+          foreignProcessObservation: summary,
+          toolObservation: summaryOf({ version: syntheticPin.semgrep.version, wheel: WHEEL }),
+        },
+      });
+      const r = await env.go();
+      expect(r.record?.measurement.status).toBe("COMPLETE");
+      const run = await runJson(env);
+      expect(run.resources?.foreign_server_observation).toEqual(summary);
+      expect(run.resources?.tool_observation).toBeDefined();
+    });
+
+    it("요약의 건수가 넘긴 건수와 다르면 증거를 쓰기 전에 하드 실패다 — 트리도 서버도 건드리지 않는다", async () => {
+      const cases: [number | null, number | null][] = [
+        [0, 1], // 요약은 0인데 1을 넘김
+        [1, 0], // 요약은 1인데 0을 넘김(0이면 트리를 만들게 된다)
+        [null, 0], // 요약은 확정하지 못했는데 0을 넘김
+        [0, null],
+      ];
+      for (const [inSummary, passed] of cases) {
+        const env = await makeEnv({
+          mode: "target",
+          scanRoot: SCAN,
+          options: {
+            foreignServerProcesses: passed,
+            foreignProcessObservation: foreignSummaryOf(inSummary),
+          },
+        });
+        const r = await env.go();
+        expect(r.ok, `${inSummary}/${passed}`).toBe(false);
+        expect(r.failure?.stage).toBe("config");
+        expect(r.failure?.message).toContain("foreignProcessObservation");
+        expect(r.started).toBe(false);
+        expect(env.port.spawnCalls).toHaveLength(0);
+        expect(await env.fs.exists("/evidence/run-harness-1")).toBe(false);
+        expect(await treeSnapshot(env, SCAN)).toEqual({});
+      }
+    });
+
+    it("조회 시점이 아닌 요약이나 상태와 건수가 모순인 요약도 거절한다", async () => {
+      for (const bad of [
+        { ...foreignSummaryOf(0), scope: "ALWAYS" as unknown as "POINT_IN_TIME" },
+        { ...foreignSummaryOf(0), status: "INCONCLUSIVE" as const },
+        { ...foreignSummaryOf(null), count_is_lower_bound: true },
+      ]) {
+        const env = await makeEnv({
+          mode: "target",
+          scanRoot: SCAN,
+          options: {
+            foreignServerProcesses: bad.foreign_server_processes,
+            foreignProcessObservation: bad,
+          },
+        });
+        const r = await env.go();
+        expect(r.ok).toBe(false);
+        expect(r.failure?.stage).toBe("config");
+      }
+    });
   });
 });

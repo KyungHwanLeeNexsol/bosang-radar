@@ -78,11 +78,13 @@ export interface PrecheckInput {
   /** 잠금을 얻지 못한 이유 토큰(HELD_BY_OTHER 등). 사유 상세에만 쓰이고 판정에는 영향이 없다. 값·경로를 담지 않는다. */
   lockRefusal?: string | null;
   /**
-   * 서버 트리를 준비하지 않았다(잠금이 없어 호출자가 트리를 만들지 못하게 막았고 트리가 비어 있다). true이고 lockHeld가 true가 아니면
-   * 비어 있는 트리를 "어긋남"으로 판정하지 않는다 — 그 트리는 준비되지 않았을 뿐이고, 실행을 막는 원인은 LOCK_NOT_ACQUIRED다.
-   * lockHeld가 true이면 이 값은 무시한다(잠금을 가졌으면 트리를 검증한다). 생략하면 false(예전처럼 트리를 판정한다).
+   * 서버 트리를 준비하지 않았다(잠금이 없거나 같은 트리의 다른 서버 프로세스를 배제하지 못해 호출자가 트리를 만들지 못하게 막았고 트리가
+   * 비어 있다). true이고 "잠금을 가졌고 다른 서버 후보가 보이지 않음(0)"이 아니면 비어 있는 트리를 "어긋남"으로 판정하지 않는다 — 그 트리는
+   * 준비되지 않았을 뿐이고, 실행을 막는 원인은 LOCK_NOT_ACQUIRED 또는 FOREIGN_SERVER_PROCESS다.
+   * 잠금을 가졌고 foreignServerProcesses가 0이면 이 값은 무시한다(트리를 만들 수 있었으니 검증한다). 생략하면 false(예전처럼 판정한다).
    */
   treeNotPrepared?: boolean;
+  /** 같은 트리의 다른 서버 프로세스 건수(조회 시점의 관측). null은 확인하지 못함이며 0으로 보정하지 않는다. */
   foreignServerProcesses: number | null;
   /** 로그·설정 파일이 있어야 하는 증거 폴더. */
   evidenceRoot: string;
@@ -366,9 +368,11 @@ export async function runPrecheck(
     });
   }
 
-  // 트리 판정을 건너뛰는 것은 잠금이 없을 때뿐이다 — 잠금을 가졌다면(lockHeld true) 호출자가 무엇을 주든 트리를 검증한다. 건너뛰어도
-  // LOCK_NOT_ACQUIRED가 반드시 붙으므로 검증하지 않은 트리로 서버가 뜨는 경로는 없다.
-  const skipTree = input.treeNotPrepared === true && input.lockHeld !== true;
+  // 트리 판정을 건너뛰는 것은 트리를 만들 수 없었을 때뿐이다 — 잠금을 가졌고(lockHeld true) 다른 서버 후보가 보이지 않았다면(0) 호출자가
+  // 무엇을 주든 트리를 검증한다. 건너뛰어도 LOCK_NOT_ACQUIRED 또는 FOREIGN_SERVER_PROCESS가 반드시 붙으므로(아래 C0 (e)) 검증하지
+  // 않은 트리로 서버가 뜨는 경로는 없다.
+  const treeMayBePrepared = input.lockHeld === true && input.foreignServerProcesses === 0;
+  const skipTree = input.treeNotPrepared === true && !treeMayBePrepared;
 
   if (input.mode === "target") {
     // C0 (c): 대상 SHA → E → 스캔 트리.
@@ -449,12 +453,12 @@ export async function runPrecheck(
   if (input.foreignServerProcesses === null) {
     reasons.push({
       code: "FOREIGN_SERVER_PROCESS",
-      detail: "다른 서버 프로세스 여부를 확인하지 못했다",
+      detail: "조회 시점에 다른 서버 프로세스 여부를 확인하지 못했다",
     });
   } else if (input.foreignServerProcesses > 0) {
     reasons.push({
       code: "FOREIGN_SERVER_PROCESS",
-      detail: `같은 트리에 다른 서버 프로세스가 ${input.foreignServerProcesses}개 있다`,
+      detail: `조회 시점에 같은 트리에서 다른 서버 프로세스가 ${input.foreignServerProcesses}개 확인됐다`,
     });
   }
   details.foreign_server_processes = input.foreignServerProcesses;

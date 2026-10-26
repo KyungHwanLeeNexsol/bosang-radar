@@ -271,10 +271,13 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
     // 잠금 어댑터는 잠금 파일만 만지고(만들기·읽기·지우기), 자식은 시험 폴더의 표지 파일과 잠금 파일만 만진다.
     // 휠 아티팩트 해시 어댑터(artifact-node.ts)가 더해졌다: 호출자가 명시한 파일 하나를 읽기 전용으로 열 뿐 아무것도 쓰지 않는다
     // (아래 "도구 버전·휠 관측" 구조 시험이 읽기 전용임을 지킨다).
+    // 프로세스 목록 어댑터(process-list-node.ts)가 더해졌다: /proc을 나열하고 읽을 뿐 아무것도 쓰지 않는다
+    // (아래 "구조 (12)"가 읽기 전용·종료 금지를 지킨다).
     expect(users).toEqual(
       [
         "artifact-node.ts",
         "fs-node.ts",
+        "process-list-node.ts",
         "run-lock-node.ts",
         "testing/evaluate-fixtures.ts",
         "testing/lock-child.mjs",
@@ -390,6 +393,8 @@ describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", (
       "path-containment.ts",
       "run-id.ts",
       "tool-observation.ts",
+      "process-observation.ts",
+      "process-list.ts",
     ];
     const FORBIDDEN = new Set([
       "fs",
@@ -787,8 +792,11 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       expect(code()).toMatch(/const lockHeld = lock\.state === "ACQUIRED" && markerCreated;/);
     });
 
-    it("관측하지 않은 값은 채우지 않는다 — foreignServerProcesses는 null, 도구 버전·휠은 이 실행의 관측값만, 수신 건수는 수신기가 정한다", () => {
-      expect(code()).toMatch(/foreignServerProcesses: null,/);
+    it("관측하지 않은 값은 채우지 않는다 — foreignServerProcesses는 관측 결과만, 도구 버전·휠은 이 실행의 관측값만, 수신 건수는 수신기가 정한다", () => {
+      expect(code()).toMatch(/foreignServerProcesses: foreign\.foreignServerProcesses,/);
+      // 어디에도 건수를 0으로 직접 채우는 곳이 없다(잠금을 얻었다는 이유로도).
+      expect(code()).not.toMatch(/foreignServerProcesses:\s*0\b/);
+      expect(code()).not.toMatch(/foreignServerProcesses:\s*null,/);
       expect(code()).toMatch(/toolVersionObserved: tools\.toolVersionObserved,/);
       expect(code()).toMatch(/wheelSha256Observed: tools\.wheelSha256Observed,/);
       expect(code()).toMatch(/metricsReceiverHits: null,\s*metricsReceiver: receiver,/);
@@ -809,5 +817,84 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
     it("자식 환경의 주소는 열린 수신기의 주소를 쓴다", () => {
       expect(code()).toMatch(/buildChildEnv\(deps, evidenceDir, receiver\.url\)/);
     });
+  });
+});
+
+describe("구조 (12) — 다른 서버 프로세스 관측은 읽기만 한다", () => {
+  const cliCode = (): string => byRel("cli.ts").code;
+  // 다른 프로세스를 끝내거나 정리하는 표현. 어댑터가 자기가 띄운 조회 자식을 끝내는 `child.kill("SIGKILL")` 한 곳만 예외다.
+  const KILLING =
+    /process\s*\.\s*kill\b|taskkill|Stop-Process|\bpkill\b|\bkillall\b|SIGTERM|\bwmic\b|Remove-Item|Invoke-Expression/;
+
+  it("관측 코어(process-observation.ts·process-list.ts)에는 종료·신호 표현이 없다", () => {
+    for (const rel of ["process-observation.ts", "process-list.ts"]) {
+      const code = byRel(rel).code;
+      expect(code, rel).not.toMatch(KILLING);
+      expect(code, rel).not.toMatch(/\.kill\s*\(/);
+    }
+  });
+
+  it("목록 어댑터(process-list-node.ts)는 쓰기·삭제·종료 호출이 없고, 끝내는 것은 자기가 띄운 조회 자식 한 곳뿐이다", () => {
+    const code = byRel("process-list-node.ts").code;
+    expect(code).not.toMatch(KILLING);
+    expect(code).not.toMatch(
+      /\b(writeFile|appendFile|unlink|rmdir|rm|rename|mkdir|chmod|chown|truncate|copyFile|symlink|open)\s*\(/
+    );
+    const kills = [...code.matchAll(/\.kill\s*\(([^)]*)\)/g)].map((m) => m[0]);
+    expect(kills).toEqual(['.kill("SIGKILL")']);
+    // 그 호출은 조회 자식(child)에게만 향한다.
+    expect(code).toMatch(/child\.kill\("SIGKILL"\)/);
+    // node: 모듈은 파일 읽기 하나뿐이고 child_process는 가져오지 않는다.
+    const specs = specifiersOf(code).filter((s) => s.startsWith("node:"));
+    expect(specs).toEqual(["node:fs/promises"]);
+    expect(code).toMatch(/import \{ readFile, readdir, readlink \} from "node:fs\/promises";/);
+  });
+
+  it("Windows 조회 스크립트는 Get-CimInstance 하나만 쓰고 변경·종료·실행 cmdlet이 없다", () => {
+    const script = [
+      ...byRel("process-list.ts").raw.matchAll(
+        /export const WINDOWS_LIST_SCRIPT = \[([\s\S]*?)\]\.join/g
+      ),
+    ][0]?.[1];
+    expect(script).toBeDefined();
+    expect(script).toContain("Get-CimInstance -ClassName Win32_Process");
+    expect(script).not.toMatch(
+      /Stop-|Remove-|Set-|New-|Start-|Invoke-|Out-File|Add-Content|Clear-|Restart-|taskkill|wmic/
+    );
+  });
+
+  it("Windows 조회 자식은 SystemRoot 아래 고정 경로의 powershell.exe를 포트로만 띄운다 — 셸 문자열·PATH 탐색이 없다", () => {
+    const code = byRel("process-list-node.ts").code;
+    expect(code).toContain("System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe");
+    expect(code).toMatch(/options\.process\.spawn\(\{/);
+    expect(code).not.toMatch(/shell:\s*true/);
+  });
+
+  it("CLI: 조회 어댑터는 버전 확인·서버와 같은 포트로 만들고, 도구 관측 뒤 하네스 앞에서 관측하며, 잠금 여부를 함께 넘긴다", () => {
+    const c = cliCode();
+    const tools = c.indexOf("await runToolObservation({");
+    const observe = c.indexOf("await runForeignProcessObservation({");
+    const harness = c.indexOf("await runHarness(");
+    expect(tools).toBeGreaterThan(-1);
+    expect(tools).toBeLessThan(observe);
+    expect(observe).toBeLessThan(harness);
+    const call = c.slice(observe, c.indexOf("});", observe));
+    expect(call).toMatch(/lister: deps\.makeProcessLister\(port\),/);
+    expect(call).toMatch(/\blockHeld,/);
+    expect(call).toMatch(/ownPid: deps\.ownPid/);
+    // 실제 포트는 여전히 run의 한 곳에서만 만든다.
+    expect([...c.matchAll(/makeProcessPort\s*\(\s*["']real["']\s*\)/g)]).toHaveLength(1);
+  });
+
+  it("하네스: 서버 트리 준비 쓰기는 잠금을 가졌고 다른 서버가 0건으로 확정된 경우에만 한다", () => {
+    const c = byRel("harness.ts").code;
+    expect(c).toMatch(
+      /const mayWriteServerTree = options\.lockHeld === true && options\.foreignServerProcesses === 0;/
+    );
+    // 트리를 만드는 호출은 모두 그 변수 뒤에 있다.
+    const build =
+      (c.match(/buildScanTree\(/g) ?? []).length + (c.match(/buildControlTree\(/g) ?? []).length;
+    expect(build).toBe(2);
+    expect(c.match(/\(mayWriteServerTree &&/g)).toHaveLength(2);
   });
 });
