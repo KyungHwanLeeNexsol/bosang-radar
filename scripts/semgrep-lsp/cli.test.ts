@@ -9,6 +9,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -37,6 +38,8 @@ import { createNodeFs } from "./fs-node";
 import { FakeMetricsReceiver } from "./testing/fake-metrics";
 import { canConnectLoopback } from "./testing/loopback-client";
 import { recorded } from "./testing/call-recorder";
+import { FakeChild } from "./testing/fake-process";
+import { MemoryArtifactHasher } from "./testing/memory-artifact";
 import { routedFs } from "./testing/routed-fs";
 import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
 import { MemoryFs } from "./testing/memory-fs";
@@ -50,7 +53,19 @@ import {
   buildSyntheticData,
   harnessFilesAt,
 } from "./testing/synthetic-data";
-import type { GitPort, ProcessPort, Provenance, ReferenceFingerprints, SpawnSpec } from "./types";
+import { drive } from "./testing/stub-lsp";
+import { AsyncByteQueue } from "./streams";
+import { createNodeProcessPort } from "./process-node";
+import type {
+  ChildHandle,
+  GitPort,
+  ProcessPort,
+  Provenance,
+  ReferenceFingerprints,
+  RunToolObservation,
+  SpawnSpec,
+  ToolObservationSummary,
+} from "./types";
 
 // 시험 전용: 파일에서 읽은 JSON을 마음대로 변조하는 시험이라 느슨한 타입을 쓴다(운영 코드는 unknown으로만 다룬다).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,6 +95,12 @@ interface World {
   lock: MemoryRunLock;
   /** CLI가 연 수신기들(가짜). 시험이 건수·상태를 정한다. */
   receivers: FakeMetricsReceiver[];
+  /** 버전 확인(`--version`) 호출. LSP 서버 호출(spawnCalls)과 따로 센다. */
+  versionCalls: SpawnSpec[];
+  /** 버전 확인이 띄운 가짜 자식들. */
+  versionChildren: ChildHandle[];
+  /** 휠 아티팩트 해시 포트(메모리). */
+  hasher: MemoryArtifactHasher;
 }
 
 function makeWorld(
@@ -90,6 +111,13 @@ function makeWorld(
     withBin?: boolean;
     /** 수신기를 만드는 방법. 기본은 0건을 관측 중인 가짜. 던지면 열기 실패를 재현한다. */
     receiver?: () => FakeMetricsReceiver;
+    /**
+     * 버전 확인(`--version`)이 띄우는 자식을 만드는 방법. 생략하면 "실행 파일을 띄우지 못한다"(SPAWN_FAILED)여서 예전처럼 버전은
+     * 관측되지 않는다(null). LSP 서버 호출은 어느 경우에도 던진다.
+     */
+    versionChild?: (spec: SpawnSpec) => ChildHandle;
+    /** 포트가 알리는 출처. 생략하면 CLI가 요청한 값 그대로다. 스크립트된 가짜 자식을 쓰는 시험은 "stub"으로 정직하게 표시한다. */
+    portProvenance?: Provenance;
   } = {}
 ): World {
   const files: Record<string, string> = {};
@@ -118,6 +146,9 @@ function makeWorld(
   const gitCalls: string[] = [];
   const envCalls: string[] = [];
   const spawnCalls: SpawnSpec[] = [];
+  const versionCalls: SpawnSpec[] = [];
+  const versionChildren: ChildHandle[] = [];
+  const hasher = new MemoryArtifactHasher();
   const env = options.env ?? {};
   const lock = new MemoryRunLock();
   const receivers: FakeMetricsReceiver[] = [];
@@ -130,8 +161,16 @@ function makeWorld(
     makeProcessPort: (provenance): ProcessPort => {
       portCalls.push(provenance);
       return {
-        provenance,
+        provenance: options.portProvenance ?? provenance,
         async spawn(spec) {
+          // 버전 확인은 인자가 정확히 ["--version"]인 호출뿐이다. 그 밖(LSP 서버)은 어느 시험에서도 띄우면 안 된다.
+          if (spec.args.length === 1 && spec.args[0] === "--version") {
+            versionCalls.push(spec);
+            if (!options.versionChild) throw new Error("시험: 버전 확인 실행 파일을 띄우지 못한다");
+            const child = options.versionChild(spec);
+            versionChildren.push(child);
+            return child;
+          }
           spawnCalls.push(spec);
           throw new Error("시험: 이 경로에서 프로세스를 띄우면 안 된다");
         },
@@ -144,6 +183,7 @@ function makeWorld(
       receivers.push(receiver);
       return receiver;
     },
+    hashArtifact: hasher,
     stdout: (text) => void out.push(text),
     stderr: (text) => void err.push(text),
     getEnv: (name) => {
@@ -153,11 +193,40 @@ function makeWorld(
     dataDir: `${HARNESS_ROOT}/data`,
     platform: options.platform ?? "linux",
   };
-  return { deps, fs, git, out, err, portCalls, gitCalls, envCalls, spawnCalls, lock, receivers };
+  return {
+    deps,
+    fs,
+    git,
+    out,
+    err,
+    portCalls,
+    gitCalls,
+    envCalls,
+    spawnCalls,
+    lock,
+    receivers,
+    versionCalls,
+    versionChildren,
+    hasher,
+  };
 }
 
 function jsonOut(w: World): Record<string, unknown> {
   return JSON.parse(w.out.join("")) as Record<string, unknown>;
+}
+
+/** `--version`을 흉내 내는 가짜 자식: stdout을 내보내고 곧바로 종료한다. 실제 Semgrep이 아니다. */
+function versionOutput(
+  stdout: string | Uint8Array,
+  exit: number | null = 0,
+  signal: string | null = null
+): () => FakeChild {
+  return () => {
+    const child = new FakeChild();
+    child.emitStdout(stdout);
+    child.exit(exit, signal);
+    return child;
+  };
 }
 
 // ── 사용법 ──────────────────────────────────────────────────────
@@ -879,7 +948,8 @@ describe("main — run: 대조 예제 경로", () => {
 // 하네스 → 증거 파일(run.json)로 확인한다.
 //
 // "시험용 기록"과 "운영 관측"을 구분한다: 기록은 시험이 손으로 구성한 합성이고(testing/control-record-fixtures.ts, real이라고
-// *주장하는* 기록 포함), 이 CLI의 운영 관측(도구 버전·휠·다른 서버 프로세스·메트릭 수신기)은 구현되지 않아 항상 null이다.
+// *주장하는* 기록 포함), 이 CLI의 운영 관측 중 다른 서버 프로세스는 구현되지 않아 항상 null이다. 도구 버전·휠은 이 시험 세계에서
+// 관측되지 않는다(버전 확인 가짜 자식이 없고 --wheel-artifact도 주지 않는다 — 관측 시험은 아래 '도구 버전·휠 관측' 절).
 // 그래서 기록이 모든 것을 맞춰도 이 CLI의 target 실행은 COMPLETE가 될 수 없고, 어댑터가 수락한 사실은 run.json의
 // control_reference와 (관측하지 못한 값에 대한) FINGERPRINT_MISSING으로만 드러난다.
 
@@ -1437,6 +1507,39 @@ describe("main — run: 대조 기록(--control-record)", () => {
       expect(help, word).toContain(word);
     }
   });
+
+  it("대조 기록의 도구 버전·휠 값은 이번 실행의 관측으로 복사되지 않는다(관측하지 못하면 null로 남는다)", async () => {
+    const w = worldWith(canonicalJson(control()));
+    const run = await expectRefused(w, await main(argvWithRecord(), w.deps));
+    // 기록(참조) 쪽에는 도구 버전·휠 값이 있다.
+    expect(run.control_reference).toMatchObject({
+      fingerprints: { tool_version: data.pin.semgrep.version, wheel_sha256: SYNTHETIC_WHEEL },
+    });
+    // 이번 실행은 관측하지 못했다 — 기록의 같은 값을 복사해 채우지 않는다. 결합도 null이다.
+    expect(run.inputs.tool_version_observed).toBeNull();
+    expect(run.inputs.wheel_sha256_observed).toBeNull();
+    expect(run.inputs.binding_sha256).toBeNull();
+    expect(codesOfRun(run)).toEqual(
+      expect.arrayContaining(["TOOL_VERSION_UNVERIFIED", "WHEEL_HASH_UNVERIFIED"])
+    );
+  });
+
+  it("관측한 버전이 기록과 다르면 이번 관측이 그대로 남고 거부된다(기록 값으로 덮어쓰지 않는다)", async () => {
+    const w = makeWorld({
+      env: passEnv,
+      portProvenance: "stub",
+      versionChild: versionOutput("1.179.0\n"),
+      extraFiles: {
+        ...fixtureFiles(FIXTURES_REPO, "v1"),
+        [RECORD_PATH]: canonicalJson(control()), // 기록의 도구 버전은 data.pin.semgrep.version
+      },
+    });
+    const run = await expectRefused(w, await main(argvWithRecord(), w.deps));
+    expect(run.inputs.tool_version_observed).toBe("1.179.0");
+    expect(run.inputs.tool_version_observed).not.toBe(data.pin.semgrep.version);
+    expect(codesOfRun(run)).toContain("TOOL_VERSION_MISMATCH");
+    expect(run.inputs.wheel_sha256_observed).toBeNull(); // --wheel-artifact를 주지 않았다
+  });
 });
 
 // ── run: 공유 실행 잠금과 루프백 수신기의 생명주기 ─────────────────────
@@ -1822,9 +1925,10 @@ describe("main — run: 공유 실행 잠금과 루프백 수신기의 생명주
 
     it("판정 뒤 닫기 전에 들어온 요청은 정리 결과에 따로 알린다", async () => {
       const receiver = new FakeMetricsReceiver({ hits: 0 });
-      // 하네스가 처음 관측한 뒤 닫을 때까지 건수가 2 늘어난다.
-      receiver.onObserve = (call) => {
-        if (call >= 2) receiver.hits = 2;
+      // 하네스가 판정하는 시점(닫기 전)에는 0건이고, 닫은 뒤의 마지막 관측에서 건수가 2 늘어난다. (관측 호출 횟수에 기대지 않는다 —
+      // 버전 확인 앞뒤의 관측으로 호출 횟수가 바뀌어도 이 시험의 뜻은 같다.)
+      receiver.onObserve = () => {
+        if (receiver.closeCalls >= 1) receiver.hits = 2;
       };
       const w2 = makeWorld({ env: passEnv, receiver: () => receiver });
       await main(withGuard({}), w2.deps);
@@ -2567,6 +2671,69 @@ describe("main — run: 실제 잠금(디스크)과 실제 루프백 수신기",
       expect(bodyOf(x.w).cleanup.lock.state).toBe("RELEASED");
     });
   }
+
+  // ── 도구 버전 관측: 실제 디스크·실제 잠금·실제 수신기·실제 Node 프로세스(스텁) ──────────────────────
+  //
+  // `--semgrep-bin`으로 Node 실행 파일 자체를 준다(`node --version`은 `v24.x.y`를 찍는다). 실제 Semgrep이 아니라 무해한 Node다. 이 출력은
+  // 계약(`숫자.숫자.숫자` 한 줄)과 다르므로 관측 실패여야 하고, 서버(LSP)는 시작되지 않는다. 포트는 "stub"이라 기록은 SYNTHETIC이다.
+  it("실제 Node 프로세스(node --version)로 CLI → 버전 확인 → 하네스 → run.json: 형식이 계약과 다르면 관측 실패이고 서버는 시작되지 않는다", async () => {
+    const { w, dir, argv } = await setup({ [process.execPath]: "placeholder in memory fs\n" });
+    onDisk(w, dir);
+    w.deps.makeProcessPort = () => createNodeProcessPort({ provenance: "stub" });
+    w.deps.getEnv = (name) => (name === ENV_NAME ? "1" : process.env[name]);
+    w.deps.platform = process.platform;
+    const evidenceRoot = `${dir.replace(/\\/g, "/")}/evidence`;
+    const args = withEvidence(argv, evidenceRoot);
+    args[args.indexOf("--semgrep-bin") + 1] = process.execPath;
+
+    expect(await main(args, w.deps)).toBe(EXIT.failed);
+
+    const b = jsonOut(w) as unknown as {
+      started: boolean;
+      tool_observation: ToolObservationSummary;
+      cleanup: {
+        lock: { state: string };
+        metrics_receiver: { closed: boolean };
+        version_check_process: { state: string };
+      };
+      record: { measurement: { reasons: { code: string }[] } } | null;
+    };
+    expect(b.started).toBe(false);
+    expect(b.tool_observation.version_check).toMatchObject({
+      process_role: "version-check",
+      provenance: "stub",
+      status: "FAILED",
+      failure: "OUTPUT_UNRECOGNIZED",
+      version: null,
+      args: ["--version"],
+      exit: { code: 0, signal: null },
+      child_process: "EXITED",
+    });
+    expect(b.tool_observation.version_check.stdout_bytes).toBeGreaterThan(0);
+    const codes = (b.record?.measurement.reasons ?? []).map((r) => r.code);
+    expect(codes).toContain("TOOL_VERSION_UNVERIFIED");
+
+    // 실제 디스크의 run.json: 스텁 출처로 남고, 관측하지 못한 값은 null이다.
+    const run = JSON.parse(await readFile(join(evidenceRoot, "run-cli-1", "run.json"), "utf8")) as {
+      provenance: string;
+      trust: string;
+      inputs: { tool_version_observed: string | null };
+      resources?: { tool_observation?: RunToolObservation };
+    };
+    expect(run.provenance).toBe("stub");
+    expect(run.trust).toBe("SYNTHETIC");
+    expect(run.inputs.tool_version_observed).toBeNull();
+    expect(run.resources?.tool_observation?.version_check.failure).toBe("OUTPUT_UNRECOGNIZED");
+    expect(run.resources?.tool_observation?.pin.version.comparison).toBe("NOT_OBSERVED");
+    expect(JSON.stringify(run)).not.toContain(process.execPath.replace(/\\/g, "\\\\"));
+
+    // 버전 확인 전용 상태 폴더가 증거 폴더 안에 생겼고, 잠금·수신기·자식은 정리됐다.
+    expect(await exists(join(evidenceRoot, "run-cli-1", "version-check-state"))).toBe(true);
+    expect(b.cleanup.lock.state).toBe("RELEASED");
+    expect(b.cleanup.metrics_receiver.closed).toBe(true);
+    expect(b.cleanup.version_check_process.state).toBe("EXITED");
+    expect((await listing(dir)).filter((n) => n.endsWith(".lock"))).toEqual([]);
+  });
 });
 
 // ── run: --run-id 선검증(메모리 파일 시스템, 포트 호출 기록) ─────────────────────────────────────
@@ -2697,4 +2864,541 @@ describe("main — run: --run-id 선검증", () => {
       expect(x.w.lock.calls.length).toBeGreaterThan(0);
     }
   );
+});
+
+// ── run: 도구 버전·휠 sha256 관측 (CLI → 관측 → 하네스 → run.json) ───────────────────────────────
+//
+// 이 절의 "버전 확인 자식"은 모두 시험용 스텁이다(포트 출처 "stub"): 가짜 자식, 또는 실제 Node 프로세스(`node --version`). 실제 Semgrep을
+// 설치·실행하지 않는다. 그래서 이 시험의 모든 기록은 SYNTHETIC이며 실제 Semgrep 검증의 증거가 아니다.
+
+interface ObsBody {
+  ok: boolean;
+  started: boolean;
+  complete: boolean;
+  record: {
+    provenance: string;
+    trust: string;
+    measurement: { status: string; reasons: { code: string; detail: string | null }[] };
+    resources: { tool_observation?: RunToolObservation } | null;
+  } | null;
+  tool_observation: ToolObservationSummary & { wheel_artifact: string | null };
+  lock: { state: string; evidence_marker: string };
+  cleanup: {
+    lock: { state: string };
+    metrics_receiver: { closed: boolean };
+    version_check_process: { state: string };
+  };
+}
+
+describe("main — run: 도구 버전·휠 sha256 관측", () => {
+  const passEnv = { [ENV_NAME]: "1" };
+  const PIN_VERSION = data.pin.semgrep.version;
+  const WHEEL_PATH = "/artifacts/semgrep-1.180.0-test-only.whl";
+  const WHEEL_BYTES = new TextEncoder().encode("this is test data, not a wheel\n");
+  const WHEEL_SHA = createHash("sha256").update(WHEEL_BYTES).digest("hex"); // 독립 계산
+
+  const bodyOf = (w: World): ObsBody => jsonOut(w) as unknown as ObsBody;
+  const codesOf = (b: ObsBody): string[] =>
+    (b.record?.measurement.reasons ?? []).map((r) => r.code);
+  const runOf = async (w: World, dir = "/evidence/run-cli-1") =>
+    JSON.parse(decoder.decode(await w.fs.readFile(`${dir}/run.json`))) as {
+      provenance: string;
+      trust: string;
+      inputs: {
+        tool_version_observed: string | null;
+        wheel_sha256_observed: string | null;
+        binding_sha256: string | null;
+      };
+      measurement: { reasons: { code: string }[] };
+      resources?: { tool_observation?: RunToolObservation };
+    };
+
+  const argvWheel = (extra: string[] = []): string[] => [
+    ...withGuard({}),
+    "--wheel-artifact",
+    WHEEL_PATH,
+    ...extra,
+  ];
+
+  function observeWorld(
+    options: Parameters<typeof makeWorld>[0] = {},
+    wheel: "none" | "match" | "bytes" = "none"
+  ): World {
+    const w = makeWorld({ env: passEnv, portProvenance: "stub", ...options });
+    if (wheel === "match") w.hasher.forcedResult = { sha256: SYNTHETIC_WHEEL, sizeBytes: 31 };
+    if (wheel === "bytes") w.hasher.set(WHEEL_PATH, WHEEL_BYTES);
+    return w;
+  }
+
+  describe("정상 경로", () => {
+    it("버전과 휠 해시를 관측해 하네스에 넘기고, 사전 검사가 통과시키며, run.json에 핀과 따로 남긴다", async () => {
+      const w = observeWorld(
+        {
+          versionChild: versionOutput(`${PIN_VERSION}\n`),
+          extraFiles: fixtureFiles(FIXTURES_REPO, "v1"), // 대조 지문까지 채워야 결합이 null이 아니다
+        },
+        "match"
+      );
+      // 남은 전제(다른 서버 프로세스)가 있어 실행은 거부된다 — 도구 관측은 거부 사유에서 빠진다.
+      expect(await main(argvWheel(["--control-fixtures-root", FIXTURES_REPO]), w.deps)).toBe(
+        EXIT.failed
+      );
+
+      const b = bodyOf(w);
+      expect(b.started).toBe(false); // LSP 서버는 시작되지 않았다
+      expect(w.spawnCalls).toEqual([]);
+      expect(codesOf(b)).toContain("FOREIGN_SERVER_PROCESS");
+      expect(codesOf(b)).not.toContain("TOOL_VERSION_UNVERIFIED");
+      expect(codesOf(b)).not.toContain("TOOL_VERSION_MISMATCH");
+      expect(codesOf(b)).not.toContain("WHEEL_HASH_UNVERIFIED");
+      expect(codesOf(b)).not.toContain("WHEEL_HASH_MISMATCH");
+
+      // 포트는 한 번만 만들었고, 버전 확인은 실행 파일 + 인자 배열로 한 번 불렀다.
+      expect(w.portCalls).toEqual(["real"]);
+      expect(w.versionCalls).toHaveLength(1);
+      expect(w.versionCalls[0]).toMatchObject({ command: BIN, args: ["--version"] });
+
+      // run.json(증거로 남은 실제 레코드)
+      const run = await runOf(w);
+      expect(run.inputs.tool_version_observed).toBe(PIN_VERSION);
+      expect(run.inputs.wheel_sha256_observed).toBe(SYNTHETIC_WHEEL);
+      expect(run.inputs.binding_sha256).toMatch(/^[0-9a-f]{64}$/);
+      const t = run.resources?.tool_observation;
+      expect(t?.version_check).toMatchObject({
+        process_role: "version-check",
+        provenance: "stub",
+        status: "OBSERVED",
+        version: PIN_VERSION,
+        args: ["--version"],
+        exit: { code: 0, signal: null },
+        child_process: "EXITED",
+        metrics_hits_during: 0,
+      });
+      expect(t?.wheel_hash).toMatchObject({ status: "OBSERVED", sha256: SYNTHETIC_WHEEL });
+      expect(t?.pin.version.comparison).toBe("MATCH");
+      expect(t?.pin.wheel).toMatchObject({ verified: true, comparison: "MATCH" });
+      expect(t?.not_established).toEqual({
+        executable_provenance: "NOT_VERIFIED",
+        version_output_format: "UNVERIFIED",
+      });
+
+      // 스텁 관측은 실제 Semgrep 검증으로 표시되지 않는다.
+      expect(run.provenance).toBe("stub");
+      expect(run.trust).toBe("SYNTHETIC");
+      expect(JSON.stringify(run)).not.toContain("REAL_UNREVIEWED");
+
+      // 경로·출력 원문은 증거에 없고, 출력(stdout)에만 아티팩트 경로가 있다.
+      expect(JSON.stringify(run)).not.toContain(WHEEL_PATH);
+      expect(JSON.stringify(run)).not.toContain(BIN);
+      expect(b.tool_observation.wheel_artifact).toBe(WHEEL_PATH);
+
+      // 정리: 버전 확인 자식·잠금·수신기
+      expect(b.cleanup.version_check_process.state).toBe("EXITED");
+      expect((w.versionChildren[0] as FakeChild).disposed).toBe(true);
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+    });
+
+    it("버전 확인 자식의 환경은 LSP 서버와 같은 규칙(루프백 주소·증거 폴더 안 경로)이되 상태 폴더는 따로 쓴다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "match");
+      await main(argvWheel(), w.deps);
+      const spec = w.versionCalls[0];
+      expect(spec.cwd).toBe("/evidence/run-cli-1/version-check-state");
+      expect(spec.env.SEMGREP_METRICS_URL).toBe("http://127.0.0.1:41999");
+      expect(spec.env.SEMGREP_VERSION_CHECK_URL).toBe("http://127.0.0.1:41999");
+      expect(spec.env.SEMGREP_APP_URL).toBe("http://127.0.0.1:41999");
+      for (const name of [
+        "SEMGREP_LOG_FILE",
+        "SEMGREP_SETTINGS_FILE",
+        "SEMGREP_VERSION_CACHE_PATH",
+      ]) {
+        expect(spec.env[name], name).toMatch(/^\/evidence\/run-cli-1\/version-check-state\//);
+        expect(spec.env[name], name).not.toContain("/semgrep-state/");
+      }
+      // 허용 목록 밖의 SEMGREP_* 나 기밀 이름이 없다.
+      expect(
+        Object.keys(spec.env)
+          .filter((k) => k.startsWith("SEMGREP_"))
+          .sort()
+      ).toEqual([
+        "SEMGREP_APP_URL",
+        "SEMGREP_LOG_FILE",
+        "SEMGREP_METRICS_URL",
+        "SEMGREP_SETTINGS_FILE",
+        "SEMGREP_VERSION_CACHE_PATH",
+        "SEMGREP_VERSION_CHECK_URL",
+      ]);
+      expect(await w.fs.exists("/evidence/run-cli-1/version-check-state")).toBe(true);
+    });
+
+    it("버전 확인 중 수신기에 들어온 요청 건수가 늘어난 만큼 증거에 따로 남고, 판정은 METRICS_RECEIVER_HIT가 된다", async () => {
+      const receiver = new FakeMetricsReceiver({ hits: 0 });
+      const w = observeWorld(
+        {
+          versionChild: () => {
+            receiver.hits = 2; // 버전 확인 도중 요청이 들어왔다
+            return versionOutput(`${PIN_VERSION}\n`)();
+          },
+          receiver: () => receiver,
+        },
+        "match"
+      );
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(b.record?.resources?.tool_observation?.version_check.metrics_hits_during).toBe(2);
+      expect(codesOf(b)).toContain("METRICS_RECEIVER_HIT");
+    });
+  });
+
+  describe("관측하지 못한 값은 null이고 사전 검사가 거부한다", () => {
+    it("버전 출력 형식이 계약과 다르면 관측 실패다(접두가 붙은 출력)", async () => {
+      const w = observeWorld(
+        {
+          versionChild: versionOutput(`semgrep ${PIN_VERSION}\n`),
+          extraFiles: fixtureFiles(FIXTURES_REPO, "v1"),
+        },
+        "match"
+      );
+      await main(argvWheel(["--control-fixtures-root", FIXTURES_REPO]), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("TOOL_VERSION_UNVERIFIED");
+      expect(b.tool_observation.version_check).toMatchObject({
+        status: "FAILED",
+        failure: "OUTPUT_UNRECOGNIZED",
+        version: null,
+      });
+      const run = await runOf(w);
+      expect(run.inputs.tool_version_observed).toBeNull(); // 핀 값으로 채우지 않는다
+      expect(run.inputs.binding_sha256).toBeNull();
+      expect(b.started).toBe(false);
+    });
+
+    it("버전이 핀과 다르면 관측값을 그대로 남기고 TOOL_VERSION_MISMATCH로 거부한다", async () => {
+      const w = observeWorld({ versionChild: versionOutput("1.179.0\n") }, "match");
+      await main(argvWheel(), w.deps);
+      expect(codesOf(bodyOf(w))).toContain("TOOL_VERSION_MISMATCH");
+      const run = await runOf(w);
+      expect(run.inputs.tool_version_observed).toBe("1.179.0");
+      expect(run.resources?.tool_observation?.pin.version).toEqual({
+        expected: PIN_VERSION,
+        observed: "1.179.0",
+        comparison: "MISMATCH",
+      });
+    });
+
+    it("비정상 종료(종료 코드 ≠ 0)는 stdout이 정상처럼 보여도 관측 실패다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`, 3) }, "match");
+      await main(argvWheel(), w.deps);
+      expect(bodyOf(w).tool_observation.version_check).toMatchObject({
+        status: "FAILED",
+        failure: "NONZERO_EXIT",
+        version: null,
+      });
+      expect((await runOf(w)).inputs.tool_version_observed).toBeNull();
+    });
+
+    it("실행 파일을 띄우지 못하면 관측 실패다(SPAWN_FAILED) — 서버도 시작하지 않는다", async () => {
+      const w = observeWorld({}, "match"); // versionChild 없음 = 띄우지 못한다
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(b.tool_observation.version_check).toMatchObject({
+        status: "FAILED",
+        failure: "SPAWN_FAILED",
+        child_process: "NOT_SPAWNED",
+      });
+      expect(codesOf(b)).toContain("TOOL_VERSION_UNVERIFIED");
+      expect(w.spawnCalls).toEqual([]);
+    });
+
+    it("휠 경로를 주지 않으면 휠 해시를 관측하지 않는다(읽기 없음)", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) });
+      await main(withGuard({}), w.deps);
+      const b = bodyOf(w);
+      expect(b.tool_observation.wheel_hash).toMatchObject({
+        status: "NOT_ATTEMPTED",
+        failure: "ARTIFACT_NOT_GIVEN",
+        sha256: null,
+      });
+      expect(b.tool_observation.wheel_artifact).toBeNull();
+      expect(w.hasher.calls).toEqual([]);
+      expect(codesOf(b)).toContain("WHEEL_HASH_UNVERIFIED");
+      expect((await runOf(w)).inputs.wheel_sha256_observed).toBeNull();
+    });
+
+    it("휠 파일을 읽지 못하면 관측 실패이고 성공값으로 보정하지 않는다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }); // 해시 포트에 파일이 없다
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(b.tool_observation.wheel_hash).toMatchObject({
+        status: "FAILED",
+        failure: "NOT_FOUND",
+        sha256: null,
+      });
+      expect(codesOf(b)).toContain("WHEEL_HASH_UNVERIFIED");
+      expect((await runOf(w)).inputs.wheel_sha256_observed).toBeNull();
+    });
+
+    it("실제 바이트의 해시가 핀과 다르면 WHEEL_HASH_MISMATCH이고 관측값은 독립 계산값과 같다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("WHEEL_HASH_MISMATCH");
+      const run = await runOf(w);
+      expect(run.inputs.wheel_sha256_observed).toBe(WHEEL_SHA);
+      expect(run.resources?.tool_observation?.pin.wheel).toMatchObject({
+        observed: WHEEL_SHA,
+        comparison: "MISMATCH",
+      });
+    });
+
+    it("파일이 바뀌면 관측 해시도 바뀐다", async () => {
+      const hashes: (string | null)[] = [];
+      for (const text of ["wheel-v1", "wheel-v2"]) {
+        const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) });
+        w.hasher.set(WHEEL_PATH, text);
+        await main(argvWheel(), w.deps);
+        hashes.push((await runOf(w)).inputs.wheel_sha256_observed);
+      }
+      expect(hashes[0]).toBe(createHash("sha256").update("wheel-v1").digest("hex"));
+      expect(hashes[1]).toBe(createHash("sha256").update("wheel-v2").digest("hex"));
+      expect(hashes[0]).not.toBe(hashes[1]);
+    });
+
+    it("핀의 휠 해시가 확인되지 않았으면(실제 pin.json과 같다) 해시를 관측해도 거부되고 핀은 바뀌지 않는다", async () => {
+      const unverified = JSON.parse(JSON.stringify(data.pin)) as typeof data.pin;
+      unverified.semgrep.wheel.sha256 = null;
+      unverified.semgrep.wheel.verified = false;
+      const pinPath = `${HARNESS_ROOT}/data/pin.json`;
+      const text = JSON.stringify(unverified, null, 2);
+      const w = observeWorld(
+        { versionChild: versionOutput(`${PIN_VERSION}\n`), extraFiles: { [pinPath]: text } },
+        "bytes"
+      );
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(codesOf(b)).toContain("WHEEL_HASH_UNVERIFIED");
+      expect(codesOf(b)).not.toContain("WHEEL_HASH_MISMATCH");
+      const run = await runOf(w);
+      expect(run.inputs.wheel_sha256_observed).toBe(WHEEL_SHA); // 관측값은 남는다
+      expect(run.resources?.tool_observation?.pin.wheel).toEqual({
+        expected_sha256: null,
+        verified: false,
+        observed: WHEEL_SHA,
+        comparison: "PIN_UNVERIFIED",
+      });
+      expect(decoder.decode(await w.fs.readFile(pinPath))).toBe(text); // pin.json 그대로
+    });
+  });
+
+  describe("순서와 계약", () => {
+    it("잠금을 얻지 못한 실행은 아무것도 시작하지 않는다: 버전 확인·휠 읽기 모두 없다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+      await acquireRunLock(w.lock, { treePath: "/scan/run-1", runId: "other", mode: "target" });
+      await main(argvWheel(), w.deps);
+      const b = bodyOf(w);
+      expect(b.lock.state).toBe("REFUSED");
+      expect(w.versionCalls).toEqual([]);
+      expect(w.hasher.calls).toEqual([]);
+      expect(b.tool_observation.version_check).toMatchObject({
+        status: "NOT_ATTEMPTED",
+        failure: "LOCK_NOT_HELD",
+        provenance: null,
+      });
+      expect(b.tool_observation.wheel_hash).toMatchObject({ status: "NOT_ATTEMPTED" });
+      expect(codesOf(b)).toEqual(
+        expect.arrayContaining([
+          "LOCK_NOT_ACQUIRED",
+          "TOOL_VERSION_UNVERIFIED",
+          "WHEEL_HASH_UNVERIFIED",
+        ])
+      );
+      expect(w.spawnCalls).toEqual([]);
+    });
+
+    it("실행 방지 장치가 먼저다: 장치를 통과하지 못하면 NOT_RUN이고 버전 확인·휠 읽기·포트가 없다", async () => {
+      for (const argv of [
+        [...withGuard({ flag: false }), "--wheel-artifact", WHEEL_PATH],
+        [...withGuard({ bin: null }), "--wheel-artifact", WHEEL_PATH],
+      ]) {
+        const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+        expect(await main(argv, w.deps)).toBe(EXIT.notRun);
+        expect(w.portCalls).toEqual([]);
+        expect(w.versionCalls).toEqual([]);
+        expect(w.hasher.calls).toEqual([]);
+      }
+      const noEnv = observeWorld(
+        { env: {}, versionChild: versionOutput(`${PIN_VERSION}\n`) },
+        "bytes"
+      );
+      expect(await main(argvWheel(), noEnv.deps)).toBe(EXIT.notRun);
+      expect(noEnv.versionCalls).toEqual([]);
+      expect(noEnv.hasher.calls).toEqual([]);
+    });
+
+    it("run-id 검증이 먼저다: 잘못된 --run-id는 사용법 오류이고 아무것도 시작하지 않는다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+      const argv = argvWheel();
+      argv[argv.indexOf("--run-id") + 1] = "../escaped";
+      expect(await main(argv, w.deps)).toBe(EXIT.usage);
+      expect(w.err.join("").split("\n")[0].startsWith("--run-id는 ")).toBe(true);
+      expect(w.portCalls).toEqual([]);
+      expect(w.versionCalls).toEqual([]);
+      expect(w.hasher.calls).toEqual([]);
+      expect(w.lock.calls).toEqual([]);
+    });
+
+    it("--wheel-artifact는 절대 경로 하나만 받는다: 상대 경로·중복·빈 값은 사용법 오류이고 아무것도 시작하지 않는다", async () => {
+      for (const extra of [
+        ["--wheel-artifact", "relative/semgrep.whl"],
+        ["--wheel-artifact", "semgrep.whl"],
+        ["--wheel-artifact", "./semgrep.whl"],
+        ["--wheel-artifact", WHEEL_PATH, "--wheel-artifact", WHEEL_PATH],
+        ["--wheel-artifact"],
+        ["--wheel-artifact", ""],
+      ]) {
+        const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+        expect(await main([...withGuard({}), ...extra], w.deps), extra.join(" ")).toBe(EXIT.usage);
+        expect(w.portCalls).toEqual([]);
+        expect(w.versionCalls).toEqual([]);
+        expect(w.hasher.calls).toEqual([]);
+        expect(w.lock.files.size).toBe(0);
+      }
+    });
+
+    it("기본 경로·자동 탐색이 없다: --wheel-artifact 없이는 어떤 경로도 읽지 않는다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "bytes");
+      await main(withGuard({}), w.deps);
+      expect(w.hasher.calls).toEqual([]);
+    });
+
+    it("도움말에 새 옵션과 관측 계약(절대 경로·--version 인자 배열·stdout 한 줄·바이트 해시 ≠ 설치 출처)이 있다", async () => {
+      const w = makeWorld();
+      await main(["--help"], w.deps);
+      const help = w.out.join("");
+      expect(help).toMatch(/--wheel-artifact <절대 경로>/);
+      for (const word of [
+        "도구 관측",
+        '["--version"]',
+        "stdout",
+        "설치",
+        "관측 실패",
+        "pin.json",
+      ]) {
+        expect(help, word).toContain(word);
+      }
+    });
+
+    it("run 출력의 '아직 확인하지 못한 것' 목록이 관측 범위를 정직하게 말한다", async () => {
+      const w = observeWorld({ versionChild: versionOutput(`${PIN_VERSION}\n`) }, "match");
+      await main(argvWheel(), w.deps);
+      const notes = (jsonOut(w).not_implemented_or_not_verified as string[]).join("\n");
+      expect(notes).toContain("해석 계약은 실제 Semgrep으로 확인하지 않았다");
+      expect(notes).toContain("설치 출처");
+      expect(notes).toContain("foreignServerProcesses=null");
+      expect(notes).not.toContain("구현하지 않았다 — toolVersionObserved=null"); // 낡은 문구가 남아 있지 않다
+    });
+  });
+
+  describe("시간 초과·취소·정리 실패 (가상 시계)", () => {
+    const silent = (): FakeChild => new FakeChild();
+
+    it("시간 초과: 멈춘 버전 확인을 끝내고 TIMEOUT으로 남기며 잠금·수신기를 정리한다", async () => {
+      const w = observeWorld({ versionChild: silent }, "match");
+      const clock = w.deps.clock as VirtualClock;
+      const code = await drive(clock, main(argvWheel(), w.deps));
+      expect(code).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.tool_observation.version_check).toMatchObject({
+        status: "FAILED",
+        failure: "TIMEOUT",
+        child_process: "KILLED",
+      });
+      const child = w.versionChildren[0] as FakeChild;
+      expect(child.killCalls).toEqual(["SIGKILL"]);
+      expect(child.disposed).toBe(true);
+      expect(b.cleanup.version_check_process.state).toBe("KILLED");
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+      expect(w.lock.files.size).toBe(0);
+      expect(codesOf(b)).toContain("TOOL_VERSION_UNVERIFIED");
+      expect(w.spawnCalls).toEqual([]);
+    });
+
+    it("실행 중 취소: 버전 확인 자식을 끝내고, 이어지는 하네스는 서버를 띄우지 않으며, 잠금·수신기를 정리한다", async () => {
+      const w = observeWorld({ versionChild: silent }, "match");
+      const clock = w.deps.clock as VirtualClock;
+      const controller = new AbortController();
+      w.deps.signal = controller.signal;
+      const pending = main(argvWheel(), w.deps);
+      for (let i = 0; i < 200 && w.versionCalls.length === 0; i++) await clock.flush();
+      expect(w.versionCalls).toHaveLength(1); // 버전 확인이 돌고 있다
+      controller.abort();
+      const code = await drive(clock, pending);
+
+      expect(code).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.tool_observation.version_check).toMatchObject({
+        status: "FAILED",
+        failure: "CANCELLED",
+        child_process: "KILLED",
+      });
+      const child = w.versionChildren[0] as FakeChild;
+      expect(child.killCalls).toEqual(["SIGKILL"]);
+      expect(child.disposed).toBe(true);
+      expect(b.started).toBe(false);
+      expect(w.spawnCalls).toEqual([]);
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+      expect(w.lock.files.size).toBe(0);
+      expect(w.receivers[0].closeCalls).toBe(1);
+    });
+
+    it("이미 취소된 신호: 버전 확인도 휠 읽기도 시작하지 않고 상태 폴더도 만들지 않는다", async () => {
+      const w = observeWorld({ versionChild: silent }, "bytes");
+      w.deps.signal = AbortSignal.abort();
+      await main(argvWheel(), w.deps);
+      expect(w.versionCalls).toEqual([]);
+      expect(w.hasher.calls).toEqual([]);
+      expect(await w.fs.exists("/evidence/run-cli-1/version-check-state")).toBe(false);
+      expect(bodyOf(w).tool_observation.version_check).toMatchObject({
+        status: "NOT_ATTEMPTED",
+        failure: "CANCELLED",
+      });
+      expect(w.lock.files.size).toBe(0);
+    });
+
+    it("자식의 종료를 확인하지 못하면 정리 결과에 KILL_NOT_OBSERVED로 남기고 실행은 실패로 끝난다(그래도 잠금·수신기는 정리한다)", async () => {
+      let disposed = 0;
+      const stuck: ChildHandle = {
+        pid: 9,
+        stdout: new AsyncByteQueue(),
+        stderr: new AsyncByteQueue(),
+        writeStdin: async () => {},
+        endStdin: async () => {},
+        kill: () => {},
+        exited: new Promise(() => {}),
+        dispose: async () => void (disposed += 1),
+      };
+      const w = observeWorld({ versionChild: () => stuck }, "match");
+      const clock = w.deps.clock as VirtualClock;
+      const code = await drive(clock, main(argvWheel(), w.deps));
+      expect(code).toBe(EXIT.failed);
+      const b = bodyOf(w);
+      expect(b.cleanup.version_check_process.state).toBe("KILL_NOT_OBSERVED");
+      expect(disposed).toBe(1);
+      expect(b.cleanup.lock.state).toBe("RELEASED");
+      expect(b.cleanup.metrics_receiver.closed).toBe(true);
+    });
+
+    it("포트 생성이 실패해도(예외) 잠금을 해제하고 수신기를 닫는다 — 관측 앞에서 던져도 정리된다", async () => {
+      const w = observeWorld({}, "bytes");
+      w.deps.makeProcessPort = () => {
+        throw new Error("시험: 포트 생성 실패");
+      };
+      expect(await main(argvWheel(), w.deps)).toBe(EXIT.failed);
+      expect(w.lock.files.size).toBe(0);
+      expect(w.receivers[0].closeCalls).toBe(1);
+      expect(w.hasher.calls).toEqual([]);
+    });
+  });
 });
