@@ -477,9 +477,77 @@ export interface MetricsObserver {
   observe(): MetricsReceiverSummary;
 }
 
+// ── 도구 버전·휠 sha256 관측의 요약 ──────────────────────────────────
+// 증거에는 값과 상태 토큰만 남긴다: 실행 파일·아티팩트 경로, 자식 프로세스의 출력 원문은 싣지 않는다(바이트 수만).
+
+/** 버전 확인(`--version`) 자식 프로세스의 정리 결과. LSP 서버 프로세스와는 별개의 프로세스다. */
+export type VersionCheckChildState = "NOT_SPAWNED" | "EXITED" | "KILLED" | "KILL_NOT_OBSERVED";
+
+/** 관측 시도의 결과. NOT_ATTEMPTED는 시작하지 않았다는 뜻이며 성공도 실패도 아니다. */
+export type ObservationStatus = "OBSERVED" | "FAILED" | "NOT_ATTEMPTED";
+
+/** 하네스가 아닌 호출자(CLI)가 만든 관측 요약. 핀과의 비교는 하네스가 덧붙인다(RunToolObservation). */
+export interface ToolObservationSummary {
+  version_check: {
+    /** 이 프로세스의 역할. LSP 서버(`lsp --debug`)가 아니다. */
+    process_role: "version-check";
+    /** 이 확인에 쓴 프로세스 포트의 출처. 시작하지 않았으면 null. stub이면 실제 Semgrep의 증거가 아니다. */
+    provenance: Provenance | null;
+    status: ObservationStatus;
+    /** 실패·미시도의 원인 토큰. OBSERVED이면 null. */
+    failure: string | null;
+    /** stdout에서 해석한 버전 문자열(그대로). 관측하지 못했으면 null. */
+    version: string | null;
+    /** 넘긴 인자 배열(셸 문자열이 아니다). 시작하지 않았으면 null. */
+    args: string[] | null;
+    exit: { code: number | null; signal: string | null } | null;
+    stdout_bytes: number | null;
+    stderr_bytes: number | null;
+    duration_ms: number | null;
+    child_process: VersionCheckChildState;
+    /** 이 확인이 도는 동안 루프백 수신기에 늘어난 요청 건수. 수신기를 관측하지 못했으면 null. */
+    metrics_hits_during: number | null;
+  };
+  wheel_hash: {
+    status: ObservationStatus;
+    failure: string | null;
+    /** 명시한 아티팩트 파일의 실제 바이트로 계산한 SHA-256. 관측하지 못했으면 null. */
+    sha256: string | null;
+    size_bytes: number | null;
+  };
+  /**
+   * 이 관측이 **세워 주지 않는** 것. 휠 파일의 해시는 그 파일의 바이트에 대한 사실일 뿐 실행한 `semgrep` 실행 파일이 그 휠에서
+   * 설치되었다는 사실이 아니다(설치 출처 검증은 하지 않았다). 버전 출력 형식도 실제 Semgrep으로는 확인하지 않았다.
+   */
+  not_established: {
+    executable_provenance: "NOT_VERIFIED";
+    version_output_format: "UNVERIFIED";
+  };
+}
+
+/** run.json에 싣는 관측: 호출자의 요약 + 하네스가 계산한 핀과의 비교(핀을 바꾸지 않는다). */
+export interface RunToolObservation extends ToolObservationSummary {
+  pin: {
+    version: {
+      expected: string;
+      observed: string | null;
+      comparison: "MATCH" | "MISMATCH" | "NOT_OBSERVED";
+    };
+    wheel: {
+      expected_sha256: string | null;
+      /** 핀이 이 해시를 확인된 값으로 표시했는가. false이면 관측값이 있어도 비교할 기준이 없다. */
+      verified: boolean;
+      observed: string | null;
+      comparison: "MATCH" | "MISMATCH" | "PIN_UNVERIFIED" | "NOT_OBSERVED";
+    };
+  };
+}
+
 export interface RunResources {
   run_lock: RunLockSummary | null;
   metrics_receiver: MetricsReceiverSummary | null;
+  /** 도구 버전·휠 해시 관측. 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
+  tool_observation?: RunToolObservation | null;
 }
 
 export interface RunRecord {

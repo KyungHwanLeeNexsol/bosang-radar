@@ -56,6 +56,10 @@ Semgrep을 설치하지도, 실행하지도 않는다. 모든 시험은 합성 �
 | `run-lock-node.ts`, `metrics-node.ts`                                                        | 실제 어댑터(잠금 파일·경로 정규화, 127.0.0.1 루프백 수신기)                             | C          |
 | `path-containment.ts`                                                                        | 증거 폴더가 서버 트리 안인지의 순수 판정(실제 접근 자리 `FsPort.physicalKey` 기준)      | B          |
 | `run-id.ts`                                                                                  | `--run-id`·`runId` 형식 규칙의 유일한 출처(CLI·하네스·대조 기록 읽기가 함께 쓴다)       | B          |
+| `tool-observation.ts`                                                                        | 도구 버전(`--version` 자식)·휠 sha256 관측 코어(포트로만 만진다, 던지지 않는다)         | B          |
+| `artifact-node.ts`                                                                           | 실제 어댑터(명시한 휠 파일 하나를 읽기 전용으로 스트리밍 해시)                          | C          |
+| `testing/stub-version.mjs`, `testing/memory-artifact.ts`                                     | 버전 출력 스텁(Node, 실제 Semgrep이 아니다), 메모리 해시 포트                           | B·C        |
+| `testing/posix-open-emulator.ts`                                                             | POSIX 열기 의미 모델(FIFO 열기 대기 재현, 커널의 증거가 아니다)                         | B·C        |
 | `testing/memory-run-lock.ts`, `testing/fake-metrics.ts`                                      | 잠금·수신기 시험 지원(메모리 포트, 가짜 수신기)                                         | B          |
 | `testing/loopback-client.ts`, `testing/lock-child.mjs`                                       | 루프백 시험 클라이언트(127.0.0.1 전용), 잠금 경쟁 자식 프로세스                         | C          |
 | `harness.ts`                                                                                 | 범위 계산 → 사전 검사 → 세션 → 판정 → 증거를 잇는 함수                                  | C          |
@@ -157,6 +161,10 @@ pnpm exec tsx scripts/semgrep-lsp/cli.ts run --mode control|target ...   # 실�
 | `--control-fixtures-root` | 선택. 대조 지문 계산에 읽는 대조 예제의 저장소 | 필수        |
 | `--control-tree-root`     | 쓰지 않는다(자리표시 경로로 남는다)            | 필수        |
 | `--control-record`        | 선택. 대조 실행의 `run.json` 한 개(명시만)     | 쓸 수 없다  |
+| `--wheel-artifact`        | 선택. 휠 파일 하나의 절대 경로(명시만)         | 같다        |
+
+`--wheel-artifact`는 휠 sha256 관측에 쓰는 파일이다(아래 '도구 버전·휠 sha256 관측'). 생략하면 휠 해시는 관측하지 않는다(`null`) — 기본 경로·자동
+탐색·내려받기는 없다. 상대 경로는 사용법 오류(2)다.
 
 - `--control-fixtures-root`는 **두 모드 모두** 대조 지문(`inputs.control_sha256`)을 계산하는 데 쓴다. target에서도 하네스가
   대조 지문을 계산하기 때문이다. 이 위치는 `--repo`와 **별개의 경로**다. 검사 대상 SHA에는 대조 예제가 없을 수 있어서
@@ -446,12 +454,84 @@ metrics_receiver_observation`을 `NOT_RUN`으로 두고, 서버가 돌았고 관
 - **확인하지 못함**: Linux·macOS·WSL의 실제 디스크(이 컴퓨터에 없다 — 이 결함은 경로 의미에 기대지 않아 같은 결과가 예상되지만 측정하지
   않았다), Windows 예약 이름·끝이 `.`인 값의 동작(위 알려진 한계).
 
+### 도구 버전·휠 sha256 관측
+
+`run`은 공유 잠금과 증거 표지를 얻은 실행에서만, 서버(LSP)를 띄우기 **전에** 두 가지를 관측해 하네스의 `toolVersionObserved`·
+`wheelSha256Observed`에 넘긴다. 관측하지 못한 값은 `null`이고 사전 검사가 `TOOL_VERSION_UNVERIFIED`·`WHEEL_HASH_UNVERIFIED`로 거부한다 —
+핀의 값이나 대조 기록의 값으로 채우지 않는다. 실행 방지 장치와 `--run-id` 검증이 먼저이고, 잠금이 없으면 프로세스도 파일 읽기도 없다.
+
+- **버전 확인 프로세스는 LSP 서버와 별개다.** `--semgrep-bin`(절대 경로, PATH 탐색·자동 설치 없음)을 셸 없이 실행 파일 + 인자 **배열**
+  `["--version"]`으로 한 번 실행한다. 증거에는 역할(`process_role: "version-check"`), 이 확인에 쓴 포트의 출처(`provenance`), 종료 정보,
+  stdout·stderr 바이트 수, 소요 시간, 자식 정리 결과를 LSP 서버와 따로 남긴다. 환경은 LSP 서버와 같은 규칙(허용 목록의 `SEMGREP_*`만, URL은
+  루프백 수신기, 경로는 증거 폴더 안)이되 **상태·로그 폴더는 `version-check-state/`로 따로** 쓴다(서버 로그와 섞이지 않는다). 확인 도중 수신기에
+  들어온 요청의 늘어난 건수를 `metrics_hits_during`로 따로 남기고, 판정의 누적 건수에도 그대로 들어간다.
+- **해석 계약** (하네스가 정한 것이며 **실제 Semgrep으로 확인하지 않았다**): ① 종료 코드 0이고 신호로 끝나지 않았다 ② 버전은 **stdout에서만** 읽는다.
+  stderr는 해석하지 않고 바이트 수만 기록한다(버전이 stderr에만 있으면 관측 실패) ③ stdout은 유효한 UTF-8(BOM 불허)이고 끝의 줄 끝 하나를 뺀
+  나머지가 **정확히 한 줄**이다 ④ 그 한 줄이 정확히 `숫자.숫자.숫자`(앞자리 0·접두 `v`·접미·공백 불허)이다. 이 문자열을 그대로 버전으로 쓴다.
+  계약에 맞지 않으면 관측 실패이며 이유 토큰이 남는다: `OUTPUT_EMPTY`·`OUTPUT_NOT_UTF8`·`OUTPUT_NOT_SINGLE_LINE`·`OUTPUT_UNRECOGNIZED`·
+  `NONZERO_EXIT`·`KILLED_BY_SIGNAL`·`SPAWN_FAILED`·`TIMEOUT`·`OUTPUT_LIMIT_EXCEEDED`·`STREAM_READ_FAILED`·`CANCELLED`.
+- **제한·취소·정리**: 시간 30초, stdout 4 KiB, stderr 16 KiB(모두 실측하지 못한 **추정**)와 취소 신호를 지킨다. 제한을 넘기거나 취소되면
+  `SIGKILL`로 끝내고 종료를 기다린다(5초). 어떤 경로로 끝나도 마지막에 자식을 `dispose`한다. 정리 결과는 `EXITED`(스스로 끝남)·`KILLED`·
+  `KILL_NOT_OBSERVED`(끝냈지만 종료를 확인하지 못함)·`NOT_SPAWNED`이고, `KILL_NOT_OBSERVED`이면 측정이 끝났어도 실행은 실패로 끝난다. 잠금과 수신기는
+  기존대로 `finally`에서 정리한다.
+- **휠 해시**: `--wheel-artifact <절대 경로>`로 **명시한** 파일 하나의 실제 바이트로 SHA-256을 계산한다(기본 경로·자동 탐색·내려받기 없음). 1 MiB 단위로
+  스트리밍하고 크기 상한은 1 GiB(추정)다. 옵션을 주지 않거나, 파일이 없거나(`NOT_FOUND`)·일반 파일이 아니거나(`NOT_A_FILE`)·상한을
+  넘거나(`TOO_LARGE`)·읽지 못하거나(`READ_FAILED`)·읽는 도중 크기·수정 시각이 바뀌었거나(`FILE_CHANGED_DURING_READ`)·취소되면 해시 없이 실패한다
+  (성공값으로 보정하지 않는다). 변경 확인은 최선의 노력이다 — 크기와 수정 시각을 그대로 둔 채 바이트만 바꾸는 쓰기는 잡지 못한다.
+- **일반 파일이 아닌 입력은 열기에서 대기하지 않고 거절한다.** POSIX에서 FIFO를 읽기로 열면 쓰기 쪽이 열릴 때까지 `open(2)`가 운영체제 안에서 대기한다. 이
+  대기는 스레드풀에서 일어나 `AbortSignal`로 끊을 수 없고, 바깥 `Promise`만 끊으면 안쪽 열기 작업과 핸들이 남는다. 그래서 대기를 **끊지 않고 생기지
+  않게** 했다: 읽기 전용 + `O_NONBLOCK`(+ 터미널 장치가 제어 터미널이 되지 않게 `O_NOCTTY`)으로 열면 쓰기 쪽이 없는 FIFO도 곧바로 열리고, 열린
+  핸들의 `fstat`이 일반 파일이 아님을 알려 `NOT_A_FILE`로 거절한다(읽지도 해시하지도 않고 핸들을 닫는다). 심볼릭 링크는 따라가므로 FIFO를 가리키는 링크도
+  같다. 일반 파일에는 `O_NONBLOCK`이 아무 영향이 없다(스트리밍 해시·크기 상한·변경 확인·읽기 전용 계약은 그대로다 — 열기 플래그에 쓰기 계열 비트가
+  없다). Windows는 FIFO가 없고 플래그가 예전과 같은 `O_RDONLY`라 동작이 바뀌지 않는다. `O_NONBLOCK`이 없는 비-Windows 플랫폼은 막힐 수 있는 열기로
+  되돌아가지 않고 열기 전에 `READ_FAILED`로 거절한다. 거절·취소 뒤에는 CLI의 `finally`가 평소처럼 공유 잠금을 해제하고 수신기를 닫는다.
+- **관측값과 핀은 따로 기록한다.** `run.json`의 `resources.tool_observation`(선택 필드 — 연결하지 않은 호출자의 기존 레코드는 바이트 단위로 같다)에
+  관측 요약과 `pin` 비교(`expected`·`observed`·`comparison`)를 싣는다. 핀의 휠 해시가 `null`이거나 `verified`가 아니면 관측값이 있어도 비교할
+  기준이 없다(`PIN_UNVERIFIED`, 사전 검사는 `WHEEL_HASH_UNVERIFIED`). 이 기록은 판정에 쓰이지 않고(판정은 두 관측값만 본다), 하네스는 요약이
+  넘긴 관측값과 모순되면 쓰기 전에 `config` 하드 실패로 거절한다. **관측했다는 이유로 `pin.json`의 `verified`나 승인 상태를 바꾸지 않는다.**
+- **아티팩트 해시 ≠ 설치 출처.** 휠 해시는 **그 파일의 바이트**에 대한 사실이다. 실행한 `semgrep` 실행 파일이 그 휠에서 설치되었다는 확인(설치 출처 검증)은
+  하지 않았고, 증거의 `not_established`에 `executable_provenance: "NOT_VERIFIED"`·`version_output_format: "UNVERIFIED"`로 항상 남긴다.
+- **경로는 증거에 싣지 않는다.** 실행 파일·아티팩트 경로와 자식의 출력 원문은 `run.json`에 없다(CLI 출력에만 `wheel_artifact`가 있다).
+- **스텁은 스텁으로 남는다.** 버전 확인에 쓴 포트의 출처가 그대로 기록된다. `stub`이면 `trust`는 `SYNTHETIC`이고 실제 Semgrep 검증의 증거가 아니다.
+  CLI는 프로세스 포트를 한 번만 만들어 버전 확인과 하네스가 같이 쓴다.
+- **서버는 여전히 시작되지 않는다.** `foreignServerProcesses`는 계속 `null`이라 실제 실행은 사전 검사가 거부한다. 엔진 음성 대조 실행기도 없다.
+
+#### 도구 관측의 검증 범위
+
+- **확인함 (Windows 11 + 로컬 NTFS + Node v24.x)**: 가짜 자식과 실제 Node 프로세스(`testing/stub-version.mjs`)로 정상 출력(`\n`·`\r\n`·줄 끝 없음·stderr
+  경고), 예상 밖 출력(접두·`v` 접두·여러 줄·빈 출력·stderr에만 있음), 비정상 종료, 시간 초과, 출력 초과(stdout·stderr), 실행 중 취소, 띄울 수 없는
+  실행 파일을 시험했고, 시간 초과·출력 초과·취소 뒤에는 자식 `pid`가 실제로 사라졌다. 셸 메타문자가 든 인자는 한 덩어리로 전달되고 아무것도 실행되지
+  않는다. 휠 해시는 임시 파일(빈 파일, 1 MiB 경계, 3 MiB 이상)에서 `node:crypto`로 독립 계산한 값과 같고, 한 비트를 바꾸면 달라지며, 없는 파일·디렉터리·
+  잘못된 경로·상한 초과는 해시 없이 실패한다. 읽는 도중의 변경·읽기 오류는 `open`을 주입해 결정적으로 시험했다. CLI → 관측 → 하네스 → `run.json`은 메모리
+  파일 시스템과 실제 디스크(실제 잠금·수신기·Node 프로세스 `node --version`)에서 확인했다.
+- **FIFO 등 일반 파일이 아닌 입력 — 플랫폼별 검증 범위**
+  - **Windows 11 + 로컬 NTFS + Node v24.x에서 확인함**: ① POSIX 열기 의미를 흉내 낸 모델(`testing/posix-open-emulator.ts` — "`O_NONBLOCK` 없이 쓰기 쪽
+    없는 FIFO를 읽기로 열면 대기한다"만 따르는 **모델이며 커널의 증거가 아니다**)에서 FIFO·FIFO 링크·링크 사슬·디렉터리가 대기 없이 `NOT_A_FILE`로 거절되고
+    핸들·대기 중인 열기·읽기 호출이 남지 않는다 ② 열기가 진행 중인 순간의 취소와 읽는 도중의 취소 ③ 실제 Windows 특수 입력: `\\.\NUL` 문자 장치는
+    `NOT_A_FILE`, 서버 없는 이름 있는 파이프 경로는 대기 없이 `NOT_FOUND` ④ CLI 전체 경로(`--wheel-artifact` → 관측 → 거절 → 실제 디스크 잠금 해제·실제
+    루프백 수신기 닫기·버전 확인 자식 정리, 외부에서 쓰기 쪽을 열어 주지 않음). **수정 전 구현이 모델 위에서 매달려 실패하는 것을 같은 시험으로 측정했다**
+    (어댑터 시험 8건 실패 = 매달림 5건 + 열기 플래그 전달 확인 3건, CLI 시험 3건 실패 = 모두 매달림. 시험 쪽 시간 한도 2~5초 뒤 매달린 열기를 풀어 정리했고
+    전역 제한까지 끌려가지 않았다). 서버가 있는 이름 있는 파이프는 수정 전 구현으로 한 번 손으로 확인했다(연결은 되고 6ms 만에 `NOT_A_FILE`) — 자동 시험은
+    없다(`net` 사용이 구조 시험으로 제한되어 있다).
+  - **확인하지 못함 — Linux·macOS 확인이 필요하다**: **실제 POSIX FIFO**(쓰기 쪽이 없는 FIFO, FIFO 링크, `/dev/null`)에서 `O_RDONLY | O_NONBLOCK | O_NOCTTY`
+    열기가 실제로 대기하지 않는지. 이 시험은 작성했지만(`artifact-node.test.ts`·`cli.test.ts`의 "실제 POSIX FIFO" 구간, `mkfifo`는 프로세스 포트로 실행) POSIX
+    전용이라 **Windows에서는 건너뛰어 한 번도 실행하지 못했다**(ADR U19). 이 PC에는 WSL·Docker가 없고 이 저장소의 CI는 시험을 돌리지 않는다. macOS·WSL·
+    네트워크 파일 시스템도 같다.
+  - **알려진 한계**: ① 거절하려고 FIFO의 읽기 쪽을 잠깐 열었다 닫는다. 그 FIFO에 이미 쓰는 프로세스가 있었다면 그쪽에 미치는 영향은 평가하지 않았다
+    ② Windows에서는 서버가 있는 이름 있는 파이프에 클라이언트로 연결한 뒤에야 거절한다(열기 전에 경로로 미리 거르지 않는다 — Windows 동작을 바꾸지 않기
+    위해서다) ③ 느린 네트워크 파일 시스템의 일반 파일 읽기 지연은 다루지 않는다(일반 파일 읽기는 조각마다 취소를 확인할 뿐 한 번의 읽기를 끊지 못한다).
+- **확인하지 못함**: 실제 Semgrep의 `--version` 출력 형식·종료 코드·소요 시간(ADR U17), 설치 출처(U18), Linux·macOS·WSL, 네트워크 파일 시스템, 읽기 권한 오류의
+  실제 디스크 재현(Windows에서는 `chmod`가 통하지 않아 `open` 주입으로만 확인했다), Windows에서 `"1.180.0"`을 찍는 실제 실행 파일을 만드는 방법이 없어
+  **정상 출력의 실제 프로세스 경로는 CLI가 아니라 코어 통합 시험에서만** 확인했다(CLI의 정상 경로는 가짜 자식으로 확인했다).
+
 ## 실제 실행 전에 남은 전제 (이 변경에는 없다)
 
 방지 장치를 통과해도 아래가 채워지기 전에는 사전 검사가 거부해서 프로세스가 시작되지 않는다. 비어 있는 채로
 `COMPLETE`가 되는 경로는 없다.
 
-1. 도구 버전 관측(`toolVersionObserved`)과 휠 sha256 관측(`wheelSha256Observed`). `pin.json`의 휠 해시는 `verified: false`다.
+1. (구현함: 도구 버전과 휠 sha256 관측 — 위 절. 다만 ① 버전 출력 형식은 실제 Semgrep으로 **미확인**이고(ADR U17) ② 휠 해시는 설치 출처 검증이 아니며(U18)
+   ③ `pin.json`의 휠 해시는 여전히 `null`·`verified: false`라 관측해도 `WHEEL_HASH_UNVERIFIED`로 거부된다. 핀을 확정하려면 소유자가 실제 휠을 확인해
+   `pin.json`을 직접 고쳐야 한다 — 이 하네스는 하지 않는다.)
 2. 같은 트리의 다른 서버 프로세스 검사(`foreignServerProcesses`). 공유 실행 잠금은 구현했지만(위 절) 이 값을 채우지 않는다 — 계속 `null`이다.
 3. (해결: 루프백 메트릭 수신기를 구현했다 — 위 절. 다만 실제 Semgrep이 `SEMGREP_METRICS_URL` 등을 읽는지는 **미확인**이고, 0건은 외부 통신 전체가
    없었다는 증거가 아니다.)

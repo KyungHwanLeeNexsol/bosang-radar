@@ -43,6 +43,7 @@ import { canConnectLoopback, sendLoopbackRequest } from "./testing/loopback-clie
 import { MemoryFs } from "./testing/memory-fs";
 import { MemoryGit } from "./testing/memory-git";
 import { INVALID_RUN_IDS, VALID_RUN_IDS } from "./testing/run-id-cases";
+import { summaryOf } from "./testing/observation-fixtures";
 import { qualifiedReference } from "./testing/evaluate-fixtures";
 import {
   SYNTHETIC_HARNESS_ROOT,
@@ -2378,4 +2379,284 @@ describe("runHarness — 잠금 없이는 서버 트리를 만들거나 바꾸�
       expect(after.files).toEqual(expected);
     });
   }
+});
+
+// ── 도구 버전·휠 관측 요약(toolObservation) ─────────────────────────────────────────────────────
+//
+// CLI가 관측한 값(toolVersionObserved·wheelSha256Observed)은 이미 사전 검사와 지문·결합에 쓰인다. toolObservation은 그 값을 어떻게
+// 관측했는지의 요약이며, 하네스는 핀과의 비교를 덧붙여 run.json의 resources.tool_observation에 싣는다. 판정에는 영향이 없다.
+
+describe("runHarness — 도구 관측 요약(toolObservation)", () => {
+  interface ToolRun {
+    resources?: {
+      tool_observation?: {
+        version_check: Record<string, unknown>;
+        wheel_hash: Record<string, unknown>;
+        not_established: Record<string, unknown>;
+        pin: {
+          version: { expected: string; observed: string | null; comparison: string };
+          wheel: {
+            expected_sha256: string | null;
+            verified: boolean;
+            observed: string | null;
+            comparison: string;
+          };
+        };
+      };
+    };
+    inputs: { tool_version_observed: string | null; wheel_sha256_observed: string | null };
+    provenance: string;
+    trust: string;
+  }
+  const runJson = async (env: Env): Promise<ToolRun> =>
+    JSON.parse((await evidenceFiles(env))["run.json"]) as ToolRun;
+  const VERSION = syntheticPin.semgrep.version;
+  const codesOf = (r: HarnessResult): string[] =>
+    (r.record?.measurement.reasons ?? []).map((x) => x.code);
+
+  it("요약을 주면 run.json에 싣고, 핀과의 비교를 관측값과 따로 적는다(일치)", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: { toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }) },
+    });
+    const r = await env.go();
+    expect(r.ok).toBe(true);
+    const run = await runJson(env);
+    const t = run.resources?.tool_observation;
+    expect(t?.version_check).toMatchObject({
+      process_role: "version-check",
+      status: "OBSERVED",
+      version: VERSION,
+    });
+    expect(t?.pin.version).toEqual({ expected: VERSION, observed: VERSION, comparison: "MATCH" });
+    expect(t?.pin.wheel).toEqual({
+      expected_sha256: WHEEL,
+      verified: true,
+      observed: WHEEL,
+      comparison: "MATCH",
+    });
+    expect(t?.not_established).toEqual({
+      executable_provenance: "NOT_VERIFIED",
+      version_output_format: "UNVERIFIED",
+    });
+    expect(run.inputs.tool_version_observed).toBe(VERSION);
+    expect(run.inputs.wheel_sha256_observed).toBe(WHEEL);
+  });
+
+  it("요약을 주지 않으면 이 필드가 없다(기존 레코드와 같다)", async () => {
+    const env = await makeEnv({ mode: "target" });
+    await env.go();
+    const text = (await evidenceFiles(env))["run.json"];
+    expect(text).not.toContain("tool_observation");
+    expect(text).not.toContain("version-check");
+  });
+
+  it("control 모드에서도 같다", async () => {
+    const env = await makeEnv({
+      mode: "control",
+      options: { toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }) },
+    });
+    await env.go();
+    expect((await runJson(env)).resources?.tool_observation?.pin.version.comparison).toBe("MATCH");
+  });
+
+  it("판정은 요약의 영향을 받지 않는다: 같은 관측값이면 요약이 있든 없든 측정 결과가 같다", async () => {
+    const plain = await makeEnv({ mode: "target" });
+    const withSummary = await makeEnv({
+      mode: "target",
+      options: { toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }) },
+    });
+    const a = await plain.go();
+    const b = await withSummary.go();
+    expect(b.record?.measurement).toEqual(a.record?.measurement);
+    expect(b.record?.observed).toEqual(a.record?.observed);
+    expect(b.record?.inputs).toEqual(a.record?.inputs);
+  });
+
+  it("관측한 버전이 핀과 다르면 TOOL_VERSION_MISMATCH로 거부하고 서버를 띄우지 않는다(불일치를 증거에 그대로 적는다)", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: {
+        toolVersionObserved: "1.179.0",
+        toolObservation: summaryOf({ version: "1.179.0", wheel: WHEEL }),
+      },
+    });
+    const r = await env.go();
+    expect(codesOf(r)).toContain("TOOL_VERSION_MISMATCH");
+    expect(r.started).toBe(false);
+    expect(env.port.spawnCalls).toHaveLength(0);
+    expect((await runJson(env)).resources?.tool_observation?.pin.version).toEqual({
+      expected: VERSION,
+      observed: "1.179.0",
+      comparison: "MISMATCH",
+    });
+  });
+
+  it("관측한 휠 해시가 핀과 다르면 WHEEL_HASH_MISMATCH로 거부한다", async () => {
+    const other = "c".repeat(64);
+    const env = await makeEnv({
+      mode: "target",
+      options: {
+        wheelSha256Observed: other,
+        toolObservation: summaryOf({ version: VERSION, wheel: other }),
+      },
+    });
+    const r = await env.go();
+    expect(codesOf(r)).toContain("WHEEL_HASH_MISMATCH");
+    expect(env.port.spawnCalls).toHaveLength(0);
+    expect((await runJson(env)).resources?.tool_observation?.pin.wheel.comparison).toBe("MISMATCH");
+  });
+
+  describe("핀이 확인되지 않은 상태(실제 pin.json과 같다)", () => {
+    const unverifiedPin = (): string => {
+      const pin: Pin = JSON.parse(JSON.stringify(syntheticPin));
+      pin.semgrep.wheel.sha256 = null;
+      pin.semgrep.wheel.verified = false;
+      return JSON.stringify(pin, null, 2);
+    };
+
+    it("휠 해시를 관측해도 비교할 기준이 없다: WHEEL_HASH_UNVERIFIED로 거부하고 PIN_UNVERIFIED로 적는다", async () => {
+      const env = await makeEnv({
+        mode: "target",
+        files: { "/data/pin.json": unverifiedPin() },
+        options: { toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }) },
+      });
+      const r = await env.go();
+      expect(codesOf(r)).toContain("WHEEL_HASH_UNVERIFIED");
+      expect(env.port.spawnCalls).toHaveLength(0);
+      const wheel = (await runJson(env)).resources?.tool_observation?.pin.wheel;
+      expect(wheel).toEqual({
+        expected_sha256: null,
+        verified: false,
+        observed: WHEEL, // 관측값은 그대로 남는다
+        comparison: "PIN_UNVERIFIED",
+      });
+    });
+
+    it("관측했다는 이유로 pin.json을 바꾸지 않는다: 쓰기는 증거 폴더에만 일어나고 핀 바이트는 그대로다", async () => {
+      const text = unverifiedPin();
+      const writes: string[] = [];
+      const env = await makeEnv({
+        mode: "target",
+        files: { "/data/pin.json": text },
+        options: { toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }) },
+        wrapFs: (inner) =>
+          new Proxy(inner, {
+            get(t, prop) {
+              const value = Reflect.get(t, prop, t) as unknown;
+              if (typeof value !== "function") return value;
+              return (...args: unknown[]) => {
+                if (prop === "writeFileExclusive" || prop === "mkdirp")
+                  writes.push(String(args[0]));
+                return (value as (...a: unknown[]) => unknown).apply(t, args);
+              };
+            },
+          }),
+      });
+      await env.go();
+      expect(writes.length).toBeGreaterThan(0);
+      expect(writes.every((p) => p.startsWith("/evidence/") || p.startsWith("/scan/"))).toBe(true);
+      expect(new TextDecoder().decode(await env.fs.readFile("/data/pin.json"))).toBe(text);
+      expect(JSON.parse(text).semgrep.wheel).toMatchObject({ sha256: null, verified: false });
+    });
+  });
+
+  it("요약이 하네스에 넘긴 관측값과 모순되면 아무것도 쓰기 전에 config 하드 실패다", async () => {
+    const calls: string[] = [];
+    const env = await makeEnv({
+      mode: "target",
+      options: { toolObservation: summaryOf({ version: "9.9.9", wheel: WHEEL }) }, // toolVersionObserved는 VERSION
+      wrapFs: (inner) => recorded(inner, calls, "fs"),
+    });
+    const r = await env.go();
+    expect(r.ok).toBe(false);
+    expect(r.failure?.stage).toBe("config");
+    expect(r.failure?.message).toContain("toolObservation");
+    expect(calls).toEqual([]);
+    expect(env.port.spawnCalls).toHaveLength(0);
+  });
+
+  it("휠 값이 모순돼도 같다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: { toolObservation: summaryOf({ version: VERSION, wheel: "d".repeat(64) }) },
+    });
+    const r = await env.go();
+    expect(r.failure?.stage).toBe("config");
+  });
+
+  it("관측하지 못한 값은 null로 남는다: 요약이 NOT_ATTEMPTED여도 핀 값이나 대조 참조 값으로 채우지 않는다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: {
+        toolVersionObserved: null,
+        wheelSha256Observed: null,
+        toolObservation: summaryOf({}),
+        controlReference: SYNTHETIC_REAL_REFERENCE, // 이 참조 쪽에는 도구 버전·휠 값이 있다
+      },
+    });
+    const r = await env.go();
+    const run = await runJson(env);
+    expect(run.inputs.tool_version_observed).toBeNull();
+    expect(run.inputs.wheel_sha256_observed).toBeNull();
+    // 대조 참조의 값은 참조 쪽 필드에만 있고, 이번 실행의 관측으로 복사되지 않는다.
+    expect(r.record?.control_reference?.fingerprints.tool_version).toBe(VERSION);
+    expect(r.record?.control_reference?.fingerprints.wheel_sha256).toBe(WHEEL);
+    expect(codesOf(r)).toContain("TOOL_VERSION_UNVERIFIED");
+    expect(codesOf(r)).toContain("WHEEL_HASH_UNVERIFIED");
+    expect(r.record?.inputs.binding_sha256).toBeNull();
+    expect(run.resources?.tool_observation?.pin.version.comparison).toBe("NOT_OBSERVED");
+    expect(env.port.spawnCalls).toHaveLength(0);
+  });
+
+  it("결합(binding)은 관측한 도구 버전에 따라 달라지고, 관측하지 못하면 null이다", async () => {
+    const binding = async (version: string | null): Promise<string | null> => {
+      const env = await makeEnv({
+        mode: "target",
+        options: {
+          toolVersionObserved: version,
+          toolObservation: summaryOf({ version, wheel: WHEEL }),
+        },
+      });
+      return (await env.go()).record?.inputs.binding_sha256 ?? null;
+    };
+    const a = await binding(VERSION);
+    const b = await binding("1.179.0");
+    const none = await binding(null);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(b).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).not.toBe(b);
+    expect(none).toBeNull();
+  });
+
+  it("스텁 출처는 증거에서 실제로 표시되지 않는다: provenance stub, trust SYNTHETIC이고 요약의 출처도 stub이다", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: {
+        toolObservation: summaryOf({ version: VERSION, wheel: WHEEL, provenance: "stub" }),
+      },
+    });
+    await env.go();
+    const run = await runJson(env);
+    expect(run.provenance).toBe("stub");
+    expect(run.trust).toBe("SYNTHETIC");
+    expect(run.resources?.tool_observation?.version_check.provenance).toBe("stub");
+    expect(JSON.stringify(run)).not.toContain("REAL_UNREVIEWED");
+  });
+
+  it("도구 관측이 모두 채워져도 다른 거부 사유가 남아 있으면 서버를 띄우지 않는다(foreignServerProcesses null)", async () => {
+    const env = await makeEnv({
+      mode: "target",
+      options: {
+        foreignServerProcesses: null,
+        toolObservation: summaryOf({ version: VERSION, wheel: WHEEL }),
+      },
+    });
+    const r = await env.go();
+    expect(codesOf(r)).toContain("FOREIGN_SERVER_PROCESS");
+    expect(codesOf(r)).not.toContain("TOOL_VERSION_UNVERIFIED");
+    expect(codesOf(r)).not.toContain("WHEEL_HASH_UNVERIFIED");
+    expect(r.started).toBe(false);
+    expect(env.port.spawnCalls).toHaveLength(0);
+  });
 });

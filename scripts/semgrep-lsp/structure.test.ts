@@ -269,8 +269,11 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
       .sort();
     // 공유 실행 잠금의 노드 어댑터(run-lock-node.ts)와 그 경쟁 시험용 자식 프로세스(testing/lock-child.mjs)가 더해졌다.
     // 잠금 어댑터는 잠금 파일만 만지고(만들기·읽기·지우기), 자식은 시험 폴더의 표지 파일과 잠금 파일만 만진다.
+    // 휠 아티팩트 해시 어댑터(artifact-node.ts)가 더해졌다: 호출자가 명시한 파일 하나를 읽기 전용으로 열 뿐 아무것도 쓰지 않는다
+    // (아래 "도구 버전·휠 관측" 구조 시험이 읽기 전용임을 지킨다).
     expect(users).toEqual(
       [
+        "artifact-node.ts",
         "fs-node.ts",
         "run-lock-node.ts",
         "testing/evaluate-fixtures.ts",
@@ -386,6 +389,7 @@ describe("구조 (10) — 지문 제외 범위가 구멍이 되지 않는다", (
       "canonical.ts",
       "path-containment.ts",
       "run-id.ts",
+      "tool-observation.ts",
     ];
     const FORBIDDEN = new Set([
       "fs",
@@ -647,6 +651,115 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
     });
   });
 
+  describe("도구 버전·휠 관측(tool-observation.ts, artifact-node.ts)", () => {
+    const cliCode = (): string => byRel("cli.ts").code;
+
+    it("버전 확인에 넘기는 인자는 `--version` 하나뿐이고 CLI는 인자를 직접 만들어 넘기지 않는다(LSP 인자와 섞이지 않는다)", () => {
+      const tool = byRel("tool-observation.ts").code;
+      expect(tool).toMatch(/export const VERSION_ARGS = \["--version"\] as const;/);
+      expect(tool).toMatch(/args: VERSION_ARGS,/);
+      const cli = cliCode();
+      const start = cli.indexOf("await runToolObservation({");
+      expect(start).toBeGreaterThan(-1);
+      const call = cli.slice(start, cli.indexOf("});", start));
+      expect(call).not.toMatch(/\bargs\s*:/);
+      expect(call).not.toContain("SERVER_ARGS");
+    });
+
+    it("CLI: 포트를 한 번 만든 뒤, 잠금·수신기 다음에 관측하고, 하네스보다 먼저이며, 잠금 여부(lockHeld)를 함께 넘긴다", () => {
+      const c = cliCode();
+      const port = c.indexOf('const port = deps.makeProcessPort("real");');
+      const lock = c.indexOf("await acquireRunLock(");
+      const receiver = c.indexOf("await deps.startMetricsReceiver()");
+      const observe = c.indexOf("await runToolObservation({");
+      const harness = c.indexOf("await runHarness(");
+      expect(port).toBeGreaterThan(-1);
+      expect(lock).toBeLessThan(receiver);
+      expect(receiver).toBeLessThan(port);
+      expect(port).toBeLessThan(observe);
+      expect(observe).toBeLessThan(harness);
+      expect(c.slice(observe, c.indexOf("});", observe))).toMatch(/\blockHeld,/);
+      // 하네스는 같은 포트로 돈다 — 관측과 서버의 출처(provenance)가 갈라지지 않는다.
+      expect(c).toMatch(
+        /runHarness\(\s*\{\s*fs: deps\.fs,\s*git,\s*process: port,\s*clock: deps\.clock\s*\},\s*options\s*\)/
+      );
+    });
+
+    it("CLI는 핀의 값(버전·휠 해시)이나 대조 기록의 관측값을 현재 관측으로 쓰지 않는다", () => {
+      const c = cliCode();
+      expect(c).not.toMatch(/semgrep\.version|semgrep\.wheel|wheel\.sha256|pin\.semgrep/);
+      expect(c).not.toMatch(/fingerprints\.(tool_version|wheel_sha256)|tool_version_observed/);
+    });
+
+    it("pin.json을 쓰는 코드가 없다 — 관측했다는 이유로 verified나 승인 상태를 바꾸지 않는다", () => {
+      const offenders = nonTest
+        .filter((s) => /writeFileExclusive\([^)]*pin\.json|writeFile\([^)]*pin\.json/.test(s.code))
+        .map((s) => s.rel);
+      expect(offenders).toEqual([]);
+      // 핀을 받는 쪽(completeToolObservation)은 입력을 바꾸지 않고 복사해서 비교만 한다.
+      const tool = byRel("tool-observation.ts").code;
+      const at = tool.indexOf("export function completeToolObservation(");
+      const body = tool.slice(at, tool.indexOf("export function toolObservationConflict("));
+      expect(body).not.toMatch(/\bpin\.semgrep[\w.]*\s*=[^=]/);
+      expect(body).toContain("structuredClone(summary)");
+    });
+
+    it("버전 확인 자식의 종료를 확인하지 못하면(KILL_NOT_OBSERVED) 정리 실패로 끝난다 — 종료 코드에 반영한다", () => {
+      // CLI 시험으로는 이 줄의 효과를 증명할 수 없다(다른 거부 사유로 항상 실패 종료). 그래서 소스에서 지킨다.
+      const c = cliCode();
+      const at = c.indexOf("const cleanedUp =");
+      expect(at).toBeGreaterThan(-1);
+      expect(c.slice(at, at + 400)).toMatch(
+        /cleanup\.version_check_process\.state !== "KILL_NOT_OBSERVED"/
+      );
+      expect(c).toMatch(/return complete && cleanedUp \? EXIT\.ok : EXIT\.failed;/);
+    });
+
+    it("휠 해시 어댑터는 읽기 전용이다: 열기 플래그에 쓰기 계열이 없고, 쓰기·지우기·옮기기·만들기 호출이 없다", () => {
+      const c = byRel("artifact-node.ts").code;
+      // 파일을 여는 호출은 하나뿐이고, 그 플래그는 readOnlyOpenFlags가 만든 값이다(문자열 "r"로 되돌아가지 않는다 — 아래 항목).
+      expect(c.match(/\bopen\(/g)).toHaveLength(1);
+      expect(c).toMatch(/open\(path, flags\)/);
+      expect(c).toMatch(/readOnlyOpenFlags\(fsConstants, process\.platform\)/);
+      // 쓰기·생성·잘라내기·덧붙이기 플래그 이름은 소스(주석 제외) 어디에도 없다.
+      expect(c).not.toMatch(/\bO_(WRONLY|RDWR|CREAT|EXCL|TRUNC|APPEND|DIRECT|TMPFILE)\b/);
+      expect(c).not.toMatch(
+        /\b(writeFile|appendFile|createWriteStream|unlink|rm|rmdir|rename|copyFile|mkdir|truncate|chmod|symlink|link)\s*\(/
+      );
+      expect(c).not.toMatch(/\bhandle\.(write|truncate|appendFile|writeFile)\s*\(/);
+    });
+
+    it("휠 해시 어댑터의 열기는 대기하지 않는다: 비차단 플래그를 쓰고, 막힐 수 있는 문자열 'r' 열기로 되돌아가지 않으며, 플래그를 정할 수 없으면 열지 않는다", () => {
+      const c = byRel("artifact-node.ts").code;
+      // 열기 자체의 대기를 끊는 것이 아니라 생기지 않게 한다 — 그래서 O_NONBLOCK이 읽기 전용 플래그에 들어 있어야 한다.
+      const fn = c.slice(c.indexOf("export function readOnlyOpenFlags("));
+      const body = fn.slice(0, fn.indexOf("\n}\n"));
+      expect(body).toMatch(/O_NONBLOCK/);
+      expect(body).toMatch(/platform === "win32"/);
+      expect(c).not.toMatch(/\bopen\(path,\s*["'`]r["'`]\)/);
+      // 안쪽 열기를 남겨 두고 바깥 대기만 끊는 방식(race)이나 타이머로 취소를 흉내 내는 방식을 쓰지 않는다.
+      expect(c).not.toMatch(/Promise\.(race|any)\s*\(|setTimeout\s*\(/);
+      // 플래그를 정할 수 없으면(null) 열기 앞에서 거절한다.
+      expect(c.indexOf("flags === null")).toBeGreaterThan(-1);
+      expect(c.indexOf("flags === null")).toBeLessThan(c.indexOf("open(path, flags)"));
+    });
+
+    it("관측 코어는 PATH를 탐색하지 않는다 — 명령은 호출자가 준 절대 경로 그대로이고 셸을 쓰지 않는다", () => {
+      const c = byRel("tool-observation.ts").code;
+      expect(c).not.toMatch(/\bPATH\b\s*[=:]|which\b|shell\s*:/);
+      expect(byRel("process-node.ts").code).toMatch(/shell:\s*false/);
+    });
+
+    it("버전 확인 자식은 어떤 경로에서도 dispose로 정리한다(finally 안)", () => {
+      const c = byRel("tool-observation.ts").code;
+      const fn = c.slice(c.indexOf("export async function observeToolVersion("));
+      const fin = fn.indexOf("} finally {");
+      expect(fin).toBeGreaterThan(-1);
+      expect(fn.slice(fin)).toMatch(/await child\.dispose\(\)/);
+      expect(fn.slice(fin)).toMatch(/child\.kill\("SIGKILL"\)/);
+    });
+  });
+
   describe("CLI 생명주기(cli.ts)", () => {
     const code = (): string => byRel("cli.ts").code;
 
@@ -674,10 +787,10 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
       expect(code()).toMatch(/const lockHeld = lock\.state === "ACQUIRED" && markerCreated;/);
     });
 
-    it("관측하지 않은 값은 채우지 않는다 — foreignServerProcesses·도구 버전·휠은 null, 수신 건수는 수신기가 정한다", () => {
+    it("관측하지 않은 값은 채우지 않는다 — foreignServerProcesses는 null, 도구 버전·휠은 이 실행의 관측값만, 수신 건수는 수신기가 정한다", () => {
       expect(code()).toMatch(/foreignServerProcesses: null,/);
-      expect(code()).toMatch(/toolVersionObserved: null,/);
-      expect(code()).toMatch(/wheelSha256Observed: null,/);
+      expect(code()).toMatch(/toolVersionObserved: tools\.toolVersionObserved,/);
+      expect(code()).toMatch(/wheelSha256Observed: tools\.wheelSha256Observed,/);
       expect(code()).toMatch(/metricsReceiverHits: null,\s*metricsReceiver: receiver,/);
     });
 

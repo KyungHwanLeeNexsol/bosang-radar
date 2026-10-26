@@ -20,6 +20,7 @@
 import { isAbsolute, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
+import { createNodeArtifactHasher } from "./artifact-node";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
@@ -47,6 +48,7 @@ import { createNodeRunLockPort } from "./run-lock-node";
 import { computeScope, resolveTarget, verifyScanTree } from "./scope";
 import type { SessionLimits } from "./session";
 import { representativeStatus, sortReasons, type Reason } from "./status";
+import { runToolObservation, type ArtifactHashPort } from "./tool-observation";
 import {
   SCHEMAS,
   type Clock,
@@ -57,6 +59,7 @@ import {
   type Provenance,
   type ScopeConfig,
   type SpawnSpec,
+  type VersionCheckChildState,
 } from "./types";
 
 // ── 공개 타입 ───────────────────────────────────────────────────
@@ -77,6 +80,8 @@ export interface CliDeps {
    * 않고 관측 실패 상태(hits=null)의 수신기를 돌려준다 — 실패를 0건으로 바꾸지 않는다.
    */
   startMetricsReceiver(): Promise<MetricsReceiver>;
+  /** 명시한 휠 아티팩트 파일 하나의 실제 바이트로 SHA-256을 계산한다(읽기 전용). 경로를 찾거나 내려받지 않는다. */
+  hashArtifact: ArtifactHashPort;
   stdout(text: string): void;
   stderr(text: string): void;
   /** 환경변수 한 개를 조회한다(없으면 undefined). main은 이 함수로만 환경을 본다. */
@@ -103,6 +108,10 @@ const LOOPBACK_URL = "http://127.0.0.1:9";
 // UNVERIFIED(ADR U3/U12): 실제 서버가 이 인자로 LSP를 여는지는 실행해 보지 않았다.
 const SERVER_ARGS = ["lsp", "--debug"] as const;
 
+/** LSP 서버의 상태·로그 폴더와 버전 확인 프로세스의 상태 폴더(둘 다 증거 폴더 안, 서로 섞지 않는다). */
+const SERVER_STATE_DIR = "semgrep-state";
+const VERSION_STATE_DIR = "version-check-state";
+
 // UNVERIFIED: 실제 실행의 한도와 시간 제한 요청값은 실측하지 못한 추정이다(ms, 초). 근거 없이 줄이지 않는다.
 const REAL_LIMITS: SessionLimits = {
   init: 60_000,
@@ -116,8 +125,8 @@ const REAL_SETTINGS = { timeout: 30, timeoutThreshold: 3 } as const;
 
 /** 실제 실행이 COMPLETE에 이르기 전에 구현·확인되어야 하는 것(항상 출력에 싣는다). */
 const NOT_VERIFIED = [
-  "도구 버전 관측(initialize 이전 `--version` 확인): 구현하지 않았다 — toolVersionObserved=null",
-  "휠 sha256 관측: 구현하지 않았다 — wheelSha256Observed=null",
+  "도구 버전 관측: --semgrep-bin을 `--version` 인자 배열로 한 번 실행해(서버가 아니다) stdout의 한 줄 `숫자.숫자.숫자`만 버전으로 받는다. 실패·형식 불일치·미시도는 toolVersionObserved=null이며 핀 값으로 채우지 않는다. 이 해석 계약은 실제 Semgrep으로 확인하지 않았다(미확인)",
+  "휠 sha256 관측: --wheel-artifact로 명시한 파일의 바이트 해시다. 주지 않거나 읽지 못하면 wheelSha256Observed=null. 핀의 휠 해시가 null이거나 verified가 아니면 관측해도 비교할 기준이 없어 WHEEL_HASH_UNVERIFIED로 거부된다. 이 해시는 그 파일의 바이트에 대한 사실일 뿐 실행 파일의 설치 출처(그 휠에서 설치되었는지)를 확인하지 않았다",
   "같은 트리의 다른 서버 프로세스 검사: 구현하지 않았다 — foreignServerProcesses=null (공유 잠금을 얻었다는 이유로 0으로 채우지 않는다)",
   "루프백 메트릭 수신기: 127.0.0.1의 OS 할당 포트에 열어 판정 시점까지 누적 관측한다 — metricsReceiverHits는 그 관측이다(열지 못하면 null). 0건은 이 수신기에서 관찰한 요청이 없다는 뜻일 뿐 다른 목적지로의 통신이 없었다는 증거가 아니며, 실제 Semgrep이 SEMGREP_METRICS_URL 등을 읽는지는 미확인",
   "대조 참조(control_reference): --control-record로 명시한 control run.json만 읽어 잇는다(자동 탐색 없음), 생략하면 controlReference=null. 이 CLI는 엔진 음성 대조를 실행·기록하지 않으므로 자격을 갖춘 기록은 아직 이 CLI로 만들 수 없다",
@@ -139,7 +148,7 @@ const USAGE = `semgrep-lsp 하네스 CLI (ADR-001, Proposed) — Semgrep을 설�
              --repo <dir> --target-sha <40자 SHA> --scan-root <dir>
                  [--control-fixtures-root <dir>] [--control-record <run.json>]  (target)
              --control-fixtures-root <dir> --control-tree-root <dir>           (control)
-             --allow-real-semgrep --semgrep-bin <절대 경로>
+             --allow-real-semgrep --semgrep-bin <절대 경로> [--wheel-artifact <절대 경로>]
   cli.ts --help
 
 run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라도 없으면 NOT_RUN(종료 코드 3)이다.
@@ -149,6 +158,14 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
 
 --run-id: 영숫자로 시작하고 영숫자·.·_·-만 쓴 1~128자(증거 폴더 이름). 어긋나면 경로를 만들거나 잠금 등을 얻기 전에 종료 코드 2로 끝난다.
   단, 위 실행 방지 장치는 인자 검사보다 먼저 보므로 장치를 통과하지 못하면 --run-id와 관계없이 NOT_RUN(3)이다.
+
+도구 관측(run): 잠금과 증거 표지를 얻은 실행에서만, 서버를 띄우기 전에 두 가지를 관측한다. 관측하지 못한 값은 null이라 사전 검사가 거부한다.
+  · 버전: --semgrep-bin을 셸 없이 인자 배열 ["--version"]으로 한 번 실행한다(LSP 서버 프로세스가 아니다). 시간 제한·출력 크기 제한·취소를
+    지키고 끝나면 자식을 정리한다. 종료 코드 0이고 stdout이 정확히 한 줄 \`숫자.숫자.숫자\`일 때만 그 문자열을 버전으로 받는다(stderr는
+    해석하지 않는다). 그 밖의 출력은 관측 실패다. 이 해석 계약은 실제 Semgrep으로 확인하지 않았다.
+  · 휠: --wheel-artifact로 명시한 절대 경로 파일 하나의 실제 바이트로 SHA-256을 계산한다. 생략하거나 읽지 못하면 관측 실패(null)다. 기본 경로·
+    자동 탐색·내려받기는 없다. 이 해시는 그 파일의 바이트에 대한 사실이며 실행 파일이 그 휠에서 설치되었다는 확인이 아니다.
+  관측값은 핀의 기대값·verified 상태와 따로 기록한다. 관측했다는 이유로 pin.json을 바꾸지 않는다.
 
 --control-fixtures-root: 대조 예제(.in)가 놓인 저장소 루트. 두 모드 모두 대조 지문을 이 위치의 파일 바이트로 계산한다.
   target에서는 검사 대상인 --repo와 별개의 경로다(대상 SHA에는 예제가 없을 수 있다). target에서 생략하거나 읽을 수 없으면
@@ -196,6 +213,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
     "control-fixtures-root",
     "control-tree-root",
     "control-record",
+    "wheel-artifact",
   ],
 };
 const FLAGS: Record<string, readonly string[]> = {
@@ -470,7 +488,9 @@ async function missingGuardConditions(parsed: Parsed, deps: CliDeps): Promise<st
 export function buildChildEnv(
   deps: Pick<CliDeps, "getEnv" | "platform">,
   evidenceDir: string,
-  metricsUrl: string | null
+  metricsUrl: string | null,
+  /** 상태·로그 파일을 둘 증거 폴더 안의 하위 폴더. 버전 확인 프로세스는 LSP 서버와 섞이지 않게 따로 쓴다. */
+  stateDirName: string = SERVER_STATE_DIR
 ): Record<string, string> {
   const names =
     deps.platform === "win32" ? ["PATH", "SYSTEMROOT", "TEMP", "TMP"] : ["PATH", "HOME"];
@@ -479,7 +499,7 @@ export function buildChildEnv(
     const value = deps.getEnv(name);
     if (value !== undefined && value !== "") env[name] = value;
   }
-  const state = joinPath(evidenceDir, "semgrep-state");
+  const state = joinPath(evidenceDir, stateDirName);
   const url = metricsUrl ?? LOOPBACK_URL;
   return {
     ...env,
@@ -531,6 +551,11 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   const rulesCache = need(parsed, "rules-cache");
   const evidenceRoot = need(parsed, "evidence-root");
   const bin = need(parsed, "semgrep-bin");
+  // 휠 아티팩트는 명시한 절대 경로 하나뿐이다(기본 경로·자동 탐색·내려받기 없음). 생략하면 휠 해시는 관측하지 않는다(null).
+  const wheelArtifact = parsed.options.get("wheel-artifact") ?? null;
+  if (wheelArtifact !== null && !isAbsolute(wheelArtifact)) {
+    throw new UsageError("--wheel-artifact는 절대 경로여야 한다(상대 경로·자동 탐색 없음)");
+  }
   // 대조 기록은 target에서 경로를 명시했을 때만 읽는다(자동 탐색·기본 경로 없음). control 실행은 대조 참조를 가질 수 없다.
   const recordPath = parsed.options.get("control-record");
   if (mode === "control" && recordPath !== undefined) {
@@ -601,6 +626,10 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       closed: false,
       final_hits: null as number | null,
       hits_after_judgment: null as number | null,
+    },
+    /** 버전 확인 자식 프로세스(LSP 서버가 아니다)의 정리 결과. 시작하지 않았으면 NOT_SPAWNED. */
+    version_check_process: {
+      state: "NOT_SPAWNED" as VersionCheckChildState,
     },
   };
   const releaseAll = async (): Promise<void> => {
@@ -674,6 +703,31 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       controlReferenceRejection = loaded.rejection;
     }
 
+    // 프로세스 포트는 방지 장치를 통과한 이 경로에서 한 번만 만들고, 버전 확인과 하네스(LSP 서버)가 같은 포트를 쓴다. 출처(provenance)가
+    // 한 곳에서 정해지므로 stub 포트의 관측이 real로 기록되지 않는다.
+    const port = deps.makeProcessPort("real");
+
+    // 도구 버전(`--version`을 한 번 실행)과 휠 해시를 관측한다. 공유 잠금과 증거 표지를 얻은 실행에서만 시작한다. 관측하지 못한 값은
+    // null이고 사전 검사가 거부한다. 대조 기록의 도구 버전·휠 값은 여기에 쓰이지 않는다(현재 실행의 관측만 쓴다).
+    const versionStateDir = joinPath(evidenceDir, VERSION_STATE_DIR);
+    const tools = await runToolObservation({
+      fs: deps.fs,
+      process: port,
+      clock: deps.clock,
+      hasher: deps.hashArtifact,
+      lockHeld,
+      version: {
+        command: bin,
+        cwd: versionStateDir,
+        stateDir: versionStateDir,
+        env: buildChildEnv(deps, evidenceDir, receiver.url, VERSION_STATE_DIR),
+      },
+      wheelPath: wheelArtifact,
+      receiver,
+      ...(deps.signal ? { signal: deps.signal } : {}),
+    });
+    cleanup.version_check_process.state = tools.versionChildProcess;
+
     const spawn: SpawnSpec = {
       command: bin,
       args: [...SERVER_ARGS],
@@ -698,9 +752,10 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       settings: REAL_SETTINGS,
       controlReference,
       controlReferenceRejection,
-      // 관측하지 않은 사실은 관측한 척하지 않는다. 사전 검사가 이 null들을 사유로 읽는다.
-      toolVersionObserved: null,
-      wheelSha256Observed: null,
+      // 이 실행이 직접 관측한 값만 넘긴다. 관측하지 못했으면 null이고 사전 검사가 사유로 읽는다(핀 값으로 채우지 않는다).
+      toolVersionObserved: tools.toolVersionObserved,
+      wheelSha256Observed: tools.wheelSha256Observed,
+      toolObservation: tools.summary,
       lockHeld,
       lockRefusal,
       lockSummary: lockSummaryOf(lock, markerCreated),
@@ -714,7 +769,7 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
 
     // 4. 방지 장치를 통과한 이 경로에서만 "real" 포트를 만든다.
     const result = await runHarness(
-      { fs: deps.fs, git, process: deps.makeProcessPort("real"), clock: deps.clock },
+      { fs: deps.fs, git, process: port, clock: deps.clock },
       options
     );
     const record = result.record;
@@ -761,6 +816,8 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
         error_code: lock.state === "ERROR" ? lock.code : null,
         recovery: lock.state === "ACQUIRED" ? null : RECOVERY_HINT,
       },
+      // 도구 버전·휠 해시 관측(출력 전용: 아티팩트 경로는 증거에 싣지 않는다). 시작하지 않았거나 실패했으면 값은 null이다.
+      tool_observation: { ...tools.summary, wheel_artifact: wheelArtifact },
       // 자식 환경에 연결한 수신기의 실제 주소(루프백, OS 할당 포트). 열지 못했으면 null이다.
       metrics_receiver_url: receiver.url,
       evidence_dir: evidenceDir,
@@ -770,7 +827,10 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
     await releaseAll();
   }
   // 정리에 실패하면(잠금을 해제하지 못함) 측정이 끝났어도 실패로 끝낸다 — 오래된 잠금을 남겼다는 뜻이다.
-  const cleanedUp = cleanup.lock.state !== "NOT_RELEASED" && cleanup.metrics_receiver.closed;
+  const cleanedUp =
+    cleanup.lock.state !== "NOT_RELEASED" &&
+    cleanup.metrics_receiver.closed &&
+    cleanup.version_check_process.state !== "KILL_NOT_OBSERVED";
   deps.stdout(json({ ...body, cleanup }));
   return complete && cleanedUp ? EXIT.ok : EXIT.failed;
 }
@@ -827,6 +887,7 @@ async function runEntry(): Promise<void> {
     clock: new SystemClock(),
     runLock: createNodeRunLockPort(),
     startMetricsReceiver: () => startMetricsReceiver(),
+    hashArtifact: createNodeArtifactHasher(),
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     getEnv: (name) => process.env[name],

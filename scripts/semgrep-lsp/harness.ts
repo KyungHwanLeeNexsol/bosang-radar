@@ -54,6 +54,7 @@ import { assertSessionConfig, runSession, type SessionConfig, type SessionLimits
 import { buildInitializationOptions, validateInitializationOptions } from "./settings";
 import { sha256Hex } from "./sha";
 import { representativeStatus, sortReasons, type MeasurementStatus, type Reason } from "./status";
+import { completeToolObservation, toolObservationConflict } from "./tool-observation";
 import {
   SCHEMAS,
   type Clock,
@@ -77,6 +78,7 @@ import {
   type ScopeConfig,
   type ScopeResult,
   type SpawnSpec,
+  type ToolObservationSummary,
   type Transcript,
   type Verdict,
 } from "./types";
@@ -128,6 +130,12 @@ export interface HarnessOptions {
   /** 호출자가 관측한 사실. null은 "관측하지 못함"이며 해당 fail-closed 사유가 된다. */
   toolVersionObserved: string | null;
   wheelSha256Observed: string | null;
+  /**
+   * 위 두 값을 어떻게 관측했는지의 요약(tool-observation.ts). 주면 run.json의 resources.tool_observation에 핀과의 비교와 함께 싣는다.
+   * 요약의 값이 위 두 값과 다르면 쓰기 전에 거절한다. 주지 않으면 이 필드는 레코드에 없다(기존 레코드와 바이트 단위로 같다).
+   * 이 요약은 사전 검사의 입력이 아니다 — 판정은 위 두 값만 본다.
+   */
+  toolObservation?: ToolObservationSummary | null;
   /**
    * 호출자가 공유 실행 잠금(과 실행별 증거 표지)을 얻었는가. null은 확인하지 못함이며 LOCK_NOT_ACQUIRED가 된다.
    * **true일 때만** 하네스가 서버 트리(스캔 트리·대조 트리)를 만들거나 쓴다. false·null이면 트리의 존재 여부·파일 목록·
@@ -412,6 +420,15 @@ function checkOptions(options: HarnessOptions): void {
       throw new HardFailure("config", `${key}가 비어 있다`);
     }
   }
+  // 관측 요약은 사전 검사·지문이 쓰는 값과 같은 사실을 말해야 한다. 어긋난 요약을 증거에 싣지 않도록 쓰기 전에 거절한다.
+  if (options.toolObservation) {
+    const conflict = toolObservationConflict(
+      options.toolObservation,
+      options.toolVersionObserved,
+      options.wheelSha256Observed
+    );
+    if (conflict !== null) throw new HardFailure("config", `toolObservation: ${conflict}`);
+  }
 }
 
 async function execute(
@@ -673,6 +690,14 @@ async function execute(
   }
 
   // 6. 레코드와 증거
+  const toolObservation = options.toolObservation
+    ? completeToolObservation(
+        options.toolObservation,
+        pin,
+        options.toolVersionObserved,
+        options.wheelSha256Observed
+      )
+    : null;
   const controlTreeSha =
     mode === "control" && typeof precheck.details.control_tree_sha256 === "string"
       ? precheck.details.control_tree_sha256
@@ -703,11 +728,15 @@ async function execute(
     ...(state.started && observation.summary !== null && observation.hits !== null
       ? { notExecuted: { metrics_receiver_observation: "UNVERIFIED" as const } }
       : {}),
-    ...(options.lockSummary !== undefined || observation.summary !== null
+    ...(options.lockSummary !== undefined ||
+    observation.summary !== null ||
+    toolObservation !== null
       ? {
           resources: {
             run_lock: options.lockSummary ?? null,
             metrics_receiver: observation.summary,
+            // 관측 요약과 핀과의 비교. 핀은 읽기만 했다(verified·승인 상태를 바꾸지 않는다).
+            ...(toolObservation === null ? {} : { tool_observation: toolObservation }),
           },
         }
       : {}),
