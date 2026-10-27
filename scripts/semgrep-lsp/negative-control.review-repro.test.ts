@@ -213,6 +213,24 @@ describe("재현 2 — 관측 단계 전의 초기화·전송·프로세스 실�
     expect(caseOf(suite, "R2", "engine").outcome).toBe("ENGINE_EXECUTION_FAILED");
   });
 
+  it("규칙 로딩 도중 서버가 죽어도(EXIT_DURING_RULES → 대표 상태 RULES_NOT_LOADED) R6의 반응으로 읽지 않는다 — 프로세스 실패이지 경로에 대한 반응이 아니다", async () => {
+    const rig = makeRig(world, {
+      engine: engineWith("R6", {
+        patch: { crash: { on: "initialized", afterMs: 0, code: 1, signal: null } },
+      }),
+    });
+    const suite = await rig.run();
+    const run = JSON.parse(
+      decoder.decode(await rig.memory.readFile(`/evidence/${SUITE}-r6-engine/run.json`))
+    );
+    expect(run.measurement.reasons.map((r: { code: string }) => r.code)).toContain(
+      "EXIT_DURING_RULES"
+    );
+    expect(run.measurement.status).toBe("RULES_NOT_LOADED"); // 기대 상태와 같다 — 그래도 PASS가 아니다
+    expect(entryOf(suite, "R6", "engine")).toMatchObject({ status: "NOT_RUN", observed: null });
+    expect(caseOf(suite, "R6", "engine").outcome).toBe("ENGINE_EXECUTION_FAILED");
+  });
+
   it("사전 검사 사유가 없는 R6도 초기화 실패는 FAIL(엔진이 다르게 반응)이 아니라 NOT_RUN이다 — 관측이 성립하지 않았다", async () => {
     const rig = makeRig(world, {
       engine: engineWith("R6", { patch: { init: { reply: "error", delayMs: 0 } } }),

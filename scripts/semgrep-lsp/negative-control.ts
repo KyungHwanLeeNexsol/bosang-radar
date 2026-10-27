@@ -35,9 +35,10 @@
 // ── 엔진 층의 관측 계약(선택지 B) ────────────────────────────────
 //  엔진 층 PASS는 "엔진이 떴고 대표 상태가 기대와 같다"만으로 만들지 않는다.
 //  · 관측 단계: 모든 엔진 사례의 입력 변형(규칙 사본·구성 경로·서버 옵션)은 규칙 로딩(PH2)에서 엔진에 닿는다. PH2에 이르기 전(PH0·PH1)의
-//    초기화·전송·프로세스 실패, 또는 전송 무결성 실패가 있으면 관측이 성립하지 않은 것이라 NOT_RUN이다 — 사전 검사 사유가 대표 상태를
-//    정해 그 실패를 가려도 마찬가지다(ENGINE_EXECUTION_FAILED / ENGINE_STAGE_NOT_REACHED). 관측 단계 **안**의 반응(규칙 로딩 실패 등)은
-//    사례가 의도한 관측일 수 있어 실행 실패로 보지 않는다. 관측 단계 뒤의 실패도 이 사례의 관측과 무관해 막지 않는다.
+//    초기화·전송·프로세스 실패, 전송 무결성 실패, 또는 PH2 안에서 서버가 죽거나 프레임이 깨지거나 취소된 경우는 관측이 성립하지 않은 것이라
+//    NOT_RUN이다 — 사전 검사 사유(또는 RULES_NOT_LOADED)가 대표 상태를 정해 그 실패를 가려도 마찬가지다(ENGINE_EXECUTION_FAILED /
+//    ENGINE_STAGE_NOT_REACHED). 규칙 로딩에 대한 반응과 그 단계의 대기 시간 초과(TIMEOUT_RULES)는 사례가 의도한 관측일 수 있어 실행
+//    실패로 보지 않는다. 관측 단계 뒤(스캔·종료)의 실패는 이 사례의 관측과 무관해 막지 않는다.
 //  · 엔진 고유 관측: 사전 검사 사유가 있는 id(R1~R5·R7·R9)는 사전 검사 사유가 이미 대표 상태를 정하므로 상태 일치는 엔진이 변형을 따로 잡았다는
 //    증거가 아니다. 그 id의 엔진 PASS에는 엔진이 낸 반응 사유(규칙 로딩 로그·진단 집합 변화 등)가 필요한데, 그 로그·진단 형식의 계약이
 //    확정되지 않았다(ADR U3·U11). 확정된 계약이 없는 동안(ENGINE_OBSERVATION_CONTRACTS가 비어 있다) 이 id들의 엔진 항목은 실행해도
@@ -187,15 +188,20 @@ export function toolIsolationBlock(observation: unknown): ToolIsolationCause | n
 export const OBSERVATION_STAGE: Phase = "PH2";
 
 /**
- * 관측 단계에 이르기 전에 실행 자체가 깨졌음을 뜻하는 사유: 프로세스·초기화(INIT_FAILED로 매핑된 모든 사유 — 표에서 도출한다)와,
- * 단계를 가리지 않는 전송 무결성 실패. 이 사유가 하나라도 있으면 어떤 사례의 반응도 관측했다고 할 수 없다.
- * 관측 단계 안·뒤의 사유(규칙 로딩 실패, 스캔·종료 실패)는 여기에 없다.
+ * 사례의 반응을 관측하지 못하게 한 실행 실패를 뜻하는 사유: (a) 프로세스·초기화(INIT_FAILED로 매핑된 모든 사유 — 표에서 도출한다),
+ * (b) 단계를 가리지 않는 전송 무결성 실패, (c) 관측 단계 안에서 일어난 프로세스·전송 실패(서버가 죽음·프레임 오류·취소). (c)는 입력
+ * 변형에 대한 엔진의 반응이 아니다 — 서버가 죽어 대표 상태가 RULES_NOT_LOADED가 되어도 그것이 없는 경로에 대한 반응이라는 증거는 아니다.
+ * 이 사유가 하나라도 있으면 어떤 사례의 반응도 관측했다고 할 수 없다.
+ * 여기에 **없는** 것: 규칙 로딩에 대한 반응과 그 단계의 대기 시간 초과(TIMEOUT_RULES — 반응하지 않음이 드러나는 모양이다), 관측 단계 뒤(스캔·종료)의 실패.
  */
 const PRE_OBSERVATION_FAILURES: ReadonlySet<ReasonCode> = new Set<ReasonCode>([
   ...(Object.keys(REASON_STATUS) as ReasonCode[]).filter((c) => REASON_STATUS[c] === "INIT_FAILED"),
   "STDIN_WRITE_FAILED",
   "RESPONSE_ID_UNMATCHED",
   "RESPONSE_ID_DUPLICATE",
+  "EXIT_DURING_RULES",
+  "FRAME_ERROR_DURING_RULES",
+  "CANCELLED_DURING_RULES",
 ]);
 
 export type EngineExecutionProblem = "ENGINE_EXECUTION_FAILED" | "ENGINE_STAGE_NOT_REACHED";

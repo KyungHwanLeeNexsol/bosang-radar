@@ -312,6 +312,10 @@ describe("엔진 층: 관측 단계 전의 실행 실패는 사전 검사 사유
       "STDIN_WRITE_FAILED",
       "RESPONSE_ID_UNMATCHED",
       "RESPONSE_ID_DUPLICATE",
+      // 관측 단계(규칙 로딩) 안의 프로세스·전송 실패: 반응이 아니라 실행 실패다.
+      "EXIT_DURING_RULES",
+      "FRAME_ERROR_DURING_RULES",
+      "CANCELLED_DURING_RULES",
     ];
     for (const code of failures) {
       for (const id of ["R1", "R6", "R7", "R8"]) {
