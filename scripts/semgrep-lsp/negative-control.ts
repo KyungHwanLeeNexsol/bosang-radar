@@ -25,9 +25,32 @@
 //  NOT_RUN(BLOCKED_CONTRACT_CONFLICT)으로 둔다. 충돌은 표에서 기계적으로 도출한다(engineLayerConflicts) — 기준을 바꾸지 않고, 결정은
 //  사람의 몫이다(README·ADR의 결정안).
 //
+// ── 시작 전 관문(실행기와 기록 읽기가 같은 함수를 쓴다) ──────────────
+//  · 도구 관측 격리(toolIsolationBlock): 도구 버전 확인 단계에서 루프백 수신기가 본 요청이 0건으로 확인되지 않으면(1건 이상이거나, 관측하지
+//    못했거나, 요약이 없으면) 기준·변형 실행을 하나도 시작하지 않고 16개 모두 NOT_RUN(TOOL_OBSERVATION_BLOCKED)이다. 사례마다 수신기를 새로
+//    열어도 이 단계의 관측은 버리지 않는다. null을 0으로 보정하지 않고, 관측값(metrics_hits_during)도 바꾸지 않는다.
+//  · 출력 경로(outputPathProblem): 실제로 계산된 출력 경로(사례별 증거 폴더·작업 공간·스위트 폴더)가 원본(규칙 캐시·대조 예제·고정 데이터·
+//    하네스) 안에 들어가는지 쓰기 전에 본다. 링크·별칭·`..`는 FsPort.physicalKey가 푼 자리 기준이다.
+//
+// ── 엔진 층의 관측 계약(선택지 B) ────────────────────────────────
+//  엔진 층 PASS는 "엔진이 떴고 대표 상태가 기대와 같다"만으로 만들지 않는다.
+//  · 관측 단계: 모든 엔진 사례의 입력 변형(규칙 사본·구성 경로·서버 옵션)은 규칙 로딩(PH2)에서 엔진에 닿는다. PH2에 이르기 전(PH0·PH1)의
+//    초기화·전송·프로세스 실패, 또는 전송 무결성 실패가 있으면 관측이 성립하지 않은 것이라 NOT_RUN이다 — 사전 검사 사유가 대표 상태를
+//    정해 그 실패를 가려도 마찬가지다(ENGINE_EXECUTION_FAILED / ENGINE_STAGE_NOT_REACHED). 관측 단계 **안**의 반응(규칙 로딩 실패 등)은
+//    사례가 의도한 관측일 수 있어 실행 실패로 보지 않는다. 관측 단계 뒤의 실패도 이 사례의 관측과 무관해 막지 않는다.
+//  · 엔진 고유 관측: 사전 검사 사유가 있는 id(R1~R5·R7·R9)는 사전 검사 사유가 이미 대표 상태를 정하므로 상태 일치는 엔진이 변형을 따로 잡았다는
+//    증거가 아니다. 그 id의 엔진 PASS에는 엔진이 낸 반응 사유(규칙 로딩 로그·진단 집합 변화 등)가 필요한데, 그 로그·진단 형식의 계약이
+//    확정되지 않았다(ADR U3·U11). 확정된 계약이 없는 동안(ENGINE_OBSERVATION_CONTRACTS가 비어 있다) 이 id들의 엔진 항목은 실행해도
+//    NOT_RUN(ENGINE_OBSERVATION_UNCONFIRMED)이다. 사전 검사 사유가 없는 id(R6·R8)는 아무것도 상태를 가리지 않아 대표 상태가 곧 엔진의 반응이다.
+//  기대 상태·상태 우선순위는 바꾸지 않았다.
+//
 // 공개 API:
 //   engineLayerConflicts(table?): EngineLayerConflict[]
-//   deriveNegativeControlEntry(spec, layer, obs, expectedBinding): DerivedEntry            순수 판정(실행기와 기록 읽기가 같은 함수를 쓴다)
+//   deriveNegativeControlEntry(spec, layer, obs, expectedBinding, conflicts?, contracts?): DerivedEntry   순수 판정(실행기와 기록 읽기가 같은 함수를 쓴다)
+//   toolIsolationBlock(observation): ToolIsolationCause | null                              도구 관측 격리 관문(순수)
+//   engineExecutionProblem(obs): ... | null                                                 관측 단계 전의 실행 실패(순수)
+//   caseRunId(suiteId, id, layer) / plannedRunIds(suiteId)                                 사례 run id(실행기와 기록 읽기가 같은 규칙)
+//   outputPathProblem(fs, inputs): Promise<string | null>                                   원본 보호
 //   NEGATIVE_MUTATIONS                                                                      표의 id마다 입력 변형(표와 같은 id 집합)
 //   runNegativeControls(deps, inputs): Promise<NegativeControlSuite>
 //   SUITE_SCHEMA / 스위트 타입들
@@ -53,6 +76,7 @@ import type { SessionLimits } from "./session";
 import type { InitializationOptions } from "./settings";
 import { sha256Hex } from "./sha";
 import {
+  REASON_STATUS,
   STATUS_PRIORITY,
   statusRank,
   type FailureStatus,
@@ -64,8 +88,10 @@ import type {
   FsPort,
   GitPort,
   MetricsObserver,
+  NegativeControlCaseIdentity,
   NegativeControlOutcome,
   NegativeControlResult,
+  Phase,
   Pin,
   ProcessPort,
   Provenance,
@@ -121,12 +147,213 @@ export function engineLayerConflicts(
   return out;
 }
 
+// ── 도구 관측 격리 관문 ──────────────────────────────────────────
+
+/** 스위트를 시작하지 못하게 하는 도구 관측 단계의 사유 토큰. */
+export type ToolIsolationCause =
+  /** 도구 관측 요약이 없다(버전 확인 단계의 격리를 확인한 근거가 없다). */
+  | "TOOL_OBSERVATION_ABSENT"
+  /** 버전 확인 중 수신기가 본 요청 건수를 관측하지 못했다(null·형식 오류). 0건으로 보정하지 않는다. */
+  | "METRICS_HITS_UNOBSERVED"
+  /** 버전 확인 중 루프백 수신기가 요청을 받았다. */
+  | "METRICS_RECEIVER_HIT";
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** 버전 확인 중 관측한 요청 건수(음이 아닌 정수). 관측하지 못했거나 형식이 맞지 않으면 null이다(0이 아니다). */
+export function toolMetricsHits(observation: unknown): number | null {
+  if (!isRecord(observation) || !isRecord(observation.version_check)) return null;
+  const hits = observation.version_check.metrics_hits_during;
+  return typeof hits === "number" && Number.isSafeInteger(hits) && hits >= 0 ? hits : null;
+}
+
+/**
+ * 도구 관측 요약(`resources.tool_observation`과 같은 모양)이 스위트를 시작해도 되는 격리 상태인가. 사유를 돌려주면 시작할 수 없다.
+ * 실행기는 입력의 요약으로, 기록 읽기는 기준 증거의 resources.tool_observation으로 같은 함수를 부른다.
+ */
+export function toolIsolationBlock(observation: unknown): ToolIsolationCause | null {
+  if (!isRecord(observation) || !isRecord(observation.version_check)) {
+    return "TOOL_OBSERVATION_ABSENT";
+  }
+  const hits = toolMetricsHits(observation);
+  if (hits === null) return "METRICS_HITS_UNOBSERVED";
+  return hits > 0 ? "METRICS_RECEIVER_HIT" : null;
+}
+
+// ── 엔진 층의 관측 계약 ──────────────────────────────────────────
+
+/** 모든 엔진 사례의 입력 변형이 엔진에 닿는 단계: initialize·initialized 뒤의 규칙 로딩. */
+export const OBSERVATION_STAGE: Phase = "PH2";
+
+/**
+ * 관측 단계에 이르기 전에 실행 자체가 깨졌음을 뜻하는 사유: 프로세스·초기화(INIT_FAILED로 매핑된 모든 사유 — 표에서 도출한다)와,
+ * 단계를 가리지 않는 전송 무결성 실패. 이 사유가 하나라도 있으면 어떤 사례의 반응도 관측했다고 할 수 없다.
+ * 관측 단계 안·뒤의 사유(규칙 로딩 실패, 스캔·종료 실패)는 여기에 없다.
+ */
+const PRE_OBSERVATION_FAILURES: ReadonlySet<ReasonCode> = new Set<ReasonCode>([
+  ...(Object.keys(REASON_STATUS) as ReasonCode[]).filter((c) => REASON_STATUS[c] === "INIT_FAILED"),
+  "STDIN_WRITE_FAILED",
+  "RESPONSE_ID_UNMATCHED",
+  "RESPONSE_ID_DUPLICATE",
+]);
+
+export type EngineExecutionProblem = "ENGINE_EXECUTION_FAILED" | "ENGINE_STAGE_NOT_REACHED";
+
+/**
+ * 엔진 층 관측이 성립하지 않는 실행인가(순수). 관측 단계 전의 초기화·전송·프로세스 실패가 있으면 ENGINE_EXECUTION_FAILED, 실패 사유는
+ * 없지만 관측 단계에 이르지 못했으면 ENGINE_STAGE_NOT_REACHED, 아니면 null이다. 대표 상태는 보지 않는다 — 우선순위가 앞선 사전 검사
+ * 사유가 대표 상태를 정해도 이 판정은 달라지지 않는다.
+ */
+export function engineExecutionProblem(
+  obs: Pick<LayerObservation, "reasonCodes" | "phases">
+): EngineExecutionProblem | null {
+  if (obs.reasonCodes.some((c) => PRE_OBSERVATION_FAILURES.has(c))) {
+    return "ENGINE_EXECUTION_FAILED";
+  }
+  return obs.phases.includes(OBSERVATION_STAGE) ? null : "ENGINE_STAGE_NOT_REACHED";
+}
+
+/** 확정된 엔진 고유 관측 계약: 엔진 PASS에는 이 사유 중 하나 이상이 판정에 있어야 한다(엔진이 변형을 따로 잡았다는 증거). */
+export interface ConfirmedEngineContract {
+  reactionReasons: readonly ReasonCode[];
+}
+
+/**
+ * 확정된 엔진 고유 관측 계약(id → 계약). **비어 있다**: 규칙 로딩 로그·진단 형식(ADR U3·U11)이 실제 Semgrep으로 확정되지 않아 어떤
+ * 사유가 엔진의 반응인지 말할 수 없다. 추측으로 채우지 않는다 — 형식이 확정되면 근거와 함께 여기에 넣는다.
+ */
+export const ENGINE_OBSERVATION_CONTRACTS: Readonly<Record<string, ConfirmedEngineContract>> = {};
+
+export type EngineObservationContract =
+  /** 사전 검사 사유가 없어 아무것도 대표 상태를 가리지 않는다. 대표 상태가 곧 엔진의 반응이다. */
+  | { state: "STATUS_IS_REACTION" }
+  /** 사전 검사 사유가 상태를 가리는데 엔진 고유 관측의 계약이 확정되지 않았다. PASS를 만들 수 없다. */
+  | { state: "UNCONFIRMED" }
+  | { state: "CONFIRMED"; reactionReasons: readonly ReasonCode[] };
+
+export function engineObservationContract(
+  spec: NegativeControlSpec,
+  contracts: Readonly<Record<string, ConfirmedEngineContract>> = ENGINE_OBSERVATION_CONTRACTS
+): EngineObservationContract {
+  if (spec.preflight === null) return { state: "STATUS_IS_REACTION" };
+  const confirmed = contracts[spec.id];
+  return confirmed === undefined
+    ? { state: "UNCONFIRMED" }
+    : { state: "CONFIRMED", reactionReasons: confirmed.reactionReasons };
+}
+
+// ── 사례 run id ──────────────────────────────────────────────────
+
+/** 사례 실행의 run id. 실행기가 만들고 기록 읽기가 같은 규칙으로 기대값을 계산한다("baseline"은 기준 실행). */
+export function caseRunId(suiteId: string, id: string, layer: Layer): string {
+  return id === "baseline" ? `${suiteId}-baseline` : `${suiteId}-${id.toLowerCase()}-${layer}`;
+}
+
+/** 스위트가 만들 수 있는 모든 run id(기준 + 표의 (id, 층)). */
+export function plannedRunIds(suiteId: string): string[] {
+  const out = [caseRunId(suiteId, "baseline", "engine")];
+  for (const spec of NEGATIVE_CONTROL_TABLE) {
+    for (const layer of ["preflight", "engine"] as const) {
+      if (layer === "preflight" && spec.preflight === null) continue;
+      out.push(caseRunId(suiteId, spec.id, layer));
+    }
+  }
+  return out;
+}
+
+/**
+ * 사례 실행이 run.json에 남길 신원. mutation_sha256은 스위트 기록의 변형 추적(MutationTrace)을 canonical JSON으로 만든 해시라서, 읽는
+ * 쪽이 스위트 파일에 적힌 추적에서 같은 값을 다시 계산해 맞춰 볼 수 있다(변형 종류만이 아니라 변형이 바꾼 해시까지 묶인다).
+ */
+export function caseIdentity(
+  suiteId: string,
+  id: string,
+  layer: Layer,
+  mutation: { kind: MutationKind } | null,
+  trace: unknown
+): NegativeControlCaseIdentity {
+  return {
+    suite_id: suiteId,
+    case_id: id,
+    layer,
+    mutation_kind: mutation?.kind ?? null,
+    mutation_sha256: trace === null ? null : sha256Hex(canonicalJson(trace)),
+  };
+}
+
+// ── 출력 경로 보호 ───────────────────────────────────────────────
+
+export interface OutputPathInputs {
+  suiteId: string;
+  workRoot: string;
+  evidenceRoot: string;
+  rulesCacheRoot: string;
+  controlFixturesRoot: string;
+  dataDir: string;
+  harnessRoot: string;
+}
+
+/**
+ * 스위트가 **쓰게 될** 경로가 원본 안에 들어가는지 본다(읽기만 한다 — 아무것도 만들지 않는다). 사유 토큰을 돌려주면 쓰면 안 된다.
+ *  · 작업 공간 루트와 증거 루트는 서로 겹치면 안 되고, 작업 공간 루트는 원본과 겹치면 안 된다(원본이 그 안에 있어도 거절한다).
+ *  · 계산된 출력 경로 전부(사례별 증거 폴더·스위트 폴더·사례별 작업 공간·밖 사본)는 원본 안이면 안 된다. 사례 폴더 이름이 원본을 가리키는
+ *    링크여도 푼 자리로 판단한다.
+ * 모든 경로는 쓰기에 쓸 그 포트의 physicalKey로 푼다. 풀 수 없으면 쓰기 전에 거절한다(fail-closed).
+ */
+export async function outputPathProblem(
+  fs: Pick<FsPort, "physicalKey">,
+  inputs: OutputPathInputs
+): Promise<string | null> {
+  try {
+    const work = await fs.physicalKey(inputs.workRoot);
+    const evidence = await fs.physicalKey(inputs.evidenceRoot);
+    if (keyIsSameOrInside(work, evidence) || keyIsSameOrInside(evidence, work)) {
+      return "WORK_ROOT_OVERLAPS_EVIDENCE";
+    }
+    const originals: { name: string; key: string }[] = [];
+    for (const [name, path] of [
+      ["rules-cache", inputs.rulesCacheRoot],
+      ["fixtures", inputs.controlFixturesRoot],
+      ["data", inputs.dataDir],
+      ["harness", inputs.harnessRoot],
+    ] as const) {
+      const key = await fs.physicalKey(path);
+      if (keyIsSameOrInside(work, key) || keyIsSameOrInside(key, work)) {
+        return `WORK_ROOT_OVERLAPS_${name.toUpperCase()}`;
+      }
+      originals.push({ name, key });
+    }
+    const outputs = [joinPath(inputs.evidenceRoot, inputs.suiteId)];
+    for (const runId of plannedRunIds(inputs.suiteId)) {
+      outputs.push(
+        joinPath(inputs.evidenceRoot, runId),
+        joinPath(inputs.workRoot, runId),
+        `${joinPath(inputs.workRoot, runId)}-outside`
+      );
+    }
+    for (const output of outputs) {
+      const key = await fs.physicalKey(output);
+      for (const original of originals) {
+        if (keyIsSameOrInside(key, original.key)) {
+          return `OUTPUT_INSIDE_${original.name.toUpperCase()}`;
+        }
+      }
+    }
+    return null;
+  } catch {
+    return "OUTPUT_PATH_UNRESOLVABLE";
+  }
+}
+
 // ── 순수 판정: 관측 → 항목 ───────────────────────────────────────
 
 /** 한 실행에서 읽은 사실. 실행기는 HarnessResult에서, 기록 읽기는 디스크의 run.json에서 만든다. */
 export interface LayerObservation {
   /** 증거 9개가 쓰인 실행이 있었는가(하드 실패·예외가 아니다). */
   recorded: boolean;
+  /** 도달한 단계(measurement.phases_reached). 엔진 층은 관측 단계에 이르렀는지 본다. */
+  phases: readonly Phase[];
   /** 엔진 프로세스가 실제로 떴는가(PH1에 이르렀다). */
   spawned: boolean;
   /** 띄우려는 시도가 있었는가(떴거나 SPAWN_FAILED). */
@@ -166,14 +393,16 @@ export function notRunEntry(
 
 /**
  * 관측으로 항목을 정한다(순수). expectedBinding은 기준 실행의 결합이며, 관측의 결합이 다르면 관측을 쓰지 않는다.
- * 순서가 곧 계약이다: 충돌 → 취소 → 실행 근거 → 결합 → 층별 시작 조건 → 기대 대조.
+ * 순서가 곧 계약이다: 충돌 → 취소 → 실행 근거 → 결합 → 층별 시작 조건 → (엔진 층) 관측 단계 전의 실행 실패 → 엔진 고유 관측 계약 → 기대 대조.
+ * contracts는 확정된 엔진 고유 관측 계약이다(기본은 비어 있는 ENGINE_OBSERVATION_CONTRACTS — 시험이 확정된 경우를 주입해 본다).
  */
 export function deriveNegativeControlEntry(
   spec: NegativeControlSpec,
   layer: Layer,
   obs: LayerObservation,
   expectedBinding: string | null,
-  conflicts: readonly EngineLayerConflict[] = engineLayerConflicts()
+  conflicts: readonly EngineLayerConflict[] = engineLayerConflicts(),
+  contracts: Readonly<Record<string, ConfirmedEngineContract>> = ENGINE_OBSERVATION_CONTRACTS
 ): DerivedEntry {
   if (layer === "preflight" && spec.preflight === null)
     return notRunEntry(spec, layer, "NO_SUCH_LAYER");
@@ -190,13 +419,30 @@ export function deriveNegativeControlEntry(
   if ((layer === "engine") !== obs.diagnostic) return notRunEntry(spec, layer, "RUN_FAILED");
   if (layer === "engine" && !obs.spawned) return notRunEntry(spec, layer, "ENGINE_NOT_STARTED");
 
+  // 엔진 층: 이 사례를 관측하는 데 필요한 단계 전에 실행이 깨졌으면 대표 상태가 기대와 같아도(사전 검사 사유가 가려도) 관측이 성립하지
+  // 않았다. 엔진 고유 관측의 계약이 없으면 상태 일치는 엔진이 변형을 따로 잡았다는 증거가 아니다.
+  let reactionReasons: readonly ReasonCode[] | null = null;
+  if (layer === "engine") {
+    const problem = engineExecutionProblem(obs);
+    if (problem !== null) return notRunEntry(spec, layer, problem);
+    const contract = engineObservationContract(spec, contracts);
+    if (contract.state === "UNCONFIRMED") {
+      return notRunEntry(spec, layer, "ENGINE_OBSERVATION_UNCONFIRMED");
+    }
+    if (contract.state === "CONFIRMED") reactionReasons = contract.reactionReasons;
+  }
+
   const expected =
     layer === "preflight"
       ? (spec.preflight as NonNullable<NegativeControlSpec["preflight"]>).status
       : spec.expected;
   const causeSeen = spec.preflight === null || obs.reasonCodes.includes(spec.preflight.reason);
+  // 확정된 계약이 있으면 엔진이 낸 반응 사유가 있어야 한다(없으면 엔진이 변형을 잡지 못한 것 → FAIL).
+  const reacted =
+    reactionReasons === null || obs.reasonCodes.some((c) => reactionReasons.includes(c));
   // 사전 검사 층은 엔진을 띄우려 한 시도가 있으면 안 된다(막아야 할 것을 못 막았다 → FAIL).
-  const passes = obs.status === expected && causeSeen && (layer === "engine" || !obs.attempted);
+  const passes =
+    obs.status === expected && causeSeen && reacted && (layer === "engine" || !obs.attempted);
   return {
     entry: {
       id: spec.id,
@@ -400,6 +646,14 @@ export interface NegativeControlSuite {
   cases: NegativeControlCaseTrace[];
   /** 기준을 바꾸지 않고 남긴 계약 충돌(결정 필요). */
   conflicts: EngineLayerConflict[];
+  /**
+   * 사례를 하나도 시작하지 못하게 막은 사유(없으면 null). TOOL_OBSERVATION: 도구 관측 단계의 격리(버전 확인 중 수신기가 본 요청 건수 —
+   * 관측값 그대로, null이면 null). WORKSPACE: 작업 공간·출력 경로를 쓸 수 없다(원본과 겹침·풀 수 없음 등). 막히면 기준·변형 실행이 없다.
+   */
+  blocked:
+    | { stage: "TOOL_OBSERVATION"; cause: ToolIsolationCause; metrics_hits_during: number | null }
+    | { stage: "WORKSPACE"; cause: string }
+    | null;
   /** 이 스위트가 **세워 주지 않는** 것. */
   not_established: {
     /** 실제 엔진이 변형에 어떻게 반응하는지(스텁 출처이면 더 말할 것이 없다). */
@@ -506,6 +760,7 @@ function observationOf(run: ExecutedRun): LayerObservation {
   const spawned = run.result?.started === true;
   return {
     recorded: record !== null,
+    phases: record?.measurement.phases_reached ?? [],
     spawned,
     attempted: spawned || run.spawnAttempts > 0 || reasons.includes("SPAWN_FAILED"),
     status: record?.measurement.status ?? null,
@@ -546,31 +801,6 @@ async function writeTree(
   }
 }
 
-/** 사례 작업 공간이 원본·증거와 겹치지 않는지 본다(읽기만). 풀 수 없으면 겹친다고 본다(fail-closed). */
-async function workRootProblems(fs: FsPort, inputs: NegativeControlInputs): Promise<string | null> {
-  try {
-    const work = await fs.physicalKey(inputs.workRoot);
-    const evidence = await fs.physicalKey(inputs.evidenceRoot);
-    if (keyIsSameOrInside(work, evidence) || keyIsSameOrInside(evidence, work)) {
-      return "WORK_ROOT_OVERLAPS_EVIDENCE";
-    }
-    for (const [name, path] of [
-      ["rules-cache", inputs.rulesCacheRoot],
-      ["fixtures", inputs.controlFixturesRoot],
-      ["data", inputs.dataDir],
-      ["harness", inputs.harnessRoot],
-    ] as const) {
-      const original = await fs.physicalKey(path);
-      if (keyIsSameOrInside(work, original) || keyIsSameOrInside(original, work)) {
-        return `WORK_ROOT_OVERLAPS_${name.toUpperCase()}`;
-      }
-    }
-    return null;
-  } catch {
-    return "WORK_ROOT_UNRESOLVABLE";
-  }
-}
-
 interface FixedInputs {
   pin: Pin;
   scopeConfig: ScopeConfig;
@@ -601,13 +831,14 @@ export async function runNegativeControls(
     );
     if (at >= 0) entries[at] = derived.entry;
   };
-  const baselineRunId = `${inputs.suiteId}-baseline`;
+  const baselineRunId = caseRunId(inputs.suiteId, "baseline", "engine");
 
   const finish = (
     provenance: Provenance | null,
     binding: string | null,
     clean: boolean,
-    baselineEvidence: CaseEvidenceRef | null
+    baselineEvidence: CaseEvidenceRef | null,
+    blocked: NegativeControlSuite["blocked"] = null
   ): NegativeControlSuite => ({
     schema: SUITE_SCHEMA,
     suite_id: inputs.suiteId,
@@ -617,6 +848,7 @@ export async function runNegativeControls(
     entries,
     cases,
     conflicts,
+    blocked,
     not_established: { actual_engine_behavior: "UNVERIFIED", mutated_yaml_validity: "UNVERIFIED" },
   });
 
@@ -641,16 +873,33 @@ export async function runNegativeControls(
 
   if (!isValidRunId(baselineRunId)) {
     notRunAll("WORKSPACE_FAILED");
-    return finish(null, null, false, null);
+    return finish(null, null, false, null, { stage: "WORKSPACE", cause: "RUN_ID_INVALID" });
   }
-  const overlap = await workRootProblems(deps.fs, inputs);
+  // 쓰기 전에: 계산된 출력 경로가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에 들어가지 않는지. 직접 호출도 같은 보호를 받는다.
+  const overlap = await outputPathProblem(deps.fs, inputs);
+  if (overlap !== null) {
+    notRunAll("WORKSPACE_FAILED");
+    return finish(null, null, false, null, { stage: "WORKSPACE", cause: overlap });
+  }
+  // 도구 관측 단계의 격리: 사례마다 수신기를 새로 열어도 버전 확인 중에 본 요청은 버리지 않는다. 0건으로 확인되지 않으면 아무것도 시작하지 않는다.
+  const isolation = toolIsolationBlock(inputs.toolObservation);
+  if (isolation !== null) {
+    notRunAll("TOOL_OBSERVATION_BLOCKED");
+    return finish(null, null, false, null, {
+      stage: "TOOL_OBSERVATION",
+      cause: isolation,
+      metrics_hits_during: toolMetricsHits(inputs.toolObservation),
+    });
+  }
   let fixed: FixedInputs;
   try {
-    if (overlap !== null) throw new Error(overlap);
     fixed = await readFixedInputs(deps.fs, inputs);
   } catch {
     notRunAll("WORKSPACE_FAILED");
-    return finish(null, null, false, null);
+    return finish(null, null, false, null, {
+      stage: "WORKSPACE",
+      cause: "FIXED_INPUTS_UNREADABLE",
+    });
   }
   const cacheDir = fixed.pin.rules.cache_dir_name;
 
@@ -660,7 +909,7 @@ export async function runNegativeControls(
     layer: Layer,
     mutation: Mutation | null
   ): Promise<ExecutedRun> => {
-    const runId = `${inputs.suiteId}-${id === "baseline" ? "baseline" : `${id.toLowerCase()}-${layer}`}`;
+    const runId = caseRunId(inputs.suiteId, id, layer);
     const root = joinPath(inputs.workRoot, runId);
     const key: RunKey = { id, layer, runId, root, treeRoot: joinPath(root, "tree") };
     const base: ExecutedRun = {
@@ -769,6 +1018,7 @@ export async function runNegativeControls(
           limits: inputs.limits,
           settings: inputs.settings,
           ...(initializationOptions === undefined ? {} : { initializationOptions }),
+          negativeControlCase: caseIdentity(inputs.suiteId, id, layer, mutation, trace),
           controlReference: null,
           toolVersionObserved: inputs.toolVersionObserved,
           wheelSha256Observed: inputs.wheelSha256Observed,

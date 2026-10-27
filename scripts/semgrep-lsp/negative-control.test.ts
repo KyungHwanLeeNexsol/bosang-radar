@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { canonicalJson } from "./canonical";
 import {
   NEGATIVE_CONTROL_TABLE,
   defaultNegativeControls,
@@ -8,13 +10,21 @@ import {
 } from "./control";
 import { EVIDENCE_FILE_NAMES } from "./evidence";
 import {
+  ENGINE_OBSERVATION_CONTRACTS,
   NEGATIVE_MUTATIONS,
   SUITE_SCHEMA,
+  caseRunId,
   deriveNegativeControlEntry,
+  engineExecutionProblem,
   engineLayerConflicts,
+  engineObservationContract,
+  plannedRunIds,
+  toolIsolationBlock,
   type LayerObservation,
   type RunKey,
 } from "./negative-control";
+import { REASON_STATUS, type ReasonCode } from "./status";
+import { summaryOf } from "./testing/observation-fixtures";
 import { buildControlWorld } from "./testing/control-world";
 import {
   SUITE,
@@ -48,6 +58,7 @@ const spec = (id: string): NegativeControlSpec => {
 function idealObservation(s: NegativeControlSpec, layer: "preflight" | "engine"): LayerObservation {
   return {
     recorded: true,
+    phases: layer === "engine" ? ["PH0", "PH1", "PH2", "PH3", "PH4"] : ["PH0"],
     spawned: layer === "engine",
     attempted: layer === "engine",
     status: layer === "preflight" ? (s.preflight?.status ?? null) : s.expected,
@@ -122,7 +133,7 @@ describe("deriveNegativeControlEntry — 관측에서 항목을 정한다", () =
       conflicts
     );
 
-  it("표의 모든 (id, 층)에서: 이상적인 관측이면 PASS, 충돌 항목(R9 엔진)만 실행하지 않은 NOT_RUN이다", () => {
+  it("표의 모든 (id, 층)에서: 이상적인 관측이면 사전 검사 7개와 엔진 R6·R8만 PASS다 — 사전 검사 사유가 상태를 가리는 엔진 항목(R1~R5·R7)은 엔진 고유 관측의 계약이 없어 NOT_RUN, R9 엔진은 계약 충돌 NOT_RUN", () => {
     let pass = 0;
     for (const s of NEGATIVE_CONTROL_TABLE) {
       for (const layer of ["preflight", "engine"] as const) {
@@ -133,6 +144,12 @@ describe("deriveNegativeControlEntry — 관측에서 항목을 정한다", () =
           expect(outcome).toBe("BLOCKED_CONTRACT_CONFLICT");
           expect(entry.observed).toBeNull();
           expect(entry.binding_sha256).toBeNull();
+        } else if (layer === "engine" && s.preflight !== null) {
+          // 이상적인 관측(상태가 기대와 같고 사전 검사 사유가 있음)이어도 엔진이 변형을 따로 잡았다는 증거가 아니다.
+          expect(entry.status, `${s.id}:${layer}`).toBe("NOT_RUN");
+          expect(outcome).toBe("ENGINE_OBSERVATION_UNCONFIRMED");
+          expect(entry.observed).toBeNull();
+          expect(entry.binding_sha256).toBeNull();
         } else {
           expect(entry.status, `${s.id}:${layer}`).toBe("PASS");
           expect(outcome).toBe("EXECUTED");
@@ -141,7 +158,7 @@ describe("deriveNegativeControlEntry — 관측에서 항목을 정한다", () =
         }
       }
     }
-    expect(pass).toBe(15); // 16 - R9 엔진
+    expect(pass).toBe(9); // 사전 검사 7 + 엔진 R6·R8
   });
 
   it("observed는 관측한 상태다: 기대와 다르면 FAIL이고 observed는 기대가 아니라 관측값이다", () => {
@@ -171,9 +188,49 @@ describe("deriveNegativeControlEntry — 관측에서 항목을 정한다", () =
     expect(derive("R1", "preflight", { reasonCodes: ["RULES_FILE_ADDED"] }).entry.status).toBe(
       "FAIL"
     );
-    expect(derive("R1", "engine", { reasonCodes: [] }).entry.status).toBe("FAIL");
     // 사전 검사 사유가 없는 id(R6)는 사유 조건이 없다.
     expect(derive("R6", "engine", { reasonCodes: [] }).entry.status).toBe("PASS");
+  });
+
+  it("엔진 층 R1~R5·R7: 대표 상태가 기대와 같아도 사전 검사 사유가 있는지와 무관하게 엔진 고유 관측의 계약이 없으면 PASS가 아니다 (ENGINE_OBSERVATION_UNCONFIRMED)", () => {
+    for (const id of ["R1", "R2", "R3", "R4", "R5", "R7"]) {
+      const withCause = derive(id, "engine");
+      const withoutCause = derive(id, "engine", { reasonCodes: [] });
+      for (const e of [withCause, withoutCause]) {
+        expect(e.entry.status, id).toBe("NOT_RUN");
+        expect(e.outcome, id).toBe("ENGINE_OBSERVATION_UNCONFIRMED");
+      }
+    }
+    // 아무것도 상태를 가리지 않는 id(R6·R8)는 대표 상태가 곧 엔진의 반응이다.
+    expect(engineObservationContract(spec("R6"))).toEqual({ state: "STATUS_IS_REACTION" });
+    expect(engineObservationContract(spec("R8"))).toEqual({ state: "STATUS_IS_REACTION" });
+    for (const id of ["R1", "R2", "R3", "R4", "R5", "R7", "R9"]) {
+      expect(engineObservationContract(spec(id)), id).toEqual({ state: "UNCONFIRMED" });
+    }
+    // 확정된 계약은 비어 있다(추측으로 채우지 않는다).
+    expect(ENGINE_OBSERVATION_CONTRACTS).toEqual({});
+  });
+
+  it("[가정한 계약 — 기전 시험] 확정된 계약이 있으면 엔진이 낸 반응 사유가 있어야 PASS다: 사전 검사 사유만 있으면 FAIL, 반응 사유가 함께 있으면 PASS", () => {
+    // 실제 로그·진단 형식은 확정되지 않았다. 아래 계약은 판정 기전을 보이려는 가정이며 실제 엔진이 이 사유를 낸다는 뜻이 아니다.
+    const assumed = { R1: { reactionReasons: ["RULE_FILE_ERRORS_REPORTED" as const] } };
+    const run = (reasonCodes: LayerObservation["reasonCodes"]) =>
+      deriveNegativeControlEntry(
+        spec("R1"),
+        "engine",
+        { ...idealObservation(spec("R1"), "engine"), reasonCodes },
+        BINDING,
+        conflicts,
+        assumed
+      );
+    expect(engineObservationContract(spec("R1"), assumed)).toEqual({
+      state: "CONFIRMED",
+      reactionReasons: ["RULE_FILE_ERRORS_REPORTED"],
+    });
+    const masked = run(["RULES_FILE_REMOVED"]);
+    expect(masked.entry).toMatchObject({ status: "FAIL", observed: "MANIFEST_MISMATCH" });
+    expect(masked.outcome).toBe("EXECUTED");
+    expect(run(["RULES_FILE_REMOVED", "RULE_FILE_ERRORS_REPORTED"]).entry.status).toBe("PASS");
   });
 
   it("엔진 미기동은 PASS가 아니다 — 관측된 상태가 기대와 같아도 NOT_RUN(ENGINE_NOT_STARTED)이다", () => {
@@ -234,6 +291,125 @@ describe("deriveNegativeControlEntry — 관측에서 항목을 정한다", () =
   });
 });
 
+describe("엔진 층: 관측 단계 전의 실행 실패는 사전 검사 사유가 상태를 가려도 관측이 아니다", () => {
+  const conflicts = engineLayerConflicts();
+  const derive = (id: string, over: Partial<LayerObservation>) =>
+    deriveNegativeControlEntry(
+      spec(id),
+      "engine",
+      { ...idealObservation(spec(id), "engine"), ...over },
+      BINDING,
+      conflicts
+    );
+
+  it("INIT_FAILED로 매핑된 모든 사유(표에서 도출)와 전송 무결성 실패는 관측 단계 전의 실패다 — 모든 엔진 사례에서 NOT_RUN(ENGINE_EXECUTION_FAILED)", () => {
+    const initCodes = (Object.keys(REASON_STATUS) as ReasonCode[]).filter(
+      (c) => REASON_STATUS[c] === "INIT_FAILED"
+    );
+    expect(initCodes.length).toBeGreaterThanOrEqual(11);
+    const failures: ReasonCode[] = [
+      ...initCodes,
+      "STDIN_WRITE_FAILED",
+      "RESPONSE_ID_UNMATCHED",
+      "RESPONSE_ID_DUPLICATE",
+    ];
+    for (const code of failures) {
+      for (const id of ["R1", "R6", "R7", "R8"]) {
+        const cause = spec(id).preflight?.reason;
+        const e = derive(id, { reasonCodes: [...(cause ? [cause] : []), code] });
+        expect(e.entry.status, `${id}+${code}`).toBe("NOT_RUN");
+        expect(e.outcome, `${id}+${code}`).toBe("ENGINE_EXECUTION_FAILED");
+        expect(e.entry.observed).toBeNull();
+      }
+    }
+  });
+
+  it("대표 상태는 판정에 쓰이지 않는다: 상태가 기대와 같든 INIT_FAILED든 사유가 같으면 같은 결과다", () => {
+    const same = derive("R1", {
+      status: "MANIFEST_MISMATCH",
+      reasonCodes: ["INIT_ERROR_RESPONSE"],
+    });
+    const other = derive("R1", { status: "INIT_FAILED", reasonCodes: ["INIT_ERROR_RESPONSE"] });
+    expect(same.outcome).toBe("ENGINE_EXECUTION_FAILED");
+    expect(other.outcome).toBe("ENGINE_EXECUTION_FAILED");
+  });
+
+  it("사유는 없지만 관측 단계(PH2)에 이르지 못했으면 NOT_RUN(ENGINE_STAGE_NOT_REACHED)이다", () => {
+    for (const phases of [["PH0"], ["PH0", "PH1"]] as const) {
+      const e = derive("R6", { phases: [...phases], status: "RULES_NOT_LOADED" });
+      expect(e.entry.status).toBe("NOT_RUN");
+      expect(e.outcome).toBe("ENGINE_STAGE_NOT_REACHED");
+    }
+    expect(engineExecutionProblem({ reasonCodes: [], phases: ["PH0", "PH1", "PH2"] })).toBeNull();
+  });
+
+  it("일괄 차단이 아니다: 관측 단계 안·뒤의 사유(규칙 로딩 반응, 스캔·종료 실패)는 이 사례의 관측을 무너뜨리지 않는다", () => {
+    // R6의 의도한 관측은 규칙 로딩(PH2)에서 일어난다 — 그 반응(과 그 단계의 대기 시간 초과)은 실행 실패로 보지 않는다.
+    const reaction = derive("R6", {
+      phases: ["PH0", "PH1", "PH2"],
+      reasonCodes: ["RULES_REFRESHED_MISSING", "TIMEOUT_RULES"],
+    });
+    expect(reaction.entry.status).toBe("PASS");
+    // 관측 단계 뒤(PH3·PH4)의 프로세스·전송 실패는 PH2의 관측과 무관하다.
+    for (const code of [
+      "EXIT_BEFORE_BARRIER",
+      "EXIT_NONZERO",
+      "MALFORMED_FRAME",
+      "TRUNCATED_FRAME",
+      "CLEANUP_FAILED",
+      "TIMEOUT_SCAN",
+      "NO_BARRIER",
+    ] as const) {
+      expect(derive("R6", { reasonCodes: [code] }).entry.status, code).toBe("PASS");
+    }
+  });
+
+  it("사전 검사 층에는 적용되지 않는다(엔진을 띄우지 않으므로 단계가 없다)", () => {
+    const e = deriveNegativeControlEntry(
+      spec("R1"),
+      "preflight",
+      {
+        ...idealObservation(spec("R1"), "preflight"),
+        reasonCodes: ["RULES_FILE_REMOVED", "SPAWN_FAILED"],
+      },
+      BINDING,
+      conflicts
+    );
+    expect(e.outcome).toBe("EXECUTED"); // 판단은 attempted/기대 대조로 한다(이 합성 관측은 attempted=false)
+  });
+});
+
+describe("toolIsolationBlock — 도구 관측 단계의 격리", () => {
+  const withHits = (hits: number | null) =>
+    summaryOf({ version: "1.0.0", wheel: "a".repeat(64), hitsDuring: hits });
+
+  it("0건일 때만 막지 않는다. 1건 이상·관측 실패(null)·형식 오류·요약 없음은 막는다", () => {
+    expect(toolIsolationBlock(withHits(0))).toBeNull();
+    expect(toolIsolationBlock(withHits(1))).toBe("METRICS_RECEIVER_HIT");
+    expect(toolIsolationBlock(withHits(7))).toBe("METRICS_RECEIVER_HIT");
+    expect(toolIsolationBlock(withHits(null))).toBe("METRICS_HITS_UNOBSERVED");
+    for (const bad of [-1, 1.5, Number.NaN, "0", undefined, {}]) {
+      expect(toolIsolationBlock({ version_check: { metrics_hits_during: bad } }), String(bad)).toBe(
+        "METRICS_HITS_UNOBSERVED"
+      );
+    }
+    for (const absent of [undefined, null, "x", 3, [], {}, { version_check: null }]) {
+      expect(toolIsolationBlock(absent), JSON.stringify(absent)).toBe("TOOL_OBSERVATION_ABSENT");
+    }
+  });
+});
+
+describe("사례 run id", () => {
+  it("실행기가 만드는 규칙과 같다: 기준은 <suite>-baseline, 사례는 <suite>-<id 소문자>-<층>이고 서로 다르다", () => {
+    expect(caseRunId("s", "baseline", "engine")).toBe("s-baseline");
+    expect(caseRunId("s", "R5", "engine")).toBe("s-r5-engine");
+    expect(caseRunId("s", "R5", "preflight")).toBe("s-r5-preflight");
+    const planned = plannedRunIds("s");
+    expect(planned).toHaveLength(1 + 16);
+    expect(new Set(planned).size).toBe(planned.length);
+  });
+});
+
 // ── 실행기: 합성 세계 끝에서 끝까지 ──────────────────────────────
 
 describe("runNegativeControls — 합성 세계 끝에서 끝까지", () => {
@@ -247,26 +423,31 @@ describe("runNegativeControls — 합성 세계 끝에서 끝까지", () => {
     expect(suite.cases).toHaveLength(16);
   });
 
-  it("가정한 엔진 반응에서: 사전 검사 7개 PASS, 엔진은 R8까지 PASS하고 R9 엔진은 충돌로 NOT_RUN이다", async () => {
+  it("가정한 엔진 반응에서: 사전 검사 7개와 엔진 R6·R8이 PASS, 엔진 R1~R5·R7은 실행했어도 엔진 고유 관측의 계약이 없어 NOT_RUN, R9 엔진은 충돌로 NOT_RUN이다", async () => {
     const suite = await makeRig(world).run();
     expect(statuses(suite)).toEqual({
-      "R1:engine": "PASS",
+      "R1:engine": "NOT_RUN",
       "R1:preflight": "PASS",
-      "R2:engine": "PASS",
+      "R2:engine": "NOT_RUN",
       "R2:preflight": "PASS",
-      "R3:engine": "PASS",
+      "R3:engine": "NOT_RUN",
       "R3:preflight": "PASS",
-      "R4:engine": "PASS",
+      "R4:engine": "NOT_RUN",
       "R4:preflight": "PASS",
-      "R5:engine": "PASS",
+      "R5:engine": "NOT_RUN",
       "R5:preflight": "PASS",
       "R6:engine": "PASS",
-      "R7:engine": "PASS",
+      "R7:engine": "NOT_RUN",
       "R7:preflight": "PASS",
       "R8:engine": "PASS",
       "R9:engine": "NOT_RUN",
       "R9:preflight": "PASS",
     });
+    for (const id of ["R1", "R2", "R3", "R4", "R5", "R7"]) {
+      expect(caseOf(suite, id, "engine").outcome, id).toBe("ENGINE_OBSERVATION_UNCONFIRMED");
+      // 실행은 했다: 증거가 남는다(계약이 확정되면 같은 증거로 판정할 수 있다).
+      expect(caseOf(suite, id, "engine").evidence, id).not.toBeNull();
+    }
     expect(caseOf(suite, "R9", "engine").outcome).toBe("BLOCKED_CONTRACT_CONFLICT");
     expect(suite.conflicts.map((c) => c.id)).toEqual(["R9"]);
     expect(suite.baseline.clean).toBe(true);
@@ -425,6 +606,36 @@ describe("runNegativeControls — 합성 세계 끝에서 끝까지", () => {
     expect(r7?.options?.after_sha256).not.toBe(r7?.options?.before_sha256);
     // 사전 검사가 없는 id의 사전 검사 사례는 없다.
     expect(suite.cases.find((c) => c.id === "R6" && c.layer === "preflight")).toBeUndefined();
+  });
+
+  it("사례별 증거에 신원이 남는다: 스위트·사례·층·변형 종류와, 스위트 기록의 변형 추적에서 다시 계산되는 해시", async () => {
+    const rig = makeRig(world);
+    const suite = await rig.run();
+    const read = async (runId: string) =>
+      JSON.parse(
+        new TextDecoder().decode(await rig.memory.readFile(`/evidence/${runId}/run.json`))
+      );
+    const r5 = (await read(`${SUITE}-r5-preflight`)).resources.negative_control_case;
+    expect(r5).toEqual({
+      suite_id: SUITE,
+      case_id: "R5",
+      layer: "preflight",
+      mutation_kind: "RULES_CHANGE_BODY",
+      mutation_sha256: createHash("sha256")
+        .update(canonicalJson(caseOf(suite, "R5", "preflight").mutation))
+        .digest("hex"),
+    });
+    // 같은 변형을 가해도 사례(id·층)가 다르면 변형 추적이 달라 해시가 다르다 — 어느 사례의 증거인지 서로 바꿔 쓸 수 없다.
+    const r5engine = (await read(`${SUITE}-r5-engine`)).resources.negative_control_case;
+    expect(r5engine.layer).toBe("engine");
+    // 기준 실행은 변형이 없다.
+    expect((await read(`${SUITE}-baseline`)).resources.negative_control_case).toEqual({
+      suite_id: SUITE,
+      case_id: "baseline",
+      layer: "engine",
+      mutation_kind: null,
+      mutation_sha256: null,
+    });
   });
 
   it("결합: 모든 실행이 기준과 같은 결합으로 묶이고 PASS 항목에 그 결합이 찍힌다", async () => {

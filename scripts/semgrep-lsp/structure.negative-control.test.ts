@@ -161,7 +161,7 @@ describe("구조 (13) — 음성 대조는 정상 경로와 분리되어 있다"
     expect(parse).not.toMatch(/entries/);
     // 모든 항목은 실행기와 같은 순수 함수로 만든다.
     expect(code).toMatch(
-      /deriveNegativeControlEntry\(spec, layer, read\.observation, binding, conflicts\)/
+      /deriveNegativeControlEntry\(\s*spec,\s*layer,\s*read\.observation,\s*binding,\s*conflicts,?\s*\)/
     );
   });
 

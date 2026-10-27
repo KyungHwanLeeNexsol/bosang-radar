@@ -53,6 +53,7 @@ interface SuiteBody {
   entries: Entry[];
   cases: { id: string; layer: string; outcome: string }[];
   conflicts: { id: string }[];
+  blocked: { stage: string; cause: string } | null;
   record: { written: boolean; path: string };
   cleanup: { run_id: string; lock: string; receiver_closed: boolean }[];
   not_established: Record<string, string>;
@@ -215,14 +216,21 @@ describe("negative-control — 합성 스텁으로 한 번 끝까지(스위트 �
     expect(body.status).toBe("INCOMPLETE");
     expect(body.provenance).toBe("stub"); // 스텁 결과는 SYNTHETIC이다 — 실제 엔진 검증이라고 쓰지 않는다
     expect(body.entries).toHaveLength(16);
-    expect(body.counts).toEqual({ pass: 15, fail: 0, not_run: 1 });
+    // 사전 검사 7 + 엔진 R6·R8 = 9 PASS. 엔진 R1~R5·R7은 실행했지만 엔진 고유 관측의 계약이 없어 NOT_RUN, R9 엔진은 충돌 NOT_RUN.
+    expect(body.counts).toEqual({ pass: 9, fail: 0, not_run: 7 });
     expect(body.baseline.clean).toBe(true);
+    expect(body.blocked).toBeNull();
 
     const r9 = body.entries.find((e) => e.id === "R9" && e.layer === "engine");
     expect(r9).toMatchObject({ status: "NOT_RUN", observed: null, binding_sha256: null });
     expect(body.cases.find((c) => c.id === "R9" && c.layer === "engine")?.outcome).toBe(
       "BLOCKED_CONTRACT_CONFLICT"
     );
+    for (const id of ["R1", "R2", "R3", "R4", "R5", "R7"]) {
+      expect(body.cases.find((c) => c.id === id && c.layer === "engine")?.outcome, id).toBe(
+        "ENGINE_OBSERVATION_UNCONFIRMED"
+      );
+    }
     expect(body.conflicts.map((c) => c.id)).toEqual(["R9"]);
     // R9 엔진 층에는 서버를 띄운 흔적이 없다: 기준 1 + 엔진 층 8(R9 제외)
     expect(w.serverCalls).toHaveLength(9);
@@ -247,7 +255,10 @@ describe("negative-control — 합성 스텁으로 한 번 끝까지(스위트 �
     expect(preflight).toHaveLength(7);
     // 사전 검사 사례의 작업 공간에서는 어떤 서버도 뜨지 않았다
     expect(w.serverCalls.filter((s) => /-preflight(\/|$)/.test(s.cwd ?? ""))).toEqual([]);
-    for (const c of body.cases.filter((c) => c.layer === "engine" && c.outcome === "EXECUTED")) {
+    // 엔진을 실제로 띄운 사례(R9 엔진 제외 8개: 계약 미확정으로 NOT_RUN인 R1~R5·R7 포함)는 모두 진단 표시가 있다.
+    const engineRuns = body.cases.filter((c) => c.layer === "engine" && c.id !== "R9");
+    expect(engineRuns).toHaveLength(8);
+    for (const c of engineRuns) {
       const run = await readRunJson(w, runIdOf(c.id, "engine"));
       expect(run.resources?.engine_diagnostic?.policy, c.id).toBe("ENGINE_DIAGNOSTIC");
     }
@@ -328,20 +339,21 @@ describe("negative-control — 기대와 다른 결과·미실행·취소·실�
       const run = await readRunJson(w, runIdOf(id, "engine"));
       expect(entry?.observed).toBe(run.measurement.status);
     }
-    // 반응이 필요 없는 항목은 그대로다
-    expect(states["R7:engine"]).toBe("PASS");
+    // 반응이 필요 없는 항목은 그대로다: 사전 검사 7개는 PASS, 계약이 없는 엔진 R7은 NOT_RUN이다.
+    expect(states["R7:preflight"]).toBe("PASS");
+    expect(states["R7:engine"]).toBe("NOT_RUN");
     expect(body.counts.fail).toBe(2);
     expect(body.counts.pass + body.counts.fail + body.counts.not_run).toBe(16);
     expectCleanedUp(w, body);
   });
 
   it("사례 하나의 서버가 뜨지 못하면(실행 실패) 그 항목만 PASS가 아니고, 나머지는 영향이 없고, 정리는 끝난다", async () => {
-    const { w, body } = await suiteRun({ failServer: (key) => key.id === "R7" });
+    const { w, body } = await suiteRun({ failServer: (key) => key.id === "R6" });
     const states = statusOf(body);
-    expect(states["R7:engine"]).not.toBe("PASS");
+    expect(states["R6:engine"]).not.toBe("PASS");
     expect(states["R7:preflight"]).toBe("PASS");
-    expect(states["R1:engine"]).toBe("PASS");
-    expect(body.counts.pass).toBeLessThan(15);
+    expect(states["R8:engine"]).toBe("PASS");
+    expect(body.counts.pass).toBe(8);
     expect(body.entries).toHaveLength(16);
     expectCleanedUp(w, body);
   });
@@ -438,10 +450,19 @@ describe("run --negative-controls — 실행 결과 → control_assertions → r
     const json = await readRunJson(w, "ctl-1");
     const entries = json.control_assertions.negative_controls;
     expect(entries).toHaveLength(16);
-    expect(entries.filter((e) => e.status === "PASS")).toHaveLength(15);
-    expect(entries.filter((e) => e.status !== "PASS")).toEqual([
-      expect.objectContaining({ id: "R9", layer: "engine", status: "NOT_RUN", observed: null }),
+    expect(entries.filter((e) => e.status === "PASS")).toHaveLength(9);
+    expect(entries.filter((e) => e.status !== "PASS").map((e) => `${e.id}:${e.layer}`)).toEqual([
+      "R1:engine",
+      "R2:engine",
+      "R3:engine",
+      "R4:engine",
+      "R5:engine",
+      "R7:engine",
+      "R9:engine",
     ]);
+    for (const e of entries.filter((x) => x.status !== "PASS")) {
+      expect(e).toMatchObject({ status: "NOT_RUN", observed: null, binding_sha256: null });
+    }
     // 모든 PASS 항목의 결합은 같은 하나다(변형 실행과 기준 입력의 관계가 한 값으로 추적된다)
     const bindings = new Set(
       entries.filter((e) => e.status === "PASS").map((e) => e.binding_sha256)

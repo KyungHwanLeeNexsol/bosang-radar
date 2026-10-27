@@ -32,9 +32,17 @@ export function wheelObserved(sha256: string, sizeBytes = 10): WheelObservation 
   return { status: "OBSERVED", failure: null, sha256, sizeBytes };
 }
 
-/** version/wheel이 null이면 그쪽은 시도하지 않은 것(잠금 없음)으로 만든다. */
+/**
+ * version/wheel이 null이면 그쪽은 시도하지 않은 것(잠금 없음)으로 만든다. hitsDuring은 버전 확인이 도는 동안 루프백 수신기에 늘어난 요청
+ * 건수(metrics_hits_during)이며, 생략하면 null(관측하지 못함)이다 — 0으로 보정하지 않는다.
+ */
 export function summaryOf(
-  options: { version?: string | null; wheel?: string | null; provenance?: Provenance } = {}
+  options: {
+    version?: string | null;
+    wheel?: string | null;
+    provenance?: Provenance;
+    hitsDuring?: number | null;
+  } = {}
 ): ToolObservationSummary {
   const version =
     options.version == null
@@ -42,5 +50,5 @@ export function summaryOf(
       : versionObserved(options.version, options.provenance ?? "stub");
   const wheel =
     options.wheel == null ? notAttemptedWheel("ARTIFACT_NOT_GIVEN") : wheelObserved(options.wheel);
-  return buildToolObservationSummary(version, wheel, null);
+  return buildToolObservationSummary(version, wheel, options.hitsDuring ?? null);
 }

@@ -12,6 +12,7 @@ import {
 } from "./negative-control-record";
 import { controlReferenceFromValue } from "./reference-record";
 import { buildControlWorld, declaredRealPort } from "./testing/control-world";
+import { MemoryFs } from "./testing/memory-fs";
 import { SUITE, makeRig, statuses } from "./testing/negative-control-rig";
 import { drive, stubPort } from "./testing/stub-lsp";
 import type { NegativeControlInput, ProcessPort } from "./types";
@@ -64,15 +65,42 @@ describe("loadNegativeControlSuite — 증거에서 항목을 다시 도출한�
       suite_id: SUITE,
       provenance: "stub",
       binding_sha256: suite.binding_sha256,
-      counts: { pass: 15, fail: 0, not_run: 1 },
+      counts: { pass: 9, fail: 0, not_run: 7 },
       problems: [],
     });
     expect(input.bindingSha256).toBe(suite.binding_sha256);
     expect(input.provenance).toBe("stub");
     expect(input.entries).toEqual(suite.entries);
     expect(input.summary.outcomes).toEqual([
+      { id: "R1", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
+      { id: "R2", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
+      { id: "R3", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
+      { id: "R4", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
+      { id: "R5", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
+      { id: "R7", layer: "engine", outcome: "ENGINE_OBSERVATION_UNCONFIRMED" },
       { id: "R9", layer: "engine", outcome: "BLOCKED_CONTRACT_CONFLICT" },
     ]);
+  });
+
+  it("스위트가 R1~R5·R7 엔진을 EXECUTED라고 속여도 같은 판정이 NOT_RUN(ENGINE_OBSERVATION_UNCONFIRMED)으로 되돌린다 — 엔진 고유 관측의 계약이 없다", async () => {
+    const rig = makeRig(world);
+    await runAndWrite(rig);
+    const path = await writeTampered(rig, "claim-executed", (json) => {
+      for (const c of json.cases) if (c.layer === "engine") c.outcome = "EXECUTED";
+    });
+    const input = await load(rig, path);
+    for (const id of ["R1", "R2", "R3", "R4", "R5", "R7"]) {
+      expect(input.entries.find((e) => e.id === id && e.layer === "engine")).toMatchObject({
+        status: "NOT_RUN",
+        observed: null,
+      });
+      expect(input.summary.outcomes).toContainEqual({
+        id,
+        layer: "engine",
+        outcome: "ENGINE_OBSERVATION_UNCONFIRMED",
+      });
+    }
+    expect(input.summary.counts.pass).toBe(9);
   });
 
   it("저장된 entries를 믿지 않는다: 파일의 entries를 전부 PASS로 고쳐 써도 증거로 다시 도출한 항목이 쓰인다", async () => {
@@ -106,31 +134,31 @@ describe("loadNegativeControlSuite — 증거에서 항목을 다시 도출한�
     const e = input.entries.find((x) => x.id === "R2" && x.layer === "preflight");
     expect(e).toMatchObject({ status: "NOT_RUN", observed: null, binding_sha256: null });
     expect(input.summary.problems).toEqual(["R2:preflight:EVIDENCE_HASH_MISMATCH"]);
-    expect(input.entries.find((x) => x.id === "R2" && x.layer === "engine")?.status).toBe("PASS");
+    expect(input.entries.find((x) => x.id === "R6" && x.layer === "engine")?.status).toBe("PASS");
     expect(input.summary.accepted).toBe(true);
   });
 
   it("증거 폴더가 없거나 증거 참조가 비어 있으면 그 사례만 NOT_RUN이다", async () => {
     const rig = makeRig(world);
     await runAndWrite(rig);
-    const missing = await writeTampered(rig, "missing", (json) => {
-      const c = json.cases.find(
-        (x: Record<string, unknown>) => x.id === "R3" && x.layer === "engine"
-      );
-      c.evidence.run_id = "nc1-no-such-run";
-    });
-    const a = await load(rig, missing);
-    expect(a.entries.find((x) => x.id === "R3" && x.layer === "engine")?.status).toBe("NOT_RUN");
-    expect(a.summary.problems).toEqual(["R3:engine:EVIDENCE_MISSING"]);
+    // 기대 run id를 가리키지만 디스크에 그 증거가 없는 경우: 증거 파일을 뺀 사본 세계에서 읽는다.
+    const files: Record<string, Uint8Array> = {};
+    for (const rel of await rig.memory.listFilesRecursive("/")) {
+      if (rel.startsWith(`evidence/${SUITE}-r6-engine/`)) continue;
+      files[`/${rel}`] = await rig.memory.readFile(`/${rel}`);
+    }
+    const a = await loadNegativeControlSuite(new MemoryFs(files), SUITE_PATH, "/evidence");
+    expect(a.entries.find((x) => x.id === "R6" && x.layer === "engine")?.status).toBe("NOT_RUN");
+    expect(a.summary.problems).toEqual(["R6:engine:EVIDENCE_MISSING"]);
     const noRef = await writeTampered(rig, "no-ref", (json) => {
       const c = json.cases.find(
-        (x: Record<string, unknown>) => x.id === "R4" && x.layer === "engine"
+        (x: Record<string, unknown>) => x.id === "R6" && x.layer === "engine"
       );
       c.evidence = null;
     });
     const b = await load(rig, noRef);
-    expect(b.entries.find((x) => x.id === "R4" && x.layer === "engine")?.status).toBe("NOT_RUN");
-    expect(b.summary.problems).toEqual(["R4:engine:EVIDENCE_REF_MISSING"]);
+    expect(b.entries.find((x) => x.id === "R6" && x.layer === "engine")?.status).toBe("NOT_RUN");
+    expect(b.summary.problems).toEqual(["R6:engine:EVIDENCE_REF_MISSING"]);
   });
 
   it("층이 맞지 않는 증거는 쓰지 않는다: 사전 검사 증거를 엔진 항목에 붙이면 NOT_RUN이다(두 층은 서로 대신하지 못한다)", async () => {
@@ -155,24 +183,25 @@ describe("loadNegativeControlSuite — 증거에서 항목을 다시 도출한�
     );
   });
 
-  it("다른 사례의 증거를 붙이면 관측이 달라 FAIL이 되지 PASS로 둔갑하지 않는다", async () => {
+  it("다른 사례의 증거를 붙이면 관측을 읽기 전에 거절한다(NOT_RUN) — FAIL로도 PASS로도 쓰지 않는다", async () => {
     const rig = makeRig(world);
     await runAndWrite(rig);
-    // R6 엔진(RULES_NOT_LOADED)의 증거를 R7 엔진(SETTINGS_MISMATCH가 기대)에 붙인다.
+    // R6 엔진(RULES_NOT_LOADED)의 증거를 R8 엔진에 붙인다. 이 증거는 R6의 run id·신원을 갖고 있다.
     const path = await writeTampered(rig, "wrong-case", (json) => {
       const r6 = json.cases.find(
         (x: Record<string, unknown>) => x.id === "R6" && x.layer === "engine"
       );
-      const r7 = json.cases.find(
-        (x: Record<string, unknown>) => x.id === "R7" && x.layer === "engine"
+      const r8 = json.cases.find(
+        (x: Record<string, unknown>) => x.id === "R8" && x.layer === "engine"
       );
-      r7.evidence = r6.evidence;
+      r8.evidence = r6.evidence;
     });
     const input = await load(rig, path);
-    expect(input.entries.find((x) => x.id === "R7" && x.layer === "engine")).toMatchObject({
-      status: "FAIL",
-      observed: "RULES_NOT_LOADED",
+    expect(input.entries.find((x) => x.id === "R8" && x.layer === "engine")).toMatchObject({
+      status: "NOT_RUN",
+      observed: null,
     });
+    expect(input.summary.problems).toContain("R8:engine:EVIDENCE_RUN_ID_UNEXPECTED");
   });
 
   it("충돌 항목(R9 엔진)은 스위트가 실행했다고 적어도 NOT_RUN이다 — 표에서 다시 도출한 충돌이 우선한다", async () => {
@@ -212,9 +241,8 @@ describe("loadNegativeControlSuite — 기준 실행", () => {
     expect(input.bindingSha256).toBeNull();
     expect(input.entries.every((e) => e.status === "NOT_RUN")).toBe(true);
     expect(input.summary.problems).toContain("BASELINE_EVIDENCE_MISSING");
-    expect(input.summary.outcomes.filter((o) => o.outcome === "BASELINE_NOT_CLEAN").length).toBe(
-      15
-    );
+    // 실행했다고 적힌 사례(9개: 사전 검사 7 + 엔진 R6·R8)만 기준 부재로 되돌아간다. 나머지는 기록된 까닭(계약 충돌·계약 미확정)이 남는다.
+    expect(input.summary.outcomes.filter((o) => o.outcome === "BASELINE_NOT_CLEAN").length).toBe(9);
   });
 
   it("스위트가 적은 결합이 기준 증거의 결합과 다르면 쓰지 않는다", async () => {
@@ -391,7 +419,7 @@ describe("실행기 출력 → control 실행 → 자격 계산 → 읽기 어�
     expect(rec?.control_assertions.negative_controls).toEqual(suite.entries);
     expect(rec?.resources?.negative_control_suite).toMatchObject({
       accepted: true,
-      counts: { pass: 15, fail: 0, not_run: 1 },
+      counts: { pass: 9, fail: 0, not_run: 7 },
     });
     expect(rec?.not_executed.negative_controls_engine).toBe("UNVERIFIED");
     expect(rec?.trust).toBe("SYNTHETIC");

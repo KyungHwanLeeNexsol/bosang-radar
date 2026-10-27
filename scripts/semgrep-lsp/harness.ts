@@ -87,6 +87,7 @@ import {
   type MetricsObserver,
   type MetricsReceiverSummary,
   type Mode,
+  type NegativeControlCaseIdentity,
   type NegativeControlInput,
   type NegativeControlResult,
   type NegativeControlSuiteSummary,
@@ -197,6 +198,12 @@ export interface HarnessOptions {
    * 항목의 PASS는 스위트를 실행한 쪽의 관측에서만 나온다.
    */
   negativeControlSuite?: NegativeControlInput | null;
+  /**
+   * 이 실행이 음성 대조 스위트의 어느 사례를 위한 것인지의 신원(negative-control.ts의 실행기만 준다). 주면 run.json의
+   * resources.negative_control_case에 그대로 싣는다 — 읽는 쪽이 스위트가 기대하는 신원과 대조해 다른 사례의 증거 재사용을 거절한다.
+   * 판정과 사전 검사에는 쓰지 않는다. 주지 않으면 이 필드는 레코드에 없다.
+   */
+  negativeControlCase?: NegativeControlCaseIdentity | null;
   logFormat?: LogFormat;
   signal?: AbortSignal;
   /** 어느 증거 파일에도 있으면 안 되는 값(추가분). spawn.env 중 기밀로 보이는 이름의 값은 자동으로 포함한다. */
@@ -897,7 +904,8 @@ async function execute(
     toolObservation !== null ||
     foreignObservation !== null ||
     negatives.summary !== null ||
-    diagnostic !== null
+    diagnostic !== null ||
+    (options.negativeControlCase ?? null) !== null
       ? {
           resources: {
             run_lock: options.lockSummary ?? null,
@@ -911,6 +919,10 @@ async function execute(
             // 음성 대조 스위트를 어떻게 받아들였는지(개수·토큰뿐). 엔진 진단 실행이면 그 표시.
             ...(negatives.summary === null ? {} : { negative_control_suite: negatives.summary }),
             ...(diagnostic === null ? {} : { engine_diagnostic: diagnostic }),
+            // 음성 대조 사례의 신원(스위트 실행기만 준다). 읽는 쪽이 스위트가 기대하는 신원과 대조한다.
+            ...(options.negativeControlCase == null
+              ? {}
+              : { negative_control_case: structuredClone(options.negativeControlCase) }),
           },
         }
       : {}),

@@ -85,7 +85,7 @@ describe("runNegativeControls — 두 층은 서로 대신하지 못한다", () 
       binding_sha256: null,
     });
     expect(caseOf(suite, "R3", "engine").outcome).toBe("ENGINE_NOT_STARTED");
-    expect(entryOf(suite, "R4", "engine").status).toBe("PASS"); // 다른 사례는 영향이 없다
+    expect(entryOf(suite, "R8", "engine").status).toBe("PASS"); // 다른 사례는 영향이 없다
   });
 
   it("엔진 층의 PASS가 사전 검사 항목을 대신하지도 않는다: 사전 검사 층이 FAIL이어도 엔진 항목은 따로 정해진다", async () => {
@@ -100,7 +100,11 @@ describe("runNegativeControls — 두 층은 서로 대신하지 못한다", () 
     });
     const suite = await rig.run();
     expect(entryOf(suite, "R3", "preflight").status).toBe("FAIL");
-    expect(entryOf(suite, "R3", "engine").status).toBe("PASS");
+    // R3 엔진은 사전 검사 사유가 상태를 가리는데 엔진 고유 관측의 계약이 없어 PASS를 만들 수 없다 — 사전 검사 층과 무관하게 NOT_RUN이다.
+    expect(entryOf(suite, "R3", "engine").status).toBe("NOT_RUN");
+    expect(caseOf(suite, "R3", "engine").outcome).toBe("ENGINE_OBSERVATION_UNCONFIRMED");
+    // 엔진 PASS를 만들 수 있는 항목(R8)은 따로 정해진다.
+    expect(entryOf(suite, "R8", "engine").status).toBe("PASS");
   });
 });
 
@@ -149,7 +153,8 @@ describe("runNegativeControls — 취소·실패·일부 완료", () => {
     const suite = await rig.run();
     const s = statuses(suite);
     expect(s["R1:preflight"]).toBe("PASS");
-    expect(s["R1:engine"]).toBe("PASS");
+    expect(s["R1:engine"]).toBe("NOT_RUN"); // 실행했지만 엔진 고유 관측의 계약이 없어 PASS가 아니다
+    expect(notRunOutcomes(suite)["R1:engine"]).toBe("ENGINE_OBSERVATION_UNCONFIRMED");
     expect(s["R2:preflight"]).toBe("PASS");
     expect(s["R2:engine"]).toBe("NOT_RUN"); // 도중에 취소됐다 — 결과가 나왔더라도 쓰지 않는다
     expect(caseOf(suite, "R2", "engine").outcome).toBe("CANCELLED");
@@ -185,7 +190,7 @@ describe("runNegativeControls — 취소·실패·일부 완료", () => {
     const suite = await rig.run();
     expect(entryOf(suite, "R4", "preflight").status).toBe("NOT_RUN");
     expect(caseOf(suite, "R4", "preflight").outcome).toBe("RUN_FAILED");
-    expect(entryOf(suite, "R4", "engine").status).toBe("PASS");
+    expect(entryOf(suite, "R6", "engine").status).toBe("PASS");
     expect(entryOf(suite, "R5", "preflight").status).toBe("PASS");
   });
 
@@ -203,7 +208,7 @@ describe("runNegativeControls — 취소·실패·일부 완료", () => {
     expect(entryOf(suite, "R5", "preflight").status).toBe("NOT_RUN");
     expect(caseOf(suite, "R5", "preflight").outcome).toBe("WORKSPACE_FAILED");
     expect(rig.resourceKeys.map((k) => k.runId)).not.toContain(`${SUITE}-r5-preflight`);
-    expect(entryOf(suite, "R5", "engine").status).toBe("PASS");
+    expect(entryOf(suite, "R6", "engine").status).toBe("PASS");
   });
 
   it("작업 공간이 증거 폴더나 원본(규칙 캐시·대조 예제·데이터·하네스)과 겹치면 아무것도 쓰지 않고 전부 NOT_RUN이다", async () => {
@@ -246,19 +251,19 @@ describe("runNegativeControls — 결합·출처가 다른 실행은 쓰지 않�
       binding_sha256: null,
     });
     expect(caseOf(suite, "R3", "preflight").outcome).toBe("BINDING_DRIFT");
-    expect(entryOf(suite, "R3", "engine").status).toBe("PASS");
+    expect(entryOf(suite, "R6", "engine").status).toBe("PASS");
   });
 
   it("출처가 다른 사례(기준은 stub인데 real이라고 주장)는 같은 결합으로 묶지 않는다", async () => {
     const rig = makeRig(world, {
       wrapPort: (key, port) =>
-        key.id === "R4" && key.layer === "engine"
+        key.id === "R6" && key.layer === "engine"
           ? { provenance: "real", spawn: (spec) => port.spawn(spec) }
           : port,
     });
     const suite = await rig.run();
-    expect(entryOf(suite, "R4", "engine").status).toBe("NOT_RUN");
-    expect(caseOf(suite, "R4", "engine").outcome).toBe("BINDING_DRIFT");
+    expect(entryOf(suite, "R6", "engine").status).toBe("NOT_RUN");
+    expect(caseOf(suite, "R6", "engine").outcome).toBe("BINDING_DRIFT");
   });
 });
 
@@ -280,22 +285,14 @@ describe("runNegativeControls — 기대와 다른 결과는 FAIL로 드러난�
     expect(entry.observed).not.toBeNull();
     // 사전 검사 층은 띄울 수 없는 포트로 돌아 실제로는 엔진이 뜨지 않았다. 띄우려 한 시도는 있었다.
     expect(rig.ports.get(`${SUITE}-r3-preflight`)?.spawnCalls).toEqual([]);
-    expect(entryOf(suite, "R3", "engine").status).toBe("PASS");
+    expect(entryOf(suite, "R8", "engine").status).toBe("PASS");
   });
 
-  it("엔진 층에서 변형이 판정에 닿지 않으면(COMPLETE) FAIL이다 — observed는 기대가 아니라 COMPLETE다", async () => {
-    const rig = makeRig(world, {
-      wrapFs: (m) =>
-        overrideFs(m, {
-          listFilesRecursive: async (root) =>
-            (await m.listFilesRecursive(root)).filter(
-              (f) => !(root.includes(`${SUITE}-r4-engine`) && f.includes("zz-negative-control"))
-            ),
-        }),
-    });
-    const suite = await rig.run();
-    expect(entryOf(suite, "R4", "engine")).toMatchObject({
-      expected: "MANIFEST_MISMATCH",
+  it("[가정한 엔진 반응] 엔진 층에서 변형이 판정에 닿지 않으면(COMPLETE) FAIL이다 — observed는 기대가 아니라 COMPLETE다 (R6: 엔진이 없는 규칙 경로에 반응하지 않음)", async () => {
+    const noReaction = () => undefined; // 기준(깨끗한) 반응 — 엔진이 변형을 알아채지 못한다
+    const suite = await makeRig(world, { engine: noReaction }).run();
+    expect(entryOf(suite, "R6", "engine")).toMatchObject({
+      expected: "RULES_NOT_LOADED",
       observed: "COMPLETE",
       status: "FAIL",
     });

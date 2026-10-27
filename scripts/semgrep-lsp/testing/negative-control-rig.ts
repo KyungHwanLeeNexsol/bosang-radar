@@ -19,6 +19,7 @@ import type { FsPort, NegativeControlResult, ProcessPort } from "../types";
 import type { ControlWorld } from "./control-world";
 import type { FakePort } from "./fake-process";
 import { MemoryFs } from "./memory-fs";
+import { summaryOf } from "./observation-fixtures";
 import { drive, stubPort, type StubPatch } from "./stub-lsp";
 import type { HappySpec } from "./transcript-builder";
 
@@ -137,6 +138,15 @@ export function makeRig(world: ControlWorld, options: RigOptions = {}) {
     wheelSha256Observed: world.data.pin.semgrep.wheel.sha256,
     ...(options.inputs ?? {}),
   };
+  // 도구 관측 요약의 기본은 최종 관측값에서 만든, 버전 확인 중 수신 0건을 확인한 요약이다(격리 관문을 통과하고 하네스의 일관성 검사와
+  // 맞는다). 시험이 inputs.toolObservation으로 덮어쓰거나 undefined로 덮어 막힘을 만든다.
+  if (!(options.inputs && "toolObservation" in options.inputs)) {
+    inputs.toolObservation = summaryOf({
+      version: inputs.toolVersionObserved,
+      wheel: inputs.wheelSha256Observed,
+      hitsDuring: 0,
+    });
+  }
   return {
     memory,
     fs,

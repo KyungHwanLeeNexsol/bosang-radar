@@ -688,7 +688,15 @@ export type NegativeControlOutcome =
   /** 사례별 작업 공간을 만들지 못했다. */
   | "WORKSPACE_FAILED"
   /** 이 층에는 해당 실행이 없다(표에 사전 검사 항목이 없는 id). */
-  | "NO_SUCH_LAYER";
+  | "NO_SUCH_LAYER"
+  /** 도구 관측 단계에서 확인한 격리 위반(또는 격리를 관측하지 못함)이라 스위트를 시작하지 않았다(기준·변형 실행 없음). */
+  | "TOOL_OBSERVATION_BLOCKED"
+  /** 엔진 진단인데 이 사례를 관측하는 데 필요한 단계에 이르기 전에 초기화·전송이 깨졌다. 사전 검사 사유가 상태를 가려도 PASS가 아니다. */
+  | "ENGINE_EXECUTION_FAILED"
+  /** 엔진은 떴으나 이 사례를 관측하는 데 필요한 단계(규칙 로딩)에 이르지 못했다. */
+  | "ENGINE_STAGE_NOT_REACHED"
+  /** 엔진 층의 PASS에 필요한 엔진 고유 관측의 계약(로그·진단 형식)이 확정되지 않았다. 실행했어도 PASS로 올리지 않는다. */
+  | "ENGINE_OBSERVATION_UNCONFIRMED";
 
 /** run.json resources.negative_control_suite — control 실행이 명시한 스위트 기록을 어떻게 받아들였는지의 요약. */
 export interface NegativeControlSuiteSummary {
@@ -723,8 +731,25 @@ export interface EngineDiagnosticSummary {
   refusal_codes: string[];
 }
 
+/**
+ * run.json resources.negative_control_case — 이 실행이 음성 대조 스위트의 어느 사례를 위한 것인지의 신원. 읽는 쪽이 스위트가 기대하는
+ * 신원과 대조한다(다른 사례·기준 실행의 증거를 붙여 재사용하는 것을 막는다). 서명이 아니다: 증거와 스위트를 함께 위조하는 경우는 구별하지 못한다.
+ */
+export interface NegativeControlCaseIdentity {
+  suite_id: string;
+  /** "baseline" 또는 표의 id(R1~R9). */
+  case_id: string;
+  layer: "preflight" | "engine";
+  /** 변형 종류(MutationKind). 기준 실행이면 null. */
+  mutation_kind: string | null;
+  /** 변형 추적(MutationTrace)을 canonical JSON으로 만든 SHA-256. 읽는 쪽이 스위트가 적은 변형 추적에서 다시 계산해 맞춰 본다. 기준 실행이면 null. */
+  mutation_sha256: string | null;
+}
+
 export interface RunResources {
   run_lock: RunLockSummary | null;
+  /** 음성 대조 스위트의 사례 실행에만 있다. */
+  negative_control_case?: NegativeControlCaseIdentity | null;
   metrics_receiver: MetricsReceiverSummary | null;
   /** 도구 버전·휠 해시 관측. 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
   tool_observation?: RunToolObservation | null;

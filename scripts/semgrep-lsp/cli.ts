@@ -28,7 +28,12 @@ import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
-import { runNegativeControls, type CaseResources, type RunKey } from "./negative-control";
+import {
+  outputPathProblem,
+  runNegativeControls,
+  type CaseResources,
+  type RunKey,
+} from "./negative-control";
 import { loadNegativeControlSuite, serializeSuite } from "./negative-control-record";
 import { evidenceInsideServerTree } from "./path-containment";
 import { createNodeProcessLister } from "./process-list-node";
@@ -222,7 +227,13 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
     떴을 때만 관측이 성립한다(미기동은 NOT_RUN). 변형이 부른 사전 검사 사유만 있을 때 사유를 판정에 담은 채 띄우고, 도구·휠·환경변수·잠금·
     다른 서버 같은 사유가 있으면 정상 실행처럼 띄우지 않는다.
   · observed는 하네스가 낸 판정이다. 기대와 같고 표의 사유가 있고 결합이 기준과 같을 때만 PASS이며, 미실행·취소·실패·증거 누락은 NOT_RUN이다.
+    엔진 층은 대표 상태가 아니라 사유와 도달한 단계를 본다: 규칙 로딩(PH2)에 이르기 전의 초기화·전송 실패는 NOT_RUN이고, 사전 검사 사유가
+    상태를 가리는 id(R1~R5·R7)는 엔진 고유 관측의 계약이 확정되지 않아 실행해도 NOT_RUN이다.
   · 기준 실행이 COMPLETE가 아니면(도구·휠 관측 실패 등) 변형의 효과를 가릴 수 없어 전부 NOT_RUN이다.
+  · 도구 관측 단계(버전 확인)에서 루프백 수신기가 요청을 본 것이 0건으로 확인되지 않으면(1건 이상·관측 실패·요약 없음) 기준·변형 서버를
+    하나도 시작하지 않고 전부 NOT_RUN이다(출력의 blocked). 관측값은 바꾸지 않는다.
+  · --evidence-root·--work-root 아래에 쓰게 될 경로가 원본(--rules-cache·--control-fixtures-root·고정 데이터·하네스) 안이면, 포트·잠금·표지·
+    상태 폴더를 만들기 전에 사용법 오류로 거절한다(링크·별칭·..를 푼 실제 위치 기준).
   · 표에서 도출한 계약 충돌(엔진 기대가 같은 변형이 반드시 내는 사전 검사 사유에 가려지는 (id, 엔진))은 실행하지 않고 NOT_RUN으로 남긴다.
     현재 표에서는 R9 엔진이 여기에 해당하므로, 이 결정이 내려지기 전에는 어떤 실행에서도 종료 코드가 0이 될 수 없다(출력의 conflicts).
   · 결과는 <evidence-root>/<suite-id>/negative-controls.json에 쓴다. 16개가 모두 PASS일 때만 종료 코드 0이다.
@@ -985,6 +996,22 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
   if (overlaps) {
     throw new UsageError("--evidence-root 아래의 스위트 폴더가 작업 공간(--work-root)과 겹친다");
   }
+  // 쓰게 될 경로 전부(스위트 폴더·사례별 증거 폴더·작업 공간)가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에 들어가지 않는지 본다.
+  // 포트·잠금·표지·상태 폴더·수신기를 만들기 전에, 읽기만으로 거절한다. runNegativeControls도 같은 검사를 독립적으로 한다.
+  const outputProblem = await outputPathProblem(deps.fs, {
+    suiteId,
+    workRoot,
+    evidenceRoot,
+    rulesCacheRoot: rulesCache,
+    controlFixturesRoot,
+    dataDir: deps.dataDir,
+    harnessRoot: parentOf(deps.dataDir),
+  });
+  if (outputProblem !== null) {
+    throw new UsageError(
+      `--evidence-root·--work-root가 원본(규칙 캐시·대조 예제·고정 데이터·하네스)과 겹치거나 그 안에 있다 (${outputProblem}) — 증거와 작업 공간은 원본 밖의 별도 폴더여야 한다`
+    );
+  }
 
   // 3. 방지 장치를 통과한 이 경로에서만 "real" 포트를 만든다(사례 실행과 도구 관측이 같은 포트를 쓴다).
   const port = deps.makeProcessPort("real");
@@ -1162,6 +1189,8 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
       entries: suite.entries,
       cases: suite.cases.map((c) => ({ id: c.id, layer: c.layer, outcome: c.outcome })),
       conflicts: suite.conflicts,
+      // 사례를 하나도 시작하지 못하게 막은 사유(없으면 null). 도구 관측 단계의 관측값은 바꾸지 않고 그대로 싣는다.
+      blocked: suite.blocked,
       record: { written: recordWritten, path: recordPath },
       tool_observation: { ...tools.summary, wheel_artifact: wheelArtifact },
       cleanup: cleanups,
