@@ -20,6 +20,9 @@ $Script:MockLaunched = $false
 $Script:MockSetHappened = $false
 $Script:MockRealCmd = @{}
 $Script:MockUtf8 = New-Object Text.UTF8Encoding($false)
+# 진짜 Get-Acl 이 돌려주는 객체의 Access 속성은 Microsoft.PowerShell.Security 모듈의 형식 정보가 붙여 준다. 모의 Get-Acl 은 그 모듈을 부르지 않아서,
+# 적용 단계(ConvertTo-SecureString 이 모듈을 불러 온다)에서만 우연히 Access 가 읽히고 복구 단계에서는 없었다. 모듈만 불러 두면 같은 모양이 된다(ACL 을 읽지 않는다).
+Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
 
 function Get-MockKnob {
     param([string]$Name, $Default = $null)
@@ -208,12 +211,31 @@ function Set-NetFirewallRule { [CmdletBinding()] param([string]$Name, [string]$E
 function Remove-NetFirewallRule { [CmdletBinding()] param([string]$Name) Write-MockLog "Remove-NetFirewallRule $Name"; $Script:Fake.rules.Remove($Name); Save-MockState }
 
 # ── ACL: SDDL 로 저장하는 가짜 저장소 ────────────────────────────────────────
+function Test-MockPathMatches { param([string]$Path, $Fragments) if (-not $Path) { return $false }; foreach ($x in @($Fragments)) { if ($Path.IndexOf([string]$x, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }; $false }
 function Get-Acl {
     [CmdletBinding()] param([string]$LiteralPath)
+    # 읽기 실패 주입: knob aclReadFail(경로 조각 목록)에 걸리면 실패한다. aclReadFailMode 'throw' = 접근 거부 예외(기본), 'null' = 오류 없이 아무것도 돌려주지 않음.
+    $failOn = Get-MockKnob 'aclReadFail'
+    if ($null -ne $failOn -and (Test-MockPathMatches $LiteralPath $failOn)) {
+        Write-MockLog "Get-Acl FAIL $LiteralPath"
+        if ([string](Get-MockKnob 'aclReadFailMode' 'throw') -eq 'null') { return $null }
+        throw 'mock: Get-Acl 접근 거부(UnauthorizedAccessException)'
+    }
     $d = New-Object Security.AccessControl.DirectorySecurity
     $key = [IO.Path]::GetFullPath($LiteralPath)
-    if ($Script:Fake.acl.Contains($key)) { $d.SetSecurityDescriptorSddlForm([string]$Script:Fake.acl[$key]) }
+    # ACE 를 모두 지운 뒤 저장된 SDDL 이 빈 문자열일 수 있다: 빈 값은 "ACE 없음"이므로 되살리지 않는다(SetSecurityDescriptorSddlForm('') 은 예외).
+    if ($Script:Fake.acl.Contains($key) -and [string]$Script:Fake.acl[$key]) { $d.SetSecurityDescriptorSddlForm([string]$Script:Fake.acl[$key]) }
     $d
+}
+# 경로 확인 실패 주입: knob testPathThrow(경로 조각 목록)에 걸린 경로를 확인하면 예외를 던진다. 그 밖에는 진짜 Test-Path 에 그대로 넘긴다.
+function Test-Path {
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$LiteralPath, [string]$PathType)
+    $throwOn = Get-MockKnob 'testPathThrow'
+    if ($null -ne $throwOn) {
+        $target = $LiteralPath; if (-not $target) { $target = $Path }
+        if (Test-MockPathMatches $target $throwOn) { Write-MockLog "Test-Path THROW $target"; throw 'mock: Test-Path 접근 거부' }
+    }
+    Microsoft.PowerShell.Management\Test-Path @PSBoundParameters
 }
 function Set-Acl {
     [CmdletBinding()] param([string]$LiteralPath, $AclObject)

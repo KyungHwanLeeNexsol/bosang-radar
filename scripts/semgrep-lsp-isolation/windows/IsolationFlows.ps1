@@ -580,22 +580,29 @@ function Invoke-IsoRecover {
     }
 
     # 3) ACL: 기록된 계정 SID 의 ACE 만 제거
+    # 대상마다 경로 확인 → ACL 읽기 → SID 대조 → 변경 전체를 한 단위로 처리한다. 어느 단계에서 예외가 나도 그 대상만 FAILED 로 남기고 다음 대상으로 넘어간다.
+    # 읽지 못한 ACL 은 "없음"(SKIPPED_ABSENT)도 "성공"(OK)도 아니고, 그 항목은 바꾸지 않는다. 오류를 삼키는 것이 아니라 항목별 결과로 수집한다.
     foreach ($s in (& $stepsOf 'aclGrant')) {
         $path = [string]$s.name
-        $gsid = [string](Get-IsoProp $s.detail 'sid')
-        if (-not (Test-Path -LiteralPath $path)) { & $addResult "acl $path" 'SKIPPED_ABSENT' '경로가 없다'; continue }
-        if (-not $gsid -or $gsid -notlike 'S-1-5-21-*') { & $addResult "acl $path" 'REFUSED_NOT_OURS' '기록된 SID 가 없거나 계정 SID 형식이 아니다'; continue }
-        $acl = Get-Acl -LiteralPath $path
-        $has = @($acl.Access | Where-Object { try { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $gsid } catch { ([string]$_.IdentityReference) -eq $gsid } }).Count
-        if ($has -lt 1) { & $addResult "acl $path" 'SKIPPED_ABSENT' '해당 SID 의 ACE 가 없다'; continue }
+        $stage = '경로 확인'
         try {
+            $gsid = [string](Get-IsoProp $s.detail 'sid')
+            if (-not (Test-Path -LiteralPath $path)) { & $addResult "acl $path" 'SKIPPED_ABSENT' '경로가 없다'; continue }
+            if (-not $gsid -or $gsid -notlike 'S-1-5-21-*') { & $addResult "acl $path" 'REFUSED_NOT_OURS' '기록된 SID 가 없거나 계정 SID 형식이 아니다'; continue }
+            $stage = 'ACL 읽기'
+            $acl = Get-Acl -LiteralPath $path -ErrorAction Stop
+            if ($null -eq $acl) { throw 'Get-Acl 이 오류 없이 아무것도 돌려주지 않았다' }
+            $stage = 'SID 대조'
+            $has = @($acl.Access | Where-Object { try { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $gsid } catch { ([string]$_.IdentityReference) -eq $gsid } }).Count
+            if ($has -lt 1) { & $addResult "acl $path" 'SKIPPED_ABSENT' '해당 SID 의 ACE 가 없다'; continue }
+            $stage = 'ACL 변경'
             Invoke-Mutation -Description "ACL 에서 SID $gsid 의 ACE 제거: $path" -Action {
                 $a = Get-Acl -LiteralPath $path
                 $a.PurgeAccessRules((New-Object Security.Principal.SecurityIdentifier($gsid)))
                 Set-Acl -LiteralPath $path -AclObject $a
             } | Out-Null
             & $addResult "acl $path" $okWord "SID $gsid 의 ACE 제거(다른 ACE 는 그대로)"
-        } catch { & $addResult "acl $path" 'FAILED' $_.Exception.Message }
+        } catch { & $addResult "acl $path" 'FAILED' ("{0} 단계에서 예외: {1}" -f $stage, $_.Exception.Message) }
     }
 
     # 4) 계정(+선택 프로필)
@@ -626,12 +633,17 @@ function Invoke-IsoRecover {
     # 5) 작업 폴더
     foreach ($s in (& $stepsOf 'workDir')) {
         $dir = [string]$s.name
-        $root = [IO.Path]::GetFullPath((Get-IsoWorkRoot)).TrimEnd('\') + '\'
-        if (-not (Test-Path -LiteralPath $dir)) { & $addResult "workdir $dir" 'SKIPPED_ABSENT' '폴더가 없다'; continue }
-        $owner = Join-Path $dir '.owner'
-        $okPath = ([IO.Path]::GetFullPath($dir)).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)
-        $okOwner = (Test-Path -LiteralPath $owner) -and (([IO.File]::ReadAllText($owner)) -eq $names.Marker)
-        if (-not ($okPath -and $okOwner)) { & $addResult "workdir $dir" 'REFUSED_NOT_OURS' '위치 또는 .owner 표식이 다르다. 지우지 않았다'; continue }
+        # 경로 확인과 소유 확인(.owner 읽기)이 예외로 실패하면 소유를 알 수 없는 것이므로 지우지 않고 FAILED 로 남긴 뒤 다음 단계로 넘어간다.
+        $stage = '경로 확인'
+        try {
+            $root = [IO.Path]::GetFullPath((Get-IsoWorkRoot)).TrimEnd('\') + '\'
+            if (-not (Test-Path -LiteralPath $dir)) { & $addResult "workdir $dir" 'SKIPPED_ABSENT' '폴더가 없다'; continue }
+            $stage = '.owner 소유 확인'
+            $owner = Join-Path $dir '.owner'
+            $okPath = ([IO.Path]::GetFullPath($dir)).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)
+            $okOwner = (Test-Path -LiteralPath $owner) -and (([IO.File]::ReadAllText($owner)) -eq $names.Marker)
+            if (-not ($okPath -and $okOwner)) { & $addResult "workdir $dir" 'REFUSED_NOT_OURS' '위치 또는 .owner 표식이 다르다. 지우지 않았다'; continue }
+        } catch { & $addResult "workdir $dir" 'FAILED' ("{0} 단계에서 예외(소유를 확인하지 못해 지우지 않았다): {1}" -f $stage, $_.Exception.Message); continue }
         try {
             Invoke-Mutation -Description "작업 폴더 삭제: $dir" -Action { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Stop } | Out-Null
             if ($Apply -and (Test-Path -LiteralPath $dir)) { & $addResult "workdir $dir" 'FAILED' '삭제했다고 했지만 폴더가 아직 있다'; continue }
@@ -646,12 +658,13 @@ function Invoke-IsoRecover {
     # 6) 암호 파일
     if ($Script:IsoRunDir) {
         $cred = Join-Path $Script:IsoRunDir 'credential.dpapi'
-        if (Test-Path -LiteralPath $cred) {
-            try {
+        # 경로 확인도 같은 try 안에서 한다: 확인이 예외로 실패하면 FAILED 로 남기고, 이미 끝낸 복구 결과와 최종 기록은 잃지 않는다.
+        try {
+            if (Test-Path -LiteralPath $cred) {
                 Invoke-Mutation -Description "암호 파일 삭제: $cred" -Action { Remove-Item -LiteralPath $cred -Force -ErrorAction Stop } | Out-Null
                 & $addResult 'credential' $okWord 'credential.dpapi'
-            } catch { & $addResult 'credential' 'FAILED' $_.Exception.Message }
-        }
+            }
+        } catch { & $addResult 'credential' 'FAILED' $_.Exception.Message }
     }
 
     $bad = @($results | Where-Object { $_.result -in @('FAILED', 'REFUSED_NOT_OURS', 'DRIFT_NOT_RESTORED') })

@@ -117,6 +117,53 @@ function New-AppliedSandbox {
     $sb
 }
 
+# ── 복구 시험용 도우미: 권한을 줄 경로 둘(grant-a, grant-b)이 있는 샌드박스 ──────
+# 실행 기록에 aclGrant 단계가 둘 남게 해서, 복구의 ACL 단계가 대상을 차례로 처리하는 모양을 시험한다.
+# 기존 시험은 -GrantReadExecute 를 쓰지 않아 복구가 ACL 단계를 한 번도 거치지 않았다.
+function New-AppliedGrantSandbox {
+    param([hashtable]$Scenario = @{})
+    $sb = New-Sandbox -Scenario $Scenario
+    $ga = Join-Path $sb.Root 'grant-a'; $gb = Join-Path $sb.Root 'grant-b'
+    [void][IO.Directory]::CreateDirectory($ga); [void][IO.Directory]::CreateDirectory($gb)
+    $r = Invoke-Entry $sb 'apply' 'Initialize-Isolation.ps1' @('-PreflightDir', $sb.RunDir, '-ConfirmSnapshot', $sb.Hash12, '-Apply', '-GrantReadExecute', "$ga,$gb")
+    if ($r.exit -ne 0) { throw "적용 단계가 실패했다(exit $($r.exit)): $($r.out)" }
+    [pscustomobject]@{ Sb = $sb; GrantA = $ga; GrantB = $gb; Sid = [string](Get-Prop (Get-Fake $sb) "users.$UserName.Sid") }
+}
+function Get-FakeAclSddl { param($Sb, [string]$Path) $p = (Get-Fake $Sb).acl.PSObject.Properties[[IO.Path]::GetFullPath($Path)]; if ($p) { [string]$p.Value } else { $null } }
+function Set-FakeAclSddl {
+    param($Sb, [string]$Path, [string]$Sddl)
+    $f = Get-Fake $Sb
+    $f.acl.PSObject.Properties[[IO.Path]::GetFullPath($Path)].Value = $Sddl
+    [IO.File]::WriteAllText((Join-Path $Sb.Root 'fake-state.json'), ($f | ConvertTo-Json -Depth 8), $Utf8)
+}
+function Test-SddlHasSid { param([string]$Sddl, [string]$Sid) (-not [string]::IsNullOrEmpty($Sddl)) -and $Sddl.Contains($Sid) }
+# calls.log 는 적용 단계의 호출도 쌓여 있다. 복구 중 호출만 보려면 단계 이름('recover' 로 시작하는 줄)을 준다.
+function Get-CallsLog {
+    param($Sb, [string]$Phase = '')
+    $lf = Join-Path $Sb.Root 'calls.log'
+    if (-not (Test-Path -LiteralPath $lf)) { return '' }
+    $text = [IO.File]::ReadAllText($lf)
+    if (-not $Phase) { return $text }
+    (($text -split "`n") | Where-Object { $_.StartsWith("[$Phase") }) -join "`n"
+}
+function Get-RecoveryRecord { param($Sb) $f = Get-ChildItem -LiteralPath $Sb.RunDir -Filter 'recovery-*.json' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1; if ($f) { [IO.File]::ReadAllText($f.FullName, [Text.Encoding]::UTF8) | ConvertFrom-Json } else { $null } }
+function Get-ResultOf { param($Record, [string]$StepPattern) if ($null -eq $Record) { return $null }; @($Record.results | Where-Object { $_.step -like $StepPattern }) | Select-Object -First 1 }
+function Get-RecoverState {
+    param($G)
+    $sb = $G.Sb; $f = Get-Fake $sb
+    [pscustomobject]@{
+        UsersLeft = @($f.users.PSObject.Properties).Count; RulesLeft = @($f.rules.PSObject.Properties).Count
+        WorkDirExists = [bool](Test-Path -LiteralPath $sb.WorkDir); CredExists = [bool](Test-Path -LiteralPath (Join-Path $sb.RunDir 'credential.dpapi'))
+        AclA = (Get-FakeAclSddl $sb $G.GrantA); AclB = (Get-FakeAclSddl $sb $G.GrantB); Status = [string](Get-Prop (Get-ManifestObj $sb) 'status')
+    }
+}
+# 시험이 헛돌지 않게: 복구 전에 두 경로에 새 계정 ACE 가 있고 계정·작업 폴더·암호 파일이 모두 남아 있는지 먼저 확인한다.
+function Test-GrantSetup {
+    param([string]$Case, $G)
+    $st = Get-RecoverState $G
+    Assert-Flow $Case '준비: 두 경로에 새 계정 ACE, 계정 1개, 작업 폴더·암호 파일이 있다' ((Test-SddlHasSid $st.AclA $G.Sid) -and (Test-SddlHasSid $st.AclB $G.Sid) -and ($st.UsersLeft -eq 1) -and $st.WorkDirExists -and $st.CredExists) "aclA=$($st.AclA) users=$($st.UsersLeft) workdir=$($st.WorkDirExists) cred=$($st.CredExists)"
+}
+
 # ── 시나리오 ─────────────────────────────────────────────────────────────────
 function Test-Case-Control {
     $c = 'C00 정상 대조군'
@@ -351,6 +398,131 @@ function Test-Case-Events {
     }
 }
 
+# 복구의 ACL 단계: 한 대상의 읽기·확인 실패가 복구 전체를 멈추면 안 된다. 읽지 못한 ACL 은 FAILED(없음·성공 아님)이고, 그 항목은 건드리지 않으며, 뒤의 자원 복구는 계속된다.
+function Test-Case-RecoverAclFailures {
+    $variants = @(
+        @{ n = 'ACL 읽기가 접근 거부 예외로 실패'; stage = 'ACL 읽기'; knobs = @{ aclReadFail = @('grant-a'); aclReadFailMode = 'throw' } },
+        @{ n = 'ACL 읽기가 오류 없이 빈 값을 돌려줌'; stage = 'ACL 읽기'; knobs = @{ aclReadFail = @('grant-a'); aclReadFailMode = 'null' } },
+        @{ n = '경로 확인(Test-Path)이 예외'; stage = '경로 확인'; knobs = @{ testPathThrow = @('grant-a') } }
+    )
+    foreach ($v in $variants) {
+        $c = 'C13 복구 ACL 단계 실패 — ' + $v.n
+        $G = New-AppliedGrantSandbox -Scenario @{ recover = $v.knobs; recover2 = @{} }
+        $sb = $G.Sb
+        Test-GrantSetup $c $G
+        $aclA0 = Get-FakeAclSddl $sb $G.GrantA
+        $r = Invoke-Recover $sb
+        $rec = Get-RecoveryRecord $sb
+        $ra = Get-ResultOf $rec 'acl *grant-a'
+        $rb = Get-ResultOf $rec 'acl *grant-b'
+        $st = Get-RecoverState $G
+        Assert-Flow $c '종료 코드 40(실패한 항목이 있다)' ($r.exit -eq 40) "exit=$($r.exit) $($r.out)"
+        Assert-Flow $c '읽지 못한 ACL 은 FAILED 로 남고(없음·성공이 아니다) 실패한 단계가 기록에 적힌다' (((Get-Prop $ra 'result') -eq 'FAILED') -and ([string](Get-Prop $ra 'note') -like ('*' + $v.stage + ' 단계에서 예외*'))) "result=$(Get-Prop $ra 'result') note=$(Get-Prop $ra 'note')"
+        Assert-Flow $c '읽지 못한 ACL 은 건드리지 않는다(저장값 그대로, Set-Acl 호출 없음)' (($st.AclA -eq $aclA0) -and ((Get-CallsLog $sb 'recover') -notmatch ('Set-Acl ' + [regex]::Escape($G.GrantA)))) "aclA=$($st.AclA)"
+        Assert-Flow $c '뒤의 ACL 은 계속 복구된다(OK, 새 계정 ACE 제거)' (((Get-Prop $rb 'result') -eq 'OK') -and (-not (Test-SddlHasSid $st.AclB $G.Sid))) "result=$(Get-Prop $rb 'result') aclB=$($st.AclB)"
+        Assert-Flow $c '계정·규칙·작업 폴더·암호 파일 복구가 이어진다' (($st.UsersLeft -eq 0) -and ($st.RulesLeft -eq 0) -and (-not $st.WorkDirExists) -and (-not $st.CredExists)) "users=$($st.UsersLeft) rules=$($st.RulesLeft) workdir=$($st.WorkDirExists) cred=$($st.CredExists)"
+        Assert-Flow $c '최종 기록이 남는다(상태 recovered-with-issues, 복구 결과 파일에 완료·실패 항목)' (($st.Status -eq 'recovered-with-issues') -and ($null -ne $rec) -and ((Get-Prop (Get-ResultOf $rec 'credential') 'result') -eq 'OK')) "status=$($st.Status) record=$($null -ne $rec)"
+        $r2 = Invoke-Recover $sb 'recover2'
+        $st2 = Get-RecoverState $G
+        Assert-Flow $c '읽을 수 있게 된 뒤 다시 복구하면 실패했던 항목도 되돌아가고 종료 코드 0, 상태 recovered' (($r2.exit -eq 0) -and (-not (Test-SddlHasSid $st2.AclA $G.Sid)) -and ($st2.Status -eq 'recovered')) "exit=$($r2.exit) status=$($st2.Status) aclA=$($st2.AclA) $($r2.out)"
+    }
+
+    $c = 'C14 복구 ACL 단계 실패 — 대상 둘 모두 읽기 실패'
+    $G = New-AppliedGrantSandbox -Scenario @{ recover = @{ aclReadFail = @('grant-a', 'grant-b'); aclReadFailMode = 'throw' } }
+    $sb = $G.Sb
+    Test-GrantSetup $c $G
+    $aclA0 = Get-FakeAclSddl $sb $G.GrantA; $aclB0 = Get-FakeAclSddl $sb $G.GrantB
+    $r = Invoke-Recover $sb
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '종료 코드 40, 두 항목이 각각 FAILED 로 남는다' (($r.exit -eq 40) -and ((Get-Prop (Get-ResultOf $rec 'acl *grant-a') 'result') -eq 'FAILED') -and ((Get-Prop (Get-ResultOf $rec 'acl *grant-b') 'result') -eq 'FAILED')) "exit=$($r.exit) $($r.out)"
+    Assert-Flow $c '두 ACL 모두 그대로이고 나머지 자원 복구는 이어진다' (($st.AclA -eq $aclA0) -and ($st.AclB -eq $aclB0) -and ($st.UsersLeft -eq 0) -and ($st.RulesLeft -eq 0) -and (-not $st.WorkDirExists) -and (-not $st.CredExists)) "users=$($st.UsersLeft) workdir=$($st.WorkDirExists) cred=$($st.CredExists)"
+    Assert-Flow $c '상태 recovered-with-issues' ($st.Status -eq 'recovered-with-issues') "status=$($st.Status)"
+
+    $c = 'C14 복구 dry-run 에서도 읽기 실패는 FAILED 로 보이고 아무것도 바꾸지 않는다'
+    $G = New-AppliedGrantSandbox -Scenario @{ recover = @{ aclReadFail = @('grant-a'); aclReadFailMode = 'throw' } }
+    $sb = $G.Sb
+    $s0 = Get-FakeText $sb
+    $r = Invoke-Recover $sb -Dry
+    Assert-Flow $c '종료 코드 40, FAILED 줄, 상태 불변, 복구 결과 파일 없음' (($r.exit -eq 40) -and ($r.out -match 'FAILED\s+acl\s+\S*grant-a') -and ((Get-FakeText $sb) -eq $s0) -and ($null -eq (Get-RecoveryRecord $sb))) "exit=$($r.exit) $($r.out)"
+}
+
+# 고치지 않은 동작이 그대로인가: 정상 복구, dry-run, 소유 불일치 거절. 모두 권한을 준 경로(aclGrant)가 있는 실행 기록으로 시험한다.
+function Test-Case-RecoverKeepsBehavior {
+    $c = 'C15 정상 복구와 dry-run (권한 경로 포함)'
+    $G = New-AppliedGrantSandbox -Scenario @{}
+    $sb = $G.Sb
+    # 다른 ACE 가 그대로 남는지 보려고 grant-b 에 관리자 그룹(BA) ACE 한 건을 미리 넣어 둔다.
+    Set-FakeAclSddl $sb $G.GrantB ((Get-FakeAclSddl $sb $G.GrantB) + '(A;OICI;FA;;;BA)')
+    Test-GrantSetup $c $G
+    $s0 = Get-FakeText $sb
+    $d = Invoke-Recover $sb -Dry
+    Assert-Flow $c 'dry-run: 종료 코드 0, 두 ACL 줄은 DRYRUN, 상태 불변, 복구 결과 파일 없음' (($d.exit -eq 0) -and ($d.out -match 'DRYRUN\s+acl\s+\S*grant-a') -and ($d.out -match 'DRYRUN\s+acl\s+\S*grant-b') -and ((Get-FakeText $sb) -eq $s0) -and ($null -eq (Get-RecoveryRecord $sb))) "exit=$($d.exit) $($d.out)"
+    $r = Invoke-Recover $sb
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '복구: 종료 코드 0, 두 경로 모두 OK, 새 계정 ACE 제거, 상태 recovered' (($r.exit -eq 0) -and ((Get-Prop (Get-ResultOf $rec 'acl *grant-a') 'result') -eq 'OK') -and ((Get-Prop (Get-ResultOf $rec 'acl *grant-b') 'result') -eq 'OK') -and (-not (Test-SddlHasSid $st.AclA $G.Sid)) -and (-not (Test-SddlHasSid $st.AclB $G.Sid)) -and ($st.Status -eq 'recovered')) "exit=$($r.exit) status=$($st.Status) $($r.out)"
+    Assert-Flow $c '복구: 다른 ACE(BA)는 그대로 남는다(ACL 전체를 덮어쓰지 않는다)' ($st.AclB -match ';;;BA\)') "aclB=$($st.AclB)"
+    Assert-Flow $c '복구: 계정·규칙·작업 폴더·암호 파일이 모두 없다' (($st.UsersLeft -eq 0) -and ($st.RulesLeft -eq 0) -and (-not $st.WorkDirExists) -and (-not $st.CredExists)) "users=$($st.UsersLeft) workdir=$($st.WorkDirExists) cred=$($st.CredExists)"
+
+    $c = 'C15 소유 불일치 거절 — ACL 에 기록된 SID 가 계정 SID 형식이 아니다'
+    $G = New-AppliedGrantSandbox -Scenario @{}
+    $sb = $G.Sb
+    $mf = Join-Path $sb.RunDir 'resources.json'
+    $m = [IO.File]::ReadAllText($mf, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    foreach ($s in @($m.steps)) { if ($s.kind -eq 'aclGrant' -and $s.name -eq $G.GrantA) { $s.detail.sid = 'S-1-5-32-545' } }
+    [IO.File]::WriteAllText($mf, ($m | ConvertTo-Json -Depth 8), $Utf8)
+    $aclA0 = Get-FakeAclSddl $sb $G.GrantA
+    $r = Invoke-Recover $sb
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '종료 코드 40, 해당 항목은 REFUSED_NOT_OURS' (($r.exit -eq 40) -and ((Get-Prop (Get-ResultOf $rec 'acl *grant-a') 'result') -eq 'REFUSED_NOT_OURS')) "exit=$($r.exit) $($r.out)"
+    Assert-Flow $c '거절한 ACL 은 그대로이고(Set-Acl 호출 없음) 다른 경로와 나머지 자원은 복구된다' (($st.AclA -eq $aclA0) -and ((Get-CallsLog $sb 'recover') -notmatch ('Set-Acl ' + [regex]::Escape($G.GrantA))) -and (-not (Test-SddlHasSid $st.AclB $G.Sid)) -and ($st.UsersLeft -eq 0) -and (-not $st.WorkDirExists) -and (-not $st.CredExists)) "aclA=$($st.AclA)"
+
+    $c = 'C15 소유 불일치 거절 — 작업 폴더 .owner 표식이 다르다'
+    $G = New-AppliedGrantSandbox -Scenario @{}
+    $sb = $G.Sb
+    [IO.File]::WriteAllText((Join-Path $sb.WorkDir '.owner'), 'someone-else', $Utf8)
+    $r = Invoke-Recover $sb
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '종료 코드 40, 작업 폴더는 REFUSED_NOT_OURS 이고 지우지 않는다' (($r.exit -eq 40) -and ((Get-Prop (Get-ResultOf $rec 'workdir *') 'result') -eq 'REFUSED_NOT_OURS') -and $st.WorkDirExists -and ((Get-CallsLog $sb 'recover') -notmatch ('Remove-Item ' + [regex]::Escape($sb.WorkDir)))) "exit=$($r.exit) $($r.out)"
+    Assert-Flow $c '나머지(두 ACL·계정·암호 파일)는 복구된다' ((-not (Test-SddlHasSid $st.AclA $G.Sid)) -and (-not (Test-SddlHasSid $st.AclB $G.Sid)) -and ($st.UsersLeft -eq 0) -and (-not $st.CredExists)) "users=$($st.UsersLeft) cred=$($st.CredExists)"
+}
+
+# 같은 유형(읽기·소유 확인이 예외 처리 밖에 있어 복구 전체를 멈춤)으로 확인된 다른 두 지점: 작업 폴더 .owner 읽기, 암호 파일 경로 확인.
+function Test-Case-RecoverOwnerReadFailures {
+    $c = 'C16 복구 작업 폴더 .owner 읽기 실패(다른 프로세스가 파일을 잠금)'
+    $G = New-AppliedGrantSandbox -Scenario @{ recover2 = @{} }
+    $sb = $G.Sb
+    $owner = Join-Path $sb.WorkDir '.owner'
+    Test-GrantSetup $c $G
+    # 진짜 파일 잠금: 이 프로세스가 .owner 를 공유 없이 열어 두면 자식 프로세스의 읽기가 공유 위반(IOException)으로 실패한다.
+    $lock = [IO.File]::Open($owner, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try { $r = Invoke-Recover $sb } finally { $lock.Dispose() }
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '종료 코드 40, 작업 폴더는 FAILED(소유를 확인하지 못했다)' (($r.exit -eq 40) -and ((Get-Prop (Get-ResultOf $rec 'workdir *') 'result') -eq 'FAILED')) "exit=$($r.exit) $($r.out)"
+    Assert-Flow $c '소유를 확인하지 못한 폴더는 지우지 않는다' ($st.WorkDirExists -and (Test-Path -LiteralPath $owner) -and ((Get-CallsLog $sb 'recover') -notmatch ('Remove-Item ' + [regex]::Escape($sb.WorkDir)))) "workdir=$($st.WorkDirExists)"
+    Assert-Flow $c '그 뒤 단계(암호 파일)와 앞 단계(ACL·계정)는 복구된다' ((-not $st.CredExists) -and ($st.UsersLeft -eq 0) -and (-not (Test-SddlHasSid $st.AclA $G.Sid)) -and (-not (Test-SddlHasSid $st.AclB $G.Sid))) "cred=$($st.CredExists) users=$($st.UsersLeft)"
+    Assert-Flow $c '최종 기록이 남는다(상태 recovered-with-issues)' (($st.Status -eq 'recovered-with-issues') -and ($null -ne $rec)) "status=$($st.Status)"
+    $r2 = Invoke-Recover $sb 'recover2'
+    $st2 = Get-RecoverState $G
+    Assert-Flow $c '잠금이 풀린 뒤 다시 복구하면 작업 폴더가 지워지고 종료 코드 0, 상태 recovered' (($r2.exit -eq 0) -and (-not $st2.WorkDirExists) -and ($st2.Status -eq 'recovered')) "exit=$($r2.exit) status=$($st2.Status) $($r2.out)"
+
+    $c = 'C16 복구 암호 파일 경로 확인이 예외'
+    $G = New-AppliedGrantSandbox -Scenario @{ recover = @{ testPathThrow = @('credential.dpapi') }; recover2 = @{} }
+    $sb = $G.Sb
+    $r = Invoke-Recover $sb
+    $rec = Get-RecoveryRecord $sb
+    $st = Get-RecoverState $G
+    Assert-Flow $c '종료 코드 40, 암호 파일은 FAILED 이고 지우지 않았다(확인하지 못했으므로)' (($r.exit -eq 40) -and ((Get-Prop (Get-ResultOf $rec 'credential') 'result') -eq 'FAILED') -and $st.CredExists) "exit=$($r.exit) $($r.out)"
+    Assert-Flow $c '앞 단계는 모두 복구되고 최종 기록(recovered-with-issues)이 남는다' (($st.UsersLeft -eq 0) -and ($st.RulesLeft -eq 0) -and (-not $st.WorkDirExists) -and (-not (Test-SddlHasSid $st.AclA $G.Sid)) -and ($st.Status -eq 'recovered-with-issues') -and ($null -ne $rec)) "status=$($st.Status) users=$($st.UsersLeft)"
+    $r2 = Invoke-Recover $sb 'recover2'
+    $st2 = Get-RecoverState $G
+    Assert-Flow $c '확인이 되는 상태에서 다시 복구하면 암호 파일이 지워지고 종료 코드 0' (($r2.exit -eq 0) -and (-not $st2.CredExists) -and ($st2.Status -eq 'recovered')) "exit=$($r2.exit) status=$($st2.Status)"
+}
+
 $all = [ordered]@{
     'control' = { Test-Case-Control }
     'identity' = { Test-Case-Identity }
@@ -359,6 +531,9 @@ $all = [ordered]@{
     'audit-close' = { Test-Case-AuditClose }
     'cleanup' = { Test-Case-AccountAndCleanup }
     'events' = { Test-Case-Events }
+    'recover-acl' = { Test-Case-RecoverAclFailures }
+    'recover-keep' = { Test-Case-RecoverKeepsBehavior }
+    'recover-owner' = { Test-Case-RecoverOwnerReadFailures }
 }
 Write-Host ("흐름 시험 [{0}] 엔진={1} 코드={2} ({3})" -f $Label, $Engine, $CodeDir, $(if ($IsNew) { '새 구조(IsolationFlows.ps1)' } else { '옛 구조' }))
 foreach ($k in $all.Keys) {
