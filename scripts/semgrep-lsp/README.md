@@ -709,6 +709,26 @@ metrics_receiver_observation`을 `NOT_RUN`으로 두고, 서버가 돌았고 관
 3. 판정 시점에 수신기가 관측 중이어야 한다(`METRICS_RECEIVER_NOT_OBSERVING`이 아니다).
 4. 변형을 뺀 기준 실행은 0건이어야 한다(위 1번 결함의 시작 관문과 기준 실행이 이미 요구한다).
 
+### 후속 보완 — 원본 경로 보호의 하위 링크 우회 (한 건)
+
+외부 재현(Linux 실제 임시 디스크, `createNodeFs`, `workRoot`·`evidenceRoot`는 원본과 분리): 사례 폴더(`<work>/nc1-baseline`)는 정상 디렉터리인데 그 아래 캐시 폴더 이름이 원본 예제 폴더를 가리키는
+링크였다. `outputPathProblem`은 `null`을 돌려줬고, `runNegativeControls`의 `writeTree`가 링크를 따라 원본 예제 폴더에 YAML 5개를 만들었다. 기준 실행이 이후 실패해도 원본의 파일 목록은 이미 바뀐 뒤였다.
+
+- **원인.** 검사는 사례 폴더 루트의 푼 자리까지만 봤고, 실제 쓰기는 그 아래(캐시 루트·하위 폴더·파일·대조 트리)에서 일어났다. 부모가 안전해도 하위 링크는 원본을 가리킬 수 있다.
+- **이제.** 쓰기 전에 **쓰게 될 경로 하나하나**를 `FsPort.physicalKey`로 푼 자리로 본다. 파일 경로 하나의 푼 자리에서 그 위의 모든 링크가 풀리므로 캐시 루트만 검사해서 더 아래가 남는 일이 없다.
+  대상: 규칙 사본(변형을 적용한 뒤의 파일 전부)·R8의 밖 사본·대조 트리 안의 파일·사례별 증거 폴더와 그 안의 증거 파일 9개·`run.marker`·`semgrep-state`, 스위트 증거 폴더와 그 안의 `run.marker`·
+  `semgrep-state`·`version-check-state`·`negative-controls.json`. 하나라도 원본 안으로 풀리면 `OUTPUT_INSIDE_<원본>`이고, 풀 수 없으면(끊어진 링크 등) `OUTPUT_PATH_UNRESOLVABLE`이다.
+- **검사와 쓰기가 어긋나지 않게.** 쓰는 쪽과 검사하는 쪽이 같은 함수로 경로를 만든다(`runKeyOf`·`planRulesCopy`·`rulesCopyRoot`·`outsideCopyRoot`·`treeTarget`). 증거 파일 이름·표지·상태 폴더 이름은
+  `evidence.ts`의 상수를 쓴다. `cli.ts`의 `run.marker`·`semgrep-state` 리터럴은 기존 구조 시험이 문자열로 확인하므로 그대로 두었고, 한쪽만 바뀌면 시험이 드러낸다(아래).
+- **거절 시점.** 어떠한 `mkdir`·파일 쓰기도 하기 전이다. `runNegativeControls`는 기준 실행을 포함해 사례를 하나도 시작하지 않고 16개 모두 `NOT_RUN`(`blocked.stage = WORKSPACE`)이다. CLI는 포트·잠금·표지·상태 폴더·
+  수신기를 만들기 전에 `writePlanFor`(읽기만)로 계획을 세워 `outputPathProblem`에 넘기고 사용법 오류(종료 코드 2)로 끝낸다. 직접 호출과 CLI가 각자 독립적으로 같은 검사를 한다.
+- **시험.** `negative-control.output-links.test.ts` 34건. 합성(메모리 위 링크 모형 `testing/linked-fs.ts`: 링크 이름 아래의 쓰기가 대상 자리로 옮겨진다고 가정)과 실제 임시 디스크(Windows `junction`·POSIX `symlink`)를
+  구분한다. 처음 작성한 33건 중 29건이 수정 전 구현에서 실패했고(4건은 대조군), 실제 디스크에서는 수정 전에 원본 예제 폴더 아래에 `javascript/…`·`typescript/…` YAML 5개와 대조 트리 파일이 생겼다. 거절 전후의
+  파일 목록·디렉터리·기존 파일 바이트는 같고, 작업·증거 폴더에도 아무것도 생기지 않는다. "쓴 모든 자리는 첫 쓰기 전에 이미 검사한 경로이거나 그 상위 폴더"라는 시험은 직접 호출과 CLI 양쪽에 있다.
+- **한계(고치지 않았다).** (1) 검사 뒤에 링크를 바꾸는 경쟁 상태는 다루지 않는다. (2) 원본이 **아닌** 곳을 가리키는 링크는 막지 않는다 — 보호 범위는 규칙 캐시·대조 예제·고정 데이터·하네스뿐이다. (3) 실제 엔진이
+  상태 폴더에 쓰는 내용은 폴더 위치만 본다. (4) 실행 잠금 파일(`semgrep-lsp-tree-<해시>.lock`)은 트리의 부모 폴더에 배타 생성되며 그 폴더까지만 본다. (5) Linux·macOS의 실제 `symlink` 시험은 작성만 했고 이
+  환경(Windows 11)에서는 실행하지 못했다. 외부 Linux 재현은 보고된 값으로만 기록한다.
+
 ### 계약 충돌과 결정이 필요한 부분
 
 충돌은 표에서 **기계적으로** 도출한다(`engineLayerConflicts`): 엔진 기대가 같은 변형이 반드시 내는 사전 검사 사유의 상태보다 우선순위가 뒤이면 엔진을 띄워도 그 기대 상태가
@@ -763,7 +783,7 @@ run --mode control --negative-controls <스위트 기록 경로>        (명시�
 | 구조                        | `structure.negative-control.test.ts`, `structure.test.ts`             | 음성 대조가 정상 경로에 붙지 않음, 진단 진입점 호출은 실행기 한 곳, 정상 진입점 정책 고정, 표 값을 복제하지 않음. 기존 "real 포트는 `cmdRun` 한 곳" 시험을 함수 범위 시험으로 넓혀 `cmdRun`·`cmdNegativeControl` 두 곳(합계 2)으로 정했다                                     | 모든 환경                             |
 | **실제 엔진**               | 없음                                                                  | 확인하지 않았다                                                                                                                                                                                                                                                               | **실행하지 않았다**(ADR U22)          |
 
-- 전체 하네스: 60개 파일·2,679개 통과·8개 건너뜀(외부 검토 보완 전 59개 파일·2,632개·8개 건너뜀; 시작 시 53개 파일·2,507개·8개 건너뜀). 외부 검토가 재현한 네 건의 시험(`negative-control.review-repro.test.ts`)은 처음 작성한 31건 중 28건이 수정 전 구현에서 실패했고(나머지 3건은 대조군), 이후 추가한 연결 시험까지 수정 후 모두 통과한다(현재 36건). 하네스 범위 eslint·prettier·tsc에 새 오류가 없고, 저장소 전체의 기존 오류(`app/layout.tsx`의 `LayoutProps` 타입 오류,
+- 전체 하네스: 61개 파일·2,713개 통과·8개 건너뜀(하위 링크 우회 보완 전 60개 파일·2,679개·8개 건너뜀; 그 앞 보완의 기록: 외부 검토 보완 전 59개 파일·2,632개·8개 건너뜀; 시작 시 53개 파일·2,507개·8개 건너뜀). 외부 검토가 재현한 네 건의 시험(`negative-control.review-repro.test.ts`)은 처음 작성한 31건 중 28건이 수정 전 구현에서 실패했고(나머지 3건은 대조군), 이후 추가한 연결 시험까지 수정 후 모두 통과한다(현재 36건). 하네스 범위 eslint·prettier·tsc에 새 오류가 없고, 저장소 전체의 기존 오류(`app/layout.tsx`의 `LayoutProps` 타입 오류,
   prettier의 `db/migrations/meta/_journal.json`·`0008_snapshot.json`·`design/MIGRATION-PLAN.md`)는 이 변경과 무관하게 그대로다.
 - 핵심 판정·수락·진단 정책 로직에 결함을 하나씩 넣는 변이 17건은 외부 검토 보완 전에 확인했다. 이번 보완에서는 전체 감사나 변이 점검을 반복하지 않았다.
 - 합성 스텁에서 9쌍(사전 검사 7 + 엔진 R6·R8)이 `PASS`로 나온다(엔진 R1~R5·R7은 실행하지만 계약 미확정으로 `NOT_RUN`, R9 엔진은 충돌 `NOT_RUN`). 이것은 판정·연결 로직이 의도대로라는 뜻일 뿐이며, R6·R8의 엔진 반응은 시험이 **가정한** 값이다. 스텁 기록은 provenance `stub`·trust

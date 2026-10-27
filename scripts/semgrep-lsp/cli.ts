@@ -24,13 +24,16 @@ import { isAbsolute, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
 import { createNodeArtifactHasher } from "./artifact-node";
+import { SERVER_STATE_DIR, VERSION_STATE_DIR } from "./evidence";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
 import {
+  SUITE_RECORD_FILE,
   outputPathProblem,
   runNegativeControls,
+  writePlanFor,
   type CaseResources,
   type RunKey,
 } from "./negative-control";
@@ -127,10 +130,6 @@ const LOOPBACK_URL = "http://127.0.0.1:9";
 
 // UNVERIFIED(ADR U3/U12): 실제 서버가 이 인자로 LSP를 여는지는 실행해 보지 않았다.
 const SERVER_ARGS = ["lsp", "--debug"] as const;
-
-/** LSP 서버의 상태·로그 폴더와 버전 확인 프로세스의 상태 폴더(둘 다 증거 폴더 안, 서로 섞지 않는다). */
-const SERVER_STATE_DIR = "semgrep-state";
-const VERSION_STATE_DIR = "version-check-state";
 
 // UNVERIFIED: 실제 실행의 한도와 시간 제한 요청값은 실측하지 못한 추정이다(ms, 초). 근거 없이 줄이지 않는다.
 const REAL_LIMITS: SessionLimits = {
@@ -996,9 +995,10 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
   if (overlaps) {
     throw new UsageError("--evidence-root 아래의 스위트 폴더가 작업 공간(--work-root)과 겹친다");
   }
-  // 쓰게 될 경로 전부(스위트 폴더·사례별 증거 폴더·작업 공간)가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에 들어가지 않는지 본다.
-  // 포트·잠금·표지·상태 폴더·수신기를 만들기 전에, 읽기만으로 거절한다. runNegativeControls도 같은 검사를 독립적으로 한다.
-  const outputProblem = await outputPathProblem(deps.fs, {
+  // 쓰게 될 경로 전부가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에 들어가지 않는지 본다: 스위트·사례별 증거 폴더와 그 안의 표지·상태
+  // 폴더, 작업 공간, 그리고 규칙 사본·밖 사본·대조 트리 안의 파일 경로까지(사례 폴더는 정상이어도 그 아래가 링크일 수 있다). 포트·잠금·표지·
+  // 상태 폴더·수신기를 만들기 전에, 읽기만으로 거절한다. runNegativeControls도 같은 검사를 독립적으로 한다.
+  const outputInputs = {
     suiteId,
     workRoot,
     evidenceRoot,
@@ -1006,6 +1006,11 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
     controlFixturesRoot,
     dataDir: deps.dataDir,
     harnessRoot: parentOf(deps.dataDir),
+  };
+  const writePlan = await writePlanFor(deps.fs, outputInputs);
+  const outputProblem = await outputPathProblem(deps.fs, {
+    ...outputInputs,
+    ...(writePlan === null ? {} : { plan: writePlan }),
   });
   if (outputProblem !== null) {
     throw new UsageError(
@@ -1157,7 +1162,7 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
   );
 
   // 6. 스위트 기록. 이미 있으면 덮어쓰지 않는다. control 실행이 --negative-controls로 이 경로를 명시해야 이어진다.
-  const recordPath = joinPath(suiteDir, "negative-controls.json");
+  const recordPath = joinPath(suiteDir, SUITE_RECORD_FILE);
   let recordWritten = false;
   try {
     await deps.fs.mkdirp(suiteDir);

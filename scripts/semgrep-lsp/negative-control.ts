@@ -29,8 +29,10 @@
 //  · 도구 관측 격리(toolIsolationBlock): 도구 버전 확인 단계에서 루프백 수신기가 본 요청이 0건으로 확인되지 않으면(1건 이상이거나, 관측하지
 //    못했거나, 요약이 없으면) 기준·변형 실행을 하나도 시작하지 않고 16개 모두 NOT_RUN(TOOL_OBSERVATION_BLOCKED)이다. 사례마다 수신기를 새로
 //    열어도 이 단계의 관측은 버리지 않는다. null을 0으로 보정하지 않고, 관측값(metrics_hits_during)도 바꾸지 않는다.
-//  · 출력 경로(outputPathProblem): 실제로 계산된 출력 경로(사례별 증거 폴더·작업 공간·스위트 폴더)가 원본(규칙 캐시·대조 예제·고정 데이터·
-//    하네스) 안에 들어가는지 쓰기 전에 본다. 링크·별칭·`..`는 FsPort.physicalKey가 푼 자리 기준이다.
+//  · 출력 경로(outputPathProblem): 실제로 쓰게 될 경로 — 사례별 증거 폴더와 그 안의 증거 파일·표지·상태 폴더, 사례별 작업 공간·밖 사본·
+//    대조 트리, 그리고 규칙 사본·밖 사본·대조 트리 안의 파일 경로 하나하나 — 가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에
+//    들어가는지 쓰기 전에 본다. 사례 폴더 루트만이 아니라 그 아래(캐시 루트·하위 폴더)의 링크도 걸러진다. 링크·별칭·`..`는
+//    FsPort.physicalKey가 푼 자리 기준이고, 검사할 경로와 실제로 쓰는 경로는 같은 조립 함수(runKeyOf·planRulesCopy·treeTarget)에서 나온다.
 //
 // ── 엔진 층의 관측 계약(선택지 B) ────────────────────────────────
 //  엔진 층 PASS는 "엔진이 떴고 대표 상태가 기대와 같다"만으로 만들지 않는다.
@@ -51,7 +53,9 @@
 //   toolIsolationBlock(observation): ToolIsolationCause | null                              도구 관측 격리 관문(순수)
 //   engineExecutionProblem(obs): ... | null                                                 관측 단계 전의 실행 실패(순수)
 //   caseRunId(suiteId, id, layer) / plannedRunIds(suiteId)                                 사례 run id(실행기와 기록 읽기가 같은 규칙)
-//   outputPathProblem(fs, inputs): Promise<string | null>                                   원본 보호
+//   outputPathProblem(fs, inputs): Promise<string | null>                                   원본 보호(inputs.plan이 있으면 파일 경로까지)
+//   writePlanFor(fs, inputs): Promise<WritePlan | null>                                     쓰기 계획(읽기만) — CLI가 쓰기 전에 outputPathProblem에 넘긴다
+//   plannedRuns(suiteId) / SUITE_RECORD_FILE                                                스위트가 돌릴 실행 목록 / 스위트 기록 파일 이름
 //   NEGATIVE_MUTATIONS                                                                      표의 id마다 입력 변형(표와 같은 id 집합)
 //   runNegativeControls(deps, inputs): Promise<NegativeControlSuite>
 //   SUITE_SCHEMA / 스위트 타입들
@@ -62,6 +66,13 @@ import {
   defaultNegativeControls,
   type NegativeControlSpec,
 } from "./control";
+import { readControlExpectations } from "./control-expectations";
+import {
+  EVIDENCE_FILE_NAMES,
+  RUN_MARKER_FILE,
+  SERVER_STATE_DIR,
+  VERSION_STATE_DIR,
+} from "./evidence";
 import {
   defaultInitializationOptions,
   runEngineDiagnostic,
@@ -256,16 +267,23 @@ export function caseRunId(suiteId: string, id: string, layer: Layer): string {
   return id === "baseline" ? `${suiteId}-baseline` : `${suiteId}-${id.toLowerCase()}-${layer}`;
 }
 
-/** 스위트가 만들 수 있는 모든 run id(기준 + 표의 (id, 층)). */
-export function plannedRunIds(suiteId: string): string[] {
-  const out = [caseRunId(suiteId, "baseline", "engine")];
+/** 스위트가 돌릴 수 있는 모든 실행(기준 + 표의 (id, 층)). 쓰기 경로 검사와 실행기가 같은 목록을 쓴다. */
+export function plannedRuns(suiteId: string): { id: string; layer: Layer; runId: string }[] {
+  const out = [
+    { id: "baseline", layer: "engine" as Layer, runId: caseRunId(suiteId, "baseline", "engine") },
+  ];
   for (const spec of NEGATIVE_CONTROL_TABLE) {
     for (const layer of ["preflight", "engine"] as const) {
       if (layer === "preflight" && spec.preflight === null) continue;
-      out.push(caseRunId(suiteId, spec.id, layer));
+      out.push({ id: spec.id, layer, runId: caseRunId(suiteId, spec.id, layer) });
     }
   }
   return out;
+}
+
+/** 스위트가 만들 수 있는 모든 run id(기준 + 표의 (id, 층)). */
+export function plannedRunIds(suiteId: string): string[] {
+  return plannedRuns(suiteId).map((run) => run.runId);
 }
 
 /**
@@ -290,6 +308,29 @@ export function caseIdentity(
 
 // ── 출력 경로 보호 ───────────────────────────────────────────────
 
+/** 스위트 기록 파일 이름(스위트 증거 폴더 안). CLI가 쓰고, 쓰기 경로 검사가 같은 이름을 본다. */
+export const SUITE_RECORD_FILE = "negative-controls.json";
+
+/** 한 실행이 만들 규칙 사본 파일(캐시 기준 상대 경로). 실제 쓰기(execute)와 같은 함수(planRulesCopy)에서 나온다. */
+export interface RunWritePlan {
+  runId: string;
+  /** 캐시 사본(변형을 적용한 뒤). */
+  rules: readonly string[];
+  /** 캐시 밖 사본(R8만, 변형하지 않은 원본 전부). 없으면 빈 목록. */
+  outside: readonly string[];
+}
+
+/**
+ * 폴더 이름만으로는 알 수 없는, 실제 쓰기 경로의 계획. 사례 폴더 루트가 정상 디렉터리여도 그 아래의 캐시 루트·하위 폴더·파일이 원본을
+ * 가리키는 링크일 수 있어, 쓰기 전에 **쓰게 될 파일 경로마다** 푼 자리를 본다(경로 한 곳에서 모든 상위 링크가 풀린다).
+ */
+export interface WritePlan {
+  cacheDir: string;
+  runs: readonly RunWritePlan[];
+  /** 대조 트리에 만들어질 파일(트리 기준 상대 경로, control-expectations.json의 사례 경로). 읽지 못하면 비어 있다. */
+  controlCasePaths: readonly string[];
+}
+
 export interface OutputPathInputs {
   suiteId: string;
   workRoot: string;
@@ -298,14 +339,135 @@ export interface OutputPathInputs {
   controlFixturesRoot: string;
   dataDir: string;
   harnessRoot: string;
+  /** 규칙 사본·대조 트리 안의 파일까지 보려면 계획을 준다. 없으면 폴더와 고정 이름(증거 파일·표지·상태 폴더)까지만 본다. */
+  plan?: WritePlan;
+}
+
+/** 한 실행의 신원과 경로. 실행기와 쓰기 경로 검사가 같은 함수로 경로를 만든다. */
+function runKeyOf(suiteId: string, workRoot: string, id: string, layer: Layer): RunKey {
+  const runId = caseRunId(suiteId, id, layer);
+  const root = joinPath(workRoot, runId);
+  return { id, layer, runId, root, treeRoot: joinPath(root, "tree") };
+}
+
+/** 사례 작업 공간 안의 규칙 캐시 사본 루트. */
+const rulesCopyRoot = (root: string, cacheDir: string): string => joinPath(root, cacheDir);
+/** R8의 캐시 밖 사본 루트(사례 작업 공간 옆). */
+const outsideCopyRoot = (root: string, cacheDir: string): string =>
+  joinPath(`${root}-outside`, cacheDir);
+/** 트리 안 파일의 쓰기 경로. writeTree와 쓰기 경로 검사가 같은 조립을 쓴다. */
+const treeTarget = (root: string, rel: string): string => joinPath(root, rel);
+
+/**
+ * 사례 한 번의 규칙 사본(캐시 기준 상대 경로 → 바이트): 원본에 변형을 적용한 결과. 실행기가 쓰는 것과 쓰기 경로 검사가 보는 것이
+ * 같은 함수에서 나온다. 변형 입력을 만들 수 없으면 던진다(실행기는 쓰기 전에 WORKSPACE_FAILED로 끝낸다).
+ */
+function planRulesCopy(
+  fixed: FixedInputs,
+  mutation: Mutation | null
+): { patch: RulesPatch; copy: Map<string, Uint8Array> } {
+  let patch = noPatch();
+  const copy = new Map(fixed.originalBytes);
+  if (mutation?.rules) {
+    patch = mutation.rules(fixed.rulesFiles, fixed.originalBytes);
+    for (const path of patch.omit) copy.delete(path);
+    for (const [path, bytes] of Object.entries(patch.replace)) copy.set(path, bytes);
+    for (const [path, bytes] of Object.entries(patch.add)) copy.set(path, bytes);
+  }
+  return { patch, copy };
+}
+
+function buildWritePlan(
+  suiteId: string,
+  fixed: FixedInputs,
+  controlCasePaths: readonly string[]
+): WritePlan {
+  const runs = plannedRuns(suiteId).map((run): RunWritePlan => {
+    const mutation = run.id === "baseline" ? null : (NEGATIVE_MUTATIONS[run.id] ?? null);
+    try {
+      return {
+        runId: run.runId,
+        rules: [...planRulesCopy(fixed, mutation).copy.keys()],
+        outside: mutation?.outsideCopy === true ? [...fixed.originalBytes.keys()] : [],
+      };
+    } catch {
+      // 변형 입력을 만들 수 없는 사례는 execute가 아무것도 쓰기 전에 WORKSPACE_FAILED로 끝낸다 — 쓸 규칙 사본이 없다.
+      return { runId: run.runId, rules: [], outside: [] };
+    }
+  });
+  return { cacheDir: fixed.pin.rules.cache_dir_name, runs, controlCasePaths };
+}
+
+/** 대조 트리에 만들어질 파일 경로. 기대 입력을 읽지 못하면 비어 있다(하네스가 같은 이유로 트리를 만들지 못한다). */
+async function controlCasePathsOf(fs: FsPort, dataDir: string): Promise<string[]> {
+  const parsed = await readControlExpectations(fs, dataDir);
+  return parsed.ok ? parsed.expectations.cases.map((c) => c.path) : [];
+}
+
+/**
+ * 쓰기 계획을 세운다(읽기만 한다). CLI가 포트·잠금·표지·상태 폴더·수신기보다 먼저 `outputPathProblem`에 넘기고, `runNegativeControls`는
+ * 자신이 읽은 고정 입력으로 같은 계획을 직접 만든다. 고정 입력을 읽지 못하면 null — 그때는 폴더와 고정 이름까지만 본다(이어지는
+ * runNegativeControls가 FIXED_INPUTS_UNREADABLE로 어떤 사례도 쓰지 않는다).
+ */
+export async function writePlanFor(
+  fs: FsPort,
+  inputs: Pick<NegativeControlInputs, "suiteId" | "dataDir" | "rulesCacheRoot">
+): Promise<WritePlan | null> {
+  try {
+    const fixed = await readFixedInputs(fs, inputs);
+    return buildWritePlan(inputs.suiteId, fixed, await controlCasePathsOf(fs, inputs.dataDir));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 스위트가 쓰게 될 경로 전부(디렉터리 포함). 고정 이름은 실제로 쓰는 쪽과 같은 상수를 쓰고, 규칙 사본·대조 트리 파일은 계획에서 온다.
+ * 파일 경로 하나의 푼 자리에서 그 위의 모든 링크가 풀리므로, 하위 폴더 링크는 이 경로들에서 걸러진다.
+ */
+function plannedOutputs(inputs: OutputPathInputs): string[] {
+  const out: string[] = [];
+  const suiteDir = joinPath(inputs.evidenceRoot, inputs.suiteId);
+  out.push(
+    suiteDir,
+    ...[SUITE_RECORD_FILE, RUN_MARKER_FILE, SERVER_STATE_DIR, VERSION_STATE_DIR].map((name) =>
+      joinPath(suiteDir, name)
+    )
+  );
+  for (const run of plannedRuns(inputs.suiteId)) {
+    const key = runKeyOf(inputs.suiteId, inputs.workRoot, run.id, run.layer);
+    const evidenceDir = joinPath(inputs.evidenceRoot, run.runId);
+    out.push(
+      evidenceDir,
+      ...[...EVIDENCE_FILE_NAMES, RUN_MARKER_FILE, SERVER_STATE_DIR].map((name) =>
+        joinPath(evidenceDir, name)
+      ),
+      key.root,
+      `${key.root}-outside`,
+      key.treeRoot
+    );
+    const plan = inputs.plan;
+    if (plan === undefined) continue;
+    const planned = plan.runs.find((r) => r.runId === run.runId);
+    const cacheRoot = rulesCopyRoot(key.root, plan.cacheDir);
+    out.push(cacheRoot, ...(planned?.rules ?? []).map((rel) => treeTarget(cacheRoot, rel)));
+    if ((planned?.outside.length ?? 0) > 0) {
+      const outsideRoot = outsideCopyRoot(key.root, plan.cacheDir);
+      out.push(outsideRoot, ...(planned?.outside ?? []).map((rel) => treeTarget(outsideRoot, rel)));
+    }
+    out.push(...plan.controlCasePaths.map((rel) => treeTarget(key.treeRoot, rel)));
+  }
+  return [...new Set(out)];
 }
 
 /**
  * 스위트가 **쓰게 될** 경로가 원본 안에 들어가는지 본다(읽기만 한다 — 아무것도 만들지 않는다). 사유 토큰을 돌려주면 쓰면 안 된다.
  *  · 작업 공간 루트와 증거 루트는 서로 겹치면 안 되고, 작업 공간 루트는 원본과 겹치면 안 된다(원본이 그 안에 있어도 거절한다).
- *  · 계산된 출력 경로 전부(사례별 증거 폴더·스위트 폴더·사례별 작업 공간·밖 사본)는 원본 안이면 안 된다. 사례 폴더 이름이 원본을 가리키는
- *    링크여도 푼 자리로 판단한다.
- * 모든 경로는 쓰기에 쓸 그 포트의 physicalKey로 푼다. 풀 수 없으면 쓰기 전에 거절한다(fail-closed).
+ *  · 계산된 출력 경로 전부는 원본 안이면 안 된다: 스위트·사례별 증거 폴더와 그 안의 증거 파일·표지·상태 폴더, 사례별 작업 공간·밖 사본·
+ *    대조 트리, 그리고 계획(plan)이 있으면 규칙 사본·밖 사본·대조 트리 안의 **파일 경로 하나하나**. 사례 폴더 이름이든 그 아래의
+ *    캐시 루트·하위 폴더든 원본을 가리키는 링크이면 푼 자리로 판단한다.
+ * 모든 경로는 쓰기에 쓸 그 포트의 physicalKey로 푼다. 풀 수 없으면 쓰기 전에 거절한다(fail-closed). 검사 뒤에 링크를 바꾸는
+ * 경쟁 상태(검사-사용 간격)는 다루지 않는다.
  */
 export async function outputPathProblem(
   fs: Pick<FsPort, "physicalKey">,
@@ -330,15 +492,7 @@ export async function outputPathProblem(
       }
       originals.push({ name, key });
     }
-    const outputs = [joinPath(inputs.evidenceRoot, inputs.suiteId)];
-    for (const runId of plannedRunIds(inputs.suiteId)) {
-      outputs.push(
-        joinPath(inputs.evidenceRoot, runId),
-        joinPath(inputs.workRoot, runId),
-        `${joinPath(inputs.workRoot, runId)}-outside`
-      );
-    }
-    for (const output of outputs) {
+    for (const output of plannedOutputs(inputs)) {
       const key = await fs.physicalKey(output);
       for (const original of originals) {
         if (keyIsSameOrInside(key, original.key)) {
@@ -801,7 +955,7 @@ async function writeTree(
   entries: ReadonlyMap<string, Uint8Array>
 ): Promise<void> {
   for (const [path, bytes] of entries) {
-    const target = joinPath(root, path);
+    const target = treeTarget(root, path);
     await fs.mkdirp(target.slice(0, target.lastIndexOf("/")));
     await fs.writeFileExclusive(target, bytes);
   }
@@ -814,7 +968,10 @@ interface FixedInputs {
   originalBytes: Map<string, Uint8Array>;
 }
 
-async function readFixedInputs(fs: FsPort, inputs: NegativeControlInputs): Promise<FixedInputs> {
+async function readFixedInputs(
+  fs: FsPort,
+  inputs: Pick<NegativeControlInputs, "dataDir" | "rulesCacheRoot">
+): Promise<FixedInputs> {
   const read = async (name: string): Promise<Uint8Array> =>
     fs.readFile(joinPath(inputs.dataDir, name));
   const pin = JSON.parse(decoder.decode(await read("pin.json"))) as Pin;
@@ -908,6 +1065,16 @@ export async function runNegativeControls(
     });
   }
   const cacheDir = fixed.pin.rules.cache_dir_name;
+  // 쓰기 전에: 규칙 사본·밖 사본·대조 트리 안의 파일 경로까지 — 사례 폴더 루트는 정상이어도 그 아래(캐시 루트·하위 폴더)가 원본을 가리키는
+  // 링크일 수 있다. 실제로 쓸 파일 목록과 같은 함수(planRulesCopy)에서 계획을 만들고, 기준 실행을 포함해 무엇이든 쓰기 전에 거절한다.
+  const writeProblem = await outputPathProblem(deps.fs, {
+    ...inputs,
+    plan: buildWritePlan(inputs.suiteId, fixed, await controlCasePathsOf(deps.fs, inputs.dataDir)),
+  });
+  if (writeProblem !== null) {
+    notRunAll("WORKSPACE_FAILED");
+    return finish(null, null, false, null, { stage: "WORKSPACE", cause: writeProblem });
+  }
 
   /** 한 실행: 사례별 작업 공간을 만들고(원본은 읽기만), 층에 맞는 진입점으로 돌린다. 던지지 않는다. */
   const execute = async (
@@ -915,9 +1082,8 @@ export async function runNegativeControls(
     layer: Layer,
     mutation: Mutation | null
   ): Promise<ExecutedRun> => {
-    const runId = caseRunId(inputs.suiteId, id, layer);
-    const root = joinPath(inputs.workRoot, runId);
-    const key: RunKey = { id, layer, runId, root, treeRoot: joinPath(root, "tree") };
+    const key = runKeyOf(inputs.suiteId, inputs.workRoot, id, layer);
+    const { runId, root } = key;
     const base: ExecutedRun = {
       key,
       result: null,
@@ -934,17 +1100,12 @@ export async function runNegativeControls(
     let trace: MutationTrace | null = null;
     let initializationOptions: unknown;
     try {
-      const copy = new Map(fixed.originalBytes);
-      if (mutation?.rules) {
-        patch = mutation.rules(fixed.rulesFiles, fixed.originalBytes);
-        for (const path of patch.omit) copy.delete(path);
-        for (const [path, bytes] of Object.entries(patch.replace)) copy.set(path, bytes);
-        for (const [path, bytes] of Object.entries(patch.add)) copy.set(path, bytes);
-      }
-      await writeTree(deps.fs, joinPath(root, cacheDir), copy);
+      const planned = planRulesCopy(fixed, mutation);
+      patch = planned.patch;
+      await writeTree(deps.fs, rulesCopyRoot(root, cacheDir), planned.copy);
       const outsideRoot = `${root}-outside`;
       if (mutation?.outsideCopy) {
-        await writeTree(deps.fs, joinPath(outsideRoot, cacheDir), fixed.originalBytes);
+        await writeTree(deps.fs, outsideCopyRoot(root, cacheDir), fixed.originalBytes);
       }
       const baseOptions = defaultInitializationOptions(
         fixed.pin,
@@ -1011,7 +1172,7 @@ export async function runNegativeControls(
           dataDir: inputs.dataDir,
           harnessRoot: inputs.harnessRoot,
           evidenceRoot: inputs.evidenceRoot,
-          rulesCacheRoot: joinPath(root, cacheDir),
+          rulesCacheRoot: rulesCopyRoot(root, cacheDir),
           scanRoot: joinPath(root, "UNUSED-IN-THIS-MODE"),
           controlFixturesRoot: inputs.controlFixturesRoot,
           controlTreeRoot: key.treeRoot,
