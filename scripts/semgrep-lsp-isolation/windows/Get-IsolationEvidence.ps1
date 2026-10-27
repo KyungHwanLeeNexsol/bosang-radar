@@ -29,7 +29,7 @@ $procs = @($in.processes | ForEach-Object { [ordered]@{ role = $_.role; processI
 $probes = @($in.probes | ForEach-Object { [ordered]@{ name = [string]$_.name; destAddress = [string]$_.destAddress; destPort = [string]$_.destPort } })
 $ev = Get-BlockEvidence -Baseline @{ lastRecordId = $in.baseline.lastRecordId; oldestRecordNumber = $in.baseline.oldestRecordNumber } -Processes $procs -Probes $probes -AuditFailureEnabled $AuditFailureWasEnabled
 
-$verdictInputOk = ($ev.collection.ok -and $ev.collection.auditFailureEnabled -eq $true -and $ev.collection.wrapped -eq $false)
+$verdictInputOk = ($ev.processRecordsOk -and $ev.collection.ok -and $ev.countsUsable)
 $out = Join-Path $Script:IsoRunDir ('evidence-{0}.json' -f [DateTime]::UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'"))
 Write-IsoJson -Path $out -Object ([ordered]@{ evidence = $ev; countsAreUsable = $verdictInputOk; note = '건수는 countsAreUsable=true 일 때만 "관측 0건"이나 "관측 N건"으로 읽는다. false 이면 증거 없음이다.' }) -Depth 12
 Write-Host "증거 파일: $out"
