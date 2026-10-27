@@ -1,0 +1,168 @@
+# Windows 격리 준비: 설정·검증·복구 스크립트와 실행 계획
+
+- 작성일: 2026-10-27
+- 기준: PR #35 브랜치 `security/semgrep-lsp-dist-verify`의 정정 반영 HEAD `b18a57e` 위의 별도 브랜치 `security/semgrep-lsp-win-isolation`
+- 성격: 스크립트와 문서 추가. **계정 생성, 방화벽 규칙, 감사 정책, ACL 변경, 전용 계정으로의 프로세스 실행은 한 번도 하지 않았다.** `semgrep`·`semgrep-core`·`pysemgrep`(`--version` 포함)도 실행하지 않았다.
+- 이 문서는 격리 효과의 증거가 아니다. 효과는 `Test-IsolationEffect.ps1 -Execute`를 소유자 승인 뒤에 실행하고 그 관측을 읽어야만 말할 수 있다.
+
+## 1. 결론
+
+| 항목                                                                          | 결과                                                                                                  | 확인 수준                                  |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 스크립트 묶음 작성                                                            | `.ps1` 9개(공용 1, 진입 5, 프로브 2, 자체 점검 1)와 `README.md`                                       | 작성함                                     |
+| 구문·BOM·구조·합성 입력 논리                                                  | pwsh 7.6.9와 Windows PowerShell 5.1에서 각각 90/90 통과. 일부러 심은 위반 7종을 점검이 모두 잡았다    | 확인(이 PC, 합성 입력)                     |
+| 읽기 전용 사전 점검 실행                                                      | 적용 차단 항목 없음. 실행 전후로 방화벽 규칙 688개·로컬 계정·감사 값·ACL이 같았다                     | 확인                                       |
+| 변경 스크립트의 dry-run과 거부 경로                                           | 계획만 출력됨. `-Apply` 없음·스냅숏 해시 불일치·기록 없음은 거부됨. 전후 상태 같음                    | 확인                                       |
+| 계정 생성·규칙 생성·감사 변경·ACL 변경·전용 계정 프로브 실행(`-Apply`/`-Execute` 경로) | 실행하지 않았다                                                                          | **미확인**                                 |
+| 계정 단위 아웃바운드 차단이 실제로 걸리는가, 자식 프로세스에도 걸리는가       | 관측하지 않았다                                                                                       | **미확인**                                 |
+| 5157 이벤트가 이 규칙의 차단에서 기록되는가, PID 표기 형식                    | 관측하지 않았다                                                                                       | **미확인**                                 |
+| Windows 11 Home에서의 지원                                                    | 3.4절에서 세 칸으로 나눠 적었다                                                                       | 일부만 확인(읽기 수준)                     |
+
+## 2. 하지 않은 것
+
+실제 계정 생성, 방화벽 규칙·프로필 정책 변경, 감사 정책 변경, ACL 변경, 전용 계정으로의 프로세스 실행, `semgrep` 계열 실행(`--version` 포함), LSP 서버, 규칙 내려받기, 대상 스캔, 음성 대조의 실제 실행, 보안 게이트 연결, ADR `Accepted` 전환, `pin.json`·`verified`·`policy_accepted` 변경, 플랫폼별 휠 스키마 변경, WSL·Docker·가상머신 설치, 병합·배포, `main`·`bodam`·기존 PR 변경.
+
+## 3. 근거의 구분
+
+### 3.1 공식 문서가 말하는 것 (이번에 원문을 읽은 것)
+
+| 주장                                                                                                                  | 출처                                                                  | 한계                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 이벤트 5157은 Windows Filtering Platform이 연결을 차단했을 때 생성된다. 필드는 Process ID, Application(전체 경로), Direction, 주소·포트, Protocol, Filter Run-Time ID, Layer 등이다 | Microsoft Learn "5157(F) The Windows Filtering Platform has blocked a connection" | 보관 문서(Windows 10/Server). 필드 설명에 **실행 계정 항목이 없다.** Process ID를 16진수로 설명하지만 예시 XML은 십진수(`4556`)여서 실제 표기는 미확인이다 |
+| 5157은 하위 범주 "Audit Filtering Platform Connection"에 속하고, 이벤트 양은 "High", 워크스테이션에서는 실패 감사를 권장한다   | Microsoft Learn "Audit Filtering Platform Connection"                 | 보관 문서. 성공 감사는 연결마다 기록될 만큼 양이 많다고 적혀 있다                                                                |
+| 5157의 Process ID는 4688("새 프로세스가 만들어졌다")의 New Process ID와 대조할 수 있다                                | 5157 문서                                                             | 4688은 "Audit Process Creation"을 켜야 기록된다. 이 묶음은 4688을 읽어 대조하지 않는다                                            |
+| `auditpol /backup`은 시스템·사용자별 감사 정책을 CSV로 백업한다(권한: 해당 개체의 쓰기·전체 제어 또는 SeSecurityPrivilege) | Microsoft Learn "auditpol backup"                                     | Windows Server 표기 문서. CSV 열의 의미는 이 PC의 실제 파일로 확인했다(3.2절)                                                     |
+| `New-NetFirewallRule`에 `-LocalUser`, `-Direction`, `-Action`, `-RemoteAddress`, `-Group`, `-Description` 등 매개변수가 있다 | Microsoft Learn "New-NetFirewallRule"(웹 문서는 `-LocalUser` 설명 줄이 생략돼 보였다) | 조회된 웹 문서는 Windows Server 2025 항목이다. 에디션별 지원은 적혀 있지 않다 |
+| `-LocalUser`는 SID(SDDL 문자열)로 표현한 보안 주체에 "인증된 패킷만" 매칭한다. `-RemoteAddress`는 IPv4 범위(`1.2.3.4-1.2.3.7`)와 IPv6 범위(`fe80::1-fe80::9`)를 허용 형식으로 적는다. 이런 매개변수로는 규칙을 필터 객체(`Get-NetFirewallSecurityFilter`·`Get-NetFirewallAddressFilter`)로만 조회할 수 있다 | 이 PC에 설치된 모듈 도움말(`Get-Help New-NetFirewallRule -Parameter LocalUser`·`RemoteAddress`, 읽기) | 설치된 도움말이라 웹 문서와 같은 판본인지는 모른다. 자식 프로세스에도 적용되는지는 어느 쪽에서도 확인하지 못했다 |
+| 방화벽 로그(`pfirewall.log`)의 기본 경로는 `%windir%\system32\logfiles\firewall\pfirewall.log`, 기본 크기는 4,096KB이며 차면 오래된 줄부터 지워진다 | Microsoft Learn "Configure Windows Firewall logging"                  | 이 문서는 기록 필드 목록을 싣지 않고, 버려진 패킷 설명이 "받는(incoming) 패킷" 기준이다. 나가는 연결 차단의 기록 여부는 미확인이다 |
+| pip `--isolated`는 환경변수와 사용자 구성을 무시한다                                                                  | pip 문서, pip 24.3.1 소스(PR #35 보고서 4.1.1절)                      | PR #35 보고서에서 다뤘다                                                                                                          |
+
+### 3.2 이 PC의 읽기 전용 확인 (2026-10-27, 관리자 권한 세션)
+
+| 항목                                | 관측값                                                                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 에디션·빌드                         | EditionID `Core`(Home), 빌드 `26200.9711`(25H2), AMD64. 도메인 미가입                                                                          |
+| 명령 존재                           | `powershell.exe` 5.1(`5.1.26100.9711`), `New-NetFirewallRule`, `Remove-NetFirewallRule`, `Get-NetFirewallProfile`, `New-LocalUser`, `Get-WinEvent`, `auditpol.exe`. **존재만 확인했고 쓰기 동작은 실행하지 않았다** |
+| 방화벽                              | BFE·`mpssvc` 실행 중. 세 프로필 모두 켜짐, 기본 아웃바운드 `NotConfigured`, 버려진 패킷·허용 연결 로그 모두 꺼짐, `pfirewall.log` 없음. 규칙 688개, 그중 `LocalUser` 범위 규칙 5개(우리가 만든 것이 아님) |
+| 감사 정책(숫자)                     | "Filtering Platform Connection" `0`(No Auditing), "Process Creation" `0`. 백업 CSV의 마지막 열이 숫자이고 이름 열은 로케일 인코딩이라 스크립트는 GUID와 숫자만 읽는다. `SCENoApplyLegacyAuditPolicy` 값 없음 |
+| Security 로그                       | 켜짐, `Circular`, 최대 20,971,520바이트. **가득 차서 밀리는 중**: 약 14분 간격의 두 읽기 사이에 가장 오래된 번호가 2063648 → 2063837로, 마지막 번호가 2098099 → 2098327로 움직였다 |
+| 계정                                | 로컬 계정 5개(기본 4개 + 사용자). `bsi*` 계정, `bosang-semgrep-iso*` 규칙·폴더 없음                                                            |
+| Secondary Logon(`seclogon`)         | 실행 중, 시작 유형 Manual                                                                                                                      |
+| Windows Sandbox 기능                | 선택 기능 목록에 해당 항목이 없다                                                                                                              |
+| 설치 경로 접근                      | 가상환경, 기반 Python(`C:\Users\<사용자>\AppData\Local\Programs\Python\Python312`), 휠 폴더가 모두 **사용자 프로필 아래**다. Users·Authenticated Users·Everyone에 읽기·실행을 주는 ACE가 없다(6개 경로 모두 불가 예상). 해석되지 않는 SID(`…-1004`)의 읽기·실행 ACE가 `AppData\Local` 이하에 상속돼 있다(상속 원천은 확인하지 않았다). 출처를 알 수 없어 건드리지 않는다 |
+| 가상환경 `Scripts\python.exe` 크기  | 275,176바이트(venv 실행기 형태로 보이나 실행해서 확인하지 않았다)                                                                              |
+| 프로브용 비루프백 IPv4              | 1개                                                                                                                                            |
+
+### 3.3 실행하지 않아 모르는 것
+
+- 계정 단위 `Block` 규칙이 이 PC에서 실제로 프로세스의 TCP 연결을 막는지, 부모가 띄운 자식에도 적용되는지.
+- `LocalUser`에 넘기는 SDDL 문자열(`D:(A;;CC;;;<SID>)`)의 정확한 형식을 이 PC가 받아들이는지. 도움말은 "SID를 SDDL 문자열로 표현"이라고만 적고, 이 문자열 모양은 같은 문서의 `RemoteUser`·`RemoteMachine` 예시(`D:(A;;CC;;;SID)`)를 따른 것이다. `RemoteAddress` 범위 표기(IPv4 두 범위, IPv6 한 범위)는 도움말의 허용 형식과 같은 모양이지만, 이 PC가 받아들이고 읽을 때 같은 값으로 돌려주는지는 모른다. 적용 스크립트가 만든 뒤 읽어 확인하도록 했으나 아직 실행하지 않았다.
+- 루프백이 규칙의 영향을 받는지. 규칙은 루프백 대역을 원격 주소 범위에서 빼서 만든다.
+- 차단 시 5157이 기록되는지, 기록의 `ProcessID` 표기(십진수/16진수), `Application`의 NT 경로가 `QueryDosDevice` 대응으로 실행 파일 경로와 맞아떨어지는지.
+- 실패 감사를 켠 동안 다른 프로그램의 차단 연결이 얼마나 쌓이는지(이미 가득 찬 순환 로그를 얼마나 더 빨리 밀어내는지).
+- `Start-Process -Credential`로 띄운 프로세스의 권한·프로필 생성·백신/EDR 반응.
+- UDP, ICMP, IPv6, DNS 질의의 차단 여부. DNS는 서비스(`Dnscache`)가 대신 질의하므로 계정 단위 규칙의 대상이 아닐 수 있다(추정, 미관측).
+
+### 3.4 "Windows 11 Home에서 쓸 수 있는가"의 세 칸
+
+| 기능                          | 공식 근거(이번에 읽은 문서)                                  | 이 PC의 읽기 전용 확인                                              | 미확인                                    |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------- |
+| 사용자 범위 아웃바운드 규칙   | `New-NetFirewallRule -LocalUser` 매개변수 존재. 에디션 지원 표기는 없다 | 명령·방화벽 서비스 존재, 기존 `LocalUser` 범위 규칙 5개 존재(읽기)  | 규칙 생성과 적용                          |
+| 감사 하위 범주 설정·5157      | 하위 범주 문서와 5157 문서. 에디션 표기 없음                 | `auditpol.exe` 존재, `/backup` 읽기 성공(관리자), Security 로그 읽기 성공 | `/set` 동작, 이벤트 실제 기록             |
+| 로컬 계정 관리                | 이번에 문서를 읽지 않았다                                    | `New-LocalUser`·`Get-LocalUser` 존재, 조회 동작                     | 계정 생성                                 |
+| 다른 계정으로 프로세스 실행   | 이번에 문서를 읽지 않았다                                    | `seclogon` 서비스 존재                                              | `Start-Process -Credential` 동작          |
+| Windows Sandbox               | PR #35 보고서는 "알려져 있다"로만 적었고 이번에도 문서를 읽지 않았다 | 선택 기능 목록에 없다                                               | 공식 지원 표기                            |
+
+이번에 읽은 공식 문서 중 에디션별 지원 여부를 명시한 것은 없었다. 따라서 "Home에서 된다"는 말은 **읽기 수준의 존재 확인**까지만 할 수 있고, 쓰기 동작은 승인 뒤 실행으로만 알 수 있다.
+
+## 4. 설계
+
+### 4.1 왜 계정 단위 규칙인가
+
+PR #35 보고서 7.2절의 선택지 A(전용 계정 + 사용자 단위 아웃바운드 차단)를 구현한다. 프로그램 경로별 규칙은 `semgrep.exe`·`semgrep-core.exe`·`python.exe` 경로만 막고, 그 프로세스가 띄운 다른 실행 파일의 통신은 놓친다. 계정 범위 규칙은 그 계정의 토큰으로 도는 모든 프로세스에 적용되도록 한 것이 **설계 의도**이고, 실제로 그런지는 3.3절대로 미관측이다.
+
+### 4.2 자원과 소유 확인
+
+모든 자원 이름은 실행마다 새로 정해지는 `RunId`(`yyyyMMddTHHmmssZ-<8hex>`)에서만 나온다. 복구는 이 이름과 설명 표식(`bosang-semgrep-iso:<RunId>`)이 함께 맞는 것만 지운다.
+
+| 자원         | 이름                                                    | 소유 확인(복구 때)                                           | 복구 동작                                        |
+| ------------ | ------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
+| 로컬 계정    | `bsi<8hex>`                                             | 이름 + 설명 표식 + 기록된 SID                                | 사용 중지 → 프로세스 종료 → 삭제(+선택 프로필)   |
+| 방화벽 규칙  | `bosang-semgrep-iso-<RunId>-out`, Group `bosang-semgrep-iso` | 이름 + Group + 설명 표식                                | 삭제                                             |
+| 작업 폴더    | `%ProgramData%\bosang-semgrep-iso\<RunId>`              | 위치 + `.owner` 파일 내용                                    | 삭제(루트는 우리가 만들었고 비었을 때만)         |
+| ACL 항목     | 지정 경로에 새 계정 SID 한 건                           | 기록된 SID가 계정 SID 형식(`S-1-5-21-…`)일 것                | 그 SID의 ACE만 제거                              |
+| 감사 설정    | "Filtering Platform Connection"(필요하면 "Process Creation") | 현재 값이 우리가 설정한 값일 때                         | 켜기 직전에 읽은 원래 값으로. 그 사이 바뀌었으면 건드리지 않고 `DRIFT` 보고 |
+| 암호 파일    | RunDir의 `credential.dpapi`                             | -                                                            | 삭제                                             |
+
+기존 계정, 기존 방화벽 규칙, 프로필 기본 정책은 읽기만 한다. 자체 점검이 `Set-NetFirewallProfile`·`Set-NetFirewallSetting` 호출이 없음을 구조로 검사한다.
+
+### 4.3 감사 정책은 적용 때가 아니라 검증 동안만
+
+Security 로그가 이미 가득 찬 순환 상태이고(3.2절), 실패 감사를 켜면 이 PC의 모든 프로그램의 차단 연결이 기록된다. 그래서 감사는 `Initialize`가 아니라 `Test-IsolationEffect.ps1 -Execute`가 **그 실행 동안만** 켜고, 끝나면 우리가 바꾼 값만 되돌린다. 원래 값은 켜기 직전에 `auditpol /backup`으로 새로 읽는다(사전 점검 시점의 값을 믿지 않는다). 지원하지 않는 값(0~3 밖)은 추측하지 않고 중단한다.
+
+### 4.4 전용 계정의 파일 접근
+
+3.2절대로 설치 경로가 모두 프로필 아래라서 새 비관리자 계정은 가상환경 `python.exe`도 기반 인터프리터도 읽지 못한다. 선택지는 둘이다.
+
+1. `-GrantReadExecute`로 가상환경 폴더와 기반 Python 폴더에 **새 계정 SID 한 건의 읽기·실행 ACE**를 추가한다(기존 ACE는 그대로, 복구 때 그 SID만 제거). 기존 설치의 ACL을 바꾼다는 점이 비용이다. 적용 뒤 대표 하위 파일로 전파를 읽어 확인한다.
+2. 접근 가능한 위치(예: `%ProgramData%` 아래)에 Python과 가상환경을 다시 설치한다. 배포물 재설치이고 이번 범위 밖이다.
+
+기본값은 권한을 주지 않는 것이다. 이 묶음의 첫 프로브는 `powershell.exe`(시스템 폴더, 기본적으로 읽기 가능)를 쓰므로 ACL 변경 없이도 돈다. 가상환경 `python.exe`를 전용 계정으로 실행해 보는 것은 `-VenvPython`을 줄 때만 하고, 이것도 `semgrep`이 아니라 `python -I` 한 줄이다.
+
+### 4.5 루프백
+
+규칙의 원격 주소 범위에서 `127.0.0.0/8`과 `::1`을 뺀다(기본 `-RemoteScope NonLoopback`). Windows가 루프백을 방화벽 규칙에서 따로 처리하는지는 문서에서 확인하지 못했고, 규칙이 아니라 **프로브가 직접 관측**한다: 전용 계정이 루프백 수신기에 연결할 수 있어야 한다. 루프백 수신기의 수신 건수는 "OS 차단 관측"과 합치지 않고 별도 항목으로만 보고한다. 루프백에 0건이 찍혀도 외부 통신이 없었다는 뜻이 아니다.
+
+### 4.6 "이번 실행의 차단"을 세는 방법
+
+PR #35 보고서 7.3절의 절차를 코드로 옮겼다. 5157 이벤트는 다음이 **모두** 맞을 때만 이번 실행의 것으로 센다: ① `ProcessID`가 실행기가 CIM으로 기록한 부모·자식 PID 중 하나, ② `Application`의 NT 경로를 `QueryDosDevice` 대응으로 바꾼 값이 기록한 실행 파일 경로와 같음, ③ 이벤트 시각이 그 프로세스의 시작~종료 구간(앞 1초, 뒤 5초 여유) 안, ④ 방향이 Outbound. 목적지가 프로브와 같으면 프로브에 귀속하고, 다르면 "이번 실행의 다른 목적지"로 따로 센다. 하나라도 못 맞추면 "식별 불가"로 센다. 실행 직전 Security 로그의 마지막 레코드 번호를 기준점으로 기록하고, 이벤트는 그보다 큰 번호만 읽으며, 가장 오래된 번호가 기준점을 넘어서면 로그가 밀린 것으로 본다. 로그를 못 읽거나 실패 감사가 꺼져 있었거나 밀렸으면 건수는 `null`이고 판정은 `FAILED_EVIDENCE_UNAVAILABLE`이다(0건이 아니다). 연결 실패만으로는 차단이라고 쓰지 않는다. 판정표는 `README.md`에 있다.
+
+### 4.7 계정과 암호
+
+비관리자, Users 그룹만, 무작위 암호, 만든 직후 비활성화하고 검증 실행 동안만 켠다. 암호는 현재 Windows 사용자의 DPAPI로 `credential.dpapi`에 보관한다. 이 묶음은 사용자 권한 할당(로컬/네트워크 로그온 제한) 같은 시스템 정책을 바꾸지 않으므로, 계정이 켜져 있는 동안의 로그온 경로 제한은 하지 않는다. 그 점은 잔여 위험으로 남는다(6절).
+
+## 5. 실행 계획
+
+승인 게이트는 3과 4다. 나머지는 읽기 전용이거나 되돌리기다.
+
+| 단계 | 명령                                             | 예상 영향                                                                                         | 검증                                                         | 복구                          | 승인 |
+| ---- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------- | ---- |
+| 0    | `Test-IsolationScripts.ps1`                      | 없음                                                                                              | 두 엔진 90/90                                                | -                             | 불필요 |
+| 1    | `Invoke-IsolationPreflight.ps1`                  | RunDir(저장소 밖)에 스냅숏과 `auditpol` 백업 파일                                                 | `적용 차단 항목 없음`, `ConfirmSnapshot` 출력                | RunDir 삭제로 충분            | 불필요 |
+| 2    | `Initialize-Isolation.ps1 -PreflightDir …`       | 없음(계획 출력)                                                                                   | `[PLAN]` 줄 검토                                             | -                             | 불필요 |
+| 3    | `Initialize-Isolation.ps1 … -ConfirmSnapshot … -Apply [-GrantReadExecute …]` | 계정 1, 작업 폴더 1, 방화벽 규칙 1, (선택) ACL 항목, 규칙은 꺼진 채 만들어 범위를 읽어 확인한 뒤 켬 | 스크립트가 읽어서 확인(작업 폴더 ACL, 규칙 `LocalUser`·Block/Outbound, ACL 전파). 관리자 PowerShell에서 `Get-NetFirewallRule -Name <규칙>`로 직접 확인 | 실패 시 자동 롤백. 수동: 5단계 | **필요** |
+| 4    | `Test-IsolationEffect.ps1 -RunDir … -Execute`    | 감사 창(실패 감사) 임시 변경, 계정 임시 활성화, `C:\Users\bsi<8hex>` 프로필 생성 가능, `192.0.2.1:9`로 SYN 시도, 보안 로그 증가 | `verification-<시각>.json`의 [A]~[D] 항목, `PROBE_ISOLATION_OBSERVED`는 프로브 두 종류에 한정된 관측 | `finally`가 계정 비활성화·감사 복구. 강제 종료 시 5단계 | **필요** |
+| 5    | `Remove-Isolation.ps1 -RunDir … -Apply [-RemoveProfile]` | 이 실행이 만든 것만 삭제, 감사 값은 설정값일 때만 복구                                    | 결과 표(`OK`/`SKIPPED_ABSENT`/`REFUSED_NOT_OURS`/`DRIFT_NOT_RESTORED`), 종료 코드 0 | -                         | 불필요(먼저 dry-run) |
+| 6    | (이번 범위 밖) 실제 도구 첫 실행                 | -                                                                                                 | 4단계 판정 + 소유자 결정 + PR #35 보고서 7.4절의 환경 조건    | -                             | 별도 |
+
+## 6. 한계와 잔여 위험
+
+- 이 묶음의 `-Apply`/`-Execute` 경로는 한 번도 실행되지 않았다. 구문·구조·합성 논리와 dry-run까지만 확인했다. 실제 환경에서 처음 실행할 때 나올 오류는 모른다.
+- 계정 단위 규칙이 **서비스가 대신 수행하는 통신**을 막지 않을 수 있다. 예: 이름 확인은 `Dnscache` 서비스가 질의한다. 이 경우 호스트 이름이 밖으로 새도 TCP 연결은 막힌다(추정, 미관측). 이 묶음은 DNS를 프로브하지 않는다.
+- 프로브는 TCP IPv4 두 가지뿐이다. UDP·ICMP·IPv6·DNS와 `semgrep` 자체는 관측하지 않았다. `PROBE_ISOLATION_OBSERVED`를 그쪽으로 넓혀 읽으면 안 된다.
+- 가상환경의 `Scripts\python.exe`는 venv 실행기일 가능성이 있고(크기만 확인), 그러면 실제 프로세스의 실행 파일 경로가 기반 `python.exe`로 보인다. 나중의 실제 도구 실행에서 5157의 `Application`과 기록한 경로를 맞출 때 영향을 줄 수 있다(미관측).
+- 실패 감사를 켜는 동안 이 PC 다른 프로그램의 차단 연결도 같은 로그에 쌓인다. 이미 가득 찬 순환 로그(3.2절)에서 다른 감사 기록을 더 빨리 밀어낼 수 있다. 창을 검증 실행 동안으로 줄인 이유다.
+- 전용 계정은 켜져 있는 동안 로컬 로그온이 가능한 일반 계정이다. 암호는 DPAPI 파일에만 있고 계정은 평소 비활성이지만, 로그온 제한 정책은 걸지 않았다.
+- `-GrantReadExecute`는 기존 설치의 ACL을 바꾼다(SID 한 건). 복구는 그 SID의 ACE만 제거한다. 출처 불명의 SID `…-1004` ACE는 건드리지 않는다.
+- 백신·EDR, SmartScreen, 그룹 정책이 규칙이나 프로세스 실행에 개입하는지는 모른다(도메인 미가입, Home이라 로컬 그룹 정책 편집기가 없다는 점은 정책 개입 가능성을 줄일 뿐 없애지 않는다).
+- 사전 점검 스냅숏(`preflight.json`, 약 0.5MB)은 방화벽 규칙 전체의 이름·상태를 담는다. 저장소 밖(`%LOCALAPPDATA%\bosang-radar\semgrep-isolation\<RunId>`)에만 두고 커밋하지 않았다.
+
+## 7. 소유자 결정이 필요한 것
+
+1. 전용 계정이 가상환경·기반 Python을 읽도록 **기존 설치의 ACL에 SID 한 건을 추가**해도 되는가, 아니면 접근 가능한 위치에 재설치하는 쪽을 택할 것인가(4.4절).
+2. 검증 실행 동안 **감사 정책을 임시로 바꾸는 것**(Filtering Platform Connection 실패)을 허용하는가. 선택으로 "Process Creation" 성공 감사까지 켤 것인가.
+3. 프로브 실행 때 **전용 계정의 프로필 폴더가 생기는 것**과, 문서용 예약 주소 `192.0.2.1:9`로 TCP 연결 시도(SYN)가 이 PC 밖 네트워크 장비를 거칠 수 있는 것을 허용하는가.
+4. `-IncludeSelfAddressProbe`(방화벽 앱 허용 대화상자가 뜰 수 있음)를 쓸 것인가.
+5. 위 허용 뒤 단계 3(적용)과 단계 4(검증 실행)를 진행해도 되는가.
+
+## 8. 재현 (읽기 전용)
+
+```powershell
+$d  = '<저장소>\scripts\semgrep-lsp-isolation\windows'
+$ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+& $ps -NoProfile -ExecutionPolicy Bypass -File "$d\Test-IsolationScripts.ps1"      # 구문·구조·논리 (시스템을 읽지 않는다)
+& $ps -NoProfile -ExecutionPolicy Bypass -File "$d\Invoke-IsolationPreflight.ps1"  # 읽기 전용 사전 점검 (관리자 권한)
+& pwsh -NoProfile -File "$d\Test-IsolationScripts.ps1"                              # 두 엔진 모두에서
+```
+
+적용·검증·복구 명령과 판정 기준, 종료 코드는 `scripts/semgrep-lsp-isolation/windows/README.md`에 있다.
