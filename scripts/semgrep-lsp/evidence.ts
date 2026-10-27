@@ -12,6 +12,7 @@
 //   buildRunRecord(args): RunRecord
 //   writeEvidence(fs, dir, bundle, opts?): Promise<WriteEvidenceResult>
 //   DEFAULT_NOT_EXECUTED / EVIDENCE_FILE_NAMES / EvidenceWriteError
+//   RUN_MARKER_FILE / SERVER_STATE_DIR / VERSION_STATE_DIR     증거 폴더 안에서 CLI가 만드는 표지·상태 폴더 이름(쓰는 쪽과 쓰기 경로 검사가 같은 이름을 쓴다)
 
 import { canonicalJson } from "./canonical";
 import { qualifyControlRun } from "./reference";
@@ -200,6 +201,13 @@ export function buildRunRecord(args: BuildRunRecordArgs): RunRecord {
 }
 
 // ── 증거 파일 ────────────────────────────────────────────────────
+
+/** 실행별 증거 표지 파일 이름. 잠금이 아니라 같은 증거 폴더를 두 번 쓰지 않게 하는 표지다. */
+export const RUN_MARKER_FILE = "run.marker";
+/** LSP 서버의 상태·로그 폴더 이름(증거 폴더 안). */
+export const SERVER_STATE_DIR = "semgrep-state";
+/** 버전 확인 프로세스의 상태 폴더 이름(증거 폴더 안, 서버 상태 폴더와 섞지 않는다). */
+export const VERSION_STATE_DIR = "version-check-state";
 
 /** 쓰는 순서. run.json이 마지막이라 run.json이 있으면 나머지도 있다. */
 export const EVIDENCE_FILE_NAMES = [

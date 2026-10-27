@@ -664,13 +664,101 @@ export interface ForeignServerObservationSummary {
   };
 }
 
+// ── 음성 대조 실행 기록(스위트) ──────────────────────────────────────
+// 음성 대조는 정상 실행과 별개의 진단 실행들이다. 그 결과는 스위트 기록으로 남고, control 실행이 명시한 경로로만 읽어 잇는다.
+// 증거(run.json)에는 개수와 토큰만 싣는다: 경로·본문·명령줄은 싣지 않는다.
+
+/** 스위트 항목 하나(id, 층)가 이 결과가 된 까닭. EXECUTED가 아니면 항목은 NOT_RUN이다(PASS로 보정하지 않는다). */
+export type NegativeControlOutcome =
+  /** 해당 층을 실제로 실행했고 관측으로 PASS/FAIL을 가렸다. */
+  | "EXECUTED"
+  /** 이 층의 기대 상태가 같은 입력이 반드시 내는 더 앞선 사유에 가려져 실행으로 증명할 수 없다(결정 필요). */
+  | "BLOCKED_CONTRACT_CONFLICT"
+  /** 변형하지 않은 기준 실행이 깨끗하지 않아(COMPLETE가 아니거나 실행하지 못함) 변형의 효과를 가려낼 수 없다. */
+  | "BASELINE_NOT_CLEAN"
+  /** 엔진 진단인데 엔진이 뜨지 않았다(사전 검사 사유가 시작을 막았거나 띄우지 못함). */
+  | "ENGINE_NOT_STARTED"
+  /** 하네스가 하드 실패했거나 던졌다(증거가 모두 쓰이지 않았다). */
+  | "RUN_FAILED"
+  | "CANCELLED"
+  /** 결합(도구·규칙·하네스·대조)을 알 수 없다. */
+  | "BINDING_UNAVAILABLE"
+  /** 이 실행의 결합이 기준 실행의 결합과 다르다. */
+  | "BINDING_DRIFT"
+  /** 사례별 작업 공간을 만들지 못했다. */
+  | "WORKSPACE_FAILED"
+  /** 이 층에는 해당 실행이 없다(표에 사전 검사 항목이 없는 id). */
+  | "NO_SUCH_LAYER"
+  /** 도구 관측 단계에서 확인한 격리 위반(또는 격리를 관측하지 못함)이라 스위트를 시작하지 않았다(기준·변형 실행 없음). */
+  | "TOOL_OBSERVATION_BLOCKED"
+  /** 엔진 진단인데 이 사례를 관측하는 데 필요한 단계에 이르기 전에 초기화·전송이 깨졌다. 사전 검사 사유가 상태를 가려도 PASS가 아니다. */
+  | "ENGINE_EXECUTION_FAILED"
+  /** 엔진은 떴으나 이 사례를 관측하는 데 필요한 단계(규칙 로딩)에 이르지 못했다. */
+  | "ENGINE_STAGE_NOT_REACHED"
+  /** 엔진 층의 PASS에 필요한 엔진 고유 관측의 계약(로그·진단 형식)이 확정되지 않았다. 실행했어도 PASS로 올리지 않는다. */
+  | "ENGINE_OBSERVATION_UNCONFIRMED";
+
+/** run.json resources.negative_control_suite — control 실행이 명시한 스위트 기록을 어떻게 받아들였는지의 요약. */
+export interface NegativeControlSuiteSummary {
+  accepted: boolean;
+  /** 수락하지 않은 이유 토큰(값·경로 없음). 수락했으면 null. */
+  rejection: string | null;
+  suite_id: string | null;
+  /** 스위트를 만든 실행의 출처. stub이면 실제 엔진의 증거가 아니다. */
+  provenance: Provenance | null;
+  binding_sha256: string | null;
+  counts: { pass: number; fail: number; not_run: number };
+  /** PASS가 아닌 (id, 층)의 까닭. */
+  outcomes: { id: string; layer: "preflight" | "engine"; outcome: NegativeControlOutcome }[];
+  /** 증거를 다시 읽다가 걸린 문제 토큰(`R3:engine:EVIDENCE_HASH_MISMATCH` 꼴, 값·경로 없음). 문제가 없으면 빈 배열. */
+  problems: string[];
+}
+
+/** control 실행이 받는 스위트 입력. 항목은 읽는 쪽이 증거에서 다시 도출한 값이다(저장된 선언이 아니다). */
+export interface NegativeControlInput {
+  entries: readonly NegativeControlResult[];
+  bindingSha256: string | null;
+  provenance: Provenance;
+  summary: NegativeControlSuiteSummary;
+}
+
+/** run.json resources.engine_diagnostic — 이 실행은 엔진 진단이며 정상 control 실행이 아니다(대조 참조가 될 수 없다). */
+export interface EngineDiagnosticSummary {
+  policy: "ENGINE_DIAGNOSTIC";
+  /** 사전 검사 사유가 있었는데도 엔진 진단이라 시작했는가. */
+  started_despite_refusals: boolean;
+  /** 시작을 막지 않은 사전 검사·설정 검사 사유 코드(토큰만). */
+  refusal_codes: string[];
+}
+
+/**
+ * run.json resources.negative_control_case — 이 실행이 음성 대조 스위트의 어느 사례를 위한 것인지의 신원. 읽는 쪽이 스위트가 기대하는
+ * 신원과 대조한다(다른 사례·기준 실행의 증거를 붙여 재사용하는 것을 막는다). 서명이 아니다: 증거와 스위트를 함께 위조하는 경우는 구별하지 못한다.
+ */
+export interface NegativeControlCaseIdentity {
+  suite_id: string;
+  /** "baseline" 또는 표의 id(R1~R9). */
+  case_id: string;
+  layer: "preflight" | "engine";
+  /** 변형 종류(MutationKind). 기준 실행이면 null. */
+  mutation_kind: string | null;
+  /** 변형 추적(MutationTrace)을 canonical JSON으로 만든 SHA-256. 읽는 쪽이 스위트가 적은 변형 추적에서 다시 계산해 맞춰 본다. 기준 실행이면 null. */
+  mutation_sha256: string | null;
+}
+
 export interface RunResources {
   run_lock: RunLockSummary | null;
+  /** 음성 대조 스위트의 사례 실행에만 있다. */
+  negative_control_case?: NegativeControlCaseIdentity | null;
   metrics_receiver: MetricsReceiverSummary | null;
   /** 도구 버전·휠 해시 관측. 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
   tool_observation?: RunToolObservation | null;
   /** 같은 트리의 다른 서버 프로세스 관측(조회 시점). 관측 단계를 연결한 호출자(CLI)가 있을 때만 있다. */
   foreign_server_observation?: ForeignServerObservationSummary | null;
+  /** 음성 대조 스위트 기록을 명시한 control 실행에만 있다. */
+  negative_control_suite?: NegativeControlSuiteSummary | null;
+  /** 엔진 진단 실행에만 있다. 있으면 이 기록은 대조 참조가 될 수 없다. */
+  engine_diagnostic?: EngineDiagnosticSummary | null;
 }
 
 export interface RunRecord {

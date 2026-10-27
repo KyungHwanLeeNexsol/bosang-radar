@@ -12,6 +12,9 @@
 //   scope    --repo <dir> --target-sha <40hex> [--format json|tsv]
 //   run      --mode control|target --run-id <id> --rules-cache <dir> --evidence-root <dir> ... (아래 usage)
 //            실제 실행 방지 장치를 통과해야만 프로세스 포트를 만든다.
+//   negative-control --suite-id <id> --rules-cache <dir> --evidence-root <dir> --work-root <dir> ... (아래 usage)
+//            음성 대조(R1~R9)를 사례별 작업 공간에서 실행해 스위트 기록을 남긴다. 정상 실행(run)에 붙지 않는 별도 명령이며 같은
+//            방지 장치를 통과해야만 프로세스 포트를 만든다. control 실행이 --negative-controls로 그 기록을 명시해야 이어진다.
 //
 // 종료 코드: 0 통과(run은 측정 COMPLETE일 때만), 1 불일치·거부·하드 실패, 2 사용법 오류, 3 NOT_RUN(방지 장치).
 //
@@ -21,10 +24,20 @@ import { isAbsolute, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
 import { createNodeArtifactHasher } from "./artifact-node";
+import { SERVER_STATE_DIR, VERSION_STATE_DIR } from "./evidence";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
 import { failedMetricsReceiver, startMetricsReceiver, type MetricsReceiver } from "./metrics-node";
+import {
+  SUITE_RECORD_FILE,
+  outputPathProblem,
+  runNegativeControls,
+  writePlanFor,
+  type CaseResources,
+  type RunKey,
+} from "./negative-control";
+import { loadNegativeControlSuite, serializeSuite } from "./negative-control-record";
 import { evidenceInsideServerTree } from "./path-containment";
 import { createNodeProcessLister } from "./process-list-node";
 import { createNodeProcessPort } from "./process-node";
@@ -118,10 +131,6 @@ const LOOPBACK_URL = "http://127.0.0.1:9";
 // UNVERIFIED(ADR U3/U12): 실제 서버가 이 인자로 LSP를 여는지는 실행해 보지 않았다.
 const SERVER_ARGS = ["lsp", "--debug"] as const;
 
-/** LSP 서버의 상태·로그 폴더와 버전 확인 프로세스의 상태 폴더(둘 다 증거 폴더 안, 서로 섞지 않는다). */
-const SERVER_STATE_DIR = "semgrep-state";
-const VERSION_STATE_DIR = "version-check-state";
-
 // UNVERIFIED: 실제 실행의 한도와 시간 제한 요청값은 실측하지 못한 추정이다(ms, 초). 근거 없이 줄이지 않는다.
 const REAL_LIMITS: SessionLimits = {
   init: 60_000,
@@ -139,7 +148,8 @@ const NOT_VERIFIED = [
   "휠 sha256 관측: --wheel-artifact로 명시한 파일의 바이트 해시다. 주지 않거나 읽지 못하면 wheelSha256Observed=null. 핀의 휠 해시가 null이거나 verified가 아니면 관측해도 비교할 기준이 없어 WHEEL_HASH_UNVERIFIED로 거부된다. 이 해시는 그 파일의 바이트에 대한 사실일 뿐 실행 파일의 설치 출처(그 휠에서 설치되었는지)를 확인하지 않았다",
   "같은 트리의 다른 서버 프로세스 관측: 운영체제 프로세스 목록을 조회한 **그 시점**의 읽기 전용 관측이다(Windows는 PowerShell CIM, Linux는 /proc, 그 밖은 미지원=null). 조회 이후 하네스 밖에서 시작되는 프로세스는 막지 못하고, 어떤 프로세스도 끝내거나 정리하지 않는다. 목록을 읽지 못했거나 후보를 판별하지 못하면 foreignServerProcesses=null이며 0으로 채우지 않는다(공유 잠금을 얻었다는 이유로도). 식별 규칙(프로그램 이름·`lsp` 인자)은 실제 Semgrep으로 확인하지 않았고, LSP 서버의 작업 폴더는 목록에서 보이지 않아, 같은 트리로 확인되지 않은 보이는 서버는 '다른 트리'가 아니라 판별 불가(null)로 둔다. 건수 0은 식별 규칙에 맞는 다른 서버 후보가 보이지 않았다는 뜻이지 다른 서버가 없다는 증명이 아니다. 다른 사용자·컨테이너·다른 호스트의 프로세스는 관측하지 않는다. 합성 자료나 Node 스텁의 결과는 실제 Semgrep 프로세스 식별의 증거가 아니다. macOS는 지원·검증하지 않았다",
   "루프백 메트릭 수신기: 127.0.0.1의 OS 할당 포트에 열어 판정 시점까지 누적 관측한다 — metricsReceiverHits는 그 관측이다(열지 못하면 null). 0건은 이 수신기에서 관찰한 요청이 없다는 뜻일 뿐 다른 목적지로의 통신이 없었다는 증거가 아니며, 실제 Semgrep이 SEMGREP_METRICS_URL 등을 읽는지는 미확인",
-  "대조 참조(control_reference): --control-record로 명시한 control run.json만 읽어 잇는다(자동 탐색 없음), 생략하면 controlReference=null. 이 CLI는 엔진 음성 대조를 실행·기록하지 않으므로 자격을 갖춘 기록은 아직 이 CLI로 만들 수 없다",
+  "대조 참조(control_reference): --control-record로 명시한 control run.json만 읽어 잇는다(자동 탐색 없음), 생략하면 controlReference=null",
+  "음성 대조(negative-control 명령): R1~R9를 사례별 작업 공간에서 실행해 스위트 기록을 남기고, control 실행이 --negative-controls로 명시한 기록만 증거에서 다시 도출해 잇는다. 정상 run에 자동으로 붙지 않는다. 표의 R9 엔진 층은 기대 상태(ISOLATION_VIOLATION)가 같은 변형이 반드시 내는 SETTINGS_MISMATCH에 가려져 실행하지 않고 NOT_RUN(BLOCKED_CONTRACT_CONFLICT)으로 남기므로, 이 결정이 내려지기 전에는 어떤 기록도 자격을 갖출 수 없다. 이 결과는 스텁이면 SYNTHETIC이고 실제 엔진이 변형에 어떻게 반응하는지는 미확인이다",
   "공유 실행 잠금: 서버가 스캔하는 트리 하나를 범위로 한 배타 생성(O_EXCL) 파일이다. 오래된 잠금은 자동으로 지우지 않고 거절한다(복구는 README). 겹치는 트리·배타 생성을 보장하지 않는 파일 시스템은 보증하지 않는다. run.marker는 잠금이 아니라 실행별 증거 표지다",
   "서버 인자 `lsp --debug`: 미확인(ADR U3/U12)",
   "자식 환경변수 이름(SEMGREP_*): 하네스가 정한 이름이며 실제 서버가 읽는 이름과 같다는 것은 미확인",
@@ -158,6 +168,10 @@ const USAGE = `semgrep-lsp 하네스 CLI (ADR-001, Proposed) — Semgrep을 설�
              --repo <dir> --target-sha <40자 SHA> --scan-root <dir>
                  [--control-fixtures-root <dir>] [--control-record <run.json>]  (target)
              --control-fixtures-root <dir> --control-tree-root <dir>           (control)
+             --allow-real-semgrep --semgrep-bin <절대 경로> [--wheel-artifact <절대 경로>]
+             [--negative-controls <negative-controls.json>]                    (control)
+  cli.ts negative-control --suite-id <id> --rules-cache <dir> --evidence-root <dir>
+             --work-root <절대 경로> --control-fixtures-root <dir>
              --allow-real-semgrep --semgrep-bin <절대 경로> [--wheel-artifact <절대 경로>]
   cli.ts --help
 
@@ -204,6 +218,27 @@ run은 아래 셋이 모두 있을 때만 프로세스를 띄운다. 하나라�
   명시했는데 수락하지 못하면(없음·읽기 실패·깨진 JSON·스키마나 필드 오류·자격 불충족·기록 내부 모순) 참조 없이 진행하고
   CONTROL_REFERENCE_RECORD_REJECTED(이유 토큰)와 CONTROL_REFERENCE_MISSING을 남기며 COMPLETE가 될 수 없다. control 모드에서는 쓸 수 없다.
 
+음성 대조(negative-control): 정상 run과 별개의 명령이다. 같은 실행 방지 장치를 통과해야 하고, 정상 실행에 자동으로 붙지 않는다.
+  · 변하지 않은 입력의 기준 실행 하나와, NEGATIVE_CONTROL_TABLE의 (id, 층)마다 입력을 변형한 실행을 사례별 작업 공간(--work-root 아래)에서
+    돌린다. 원본 규칙 캐시·대조 예제는 읽기만 하고 사본을 변형한다. 사례마다 증거 폴더가 따로이고 서버 트리마다 공유 잠금·루프백
+    수신기·다른 서버 프로세스 관측을 쥔다(run과 같은 계약).
+  · 사전 검사 층은 엔진을 띄우지 못하게 감싼 포트로 정상 진입점을 돌려 거부를 관측한다. 엔진 층은 엔진 진단 진입점으로 돌리며, 엔진이 실제로
+    떴을 때만 관측이 성립한다(미기동은 NOT_RUN). 변형이 부른 사전 검사 사유만 있을 때 사유를 판정에 담은 채 띄우고, 도구·휠·환경변수·잠금·
+    다른 서버 같은 사유가 있으면 정상 실행처럼 띄우지 않는다.
+  · observed는 하네스가 낸 판정이다. 기대와 같고 표의 사유가 있고 결합이 기준과 같을 때만 PASS이며, 미실행·취소·실패·증거 누락은 NOT_RUN이다.
+    엔진 층은 대표 상태가 아니라 사유와 도달한 단계를 본다: 규칙 로딩(PH2)에 이르기 전의 초기화·전송 실패는 NOT_RUN이고, 사전 검사 사유가
+    상태를 가리는 id(R1~R5·R7)는 엔진 고유 관측의 계약이 확정되지 않아 실행해도 NOT_RUN이다.
+  · 기준 실행이 COMPLETE가 아니면(도구·휠 관측 실패 등) 변형의 효과를 가릴 수 없어 전부 NOT_RUN이다.
+  · 도구 관측 단계(버전 확인)에서 루프백 수신기가 요청을 본 것이 0건으로 확인되지 않으면(1건 이상·관측 실패·요약 없음) 기준·변형 서버를
+    하나도 시작하지 않고 전부 NOT_RUN이다(출력의 blocked). 관측값은 바꾸지 않는다.
+  · --evidence-root·--work-root 아래에 쓰게 될 경로가 원본(--rules-cache·--control-fixtures-root·고정 데이터·하네스) 안이면, 포트·잠금·표지·
+    상태 폴더를 만들기 전에 사용법 오류로 거절한다(링크·별칭·..를 푼 실제 위치 기준).
+  · 표에서 도출한 계약 충돌(엔진 기대가 같은 변형이 반드시 내는 사전 검사 사유에 가려지는 (id, 엔진))은 실행하지 않고 NOT_RUN으로 남긴다.
+    현재 표에서는 R9 엔진이 여기에 해당하므로, 이 결정이 내려지기 전에는 어떤 실행에서도 종료 코드가 0이 될 수 없다(출력의 conflicts).
+  · 결과는 <evidence-root>/<suite-id>/negative-controls.json에 쓴다. 16개가 모두 PASS일 때만 종료 코드 0이다.
+--negative-controls: control 실행이 위 스위트 기록 하나를 명시한다(control 전용, 자동 탐색·기본 경로 없음). 저장된 항목 선언은 읽지 않고
+  사례별 증거(run.json)를 같은 --evidence-root에서 다시 읽어 항목을 재도출한다. 이번 실행의 결합·출처와 다르면 항목을 쓰지 않는다.
+
 실행 자원(run): 서버가 스캔하는 트리(target은 --scan-root, control은 --control-tree-root) 하나를 범위로 공유 실행 잠금을 얻는다.
   잠금 파일은 그 트리의 부모 폴더에 semgrep-lsp-tree-<키>.lock으로 만들고, 같은 트리면 --run-id·--evidence-root가 달라도 충돌한다.
   오래된 잠금(해제하지 못하고 끝난 실행)은 소유자 상태를 확인하지 않고 자동으로 지우지 않는다 — 거절하고 출력의 lock.path·lock.holder를
@@ -231,6 +266,16 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
     "control-fixtures-root",
     "control-tree-root",
     "control-record",
+    "negative-controls",
+    "wheel-artifact",
+  ],
+  "negative-control": [
+    "suite-id",
+    "rules-cache",
+    "evidence-root",
+    "work-root",
+    "semgrep-bin",
+    "control-fixtures-root",
     "wheel-artifact",
   ],
 };
@@ -238,6 +283,7 @@ const FLAGS: Record<string, readonly string[]> = {
   precheck: [],
   scope: [],
   run: ["allow-real-semgrep"],
+  "negative-control": ["allow-real-semgrep"],
 };
 
 interface Parsed {
@@ -581,6 +627,13 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       "--control-record는 target 모드에서만 쓴다(control 실행은 대조 참조를 가질 수 없다)"
     );
   }
+  // 음성 대조 스위트 기록은 control에서 경로를 명시했을 때만 읽는다(자동 탐색·기본 경로 없음, target 실행에는 붙지 않는다).
+  const negativeControlsPath = parsed.options.get("negative-controls");
+  if (mode === "target" && negativeControlsPath !== undefined) {
+    throw new UsageError(
+      "--negative-controls는 control 모드에서만 쓴다(target 실행은 음성 대조를 가지지 않는다)"
+    );
+  }
   let targetSha: string | null = null;
   let git: GitPort = refusingGit;
   let scanRoot: string;
@@ -721,6 +774,13 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       controlReferenceRejection = loaded.rejection;
     }
 
+    // 명시한 음성 대조 스위트 기록을 읽는다(던지지 않는다). 저장된 항목 선언은 읽지 않고 사례별 증거에서 다시 도출한다. 하네스는 이번
+    // 실행의 결합·출처와 맞을 때만 항목을 쓴다. 명시하지 않았으면 16개 전부 NOT_RUN이다.
+    const negativeControlSuite =
+      negativeControlsPath === undefined
+        ? null
+        : await loadNegativeControlSuite(deps.fs, negativeControlsPath, evidenceRoot);
+
     // 프로세스 포트는 방지 장치를 통과한 이 경로에서 한 번만 만들고, 버전 확인과 하네스(LSP 서버)가 같은 포트를 쓴다. 출처(provenance)가
     // 한 곳에서 정해지므로 stub 포트의 관측이 real로 기록되지 않는다.
     const port = deps.makeProcessPort("real");
@@ -781,6 +841,7 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       settings: REAL_SETTINGS,
       controlReference,
       controlReferenceRejection,
+      negativeControlSuite,
       // 이 실행이 직접 관측한 값만 넘긴다. 관측하지 못했으면 null이고 사전 검사가 사유로 읽는다(핀 값으로 채우지 않는다).
       toolVersionObserved: tools.toolVersionObserved,
       wheelSha256Observed: tools.wheelSha256Observed,
@@ -834,6 +895,11 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
               run_id: controlReference?.run_id ?? null,
               rejection: controlReferenceRejection,
             },
+      // 음성 대조 스위트: 읽는 쪽의 결과. 하네스가 결합·출처를 맞춰 본 최종 수락 여부는 record.resources.negative_control_suite에 있다.
+      negative_controls:
+        negativeControlSuite === null
+          ? { given: false }
+          : { given: true, path: negativeControlsPath, loaded: negativeControlSuite.summary },
       // 잠금 파일의 경로와 다른 실행의 소유자 정보는 운영자가 복구할 때 필요해서 여기(출력)에만 싣는다. 증거에는 싣지 않는다.
       lock: {
         state: lock.state,
@@ -867,6 +933,279 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
   return complete && cleanedUp ? EXIT.ok : EXIT.failed;
 }
 
+// ── negative-control ────────────────────────────────────────────
+
+/** 서버 트리 하나를 쥔 동안의 자원(공유 잠금·증거 표지·루프백 수신기). */
+interface HeldResources {
+  evidenceDir: string;
+  lock: Awaited<ReturnType<typeof acquireRunLock>>;
+  lockHeld: boolean;
+  markerCreated: boolean;
+  receiver: MetricsReceiver;
+}
+
+/**
+ * 음성 대조 스위트를 실행한다(R1~R9). 정상 `run`과 별개의 명령이며 정상 실행에서 자동으로 불리지 않는다. 같은 실행 방지 장치를 통과해야만
+ * 프로세스 포트를 만든다. 사례마다 자기 서버 트리를 범위로 공유 잠금 → 증거 표지 → 루프백 수신기 → 다른 서버 프로세스 관측 순서로
+ * 자원을 쥐고(run과 같은 계약), 끝나면 어떤 경로로든 수신기를 닫고 잠금을 해제한다. 도구 버전·휠 관측은 스위트 전체에서 한 번 하고 모든
+ * 사례의 결합에 쓴다. 결과(스위트 기록)는 증거 폴더에 쓰고, control 실행이 --negative-controls로 명시해야 이어진다.
+ */
+async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number> {
+  // 1. 방지 장치. 인자 검증보다 먼저 보고, 하나라도 빠지면 어떤 포트도 만들지 않고 끝난다.
+  const missing = await missingGuardConditions(parsed, deps);
+  if (missing.length > 0) {
+    deps.stdout(
+      json({
+        command: "negative-control",
+        status: "NOT_RUN",
+        reason: "실제 실행 방지 장치를 통과하지 못했다 — 아무것도 시작하지 않았다",
+        missing_conditions: missing,
+      })
+    );
+    return EXIT.notRun;
+  }
+
+  // 2. 인자
+  const suiteId = need(parsed, "suite-id");
+  if (!isValidRunId(suiteId)) throw new UsageError(`--suite-id는 ${RUN_ID_RULE}여야 한다`);
+  const rulesCache = need(parsed, "rules-cache");
+  const evidenceRoot = need(parsed, "evidence-root");
+  const workRoot = need(parsed, "work-root");
+  const bin = need(parsed, "semgrep-bin");
+  const controlFixturesRoot = need(parsed, "control-fixtures-root");
+  const wheelArtifact = parsed.options.get("wheel-artifact") ?? null;
+  if (wheelArtifact !== null && !isAbsolute(wheelArtifact)) {
+    throw new UsageError("--wheel-artifact는 절대 경로여야 한다(상대 경로·자동 탐색 없음)");
+  }
+  if (!isAbsolute(workRoot)) {
+    throw new UsageError(
+      "--work-root는 절대 경로여야 한다(사례별 작업 공간과 잠금 파일이 이 아래에 놓인다)"
+    );
+  }
+  const suiteDir = joinPath(evidenceRoot, suiteId);
+  const suiteTree = joinPath(workRoot, suiteId);
+  let overlaps: boolean;
+  try {
+    overlaps = await evidenceInsideServerTree(deps.fs, suiteDir, suiteTree);
+  } catch (error) {
+    throw new UsageError(
+      `증거 폴더(--evidence-root)와 작업 공간(--work-root)의 위치 관계를 안전하게 판별하지 못했다: ${errorText(error)}`
+    );
+  }
+  if (overlaps) {
+    throw new UsageError("--evidence-root 아래의 스위트 폴더가 작업 공간(--work-root)과 겹친다");
+  }
+  // 쓰게 될 경로 전부가 원본(규칙 캐시·대조 예제·고정 데이터·하네스) 안에 들어가지 않는지 본다: 스위트·사례별 증거 폴더와 그 안의 표지·상태
+  // 폴더, 작업 공간, 그리고 규칙 사본·밖 사본·대조 트리 안의 파일 경로까지(사례 폴더는 정상이어도 그 아래가 링크일 수 있다). 포트·잠금·표지·
+  // 상태 폴더·수신기를 만들기 전에, 읽기만으로 거절한다. runNegativeControls도 같은 검사를 독립적으로 한다.
+  const outputInputs = {
+    suiteId,
+    workRoot,
+    evidenceRoot,
+    rulesCacheRoot: rulesCache,
+    controlFixturesRoot,
+    dataDir: deps.dataDir,
+    harnessRoot: parentOf(deps.dataDir),
+  };
+  const writePlan = await writePlanFor(deps.fs, outputInputs);
+  const outputProblem = await outputPathProblem(deps.fs, {
+    ...outputInputs,
+    ...(writePlan === null ? {} : { plan: writePlan }),
+  });
+  if (outputProblem !== null) {
+    throw new UsageError(
+      `--evidence-root·--work-root가 원본(규칙 캐시·대조 예제·고정 데이터·하네스)과 겹치거나 그 안에 있다 (${outputProblem}) — 증거와 작업 공간은 원본 밖의 별도 폴더여야 한다`
+    );
+  }
+
+  // 3. 방지 장치를 통과한 이 경로에서만 "real" 포트를 만든다(사례 실행과 도구 관측이 같은 포트를 쓴다).
+  const port = deps.makeProcessPort("real");
+
+  const cleanups: {
+    run_id: string;
+    lock: "RELEASED" | "NOT_RELEASED" | "NOT_ACQUIRED";
+    receiver_closed: boolean;
+  }[] = [];
+  /** 서버 트리 하나를 쥐고 fn을 부른다. 어떤 경로(정상·예외·취소)로 끝나도 수신기를 닫고 얻은 잠금만 자기 토큰으로 해제한다. */
+  const holding = async <T>(
+    runId: string,
+    serverTree: string,
+    fn: (held: HeldResources) => Promise<T>
+  ): Promise<T> => {
+    const evidenceDir = joinPath(evidenceRoot, runId);
+    const lock = await acquireRunLock(deps.runLock, {
+      treePath: serverTree,
+      runId,
+      mode: "control",
+    });
+    const note: (typeof cleanups)[number] = {
+      run_id: runId,
+      lock: lock.state === "ACQUIRED" ? "NOT_RELEASED" : "NOT_ACQUIRED",
+      receiver_closed: false,
+    };
+    cleanups.push(note);
+    let markerCreated = false;
+    let receiver: MetricsReceiver = failedMetricsReceiver("BIND_FAILED");
+    try {
+      if (lock.state === "ACQUIRED") {
+        try {
+          await deps.fs.mkdirp(joinPath(evidenceDir, SERVER_STATE_DIR));
+          await deps.fs.writeFileExclusive(
+            joinPath(evidenceDir, "run.marker"),
+            new TextEncoder().encode(`${JSON.stringify({ run_id: runId, mode: "control" })}\n`)
+          );
+          markerCreated = true;
+        } catch {
+          markerCreated = false;
+        }
+      }
+      try {
+        receiver = await deps.startMetricsReceiver();
+      } catch {
+        receiver = failedMetricsReceiver("BIND_FAILED");
+      }
+      return await fn({
+        evidenceDir,
+        lock,
+        lockHeld: lock.state === "ACQUIRED" && markerCreated,
+        markerCreated,
+        receiver,
+      });
+    } finally {
+      try {
+        await receiver.close();
+        note.receiver_closed = true;
+      } catch {
+        note.receiver_closed = false;
+      }
+      if (lock.state === "ACQUIRED") {
+        const released = await releaseRunLock(deps.runLock, lock.handle);
+        note.lock = released.state === "RELEASED" ? "RELEASED" : "NOT_RELEASED";
+      }
+    }
+  };
+
+  // 4. 도구 버전·휠 해시: 스위트 전체에서 한 번 관측한다(모든 사례의 결합에 같은 값이 쓰인다). 관측하지 못하면 null이고, 그러면 기준 실행이
+  // 깨끗하지 않아 모든 항목이 NOT_RUN이다.
+  const versionStateDir = joinPath(suiteDir, VERSION_STATE_DIR);
+  const tools = await holding(suiteId, suiteTree, (held) =>
+    runToolObservation({
+      fs: deps.fs,
+      process: port,
+      clock: deps.clock,
+      hasher: deps.hashArtifact,
+      lockHeld: held.lockHeld,
+      version: {
+        command: bin,
+        cwd: versionStateDir,
+        stateDir: versionStateDir,
+        env: buildChildEnv(deps, held.evidenceDir, held.receiver.url, VERSION_STATE_DIR),
+      },
+      wheelPath: wheelArtifact,
+      receiver: held.receiver,
+      ...(deps.signal ? { signal: deps.signal } : {}),
+    })
+  );
+
+  // 5. 사례 실행. 기준 실행 하나와 표의 (id, 층)마다의 변형 실행이 각자의 작업 공간·증거 폴더·자원으로 돈다.
+  const suite = await runNegativeControls(
+    {
+      fs: deps.fs,
+      git: refusingGit,
+      clock: deps.clock,
+      processFor: () => port,
+      withResources: <T>(key: RunKey, fn: (resources: CaseResources) => Promise<T>): Promise<T> =>
+        holding(key.runId, key.treeRoot, async (held) => {
+          // 같은 트리의 다른 서버 프로세스를 조회 시점에 관측한다(읽기만). 잠금을 얻었다는 이유로 0으로 채우지 않는다.
+          const foreign = await runForeignProcessObservation({
+            lister: deps.makeProcessLister(port),
+            fs: deps.fs,
+            lockHeld: held.lockHeld,
+            context: { ownPid: deps.ownPid, serverTree: key.treeRoot, semgrepBin: bin },
+            ...(deps.signal ? { signal: deps.signal } : {}),
+          });
+          const lockRefusal =
+            held.lock.state !== "ACQUIRED"
+              ? held.lock.reason
+              : held.markerCreated
+                ? null
+                : "EVIDENCE_MARKER_NOT_CREATED";
+          return fn({
+            lockHeld: held.lockHeld,
+            lockRefusal,
+            lockSummary: lockSummaryOf(held.lock, held.markerCreated),
+            foreignServerProcesses: foreign.foreignServerProcesses,
+            foreignProcessObservation: foreign.summary,
+            // 시작 시점의 스냅샷이 아니라, 하네스가 판정하는 시점에 수신기에서 읽은 누적 관측을 쓴다.
+            metricsReceiverHits: null,
+            metricsReceiver: held.receiver,
+            spawnEnv: buildChildEnv(deps, held.evidenceDir, held.receiver.url),
+          });
+        }),
+    },
+    {
+      suiteId,
+      workRoot,
+      evidenceRoot,
+      dataDir: deps.dataDir,
+      harnessRoot: parentOf(deps.dataDir),
+      rulesCacheRoot: rulesCache,
+      controlFixturesRoot,
+      spawn: { command: bin, args: [...SERVER_ARGS] },
+      limits: REAL_LIMITS,
+      settings: REAL_SETTINGS,
+      toolVersionObserved: tools.toolVersionObserved,
+      wheelSha256Observed: tools.wheelSha256Observed,
+      toolObservation: tools.summary,
+      ...(deps.signal ? { signal: deps.signal } : {}),
+    }
+  );
+
+  // 6. 스위트 기록. 이미 있으면 덮어쓰지 않는다. control 실행이 --negative-controls로 이 경로를 명시해야 이어진다.
+  const recordPath = joinPath(suiteDir, SUITE_RECORD_FILE);
+  let recordWritten = false;
+  try {
+    await deps.fs.mkdirp(suiteDir);
+    await deps.fs.writeFileExclusive(recordPath, new TextEncoder().encode(serializeSuite(suite)));
+    recordWritten = true;
+  } catch {
+    recordWritten = false;
+  }
+
+  const counts = {
+    pass: suite.entries.filter((e) => e.status === "PASS").length,
+    fail: suite.entries.filter((e) => e.status === "FAIL").length,
+    not_run: suite.entries.filter((e) => e.status === "NOT_RUN").length,
+  };
+  const cleanedUp =
+    cleanups.every((c) => c.lock !== "NOT_RELEASED" && c.receiver_closed) &&
+    tools.versionChildProcess !== "KILL_NOT_OBSERVED";
+  const complete = counts.pass === suite.entries.length;
+  deps.stdout(
+    json({
+      command: "negative-control",
+      suite_id: suiteId,
+      // 16개가 모두 PASS일 때만 COMPLETE다. 그 밖에는 INCOMPLETE이며 control 실행의 자격 계산이 NOT_RUN·FAIL을 막는다.
+      status: complete ? "COMPLETE" : "INCOMPLETE",
+      provenance: suite.provenance,
+      binding_sha256: suite.binding_sha256,
+      baseline: suite.baseline,
+      counts,
+      entries: suite.entries,
+      cases: suite.cases.map((c) => ({ id: c.id, layer: c.layer, outcome: c.outcome })),
+      conflicts: suite.conflicts,
+      // 사례를 하나도 시작하지 못하게 막은 사유(없으면 null). 도구 관측 단계의 관측값은 바꾸지 않고 그대로 싣는다.
+      blocked: suite.blocked,
+      record: { written: recordWritten, path: recordPath },
+      tool_observation: { ...tools.summary, wheel_artifact: wheelArtifact },
+      cleanup: cleanups,
+      not_established: suite.not_established,
+      not_implemented_or_not_verified: NOT_VERIFIED,
+    })
+  );
+  return complete && recordWritten && cleanedUp ? EXIT.ok : EXIT.failed;
+}
+
 // ── main ────────────────────────────────────────────────────────
 
 // @MX:ANCHOR: [AUTO] CLI의 유일한 진입 함수 — 시험과 실제 진입점이 모두 이 함수를 부른다.
@@ -883,6 +1222,8 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
         return await cmdPrecheck(parsed, deps);
       case "scope":
         return await cmdScope(parsed, deps);
+      case "negative-control":
+        return await cmdNegativeControl(parsed, deps);
       default:
         return await cmdRun(parsed, deps);
     }
