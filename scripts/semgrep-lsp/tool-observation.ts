@@ -462,6 +462,8 @@ export interface ToolObservationInputs {
     cwd: string;
     /** 버전 확인 전용 상태 폴더(증거 폴더 안). LSP 서버의 상태·로그와 섞지 않는다. 시작 전에 만든다. */
     stateDir: string;
+    /** Windows 에서만: 자식의 전용 홈 폴더(상태 폴더 아래). 시작 전에 상태 폴더와 같은 자리에서 만든다. 없으면 만들지 않는다. */
+    homeDir?: string;
     env: Readonly<Record<string, string>>;
     limits?: Partial<VersionCheckLimits>;
   };
@@ -615,6 +617,7 @@ export async function runToolObservation(
   let stateDirReady = true;
   try {
     await inputs.fs.mkdirp(inputs.version.stateDir);
+    if (inputs.version.homeDir !== undefined) await inputs.fs.mkdirp(inputs.version.homeDir);
   } catch {
     stateDirReady = false;
   }

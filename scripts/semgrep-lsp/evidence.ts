@@ -208,6 +208,11 @@ export const RUN_MARKER_FILE = "run.marker";
 export const SERVER_STATE_DIR = "semgrep-state";
 /** 버전 확인 프로세스의 상태 폴더 이름(증거 폴더 안, 서버 상태 폴더와 섞지 않는다). */
 export const VERSION_STATE_DIR = "version-check-state";
+/**
+ * 자식 프로세스의 전용 홈 폴더 이름(각 상태 폴더 안, Windows 에서만 만든다). Python 의 Path.home() 은 Windows 에서 USERPROFILE 을 읽으므로 자식 환경의
+ * USERPROFILE 이 이 폴더를 가리킨다(부모의 값을 복사하지 않는다). 쓰는 쪽과 쓰기 경로 검사가 같은 이름을 쓴다.
+ */
+export const CHILD_HOME_DIR = "home";
 
 /** 쓰는 순서. run.json이 마지막이라 run.json이 있으면 나머지도 있다. */
 export const EVIDENCE_FILE_NAMES = [

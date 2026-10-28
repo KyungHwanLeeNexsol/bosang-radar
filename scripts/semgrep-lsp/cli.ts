@@ -24,7 +24,7 @@ import { isAbsolute, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SystemClock } from "./clock";
 import { createNodeArtifactHasher } from "./artifact-node";
-import { SERVER_STATE_DIR, VERSION_STATE_DIR } from "./evidence";
+import { CHILD_HOME_DIR, SERVER_STATE_DIR, VERSION_STATE_DIR } from "./evidence";
 import { createNodeFs } from "./fs-node";
 import { createNodeGit } from "./git-node";
 import { runHarness, type HarnessOptions } from "./harness";
@@ -544,6 +544,31 @@ async function missingGuardConditions(parsed: Parsed, deps: CliDeps): Promise<st
   return missing;
 }
 
+/**
+ * 자식 프로세스의 전용 홈 폴더(Windows 에서만, 아니면 null). Python 의 Path.home() 은 Windows 에서 USERPROFILE 을 읽는데, 허용 목록에 부모의 USERPROFILE 을
+ * 복사하지 않는다 — 값은 이 실행의 상태 폴더 아래 `home` 으로 정한다. 상태 폴더를 만드는 자리에서 같이 만든다(새 증거 폴더 안이라 기존 경로 보호와 같은 범위다).
+ * Linux 는 예전과 같다(허용 목록의 HOME 을 복사한다). HOME·HOMEDRIVE·HOMEPATH·APPDATA 같은 다른 홈 변수는 주지 않는다.
+ */
+export function childHomeDir(
+  deps: Pick<CliDeps, "platform">,
+  evidenceDir: string,
+  stateDirName: string = SERVER_STATE_DIR
+): string | null {
+  return deps.platform === "win32"
+    ? joinPath(joinPath(evidenceDir, stateDirName), CHILD_HOME_DIR)
+    : null;
+}
+
+/** runToolObservation 의 version 입력에 펼쳐 넣는 조각: Windows 에서만 { homeDir }, 아니면 빈 객체. */
+function homeDirOption(
+  deps: Pick<CliDeps, "platform">,
+  evidenceDir: string,
+  stateDirName: string
+): { homeDir?: string } {
+  const home = childHomeDir(deps, evidenceDir, stateDirName);
+  return home === null ? {} : { homeDir: home };
+}
+
 /** 자식 환경: 최소 허용 목록 + 루프백 URL + 증거 폴더 안의 상태 파일 경로. 토큰·기밀은 복사하지 않는다. */
 /**
  * 자식 프로세스 환경. 메트릭·버전 확인·앱 URL은 모두 하네스가 연 수신기의 실제 주소로 돌린다(metricsUrl). 수신기를 열지 못했으면
@@ -565,14 +590,34 @@ export function buildChildEnv(
   }
   const state = joinPath(evidenceDir, stateDirName);
   const url = metricsUrl ?? LOOPBACK_URL;
+  const home = childHomeDir(deps, evidenceDir, stateDirName);
   return {
     ...env,
+    // Windows 에서만: 부모 값이 아니라 이 실행의 전용 홈. 폴더는 상태 폴더를 만드는 자리에서 만든다(childHomeDir).
+    ...(home === null ? {} : { USERPROFILE: home }),
     SEMGREP_APP_URL: url,
     SEMGREP_METRICS_URL: url,
     SEMGREP_VERSION_CHECK_URL: url,
     SEMGREP_LOG_FILE: joinPath(state, "semgrep.log"),
     SEMGREP_SETTINGS_FILE: joinPath(state, "settings.yml"),
     SEMGREP_VERSION_CACHE_PATH: joinPath(state, "version-cache"),
+  };
+}
+
+/**
+ * 도구 버전 관측(`--version` 한 번) 자식의 환경: buildChildEnv 의 결과(버전 확인 상태 폴더 기준)에 온라인 최신 버전 조회를 끄는
+ * 고정값 SEMGREP_ENABLE_VERSION_CHECK=0 하나만 더한다. 값은 부모 환경에서 읽지 않는 상수이고(부모에 1 이 있어도 0), 설치 버전 출력을
+ * 바꾸지 않는다. 서버(LSP) 경로의 buildChildEnv 호출과 precheck 허용 목록에는 더하지 않는다 — 퍼뜨리지 않으려고 따로 둔 함수다.
+ * PowerShell 쪽 New-VersionChildEnv(VersionContract.ps1)와 같은 이름 집합·같은 값이다.
+ */
+export function buildVersionChildEnv(
+  deps: Pick<CliDeps, "getEnv" | "platform">,
+  evidenceDir: string,
+  metricsUrl: string | null
+): Record<string, string> {
+  return {
+    ...buildChildEnv(deps, evidenceDir, metricsUrl, VERSION_STATE_DIR),
+    SEMGREP_ENABLE_VERSION_CHECK: "0",
   };
 }
 
@@ -740,6 +785,8 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
       // 실행별 증거 표지: 같은 증거 폴더를 두 번 쓰지 않게 한다. 공유 잠금이 아니다.
       try {
         await deps.fs.mkdirp(joinPath(evidenceDir, "semgrep-state"));
+        const serverHome = childHomeDir(deps, evidenceDir);
+        if (serverHome !== null) await deps.fs.mkdirp(serverHome);
         await deps.fs.writeFileExclusive(
           joinPath(evidenceDir, "run.marker"),
           new TextEncoder().encode(`${JSON.stringify({ run_id: runId, mode })}\n`)
@@ -798,7 +845,8 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
         command: bin,
         cwd: versionStateDir,
         stateDir: versionStateDir,
-        env: buildChildEnv(deps, evidenceDir, receiver.url, VERSION_STATE_DIR),
+        ...homeDirOption(deps, evidenceDir, VERSION_STATE_DIR),
+        env: buildVersionChildEnv(deps, evidenceDir, receiver.url),
       },
       wheelPath: wheelArtifact,
       receiver,
@@ -1050,6 +1098,8 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
       if (lock.state === "ACQUIRED") {
         try {
           await deps.fs.mkdirp(joinPath(evidenceDir, SERVER_STATE_DIR));
+          const controlHome = childHomeDir(deps, evidenceDir);
+          if (controlHome !== null) await deps.fs.mkdirp(controlHome);
           await deps.fs.writeFileExclusive(
             joinPath(evidenceDir, "run.marker"),
             new TextEncoder().encode(`${JSON.stringify({ run_id: runId, mode: "control" })}\n`)
@@ -1099,7 +1149,8 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
         command: bin,
         cwd: versionStateDir,
         stateDir: versionStateDir,
-        env: buildChildEnv(deps, held.evidenceDir, held.receiver.url, VERSION_STATE_DIR),
+        ...homeDirOption(deps, held.evidenceDir, VERSION_STATE_DIR),
+        env: buildVersionChildEnv(deps, held.evidenceDir, held.receiver.url),
       },
       wheelPath: wheelArtifact,
       receiver: held.receiver,
