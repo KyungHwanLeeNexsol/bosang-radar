@@ -99,7 +99,7 @@ README의 명령 예시는 실제로 쓴 `-ExecutionPolicy RemoteSigned`로 바�
 | **실제 Windows(이 PC)** | 기존 Python 3.12.9(`-I -S`, 현재 관리자 사용자로 실행, Semgrep 미임포트)로 `Path.home()`: 전용 `USERPROFILE` 주면 그 값, 없으면 `Could not determine home directory.` | 통과 (양성·음성 대조군) |
 | 합성(TS 대조) | tsx로 실제 `buildChildEnv`(win32/linux)를 실행해 PS 환경 계약과 이름 집합·`USERPROFILE`·상태 경로 대조 | 통과 |
 | 합성(TS 단위·통합) | `scripts/semgrep-lsp` 전체 vitest (이번에 8개 추가: `buildChildEnv`·`childHomeDir` 5, 관측 2, CLI 흐름 Windows 1 + Linux 대조 보강) | 61파일 2721 통과, 8 건너뜀 |
-| 정적 | tsc(프로젝트 전체) / eslint(변경 TS) / prettier(변경 TS·MD) | tsc는 기존 `app/layout.tsx` 1건뿐(이번 변경과 무관), eslint·prettier 통과 |
+| 정적 | tsc(프로젝트 전체) / eslint(변경 TS) / prettier(변경 TS와 `README.md`) | tsc는 기존 `app/layout.tsx` 1건뿐(이번 변경과 무관), eslint·prettier 통과. **`.moai/` 보고서는 `.prettierignore` 대상이라 prettier가 검사하지 않았다(서식 미검사)** |
 | 파일·구조 점검 | `Test-IsolationScripts.ps1` — pwsh / 5.1 | 각 188/188 (기존 139) |
 | 구조 점검의 유효성 | 임시 복사본에 위반 12개를 심어 검사(catch에서 eof, 셸 사용, 환경 Clear 제거, 허용 밖 mode, `streamsClosed` 직접 계산, 허용 밖 파일 쓰기, 변경 관문 밖 계정 켜기, 판정 인라인, 부모 `USERPROFILE` 읽기, 계약 최상위 명령, 계약 파일 읽기, 시나리오 목록 어긋남) | 12/12 잡힘 (대규모 변이 점검은 아님) |
 | 합성(기존 흐름 시험, 모의 시스템 변경 확인) | `tests/Test-IsolationFlows.ps1` — 자식 엔진 5.1 / pwsh | 각 162/162 |
