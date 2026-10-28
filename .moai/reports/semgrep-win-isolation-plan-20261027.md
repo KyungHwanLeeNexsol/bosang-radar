@@ -4,6 +4,7 @@
 - 기준: PR #35 브랜치 `security/semgrep-lsp-dist-verify`의 정정 반영 HEAD `b18a57e` 위의 별도 브랜치 `security/semgrep-lsp-win-isolation`
 - 성격: 스크립트와 문서 추가. **계정 생성, 방화벽 규칙, 감사 정책, ACL 변경, 전용 계정으로의 프로세스 실행은 한 번도 하지 않았다.** `semgrep`·`semgrep-core`·`pysemgrep`(`--version` 포함)도 실행하지 않았다.
 - 이 문서는 격리 효과의 증거가 아니다. 효과는 `Test-IsolationEffect.ps1 -Execute`를 소유자 승인 뒤에 실행하고 그 관측을 읽어야만 말할 수 있다.
+- **후속(2026-10-27):** 이 문서는 실행 전 시점의 계획과 근거 구분이며 아래 서술(예: "한 번도 하지 않았다", "미확인")은 그 시점 그대로 보존했다. 이후 이 PC에서 `-Apply`/`-Execute`/복구를 실제로 1회 실행했고 그 결과는 [실행 보고서](semgrep-win-isolation-run-20261027.md)에 있다. 이어서 전용 계정에서 `semgrep --version`을 1회 시도한 결과는 [버전 관측 보고서](semgrep-version-observation-20261027.md)에 있다.
 
 ## 1. 결론
 
