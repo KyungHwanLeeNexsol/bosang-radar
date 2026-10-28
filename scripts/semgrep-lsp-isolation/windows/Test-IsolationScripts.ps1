@@ -256,8 +256,10 @@ $vcVars = @([regex]::Matches($vcSrc, '\$Script:(\w+)\s*=') | ForEach-Object { $_
 Assert-That '계약 파일: New-Object 는 인코딩·목록만, 정적 .NET 호출은 파일·프로세스·네트워크·환경이 아니고, $env: 를 읽지 않으며, $Script: 대입은 상수 둘(VersionArgs·VersionLimits)뿐이다' (($vcNewObjBad.Count -eq 0) -and ($vcStatic.Count -eq 0) -and (@(Get-EnvNames $vcSrc).Count -eq 0) -and (($vcVars -join ',') -eq 'VersionArgs,VersionLimits')) "newObj=$($vcNewObjBad.Count) static=$($vcStatic.Count) vars=$($vcVars -join ',')"
 Assert-That '계약 파일: 온라인 최신 버전 조회를 끄는 고정값은 문자열 상수 0 으로 한 번만 대입한다(부모 환경에서 읽지 않는다)' (([regex]::Matches($vcSrc, "SEMGREP_ENABLE_VERSION_CHECK\s*=\s*'0'")).Count -eq 1) ''
 $vcNameUsers = @($all | Where-Object { $_ -ne 'Test-IsolationScripts.ps1' -and $srcOf[$_] -match 'SEMGREP_ENABLE_VERSION_CHECK' } | Sort-Object)
-$vcNameWant = @($versionContract, $versionStub, 'tests\Test-VersionRunner.ps1', 'tests\Test-VersionFlows.ps1') | Sort-Object
-Assert-That '고정값 한정: 이 이름은 버전 관측 계약·스텁·그 시험에만 나온다(프로브·격리 흐름·관리자 진입점·자식 실행기에는 없다)' (($vcNameUsers -join ',') -eq ($vcNameWant -join ',')) ("실제: $($vcNameUsers -join ',')")
+$vcNameWant = @($versionContract, $versionEntry, $versionStub, 'tests\Test-VersionRunner.ps1', 'tests\Test-VersionFlows.ps1') | Sort-Object
+Assert-That '고정값 한정: 이 이름은 버전 관측 계약(대입 한 곳)·진입점(설명 주석)·스텁·그 시험에만 나온다(프로브·격리 흐름·다른 관리자 진입점·자식 실행기에는 없다)' (($vcNameUsers -join ',') -eq ($vcNameWant -join ',')) ("실제: $($vcNameUsers -join ',')")
+$veNameCode = @($asts[$versionEntry].FindAll({ param($n) ($n -is [Management.Automation.Language.StringConstantExpressionAst] -or $n -is [Management.Automation.Language.ExpandableStringExpressionAst] -or $n -is [Management.Automation.Language.CommandAst] -or $n -is [Management.Automation.Language.VariableExpressionAst]) -and $n.Extent.Text -match 'SEMGREP_ENABLE_VERSION_CHECK' }, $true))
+Assert-That '고정값 한정: 진입점 파일에서 이 이름은 설명 주석에만 있고 실행 코드(문자열·명령·변수)에는 없다' ($veNameCode.Count -eq 0) (($veNameCode | ForEach-Object { "$($_.Extent.Text)@$($_.Extent.StartLineNumber)" }) -join ' | ')
 
 # (E) 새 시험 파일: 모의 샌드박스 환경 변수를 정한 뒤에만 진입 스크립트를 부른다
 $vfSrc = $srcOf['tests\Test-VersionFlows.ps1']

@@ -5,7 +5,8 @@
   기본은 사전 조건 확인과 계획 출력만 한다(dry-run). 실제 실행은 -Execute. 좁은 용도의 진입점이며 범용 실행기가 아니다.
   - 실행기(version-runner.ps1)는 mode 가 semgrep-version 이면 이름이 semgrep.exe 인 절대 경로 파일과 인자 ["--version"] 만, stub 이면 version-stub.ps1 의 고정 시나리오만 실행한다.
   - semgrep-version 모드의 한도는 scripts/semgrep-lsp/tool-observation.ts 의 DEFAULT_VERSION_LIMITS(30000ms / 4096B / 16384B / 5000ms)에 고정돼 있어 바꾸려 하면 거부한다. stub 모드만 한도를 바꿀 수 있다.
-  - 환경은 계약대로 최소 목록(PATH·SYSTEMROOT·TEMP·TMP)과 SEMGREP_APP_URL/METRICS_URL/VERSION_CHECK_URL(= 이 스크립트가 연 루프백 수신기), SEMGREP_LOG_FILE/SETTINGS_FILE/VERSION_CACHE_PATH(작업 폴더 안)뿐이다.
+  - 환경은 계약대로 최소 목록(PATH·SYSTEMROOT·TEMP·TMP)과 USERPROFILE(작업 폴더 안 전용 home), SEMGREP_APP_URL/METRICS_URL/VERSION_CHECK_URL(= 이 스크립트가 연 루프백 수신기),
+    SEMGREP_LOG_FILE/SETTINGS_FILE/VERSION_CACHE_PATH(작업 폴더 안), SEMGREP_ENABLE_VERSION_CHECK(온라인 최신 버전 조회를 끄는 고정값 0. 부모 환경에서 읽지 않는다)뿐이다.
     사용자 환경(토큰·프록시 자격증명 포함)을 물려주지 않는다. 계약과 다른 점: PATH 는 이 PC 사용자 PATH 가 아니라 Windows 폴더(System32;Windows)로 고정하고 TEMP/TMP 는 작업 폴더 안으로 둔다(더 좁게 한 것).
   - 실행 순서(-Execute): 사전 조건(휠·실행 파일 해시, 가상환경/기반 Python ACL 부여 확인) → 감사 창(Filtering Platform Connection 실패) → 로그 기준점 → 계정 켜기 → 루프백 수신기 →
     전용 계정으로 실행기 → 프로세스 트리 관측 → 신원 교차 확인 → 해석 계약 적용(VersionContract.ps1) → 5157 대조(이번 실행의 프로세스에 귀속된 것만) → 정리(독립 실행·읽어서 확인).
