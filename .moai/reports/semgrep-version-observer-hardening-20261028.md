@@ -125,3 +125,7 @@ README의 명령 예시는 실제로 쓴 `-ExecutionPolicy RemoteSigned`로 바�
 
 - 다음 실제 `semgrep.exe --version` 관측을 이 수정본으로 별도 1회 진행할지(이번에는 하지 않았다).
 - `STREAMS_NOT_CLOSED`를 사용 불가로 두는 엄격한 기준(5절 첫 항목)을 유지할지. 자손이 파이프를 쥐는 정상 동작이 확인되면 기준을 다시 논의해야 한다.
+
+## 8. 후속 (2026-10-28, 실제 관측 실행됨)
+
+6절의 "실제 `semgrep.exe`를 실행하지 않았다"와 7절의 첫 항목은 이 문서를 쓰던 시점의 상태이며 바꾸지 않았다. 이후 이 수정본(HEAD `9bda3ba`)으로 별도 1회 실제 관측을 했고, 판정은 `NOT_OBSERVED:TIMEOUT`(30초 한도에서 강제 종료, stdout·stderr 0바이트)이다. `STREAMS_NOT_CLOSED` 기준은 유지했고 이 실행은 그 기준을 시험하지 못했다(`TIMEOUT` 하나로 이미 사용 불가). 결과와 복구는 [두 번째 관측 보고서](semgrep-version-observation-20261028.md)에 있다.
