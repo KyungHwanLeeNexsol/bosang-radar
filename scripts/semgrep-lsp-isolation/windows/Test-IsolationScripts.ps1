@@ -13,6 +13,11 @@
      - semgrep 계열을 명령으로 호출하는 곳이 없고, 내려받기·Invoke-Expression 이 없다.
      - 각 진입 스크립트의 기본 모드가 dry-run 이다($Script:ApplyMode 가 -Apply/-Execute 로만 켜진다).
      - 코드가 부르는 모든 시스템 변경 명령을 모의 시스템(tests/MockSystem.ps1)이 덮는다(새 변경 명령을 추가하면서 모의를 빠뜨리면 흐름 시험이 진짜 명령을 부를 수 있다).
+     - 버전 관측 파일은 역할마다 다른 규칙을 받는다(모두에 같은 규칙을 억지로 씌우지 않고, 위 규칙을 완화하지도 않는다):
+         관리자 진입점(Test-VersionObservation.ps1): 위의 변경 관문·dry-run 규칙을 그대로 받고, -Execute 없이는 첫 Invoke-Mutation 앞에서 돌아오며, 자식 환경을 계약 함수로만 만든다.
+         자식 실행기(version-runner.ps1): 고정 모드·인자, 셸 비사용, 환경 제한, 시간·출력 제한, 읽기 실패를 EOF 로 바꾸지 않는 읽기 함수, 허용된 쓰기는 결과 파일뿐.
+         스텁(version-stub.ps1): 시나리오 목록이 실행기·진입점과 같고, 시스템을 바꾸는 명령이 없다.
+         계약 파일(VersionContract.ps1): 실행 부작용이 없다(최상위는 대입과 함수 정의뿐, 부를 수 있는 명령은 허용 목록뿐).
   4) 논리: 신원 교차 확인·이벤트 대조·판정·감사 값 읽기·권한 계산을 합성 입력으로 시험한다. 실제 이벤트 로그·방화벽·계정은 쓰지 않는다.
   적용·검증·복구 진입 경로를 모의 시스템 위에서 끝까지 도는 흐름 시험은 tests/Test-IsolationFlows.ps1 이 한다.
   이 점검의 통과는 "스크립트가 의도한 구조와 논리를 가졌다"까지만 뜻한다. 실제 환경에서의 효과는 뜻하지 않는다.
@@ -30,13 +35,18 @@ function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
 }
 
 $dir = $PSScriptRoot
-$entry = 'Invoke-IsolationPreflight.ps1', 'Initialize-Isolation.ps1', 'Remove-Isolation.ps1', 'Test-IsolationEffect.ps1', 'Get-IsolationEvidence.ps1'
+$versionEntry = 'Test-VersionObservation.ps1'
+$entry = 'Invoke-IsolationPreflight.ps1', 'Initialize-Isolation.ps1', 'Remove-Isolation.ps1', 'Test-IsolationEffect.ps1', 'Get-IsolationEvidence.ps1', $versionEntry
 $libCommon = 'IsolationCommon.ps1'
 $libFlows = 'IsolationFlows.ps1'
 $library = @($libCommon, $libFlows)
 $probes = 'probe-parent.ps1', 'probe-child.ps1'
-$testFiles = 'tests\MockSystem.ps1', 'tests\Test-IsolationFlows.ps1'
-$all = @($entry) + @($library) + @($probes) + @($testFiles) + @('Test-IsolationScripts.ps1')
+$versionRunner = 'version-runner.ps1'
+$versionStub = 'version-stub.ps1'
+$versionContract = 'VersionContract.ps1'
+$versionChildFiles = @($versionRunner, $versionStub)
+$testFiles = 'tests\MockSystem.ps1', 'tests\Test-IsolationFlows.ps1', 'tests\Test-VersionRunner.ps1', 'tests\Test-VersionFlows.ps1'
+$all = @($entry) + @($library) + @($probes) + @($versionChildFiles) + @($versionContract) + @($testFiles) + @('Test-IsolationScripts.ps1')
 
 # ── 1) 구문, 2) BOM ─────────────────────────────────────────────────────────
 $asts = @{}
@@ -160,6 +170,94 @@ $mockText = $srcOf['tests\MockSystem.ps1']
 $uncovered = @($usedMutators | Where-Object { $mockText -notmatch ("(?m)^function " + [regex]::Escape($_) + "\b") -and $mockText -notmatch ("'" + [regex]::Escape($_) + "'") })
 Assert-That '모의 시스템이 코드가 부르는 모든 변경 명령을 덮는다' ($uncovered.Count -eq 0) ($uncovered -join ', ')
 Assert-That '모의 시스템은 진짜 auditpol 을 부르지 않는다(Invoke-AuditPol 을 대체한다)' ($mockText -match '(?m)^function Invoke-AuditPol')
+
+# ── 버전 관측 파일: 역할별 구조 검사 ─────────────────────────────────────────────
+# 모두에 같은 규칙을 씌우지 않는다. 관리자 진입점은 위의 변경 관문·.NET 쓰기·모의 덮개 규칙을 이미 받았고(진입점 목록에 있다),
+# 여기서는 역할에 맞는 규칙을 더한다. 위의 어떤 규칙도 이 구역 때문에 느슨해지지 않는다.
+function Get-FuncAst($Ast, [string]$Name) { $Ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $Name }, $true) }
+function Get-CommandNames($Ast) { @($Ast.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true) | ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Select-Object -Unique) }
+function Get-QuotedList([string]$Text, [string]$Pattern) { $m = [regex]::Match($Text, $Pattern); if (-not $m.Success) { return @() }; @([regex]::Matches($m.Groups[1].Value, "'([^']+)'") | ForEach-Object { $_.Groups[1].Value } | Sort-Object) }
+function Get-EnvNames([string]$Text) { @([regex]::Matches($Text, '\$env:(\w+)') | ForEach-Object { $_.Groups[1].Value.ToUpperInvariant() } | Sort-Object -Unique) }
+function Get-DotNetWriteSites($Ast) {
+    $sites = New-Object System.Collections.ArrayList
+    foreach ($m in $Ast.FindAll({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static }, $true)) {
+        if ($m.Expression.Extent.Text -notmatch '(?i)^\[(System\.)?IO\.(File|Directory)\]$') { continue }
+        if ($m.Member.Extent.Text -notmatch $dotNetWrites) { continue }
+        [void]$sites.Add([pscustomobject]@{ Fn = (Get-EnclosingFunction $m); Text = $m.Extent.Text.Split("`n")[0].Trim(); Line = $m.Extent.StartLineNumber })
+    }
+    , @($sites)
+}
+
+# (A) 관리자 진입점 Test-VersionObservation.ps1: 변경 관문·dry-run·환경 구성
+$veSrc = $srcOf[$versionEntry]; $veAst = $asts[$versionEntry]
+$fnVO = Get-FuncAst $veAst 'Invoke-VersionObservation'
+Assert-That '진입점(버전 관측): Invoke-VersionObservation 함수가 있다' ($null -ne $fnVO)
+if ($fnVO) {
+    $mutOffs = @($fnVO.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Invoke-Mutation' }, $true) | ForEach-Object { $_.Extent.StartOffset })
+    $dryIf = @($fnVO.FindAll({ param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text -match 'NOT_EXECUTED' }, $true)) | Select-Object -First 1
+    $firstMut = $null; if ($mutOffs.Count -gt 0) { $firstMut = ($mutOffs | Measure-Object -Minimum).Minimum }
+    Assert-That '진입점(버전 관측): -Execute 가 없으면 NOT_EXECUTED 로 돌아오고, 그 분기가 첫 Invoke-Mutation 보다 앞에 있다(기본은 dry-run)' ([bool]($dryIf -and $null -ne $firstMut -and $dryIf.Extent.EndOffset -lt $firstMut))
+}
+Assert-That '진입점(버전 관측): -Execute 는 [bool] 로 흐름 함수에 넘어가고 ApplyMode 는 그 값으로만 켜진다' (($veSrc -match 'Invoke-VersionObservation[^\r\n]*-Execute \(\[bool\]\$Execute\)') -and ($veSrc -match '\$Script:ApplyMode\s*=\s*\$Execute'))
+Assert-That '진입점(버전 관측): semgrep-version 모드의 한도는 어댑터 계약 값에 고정돼 있고 다르면 거부(30)한다' ($veSrc -match '(?s)semgrep-version.{0,200}\$Script:VersionLimits.{0,400}exitCode = 30')
+Assert-That '진입점(버전 관측): 자식 환경은 계약 함수(New-VersionChildEnv)로만 만든다 — 부모 환경 변수는 $env:WINDIR 하나만 읽는다' (($veSrc -match 'New-VersionChildEnv\s+-WindowsDir') -and ((Get-EnvNames $veSrc) -join ',') -eq 'WINDIR') ((Get-EnvNames $veSrc) -join ',')
+Assert-That '진입점(버전 관측): 수집 상태·종료 코드·해석의 판정은 계약 함수(Get-VersionObservationFailures) 한 곳에서 한다' (($veSrc -match 'Get-VersionObservationFailures\s+-RunnerResult') -and ($veSrc -notmatch "\`$failure\s*=\s*'(TIMEOUT|KILLED|NONZERO_EXIT|STREAM|RUNNER)"))
+Assert-That '진입점(버전 관측): 성공(VERSION_OBSERVED)은 신원 확인·실패 없음·버전 값이 모두 있을 때만 정해진다' ($veSrc -match 'if \(\$idOk -and -not \$failure -and \$versionStr\)')
+Assert-That '진입점(버전 관측): 정리 불완전이면 종료 코드 70 이고, 정리는 항목마다 독립 실행한다(Invoke-IsoCleanupStep 4곳 이상)' (($veSrc -match '(?s)if \(-not \$cleanupOk\)\s*\{[^}]*\$exitCode = 70') -and ([regex]::Matches($veSrc, 'Invoke-IsoCleanupStep')).Count -ge 4)
+Assert-That '진입점(버전 관측): 관측 성립과 정리 완료를 따로 기록한다(report.observation·report.cleanup)' (($veSrc -match '\$report\.observation\s*=') -and ($veSrc -match '\$report\.cleanup\s*='))
+
+# (B) 자식 실행기 version-runner.ps1: 고정 모드·인자, 셸 비사용, 환경 제한, 시간·출력 제한, 읽기 실패 구분
+$vrSrc = $srcOf[$versionRunner]; $vrAst = $asts[$versionRunner]
+$vrCmds = Get-CommandNames $vrAst
+$vrMut = @($mutatingCmdlets | Where-Object { $_ -ne 'Stop-Process' } | Where-Object { $vrCmds -contains $_ })
+$vrNative = @($vrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true) | Where-Object { $_.Extent.Text -match $mutatingNative })
+Assert-That '자식 실행기: 프로세스 종료(Stop-Process) 말고는 시스템을 바꾸는 명령이 없다(계정·방화벽·감사·ACL·파일 삭제/복사·Start-Process 없음)' (($vrMut.Count -eq 0) -and ($vrNative.Count -eq 0)) ($vrMut -join ',')
+$vrIoBad = @((Get-DotNetWriteSites $vrAst) | Where-Object { $_.Fn -ne 'Write-ResultFile' })
+Assert-That '자식 실행기: 파일 쓰기/삭제 .NET 호출은 결과 파일을 쓰는 Write-ResultFile 안에서만 한다' ($vrIoBad.Count -eq 0) (($vrIoBad | ForEach-Object { "$($_.Text)@$($_.Line)" }) -join ' | ')
+Assert-That '자식 실행기: mode 는 semgrep-version 과 stub 둘뿐이고 그 밖은 거부한다' (($vrSrc -match "\`$req\.mode -eq 'semgrep-version'") -and ($vrSrc -match "\`$req\.mode -eq 'stub'") -and ($vrSrc -match "else \{ \`$refuse = '알 수 없는 mode' \}"))
+Assert-That '자식 실행기: semgrep-version 모드는 이름이 semgrep.exe 인 절대 경로와 인자 정확히 ["--version"] 하나만 받는다' (($vrSrc -match "\(Split-Path -Leaf \`$exe\) -ne 'semgrep\.exe'") -and ($vrSrc -match "\`$args0\.Count -ne 1 -or \`$args0\[0\] -ne '--version'") -and ($vrSrc -match 'IsPathRooted\(\$exe\)'))
+$vrShell = @($vrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true) | Where-Object { $nm = $_.GetCommandName(); $nm -and ($nm -in @('Invoke-Expression', 'iex', 'Start-Process', 'Invoke-Command', 'cmd', 'cmd.exe', 'powershell', 'powershell.exe', 'pwsh', 'pwsh.exe')) })
+Assert-That '자식 실행기: 셸을 쓰지 않는다 — ProcessStartInfo(UseShellExecute=$false) 로 절대 경로를 직접 실행한다' (($vrShell.Count -eq 0) -and ($vrSrc -match 'UseShellExecute = \$false') -and ($vrSrc -notmatch 'UseShellExecute\s*=\s*\$true') -and ($vrSrc -notmatch '(?i)cmd(\.exe)?\s+/c') -and ($vrSrc -match 'FileName = \$exe'))
+$iClear = $vrSrc.IndexOf('EnvironmentVariables.Clear()'); $iSet = $vrSrc.IndexOf('EnvironmentVariables[')
+Assert-That '자식 실행기: 환경은 요청의 것만 쓴다 — EnvironmentVariables.Clear() 가 첫 대입보다 앞서고, 이 프로세스의 $env: 는 WINDIR(5.1 경로) 하나뿐이다' (($iClear -ge 0) -and ($iSet -gt $iClear) -and ((Get-EnvNames $vrSrc) -join ',') -eq 'WINDIR') "Clear=$iClear Set=$iSet env=$((Get-EnvNames $vrSrc) -join ',')"
+Assert-That '자식 실행기: 한도 네 개가 없거나 1 미만이면 거부한다(timeoutMs·maxStdoutBytes·maxStderrBytes·killWaitMs)' ($vrSrc -match "foreach \(\`$k in 'timeoutMs', 'maxStdoutBytes', 'maxStderrBytes', 'killWaitMs'\)[^\r\n]*-lt 1")
+Assert-That '자식 실행기: 시간 초과·출력 초과·읽기 실패면 자식 트리를 끝내고 종료를 관찰한다' ($vrSrc -match '(?s)if \(\$res\.child\.timedOut -or \$res\.child\.outputLimitExceeded -or \$res\.child\.streamReadFailed\)\s*\{\s*\[void\]\(Stop-ProcessTree')
+$fnStep = Get-FuncAst $vrAst 'Step-StreamRead'; $fnNew = Get-FuncAst $vrAst 'New-StreamState'
+$eofInCatch = @()
+foreach ($fn in @($fnStep, $fnNew)) { if ($fn) { foreach ($c in $fn.FindAll({ param($n) $n -is [Management.Automation.Language.CatchClauseAst] }, $true)) { if ($c.Body.Extent.Text -match '\.eof\s*=') { $eofInCatch += "$($fn.Name)@$($c.Extent.StartLineNumber)" } } } }
+Assert-That '자식 실행기: 읽기 예외(catch) 안에서 eof 를 true 로 만들지 않는다 — 정상 EOF 와 읽기 실패를 구분한다' ([bool]($fnStep -and $fnNew) -and $eofInCatch.Count -eq 0) ($eofInCatch -join ',')
+Assert-That '자식 실행기: eof 를 켜는 곳은 EndRead 가 예외 없이 0 을 돌려준 한 곳뿐이다' (([regex]::Matches($vrSrc, '\.eof\s*=\s*\$true')).Count -eq 1)
+Assert-That '자식 실행기: streamsClosed 는 한 함수(Test-StreamsClosed)가 정하고, 식으로 직접 계산하지 않는다' (($vrSrc -match '\$res\.streamsClosed = Test-StreamsClosed') -and ($vrSrc -notmatch 'streamsClosed\s*=\s*\[bool\]'))
+$loadIf = $vrAst.Find({ param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text -match "ParameterSetName -eq 'Load'" }, $true)
+$procStart = $vrAst.Find({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static -and $n.Extent.Text -match 'Diagnostics\.Process\]::Start' }, $true)
+Assert-That '자식 실행기: -LoadFunctionsOnly 는 프로세스를 시작하는 코드보다 앞에서 돌아온다' ([bool]($loadIf -and $procStart -and $loadIf.Extent.EndOffset -lt $procStart.Extent.StartOffset))
+
+# (C) 스텁 version-stub.ps1: 시나리오 목록이 실행기·진입점과 같고, 시스템을 바꾸는 명령이 없다
+$vsSrc = $srcOf[$versionStub]; $vsAst = $asts[$versionStub]
+$stubList = Get-QuotedList $vsSrc '\$allowed\s*=\s*@\(([^)]*)\)'
+$runnerList = Get-QuotedList $vrSrc '\$Script:StubScenarios\s*=\s*@\(([^)]*)\)'
+$entryList = Get-QuotedList $veSrc 'ValidateSet\(([^)]*)\)\]\[string\]\$StubScenario'
+Assert-That '스텁: 시나리오 목록이 스텁·실행기·진입점에서 같다(허용 목록이 어긋나지 않는다)' ((@($stubList).Count -ge 12) -and (($stubList -join ',') -eq ($runnerList -join ',')) -and (($stubList -join ',') -eq ($entryList -join ','))) ("스텁=$($stubList -join ',') / 실행기=$($runnerList -join ',') / 진입점=$($entryList -join ',')")
+$vsMut = @($mutatingCmdlets | Where-Object { (Get-CommandNames $vsAst) -contains $_ })
+$vsEnv = @(Get-EnvNames $vsSrc | Where-Object { @('SYSTEMROOT', 'USERPROFILE') -notcontains $_ })
+Assert-That '스텁: 시스템을 바꾸는 명령도 파일 쓰기도 없고, 읽는 환경 변수는 SYSTEMROOT·USERPROFILE 뿐이다' (($vsMut.Count -eq 0) -and ((Get-DotNetWriteSites $vsAst).Count -eq 0) -and ($vsEnv.Count -eq 0)) (($vsMut + $vsEnv) -join ',')
+Assert-That '스텁: 프로세스를 시작하는 곳은 고정 인자(Start-Sleep -Seconds 90)의 자손 하나뿐이다' (([regex]::Matches($vsSrc, 'Diagnostics\.Process\]::Start')).Count -eq 1 -and ($vsSrc -match "Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 90'"))
+
+# (D) 계약 파일 VersionContract.ps1: 실행 부작용이 없다
+$vcSrc = $srcOf[$versionContract]; $vcAst = $asts[$versionContract]
+$vcTopBad = @($vcAst.EndBlock.Statements | Where-Object { $_ -isnot [Management.Automation.Language.AssignmentStatementAst] -and $_ -isnot [Management.Automation.Language.FunctionDefinitionAst] })
+Assert-That '계약 파일: 최상위는 대입과 함수 정의뿐이다(불러오는 것만으로 실행되는 것이 없다)' ($vcTopBad.Count -eq 0) (($vcTopBad | ForEach-Object { $_.Extent.Text.Split("`n")[0].Trim() }) -join ' | ')
+$vcOwn = @($vcAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+$vcExtra = @((Get-CommandNames $vcAst) | Where-Object { (@('New-Object', 'Join-Path') + $vcOwn) -notcontains $_ })
+Assert-That '계약 파일: 부르는 명령이 허용 목록(New-Object·Join-Path·이 파일의 함수)뿐이다 — 파일·프로세스·네트워크·계정 접근 없음' ($vcExtra.Count -eq 0) ($vcExtra -join ',')
+$vcNewObjBad = @($vcAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-Object' }, $true) | Where-Object { $_.Extent.Text -notmatch 'New-Object\s+(Text\.UTF8Encoding|System\.Collections\.ArrayList)\b' })
+$vcStatic = @($vcAst.FindAll({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static -and $n.Expression.Extent.Text -match '(?i)IO\.|Diagnostics|Net\.|Environment|Reflection|Activator' }, $true))
+$vcVars = @([regex]::Matches($vcSrc, '\$Script:(\w+)\s*=') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+Assert-That '계약 파일: New-Object 는 인코딩·목록만, 정적 .NET 호출은 파일·프로세스·네트워크·환경이 아니고, $env: 를 읽지 않으며, $Script: 대입은 상수 둘(VersionArgs·VersionLimits)뿐이다' (($vcNewObjBad.Count -eq 0) -and ($vcStatic.Count -eq 0) -and (@(Get-EnvNames $vcSrc).Count -eq 0) -and (($vcVars -join ',') -eq 'VersionArgs,VersionLimits')) "newObj=$($vcNewObjBad.Count) static=$($vcStatic.Count) vars=$($vcVars -join ',')"
+
+# (E) 새 시험 파일: 모의 샌드박스 환경 변수를 정한 뒤에만 진입 스크립트를 부른다
+$vfSrc = $srcOf['tests\Test-VersionFlows.ps1']
+Assert-That '흐름 시험(버전): 진입 스크립트를 부르기 전에 모의 샌드박스(ISO_MOCK_SANDBOX)를 정하고 끝나면 지운다' (($vfSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -ge 0) -and ($vfSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -lt $vfSrc.IndexOf('-File (Join-Path $Sb.Code $Script)')) -and ($vfSrc -match 'Remove-Item Env:\\ISO_MOCK_SANDBOX'))
 
 # ── 4) 논리(합성 입력) ──────────────────────────────────────────────────────
 Assert-That 'ConvertTo-AuditFlags 0..3' ((-not (ConvertTo-AuditFlags 0).Success) -and (ConvertTo-AuditFlags 1).Success -and (-not (ConvertTo-AuditFlags 1).Failure) -and (ConvertTo-AuditFlags 2).Failure -and (ConvertTo-AuditFlags 3).Success -and (ConvertTo-AuditFlags 3).Failure)

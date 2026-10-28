@@ -10,11 +10,12 @@
     sleep      자손 하나를 띄우고 90초 대기(시간 제한 확인)  flood-out  stdout 에 10000바이트 뒤 대기(출력 한도 확인)
     flood-err  stderr 에 40000바이트 뒤 대기             orphan     자손을 남기고 0.0.0 을 찍은 뒤 바로 종료
     env-names  받은 환경변수 이름만 나열(값은 찍지 않는다)  cwd        현재 작업 폴더
+    home       받은 USERPROFILE 값 한 줄(경로만. 다른 환경변수 값은 찍지 않는다)
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Scenario)
 $ErrorActionPreference = 'Stop'
-$allowed = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd')
+$allowed = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home')
 if ($allowed -notcontains $Scenario) { exit 9 }
 
 function Write-OutBytes([byte[]]$Bytes) { $o = [Console]::OpenStandardOutput(); $o.Write($Bytes, 0, $Bytes.Length); $o.Flush() }
@@ -44,5 +45,6 @@ switch ($Scenario) {
     'orphan' { Start-Sleeper; Write-OutBytes (Get-Ascii "0.0.0`n") }
     'env-names' { Write-OutBytes (Get-Ascii ((([Environment]::GetEnvironmentVariables().Keys | Sort-Object) -join ',') + "`n")) }
     'cwd' { Write-OutBytes ([Text.Encoding]::UTF8.GetBytes(((Get-Location).Path) + "`n")) }
+    'home' { Write-OutBytes ([Text.Encoding]::UTF8.GetBytes(([string]$env:USERPROFILE) + "`n")) }
 }
 exit 0

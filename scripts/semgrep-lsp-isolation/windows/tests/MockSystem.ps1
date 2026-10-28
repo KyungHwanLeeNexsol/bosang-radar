@@ -254,6 +254,8 @@ function Start-Process {
     param([string]$FilePath, [object]$ArgumentList, $Credential, [string]$WorkingDirectory, [switch]$LoadUserProfile, [switch]$PassThru, [switch]$Wait, [string]$WindowStyle)
     $argv = @($ArgumentList | ForEach-Object { [string]$_ })
     Write-MockLog ('Start-Process ' + $FilePath + ' ' + ($argv -join ' ') + ' credential=' + [bool]$Credential)
+    # 버전 실행기(version-runner.ps1): 전용 계정으로 부르는 경우만 흉내 낸다(결과 파일을 시나리오대로 만든다).
+    if ($Credential -and ($argv -join ' ') -match 'version-runner\.ps1') { return (Invoke-MockVersionRunner -Credential $Credential -Argv $argv) }
     if (-not $Credential -or ($argv -join ' ') -notmatch 'probe-parent\.ps1') {
         # 관리자 계정 대조군이거나 그 밖의 실행: 아무것도 하지 않고 끝난 프로세스를 돌려준다.
         return [pscustomobject]@{ Id = 1; HasExited = $true; ExitCode = 0 }
@@ -306,6 +308,54 @@ function Start-Process {
     if ($omit -notcontains 'parent-done.json') { Write-MockJson (Join-Path $dir 'parent-done.json') $done }
     [pscustomobject]@{ Id = $parentPid; HasExited = $true; ExitCode = 0 }
 }
+# ── 버전 실행기(version-runner.ps1) 흉내 ─────────────────────────────────────
+# 시나리오 version 절의 runner 손잡이:
+#   stdout / stderr (문자열), exitCode (기본 0), childState (기본 EXITED), noResult (결과 파일을 쓰지 않는다)
+#   set   = [ { path = 'stdout.readFailed'; value = $true }, ... ]   결과 JSON 의 점 경로를 덮어쓴다(값 null 은 null 로 쓴다)
+#   unset = [ 'streamsClosed', ... ]                                  점 경로를 지운다(필수 상태가 누락된 결과를 흉내 낸다)
+# 실행기를 실제로 돌리지 않는다. 진입 스크립트(관리자 쪽)의 판정이 시험 대상이므로, 실행기가 남길 수 있는 결과 파일을 대신 만든다.
+function Set-MockPath {
+    param($Root, [string]$Path, $Value, [switch]$Remove)
+    $segs = $Path.Split('.'); $cur = $Root
+    for ($i = 0; $i -lt $segs.Count - 1; $i++) { $cur = $cur[$segs[$i]] }
+    $leaf = $segs[$segs.Count - 1]
+    if ($Remove) { $cur.Remove($leaf) } else { $cur[$leaf] = $Value }
+}
+function Invoke-MockVersionRunner {
+    param($Credential, [string[]]$Argv)
+    $ri = [Array]::IndexOf($Argv, '-RequestFile'); $reqFile = $Argv[$ri + 1].Trim('"')
+    $req = [IO.File]::ReadAllText($reqFile, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $sid = Get-MockUserSid $Credential.UserName
+    $exe = $Script:Ps51
+    $base = [DateTime]::UtcNow
+    $Script:MockLaunched = $true
+    $runnerPid = [int]$Script:Fake.nextPid; $childPid = $runnerPid + 1; $Script:Fake.nextPid = $runnerPid + 2; Save-MockState
+    $rStart = $base.AddMilliseconds(10); $cStart = $base.AddMilliseconds(50)
+    $alive = [bool](Get-MockKnob 'procsStayAlive' $false)
+    # 자식 명령줄: 실행기가 ProcessStartInfo.Arguments 로 만드는 것과 같은 모양(공백·따옴표가 있는 인자만 따옴표로 감싼다).
+    $cmd = '"' + [string]$req.exe + '" ' + ((@($req.args) | ForEach-Object { if (([string]$_) -match '[\s"]') { '"' + ([string]$_).Replace('"', '\"') + '"' } else { [string]$_ } }) -join ' ')
+    $Script:MockProcs[$runnerPid] = @{ role = 'parent'; processId = $runnerPid; parentProcessId = 1234; exePath = $exe; startUtc = $rStart.ToString('o'); ownerSid = $sid; alive = $alive; commandLine = 'runner' }
+    $Script:MockProcs[$childPid] = @{ role = 'child'; processId = $childPid; parentProcessId = $runnerPid; exePath = [string]$req.exe; startUtc = $cStart.ToString('o'); ownerSid = $sid; alive = $alive; commandLine = $cmd }
+    $knob = Get-MockKnob 'runner'
+    function RK([string]$n, $d = $null) { if ($knob) { $x = $knob.PSObject.Properties[$n]; if ($x) { return $x.Value } }; $d }
+    $so = [Text.Encoding]::UTF8.GetBytes([string](RK 'stdout' "0.0.0`r`n")); $se = [Text.Encoding]::UTF8.GetBytes([string](RK 'stderr' ''))
+    $res = [ordered]@{
+        schema = 2; runToken = [string]$req.runToken; mode = [string]$req.mode; startedUtc = $base.ToString('o'); finishedUtc = $base.AddMilliseconds(150).ToString('o')
+        runner = [ordered]@{ pid = $runnerPid; sid = $sid; exe = $exe; envNames = @('PATH', 'SYSTEMROOT') }
+        request = [ordered]@{ exe = [string]$req.exe; args = @($req.args) }; refused = $null; error = $null
+        child = [ordered]@{ started = $true; pid = $childPid; startUtc = $cStart.ToString('o'); exitCode = [int](RK 'exitCode' 0); hasExited = $true; killed = $false; timedOut = $false; outputLimitExceeded = $false; spawnError = $null; mainModule = [string]$req.exe }
+        durationMsObserved = 80; durationMsOs = 78
+        stdout = [ordered]@{ b64 = [Convert]::ToBase64String($so); bytesKept = $so.Length; bytesRead = $so.Length; limit = 4096; overflow = $false; readFailed = $false }
+        stderr = [ordered]@{ b64 = [Convert]::ToBase64String($se); bytesKept = $se.Length; bytesRead = $se.Length; limit = 16384; overflow = $false; readFailed = $false }
+        streamsClosed = $true
+        descendantsSeen = @(); descendantsLeftoverKilled = @(); descendantsAliveAfterCleanup = 0; descendantTrackingOk = $true
+        childState = [string](RK 'childState' 'EXITED')
+    }
+    foreach ($s in @(RK 'set' @())) { Set-MockPath -Root $res -Path ([string]$s.path) -Value $s.value }
+    foreach ($u in @(RK 'unset' @())) { Set-MockPath -Root $res -Path ([string]$u) -Remove }
+    if (-not [bool](RK 'noResult' $false)) { Write-MockJson ([string]$req.resultFile) $res }
+    [pscustomobject]@{ Id = $runnerPid; HasExited = $true; ExitCode = 0 }
+}
 function Get-ProcessRecord {
     param([Parameter(Mandatory)][int]$ProcessId, [Parameter(Mandatory)][string]$Role)
     if (-not $Script:MockProcs.ContainsKey($ProcessId)) { return $null }
@@ -317,14 +367,33 @@ function Get-ProcessRecord {
 }
 function Stop-Process { [CmdletBinding()] param([int]$Id, [switch]$Force) Write-MockLog "Stop-Process $Id"; if ($Script:MockProcs.ContainsKey($Id)) { $Script:MockProcs[$Id].alive = $false } }
 function Get-Process {
-    [CmdletBinding()] param([switch]$IncludeUserName)
-    foreach ($k in @($Script:MockProcs.Keys)) { $p = $Script:MockProcs[$k]; if ($p.alive) { $u = @($Script:Fake.users.Keys | Where-Object { $Script:Fake.users[$_].Sid -eq $p.ownerSid }) | Select-Object -First 1; [pscustomobject]@{ ProcessName = 'powershell'; Id = [int]$k; UserName = ('MOCK-PC\' + $u) } }
+    [CmdletBinding()] param([switch]$IncludeUserName, [int[]]$Id)
+    foreach ($k in @($Script:MockProcs.Keys)) {
+        if ($Id -and @($Id) -notcontains [int]$k) { continue }
+        $p = $Script:MockProcs[$k]
+        if ($p.alive) { $u = @($Script:Fake.users.Keys | Where-Object { $Script:Fake.users[$_].Sid -eq $p.ownerSid }) | Select-Object -First 1; [pscustomobject]@{ ProcessName = 'powershell'; Id = [int]$k; UserName = ('MOCK-PC\' + $u) } }
     }
 }
 function Get-CimInstance {
-    [CmdletBinding()] param([string]$ClassName, [string]$Filter)
+    [CmdletBinding()] param([string]$ClassName, [string]$Filter, [string[]]$Property)
     if ($ClassName -eq 'Win32_UserProfile') { return $null }
+    if ($ClassName -eq 'Win32_Process') {
+        # 버전 관측 흐름이 관리자 쪽에서 읽는 프로세스 표(모의 프로세스만). 시작 시각은 지역 시간으로 돌려준다(진짜 CIM 처럼).
+        foreach ($k in @($Script:MockProcs.Keys)) {
+            $p = $Script:MockProcs[$k]
+            $cl = $null; if ($p.ContainsKey('commandLine')) { $cl = [string]$p.commandLine }
+            [pscustomobject]@{ ProcessId = [int]$k; ParentProcessId = [int]$p.parentProcessId; ExecutablePath = [string]$p.exePath; CommandLine = $cl; CreationDate = ([DateTime]::Parse([string]$p.startUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)).ToLocalTime() }
+        }
+        return
+    }
     throw "MOCK GUARD: 대체하지 않은 CIM 조회: $ClassName"
+}
+function Invoke-CimMethod {
+    [CmdletBinding()] param($InputObject, [string]$MethodName)
+    if ($MethodName -ne 'GetOwnerSid') { throw "MOCK GUARD: 대체하지 않은 CIM 메서드: $MethodName" }
+    $k = [int]$InputObject.ProcessId
+    if (-not $Script:MockProcs.ContainsKey($k)) { return [pscustomobject]@{ ReturnValue = 2; Sid = $null } }
+    [pscustomobject]@{ ReturnValue = 0; Sid = [string]$Script:MockProcs[$k].ownerSid }
 }
 function Remove-CimInstance { [CmdletBinding()] param($InputObject) throw 'MOCK GUARD: Remove-CimInstance 는 이 시나리오에서 호출되면 안 된다' }
 
@@ -335,6 +404,13 @@ function Remove-Item {
     if (-not $full.StartsWith($Script:MockSandbox + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "MOCK GUARD: 샌드박스 밖 삭제 시도: $full" }
     Write-MockLog "Remove-Item $full"
     Microsoft.PowerShell.Management\Remove-Item -LiteralPath $LiteralPath -Recurse:$Recurse -Force:$Force
+}
+function New-Item {
+    [CmdletBinding()] param([string]$ItemType, [Parameter(Position = 0)][string]$Path, [switch]$Force)
+    $full = [IO.Path]::GetFullPath($Path)
+    if (-not $full.StartsWith($Script:MockSandbox + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "MOCK GUARD: 샌드박스 밖 폴더 만들기 시도: $full" }
+    Write-MockLog "New-Item $full"
+    Microsoft.PowerShell.Management\New-Item -ItemType $ItemType -Path $Path -Force:$Force
 }
 function Copy-Item {
     [CmdletBinding()] param([string]$LiteralPath, [string]$Destination, [switch]$Force)

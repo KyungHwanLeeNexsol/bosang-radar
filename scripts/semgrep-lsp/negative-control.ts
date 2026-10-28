@@ -68,6 +68,7 @@ import {
 } from "./control";
 import { readControlExpectations } from "./control-expectations";
 import {
+  CHILD_HOME_DIR,
   EVIDENCE_FILE_NAMES,
   RUN_MARKER_FILE,
   SERVER_STATE_DIR,
@@ -432,6 +433,10 @@ function plannedOutputs(inputs: OutputPathInputs): string[] {
     suiteDir,
     ...[SUITE_RECORD_FILE, RUN_MARKER_FILE, SERVER_STATE_DIR, VERSION_STATE_DIR].map((name) =>
       joinPath(suiteDir, name)
+    ),
+    // Windows 에서 상태 폴더 안에 만드는 전용 홈 폴더(다른 플랫폼에서는 만들지 않지만 검사는 항상 한다 — 검사 대상이 더 넓은 쪽이 안전하다).
+    ...[SERVER_STATE_DIR, VERSION_STATE_DIR].map((name) =>
+      joinPath(joinPath(suiteDir, name), CHILD_HOME_DIR)
     )
   );
   for (const run of plannedRuns(inputs.suiteId)) {
@@ -442,6 +447,7 @@ function plannedOutputs(inputs: OutputPathInputs): string[] {
       ...[...EVIDENCE_FILE_NAMES, RUN_MARKER_FILE, SERVER_STATE_DIR].map((name) =>
         joinPath(evidenceDir, name)
       ),
+      joinPath(joinPath(evidenceDir, SERVER_STATE_DIR), CHILD_HOME_DIR),
       key.root,
       `${key.root}-outside`,
       key.treeRoot

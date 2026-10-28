@@ -740,6 +740,47 @@ describe("runToolObservation", () => {
     expect(r.wheelSha256Observed).not.toBeNull();
   });
 
+  it("homeDir 가 있으면 상태 폴더 다음에 전용 홈 폴더도 프로세스를 띄우기 전에 만든다(없으면 만들지 않는다)", async () => {
+    const s = setup();
+    const r = await drive(
+      s.w.clock,
+      runToolObservation({
+        ...s.base,
+        version: { ...s.base.version, homeDir: "/ev/version-check-state/home" },
+      })
+    );
+    expect(s.mkdirs).toEqual(["/ev/version-check-state", "/ev/version-check-state/home"]);
+    expect(r.toolVersionObserved).toBe("1.180.0");
+    const none = setup();
+    await drive(none.w.clock, runToolObservation(none.base));
+    expect(none.mkdirs).toEqual(["/ev/version-check-state"]);
+  });
+
+  it("전용 홈 폴더를 만들지 못하면 프로세스를 띄우지 않고 STATE_DIR_NOT_CREATED 다(휠 관측은 따로 시도한다)", async () => {
+    const s = setup();
+    const fs = {
+      async mkdirp(path: string): Promise<void> {
+        s.mkdirs.push(path);
+        if (path.endsWith("/home")) throw new Error("EACCES");
+      },
+    };
+    const r = await drive(
+      s.w.clock,
+      runToolObservation({
+        ...s.base,
+        fs,
+        version: { ...s.base.version, homeDir: "/ev/version-check-state/home" },
+      })
+    );
+    expect(s.w.port.spawnCalls).toEqual([]);
+    expect(r.summary.version_check).toMatchObject({
+      status: "NOT_ATTEMPTED",
+      failure: "STATE_DIR_NOT_CREATED",
+    });
+    expect(r.toolVersionObserved).toBeNull();
+    expect(r.wheelSha256Observed).not.toBeNull();
+  });
+
   it("한쪽이 실패해도 다른 쪽은 독립적으로 관측한다", async () => {
     const versionFails = setup(finishing("garbage\n"));
     const a = await drive(versionFails.w.clock, runToolObservation(versionFails.base));

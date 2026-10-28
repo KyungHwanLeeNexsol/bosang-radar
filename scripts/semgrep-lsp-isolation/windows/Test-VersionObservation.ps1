@@ -21,7 +21,7 @@ param(
     [Parameter(Mandatory)][string]$RunDir,
     [switch]$Execute,
     [ValidateSet('semgrep-version', 'stub')][string]$Mode = 'semgrep-version',
-    [ValidateSet('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd')][string]$StubScenario = 'ok',
+    [ValidateSet('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home')][string]$StubScenario = 'ok',
     [string]$SemgrepExe,
     [string]$ExpectedExeSha256,
     [string]$WheelPath,
@@ -152,6 +152,7 @@ function Invoke-VersionObservation {
 
     $workDir = Join-Path $names.WorkDir 'work'
     $tmpDir = Join-Path $workDir 'tmp'; $stateDir = Join-Path $workDir 'state'
+    $homeDir = Get-VersionChildHome -StateDir $stateDir       # 전용 USERPROFILE. 작업 폴더 안이라 복구가 작업 폴더(.owner 확인 뒤)를 지울 때 함께 지워진다
     $resultFile = Join-Path $workDir 'version-result.json'; $reqFile = Join-Path $workDir 'version-request.json'
     $exe = $SemgrepExe; $argv = @($Script:VersionArgs); $runnerMode = 'semgrep-version'
     if ($Mode -eq 'stub') { $exe = $Script:Ps51; $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', (Join-Path $workDir 'version-stub.ps1'), $StubScenario); $runnerMode = 'stub'; if (-not $ExpectedVersion -or $ExpectedVersion -eq '1.180.0') { $ExpectedVersion = '0.0.0' } }
@@ -159,7 +160,7 @@ function Invoke-VersionObservation {
     $modeText = 'DRY-RUN(계획만)'; if ($Execute) { $modeText = 'EXECUTE(실제 실행)' }
     Write-IsoLog -Level 'INFO' -Message ("모드: {0}  실행 종류: {1}" -f $modeText, $Mode)
     if (-not $Execute) {
-        Write-IsoLog -Level 'PLAN' -Message '감사 창 열기(Filtering Platform Connection 실패 감사) → 로그 기준점 기록 → 전용 계정 사용 켜기 → 이전 결과 파일 지우기 → 작업 폴더에 tmp·state 만들고 실행기 복사 → 루프백 수신기 열기'
+        Write-IsoLog -Level 'PLAN' -Message '감사 창 열기(Filtering Platform Connection 실패 감사) → 로그 기준점 기록 → 전용 계정 사용 켜기 → 이전 결과 파일 지우기 → 작업 폴더에 tmp·state·state\home(전용 USERPROFILE) 만들고 실행기 복사 → 루프백 수신기 열기'
         Write-IsoLog -Level 'PLAN' -Message ("전용 계정으로 실행기 실행 → 실행기가 셸 없이 한 번 실행: {0} {1}  (cwd={2}, 한도 {3}ms/{4}B/{5}B/{6}ms)" -f $exe, ($argv -join ' '), $workDir, $limits.timeoutMs, $limits.maxStdoutBytes, $limits.maxStderrBytes, $limits.killWaitMs)
         Write-IsoLog -Level 'PLAN' -Message '프로세스 트리를 관리자 쪽에서 직접 관측(CIM) → 신원 교차 확인 → 해석 계약 적용 → 5157 을 이번 실행의 프로세스에 귀속된 것만 대조 → 판정'
         Write-IsoLog -Level 'PLAN' -Message '정리(각각 독립 실행·읽어서 확인): 수신기 정지, 전용 계정의 남은 프로세스 종료, 계정 비활성화, 감사 값 복구'
@@ -195,18 +196,15 @@ function Invoke-VersionObservation {
             $ap = Join-Path $workDir $a
             if (Test-Path -LiteralPath $ap) { Invoke-Mutation -Description "이전 실행의 파일 삭제: $a" -Action { Remove-Item -LiteralPath $ap -Force -ErrorAction Stop } | Out-Null }
         }
-        foreach ($d in $tmpDir, $stateDir) { if (-not (Test-Path -LiteralPath $d)) { Invoke-Mutation -Description "작업 폴더 안에 폴더 만들기: $d" -Action { New-Item -ItemType Directory -Path $d -ErrorAction Stop | Out-Null } | Out-Null } }
+        foreach ($d in $tmpDir, $stateDir, $homeDir) { if (-not (Test-Path -LiteralPath $d)) { Invoke-Mutation -Description "작업 폴더 안에 폴더 만들기: $d" -Action { New-Item -ItemType Directory -Path $d -ErrorAction Stop | Out-Null } | Out-Null } }
         $toCopy = @('version-runner.ps1'); if ($Mode -eq 'stub') { $toCopy += 'version-stub.ps1' }
         foreach ($f in $toCopy) { $src = Join-Path $Script:EntryDir $f; Invoke-Mutation -Description "작업 폴더로 복사: $f" -Action { Copy-Item -LiteralPath $src -Destination (Join-Path $workDir $f) -Force -ErrorAction Stop } | Out-Null }
 
         $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0); $listener.Start()
         $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port
         $url = "http://127.0.0.1:$port"
-        $envTable = [ordered]@{
-            PATH = "$env:WINDIR\System32;$env:WINDIR"; SYSTEMROOT = $env:WINDIR; TEMP = $tmpDir; TMP = $tmpDir
-            SEMGREP_APP_URL = $url; SEMGREP_METRICS_URL = $url; SEMGREP_VERSION_CHECK_URL = $url
-            SEMGREP_LOG_FILE = (Join-Path $stateDir 'semgrep.log'); SEMGREP_SETTINGS_FILE = (Join-Path $stateDir 'settings.yml'); SEMGREP_VERSION_CACHE_PATH = (Join-Path $stateDir 'version-cache')
-        }
+        # 자식 환경은 이 함수가 만드는 것뿐이다(부모 환경·토큰·프록시를 물려주지 않는다). USERPROFILE 은 부모 값이 아니라 위에서 만든 전용 home 이다.
+        $envTable = New-VersionChildEnv -WindowsDir $env:WINDIR -TmpDir $tmpDir -StateDir $stateDir -Url $url
         $reqDoc = [ordered]@{ runToken = $runToken; mode = $runnerMode; exe = $exe; args = $argv; cwd = $workDir; env = $envTable; limits = $limits; resultFile = $resultFile }
         $report.request = [ordered]@{ mode = $runnerMode; exe = $exe; args = $argv; cwd = $workDir; envNames = @($envTable.Keys); envValuesLoopbackUrl = $url; limits = $limits }
         Invoke-Mutation -Description '실행 요청 쓰기: version-request.json(이번 실행의 토큰 포함)' -Action { [IO.File]::WriteAllText($reqFile, ($reqDoc | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false))) } | Out-Null
@@ -319,8 +317,9 @@ function Invoke-VersionObservation {
                 exe = $exe; args = $argv; cwd = $workDir; accountSid = $sid; runnerPid = $parentPid; childPid = (Get-IsoProp $ci 'pid')
                 exitCode = (Get-IsoProp $ci 'exitCode'); childState = (Get-IsoProp $resultObj 'childState'); killed = (Get-IsoProp $ci 'killed'); timedOut = (Get-IsoProp $ci 'timedOut'); outputLimitExceeded = (Get-IsoProp $ci 'outputLimitExceeded')
                 durationMsObserved = (Get-IsoProp $resultObj 'durationMsObserved'); durationMsOs = (Get-IsoProp $resultObj 'durationMsOs'); streamsClosed = (Get-IsoProp $resultObj 'streamsClosed')
-                stdout = [ordered]@{ bytes = $stdoutBytes.Length; bytesRead = (Get-IsoProp $so 'bytesRead'); overflow = (Get-IsoProp $so 'overflow'); hex = (($stdoutBytes | ForEach-Object { $_.ToString('x2') }) -join '') }
-                stderr = [ordered]@{ bytes = $stderrBytes.Length; bytesRead = (Get-IsoProp $se 'bytesRead'); overflow = (Get-IsoProp $se 'overflow'); note = 'stderr 는 해석에 쓰지 않는다(바이트 수만 기록). 원문은 version-stderr.bin' }
+                runnerError = (Get-IsoProp $resultObj 'error'); runnerRefused = (Get-IsoProp $resultObj 'refused')       # 수집 상태: 실행기 오류와 스트림 읽기 실패·종료 여부는 판정(Get-VersionObservationFailures)이 쓴다
+                stdout = [ordered]@{ bytes = $stdoutBytes.Length; bytesRead = (Get-IsoProp $so 'bytesRead'); overflow = (Get-IsoProp $so 'overflow'); readFailed = (Get-IsoProp $so 'readFailed'); readState = (Get-IsoProp $so 'state'); readError = (Get-IsoProp $so 'error'); hex = (($stdoutBytes | ForEach-Object { $_.ToString('x2') }) -join '') }
+                stderr = [ordered]@{ bytes = $stderrBytes.Length; bytesRead = (Get-IsoProp $se 'bytesRead'); overflow = (Get-IsoProp $se 'overflow'); readFailed = (Get-IsoProp $se 'readFailed'); readState = (Get-IsoProp $se 'state'); readError = (Get-IsoProp $se 'error'); note = 'stderr 는 해석에 쓰지 않는다(바이트 수만 기록). 원문은 version-stderr.bin' }
                 childEnvNamesPassed = @($envTable.Keys); runnerEnvNames = (Get-IsoProp (Get-IsoProp $resultObj 'runner') 'envNames')
             }
             $report.childCleanup = [ordered]@{
@@ -333,26 +332,18 @@ function Invoke-VersionObservation {
             [IO.File]::WriteAllBytes((Join-Path $Script:IsoRunDir "version-stderr-$stamp.bin"), $stderrBytes)
         } | Out-Null
 
-        $failure = $null; $parsed = $null
-        if (-not $resultObj) { $failure = 'RUNNER_NO_RESULT' }
-        else {
-            $ci = Get-IsoProp $resultObj 'child'
-            if ($null -ne (Get-IsoProp $resultObj 'refused') -and (Get-IsoProp $resultObj 'refused')) { $failure = 'RUNNER_REFUSED' }
-            elseif (-not [bool](Get-IsoProp $ci 'started')) { $failure = 'SPAWN_FAILED' }
-            elseif ([bool](Get-IsoProp $ci 'timedOut')) { $failure = 'TIMEOUT' }
-            elseif ([bool](Get-IsoProp $ci 'outputLimitExceeded')) { $failure = 'OUTPUT_LIMIT_EXCEEDED' }
-            elseif ([bool](Get-IsoProp $ci 'killed')) { $failure = 'KILLED' }
-            elseif ($null -eq (Get-IsoProp $ci 'exitCode') -or [int](Get-IsoProp $ci 'exitCode') -ne 0) { $failure = 'NONZERO_EXIT' }
-            else { $parsed = ConvertFrom-VersionStdout -Bytes $stdoutBytes; if (-not $parsed.ok) { $failure = $parsed.failure } }
-            if (-not $failure -and -not $parsed) { $parsed = ConvertFrom-VersionStdout -Bytes $stdoutBytes }
-        }
-        $versionStr = $null; if ($parsed -and $parsed.ok) { $versionStr = $parsed.version }
+        # 수집이 온전한가(실행기 오류·스트림 읽기 실패·스트림 미종료·필수 상태 누락·자식 상태·종료 코드)와 stdout 해석은 VersionContract.ps1 의 한 함수가 정한다.
+        # 이미 받은 바이트는 위에서 보관했고, 문제가 있어도 참고용 해석(diagnosticParse)만 남기며 사용 가능한 관측으로 확정하지 않는다.
+        $judge = Get-VersionObservationFailures -RunnerResult $resultObj -StdoutBytes $stdoutBytes
+        $failure = $judge.failure; $parsed = $judge.parsed
+        $versionStr = $null; if ($parsed -and $parsed.ok -and -not $failure) { $versionStr = $parsed.version }
         $idOk = [bool]$report.identity.ok
         $report.interpretation = [ordered]@{
-            contract = 'tool-observation.ts 해석 계약의 이식본(VersionContract.ps1): 종료 코드 0·신호 종료 아님, stdout 에서만 읽음, 유효 UTF-8(BOM 불허), 줄 끝 하나를 뺀 정확히 한 줄, 정확히 숫자.숫자.숫자'
-            failure = $failure; versionCandidate = $versionStr; identityOk = $idOk
+            contract = 'tool-observation.ts 해석 계약의 이식본(VersionContract.ps1): 종료 코드 0·신호 종료 아님, stdout 에서만 읽음, 유효 UTF-8(BOM 불허), 줄 끝 하나를 뺀 정확히 한 줄, 정확히 숫자.숫자.숫자. 거기에 수집이 온전해야 한다(실행기 오류·읽기 실패·스트림 미종료·필수 상태 누락이면 사용하지 않는다)'
+            failure = $failure; failures = @($judge.failures); versionCandidate = $versionStr; identityOk = $idOk
             versionUsable = [bool]($idOk -and -not $failure -and $versionStr)
             expectedVersion = $ExpectedVersion; matchesExpected = [bool]($versionStr -and $versionStr -eq $ExpectedVersion)
+            diagnosticParse = $judge.diagnosticParse
             note = '버전 문자열은 실행한 실행 파일의 자기 출력이다. 휠↔공개 소스 커밋 대응이나 배포물의 신뢰 검증을 뜻하지 않는다.'
         }
         if ($idOk -and -not $failure -and $versionStr) {
@@ -433,6 +424,8 @@ function Invoke-VersionObservation {
     $report.cleanup = [ordered]@{ ok = $cleanupOk; items = @($cleanup) }
     $report.verdict = $verdict
     $established = ($verdict -eq 'VERSION_OBSERVED_AS_EXPECTED' -or $verdict -eq 'STUB_VERSION_OBSERVED_AS_EXPECTED')
+    # 관측의 성립 여부와 정리의 완료 여부는 따로 기록한다. 정리가 실패해도 관측 판정을 덮어쓰지 않고, 관측이 실패해도 정리는 위에서 끝까지 돌았다.
+    $report.observation = [ordered]@{ established = [bool]$established; verdict = $verdict; failure = (Get-IsoProp $report.interpretation 'failure'); failures = @(Get-IsoProp $report.interpretation 'failures'); cleanupOk = [bool]$cleanupOk }
     $finalStatus = $(if ($established) { $verdict } else { 'NOT_ESTABLISHED' }); $exitCode = $(if ($established) { 0 } else { 60 })
     if (-not $cleanupOk) { $finalStatus = 'CLEANUP_INCOMPLETE'; $exitCode = 70 }
     $report.finalStatus = $finalStatus
@@ -443,6 +436,7 @@ function Invoke-VersionObservation {
 
     Write-Host ''
     Write-Host "판정: $verdict   (범위: semgrep 실행 파일 ['--version'] 1회. LSP·규칙·스캔·DNS·UDP·ICMP·IPv6 는 관측하지 않았다)"
+    Write-Host ("관측: {0}   실패 토큰: {1}" -f $(if ($established) { '성립' } else { '성립하지 않음' }), $(if ($report.observation.failure) { ((@($report.observation.failures)) -join ',') } else { '없음' }))
     Write-Host ("정리 결과: {0}   최종 상태: {1}" -f $(if ($cleanupOk) { '완료' } else { '불완전(위 FAIL 줄과 보고서 cleanup 항목을 확인한다)' }), $finalStatus)
     if ($report.identity) { Write-Host ("  신원 교차 확인: {0}{1}" -f $(if ($report.identity.ok) { '통과' } else { '실패' }), $(if (-not $report.identity.ok) { ' [' + ((@($report.identity.failures) | ForEach-Object { $_.code }) -join ', ') + ']' } else { '' })) }
     if ($report.execution) { Write-Host ("  [A] 종료 코드={0} 상태={1} 소요(관측)={2}ms stdout={3}B stderr={4}B" -f $report.execution.exitCode, $report.execution.childState, $report.execution.durationMsObserved, $report.execution.stdout.bytes, $report.execution.stderr.bytes) }
