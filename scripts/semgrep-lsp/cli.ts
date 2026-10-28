@@ -604,6 +604,23 @@ export function buildChildEnv(
   };
 }
 
+/**
+ * 도구 버전 관측(`--version` 한 번) 자식의 환경: buildChildEnv 의 결과(버전 확인 상태 폴더 기준)에 온라인 최신 버전 조회를 끄는
+ * 고정값 SEMGREP_ENABLE_VERSION_CHECK=0 하나만 더한다. 값은 부모 환경에서 읽지 않는 상수이고(부모에 1 이 있어도 0), 설치 버전 출력을
+ * 바꾸지 않는다. 서버(LSP) 경로의 buildChildEnv 호출과 precheck 허용 목록에는 더하지 않는다 — 퍼뜨리지 않으려고 따로 둔 함수다.
+ * PowerShell 쪽 New-VersionChildEnv(VersionContract.ps1)와 같은 이름 집합·같은 값이다.
+ */
+export function buildVersionChildEnv(
+  deps: Pick<CliDeps, "getEnv" | "platform">,
+  evidenceDir: string,
+  metricsUrl: string | null
+): Record<string, string> {
+  return {
+    ...buildChildEnv(deps, evidenceDir, metricsUrl, VERSION_STATE_DIR),
+    SEMGREP_ENABLE_VERSION_CHECK: "0",
+  };
+}
+
 /** control 모드는 git을 쓰지 않는다. 쓰려 하면 던지는 포트로 막는다. */
 const refusingGit: GitPort = {
   async resolveCommit() {
@@ -829,7 +846,7 @@ async function cmdRun(parsed: Parsed, deps: CliDeps): Promise<number> {
         cwd: versionStateDir,
         stateDir: versionStateDir,
         ...homeDirOption(deps, evidenceDir, VERSION_STATE_DIR),
-        env: buildChildEnv(deps, evidenceDir, receiver.url, VERSION_STATE_DIR),
+        env: buildVersionChildEnv(deps, evidenceDir, receiver.url),
       },
       wheelPath: wheelArtifact,
       receiver,
@@ -1133,7 +1150,7 @@ async function cmdNegativeControl(parsed: Parsed, deps: CliDeps): Promise<number
         cwd: versionStateDir,
         stateDir: versionStateDir,
         ...homeDirOption(deps, held.evidenceDir, VERSION_STATE_DIR),
-        env: buildChildEnv(deps, held.evidenceDir, held.receiver.url, VERSION_STATE_DIR),
+        env: buildVersionChildEnv(deps, held.evidenceDir, held.receiver.url),
       },
       wheelPath: wheelArtifact,
       receiver: held.receiver,

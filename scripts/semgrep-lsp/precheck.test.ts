@@ -437,6 +437,12 @@ describe("runPrecheck: 환경변수", () => {
     expect(JSON.stringify(result)).not.toContain("bar-value");
   });
 
+  it("SEMGREP_ENABLE_VERSION_CHECK 는 허용 목록에 없다(버전 관측 자식에게만 주는 값이 서버 경로로 퍼지지 않는다)", async () => {
+    const result = await check(await makeWorld(), { env: { SEMGREP_ENABLE_VERSION_CHECK: "0" } });
+    expect(codes(result.reasons)).toEqual(["ENV_VAR_NOT_ALLOWED"]);
+    expect(result.reasons[0].detail).toContain("SEMGREP_ENABLE_VERSION_CHECK");
+  });
+
   it("SEMGREP_가 아닌 변수는 보지 않는다", async () => {
     const result = await check(await makeWorld(), { env: { FOO: "1", SEMGREPX: "1" } });
     expect(result.reasons).toEqual([]);

@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Script:Ps51Path = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$Script:StubScenarios = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home')
+$Script:StubScenarios = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home', 'version-check')
 
 function Write-ResultFile([string]$Path, $Object) {
     $tmp = $Path + '.tmp'

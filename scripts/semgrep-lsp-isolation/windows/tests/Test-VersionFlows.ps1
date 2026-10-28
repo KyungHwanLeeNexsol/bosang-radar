@@ -200,7 +200,8 @@ if (Test-Selected 'dry-run') {
 
 # 환경과 홈 폴더: 부모 환경의 canary 가 새지 않고, 전용 USERPROFILE 이 상태 폴더 아래에 있고, 복구 때 지워지는 작업 폴더 안에 있다.
 if (Test-Selected 'home-env') {
-    $canaries = @{ BOSANG_CANARY_SECRET = 'must-not-leak-secret'; GITHUB_TOKEN = 'must-not-leak-token'; HTTPS_PROXY = 'http://user:pass@127.0.0.1:9'; SEMGREP_APP_TOKEN = 'must-not-leak-app-token' }
+    # SEMGREP_ENABLE_VERSION_CHECK=1 은 "조회를 켜는" 부모 값이다. 자식 요청에는 부모 값이 아니라 고정값 0 이 가야 한다.
+    $canaries = @{ BOSANG_CANARY_SECRET = 'must-not-leak-secret'; GITHUB_TOKEN = 'must-not-leak-token'; HTTPS_PROXY = 'http://user:pass@127.0.0.1:9'; SEMGREP_APP_TOKEN = 'must-not-leak-app-token'; SEMGREP_ENABLE_VERSION_CHECK = '1' }
     $parentProfile = $env:USERPROFILE
     foreach ($k in $canaries.Keys) { Set-Item -Path "Env:\$k" -Value $canaries[$k] }
     try {
@@ -213,10 +214,11 @@ if (Test-Selected 'home-env') {
     $envObj = Get-Prop $req 'env'
     $names = @(); if ($envObj) { $names = @($envObj.PSObject.Properties.Name | Sort-Object) }
     $homeWant = Join-Path (Join-Path $workDir 'state') 'home'
-    $expectNames = @('PATH', 'SEMGREP_APP_URL', 'SEMGREP_LOG_FILE', 'SEMGREP_METRICS_URL', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH', 'SEMGREP_VERSION_CHECK_URL', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE') | Sort-Object
+    $expectNames = @('PATH', 'SEMGREP_APP_URL', 'SEMGREP_ENABLE_VERSION_CHECK', 'SEMGREP_LOG_FILE', 'SEMGREP_METRICS_URL', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH', 'SEMGREP_VERSION_CHECK_URL', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE') | Sort-Object
     Assert-Flow 'home-env' '실행 요청의 환경에 USERPROFILE 이 있다' ($names -contains 'USERPROFILE') ($names -join ',')
     Assert-Flow 'home-env' 'USERPROFILE 은 이 실행의 상태 폴더 아래 전용 home 이다(부모 값 복사 아님)' (([string](Get-Prop $envObj 'USERPROFILE')) -eq $homeWant) "실제 '$(Get-Prop $envObj 'USERPROFILE')' 기대 '$homeWant'"
-    Assert-Flow 'home-env' '환경 변수 이름이 최소 목록 + USERPROFILE 뿐이다(HOME·HOMEDRIVE·HOMEPATH·APPDATA 등 없음)' (($names -join ',') -eq ($expectNames -join ',')) ("실제: " + ($names -join ','))
+    Assert-Flow 'home-env' '환경 변수 이름이 최소 목록 + USERPROFILE + SEMGREP_ENABLE_VERSION_CHECK 뿐이다(HOME·HOMEDRIVE·HOMEPATH·APPDATA·PYTHONUNBUFFERED 등 없음)' (($names -join ',') -eq ($expectNames -join ',')) ("실제: " + ($names -join ','))
+    Assert-Flow 'home-env' '온라인 최신 버전 조회 끄기: 실행 요청의 SEMGREP_ENABLE_VERSION_CHECK 는 부모 값(1)이 아니라 고정값 0 이다' (([string](Get-Prop $envObj 'SEMGREP_ENABLE_VERSION_CHECK')) -ceq '0') "실제 '$(Get-Prop $envObj 'SEMGREP_ENABLE_VERSION_CHECK')'"
     $allValues = if ($envObj) { ($envObj.PSObject.Properties | ForEach-Object { [string]$_.Value }) -join "`n" } else { '' }
     # 샌드박스가 부모의 %TEMP%(= 부모 프로필 폴더 아래)에 있어서 "문자열을 포함하지 않는다"는 성립할 수 없다. 값 자체가 부모 프로필 폴더인지를 본다.
     $valueList = @(); if ($envObj) { $valueList = @($envObj.PSObject.Properties | ForEach-Object { [string]$_.Value }) }

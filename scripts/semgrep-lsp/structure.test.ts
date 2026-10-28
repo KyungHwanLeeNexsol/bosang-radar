@@ -853,6 +853,21 @@ describe("구조 (11) — 공유 실행 잠금과 루프백 수신기의 범위"
     it("자식 환경의 주소는 열린 수신기의 주소를 쓴다", () => {
       expect(code()).toMatch(/buildChildEnv\(deps, evidenceDir, receiver\.url\)/);
     });
+
+    it("버전 관측 호출 두 곳만 buildVersionChildEnv 로 환경을 만들고, 서버 호출은 buildChildEnv 그대로다", () => {
+      const c = code();
+      // 버전 관측(runToolObservation 의 version.env) 두 곳: 단일 실행 경로와 음성 대조 스위트 경로.
+      expect(c.match(/env:\s*buildVersionChildEnv\(/g)?.length).toBe(2);
+      // 버전 상태 폴더를 넘기는 buildChildEnv 호출은 buildVersionChildEnv 정의 안의 한 곳뿐이다.
+      expect(c.match(/buildChildEnv\([^)]*VERSION_STATE_DIR/g)?.length).toBe(1);
+      // 서버 호출 두 곳(HarnessOptions 의 spawn.env, 음성 대조의 spawnEnv)은 예전 모양 그대로다.
+      expect(c).toMatch(/env:\s*buildChildEnv\(deps, evidenceDir, receiver\.url\)/);
+      expect(c).toMatch(
+        /spawnEnv:\s*buildChildEnv\(deps, held\.evidenceDir, held\.receiver\.url\)/
+      );
+      // 고정값은 한 곳(버전 관측 환경 함수)에서만 대입한다.
+      expect(c.match(/SEMGREP_ENABLE_VERSION_CHECK:\s*"0"/g)?.length).toBe(1);
+    });
   });
 });
 

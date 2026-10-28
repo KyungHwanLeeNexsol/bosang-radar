@@ -99,7 +99,8 @@ function Get-VersionChildHome {
 }
 
 # 자식 프로세스에 줄 Windows 환경 전체(부모 환경을 물려주지 않는다). TS 의 buildChildEnv(win32)와 같은 이름 집합이다:
-#   PATH·SYSTEMROOT·TEMP·TMP + USERPROFILE + SEMGREP_APP_URL/METRICS_URL/VERSION_CHECK_URL + SEMGREP_LOG_FILE/SETTINGS_FILE/VERSION_CACHE_PATH.
+#   PATH·SYSTEMROOT·TEMP·TMP + USERPROFILE + SEMGREP_APP_URL/METRICS_URL/VERSION_CHECK_URL + SEMGREP_LOG_FILE/SETTINGS_FILE/VERSION_CACHE_PATH
+#   + SEMGREP_ENABLE_VERSION_CHECK(온라인 최신 버전 조회를 끄는 고정값 0. 부모 환경에서 읽지 않는 상수이고 설치 버전 출력은 바꾸지 않는다. TS 의 buildVersionChildEnv 와 같다).
 # TS 와 값의 출처만 다르다(더 좁게 한 것): PATH 는 Windows 폴더로 고정, TEMP/TMP 는 작업 폴더 안. HOME·HOMEDRIVE·HOMEPATH·APPDATA 는 주지 않는다(Python 의 Path.home() 은 USERPROFILE 하나면 된다).
 function New-VersionChildEnv {
     param(
@@ -112,6 +113,7 @@ function New-VersionChildEnv {
         PATH = "$WindowsDir\System32;$WindowsDir"; SYSTEMROOT = $WindowsDir; TEMP = $TmpDir; TMP = $TmpDir
         USERPROFILE = (Get-VersionChildHome -StateDir $StateDir)
         SEMGREP_APP_URL = $Url; SEMGREP_METRICS_URL = $Url; SEMGREP_VERSION_CHECK_URL = $Url
+        SEMGREP_ENABLE_VERSION_CHECK = '0'
         SEMGREP_LOG_FILE = (Join-Path $StateDir 'semgrep.log'); SEMGREP_SETTINGS_FILE = (Join-Path $StateDir 'settings.yml'); SEMGREP_VERSION_CACHE_PATH = (Join-Path $StateDir 'version-cache')
     }
 }

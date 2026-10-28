@@ -17,7 +17,7 @@ import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { createNodeArtifactHasher, readOnlyOpenFlags } from "./artifact-node";
 import { VirtualClock } from "./clock";
-import { EXIT, buildChildEnv, childHomeDir, main, type CliDeps } from "./cli";
+import { EXIT, buildChildEnv, buildVersionChildEnv, childHomeDir, main, type CliDeps } from "./cli";
 import { canonicalJson } from "./canonical";
 import {
   buildBinding,
@@ -2136,6 +2136,90 @@ describe("main — run: 공유 실행 잠금과 루프백 수신기의 생명주
         expect(env.HOME).toBe("/home/parent");
       });
     });
+
+    describe("버전 관측 자식: 온라인 최신 버전 조회를 끄는 고정값(SEMGREP_ENABLE_VERSION_CHECK=0)", () => {
+      const NAME = "SEMGREP_ENABLE_VERSION_CHECK";
+      // 부모에는 조회를 켜는 값(1)과 토큰을 일부러 심어 둔다. 자식은 부모 값을 읽지 않고 고정값 0만 받아야 한다.
+      const parent: Record<string, string> = {
+        PATH: "C:/Windows/System32",
+        SYSTEMROOT: "C:/Windows",
+        TEMP: "C:/t",
+        TMP: "C:/t",
+        USERPROFILE: "C:/Users/parent",
+        HOME: "/home/parent",
+        [NAME]: "1",
+        SEMGREP_APP_TOKEN: "tok-secret",
+      };
+      const deps = (platform: string, getEnv: (n: string) => string | undefined) => ({
+        getEnv,
+        platform,
+      });
+      const withParent = (platform: string) => deps(platform, (n) => parent[n]);
+      const withoutParent = (platform: string) => deps(platform, () => undefined);
+
+      for (const platform of ["win32", "linux"]) {
+        it(`${platform}: 값 "0" 을 준다(부모에 1 이 있어도, 아무것도 없어도)`, () => {
+          const a = buildVersionChildEnv(withParent(platform), "/ev/run-x", "http://127.0.0.1:1");
+          const b = buildVersionChildEnv(
+            withoutParent(platform),
+            "/ev/run-x",
+            "http://127.0.0.1:1"
+          );
+          expect(a[NAME]).toBe("0");
+          expect(b[NAME]).toBe("0");
+        });
+      }
+
+      it("부모의 토큰·프록시 값은 여전히 복사하지 않는다", () => {
+        const env = buildVersionChildEnv(withParent("win32"), "C:/ev/run-x", "http://127.0.0.1:1");
+        expect(JSON.stringify(env)).not.toContain("tok-secret");
+        expect(Object.keys(env)).not.toContain("SEMGREP_APP_TOKEN");
+      });
+
+      it("기존 버전 확인 환경에 이 이름 하나만 더한다(나머지 값은 buildChildEnv 와 같다)", () => {
+        for (const platform of ["win32", "linux"]) {
+          const base = buildChildEnv(
+            withParent(platform),
+            "/ev/run-x",
+            "http://127.0.0.1:43210",
+            "version-check-state"
+          );
+          const version = buildVersionChildEnv(
+            withParent(platform),
+            "/ev/run-x",
+            "http://127.0.0.1:43210"
+          );
+          expect(version, platform).toEqual({ ...base, [NAME]: "0" });
+          expect(Object.keys(base), platform).not.toContain(NAME);
+        }
+      });
+
+      it("Windows 이름 집합은 기존 11개 + 이 이름이다(APPDATA·PYTHONUNBUFFERED 등은 없다)", () => {
+        const env = buildVersionChildEnv(withParent("win32"), "C:/ev/run-x", "http://127.0.0.1:1");
+        expect(Object.keys(env).sort()).toEqual([
+          "PATH",
+          "SEMGREP_APP_URL",
+          NAME,
+          "SEMGREP_LOG_FILE",
+          "SEMGREP_METRICS_URL",
+          "SEMGREP_SETTINGS_FILE",
+          "SEMGREP_VERSION_CACHE_PATH",
+          "SEMGREP_VERSION_CHECK_URL",
+          "SYSTEMROOT",
+          "TEMP",
+          "TMP",
+          "USERPROFILE",
+        ]);
+        expect(env.USERPROFILE).toBe("C:/ev/run-x/version-check-state/home");
+      });
+
+      it("서버(LSP) 경로의 환경에는 이 이름이 없다 — 부모에 값이 있어도 퍼지지 않는다", () => {
+        for (const platform of ["win32", "linux"]) {
+          const server = buildChildEnv(withParent(platform), "/ev/run-x", "http://127.0.0.1:1");
+          expect(Object.keys(server), platform).not.toContain(NAME);
+        }
+      });
+    });
   });
 });
 
@@ -3129,13 +3213,16 @@ describe("main — run: 도구 버전·휠 sha256 관측", () => {
         expect(spec.env[name], name).toMatch(/^\/evidence\/run-cli-1\/version-check-state\//);
         expect(spec.env[name], name).not.toContain("/semgrep-state/");
       }
-      // 허용 목록 밖의 SEMGREP_* 나 기밀 이름이 없다.
+      // 온라인 최신 버전 조회를 끄는 고정값(버전 관측 자식에게만 간다). 설치 버전 출력과는 무관하다.
+      expect(spec.env.SEMGREP_ENABLE_VERSION_CHECK).toBe("0");
+      // 허용 목록 밖의 SEMGREP_* 나 기밀 이름이 없다. 예외는 위의 SEMGREP_ENABLE_VERSION_CHECK 하나뿐이다.
       expect(
         Object.keys(spec.env)
           .filter((k) => k.startsWith("SEMGREP_"))
           .sort()
       ).toEqual([
         "SEMGREP_APP_URL",
+        "SEMGREP_ENABLE_VERSION_CHECK",
         "SEMGREP_LOG_FILE",
         "SEMGREP_METRICS_URL",
         "SEMGREP_SETTINGS_FILE",

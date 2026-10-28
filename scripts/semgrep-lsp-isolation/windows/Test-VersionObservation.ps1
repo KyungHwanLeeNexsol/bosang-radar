@@ -21,7 +21,7 @@ param(
     [Parameter(Mandatory)][string]$RunDir,
     [switch]$Execute,
     [ValidateSet('semgrep-version', 'stub')][string]$Mode = 'semgrep-version',
-    [ValidateSet('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home')][string]$StubScenario = 'ok',
+    [ValidateSet('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home', 'version-check')][string]$StubScenario = 'ok',
     [string]$SemgrepExe,
     [string]$ExpectedExeSha256,
     [string]$WheelPath,

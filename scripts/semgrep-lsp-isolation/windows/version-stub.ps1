@@ -11,11 +11,12 @@
     flood-err  stderr 에 40000바이트 뒤 대기             orphan     자손을 남기고 0.0.0 을 찍은 뒤 바로 종료
     env-names  받은 환경변수 이름만 나열(값은 찍지 않는다)  cwd        현재 작업 폴더
     home       받은 USERPROFILE 값 한 줄(경로만. 다른 환경변수 값은 찍지 않는다)
+    version-check  받은 SEMGREP_ENABLE_VERSION_CHECK 값 한 줄(없으면 빈 줄. 다른 환경변수 값은 찍지 않는다)
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Scenario)
 $ErrorActionPreference = 'Stop'
-$allowed = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home')
+$allowed = @('ok', 'ok-stderr', 'nonzero', 'multiline', 'bom', 'prefixed', 'sleep', 'flood-out', 'flood-err', 'orphan', 'env-names', 'cwd', 'home', 'version-check')
 if ($allowed -notcontains $Scenario) { exit 9 }
 
 function Write-OutBytes([byte[]]$Bytes) { $o = [Console]::OpenStandardOutput(); $o.Write($Bytes, 0, $Bytes.Length); $o.Flush() }
@@ -46,5 +47,6 @@ switch ($Scenario) {
     'env-names' { Write-OutBytes (Get-Ascii ((([Environment]::GetEnvironmentVariables().Keys | Sort-Object) -join ',') + "`n")) }
     'cwd' { Write-OutBytes ([Text.Encoding]::UTF8.GetBytes(((Get-Location).Path) + "`n")) }
     'home' { Write-OutBytes ([Text.Encoding]::UTF8.GetBytes(([string]$env:USERPROFILE) + "`n")) }
+    'version-check' { Write-OutBytes ([Text.Encoding]::ASCII.GetBytes(([string][Environment]::GetEnvironmentVariable('SEMGREP_ENABLE_VERSION_CHECK')) + "`n")) }
 }
 exit 0

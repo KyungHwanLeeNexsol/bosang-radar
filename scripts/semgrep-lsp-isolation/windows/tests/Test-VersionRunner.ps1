@@ -381,13 +381,30 @@ try {
     $stateDir = Join-Path $sandbox 'state'; $homeDir = Get-VersionChildHome -StateDir $stateDir
     [void][IO.Directory]::CreateDirectory($homeDir)
     $envA = New-VersionChildEnv -WindowsDir $env:WINDIR -TmpDir $cwdDir -StateDir $stateDir -Url 'http://127.0.0.1:5'
-    $expectNames = @('PATH', 'SEMGREP_APP_URL', 'SEMGREP_LOG_FILE', 'SEMGREP_METRICS_URL', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH', 'SEMGREP_VERSION_CHECK_URL', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE')
-    Assert-That '환경 계약(PS): 이름 집합이 최소 목록 + USERPROFILE 이다(HOME·HOMEDRIVE·HOMEPATH·APPDATA 없음)' ((($envA.Keys | Sort-Object) -join ',') -eq (($expectNames | Sort-Object) -join ',')) (($envA.Keys | Sort-Object) -join ',')
+    $expectNames = @('PATH', 'SEMGREP_APP_URL', 'SEMGREP_ENABLE_VERSION_CHECK', 'SEMGREP_LOG_FILE', 'SEMGREP_METRICS_URL', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH', 'SEMGREP_VERSION_CHECK_URL', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE')
+    Assert-That '환경 계약(PS): 이름 집합이 최소 목록 + USERPROFILE + SEMGREP_ENABLE_VERSION_CHECK 이다(HOME·HOMEDRIVE·HOMEPATH·APPDATA·PYTHONUNBUFFERED 없음)' ((($envA.Keys | Sort-Object) -join ',') -eq (($expectNames | Sort-Object) -join ',')) (($envA.Keys | Sort-Object) -join ',')
+    Assert-That '환경 계약(PS): 온라인 최신 버전 조회를 끄는 고정값 SEMGREP_ENABLE_VERSION_CHECK 는 문자열 0 이다' ([string]$envA['SEMGREP_ENABLE_VERSION_CHECK'] -ceq '0') "실제 '$($envA['SEMGREP_ENABLE_VERSION_CHECK'])'"
+    $prevVc = $env:SEMGREP_ENABLE_VERSION_CHECK
+    try { $env:SEMGREP_ENABLE_VERSION_CHECK = '1'; $envParentOn = New-VersionChildEnv -WindowsDir $env:WINDIR -TmpDir $cwdDir -StateDir $stateDir -Url 'http://127.0.0.1:5' }
+    finally { if ($null -eq $prevVc) { Remove-Item Env:\SEMGREP_ENABLE_VERSION_CHECK -ErrorAction SilentlyContinue } else { $env:SEMGREP_ENABLE_VERSION_CHECK = $prevVc } }
+    Assert-That '환경 계약(PS): 부모 환경에 SEMGREP_ENABLE_VERSION_CHECK=1 이 있어도 자식 값은 0 이다(부모 값을 읽거나 복사하지 않는다)' ([string]$envParentOn['SEMGREP_ENABLE_VERSION_CHECK'] -ceq '0') "실제 '$($envParentOn['SEMGREP_ENABLE_VERSION_CHECK'])'"
     Assert-That '환경 계약(PS): USERPROFILE 은 상태 폴더 아래 전용 home 이고 부모 USERPROFILE 이 아니다' ($envA.USERPROFILE -eq (Join-Path $stateDir 'home') -and $envA.USERPROFILE -ne $env:USERPROFILE -and $envA.USERPROFILE.StartsWith($stateDir + '\', [StringComparison]::OrdinalIgnoreCase)) $envA.USERPROFILE
     $leak = @($envA.Values | Where-Object { ([string]$_) -match 'must-not-leak|user:pass' -or ([string]$_).TrimEnd('\') -ieq ([string]$env:USERPROFILE).TrimEnd('\') })
     Assert-That '환경 계약(PS): 부모의 canary(토큰·프록시)와 부모 프로필 폴더 자체가 값에 없다' ($leak.Count -eq 0) ($leak -join ',')
     $r = Invoke-Runner -Mode 'stub' -Exe $ps51 -Args0 (Get-StubArgs 'home') -EnvTable $envA
     Assert-That '환경 전달: 자식이 요청한 전용 USERPROFILE 값을 받는다(부모 값이 아니다)' ((([Text.Encoding]::UTF8.GetString((Get-OutBytes $r.result 'stdout'))).Trim()) -eq $homeDir -and ([Text.Encoding]::UTF8.GetString((Get-OutBytes $r.result 'stdout'))).Trim() -ne $env:USERPROFILE) "받은 값: $([Text.Encoding]::UTF8.GetString((Get-OutBytes $r.result 'stdout')).Trim())"
+    # 실행기 → 자식: 요청한 값 0 이 그대로 도착하고, 요청에 없으면 부모에 1 이 있어도 도착하지 않는다(스텁은 받은 이 변수 값 한 줄만 찍는다).
+    $prevVc = $env:SEMGREP_ENABLE_VERSION_CHECK
+    try {
+        $env:SEMGREP_ENABLE_VERSION_CHECK = '1'
+        $rVc = Invoke-Runner -Mode 'stub' -Exe $ps51 -Args0 (Get-StubArgs 'version-check') -EnvTable $envA
+        $envNoVc = [ordered]@{}; foreach ($k in $envA.Keys) { if ($k -ne 'SEMGREP_ENABLE_VERSION_CHECK') { $envNoVc[$k] = $envA[$k] } }
+        $rVcNone = Invoke-Runner -Mode 'stub' -Exe $ps51 -Args0 (Get-StubArgs 'version-check') -EnvTable $envNoVc
+    } finally { if ($null -eq $prevVc) { Remove-Item Env:\SEMGREP_ENABLE_VERSION_CHECK -ErrorAction SilentlyContinue } else { $env:SEMGREP_ENABLE_VERSION_CHECK = $prevVc } }
+    $vcGot = ([Text.Encoding]::ASCII.GetString((Get-OutBytes $rVc.result 'stdout'))).Trim()
+    $vcNone = ([Text.Encoding]::ASCII.GetString((Get-OutBytes $rVcNone.result 'stdout'))).Trim()
+    Assert-That '환경 전달: 자식이 요청한 SEMGREP_ENABLE_VERSION_CHECK=0 을 받는다(부모 값은 1)' ($vcGot -ceq '0' -and $rVc.result.child.exitCode -eq 0) "받은 값: '$vcGot' exit=$($rVc.result.child.exitCode)"
+    Assert-That '환경 전달: 요청에 없으면 부모에 1 이 있어도 자식은 받지 못한다(부모 환경 비상속)' ($vcNone -ceq '' -and $rVcNone.result.child.exitCode -eq 0) "받은 값: '$vcNone' exit=$($rVcNone.result.child.exitCode)"
     $r = Invoke-Runner -Mode 'stub' -Exe $ps51 -Args0 (Get-StubArgs 'env-names') -EnvTable $envA
     $namesA = @(([Text.Encoding]::ASCII.GetString((Get-OutBytes $r.result 'stdout'))).Trim() -split ',' | Where-Object { $_ })
     $extraA = @($namesA | Where-Object { ($expectNames + @('PSModulePath', 'PathExt', 'PSExecutionPolicyPreference')) -notcontains $_ })
@@ -421,11 +438,12 @@ try {
         $envDriverText = @'
 import { pathToFileURL } from "node:url";
 const mod: any = await import(pathToFileURL(process.argv[2]).href);
-const parent: Record<string, string> = { PATH: "C:/Windows/System32", SYSTEMROOT: "C:/Windows", TEMP: "C:/t", TMP: "C:/t", USERPROFILE: "C:/Users/parent", HOME: "/home/parent", HTTPS_PROXY: "http://user:pass@x", GITHUB_TOKEN: "tok" };
+const parent: Record<string, string> = { PATH: "C:/Windows/System32", SYSTEMROOT: "C:/Windows", TEMP: "C:/t", TMP: "C:/t", USERPROFILE: "C:/Users/parent", HOME: "/home/parent", HTTPS_PROXY: "http://user:pass@x", GITHUB_TOKEN: "tok", SEMGREP_ENABLE_VERSION_CHECK: "1" };
 const getEnv = (n: string) => parent[n];
-const win = mod.buildChildEnv({ getEnv, platform: "win32" }, "C:/ev/run-1", "http://127.0.0.1:5", "version-check-state");
-const lin = mod.buildChildEnv({ getEnv, platform: "linux" }, "/ev/run-1", "http://127.0.0.1:5", "version-check-state");
-console.log(JSON.stringify({ win, lin }));
+const win = mod.buildVersionChildEnv({ getEnv, platform: "win32" }, "C:/ev/run-1", "http://127.0.0.1:5");
+const lin = mod.buildVersionChildEnv({ getEnv, platform: "linux" }, "/ev/run-1", "http://127.0.0.1:5");
+const server = mod.buildChildEnv({ getEnv, platform: "win32" }, "C:/ev/run-1", "http://127.0.0.1:5");
+console.log(JSON.stringify({ win, lin, server }));
 '@
         [IO.File]::WriteAllText($envDriver, $envDriverText, (New-Object Text.UTF8Encoding($false)))
         $oldPath = $env:PATH
@@ -437,7 +455,8 @@ console.log(JSON.stringify({ win, lin }));
             $psWin = New-VersionChildEnv -WindowsDir 'C:/Windows' -TmpDir 'C:/t' -StateDir 'C:/ev/run-1/version-check-state' -Url 'http://127.0.0.1:5'
             $tsWinNames = @($tsEnv.win.PSObject.Properties.Name | Sort-Object)
             Assert-That '환경 계약(PS) ↔ TS(win32): 이름 집합이 같다' (($tsWinNames -join ',') -eq (($psWin.Keys | Sort-Object) -join ',')) ("TS: " + ($tsWinNames -join ',') + " / PS: " + (($psWin.Keys | Sort-Object) -join ','))
-            $diffVals = @(); foreach ($k in 'USERPROFILE', 'SEMGREP_APP_URL', 'SEMGREP_METRICS_URL', 'SEMGREP_VERSION_CHECK_URL', 'SEMGREP_LOG_FILE', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH') { if (([string]$tsEnv.win.$k) -ne (([string]$psWin[$k]).Replace('\', '/'))) { $diffVals += "$k TS='$($tsEnv.win.$k)' PS='$($psWin[$k])'" } }
+            Assert-That '환경 계약 TS(버전 관측): 부모에 SEMGREP_ENABLE_VERSION_CHECK=1 이 있어도 값은 0 이다(win32·linux). 서버 경로 환경에는 이 이름이 없다' (($tsEnv.win.SEMGREP_ENABLE_VERSION_CHECK -ceq '0') -and ($tsEnv.lin.SEMGREP_ENABLE_VERSION_CHECK -ceq '0') -and ($tsEnv.server.PSObject.Properties.Name -notcontains 'SEMGREP_ENABLE_VERSION_CHECK')) ("win=$($tsEnv.win.SEMGREP_ENABLE_VERSION_CHECK) lin=$($tsEnv.lin.SEMGREP_ENABLE_VERSION_CHECK) server에 있음=$($tsEnv.server.PSObject.Properties.Name -contains 'SEMGREP_ENABLE_VERSION_CHECK')")
+            $diffVals = @(); foreach ($k in 'USERPROFILE', 'SEMGREP_ENABLE_VERSION_CHECK', 'SEMGREP_APP_URL', 'SEMGREP_METRICS_URL', 'SEMGREP_VERSION_CHECK_URL', 'SEMGREP_LOG_FILE', 'SEMGREP_SETTINGS_FILE', 'SEMGREP_VERSION_CACHE_PATH') { if (([string]$tsEnv.win.$k) -ne (([string]$psWin[$k]).Replace('\', '/'))) { $diffVals += "$k TS='$($tsEnv.win.$k)' PS='$($psWin[$k])'" } }
             Assert-That '환경 계약(PS) ↔ TS(win32): USERPROFILE·상태 파일 경로·URL 값이 같다(경로 구분자만 다름)' ($diffVals.Count -eq 0) ($diffVals -join ' | ')
             Assert-That '환경 계약 TS(win32): 부모의 USERPROFILE·HOME·프록시·토큰을 복사하지 않는다' (($tsEnv.win.USERPROFILE -ne 'C:/Users/parent') -and ($null -eq $tsEnv.win.HOME) -and ($null -eq $tsEnv.win.HTTPS_PROXY) -and ($null -eq $tsEnv.win.GITHUB_TOKEN) -and ($null -eq $tsEnv.win.HOMEDRIVE) -and ($null -eq $tsEnv.win.APPDATA))
             Assert-That '환경 계약 TS(linux): 예전과 같다(USERPROFILE 없음, PATH·HOME 만 복사, 상태 경로는 증거 폴더 안)' (($tsEnv.lin.PSObject.Properties.Name -notcontains 'USERPROFILE') -and $tsEnv.lin.HOME -eq '/home/parent' -and $tsEnv.lin.PATH -eq 'C:/Windows/System32' -and $tsEnv.lin.SEMGREP_LOG_FILE -eq '/ev/run-1/version-check-state/semgrep.log')
