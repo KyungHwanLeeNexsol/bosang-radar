@@ -265,6 +265,104 @@ Assert-That '고정값 한정: 진입점 파일에서 이 이름은 설명 주�
 $vfSrc = $srcOf['tests\Test-VersionFlows.ps1']
 Assert-That '흐름 시험(버전): 진입 스크립트를 부르기 전에 모의 샌드박스(ISO_MOCK_SANDBOX)를 정하고 끝나면 지운다' (($vfSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -ge 0) -and ($vfSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -lt $vfSrc.IndexOf('-File (Join-Path $Sb.Code $Script)')) -and ($vfSrc -match 'Remove-Item Env:\\ISO_MOCK_SANDBOX'))
 
+# (F) LSP-MIN-1 파일(최소 기동 관측): 별도 목록으로 역할마다 점검한다. 위의 $all 에 넣지 않는 이유: '고정값 한정' 검사가 이 이름이 나오는 파일을 세는데,
+#     이 파일들은 그 이름을 **코드에 두지 않는다**(주석에서 "없다"고 적는 것은 허용) — 그 사실을 아래에서 따로 지킨다. 위의 어떤 규칙도 이 구역 때문에 느슨해지지 않는다.
+$lspContract = 'LspMinContract.ps1'; $lspRunner = 'lsp-min-runner.ps1'; $lspStub = 'lsp-min-stub.ps1'; $lspTest = 'tests\Test-LspMinRunner.ps1'
+$lspFiles = @($lspContract, $lspRunner, $lspStub, $lspTest)
+$lspAst = @{}; $lspSrc = @{}
+foreach ($f in $lspFiles) {
+    $p = Join-Path $dir $f
+    $errs = $null; $tokens = $null
+    $lspAst[$f] = [Management.Automation.Language.Parser]::ParseFile($p, [ref]$tokens, [ref]$errs)
+    $lspSrc[$f] = [IO.File]::ReadAllText($p)
+    $b = [IO.File]::ReadAllBytes($p)
+    Assert-That "LSP-MIN 구문 $f ($($PSVersionTable.PSVersion))" ($errs.Count -eq 0) (($errs | ForEach-Object { "$($_.Message)@$($_.Extent.StartLineNumber)" }) -join '; ')
+    Assert-That "LSP-MIN BOM $f" ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+    $hits = New-Object System.Collections.ArrayList
+    foreach ($c in $lspAst[$f].FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true)) {
+        $name = $c.GetCommandName(); $first = $c.CommandElements[0].Extent.Text.Trim('"', "'")
+        if (($name -and ($name -match $forbiddenNames -or $name -in @('Invoke-WebRequest', 'Invoke-RestMethod', 'Invoke-Expression', 'iex', 'curl', 'wget', 'Start-BitsTransfer'))) -or ($first -match '(?i)(^|[\\/])(semgrep|pysemgrep|semgrep-core)(\.exe)?$')) { [void]$hits.Add(("{0}@{1}" -f $c.Extent.Text.Split("`n")[0].Trim(), $c.Extent.StartLineNumber)) }
+    }
+    Assert-That "LSP-MIN semgrep 호출·내려받기·Invoke-Expression 없음 ($f)" ($hits.Count -eq 0) ($hits -join ' | ')
+    # 소유자 결정: LSP 환경에 온라인 최신 버전 조회를 끄는 변수를 더하지 않는다 — 이름이 코드(문자열·명령·변수)에 없어야 한다. 주석은 허용한다.
+    $nameCode = @($lspAst[$f].FindAll({ param($n) ($n -is [Management.Automation.Language.StringConstantExpressionAst] -or $n -is [Management.Automation.Language.ExpandableStringExpressionAst] -or $n -is [Management.Automation.Language.CommandAst] -or $n -is [Management.Automation.Language.VariableExpressionAst]) -and $n.Extent.Text -match 'SEMGREP_ENABLE_VERSION_CHECK' }, $true))
+    Assert-That "LSP-MIN SEMGREP_ENABLE_VERSION_CHECK 가 코드에 없다 ($f)" ($nameCode.Count -eq 0) (($nameCode | ForEach-Object { "$($_.Extent.Text)@$($_.Extent.StartLineNumber)" }) -join ' | ')
+}
+# (F-1) 계약 파일: 실행 부작용이 없다.
+$lcAst = $lspAst[$lspContract]; $lcSrc = $lspSrc[$lspContract]
+$lcTopBad = @($lcAst.EndBlock.Statements | Where-Object { $_ -isnot [Management.Automation.Language.AssignmentStatementAst] -and $_ -isnot [Management.Automation.Language.FunctionDefinitionAst] })
+Assert-That 'LSP-MIN 계약 파일: 최상위는 대입과 함수 정의뿐이다(불러오는 것만으로 실행되는 것이 없다)' ($lcTopBad.Count -eq 0) (($lcTopBad | ForEach-Object { $_.Extent.Text.Split("`n")[0].Trim() }) -join ' | ')
+$lcOwn = @($lcAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+$lcExtra = @((Get-CommandNames $lcAst) | Where-Object { (@('New-Object', 'ForEach-Object', 'Where-Object', 'ConvertTo-Json') + $lcOwn) -notcontains $_ })
+Assert-That 'LSP-MIN 계약 파일: 부르는 명령이 허용 목록(New-Object·ForEach-Object·Where-Object·ConvertTo-Json·이 파일의 함수)뿐이다 — 파일·프로세스·네트워크·계정 접근 없음' ($lcExtra.Count -eq 0) ($lcExtra -join ',')
+$lcStatic = @($lcAst.FindAll({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static -and $n.Expression.Extent.Text -match '(?i)IO\.|Diagnostics|Net\.|Environment|Reflection|Activator' }, $true))
+Assert-That 'LSP-MIN 계약 파일: 파일·프로세스·네트워크·환경을 만지는 정적 .NET 호출이 없고 $env: 도 읽지 않는다' (($lcStatic.Count -eq 0) -and (@(Get-EnvNames $lcSrc).Count -eq 0))
+$lcVars = @([regex]::Matches($lcSrc, '\$Script:(\w+)\s*=') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+$lcWantVars = @('LspMinAbortMethods', 'LspMinAllowedImages', 'LspMinArgs', 'LspMinEnvNames', 'LspMinExeName', 'LspMinHomeExpectedPrefix', 'LspMinInitErrorLogPattern', 'LspMinInitId', 'LspMinLimits', 'LspMinNetworkPatterns', 'LspMinScanPatterns', 'LspMinSendOrder', 'LspMinShutdownId', 'LspMinWatchedRoles') | Sort-Object
+Assert-That 'LSP-MIN 계약 파일: $Script: 대입은 정해진 상수 열네 개뿐이다' (($lcVars -join ',') -eq ($lcWantVars -join ',')) ($lcVars -join ',')
+Assert-That 'LSP-MIN 계약 파일: 보낼 수 있는 메시지는 initialize·shutdown·exit 셋이고 이 순서다' ($lcSrc -match "\`$Script:LspMinSendOrder = @\('initialize', 'shutdown', 'exit'\)")
+# (F-2) 러너: 고정 모드·인자, 셸 비사용, 환경 제한, 한도 상한, 송신 방어선, 강제 종료는 한 번, 점 불러오기 안전.
+$lrAst = $lspAst[$lspRunner]; $lrSrc = $lspSrc[$lspRunner]
+$lrCmds = Get-CommandNames $lrAst
+$lrMut = @($mutatingCmdlets | Where-Object { $lrCmds -contains $_ })
+$lrNative = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true) | Where-Object { $_.Extent.Text -match $mutatingNative })
+Assert-That 'LSP-MIN 러너: 시스템을 바꾸는 cmdlet·명령이 하나도 없다(계정·방화벽·감사·ACL·파일 삭제/복사·Start-Process·Stop-Process 없음 — 프로세스 종료는 불러온 Stop-ProcessTree 함수만 한다)' (($lrMut.Count -eq 0) -and ($lrNative.Count -eq 0)) ($lrMut -join ',')
+$lrIoBad = @((Get-DotNetWriteSites $lrAst) | Where-Object { $_.Fn -ne 'New-LspMinWorkDirs' })
+Assert-That 'LSP-MIN 러너: 파일 쓰기·폴더 만들기 .NET 호출은 작업 폴더를 만드는 New-LspMinWorkDirs 안에서만 한다 (결과 파일은 불러온 Write-ResultFile 이 쓴다)' ($lrIoBad.Count -eq 0) (($lrIoBad | ForEach-Object { "$($_.Text)@$($_.Line)" }) -join ' | ')
+Assert-That 'LSP-MIN 러너: mode 는 semgrep-lsp 와 stub 둘뿐이고 그 밖은 거부한다' (($lrSrc -match "\`$req\.mode -eq 'semgrep-lsp'") -and ($lrSrc -match "\`$req\.mode -eq 'stub'") -and ($lrSrc -match "else \{ \[void\]\`$refusals\.Add\('MODE_UNKNOWN'\) \}"))
+Assert-That 'LSP-MIN 러너: semgrep-lsp 모드는 이름이 semgrep.exe 인 절대 경로와 인자 정확히 [lsp, --debug] 만 받는다' (($lrSrc -match "\(Split-Path -Leaf \`$exe\) -ne \`$Script:LspMinExeName") -and ($lrSrc -match "\`$args0\.Count -ne 2 -or \`$args0\[0\] -cne 'lsp' -or \`$args0\[1\] -cne '--debug'") -and ($lrSrc -match 'IsPathRooted\(\$exe\)'))
+$lrShell = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true) | Where-Object { $nm = $_.GetCommandName(); $nm -and ($nm -in @('Invoke-Expression', 'iex', 'Start-Process', 'Invoke-Command', 'cmd', 'cmd.exe', 'powershell', 'powershell.exe', 'pwsh', 'pwsh.exe')) })
+Assert-That 'LSP-MIN 러너: 셸을 쓰지 않는다 — ProcessStartInfo(UseShellExecute=$false)로 절대 경로를 직접 실행한다' (($lrShell.Count -eq 0) -and ($lrSrc -match 'UseShellExecute = \$false') -and ($lrSrc -notmatch 'UseShellExecute\s*=\s*\$true') -and ($lrSrc -match 'FileName = \$exe'))
+$lriClear = $lrSrc.IndexOf('EnvironmentVariables.Clear()'); $lriSet = $lrSrc.IndexOf('EnvironmentVariables[')
+Assert-That 'LSP-MIN 러너: 환경은 요청의 것만 쓴다 — EnvironmentVariables.Clear() 가 첫 대입보다 앞서고, 이 프로세스의 $env: 는 읽지 않는다' (($lriClear -ge 0) -and ($lriSet -gt $lriClear) -and (@(Get-EnvNames $lrSrc).Count -eq 0)) "Clear=$lriClear Set=$lriSet env=$((Get-EnvNames $lrSrc) -join ',')"
+Assert-That 'LSP-MIN 러너: 환경이 계약 함수(New-LspMinChildEnv)가 만든 것과 이름·값이 같지 않으면 거부한다' (($lrSrc -match 'New-LspMinChildEnv -WindowsDir \$winDir -Layout \$layout -Url \$url') -and ($lrSrc -match 'ENV_VALUE_UNEXPECTED') -and ($lrSrc -match 'ENV_NAME_NOT_ALLOWED'))
+Assert-That 'LSP-MIN 러너: 한도 여덟 개가 모두 있고 1 이상이며 계약 상한을 넘지 않아야 한다' (($lrSrc -match "\`$limNames = @\('totalMs', 'initMs', 'exitMs', 'stdinCloseGraceMs', 'killConfirmMs', 'maxStdoutBytes', 'maxStderrBytes', 'sampleIntervalMs'\)") -and ($lrSrc -match 'LIMIT_ABOVE_CAP') -and ($lrSrc -match 'LIMIT_INVALID'))
+$lrWrites = @([regex]::Matches($lrSrc, '\.Write\('))
+$sendFn = Get-FuncAst $lrAst 'Send-LspMinMessage'
+$sendText = ''; if ($sendFn) { $sendText = $sendFn.Extent.Text }
+Assert-That 'LSP-MIN 러너: stdin 에 쓰는 곳은 Send-LspMinMessage 한 곳뿐이고, 쓰기 직전에 허용 메시지 검사(Assert-LspMinOutbound)를 거친다' (($lrWrites.Count -eq 1) -and ($sendText.IndexOf('Assert-LspMinOutbound') -ge 0) -and ($sendText.IndexOf('Assert-LspMinOutbound') -lt $sendText.IndexOf('.Write(')))
+Assert-That 'LSP-MIN 러너: 프레임이 파이프 버퍼를 넘으면 쓰지 않는다(쓰기가 막힐 수 없다)' (($lrSrc -match '\$Script:LspMinMaxFrameBytes = 3500') -and ($sendText -match 'LspMinMaxFrameBytes'))
+Assert-That 'LSP-MIN 러너: 보내는 메시지 라벨은 initialize·shutdown·exit 뿐이다(initialized 문자열이 코드에 없다)' (@($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -ceq 'initialized' }, $true)).Count -eq 0)
+$killSites = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Stop-ProcessTree' }, $true))
+Assert-That 'LSP-MIN 러너: 프로세스 트리 종료 호출은 두 곳(본문의 한 번, 본문이 정리 전에 던졌을 때만 쓰는 finally 안)뿐이고, finally 쪽은 정리가 끝났으면(bodyDone) 아무것도 건드리지 않는다' (($killSites.Count -eq 2) -and ($lrSrc -match 'if \(-not \$bodyDone -and \$p -and \$null -ne \$childPid\)') -and ($lrSrc -match '\$bodyDone = \$true'))
+Assert-That 'LSP-MIN 러너: 강제 종료 신호 횟수는 대입(= 1)으로만 정한다 — 늘려 가며 다시 보내는 코드가 없다' (([regex]::Matches($lrSrc, 'killCount\s*(\+=|\+\+)')).Count -eq 0)
+$iCap1 = $lrSrc.IndexOf('$Script:LspMode = $PSCmdlet.ParameterSetName'); $iCap2 = $lrSrc.IndexOf('$Script:LspRequestFile = $RequestFile'); $iDot = $lrSrc.IndexOf("version-runner.ps1') -LoadFunctionsOnly")
+Assert-That 'LSP-MIN 러너: 점 불러오기(version-runner.ps1)가 매개변수·$PSCmdlet 을 덮어쓰기 전에 내 값을 따로 저장한다' (($iCap1 -ge 0) -and ($iCap2 -ge 0) -and ($iDot -gt $iCap1) -and ($iDot -gt $iCap2) -and ($lrSrc -match "if \(\`$Script:LspMode -eq 'Load'\) \{ return \}"))
+$iLoad = $lrSrc.IndexOf("if (`$Script:LspMode -eq 'Load') { return }"); $iStart = $lrSrc.IndexOf('[Diagnostics.Process]::Start')
+Assert-That 'LSP-MIN 러너: -LoadFunctionsOnly 는 프로세스를 시작하는 코드보다 앞에서 돌아온다' (($iLoad -ge 0) -and ($iStart -gt $iLoad))
+Assert-That 'LSP-MIN 러너: `, 배열` 로 돌려주는 함수를 @() 로 다시 감싸지 않는다(빈 배열이 원소 하나로 보이는 함정)' (([regex]::Matches($lrSrc, '@\(\s*(Get-DescendantRecords|Test-LspMinLayoutMatches|Get-LspMinRootFiles|Step-LspMinFramer)\b')).Count -eq 0)
+$iClosed = $lrSrc.IndexOf('$res.cleanup.streamsClosed = Test-StreamsClosed'); $iLeft = $lrSrc.IndexOf('if (-not (Invoke-DescendantCleanup $childPid $childStart $res)) { $res.descendantTrackingOk = $false }')
+Assert-That 'LSP-MIN 러너: 스트림이 닫혔는지는 자손을 끝내기 전에 정한다 (자손을 끝내면 파이프가 닫혀 사실이 사라진다)' (($iClosed -ge 0) -and ($iLeft -gt $iClosed))
+Assert-That 'LSP-MIN 러너: 거부 사유 토큰에 값(경로·환경 값)을 싣지 않는다 — 환경 이름 외의 동적 문자열은 이름만 정규화해 넣는다' ($lrSrc -match "ENV_NAME_NOT_ALLOWED:' \+ \(\`$n -replace '\[\^A-Za-z0-9_\]', '\?'\)")
+$lrSrvProp = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Get-LmProp' -and $n.CommandElements.Count -ge 2 -and $n.CommandElements[1].Extent.Text -match '^\$(m|msg|decoded|message)$' }, $true))
+$kindFn = Get-FuncAst $lcAst 'Get-LspMinMessageKind'
+$kindText = ''; if ($kindFn) { $kindText = $kindFn.Extent.Text }
+Assert-That 'LSP-MIN 러너·계약: 서버가 보낸 메시지의 멤버는 키 이름을 대소문자 그대로 읽는다 — 서버 메시지를 대소문자 무시 조회(Get-LmProp)로 읽는 곳이 없고, 분류 함수는 Get-LmExactMember 만 쓴다' (($lrSrvProp.Count -eq 0) -and ($kindText.Length -gt 0) -and ($kindText -notmatch 'Get-LmProp') -and ($kindText -match 'Get-LmExactMember') -and ($lrSrc -match 'Get-LspMinMessageKind \$m'))
+$lrCim = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Get-CimInstance' }, $true))
+$lrTable = @($lrAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Get-LspMinProcessTable' }, $true))
+Assert-That 'LSP-MIN 러너: CIM 프로세스 조회는 한 곳이고 시간 제한(-OperationTimeoutSec)을 준다 — 멈춘 조회가 전체 상한을 넘겨 실행을 늘리지 못한다' (($lrCim.Count -eq 1) -and ($lrCim[0].Extent.Text -match '-OperationTimeoutSec \$TimeoutSec') -and ($lrCim[0].Extent.Text -match '-ErrorAction Stop'))
+Assert-That 'LSP-MIN 러너: 프로세스 표본 호출은 모두 남은 시간에서 정한 제한(-TimeoutSec)을 주고, 마감까지 1초도 남지 않으면 표본을 시작하지 않는다' (($lrTable.Count -eq 1) -and ($lrTable[0].Extent.Text -match '-TimeoutSec \$sampleSec') -and ($lrSrc -match 'Get-LspMinSampleTimeoutSec') -and ($lrSrc -match '\$sampleSec -gt 0'))
+Assert-That 'LSP-MIN 러너: 던진 오류에는 어느 구간(관측/정리)에서 났는지 적는다 — 관측이 끝난 표시($observationEnded)는 정리 구간 시작 직전에 서고 catch 가 errorPhase 로 남긴다' (($lrSrc -match "\`$res\.errorPhase = \`$\(if \(\`$observationEnded\) \{ 'CLEANUP' \} else \{ 'OBSERVATION' \}\)") -and ($lrSrc -match '\$observationEnded = \$true') -and ($lrSrc.IndexOf('$observationEnded = $true') -lt $lrSrc.IndexOf('$cleanupStart = [int]$sw.ElapsedMilliseconds')))
+Assert-That 'LSP-MIN 러너: 실행 파일 경로도 중단 문구 검사를 받는다' ($lrSrc -match "Find-LspMinPathPattern \`$exe\) \) \{ \[void\]\`$refusals\.Add\('PATH_CONTAINS_ABORT_PATTERN:COMMAND'\)" -or $lrSrc -match "Find-LspMinPathPattern \`$exe\)\) \{ \[void\]\`$refusals\.Add\('PATH_CONTAINS_ABORT_PATTERN:COMMAND'\)")
+# 읽기 실패는 쓰기 실패와 다른 이름(STREAM_READ_FAILED)으로 즉시 종료에 연결된다: STDIN_ERROR 는 Send-LspMinMessage 와 즉시 종료 목록 말고는 어디에도 없다.
+$lrStdinErr = [regex]::Matches($lrSrc, 'STDIN_ERROR').Count; $lrStdinErrInSend = [regex]::Matches($sendText, 'STDIN_ERROR').Count
+Assert-That 'LSP-MIN 러너: 읽기 실패를 쓰기 실패 이름(STDIN_ERROR)으로 부르지 않는다 — 그 이름은 Send-LspMinMessage 와 즉시 종료 목록에만 있다' (($lrStdinErrInSend -ge 1) -and ($lrStdinErr -eq ($lrStdinErrInSend + 1))) "전체 $lrStdinErr, Send 안 $lrStdinErrInSend"
+Assert-That 'LSP-MIN 러너: STREAM_READ_FAILED 는 즉시 종료 사유 목록에 있다 (stdin 닫기·유예 없이 곧바로 강제 종료)' ($lrSrc -match "\`$Script:LspMinImmediate = @\([^)]*'STREAM_READ_FAILED'")
+Assert-That 'LSP-MIN 러너: 메인 루프가 stdout·stderr 두 스트림 모두의 읽기 실패·상한 초과를 Step-LspMinStreamTriggers 로 올리고, 상태 흐름(새 송신) 앞에서 즉시 종료 사유를 확인해 빠져나간다' (($lrSrc -match 'Step-LspMinStreamTriggers \$out') -and ($lrSrc -match 'Step-LspMinStreamTriggers \$err') -and ($lrSrc.IndexOf('Step-LspMinStreamTriggers $err') -lt $lrSrc.IndexOf('if ($Ctx.immediate) { break }')) -and ($lrSrc.IndexOf('if ($Ctx.immediate) { break }') -lt $lrSrc.IndexOf('switch ($state)')))
+Assert-That 'LSP-MIN 러너: Send-LspMinMessage 는 즉시 종료 사유가 이미 걸렸으면 쓰기 전에 돌아온다' (($sendText.IndexOf('$Ctx.immediate') -ge 0) -and ($sendText.IndexOf('$Ctx.immediate') -lt $sendText.IndexOf('.Write(')))
+# (F-3) 스텁: 시나리오 목록이 스텁·러너에서 같고, 시스템을 바꾸는 명령이 없다.
+$lsAst = $lspAst[$lspStub]; $lsSrc = $lspSrc[$lspStub]
+$lsList = Get-QuotedList $lsSrc '\$allowed\s*=\s*@\(([^)]*)\)'
+$lrList = Get-QuotedList $lrSrc '\$Script:LspMinStubScenarios\s*=\s*@\(([^)]*)\)'
+Assert-That 'LSP-MIN 스텁: 시나리오 목록이 스텁과 러너에서 같다 (허용 목록이 어긋나지 않는다)' ((@($lsList).Count -ge 20) -and (($lsList -join ',') -eq ($lrList -join ','))) ("스텁=$($lsList -join ',') / 러너=$($lrList -join ',')")
+$lsMut = @($mutatingCmdlets | Where-Object { (Get-CommandNames $lsAst) -contains $_ })
+$lsIo = @((Get-DotNetWriteSites $lsAst) | Where-Object { $_.Fn -ne 'Write-Rec' -and $_.Text -notmatch 'ws\\x\.txt' })
+$lsEnv = @(Get-EnvNames $lsSrc | Where-Object { @('SYSTEMROOT', 'USERPROFILE') -notcontains $_ })
+Assert-That 'LSP-MIN 스텁: 시스템을 바꾸는 명령이 없고, 파일 쓰기는 기록 함수(Write-Rec)와 작업 영역 시험 파일 하나뿐이며, 읽는 환경 변수는 SYSTEMROOT·USERPROFILE 뿐이다' (($lsMut.Count -eq 0) -and ($lsIo.Count -eq 0) -and ($lsEnv.Count -eq 0)) (($lsMut + $lsEnv + @($lsIo | ForEach-Object { $_.Text })) -join ',')
+$lsStarts = @([regex]::Matches($lsSrc, 'Diagnostics\.Process\]::Start'))
+Assert-That 'LSP-MIN 스텁: 프로세스를 시작하는 곳은 고정 인자의 자손 둘뿐이다 (Start-Sleep -Seconds 91 대기자, ping.exe -n 8 127.0.0.1)' (($lsStarts.Count -eq 2) -and ($lsSrc -match "Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 91'") -and ($lsSrc -match "Arguments = '-n 8 127\.0\.0\.1'"))
+Assert-That 'LSP-MIN 스텁: 네트워크 접근이 없다 (127.0.0.1 로 ping 하는 자손 하나가 전부이고 소켓·웹 호출이 없다)' (($lsSrc -notmatch '(?i)Net\.Sockets|WebClient|HttpClient|Invoke-WebRequest|TcpClient') -and ((Get-CommandNames $lsAst) -notcontains 'Test-NetConnection'))
+
 # ── 4) 논리(합성 입력) ──────────────────────────────────────────────────────
 Assert-That 'ConvertTo-AuditFlags 0..3' ((-not (ConvertTo-AuditFlags 0).Success) -and (ConvertTo-AuditFlags 1).Success -and (-not (ConvertTo-AuditFlags 1).Failure) -and (ConvertTo-AuditFlags 2).Failure -and (ConvertTo-AuditFlags 3).Success -and (ConvertTo-AuditFlags 3).Failure)
 Assert-That 'ConvertTo-AuditFlags 지원하지 않는 값은 추측하지 않는다' ((-not (ConvertTo-AuditFlags 4).Supported) -and (-not (ConvertTo-AuditFlags -1).Supported))

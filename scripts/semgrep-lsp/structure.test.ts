@@ -279,6 +279,8 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
       .sort();
     // 공유 실행 잠금의 노드 어댑터(run-lock-node.ts)와 그 경쟁 시험용 자식 프로세스(testing/lock-child.mjs)가 더해졌다.
     // 잠금 어댑터는 잠금 파일만 만지고(만들기·읽기·지우기), 자식은 시험 폴더의 표지 파일과 잠금 파일만 만진다.
+    // LSP-MIN-1 실행기의 실제 프로세스 통합 시험용 Node 스텁 서버(testing/stub-lsp-min-server.mjs)가 더해졌다: 작업 폴더 안에 받은 메서드·pid·환경 이름
+    // 기록을 쓰고 홈·작업 영역 안에 시험용 파일을 쓸 뿐이다(네트워크·다른 프로세스 실행 없음, 수명 20초 안에 스스로 끝난다).
     // 휠 아티팩트 해시 어댑터(artifact-node.ts)가 더해졌다: 호출자가 명시한 파일 하나를 읽기 전용으로 열 뿐 아무것도 쓰지 않는다
     // (아래 "도구 버전·휠 관측" 구조 시험이 읽기 전용임을 지킨다).
     // 프로세스 목록 어댑터(process-list-node.ts)가 더해졌다: /proc을 나열하고 읽을 뿐 아무것도 쓰지 않는다
@@ -291,6 +293,7 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
         "run-lock-node.ts",
         "testing/evaluate-fixtures.ts",
         "testing/lock-child.mjs",
+        "testing/stub-lsp-min-server.mjs",
         "testing/synthetic-data.ts",
       ].sort()
     );
@@ -966,5 +969,138 @@ describe("구조 (12) — 다른 서버 프로세스 관측은 읽기만 한다"
       (c.match(/buildScanTree\(/g) ?? []).length + (c.match(/buildControlTree\(/g) ?? []).length;
     expect(build).toBe(2);
     expect(c.match(/\(mayWriteServerTree &&/g)).toHaveLength(2);
+  });
+});
+
+describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 기존 판정·세션에 이어지지 않는다", () => {
+  const CORE = ["lsp-min.ts", "lsp-min-run.ts", "lsp-min-runner-result.ts"];
+  const relImports = (rel: string): string[] =>
+    specifiersOf(byRel(rel).code)
+      .filter((s) => s.startsWith("."))
+      .sort();
+
+  it("두 모듈은 node:* 모듈을 가져오지 않는다 — 파일·프로세스·네트워크·환경에 직접 닿지 않고 포트로만 만진다", () => {
+    for (const rel of CORE) {
+      expect(
+        specifiersOf(byRel(rel).code).filter((s) => !s.startsWith(".")),
+        rel
+      ).toEqual([]);
+    }
+  });
+
+  it("두 모듈이 가져오는 프로젝트 모듈은 정해진 목록뿐이다 (순수 도구와 타입, 그리고 서로)", () => {
+    expect(relImports("lsp-min.ts")).toEqual(
+      [
+        "./canonical",
+        "./framing",
+        "./jsonrpc",
+        "./run-id",
+        "./settings",
+        "./sha",
+        "./types",
+        "./uri",
+      ].sort()
+    );
+    expect(relImports("lsp-min-run.ts")).toEqual(
+      ["./framing", "./lsp-min", "./tool-observation", "./types"].sort()
+    );
+    // 러너 결과 어댑터는 순수 변환이다: 기록 모듈(lsp-min)과 타입, 프레임 오류 타입만 가져온다.
+    expect(relImports("lsp-min-runner-result.ts")).toEqual(
+      ["./framing", "./lsp-min", "./types"].sort()
+    );
+  });
+
+  it("기존 평가기·하네스·세션 제어기·대조 참조·음성 대조·CLI 등 어떤 비시험 소스도 새 모듈을 가져오지 않는다", () => {
+    const importers = nonTest
+      .filter((s) => !CORE.includes(s.rel))
+      .filter((s) => specifiersOf(s.code).some((spec) => /(^|\/)lsp-min(-run)?$/.test(spec)))
+      .map((s) => s.rel);
+    expect(importers).toEqual([]);
+  });
+
+  it("새 모듈은 평가기·하네스·세션·대조 참조·음성 대조·CLI를 가져오지 않는다", () => {
+    for (const rel of CORE) {
+      const bad = relImports(rel).filter((s) =>
+        /\/(evaluate|harness|session|reference|reference-record|negative-control|negative-control-record|cli|precheck|aggregate|control)$/.test(
+          s
+        )
+      );
+      expect(bad, rel).toEqual([]);
+    }
+  });
+
+  it("기존 세션 제어기와 평가기에는 최소 관측 옵션이 없고, 계약은 그대로다 (initialized는 항상 보내고 그 부재는 실패다)", () => {
+    const session = byRel("session.ts").code;
+    const evaluate = byRel("evaluate.ts").code;
+    for (const [rel, code] of [
+      ["session.ts", session],
+      ["evaluate.ts", evaluate],
+    ] as const) {
+      expect(code, rel).not.toMatch(
+        /lsp-min|skipInitialized|minimalStart|withoutInitialized|검사 생략/i
+      );
+    }
+    expect(session).toMatch(/makeNotification\("initialized", \{\}\)/);
+    expect(evaluate).toContain("INITIALIZED_NOT_SENT");
+  });
+
+  it('`"initialized"`라는 문자열을 어떤 형태로도 코드에 담지 않는다 — 보내지도, 고르지도 않는다', () => {
+    for (const rel of CORE) {
+      expect(byRel(rel).code, rel).not.toMatch(/["'`]initialized["'`]/);
+    }
+  });
+
+  it("LSP 환경에 SEMGREP_ENABLE_VERSION_CHECK를 더하는 코드가 없다 (소유자 결정)", () => {
+    for (const rel of CORE) {
+      expect(byRel(rel).code, rel).not.toContain("SEMGREP_ENABLE_VERSION_CHECK");
+    }
+    // 그리고 서버(LSP) 경로의 환경 구성과 사전 검사 허용 목록은 그대로다.
+    expect(byRel("cli.ts").code).toMatch(
+      /buildChildEnv\(\s*deps,\s*evidenceDir,\s*metricsUrl,\s*VERSION_STATE_DIR\s*\)/
+    );
+    expect(byRel("precheck.ts").code).not.toContain("SEMGREP_ENABLE_VERSION_CHECK");
+  });
+
+  it("시간은 주입된 Clock으로만 잰다 — 전역 시간 함수가 없다", () => {
+    for (const rel of CORE) {
+      expect(byRel(rel).code, rel).not.toMatch(
+        /\bDate\s*\.\s*now\b|\bsetTimeout\b|\bsetInterval\b|\bperformance\s*\./
+      );
+    }
+  });
+
+  it("실행기가 stdin에 쓰는 곳은 send 한 곳뿐이고, 쓰기 직전에 허용 메시지 검사를 거친다", () => {
+    const code = byRel("lsp-min-run.ts").code;
+    expect([...code.matchAll(/\.writeStdin\s*\(/g)]).toHaveLength(1);
+    const send = code.indexOf("private async send(");
+    const guard = code.indexOf("assertAllowedOutbound(label, message);", send);
+    const write = code.indexOf(".writeStdin(", send);
+    expect(send).toBeGreaterThan(-1);
+    expect(guard).toBeGreaterThan(send);
+    expect(guard).toBeLessThan(write);
+  });
+
+  it("강제 종료 호출은 killTree 한 곳뿐이고, 한 번만 보내도록 막혀 있다", () => {
+    const code = byRel("lsp-min-run.ts").code;
+    expect([...code.matchAll(/\.kill\s*\(/g)]).toHaveLength(1);
+    expect(code).toMatch(/if \(child === null \|\| this\.killCount > 0\) return;/);
+  });
+
+  it("실행기는 요청 검사에서 거절되면 폴더를 만들기 전에 끝낸다 (검사가 mkdirp보다 앞서 있다)", () => {
+    const code = byRel("lsp-min-run.ts").code;
+    const check = code.indexOf("checkLspMinRequest(this.request)");
+    const mkdir = code.indexOf("mkdirp(path)");
+    const spawn = code.indexOf("await this.spawnChild()");
+    expect(check).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(mkdir);
+    expect(mkdir).toBeLessThan(spawn);
+  });
+
+  it("새 모듈은 pin.json·상태 값(verified·policy_accepted)·ADR을 가리키지 않는다", () => {
+    for (const rel of CORE) {
+      expect(byRel(rel).code, rel).not.toMatch(
+        /pin\.json|policy_accepted|\.verified\b|verified\s*[:=]|decisions\/|lsp-security-source/
+      );
+    }
   });
 });
