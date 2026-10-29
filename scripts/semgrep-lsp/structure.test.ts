@@ -171,7 +171,8 @@ describe("구조 (3) — 환경·argv·exit는 cli.ts의 진입점만 만진다"
 
   it("비시험 소스(스텁 자식 제외)에는 process.env·argv·exit가 없다 — cli.ts 진입점 구역 제외", () => {
     const offenders: string[] = [];
-    for (const s of nonTest.filter((x) => !x.isMjs)) {
+    // 재해석 CLI 래퍼(lsp-min-reinterpret-cli.ts)는 자기 argv 와 종료 코드만 만진다 — 아래 구조 (13)의 전용 시험이 범위를 지킨다.
+    for (const s of nonTest.filter((x) => !x.isMjs && x.rel !== "lsp-min-reinterpret-cli.ts")) {
       const code =
         s.rel === "cli.ts" ? s.code.slice(0, s.code.indexOf("async function runEntry")) : s.code;
       if (ENV.test(code)) offenders.push(s.rel);
@@ -289,6 +290,8 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
       [
         "artifact-node.ts",
         "fs-node.ts",
+        // LSP-MIN-1 관리자 진입점이 부르는 재해석 래퍼: 인자로 받은 파일 둘을 읽고 하나를 쓸 뿐이다(구조 (13)이 지킨다).
+        "lsp-min-reinterpret-cli.ts",
         "process-list-node.ts",
         "run-lock-node.ts",
         "testing/evaluate-fixtures.ts",
@@ -973,7 +976,12 @@ describe("구조 (12) — 다른 서버 프로세스 관측은 읽기만 한다"
 });
 
 describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 기존 판정·세션에 이어지지 않는다", () => {
-  const CORE = ["lsp-min.ts", "lsp-min-run.ts", "lsp-min-runner-result.ts"];
+  const CORE = [
+    "lsp-min.ts",
+    "lsp-min-run.ts",
+    "lsp-min-runner-result.ts",
+    "lsp-min-reinterpret.ts",
+  ];
   const relImports = (rel: string): string[] =>
     specifiersOf(byRel(rel).code)
       .filter((s) => s.startsWith("."))
@@ -1008,6 +1016,26 @@ describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 
     expect(relImports("lsp-min-runner-result.ts")).toEqual(
       ["./framing", "./lsp-min", "./types"].sort()
     );
+    // 관리자 문맥 재해석은 순수 변환이다: 기록 모듈과 러너 결과 어댑터만 가져온다.
+    expect(relImports("lsp-min-reinterpret.ts")).toEqual(
+      ["./lsp-min", "./lsp-min-runner-result"].sort()
+    );
+  });
+
+  it("재해석 CLI 래퍼는 node:fs 와 순수 재해석 모듈만 가져오고 프로세스·네트워크에 닿지 않는다", () => {
+    const code = byRel("lsp-min-reinterpret-cli.ts").code;
+    expect(specifiersOf(code).sort()).toEqual(["./lsp-min-reinterpret", "node:fs"].sort());
+    expect(code).not.toMatch(/child_process|node:net|node:http|\bspawn\b|\bfetch\s*\(/);
+    // process 는 자기 인자(argv.slice(2)), 표준 출력, 종료 코드(exitCode)만 만진다. 환경 변수와 process.exit 는 쓰지 않는다.
+    const touched = [...code.matchAll(/\bprocess\s*\.\s*(\w+)/g)].map((m) => m[1]).sort();
+    expect(touched).toEqual(["argv", "exitCode", "stdout"].sort());
+    expect(code).toMatch(/process\.argv\.slice\(2\)/);
+    // 다른 비시험 소스가 래퍼를 가져오지 않는다(진입점은 PowerShell 이 tsx 로 직접 부른다).
+    const importers = nonTest
+      .filter((s) => s.rel !== "lsp-min-reinterpret-cli.ts")
+      .filter((s) => specifiersOf(s.code).some((spec) => /lsp-min-reinterpret-cli$/.test(spec)))
+      .map((s) => s.rel);
+    expect(importers).toEqual([]);
   });
 
   it("기존 평가기·하네스·세션 제어기·대조 참조·음성 대조·CLI 등 어떤 비시험 소스도 새 모듈을 가져오지 않는다", () => {
