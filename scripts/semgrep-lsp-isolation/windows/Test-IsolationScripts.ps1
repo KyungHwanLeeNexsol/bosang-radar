@@ -36,7 +36,8 @@ function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
 
 $dir = $PSScriptRoot
 $versionEntry = 'Test-VersionObservation.ps1'
-$entry = 'Invoke-IsolationPreflight.ps1', 'Initialize-Isolation.ps1', 'Remove-Isolation.ps1', 'Test-IsolationEffect.ps1', 'Get-IsolationEvidence.ps1', $versionEntry
+$lspAdminEntry = 'Test-LspMinObservation.ps1'
+$entry = 'Invoke-IsolationPreflight.ps1', 'Initialize-Isolation.ps1', 'Remove-Isolation.ps1', 'Test-IsolationEffect.ps1', 'Get-IsolationEvidence.ps1', $versionEntry, $lspAdminEntry
 $libCommon = 'IsolationCommon.ps1'
 $libFlows = 'IsolationFlows.ps1'
 $library = @($libCommon, $libFlows)
@@ -362,6 +363,107 @@ Assert-That 'LSP-MIN 스텁: 시스템을 바꾸는 명령이 없고, 파일 쓰
 $lsStarts = @([regex]::Matches($lsSrc, 'Diagnostics\.Process\]::Start'))
 Assert-That 'LSP-MIN 스텁: 프로세스를 시작하는 곳은 고정 인자의 자손 둘뿐이다 (Start-Sleep -Seconds 91 대기자, ping.exe -n 8 127.0.0.1)' (($lsStarts.Count -eq 2) -and ($lsSrc -match "Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 91'") -and ($lsSrc -match "Arguments = '-n 8 127\.0\.0\.1'"))
 Assert-That 'LSP-MIN 스텁: 네트워크 접근이 없다 (127.0.0.1 로 ping 하는 자손 하나가 전부이고 소켓·웹 호출이 없다)' (($lsSrc -notmatch '(?i)Net\.Sockets|WebClient|HttpClient|Invoke-WebRequest|TcpClient') -and ((Get-CommandNames $lsAst) -notcontains 'Test-NetConnection'))
+
+# (G) LSP-MIN-1 관리자 진입점 파일. 진입점(Test-LspMinObservation.ps1)은 위의 `$entry` 에 들어 있어 변경 관문·.NET 쓰기·semgrep 호출 금지·파라미터 충돌 규칙을 그대로 받는다.
+#     나머지(계약·포트·모의·시험)는 (F)와 같은 이유로 `$all` 밖의 별도 목록으로 역할마다 점검한다. 위의 어떤 규칙도 이 구역 때문에 느슨해지지 않는다.
+$gContract = 'LspMinAdminContract.ps1'; $gPorts = 'LspMinAdminPorts.ps1'
+$gMockSys = 'tests\MockSystemLsp.ps1'; $gMockPorts = 'tests\MockPortsLsp.ps1'; $gTest = 'tests\Test-LspMinAdmin.ps1'
+$gFiles = @($gContract, $gPorts, $gMockSys, $gMockPorts, $gTest)
+$gAst = @{}; $gSrc = @{}
+$gAst[$lspAdminEntry] = $asts[$lspAdminEntry]; $gSrc[$lspAdminEntry] = $srcOf[$lspAdminEntry]
+foreach ($f in $gFiles) {
+    $p = Join-Path $dir $f
+    $errs = $null; $tokens = $null
+    $gAst[$f] = [Management.Automation.Language.Parser]::ParseFile($p, [ref]$tokens, [ref]$errs)
+    $gSrc[$f] = [IO.File]::ReadAllText($p)
+    $b = [IO.File]::ReadAllBytes($p)
+    Assert-That "LSP-MIN 관리자 구문 $f ($($PSVersionTable.PSVersion))" ($errs.Count -eq 0) (($errs | ForEach-Object { "$($_.Message)@$($_.Extent.StartLineNumber)" }) -join '; ')
+    Assert-That "LSP-MIN 관리자 BOM $f" ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+    $hits = New-Object System.Collections.ArrayList
+    foreach ($c in $gAst[$f].FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] }, $true)) {
+        $name = $c.GetCommandName(); $first = $c.CommandElements[0].Extent.Text.Trim('"', "'")
+        if (($name -and ($name -match $forbiddenNames -or $name -in @('Invoke-WebRequest', 'Invoke-RestMethod', 'Invoke-Expression', 'iex', 'curl', 'wget', 'Start-BitsTransfer'))) -or ($first -match '(?i)(^|[\\/])(semgrep|pysemgrep|semgrep-core)(\.exe)?$')) { [void]$hits.Add(("{0}@{1}" -f $c.Extent.Text.Split("`n")[0].Trim(), $c.Extent.StartLineNumber)) }
+    }
+    Assert-That "LSP-MIN 관리자 semgrep 호출·내려받기·Invoke-Expression 없음 ($f)" ($hits.Count -eq 0) ($hits -join ' | ')
+}
+$gCore = @($lspAdminEntry, $gContract, $gPorts, $gMockSys, $gMockPorts)
+foreach ($f in $gCore) {
+    $strs = @($gAst[$f].FindAll({ param($n) $n -is [Management.Automation.Language.StringConstantExpressionAst] -or $n -is [Management.Automation.Language.ExpandableStringExpressionAst] }, $true))
+    $initBad = @($strs | Where-Object { $_.Extent.Text -match 'initialized' })
+    Assert-That "LSP-MIN 관리자 코드 문자열에 initialized 가 없다 — 보내지도 고르지도 않는다 ($f)" ($initBad.Count -eq 0) (($initBad | ForEach-Object { "$($_.Extent.Text)@$($_.Extent.StartLineNumber)" }) -join ' | ')
+    $vcBad = @($gAst[$f].FindAll({ param($n) ($n -is [Management.Automation.Language.StringConstantExpressionAst] -or $n -is [Management.Automation.Language.ExpandableStringExpressionAst] -or $n -is [Management.Automation.Language.CommandAst] -or $n -is [Management.Automation.Language.VariableExpressionAst]) -and $n.Extent.Text -match 'SEMGREP_ENABLE_VERSION_CHECK' }, $true))
+    Assert-That "LSP-MIN 관리자 SEMGREP_ENABLE_VERSION_CHECK 가 코드에 없다 — LSP 환경에 더하지 않는다 ($f)" ($vcBad.Count -eq 0) (($vcBad | ForEach-Object { "$($_.Extent.Text)@$($_.Extent.StartLineNumber)" }) -join ' | ')
+    $stateBad = @($strs | Where-Object { $_.Extent.Text -match '(?i)pin\.json|policy_accepted|(?<![A-Za-z])verified(?![A-Za-z])|lsp-security-source|decisions[\\/]' })
+    Assert-That "LSP-MIN 관리자 코드는 핀 파일·검증 표지·정책 수락·ADR 을 가리키지 않는다 ($f)" ($stateBad.Count -eq 0) (($stateBad | ForEach-Object { "$($_.Extent.Text)@$($_.Extent.StartLineNumber)" }) -join ' | ')
+    $lfBad = ([IO.File]::ReadAllText((Join-Path $dir $f)).Contains("`r"))
+    Assert-That "LSP-MIN 관리자 줄바꿈은 LF 다 ($f)" (-not $lfBad)
+}
+# (G-1) 진입점: -Execute 없이는 첫 변경(수신기·감사·계정·복사·실행)보다 앞에서 돌아온다. 수신기는 계정·감사·자식보다 먼저 준비한다.
+$geSrc = $gSrc[$lspAdminEntry]
+$geDry = $geSrc.IndexOf('if (-not $Execute) {')
+$geOrder = @('New-LspMinReceiver', 'Open-IsoAuditWindow -Guid', 'Enable-LocalUser -Name', 'Copy-Item -LiteralPath', 'Start-Process -FilePath') | ForEach-Object { $geSrc.IndexOf($_, [Math]::Max(0, $geDry)) }
+Assert-That 'LSP-MIN 관리자 진입점: -Execute 없이는 수신기·감사 창·계정·복사·러너 실행보다 앞에서 돌아오고, 그 사이에 변경이 없다' (($geDry -gt 0) -and (@($geOrder | Where-Object { $_ -lt 0 }).Count -eq 0) -and ($geSrc.IndexOf('$Script:ApplyMode = $Execute') -ge 0) -and ($geSrc.IndexOf('$Script:ApplyMode = $Execute') -lt $geDry)) ("order=$($geOrder -join ',') dry=$geDry")
+Assert-That 'LSP-MIN 관리자 진입점: 수신기 → 감사 창 → 계정 켜기 → 러너 복사 → 러너 실행 순서다 (수신기가 자식보다 먼저)' (($geOrder[0] -lt $geOrder[1]) -and ($geOrder[1] -lt $geOrder[2]) -and ($geOrder[2] -lt $geOrder[3]) -and ($geOrder[3] -lt $geOrder[4])) ("order=$($geOrder -join ',')")
+$geStarts = @($gAst[$lspAdminEntry].FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Start-Process' }, $true))
+Assert-That 'LSP-MIN 관리자 진입점: 프로세스를 띄우는 곳은 전용 계정(-Credential)으로 Windows PowerShell 5.1 러너를 띄우는 한 곳뿐이다 (semgrep 은 러너만 띄운다)' (($geStarts.Count -eq 1) -and ($geStarts[0].Extent.Text -match '-FilePath \$Script:Ps51') -and ($geStarts[0].Extent.Text -match '-Credential \$cred') -and ($geSrc -match "lsp-min-runner\.ps1'\)\)"))
+# (G-2) 실제 모드: 한도·감독 시간은 계약 값 고정, 해시는 64자리, 설치 경로는 도출한 경로와 같고 링크 없음, 보고서 대조
+Assert-That 'LSP-MIN 관리자 진입점: 실제 모드의 한도와 기동 허용·감독 유예는 계약 값에 고정돼 있다(다르면 거부, 종료 30)' (($geSrc -match '\[int\]\$Limits\[\$k\] -ne \[int\]\$Script:LspMinLimits\[\$k\]') -and ($geSrc -match '\$StartAllowanceMs -ne \$Script:LspMinAdminStartAllowanceMs -or \$SupervisorGraceMs -ne \$Script:LspMinAdminSupervisorGraceMs'))
+Assert-That 'LSP-MIN 관리자 진입점: 기대 해시는 ConvertTo-LspMinSha256(전체 64자리)로 거르고, 실행 파일 경로는 Get-LspMinExpectedExePath 와 Test-LspMinSamePath 로 정확히 대조하며, 경로 조각의 링크를 Get-LspMinReparseInChain 으로 본다' (($geSrc -match 'ConvertTo-LspMinSha256 \$ExpectedExeSha256') -and ($geSrc -match 'ConvertTo-LspMinSha256 \$ExpectedWheelSha256') -and ($geSrc -match 'Get-LspMinExpectedExePath -DistRoot') -and ($geSrc -match 'Test-LspMinSamePath \$SemgrepExe \$expectedExe') -and ($geSrc -match 'Get-LspMinReparseInChain') -and ($geSrc -match 'Test-LspMinReportCrossCheck'))
+Assert-That 'LSP-MIN 관리자 진입점: 이름이 semgrep.exe 라는 이유만으로 허용하지 않는다 — 실행 파일 해시(L03)·배포물 보고서 대조(L06)가 사전 조건이다' (($geSrc -match "& \`$addPre 'L03'") -and ($geSrc -match "& \`$addPre 'L06'") -and ($geSrc -match '\$preFail\.Count -gt 0'))
+# (G-3) 요청·결과 결합: 실행별 토큰(RunId 포함), 이전 결과 파일 삭제, 결합·신원 모두 실패 조건
+Assert-That 'LSP-MIN 관리자 진입점: 실행별 토큰(RunId 포함)을 만들고, 이전 요청·결과·중단 파일을 지우고, 결과는 토큰이 같을 때만 받아들이며, 결합 검사(Test-LspMinResultBinding)를 통과해야 한다' (($geSrc -match 'New-LspMinRunToken -RunId \$runId -Nonce \$nonce') -and ($geSrc -match "'lsp-min-request\.json', 'lsp-min-result\.json', 'lsp-min-result\.json\.tmp', 'lsp-min-abort\.flag'") -and ($geSrc -match '-ceq \$runToken') -and ($geSrc -match 'Test-LspMinResultBinding -Result \$resultObj'))
+Assert-That 'LSP-MIN 관리자 진입점: 신원 교차 확인은 실행기·자식의 소유 SID, 실행 파일, 부모 관계, 명령줄, 시작 시각, 자기 보고를 관리자 CIM 과 대조한다' (($geSrc -match 'RUNNER_OWNER_MISMATCH') -and ($geSrc -match 'CHILD_OWNER_MISMATCH') -and ($geSrc -match 'CHILD_PARENT_MISMATCH') -and ($geSrc -match 'CHILD_EXE_MISMATCH') -and ($geSrc -match 'CHILD_COMMANDLINE_MISMATCH') -and ($geSrc -match 'CHILD_START_MISMATCH') -and ($geSrc -match 'SELF_SID_MISMATCH') -and ($geSrc -match 'SELF_PID_MISMATCH'))
+# (G-4) 감독: 관리자 루프가 독립적으로 마감을 지킨다. CIM 조회는 포트(제한 시간 있음)로만, 결정은 순수 함수로.
+Assert-That 'LSP-MIN 관리자 진입점: 감독 루프가 순수 결정 함수(Get-LspMinSupervisorAction)로 마감을 판단하고, 중단 요청(REQUEST_ABORT)과 강제 종료(FORCE_KILL)·포기(GIVE_UP)를 모두 다룬다' (($geSrc -match 'Get-LspMinSupervisorAction -ElapsedMs') -and ($geSrc -match "-eq 'REQUEST_ABORT'") -and ($geSrc -match "-eq 'FORCE_KILL'") -and ($geSrc -match "-eq 'GIVE_UP'"))
+$geCim = @($gAst[$lspAdminEntry].FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in @('Get-CimInstance', 'Get-WmiObject', 'Get-LspMinCimTable') }, $true))
+Assert-That 'LSP-MIN 관리자 진입점: 프로세스 표는 제한 시간을 주는 포트(Get-LspMinCimTable -TimeoutSec)로만 읽고 직접 Get-CimInstance 를 부르지 않는다' (($geCim.Count -ge 1) -and (@($geCim | Where-Object { $_.GetCommandName() -ne 'Get-LspMinCimTable' }).Count -eq 0) -and (@($geCim | Where-Object { $_.Extent.Text -notmatch '-TimeoutSec \d+' }).Count -eq 0))
+Assert-That 'LSP-MIN 관리자 진입점: 수신기 읽기 실패는 중단 A3:RECEIVER_UNREADABLE, 적중은 A3:RECEIVER_HIT, 마감은 A7:SUPERVISOR_DEADLINE, 취소는 A7:OPERATOR_CANCEL 로 전달하고, 중단 파일을 못 쓰면 전용 계정 프로세스를 직접 끝낸다' (($geSrc -match 'A3:RECEIVER_UNREADABLE') -and ($geSrc -match 'A3:RECEIVER_HIT') -and ($geSrc -match 'A7:SUPERVISOR_DEADLINE') -and ($geSrc -match 'A7:OPERATOR_CANCEL') -and ($geSrc -match "& \`$forceKill 'ABORT_DELIVERY_FAILED'"))
+Assert-That 'LSP-MIN 관리자 진입점: 감독 종료는 전용 계정의 프로세스만 대상으로 하고(UserName 이 \<계정> 으로 끝나는 것) Invoke-Mutation 을 거친다' (($geSrc -match "EndsWith\('\\' \+ \`$uname") -and ($geSrc -match 'Invoke-Mutation -Description "감독 종료'))
+# (G-5) 세 결과 분리와 5157: 정리는 항목마다 독립(Invoke-IsoCleanupStep), 관측·프로세스 정리·시스템 복구는 따로, 건수는 0 으로 채우지 않는다
+$geFinally = $geSrc.IndexOf('} finally {')
+$geCleanupNames = @("'listener-stop'", "'process-cleanup'", "'account-disable'", "('audit-restore '")
+Assert-That 'LSP-MIN 관리자 진입점: finally 에서 수신기 정지·프로세스 정리·계정 비활성화·감사 복구를 각각 Invoke-IsoCleanupStep 으로 독립 실행한다' (($geFinally -gt 0) -and (@($geCleanupNames | Where-Object { $geSrc.IndexOf("Invoke-IsoCleanupStep -Name $_", $geFinally) -lt 0 }).Count -eq 0))
+Assert-That 'LSP-MIN 관리자 진입점: 관측(observation)·프로세스 정리(processCleanup)·시스템 복구(systemRecovery)를 보고서의 따로 된 항목으로 적고, 종료 코드는 Get-LspMinAdminExitCode 한 곳이 정한다' (($geSrc -match '\$report\.observation = ') -and ($geSrc -match '\$report\.processCleanup = \$groups\.processCleanup') -and ($geSrc -match '\$report\.systemRecovery = \$groups\.systemRecovery') -and ($geSrc -match 'Get-LspMinAdminExitCode -Established'))
+Assert-That 'LSP-MIN 관리자 진입점: 귀속된 5157·식별 불가·루프백 건수는 Get-LspMinOsBlockCounts 를 거쳐 따로 적고, 수집이 확실하지 않으면 null 이다(0 으로 채우지 않는다)' (($geSrc -match 'Get-LspMinOsBlockCounts -CollectionOk') -and ($geSrc -match 'attributedCount = \$null') -and ($geSrc -match 'unidentifiedCount = \$null') -and ($geSrc -match '\$ev\.loopbackHits = \$recv\.finalHits') -and ($geSrc -match 'finalHits = \$null'))
+Assert-That 'LSP-MIN 관리자 진입점: 결과 파일이 없으면 RUNNER_NO_RESULT 로 관측 실패로 남기고, 재해석 도구가 없거나 실패하면 관측이 성립하지 않는다(REINTERPRETATION_NOT_RUN·FAILED)' (($geSrc -match "'RUNNER_NO_RESULT'") -and ($geSrc -match "'REINTERPRETATION_NOT_RUN'") -and ($geSrc -match "'REINTERPRETATION_FAILED'") -and ($geSrc -match "\`$established = \(\`$fs0\.all\.Count -eq 0 -and \`$reint\.status -eq 'RUN'"))
+# (G-5b) 검토 지적의 구조적 고정: 5157 은 관리자 문맥·판정보다 앞에서 수집해 판정 토큰에 반영하고, 재해석 도구 호출은 정리(finally) 뒤에 한다. 이전 배치 삭제는 계정을 켜기 전, 링크 확인 뒤에만 한다.
+$geOsTok = $geSrc.IndexOf('Get-LspMinOsBlockFailureTokens -Counts'); $geCtx = $geSrc.IndexOf('New-LspMinAdminContext -RunId'); $geReint = $geSrc.IndexOf('Invoke-LspMinReinterpret -TsxCmd'); $geFin2 = $geSrc.IndexOf('} finally {')
+Assert-That 'LSP-MIN 관리자 진입점: 5157 요약이 판정 토큰(OS_BLOCK_*)과 관리자 문맥(-OsBlock)에 반영되고, 재해석 도구 호출은 정리(finally) 뒤에 있다' (($geOsTok -gt 0) -and ($geOsTok -lt $geCtx) -and ($geSrc -match '-OsBlock \$cnt') -and ($geReint -gt $geFin2) -and ($geFin2 -gt $geCtx))
+$geRm = $geSrc.IndexOf('Remove-Item -LiteralPath $lspWork -Recurse'); $geLinks = $geSrc.IndexOf('Find-LspMinReparseInTree -Root $lspWork', $geSrc.IndexOf('$linksNow')); $geEnable = $geSrc.IndexOf('Enable-LocalUser -Name')
+Assert-That 'LSP-MIN 관리자 진입점: 이전 작업 배치의 재귀 삭제는 링크 확인(Find-LspMinReparseInTree) 뒤에만, 전용 계정을 켜기 전에 하고, 사전 조건(T08)도 링크를 본다' (($geRm -gt 0) -and ($geSrc.IndexOf('$linksNow') -gt 0) -and ($geSrc.IndexOf('$linksNow') -lt $geRm) -and ($geRm -lt $geEnable) -and ($geSrc -match "& \`$addPre 'T08'"))
+$geDirect = @($gAst[$lspAdminEntry].FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in @('Invoke-CimMethod', 'Get-ProcessRecord', 'Get-WmiObject') }, $true))
+Assert-That 'LSP-MIN 관리자 진입점: 소유 SID·프로세스 기록 조회는 제한 시간이 있는 포트(Get-LspMinOwnerSid·Get-LspMinProcessRecord)로만 하고 Invoke-CimMethod·Get-ProcessRecord 를 직접 부르지 않는다' ($geDirect.Count -eq 0)
+Assert-That 'LSP-MIN 관리자 진입점: 강제 종료는 추적한 PID(소유 SID·시작 시각 재확인)를 계정 이름 열거보다 먼저 끝내고, 사유에 실제 중단 요청 사유를 남긴다' (($geSrc.IndexOf('추적한 전용 계정 프로세스') -gt 0) -and ($geSrc.IndexOf('추적한 전용 계정 프로세스') -lt $geSrc.IndexOf('& $findAccountProcs')) -and ($geSrc -match "ABORT_NOT_FOLLOWED:' \+ \[string\]\`$sup\.abortReason"))
+# (G-6) 계약 파일: 실행 부작용이 없다
+$gcAst = $gAst[$gContract]; $gcSrc = $gSrc[$gContract]
+$gcTopBad = @($gcAst.EndBlock.Statements | Where-Object { $_ -isnot [Management.Automation.Language.AssignmentStatementAst] -and $_ -isnot [Management.Automation.Language.FunctionDefinitionAst] })
+Assert-That 'LSP-MIN 관리자 계약 파일: 최상위는 대입과 함수 정의뿐이다(불러오는 것만으로 실행되는 것이 없다)' ($gcTopBad.Count -eq 0) (($gcTopBad | ForEach-Object { $_.Extent.Text.Split("`n")[0].Trim() }) -join ' | ')
+$gcOwn = @($gcAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+$gcExtra = @((Get-CommandNames $gcAst) | Where-Object { (@('New-Object', 'ForEach-Object', 'Where-Object', 'Sort-Object', 'Select-Object', 'Get-LspMinLayout') + $gcOwn) -notcontains $_ })
+Assert-That 'LSP-MIN 관리자 계약 파일: 부르는 명령이 허용 목록(New-Object·ForEach-Object·Where-Object·Sort-Object·Select-Object·Get-LspMinLayout·이 파일의 함수)뿐이다 — 파일·프로세스·네트워크·계정 접근 없음' ($gcExtra.Count -eq 0) ($gcExtra -join ', ')
+$gcStatic = @($gcAst.FindAll({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static -and $n.Expression.Extent.Text -match '(?i)IO\.File|IO\.Directory|Diagnostics|Net\.|Environment|Reflection|Activator' }, $true))
+Assert-That 'LSP-MIN 관리자 계약 파일: 파일·프로세스·네트워크·환경을 만지는 정적 .NET 호출이 없고 $env: 도 읽지 않는다' (($gcStatic.Count -eq 0) -and (@(Get-EnvNames $gcSrc).Count -eq 0))
+# (G-7) 포트: 네트워크는 루프백 수신기 하나, 파일 만들기는 중단 파일 하나, 프로세스 표는 제한 시간이 있고, 변경 명령이 없다
+$gpAst = $gAst[$gPorts]; $gpSrc = $gSrc[$gPorts]
+Assert-That 'LSP-MIN 관리자 포트: 네트워크는 127.0.0.1 루프백 수신기 하나뿐이고(Loopback, 임의 주소 없음) 연결 내용은 읽지 않는다' (($gpSrc -match '\[Net\.IPAddress\]::Loopback') -and ($gpSrc -notmatch 'IPAddress\]::(Any|IPv6Any)') -and ($gpSrc -notmatch '\.GetStream\(\)|\.Receive|WebClient|HttpClient') -and ([regex]::Matches($gpSrc, 'Net\.Sockets\.TcpListener')).Count -eq 1)
+$gpCim = @($gpAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in @('Get-CimInstance', 'Invoke-CimMethod') }, $true))
+Assert-That 'LSP-MIN 관리자 포트: 프로세스 표·프로세스 기록·소유 SID 조회(Get-CimInstance·Invoke-CimMethod)는 모두 조회 한 번의 제한 시간(-OperationTimeoutSec)을 준다' (($gpCim.Count -ge 3) -and (@($gpCim | Where-Object { $_.Extent.Text -notmatch '-OperationTimeoutSec \$TimeoutSec' }).Count -eq 0))
+Assert-That 'LSP-MIN 관리자 포트: 수신기 비우기는 한 번에 받는 연결 수에 상한이 있다' ($gpSrc -match '\$taken -lt 256 -and \$Receiver\.listener\.Pending\(\)')
+$gpMut = @($mutatingCmdlets | Where-Object { (Get-CommandNames $gpAst) -contains $_ })
+Assert-That 'LSP-MIN 관리자 포트: 계정·방화벽·ACL·감사·프로세스를 바꾸는 명령이 없다' ($gpMut.Count -eq 0) ($gpMut -join ', ')
+Assert-That 'LSP-MIN 관리자 포트: 파일을 만드는 곳은 중단 파일 하나(Write-LspMinAbortFile, 새로 만들기 CreateNew)뿐이다' ((@((Get-DotNetWriteSites $gpAst) | Where-Object { $_.Fn -ne 'Write-LspMinAbortFile' }).Count -eq 0) -and ([regex]::Matches($gpSrc, 'FileMode\]::CreateNew')).Count -eq 1 -and ($gpSrc -notmatch 'Remove-Item|Set-Content|Out-File'))
+$gpNative = @($gpAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.InvocationOperator -eq [Management.Automation.Language.TokenKind]::Ampersand }, $true))
+$gpStarts = @($gpAst.FindAll({ param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Static -and $n.Expression.Extent.Text -match 'Diagnostics\.Process' -and $n.Member.Extent.Text -eq 'Start' }, $true))
+$gpStartFn = $(if ($gpStarts.Count -eq 1) { Get-EnclosingFunction $gpStarts[0] })
+Assert-That 'LSP-MIN 관리자 포트: 외부 프로세스를 띄우는 곳은 재해석 도구 호출 한 곳(Invoke-LspMinReinterpret)뿐이고, 고정된 옵션 이름만 쓰며, 제한 시간 안에 안 끝나면 끊는다 (셸 없음)' (($gpNative.Count -eq 0) -and ($gpStarts.Count -eq 1) -and ($gpStartFn -eq 'Invoke-LspMinReinterpret') -and ($gpSrc -match "'--runner-result', \`$RunnerResultPath, '--context', \`$ContextPath, '--out', \`$OutPath") -and ($gpSrc -match 'UseShellExecute = \$false') -and ($gpSrc -match 'WaitForExit\(\$TimeoutMs\)'))
+# (G-8) 모의: 실제 Semgrep 을 띄울 수 없고, 진짜 종료는 시험이 띄운 트리에만 한다
+$gmSrc = $gSrc[$gMockSys]
+Assert-That 'LSP-MIN 모의: 진짜 러너는 stub 모드 요청일 때만 띄우고 semgrep-lsp 모드는 예외(MOCK GUARD)로 막는다' (($gmSrc -match "\[string\]\`$req\.mode -ne 'stub'\) \{ throw 'MOCK GUARD") -and ($gmSrc.IndexOf("throw 'MOCK GUARD") -lt $gmSrc.IndexOf('Microsoft.PowerShell.Management\Start-Process -FilePath $FilePath -ArgumentList $ArgumentList')))
+Assert-That 'LSP-MIN 모의: 진짜 프로세스 종료는 이 시험이 띄운 러너 트리 안의 pid(Get-LspMockRealRows)에만 한다' (($gmSrc -match '\$rows\.ContainsKey\(\$Id\)') -and ([regex]::Matches($gmSrc, 'Microsoft\.PowerShell\.Management\\Stop-Process')).Count -eq 1)
+Assert-That 'LSP-MIN 모의: 진짜 계정·방화벽·감사·ACL 명령을 부르지 않는다(모의 전용 계정은 상태 파일에만 만든다)' (($gmSrc -notmatch 'Microsoft\.PowerShell\.LocalAccounts\\|NetSecurity\\|auditpol') -and ($gmSrc -match 'function New-LocalUser'))
+# (G-9) 시험 파일: 진입점을 부르기 전에 모의 샌드박스를 정하고 끝나면 지운다
+$gtSrc = $gSrc[$gTest]
+Assert-That 'LSP-MIN 관리자 시험: 진입 스크립트를 부르기 전에 모의 샌드박스(ISO_MOCK_SANDBOX)를 정하고 끝나면 지우며, 진짜 시스템 상태(계정·규칙·감사) 전후 비교가 있다' (($gtSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -ge 0) -and ($gtSrc.IndexOf('$env:ISO_MOCK_SANDBOX = ') -lt $gtSrc.IndexOf('-File (Join-Path $Sb.Code $Script)')) -and ($gtSrc -match 'Remove-Item Env:\\ISO_MOCK_SANDBOX') -and ($gtSrc -match 'Get-RealStateSnapshot'))
 
 # ── 4) 논리(합성 입력) ──────────────────────────────────────────────────────
 Assert-That 'ConvertTo-AuditFlags 0..3' ((-not (ConvertTo-AuditFlags 0).Success) -and (ConvertTo-AuditFlags 1).Success -and (-not (ConvertTo-AuditFlags 1).Failure) -and (ConvertTo-AuditFlags 2).Failure -and (ConvertTo-AuditFlags 3).Success -and (ConvertTo-AuditFlags 3).Failure)
