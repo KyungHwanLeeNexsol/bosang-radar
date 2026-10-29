@@ -51,6 +51,10 @@
 | `VersionContract.ps1`                 | 어댑터 계약(`tool-observation.ts`)의 한도와 `parseVersionStdout`의 PowerShell 이식본, 수집 판정 함수(`Get-VersionObservationFailures`), 자식 환경 구성(`New-VersionChildEnv`, 전용 홈)        | 아니다                                    |
 | `tests/Test-VersionRunner.ps1`        | 스텁·가짜 스트림·합성 결과로 실행기의 제한·정리·환경 격리·거부 경로·읽기 함수와 판정 함수, 해석 계약·환경 계약의 TS 대조를 확인하는 시험                                                      | 아니다(임시 샌드박스 안에서만)            |
 | `tests/Test-VersionFlows.ps1`         | 모의 시스템 위에서 버전 관측 진입점의 판정·정리·환경을 끝까지 돌리는 흐름 시험(실행기는 돌리지 않고 결과 파일을 모의가 만든다)                                                                | 아니다(임시 샌드박스 안에서만)            |
+| `lsp-min-runner.ps1`                  | LSP-MIN-1 표준 입력 러너. `semgrep.exe lsp --debug`(또는 스텁)를 한 번 띄워 initialize → shutdown → exit만 보내고 원문 바이트·종료·정리 기록을 결과 파일로 남긴다. 진입 스크립트가 아직 없다  | 아니다(실제 Semgrep은 실행하지 않았다)    |
+| `lsp-min-stub.ps1`                    | 러너 점검용 무해한 스텁 서버(시나리오 25개). 실제 Semgrep이 아니다                                                                                                                            | 아니다(임시 샌드박스 안에서만)            |
+| `LspMinContract.ps1`                  | LSP-MIN-1 계약의 PowerShell 이식본(고정 인자·메시지, 환경 이름 집합, 초기화 핵심 규칙, 중단 문구, 허용 이미지). 실행 부작용이 없다                                                            | 아니다                                    |
+| `tests/Test-LspMinRunner.ps1`         | 러너를 스텁으로 끝까지 돌리고, 계약을 TS 모듈(`lsp-min.ts`)과 같은 입력으로 대조하며, 러너 결과 → TS 기록 변환까지 확인하는 시험                                                              | 아니다(임시 샌드박스 안에서만)            |
 
 모든 `.ps1`은 UTF-8 BOM으로 저장한다(Windows PowerShell 5.1이 BOM 없는 UTF-8을 ANSI로 읽어 한글이 깨지기 때문). `.gitattributes`의 `eol=lf`와 함께 둔다.
 
@@ -109,6 +113,34 @@ $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
 **환경.** 자식 환경은 PS `New-VersionChildEnv`와 TS `buildVersionChildEnv`(= `buildChildEnv`(win32) + 고정값 하나)가 같은 이름 집합으로 만든다: `PATH`·`SYSTEMROOT`·`TEMP`·`TMP`, **`USERPROFILE`**, `SEMGREP_APP_URL`/`METRICS_URL`/`VERSION_CHECK_URL`, `SEMGREP_LOG_FILE`/`SETTINGS_FILE`/`VERSION_CACHE_PATH`, **`SEMGREP_ENABLE_VERSION_CHECK=0`**. 마지막 것은 `--version`이 버전을 출력한 뒤 하는 온라인 최신 버전 조회를 끄는 **버전 관측 자식 전용 고정값**이다(문자열 상수이고 부모 환경에서 읽지 않으며, 설치 버전 출력을 바꾸지 않는다). 서버(LSP) 경로의 환경에는 주지 않고 `precheck`는 이 이름을 허용 목록 밖으로 거절한다. `USERPROFILE`은 부모 값을 복사하지 않고 그 실행의 상태 폴더 아래 `home`이다(PS: 작업 폴더의 `work\state\home`, 복구가 작업 폴더를 `.owner` 확인 뒤 지울 때 함께 지워진다. TS: 증거 폴더의 `version-check-state\home`과 `semgrep-state\home`, 상태 폴더를 만드는 자리에서 만들고 쓰기 경로 검사에도 같은 상수가 들어 있다). `HOME`·`HOMEDRIVE`·`HOMEPATH`·`APPDATA`는 주지 않는다. 부모의 토큰·프록시는 이름도 값도 복사하지 않는다. Linux는 예전과 같다.
 
 **판정.** 수집 상태·종료 상태·stdout 해석은 계약 함수 `Get-VersionObservationFailures` 한 곳이 정한다. 주 토큰 우선순위(해당하는 것은 모두 `failures`에 남는다): `RUNNER_NO_RESULT` → `RUNNER_REFUSED` → `SPAWN_FAILED` → `RUNNER_ERROR` → `STREAM_READ_FAILED` → `TIMEOUT` → `OUTPUT_LIMIT_EXCEEDED` → `KILLED` → `STREAMS_NOT_CLOSED` → `COLLECTION_STATE_UNKNOWN` → `CHILD_NOT_EXITED` → `NONZERO_EXIT` → `OUTPUT_*`. 필수 상태(`streamsClosed`, 두 스트림의 `readFailed`·`overflow`·`b64`, 자식의 `started`·`timedOut`·`outputLimitExceeded`·`killed`, `childState`)가 없거나 불리언이 아니면 정상으로 보지 않는다(`COLLECTION_STATE_UNKNOWN`). 이미 받은 바이트와 오류는 증거로 남기고 참고용 해석(`diagnosticParse`, `usable=false`)만 붙이며, 버전을 사용 가능한 관측으로 확정하지 않는다. **자식이 종료 코드 0으로 끝나도 자손이 파이프를 쥐어 EOF를 못 보면 `STREAMS_NOT_CLOSED`(사용 불가)다 — 수정 전보다 엄격하다.** 관측 성립(`report.observation`)과 정리 완료(`report.cleanup`)는 따로 기록하고, 정리가 불완전하면 종료 코드 70이 우선하되 관측 판정을 덮지 않는다.
+
+## LSP 최소 관측(LSP-MIN-1, `lsp-min-runner.ps1`)의 범위·메시지·종료·판정
+
+이 절의 파일은 코드와 스텁 시험까지만 만들어졌다. **실제 Semgrep은 `--help`·`--version`을 포함해 한 번도 실행하지 않았고**, 계정·방화벽·감사·ACL도 적용하지 않았다. 실제 LSP 실행을 허용할지는 이 구현을 검토한 뒤 소유자가 정한다. 관리자 쪽 진입 스크립트(수신기 감시, 중단 파일 생성, 5157 수집)도 아직 만들지 않았다.
+
+**범위.** 정상 LSP 시작이나 규칙 로딩, 보안 판정을 대신하지 않는 별도의 최소 관측이다. `initialized`를 보내지 않으므로 서버는 초기화만 마친 상태에서 끝나며, 기록은 COMPLETE·보안 통과·대조 참조 자격 어느 것과도 연결되지 않는다. 기존 세션 제어기·평가기·버전 실행기에는 손대지 않았다(구조 시험이 이를 지킨다).
+
+**고정 사항.** 실행 파일 이름은 `semgrep.exe`(절대 경로), 인자는 정확히 `["lsp","--debug"]`이다. 보내는 메시지는 `initialize`(id `lsp-min-init-1`) → `shutdown`(id `lsp-min-shutdown-1`) → `exit` 셋뿐이고, 송신 직전 방어선이 그 밖의 메시지를 막는다. 작업 영역과 로컬 규칙 폴더는 비어 있어야 시작한다. 환경은 요청의 11개 이름만 쓰며 부모 환경을 물려주지 않고, `SEMGREP_ENABLE_VERSION_CHECK`는 넣지 않는다.
+
+**한도.** 전체 150초, 초기화 응답 60초, exit 대기 30초, stdin 닫은 뒤 유예 10초, 종료 확인 창 10초(고정 한 번), stdout 1 MiB, stderr 256 KiB. 요청은 이 값을 낮출 수만 있다. 기존 버전 관측의 한도는 바꾸지 않았다.
+
+**초기화 응답은 `error` 부재만으로 통과시키지 않는다.** 요청 id 일치, JSON-RPC 2.0 구조, `result`가 객체인지, `capabilities`가 객체인지를 보고, 공개 소스가 초기화 예외를 `result` 안에 `{retry:false}`로 보내는 경우(InitializeError)도 거절한다. 이 핵심 규칙을 통과하면 shutdown·exit를 보내고, 통과하지 못하거나 시간 안에 응답이 없으면 아무것도 더 보내지 않고 stdin을 닫는다. 서버가 `Uninitialized` 상태에서는 shutdown·exit를 조용히 무시하기 때문이다. 서버 정보와 분석용 규칙(capabilities 해시 등)은 러너가 아니라 TS 모듈이 원문 바이트로 다시 풀어 기록한다.
+
+**종료 정책.** 강제 종료는 한 번만 보낸다. 라이브 중단 조건, 전체 상한, 출력 상한, 프레임 오류, stdin 오류, 시작 직후 종료는 stdin을 닫지 않고 곧바로 프로세스 트리를 끝낸다. 초기화 실패·시간 초과는 stdin을 닫은 뒤 유예를 두고, 안 끝나면 끝낸다. 모든 단계 한도는 남은 전체 시간으로 잘리므로 전체 상한 뒤에 유예가 더 붙지 않는다. 종료 확인 창만 관측 구간 밖에 고정 한 번 있다.
+
+**관측과 정리는 따로 기록한다.** 관측 상태(`OBSERVED`·`ABORTED`·`NOT_OBSERVED`·`NOT_ATTEMPTED`)와 정리 결과(`cleanup.ok`)는 서로 섞이지 않는다. 정리가 실패해도 관측은 `OBSERVED`일 수 있고, 반대도 마찬가지다.
+
+**실시간 감시·사후 비교·미관측.** 라이브 감시는 표본 추출이라 표본 사이는 보지 못한다.
+
+| 구분        | 내용                                                                                                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 실시간 감시 | stderr 중단 문구(A1·A2, 청크 경계 포함), 루프백 수신기 건수 증가(A3), 프로세스 이미지 이름(A4), 감시 폴더 3곳의 파일 목록(A5), 외부 중단 파일(A7), stdout 의 규칙·진단 알림(A8)                     |
+| 사후 비교   | 감시 폴더의 전후 파일 이름 목록, 산출물 해시, 수신기 최종 건수, 표본에서 놓친 stderr 문구                                                                                                           |
+| 미관측      | 감시 폴더 밖 파일 시스템 전체, 표본 사이에 생겼다 사라진 프로세스, 이미지 이름이 허용 목록과 같은 프로세스의 실제 동작. 기록의 `not_established`와 미관측 목록에 항상 남기며 감시했다고 쓰지 않는다 |
+
+감시 폴더는 작업 영역(`WORKSPACE`)·규칙 폴더(`RULES_DIR`)가 비어 있어야 하고, 홈(`HOME_DIR`)은 `.semgrep/cache/fingerprinted_ignored_findings/` 밑만 허용한다. A4는 목록 조회가 연속 3번 실패해도 중단한다.
+
+**환경 비상속의 한계.** 러너는 `ProcessStartInfo`의 환경을 비운 뒤 요청의 값만 채우고, 그 값이 계약 함수의 출력과 정확히 같지 않으면 거절한다. TS 쪽 `process-node.ts`는 Node(libuv)가 Windows에서 부모 이름 7개를 자식 환경에 주입하는 한계가 있고 이번에도 바꾸지 않았다. 러너 경로가 이 한계를 받지 않는다는 것은 스텁 시나리오 `env-names`(자식이 실제로 받은 이름 집합이 계약과 같은지)로 확인했을 뿐이며, 실제 Semgrep 자식에서 확인한 것은 아니다.
 
 ## 적용(`Initialize-Isolation.ps1 -Apply`)이 만드는 것과 예상 영향
 
@@ -211,4 +243,6 @@ $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
 - 버전 관측 파일(`Test-VersionObservation.ps1`·`version-runner.ps1`·`version-stub.ps1`·`VersionContract.ps1`)은 `Test-IsolationScripts.ps1`에서 **역할별 규칙**을 받는다. 관리자 진입점은 위의 변경 관문 규칙을 그대로 받고 `-Execute` 없이는 첫 `Invoke-Mutation` 앞에서 돌아오는지(dry-run)를 더 본다. 자식 실행기는 고정 모드·인자, 셸 비사용, 환경 제한, 시간·출력 제한, 읽기 예외에서 `eof`를 켜지 않는지를 본다. 스텁은 시나리오 목록 일치와 변경 명령 부재를, 계약 파일은 실행 부작용 없음(최상위는 대입·함수 정의뿐, 부르는 명령은 허용 목록뿐)을 본다. 모든 파일에 같은 규칙을 씌우지 않고, 기존 규칙을 느슨하게 하지도 않는다.
 - `tests/Test-VersionRunner.ps1`: `version-runner.ps1`의 제한·정리·환경 격리·거부 경로, 읽기 함수(`-LoadFunctionsOnly`로 함수만 읽어 **가짜 스트림**으로 정상 EOF와 읽기 실패·한도 초과를 구분하는지), `Get-VersionObservationFailures`(합성 결과 표와 진짜 실행기가 남긴 결과), 환경 계약(`New-VersionChildEnv`)을 스텁으로 확인한다. `-TsxCmd`·`-ToolObservationTs`·`-NodeDir`를 주면 실제 TS `parseVersionStdout`과 같은 입력 20개의 결과를 대조하고, `-CliTs`를 더하면 실제 TS `buildVersionChildEnv`(win32/linux)와 환경 이름 집합·값(고정값 포함)·상태 경로를 대조하고 서버 경로의 `buildChildEnv`에는 고정값이 없는지도 본다. 스텁 시나리오 `version-check`는 자식이 실제로 받은 이 변수의 값만 찍어, 요청한 `0`이 도착하고 요청에 없으면 부모 값이 도착하지 않는지를 확인한다. `-PythonExe`(기반 Python)를 주면 `Path.home()`이 전용 `USERPROFILE`을 돌려주는지와, `USERPROFILE`이 없을 때 실제 실패와 같은 오류가 나는지를 본다(`-I -S`, Semgrep 미임포트, 현재 사용자로 실행). 주지 않은 항목은 `SKIPPED`로 표시하고 통과로 세지 않는다.
 - `tests/Test-VersionFlows.ps1`: `Test-VersionObservation.ps1`을 `MockSystem.ps1` 위에서 자식 프로세스로 끝까지 실행한다(적용 → 버전 진입점 `-Mode stub -Execute` → 복구). 실행기는 돌리지 않고 모의 `Start-Process`가 실행기가 남길 결과 파일을 시나리오(`runner`의 `set`·`unset` 손잡이)대로 만든다. 읽기 실패·실행기 오류·`streamsClosed=false`·필수 상태 누락·자식 상태 이상이 성공으로 판정되지 않는지, 관측 실패와 정리 실패가 따로 기록되는지, 전용 `USERPROFILE`과 canary 비유출(부모의 `SEMGREP_ENABLE_VERSION_CHECK=1`이 요청에서 고정값 `0`으로 바뀌는지 포함), 복구 때 홈 폴더 삭제를 확인한다. `-CodeDir`로 수정 전 코드를 가리키면 결함이 재현된다(FAIL이 정상). `semgrep-version` 모드만의 사전 조건(해시·ACL)은 덮지 않는다.
+- `tests/Test-LspMinRunner.ps1`: 러너를 스텁 시나리오 25개로 끝까지 돌린다(정상·오류·result 안 InitializeError·잘못된 id·키 이름 대소문자(`Id`·`JSONRPC`·`Method`)·분할 프레임·무응답·exit 무시·stdin EOF·시작 직후 종료·깨진 프레임·서버 요청·stderr 중단 문구(분할 포함)·다운로드 문구·진단 알림·작업 영역 쓰기·출력 초과·자손의 파이프 보유·환경 이름·허용 밖 이미지). 거부 경로(고정 인자·경로·환경·한도)가 아무것도 만들거나 띄우지 않는지, `initialized`가 송신되지 않는지, 전용 홈이 실제로 만들어지는지, 강제 종료가 한 번인지를 본다. `-TsxCmd`·`-NodeDir`·`-LspMinTs`·`-RunnerResultTs`를 주면 PS 계약과 TS 모듈을 같은 입력으로 대조하고 러너 결과를 TS 기록으로 변환한 결과도 본다. Windows PowerShell 5.1과 PowerShell 7 양쪽에서 돌린다.
+- 같은 변경의 TS 쪽 시험은 `scripts/semgrep-lsp/lsp-min*.test.ts`에 있다: 순수 모듈, 가상 시계와 스크립트형 가짜 자식으로 모든 종료 경로를 확인하는 실행기 시험, 러너 결과 변환 시험, 실제 파이프·파일·프로세스 목록을 쓰는 통합 시험(Node를 `semgrep.exe`로 복사한 스텁 서버), 모듈 경계 구조 시험.
 - 이 시험들이 **하지 못하는 것:** 실제 `auditpol`·방화벽·계정·`Start-Process -Credential`·Security 로그의 실제 동작을 확인하지 못한다. 모의는 이 동작들을 우리가 이해한 대로 흉내 낸 것이다. 진짜 `Get-Acl`의 **파일·폴더 접근 거부**도 재현하지 못했다(모의는 예외나 빈 값을 주입한 것이고, 이 PC의 관측은 관리자 셸이라 접근 거부가 나오지 않았다).
