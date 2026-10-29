@@ -11,7 +11,7 @@ Set-StrictMode -Version 2.0
 . (Join-Path $PSScriptRoot 'MockSystem.ps1')
 
 $Script:LspMockPrev = @{}
-foreach ($n in 'Start-Process', 'Get-CimInstance', 'Invoke-CimMethod', 'Get-ProcessRecord', 'Get-Process', 'Stop-Process', 'Read-IsoJson') { $Script:LspMockPrev[$n] = (Get-Item "function:$n").ScriptBlock }
+foreach ($n in 'Start-Process', 'Get-CimInstance', 'Invoke-CimMethod', 'Get-ProcessRecord', 'Get-Process', 'Stop-Process', 'Read-IsoJson', 'Enable-LocalUser') { $Script:LspMockPrev[$n] = (Get-Item "function:$n").ScriptBlock }
 $Script:LspMockReal = @{ runnerPid = $null; child = $null; launched = (New-Object System.Collections.ArrayList) }
 $Script:LspMockPrev['Get-WfpBlockEvents'] = (Get-Item 'function:Get-WfpBlockEvents').ScriptBlock
 $Script:LspMockRealSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -23,6 +23,22 @@ function New-LocalUser {
     $Script:Fake.users[$Name] = [ordered]@{ Name = $Name; Enabled = $true; Description = $Description; Sid = $Script:LspMockRealSid; Groups = @() }
     Save-MockState
     New-MockUserObject $Script:Fake.users[$Name]
+}
+
+# 손잡이 swapWorkAfterEnable = @{ work = <작업 폴더의 work 경로>; target = <샌드박스 안의 다른 폴더> }: 계정을 켠 직후(= 첫 확인과 첫 복사·쓰기 사이)에 work 를 정션으로 바꿔 친다.
+# 전용 계정이 폴더를 바꿔 치우는 틈을 흉내 내는 것이다. 샌드박스 밖의 경로는 거절하고, 이미 있는 폴더는 건드리지 않는다.
+function Enable-LocalUser {
+    [CmdletBinding()] param([string]$Name)
+    $swap = Get-MockKnob 'swapWorkAfterEnable'
+    & $Script:LspMockPrev['Enable-LocalUser'] -Name $Name
+    if ($swap) {
+        $work = [IO.Path]::GetFullPath([string]$swap.work); $target = [IO.Path]::GetFullPath([string]$swap.target)
+        if (-not $work.StartsWith($Script:MockSandbox + '\', [StringComparison]::OrdinalIgnoreCase) -or -not $target.StartsWith($Script:MockSandbox + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'MOCK GUARD: swapWorkAfterEnable 는 샌드박스 안의 경로만 다룬다.' }
+        # 적용 단계가 work 를 빈 폴더로 만들어 둔다: 빈 폴더만 치우고(비재귀 삭제라 내용이 있으면 실패한다) 그 자리에 정션을 둔다.
+        if (Test-Path -LiteralPath $work) { [IO.Directory]::Delete($work) }
+        Microsoft.PowerShell.Management\New-Item -ItemType Junction -Path $work -Target $target | Out-Null   # 모의 시스템이 New-Item 을 대체하므로 모듈 이름을 붙여 진짜를 부른다(위에서 샌드박스 안의 경로임을 확인했다)
+        Write-MockLog "swapWorkAfterEnable $work -> $target"
+    }
 }
 
 function Get-LspMockUserSid { $k = @($Script:Fake.users.Keys) | Select-Object -First 1; if ($null -eq $k) { return $Script:LspMockRealSid }; [string]$Script:Fake.users[$k].Sid }

@@ -256,6 +256,219 @@ if (Test-Selected 'unit') {
     Assert-That 'unit' '스텁 시나리오 이름: 진입점 ValidateSet == 계약 목록' (($entryList -join ',') -ceq ($Script:LspMinAdminStubScenarios -join ',')) "entry=$($entryList.Count)"
 }
 
+# 폴더 트리의 지문(경로·크기·SHA-256). 링크 대상 폴더가 시험 전후로 같은지 비교하는 데 쓴다. 대상 폴더 안에는 링크를 두지 않는다.
+function Get-TreePrint {
+    param([string]$Dir)
+    if (-not (Test-Path -LiteralPath $Dir)) { return 'ABSENT' }
+    $items = @(Get-ChildItem -LiteralPath $Dir -Recurse -Force -ErrorAction Stop | Sort-Object FullName)
+    (@($items | ForEach-Object { $rel = $_.FullName.Substring($Dir.Length); if ($_.PSIsContainer) { 'D|' + $rel } else { 'F|' + $rel + '|' + $_.Length + '|' + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } })) -join "`n"
+}
+
+# ═══ (A2) 작업 경로 확인: 실제 Windows 임시 폴더와 정션(관리자 권한 없이 만들 수 있다)으로 확인한다 ═══
+if (Test-Selected 'workpath') {
+    Write-Host '[workpath] 신뢰 루트부터 목적지까지 경로 조각 확인 (실제 Windows 임시 폴더, 정션 사용)'
+    . (Join-Path $CodeDir 'LspMinAdminPorts.ps1')
+    $tmpW = Join-Path ([IO.Path]::GetTempPath()) ('lspmin-wp-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $wpLayout = {
+        param([string]$Name)
+        $root = Join-Path $tmpW $Name; $task = Join-Path $root 'task'; [void][IO.Directory]::CreateDirectory($task)
+        $outside = Join-Path $root 'outside'; [void][IO.Directory]::CreateDirectory((Join-Path $outside 'lsp')); [IO.File]::WriteAllText((Join-Path $outside 'keep.txt'), 'keep'); [IO.File]::WriteAllText((Join-Path $outside 'lsp\inner.txt'), 'inner')
+        [pscustomobject]@{ Root = $root; Task = $task; Work = (Join-Path $task 'work'); Lsp = (Join-Path (Join-Path $task 'work') 'lsp'); Outside = $outside }
+    }
+    $wpProblems = { param($L) Get-LspMinWorkSafetyProblems -TrustedRoot $L.Task -WorkDir $L.Work -LspWork $L.Lsp }
+    try {
+        # 정상 경로와 아직 없는 경로는 허용한다.
+        $L = & $wpLayout 'normal-absent'
+        Assert-That 'workpath' '허용: work 가 아직 없어도(검증한 기존 부모 task 아래에 만들 수 있다) 문제 없음' ((& $wpProblems $L).Count -eq 0)
+        [void][IO.Directory]::CreateDirectory($L.Work)
+        Assert-That 'workpath' '허용: work 만 있고 lsp 가 없어도 문제 없음' ((& $wpProblems $L).Count -eq 0)
+        [void][IO.Directory]::CreateDirectory((Join-Path $L.Lsp 'ws\sub')); [IO.File]::WriteAllText((Join-Path $L.Lsp 'ws\sub\a.txt'), 'x'); foreach ($n in 'lsp-min-request.json', 'lsp-min-runner.ps1', 'version-runner.ps1') { [IO.File]::WriteAllText((Join-Path $L.Work $n), 'old') }
+        Assert-That 'workpath' '허용: 일반 폴더·일반 파일이 이미 있는 정상 배치도 문제 없음' ((& $wpProblems $L).Count -eq 0)
+        $tg = Get-LspMinWorkTargets -WorkDir $L.Work -LspWork $L.Lsp   # `, @(...)` 로 돌려주는 함수는 @() 로 다시 감싸지 않는다
+        Assert-That 'workpath' '목적지 목록: work·lsp, 지우는 파일 넷, 복사 파일 넷을 모두 담는다(10개)' ($tg.Count -eq 10 -and ($tg -contains $L.Work) -and ($tg -contains $L.Lsp) -and @(@('lsp-min-request.json', 'lsp-min-result.json', 'lsp-min-result.json.tmp', 'lsp-min-abort.flag', 'lsp-min-runner.ps1', 'LspMinContract.ps1', 'version-runner.ps1', 'lsp-min-stub.ps1') | Where-Object { $tg -notcontains (Join-Path $L.Work $_) }).Count -eq 0)
+
+        # 결함 재현과 수정: task\work -> outside 정션, outside\lsp 는 일반 폴더.
+        $L = & $wpLayout 'work-junction'
+        New-Item -ItemType Junction -Path $L.Work -Target $L.Outside | Out-Null
+        $pr0 = Get-TreePrint $L.Outside
+        $old = Find-LspMinReparseInTree -Root $L.Lsp
+        Assert-That 'workpath' '재현: 예전 확인(lsp 폴더 안만 봄)은 상위 work 정션을 놓친다(0건) — 이 맹점이 결함이었다' ($old.Count -eq 0) "old=$($old -join ',')"
+        $p = & $wpProblems $L
+        Assert-That 'workpath' '수정: 새 확인은 상위 work 정션을 LINK 로 찾는다' (($p -contains ('LINK:' + $L.Work)) -and $p.Count -ge 1) ($p -join ' ; ')
+        Assert-That 'workpath' '상위 정션 확인은 링크를 따라가지 않고 쓰지도 않는다: 대상 폴더의 파일·목록·바이트가 그대로' ((Get-TreePrint $L.Outside) -eq $pr0)
+        # 중단 파일: 신뢰 루트를 주면 정션을 지나 쓰지 않는다.
+        $ab = Join-Path $L.Work 'lsp-min-abort.flag'
+        $w = Write-LspMinAbortFile -Path $ab -Text 'A3:RECEIVER_HIT' -TrustedRoot $L.Task
+        Assert-That 'workpath' '중단 파일: work 가 정션이면 쓰지 않고 WORK_PATH_UNSAFE 로 실패한다(대상 폴더에 파일이 생기지 않는다)' ((-not $w.ok) -and ([string]$w.error).StartsWith('WORK_PATH_UNSAFE') -and -not (Test-Path -LiteralPath (Join-Path $L.Outside 'lsp-min-abort.flag')) -and ((Get-TreePrint $L.Outside) -eq $pr0)) "ok=$($w.ok) err=$($w.error)"
+        [IO.Directory]::Delete($L.Work)
+        Assert-That 'workpath' '링크를 지워도 대상 폴더는 그대로' ((Get-TreePrint $L.Outside) -eq $pr0)
+        # 정상 work 에서는 같은 중단 파일 쓰기가 성공하고, 두 번째는 기존대로 실패한다(CreateNew).
+        [void][IO.Directory]::CreateDirectory($L.Work)
+        $w1 = Write-LspMinAbortFile -Path $ab -Text 'A3:RECEIVER_HIT' -TrustedRoot $L.Task; $w2 = Write-LspMinAbortFile -Path $ab -Text 'A3:RECEIVER_HIT' -TrustedRoot $L.Task
+        Assert-That 'workpath' '중단 파일: 정상 경로에서는 쓰고(내용 확인), 이미 있으면 기존대로 실패한다' ($w1.ok -and (-not $w2.ok) -and (([IO.File]::ReadAllText($ab)).Trim() -eq 'A3:RECEIVER_HIT'))
+
+        # lsp 자체가 정션
+        $L = & $wpLayout 'lsp-junction'; [void][IO.Directory]::CreateDirectory($L.Work)
+        New-Item -ItemType Junction -Path $L.Lsp -Target $L.Outside | Out-Null
+        $pr0 = Get-TreePrint $L.Outside; $p = & $wpProblems $L
+        Assert-That 'workpath' 'lsp 폴더 자체가 정션이면 LINK 로 찾는다' ($p -contains ('LINK:' + $L.Lsp)) ($p -join ' ; ')
+        Assert-That 'workpath' 'lsp 가 정션이면 그 안을 훑지 않는다(대상 폴더 불변)' ((Get-TreePrint $L.Outside) -eq $pr0)
+        [IO.Directory]::Delete($L.Lsp)
+
+        # lsp 안쪽의 정션(상위 경로는 깨끗)은 트리 확인이 찾는다.
+        $L = & $wpLayout 'nested-junction'; [void][IO.Directory]::CreateDirectory((Join-Path $L.Lsp 'ws'))
+        $nj = Join-Path $L.Lsp 'ws\j'; New-Item -ItemType Junction -Path $nj -Target $L.Outside | Out-Null
+        $p = & $wpProblems $L
+        Assert-That 'workpath' 'lsp 안쪽 정션: 경로 조각은 깨끗해도 트리 확인이 찾는다' (($p -contains $nj) -and $p.Count -eq 1) ($p -join ' ; ')
+        [IO.Directory]::Delete($nj)
+
+        # 기존 복사·삭제 목적지가 링크
+        foreach ($leaf in 'lsp-min-runner.ps1', 'LspMinContract.ps1', 'version-runner.ps1', 'lsp-min-stub.ps1', 'lsp-min-request.json', 'lsp-min-result.json', 'lsp-min-abort.flag') {
+            $L = & $wpLayout ('dest-' + $leaf); [void][IO.Directory]::CreateDirectory($L.Work)
+            $dj = Join-Path $L.Work $leaf; New-Item -ItemType Junction -Path $dj -Target $L.Outside | Out-Null
+            $p = & $wpProblems $L
+            Assert-That 'workpath' "기존 목적지 $leaf 가 정션이면 LINK 로 찾는다" ($p -contains ('LINK:' + $dj)) ($p -join ' ; ')
+            [IO.Directory]::Delete($dj)
+        }
+        $L = & $wpLayout 'dest-filelink'; [void][IO.Directory]::CreateDirectory($L.Work)
+        $realFile = Join-Path $L.Outside 'real-target.txt'; [IO.File]::WriteAllText($realFile, 'must not change')
+        $fl = Join-Path $L.Work 'lsp-min-runner.ps1'; $madeFileLink = $false
+        try { New-Item -ItemType SymbolicLink -Path $fl -Target $realFile -ErrorAction Stop | Out-Null; $madeFileLink = $true } catch { $madeFileLink = $false }
+        if ($madeFileLink) {
+            $p = & $wpProblems $L
+            Assert-That 'workpath' '기존 복사 목적지 파일이 심볼릭 링크면 LINK 로 찾는다(링크를 따라 덮어쓰지 않는다)' ($p -contains ('LINK:' + $fl)) ($p -join ' ; ')
+            [IO.File]::Delete($fl)
+            Assert-That 'workpath' '파일 링크를 지워도 대상 파일은 그대로' (([IO.File]::ReadAllText($realFile)) -eq 'must not change')
+        } else { Skip-That 'workpath' '이 계정으로는 파일 심볼릭 링크를 만들 수 없다(권한): 파일 링크 사례를 확인하지 못했다' }
+
+        # 신뢰 루트 자체
+        $L = & $wpLayout 'root-junction'
+        $rj = Join-Path $L.Root 'taskjn'; New-Item -ItemType Junction -Path $rj -Target $L.Task | Out-Null
+        $p = Get-LspMinWorkSafetyProblems -TrustedRoot $rj -WorkDir (Join-Path $rj 'work') -LspWork (Join-Path (Join-Path $rj 'work') 'lsp')
+        Assert-That 'workpath' '신뢰 루트 자체가 정션이면 LINK 로 거절한다' ($p -contains ('LINK:' + $rj)) ($p -join ' ; ')
+        [IO.Directory]::Delete($rj)
+        $p = Get-LspMinWorkSafetyProblems -TrustedRoot (Join-Path $L.Root 'no-such-root') -WorkDir (Join-Path $L.Root 'no-such-root\work') -LspWork (Join-Path $L.Root 'no-such-root\work\lsp')
+        Assert-That 'workpath' '신뢰 루트가 없으면 확인할 수 없으므로 거절한다(ROOT_MISSING)' (($p.Count -eq 1) -and ([string]$p[0]).StartsWith('ROOT_MISSING:')) ($p -join ' ; ')
+        $p = Get-LspMinWorkPathProblems -TrustedRoot $L.Task -Targets @((Join-Path $L.Outside 'x.txt'), (Join-Path $L.Task '..\outside\y.txt'))
+        Assert-That 'workpath' '루트 밖 목적지(.. 로 빠져나가는 것 포함)는 OUTSIDE_ROOT 로 거절한다' (@($p | Where-Object { $_.StartsWith('OUTSIDE_ROOT:') }).Count -eq 2) ($p -join ' ; ')
+        # 중간 조각이 파일
+        $L = & $wpLayout 'work-is-file'; [IO.File]::WriteAllText($L.Work, 'i am a file')
+        $p = & $wpProblems $L
+        Assert-That 'workpath' 'work 자리에 파일이 있으면 NOT_A_DIRECTORY 로 거절한다' ($p -contains ('NOT_A_DIRECTORY:' + $L.Work)) ($p -join ' ; ')
+
+        # 읽지 못한 조각(모의): 확인할 수 없으면 깨끗하다고 하지 않는다. 실제 접근 거부는 이 계정으로 재현하지 못해 상태 함수를 대체해 흉내 낸다.
+        $L = & $wpLayout 'unreadable-sim'; [void][IO.Directory]::CreateDirectory($L.Work)
+        $origPiece = (Get-Item 'function:Get-LspMinPieceState').ScriptBlock
+        try {
+            $Script:SimBadWork = $L.Work
+            function Get-LspMinPieceState { param([string]$Path) if ($Path -ieq $Script:SimBadWork) { return 'UNREADABLE' }; & $origPiece $Path }
+            $p = & $wpProblems $L
+            Assert-That 'workpath' '(모의) 조각을 읽지 못하면 UNREADABLE 로 거절한다 — 깨끗하다고 하지 않는다' ($p -contains ('UNREADABLE:' + $L.Work)) ($p -join ' ; ')
+        } finally { . (Join-Path $CodeDir 'LspMinAdminPorts.ps1') }
+        Assert-That 'workpath' '(모의 해제 확인) 원래 상태 함수로 돌아오면 같은 경로는 문제 없음' ((& $wpProblems $L).Count -eq 0)
+    } finally {
+        if (Test-Path -LiteralPath $tmpW) {
+            foreach ($i in @(Get-ChildItem -LiteralPath $tmpW -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })) { try { if ($i.PSIsContainer) { [IO.Directory]::Delete($i.FullName) } else { [IO.File]::Delete($i.FullName) } } catch { } }
+            Remove-Item -LiteralPath $tmpW -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# ═══ (A3) 재해석 도구 호출: 실제 Windows 프로세스(무해한 .cmd 스텁)로 마감·파이프·후손 정리를 확인한다 ═══
+# 스텁은 ping/powershell 로 잠깐 기다리는 것뿐이다(Semgrep 도 tsx 도 아니다). 후손 프로세스는 명령줄의 고유 표지로 찾아 끝났는지 본다.
+function Get-MarkerPids {
+    param([string]$Marker)
+    @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($Marker, [StringComparison]::Ordinal) -ge 0 } | ForEach-Object { [int]$_.ProcessId })
+}
+if (Test-Selected 'reinterpret-io') {
+    Write-Host '[reinterpret-io] 재해석 도구 호출: 하나의 마감, 파이프 EOF 대기, 후손 정리 (실제 Windows 프로세스, 공백이 있는 경로)'
+    . (Join-Path $CodeDir 'LspMinAdminPorts.ps1')
+    $tmpR = Join-Path ([IO.Path]::GetTempPath()) ('lspmin-io ' + [guid]::NewGuid().ToString('N').Substring(0, 8))   # 경로에 공백이 있다
+    $toolDir = Join-Path $tmpR 'fake tool dir'; $dataDir = Join-Path $tmpR 'data dir'
+    [void][IO.Directory]::CreateDirectory($toolDir); [void][IO.Directory]::CreateDirectory($dataDir)
+    $ioMarkers = New-Object System.Collections.ArrayList
+    $newStub = {
+        param([string]$Name, [string]$Body)
+        $p = Join-Path $toolDir $Name; [IO.File]::WriteAllText($p, ("@echo off`r`n" + $Body + "`r`n"), [Text.Encoding]::ASCII); $p
+    }
+    $ps51Exe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'   # 이 도구의 PATH 에는 System32 가 없을 수 있어 전체 경로로 부른다
+    $sleeperLine = { param([string]$Marker, [int]$Sec) "`"$ps51Exe`" -NoProfile -NonInteractive -Command `"Start-Sleep -Seconds $Sec # $Marker`"" }
+    $callTool = {
+        param([string]$Stub, [hashtable]$Extra = @{})
+        $a = @{ TsxCmd = $Stub; CliTs = (Join-Path $dataDir 'cli file.ts'); RunnerResultPath = (Join-Path $dataDir 'runner result.json'); ContextPath = (Join-Path $dataDir 'context file.json'); OutPath = (Join-Path $dataDir 'out file.json') }
+        foreach ($k in $Extra.Keys) { $a[$k] = $Extra[$k] }
+        Invoke-LspMinReinterpret @a
+    }
+    try {
+        # 정상 EOF: 두 스트림의 내용을 모두 받고 정리할 것이 없다.
+        $stub = & $newStub 'eof-ok.cmd' "echo hello-out`r`necho hello-err 1>&2`r`nexit /b 0"
+        $r = & $callTool $stub @{ TimeoutMs = 20000 }
+        Assert-That 'reinterpret-io' '정상 EOF: ran, 종료 코드 0, 두 스트림 닫힘, 출력 모두 수집, 정리할 것 없음(NOT_NEEDED)' ($r.ran -and $r.exitCode -eq 0 -and $r.stdoutClosed -and $r.stderrClosed -and $r.output -match 'hello-out' -and $r.output -match 'hello-err' -and $null -eq $r.error -and $r.cleanup.ok -and $r.cleanup.outcome -eq 'NOT_NEEDED') ($r | ConvertTo-Json -Depth 4 -Compress)
+        # 인자 전달: 공백이 있는 도구 경로와 공백이 있는 인자 경로가 그대로 일곱 개로 도착한다.
+        $stub = & $newStub 'args echo.cmd' "echo [%~1]`r`necho [%~2]`r`necho [%~3]`r`necho [%~4]`r`necho [%~5]`r`necho [%~6]`r`necho [%~7]`r`nexit /b 0"
+        $r = & $callTool $stub @{ TimeoutMs = 20000 }
+        $want = @((Join-Path $dataDir 'cli file.ts'), '--runner-result', (Join-Path $dataDir 'runner result.json'), '--context', (Join-Path $dataDir 'context file.json'), '--out', (Join-Path $dataDir 'out file.json')) | ForEach-Object { "[$_]" }
+        $got = @(($r.output -split "`r?`n") | Where-Object { $_ -ne '' })
+        Assert-That 'reinterpret-io' '공백이 있는 도구 경로(.cmd)로도 일곱 인자가 공백이 있는 경로 그대로 정확히 도착한다' ($r.ran -and $r.exitCode -eq 0 -and ($got -join '|') -ceq ($want -join '|')) ("got=" + ($got -join '|') + " error=$($r.error)")
+        # 비정상 종료: 종료 코드와 stderr 를 그대로 돌려준다(ran 은 도구가 끝났다는 뜻이고 성공 여부는 호출자가 종료 코드로 본다).
+        $stub = & $newStub 'fail.cmd' "echo bad-thing 1>&2`r`nexit /b 3"
+        $r = & $callTool $stub @{ TimeoutMs = 20000 }
+        Assert-That 'reinterpret-io' '비정상 종료: 종료 코드 3, stderr 수집, 오류 토큰 없음, 정리할 것 없음' ($r.ran -and $r.exitCode -eq 3 -and $r.output -match 'bad-thing' -and $null -eq $r.error -and $r.cleanup.ok -and $r.cleanup.outcome -eq 'NOT_NEEDED')
+
+        # 부모 종료는 EOF 가 아니다: 부모는 곧바로 끝나지만 자손이 파이프를 2초 붙잡는다. 마감이 넉넉하면 EOF 까지 기다려 정상 완료한다.
+        $m1 = 'LSPMINMARK' + [guid]::NewGuid().ToString('N').Substring(0, 8); [void]$ioMarkers.Add($m1)
+        $stub = & $newStub 'holder-short.cmd' ("start `"`" /b " + (& $sleeperLine $m1 2) + "`r`nexit /b 0")
+        $r = & $callTool $stub @{ TimeoutMs = 20000 }
+        Assert-That 'reinterpret-io' '부모가 먼저 끝나도 EOF 로 보지 않는다: 자손이 파이프를 놓을 때까지(1.2초 이상) 기다렸다가 정상 완료' ($r.ran -and $r.exitCode -eq 0 -and $r.elapsedMs -ge 1200 -and $r.stdoutClosed -and $r.stderrClosed -and $null -eq $r.error) ($r | ConvertTo-Json -Depth 3 -Compress)
+        # 마감이 짧으면: 파이프가 안 닫힌 채 마감 → PIPE_NOT_CLOSED, 자손 정리 확인, 정리 기록은 따로.
+        $m2 = 'LSPMINMARK' + [guid]::NewGuid().ToString('N').Substring(0, 8); [void]$ioMarkers.Add($m2)
+        $stub = & $newStub 'holder-long.cmd' ("start `"`" /b " + (& $sleeperLine $m2 40) + "`r`nexit /b 0")
+        $r = & $callTool $stub @{ TimeoutMs = 400 }
+        Start-Sleep -Milliseconds 400
+        $left = @(Get-MarkerPids $m2)
+        Assert-That 'reinterpret-io' '재현 수정: TimeoutMs=400 에 부모 종료·자손 파이프 점유 → PIPE_NOT_CLOSED, ran=false, 부모는 끝났음(exited), 마감 직후(수 초 안) 반환' ((-not $r.ran) -and $r.error -eq 'PIPE_NOT_CLOSED' -and $r.exited -and $r.elapsedMs -ge 400 -and $r.elapsedMs -lt 3000 -and $r.totalMs -lt 8000) ($r | ConvertTo-Json -Depth 3 -Compress)
+        Assert-That 'reinterpret-io' '자손(파이프를 붙잡은 프로세스)이 정리됐고 정리 기록은 TERMINATED·ok 로 관측 결과와 따로 남는다' ($left.Count -eq 0 -and $r.cleanup.ok -and $r.cleanup.outcome -eq 'TERMINATED' -and $r.cleanup.jobActiveAfter -eq 0 -and $r.cleanup.readTasksPending -eq 0 -and $r.cleanup.jobActiveBefore -ge 1) ("left=$($left -join ',') cleanup=" + ($r.cleanup | ConvertTo-Json -Compress))
+        # 도구 본체가 멈춤: TIMEOUT, 트리 전체 정리
+        $m3 = 'LSPMINMARK' + [guid]::NewGuid().ToString('N').Substring(0, 8); [void]$ioMarkers.Add($m3)
+        $stub = & $newStub 'hang.cmd' ((& $sleeperLine $m3 60) + "`r`nexit /b 0")
+        $r = & $callTool $stub @{ TimeoutMs = 500 }
+        Start-Sleep -Milliseconds 400
+        $left = @(Get-MarkerPids $m3)
+        Assert-That 'reinterpret-io' '도구 본체가 멈추면 TIMEOUT: 아직 끝나지 않았고(exited=false), 트리 전체가 정리되고, 마감 직후 반환' ((-not $r.ran) -and $r.error -eq 'TIMEOUT' -and (-not $r.exited) -and $r.elapsedMs -lt 3000 -and $r.cleanup.ok -and $r.cleanup.outcome -eq 'TERMINATED' -and $left.Count -eq 0) ("left=$($left -join ',') " + ($r | ConvertTo-Json -Depth 3 -Compress))
+        # 취소: 시작 때 없던 취소 표지가 실행 중에 생기면 CANCELLED
+        $m4 = 'LSPMINMARK' + [guid]::NewGuid().ToString('N').Substring(0, 8); [void]$ioMarkers.Add($m4)
+        $cancel = Join-Path $tmpR 'cancel.flag'
+        $stub = & $newStub 'cancel.cmd' ("echo x> `"$cancel`"`r`n" + (& $sleeperLine $m4 60) + "`r`nexit /b 0")
+        $r = & $callTool $stub @{ TimeoutMs = 30000; CancelFile = $cancel }
+        Start-Sleep -Milliseconds 400
+        $left = @(Get-MarkerPids $m4)
+        Assert-That 'reinterpret-io' '취소: 실행 중 생긴 취소 표지로 CANCELLED, 마감(30초)을 기다리지 않고 트리 전체를 정리한다' ((-not $r.ran) -and $r.error -eq 'CANCELLED' -and $r.elapsedMs -lt 10000 -and $r.cleanup.ok -and $left.Count -eq 0) ("left=$($left -join ',') " + ($r | ConvertTo-Json -Depth 3 -Compress))
+        $stub = & $newStub 'eof-ok2.cmd' "echo again`r`nexit /b 0"
+        $r = & $callTool $stub @{ TimeoutMs = 20000; CancelFile = $cancel }    # 표지가 이미 있는 채로 시작하면 취소로 보지 않는다
+        Assert-That 'reinterpret-io' '시작할 때 이미 있던 취소 표지는 취소로 보지 않는다(운영자가 앞서 취소했어도 기록을 만든다)' ($r.ran -and $r.exitCode -eq 0 -and $null -eq $r.error)
+        # 출력 상한
+        $stub = & $newStub 'flood.cmd' "for /L %%i in (1,1,12000) do @echo 0123456789012345678901234567890123456789012345678901234567890123456789"
+        $r = & $callTool $stub @{ TimeoutMs = 60000; MaxOutputChars = 50000 }
+        Assert-That 'reinterpret-io' '출력 상한: 넘치면 잘라 모으되(truncated) 끝까지 비워서 도구가 멈추지 않고 정상 완료' ($r.ran -and $r.truncated -and $r.output.Length -le 50000 + 10 -and $r.exitCode -eq 0) ("len=$($r.output.Length) " + ($r | ConvertTo-Json -Depth 3 -Compress).Substring(0, 120))
+
+        # 실제 문서의 호출 경로: tsx.cmd + 재해석 CLI, 공백이 있는 입출력 경로와 공백이 있는 node 폴더(PATH 앞에 붙는다).
+        if ($toolsReady) {
+            [IO.File]::WriteAllText((Join-Path $dataDir 'runner result.json'), '{}', $Utf8); [IO.File]::WriteAllText((Join-Path $dataDir 'context file.json'), '{}', $Utf8)
+            $outReal = Join-Path $dataDir 'out file.json'; if (Test-Path -LiteralPath $outReal) { [IO.File]::Delete($outReal) }
+            $r = Invoke-LspMinReinterpret -TsxCmd $TsxCmd -NodeDir $NodeDir -CliTs $ReinterpretCli -RunnerResultPath (Join-Path $dataDir 'runner result.json') -ContextPath (Join-Path $dataDir 'context file.json') -OutPath $outReal -TimeoutMs 120000
+            Assert-That 'reinterpret-io' '실제 tsx.cmd + 재해석 CLI(공백 경로 입출력): 종료 0, RECORD_WRITTEN, 출력 파일이 공백 경로에 생겼고 정리할 것 없음' ($r.ran -and $r.exitCode -eq 0 -and $r.output -match 'RECORD_WRITTEN' -and (Test-Path -LiteralPath $outReal) -and $r.cleanup.ok -and $r.cleanup.outcome -eq 'NOT_NEEDED') ($r | ConvertTo-Json -Depth 3 -Compress)
+            # 공백이 있는 tsx.cmd 경로(껍데기 .cmd 가 진짜 tsx.cmd 를 부른다)
+            $spacedTsx = & $newStub 'tsx.cmd' ("`"$TsxCmd`" %*")
+            if (Test-Path -LiteralPath $outReal) { [IO.File]::Delete($outReal) }
+            $r = Invoke-LspMinReinterpret -TsxCmd $spacedTsx -NodeDir $NodeDir -CliTs $ReinterpretCli -RunnerResultPath (Join-Path $dataDir 'runner result.json') -ContextPath (Join-Path $dataDir 'context file.json') -OutPath $outReal -TimeoutMs 120000
+            Assert-That 'reinterpret-io' '공백이 있는 폴더의 tsx.cmd 껍데기를 거쳐도 같은 결과(종료 0, RECORD_WRITTEN, 출력 파일 생성)' ($r.ran -and $r.exitCode -eq 0 -and $r.output -match 'RECORD_WRITTEN' -and (Test-Path -LiteralPath $outReal)) ($r | ConvertTo-Json -Depth 3 -Compress)
+        } else { Skip-That 'reinterpret-io' '실제 tsx.cmd 호출 경로 시험은 -TsxCmd/-ReinterpretCli 가 있어야 한다' }
+    } finally {
+        foreach ($mk in $ioMarkers) { foreach ($pid2 in (Get-MarkerPids $mk)) { Stop-Process -Id $pid2 -Force -ErrorAction SilentlyContinue } }   # 이 시험이 띄운 표지 달린 스텁만
+        Remove-Item -LiteralPath $tmpR -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ═══ (B) 흐름 시험 ═══════════════════════════════════════════════════════════
 function New-Sandbox {
     param([hashtable]$Scenario = @{})
@@ -392,6 +605,39 @@ if (Test-Selected 'reinterpret-fails') {
         $r = Invoke-Lsp $sb
         $rep = Get-LspReport $sb
         Assert-That 'reinterpret-fails' '종료 60, REINTERPRETATION_FAILED' ($r.exit -eq 60 -and (Get-Prop $rep 'observation.failure') -eq 'REINTERPRETATION_FAILED' -and (Get-Prop $rep 'reinterpretation.status') -eq 'FAILED') "exit=$($r.exit)"
+        [void](Remove-Stragglers $sb)
+    }
+}
+
+if (Test-Selected 'reinterpret-tool') {
+    Write-Host '[reinterpret-tool] 재해석 도구가 파이프를 붙잡거나 정리에 실패해도 관측·프로세스 정리·시스템 복구가 따로 남는다'
+    if (-not $toolsReady) { Skip-That 'reinterpret-tool' '도구 경로가 있어야 재해석 단계로 들어간다(-TsxCmd, -ReinterpretCli)' }
+    else {
+        # (1) 진짜 포트를 무해한 스텁 도구로 돌린다: 부모는 곧바로 끝나고 자손이 출력 파이프를 40초 붙잡는다. 포트 마감을 0.7초로 줘서 PIPE_NOT_CLOSED 와 자손 정리를 진짜 프로세스로 본다.
+        $sb = New-LspSandbox @{ reinterpret = 'hold-pipe' }
+        $stubDir = Join-Path $sb.Root 'fake tool'; [void][IO.Directory]::CreateDirectory($stubDir)
+        $mk = 'LSPMINMARK' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $ps51 = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        [IO.File]::WriteAllText((Join-Path $stubDir 'fake-tsx.cmd'), ("@echo off`r`nstart `"`" /b `"$ps51`" -NoProfile -NonInteractive -Command `"Start-Sleep -Seconds 40 # $mk`"`r`nexit /b 0`r`n"), [Text.Encoding]::ASCII)
+        $auditBefore = Get-AuditValue $sb
+        $r = Invoke-Lsp $sb
+        $rep = Get-LspReport $sb
+        Start-Sleep -Milliseconds 400
+        $held = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($mk, [StringComparison]::Ordinal) -ge 0 })
+        $items = @(Get-Prop $rep 'processCleanup.items')
+        $toolItem = @($items | Where-Object { $_.name -eq 'process-reinterpret-tool' })
+        Assert-That 'reinterpret-tool-hold' '파이프를 붙잡는 도구: 종료 60, 관측 불성립(REINTERPRETATION_FAILED), 사유 PIPE_NOT_CLOSED — 성공으로 세지 않는다' ($r.exit -eq 60 -and (Get-Prop $rep 'observation.established') -eq $false -and (Get-Prop $rep 'observation.failure') -eq 'REINTERPRETATION_FAILED' -and (Get-Prop $rep 'reinterpretation.reason') -eq 'PIPE_NOT_CLOSED' -and (Get-Prop $rep 'reinterpretation.status') -eq 'FAILED') "exit=$($r.exit) reason=$(Get-Prop $rep 'reinterpretation.reason')`n$($r.out)"
+        Assert-That 'reinterpret-tool-hold' '도구 정리는 따로 기록된다: 자손을 끝냈고(TERMINATED, ok) 프로세스 정리 묶음에 process-reinterpret-tool 항목이 있다' ($toolItem.Count -eq 1 -and $toolItem[0].ok -eq $true -and (Get-Prop $rep 'reinterpretation.tool.cleanup.outcome') -eq 'TERMINATED' -and (Get-Prop $rep 'reinterpretation.tool.cleanup.jobActiveAfter') -eq 0 -and $held.Count -eq 0) "held=$($held.Count) item=$(($toolItem | ConvertTo-Json -Depth 3 -Compress))"
+        Assert-That 'reinterpret-tool-hold' '관측 실패가 정리 결과를 바꾸지 않는다: 프로세스 정리·시스템 복구는 ok, 계정은 꺼졌고 감사 값은 복구됐으며 보고서 도구 요약에 닫힘 상태가 있다' ((Get-Prop $rep 'processCleanup.ok') -eq $true -and (Get-Prop $rep 'systemRecovery.ok') -eq $true -and (Get-UserEnabled $sb) -eq $false -and (Get-AuditValue $sb) -eq $auditBefore -and (Get-Prop $rep 'reinterpretation.tool.exited') -eq $true -and (Get-Prop $rep 'reinterpretation.tool.stdoutClosed') -eq $false)
+        foreach ($h in $held) { Stop-Process -Id ([int]$h.ProcessId) -Force -ErrorAction SilentlyContinue }
+        [void](Remove-Stragglers $sb)
+        # (2) 도구 뒤처리가 실패했다고 가정한 합성 결과: 프로세스 정리가 불완전이므로 종료 70, 시스템 복구는 그대로 ok, 관측은 성립하지 않는다.
+        $sb = New-LspSandbox @{ reinterpret = 'cleanup-fail' }
+        $r = Invoke-Lsp $sb
+        $rep = Get-LspReport $sb
+        $toolItem = @(@(Get-Prop $rep 'processCleanup.items') | Where-Object { $_.name -eq 'process-reinterpret-tool' })
+        Assert-That 'reinterpret-tool-cleanup-fail' '(합성) 도구 정리 실패: 종료 70, 최종 상태 CLEANUP_INCOMPLETE, processCleanup.ok=false, systemRecovery.ok=true, 관측은 성립하지 않는다' ($r.exit -eq 70 -and (Get-Prop $rep 'finalStatus') -eq 'CLEANUP_INCOMPLETE' -and (Get-Prop $rep 'processCleanup.ok') -eq $false -and (Get-Prop $rep 'systemRecovery.ok') -eq $true -and (Get-Prop $rep 'observation.established') -eq $false) "exit=$($r.exit) final=$(Get-Prop $rep 'finalStatus')`n$($r.out)"
+        Assert-That 'reinterpret-tool-cleanup-fail' '(합성) 실패한 항목이 process-reinterpret-tool 로 남고 오류 문구가 있다' ($toolItem.Count -eq 1 -and $toolItem[0].ok -eq $false -and [string]$toolItem[0].error -match 'PROCESSES_REMAIN')
         [void](Remove-Stragglers $sb)
     }
 }
@@ -639,6 +885,67 @@ if (Test-Selected 'old-layout') {
         Assert-That 'old-layout-files' '이전 배치의 일반 파일은 지워지고 관측이 성립한다' ($r.exit -eq 0 -and (Get-Prop $rep 'observation.established') -eq $true -and -not (Test-Path -LiteralPath (Join-Path $stale 'stale.txt'))) "exit=$($r.exit)`n$($r.out)"
         [void](Remove-Stragglers $sb)
     } else { Skip-That 'old-layout-files' '관측 성립 경로라 재해석 도구가 필요하다' }
+}
+
+# ── 작업 경로의 상위 링크: 신뢰 루트부터 목적지까지 확인하고, 문제가 있으면 아무것도 바꾸기 전에 거절한다 ──
+if (Test-Selected 'work-chain') {
+    Write-Host '[work-chain] 상위 work 폴더·lsp·기존 복사 목적지가 링크면 계정 켜기·감사 변경·러너 실행·삭제·복사 없이 거절한다'
+    $wcCases = @(
+        @{ id = 'work-junction'; make = { param($sb, $out) New-Item -ItemType Junction -Path (Join-Path $sb.WorkDir 'work') -Target $out | Out-Null }; unlink = { param($sb) [IO.Directory]::Delete((Join-Path $sb.WorkDir 'work')) } },
+        @{ id = 'lsp-junction'; make = { param($sb, $out) [void][IO.Directory]::CreateDirectory((Join-Path $sb.WorkDir 'work')); New-Item -ItemType Junction -Path (Join-Path $sb.WorkDir 'work\lsp') -Target $out | Out-Null }; unlink = { param($sb) [IO.Directory]::Delete((Join-Path $sb.WorkDir 'work\lsp')) } },
+        @{ id = 'copy-dest-junction'; make = { param($sb, $out) [void][IO.Directory]::CreateDirectory((Join-Path $sb.WorkDir 'work')); New-Item -ItemType Junction -Path (Join-Path $sb.WorkDir 'work\version-runner.ps1') -Target $out | Out-Null }; unlink = { param($sb) [IO.Directory]::Delete((Join-Path $sb.WorkDir 'work\version-runner.ps1')) } },
+        @{ id = 'request-dest-junction'; make = { param($sb, $out) [void][IO.Directory]::CreateDirectory((Join-Path $sb.WorkDir 'work')); New-Item -ItemType Junction -Path (Join-Path $sb.WorkDir 'work\lsp-min-request.json') -Target $out | Out-Null }; unlink = { param($sb) [IO.Directory]::Delete((Join-Path $sb.WorkDir 'work\lsp-min-request.json')) } })
+    foreach ($c in $wcCases) {
+        $sb = New-LspSandbox
+        $out = Join-Path $sb.Root 'outside'; [void][IO.Directory]::CreateDirectory((Join-Path $out 'lsp')); [IO.File]::WriteAllText((Join-Path $out 'keep.txt'), 'must survive', $Utf8); [IO.File]::WriteAllText((Join-Path $out 'lsp\inner.txt'), 'inner', $Utf8)
+        & $c.make $sb $out
+        $print0 = Get-TreePrint $out
+        $fake0 = [IO.File]::ReadAllText((Join-Path $sb.Root 'fake-state.json'))
+        $log0 = (Get-CallsLog $sb).Split("`n").Count
+        $rx = Invoke-Lsp $sb
+        $rd = Invoke-Lsp $sb -Dry
+        $new = ((Get-CallsLog $sb).Split("`n") | Select-Object -Skip ($log0 - 1)) -join "`n"
+        $print1 = Get-TreePrint $out
+        $rep = Get-LspReport $sb
+        $linkStillThere = $true
+        try { & $c.unlink $sb } catch { $linkStillThere = $false }
+        Assert-That "work-chain-$($c.id)" '-Execute 도 dry-run 도 사전 조건 T08 실패, 종료 50' ($rx.exit -eq 50 -and $rx.out -match '\[FAIL\] T08 ' -and $rd.exit -eq 50 -and $rd.out -match '\[FAIL\] T08 ') "exec=$($rx.exit) dry=$($rd.exit)`n$($rx.out)"
+        Assert-That "work-chain-$($c.id)" '링크 대상 폴더의 파일·목록·바이트가 거절 전후로 같다(삭제·복사·쓰기가 대상으로 새지 않았다)' ($print0 -eq $print1 -and $print1 -ne 'ABSENT') "before=$print0`nafter=$print1"
+        Assert-That "work-chain-$($c.id)" '계정 켜기·감사 변경·러너 실행·프로세스 시작·종료가 없고 모의 상태(계정·규칙·감사·ACL)가 그대로다' ($new -notmatch 'Enable-LocalUser|Disable-LocalUser|Invoke-AuditPol /set|LspRunner|Start-Process|Stop-Process' -and [IO.File]::ReadAllText((Join-Path $sb.Root 'fake-state.json')) -eq $fake0) $new
+        Assert-That "work-chain-$($c.id)" '관측 보고서를 만들지 않았다(변경 전 거절)' ($null -eq $rep)
+        Assert-That "work-chain-$($c.id)" '링크는 따라가지 않고 링크 자체만 지울 수 있었고, 그 뒤에도 대상은 그대로다' ($linkStillThere -and (Get-TreePrint $out) -eq $print0)
+        [void](Remove-Stragglers $sb)
+    }
+
+    # 관문 2: 첫 확인과 계정 켜기를 통과한 뒤, 첫 복사·쓰기 직전에 work 가 정션으로 바뀌면 쓰지 않고 멈춘다(정리가 계정·감사를 되돌린다).
+    $sb = New-Sandbox -Scenario @{ lsp = @{} }
+    $out = Join-Path $sb.Root 'outside'; [void][IO.Directory]::CreateDirectory((Join-Path $out 'lsp')); [IO.File]::WriteAllText((Join-Path $out 'keep.txt'), 'must survive', $Utf8)
+    $sc = @{ lsp = @{ swapWorkAfterEnable = @{ work = (Join-Path $sb.WorkDir 'work'); target = $out } } }
+    [IO.File]::WriteAllText($sb.ScenarioFile, ($sc | ConvertTo-Json -Depth 6), $Utf8)
+    $ap = Invoke-Apply $sb
+    if ($ap.exit -ne 0) { throw "적용 단계가 실패했다: $($ap.out)" }
+    $auditBefore = Get-AuditValue $sb
+    $print0 = Get-TreePrint $out
+    $r = Invoke-Lsp $sb
+    $rep = Get-LspReport $sb
+    $log = Get-CallsLog $sb
+    $gates = @(Get-Prop $rep 'workPath.gates')
+    $linkGone = $true; try { [IO.Directory]::Delete((Join-Path $sb.WorkDir 'work')) } catch { $linkGone = $false }
+    Assert-That 'work-chain-late-swap' '계정을 켠 뒤 work 가 정션으로 바뀌면 판정 NOT_ATTEMPTED:WORK_PATH_UNSAFE, 종료 60' ($r.exit -eq 60 -and (Get-Prop $rep 'verdict') -eq 'NOT_ATTEMPTED:WORK_PATH_UNSAFE' -and (Get-Prop $rep 'observation.failure') -eq 'WORK_PATH_UNSAFE') "exit=$($r.exit) verdict=$(Get-Prop $rep 'verdict')`n$($r.out)"
+    Assert-That 'work-chain-late-swap' '관문 1 은 통과(문제 없음), 관문 2 에서 LINK 를 찾았다' ($gates.Count -eq 2 -and @($gates[0].problems).Count -eq 0 -and @(@($gates[1].problems) | Where-Object { $_ -like 'LINK:*' }).Count -ge 1) (($gates | ConvertTo-Json -Depth 5 -Compress))
+    Assert-That 'work-chain-late-swap' '러너를 띄우지 않았고 링크 대상 폴더는 파일·목록·바이트가 그대로다(요청 파일·복사본이 새지 않았다)' ($log -notmatch 'LspRunner' -and (Get-TreePrint $out) -eq $print0 -and $linkGone) "log=$log"
+    Assert-That 'work-chain-late-swap' '정리는 끝났다: 계정은 다시 꺼졌고 감사 값은 복구됐으며 프로세스 정리·시스템 복구 모두 ok' ((Get-UserEnabled $sb) -eq $false -and (Get-AuditValue $sb) -eq $auditBefore -and (Get-Prop $rep 'processCleanup.ok') -eq $true -and (Get-Prop $rep 'systemRecovery.ok') -eq $true)
+    [void](Remove-Stragglers $sb)
+
+    # 정상: 이전 배치가 일반 폴더·일반 파일이면 지우고 관문 둘 다 통과한다. (work 가 아직 없는 경우는 위 workpath 단위 시험이 확인한다. 적용 단계가 work 를 미리 만들어 두기 때문이다.)
+    $sb = New-LspSandbox
+    $oldDir = Join-Path $sb.WorkDir 'work\lsp\ws\old'; [void][IO.Directory]::CreateDirectory($oldDir); [IO.File]::WriteAllText((Join-Path $oldDir 'x.txt'), 'old', $Utf8); [IO.File]::WriteAllText((Join-Path $sb.WorkDir 'work\lsp-min-result.json'), '{}', $Utf8)
+    $r = Invoke-Lsp $sb
+    $rep = Get-LspReport $sb
+    $gates = @(Get-Prop $rep 'workPath.gates')
+    Assert-That 'work-chain-normal' '정상 배치: 사전 조건 T08 통과, 관문 1·2 모두 문제 없음, 이전 일반 파일은 지워졌다' ($r.out -match '\[PASS\] T08 ' -and $gates.Count -eq 2 -and @($gates[0].problems).Count -eq 0 -and @($gates[1].problems).Count -eq 0 -and -not (Test-Path -LiteralPath $oldDir)) "exit=$($r.exit)`n$($r.out)"
+    Assert-That 'work-chain-normal' '정상 배치: 보고서에 신뢰 루트와 확인의 한계가 적혀 있다' ((Get-Prop $rep 'workPath.trustedRoot') -eq $sb.WorkDir -and [string](Get-Prop $rep 'workPath.limits') -match '경쟁 상태')
+    [void](Remove-Stragglers $sb)
 }
 
 # ── 실제 모드: 사전 조건과 거절 ─────────────────────────────────────────────

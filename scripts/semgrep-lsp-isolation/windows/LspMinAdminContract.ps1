@@ -16,6 +16,9 @@ $Script:LspMinAdminKillSettleMs = 3000
 $Script:LspMinAdminLimitNames = @('totalMs', 'initMs', 'exitMs', 'stdinCloseGraceMs', 'killConfirmMs', 'maxStdoutBytes', 'maxStderrBytes', 'sampleIntervalMs')
 $Script:LspMinAdminAbortTexts = @('A3:RECEIVER_HIT', 'A3:RECEIVER_UNREADABLE', 'A7:SUPERVISOR_DEADLINE', 'A7:OPERATOR_CANCEL')
 $Script:LspMinAdminRunIdPattern = '^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$'
+# 관리자 권한으로 지우거나 쓰는 작업 폴더 안의 파일 이름. 진입점의 삭제·복사 목록과 경로 조각 확인 목록이 같은 곳에서 나오게 여기 한 번만 적는다.
+$Script:LspMinWorkTransientFiles = @('lsp-min-request.json', 'lsp-min-result.json', 'lsp-min-result.json.tmp', 'lsp-min-abort.flag')
+$Script:LspMinWorkCopyFiles = @('lsp-min-runner.ps1', 'LspMinContract.ps1', 'version-runner.ps1', 'lsp-min-stub.ps1')
 
 function Get-LspMinAdminProp {
     param($Object, [string]$Name)
@@ -24,6 +27,16 @@ function Get-LspMinAdminProp {
     $p = $Object.PSObject.Properties[$Name]
     if ($p) { return $p.Value }
     $null
+}
+
+# 관리자 권한의 삭제·복사·쓰기가 닿는 모든 목적지(작업 폴더·lsp 폴더·요청·결과·중단 표지·러너 사본). 경로 조각 확인이 이 목록 전부를 본다.
+function Get-LspMinWorkTargets {
+    param([Parameter(Mandatory)][string]$WorkDir, [Parameter(Mandatory)][string]$LspWork)
+    $t = New-Object System.Collections.ArrayList
+    [void]$t.Add($WorkDir); [void]$t.Add($LspWork)
+    $base = $WorkDir.TrimEnd('\', '/')   # 문자열 연결만 한다(이 파일은 경로를 읽지 않는다)
+    foreach ($n in @($Script:LspMinWorkTransientFiles) + @($Script:LspMinWorkCopyFiles)) { [void]$t.Add($base + '\' + $n) }
+    , $t.ToArray()
 }
 
 # ── 해시·경로·보고서 대조 ───────────────────────────────────────────────
@@ -307,7 +320,7 @@ function Get-LspMinAdminExitCode {
 # 관측 실패 토큰을 우선순위대로 하나의 주 토큰과 전체 목록으로 정리한다(중복 제거, 순서 보존).
 function Get-LspMinFailureSummary {
     param([string[]]$Tokens)
-    $priority = @('RECEIVER_NOT_READY', 'RUNNER_NO_RESULT', 'RESULT_UNREADABLE', 'RESULT_BINDING_FAILED', 'IDENTITY_UNVERIFIED', 'RUNNER_REFUSED', 'SUPERVISOR_FORCED_KILL', 'RECEIVER_HIT', 'RECEIVER_UNREADABLE', 'OS_BLOCK_ATTRIBUTED', 'OS_BLOCK_EVIDENCE_UNAVAILABLE', 'ABORT_DELIVERY_FAILED', 'HASH_CHANGED', 'DESCENDANT_PATH_UNEXPECTED', 'REINTERPRETATION_NOT_RUN', 'REINTERPRETATION_FAILED')
+    $priority = @('WORK_PATH_UNSAFE', 'RECEIVER_NOT_READY', 'RUNNER_NO_RESULT', 'RESULT_UNREADABLE', 'RESULT_BINDING_FAILED', 'IDENTITY_UNVERIFIED', 'RUNNER_REFUSED', 'SUPERVISOR_FORCED_KILL', 'RECEIVER_HIT', 'RECEIVER_UNREADABLE', 'OS_BLOCK_ATTRIBUTED', 'OS_BLOCK_EVIDENCE_UNAVAILABLE', 'ABORT_DELIVERY_FAILED', 'HASH_CHANGED', 'DESCENDANT_PATH_UNEXPECTED', 'REINTERPRETATION_NOT_RUN', 'REINTERPRETATION_FAILED')
     $all = @($Tokens | Where-Object { $_ } | Select-Object -Unique)
     $primary = $null
     foreach ($p in $priority) { if ($all -contains $p) { $primary = $p; break } }

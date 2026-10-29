@@ -133,9 +133,12 @@ function Invoke-LspMinObservation {
     $sl0 = Get-SecurityLogState
     & $addPre 'T06' ([bool]$sl0.ok) "Security 로그를 읽을 수 있는가 ($($sl0.error))"
     & $addPre 'T07' (-not (Test-Path -LiteralPath $CancelFile)) "이전 취소 표지가 없는가 ($CancelFile)"
-    # 이전 실행의 작업 배치는 다음 실행 전에 관리자 권한으로 지운다. 그 안에 정션·링크가 있으면(전용 계정이 만들 수 있다) 대상을 지울 위험이 있으므로 지우지 않고 멈춘다(링크는 따라가지 않고 찾는다).
-    $oldTree = @(); if (Test-Path -LiteralPath $lspWork) { $oldTree = Find-LspMinReparseInTree -Root $lspWork }
-    & $addPre 'T08' ($oldTree.Count -eq 0) "이전 실행의 작업 배치에 정션·링크가 없고 읽을 수 있는가 ($($oldTree -join ' ; '))"
+    # 관리자 권한의 삭제·복사·쓰기는 신뢰하는 작업 루트(names.WorkDir, .owner 가 있는 곳) 아래에서만 한다. 전용 계정은 그 아래에 정션·링크를 만들 수 있으므로,
+    # lsp 폴더 안뿐 아니라 루트부터 모든 목적지(work·lsp·요청·결과·중단 표지·러너 사본)까지 이미 있는 경로 조각에 링크가 없고 읽을 수 있는지 먼저 본다.
+    # 없는 경로는 검증한 기존 부모 아래에 만든다. 확인하지 못하면 아무것도 바꾸기 전에 거절한다(링크는 따라가지 않고 찾는다).
+    $trustedRoot = $names.WorkDir
+    $workProblems = Get-LspMinWorkSafetyProblems -TrustedRoot $trustedRoot -WorkDir $workDir -LspWork $lspWork
+    & $addPre 'T08' ($workProblems.Count -eq 0) "작업 폴더 루트부터 목적지까지 경로 조각과 이전 작업 배치에 정션·링크가 없고 모두 읽을 수 있는가 ($($workProblems -join ' ; '))"
     # 러너는 경로에 중단 문구(download·registry 등)가 있으면 시작을 거절한다: 계정을 켜기 전에 미리 거른다.
     $pp0 = Find-LspMinPathPattern $lspWork
     & $addPre 'T09' ($null -eq $pp0) "작업 폴더 경로에 러너가 거절할 문구가 없는가 ($pp0)"
@@ -243,6 +246,9 @@ function Invoke-LspMinObservation {
         observation = $null; processCleanup = $null; systemRecovery = $null; auditWindows = $null; notes = (New-Object System.Collections.ArrayList); error = $null
     }
     $auditSteps = New-Object System.Collections.ArrayList
+    # 작업 경로 확인 기록(사전 조건 T08 과 같은 확인을 변경 전 관문 두 곳에서 다시 한 결과). 이 확인은 확인 시점의 상태만 본다.
+    $workGates = New-Object System.Collections.ArrayList
+    $report.workPath = [ordered]@{ trustedRoot = $trustedRoot; preconditionProblems = @($workProblems); gates = $workGates; limits = '확인 뒤에 링크로 바뀌는 경쟁 상태는 막지 못한다. 하드 링크는 재해석 지점이 아니라서 찾지 못한다. 실행 기록 폴더(관리자 증거 파일)는 이 확인의 범위 밖이다.' }
     $accountTouched = $false
     $receiver = $null
     $tracked = New-Object System.Collections.ArrayList; $trackedKeys = @{}
@@ -258,9 +264,17 @@ function Invoke-LspMinObservation {
     $base = $null; $uname = [string]$names.UserName
     $verdict = 'NOT_ESTABLISHED'
     $established = $false
-    $reint = [ordered]@{ status = 'NOT_RUN'; reason = $null; exitCode = $null; output = $null; recordFile = $null; contextFile = $null; recordStatus = $null; statusReasons = @(); adminReasons = @(); terminationPath = $null }
+    $reint = [ordered]@{ status = 'NOT_RUN'; reason = $null; exitCode = $null; output = $null; recordFile = $null; contextFile = $null; recordStatus = $null; statusReasons = @(); adminReasons = @(); terminationPath = $null; tool = $null }
     $findAccountProcs = { @(Get-Process -IncludeUserName -ErrorAction Stop | Where-Object { $_.UserName -and $_.UserName.EndsWith('\' + $uname, [StringComparison]::OrdinalIgnoreCase) }) }
     try {
+        # 변경 전 관문 1: 사전 조건 T08 은 읽은 시점의 값이므로, 첫 삭제·열기보다 앞서 같은 확인을 다시 한다. 문제가 있으면 수신기·감사 창·계정·복사·러너 어느 것도 시작하지 않는다.
+        # (확인과 사용 사이에 링크로 바뀌는 경쟁 상태까지 막는다고 주장하지 않는다.)
+        $gate1 = Get-LspMinWorkSafetyProblems -TrustedRoot $trustedRoot -WorkDir $workDir -LspWork $lspWork
+        [void]$workGates.Add([ordered]@{ stage = 'before-first-change'; problems = @($gate1) })
+        if ($gate1.Count -gt 0) {
+            [void]$failTokens.Add('WORK_PATH_UNSAFE'); $report.error = '작업 경로 확인에서 문제가 있어 아무것도 바꾸지 않고 멈춘다: ' + ($gate1 -join ' ; ')
+            throw 'WORK_PATH_UNSAFE'
+        }
         # 수신기는 자식보다 먼저 준비한다. 준비하지 못하면 아무것도 시작하지 않는다.
         try {
             $receiver = New-LspMinReceiver
@@ -271,15 +285,12 @@ function Invoke-LspMinObservation {
             [void]$failTokens.Add('RECEIVER_NOT_READY'); $report.error = '루프백 수신기를 준비하지 못했다: ' + $_.Exception.Message
             throw 'RECEIVER_NOT_READY'
         }
-        # 이전 실행의 요청·결과·중단 파일과 작업 배치를 지운다. 전용 계정을 켜기 **전**이라 그 계정이 동시에 쓰는 일이 없다.
-        # 작업 배치는 관리자 권한으로 재귀 삭제하므로, 지우기 직전에 링크가 없는지 한 번 더 확인하고(사전 조건 T08 은 읽기 시점의 값) 있으면 지우지 않고 멈춘다.
-        foreach ($a in 'lsp-min-request.json', 'lsp-min-result.json', 'lsp-min-result.json.tmp', 'lsp-min-abort.flag') {
+        # 이전 실행의 요청·결과·중단 파일과 작업 배치를 지운다. 전용 계정을 켜기 **전**이라 그 계정이 동시에 쓰는 일이 없다. 위 관문 1 이 이 삭제 목적지 전부의 경로 조각과 lsp 폴더 안을 이미 확인했다.
+        foreach ($a in $Script:LspMinWorkTransientFiles) {
             $ap = Join-Path $workDir $a
             if (Test-Path -LiteralPath $ap) { Invoke-Mutation -Description "이전 실행의 파일 삭제: $a" -Action { Remove-Item -LiteralPath $ap -Force -ErrorAction Stop } | Out-Null }
         }
         if ((Test-Path -LiteralPath $lspWork) -and ([IO.Path]::GetFullPath($lspWork)).StartsWith(([IO.Path]::GetFullPath($workDir).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) {
-            $linksNow = Find-LspMinReparseInTree -Root $lspWork
-            if ($linksNow.Count -gt 0) { throw ('이전 작업 배치에 정션·링크가 있어 지우지 않는다: ' + ($linksNow -join ' ; ')) }
             Invoke-Mutation -Description "이전 실행의 작업 배치 삭제: $lspWork" -Action { Remove-Item -LiteralPath $lspWork -Recurse -Force -ErrorAction Stop } | Out-Null
         }
         Open-IsoAuditWindow -Guid $Script:AuditGuid.FilteringPlatformConnection -EnableSuccess $false -EnableFailure $true -Registry $auditSteps -Why '5157(차단된 연결) 기록용, 이 실행 동안만' | Out-Null
@@ -290,8 +301,15 @@ function Invoke-LspMinObservation {
         $secure = ConvertTo-SecureString -String ([IO.File]::ReadAllText((Join-Path $Script:IsoRunDir 'credential.dpapi')).Trim())
         $cred = New-Object System.Management.Automation.PSCredential(('.\' + $uname), $secure)
 
+        # 변경 전 관문 2: 계정을 켠 뒤 첫 복사·쓰기 직전에 한 번 더 확인한다(관문 1 과 같은 확인. 간격을 줄일 뿐 경쟁 상태를 없애지는 않는다). 문제가 있으면 쓰지 않고 멈추고, 정리가 계정과 감사 값을 되돌린다.
+        $gate2 = Get-LspMinWorkSafetyProblems -TrustedRoot $trustedRoot -WorkDir $workDir -LspWork $lspWork
+        [void]$workGates.Add([ordered]@{ stage = 'before-copy-and-write'; problems = @($gate2) })
+        if ($gate2.Count -gt 0) {
+            [void]$failTokens.Add('WORK_PATH_UNSAFE'); $report.error = '계정을 켠 뒤 작업 경로 확인에서 문제가 있어 복사·쓰기 없이 멈춘다: ' + ($gate2 -join ' ; ')
+            throw 'WORK_PATH_UNSAFE'
+        }
         if (-not (Test-Path -LiteralPath $workDir)) { Invoke-Mutation -Description "작업 폴더 만들기: $workDir" -Action { New-Item -ItemType Directory -Path $workDir -ErrorAction Stop | Out-Null } | Out-Null }
-        $toCopy = @('lsp-min-runner.ps1', 'LspMinContract.ps1', 'version-runner.ps1'); if ($Mode -eq 'stub') { $toCopy += 'lsp-min-stub.ps1' }
+        $toCopy = @($Script:LspMinWorkCopyFiles | Where-Object { $Mode -eq 'stub' -or $_ -ne 'lsp-min-stub.ps1' })
         foreach ($f in $toCopy) { $src = Join-Path $Script:EntryDir $f; Invoke-Mutation -Description "작업 폴더로 복사: $f" -Action { Copy-Item -LiteralPath $src -Destination (Join-Path $workDir $f) -Force -ErrorAction Stop } | Out-Null }
 
         $envTable = New-LspMinChildEnv -WindowsDir $env:WINDIR -Layout $layout -Url $receiver.url
@@ -334,7 +352,7 @@ function Invoke-LspMinObservation {
             if (-not $sup.requests.Contains($Text)) { [void]$sup.requests.Add($Text) }
             if ($null -ne $sup.abortRequestedAtMs) { return }
             $sup.abortRequestedAtMs = [int]$sw.ElapsedMilliseconds; $sup.abortReason = $Text
-            $w = Write-LspMinAbortFile -Path $abortFile -Text $Text
+            $w = Write-LspMinAbortFile -Path $abortFile -Text $Text -TrustedRoot $trustedRoot
             $sup.abortFile.attempts++; $sup.abortFile.delivered = [bool]$w.ok; $sup.abortFile.error = $w.error
             if (-not $w.ok) { & $forceKill 'ABORT_DELIVERY_FAILED' }
         }
@@ -541,8 +559,9 @@ function Invoke-LspMinObservation {
         if (-not $report.error) { $report.error = $_.Exception.Message }
         Write-IsoLog -Level 'FAIL' -Message ('실행 중 오류: ' + $_.Exception.Message)
         $verdict = 'NOT_ESTABLISHED'
-        if ($_.Exception.Message -ne 'RECEIVER_NOT_READY') { [void]$failTokens.Add('ADMIN_ERROR') }
+        if ($_.Exception.Message -ne 'RECEIVER_NOT_READY' -and $_.Exception.Message -ne 'WORK_PATH_UNSAFE') { [void]$failTokens.Add('ADMIN_ERROR') }
         if ($_.Exception.Message -eq 'RECEIVER_NOT_READY') { $verdict = 'NOT_ATTEMPTED:RECEIVER_NOT_READY' }
+        if ($_.Exception.Message -eq 'WORK_PATH_UNSAFE') { $verdict = 'NOT_ATTEMPTED:WORK_PATH_UNSAFE' }
     } finally {
         # ── 정리: 항목마다 독립 실행·결과 기록. 하나가 실패해도 나머지를 건너뛰지 않는다. 프로세스 정리와 시스템 복구는 이름으로 구분한다. ──
         $cleanup = New-Object System.Collections.ArrayList
@@ -576,8 +595,12 @@ function Invoke-LspMinObservation {
         if (-not $rrFile -or -not (Test-Path -LiteralPath $rrFile)) { $reint.reason = 'NO_RUNNER_RESULT_FILE' }
         elseif (-not $toolsReady) { $reint.reason = 'TOOLS_MISSING' }
         else {
-            $ri = Invoke-LspMinReinterpret -TsxCmd $TsxCmd -NodeDir $NodeDir -CliTs $ReinterpretCli -RunnerResultPath $rrFile -ContextPath $ctxFile -OutPath $recordFile
+            $ri = Invoke-LspMinReinterpret -TsxCmd $TsxCmd -NodeDir $NodeDir -CliTs $ReinterpretCli -RunnerResultPath $rrFile -ContextPath $ctxFile -OutPath $recordFile -CancelFile $CancelFile
             $reint.exitCode = $ri.exitCode; $reint.output = $ri.output; if ($ri.error) { $reint.reason = $ri.error }
+            # 도구 실행의 뒤처리(후손 정리·읽기 마무리)는 관측 결과와 따로 적고, 프로세스 정리 묶음에 항목으로 넣는다(정리가 실패하면 종료 70).
+            $reint.tool = [ordered]@{ exited = (Get-IsoProp $ri 'exited'); stdoutClosed = (Get-IsoProp $ri 'stdoutClosed'); stderrClosed = (Get-IsoProp $ri 'stderrClosed'); truncated = (Get-IsoProp $ri 'truncated'); elapsedMs = (Get-IsoProp $ri 'elapsedMs'); totalMs = (Get-IsoProp $ri 'totalMs'); cleanup = (Get-IsoProp $ri 'cleanup') }
+            $toolCleanup = Get-IsoProp $ri 'cleanup'
+            if ($null -ne $toolCleanup) { [void]$cleanup.Add((Invoke-IsoCleanupStep -Name 'process-reinterpret-tool' -Action { $toolCleanup })) }
             if ($ri.ran -and $ri.exitCode -eq 0 -and (Test-Path -LiteralPath $recordFile)) {
                 try { $recordObj = Read-IsoJson -Path $recordFile; $reint.status = 'RUN'; $reint.recordFile = $recordFile } catch { $reint.status = 'FAILED'; $reint.reason = '기록 파일을 읽지 못했다: ' + $_.Exception.Message }
             } else { $reint.status = 'FAILED'; if (-not $reint.reason) { $reint.reason = "도구 종료 코드 $($ri.exitCode)" } }
