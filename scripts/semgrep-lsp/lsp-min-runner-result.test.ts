@@ -288,7 +288,8 @@ describe("factsFromRunnerResult", () => {
   it("PowerShell 5.1이 배열을 스칼라나 빈 객체로 쓰는 경우도 받아 준다 (also, refusals, 추가된 파일, 이미지 목록)", () => {
     const r = record(
       goodResult({
-        also: "TOTAL_TIMEOUT",
+        // 이 시험의 목적은 배열 모양이다. 관측 성립을 막지 않는 사유를 쓴다(막는 사유는 아래 "후속 사유" 시험이 다룬다).
+        also: "EXIT_TIMEOUT",
         live: {
           stderrCheckedBytes: 0,
           stdoutFramesChecked: 1,
@@ -315,7 +316,7 @@ describe("factsFromRunnerResult", () => {
         ],
       })
     );
-    expect(r.termination.also).toEqual(["TOTAL_TIMEOUT"]);
+    expect(r.termination.also).toEqual(["EXIT_TIMEOUT"]);
     expect(r.coverage.live.processes.images_seen).toEqual(["semgrep.exe"]);
     expect(r.coverage.live.processes.disallowed).toEqual([]);
     expect(r.coverage.post_hoc.watched_roots.find((x) => x.role === "HOME_DIR")?.added).toEqual([
@@ -369,5 +370,96 @@ describe("factsFromRunnerResult", () => {
   it("깨진 base64는 관측 불성립", () => {
     const bad = goodResult({ stdout: { ...stream(new Uint8Array(0)), b64: 12345 } });
     expect(record(bad).status_reasons).toContain("RUNNER_RESULT_MALFORMED:stdout");
+  });
+
+  // exit·stdin EOF를 모두 무시해 EXIT_TIMEOUT 뒤 유예가 전체 상한에 잘려 강제 종료된 러너 결과(TS 실행기의 같은 시험과 같은 판정이어야 한다).
+  const forcedAfterExitTimeout = (over: Record<string, unknown> = {}) =>
+    goodResult({
+      trigger: "EXIT_TIMEOUT",
+      also: ["TOTAL_TIMEOUT"],
+      exit: { observed: true, code: null, signal: null, tMs: 55_050 },
+      stdinClosed: { byHarness: true, ok: true, tMs: 50_000 },
+      kill: { count: 1, firstTMs: 55_000, confirmed: true },
+      ...over,
+    });
+
+  it("후속 사유(EXIT_TIMEOUT 뒤 TOTAL_TIMEOUT)와 강제 종료가 관측을 막는다. 사유 순서와 실제 관측 사실은 그대로다", () => {
+    const r = record(forcedAfterExitTimeout());
+    expect(r.status).toBe("NOT_OBSERVED");
+    expect(r.status_reasons).toEqual(
+      expect.arrayContaining(["TOTAL_TIMEOUT", "FORCE_KILL_REQUIRED"])
+    );
+    expect(r.termination).toMatchObject({
+      trigger: "EXIT_TIMEOUT",
+      also: ["TOTAL_TIMEOUT"],
+      path: "FORCE_KILLED",
+    });
+    expect(r.initialize.response).toBe("VALID");
+    expect(r.sent.map((s) => s.label)).toEqual(["initialize", "shutdown", "exit"]);
+  });
+
+  it("TOTAL_TIMEOUT이 첫 사유인 결과도 같은 판정이다", () => {
+    const r = record(forcedAfterExitTimeout({ trigger: "TOTAL_TIMEOUT", also: [] }));
+    expect(r.status).toBe("NOT_OBSERVED");
+    expect(r.status_reasons).toEqual(
+      expect.arrayContaining(["TOTAL_TIMEOUT", "FORCE_KILL_REQUIRED"])
+    );
+  });
+
+  it.each(["TOTAL_TIMEOUT", "STDIN_ERROR", "STREAM_READ_FAILED", "CHILD_EXITED_EARLY"])(
+    "후속 사유 %s도 관측을 막는다 (강제 종료 없이도)",
+    (token) => {
+      const r = record(goodResult({ trigger: "EXIT_TIMEOUT", also: [token] }));
+      expect(r.status).toBe("NOT_OBSERVED");
+      expect(r.status_reasons).toContain(token);
+      expect(r.status_reasons).not.toContain("RUNNER_RESULT_MALFORMED:trigger");
+      expect(r.termination.also).toEqual([token]);
+    }
+  );
+
+  it("stdin EOF로 끝난 결과는 OBSERVED로 남고 SELF_EXIT와 구분된다", () => {
+    const r = record(
+      goodResult({
+        trigger: "EXIT_TIMEOUT",
+        stdinClosed: { byHarness: true, ok: true, tMs: 30_000 },
+        exit: { observed: true, code: 0, signal: null, tMs: 30_020 },
+      })
+    );
+    expect(r.status).toBe("OBSERVED");
+    expect(r.termination.path).toBe("STDIN_CLOSED");
+    expect(record(goodResult()).termination.path).toBe("SELF_EXIT");
+  });
+
+  it("읽기 실패 결과: STREAM_READ_FAILED로 올라오고 STDIN_ERROR가 아니며, 받은 바이트와 오류 문구가 남는다", () => {
+    const received = frame({ jsonrpc: "2.0", id: "lsp-min-init-1", result: GOOD });
+    const r = record(
+      goodResult({
+        trigger: "STREAM_READ_FAILED",
+        sends: [{ label: "initialize", tMs: 107, ok: true }],
+        stdout: stream(received, {
+          eof: false,
+          readFailed: true,
+          state: "READ_FAILED",
+          error: "IOException: The pipe is being closed.",
+        }),
+        exit: { observed: true, code: null, signal: null, tMs: 900 },
+        kill: { count: 1, firstTMs: 800, confirmed: true },
+      })
+    );
+    expect(r.status).toBe("NOT_OBSERVED");
+    expect(r.status_reasons).toContain("STREAM_READ_FAILED");
+    expect(r.status_reasons).not.toContain("STDIN_ERROR");
+    expect(r.status_reasons).not.toContain("RUNNER_RESULT_MALFORMED:trigger");
+    expect(r.termination.trigger).toBe("STREAM_READ_FAILED");
+    expect(r.streams.stdout).toMatchObject({
+      read_failed: true,
+      eof: false,
+      bytes: received.length,
+      read_error: "IOException: The pipe is being closed.",
+    });
+    expect(r.streams.stderr.read_error).toBeNull();
+    // 실제 관측 사실(유효한 응답)은 보존되고, 쓰지 못한 shutdown·exit는 별도 사유로 남는다.
+    expect(r.initialize.response).toBe("VALID");
+    expect(r.status_reasons).toContain("SHUTDOWN_EXIT_NOT_SENT");
   });
 });

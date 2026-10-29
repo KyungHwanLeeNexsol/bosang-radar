@@ -35,7 +35,7 @@ $Script:LspHere = Split-Path -Parent $PSCommandPath
 
 $Script:LspMinStubScenarios = @('ok', 'error', 'initialize-error', 'wrong-id', 'split', 'silent', 'silent-hold', 'ignore-exit', 'ignore-exit-eof', 'exit-early', 'garbage', 'server-request', 'stderr-scan', 'stderr-split', 'stderr-download', 'publish', 'write-ws', 'flood-out', 'flood-err', 'orphan', 'env-names', 'spawn-disallowed', 'id-case', 'jsonrpc-case', 'method-case')
 # 곧바로 강제 종료하는 이유(stdin 닫기와 유예를 거치지 않는다).
-$Script:LspMinImmediate = @('LIVE_ABORT', 'TOTAL_TIMEOUT', 'OUTPUT_LIMIT', 'FRAME_ERROR', 'STDIN_ERROR', 'CHILD_EXITED_EARLY')
+$Script:LspMinImmediate = @('LIVE_ABORT', 'TOTAL_TIMEOUT', 'OUTPUT_LIMIT', 'FRAME_ERROR', 'STDIN_ERROR', 'STREAM_READ_FAILED', 'CHILD_EXITED_EARLY')
 $Script:LspMinMaxFrameBytes = 3500       # 익명 파이프 버퍼(4096)를 넘지 않게: 쓰기가 막힐 수 없다
 $Script:LspMinConsecutiveFailures = 3
 
@@ -161,10 +161,19 @@ function Add-LspMinTrigger {
     if ($Condition -ne '' -and $null -eq $Ctx.abort) { $Ctx.abort = [ordered]@{ condition = $Condition; detail = $Detail; tMs = [int]$Ctx.sw.ElapsedMilliseconds } }
     if ($Script:LspMinImmediate -contains $Trigger) { $Ctx.immediate = $true }
 }
+# 스트림 상태 하나(New-StreamState 결과)를 보고 이유를 올린다. 출력 상한 초과는 OUTPUT_LIMIT, 읽기 실패는 STREAM_READ_FAILED 다(쓰기 실패와 다른 이름).
+# 둘 다 곧바로 강제 종료하는 이유다. 이미 받은 바이트(.ms)와 오류 문구(.error)는 건드리지 않는다. 정상 EOF 는 이유가 아니다.
+function Step-LspMinStreamTriggers {
+    param($St)
+    if ($St.overflow) { Add-LspMinTrigger 'OUTPUT_LIMIT' }
+    elseif ($St.failed) { Add-LspMinTrigger 'STREAM_READ_FAILED' }
+}
 function Send-LspMinMessage {
     param([string]$Label, $Message)
     Assert-LspMinOutbound -Label $Label -Message $Message
-    $rec = [ordered]@{ label = $Label; tMs = [int]$Ctx.sw.ElapsedMilliseconds; ok = $false }
+    # 곧바로 끝내기로 한 뒤에는 새 메시지를 쓰지 않는다(송신 기록도 남기지 않는다).
+    if ($Ctx.immediate) { return $false }
+    $rec =[ordered]@{ label = $Label; tMs = [int]$Ctx.sw.ElapsedMilliseconds; ok = $false }
     [void]$Ctx.sends.Add($rec)
     $bytes = ConvertTo-LspMinFrame -Message $Message
     if ($bytes.Length -gt $Script:LspMinMaxFrameBytes) { Add-LspMinTrigger 'STDIN_ERROR'; return $false }
@@ -354,8 +363,8 @@ try {
         $now = [int]$sw.ElapsedMilliseconds
 
         # stdout: 새 바이트를 프레임으로, 완성된 메시지를 분류한다.
-        if ($out.overflow) { Add-LspMinTrigger 'OUTPUT_LIMIT' }
-        elseif ($out.failed) { $res.child.streamReadFailed = $true; Add-LspMinTrigger 'STDIN_ERROR' }
+        Step-LspMinStreamTriggers $out
+        if ($out.failed) { $res.child.streamReadFailed = $true }
         if ($out.ms.Length -gt $out.consumed -or $framer.pos -lt $out.ms.Length) {
             $out.consumed = [int]$out.ms.Length
             $msgs = Step-LspMinFramer $framer $out.ms $L.maxStdoutBytes
@@ -376,8 +385,8 @@ try {
             }
         }
         # stderr: 새 바이트를 문구 감시에 먹인다(청크 경계에 걸친 문구도 잡도록 꼬리를 이어 붙인다).
-        if ($err.overflow) { Add-LspMinTrigger 'OUTPUT_LIMIT' }
-        elseif ($err.failed) { $res.child.streamReadFailed = $true }
+        Step-LspMinStreamTriggers $err
+        if ($err.failed) { $res.child.streamReadFailed = $true }
         if ($err.ms.Length -gt $err.consumed) {
             $ebuf = $err.ms.GetBuffer(); $count = [int]$err.ms.Length - $err.consumed
             $chars = New-Object char[] ($count + 4)

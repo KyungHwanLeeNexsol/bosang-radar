@@ -408,6 +408,77 @@ console.log(JSON.stringify(out));
     $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
     $threw = $false; try { [void](Send-LspMinMessage 'exit' ([ordered]@{ jsonrpc = '2.0'; method = 'initialized'; params = @{} })) } catch { $threw = $true }
     Assert-That '허용 밖 메시지(initialized)는 방어선이 던지고 스트림에 아무것도 쓰지 않는다' ($threw -and $fake.WriteCalls -eq 0)
+
+    # ── 즉시 종료 사유가 걸린 뒤에는 새 메시지를 쓰지 않는다 ──
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+    Add-LspMinTrigger 'LIVE_ABORT' 'A7' 'CANCELLED'
+    $sent = Send-LspMinMessage 'shutdown' (New-LspMinShutdownMessage)
+    Assert-That '즉시 종료 사유가 이미 걸렸으면 shutdown 도 쓰지 않고 송신 기록도 남기지 않는다' ($sent -eq $false -and $fake.WriteCalls -eq 0 -and $Ctx.sends.Count -eq 0 -and $Ctx.trigger -ceq 'LIVE_ABORT')
+
+    # ── 읽기 실패: 가짜 읽기 스트림(BeginRead/EndRead)으로 초기화 응답 전·유효한 응답을 받은 뒤의 반응을 결정적으로 본다 ──
+    # 읽기 번호 FailAt 번째에서 실패한다. New-StreamState 의 첫 BeginRead 가 읽기 1번, Step-StreamRead 가 EndRead 뒤 다시 BeginRead 하면 다음 번호다.
+    function New-FakeReadStream([byte[][]]$Chunks, [int]$FailAt = 0, [string]$Where = 'end') {
+        $o = New-Object psobject -Property @{ Chunks = $Chunks; Reads = 0; Buf = $null; FailAt = $FailAt; Where = $Where }
+        $o | Add-Member -MemberType ScriptMethod -Name BeginRead -Value {
+            param($b, $off, $n, $cb, $st)
+            $this.Reads++; $this.Buf = $b
+            if ($this.Where -eq 'begin' -and $this.FailAt -gt 0 -and $this.Reads -eq $this.FailAt) { throw (New-Object IO.IOException 'The pipe has been ended.') }
+            [pscustomobject]@{ IsCompleted = $true }
+        }
+        $o | Add-Member -MemberType ScriptMethod -Name EndRead -Value {
+            param($ar)
+            if ($this.Where -eq 'end' -and $this.FailAt -gt 0 -and $this.Reads -eq $this.FailAt) { throw (New-Object IO.IOException 'The pipe is being closed.') }
+            if ($this.Reads -le @($this.Chunks).Count) { $c = [byte[]]@($this.Chunks)[$this.Reads - 1]; [Array]::Copy($c, 0, $this.Buf, 0, $c.Length); return $c.Length }
+            0
+        }
+        $o
+    }
+    $goodInitJson = '{"jsonrpc":"2.0","id":"lsp-min-init-1","result":{"capabilities":{"textDocumentSync":1},"serverInfo":{"name":"Semgrep","version":"9.9.9"}}}'
+    $goodInitFrame = Get-FrameBytes $goodInitJson
+    $logFrame = Get-FrameBytes '{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3}}'
+    foreach ($which in 'stdout', 'stderr') {
+        foreach ($phase in 'before-init', 'after-valid-response') {
+            $label = "읽기 실패($which, $(if ($phase -eq 'before-init') { '초기화 응답 전' } else { '유효한 응답을 받은 뒤' }))"
+            $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+            [void](Send-LspMinMessage 'initialize' (New-LspMinInitializeMessage -Layout $smallLayout))
+            $chunk = if ($which -eq 'stdout' -and $phase -eq 'after-valid-response') { $goodInitFrame } else { $logFrame }
+            if ($phase -eq 'after-valid-response') { $Ctx.initCore = Get-LspMinInitCore (Read-Json $goodInitJson) }
+            $failing = New-StreamState $which (New-FakeReadStream @(, $chunk) 2) 4096
+            Step-StreamRead $failing                      # 첫 읽기: 바이트를 받는다
+            Step-LspMinStreamTriggers $failing
+            Assert-That "$label : 실패 전에는 이유가 올라가지 않는다" ($null -eq $Ctx.trigger -and -not $Ctx.immediate -and $failing.ms.Length -eq $chunk.Length)
+            Step-StreamRead $failing                      # 둘째 읽기: 실패
+            Step-LspMinStreamTriggers $failing
+            Assert-That "$label : STREAM_READ_FAILED 로 곧바로 끝내기로 한다 (쓰기 실패 STDIN_ERROR 로 부르지 않는다)" ($failing.failed -and -not $failing.eof -and $Ctx.trigger -ceq 'STREAM_READ_FAILED' -and $Ctx.immediate -eq $true -and $Ctx.also.Count -eq 0) "trigger=$($Ctx.trigger) also=$($Ctx.also -join ',')"
+            $rec = Get-StreamRecord $failing
+            Assert-That "$label : 이미 받은 바이트와 오류 문구가 남고, 정상 EOF 로 기록하지 않는다" ($rec.state -ceq 'READ_FAILED' -and $rec.readFailed -and -not $rec.eof -and $rec.bytesRead -eq $chunk.Length -and (([Convert]::FromBase64String($rec.b64) -join ',') -ceq ($chunk -join ',')) -and $rec.error -match 'IOException' -and $rec.error -match 'pipe is being closed') (($rec | ConvertTo-Json -Compress -Depth 3))
+            Assert-That "$label : 스트림은 닫힌 것으로 치지 않는다 (Test-StreamsClosed)" (-not (Test-StreamsClosed @($failing)))
+            $writesBefore = $fake.WriteCalls; $sendsBefore = $Ctx.sends.Count
+            $s1 = Send-LspMinMessage 'shutdown' (New-LspMinShutdownMessage)
+            $s2 = Send-LspMinMessage 'exit' (New-LspMinExitMessage)
+            Assert-That "$label : 실패 뒤에는 새 shutdown·exit 를 쓰지 않는다 (쓰기 횟수·송신 기록 그대로)" ($s1 -eq $false -and $s2 -eq $false -and $fake.WriteCalls -eq $writesBefore -and $Ctx.sends.Count -eq $sendsBefore -and $Ctx.sends[0].label -ceq 'initialize') "writes=$($fake.WriteCalls) sends=$($Ctx.sends.Count)"
+            if ($phase -eq 'after-valid-response') { Assert-That "$label : 유효한 응답 판정은 그대로 남는다 (InitCore ok)" ($Ctx.initCore.ok -eq $true) }
+        }
+    }
+    # 읽기를 시작하는 순간(BeginRead)의 실패도 같다. 정상 EOF(0바이트 읽기)는 실패가 아니다.
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+    $beginFail = New-StreamState 'stdout' (New-FakeReadStream @() 1 'begin') 4096
+    Step-LspMinStreamTriggers $beginFail
+    Assert-That '읽기 실패(BeginRead 에서): 같은 이유로 곧바로 끝내기로 하고 오류 문구가 남는다' ($beginFail.failed -and $Ctx.trigger -ceq 'STREAM_READ_FAILED' -and $Ctx.immediate -and $beginFail.error -match 'pipe has been ended')
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+    $eofStream = New-StreamState 'stdout' (New-FakeReadStream @() 0) 4096
+    Step-StreamRead $eofStream; Step-LspMinStreamTriggers $eofStream
+    Assert-That '정상 EOF 는 읽기 실패가 아니다: 이유를 올리지 않고 eof 로 기록한다' ($eofStream.eof -and -not $eofStream.failed -and $null -eq $Ctx.trigger -and -not $Ctx.immediate -and (Get-StreamRecord $eofStream).state -ceq 'EOF')
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+    $over = New-StreamState 'stdout' (New-FakeReadStream @(, $logFrame) 0) 10
+    Step-StreamRead $over; Step-LspMinStreamTriggers $over
+    Assert-That '출력 상한 초과는 읽기 실패와 따로 OUTPUT_LIMIT 로 올라간다' ($over.overflow -and $Ctx.trigger -ceq 'OUTPUT_LIMIT' -and -not $over.failed)
+    # 먼저 일어난 이유는 trigger 로 남고 읽기 실패는 also 로 뒤따른다.
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake
+    Add-LspMinTrigger 'FRAME_ERROR'
+    $late = New-StreamState 'stderr' (New-FakeReadStream @() 1 'begin') 4096
+    Step-LspMinStreamTriggers $late
+    Assert-That '먼저 일어난 FRAME_ERROR 가 trigger 로 남고 읽기 실패는 also 로 뒤따른다 (순서 보존)' ($Ctx.trigger -ceq 'FRAME_ERROR' -and @($Ctx.also) -contains 'STREAM_READ_FAILED' -and $Ctx.immediate)
     Remove-Variable Ctx -ErrorAction SilentlyContinue
 }
 
@@ -642,7 +713,7 @@ console.log(JSON.stringify(out));
                 @('ok', 'OBSERVED', $null), @('split', 'OBSERVED', $null), @('server-request', 'OBSERVED', $null), @('env-names', 'OBSERVED', $null),
                 @('error', 'NOT_OBSERVED', 'INIT_ERROR_RESPONSE'), @('initialize-error', 'NOT_OBSERVED', 'INIT_RESULT_IS_INITIALIZE_ERROR'),
                 @('wrong-id', 'NOT_OBSERVED', 'INIT_NO_RESPONSE'), @('id-case', 'NOT_OBSERVED', 'INIT_NO_RESPONSE'), @('jsonrpc-case', 'NOT_OBSERVED', 'FRAME_ERROR:MALFORMED'), @('method-case', 'OBSERVED', $null), @('silent', 'NOT_OBSERVED', 'INIT_NO_RESPONSE'), @('silent-hold', 'NOT_OBSERVED', 'INIT_NO_RESPONSE'),
-                @('ignore-exit', 'OBSERVED', $null), @('ignore-exit-eof', 'OBSERVED', $null), @('exit-early', 'NOT_OBSERVED', 'CHILD_EXITED_EARLY'),
+                @('ignore-exit', 'OBSERVED', $null), @('ignore-exit-eof', 'NOT_OBSERVED', 'FORCE_KILL_REQUIRED'), @('exit-early', 'NOT_OBSERVED', 'CHILD_EXITED_EARLY'),
                 @('total-timeout', 'NOT_OBSERVED', 'TOTAL_TIMEOUT'), @('garbage', 'NOT_OBSERVED', 'FRAME_ERROR:MALFORMED'),
                 @('flood-err', 'NOT_OBSERVED', 'OUTPUT_LIMIT'), @('flood-out', 'NOT_OBSERVED', 'OUTPUT_LIMIT'),
                 @('stderr-scan', 'ABORTED', 'ABORT:A1'), @('stderr-split', 'ABORTED', 'ABORT:A1'), @('stderr-download', 'ABORTED', 'ABORT:A2'), @('publish', 'ABORTED', 'ABORT:A8'),
@@ -658,6 +729,8 @@ console.log(JSON.stringify(out));
             Assert-That '러너 결과 → TS 기록: 정상 실행의 정리는 깔끔하다 (cleanup.ok)' ($by['ok'].cleanupOk -eq $true) (($by['ok'] | ConvertTo-Json -Compress))
             Assert-That '러너 결과 → TS 기록: 초기화 실패 두 경로는 stdin 닫기로 끝났다고 기록된다' ($by['error'].path -eq 'STDIN_CLOSED' -and $by['initialize-error'].path -eq 'STDIN_CLOSED')
             Assert-That '러너 결과 → TS 기록: 무응답 + EOF 무시는 강제 종료로 끝났다고 기록된다' ($by['silent-hold'].path -eq 'FORCE_KILLED')
+            Assert-That '러너 결과 → TS 기록: exit·EOF 무시는 유효한 응답을 관측했어도 강제 종료가 필요했으므로 관측 불성립이고, 응답 사실과 강제 종료 경로는 그대로 남는다' ($by['ignore-exit-eof'].status -eq 'NOT_OBSERVED' -and $by['ignore-exit-eof'].init -eq 'VALID' -and $by['ignore-exit-eof'].path -eq 'FORCE_KILLED' -and (@($by['ignore-exit-eof'].sent) -join ',') -ceq 'initialize,shutdown,exit') (($by['ignore-exit-eof'] | ConvertTo-Json -Compress -Depth 3))
+            Assert-That '러너 결과 → TS 기록: exit 무시 뒤 stdin EOF 로 끝난 경로는 관측 성립이고 SELF_EXIT 와 구분되는 STDIN_CLOSED 로 기록된다' ($by['ignore-exit'].status -eq 'OBSERVED' -and $by['ignore-exit'].path -eq 'STDIN_CLOSED' -and $by['ok'].path -eq 'SELF_EXIT') (($by['ignore-exit'] | ConvertTo-Json -Compress -Depth 3))
         }
     }
 } finally {

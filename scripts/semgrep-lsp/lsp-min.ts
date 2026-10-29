@@ -155,6 +155,8 @@ export type LspMinTrigger =
   | "OUTPUT_LIMIT"
   | "FRAME_ERROR"
   | "STDIN_ERROR"
+  /** stdout·stderr를 읽다가 오류가 났다. 쓰기 실패(STDIN_ERROR)와 다른 사유다. */
+  | "STREAM_READ_FAILED"
   | "CHILD_EXITED_EARLY"
   | "EXIT_TIMEOUT"
   | "SPAWN_FAILED";
@@ -743,6 +745,8 @@ export interface StreamFacts {
   overflow: boolean;
   eof: boolean;
   readFailed: boolean;
+  /** 읽기 실패의 오류 문구(형식 이름과 메시지). 기록에는 tokenOf로 걸러 짧게 싣는다. 실패하지 않았으면 없다. */
+  readError?: string | null;
 }
 
 export interface WatchedRootFacts {
@@ -868,6 +872,8 @@ export interface LspMinObservation {
       overflow: boolean;
       eof: boolean;
       read_failed: boolean;
+      /** 읽기 실패의 오류 문구(걸러서 짧게). 실패하지 않았으면 null. 정상 EOF와 읽기 실패는 서로 다른 값이다. */
+      read_error: string | null;
     };
     stderr: {
       bytes: number;
@@ -879,6 +885,7 @@ export interface LspMinObservation {
       overflow: boolean;
       eof: boolean;
       read_failed: boolean;
+      read_error: string | null;
     };
   };
   termination: {
@@ -970,6 +977,20 @@ function tokenOf(text: string): string {
 function compareArtifact(item: ArtifactFacts): "SAME" | "CHANGED" | "NOT_COMPARED" {
   if (item.before === null || item.after === null) return "NOT_COMPARED";
   return item.before === item.after ? "SAME" : "CHANGED";
+}
+
+/** 이 이유가 trigger나 also 어디에 있든 관측 성립을 막는다. 다른 이유는 각자의 근거(응답 판정, 스트림 사실 등)로 status에 반영된다. */
+const OBSERVATION_BLOCKING_TRIGGERS: readonly LspMinTrigger[] = [
+  "TOTAL_TIMEOUT",
+  "STDIN_ERROR",
+  "STREAM_READ_FAILED",
+  "CHILD_EXITED_EARLY",
+];
+
+function readErrorOf(stream: StreamFacts): string | null {
+  if (!stream.readFailed || !stream.readError) return null;
+  const token = tokenOf(stream.readError);
+  return token === "" ? null : token;
 }
 
 function terminationPath(facts: LspMinFacts): TerminationPath {
@@ -1091,12 +1112,20 @@ export function buildObservationRecord(facts: LspMinFacts): LspMinObservation {
     ) {
       reasons.push("SHUTDOWN_EXIT_NOT_SENT");
     }
+    // 먼저 일어난 이유(trigger)와 뒤따른 이유(also)를 모두 본다. 관측 성립을 막는 사유는 일어난 순서와 상관없다
+    // (순서 자체는 termination.trigger·also에 그대로 남는다).
+    const raised = new Set<LspMinTrigger>(facts.also);
+    if (facts.trigger !== null) raised.add(facts.trigger);
     if (frameError !== null) reasons.push(`FRAME_ERROR:${frameError.kind}`);
-    if (facts.stdout.overflow || facts.stderr.overflow) reasons.push("OUTPUT_LIMIT");
+    else if (raised.has("FRAME_ERROR")) reasons.push("FRAME_ERROR");
+    if (facts.stdout.overflow || facts.stderr.overflow || raised.has("OUTPUT_LIMIT")) {
+      reasons.push("OUTPUT_LIMIT");
+    }
     if (facts.stdout.readFailed || facts.stderr.readFailed) reasons.push("STREAM_READ_FAILED");
-    if (facts.trigger === "TOTAL_TIMEOUT") reasons.push("TOTAL_TIMEOUT");
-    if (facts.trigger === "STDIN_ERROR") reasons.push("STDIN_ERROR");
-    if (facts.trigger === "CHILD_EXITED_EARLY") reasons.push("CHILD_EXITED_EARLY");
+    for (const token of OBSERVATION_BLOCKING_TRIGGERS) if (raised.has(token)) reasons.push(token);
+    // 강제 종료가 필요했다면 서버가 스스로(또는 stdin EOF로) 끝나는 것을 관측하지 못한 것이다. 응답·송신 같은 실제 관측 사실은
+    // 그대로 남기고 status만 막는다. stdin EOF로 끝난 경로는 SELF_EXIT와 구분되는 STDIN_CLOSED로 기록되고 여기서 막지 않는다.
+    if (facts.kill.count > 0) reasons.push("FORCE_KILL_REQUIRED");
     if (missedLive) reasons.push("STDERR_PATTERN_NOT_CAUGHT_LIVE");
     // 실시간 표본이 놓쳤지만 사후 값에서 드러난 위반. 중단하지 못했을 뿐 일어난 일이므로 관측 성립으로 치지 않는다.
     const { baselineHits, finalHits } = facts.live.receiver;
@@ -1186,6 +1215,7 @@ export function buildObservationRecord(facts: LspMinFacts): LspMinObservation {
         overflow: facts.stdout.overflow,
         eof: facts.stdout.eof,
         read_failed: facts.stdout.readFailed,
+        read_error: readErrorOf(facts.stdout),
       },
       stderr: {
         bytes: facts.stderr.total,
@@ -1197,6 +1227,7 @@ export function buildObservationRecord(facts: LspMinFacts): LspMinObservation {
         overflow: facts.stderr.overflow,
         eof: facts.stderr.eof,
         read_failed: facts.stderr.readFailed,
+        read_error: readErrorOf(facts.stderr),
       },
     },
     termination: {

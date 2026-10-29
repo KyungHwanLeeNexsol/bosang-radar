@@ -344,6 +344,12 @@ Assert-That 'LSP-MIN 러너: CIM 프로세스 조회는 한 곳이고 시간 제
 Assert-That 'LSP-MIN 러너: 프로세스 표본 호출은 모두 남은 시간에서 정한 제한(-TimeoutSec)을 주고, 마감까지 1초도 남지 않으면 표본을 시작하지 않는다' (($lrTable.Count -eq 1) -and ($lrTable[0].Extent.Text -match '-TimeoutSec \$sampleSec') -and ($lrSrc -match 'Get-LspMinSampleTimeoutSec') -and ($lrSrc -match '\$sampleSec -gt 0'))
 Assert-That 'LSP-MIN 러너: 던진 오류에는 어느 구간(관측/정리)에서 났는지 적는다 — 관측이 끝난 표시($observationEnded)는 정리 구간 시작 직전에 서고 catch 가 errorPhase 로 남긴다' (($lrSrc -match "\`$res\.errorPhase = \`$\(if \(\`$observationEnded\) \{ 'CLEANUP' \} else \{ 'OBSERVATION' \}\)") -and ($lrSrc -match '\$observationEnded = \$true') -and ($lrSrc.IndexOf('$observationEnded = $true') -lt $lrSrc.IndexOf('$cleanupStart = [int]$sw.ElapsedMilliseconds')))
 Assert-That 'LSP-MIN 러너: 실행 파일 경로도 중단 문구 검사를 받는다' ($lrSrc -match "Find-LspMinPathPattern \`$exe\) \) \{ \[void\]\`$refusals\.Add\('PATH_CONTAINS_ABORT_PATTERN:COMMAND'\)" -or $lrSrc -match "Find-LspMinPathPattern \`$exe\)\) \{ \[void\]\`$refusals\.Add\('PATH_CONTAINS_ABORT_PATTERN:COMMAND'\)")
+# 읽기 실패는 쓰기 실패와 다른 이름(STREAM_READ_FAILED)으로 즉시 종료에 연결된다: STDIN_ERROR 는 Send-LspMinMessage 와 즉시 종료 목록 말고는 어디에도 없다.
+$lrStdinErr = [regex]::Matches($lrSrc, 'STDIN_ERROR').Count; $lrStdinErrInSend = [regex]::Matches($sendText, 'STDIN_ERROR').Count
+Assert-That 'LSP-MIN 러너: 읽기 실패를 쓰기 실패 이름(STDIN_ERROR)으로 부르지 않는다 — 그 이름은 Send-LspMinMessage 와 즉시 종료 목록에만 있다' (($lrStdinErrInSend -ge 1) -and ($lrStdinErr -eq ($lrStdinErrInSend + 1))) "전체 $lrStdinErr, Send 안 $lrStdinErrInSend"
+Assert-That 'LSP-MIN 러너: STREAM_READ_FAILED 는 즉시 종료 사유 목록에 있다 (stdin 닫기·유예 없이 곧바로 강제 종료)' ($lrSrc -match "\`$Script:LspMinImmediate = @\([^)]*'STREAM_READ_FAILED'")
+Assert-That 'LSP-MIN 러너: 메인 루프가 stdout·stderr 두 스트림 모두의 읽기 실패·상한 초과를 Step-LspMinStreamTriggers 로 올리고, 상태 흐름(새 송신) 앞에서 즉시 종료 사유를 확인해 빠져나간다' (($lrSrc -match 'Step-LspMinStreamTriggers \$out') -and ($lrSrc -match 'Step-LspMinStreamTriggers \$err') -and ($lrSrc.IndexOf('Step-LspMinStreamTriggers $err') -lt $lrSrc.IndexOf('if ($Ctx.immediate) { break }')) -and ($lrSrc.IndexOf('if ($Ctx.immediate) { break }') -lt $lrSrc.IndexOf('switch ($state)')))
+Assert-That 'LSP-MIN 러너: Send-LspMinMessage 는 즉시 종료 사유가 이미 걸렸으면 쓰기 전에 돌아온다' (($sendText.IndexOf('$Ctx.immediate') -ge 0) -and ($sendText.IndexOf('$Ctx.immediate') -lt $sendText.IndexOf('.Write(')))
 # (F-3) 스텁: 시나리오 목록이 스텁·러너에서 같고, 시스템을 바꾸는 명령이 없다.
 $lsAst = $lspAst[$lspStub]; $lsSrc = $lspSrc[$lspStub]
 $lsList = Get-QuotedList $lsSrc '\$allowed\s*=\s*@\(([^)]*)\)'

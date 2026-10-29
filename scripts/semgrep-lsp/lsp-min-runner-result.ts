@@ -53,6 +53,7 @@ const TRIGGERS: readonly LspMinTrigger[] = [
   "OUTPUT_LIMIT",
   "FRAME_ERROR",
   "STDIN_ERROR",
+  "STREAM_READ_FAILED",
   "CHILD_EXITED_EARLY",
   "EXIT_TIMEOUT",
   "SPAWN_FAILED",
@@ -107,6 +108,8 @@ function bytesOfStream(name: string, value: unknown, bad: string[]): StreamFacts
     overflow: overflow ?? false,
     eof: eof ?? false,
     readFailed: readFailed ?? true,
+    // 러너가 남긴 읽기 오류 문구(형식: 메시지). 기록에 싣기 전의 걸러내기는 buildObservationRecord가 한다.
+    readError: readFailed === true ? str(d.error) : null,
   };
 }
 

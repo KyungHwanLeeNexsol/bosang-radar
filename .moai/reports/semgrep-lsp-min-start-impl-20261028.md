@@ -122,10 +122,10 @@
 | 초기화 시간 초과 (`init` 한도) | `initialize`만 | 즉시 | 유예 안에 안 끝날 때만 | `INIT_TIMEOUT` |
 | 라이브 중단 (A1~A5, A7, A8) | 그 시점까지 보낸 것 | 하지 않음 | **즉시** | `LIVE_ABORT` + 조건 id |
 | 전체 상한 (150초) | 그 시점까지 보낸 것 | 하지 않음 | **즉시** | `TOTAL_TIMEOUT` |
-| 출력·프레임 오류, stdin 쓰기 실패 | 그 시점까지 보낸 것 | 하지 않음 | **즉시** | `OUTPUT_LIMIT`, `FRAME_ERROR`, `STDIN_ERROR` |
+| 출력·프레임 오류, stdin 쓰기 실패, stdout·stderr 읽기 실패 | 그 시점까지 보낸 것(이후 새 메시지 없음) | 하지 않음 | **즉시** | `OUTPUT_LIMIT`, `FRAME_ERROR`, `STDIN_ERROR`(쓰기 실패), `STREAM_READ_FAILED`(읽기 실패) |
 | 자식이 먼저 끝남 (응답 전에 종료·스트림 닫힘) | 더 보내지 않는다 | 해당 없음 | 남은 자손만 정리 | `CHILD_EXITED_EARLY` |
 
-여러 사유가 겹치면 **먼저 일어난 것**이 `trigger`이고 나머지는 `also`에 순서대로 남긴다.
+여러 사유가 겹치면 **먼저 일어난 것**이 `trigger`이고 나머지는 `also`에 순서대로 남긴다. 순서는 기록으로 보존할 뿐이고, **관측 성립을 막는 사유는 `trigger`와 `also` 전체에서 읽는다**(`TOTAL_TIMEOUT`, `STDIN_ERROR`, `STREAM_READ_FAILED`, `CHILD_EXITED_EARLY`, `OUTPUT_LIMIT`). 첫 사유가 `EXIT_TIMEOUT`이어도 뒤따른 `TOTAL_TIMEOUT`이 관측을 막는다(9.6절).
 
 ### 4.3 시간 규칙 (유예가 계속 붙어 실행이 늘어나지 않도록)
 
@@ -134,13 +134,14 @@
 - 최악의 정상 경로: 초기화 60초 + 종료 30초 + stdin 닫기 유예 10초 = 100초로 150초 안에 든다.
 - **관측 구간**은 시작부터 "강제 종료 신호를 보낸 시각 또는 자식이 끝난 시각"까지다. 이 구간만 150초로 묶는다.
 - **정리 구간**은 그 뒤다. 종료를 확인하는 창은 **한 번, 고정 10초**다. 이 창이 지나도 종료를 관측하지 못하면 `KILL_NOT_OBSERVED`로 기록하고 끝낸다. 같은 창을 다시 열지 않는다. 어댑터 내부의 `dispose` 대기(5초)는 따로 있다.
-- 최악의 전체 벽시계 시간은 150초 + 10초 + 5초다. 이 합은 한도가 아니라 **합산한 값**이고, 기록의 `timeline`에 구간별로 나눠 싣는다.
+- **전체 벽시계 시간의 상한은 보장되지 않는다.** 보장되는 것은 두 가지뿐이다: 관측 구간은 150초에서 끊기고, 그 뒤 종료 확인 창은 고정 한 번 10초다(새 유예도 자동 재시도도 없다). 기록의 `timeline`에는 구간별 시간을 나눠 싣는다. 이 둘이나 어댑터 `dispose` 대기(5초)를 더한 값(예: 150 + 10 + 5 = 165초)을 "최악의 전체 벽시계"로 읽으면 안 된다. 시간 제한이 없는 호출이 이 구간들 바깥과 안쪽에 있다: TS 포트의 `spawn`·`dispose`·`listFilesRecursive`·`hashFile`(사전 확인과 사후 읽기 포함), PS 러너의 사후 폴더 목록·`Get-FileHash`·정리 구간의 기존 `Get-ProcessTable`·`Stop-ProcessTree`. 이 호출 하나가 멈추면 전체 시간은 그만큼 늘어난다. 가상 시계 시험에서는 이 호출들이 0초라 시험으로도 확인되지 않는다. 모든 포트에 시간 제한을 다는 재설계는 이번 범위 밖이다(10절 9번).
 
 ### 4.4 관측 결과와 정리 결과를 따로 적는다
 
 기록의 `observation`과 `cleanup`은 서로 다른 객체다.
 
-- `observation.status`: `OBSERVED`(핵심·분석 규칙 통과, 중단 없음), `ABORTED`(라이브 중단이 일어남), `NOT_OBSERVED`(그 밖의 실패), `NOT_ATTEMPTED`(시작 전에 거절).
+- `observation.status`: `OBSERVED`(핵심·분석 규칙 통과, 중단 없음, 강제 종료 없이 끝남), `ABORTED`(라이브 중단이 일어남), `NOT_OBSERVED`(그 밖의 실패. **강제 종료가 필요했던 경우 포함**, 사유 `FORCE_KILL_REQUIRED`), `NOT_ATTEMPTED`(시작 전에 거절).
+- 서버가 스스로 끝난 경로(`SELF_EXIT`)와 `exit`를 무시해 stdin EOF로 끝난 경로(`STDIN_CLOSED`)는 `termination.path`로 구분해 기록한다. EOF로 끝난 경로는 `OBSERVED`로 남고, 강제 종료(`FORCE_KILLED`)는 `NOT_OBSERVED`다. 강제 종료여도 `initialize.response`·`sent` 같은 실제 관측 사실은 그대로 남는다.
 - `cleanup.ok`: 자식 종료 확인, 자손 잔존 0, 스트림 닫힘, 타이머 해제, `dispose` 성공이 모두 맞을 때만 `true`.
 - **정리가 실패해도 `observation.status`를 바꾸지 않고, 관측이 성공했다고 정리 실패를 덮지도 않는다.** 두 값을 합친 점수나 한 줄 판정을 만들지 않는다.
 - 기록은 `not_established`에 `complete`, `security_pass`, `control_reference`, `normal_startup`을 모두 `NOT_ESTABLISHED`로 고정해 싣는다. 기존 평가기(`evaluate.ts`)와 하네스(`harness.ts`)는 이 기록을 읽지 않고 이 모듈도 그 둘을 가져오지 않는다.
@@ -172,7 +173,7 @@
 | `scripts/semgrep-lsp-isolation/windows/lsp-min-runner.ps1`, `LspMinContract.ps1`, `lsp-min-stub.ps1`, `tests/Test-LspMinRunner.ps1` | 표준 입력 러너, 계약 이식본, 스텁 서버, 러너 시험 |
 | `scripts/semgrep-lsp-isolation/windows/README.md` | 새 파일과 범위·한도·종료·판정 설명 추가(34줄, 기존 줄 변경 없음) |
 
-기존 파일은 셋을 고쳤다(README는 6.1 표에 적었다). `structure.test.ts`는 구조 (13)을 더했고(115줄 추가, 허용 목록에 스텁 서버 한 줄), `Test-IsolationScripts.ps1`은 LSP-MIN 파일 전용 점검 절 (F)를 더했다(83줄 추가). 세션 제어기, 평가기, 프레임·JSON-RPC 코드, `process-node.ts`, `tool-observation.ts`, `cli.ts`(`REAL_LIMITS` 포함), `version-runner.ps1`, `VersionContract.ps1`은 수정하지 않았다. `pin.json`, ADR, 기존 PR, `main`, 보담 저장소도 바꾸지 않았다.
+기존 파일은 셋을 고쳤다(README는 6.1 표에 적었다). `structure.test.ts`는 구조 (13)을 더했고(136줄 추가, 허용 목록에 스텁 서버 한 줄), `Test-IsolationScripts.ps1`은 LSP-MIN 파일 전용 점검 절 (F)를 더했다(98줄 추가). 줄 수는 9.6절 수정 뒤 `git diff --numstat 1314337`로 다시 센 값이고 셋 모두 삭제 0줄이다. 세션 제어기, 평가기, 프레임·JSON-RPC 코드, `process-node.ts`, `tool-observation.ts`, `cli.ts`(`REAL_LIMITS` 포함), `version-runner.ps1`, `VersionContract.ps1`은 수정하지 않았다. `pin.json`, ADR, 기존 PR, `main`, 보담 저장소도 바꾸지 않았다.
 
 ### 6.2 구조 시험이 지키는 경계 (`structure.test.ts` 구조 (13))
 
@@ -188,15 +189,16 @@
 
 | 검증 | 결과 | 어떤 환경에서 |
 | --- | --- | --- |
-| `vitest run scripts/semgrep-lsp` | 65개 파일, **3038** 통과, 8 건너뜀, 0 실패 (9.5절 수정 전에는 3025) | 건너뜀 8건은 기존 파일(`artifact-node.test.ts` 5, `cli.test.ts` 2, `process-list-node.integration.test.ts` 1)의 것이다 |
-| 새 파일별 | `lsp-min` 147, `lsp-min-run` 105, `lsp-min-runner-result` 21, `lsp-min.integration` 11, `structure` 86 | 가상 시계·가짜 자식(단위) / 실제 Windows(통합) |
-| `tsc --noEmit` | 오류 1건 `app/layout.tsx(20,50) LayoutProps` | 이번 변경과 무관한 기존 오류(그 파일을 건드리지 않았다). 새 파일의 타입 오류는 없다 |
-| `eslint scripts/semgrep-lsp` | 종료 코드 0 | |
-| `prettier --check scripts/semgrep-lsp scripts/semgrep-lsp-isolation` | 통과 | `.moai/` 아래 이 보고서는 prettier 제외 대상이라 검사하지 않았다 |
-| `Test-LspMinRunner.ps1` | **267/267** 통과, 건너뜀 0 (9.1~9.4 수정 전에는 196/196, 9.5 수정 전에는 265. 이 문서 초안의 192는 러너 마지막 수정보다 낡은 값이었다) | Windows PowerShell 5.1과 PowerShell 7 양쪽 |
-| `Test-IsolationScripts.ps1` (절 (F) 포함) | **239/239** 통과 (수정 전 234) | 양쪽 엔진 |
-| 기존 `Test-IsolationFlows.ps1` | 162/162 (엔진 pwsh, powershell 각 1회) | 모의 시스템 |
-| 기존 `Test-VersionFlows.ps1` | 141/141 (엔진 pwsh, powershell 각 1회) | 모의 시스템 |
+| `vitest run scripts/semgrep-lsp` | 65개 파일, **3059** 통과, 8 건너뜀, 0 실패 (9.6절 수정 전 3038, 9.5절 수정 전 3025) | 건너뜀 8건은 기존 파일(`artifact-node.test.ts` 5, `cli.test.ts` 2, `process-list-node.integration.test.ts` 1)의 것이다 |
+| 새 파일별 (9.6절 수정 후 다시 센 값) | `lsp-min` 160, `lsp-min-run` 114, `lsp-min-runner-result` 33, `lsp-min.integration` 11, `structure` 86 | 가상 시계·가짜 자식(단위) / 실제 Windows(통합). 이 표의 앞선 숫자(147·105·21)는 9.5절 이전 값이라 낡았다 |
+| `tsc --noEmit` | 오류 1건 `app/layout.tsx(20,50) LayoutProps` | 이번 변경과 무관한 기존 오류(그 파일을 건드리지 않았다). 새 파일의 타입 오류는 없다 (9.6절 수정 후에도 같다) |
+| `eslint scripts/semgrep-lsp` | 종료 코드 0 | 9.6절 수정 후 |
+| `prettier --check scripts/semgrep-lsp scripts/semgrep-lsp-isolation` | 통과 | `.moai/` 아래 이 보고서는 prettier 제외 대상이라 검사하지 않았다. 9.6절 수정 뒤 시험 파일 한 곳의 서식을 `prettier --write`로 고쳤다 |
+| `Test-LspMinRunner.ps1` | **296/296** 통과, 건너뜀 0 (9.6절 수정 전 267, 9.1~9.4 수정 전 196, 9.5 수정 전 265) | Windows PowerShell 5.1과 PowerShell 7 양쪽. TS 대조 항목 포함(`tsx` 경로를 줬다) |
+| `Test-IsolationScripts.ps1` (절 (F) 포함) | **243/243** 통과 (9.6절 수정 전 239/243, 그 전 239) | 양쪽 엔진 |
+| 기존 `Test-IsolationFlows.ps1` | 162/162 (바깥 pwsh 7, 안쪽 엔진 `pwsh`·`powershell` 각 1회) | 모의 시스템. 이 시험은 바깥이 항상 pwsh이고 `-Engine powershell`로 안쪽만 5.1로 바꾼다 |
+| 기존 `Test-VersionFlows.ps1` | 141/141 (같은 방식) | 모의 시스템 |
+| 기존 `Test-VersionRunner.ps1` | 167/167, 건너뜀 1(선택 항목) | 5.1과 7 양쪽 |
 | 기존 `Test-VersionRunner.ps1` | 167/167, 건너뜀 1(`-PythonExe`를 주지 않은 선택 항목) | 5.1과 7 양쪽 |
 
 위 표의 숫자는 모두 2026-10-29에 다시 실행해서 확인한 값이다(vitest 32초, 러너 시험 엔진당 약 140초).
@@ -216,7 +218,7 @@
 | 분할된 프레임·로그 | 프레임 분할, `StderrWatcher` | `split`, `stderr-split`, 프레임 해석 함수 |
 | 잘못된 프레임 | 프레임 오류 | `garbage` |
 | 출력·시간 한도 | 출력 한도, 전체 상한과 유예 | `flood-out`, `flood-err` |
-| 취소, 읽기·쓰기 실패 | 취소, 입출력 오류 | 취소: 중단 파일(A7). 쓰기 실패: 가짜 stdin 스트림으로 `Send-LspMinMessage`를 직접 불러 Write·Flush 실패와 프레임 한도 초과가 `STDIN_ERROR`로 끝나는지 확인(9.4). **읽기 실패는 PS 쪽에 단위 시험이 없다**: 읽기 함수는 기존 `version-runner.ps1`의 `Step-StreamRead`(기존 시험 있음)를 쓰고, 메인 루프가 `.failed`를 즉시 종료로 잇는 줄은 코드로만 확인했다(10절) |
+| 취소, 읽기·쓰기 실패 | 취소, 입출력 오류 | 취소: 중단 파일(A7). 쓰기 실패: 가짜 stdin 스트림으로 `Send-LspMinMessage`를 직접 불러 Write·Flush 실패와 프레임 한도 초과가 `STDIN_ERROR`로 끝나는지 확인(9.4). 읽기 실패(9.6절): 가짜 읽기 스트림(`BeginRead`/`EndRead`)으로 stdout·stderr 각각 초기화 응답 전·유효한 응답을 받은 뒤의 실패를 `Step-StreamRead` → `Step-LspMinStreamTriggers` 로 만들고, 이유(`STREAM_READ_FAILED`)·즉시 종료·받은 바이트와 오류 문구 보존·이후 `Send-LspMinMessage` 거절을 확인한다. **메인 루프가 그 함수를 부르고 즉시 종료 사유 확인으로 빠져나가는 배선은 구조 점검(AST/원문 순서)으로 확인하고, 실제 끊어지는 파이프를 러너 전체에 흘려 보는 시험은 없다** |
 | 허용하지 않은 메시지가 실제로 송신되지 않음 | 허용되지 않은 메시지는 송신되지 않는다, 구조 시험 | 스텁이 받은 기록(`received.log`)에 `initialize`·`shutdown`·`exit`만 있다 |
 | 환경 비상속 | 환경 구성, 통합 | `env-names`, 요청 env 일치 검사 |
 | 전용 홈의 실제 생성 | 통합 | 러너 시험 |
@@ -294,19 +296,100 @@ PS 러너의 쓰기 실패 경로(`Write`·`Flush` 예외, 프레임 한도 초�
 | m7 A8의 이유(stdout `logMessage` 본문 문구 감시)가 구현에 없다 | 맞다. 내가 쓴 이유 문장이 과장이었다 | 1.4절에 정정을 달았다. 구현은 하지 않았다(10절) |
 | m2, m3, m5, m6 | 사실이다 | 고치지 않았다. 10절에 적었다 |
 
+### 9.6 2026-10-29 두 번째 검토(PR #38 헤드 `2b62724`)에서 고친 것
+
+두 결함과 판정 결정을 반영했다. 고치기 전에 새 시험을 먼저 쓰고 수정 전 코드에서 실패하는 것을 확인했다(TS 쪽 새·갱신 시험 18건 실패, PS 구조 점검 4건 실패 — 아래 9.6.5).
+
+#### 9.6.1 후속 사유가 판정에서 빠지던 곳
+
+`buildObservationRecord`가 `TOTAL_TIMEOUT`·`STDIN_ERROR`·`CHILD_EXITED_EARLY`를 `facts.trigger`만 보고 `status_reasons`에 올렸다. 재현(합성 입력, 가상 시계, Semgrep 없음): 초기화 응답 지연 20,000ms, `exit`와 stdin EOF를 모두 무시, `totalMs=55000`. `EXIT_TIMEOUT`(50초)이 첫 사유가 되고 stdin 닫기 유예가 전체 마감(55초)에 잘리며 `TOTAL_TIMEOUT`이 뒤따른다.
+
+| | `trigger` | `also` | `termination.path` | `status` | `status_reasons` |
+| --- | --- | --- | --- | --- | --- |
+| 수정 전 | `EXIT_TIMEOUT` | `[TOTAL_TIMEOUT]` | `FORCE_KILLED` | `OBSERVED` | `[]` |
+| 수정 후 | `EXIT_TIMEOUT` | `[TOTAL_TIMEOUT]` | `FORCE_KILLED` | `NOT_OBSERVED` | `TOTAL_TIMEOUT`, `FORCE_KILL_REQUIRED` |
+
+고친 것: 관측 성립을 막는 사유(`TOTAL_TIMEOUT`, `STDIN_ERROR`, `STREAM_READ_FAILED`, `CHILD_EXITED_EARLY`, `OUTPUT_LIMIT`)를 `trigger`와 `also` 전체에서 읽는다. 순서는 `termination.trigger`·`also`에 그대로 남는다. TS 실행기와 PS 러너 결과 어댑터는 같은 `buildObservationRecord`를 쓰므로 판정이 한 곳에서 나온다. 시험: TS 실행 경로에서 `TOTAL_TIMEOUT`이 후속 사유인 경우와 첫 사유인 경우, 어댑터에 같은 모양의 러너 결과를 넣은 경우, 후속 사유 네 가지 각각, 판정 함수 단위 시험.
+
+기존 시험 하나가 이 결함을 못 박고 있었다: `lsp-min-runner-result.test.ts`의 "PowerShell 5.1이 배열을 스칼라…"는 목적이 배열 모양인데 `also: "TOTAL_TIMEOUT"`인 입력에서 `OBSERVED`를 기대했다. 같은 시험이 배열 모양을 계속 확인하도록 입력의 사유를 관측을 막지 않는 `EXIT_TIMEOUT`으로 바꿨다(기대를 약하게 한 것이 아니라 새 판정과 모순되는 입력을 바꾼 것이다).
+
+#### 9.6.2 스트림 읽기 실패 뒤에도 실행이 이어지던 곳
+
+- TS `readStdout`·`readStderr`의 `catch`는 읽기 실패 플래그만 세웠다. 이제 `STREAM_READ_FAILED`를 올리고(즉시 종료 사유) 오류 문구를 `readError`로 남긴다. 이미 받은 바이트는 `stdoutChunks`·`stderrChunks`에 그대로 있고, 앞서 올라온 이유나 프레임 오류를 덮지 않는다. 읽기 실패는 정상 EOF가 아니다: `eof=false`, 끝 프레임 검사(`decoder.end()`)를 하지 않아 `FRAME_ERROR:TRUNCATED`도 만들지 않는다.
+- TS `send()`는 즉시 종료 사유가 이미 걸렸으면 쓰기 전에 돌아온다. 대기를 마친 흐름이 이어서 다음 메시지를 쓰러 오는 사이에 사유가 걸리는 틈(9.5절 검토 m6)을 닫는다. 수정 전 코드에서는 이 틈에서 `shutdown`이 나갔다.
+- PS 러너: stdout 읽기 실패를 `STDIN_ERROR`(쓰기 실패 이름)로 올리던 것을 `STREAM_READ_FAILED`로 바꿨고, stderr 읽기 실패는 플래그만 세우고 계속 진행하던 것을 같은 이유로 즉시 종료에 연결했다. 두 스트림의 처리는 `Step-LspMinStreamTriggers` 한 함수다(출력 상한 초과는 `OUTPUT_LIMIT`로 따로). `Send-LspMinMessage`도 즉시 종료 사유가 걸렸으면 쓰지 않고 송신 기록도 남기지 않는다. 즉시 종료 목록에 `STREAM_READ_FAILED`를 더했다. 어댑터의 사유 목록에도 더했고 러너가 남긴 `stdout.error`·`stderr.error`(형식: 메시지)를 읽는다.
+- 기록: `streams.stdout.read_error`, `streams.stderr.read_error`(문자열 또는 null)를 더했다. 오류 문구는 `tokenOf`로 걸러(허용 문자 밖은 `?`) 80자까지만 싣는다. **스키마 문자열 `semgrep-lsp-min-observation/1`은 그대로다.** 기존 필드는 그대로이고 필드 둘이 늘었다.
+- 시험: TS는 stdout·stderr 각각 초기화 응답 전(60초 초기화 한도를 기다리지 않고 200ms 시점에 끊는다)과 유효한 응답을 받은 뒤(`shutdown`을 쓰는 중)에 읽기를 끊어, 즉시 종료·`stdin` 닫기 없음·강제 종료 한 번·`exit` 미송신·받은 바이트와 오류 보존·정리 진행(종료 확인, `dispose`)·`STDIN_ERROR`로 부르지 않음을 확인한다. PS는 가짜 읽기 스트림으로 같은 두 시점을 만들고 `Step-LspMinStreamTriggers`와 이후 `Send-LspMinMessage`의 반응(쓰기 횟수·송신 기록 불변)을 확인한다.
+
+#### 9.6.3 판정 결정(소유자 결정을 그대로 옮긴 것)
+
+| 경우 | `status` | 기록 |
+| --- | --- | --- |
+| 강제 종료가 필요했다 | `NOT_OBSERVED` (`FORCE_KILL_REQUIRED`) | `initialize.response`(예: `VALID`), `sent` 등 관측한 사실은 그대로 |
+| `exit`를 무시해 stdin EOF로 끝났다 | `OBSERVED` | `termination.path`=`STDIN_CLOSED`. 스스로 끝난 `SELF_EXIT`와 구분 |
+| 같은 id의 두 번째 initialize 응답 | `NOT_OBSERVED` (`INIT_RESPONSE_DUPLICATE`) | 첫 응답의 판정은 `initialize.response`에 그대로 (시험으로 고정) |
+| 정리 실패 / 관측 실패 | 서로를 바꾸지 않는다 | `cleanup.ok`는 따로 (시험: 강제 종료여도 `cleanup.ok`는 정리 결과대로) |
+
+이 결정으로 기대가 바뀐 기존 항목: PS 러너 시험의 `ignore-exit-eof`(exit·EOF를 모두 무시해 강제 종료) 기대가 `OBSERVED`에서 `NOT_OBSERVED`(`FORCE_KILL_REQUIRED`)가 됐고, TS 쪽 같은 경로 시험에 상태 단언을 더했다. 10절 1번의 "`OBSERVED`의 의미"는 이 결정으로 정해졌다.
+
+#### 9.6.4 시간 계약 정정
+
+"최악의 전체 벽시계 150초 + 10초 + 5초"라는 표현은 합이 상한처럼 읽혀 정정했다(4.3절, README, PR 본문). **전체 벽시계 상한은 보장되지 않는다.** 보장되는 것은 관측 구간 150초와 그 뒤 고정 한 번의 10초 종료 확인 창이다. 새 유예도 자동 재시도도 더하지 않았다. 시간 제한이 없는 호출(TS 포트의 `spawn`·`dispose`·`listFilesRecursive`·`hashFile`, PS의 사후 폴더 목록·`Get-FileHash`·정리 구간의 기존 CIM 호출)은 그대로이고, 이번에 포트 전체의 시간 제한을 재설계하지 않았다.
+
+#### 9.6.5 수정 전 실패와 수정 후 결과
+
+| 확인 | 수정 전 | 수정 후 |
+| --- | --- | --- |
+| 새·갱신 TS 시험(`lsp-min`, `lsp-min-run`, `lsp-min-runner-result`) | 18건 실패 (재현 조건 시험은 `expected 'OBSERVED' to be 'NOT_OBSERVED'`, `send` 가드 시험은 `[initialize, shutdown]`이 나감) | 307 통과 |
+| `vitest run scripts/semgrep-lsp` | 3038 통과, 8 건너뜀 | 3059 통과, 8 건너뜀 (아래 7.1 표) |
+| `Test-IsolationScripts.ps1` | 239/243 (새 구조 규칙 4건 실패: `STDIN_ERROR` 이름이 `Send-LspMinMessage`·즉시 종료 목록 밖에 있음, 즉시 종료 목록에 `STREAM_READ_FAILED` 없음, 메인 루프가 `Step-LspMinStreamTriggers`를 부르지 않음, `Send-LspMinMessage`에 즉시 종료 가드 없음) | 243/243 (pwsh 7, 5.1 각각) |
+| `Test-LspMinRunner.ps1` | 새 함수가 없어 시험이 중단됨(`Step-LspMinStreamTriggers`를 찾을 수 없음). 수정 전 러너의 동작은 원문으로 확인했다: stdout 실패는 `STDIN_ERROR`(358줄), stderr 실패는 플래그만(380줄) | 296/296, 건너뜀 0 (pwsh 7, 5.1 각각) |
+
+PS 쪽 "수정 전 실패"는 TS처럼 같은 입력에서의 단언 실패가 아니라 구조 점검 실패와 새 함수 부재다. 수정 전 러너로 새 단위 시험을 끝까지 돌려 단언별 실패를 보지는 않았다. 대신 아래 변이로 새 단위 시험이 실제로 잡는지 확인했다.
+
+변이 점검(수정한 곳 하나씩을 무효화하고 시험을 돌린 뒤 원본으로 복구, 복구는 SHA-256으로 확인):
+
+| 변이 | 시험 | 결과 |
+| --- | --- | --- |
+| TS `buildObservationRecord`가 `trigger`만 읽음(`also` 무시) | vitest 3개 파일(307건) | 7건 실패 |
+| TS `FORCE_KILL_REQUIRED` 사유 제거 | 같음 | 6건 실패 |
+| TS 읽기 오류 문구를 기록에 싣지 않음 | 같음 | 6건 실패 |
+| TS `readStdout`의 읽기 실패를 즉시 종료에 연결하지 않음 | 같음 | 2건 실패 |
+| TS `readStderr`의 읽기 실패를 즉시 종료에 연결하지 않음 | 같음 | 2건 실패 |
+| TS `send()`의 즉시 종료 가드 제거 | 같음 | 1건 실패 (`shutdown`이 나가는 시험) |
+| TS 즉시 종료 목록에서 `STREAM_READ_FAILED` 제거 | 같음 | 3건 실패 |
+| 어댑터 사유 목록에서 `STREAM_READ_FAILED` 제거 | 같음 | 2건 실패 |
+| 어댑터가 러너의 오류 문구를 읽지 않음 | 같음 | 1건 실패 |
+| PS 읽기 실패를 `STDIN_ERROR`로 올림 | `Test-LspMinRunner.ps1` (pwsh 7) | 290/296, 6건 실패 |
+| PS 읽기 실패 분기 제거 | 같음 | 286/296, 10건 실패 |
+| PS `Send-LspMinMessage` 가드 제거 | 같음 | 291/296, 5건 실패 |
+| PS 즉시 종료 목록에서 `STREAM_READ_FAILED` 제거 | 같음 | 287/296, 9건 실패 |
+| PS 메인 루프의 stderr 쪽 `Step-LspMinStreamTriggers` 호출 제거 | `Test-IsolationScripts.ps1` (pwsh 7) | 242/243, 1건 실패(구조 점검만 잡는다. 단위 시험은 함수만 부르므로 이 배선은 보지 못한다) |
+
+PS 변이는 pwsh 7에서만 돌렸다(5.1에서는 변이 없이 같은 시험이 통과한다).
+
+#### 9.6.6 Linux
+
+이 장비(Windows 11)에는 WSL도 Docker도 없어 **Linux에서는 한 번도 실행하지 못했다.** 통합 시험이 Linux에서 어떻게 될지는 두 가지를 구분해서 적는다.
+
+- **고정 100ms 타이밍 가정(코드를 읽은 도출, 실행 아님).** `lsp-min.integration.test.ts`의 "사전 확인 도중의 취소" 시험은 100ms 뒤 취소를 걸고 "실제 목록 조회는 한 번에 1초 안팎이라 아직 사전 확인 중"이라는 Windows CIM 실측에 기댄다. Linux의 `/proc` 목록은 훨씬 빠를 수 있어, 취소가 사전 확인이 끝난 뒤(서버를 띄운 뒤)에 걸리면 `NOT_ATTEMPTED`가 아니라 다른 결과가 되어 시험이 어긋날 수 있다. 시계 가정이지 판정 규칙의 결함이 아니다.
+- **PID 이름공간 차이(코드가 이미 적어 둔 한계).** `/proc` 목록은 다른 PID 이름공간(컨테이너)·`hidepid`로 숨겨진 프로세스를 보지 못한다(`process-list-node.ts` 머리 주석, `process-observation.test.ts`의 "목록에 자기 자신이 없으면 관측 실패"). 이름공간이 나뉜 환경에서는 목록에 자식이 보이지 않아 표본·정리 확인이 달라질 수 있다.
+
+이 문서의 Linux 관련 결과는 전부 미실행이다. Linux에서 통과했다는 보고를 받더라도 위 두 구분 없이 "전체 통과"로 읽지 않는다.
+
 ## 10. 남은 한계 (코드를 읽고 알게 됐으나 고치지 않은 것 포함)
 
-1. **`OBSERVED`의 의미.** 응답이 유효하고 `shutdown`·`exit`를 보냈으면, 서버가 `exit`를 무시해서 stdin을 닫거나 강제 종료까지 갔어도 `status`는 `OBSERVED`다(시험이 이를 못 박고 있다: `lsp-min-run.test.ts`의 "exit를 무시하는 서버", PS 쪽 `ignore-exit`·`ignore-exit-eof`). 종료 경로는 `termination.trigger`·`path`에 사실로 남는다. `OBSERVED`를 "깨끗한 정상 종료"로 읽으면 안 된다. 이 구분을 바꿀지는 검토에서 정할 일이다.
-2. **PS 읽기 실패.** 러너 메인 루프는 stdout 읽기 실패를 `STDIN_ERROR`라는 이름으로 올리고 곧바로 종료한다(TS 실행기는 `STREAM_READ_FAILED`로 기록하고 이유를 올리지 않는다). 결과(관측 불성립, 즉시 종료)는 같지만 이름이 다르다. 읽기 실패를 만드는 PS 단위 시험은 없다.
+1. **`OBSERVED`의 의미(9.6절에서 정해졌다).** 응답이 유효하고 `shutdown`·`exit`를 보냈더라도 **강제 종료가 필요했다면 `NOT_OBSERVED`**(`FORCE_KILL_REQUIRED`)다. `exit`를 무시해서 stdin EOF로 끝난 경우는 `OBSERVED`로 남지만 `termination.path`가 `STDIN_CLOSED`라 스스로 끝난 경로(`SELF_EXIT`)와 구분된다. 따라서 `OBSERVED`는 "서버가 스스로, 또는 stdin EOF만으로 끝났다"까지를 뜻하고, "`exit`에 응해 깨끗하게 끝났다"는 뜻은 `path`가 `SELF_EXIT`일 때만 성립한다.
+2. **PS 읽기 실패(9.6절에서 정리했다).** 읽기 실패는 이제 TS와 PS가 같은 이름 `STREAM_READ_FAILED`로 올리고, stdout·stderr 모두 곧바로 종료한다. 남은 한계: 끊어지는 실제 파이프를 러너 전체에 흘려 보는 시험은 없다(가짜 스트림 단위 시험과 구조 점검뿐). 읽기 오류 문구는 TS가 `tokenOf`로 걸러 `streams.*.read_error`에 80자까지만 싣는다.
 3. **정리 구간의 CIM.** 정리 구간은 수정하지 않은 `version-runner.ps1`의 `Get-ProcessTable`·`Stop-ProcessTree`를 그대로 쓰므로 조회 한 번의 시간 제한이 없다. 정리 구간의 "종료 확인 창 10초 고정"은 이 조회들 바깥의 대기에만 걸린다.
 4. **실행 파일 고정의 범위.** 러너와 TS 모두 "이름이 `semgrep.exe`인 절대 경로 + 인자 `["lsp","--debug"]`"만 강제한다(기존 버전 러너와 같은 수준). 경로를 설치된 그 파일로 못 박고 해시를 확인하는 일은 관리자 쪽 진입 스크립트의 몫인데 아직 없다. 실행 전후 해시 비교는 호출자가 `artifacts`로 준 파일에만 한다.
 5. **표본 추출.** A3~A5는 일정 간격으로 읽는 방식이라 간격 사이의 일은 못 본다. 홈 폴더는 `.semgrep/cache/fingerprinted_ignored_findings/` 밖에 파일이 생기면 곧바로 중단하므로, 실제 Semgrep이 다른 파일을 쓰면 관측이 중단된다(보수적 방향).
 6. **실제 Semgrep 미확인.** 초기화 응답의 모양, 서버가 하는 일, 자손 구성은 고정 공개 소스를 읽은 도출이다. 바이너리와 소스의 대응도 증명돼 있지 않다. Linux 분기(`/proc` 목록 등)는 작성만 했고 실행하지 않았다.
 7. **기존 파일 변경.** 기존 파일 세 개는 추가만 했다(삭제 0줄). 그중 `structure.test.ts`의 "`testing/` 허용 파일 목록"에는 스텁 서버 파일 한 줄이 늘었다.
 8. **프로세스 외 확인.** 이 작업에서는 `moai` CLI가 PATH에 없어 `moai model profile`로 에이전트 모델을 확인하지 못했다. 독립 검토 에이전트는 모델을 지정하지 않고(세션 모델 상속) 띄웠다.
-9. **시간 제한이 없는 호출(검토 M4 b·c).** TS 실행기의 `spawn`·`dispose`·`listFilesRecursive`·`hashFile`과 PS 러너의 사후 폴더 목록·`Get-FileHash`(약 246 MB `semgrep-core.exe`를 해시할 수 있다)에는 시간 제한이 없다. 가상 시계 시험에서는 이 호출이 0초라 `cleanup_ms <= killConfirmMs`가 항상 참이다. 실제로는 이 호출들이 정리 시간을 늘릴 수 있다.
+9. **시간 제한이 없는 호출(검토 M4 b·c).** TS 실행기의 `spawn`·`dispose`·`listFilesRecursive`·`hashFile`과 PS 러너의 사후 폴더 목록·`Get-FileHash`(약 246 MB `semgrep-core.exe`를 해시할 수 있다)에는 시간 제한이 없다. 가상 시계 시험에서는 이 호출이 0초라 `cleanup_ms <= killConfirmMs`가 항상 참이다. 실제로는 이 호출들이 정리 시간을 늘릴 수 있다. **그래서 전체 벽시계 상한은 보장되지 않는다**(4.3절). 보장되는 것은 관측 구간 150초와 고정 한 번의 10초 종료 확인 창뿐이다.
 10. **PS 경로의 "실시간" 범위(검토 m2).** 러너는 루프백 수신기를 직접 보지 않고 `abortFile` 존재만 본다(수신기를 읽는 관리자 쪽 폴러는 아직 없다). 그래서 PS 경로의 기록에서 `coverage.live.receiver.samples`는 호출자가 넘긴 값이고 0일 수 있다. `interval_ms`는 설정값이지 달성한 간격이 아니다. 감시 폴더는 파일만 열거하므로 빈 폴더·재해석 지점은 미관측이다. `initialized_sent: false`는 상수이고, 실제로 쓴 바이트의 기록은 러너의 라벨 목록뿐이다.
 11. **이미지 허용 목록은 이름만 본다(검토 m3).** 어댑터가 러너의 `descendantsSeen`(실행 파일 경로 포함)을 기록으로 가져오지 않아, 다른 경로의 `python.exe`·`conhost.exe`도 A4를 통과한다.
 12. **TS 실행기의 환경(검토 m5).** Node 포트로 띄우면 Windows에서 부모 이름 7개(`HOMEDRIVE` 등)가 자식 환경에 들어간다(통합 시험이 기록한다). 환경을 완전히 비우는 쪽은 PS 러너뿐이다. 기록은 어느 실행기가 만들었는지 적지 않는다.
-13. **작은 경합(검토 m6).** TS `send()`는 중단이 이미 걸렸는지 보지 않고 쓸 수 있다(그래도 허용된 세 메시지뿐). 루트가 끝났는데 자손만 남은 경우 TS 실행기는 기록만 하고 끝내지 않는다(PS 러너는 정리한다). PS `finally`에서 `Stop-ProcessTree`가 한 번 더 불릴 수 있다(`killCount`는 1로 유지).
+13. **작은 경합(검토 m6).** (9.6절에서 TS `send()`가 즉시 종료 사유를 먼저 보도록 고쳤다. 아래 나머지는 그대로다.) 루트가 끝났는데 자손만 남은 경우 TS 실행기는 기록만 하고 끝내지 않는다(PS 러너는 정리한다). PS `finally`에서 `Stop-ProcessTree`가 한 번 더 불릴 수 있다(`killCount`는 1로 유지).
 14. **stdout 알림 본문(검토 m7).** A1·A2 문구 검사는 stderr에만 걸린다. 같은 문구가 stdout `window/logMessage`의 본문으로 오는 경우는 감시하지 않는다.

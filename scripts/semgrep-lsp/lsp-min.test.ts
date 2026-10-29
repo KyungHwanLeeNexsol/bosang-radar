@@ -1215,6 +1215,77 @@ describe("buildObservationRecord", () => {
         expect(r.status_reasons, token).toContain(token);
       }
     });
+    it("관측 성립을 막는 사유는 먼저 일어난 trigger뿐 아니라 뒤따른 also에서도 읽는다 (순서는 그대로 보존한다)", () => {
+      const blocking = [
+        "TOTAL_TIMEOUT",
+        "STDIN_ERROR",
+        "STREAM_READ_FAILED",
+        "CHILD_EXITED_EARLY",
+        "OUTPUT_LIMIT",
+      ] as const;
+      for (const token of blocking) {
+        // 첫 사유인 경우
+        const first = buildObservationRecord(goodFacts({ trigger: token }));
+        expect(first.status, `first ${token}`).toBe("NOT_OBSERVED");
+        expect(first.status_reasons, `first ${token}`).toContain(token);
+        // 후속 사유인 경우: 앞선 사유가 관측을 막지 않는 EXIT_TIMEOUT이어도 뒤따른 사유가 막는다
+        const later = buildObservationRecord(goodFacts({ trigger: "EXIT_TIMEOUT", also: [token] }));
+        expect(later.status, `later ${token}`).toBe("NOT_OBSERVED");
+        expect(later.status_reasons, `later ${token}`).toContain(token);
+        expect(later.termination.trigger).toBe("EXIT_TIMEOUT");
+        expect(later.termination.also).toEqual([token]);
+      }
+    });
+    it("후속 사유가 관측을 막지 않는 종류뿐이면 관측은 성립한다 (EXIT_TIMEOUT 뒤 stdin 닫기로 끝난 경로)", () => {
+      const r = buildObservationRecord(
+        goodFacts({
+          trigger: "EXIT_TIMEOUT",
+          also: ["INIT_TIMEOUT"],
+          stdinClosed: { byHarness: true, ok: true, tMs: 30_000 },
+        })
+      );
+      expect(r.status).toBe("OBSERVED");
+      expect(r.termination.path).toBe("STDIN_CLOSED");
+      expect(r.termination.path).not.toBe("SELF_EXIT");
+    });
+    it("강제 종료가 필요했다면 NOT_OBSERVED이고, 실제로 관측한 사실(응답·송신)은 그대로 남는다", () => {
+      const r = buildObservationRecord(
+        goodFacts({
+          trigger: "EXIT_TIMEOUT",
+          stdinClosed: { byHarness: true, ok: true, tMs: 30_000 },
+          kill: { count: 1, firstTMs: 40_000, confirmed: true },
+        })
+      );
+      expect(r.status).toBe("NOT_OBSERVED");
+      expect(r.status_reasons).toContain("FORCE_KILL_REQUIRED");
+      expect(r.termination.path).toBe("FORCE_KILLED");
+      expect(r.initialize.response).toBe("VALID");
+      expect(r.sent.map((s) => s.label)).toEqual(["initialize", "shutdown", "exit"]);
+      // 관측 결과와 정리 결과는 따로다: 강제 종료가 정리 결과를 바꾸지 않는다.
+      expect(r.cleanup.ok).toBe(true);
+    });
+    it("읽기 실패는 정상 EOF와 합쳐지지 않고, 받은 바이트와 오류 토큰이 남는다", () => {
+      const base = goodFacts();
+      const r = buildObservationRecord(
+        goodFacts({
+          stdout: {
+            ...base.stdout,
+            eof: false,
+            readFailed: true,
+            readError: "IOException: pipe\r\nbroken \u0007 at C:\\secret\\path",
+          },
+          trigger: "STREAM_READ_FAILED",
+        })
+      );
+      expect(r.status).toBe("NOT_OBSERVED");
+      expect(r.status_reasons).toContain("STREAM_READ_FAILED");
+      expect(r.status_reasons).not.toContain("STDIN_ERROR");
+      expect(r.streams.stdout).toMatchObject({ read_failed: true, eof: false });
+      expect(r.streams.stdout.bytes).toBe(base.stdout.total);
+      expect(r.streams.stdout.read_error).toMatch(/^IOException: pipe\?\?broken \? at C:/);
+      expect(r.streams.stdout.read_error).not.toMatch(/[\\\r\n\u0007]/);
+      expect(r.streams.stderr.read_error).toBeNull();
+    });
     it("띄우지 못했으면 NOT_OBSERVED(SPAWN_FAILED)이고 termination.path는 NOT_SPAWNED", () => {
       const r = buildObservationRecord(
         goodFacts({

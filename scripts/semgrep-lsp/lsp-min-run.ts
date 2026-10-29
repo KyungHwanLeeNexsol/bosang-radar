@@ -10,7 +10,8 @@
 //    프로세스 목록을 읽을 수 있는가)에서 거절되면 프로세스를 띄우지 않는다.
 //  · stdin에 쓰는 것은 initialize → shutdown → exit 셋뿐이다(assertAllowedOutbound). `initialized`는 보내지 않는다.
 //  · 초기화 응답이 핵심 규칙(classifyInitResponseCore)을 통과해야만 shutdown·exit를 보낸다. 통과하지 못하면 바로 stdin을 닫는다.
-//  · 중단 조건(A1~A5·A7·A8)·전체 상한·출력 상한·프레임 오류·stdin 오류는 stdin 닫기 없이 곧바로 프로세스 트리를 강제 종료한다.
+//  · 중단 조건(A1~A5·A7·A8)·전체 상한·출력 상한·프레임 오류·stdin 쓰기 오류·stdout/stderr 읽기 오류는 stdin 닫기 없이 곧바로 프로세스 트리를
+//    강제 종료한다. 즉시 종료 사유가 걸린 뒤에는 새 메시지를 쓰지 않고, 이미 받은 바이트와 오류는 기록에 남긴다.
 //  · 전체 상한(관측 구간)에 닿으면 새 유예를 붙이지 않는다. 정리 구간의 종료 확인 창은 고정 한 번이다.
 //  · 함수는 던지지 않는다. 운영상의 실패는 전부 기록(LspMinObservation)이 된다. 관측 결과(status)와 정리 결과(cleanup.ok)는 따로다.
 //  · 시간은 주입된 Clock뿐이다(Date.now·setTimeout을 쓰지 않는다). 쓴 타이머는 끝에 모두 취소한다.
@@ -94,10 +95,17 @@ const IMMEDIATE: ReadonlySet<LspMinTrigger> = new Set<LspMinTrigger>([
   "OUTPUT_LIMIT",
   "FRAME_ERROR",
   "STDIN_ERROR",
+  "STREAM_READ_FAILED",
   "CHILD_EXITED_EARLY",
 ]);
 
 const CONSECUTIVE_FAILURES_TO_ABORT = 3;
+
+/** 읽기 실패의 오류를 "형식: 메시지" 한 줄로 만든다(PowerShell 러너의 Format-StreamError와 같은 모양). 걸러서 싣는 일은 기록 쪽이 한다. */
+function describeError(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  return `${typeof error}: ${String(error)}`;
+}
 
 function emptyStream(): StreamFacts {
   return { bytes: new Uint8Array(0), total: 0, overflow: false, eof: false, readFailed: false };
@@ -329,8 +337,11 @@ class Run {
           this.raise("FRAME_ERROR");
         }
       }
-    } catch {
+    } catch (error) {
+      // 이미 받은 바이트(stdoutChunks)와 앞서 올라온 이유·프레임 오류는 그대로 둔다. 정상 EOF(아래 eof)로 치지 않고 즉시 종료 사유로 올린다.
       this.stdout.readFailed = true;
+      this.stdout.readError = describeError(error);
+      this.raise("STREAM_READ_FAILED");
     }
     this.stdout.eof = !this.stdout.overflow && !this.stdout.readFailed;
     this.stdoutDone = true;
@@ -352,8 +363,10 @@ class Run {
         if (hit !== null)
           this.raise("LIVE_ABORT", { condition: hit.condition, detail: hit.pattern });
       }
-    } catch {
+    } catch (error) {
       this.stderr.readFailed = true;
+      this.stderr.readError = describeError(error);
+      this.raise("STREAM_READ_FAILED");
     }
     this.stderr.eof = !this.stderr.overflow && !this.stderr.readFailed;
     this.stderrDone = true;
@@ -382,6 +395,8 @@ class Run {
     stageMs: number
   ): Promise<boolean> {
     assertAllowedOutbound(label, message);
+    // 즉시 종료 사유가 이미 걸렸으면 새 메시지를 쓰지 않는다. 대기를 마친 흐름이 이어서 다음 메시지를 쓰러 오는 사이에 사유가 걸릴 수 있다.
+    if (this.immediate) return false;
     const child = this.child as ChildHandle;
     const record = { label, tMs: this.rel(), ok: false };
     this.sends.push(record);

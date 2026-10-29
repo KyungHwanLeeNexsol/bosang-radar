@@ -43,7 +43,39 @@ function tree(): ProcessRow[] {
 interface RigOptions {
   child?: { onKill?: "exit" | "ignore-sigterm" | "ignore-all" };
   request?: Partial<LspMinRequest>;
-  decorate?: (child: LspMinChild) => void;
+  decorate?: (child: LspMinChild, clock: VirtualClock) => void;
+}
+
+/**
+ * 읽기 도중 오류로 끊을 수 있는 스트림. 원본이 주는 덩어리는 그대로 전달하고, fail()이 불리면 기다리던(또는 다음) next()가 거부된다.
+ * 실제 파이프의 읽기 실패 시점은 흔들리므로 가짜 스트림으로 결정적으로 만든다.
+ */
+function breakableStream(source: AsyncIterable<Uint8Array>): {
+  stream: AsyncIterable<Uint8Array>;
+  fail: (error: Error) => void;
+} {
+  const inner = source[Symbol.asyncIterator]();
+  let failure: Error | null = null;
+  let wake: ((error: Error) => void) | null = null;
+  const stream: AsyncIterable<Uint8Array> = {
+    [Symbol.asyncIterator]() {
+      return {
+        next: () =>
+          new Promise<IteratorResult<Uint8Array>>((resolve, reject) => {
+            if (failure) return reject(failure);
+            wake = reject;
+            inner.next().then(resolve, reject);
+          }),
+      };
+    },
+  };
+  return {
+    stream,
+    fail: (error) => {
+      failure = error;
+      wake?.(error);
+    },
+  };
 }
 
 function makeRig(script: MinScript, options: RigOptions = {}) {
@@ -52,7 +84,7 @@ function makeRig(script: MinScript, options: RigOptions = {}) {
   const events: string[] = [];
   const { port, children } = lspMinPort(script, clock, {
     ...(options.child ? { child: options.child } : {}),
-    ...(options.decorate ? { decorate: options.decorate } : {}),
+    ...(options.decorate ? { decorate: (child) => options.decorate?.(child, clock) } : {}),
   });
   const originalSpawn = port.spawn.bind(port);
   port.spawn = async (spec) => {
@@ -555,6 +587,36 @@ describe("exit 이후의 종료 경로", () => {
     });
     expect(record.timeline.observation_ms).toBe(40_000);
     expect(record.cleanup.ok).toBe(true);
+    // 강제 종료가 필요했으므로 관측은 성립하지 않는다. 실제로 관측한 사실(유효한 응답, 보낸 메시지)은 그대로 남는다.
+    expect(record.status).toBe("NOT_OBSERVED");
+    expect(record.status_reasons).toContain("FORCE_KILL_REQUIRED");
+    expect(record.initialize.response).toBe("VALID");
+    expect(record.sent.map((s) => s.label)).toEqual(["initialize", "shutdown", "exit"]);
+  });
+
+  it("stdin EOF로 끝난 경로는 스스로 끝난 경로(SELF_EXIT)와 구분해서 기록한다", async () => {
+    const eof = await run(makeRig({ init: { kind: "result" }, exit: "ignore" }));
+    const self = await run(makeRig(OK));
+    expect(eof.record.termination.path).toBe("STDIN_CLOSED");
+    expect(self.record.termination.path).toBe("SELF_EXIT");
+    expect(eof.record.termination.stdin_closed_by_harness).toBe(true);
+    expect(self.record.termination.stdin_closed_by_harness).toBe(false);
+  });
+
+  it("중복된 initialize 응답은 관측 성립을 막는다", async () => {
+    const rig = makeRig({
+      init: {
+        kind: "frames",
+        frames: [
+          { jsonrpc: "2.0", id: "lsp-min-init-1", result: GOOD_RESULT },
+          { jsonrpc: "2.0", id: "lsp-min-init-1", result: GOOD_RESULT },
+        ],
+      },
+    });
+    const { record } = await run(rig);
+    expect(record.initialize.response).toBe("VALID");
+    expect(record.status).toBe("NOT_OBSERVED");
+    expect(record.status_reasons).toContain("INIT_RESPONSE_DUPLICATE");
   });
 });
 
@@ -577,6 +639,42 @@ describe("전체 상한과 유예", () => {
     expect(record.timeline.observation_ms).toBe(50_000);
     expect(record.status).toBe("NOT_OBSERVED");
     expect(record.status_reasons).toContain("TOTAL_TIMEOUT");
+  });
+
+  it("TOTAL_TIMEOUT이 후속 사유여도 관측을 막는다: exit 대기 중 EXIT_TIMEOUT 뒤 유예가 전체 마감에 잘린다 (초기화 20초, 전체 55초)", async () => {
+    // 이전에는 trigger(EXIT_TIMEOUT)만 보고 OBSERVED가 됐다. trigger=EXIT_TIMEOUT, also=[TOTAL_TIMEOUT], 강제 종료.
+    const rig = makeRig(
+      { init: { kind: "result", delayMs: 20_000 }, exit: "ignore", stdinEnd: "ignore" },
+      { request: { limits: { totalMs: 55_000 } } }
+    );
+    const { record } = await run(rig);
+    expect(record.termination).toMatchObject({
+      trigger: "EXIT_TIMEOUT",
+      also: ["TOTAL_TIMEOUT"],
+      path: "FORCE_KILLED",
+      kill_count: 1,
+    });
+    expect(record.status).toBe("NOT_OBSERVED");
+    expect(record.status_reasons).toEqual(
+      expect.arrayContaining(["TOTAL_TIMEOUT", "FORCE_KILL_REQUIRED"])
+    );
+    // 실제 관측 사실은 보존된다.
+    expect(record.initialize.response).toBe("VALID");
+    expect(record.sent.map((s) => s.label)).toEqual(["initialize", "shutdown", "exit"]);
+  });
+
+  it("TOTAL_TIMEOUT이 첫 사유일 때도 같다: 유효한 응답이 있어도 NOT_OBSERVED, 응답은 보존", async () => {
+    const rig = makeRig(
+      { init: { kind: "result", delayMs: 30_000 }, exit: "ignore", stdinEnd: "ignore" },
+      { request: { limits: { totalMs: 50_000 } } }
+    );
+    const { record } = await run(rig);
+    expect(record.termination.trigger).toBe("TOTAL_TIMEOUT");
+    expect(record.status).toBe("NOT_OBSERVED");
+    expect(record.status_reasons).toEqual(
+      expect.arrayContaining(["TOTAL_TIMEOUT", "FORCE_KILL_REQUIRED"])
+    );
+    expect(record.initialize.response).toBe("VALID");
   });
 
   it("단계 한도가 전체 마감보다 늦으면 전체 마감이 이긴다 (exit 대기 30초가 남은 20초로 줄어든다)", async () => {
@@ -816,6 +914,126 @@ describe("출력 한도·프레임 오류·입출력 오류는 곧바로 강제 
     expect(record.status).toBe("NOT_OBSERVED");
     expect(record.cleanup.streams_closed).toBe(false);
     expect(record.cleanup.ok).toBe(false);
+  });
+
+  describe.each(["stdout", "stderr"] as const)(
+    "%s 읽기 실패는 명시적인 사유로 곧바로 종료한다",
+    (which) => {
+      const partialOutput: Partial<MinScript> = {
+        // 실패 전에 이미 받은 바이트(보존돼야 한다)
+        stdoutAt: [
+          { atMs: 50, frame: { jsonrpc: "2.0", method: "window/logMessage", params: { type: 3 } } },
+        ],
+        stderrAt: [{ atMs: 50, text: "partial log line\n" }],
+      };
+      const breakAt =
+        (ms: number, extra?: (child: LspMinChild, clock: VirtualClock) => void) =>
+        (child: LspMinChild, clock: VirtualClock): void => {
+          const broken = breakableStream(child[which]);
+          Object.defineProperty(child, which, { value: broken.stream });
+          clock.setTimer(() => broken.fail(new Error("pipe broken")), ms);
+          extra?.(child, clock);
+        };
+
+      function expectReadFailure(
+        rig: Rig,
+        record: LspMinObservation,
+        raw: { stdout: Uint8Array; stderr: Uint8Array }
+      ): void {
+        const child = rig.children[0];
+        expectImmediate(rig, record, "STREAM_READ_FAILED");
+        // 읽기 실패를 STDIN_ERROR(쓰기 실패)로 부르지 않는다.
+        expect(record.status).toBe("NOT_OBSERVED");
+        expect(record.status_reasons).toContain("STREAM_READ_FAILED");
+        expect(record.status_reasons).not.toContain("STDIN_ERROR");
+        expect(record.termination.also).not.toContain("STDIN_ERROR");
+        // 정상 EOF와 합치지 않는다. 이미 받은 바이트와 오류는 남는다.
+        expect(record.streams[which]).toMatchObject({ read_failed: true, eof: false });
+        expect(record.streams[which].read_error).toContain("pipe broken");
+        expect(record.streams[which].bytes).toBeGreaterThan(0);
+        expect(raw[which].length).toBe(record.streams[which].bytes);
+        expect(record.status_reasons).not.toContain("FRAME_ERROR:TRUNCATED");
+        // 정리는 진행된다: 강제 종료 한 번, 종료 확인, 폐기. 스트림은 닫히지 않았다고 기록한다.
+        expect(child.killCalls).toEqual(["SIGKILL"]);
+        expect(record.cleanup.child_exit_confirmed).toBe(true);
+        expect(child.disposed).toBe(true);
+        expect(record.cleanup.streams_closed).toBe(false);
+        expect(record.cleanup.ok).toBe(false);
+      }
+
+      it("초기화 응답 전: 60초 초기화 한도를 기다리지 않고 그 시점에 끊고, 더 보내지 않는다", async () => {
+        const rig = makeRig(
+          { init: { kind: "silent" }, stdinEnd: "ignore", ...partialOutput },
+          { decorate: breakAt(200) }
+        );
+        const { record, raw } = await run(rig);
+        expectReadFailure(rig, record, raw);
+        expect(methodsOf(rig.children[0])).toEqual(["initialize"]);
+        expect(record.timeline.observation_ms).toBe(200);
+        expect(record.initialize.response).toBe("NONE");
+      });
+
+      it("유효한 응답을 받은 뒤(shutdown을 쓰는 중): exit를 보내지 않고 끊되 응답 사실은 남긴다", async () => {
+        const rig = makeRig(
+          { init: { kind: "result", delayMs: 100 }, stdinEnd: "ignore", ...partialOutput },
+          {
+            decorate: breakAt(300, (child, clock) => {
+              const write = child.writeStdin.bind(child);
+              let writes = 0;
+              child.writeStdin = async (data) => {
+                writes += 1;
+                // shutdown 쓰기가 늦게 끝나는 사이(응답은 이미 받았다)에 읽기가 실패한다.
+                if (writes === 2)
+                  await new Promise<void>((resolve) => clock.setTimer(resolve, 500));
+                return write(data);
+              };
+            }),
+          }
+        );
+        const { record, raw } = await run(rig);
+        expectReadFailure(rig, record, raw);
+        expect(record.sent.map((s) => `${s.label}:${s.ok}`)).toEqual([
+          "initialize:true",
+          "shutdown:false",
+        ]);
+        expect(methodsOf(rig.children[0])).not.toContain("exit");
+        expect(record.timeline.observation_ms).toBe(300);
+        // 실제로 관측한 사실은 그대로 보존된다.
+        expect(record.initialize).toMatchObject({ response: "VALID", latency_ms: 100 });
+        expect(record.status_reasons).toContain("SHUTDOWN_EXIT_NOT_SENT");
+      });
+    }
+  );
+
+  it("즉시 종료 사유가 걸린 직후에는 이미 준비된 다음 메시지(shutdown)도 보내지 않는다", async () => {
+    // 첫 덩어리(유효한 응답)를 처리한 바로 그 작업 안에서 취소가 걸린다: 관측 흐름이 이어서 shutdown을 쓰기 직전이다.
+    const controller = new AbortController();
+    const rig = makeRig(
+      { init: { kind: "result", delayMs: 100 }, stdinEnd: "ignore" },
+      {
+        request: { signal: controller.signal },
+        decorate: (child) => {
+          const source = child.stdout[Symbol.asyncIterator]();
+          let calls = 0;
+          Object.defineProperty(child, "stdout", {
+            value: {
+              [Symbol.asyncIterator]: () => ({
+                next: () => {
+                  calls += 1;
+                  if (calls === 2) controller.abort();
+                  return source.next();
+                },
+              }),
+            },
+          });
+        },
+      }
+    );
+    const { record } = await run(rig);
+    expect(record.status).toBe("ABORTED");
+    expect(record.initialize.response).toBe("VALID");
+    expect(record.sent.map((s) => s.label)).toEqual(["initialize"]);
+    expect(methodsOf(rig.children[0])).toEqual(["initialize"]);
   });
 });
 
