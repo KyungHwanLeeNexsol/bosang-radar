@@ -1,0 +1,7 @@
+rules:
+  - id: lsp-rules-1-probe
+    message: LSP-RULES-1 probe rule. It is loaded but is not expected to match any target.
+    severity: INFO
+    languages:
+      - generic
+    pattern: LSP_RULES_1_PROBE_TOKEN_THAT_IS_NEVER_PRESENT

@@ -1,0 +1,3778 @@
+[
+  {
+    "id": "scan/happy-crlf",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU2hvd2luZyBsb2dzIGZvcjogW2FwcGxpY2F0aW9uXQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6ICEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IA0KSWYgeW91IHdhbnQgdG8gc2hvdyB0aGUgbG9ncyBvZiBhIHBhcnRpY3VsYXIgbGlicmFyeQ0KKGUuZy4sIHRoZSBzZW1ncmVwIHRhcmdldGluZyBsaWJyYXJ5KSwgeW91J2xsIG5lZWQgdG8gYWRqdXN0IHRoZQ0KU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbg0KDQogIFNFTUdSRVBfTE9HX1NSQ1M9InNlbWdyZXAudGFyZ2V0aW5nIiBzZW1ncmVwIC4uLiAtLWRlYnVnDQoNCllvdSBjYW4gc2VlIHRoZSBsaXN0IG9mIHBvc3NpYmxlIGxpYnJhcmllcyBhYm92ZSBpbiB0aGlzIGxvZyBhcyBpbg0KLi4uDQpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcNCi4uLg0KRm9yIG1vcmUgaW5mb3JtYXRpb24sIFNlZQ0KaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwDQoNClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISENClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogRXhlY3V0ZWQgYXM6IG9zZW1ncmVwIGxzcCAtLWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU3RhcnRpbmcgc2VtZ3JlcC1sc3ANClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXINClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTdGFydGluZyBTZW1ncmVwIExhbmd1YWdlIFNlcnZlcg0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJpZCI6IDAsDQogICJwYXJhbXMiOiB7DQogICAgImNhcGFiaWxpdGllcyI6IHt9LA0KICAgICJpbml0aWFsaXphdGlvbk9wdGlvbnMiOiB7DQogICAgICAic2NhbiI6IHsNCiAgICAgICAgImNpIjogZmFsc2UsDQogICAgICAgICJjb25maWd1cmF0aW9uIjogWw0KICAgICAgICAgICJDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlIg0KICAgICAgICBdLA0KICAgICAgICAib25seUdpdERpcnR5IjogZmFsc2UNCiAgICAgIH0sDQogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9DQogICAgfQ0KICB9LA0KICAibWV0aG9kIjogImluaXRpYWxpemUiLA0KICAianNvbnJwYyI6ICIyLjAiDQp9DQpJbml0aWFsaXppbmcgc2VydmVyDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6aW5nIHNlcnZlciB3aXRoIGluaXRpYWxpemF0aW9uT3B0aW9uczoNCnsNCiAgInNjYW4iOiB7DQogICAgImNpIjogZmFsc2UsDQogICAgImNvbmZpZ3VyYXRpb24iOiBbDQogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSINCiAgICBdDQogIH0NCn0NClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgcHJlZW1wdGl2ZSB0aHJlYWRzDQpDYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6ZWQgc2VydmVyIHdpdGggc2Vzc2lvbjoNCnsgTGVnYWN5X3Nlc3Npb24uY2FwYWJpbGl0aWVzID0NCiAgew0KICAgICJjb2RlQWN0aW9uUHJvdmlkZXIiOiB0cnVlLA0KICAgICJleGVjdXRlQ29tbWFuZFByb3ZpZGVyIjogew0KICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdDQogICAgfQ0KICB9Ow0KICB3b3Jrc3BhY2VfZm9sZGVycyA9DQogIFtjOlxQcm9ncmFtRGF0YVx4XHdvcmtcbHNwXHdzXTsNCiAgY2FjaGVkX3dvcmtzcGFjZV90YXJnZXRzID0gPG9wYXF1ZT47IGNhY2hlZF9zY2FucyA9IDxvcGFxdWU+Ow0KICBjYWNoZWRfc2Vzc2lvbiA9DQogIHsgTGVnYWN5X3Nlc3Npb24ucnVsZXMgPSA8b3BhcXVlPjsgc2tpcHBlZF9hcHBfZmluZ2VycHJpbnRzID0gW107DQogICAgb3Blbl9kb2N1bWVudHMgPSBbXTsgaW5pdGlhbGl6ZWQgPSBmYWxzZTsgZGVwbG95bWVudF9pZCA9IE5vbmU7DQogICAgbG9jayA9IDxvcGFxdWU+IH07DQogIGlzX2ludGVsbGlqID0gZmFsc2UgfQ0KU2VydmVyIGluaXRpYWxpemVkDQpbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7DQogICJpZCI6ICJsc3AtcnVsZXMtaW5pdC0xIiwNCiAgImpzb25ycGMiOiAiMi4wIiwNCiAgInJlc3VsdCI6IHsNCiAgICAiY2FwYWJpbGl0aWVzIjogeyAiaG92ZXJQcm92aWRlciI6IHRydWUgfSwNCiAgICAic2VydmVySW5mbyI6IHsgIm5hbWUiOiAiU2VtZ3JlcCIsICJ2ZXJzaW9uIjogIjkuOS45IiB9DQogIH0NCn0NClswMC44MF1bREVCVUddKGRlZmF1bHQpOiBIYW5kbGluZyBub3RpZmljYXRpb24geyAibWV0aG9kIjogImluaXRpYWxpemVkIiwgInBhcmFtcyI6IHt9LCAianNvbnJwYyI6ICIyLjAiIH0NClJlZnJlc2hpbmcgcnVsZXMNClswMC44MF1bSU5GT106IENoZWNraW5nIGZvciBBUEkgdG9rZW4gaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBBUEkgdG9rZW4gZm91bmQgaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBzZXR0aW5ncyBmaWxlIGZvdW5kLCB1c2luZyBkZWZhdWx0IHNldHRpbmdzDQpbMDAuODFdW0RFQlVHXShkZWZhdWx0KTogQ0kgZGlzYWJsZWQsIG5vdCBjaGVja2luZyBBUEkgdG9rZW4NClswMC44MV1bSU5GT106IGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBEb25lIGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBHb3QgMCBlcnJvcnMgd2hpbGUgcmVmcmVzaGluZyBydWxlcyBpbiBsYW5ndWFnZSBzZXJ2ZXINClJ1bGVzIHJlZnJlc2hlZA0KU2Nhbm5pbmcgb3BlbiBkb2N1bWVudHMNClswMC44M11bV0FSTklOR106IE5vIHRhcmdldHMgdG8gc2NhbiEgTm90IHNjYW5uaW5nIGFueXRoaW5nLg0KU2Nhbm5lZCBvcGVuIGRvY3VtZW50cw0KWzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7ICJpZCI6IDAsICJtZXRob2QiOiAic2h1dGRvd24iLCAianNvbnJwYyI6ICIyLjAiIH0NClNodXR0aW5nIGRvd24gc2VydmVyDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9DQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogU2VydmVyIGV4aXRpbmcNClNlcnZlciBzdG9wcGVkDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 985,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1481,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1754,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1781,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2382,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2737,
+          "recordIndex": 21,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2755,
+          "recordIndex": 22,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2819,
+          "recordIndex": 23,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2879,
+          "recordIndex": 24,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2942,
+          "recordIndex": 25,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3004,
+          "recordIndex": 26,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3107,
+          "recordIndex": 27,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3215,
+          "recordIndex": 28,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3286,
+          "recordIndex": 29,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3303,
+          "recordIndex": 30,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noTargets",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3328,
+          "recordIndex": 31,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3390,
+          "recordIndex": 32,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3511,
+          "recordIndex": 34,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3661,
+          "recordIndex": 37,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 100,
+        "records": 39,
+        "headedRecords": 28,
+        "bareRecords": 11,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 20,
+        "partialTail": false,
+        "totalBytes": 3730
+      }
+    }
+  },
+  {
+    "id": "scan/happy-lf",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTaG93aW5nIGxvZ3MgZm9yOiBbYXBwbGljYXRpb25dClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEKWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IApJZiB5b3Ugd2FudCB0byBzaG93IHRoZSBsb2dzIG9mIGEgcGFydGljdWxhciBsaWJyYXJ5CihlLmcuLCB0aGUgc2VtZ3JlcCB0YXJnZXRpbmcgbGlicmFyeSksIHlvdSdsbCBuZWVkIHRvIGFkanVzdCB0aGUKU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbgoKICBTRU1HUkVQX0xPR19TUkNTPSJzZW1ncmVwLnRhcmdldGluZyIgc2VtZ3JlcCAuLi4gLS1kZWJ1ZwoKWW91IGNhbiBzZWUgdGhlIGxpc3Qgb2YgcG9zc2libGUgbGlicmFyaWVzIGFib3ZlIGluIHRoaXMgbG9nIGFzIGluCi4uLgpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcKLi4uCkZvciBtb3JlIGluZm9ybWF0aW9uLCBTZWUKaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwCgpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBFeGVjdXRlZCBhczogb3NlbWdyZXAgbHNwIC0tZGVidWcKWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFN0YXJ0aW5nIHNlbWdyZXAtbHNwClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXIKWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFN0YXJ0aW5nIFNlbWdyZXAgTGFuZ3VhZ2UgU2VydmVyClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBIYW5kbGluZyByZXF1ZXN0Ogp7CiAgImlkIjogMCwKICAicGFyYW1zIjogewogICAgImNhcGFiaWxpdGllcyI6IHt9LAogICAgImluaXRpYWxpemF0aW9uT3B0aW9ucyI6IHsKICAgICAgInNjYW4iOiB7CiAgICAgICAgImNpIjogZmFsc2UsCiAgICAgICAgImNvbmZpZ3VyYXRpb24iOiBbCiAgICAgICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSIKICAgICAgICBdLAogICAgICAgICJvbmx5R2l0RGlydHkiOiBmYWxzZQogICAgICB9LAogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9CiAgICB9CiAgfSwKICAibWV0aG9kIjogImluaXRpYWxpemUiLAogICJqc29ucnBjIjogIjIuMCIKfQpJbml0aWFsaXppbmcgc2VydmVyClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgc2VydmVyIHdpdGggaW5pdGlhbGl6YXRpb25PcHRpb25zOgp7CiAgInNjYW4iOiB7CiAgICAiY2kiOiBmYWxzZSwKICAgICJjb25maWd1cmF0aW9uIjogWwogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSIKICAgIF0KICB9Cn0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEluaXRpYWxpemluZyBwcmVlbXB0aXZlIHRocmVhZHMKQ2FjaGluZyB3b3Jrc3BhY2UgdGFyZ2V0cwpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXplZCBzZXJ2ZXIgd2l0aCBzZXNzaW9uOgp7IExlZ2FjeV9zZXNzaW9uLmNhcGFiaWxpdGllcyA9CiAgewogICAgImNvZGVBY3Rpb25Qcm92aWRlciI6IHRydWUsCiAgICAiZXhlY3V0ZUNvbW1hbmRQcm92aWRlciI6IHsKICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdCiAgICB9CiAgfTsKICB3b3Jrc3BhY2VfZm9sZGVycyA9CiAgW2M6XFByb2dyYW1EYXRhXHhcd29ya1xsc3Bcd3NdOwogIGNhY2hlZF93b3Jrc3BhY2VfdGFyZ2V0cyA9IDxvcGFxdWU+OyBjYWNoZWRfc2NhbnMgPSA8b3BhcXVlPjsKICBjYWNoZWRfc2Vzc2lvbiA9CiAgeyBMZWdhY3lfc2Vzc2lvbi5ydWxlcyA9IDxvcGFxdWU+OyBza2lwcGVkX2FwcF9maW5nZXJwcmludHMgPSBbXTsKICAgIG9wZW5fZG9jdW1lbnRzID0gW107IGluaXRpYWxpemVkID0gZmFsc2U7IGRlcGxveW1lbnRfaWQgPSBOb25lOwogICAgbG9jayA9IDxvcGFxdWU+IH07CiAgaXNfaW50ZWxsaWogPSBmYWxzZSB9ClNlcnZlciBpbml0aWFsaXplZApbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7CiAgImlkIjogImxzcC1ydWxlcy1pbml0LTEiLAogICJqc29ucnBjIjogIjIuMCIsCiAgInJlc3VsdCI6IHsKICAgICJjYXBhYmlsaXRpZXMiOiB7ICJob3ZlclByb3ZpZGVyIjogdHJ1ZSB9LAogICAgInNlcnZlckluZm8iOiB7ICJuYW1lIjogIlNlbWdyZXAiLCAidmVyc2lvbiI6ICI5LjkuOSIgfQogIH0KfQpbMDAuODBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJpbml0aWFsaXplZCIsICJwYXJhbXMiOiB7fSwgImpzb25ycGMiOiAiMi4wIiB9ClJlZnJlc2hpbmcgcnVsZXMKWzAwLjgwXVtJTkZPXTogQ2hlY2tpbmcgZm9yIEFQSSB0b2tlbiBpbiBlbnZpcm9ubWVudCB2YXJpYWJsZXMKWzAwLjgwXVtJTkZPXTogTm8gQVBJIHRva2VuIGZvdW5kIGluIGVudmlyb25tZW50IHZhcmlhYmxlcwpbMDAuODBdW0lORk9dOiBObyBzZXR0aW5ncyBmaWxlIGZvdW5kLCB1c2luZyBkZWZhdWx0IHNldHRpbmdzClswMC44MV1bREVCVUddKGRlZmF1bHQpOiBDSSBkaXNhYmxlZCwgbm90IGNoZWNraW5nIEFQSSB0b2tlbgpbMDAuODFdW0lORk9dOiBsb2FkaW5nIGxvY2FsIGNvbmZpZyBmcm9tIEM6L3dvcmsvcnVsZXMtMS9sc3Atc3RhdGUvcnVsZXMtcHJvYmVcbHNwLXJ1bGVzLTEtcHJvYmUueWFtbApbMDAuODJdW0lORk9dOiBEb25lIGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sClswMC44Ml1bSU5GT106IEdvdCAwIGVycm9ycyB3aGlsZSByZWZyZXNoaW5nIHJ1bGVzIGluIGxhbmd1YWdlIHNlcnZlcgpSdWxlcyByZWZyZXNoZWQKU2Nhbm5pbmcgb3BlbiBkb2N1bWVudHMKWzAwLjgzXVtXQVJOSU5HXTogTm8gdGFyZ2V0cyB0byBzY2FuISBOb3Qgc2Nhbm5pbmcgYW55dGhpbmcuClNjYW5uZWQgb3BlbiBkb2N1bWVudHMKWzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6CnsgImlkIjogMCwgIm1ldGhvZCI6ICJzaHV0ZG93biIsICJqc29ucnBjIjogIjIuMCIgfQpTaHV0dGluZyBkb3duIHNlcnZlcgpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9ClswMC45MF1bREVCVUddKGRlZmF1bHQpOiBTZXJ2ZXIgZXhpdGluZwpTZXJ2ZXIgc3RvcHBlZApbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykK",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 964,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1439,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1701,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1727,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2311,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2656,
+          "recordIndex": 21,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2673,
+          "recordIndex": 22,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2736,
+          "recordIndex": 23,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2795,
+          "recordIndex": 24,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2857,
+          "recordIndex": 25,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2918,
+          "recordIndex": 26,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3020,
+          "recordIndex": 27,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3127,
+          "recordIndex": 28,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3197,
+          "recordIndex": 29,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3213,
+          "recordIndex": 30,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noTargets",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3237,
+          "recordIndex": 31,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3298,
+          "recordIndex": 32,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3416,
+          "recordIndex": 34,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3563,
+          "recordIndex": 37,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 100,
+        "records": 39,
+        "headedRecords": 28,
+        "bareRecords": 11,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 20,
+        "partialTail": false,
+        "totalBytes": 3630
+      }
+    }
+  },
+  {
+    "id": "scan/happy-chunk-1",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU2hvd2luZyBsb2dzIGZvcjogW2FwcGxpY2F0aW9uXQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6ICEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IA0KSWYgeW91IHdhbnQgdG8gc2hvdyB0aGUgbG9ncyBvZiBhIHBhcnRpY3VsYXIgbGlicmFyeQ0KKGUuZy4sIHRoZSBzZW1ncmVwIHRhcmdldGluZyBsaWJyYXJ5KSwgeW91J2xsIG5lZWQgdG8gYWRqdXN0IHRoZQ0KU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbg0KDQogIFNFTUdSRVBfTE9HX1NSQ1M9InNlbWdyZXAudGFyZ2V0aW5nIiBzZW1ncmVwIC4uLiAtLWRlYnVnDQoNCllvdSBjYW4gc2VlIHRoZSBsaXN0IG9mIHBvc3NpYmxlIGxpYnJhcmllcyBhYm92ZSBpbiB0aGlzIGxvZyBhcyBpbg0KLi4uDQpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcNCi4uLg0KRm9yIG1vcmUgaW5mb3JtYXRpb24sIFNlZQ0KaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwDQoNClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISENClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogRXhlY3V0ZWQgYXM6IG9zZW1ncmVwIGxzcCAtLWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU3RhcnRpbmcgc2VtZ3JlcC1sc3ANClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXINClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTdGFydGluZyBTZW1ncmVwIExhbmd1YWdlIFNlcnZlcg0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJpZCI6IDAsDQogICJwYXJhbXMiOiB7DQogICAgImNhcGFiaWxpdGllcyI6IHt9LA0KICAgICJpbml0aWFsaXphdGlvbk9wdGlvbnMiOiB7DQogICAgICAic2NhbiI6IHsNCiAgICAgICAgImNpIjogZmFsc2UsDQogICAgICAgICJjb25maWd1cmF0aW9uIjogWw0KICAgICAgICAgICJDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlIg0KICAgICAgICBdLA0KICAgICAgICAib25seUdpdERpcnR5IjogZmFsc2UNCiAgICAgIH0sDQogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9DQogICAgfQ0KICB9LA0KICAibWV0aG9kIjogImluaXRpYWxpemUiLA0KICAianNvbnJwYyI6ICIyLjAiDQp9DQpJbml0aWFsaXppbmcgc2VydmVyDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6aW5nIHNlcnZlciB3aXRoIGluaXRpYWxpemF0aW9uT3B0aW9uczoNCnsNCiAgInNjYW4iOiB7DQogICAgImNpIjogZmFsc2UsDQogICAgImNvbmZpZ3VyYXRpb24iOiBbDQogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSINCiAgICBdDQogIH0NCn0NClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgcHJlZW1wdGl2ZSB0aHJlYWRzDQpDYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6ZWQgc2VydmVyIHdpdGggc2Vzc2lvbjoNCnsgTGVnYWN5X3Nlc3Npb24uY2FwYWJpbGl0aWVzID0NCiAgew0KICAgICJjb2RlQWN0aW9uUHJvdmlkZXIiOiB0cnVlLA0KICAgICJleGVjdXRlQ29tbWFuZFByb3ZpZGVyIjogew0KICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdDQogICAgfQ0KICB9Ow0KICB3b3Jrc3BhY2VfZm9sZGVycyA9DQogIFtjOlxQcm9ncmFtRGF0YVx4XHdvcmtcbHNwXHdzXTsNCiAgY2FjaGVkX3dvcmtzcGFjZV90YXJnZXRzID0gPG9wYXF1ZT47IGNhY2hlZF9zY2FucyA9IDxvcGFxdWU+Ow0KICBjYWNoZWRfc2Vzc2lvbiA9DQogIHsgTGVnYWN5X3Nlc3Npb24ucnVsZXMgPSA8b3BhcXVlPjsgc2tpcHBlZF9hcHBfZmluZ2VycHJpbnRzID0gW107DQogICAgb3Blbl9kb2N1bWVudHMgPSBbXTsgaW5pdGlhbGl6ZWQgPSBmYWxzZTsgZGVwbG95bWVudF9pZCA9IE5vbmU7DQogICAgbG9jayA9IDxvcGFxdWU+IH07DQogIGlzX2ludGVsbGlqID0gZmFsc2UgfQ0KU2VydmVyIGluaXRpYWxpemVkDQpbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7DQogICJpZCI6ICJsc3AtcnVsZXMtaW5pdC0xIiwNCiAgImpzb25ycGMiOiAiMi4wIiwNCiAgInJlc3VsdCI6IHsNCiAgICAiY2FwYWJpbGl0aWVzIjogeyAiaG92ZXJQcm92aWRlciI6IHRydWUgfSwNCiAgICAic2VydmVySW5mbyI6IHsgIm5hbWUiOiAiU2VtZ3JlcCIsICJ2ZXJzaW9uIjogIjkuOS45IiB9DQogIH0NCn0NClswMC44MF1bREVCVUddKGRlZmF1bHQpOiBIYW5kbGluZyBub3RpZmljYXRpb24geyAibWV0aG9kIjogImluaXRpYWxpemVkIiwgInBhcmFtcyI6IHt9LCAianNvbnJwYyI6ICIyLjAiIH0NClJlZnJlc2hpbmcgcnVsZXMNClswMC44MF1bSU5GT106IENoZWNraW5nIGZvciBBUEkgdG9rZW4gaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBBUEkgdG9rZW4gZm91bmQgaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBzZXR0aW5ncyBmaWxlIGZvdW5kLCB1c2luZyBkZWZhdWx0IHNldHRpbmdzDQpbMDAuODFdW0RFQlVHXShkZWZhdWx0KTogQ0kgZGlzYWJsZWQsIG5vdCBjaGVja2luZyBBUEkgdG9rZW4NClswMC44MV1bSU5GT106IGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBEb25lIGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBHb3QgMCBlcnJvcnMgd2hpbGUgcmVmcmVzaGluZyBydWxlcyBpbiBsYW5ndWFnZSBzZXJ2ZXINClJ1bGVzIHJlZnJlc2hlZA0KU2Nhbm5pbmcgb3BlbiBkb2N1bWVudHMNClswMC44M11bV0FSTklOR106IE5vIHRhcmdldHMgdG8gc2NhbiEgTm90IHNjYW5uaW5nIGFueXRoaW5nLg0KU2Nhbm5lZCBvcGVuIGRvY3VtZW50cw0KWzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7ICJpZCI6IDAsICJtZXRob2QiOiAic2h1dGRvd24iLCAianNvbnJwYyI6ICIyLjAiIH0NClNodXR0aW5nIGRvd24gc2VydmVyDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9DQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogU2VydmVyIGV4aXRpbmcNClNlcnZlciBzdG9wcGVkDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykNCg==",
+      "chunk": 1
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 985,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1481,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1754,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1781,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2382,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2737,
+          "recordIndex": 21,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2755,
+          "recordIndex": 22,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2819,
+          "recordIndex": 23,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2879,
+          "recordIndex": 24,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2942,
+          "recordIndex": 25,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3004,
+          "recordIndex": 26,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3107,
+          "recordIndex": 27,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3215,
+          "recordIndex": 28,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3286,
+          "recordIndex": 29,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3303,
+          "recordIndex": 30,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noTargets",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3328,
+          "recordIndex": 31,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3390,
+          "recordIndex": 32,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3511,
+          "recordIndex": 34,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3661,
+          "recordIndex": 37,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 100,
+        "records": 39,
+        "headedRecords": 28,
+        "bareRecords": 11,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 20,
+        "partialTail": false,
+        "totalBytes": 3730
+      }
+    }
+  },
+  {
+    "id": "scan/happy-chunk-7",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU2hvd2luZyBsb2dzIGZvcjogW2FwcGxpY2F0aW9uXQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6ICEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IA0KSWYgeW91IHdhbnQgdG8gc2hvdyB0aGUgbG9ncyBvZiBhIHBhcnRpY3VsYXIgbGlicmFyeQ0KKGUuZy4sIHRoZSBzZW1ncmVwIHRhcmdldGluZyBsaWJyYXJ5KSwgeW91J2xsIG5lZWQgdG8gYWRqdXN0IHRoZQ0KU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbg0KDQogIFNFTUdSRVBfTE9HX1NSQ1M9InNlbWdyZXAudGFyZ2V0aW5nIiBzZW1ncmVwIC4uLiAtLWRlYnVnDQoNCllvdSBjYW4gc2VlIHRoZSBsaXN0IG9mIHBvc3NpYmxlIGxpYnJhcmllcyBhYm92ZSBpbiB0aGlzIGxvZyBhcyBpbg0KLi4uDQpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcNCi4uLg0KRm9yIG1vcmUgaW5mb3JtYXRpb24sIFNlZQ0KaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwDQoNClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISENClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogRXhlY3V0ZWQgYXM6IG9zZW1ncmVwIGxzcCAtLWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU3RhcnRpbmcgc2VtZ3JlcC1sc3ANClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXINClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTdGFydGluZyBTZW1ncmVwIExhbmd1YWdlIFNlcnZlcg0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJpZCI6IDAsDQogICJwYXJhbXMiOiB7DQogICAgImNhcGFiaWxpdGllcyI6IHt9LA0KICAgICJpbml0aWFsaXphdGlvbk9wdGlvbnMiOiB7DQogICAgICAic2NhbiI6IHsNCiAgICAgICAgImNpIjogZmFsc2UsDQogICAgICAgICJjb25maWd1cmF0aW9uIjogWw0KICAgICAgICAgICJDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlIg0KICAgICAgICBdLA0KICAgICAgICAib25seUdpdERpcnR5IjogZmFsc2UNCiAgICAgIH0sDQogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9DQogICAgfQ0KICB9LA0KICAibWV0aG9kIjogImluaXRpYWxpemUiLA0KICAianNvbnJwYyI6ICIyLjAiDQp9DQpJbml0aWFsaXppbmcgc2VydmVyDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6aW5nIHNlcnZlciB3aXRoIGluaXRpYWxpemF0aW9uT3B0aW9uczoNCnsNCiAgInNjYW4iOiB7DQogICAgImNpIjogZmFsc2UsDQogICAgImNvbmZpZ3VyYXRpb24iOiBbDQogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSINCiAgICBdDQogIH0NCn0NClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgcHJlZW1wdGl2ZSB0aHJlYWRzDQpDYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6ZWQgc2VydmVyIHdpdGggc2Vzc2lvbjoNCnsgTGVnYWN5X3Nlc3Npb24uY2FwYWJpbGl0aWVzID0NCiAgew0KICAgICJjb2RlQWN0aW9uUHJvdmlkZXIiOiB0cnVlLA0KICAgICJleGVjdXRlQ29tbWFuZFByb3ZpZGVyIjogew0KICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdDQogICAgfQ0KICB9Ow0KICB3b3Jrc3BhY2VfZm9sZGVycyA9DQogIFtjOlxQcm9ncmFtRGF0YVx4XHdvcmtcbHNwXHdzXTsNCiAgY2FjaGVkX3dvcmtzcGFjZV90YXJnZXRzID0gPG9wYXF1ZT47IGNhY2hlZF9zY2FucyA9IDxvcGFxdWU+Ow0KICBjYWNoZWRfc2Vzc2lvbiA9DQogIHsgTGVnYWN5X3Nlc3Npb24ucnVsZXMgPSA8b3BhcXVlPjsgc2tpcHBlZF9hcHBfZmluZ2VycHJpbnRzID0gW107DQogICAgb3Blbl9kb2N1bWVudHMgPSBbXTsgaW5pdGlhbGl6ZWQgPSBmYWxzZTsgZGVwbG95bWVudF9pZCA9IE5vbmU7DQogICAgbG9jayA9IDxvcGFxdWU+IH07DQogIGlzX2ludGVsbGlqID0gZmFsc2UgfQ0KU2VydmVyIGluaXRpYWxpemVkDQpbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7DQogICJpZCI6ICJsc3AtcnVsZXMtaW5pdC0xIiwNCiAgImpzb25ycGMiOiAiMi4wIiwNCiAgInJlc3VsdCI6IHsNCiAgICAiY2FwYWJpbGl0aWVzIjogeyAiaG92ZXJQcm92aWRlciI6IHRydWUgfSwNCiAgICAic2VydmVySW5mbyI6IHsgIm5hbWUiOiAiU2VtZ3JlcCIsICJ2ZXJzaW9uIjogIjkuOS45IiB9DQogIH0NCn0NClswMC44MF1bREVCVUddKGRlZmF1bHQpOiBIYW5kbGluZyBub3RpZmljYXRpb24geyAibWV0aG9kIjogImluaXRpYWxpemVkIiwgInBhcmFtcyI6IHt9LCAianNvbnJwYyI6ICIyLjAiIH0NClJlZnJlc2hpbmcgcnVsZXMNClswMC44MF1bSU5GT106IENoZWNraW5nIGZvciBBUEkgdG9rZW4gaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBBUEkgdG9rZW4gZm91bmQgaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBzZXR0aW5ncyBmaWxlIGZvdW5kLCB1c2luZyBkZWZhdWx0IHNldHRpbmdzDQpbMDAuODFdW0RFQlVHXShkZWZhdWx0KTogQ0kgZGlzYWJsZWQsIG5vdCBjaGVja2luZyBBUEkgdG9rZW4NClswMC44MV1bSU5GT106IGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBEb25lIGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBHb3QgMCBlcnJvcnMgd2hpbGUgcmVmcmVzaGluZyBydWxlcyBpbiBsYW5ndWFnZSBzZXJ2ZXINClJ1bGVzIHJlZnJlc2hlZA0KU2Nhbm5pbmcgb3BlbiBkb2N1bWVudHMNClswMC44M11bV0FSTklOR106IE5vIHRhcmdldHMgdG8gc2NhbiEgTm90IHNjYW5uaW5nIGFueXRoaW5nLg0KU2Nhbm5lZCBvcGVuIGRvY3VtZW50cw0KWzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7ICJpZCI6IDAsICJtZXRob2QiOiAic2h1dGRvd24iLCAianNvbnJwYyI6ICIyLjAiIH0NClNodXR0aW5nIGRvd24gc2VydmVyDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9DQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogU2VydmVyIGV4aXRpbmcNClNlcnZlciBzdG9wcGVkDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykNCg==",
+      "chunk": 7
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 985,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1481,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1754,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1781,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2382,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2737,
+          "recordIndex": 21,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2755,
+          "recordIndex": 22,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2819,
+          "recordIndex": 23,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2879,
+          "recordIndex": 24,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2942,
+          "recordIndex": 25,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3004,
+          "recordIndex": 26,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3107,
+          "recordIndex": 27,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3215,
+          "recordIndex": 28,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3286,
+          "recordIndex": 29,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3303,
+          "recordIndex": 30,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noTargets",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3328,
+          "recordIndex": 31,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3390,
+          "recordIndex": 32,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3511,
+          "recordIndex": 34,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3661,
+          "recordIndex": 37,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 100,
+        "records": 39,
+        "headedRecords": 28,
+        "bareRecords": 11,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 20,
+        "partialTail": false,
+        "totalBytes": 3730
+      }
+    }
+  },
+  {
+    "id": "scan/happy-chunk-64",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU2hvd2luZyBsb2dzIGZvcjogW2FwcGxpY2F0aW9uXQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6ICEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IA0KSWYgeW91IHdhbnQgdG8gc2hvdyB0aGUgbG9ncyBvZiBhIHBhcnRpY3VsYXIgbGlicmFyeQ0KKGUuZy4sIHRoZSBzZW1ncmVwIHRhcmdldGluZyBsaWJyYXJ5KSwgeW91J2xsIG5lZWQgdG8gYWRqdXN0IHRoZQ0KU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbg0KDQogIFNFTUdSRVBfTE9HX1NSQ1M9InNlbWdyZXAudGFyZ2V0aW5nIiBzZW1ncmVwIC4uLiAtLWRlYnVnDQoNCllvdSBjYW4gc2VlIHRoZSBsaXN0IG9mIHBvc3NpYmxlIGxpYnJhcmllcyBhYm92ZSBpbiB0aGlzIGxvZyBhcyBpbg0KLi4uDQpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcNCi4uLg0KRm9yIG1vcmUgaW5mb3JtYXRpb24sIFNlZQ0KaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwDQoNClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISENClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogRXhlY3V0ZWQgYXM6IG9zZW1ncmVwIGxzcCAtLWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU3RhcnRpbmcgc2VtZ3JlcC1sc3ANClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXINClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTdGFydGluZyBTZW1ncmVwIExhbmd1YWdlIFNlcnZlcg0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJpZCI6IDAsDQogICJwYXJhbXMiOiB7DQogICAgImNhcGFiaWxpdGllcyI6IHt9LA0KICAgICJpbml0aWFsaXphdGlvbk9wdGlvbnMiOiB7DQogICAgICAic2NhbiI6IHsNCiAgICAgICAgImNpIjogZmFsc2UsDQogICAgICAgICJjb25maWd1cmF0aW9uIjogWw0KICAgICAgICAgICJDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlIg0KICAgICAgICBdLA0KICAgICAgICAib25seUdpdERpcnR5IjogZmFsc2UNCiAgICAgIH0sDQogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9DQogICAgfQ0KICB9LA0KICAibWV0aG9kIjogImluaXRpYWxpemUiLA0KICAianNvbnJwYyI6ICIyLjAiDQp9DQpJbml0aWFsaXppbmcgc2VydmVyDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6aW5nIHNlcnZlciB3aXRoIGluaXRpYWxpemF0aW9uT3B0aW9uczoNCnsNCiAgInNjYW4iOiB7DQogICAgImNpIjogZmFsc2UsDQogICAgImNvbmZpZ3VyYXRpb24iOiBbDQogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSINCiAgICBdDQogIH0NCn0NClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgcHJlZW1wdGl2ZSB0aHJlYWRzDQpDYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6ZWQgc2VydmVyIHdpdGggc2Vzc2lvbjoNCnsgTGVnYWN5X3Nlc3Npb24uY2FwYWJpbGl0aWVzID0NCiAgew0KICAgICJjb2RlQWN0aW9uUHJvdmlkZXIiOiB0cnVlLA0KICAgICJleGVjdXRlQ29tbWFuZFByb3ZpZGVyIjogew0KICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdDQogICAgfQ0KICB9Ow0KICB3b3Jrc3BhY2VfZm9sZGVycyA9DQogIFtjOlxQcm9ncmFtRGF0YVx4XHdvcmtcbHNwXHdzXTsNCiAgY2FjaGVkX3dvcmtzcGFjZV90YXJnZXRzID0gPG9wYXF1ZT47IGNhY2hlZF9zY2FucyA9IDxvcGFxdWU+Ow0KICBjYWNoZWRfc2Vzc2lvbiA9DQogIHsgTGVnYWN5X3Nlc3Npb24ucnVsZXMgPSA8b3BhcXVlPjsgc2tpcHBlZF9hcHBfZmluZ2VycHJpbnRzID0gW107DQogICAgb3Blbl9kb2N1bWVudHMgPSBbXTsgaW5pdGlhbGl6ZWQgPSBmYWxzZTsgZGVwbG95bWVudF9pZCA9IE5vbmU7DQogICAgbG9jayA9IDxvcGFxdWU+IH07DQogIGlzX2ludGVsbGlqID0gZmFsc2UgfQ0KU2VydmVyIGluaXRpYWxpemVkDQpbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7DQogICJpZCI6ICJsc3AtcnVsZXMtaW5pdC0xIiwNCiAgImpzb25ycGMiOiAiMi4wIiwNCiAgInJlc3VsdCI6IHsNCiAgICAiY2FwYWJpbGl0aWVzIjogeyAiaG92ZXJQcm92aWRlciI6IHRydWUgfSwNCiAgICAic2VydmVySW5mbyI6IHsgIm5hbWUiOiAiU2VtZ3JlcCIsICJ2ZXJzaW9uIjogIjkuOS45IiB9DQogIH0NCn0NClswMC44MF1bREVCVUddKGRlZmF1bHQpOiBIYW5kbGluZyBub3RpZmljYXRpb24geyAibWV0aG9kIjogImluaXRpYWxpemVkIiwgInBhcmFtcyI6IHt9LCAianNvbnJwYyI6ICIyLjAiIH0NClJlZnJlc2hpbmcgcnVsZXMNClswMC44MF1bSU5GT106IENoZWNraW5nIGZvciBBUEkgdG9rZW4gaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBBUEkgdG9rZW4gZm91bmQgaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuODBdW0lORk9dOiBObyBzZXR0aW5ncyBmaWxlIGZvdW5kLCB1c2luZyBkZWZhdWx0IHNldHRpbmdzDQpbMDAuODFdW0RFQlVHXShkZWZhdWx0KTogQ0kgZGlzYWJsZWQsIG5vdCBjaGVja2luZyBBUEkgdG9rZW4NClswMC44MV1bSU5GT106IGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBEb25lIGxvYWRpbmcgbG9jYWwgY29uZmlnIGZyb20gQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZVxsc3AtcnVsZXMtMS1wcm9iZS55YW1sDQpbMDAuODJdW0lORk9dOiBHb3QgMCBlcnJvcnMgd2hpbGUgcmVmcmVzaGluZyBydWxlcyBpbiBsYW5ndWFnZSBzZXJ2ZXINClJ1bGVzIHJlZnJlc2hlZA0KU2Nhbm5pbmcgb3BlbiBkb2N1bWVudHMNClswMC44M11bV0FSTklOR106IE5vIHRhcmdldHMgdG8gc2NhbiEgTm90IHNjYW5uaW5nIGFueXRoaW5nLg0KU2Nhbm5lZCBvcGVuIGRvY3VtZW50cw0KWzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7ICJpZCI6IDAsICJtZXRob2QiOiAic2h1dGRvd24iLCAianNvbnJwYyI6ICIyLjAiIH0NClNodXR0aW5nIGRvd24gc2VydmVyDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9DQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogU2VydmVyIGV4aXRpbmcNClNlcnZlciBzdG9wcGVkDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykNCg==",
+      "chunk": 64
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 985,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1481,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1754,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1781,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2382,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2737,
+          "recordIndex": 21,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2755,
+          "recordIndex": 22,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2819,
+          "recordIndex": 23,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2879,
+          "recordIndex": 24,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2942,
+          "recordIndex": 25,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3004,
+          "recordIndex": 26,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3107,
+          "recordIndex": 27,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3215,
+          "recordIndex": 28,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3286,
+          "recordIndex": 29,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3303,
+          "recordIndex": 30,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noTargets",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3328,
+          "recordIndex": 31,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedOpenDocuments",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3390,
+          "recordIndex": 32,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3511,
+          "recordIndex": 34,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 3661,
+          "recordIndex": 37,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 100,
+        "records": 39,
+        "headedRecords": 28,
+        "bareRecords": 11,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 20,
+        "partialTail": false,
+        "totalBytes": 3730
+      }
+    }
+  },
+  {
+    "id": "scan/preamble-only",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjExXVtERUJVR10oZGVmYXVsdCk6IFNraXBwaW5nIGxvZ3MgZm9yOiBbbmV0d29ya2luZy5odHRwLCBjb2h0dHAubHd0LmNsaWVudCwgc2VtZ3JlcC5wYXJzaW5nLCBib3NdDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU2hvd2luZyBsb2dzIGZvcjogW2FwcGxpY2F0aW9uXQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6ICEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IA0KSWYgeW91IHdhbnQgdG8gc2hvdyB0aGUgbG9ncyBvZiBhIHBhcnRpY3VsYXIgbGlicmFyeQ0KKGUuZy4sIHRoZSBzZW1ncmVwIHRhcmdldGluZyBsaWJyYXJ5KSwgeW91J2xsIG5lZWQgdG8gYWRqdXN0IHRoZQ0KU0VNR1JFUF9MT0dfU1JDUyBlbnZpcm9ubWVudCB2YXJpYWJsZSBhcyBpbg0KDQogIFNFTUdSRVBfTE9HX1NSQ1M9InNlbWdyZXAudGFyZ2V0aW5nIiBzZW1ncmVwIC4uLiAtLWRlYnVnDQoNCllvdSBjYW4gc2VlIHRoZSBsaXN0IG9mIHBvc3NpYmxlIGxpYnJhcmllcyBhYm92ZSBpbiB0aGlzIGxvZyBhcyBpbg0KLi4uDQpbMDAuMDRdW0RFQlVHXShkZWZhdWx0KTogU2tpcHBpbmcgbG9ncyBmb3Igc2VtZ3JlcC50YXJnZXRpbmcNCi4uLg0KRm9yIG1vcmUgaW5mb3JtYXRpb24sIFNlZQ0KaHR0cHM6Ly93d3cubm90aW9uLnNvL3NlbWdyZXAvTG9nZ2luZy1pbi1zZW1ncmVwDQoNClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiAhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISENClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBMb2dnaW5nIHNldHVwIGZvciBvc2VtZ3JlcDogY29sb3I9Q29uc29sZS5BdXRvIGxldmVsPWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogRXhlY3V0ZWQgYXM6IG9zZW1ncmVwIGxzcCAtLWRlYnVnDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogU3RhcnRpbmcgc2VtZ3JlcC1sc3ANClN0YXJ0aW5nIGxlZ2FjeSBsYW5ndWFnZSBzZXJ2ZXINClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBTdGFydGluZyBTZW1ncmVwIExhbmd1YWdlIFNlcnZlcg0KWzAwLjExXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJpZCI6IDAsDQogICJwYXJhbXMiOiB7DQogICAgImNhcGFiaWxpdGllcyI6IHt9LA0KICAgICJpbml0aWFsaXphdGlvbk9wdGlvbnMiOiB7DQogICAgICAic2NhbiI6IHsNCiAgICAgICAgImNpIjogZmFsc2UsDQogICAgICAgICJjb25maWd1cmF0aW9uIjogWw0KICAgICAgICAgICJDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlIg0KICAgICAgICBdLA0KICAgICAgICAib25seUdpdERpcnR5IjogZmFsc2UNCiAgICAgIH0sDQogICAgICAibWV0cmljcyI6IHsgImVuYWJsZWQiOiBmYWxzZSB9DQogICAgfQ0KICB9LA0KICAibWV0aG9kIjogImluaXRpYWxpemUiLA0KICAianNvbnJwYyI6ICIyLjAiDQp9DQpJbml0aWFsaXppbmcgc2VydmVyDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6aW5nIHNlcnZlciB3aXRoIGluaXRpYWxpemF0aW9uT3B0aW9uczoNCnsNCiAgInNjYW4iOiB7DQogICAgImNpIjogZmFsc2UsDQogICAgImNvbmZpZ3VyYXRpb24iOiBbDQogICAgICAiQzovd29yay9ydWxlcy0xL2xzcC1zdGF0ZS9ydWxlcy1wcm9iZSINCiAgICBdDQogIH0NCn0NClswMC4xMV1bREVCVUddKGRlZmF1bHQpOiBJbml0aWFsaXppbmcgcHJlZW1wdGl2ZSB0aHJlYWRzDQpDYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpGaW5pc2hlZCBjYWNoaW5nIHdvcmtzcGFjZSB0YXJnZXRzDQpbMDAuMTFdW0RFQlVHXShkZWZhdWx0KTogSW5pdGlhbGl6ZWQgc2VydmVyIHdpdGggc2Vzc2lvbjoNCnsgTGVnYWN5X3Nlc3Npb24uY2FwYWJpbGl0aWVzID0NCiAgew0KICAgICJjb2RlQWN0aW9uUHJvdmlkZXIiOiB0cnVlLA0KICAgICJleGVjdXRlQ29tbWFuZFByb3ZpZGVyIjogew0KICAgICAgImNvbW1hbmRzIjogWyAic2VtZ3JlcC9pZ25vcmUiLCAic2VtZ3JlcC9hdXRvZml4IiBdDQogICAgfQ0KICB9Ow0KICB3b3Jrc3BhY2VfZm9sZGVycyA9DQogIFtjOlxQcm9ncmFtRGF0YVx4XHdvcmtcbHNwXHdzXTsNCiAgY2FjaGVkX3dvcmtzcGFjZV90YXJnZXRzID0gPG9wYXF1ZT47IGNhY2hlZF9zY2FucyA9IDxvcGFxdWU+Ow0KICBjYWNoZWRfc2Vzc2lvbiA9DQogIHsgTGVnYWN5X3Nlc3Npb24ucnVsZXMgPSA8b3BhcXVlPjsgc2tpcHBlZF9hcHBfZmluZ2VycHJpbnRzID0gW107DQogICAgb3Blbl9kb2N1bWVudHMgPSBbXTsgaW5pdGlhbGl6ZWQgPSBmYWxzZTsgZGVwbG95bWVudF9pZCA9IE5vbmU7DQogICAgbG9jayA9IDxvcGFxdWU+IH07DQogIGlzX2ludGVsbGlqID0gZmFsc2UgfQ0KU2VydmVyIGluaXRpYWxpemVkDQpbMDAuMjRdW0RFQlVHXShkZWZhdWx0KTogU2VuZGluZyByZXNwb25zZSB7DQogICJpZCI6ICJsc3AtcnVsZXMtaW5pdC0xIiwNCiAgImpzb25ycGMiOiAiMi4wIiwNCiAgInJlc3VsdCI6IHsNCiAgICAiY2FwYWJpbGl0aWVzIjogeyAiaG92ZXJQcm92aWRlciI6IHRydWUgfSwNCiAgICAic2VydmVySW5mbyI6IHsgIm5hbWUiOiAiU2VtZ3JlcCIsICJ2ZXJzaW9uIjogIjkuOS45IiB9DQogIH0NCn0NCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 985,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1481,
+          "recordIndex": 12,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1754,
+          "recordIndex": 15,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 1781,
+          "recordIndex": 16,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 2382,
+          "recordIndex": 18,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 80,
+        "records": 20,
+        "headedRecords": 15,
+        "bareRecords": 5,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 15,
+        "partialTail": false,
+        "totalBytes": 2629
+      }
+    }
+  },
+  {
+    "id": "scan/shutdown-lines",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjkwXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7ICJpZCI6IDAsICJtZXRob2QiOiAic2h1dGRvd24iLCAianNvbnJwYyI6ICIyLjAiIH0NClNodXR0aW5nIGRvd24gc2VydmVyDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogSGFuZGxpbmcgbm90aWZpY2F0aW9uIHsgIm1ldGhvZCI6ICJleGl0IiwgImpzb25ycGMiOiAiMi4wIiB9DQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogU2VydmVyIGV4aXRpbmcNClNlcnZlciBzdG9wcGVkDQpbMDAuOTBdW0RFQlVHXShkZWZhdWx0KTogUHJvZHVjaW5nIGV4aXQgY29kZSAwIChPSykNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 97,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 247,
+          "recordIndex": 4,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 7,
+        "records": 6,
+        "headedRecords": 4,
+        "bareRecords": 2,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 4,
+        "partialTail": false,
+        "totalBytes": 316
+      }
+    }
+  },
+  {
+    "id": "scan/embedded-json",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IEhhbmRsaW5nIHJlcXVlc3Q6DQp7DQogICJtZXNzYWdlIjogIlNjYW5uZWQgb3BlbiBkb2N1bWVudHMiLA0KICAibGlzdCI6IFsgIlJ1bGVzIHJlZnJlc2hlZCIgXQ0KfQ0KUnVsZXMgcmVmcmVzaGVkDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 123,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 6,
+        "records": 2,
+        "headedRecords": 1,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 140
+      }
+    }
+  },
+  {
+    "id": "scan/embedded-bare-in-braces",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IEluaXRpYWxpemVkIHNlcnZlciB3aXRoIHNlc3Npb246DQp7IExlZ2FjeV9zZXNzaW9uLmNhcGFiaWxpdGllcyA9DQpSdWxlcyByZWZyZXNoZWQNClNjYW5uZWQgb3BlbiBkb2N1bWVudHMNCiAgaXNfaW50ZWxsaWogPSBmYWxzZSB9DQpTZXJ2ZXIgaW5pdGlhbGl6ZWQNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "lifecycle",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 158,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 6,
+        "records": 2,
+        "headedRecords": 1,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 2,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 178
+      }
+    }
+  },
+  {
+    "id": "scan/header-opens-brace",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IFNlbmRpbmcgcmVzcG9uc2Ugew0KICAieCI6IDEsDQpTY2FubmluZyB3b3Jrc3BhY2UNCn0NClJlZnJlc2hpbmcgcnVsZXMNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 79,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 5,
+        "records": 2,
+        "headedRecords": 1,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 1,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 97
+      }
+    }
+  },
+  {
+    "id": "scan/unclosed-brace-swallows",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IG9vcHMgeyBuZXZlciBjbG9zZWQNClJ1bGVzIHJlZnJlc2hlZA0KU2Nhbm5lZCBvcGVuIGRvY3VtZW50cw0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [],
+      "counters": {
+        "lines": 3,
+        "records": 1,
+        "headedRecords": 1,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 2,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 87
+      }
+    }
+  },
+  {
+    "id": "scan/unclosed-then-header",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IG9vcHMgew0KWzAwLjAyXVtJTkZPXTogeA0KUnVsZXMgcmVmcmVzaGVkDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 51,
+          "recordIndex": 2,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 3,
+        "records": 3,
+        "headedRecords": 2,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 1,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 68
+      }
+    }
+  },
+  {
+    "id": "scan/banner-free-text",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IA0Kc29tZSBiYW5uZXIgdGV4dA0KDQptb3JlDQpSZWZyZXNoaW5nIHJ1bGVzDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 53,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 5,
+        "records": 2,
+        "headedRecords": 1,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 71
+      }
+    }
+  },
+  {
+    "id": "scan/header-variants",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtUUkFDRV06IFJlZnJlc2hpbmcgcnVsZXMNClswMC4wMl1bSU5GT10oYSkoYik6IFJ1bGVzIHJlZnJlc2hlZA0KWzAwLjAzXSB4DQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [],
+      "counters": {
+        "lines": 3,
+        "records": 0,
+        "headedRecords": 0,
+        "bareRecords": 0,
+        "malformedHeaders": 3,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 83
+      }
+    }
+  },
+  {
+    "id": "scan/error-record",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtFUlJPUl06IFVuaGFuZGxlZCBtZXNzYWdlDQpbMDAuMDJdW0VSUk9SXTogUnVsZXMgcmVmcmVzaGVkDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "errorRecord",
+          "level": "ERROR",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": "ERROR",
+          "tag": null,
+          "source": null,
+          "shape": "SHAPE_MISMATCH",
+          "byteOffset": 35,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "errorRecord",
+          "level": "ERROR",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 35,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 2,
+        "records": 2,
+        "headedRecords": 2,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 68
+      }
+    }
+  },
+  {
+    "id": "scan/unknown-warning-info-debug",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtXQVJOSU5HXTogc29tZXRoaW5nIG9kZA0KWzAwLjAyXVtJTkZPXTogaGVsbG8NClswMC4wM11bREVCVUddKGRlZmF1bHQpOiBoaQ0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "unexpectedWarning",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 3,
+        "records": 3,
+        "headedRecords": 3,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 1,
+        "unclassifiedDebug": 1,
+        "partialTail": false,
+        "totalBytes": 84
+      }
+    }
+  },
+  {
+    "id": "scan/orphan-lines",
+    "kind": "log-scan",
+    "input": {
+      "b64": "c3RyYXkgdGV4dA0KUmVmcmVzaGluZyBydWxlcw0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 12,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 2,
+        "records": 1,
+        "headedRecords": 0,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 1,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 30
+      }
+    }
+  },
+  {
+    "id": "scan/level-mismatch",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtJTkZPXTogTm8gdGFyZ2V0cyB0byBzY2FuISBOb3Qgc2Nhbm5pbmcgYW55dGhpbmcuDQpbMDAuMDJdW1dBUk5JTkddOiBsb2FkaW5nIGxvY2FsIGNvbmZpZyBmcm9tIEM6XGEueWFtbA0KWzAwLjAzXVtJTkZPXTogUmVmcmVzaGluZyBydWxlcw0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "noTargets",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "SHAPE_MISMATCH",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "loading",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "SHAPE_MISMATCH",
+          "byteOffset": 59,
+          "recordIndex": 1,
+          "path": "C:\\a.yaml",
+          "count": null
+        },
+        {
+          "key": "refreshingRules",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "SHAPE_MISMATCH",
+          "byteOffset": 114,
+          "recordIndex": 2,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 3,
+        "records": 3,
+        "headedRecords": 3,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 147
+      }
+    }
+  },
+  {
+    "id": "scan/forbidden-keys",
+    "kind": "log-scan",
+    "input": {
+      "b64": "UnVubmluZyBTZW1ncmVwIHdpdGggMSBydWxlcw0KWzAwLjAxXVtERUJVR10oZGVmYXVsdCk6IFJ1bm5pbmcgU2VtZ3JlcCB3aXRoIDIgcnVsZXMNClNlbWdyZXAgZXJyb3JzOiANClNjYW5uZWQgMyBmaWxlcw0KRm91bmQgMCBtYXRjaGVzDQpTZW1ncmVwIHNraXBwZWQgMSBydWxlcw0KU2Nhbm5pbmcgc2luZ2xlIGZpbGUNClNjYW5uaW5nIHdvcmtzcGFjZQ0KU2Nhbm5lZCB3b3Jrc3BhY2UNClNjYW5uaW5nIHdvcmtzcGFjZSBjb21wbGV0ZQ0KU2Nhbm5pbmcgd29ya3NwYWNlLCBmdWxsOiB0cnVlDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "runningRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "runningRules",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 30,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "engineErrors",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 85,
+          "recordIndex": 2,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedFiles",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 103,
+          "recordIndex": 3,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "foundMatches",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 120,
+          "recordIndex": 4,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "skippedRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 137,
+          "recordIndex": 5,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningSingleFile",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 162,
+          "recordIndex": 6,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningWorkspace",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 184,
+          "recordIndex": 7,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scannedWorkspace",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 204,
+          "recordIndex": 8,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "scanningWorkspaceComplete",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 223,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "fullScan",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 252,
+          "recordIndex": 10,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 11,
+        "records": 11,
+        "headedRecords": 1,
+        "bareRecords": 10,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 284
+      }
+    }
+  },
+  {
+    "id": "scan/network-token-lines",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjhdW0lORk9dOiBObyBydWxlcyBzb3VyY2Ugc3BlY2lmaWVkLCB1c2luZyBhdXRvDQpbMDAuOF1bSU5GT106IHRyeWluZyB0byBkb3dubG9hZCBmcm9tIGh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL3gNClswMC44XVtJTkZPXTogRm91bmQgQVBJIHRva2VuIGluIGVudmlyb25tZW50IHZhcmlhYmxlcw0KWzAwLjhdW0lORk9dOiBTZXR0aW5ncyBmaWxlIGZvdW5kIGF0IEM6XHgNClswMC44XVtJTkZPXTogTm8gc2V0dGluZ3MgZmlsZSBmb3VuZCwgdXNpbmcgZGVmYXVsdCBzZXR0aW5ncw0KWzAwLjhdW0lORk9dOiBDaGVja2luZyBmb3IgQVBJIHRva2VuIGluIGVudmlyb25tZW50IHZhcmlhYmxlcw0KWzAwLjhdW0lORk9dOiBObyBBUEkgdG9rZW4gZm91bmQgaW4gZW52aXJvbm1lbnQgdmFyaWFibGVzDQpbMDAuOF1bREVCVUddKGRlZmF1bHQpOiBDSSBkaXNhYmxlZCwgbm90IGNoZWNraW5nIEFQSSB0b2tlbg0KUnVsZXMgbm90IGxvYWRlZCB5ZXQsIG5vdGhpbmcgdG8gZG8NClswMC44XVtXQVJOSU5HXTogTm8gcnVsZXMgdG8gcnVuISBOb3Qgc2Nhbm5pbmcgYW55dGhpbmcuDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "usingAuto",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "download",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 53,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenFound",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 118,
+          "recordIndex": 2,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "settingsFileFound",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 174,
+          "recordIndex": 3,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 217,
+          "recordIndex": 4,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 279,
+          "recordIndex": 5,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "tokenBenign",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 342,
+          "recordIndex": 6,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "ciDisabled",
+          "level": "DEBUG",
+          "tag": "default",
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 401,
+          "recordIndex": 7,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "rulesNotLoaded",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 462,
+          "recordIndex": 8,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "noRules",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 499,
+          "recordIndex": 9,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 10,
+        "records": 10,
+        "headedRecords": 9,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 557
+      }
+    }
+  },
+  {
+    "id": "scan/skipping-rule",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjgxXVtXQVJOSU5HXShzZW1ncmVwLnBhcnNpbmcpOiBza2lwcGluZyBydWxlIGxzcC1ydWxlcy0xLXByb2JlLCBlcnJvciA9IHgNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "skippingRule",
+          "level": "WARNING",
+          "tag": null,
+          "source": "semgrep.parsing",
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 1,
+        "records": 1,
+        "headedRecords": 1,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 79
+      }
+    }
+  },
+  {
+    "id": "scan/multibyte-offset",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtJTkZPXTog7ZWc6riAIOqyveuhnCDinJMNClJlZnJlc2hpbmcgcnVsZXMNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 34,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 2,
+        "records": 2,
+        "headedRecords": 1,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 1,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 52
+      }
+    }
+  },
+  {
+    "id": "scan/partial-tail",
+    "kind": "log-scan",
+    "input": {
+      "b64": "UmVmcmVzaGluZyBydWxlcwpSdWxlcyByZWZyZXNoZWQ=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 17,
+          "recordIndex": 1,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 2,
+        "records": 2,
+        "headedRecords": 0,
+        "bareRecords": 2,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": true,
+        "totalBytes": 32
+      }
+    }
+  },
+  {
+    "id": "scan/got-errors-counts",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzFdW0lORk9dOiBHb3QgMCBlcnJvcnMgd2hpbGUgcmVmcmVzaGluZyBydWxlcyBpbiBsYW5ndWFnZSBzZXJ2ZXINClsxXVtJTkZPXTogR290IDEyIGVycm9ycyB3aGlsZSByZWZyZXNoaW5nIHJ1bGVzIGluIGxhbmd1YWdlIHNlcnZlcg0KWzFdW0lORk9dOiBHb3QgMDEyIGVycm9ycyB3aGlsZSByZWZyZXNoaW5nIHJ1bGVzIGluIGxhbmd1YWdlIHNlcnZlcg0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": 0
+        },
+        {
+          "key": "gotErrors",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 67,
+          "recordIndex": 1,
+          "path": null,
+          "count": 12
+        }
+      ],
+      "counters": {
+        "lines": 3,
+        "records": 3,
+        "headedRecords": 3,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 1,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 204
+      }
+    }
+  },
+  {
+    "id": "scan/loading-paths",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjgxXVtJTkZPXTogbG9hZGluZyBsb2NhbCBjb25maWcgZnJvbSBDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlXGxzcC1ydWxlcy0xLXByb2JlLnlhbWwNClswMC44Ml1bSU5GT106IERvbmUgbG9hZGluZyBsb2NhbCBjb25maWcgZnJvbSBDOi93b3JrL3J1bGVzLTEvbHNwLXN0YXRlL3J1bGVzLXByb2JlXGxzcC1ydWxlcy0xLXByb2JlLnlhbWwNCg==",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "loading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        },
+        {
+          "key": "doneLoading",
+          "level": "INFO",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 103,
+          "recordIndex": 1,
+          "path": "C:/work/rules-1/lsp-state/rules-probe\\lsp-rules-1-probe.yaml",
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 2,
+        "records": 2,
+        "headedRecords": 2,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 211
+      }
+    }
+  },
+  {
+    "id": "scan/empty",
+    "kind": "log-scan",
+    "input": {
+      "b64": "",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [],
+      "counters": {
+        "lines": 0,
+        "records": 0,
+        "headedRecords": 0,
+        "bareRecords": 0,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 0
+      }
+    }
+  },
+  {
+    "id": "scan/blank-lines",
+    "kind": "log-scan",
+    "input": {
+      "b64": "DQoNCiAgIA0KUmVmcmVzaGluZyBydWxlcw0K",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "refreshingRules",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 9,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 4,
+        "records": 1,
+        "headedRecords": 0,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 0,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 27
+      }
+    }
+  },
+  {
+    "id": "scan/ignorable-chars",
+    "kind": "log-scan",
+    "input": {
+      "b64": "WzAwLjAxXVtXQVJOSU5HXTogTm8gdGFyZ2V0cyB0byBzY2FuIcKtIE5vdCBzY2FubmluZyBhbnl0aGluZy4NClswMC4wMl1bSU5GT106IENoZWNraW5nIGZvciBBUEkgdG9rZW4gaW4gZW52aXJvbm1lbnQgdmFyaWFibGXCrXMNClswMC4wM11bSU5GT106IFNlcnZlciBpbml0aWFsaXplZAANClNlcnZlciBpbml0aWFsaXplZAANClJlZnJlc2hpbmfCrSBydWxlcw0KUnVsZXMgcmVmcmVzaGVkDQo=",
+      "chunk": 0
+    },
+    "expected": {
+      "signals": [
+        {
+          "key": "unexpectedWarning",
+          "level": "WARNING",
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 0,
+          "recordIndex": 0,
+          "path": null,
+          "count": null
+        },
+        {
+          "key": "rulesRefreshed",
+          "level": null,
+          "tag": null,
+          "source": null,
+          "shape": "OK",
+          "byteOffset": 207,
+          "recordIndex": 3,
+          "path": null,
+          "count": null
+        }
+      ],
+      "counters": {
+        "lines": 6,
+        "records": 4,
+        "headedRecords": 3,
+        "bareRecords": 1,
+        "malformedHeaders": 0,
+        "orphanBareLines": 0,
+        "embeddedSignalText": 0,
+        "unclassifiedInfo": 2,
+        "unclassifiedDebug": 0,
+        "partialTail": false,
+        "totalBytes": 224
+      }
+    }
+  },
+  {
+    "id": "watch/pre-init-refreshing",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": false,
+      "chunks": ["Refreshing rules\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        {
+          "condition": "A1",
+          "detail": "PRE_INITIALIZED:refreshingRules"
+        }
+      ],
+      "hit": {
+        "condition": "A1",
+        "detail": "PRE_INITIALIZED:refreshingRules"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/pre-init-scanned",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": false,
+      "chunks": ["Scanned open documents\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        {
+          "condition": "A1",
+          "detail": "PRE_INITIALIZED:scannedOpenDocuments"
+        }
+      ],
+      "hit": {
+        "condition": "A1",
+        "detail": "PRE_INITIALIZED:scannedOpenDocuments"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/after-init-normal",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["Refreshing rules\r\nScanning open documents\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/after-init-barrier",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["Refreshing rules\r\nScanning open documents\r\n", "Scanned open documents\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [null, null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": true,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/headed-barrier-line",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["[00.1][INFO]: Scanned open documents\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/embedded-barrier-line",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": [
+        "[00.1][DEBUG](default): Handling request:\r\n{\r\n  \"m\": [\r\nScanned open documents\r\n]\r\n}\r\n"
+      ],
+      "end": false
+    },
+    "expected": {
+      "returned": [null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/engine-line",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["Running Semgrep with 1 rules\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        {
+          "condition": "A1",
+          "detail": "runningRules"
+        }
+      ],
+      "hit": {
+        "condition": "A1",
+        "detail": "runningRules"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/token-found",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["[00.1][INFO]: Found API token in environment variables\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        {
+          "condition": "A2",
+          "detail": "tokenFound"
+        }
+      ],
+      "hit": {
+        "condition": "A2",
+        "detail": "tokenFound"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/download-split",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["[00.1][DEBUG](default): a down", "load b\r\n", "registry\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        null,
+        {
+          "condition": "A2",
+          "detail": "download"
+        },
+        null
+      ],
+      "hit": {
+        "condition": "A2",
+        "detail": "download"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/registry-word",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["[00.1][DEBUG](default): registry lookup\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [
+        {
+          "condition": "A2",
+          "detail": "registry"
+        }
+      ],
+      "hit": {
+        "condition": "A2",
+        "detail": "registry"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/init-error-split",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": false,
+      "chunks": ["[00.1][ERROR]: Error initia", "lizing server: boom\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [null, null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": true
+    }
+  },
+  {
+    "id": "watch/partial-tail-engine",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["Scanning workspace"],
+      "end": true
+    },
+    "expected": {
+      "returned": [
+        null,
+        {
+          "condition": "A1",
+          "detail": "scanningWorkspace"
+        }
+      ],
+      "hit": {
+        "condition": "A1",
+        "detail": "scanningWorkspace"
+      },
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "watch/multibyte-split-free",
+    "kind": "stderr-watch",
+    "input": {
+      "initializedSent": true,
+      "chunks": ["[00.1][INFO]: 한글 ", "경로\r\nRefreshing rules\r\n"],
+      "end": false
+    },
+    "expected": {
+      "returned": [null, null],
+      "hit": null,
+      "scannedOpenDocumentsSeen": false,
+      "initErrorLogged": false
+    }
+  },
+  {
+    "id": "track/happy",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-init-1",
+          "result": {
+            "capabilities": {}
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "a"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "$/progress",
+          "params": {
+            "token": "a",
+            "value": {
+              "kind": "begin",
+              "title": "x"
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rulesRefreshed",
+          "params": {}
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "$/progress",
+          "params": {
+            "token": "a",
+            "value": {
+              "kind": "end",
+              "title": "x"
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "b"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null, null, null, null, null, null],
+      "rulesRefreshedCount": 1,
+      "rulesRefreshedSeen": true,
+      "serverRequestCount": 2,
+      "allowedRequests": 2,
+      "diagnosticsCount": 0,
+      "progressNotifications": 2,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": true,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/notification-before-init",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": false,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rulesRefreshed",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        {
+          "condition": "A1",
+          "detail": "PRE_INITIALIZED:rulesRefreshed"
+        }
+      ],
+      "rulesRefreshedCount": 1,
+      "rulesRefreshedSeen": true,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/request-before-init",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": false,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "a"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        {
+          "condition": "A6",
+          "detail": "REQUEST_BEFORE_INITIALIZED"
+        }
+      ],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 1,
+      "allowedRequests": 1,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/third-request",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "a"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "b"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 3,
+          "method": "window/workDoneProgress/create",
+          "params": {
+            "token": "c"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rulesRefreshed",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        null,
+        null,
+        {
+          "condition": "A6",
+          "detail": "TOO_MANY_PROGRESS_REQUESTS"
+        },
+        null
+      ],
+      "rulesRefreshedCount": 1,
+      "rulesRefreshedSeen": true,
+      "serverRequestCount": 3,
+      "allowedRequests": 3,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/diagnostics",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "textDocument/publishDiagnostics",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        {
+          "condition": "A1",
+          "detail": "textDocument/publishDiagnostics"
+        }
+      ],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 1,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/other-request",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "method": "workspace/configuration",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        {
+          "condition": "A6",
+          "detail": "workspace/configuration"
+        }
+      ],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 1,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/bad-create",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 5,
+          "method": "window/workDoneProgress/create",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [
+        {
+          "condition": "A6",
+          "detail": "window/workDoneProgress/create"
+        }
+      ],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 1,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/unexpected-notification",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "custom/telemetry",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {
+        "custom/telemetry": 1
+      },
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/error-notification",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "window/showMessage",
+          "params": {
+            "type": 1,
+            "message": "boom"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "window/logMessage",
+          "params": {
+            "type": 3,
+            "message": "fine"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null, null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {
+        "window/showMessage": 1,
+        "window/logMessage": 1
+      },
+      "errorNotifications": 1,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/duplicates-and-responses",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-init-1",
+          "result": {
+            "capabilities": {}
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-init-1",
+          "result": {
+            "capabilities": {}
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-shutdown-1",
+          "result": null
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "someone",
+          "result": 1
+        },
+        {
+          "jsonrpc": "2.0"
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rulesRefreshed",
+          "params": {}
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rulesRefreshed",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null, null, null, null, null, null, null],
+      "rulesRefreshedCount": 2,
+      "rulesRefreshedSeen": true,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": true,
+      "initDuplicate": true,
+      "shutdownResponseSeen": true,
+      "unmatchedResponses": 1,
+      "messagesWithoutMethodOrId": 1
+    }
+  },
+  {
+    "id": "track/method-soft-hyphen",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "textDocument/publish­Diagnostics",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {
+        "textDocument/publish?Diagnostics": 1
+      },
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/method-nul",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "textDocument/publish\u0000Diagnostics",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {
+        "textDocument/publish?Diagnostics": 1
+      },
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/rules-refreshed-soft-hyphen",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": false,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "semgrep/rules­Refreshed",
+          "params": {}
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {
+        "semgrep/rules?Refreshed": 1
+      },
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 0,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "track/init-id-soft-hyphen",
+    "kind": "stdout-track",
+    "input": {
+      "initializedSent": true,
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-init-1­",
+          "result": {
+            "capabilities": {}
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "lsp-rules-shutdown-1\u0000",
+          "result": null
+        }
+      ]
+    },
+    "expected": {
+      "aborts": [null, null],
+      "rulesRefreshedCount": 0,
+      "rulesRefreshedSeen": false,
+      "serverRequestCount": 0,
+      "allowedRequests": 0,
+      "diagnosticsCount": 0,
+      "progressNotifications": 0,
+      "otherNotifications": {},
+      "errorNotifications": 0,
+      "initResponseSeen": false,
+      "initDuplicate": false,
+      "shutdownResponseSeen": false,
+      "unmatchedResponses": 2,
+      "messagesWithoutMethodOrId": 0
+    }
+  },
+  {
+    "id": "progress/valid",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": true
+  },
+  {
+    "id": "progress/valid-string-id",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": "a-1",
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": true
+  },
+  {
+    "id": "progress/valid-number-token",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": 7
+      }
+    },
+    "expected": true
+  },
+  {
+    "id": "progress/bad-jsonrpc",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "1.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/no-id",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/null-id",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": null,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/bool-id",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": true,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/no-params",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create"
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/array-params",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": []
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/no-token",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {}
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/object-token",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": {}
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/extra-param-key",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t",
+        "x": 1
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/extra-top-key",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      },
+      "result": null
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/other-method",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/showMessageRequest",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/method-case",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "Window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/method-soft-hyphen",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDone­Progress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/method-nul",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create\u0000",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/jsonrpc-soft-hyphen",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0­",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "token": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "progress/param-key-soft-hyphen",
+    "kind": "progress-create",
+    "input": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "window/workDoneProgress/create",
+      "params": {
+        "tok­en": "t"
+      }
+    },
+    "expected": false
+  },
+  {
+    "id": "root/WORKSPACE/a.txt",
+    "kind": "root-violation",
+    "input": {
+      "role": "WORKSPACE",
+      "relativePath": "a.txt"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/RULES_DIR/lsp-rules-1-probe.yaml",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "lsp-rules-1-probe.yaml"
+    },
+    "expected": false
+  },
+  {
+    "id": "root/RULES_DIR/LSP-RULES-1-PROBE.YAML",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "LSP-RULES-1-PROBE.YAML"
+    },
+    "expected": false
+  },
+  {
+    "id": "root/RULES_DIR/other.yaml",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "other.yaml"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/RULES_DIR/sub/lsp-rules-1-probe.yaml",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "sub/lsp-rules-1-probe.yaml"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/RULES_DIR/lsp-rules-1-probe.yaml.bak",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "lsp-rules-1-probe.yaml.bak"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/HOME_DIR/.semgrep/cache/fingerprinted_ignored_findings/ws.txt",
+    "kind": "root-violation",
+    "input": {
+      "role": "HOME_DIR",
+      "relativePath": ".semgrep/cache/fingerprinted_ignored_findings/ws.txt"
+    },
+    "expected": false
+  },
+  {
+    "id": "root/HOME_DIR/.semgrep\\cache\\fingerprinted_ignored_findings\\ws.txt",
+    "kind": "root-violation",
+    "input": {
+      "role": "HOME_DIR",
+      "relativePath": ".semgrep\\cache\\fingerprinted_ignored_findings\\ws.txt"
+    },
+    "expected": false
+  },
+  {
+    "id": "root/HOME_DIR/.semgrep/settings.yml",
+    "kind": "root-violation",
+    "input": {
+      "role": "HOME_DIR",
+      "relativePath": ".semgrep/settings.yml"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/RULES_DIR/lsp-rules-1-pro?be.yaml",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "lsp-rules-1-pro­be.yaml"
+    },
+    "expected": true
+  },
+  {
+    "id": "root/RULES_DIR/lsp-rules-1-probe.yaml?",
+    "kind": "root-violation",
+    "input": {
+      "role": "RULES_DIR",
+      "relativePath": "lsp-rules-1-probe.yaml\u0000"
+    },
+    "expected": true
+  },
+  {
+    "id": "outbound/initialize/ok",
+    "kind": "outbound",
+    "input": {
+      "label": "initialize",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": "lsp-rules-init-1",
+        "method": "initialize",
+        "params": {}
+      }
+    },
+    "expected": "ok"
+  },
+  {
+    "id": "outbound/initialized/ok",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    "expected": "ok"
+  },
+  {
+    "id": "outbound/shutdown/ok",
+    "kind": "outbound",
+    "input": {
+      "label": "shutdown",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": "lsp-rules-shutdown-1",
+        "method": "shutdown"
+      }
+    },
+    "expected": "ok"
+  },
+  {
+    "id": "outbound/exit/ok",
+    "kind": "outbound",
+    "input": {
+      "label": "exit",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "exit"
+      }
+    },
+    "expected": "ok"
+  },
+  {
+    "id": "outbound/initialized/no-params",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialized"
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/params-not-empty",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {
+          "a": 1
+        }
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/has-id",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/exit/has-params",
+    "kind": "outbound",
+    "input": {
+      "label": "exit",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "exit",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/shutdown/has-params",
+    "kind": "outbound",
+    "input": {
+      "label": "shutdown",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": "x",
+        "method": "shutdown",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialize/no-id",
+    "kind": "outbound",
+    "input": {
+      "label": "initialize",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialize"
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialize/did-open",
+    "kind": "outbound",
+    "input": {
+      "label": "initialize",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/scan-workspace",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "semgrep/scanWorkspace",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/refresh-rules",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "semgrep/refreshRules",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialize/debug-echo",
+    "kind": "outbound",
+    "input": {
+      "label": "initialize",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": "x",
+        "method": "debug/echo",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/shutdown/response",
+    "kind": "outbound",
+    "input": {
+      "label": "shutdown",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": null
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/exit/error-response",
+    "kind": "outbound",
+    "input": {
+      "label": "exit",
+      "message": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "no"
+        }
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/workspace-folders",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "workspace/didChangeWorkspaceFolders",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/init?ialized/label-soft-hyphen",
+    "kind": "outbound",
+    "input": {
+      "label": "init­ialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/method-soft-hyphen",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initial­ized",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/initialized/method-nul",
+    "kind": "outbound",
+    "input": {
+      "label": "initialized",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "initialized\u0000",
+        "params": {}
+      }
+    },
+    "expected": "throws"
+  },
+  {
+    "id": "outbound/exit/method-soft-hyphen",
+    "kind": "outbound",
+    "input": {
+      "label": "exit",
+      "message": {
+        "jsonrpc": "2.0",
+        "method": "ex­it"
+      }
+    },
+    "expected": "throws"
+  }
+]
