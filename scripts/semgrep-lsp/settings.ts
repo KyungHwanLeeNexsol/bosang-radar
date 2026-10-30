@@ -53,8 +53,20 @@ export interface InitializationOptionsParams {
   proIntrafile?: boolean;
 }
 
-/** 네트워크로 풀리는 규칙 출처(`Rules_config.ml`): auto, r/…, p/…, s/…, http(s)://… */
-const NETWORK_SOURCE = /^(auto$|[rps]\/|https?:\/\/)/i;
+/**
+ * 레지스트리·앱·내려받기로 풀리는 규칙 출처(`Rules_config.ml`). 서버는 이 문자열들을 로컬 경로보다 먼저 특수 값으로 읽는다.
+ *  · 정확히 일치하는 특수 문자열: auto, r2c, policy, supply-chain, hooks
+ *  · 접두어: r/…, p/…, s/…, http://…, https://…
+ * 대소문자는 구별하지 않고 거절한다(서버가 구별하더라도 이쪽이 더 엄격한 방향이다). 로컬 상대 경로(`semgrep-rules/javascript`)와
+ * 절대 경로는 여기에 걸리지 않는다.
+ */
+const NETWORK_SOURCE_EXACT = /^(auto|r2c|policy|supply-chain|hooks)$/i;
+const NETWORK_SOURCE_PREFIX = /^([rps]\/|https?:\/\/)/i;
+
+/** 규칙 출처 문자열 하나가 레지스트리·앱·내려받기로 풀리는 특수 값인가. */
+export function isNetworkRuleSource(entry: string): boolean {
+  return NETWORK_SOURCE_EXACT.test(entry) || NETWORK_SOURCE_PREFIX.test(entry);
+}
 
 function requireNonNegativeInteger(name: string, value: number): void {
   if (!Number.isInteger(value) || value < 0) {
@@ -72,7 +84,7 @@ export function buildInitializationOptions(
     if (typeof entry !== "string" || entry.length === 0) {
       throw new Error("configuration 항목은 비어 있지 않은 문자열이어야 한다");
     }
-    if (NETWORK_SOURCE.test(entry)) {
+    if (isNetworkRuleSource(entry)) {
       throw new Error(`configuration에 네트워크로 풀리는 규칙 출처가 있다: ${entry}`);
     }
   }

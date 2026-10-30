@@ -4,6 +4,7 @@ import {
   ALLOWED_SCAN_KEYS,
   ALLOWED_TOP_LEVEL_KEYS,
   buildInitializationOptions,
+  isNetworkRuleSource,
   requestedSettingsRecord,
   validateInitializationOptions,
 } from "./settings";
@@ -54,6 +55,54 @@ describe("buildInitializationOptions", () => {
   it("레지스트리로 풀리는 규칙 출처는 만들기 전에 거부한다(fail-closed)", () => {
     for (const bad of ["auto", "r/javascript", "p/default", "s/abc", "https://x/y", "HTTP://x"]) {
       expect(() => buildInitializationOptions({ ...PARAMS, configuration: [bad] })).toThrow();
+    }
+  });
+
+  it("서버가 특수 값으로 읽는 나머지 출처(r2c·policy·supply-chain·hooks)도 거부한다 (LSP-RULES-1 보완)", () => {
+    for (const bad of [
+      "r2c",
+      "R2C",
+      "policy",
+      "supply-chain",
+      "Supply-Chain",
+      "hooks",
+      "auto",
+      "AUTO",
+      "r/a",
+      "p/a",
+      "s/a",
+      "http://x",
+      "HTTPS://x",
+    ]) {
+      expect(isNetworkRuleSource(bad), bad).toBe(true);
+      expect(
+        () => buildInitializationOptions({ ...PARAMS, configuration: ["semgrep-rules/x", bad] }),
+        bad
+      ).toThrow(/네트워크/);
+    }
+  });
+
+  it("로컬 상대 경로와 절대 경로는 그대로 통과한다 (기존 호출 계약 보존)", () => {
+    for (const ok of [
+      "semgrep-rules/javascript",
+      "./rules",
+      "../rules",
+      "rules/hooks-dir",
+      "policy-notes/x",
+      "autofix",
+      "r2c-extra",
+      "supply-chain-x",
+      "hooksdir",
+      "C:\\ProgramData\\x\\rules-probe",
+      "c:/x/y",
+      "P:\\x",
+      "/var/rules",
+    ]) {
+      expect(isNetworkRuleSource(ok), ok).toBe(false);
+      expect(
+        () => buildInitializationOptions({ ...PARAMS, configuration: [ok] }),
+        ok
+      ).not.toThrow();
     }
   });
 

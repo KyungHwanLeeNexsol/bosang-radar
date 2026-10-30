@@ -15,3 +15,6 @@
 *.woff2 binary
 *.ttf binary
 *.eot binary
+
+# LSP-RULES-1 probe rule: the sha256 of these exact bytes is part of the observation contract, so never normalise it.
+scripts/semgrep-lsp/data/lsp-rules-1-probe.yaml -text
