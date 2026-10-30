@@ -27,6 +27,26 @@ $Script:BlRunIdPattern = '^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$'
 $Script:BlGrantMask = [int64]1179817   # 0x1200A9 = ReadAndExecute
 $Script:BlReadExecuteBits = [int64]169 # 0xA9
 
+# ── 방화벽 규칙 생성 계약 ─────────────────────────────────────────────────────
+# IsolationFlows.ps1 의 New-NetFirewallRule 호출이 만드는 규칙: Outbound Block, Profile Any, LocalUser "D:(A;;CC;;;<SID>)" 한 건, RemoteAddress 세 범위(루프백 제외).
+# 그 밖의 필터(프로그램·패키지·서비스·프로토콜·포트·ICMP·로컬 주소·인터페이스·원격 사용자/컴퓨터·인증·암호화·차단 규칙 덮어쓰기)는 지정하지 않으므로 Any / NotRequired / False 로 읽혀야 한다.
+# 읽은 값의 표기: 값이 null·빈 목록이면 <unset>, 읽기 결과에 속성 자체가 없으면 <missing>. 둘 다 Any 나 정상값으로 채우지 않는다(패키지 필터만 예외: 이 PC 의 규칙 400건이 제한이 없어도 null 로 읽혔다).
+$Script:BlRuleUnset = '<unset>'
+$Script:BlRuleMissing = '<missing>'
+$Script:BlLocalUserMask = [int64]1        # SDDL 권한 문자열 "CC" = 0x1
+$Script:BlLocalUserFlags = [int]32772     # 보안 설명자 제어 플래그: DiscretionaryAclPresent(0x4) | SelfRelative(0x8000). 실제 읽기 값은 O:/G:/S: 없이 D:(…) 한 줄이다
+$Script:BlRuleFields = @(
+    @{ Key = 'enabled'; Name = 'Enabled' }, @{ Key = 'direction'; Name = 'Direction' }, @{ Key = 'action'; Name = 'Action' }, @{ Key = 'profile'; Name = 'Profile' },
+    @{ Key = 'group'; Name = 'Group' }, @{ Key = 'description'; Name = 'Description' }, @{ Key = 'localuser'; Name = 'LocalUser' }, @{ Key = 'remote'; Name = 'Remote' },
+    @{ Key = 'program'; Name = 'Program' }, @{ Key = 'package'; Name = 'Package' }, @{ Key = 'service'; Name = 'Service' }, @{ Key = 'protocol'; Name = 'Protocol' },
+    @{ Key = 'localport'; Name = 'LocalPort' }, @{ Key = 'remoteport'; Name = 'RemotePort' }, @{ Key = 'icmptype'; Name = 'IcmpType' }, @{ Key = 'dynamictarget'; Name = 'DynamicTarget' },
+    @{ Key = 'localaddress'; Name = 'LocalAddress' }, @{ Key = 'interfacealias'; Name = 'InterfaceAlias' }, @{ Key = 'interfacetype'; Name = 'InterfaceType' },
+    @{ Key = 'remoteuser'; Name = 'RemoteUser' }, @{ Key = 'remotemachine'; Name = 'RemoteMachine' }, @{ Key = 'authentication'; Name = 'Authentication' },
+    @{ Key = 'encryption'; Name = 'Encryption' }, @{ Key = 'overrideblockrules'; Name = 'OverrideBlockRules' }
+)
+# 값이 정확히 Any 여야 하는 필터들(규칙이 좁혀지지 않았다는 근거)
+$Script:BlRuleAnyKeys = @('program', 'service', 'protocol', 'localport', 'remoteport', 'icmptype', 'dynamictarget', 'localaddress', 'interfacealias', 'interfacetype', 'remoteuser', 'remotemachine')
+
 # ══ 기본 도우미 ═══════════════════════════════════════════════════════════════
 function Format-BlReason {
     param($Text)
@@ -487,6 +507,52 @@ function Read-BlGroupMemberSids {
     }
 }
 
+# 필터 값을 한 줄 문자열로: null·빈 목록은 <unset>, 여러 값은 서수 정렬해 쉼표로 잇는다(배열 순서 차이를 없앤다).
+function ConvertTo-BlFilterText {
+    param($Value)
+    if ($null -eq $Value) { return $Script:BlRuleUnset }
+    $parts = New-Object System.Collections.ArrayList
+    foreach ($v in @($Value)) { if ($null -ne $v) { [void]$parts.Add([string]$v) } }
+    $sorted = @(Sort-BlOrdinal -Lines ([string[]]$parts.ToArray()))
+    if ($sorted.Count -eq 0) { return $Script:BlRuleUnset }
+    $sorted -join ','
+}
+
+# 규칙 한 개의 속성과 모든 필터를 읽는다. 하나라도 읽지 못하거나(예외), 필터가 정확히 한 개로 읽히지 않으면 Ok=$false 이고 일부만 채우지 않는다.
+# (NetSecurity 모듈 필요. 읽기만 한다)
+function Read-BlRuleDetail {
+    param($Rule)
+    try {
+        $one = {
+            param($Found, [string]$What)
+            $a = @($Found | Where-Object { $null -ne $_ })
+            if ($a.Count -ne 1) { throw ('{0}: 필터가 {1}개 읽혔다(1개여야 한다)' -f $What, $a.Count) }
+            $a[0]
+        }
+        $sf = & $one ($Rule | Get-NetFirewallSecurityFilter) 'SecurityFilter'
+        $af = & $one ($Rule | Get-NetFirewallAddressFilter) 'AddressFilter'
+        $appf = & $one ($Rule | Get-NetFirewallApplicationFilter) 'ApplicationFilter'
+        $svf = & $one ($Rule | Get-NetFirewallServiceFilter) 'ServiceFilter'
+        $pf = & $one ($Rule | Get-NetFirewallPortFilter) 'PortFilter'
+        $inf = & $one ($Rule | Get-NetFirewallInterfaceFilter) 'InterfaceFilter'
+        $itf = & $one ($Rule | Get-NetFirewallInterfaceTypeFilter) 'InterfaceTypeFilter'
+        $remote = New-Object System.Collections.ArrayList
+        foreach ($x in @($af.RemoteAddress)) { if ($null -ne $x) { [void]$remote.Add(([string]$x).ToLowerInvariant()) } }
+        return @{
+            Ok = $true; Enabled = [string]$Rule.Enabled; Direction = [string]$Rule.Direction; Action = [string]$Rule.Action; Profile = (ConvertTo-BlFilterText $Rule.Profile)
+            Group = [string]$Rule.Group; Description = [string]$Rule.Description; LocalUser = [string]$sf.LocalUser; Remote = (ConvertTo-BlFilterText $remote.ToArray())
+            Program = (ConvertTo-BlFilterText $appf.Program); Package = (ConvertTo-BlFilterText $appf.Package); Service = (ConvertTo-BlFilterText $svf.Service)
+            Protocol = (ConvertTo-BlFilterText $pf.Protocol); LocalPort = (ConvertTo-BlFilterText $pf.LocalPort); RemotePort = (ConvertTo-BlFilterText $pf.RemotePort)
+            IcmpType = (ConvertTo-BlFilterText $pf.IcmpType); DynamicTarget = (ConvertTo-BlFilterText $pf.DynamicTarget); LocalAddress = (ConvertTo-BlFilterText $af.LocalAddress)
+            InterfaceAlias = (ConvertTo-BlFilterText $inf.InterfaceAlias); InterfaceType = (ConvertTo-BlFilterText $itf.InterfaceType)
+            RemoteUser = (ConvertTo-BlFilterText $sf.RemoteUser); RemoteMachine = (ConvertTo-BlFilterText $sf.RemoteMachine)
+            Authentication = (ConvertTo-BlFilterText $sf.Authentication); Encryption = (ConvertTo-BlFilterText $sf.Encryption); OverrideBlockRules = (ConvertTo-BlFilterText $sf.OverrideBlockRules)
+        }
+    } catch {
+        return @{ Ok = $false; Error = (Get-BlExceptionText $_) }
+    }
+}
+
 # 방화벽 규칙 이름 전체와, 접두가 맞는 규칙의 속성. (NetSecurity 모듈 필요. 읽기만 한다)
 function Read-BlFirewallRules {
     param([string]$Prefix)
@@ -497,23 +563,28 @@ function Read-BlFirewallRules {
         foreach ($r in $all) {
             $n = [string]$r.Name
             [void]$names.Add($n)
-            if ($n.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) {
-                try {
-                    $sf = $r | Get-NetFirewallSecurityFilter
-                    $af = $r | Get-NetFirewallAddressFilter
-                    $remote = @(Sort-BlOrdinal -Lines ([string[]]@($af.RemoteAddress | ForEach-Object { ([string]$_).ToLowerInvariant() })))
-                    $details[$n] = @{
-                        Ok = $true; Enabled = [string]$r.Enabled; Direction = [string]$r.Direction; Action = [string]$r.Action
-                        Group = [string]$r.Group; Description = [string]$r.Description; LocalUser = [string]$sf.LocalUser; Remote = ($remote -join ',')
-                    }
-                } catch {
-                    $details[$n] = @{ Ok = $false; Error = (Get-BlExceptionText $_) }
-                }
-            }
+            if ($n.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) { $details[$n] = Read-BlRuleDetail -Rule $r }
         }
         return @{ Ok = $true; Names = $names.ToArray(); Details = $details; Error = $null }
     } catch {
         return @{ Ok = $false; Names = @(); Details = @{}; Error = (Get-BlExceptionText $_) }
+    }
+}
+
+# 이름이 정확히 같은 규칙 한 개의 속성(관리자 진입점이 쓴다). Found=$false 는 전체 목록을 읽어 보니 그 이름이 없다는 뜻이고, Ok=$false 는 읽지 못했다는 뜻이다(둘은 다르다).
+function Read-BlFirewallRuleByName {
+    param([string]$Name)
+    try {
+        if ([string]::IsNullOrWhiteSpace($Name)) { return @{ Ok = $false; Found = $false; Detail = $null; Error = 'RULE_NAME_EMPTY' } }
+        $all = @(Get-NetFirewallRule -ErrorAction Stop)
+        $hit = @($all | Where-Object { [string]::Equals([string]$_.Name, $Name, [StringComparison]::OrdinalIgnoreCase) })
+        if ($hit.Count -eq 0) { return @{ Ok = $true; Found = $false; Detail = $null; Error = $null } }
+        if ($hit.Count -gt 1) { return @{ Ok = $false; Found = $true; Detail = $null; Error = ('RULE_NAME_AMBIGUOUS: {0}개' -f $hit.Count) } }
+        $d = Read-BlRuleDetail -Rule $hit[0]
+        if (-not [bool]$d['Ok']) { return @{ Ok = $false; Found = $true; Detail = $null; Error = [string]$d['Error'] } }
+        return @{ Ok = $true; Found = $true; Detail = $d; Error = $null }
+    } catch {
+        return @{ Ok = $false; Found = $false; Detail = $null; Error = (Get-BlExceptionText $_) }
     }
 }
 
@@ -804,20 +875,150 @@ function Get-BlGroupItems {
     }
 }
 
-# 규칙 상세의 표준 한 줄(구분자 |). 파싱은 ConvertFrom-BlRuleLine.
-function Format-BlRuleLine {
-    param($Detail)
-    'enabled={0}|direction={1}|action={2}|group={3}|description={4}|localuser={5}|remote={6}' -f $Detail['Enabled'], $Detail['Direction'], $Detail['Action'], $Detail['Group'], $Detail['Description'], $Detail['LocalUser'], $Detail['Remote']
+# 서수 비교(문화권과 무관). -ceq/-ieq 는 서수 비교가 아니다(소프트 하이픈·NUL 을 무시한다). 어느 한쪽이 null 이면 같지 않다.
+function Test-BlTextEqual {
+    param($A, $B, [bool]$IgnoreCase = $false)
+    if ($null -eq $A -or $null -eq $B) { return $false }
+    $mode = [StringComparison]::Ordinal
+    if ($IgnoreCase) { $mode = [StringComparison]::OrdinalIgnoreCase }
+    [string]::Equals([string]$A, [string]$B, $mode)
 }
 
+# 줄 안에서 구분자(|)·줄바꿈·퍼센트가 값에 섞여도 다른 키로 읽히지 않게 퍼센트 부호화한다.
+function ConvertTo-BlLineText {
+    param($Value)
+    $s = [string]$Value
+    $s = $s -replace '%', '%25'
+    $s = $s -replace '\|', '%7C'
+    $s = $s -replace "`r", '%0D'
+    $s = $s -replace "`n", '%0A'
+    $s
+}
+
+function ConvertFrom-BlLineText {
+    param([string]$Text)
+    $s = $Text -replace '%0D', "`r"
+    $s = $s -replace '%0A', "`n"
+    $s = $s -replace '%7C', '|'
+    $s -replace '%25', '%'
+}
+
+# 규칙 상세의 표준 한 줄(구분자 |). 모든 계약 키를 항상 같은 순서로 쓴다. 상세에 속성이 없으면 <missing>, 값이 null 이면 <unset>. 파싱은 ConvertFrom-BlRuleLine.
+function Format-BlRuleLine {
+    param($Detail)
+    $parts = New-Object System.Collections.ArrayList
+    foreach ($f in $Script:BlRuleFields) {
+        $v = $Script:BlRuleMissing
+        if (($Detail -is [System.Collections.IDictionary]) -and $Detail.Contains($f['Name'])) {
+            if ($null -eq $Detail[$f['Name']]) { $v = $Script:BlRuleUnset } else { $v = [string]$Detail[$f['Name']] }
+        }
+        [void]$parts.Add(('{0}={1}' -f $f['Key'], (ConvertTo-BlLineText -Value $v)))
+    }
+    $parts -join '|'
+}
+
+# 키가 겹치거나 '=' 가 없는 조각이 있으면 __duplicate / __malformed 표지를 달아 돌려준다(계약 판정이 이를 실패로 본다).
 function ConvertFrom-BlRuleLine {
     param([string]$Line)
     $h = @{}
     foreach ($part in @($Line -split '\|')) {
+        if ($part.Length -eq 0) { continue }
         $i = $part.IndexOf('=')
-        if ($i -gt 0) { $h[$part.Substring(0, $i)] = $part.Substring($i + 1) }
+        if ($i -gt 0) {
+            $k = $part.Substring(0, $i)
+            if ($h.ContainsKey($k)) { $h['__duplicate'] = $true } else { $h[$k] = (ConvertFrom-BlLineText -Text $part.Substring($i + 1)) }
+        } else { $h['__malformed'] = $true }
     }
     $h
+}
+
+# ══ 방화벽 규칙의 생성 계약 대조(적용 직후 직접 확인(Verify)과 LSP-RULES-1 관리자 진입점이 함께 쓴다) ══════════════
+# LocalUser 보안 설명자(SDDL)를 해석해 기대 계정 SID 와 정확히 대조한다(부분 문자열·접두 비교를 쓰지 않는다).
+# 계약은 "D:(A;;CC;;;<SID>)" 한 건이다: 제어 플래그는 DACL 있음뿐, 소유자·그룹·SACL 없음, 허용 ACE 한 건, 권한 0x1(CC), ACE 플래그 없음, 조건 데이터 없음, 대상 SID 가 기대 SID 와 같음.
+# 해석하지 못하거나 계약 밖의 요소가 하나라도 있으면 실패한다. 반환: Ok, Reasons(코드 목록).
+function Test-BlLocalUserSddl {
+    param([string]$Sddl, [string]$Sid)
+    $why = New-Object System.Collections.ArrayList
+    if ([string]::IsNullOrWhiteSpace($Sddl) -or (Test-BlTextEqual $Sddl $Script:BlRuleUnset) -or (Test-BlTextEqual $Sddl $Script:BlRuleMissing)) { return @{ Ok = $false; Reasons = @('LOCALUSER_MISSING') } }
+    if (Test-BlTextEqual $Sddl.Trim() 'Any' $true) { return @{ Ok = $false; Reasons = @('LOCALUSER_ANY') } }
+    $want = $null
+    try { $want = New-Object Security.Principal.SecurityIdentifier($Sid) } catch { return @{ Ok = $false; Reasons = @('EXPECTED_SID_INVALID') } }
+    $rsd = $null
+    try { $rsd = New-Object Security.AccessControl.RawSecurityDescriptor($Sddl) } catch { return @{ Ok = $false; Reasons = @('SDDL_UNPARSEABLE') } }
+    if ([int]$rsd.ControlFlags -ne $Script:BlLocalUserFlags) { [void]$why.Add(('SDDL_FLAGS({0})' -f $rsd.ControlFlags)) }
+    if ($null -ne $rsd.Owner -or $null -ne $rsd.Group) { [void]$why.Add('SDDL_OWNER_OR_GROUP') }
+    if ($null -ne $rsd.SystemAcl) { [void]$why.Add('SDDL_SACL') }
+    $dacl = $rsd.DiscretionaryAcl
+    if ($null -eq $dacl -or $dacl.Count -ne 1) {
+        $n = 0; if ($null -ne $dacl) { $n = $dacl.Count }
+        [void]$why.Add(('SDDL_ACE_COUNT({0})' -f $n))
+    } else {
+        $ace = $dacl[0]
+        if (-not (Test-BlTextEqual $ace.GetType().FullName 'System.Security.AccessControl.CommonAce') -or ([int]$ace.AceType -ne 0)) { [void]$why.Add(('ACE_TYPE({0})' -f $ace.AceType)) }
+        if ([int]$ace.AceFlags -ne 0) { [void]$why.Add(('ACE_FLAGS({0})' -f $ace.AceFlags)) }
+        if ([int64]$ace.AccessMask -ne $Script:BlLocalUserMask) { [void]$why.Add(('ACE_MASK(0x{0:x})' -f [int64]$ace.AccessMask)) }
+        if ([int]$ace.OpaqueLength -ne 0) { [void]$why.Add('ACE_OPAQUE_DATA') }
+        if (-not $ace.SecurityIdentifier.Equals($want)) { [void]$why.Add(('ACE_SID_MISMATCH({0})' -f $ace.SecurityIdentifier.Value)) }
+    }
+    @{ Ok = ($why.Count -eq 0); Reasons = $why.ToArray() }
+}
+
+# 적용 프로필이 모든 프로필인가: 'Any', 또는 Domain·Private·Public 셋이 모두(순서·공백 차이는 무시). 그 밖의 표기·일부만은 아니다.
+function Test-BlProfileIsAny {
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    $tokens = New-Object System.Collections.ArrayList
+    foreach ($t in @($Text -split ',')) { $x = $t.Trim(); if ($x.Length -gt 0) { [void]$tokens.Add($x) } }
+    if ($tokens.Count -eq 1 -and (Test-BlTextEqual $tokens[0] 'Any' $true)) { return $true }
+    if ($tokens.Count -ne 3) { return $false }
+    foreach ($want in @('Domain', 'Private', 'Public')) {
+        $n = 0
+        foreach ($t in $tokens) { if (Test-BlTextEqual $t $want $true) { $n++ } }
+        if ($n -ne 1) { return $false }
+    }
+    $true
+}
+
+# 원격 주소 범위: 루프백을 뺀 정확히 세 범위(IPv4 둘, IPv6 하나). 순서·대소문자 차이는 무시한다.
+function Test-BlRemoteRanges {
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    $remote = @(([string]$Text).ToLowerInvariant() -split ',' | Where-Object { $_ })
+    $v4a = @($remote | Where-Object { Test-BlTextEqual $_ '0.0.0.0-126.255.255.255' }).Count -eq 1
+    $v4b = @($remote | Where-Object { Test-BlTextEqual $_ '128.0.0.0-255.255.255.255' }).Count -eq 1
+    $v6 = @($remote | Where-Object { $_ -cmatch '^::2-(ffff:){7}ffff\z' }).Count -eq 1
+    ($remote.Count -eq 3) -and $v4a -and $v4b -and $v6
+}
+
+# 이 실행이 만든 규칙의 표준 한 줄(Format-BlRuleLine)이 생성 계약과 정확히 같은가. 반환: Pass, Problems(문자열 목록).
+# 계약에 있는 키가 하나라도 없거나(<missing>) 모르는 키·겹친 키가 있으면 실패다. 읽지 못한 값을 Any 나 정상값으로 채우지 않는다.
+function Test-BlRunRuleContract {
+    param([string]$Line, [string]$Sid, [string]$Marker)
+    $problems = New-Object System.Collections.ArrayList
+    $h = ConvertFrom-BlRuleLine -Line $Line
+    if ($h.ContainsKey('__duplicate')) { [void]$problems.Add('line: 키가 겹친다') }
+    if ($h.ContainsKey('__malformed')) { [void]$problems.Add('line: 해석할 수 없는 조각이 있다') }
+    $known = @($Script:BlRuleFields | ForEach-Object { $_['Key'] })
+    foreach ($k in @($h.Keys)) { if (($k -notlike '__*') -and ($known -notcontains [string]$k)) { [void]$problems.Add(('{0}: 모르는 키' -f $k)) } }
+    $bad = { param([string]$Key, $Got, [string]$Want) [void]$problems.Add(('{0}: 읽은 값 [{1}], 기대 [{2}]' -f $Key, (Limit-BlText $Got 80), $Want)) }
+    foreach ($f in $Script:BlRuleFields) {
+        $key = [string]$f['Key']
+        if (-not $h.ContainsKey($key) -or (Test-BlTextEqual $h[$key] $Script:BlRuleMissing)) { [void]$problems.Add(('{0}: 읽기 결과에 없다(MISSING)' -f $key)); continue }
+        $v = [string]$h[$key]
+        if ($key -ceq 'enabled') { if (-not (Test-BlTextEqual $v 'True')) { & $bad $key $v 'True' } }
+        elseif ($key -ceq 'direction') { if (-not (Test-BlTextEqual $v 'Outbound')) { & $bad $key $v 'Outbound' } }
+        elseif ($key -ceq 'action') { if (-not (Test-BlTextEqual $v 'Block')) { & $bad $key $v 'Block' } }
+        elseif ($key -ceq 'profile') { if (-not (Test-BlProfileIsAny $v)) { & $bad $key $v 'Any(또는 Domain·Private·Public 셋 모두)' } }
+        elseif ($key -ceq 'group') { if (-not (Test-BlTextEqual $v $Script:BlIsoPrefix)) { & $bad $key $v $Script:BlIsoPrefix } }
+        elseif ($key -ceq 'description') { if ([string]::IsNullOrEmpty($Marker) -or -not (Test-BlTextEqual $v $Marker)) { & $bad $key $v $Marker } }
+        elseif ($key -ceq 'localuser') { $sd = Test-BlLocalUserSddl -Sddl $v -Sid $Sid; if (-not [bool]$sd['Ok']) { [void]$problems.Add(('localuser: {0}' -f (@($sd['Reasons']) -join ','))) } }
+        elseif ($key -ceq 'remote') { if (-not (Test-BlRemoteRanges $v)) { & $bad $key $v '루프백을 뺀 세 범위' } }
+        elseif ($key -ceq 'package') { if (-not ((Test-BlTextEqual $v 'Any' $true) -or (Test-BlTextEqual $v $Script:BlRuleUnset))) { & $bad $key $v 'Any 또는 <unset>' } }
+        elseif ($key -ceq 'authentication' -or $key -ceq 'encryption') { if (-not (Test-BlTextEqual $v 'NotRequired' $true)) { & $bad $key $v 'NotRequired' } }
+        elseif ($key -ceq 'overrideblockrules') { if (-not (Test-BlTextEqual $v 'False' $true)) { & $bad $key $v 'False' } }
+        elseif ($Script:BlRuleAnyKeys -contains $key) { if (-not (Test-BlTextEqual $v 'Any' $true)) { & $bad $key $v 'Any' } }
+    }
+    @{ Pass = ($problems.Count -eq 0); Problems = $problems.ToArray() }
 }
 
 function Get-BlFirewallItems {
@@ -1122,15 +1323,10 @@ function New-BlVerifyPlan {
     $ruleItem = Get-BlItemByKey -Index $cur -Key (New-BlKey 'run-rule' ([string]$names['RuleName']))
     $rPass = $false; $rWhy = '규칙 항목을 해석하지 못했다'
     if ($null -ne $ruleItem -and [string](Get-BlProp $ruleItem 'status') -ceq 'OK') {
-        $pr = ConvertFrom-BlRuleLine -Line ([string](Get-BlProp $ruleItem 'value'))
-        $remote = @(); if ($pr.ContainsKey('remote')) { $remote = @(([string]$pr['remote']) -split ',' | Where-Object { $_ }) }
-        $v4a = $remote -contains '0.0.0.0-126.255.255.255'
-        $v4b = $remote -contains '128.0.0.0-255.255.255.255'
-        $v6 = (@($remote | Where-Object { $_ -match '^::2-(ffff:){7}ffff$' })).Count -eq 1
-        $rPass = ($pr.ContainsKey('enabled') -and $pr['enabled'] -ceq 'True') -and ($pr.ContainsKey('direction') -and $pr['direction'] -ceq 'Outbound') -and ($pr.ContainsKey('action') -and $pr['action'] -ceq 'Block') -and
-            ($pr.ContainsKey('description') -and $pr['description'] -ceq $marker) -and ($pr.ContainsKey('group') -and $pr['group'] -ceq $Script:BlIsoPrefix) -and
-            ($pr.ContainsKey('localuser') -and ([string]$pr['localuser']).ToUpperInvariant().Contains($sid)) -and ($remote.Count -eq 3) -and $v4a -and $v4b -and $v6
-        $rWhy = ('규칙 속성이 기대와 다르다: {0}' -f (Limit-BlText ([string](Get-BlProp $ruleItem 'value')) 300))
+        # 관리자 진입점(Test-LspRulesObservation.ps1 의 T04)도 같은 Test-BlRunRuleContract 를 쓴다.
+        $chk = Test-BlRunRuleContract -Line ([string](Get-BlProp $ruleItem 'value')) -Sid $sid -Marker $marker
+        $rPass = [bool]$chk['Pass']
+        $rWhy = ('규칙이 생성 계약과 다르다: {0}' -f (@($chk['Problems']) -join ' ; '))
     }
     [void]$pairs.Add((New-BlCheckPair -Key (New-BlKey 'vfy' 'run-rule') -Sources @($ruleItem) -Pass $rPass -Why $rWhy))
 

@@ -199,6 +199,225 @@ Assert-That 'names' 'Get-BlRunNames 가 IsolationCommon 의 Get-IsoNames 와 Use
 $threw = $false; try { [void](Get-BlRunNames -RunId 'bad') } catch { $threw = $true }
 Assert-That 'names' '형식이 틀린 RunId 는 거부' $threw
 
+# ═══ 방화벽 규칙 생성 계약 대조(순수 판정 · 읽기 포트 · 한 줄 표현) ═══════════════════════════════
+# 이 구역은 진짜 방화벽을 읽거나 바꾸지 않는다. 읽기 포트는 NetSecurity 명령을 함수로 대체한 모의 규칙을 읽는다.
+$ruleSid = 'S-1-5-21-111-222-333-2001'
+$ruleNames = Get-BlRunNames -RunId $rid
+$ruleMarker = [string]$ruleNames['Marker']
+$v4a = '0.0.0.0-126.255.255.255'; $v4b = '128.0.0.0-255.255.255.255'; $v6r = '::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
+function New-RuleDetailForTest {
+    param([hashtable]$Over = @{}, [string[]]$Drop = @())
+    $d = @{
+        Ok = $true; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Any'; Group = 'bosang-semgrep-iso'; Description = $ruleMarker; LocalUser = ('D:(A;;CC;;;{0})' -f $ruleSid)
+        Remote = "$v4a,$v4b,$v6r"; Program = 'Any'; Package = '<unset>'; Service = 'Any'; Protocol = 'Any'; LocalPort = 'Any'; RemotePort = 'Any'; IcmpType = 'Any'; DynamicTarget = 'Any'; LocalAddress = 'Any'
+        InterfaceAlias = 'Any'; InterfaceType = 'Any'; RemoteUser = 'Any'; RemoteMachine = 'Any'; Authentication = 'NotRequired'; Encryption = 'NotRequired'; OverrideBlockRules = 'False'
+    }
+    foreach ($k in $Over.Keys) { $d[$k] = $Over[$k] }
+    foreach ($k in $Drop) { $d.Remove($k) }
+    $d
+}
+function Get-ContractOf {
+    param([hashtable]$Detail, [string]$Sid = $ruleSid)
+    Test-BlRunRuleContract -Line (Format-BlRuleLine -Detail $Detail) -Sid $Sid -Marker $ruleMarker
+}
+function Test-ProblemText { param($Result, [string]$Pattern) (-not [bool]$Result['Pass']) -and (@($Result['Problems'] | Where-Object { $_ -match $Pattern }).Count -ge 1) }
+
+# 서수 비교: -ceq/-ieq 와 달리 소프트 하이픈·NUL 을 무시하지 않는다
+Assert-That 'contract-text' 'Test-BlTextEqual: 같은 문자열은 같고, 소프트 하이픈·NUL 이 낀 문자열은 다르다(서수 비교)' ((Test-BlTextEqual 'Any' 'Any') -and -not (Test-BlTextEqual 'ab' ("a$([char]0xAD)b")) -and -not (Test-BlTextEqual 'Any' ("Any$([char]0)") $true) -and (Test-BlTextEqual 'any' 'ANY' $true) -and -not (Test-BlTextEqual 'any' 'ANY') -and -not (Test-BlTextEqual $null 'Any') -and -not (Test-BlTextEqual 'Any' $null))
+
+# LocalUser 보안 설명자: 정확한 SID 만 통과한다
+$sd = { param($s, $sid = $ruleSid) Test-BlLocalUserSddl -Sddl $s -Sid $sid }
+$sddlOk = @(
+    @('정확한 SID 한 건', "D:(A;;CC;;;$ruleSid)"),
+    @('공백 차이(동등 표기)', "D: (A;;CC;;;$ruleSid)")
+)
+foreach ($c in $sddlOk) { $r = & $sd $c[1]; Assert-That 'contract-sddl' "통과: $($c[0])" ([bool]$r['Ok']) (@($r['Reasons']) -join ',') }
+$sddlBad = @(
+    @('끝자리가 이어지는 다른 SID(…2001 대 …20010)', "D:(A;;CC;;;${ruleSid}0)", 'ACE_SID_MISMATCH'),
+    @('기대 SID 의 앞부분만 가진 SID', ('D:(A;;CC;;;{0})' -f $ruleSid.Substring(0, $ruleSid.Length - 1)), 'ACE_SID_MISMATCH'),
+    @('기대 SID 가 없는 다른 계정', 'D:(A;;CC;;;S-1-5-21-111-222-333-9999)', 'ACE_SID_MISMATCH'),
+    @('SID 대신 잘 알려진 별칭(BA)', 'D:(A;;CC;;;BA)', 'ACE_SID_MISMATCH'),
+    @('허용 ACE 두 건(기대 SID + 다른 계정)', "D:(A;;CC;;;$ruleSid)(A;;CC;;;S-1-5-21-1-2-3-4)", 'SDDL_ACE_COUNT'),
+    @('ACE 없음', 'D:', 'SDDL_ACE_COUNT'),
+    @('거부 ACE', "D:(D;;CC;;;$ruleSid)", 'ACE_TYPE'),
+    @('권한이 더 많음(CCRC)', "D:(A;;CCRC;;;$ruleSid)", 'ACE_MASK'),
+    @('권한이 다름(RC)', "D:(A;;RC;;;$ruleSid)", 'ACE_MASK'),
+    @('상속 플래그가 붙음', "D:(A;CI;CC;;;$ruleSid)", 'ACE_FLAGS'),
+    @('조건(callback) ACE', "D:(XA;;CC;;;$ruleSid;(@User.x==1))", 'ACE_TYPE|SDDL_UNPARSEABLE'),
+    @('소유자가 있음', "O:LSD:(A;;CC;;;$ruleSid)", 'SDDL_OWNER_OR_GROUP'),
+    @('그룹이 있음', "G:LSD:(A;;CC;;;$ruleSid)", 'SDDL_OWNER_OR_GROUP'),
+    @('DACL 보호 플래그', "D:P(A;;CC;;;$ruleSid)", 'SDDL_FLAGS'),
+    @('SACL 이 있음', "D:(A;;CC;;;$ruleSid)S:(AU;SA;CC;;;WD)", 'SDDL_FLAGS|SDDL_SACL|SDDL_UNPARSEABLE'),
+    @('Any', 'Any', 'LOCALUSER_ANY'),
+    @('빈 문자열', '', 'LOCALUSER_MISSING'),
+    @('<unset>', '<unset>', 'LOCALUSER_MISSING'),
+    @('<missing>', '<missing>', 'LOCALUSER_MISSING'),
+    @('해석할 수 없는 문자열', 'D:(A;;CC;;;', 'SDDL_UNPARSEABLE')
+)
+foreach ($c in $sddlBad) { $r = & $sd $c[1]; Assert-That 'contract-sddl' "거절: $($c[0])" ((-not [bool]$r['Ok']) -and ((@($r['Reasons']) -join ',') -match $c[2])) "ok=$($r['Ok']) reasons=$(@($r['Reasons']) -join ',')" }
+$r = & $sd "D:(A;;CC;;;$ruleSid)" 'not-a-sid'
+Assert-That 'contract-sddl' '기대 SID 자체가 잘못되면 통과하지 않는다(EXPECTED_SID_INVALID)' ((-not [bool]$r['Ok']) -and (@($r['Reasons']) -contains 'EXPECTED_SID_INVALID'))
+$r = & $sd "D:(A;;CC;;;$ruleSid)" ''
+Assert-That 'contract-sddl' '기대 SID 가 비어 있으면 통과하지 않는다' (-not [bool]$r['Ok'])
+
+# 적용 프로필·원격 주소 범위
+Assert-That 'contract-profile' 'Any, 그리고 Domain·Private·Public 셋 모두(순서·공백 무관)는 모든 프로필이다' ((Test-BlProfileIsAny 'Any') -and (Test-BlProfileIsAny 'any') -and (Test-BlProfileIsAny 'Domain, Private, Public') -and (Test-BlProfileIsAny 'Public,Domain,Private') -and (Test-BlProfileIsAny ' Private , Public , Domain '))
+$notAnyProfiles = @('Private', 'Public', 'Domain', 'Domain, Private', 'Private, Public', 'Domain, Public', 'Domain, Private, Public, NotApplicable', 'Domain, Domain, Private', 'Any, Private', 'NotApplicable', '7', '', '<unset>', '<missing>')
+foreach ($p in $notAnyProfiles) { Assert-That 'contract-profile' "모든 프로필이 아니다: [$p]" (-not (Test-BlProfileIsAny $p)) }
+Assert-That 'contract-remote' '루프백을 뺀 세 범위는 순서·대소문자와 무관하게 통과한다' ((Test-BlRemoteRanges "$v4a,$v4b,$v6r") -and (Test-BlRemoteRanges "$v6r,$v4b,$v4a") -and (Test-BlRemoteRanges "$v4a,$v4b,$($v6r.ToUpperInvariant())"))
+$badRemote = @{ 'Any' = 'Any'; 'IPv6 없음' = "$v4a,$v4b"; 'IPv4 하나 없음' = "$v4a,$v6r"; '루프백 포함' = "$v4a,$v4b,$v6r,127.0.0.1"; '범위가 겹침' = "$v4a,$v4a,$v6r"; '범위가 다름' = "0.0.0.0-127.255.255.255,$v4b,$v6r"; '<unset>' = '<unset>'; '빈 문자열' = '' }
+foreach ($k in $badRemote.Keys) { Assert-That 'contract-remote' "거절: 원격 주소 $k" (-not (Test-BlRemoteRanges $badRemote[$k])) }
+
+# 한 줄 표현: 모든 키가 항상 같은 순서로 들어가고, 없는 속성은 <missing>, null 은 <unset> 이다. 값에 섞인 구분자는 다른 키가 되지 못한다.
+$full = New-RuleDetailForTest
+$line = Format-BlRuleLine -Detail $full
+$lineKeys = @($line -split '\|' | ForEach-Object { $_.Substring(0, $_.IndexOf('=')) })
+Assert-That 'contract-line' 'Format-BlRuleLine 은 계약의 24개 키를 정해진 순서로 쓴다' (($lineKeys.Count -eq 24) -and (($lineKeys -join ',') -ceq (@($Script:BlRuleFields | ForEach-Object { $_['Key'] }) -join ',')) -and ($lineKeys[3] -ceq 'profile')) ($lineKeys -join ',')
+$parsed = ConvertFrom-BlRuleLine -Line $line
+Assert-That 'contract-line' '한 줄을 다시 읽으면 값이 그대로다(왕복)' (($parsed['localuser'] -ceq $full['LocalUser']) -and ($parsed['remote'] -ceq $full['Remote']) -and ($parsed['profile'] -ceq 'Any') -and ($parsed['package'] -ceq '<unset>'))
+$lm = Format-BlRuleLine -Detail (New-RuleDetailForTest -Drop @('Profile'))
+Assert-That 'contract-line' '상세에 없는 속성은 <missing>, null 인 속성은 <unset> 으로 쓴다(빈 문자열이나 Any 로 채우지 않는다)' (($lm -match '(^|\|)profile=<missing>(\||$)') -and ((Format-BlRuleLine -Detail (New-RuleDetailForTest -Over @{ Program = $null })) -match '(^|\|)program=<unset>(\||$)'))
+$inj = Format-BlRuleLine -Detail (New-RuleDetailForTest -Over @{ Description = "x|profile=Any`nprogram=Any%7C" })
+$injParsed = ConvertFrom-BlRuleLine -Line $inj
+Assert-That 'contract-line' '값에 |, 줄바꿈, % 가 섞여도 다른 키로 읽히지 않고 값으로 되돌아온다' (($injParsed['description'] -ceq "x|profile=Any`nprogram=Any%7C") -and ($injParsed['profile'] -ceq 'Any') -and -not $injParsed.ContainsKey('__duplicate') -and -not $injParsed.ContainsKey('__malformed'))
+$dupLine = $line + '|profile=Private'
+Assert-That 'contract-line' '키가 겹친 줄은 __duplicate 표지가 붙고 계약 대조가 실패한다(뒤의 값이 앞의 값을 덮지 못한다)' ((ConvertFrom-BlRuleLine -Line $dupLine).ContainsKey('__duplicate') -and (Test-ProblemText (Test-BlRunRuleContract -Line $dupLine -Sid $ruleSid -Marker $ruleMarker) '키가 겹친다'))
+Assert-That 'contract-line' '= 가 없는 조각이 있는 줄은 계약 대조가 실패한다' (Test-ProblemText (Test-BlRunRuleContract -Line ($line + '|garbage') -Sid $ruleSid -Marker $ruleMarker) '해석할 수 없는')
+Assert-That 'contract-line' '모르는 키가 있는 줄은 계약 대조가 실패한다' (Test-ProblemText (Test-BlRunRuleContract -Line ($line + '|extra=1') -Sid $ruleSid -Marker $ruleMarker) 'extra: 모르는 키')
+$oldFormat = 'enabled=True|direction=Outbound|action=Block|group=bosang-semgrep-iso|description={0}|localuser=D:(A;;CC;;;{1})|remote={2},{3},{4}' -f $ruleMarker, $ruleSid, $v4a, $v4b, $v6r
+$rOld = Test-BlRunRuleContract -Line $oldFormat -Sid $ruleSid -Marker $ruleMarker
+Assert-That 'contract-line' '수정 전 형식의 줄(프로필·프로그램·프로토콜·포트 …를 읽지 않은 7개 키)은 통과하지 못한다 — 누락을 정상값으로 채우지 않는다' ((-not [bool]$rOld['Pass']) -and (@($rOld['Problems'] | Where-Object { $_ -match 'MISSING' }).Count -ge 15)) "problems=$(@($rOld['Problems']).Count)"
+
+# 계약 대조 본체
+$rc = Get-ContractOf -Detail (New-RuleDetailForTest)
+Assert-That 'contract' '정상 대조군(계약과 같은 규칙)은 통과하고 문제가 없다' ([bool]$rc['Pass'] -and @($rc['Problems']).Count -eq 0) (@($rc['Problems']) -join ' ; ')
+$contractOk = @(
+    @('프로필 셋 모두', @{ Profile = 'Domain, Private, Public' }),
+    @('프로필 순서 다름', @{ Profile = 'Public, Domain, Private' }),
+    @('패키지 Any', @{ Package = 'Any' }),
+    @('대소문자만 다른 Any', @{ Program = 'any'; Protocol = 'ANY' }),
+    @('원격 범위 순서 다름', @{ Remote = "$v6r,$v4b,$v4a" })
+)
+foreach ($c in $contractOk) { $x = Get-ContractOf -Detail (New-RuleDetailForTest -Over $c[1]); Assert-That 'contract' "통과(동등 표기): $($c[0])" ([bool]$x['Pass']) (@($x['Problems']) -join ' ; ') }
+$contractBad = @(
+    @('SID 끝자리가 이어지는 다른 SID', @{ LocalUser = "D:(A;;CC;;;${ruleSid}0)" }, 'localuser: ACE_SID_MISMATCH'),
+    @('프로필 Private 만', @{ Profile = 'Private' }, 'profile: '),
+    @('프로필 Domain, Private', @{ Profile = 'Domain, Private' }, 'profile: '),
+    @('프로그램 제한', @{ Program = 'C:\Windows\System32\curl.exe' }, 'program: '),
+    @('패키지 제한', @{ Package = 'Microsoft.Example_8wekyb3d8bbwe' }, 'package: '),
+    @('서비스 제한', @{ Service = 'dnscache' }, 'service: '),
+    @('프로토콜 TCP', @{ Protocol = 'TCP' }, 'protocol: '),
+    @('로컬 포트 제한', @{ LocalPort = '443' }, 'localport: '),
+    @('원격 포트 제한', @{ RemotePort = '443' }, 'remoteport: '),
+    @('ICMP 형식 제한', @{ IcmpType = '8' }, 'icmptype: '),
+    @('동적 대상 제한', @{ DynamicTarget = 'WifiDirectPrinting' }, 'dynamictarget: '),
+    @('로컬 주소 제한', @{ LocalAddress = 'LocalSubnet' }, 'localaddress: '),
+    @('인터페이스 별칭 제한', @{ InterfaceAlias = 'Wi-Fi' }, 'interfacealias: '),
+    @('인터페이스 종류 제한', @{ InterfaceType = 'Wireless' }, 'interfacetype: '),
+    @('원격 사용자 제한', @{ RemoteUser = 'D:(A;;CC;;;BA)' }, 'remoteuser: '),
+    @('원격 컴퓨터 제한', @{ RemoteMachine = 'D:(A;;CC;;;BA)' }, 'remotemachine: '),
+    @('인증 필요', @{ Authentication = 'Required' }, 'authentication: '),
+    @('암호화 필요', @{ Encryption = 'Required' }, 'encryption: '),
+    @('차단 규칙 덮어쓰기', @{ OverrideBlockRules = 'True' }, 'overrideblockrules: '),
+    @('원격 범위에 IPv6 없음', @{ Remote = "$v4a,$v4b" }, 'remote: '),
+    @('원격 범위가 Any', @{ Remote = 'Any' }, 'remote: '),
+    @('꺼져 있음', @{ Enabled = 'False' }, 'enabled: '),
+    @('허용 동작', @{ Action = 'Allow' }, 'action: '),
+    @('인바운드', @{ Direction = 'Inbound' }, 'direction: '),
+    @('표식이 다름', @{ Description = 'someone else' }, 'description: '),
+    @('그룹이 다름', @{ Group = 'other-group' }, 'group: '),
+    @('프로그램 값이 <unset>', @{ Program = '<unset>' }, 'program: '),
+    @('프로토콜 값이 빈 문자열', @{ Protocol = '' }, 'protocol: ')
+)
+foreach ($c in $contractBad) { $x = Get-ContractOf -Detail (New-RuleDetailForTest -Over $c[1]); Assert-That 'contract' "거절: $($c[0])" (Test-ProblemText $x $c[2]) "pass=$($x['Pass']) $(@($x['Problems']) -join ' ; ')" }
+foreach ($k in @($Script:BlRuleFields | ForEach-Object { $_['Name'] })) {
+    $x = Get-ContractOf -Detail (New-RuleDetailForTest -Drop @($k))
+    Assert-That 'contract' "필수 속성 누락은 통과하지 못한다: $k" (Test-ProblemText $x 'MISSING') "pass=$($x['Pass']) $(@($x['Problems']) -join ' ; ')"
+}
+$x = Get-ContractOf -Detail (New-RuleDetailForTest -Over @{ LocalUser = $null })
+Assert-That 'contract' 'LocalUser 가 null(<unset>)이면 통과하지 못한다' (Test-ProblemText $x 'localuser: LOCALUSER_MISSING')
+$x = Test-BlRunRuleContract -Line (Format-BlRuleLine -Detail (New-RuleDetailForTest)) -Sid $ruleSid -Marker ''
+Assert-That 'contract' '표식이 비어 있으면(기대값 없음) 통과하지 못한다' (Test-ProblemText $x 'description: ')
+$x = Test-BlRunRuleContract -Line (Format-BlRuleLine -Detail (New-RuleDetailForTest)) -Sid '' -Marker $ruleMarker
+Assert-That 'contract' '기대 SID 가 비어 있으면 통과하지 못한다' (Test-ProblemText $x 'EXPECTED_SID_INVALID')
+
+# 읽기 포트: NetSecurity 명령을 함수로 대체해 모의 규칙을 읽는다(진짜 방화벽을 읽지 않는다). 대체 함수는 이 블록 안에서만 보인다.
+$Script:PortStub = $null
+function New-PortStub {
+    param([hashtable]$Over = @{})
+    $s = @{
+        Rules = @([pscustomobject]@{ Name = $ruleNames['RuleName']; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Any'; Group = 'bosang-semgrep-iso'; Description = $ruleMarker })
+        Sec = @{ LocalUser = ('D:(A;;CC;;;{0})' -f $ruleSid); RemoteUser = 'Any'; RemoteMachine = 'Any'; Authentication = 'NotRequired'; Encryption = 'NotRequired'; OverrideBlockRules = $false }
+        Addr = @{ RemoteAddress = @($v6r.ToUpperInvariant(), $v4b, $v4a); LocalAddress = 'Any' }
+        App = @{ Program = 'Any'; Package = $null }
+        Svc = @{ Service = 'Any' }
+        Port = @{ Protocol = 'Any'; LocalPort = 'Any'; RemotePort = 'Any'; IcmpType = 'Any'; DynamicTarget = 'Any' }
+        If = @{ InterfaceAlias = 'Any' }
+        IfType = @{ InterfaceType = 'Any' }
+    }
+    foreach ($k in $Over.Keys) { $s[$k] = $Over[$k] }
+    $s
+}
+function Invoke-WithPortStub {
+    param([hashtable]$Stub, [scriptblock]$Do)
+    $Script:PortStub = $Stub
+    & {
+        function Get-StubObjects { param([string]$Key) $v = $Script:PortStub[$Key]; if (($v -is [string]) -and ($v -ceq 'throw')) { throw ('stub: {0} failed' -f $Key) }; if ($null -eq $v) { return }; foreach ($o in @($v)) { if ($o -is [hashtable]) { [pscustomobject]$o } else { $o } } }
+        function Get-NetFirewallRule { [CmdletBinding()] param() Get-StubObjects 'Rules' }
+        function Get-NetFirewallSecurityFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'Sec' } }
+        function Get-NetFirewallAddressFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'Addr' } }
+        function Get-NetFirewallApplicationFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'App' } }
+        function Get-NetFirewallServiceFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'Svc' } }
+        function Get-NetFirewallPortFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'Port' } }
+        function Get-NetFirewallInterfaceFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'If' } }
+        function Get-NetFirewallInterfaceTypeFilter { [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject) process { Get-StubObjects 'IfType' } }
+        & $Do
+    }
+}
+$byName = { Invoke-WithPortStub -Stub $args[0] -Do { Read-BlFirewallRuleByName -Name $ruleNames['RuleName'] } }
+$pc = & $byName (New-PortStub)
+$pcLine = $null; if ($pc['Ok'] -and $pc['Found']) { $pcLine = Format-BlRuleLine -Detail $pc['Detail'] }
+Assert-That 'contract-port' '읽기 포트: 정상 규칙은 Ok·Found 이고 24개 속성을 모두 읽는다(Ok 제외 24개)' (($pc['Ok'] -eq $true) -and ($pc['Found'] -eq $true) -and (@($pc['Detail'].Keys | Where-Object { $_ -ne 'Ok' }).Count -eq 24)) "ok=$($pc['Ok']) err=$($pc['Error'])"
+Assert-That 'contract-port' '읽기 포트: 패키지 null 은 <unset>, 원격 주소는 소문자로 정렬한 한 문자열, 프로필은 Any' (($pc['Detail']['Package'] -ceq '<unset>') -and ($pc['Detail']['Remote'] -ceq "$v4a,$v4b,$v6r") -and ($pc['Detail']['Profile'] -ceq 'Any')) "pkg=$($pc['Detail']['Package']) remote=$($pc['Detail']['Remote'])"
+$pcVerdict = Test-BlRunRuleContract -Line $pcLine -Sid $ruleSid -Marker $ruleMarker
+Assert-That 'contract-port' '읽기 포트 → 한 줄 → 계약 대조: 정상 규칙은 통과한다(대소문자·순서가 섞인 원격 주소 포함)' ([bool]$pcVerdict['Pass']) (@($pcVerdict['Problems']) -join ' ; ')
+$portBad = @(
+    @('프로필 Private', @{ Rules = @([pscustomobject]@{ Name = $ruleNames['RuleName']; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Private'; Group = 'bosang-semgrep-iso'; Description = $ruleMarker }) }, 'profile: '),
+    @('프로그램 제한', @{ App = @{ Program = 'C:\Windows\System32\curl.exe'; Package = $null } }, 'program: '),
+    @('프로토콜 TCP 와 원격 포트 443', @{ Port = @{ Protocol = 'TCP'; LocalPort = 'Any'; RemotePort = '443'; IcmpType = 'Any'; DynamicTarget = 'Any' } }, 'protocol: '),
+    @('원격 포트가 여러 값', @{ Port = @{ Protocol = 'Any'; LocalPort = 'Any'; RemotePort = @('80', '443'); IcmpType = 'Any'; DynamicTarget = 'Any' } }, 'remoteport: '),
+    @('SID 끝자리가 이어지는 다른 계정', @{ Sec = @{ LocalUser = ('D:(A;;CC;;;{0}0)' -f $ruleSid); RemoteUser = 'Any'; RemoteMachine = 'Any'; Authentication = 'NotRequired'; Encryption = 'NotRequired'; OverrideBlockRules = $false } }, 'localuser: ACE_SID_MISMATCH')
+)
+foreach ($c in $portBad) {
+    $pb = & $byName (New-PortStub -Over $c[1])
+    $pbl = $null; if ($pb['Ok'] -and $pb['Found']) { $pbl = Format-BlRuleLine -Detail $pb['Detail'] }
+    Assert-That 'contract-port' "읽기 포트 → 계약 대조: $($c[0]) 은 거절된다(포트가 그 값을 읽어 온다)" (($null -ne $pbl) -and (Test-ProblemText (Test-BlRunRuleContract -Line $pbl -Sid $ruleSid -Marker $ruleMarker) $c[2])) "ok=$($pb['Ok']) err=$($pb['Error'])"
+}
+$portFail = @(
+    @('보안 필터가 두 개 읽힘', @{ Sec = @(@{ LocalUser = 'x'; RemoteUser = 'Any'; RemoteMachine = 'Any'; Authentication = 'NotRequired'; Encryption = 'NotRequired'; OverrideBlockRules = $false }, @{ LocalUser = 'y'; RemoteUser = 'Any'; RemoteMachine = 'Any'; Authentication = 'NotRequired'; Encryption = 'NotRequired'; OverrideBlockRules = $false }) }, 'SecurityFilter'),
+    @('포트 필터가 하나도 안 읽힘', @{ Port = $null }, 'PortFilter'),
+    @('응용 프로그램 필터 읽기 오류', @{ App = 'throw' }, 'stub: App failed'),
+    @('인터페이스 종류 필터 읽기 오류', @{ IfType = 'throw' }, 'stub: IfType failed'),
+    @('포트 필터에 IcmpType 속성이 없음', @{ Port = @{ Protocol = 'Any'; LocalPort = 'Any'; RemotePort = 'Any'; DynamicTarget = 'Any' } }, 'IcmpType'),
+    @('서비스 필터에 Service 속성이 없음', @{ Svc = @{ Other = 'x' } }, 'Service')
+)
+foreach ($c in $portFail) {
+    $pf = & $byName (New-PortStub -Over $c[1])
+    Assert-That 'contract-port' "읽기 포트: $($c[0]) → Ok=false 이고 일부만 채운 상세가 없다" (($pf['Ok'] -eq $false) -and ($null -eq $pf['Detail']) -and ([string]$pf['Error'] -match $c[2])) "ok=$($pf['Ok']) err=$($pf['Error'])"
+}
+$pn = & $byName (New-PortStub -Over @{ Rules = @([pscustomobject]@{ Name = 'some-other-rule'; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Any'; Group = ''; Description = '' }) })
+Assert-That 'contract-port' '읽기 포트: 이름이 없으면 Ok=true, Found=false 다(읽기 실패와 다르다)' (($pn['Ok'] -eq $true) -and ($pn['Found'] -eq $false) -and ($null -eq $pn['Detail']))
+$r2 = [pscustomobject]@{ Name = $ruleNames['RuleName'].ToUpperInvariant(); Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Any'; Group = 'bosang-semgrep-iso'; Description = $ruleMarker }
+$pa = & $byName (New-PortStub -Over @{ Rules = @([pscustomobject]@{ Name = $ruleNames['RuleName']; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Profile = 'Any'; Group = 'bosang-semgrep-iso'; Description = $ruleMarker }, $r2) })
+Assert-That 'contract-port' '읽기 포트: 이름이 대소문자만 다른 규칙이 둘이면 Ok=false(모호함)' (($pa['Ok'] -eq $false) -and ([string]$pa['Error'] -match 'AMBIGUOUS'))
+$pe = & $byName (New-PortStub -Over @{ Rules = 'throw' })
+Assert-That 'contract-port' '읽기 포트: 규칙 목록 읽기가 실패하면 Ok=false 다(없음으로 취급하지 않는다)' (($pe['Ok'] -eq $false) -and ($pe['Found'] -eq $false) -and ([string]$pe['Error'] -match 'stub: Rules failed'))
+$pall = Invoke-WithPortStub -Stub (New-PortStub) -Do { Read-BlFirewallRules -Prefix 'bosang-semgrep-iso' }
+Assert-That 'contract-port' '읽기 포트: Read-BlFirewallRules 도 같은 상세 읽기를 쓴다(접두가 맞는 규칙의 상세에 24개 속성)' (($pall['Ok'] -eq $true) -and ($pall['Details'].ContainsKey($ruleNames['RuleName'])) -and (@($pall['Details'][$ruleNames['RuleName']].Keys | Where-Object { $_ -ne 'Ok' }).Count -eq 24))
+$pallBad = Invoke-WithPortStub -Stub (New-PortStub -Over @{ Port = 'throw' }) -Do { Read-BlFirewallRules -Prefix 'bosang-semgrep-iso' }
+Assert-That 'contract-port' '읽기 포트: 필터를 못 읽으면 그 규칙의 상세는 Ok=false 다(전체 목록 읽기는 계속된다)' (($pallBad['Ok'] -eq $true) -and ($pallBad['Details'][$ruleNames['RuleName']]['Ok'] -eq $false))
+$Script:PortStub = $null
+
 # ═══ 샌드박스와 진짜 파일 읽기(C) ══════════════════════════════════════════════
 $Sandbox = Join-Path ([IO.Path]::GetTempPath()) ('bsl-test-' + [guid]::NewGuid().ToString('N').Substring(0, 10))
 [void][IO.Directory]::CreateDirectory($Sandbox)
@@ -395,7 +614,8 @@ try {
         $Script:Fake['Users'] = @($Script:Fake['Users']) + @(@{ Name = $names['UserName']; Sid = $Sid; Enabled = $false; Description = $names['Marker'] })
         $Script:Fake['UsersGroup'] = @($Script:Fake['UsersGroup']) + @($Sid)
         $Script:Fake['RuleNames'] = @($Script:Fake['RuleNames']) + @($names['RuleName'])
-        $Script:Fake['RuleDetails'][$names['RuleName']] = @{ Ok = $true; Enabled = 'True'; Direction = 'Outbound'; Action = 'Block'; Group = 'bosang-semgrep-iso'; Description = $names['Marker']; LocalUser = ('D:(A;;CC;;;{0})' -f $Sid); Remote = '0.0.0.0-126.255.255.255,128.0.0.0-255.255.255.255,::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff' }
+        # 모든 계약 속성을 가진 정상 규칙 상세(생성 계약과 같다). 읽기 포트가 읽어 오는 것과 같은 24개 속성이다.
+        $Script:Fake['RuleDetails'][$names['RuleName']] = New-RuleDetailForTest
         [void][IO.Directory]::CreateDirectory((Join-Path $names['WorkDir'] 'work'))
         Write-TestFile (Join-Path $names['WorkDir'] '.owner') $names['Marker']
         $dirAce = 'Allow|{0}|0x1200a9|inh=3|prop=0|inherited=False' -f $Sid
@@ -613,6 +833,41 @@ try {
     $rep5 = Read-TestJson (Join-Path $Sandbox 'verify1\verify-rule.json')
     Assert-That 'verify' '규칙이 꺼져 있으면 vfy:run-rule 이 DIFFERENT (종료 1)' (($r.Exit -eq 1) -and ((@(Get-Keys $rep5.results 'DIFFERENT')) -contains 'vfy:run-rule'))
     $Script:Fake['RuleDetails'][(Get-BlRunNames -RunId $runId)['RuleName']]['Enabled'] = 'True'
+    # 규칙이 생성 계약과 다름: 모두 Verify 의 vfy:run-rule 이 DIFFERENT 이고 전체 종료 코드가 0 이 아니다. 읽기 포트가 읽은 값이 그대로 한 줄이 되어 같은 판정 함수를 거친다.
+    $ruleNm = (Get-BlRunNames -RunId $runId)['RuleName']
+    $runKey = New-BlKey 'vfy' 'run-rule'
+    $vfyRule = @(
+        @{ id = 'sid-suffix'; detail = (New-RuleDetailForTest -Over @{ LocalUser = ('D:(A;;CC;;;{0}0)' -f $runSid) }); want = 1 },
+        @{ id = 'sid-other'; detail = (New-RuleDetailForTest -Over @{ LocalUser = 'D:(A;;CC;;;S-1-5-21-111-222-333-9999)' }); want = 1 },
+        @{ id = 'two-aces'; detail = (New-RuleDetailForTest -Over @{ LocalUser = ('D:(A;;CC;;;{0})(A;;CC;;;S-1-5-21-111-222-333-9999)' -f $runSid) }); want = 1 },
+        @{ id = 'deny-ace'; detail = (New-RuleDetailForTest -Over @{ LocalUser = ('D:(D;;CC;;;{0})' -f $runSid) }); want = 1 },
+        @{ id = 'profile-private'; detail = (New-RuleDetailForTest -Over @{ Profile = 'Private' }); want = 1 },
+        @{ id = 'program'; detail = (New-RuleDetailForTest -Over @{ Program = 'C:\Windows\System32\curl.exe' }); want = 1 },
+        @{ id = 'protocol-port'; detail = (New-RuleDetailForTest -Over @{ Protocol = 'TCP'; RemotePort = '443' }); want = 1 },
+        @{ id = 'package'; detail = (New-RuleDetailForTest -Over @{ Package = 'Microsoft.Example_8wekyb3d8bbwe' }); want = 1 },
+        @{ id = 'profile-missing'; detail = (New-RuleDetailForTest -Drop @('Profile')); want = 1 },
+        @{ id = 'filters-missing'; detail = (New-RuleDetailForTest -Drop @('Program', 'Protocol', 'LocalPort', 'RemotePort')); want = 1 },
+        @{ id = 'localuser-null'; detail = (New-RuleDetailForTest -Over @{ LocalUser = $null }); want = 1 },
+        @{ id = 'detail-unreadable'; detail = @{ Ok = $false; Error = 'injected: filter read failed' }; want = 2 }
+    )
+    foreach ($vc in $vfyRule) {
+        $Script:Fake['RuleDetails'][$ruleNm] = $vc.detail
+        $vf = Join-Path $Sandbox ("verify1\verify-rule-$($vc.id).json")
+        $r = Run-Main @{ Mode = 'Verify'; BaselineFile = $vpre; RunDir = $vdir; OutFile = $vf }
+        $repv = Read-TestJson $vf
+        $hit = @($repv.results | Where-Object { [string]$_.key -ceq $runKey })[0]
+        $expectVerdict = 'DIFFERENT'; if ($vc.want -eq 2) { $expectVerdict = 'UNVERIFIABLE' }
+        Assert-That "verify-rule-$($vc.id)" "Verify: vfy:run-rule 이 $expectVerdict 이고 전체 종료 코드가 $($vc.want) 이다(0 이 아니다)" (($r.Exit -eq $vc.want) -and ([string]$hit.verdict -ceq $expectVerdict) -and ($repv.exitCode -eq $vc.want)) "exit=$($r.Exit) verdict=$($hit.verdict) $($hit.detail)"
+    }
+    # 계약과 같은 의미의 동등 표기는 통과한다
+    foreach ($vc in @(@('profile-all-three', @{ Profile = 'Domain, Private, Public' }), @('package-any', @{ Package = 'Any' }), @('remote-order', @{ Remote = "$v6r,$v4b,$v4a" }))) {
+        $Script:Fake['RuleDetails'][$ruleNm] = New-RuleDetailForTest -Over $vc[1]
+        $r = Run-Main @{ Mode = 'Verify'; BaselineFile = $vpre; RunDir = $vdir; OutFile = (Join-Path $Sandbox ("verify1\verify-rule-ok-$($vc[0]).json")) }
+        Assert-That "verify-rule-ok-$($vc[0])" 'Verify: 동등 표기는 EQUAL(종료 0)이다' ($r.Exit -eq 0) "exit=$($r.Exit) $($r.Text)"
+    }
+    $Script:Fake['RuleDetails'][$ruleNm] = New-RuleDetailForTest
+    $r = Run-Main @{ Mode = 'Verify'; BaselineFile = $vpre; RunDir = $vdir; OutFile = (Join-Path $Sandbox 'verify1\verify-rule-restored.json') }
+    Assert-That 'verify-rule-restored' '정상 규칙으로 되돌리면 Verify 는 다시 EQUAL(종료 0)이다' ($r.Exit -eq 0) "exit=$($r.Exit)"
     # 계정이 켜져 있음
     $savedUsers = @($Script:Fake['Users'])
     $Script:Fake['Users'] = @($Script:Fake['Users'] | ForEach-Object { if ($_['Name'] -eq 'bsi0a1b2c3d') { @{ Name = $_['Name']; Sid = $_['Sid']; Enabled = $true; Description = $_['Description'] } } else { $_ } })

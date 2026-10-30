@@ -52,6 +52,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'IsolationCommon.ps1')
+. (Join-Path $PSScriptRoot 'IsolationBaselineCore.ps1')   # 방화벽 규칙 생성 계약 대조(Test-BlRunRuleContract)와 읽기 포트: 기준 저장·직접 확인(Verify)과 같은 판정 규칙을 쓴다
 . (Join-Path $PSScriptRoot 'LspRulesContract.ps1')
 . (Join-Path $PSScriptRoot 'LspMinAdminContract.ps1')
 . (Join-Path $PSScriptRoot 'LspMinAdminPorts.ps1')
@@ -105,15 +106,21 @@ function Invoke-LspRulesObservation {
     $sid = $null; if ($userStep) { $sid = [string](Get-IsoProp $userStep.detail 'sid') }
     $acct = Get-LocalUser -Name $names.UserName -ErrorAction SilentlyContinue
     & $addPre 'T03' ([bool]($acct -and $acct.Description -eq $names.Marker -and $sid -and $acct.SID.Value -eq $sid)) '전용 계정이 있고 표식·SID 가 기록과 같은가'
-    $rule = Get-NetFirewallRule -Name $names.RuleName -ErrorAction SilentlyContinue
-    $ruleOk = $false; $ruleScope = $null; $ruleRemote = $null
-    if ($rule) {
-        $sf = $rule | Get-NetFirewallSecurityFilter
-        $ruleScope = [string]$sf.LocalUser
-        $ruleRemote = @(($rule | Get-NetFirewallAddressFilter).RemoteAddress)
-        $ruleOk = ($rule.Description -eq $names.Marker -and [string]$rule.Enabled -eq 'True' -and [string]$rule.Action -eq 'Block' -and [string]$rule.Direction -eq 'Outbound' -and $sid -and $ruleScope.Contains($sid))
+    # T04: 규칙을 이름으로 정확히 읽어(속성과 모든 필터) 생성 계약과 같은지 본다. 계정 범위는 보안 설명자를 해석해 기대 SID 와 정확히 대조하고(부분 문자열 아님),
+    # 프로필·프로그램·프로토콜·포트 같은 범위 제한 필터도 본다. 읽지 못하거나 해석하지 못하면 통과가 아니다.
+    $ruleOk = $false; $ruleScope = $null; $ruleRemote = $null; $ruleWhy = ''
+    $rd = Invoke-BlPort -Name 'Read-BlFirewallRuleByName' -Arguments @{ Name = [string]$names.RuleName }
+    if (-not [bool]$rd['Ok']) { $ruleWhy = '규칙을 읽지 못했다: ' + (ConvertTo-BlPortFailure $rd) }
+    elseif (-not [bool]$rd['Found']) { $ruleWhy = '규칙이 없다' }
+    else {
+        $rdetail = $rd['Detail']
+        $ruleScope = [string]$rdetail['LocalUser']
+        $ruleRemote = @(([string]$rdetail['Remote']) -split ',')
+        $chk = Test-BlRunRuleContract -Line (Format-BlRuleLine -Detail $rdetail) -Sid ([string]$sid) -Marker ([string]$names.Marker)
+        $ruleOk = [bool]$chk['Pass']
+        if (-not $ruleOk) { $ruleWhy = (@($chk['Problems']) -join ' ; ') }
     }
-    & $addPre 'T04' ([bool]$ruleOk) "방화벽 규칙이 켜져 있고 Block/Outbound/계정 범위가 기록과 같은가 (LocalUser=$ruleScope, RemoteAddress=$($ruleRemote -join ','))"
+    & $addPre 'T04' ([bool]$ruleOk) "방화벽 규칙이 생성 계약(Outbound Block, 모든 프로필, 계정 SID 하나, 루프백 제외 범위, 그 밖의 제한 없음)과 같은가 (LocalUser=$ruleScope, RemoteAddress=$($ruleRemote -join ',')) $ruleWhy"
     & $addPre 'T05' ((Test-Path -LiteralPath (Join-Path $names.WorkDir '.owner')) -and (Test-Path -LiteralPath (Join-Path $Script:IsoRunDir 'credential.dpapi'))) '작업 폴더(.owner)와 암호 파일이 있는가'
     $sl0 = Get-SecurityLogState
     & $addPre 'T06' ([bool]$sl0.ok) "Security 로그를 읽을 수 있는가 ($($sl0.error))"

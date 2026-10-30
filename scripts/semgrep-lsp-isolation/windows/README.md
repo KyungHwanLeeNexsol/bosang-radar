@@ -306,6 +306,7 @@ PR #39 HEAD `af08f20`에서, 소유자가 이번 한 번에 한해 허용한 범
 | `tests/Test-IsolationBaseline.ps1`                          | 기준 저장·확인·비교 스크립트의 키 충돌 방지, 읽기 실패·null·빈 값이 일치로 세어지지 않는 비교, 쓰기 거부를 확인한다                                                                        | 아니다(임시 샌드박스 안에서만)            |
 | `tests/MockSystemRules.ps1`, `tests/MockPortsRules.ps1`     | 기존 모의 위에 얹는 최소 확장(시험 전용)                                                                                                                                                   | 아니다                                    |
 | `tests/lsp-rules-parity.json`, `tests/lsp-rules-bridge.mts` | TS가 계산한 골든 기대값과, PS 시험이 실제 TS 모듈을 부르는 작은 다리(시험 전용)                                                                                                            | 아니다                                    |
+| `tests/Test-RuleContractMutations.ps1`                      | 방화벽 규칙 생성 계약 대조의 핵심 검사를 하나씩 빼 보고(제한된 변이 점검) 위 시험들이 잡는지 본다. 저장소 옆 임시 폴더에 복사본을 만들어 바꾸고 끝나면 지운다                              | 아니다(임시 복사본만)                     |
 
 TS 쪽은 `scripts/semgrep-lsp/rules-log.ts`(머리말 판독), `lsp-rules.ts`(계약·감시), `lsp-rules-record.ts`(13개 조건 판정과 기록), `lsp-rules-run.ts`(주입된 포트·시계로만 도는 실행기), `lsp-rules-runner-result.ts`(러너 결과 변환), `lsp-rules-reinterpret.ts`와 `-cli.ts`(관리자 문맥과 러너 원문을 다시 해석)이고, 프로브 규칙은 `scripts/semgrep-lsp/data/lsp-rules-1-probe.yaml`이다(`.gitattributes`의 `-text`로 줄바꿈이 바뀌지 않는다). LSP-MIN-1 모듈과 옛 `evaluate.ts`는 바꾸지 않았고 새 모듈은 그쪽의 순수 함수를 읽기 전용으로 가져다 쓸 뿐이다. 공용 `settings.ts`는 `auto`·`r2c`·`policy`·`supply-chain`·`hooks`·`r/`·`p/`·`s/`·`http(s)://`로 시작하는 네트워크 출처를 거절하도록 보완했고, 기존 로컬 상대 경로와 호출 계약은 그대로다. 드라이브 문자로 시작하는 절대 경로 요구는 이 관측의 Windows 경계(`lsp-rules.ts`·러너)에만 있다.
 
@@ -319,5 +320,14 @@ powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-Iso
 ```
 
 `-SkipRealStateCheck`를 주면 이 PC의 계정·방화벽·감사를 읽는 구역을 건너뛴다(그 구역은 읽기 전용이지만 이번 작업은 모의로만 시험했다). `-TsxCmd`가 없으면 TS 대조·판정 사례는 `SKIPPED`로 표시하고 통과로 세지 않는다.
+
+**방화벽 규칙 생성 계약 대조(후속 수정).** 격리 규칙이 `Initialize-Isolation.ps1`이 만드는 규칙과 **정확히** 같은지는 `IsolationBaselineCore.ps1`의 `Test-BlRunRuleContract` 한 곳이 판정한다. 적용 직후 직접 확인(`Save-IsolationBaseline.ps1 -Mode Verify`의 `vfy:run-rule`)과 관리자 진입점의 사전 조건 T04가 같은 함수를 쓰고, 읽기도 같은 포트(`Read-BlRuleDetail`, 진입점은 `Read-BlFirewallRuleByName`)로 한다. 대조하는 것:
+
+- `LocalUser`: 보안 설명자(SDDL)를 해석해 `D:(A;;CC;;;<SID>)` 한 건인지(허용 ACE 한 건, 권한 `0x1`, ACE 플래그 없음, 조건 데이터 없음, 소유자·그룹·SACL 없음, 대상 SID가 기대 SID와 **같음**)를 본다. 부분 문자열이나 접두 비교는 쓰지 않는다. 해석하지 못하거나 계약 밖 요소가 하나라도 있으면 실패다.
+- 적용 프로필(`Any`, 또는 Domain·Private·Public 셋 모두)과 범위를 좁히는 필터: 프로그램, 패키지, 서비스, 프로토콜, 로컬/원격 포트, ICMP 형식, 동적 대상, 로컬 주소, 인터페이스 별칭·종류, 원격 사용자·컴퓨터. 모두 `Any`여야 한다(패키지는 제한이 없어도 `$null`로 읽히므로 `<unset>`도 받는다). 인증·암호화는 `NotRequired`, 차단 규칙 덮어쓰기는 `False`여야 한다.
+- 기존 확인 유지: 켜짐, `Outbound`, `Block`, 그룹, 표식(description), 원격 주소 정확히 세 범위(루프백 제외).
+- 읽지 못했거나(필터 오류, 필터가 하나가 아님) 읽기 결과에 속성이 없으면(`<missing>`) 값이 비었으면(`<unset>`) `Any`나 정상값으로 채우지 않고 통과하지 못한다. 한 줄에 합칠 때 값의 `|`·줄바꿈·`%`는 부호화해 다른 키로 읽히지 않게 하고, 키가 겹치면 실패다. 비교는 서수 비교(`Test-BlTextEqual`)다(`-ceq`는 소프트 하이픈·NUL을 무시한다).
+
+이 대조는 이 PC에서 읽은 값의 **모양**(프로필 `Any`, 패키지 `$null`, `LocalUser`의 `D:(A;;CC;;;<SID>)`)과 이전 실제 실행 보고서에 적힌 규칙 읽기 값에 맞췄다. 그러나 이번 수정 자체는 **모의로만** 시험했고, 새로 만든 격리 규칙을 실제로 읽어 보지는 않았다(실제 Windows에서 이 대조가 정상 규칙을 통과시키는지는 다음 실제 적용 뒤 `Verify`로 확인해야 한다). 같은 약한 부분 문자열 대조가 기존 LSP-MIN-1·버전 관측 진입점(`Test-LspMinObservation.ps1`, `Test-VersionObservation.ps1`)과 적용 스크립트(`IsolationFlows.ps1`)에 남아 있으며, 이 PR은 기존 파일을 바꾸지 않으므로 그대로다.
 
 **이 시험들이 하지 못하는 것.** 실제 Semgrep 1.180.0의 `initialized` 이후 동작, 실제 로그 머리말(`INFO`·`WARNING`)과 두 경고 줄·맨줄 4개의 실제 문구, 프로브 규칙이 실제로 유효한 규칙으로 해석되는지, 소스와 설치된 바이너리의 대응, 실제 전용 계정·방화벽·감사·ACL 아래의 러너 동작, 실제 `Start-Process -Credential`, 실제 Security 로그의 5157 형식. 스텁의 로그 줄은 소스에서 도출한 **예측**이어서, 스텁으로 통과한 판정은 판정 로직이 합성 입력에서 의도대로 동작한다는 것만 보여 준다.

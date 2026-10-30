@@ -224,6 +224,14 @@ if (Test-Selected 'static') {
         Assert-That 'static' '진입점: 관측·프로세스 정리·시스템 복구를 보고서의 따로 된 항목으로 적고, 종료 코드는 Get-LspMinAdminExitCode 한 곳이 정한다. 5157 은 Get-LspMinOsBlockCounts 를 거쳐 0 으로 채우지 않는다' (($src -match '\$report\.observation = ') -and ($src -match '\$report\.processCleanup = \$groups\.processCleanup') -and ($src -match '\$report\.systemRecovery = \$groups\.systemRecovery') -and ($src -match 'Get-LspMinAdminExitCode -Established') -and ($src -match 'Get-LspMinOsBlockCounts -CollectionOk'))
         Assert-That 'static' '진입점: 재해석 도구 호출에 취소 표지를 주고, 도구 뒤처리는 process-reinterpret-tool 항목으로 프로세스 정리 묶음에 넣는다' (($src -match 'Invoke-LspMinReinterpret -TsxCmd \$TsxCmd [^\r\n]*-CancelFile \$CancelFile') -and ($src -match "Invoke-IsoCleanupStep -Name 'process-reinterpret-tool'"))
         Assert-That 'static' '진입점: 설치물 해시 대조는 읽지 못한 값을 같다고 하지 않는 함수(Test-LrAdminHashesUnchanged)만 쓴다. 문자열 비교(-ne [string])로 직접 비교하지 않는다' (($src -match 'Test-LrAdminHashesUnchanged -Before \$hashesBefore -After \$hashesAfter') -and ($src -notmatch '\[string\]\$hashesBefore\[\$k\]'))
+        # 방화벽 규칙 확인(T04)은 기준 점검기(IsolationBaselineCore.ps1)의 Verify 와 같은 판정 함수·같은 읽기 포트를 쓴다. 약한 부분 문자열 대조와 규칙 명령 직접 호출이 없다.
+        $coreText = [IO.File]::ReadAllText((Join-Path $CodeDir 'IsolationBaselineCore.ps1'), [Text.Encoding]::UTF8)
+        $coreAst = [Management.Automation.Language.Parser]::ParseInput($coreText, [ref]$null, [ref]$null)
+        $verifyPlanFn = @($coreAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'New-BlVerifyPlan' }, $true))
+        $contractDefs = 0; foreach ($f in $product + @('IsolationBaselineCore.ps1')) { $fp = Join-Path $CodeDir $f; if (Test-Path -LiteralPath $fp) { $contractDefs += [regex]::Matches([IO.File]::ReadAllText($fp, [Text.Encoding]::UTF8), '(?m)^function Test-BlRunRuleContract\b').Count } }
+        $t04At = $src.IndexOf('Test-BlRunRuleContract -Line', [StringComparison]::Ordinal); $rcvAt = & $ix '$receiver = New-LspMinReceiver'
+        Assert-That 'static' '진입점: T04 는 Core 를 불러와 Read-BlFirewallRuleByName 으로 읽고 Test-BlRunRuleContract 로 대조한다. 계정 범위를 .Contains($sid) 로 대조하거나 방화벽 명령을 직접 부르지 않으며, 수신기보다 앞이다' (($src -match "IsolationBaselineCore\.ps1'\)") -and ($src -match "Invoke-BlPort -Name 'Read-BlFirewallRuleByName'") -and ($t04At -gt 0) -and ($t04At -lt $rcvAt) -and ($src -notmatch '\.Contains\(\$sid\)') -and ($src -notmatch 'Get-NetFirewall'))
+        Assert-That 'static' 'Core: 적용 직후 직접 확인(New-BlVerifyPlan)도 같은 Test-BlRunRuleContract 를 부르고, 부분 문자열 대조(.Contains($sid))가 없으며, 판정 함수 정의는 저장소에 한 곳뿐이다' (($verifyPlanFn.Count -eq 1) -and ($verifyPlanFn[0].Extent.Text -match 'Test-BlRunRuleContract -Line') -and ($coreText -notmatch '\.Contains\(\$sid\)') -and ($contractDefs -eq 1)) "defs=$contractDefs plan=$($verifyPlanFn.Count)"
     }
 }
 
@@ -712,6 +720,114 @@ if (Test-Selected 'dry-run') {
     Assert-That 'dry-run' '프로브 원본을 확인했고(P01 PASS) 설치물 해시를 읽었다(A01 PASS), 계획 줄이 initialized 를 한 번이라고 말한다' (($r.out -match '\[PASS\] P01 ') -and ($r.out -match '\[PASS\] A01 ') -and ($r.out -match 'initialized\(정확히 1회'))
     Assert-That 'dry-run' '감독 마감 계획이 출력된다' ($r.out -match '부모 감독')
     Assert-That 'dry-run' '자식 프로세스를 띄우지 않았다' ((Remove-Stragglers $sb) -eq 0)
+}
+
+# ── 방화벽 규칙이 생성 계약과 다르면 변경 전에 거절한다(사전 조건 T04) ─────────────────────
+# 거절 사례는 계정 켜기·감사 변경·수신기·러너 실행 어느 것보다 앞에서 멈춘다(종료 50). 한 샌드박스를 쓰고, 사례마다 모의 상태의 규칙 레코드만 고쳤다가 원래대로 되돌린다.
+if (Test-Selected 'rule-contract') {
+    Write-Host '[rule-contract] 규칙이 생성 계약과 다르면(계정 SID 부분 일치·일부 프로필만·프로그램/프로토콜/포트 제한 …) T04 가 실패하고 아무것도 바꾸지 않는다'
+    $sb = New-RulesSandbox
+    $fakePath = Join-Path $sb.Root 'fake-state.json'
+    $orig = [IO.File]::ReadAllText($fakePath, [Text.Encoding]::UTF8)
+    $ruleName = "bosang-semgrep-iso-$RunId-out"
+    $acctSid = [string](($orig | ConvertFrom-Json).users.PSObject.Properties[$UserName].Value.Sid)
+    $setRule = {
+        param([hashtable]$Fields)
+        $fs = $orig | ConvertFrom-Json
+        $rule = $fs.rules.PSObject.Properties[$ruleName].Value
+        foreach ($k in $Fields.Keys) { $rule | Add-Member -NotePropertyName $k -NotePropertyValue $Fields[$k] -Force }
+        $t = ($fs | ConvertTo-Json -Depth 10)
+        [IO.File]::WriteAllText($fakePath, $t, $Utf8)
+        $t
+    }
+    $v6 = '::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
+    $v4a = '0.0.0.0-126.255.255.255'; $v4b = '128.0.0.0-255.255.255.255'
+    $other = 'S-1-5-21-1-2-3-4'
+    $reject = @(
+        @{ id = 'sid-suffix'; fields = @{ LocalUser = "D:(A;;CC;;;${acctSid}0)" }; token = 'localuser: ACE_SID_MISMATCH'; both = $true },
+        @{ id = 'sid-prefix'; fields = @{ LocalUser = ('D:(A;;CC;;;{0})' -f $acctSid.Substring(0, $acctSid.Length - 1)) }; token = 'localuser: ACE_SID_MISMATCH' },
+        @{ id = 'sid-other'; fields = @{ LocalUser = "D:(A;;CC;;;$other)" }; token = 'localuser: ACE_SID_MISMATCH' },
+        @{ id = 'two-aces'; fields = @{ LocalUser = "D:(A;;CC;;;$acctSid)(A;;CC;;;$other)" }; token = 'localuser: SDDL_ACE_COUNT' },
+        @{ id = 'deny-ace'; fields = @{ LocalUser = "D:(D;;CC;;;$acctSid)" }; token = 'localuser: ACE_TYPE' },
+        @{ id = 'extra-right'; fields = @{ LocalUser = "D:(A;;CCRC;;;$acctSid)" }; token = 'localuser: ACE_MASK' },
+        @{ id = 'inherit-flag'; fields = @{ LocalUser = "D:(A;CI;CC;;;$acctSid)" }; token = 'localuser: ACE_FLAGS' },
+        @{ id = 'condition-ace'; fields = @{ LocalUser = "D:(XA;;CC;;;$acctSid;(@User.x==1))" }; token = 'localuser: (ACE_TYPE|SDDL_UNPARSEABLE)' },
+        @{ id = 'owner-present'; fields = @{ LocalUser = "O:LSD:(A;;CC;;;$acctSid)" }; token = 'localuser: SDDL_OWNER_OR_GROUP' },
+        @{ id = 'dacl-flags'; fields = @{ LocalUser = "D:P(A;;CC;;;$acctSid)" }; token = 'localuser: SDDL_FLAGS' },
+        @{ id = 'localuser-any'; fields = @{ LocalUser = 'Any' }; token = 'localuser: LOCALUSER_ANY' },
+        @{ id = 'localuser-empty'; fields = @{ LocalUser = '' }; token = 'localuser: LOCALUSER_MISSING' },
+        @{ id = 'sddl-unparseable'; fields = @{ LocalUser = 'D:(A;;CC;;;' }; token = 'localuser: SDDL_UNPARSEABLE' },
+        @{ id = 'profile-private'; fields = @{ Profile = 'Private' }; token = 'profile: '; both = $true },
+        @{ id = 'profile-two'; fields = @{ Profile = 'Domain, Private' }; token = 'profile: ' },
+        @{ id = 'profile-extra-token'; fields = @{ Profile = 'Domain, Private, Public, NotApplicable' }; token = 'profile: ' },
+        @{ id = 'program'; fields = @{ Program = 'C:\Windows\System32\curl.exe' }; token = 'program: '; both = $true },
+        @{ id = 'package'; fields = @{ Package = 'Microsoft.Example_8wekyb3d8bbwe' }; token = 'package: ' },
+        @{ id = 'service'; fields = @{ Service = 'dnscache' }; token = 'service: ' },
+        @{ id = 'protocol'; fields = @{ Protocol = 'TCP' }; token = 'protocol: '; both = $true },
+        @{ id = 'local-port'; fields = @{ LocalPort = '443' }; token = 'localport: ' },
+        @{ id = 'remote-port'; fields = @{ RemotePort = '443' }; token = 'remoteport: '; both = $true },
+        @{ id = 'icmp-type'; fields = @{ IcmpType = '8' }; token = 'icmptype: ' },
+        @{ id = 'dynamic-target'; fields = @{ DynamicTarget = 'WifiDirectPrinting' }; token = 'dynamictarget: ' },
+        @{ id = 'local-address'; fields = @{ LocalAddress = 'LocalSubnet' }; token = 'localaddress: ' },
+        @{ id = 'interface-alias'; fields = @{ InterfaceAlias = 'Wi-Fi' }; token = 'interfacealias: ' },
+        @{ id = 'interface-type'; fields = @{ InterfaceType = 'Wireless' }; token = 'interfacetype: ' },
+        @{ id = 'remote-user'; fields = @{ RemoteUser = 'D:(A;;CC;;;BA)' }; token = 'remoteuser: ' },
+        @{ id = 'remote-machine'; fields = @{ RemoteMachine = 'D:(A;;CC;;;BA)' }; token = 'remotemachine: ' },
+        @{ id = 'auth-required'; fields = @{ Authentication = 'Required' }; token = 'authentication: ' },
+        @{ id = 'encryption-required'; fields = @{ Encryption = 'Required' }; token = 'encryption: ' },
+        @{ id = 'override-block'; fields = @{ OverrideBlockRules = $true }; token = 'overrideblockrules: ' },
+        @{ id = 'remote-no-v6'; fields = @{ RemoteAddress = @($v4a, $v4b) }; token = 'remote: ' },
+        @{ id = 'remote-any'; fields = @{ RemoteAddress = @('Any') }; token = 'remote: ' },
+        @{ id = 'remote-includes-loopback'; fields = @{ RemoteAddress = @($v4a, $v4b, $v6, '127.0.0.1') }; token = 'remote: ' },
+        @{ id = 'disabled'; fields = @{ Enabled = 'False' }; token = 'enabled: ' },
+        @{ id = 'allow-action'; fields = @{ Action = 'Allow' }; token = 'action: ' },
+        @{ id = 'inbound'; fields = @{ Direction = 'Inbound' }; token = 'direction: ' },
+        @{ id = 'other-description'; fields = @{ Description = 'someone else' }; token = 'description: ' },
+        @{ id = 'other-group'; fields = @{ Group = 'other-group' }; token = 'group: ' },
+        @{ id = 'read-fail-application'; fields = @{ ReadFail = @('ApplicationFilter') }; token = '규칙을 읽지 못했다' },
+        @{ id = 'read-fail-port'; fields = @{ ReadFail = @('PortFilter') }; token = '규칙을 읽지 못했다' },
+        @{ id = 'read-fail-interface-type'; fields = @{ ReadFail = @('InterfaceTypeFilter') }; token = '규칙을 읽지 못했다' },
+        @{ id = 'read-fail-security'; fields = @{ ReadFail = @('SecurityFilter') }; token = '규칙을 읽지 못했다' }
+    )
+    foreach ($c in $reject) {
+        $modes = @($true); if ($c.ContainsKey('both') -and $c.both) { $modes = @($true, $false) }
+        foreach ($dry in $modes) {
+            $edited = & $setRule $c.fields
+            $log0 = (Get-CallsLog $sb).Split("`n").Count
+            $r = $(if ($dry) { Invoke-Rules $sb -Dry } else { Invoke-Rules $sb })
+            $new = ((Get-CallsLog $sb).Split("`n") | Select-Object -Skip ($log0 - 1)) -join "`n"
+            $label = "rule-contract-$($c.id)" + $(if ($dry) { '' } else { '-execute' })
+            Assert-That $label 'T04 가 실패하고 종료 50 이며 원인 이름이 출력에 있다' (($r.exit -eq 50) -and ($r.out -match '\[FAIL\] T04 ') -and ($r.out -match $c.token)) "exit=$($r.exit)`n$($r.out)"
+            Assert-That $label '계정 켜기·감사 변경·러너 실행·프로세스 시작·종료가 없고, 모의 상태가 그대로이며, 계획 줄·보고서도 없다(변경 전 거절)' (($new -notmatch 'Enable-LocalUser|Disable-LocalUser|Invoke-AuditPol /set|LspRunner|Start-Process|Stop-Process') -and ([IO.File]::ReadAllText($fakePath) -eq $edited) -and ($null -eq (Get-RulesReport $sb)) -and ($r.out -notmatch 'PLAN') -and ($r.out -notmatch 'NOT_EXECUTED')) $new
+        }
+        [IO.File]::WriteAllText($fakePath, $orig, $Utf8)
+    }
+    # 규칙이 아예 없다
+    $fsNo = $orig | ConvertFrom-Json
+    [void]$fsNo.rules.PSObject.Properties.Remove($ruleName)
+    [IO.File]::WriteAllText($fakePath, ($fsNo | ConvertTo-Json -Depth 10), $Utf8)
+    $r = Invoke-Rules $sb -Dry
+    Assert-That 'rule-contract-missing-rule' '규칙이 없으면 T04 실패, 종료 50' (($r.exit -eq 50) -and ($r.out -match '\[FAIL\] T04 ') -and ($r.out -match '규칙이 없다')) "exit=$($r.exit)`n$($r.out)"
+    [IO.File]::WriteAllText($fakePath, $orig, $Utf8)
+
+    # 정상 대조군과 동등 표기: 계약과 같은 의미면 통과한다(dry-run 이라 아무것도 바꾸지 않는다)
+    $accept = @(
+        @{ id = 'exact'; fields = @{} },
+        @{ id = 'profile-all-three'; fields = @{ Profile = 'Domain, Private, Public' } },
+        @{ id = 'profile-order'; fields = @{ Profile = 'Public, Domain, Private' } },
+        @{ id = 'package-any'; fields = @{ Package = 'Any' } },
+        @{ id = 'remote-order'; fields = @{ RemoteAddress = @($v6, $v4b, $v4a) } },
+        @{ id = 'remote-upper'; fields = @{ RemoteAddress = @($v4a, $v4b, $v6.ToUpperInvariant()) } },
+        @{ id = 'sddl-space'; fields = @{ LocalUser = "D: (A;;CC;;;$acctSid)" } }
+    )
+    foreach ($c in $accept) {
+        $edited = & $setRule $c.fields
+        $fake0 = [IO.File]::ReadAllText($fakePath)
+        $r = Invoke-Rules $sb -Dry
+        Assert-That "rule-contract-accept-$($c.id)" 'T04 통과, dry-run 종료 0(NOT_EXECUTED), 모의 상태 그대로' (($r.exit -eq 0) -and ($r.out -match '\[PASS\] T04 ') -and ($r.out -match 'NOT_EXECUTED') -and ([IO.File]::ReadAllText($fakePath) -eq $fake0)) "exit=$($r.exit)`n$($r.out)"
+        [IO.File]::WriteAllText($fakePath, $orig, $Utf8)
+    }
+    [void](Remove-Stragglers $sb)
 }
 
 # ── 도구 없음 ─────────────────────────────────────────────────────────────
