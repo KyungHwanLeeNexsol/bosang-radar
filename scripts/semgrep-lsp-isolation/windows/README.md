@@ -284,3 +284,40 @@ PR #39 HEAD `af08f20`에서, 소유자가 이번 한 번에 한해 허용한 범
 - `tests/Test-LspMinRunner.ps1`: 러너를 스텁 시나리오 25개로 끝까지 돌린다(정상·오류·result 안 InitializeError·잘못된 id·키 이름 대소문자(`Id`·`JSONRPC`·`Method`)·분할 프레임·무응답·exit 무시·stdin EOF·시작 직후 종료·깨진 프레임·서버 요청·stderr 중단 문구(분할 포함)·다운로드 문구·진단 알림·작업 영역 쓰기·출력 초과·자손의 파이프 보유·환경 이름·허용 밖 이미지). 거부 경로(고정 인자·경로·환경·한도)가 아무것도 만들거나 띄우지 않는지, `initialized`가 송신되지 않는지, 전용 홈이 실제로 만들어지는지, 강제 종료가 한 번인지를 본다. 가짜 읽기 스트림(`BeginRead`/`EndRead`)으로 stdout·stderr의 읽기 실패(초기화 응답 전·유효한 응답을 받은 뒤)가 `STREAM_READ_FAILED`로 곧바로 끝나고 이후 쓰기가 없는지도 본다. `-TsxCmd`·`-NodeDir`·`-LspMinTs`·`-RunnerResultTs`를 주면 PS 계약과 TS 모듈을 같은 입력으로 대조하고 러너 결과를 TS 기록으로 변환한 결과도 본다. Windows PowerShell 5.1과 PowerShell 7 양쪽에서 돌린다.
 - 같은 변경의 TS 쪽 시험은 `scripts/semgrep-lsp/lsp-min*.test.ts`에 있다: 순수 모듈, 가상 시계와 스크립트형 가짜 자식으로 모든 종료 경로를 확인하는 실행기 시험, 러너 결과 변환 시험, 실제 파이프·파일·프로세스 목록을 쓰는 통합 시험(Node를 `semgrep.exe`로 복사한 스텁 서버), 모듈 경계 구조 시험.
 - 이 시험들이 **하지 못하는 것:** 실제 `auditpol`·방화벽·계정·`Start-Process -Credential`·Security 로그의 실제 동작을 확인하지 못한다. 모의는 이 동작들을 우리가 이해한 대로 흉내 낸 것이다. 진짜 `Get-Acl`의 **파일·폴더 접근 거부**도 재현하지 못했다(모의는 예외나 빈 값을 주입한 것이고, 이 PC의 관측은 관리자 셸이라 접근 거부가 나오지 않았다).
+
+## LSP 규칙 로딩 관측(LSP-RULES-1)의 구현 범위·러너·관리자 진입점·판정
+
+이 절의 파일도 코드와 스텁·모의 시험까지만 만들어졌다. **실제 Semgrep은 `--help`·`--version`을 포함해 한 번도 실행하지도 임포트하지도 않았고**, 이 PC의 계정·방화벽·감사·ACL도 바꾸지 않았다. `pin.json`·`verified`·`policy_accepted`·ADR 상태는 읽지도 바꾸지도 않는다. 실제로 한 번 돌려 볼지는 구현 검토 뒤 소유자가 별도로 정한다. 계약과 계획은 [LSP-RULES-1 계약 보고서](../../../.moai/reports/semgrep-lsp-rules-load-contract-20261029.md), 구현 범위·검증 환경·한계는 [구현 보고서](../../../.moai/reports/semgrep-lsp-rules-load-impl-20261030.md)에 있다.
+
+**무엇을 관측하는가.** `initialize` 응답이 유효하고 서버 버전이 핀과 같을 때만 `initialized`를 **정확히 한 번** 보내고, 장벽(stdout `semgrep/rulesRefreshed` **그리고** 맨줄 `Scanned open documents`, 한도 60초)을 기다린 뒤 2초 더 지켜보고 `shutdown` → `exit`로 끝낸다. 서버가 `initialized`에 반응해 규칙을 새로 읽는 동안 정확히 한 개의 프로브 규칙 파일(233바이트, sha256 `d5089fde…8145`)만 읽혔고 엔진·네트워크 신호 없이 끝났는지를 **간접 신호들**로 본다. 로딩된 규칙의 개수, 프로브 규칙의 의미, 탐지 동작은 관측하지 않는다(기록의 `not_established`). 성공은 13개 조건이 모두 맞을 때의 `RULES_LOAD_OBSERVED`뿐이고, 알림 하나만으로는 성공이 되지 않는다. 필요한 신호가 없거나 로그 모양을 읽지 못하면 `NOT_CONFIRMED`, 부정적 증거가 있으면 `LOAD_FAILED`, 감시가 중단시키면 `ABORTED`, 관측 자체를 믿을 수 없으면 `NOT_OBSERVED`다. 서버를 띄우지 않았을 때만 `NOT_ATTEMPTED`이고, 띄운 뒤의 신원·결합·해시 실패는 실행 사실을 남긴 채 `NOT_OBSERVED`다.
+
+**보내지 않는 것.** 문서 알림, 작업 영역 변경, `semgrep/scanWorkspace`, `semgrep/refreshRules`, `debug/echo`, 서버 요청에 대한 응답. 서버가 보내는 요청은 올바른 모양의 `window/workDoneProgress/create` 최대 2건만 허용하고 응답하지 않는다. 그 밖의 요청·오류 알림·진단·모양이 틀린 메시지는 성공으로 흘리지 않는다. 한도(장벽 60초, 장벽 뒤 2초, 전체 150초)는 낮출 수만 있고 늘리거나 자동으로 연장하지 않는다. 환경 이름은 LSP-MIN-1과 같은 11개이며 `SEMGREP_LOG_SRCS`·토큰 이름은 더하지 않는다.
+
+| 파일                                                        | 역할                                                                                                                                                                                       | 상태를 바꾸나                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `LspRulesContract.ps1`                                      | LSP-RULES-1 계약의 PowerShell 이식본(한도, 송신 방어선, 머리말을 벗기는 로그 판독기, stderr·stdout 실시간 감시, 감시 폴더 규칙). 서버·파일에서 온 문자열은 서수 비교만 쓴다. 부작용이 없다 | 아니다                                    |
+| `lsp-rules-runner.ps1`                                      | 표준 입력 러너. 프로브를 배타 쓰기로 복사하고 해시를 복사 직후·장벽·실행 뒤에 재며 `initialized` 조건·장벽·감시·종료를 다룬다. 판정은 하지 않는다                                          | 진입점이 전용 계정으로 실행할 때만        |
+| `lsp-rules-stub.ps1`                                        | 러너 점검용 무해한 스텁 서버(시나리오 51개 허용 목록). 실제 Semgrep이 아니다                                                                                                               | 아니다(임시 샌드박스 안에서만)            |
+| `Test-LspRulesObservation.ps1`                              | 관리자 진입점(기본 dry-run). LSP-MIN-1 진입점과 같은 감독·신원 교차 확인·5157 수집·독립 정리를 쓰고, 프로브 원본 해시를 만들기 전에 확인하며, 정리가 끝난 뒤에 TS 재해석을 부른다          | `-Execute`일 때만(감사 창·계정 사용 켜기) |
+| `LspRulesAdminContract.ps1`, `LspRulesAdminPorts.ps1`       | 진입점의 순수 판정(요청·결합·문맥 조립·해시 합치기)과 읽기 전용 포트(새 쓰기 경로의 신뢰 루트부터 링크 확인, 사후 파일 읽기). LSP-MIN-1 쪽 함수는 파일을 바꾸지 않고 점 읽기로 재사용한다  | 아니다                                    |
+| `Save-IsolationBaseline.ps1`, `IsolationBaselineCore.ps1`   | 실행 전 기준 저장(`Save`)·적용 직후 직접 확인(`Verify`)·복구 뒤 비교(`Compare`)의 최소 읽기 전용 스크립트. 쓰는 것은 `-OutFile` JSON 하나뿐이다                                            | 아니다(`-OutFile`만 쓴다)                 |
+| `tests/Test-LspRulesRunner.ps1`                             | 러너를 스텁 시나리오로 끝까지 돌리고, 골든 파일 106건으로 PS 이식본과 TS를 같은 입력에서 대조하며, 러너 결과를 TS 기록으로 변환한 판정까지 본다                                            | 아니다(임시 샌드박스 안에서만)            |
+| `tests/Test-LspRulesAdmin.ps1`                              | 모의 시스템 위에서 관리자 진입점을 끝까지 돌리는 흐름 시험(러너와 스텁 서버만 현재 사용자로 실제 실행)                                                                                     | 아니다(임시 샌드박스 안에서만)            |
+| `tests/Test-IsolationBaseline.ps1`                          | 기준 저장·확인·비교 스크립트의 키 충돌 방지, 읽기 실패·null·빈 값이 일치로 세어지지 않는 비교, 쓰기 거부를 확인한다                                                                        | 아니다(임시 샌드박스 안에서만)            |
+| `tests/MockSystemRules.ps1`, `tests/MockPortsRules.ps1`     | 기존 모의 위에 얹는 최소 확장(시험 전용)                                                                                                                                                   | 아니다                                    |
+| `tests/lsp-rules-parity.json`, `tests/lsp-rules-bridge.mts` | TS가 계산한 골든 기대값과, PS 시험이 실제 TS 모듈을 부르는 작은 다리(시험 전용)                                                                                                            | 아니다                                    |
+
+TS 쪽은 `scripts/semgrep-lsp/rules-log.ts`(머리말 판독), `lsp-rules.ts`(계약·감시), `lsp-rules-record.ts`(13개 조건 판정과 기록), `lsp-rules-run.ts`(주입된 포트·시계로만 도는 실행기), `lsp-rules-runner-result.ts`(러너 결과 변환), `lsp-rules-reinterpret.ts`와 `-cli.ts`(관리자 문맥과 러너 원문을 다시 해석)이고, 프로브 규칙은 `scripts/semgrep-lsp/data/lsp-rules-1-probe.yaml`이다(`.gitattributes`의 `-text`로 줄바꿈이 바뀌지 않는다). LSP-MIN-1 모듈과 옛 `evaluate.ts`는 바꾸지 않았고 새 모듈은 그쪽의 순수 함수를 읽기 전용으로 가져다 쓸 뿐이다. 공용 `settings.ts`는 `auto`·`r2c`·`policy`·`supply-chain`·`hooks`·`r/`·`p/`·`s/`·`http(s)://`로 시작하는 네트워크 출처를 거절하도록 보완했고, 기존 로컬 상대 경로와 호출 계약은 그대로다. 드라이브 문자로 시작하는 절대 경로 요구는 이 관측의 Windows 경계(`lsp-rules.ts`·러너)에만 있다.
+
+**시험을 부르는 방법.** 러너가 실제로 도는 엔진은 Windows PowerShell 5.1이므로 새 시험은 5.1 호스트로 부른다. PowerShell 7 호스트가 띄운 5.1 자식은 7의 `PSModulePath`를 물려받아 `Get-FileHash` 같은 기본 명령이 인식되지 않을 수 있으므로(러너의 안전 판정용 해시는 .NET 구현으로 덮어써서 이 영향을 받지 않는다) 5.1 호스트를 쓰거나 모듈 경로를 5.1 기본값으로 맞춘다. 기존 `Test-LspMinAdmin.ps1`·`Test-VersionFlows.ps1`·`Test-IsolationFlows.ps1`은 `param` 기본값에서 `$PSScriptRoot`를 쓰므로 5.1 호스트에서는 부를 수 없고, 위 절차대로 `pwsh -NoProfile -File … -Engine powershell`로 부른다.
+
+```powershell
+$tsx = "$repo\node_modules\.bin\tsx.cmd"; $node = "C:\path\to\node"
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-LspRulesRunner.ps1" -TsxCmd $tsx -NodeDir $node
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-LspRulesAdmin.ps1" -TsxCmd $tsx -NodeDir $node -SkipRealStateCheck
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-IsolationBaseline.ps1" -SkipRealStateCheck
+```
+
+`-SkipRealStateCheck`를 주면 이 PC의 계정·방화벽·감사를 읽는 구역을 건너뛴다(그 구역은 읽기 전용이지만 이번 작업은 모의로만 시험했다). `-TsxCmd`가 없으면 TS 대조·판정 사례는 `SKIPPED`로 표시하고 통과로 세지 않는다.
+
+**이 시험들이 하지 못하는 것.** 실제 Semgrep 1.180.0의 `initialized` 이후 동작, 실제 로그 머리말(`INFO`·`WARNING`)과 두 경고 줄·맨줄 4개의 실제 문구, 프로브 규칙이 실제로 유효한 규칙으로 해석되는지, 소스와 설치된 바이너리의 대응, 실제 전용 계정·방화벽·감사·ACL 아래의 러너 동작, 실제 `Start-Process -Credential`, 실제 Security 로그의 5157 형식. 스텁의 로그 줄은 소스에서 도출한 **예측**이어서, 스텁으로 통과한 판정은 판정 로직이 합성 입력에서 의도대로 동작한다는 것만 보여 준다.
