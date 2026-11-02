@@ -90,7 +90,7 @@ TS 모듈은 `scripts/semgrep-lsp/`, PowerShell은 `scripts/semgrep-lsp-isolatio
 | 명령                                                                                  | 결과                                                                                           |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `vitest run scripts/semgrep-lsp` (최종 TS 트리, 작성자가 직접 실행)                       | 82파일 통과, 4179개 통과, 8개 건너뜀(새 시험 파일에는 건너뜀이 없다)                           |
-| 새 시험 10개 파일(`scan-uri` 61, `scan-log` 118, `lsp-scan` 51, `lsp-scan-record` 126, `lsp-scan-failclosed` 45, `lsp-scan-watch` 52, `lsp-scan-run` 105, `lsp-scan-runner-result` 49, `lsp-scan-reinterpret` 27, `structure` 120) | 합계 754개 통과, 실패 0, 건너뜀 0 |
+| 새 시험 9개 파일과 확장한 `structure.test.ts`(`scan-uri` 61, `scan-log` 118, `lsp-scan` 51, `lsp-scan-record` 126, `lsp-scan-failclosed` 45, `lsp-scan-watch` 52, `lsp-scan-run` 105, `lsp-scan-runner-result` 49, `lsp-scan-reinterpret` 27, `structure` 120) | 합계 754개 통과(새 9개 파일 634 + `structure.test.ts` 120), 실패 0, 건너뜀 0 |
 | `prettier --check`, `eslint`                                                          | 변경·추가한 TS·MTS·MD·JSON(`.moai` 제외, 골든 JSON 포함) 28개 파일 모두 통과                                   |
 | `tsc --noEmit -p tsconfig.json`                                                       | 오류 1건: `app/layout.tsx(20,50) Cannot find name 'LayoutProps'`. 이번에 건드리지 않은 파일의 기존 오류다 |
 
