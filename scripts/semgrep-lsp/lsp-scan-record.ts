@@ -1516,12 +1516,32 @@ function terminationBlockers(f: ScanFacts, conditions: ConditionResult[]): strin
   return [...new Set(out)];
 }
 
-/** settle 감시를 마쳤다는 시각 증거. 두 묶음이 완성된 경우에만 요구한다(완성되지 않았으면 NOT_CONFIRMED 사유가 말한다). */
-function settleBlockers(conditions: ConditionResult[]): string[] {
-  return conditions[12].detail.filter(
-    (t) =>
-      t === "SETTLE_WATCH_NOT_CONFIRMED" || t === "EXIT_DURING_SETTLE" || t === "EXIT_TIME_UNKNOWN"
-  );
+/**
+ * settle 감시를 마쳤다는 시각 증거. 두 묶음이 완성된 경우에만 요구한다(완성되지 않았으면 NOT_CONFIRMED 사유가 말한다).
+ *
+ * 계약 보정(완화 아님): 묶음이 마감(didOpen + scanMs) 뒤에 완성됐다면(`late`) 실행기는 마감에서 기다림을 끝내고 shutdown 을 보내므로
+ * settle 감시 종료 시각이 원래 없다. 이때 "감시 미확인"(SETTLE_WATCH_NOT_CONFIRMED)이 늦음을 가리면 "늦은 로그"와 "감시 미확인"이 구별되지 않는다.
+ * 그래서 늦은 경우에 한해 감시 미확인만 판정 자리를 양보한다(조건 13 에는 사실대로 남는다). 늦은 묶음은 어차피 성공이 될 수 없다
+ * (NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE).
+ *
+ * 같은 이유로 늦은 경우의 EXIT_DURING_SETTLE 은 "shutdown 을 보내기 전에" 끝난 경우에만 사유로 남긴다: 마감에서 우리가 shutdown 을 보낸 뒤의 정상 종료가
+ * 이름뿐인 settle 창(늦은 묶음 완성 시각 + settleMs) 안에 들어온다는 이유로 늦음을 가리면 안 된다. 보내기 전의 종료(조기 종료)와
+ * 종료 시각을 모르는 경우(EXIT_TIME_UNKNOWN)는 늦음과 무관하게 그대로 NOT_OBSERVED 다.
+ */
+function settleBlockers(f: ScanFacts, conditions: ConditionResult[], ev: ScanEvidence): string[] {
+  const late = ev.diagnostics.late || ev.logBundle.late;
+  const shutdown = f.sends.find((s) => s.label === "shutdown");
+  const exitAfterOwnShutdown =
+    f.exit.observed &&
+    isFiniteNumber(f.exit.tMs) &&
+    shutdown !== undefined &&
+    isFiniteNumber(shutdown.tMs) &&
+    f.exit.tMs >= shutdown.tMs;
+  return conditions[12].detail.filter((t) => {
+    if (t === "SETTLE_WATCH_NOT_CONFIRMED") return !late;
+    if (t === "EXIT_DURING_SETTLE") return !(late && exitAfterOwnShutdown);
+    return t === "EXIT_TIME_UNKNOWN";
+  });
 }
 
 /** 필요한 신호가 안 보이거나 모양을 읽지 못하는 등, 성공도 실패도 말할 수 없는 사유. 우선순위 순서. */
@@ -1666,7 +1686,7 @@ export function judgeScanResponse(f: ScanFacts, parsed?: ScanParsed): ScanJudgem
   const ending = terminationBlockers(f, conditions);
   if (ending.length > 0) return verdictOf("NOT_OBSERVED", ending);
   // 5b. 두 묶음이 완성됐는데 settle 감시를 마쳤다는 시각 증거가 없다
-  const settle = settleBlockers(conditions);
+  const settle = settleBlockers(f, conditions, p.evidence);
   if (settle.length > 0) return verdictOf("NOT_OBSERVED", settle);
   // 6. 확인 불가
   const gaps = confirmationGaps(f, p, conditions);
@@ -2306,13 +2326,15 @@ export function buildScanRecord(f: ScanFacts): ScanObservation {
       dispose: f.cleanup.dispose,
       timers_cancelled: f.cleanup.timersCancelled,
     },
-    established: observed
-      ? [
-          "ONE_SYNTHETIC_INPUT_DIAGNOSTIC_REACTION",
-          "ENGINE_GIVEN_RULE_COUNT_PARTIAL_OBSERVATION",
-          "DIAGNOSTIC_FIELDS_CONFIRMED",
-        ]
-      : [],
+    // 세워 주는 것은 "실제 출처의 성공"뿐이다. 스텁·null 출처의 성공은 evidence_scope 가 SYNTHETIC_STUB_ONLY 이므로 아무것도 세우지 않는다.
+    established:
+      observed && f.provenance === "real"
+        ? [
+            "ONE_SYNTHETIC_INPUT_DIAGNOSTIC_REACTION",
+            "ENGINE_GIVEN_RULE_COUNT_PARTIAL_OBSERVATION",
+            "DIAGNOSTIC_FIELDS_CONFIRMED",
+          ]
+        : [],
     not_established: {
       rule_detection_performance_in_general: "NOT_ESTABLISHED",
       real_repository_scan_security: "NOT_ESTABLISHED",

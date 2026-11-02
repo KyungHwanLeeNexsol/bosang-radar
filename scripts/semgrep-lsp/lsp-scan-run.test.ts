@@ -719,7 +719,7 @@ describe("마감(scanMs)과 시간 한도", () => {
     const open = record.sent.find((s) => s.label === "didOpen")?.tMs ?? 0;
     const shutdown = record.sent.find((s) => s.label === "shutdown")?.tMs ?? 0;
     expect(shutdown - open).toBe(500);
-    expect(record.verdict).not.toBe(OK);
+    expect(record.verdict).toBe("NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE");
     expect(record.evidence.log_bundle.late).toBe(true);
   });
 
@@ -731,11 +731,32 @@ describe("마감(scanMs)과 시간 한도", () => {
       }),
     });
     const { record } = await run(rig);
-    expect(record.status).not.toBe("OBSERVED");
+    // 실제 실행에서는 마감에서 기다림을 끝내고 shutdown 을 보내므로 settle 감시 종료 시각이 없다 — 그래도 늦음이 가려지면 안 된다
+    expect(record.status).toBe("NOT_CONFIRMED");
+    expect(record.verdict).toBe("NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE");
+    expect(record.verdict_reasons).toContain("EVIDENCE_AFTER_DEADLINE");
     expect(record.evidence.log_bundle.late).toBe(true);
     expect(record.evidence.diagnostics.late).toBe(false);
     const nothing = (await run(makeRig({ script: () => ({ afterDidOpen: [] }) }))).record;
     expect(nothing.evidence.log_bundle.late).toBe(false);
+    expect(nothing.verdict).toBe("NOT_CONFIRMED:SCAN_TIMEOUT");
+    expect(nothing.verdict).not.toBe(record.verdict);
+  });
+
+  it("마감 뒤에 진단이 도착해도(늦은 진단) 같은 규칙이다: NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE, 아무것도 안 온 경우와 다르다", async () => {
+    const rig = makeRig({
+      script: () => ({
+        afterDidOpen: happyAfterDidOpen({ logAtMs: 45, diagAtMs: 30_500 }),
+        exitDelayMs: 3_000,
+      }),
+    });
+    const { record } = await run(rig);
+    expect(record.verdict).toBe("NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE");
+    expect(record.verdict_reasons).toContain("EVIDENCE_AFTER_DEADLINE");
+    expect(record.evidence.diagnostics.late).toBe(true);
+    expect(record.evidence.log_bundle.late).toBe(false);
+    const nothing = (await run(makeRig({ script: () => ({ afterDidOpen: [] }) }))).record;
+    expect(nothing.verdict).toBe("NOT_CONFIRMED:SCAN_TIMEOUT");
     expect(nothing.verdict).not.toBe(record.verdict);
   });
 

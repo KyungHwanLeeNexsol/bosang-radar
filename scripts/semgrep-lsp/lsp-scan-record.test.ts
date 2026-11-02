@@ -174,7 +174,9 @@ describe("정상 사실", () => {
   });
 
   it("성공이어도 세워 주는 것은 합성 입력 한 건의 반응·엔진이 받은 규칙 수·확인된 필드뿐이다 (나머지는 미확립)", () => {
-    const r = buildScanRecord(scanFacts());
+    // 규칙: established 는 SCAN_RESPONSE_OBSERVED 이고 출처가 "real" 일 때만 채운다.
+    // 스텁·null 출처의 성공은 evidence_scope 가 SYNTHETIC_STUB_ONLY 이므로 아무것도 세우지 않는다 (아래 별도 시험).
+    const r = buildScanRecord(scanFacts({}, { provenance: "real" }));
     expect(r.established).toEqual([
       "ONE_SYNTHETIC_INPUT_DIAGNOSTIC_REACTION",
       "ENGINE_GIVEN_RULE_COUNT_PARTIAL_OBSERVATION",
@@ -193,7 +195,30 @@ describe("정상 사실", () => {
     });
     for (const item of SCAN_UNOBSERVED_ALWAYS) expect(r.coverage.unobserved).toContain(item);
     // 성공이 아니면 아무것도 세우지 않는다
-    expect(buildScanRecord(scanFacts(frameWith({ source: "x" }))).established).toEqual([]);
+    expect(
+      buildScanRecord(scanFacts(frameWith({ source: "x" }), { provenance: "real" })).established
+    ).toEqual([]);
+  });
+
+  it("established 와 evidence_scope 는 모순되지 않는다: 스텁·null 출처 성공 → established 비어 있고 SYNTHETIC_STUB_ONLY", () => {
+    for (const provenance of ["stub", null] as const) {
+      const r = buildScanRecord(scanFacts({}, { provenance }));
+      expect(r.verdict, String(provenance)).toBe(OK);
+      expect(r.established, String(provenance)).toEqual([]);
+      expect(r.evidence_scope).toBe("SYNTHETIC_STUB_ONLY");
+      expect(r.real_binary_verified).toBe(false);
+    }
+  });
+
+  it("출처가 real 인 성공 → established 가 채워지고 ONE_SYNTHETIC_INPUT_REACTION; real 이어도 성공이 아니면 비어 있다", () => {
+    const ok = buildScanRecord(scanFacts({}, { provenance: "real" }));
+    expect(ok.evidence_scope).toBe("ONE_SYNTHETIC_INPUT_REACTION");
+    expect(ok.established).toHaveLength(3);
+    expect(ok.real_binary_verified).toBe(false);
+    const notOk = buildScanRecord(scanFacts({ stdoutPost: [] }, { provenance: "real" }));
+    expect(notOk.verdict).not.toBe(OK);
+    expect(notOk.established).toEqual([]);
+    expect(notOk.evidence_scope).toBe("NONE_ESTABLISHED");
   });
 
   it("세 결과(관측 판정·프로세스 정리·시스템 복구)는 서로 독립이다", () => {
@@ -367,6 +392,115 @@ describe("한쪽 증거만 있거나 아무것도 없으면 성공이 아니다 
     expect(r.evidence.log_bundle.late).toBe(true);
     expect(r.evidence.diagnostics.late).toBe(false);
     expect(verdictOf(scanFacts({ stderrPost: [], stdoutPost: [] }))).not.toBe(j.verdict);
+  });
+
+  // 실제 실행에서는 마감 뒤에 늦은 묶음이 와도 실행기가 마감에서 기다림을 끝내고 shutdown 을 보내므로 settle 감시가 끝난 시각(endedAtMs)이 null 이다.
+  // 이때 settle 감시 미확인(5b)이 늦음을 가리면 안 된다: "늦은 로그"는 "아무것도 안 옴"과도 "감시 미확인"과도 구별되어야 한다.
+  describe("늦은 묶음 + settle 감시 미확인(endedAtMs=null): 늦음이 가려지지 않는다", () => {
+    const LATE = "NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE";
+    const noWatch = { settleEndAtMs: null } as const;
+
+    it("(a) 늦은 로그 → NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE", () => {
+      const f = scanFacts({ stderrPost: defaultPostParts(31_001), ...noWatch });
+      expect(f.settle?.endedAtMs).toBeNull();
+      const j = judgeScanResponse(f);
+      expect(j.verdict).toBe(LATE);
+      expect(j.status).toBe("NOT_CONFIRMED");
+      expect(j.reasons).toContain("EVIDENCE_AFTER_DEADLINE");
+      // 조건 12 는 사실대로 늦음을, 조건 13 도 사실대로 미확인을 적는다 (판정만 늦음이 정한다)
+      expect(j.conditions[11].detail).toContain("LOG_BUNDLE_LATE");
+      expect(j.conditions[12].detail).toContain("SETTLE_WATCH_NOT_CONFIRMED");
+    });
+
+    it("(b) 늦은 진단 → NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE", () => {
+      const f = scanFacts({
+        stdoutPost: [{ messages: [goodNotification()], tMs: 31_001 }],
+        ...noWatch,
+      });
+      const j = judgeScanResponse(f);
+      expect(j.verdict).toBe(LATE);
+      expect(j.reasons).toContain("EVIDENCE_AFTER_DEADLINE");
+      expect(j.conditions[11].detail).toContain("DIAGNOSTICS_LATE");
+    });
+
+    it("(c) 둘 다 늦음 → NOT_CONFIRMED:EVIDENCE_AFTER_DEADLINE", () => {
+      const f = scanFacts({
+        stdoutPost: [{ messages: [goodNotification()], tMs: 31_050 }],
+        stderrPost: defaultPostParts(31_100),
+        ...noWatch,
+      });
+      const j = judgeScanResponse(f);
+      expect(j.verdict).toBe(LATE);
+      expect(j.reasons).toContain("EVIDENCE_AFTER_DEADLINE");
+      expect(j.conditions[11].detail).toEqual(
+        expect.arrayContaining(["DIAGNOSTICS_LATE", "LOG_BUNDLE_LATE"])
+      );
+    });
+
+    it("(d) 늦지 않은데 settle 감시가 없으면 여전히 NOT_OBSERVED:SETTLE_WATCH_NOT_CONFIRMED (완화 없음)", () => {
+      expect(verdictOf(scanFacts({ ...noWatch }))).toBe("NOT_OBSERVED:SETTLE_WATCH_NOT_CONFIRMED");
+      // 조건 12 가 늦음이 아니라 다른 이유로 실패해도(로그 부족) 늦지 않았으면 감시 미확인 규칙은 그대로다
+      expect(
+        verdictOf(scanFacts({ stderrPost: defaultPostParts(1500), settleEndAtMs: 3499 }))
+      ).toBe("NOT_OBSERVED:SETTLE_WATCH_NOT_CONFIRMED");
+    });
+
+    it("(e) 아무것도 안 왔으면 여전히 NOT_CONFIRMED:SCAN_TIMEOUT 이고, 늦음과 구별된다", () => {
+      const nothing = scanFacts(
+        { stderrPost: [], stdoutPost: [], shutdownAtMs: 31_100, ...noWatch },
+        { trigger: "SCAN_TIMEOUT" }
+      );
+      const j = judgeScanResponse(nothing);
+      expect(j.verdict).toBe("NOT_CONFIRMED:SCAN_TIMEOUT");
+      expect(j.reasons).not.toContain("EVIDENCE_AFTER_DEADLINE");
+      const late = judgeScanResponse(
+        scanFacts({ stderrPost: defaultPostParts(31_001), ...noWatch })
+      );
+      expect(late.verdict).not.toBe(j.verdict);
+    });
+
+    it("(f) 늦음보다 무결성·부정 증거·중단이 우선한다 (파일 변화, 해시 변화, 실시간 중단)", () => {
+      const lateBuild = { stderrPost: defaultPostParts(31_001), ...noWatch };
+      const changedTarget = scanFacts(lateBuild, {
+        target: {
+          sourceSha256: scanFacts().target.sourceSha256,
+          afterWriteSha256: scanFacts().target.afterWriteSha256,
+          afterRunSha256: "0".repeat(64),
+        },
+      });
+      expect(verdictOf(changedTarget)).toBe("NOT_OBSERVED:FILES_CHANGED");
+      const addedFile = scanFacts(lateBuild, {
+        roots: scanFacts().roots.map((r) =>
+          r.role === "WORKSPACE" ? { ...r, filesAfter: 2, added: ["x.txt"] } : r
+        ),
+      });
+      expect(verdictOf(addedFile)).toBe("NOT_OBSERVED:FILES_CHANGED");
+      const aborted = scanFacts(lateBuild, { abort: { condition: "A5", detail: "X", tMs: 1200 } });
+      expect(judgeScanResponse(aborted).status).toBe("ABORTED");
+      // 늦음은 사유에 남아 있되 무결성 사유 뒤에서 판정을 정하지 않는다
+      expect(judgeScanResponse(changedTarget).verdict).not.toBe(LATE);
+    });
+
+    it("(g) 늦은 묶음 + 프로세스가 감시 구간에 끝남(EXIT_DURING_SETTLE)은 NOT_OBSERVED 로 남는다 (감시 미확인만 늦음에 양보한다)", () => {
+      const f = scanFacts(
+        { stderrPost: defaultPostParts(31_001), ...noWatch },
+        { exit: { observed: true, code: 0, signal: null, tMs: 31_500 } }
+      );
+      const j = judgeScanResponse(f);
+      expect(j.status).toBe("NOT_OBSERVED");
+      expect(j.reasons).toContain("EXIT_DURING_SETTLE");
+    });
+
+    it("(h) 늦은 묶음 + 마감에서 우리가 보낸 shutdown 뒤의 정상 종료는 늦음을 가리지 않는다 (이름뿐인 settle 창 안이어도)", () => {
+      // 로그가 31,001 에 완성 → 이름뿐인 settle 창 [31001, 33001]. shutdown 은 31,100, 종료는 32,000 (shutdown 뒤).
+      const f = scanFacts(
+        { stderrPost: defaultPostParts(31_001), shutdownAtMs: 31_100, ...noWatch },
+        { exit: { observed: true, code: 0, signal: null, tMs: 32_000 } }
+      );
+      const j = judgeScanResponse(f);
+      expect(j.verdict).toBe(LATE);
+      expect(j.reasons).not.toContain("EXIT_DURING_SETTLE");
+    });
   });
 
   it("마감 경계: didOpen 으로부터 정확히 scanMs 는 시간 안, 1ms 넘으면 늦다 (진단·로그 모두)", () => {

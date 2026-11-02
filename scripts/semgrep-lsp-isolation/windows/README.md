@@ -344,3 +344,33 @@ PR #41 HEAD `e52ef83`에서, 소유자가 이번 한 번에 한해 허용한 범
 **분리 기록.** 관측, 프로세스 정리, 시스템 복구는 따로 기록했고 모두 완료됐다. 적용 직후 `Verify`는 `EQUAL`(같음 53)이었다. 새로 만든 격리 규칙을 실제로 읽어 방화벽 규칙 생성 계약 대조에 넣은 것은 이번이 처음이며 정상 규칙 1개를 통과시켰다(결함이 있는 규칙을 거절하는지는 실제 규칙으로 시험하지 않았다). 복구(`Remove-Isolation.ps1 -Apply -RemoveProfile`) 뒤 실행 전 기준과 48개 항목이 모두 같았다(다름 0, 확인 불가 0).
 
 **말하지 않는 것.** 로딩된 규칙의 개수, 프로브 규칙의 탐지 동작, 정상 LSP 동작, 스캔, 보안 통과, 대조 참조 자격, 외부 통신 부재, 바이너리와 공개 소스의 대응, 2026-10-28 `--version` 시간 초과의 원인. 기록의 정적 `unobserved` 목록은 고치지 않았다. 한 번의 관측이라 재현성도 확인하지 않았다. 같은 관측을 다시 실행하지 않으며, 다음 단계는 소유자가 정한다. 상세와 증거 해시는 [LSP 규칙 로딩 관측 보고서](../../../.moai/reports/semgrep-lsp-rules-load-observation-20261030.md)에 있다.
+
+## LSP 합성 파일 반응 관측(LSP-SCAN-1)의 PowerShell 쪽 구현 범위·러너·관리자 진입점
+
+이 절의 파일은 **스텁·모의 시험용**이다. 구현 에이전트의 환경에서는 격리 가드가 `powershell.exe` 실행을 막아 작성만 했고, 이후 같은 PC의 Windows PowerShell 5.1(5.1.26100.9711)에서 직접 실행해 시험을 맞췄다. 최종 트리의 관측 결과는 `Test-LspScanRunner.ps1` 1192/1192, `Test-LspScanAdmin.ps1 -Engine powershell` 102/102(실패·건너뜀 0)이며, 둘 다 **스텁·모의 위의 결과**다. 실제 Semgrep은 `--help`·`--version`을 포함해 실행하지도 임포트하지도 않았고, 이 PC의 계정·방화벽·감사·ACL도 바꾸지 않았다. 아래 결과 표현은 모두 "스텁·모의 검증 대상"이라는 뜻이며, 스텁 결과를 실제 바이너리 검증으로 승격하지 않는다. `pin.json`·`verified`·`policy_accepted`·ADR 상태·프로브 규칙(233바이트)은 바꾸지 않았다.
+
+**무엇을 하는가.** `initialize` → `initialized`(정확히 1회) → 규칙 로딩 장벽 → `textDocument/didOpen`(정확히 1회, 135바이트 합성 파일 하나) → 두 묶음(진단 알림 정확히 1건, 엔진 로그 묶음) 대기 → settle 감시 → `shutdown` → `exit`. `didOpen`은 장벽이 계약대로(clean)이고 사전 증거가 없을 때만 나간다. 두 묶음은 `didOpen` 송신부터 `scanMs`(30000, 줄이기만 가능) 안에 **둘 다** 완성돼야 하고, settle 창은 **늦은 묶음**이 완성된 청크의 시각에서 `settleMs`다. 스트림 사이의 도착 순서는 어떤 판단에도 쓰지 않는다(계약 정정). 러너는 서버 요청에 응답하지 않고, `git`을 실행하지 않으며, 허용 이미지 목록에 `git`을 넣지 않았다.
+
+| 파일                                                      | 역할                                                                                                                                                                                      |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LspScanContract.ps1`                                     | TS `lsp-scan.ts`·`scan-uri.ts`·`scan-log.ts`·`lsp-scan-watch.ts`의 PowerShell 이식본(요청 검사, 송신 방어선, D9 URI 비교, 단일 파일 스캔 로그 판독, 증거 추적기·결합 감시기). 부작용 없음 |
+| `lsp-scan-runner.ps1`                                     | 표준 입력 러너. 합성 파일·프로브를 서버를 띄우기 전에 배타 쓰기·해시 대조하고, 원문 바이트·청크 시간표·표시(`barrierDoneAtMs`, `didOpenSent`)·자식 PATH 값·작업 폴더를 결과 JSON에 남긴다 |
+| `lsp-scan-stub.ps1`                                       | 러너 점검용 무해한 스텁 서버(도착 순서 변형, 진단·로그 변형, 외부 명령 줄 변형, 장벽 실패 시나리오). 실제 Semgrep이 아니며 `git`을 부르지 않는다                                          |
+| `Test-LspScanObservation.ps1`                             | 관리자 진입점(기본 dry-run). RULES 진입점과 같은 틀에 합성 파일 해시·`scanMs`를 더했다. 이 작업에서는 실행하지 않았다                                                                     |
+| `LspScanAdminContract.ps1`, `LspScanAdminPorts.ps1`       | 진입점의 순수 판정과 읽기 전용 포트(합성 파일·프로브 사후 재해시, 감시 폴더 목록)                                                                                                         |
+| `tests/Test-LspScanRunner.ps1`                            | 러너 end-to-end(스텁), 필수 도착 순서 행렬, 골든 대조, 요청 거부, TS 어댑터 판정                                                                                                          |
+| `tests/Test-LspScanAdmin.ps1`                             | 모의 시스템 위의 관리자 진입점 흐름 시험(RULES 시험보다 좁다)                                                                                                                             |
+| `tests/MockSystemScan.ps1`, `tests/MockPortsScan.ps1`     | 모의 확장(시험 전용)                                                                                                                                                                      |
+| `tests/lsp-scan-parity.json`, `tests/lsp-scan-bridge.mts` | TS가 만든 골든 137건(URI 비교, 감시 대본, 요청 검사, 송신 방어선, 한도)과, 이를 만들고 러너 결과를 실제 TS 어댑터에 통과시키는 다리                                                       |
+
+**시험을 부르는 방법**(5.1 호스트, 시스템 설정을 바꾸지 않는다):
+
+```powershell
+$tsx = "$repo\node_modules\.bin\tsx.cmd"; $node = "C:\path\to\node"
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-LspScanRunner.ps1" -TsxCmd $tsx -NodeDir $node
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-LspScanAdmin.ps1" -Engine powershell -TsxCmd $tsx -NodeDir $node -SkipRealStateCheck
+```
+
+`Test-LspScanObservation.ps1`을 이 PC에서 직접 실행하지 않는다(dry-run도 포함: 모의 시스템 위에서만 `Test-LspScanAdmin.ps1`이 부른다). `-TsxCmd`가 없으면 TS 대조·판정 사례와 골든 신선도 확인은 `SKIPPED`로 표시하고 통과로 세지 않는다. 골든 파일을 다시 만들려면 `node <repo>/node_modules/tsx/dist/cli.mjs tests/lsp-scan-bridge.mts _ golden > tests/lsp-scan-parity.json` 한 뒤 `prettier --write`로 서식을 맞춘다(저장소의 `format:check`가 이 파일을 검사한다. 내용은 서식과 무관하게 같은 JSON이다). 골든 137건은 URI 비교·감시 대본·요청 검사·송신 방어선·한도이며, 16개 판정 조건은 골든 범위 밖이고 TS 시험(`lsp-scan-record.test.ts` 등)이 다룬다.
+
+**검증하지 못한 것.** 실제 Windows에서의 효과(계정·방화벽·감사·ACL 적용은 모의로만 확인했다), 실제 Semgrep, 다른 호스트(pwsh 7)·다른 Windows 버전, `Test-LsAdminInstall`과 `semgrep-lsp` 모드 전체(모의가 막는다), 실제 크기의 stderr(스텁 출력은 작다. 줄바꿈이 든 청크마다 로그 분석을 다시 부르며, 독립 검토는 이것이 stderr 전체를 다시 분석하는 구조로 읽힌다고 보았다. 큰 출력에서의 지연은 재지 않았다), 마감 경계(정확히 `scanMs`에 완성되는 묶음)의 PowerShell 쪽 사례, `-TargetFile`을 생략한 관리자 진입점의 끝에서 끝까지 실행(소스상 순서 검사만 있다), 이 절의 PowerShell 코드에 대한 변이 점검(TS 쪽 핵심 방어는 변이 점검을 했다). 판정의 본체는 TS 재해석이며 이 절의 PowerShell 코드는 흐름과 위험 차단만 정한다.
