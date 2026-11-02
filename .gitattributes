@@ -18,3 +18,6 @@
 
 # LSP-RULES-1 probe rule: the sha256 of these exact bytes is part of the observation contract, so never normalise it.
 scripts/semgrep-lsp/data/lsp-rules-1-probe.yaml -text
+
+# LSP-SCAN-1 synthetic target: the size (135) and sha256 of these exact bytes are part of the observation contract, so never normalise it.
+scripts/semgrep-lsp/data/lsp-scan-1-target.txt -text

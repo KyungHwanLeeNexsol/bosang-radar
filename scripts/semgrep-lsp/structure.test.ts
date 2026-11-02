@@ -1003,6 +1003,9 @@ const RULES_CORE_FILES = [
   "lsp-rules-reinterpret.ts",
 ];
 
+// 구조 (13)·(15)가 공유하는 LSP-SCAN-1 핵심 모듈 목록(순수 모듈 넷: URI 비교, 로그 판독, 계약, 증거 추적·판정·기록).
+const SCAN_CORE_FILES = ["scan-uri.ts", "scan-log.ts", "lsp-scan.ts", "lsp-scan-record.ts"];
+
 describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 기존 판정·세션에 이어지지 않는다", () => {
   const CORE = [
     "lsp-min.ts",
@@ -1072,6 +1075,8 @@ describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 
       // LSP-RULES-1 핵심 모듈은 lsp-min.ts 의 순수 함수·상수를 **읽기 전용으로** 재사용한다(그쪽은 한 줄도 바뀌지 않았고 이쪽을 가져오지 않는다).
       // 어느 모듈이 무엇을 가져오는지는 구조 (14)가 고정한다.
       .filter((s) => !RULES_CORE_FILES.includes(s.rel))
+      // LSP-SCAN-1 핵심 모듈도 같은 방식으로 읽기 전용 재사용한다. 가져오는 목록은 구조 (15)가 고정한다.
+      .filter((s) => !SCAN_CORE_FILES.includes(s.rel))
       .filter((s) => specifiersOf(s.code).some((spec) => /(^|\/)lsp-min(-run)?$/.test(spec)))
       .map((s) => s.rel);
     expect(importers).toEqual([]);
@@ -1353,5 +1358,141 @@ describe("구조 (14) — LSP-RULES-1 규칙 로딩 관측은 별도 기록이�
     const copyCheck = code.indexOf("PROBE_COPY_HASH_MISMATCH");
     expect(copyCheck).toBeGreaterThan(write);
     expect(copyCheck).toBeLessThan(spawn);
+  });
+});
+
+describe("구조 (15) — LSP-SCAN-1 합성 파일 반응 관측은 별도 기록이고 기존 판정·세션·허용 이미지에 이어지지 않는다", () => {
+  const uniqueRelImports = (rel: string): string[] =>
+    [...new Set(specifiersOf(byRel(rel).code).filter((s) => s.startsWith(".")))].sort();
+
+  it("핵심 모듈은 node:* 를 가져오지 않는다 — 파일·프로세스·네트워크·환경에 직접 닿지 않는다", () => {
+    for (const rel of SCAN_CORE_FILES) {
+      expect(
+        specifiersOf(byRel(rel).code).filter((s) => !s.startsWith(".")),
+        rel
+      ).toEqual([]);
+    }
+  });
+
+  it("각 모듈이 가져오는 프로젝트 모듈은 정해진 목록뿐이다 (RULES·MIN 모듈은 읽기 전용 재사용)", () => {
+    expect(uniqueRelImports("scan-uri.ts")).toEqual([]);
+    expect(uniqueRelImports("scan-log.ts")).toEqual(["./rules-log"]);
+    expect(uniqueRelImports("lsp-scan.ts")).toEqual(
+      [
+        "./framing",
+        "./jsonrpc",
+        "./lsp-min",
+        "./lsp-rules",
+        "./settings",
+        "./sha",
+        "./types",
+        "./uri",
+      ].sort()
+    );
+    expect(uniqueRelImports("lsp-scan-record.ts")).toEqual(
+      [
+        "./framing",
+        "./lsp-min",
+        "./lsp-rules",
+        "./lsp-scan",
+        "./rules-log",
+        "./scan-log",
+        "./scan-uri",
+        "./sha",
+        "./types",
+      ].sort()
+    );
+  });
+
+  it("새 모듈은 평가기·하네스·세션·대조 참조·음성 대조·CLI 를 가져오지 않고, 기존 모듈은 새 모듈을 가져오지 않는다", () => {
+    for (const rel of SCAN_CORE_FILES) {
+      const bad = uniqueRelImports(rel).filter((s) =>
+        /\/(evaluate|harness|session|reference|reference-record|negative-control|negative-control-record|cli|precheck|aggregate|control)$/.test(
+          s
+        )
+      );
+      expect(bad, rel).toEqual([]);
+    }
+    const scanModules = /(^|\/)(scan-uri|scan-log|lsp-scan(-[a-z-]+)?)$/;
+    // 시험 지원 조립기(testing/)는 판정 모듈을 먹여 보려고 가져온다. 운영 소스만 본다.
+    const importers = nonTest
+      .filter((s) => !SCAN_CORE_FILES.includes(s.rel) && !s.rel.startsWith("testing/"))
+      .filter((s) => specifiersOf(s.code).some((spec) => scanModules.test(spec)))
+      .map((s) => s.rel);
+    expect(importers).toEqual([]);
+  });
+
+  it("시간은 주입된 시각으로만 다룬다 — 전역 시간 함수와 난수가 없다", () => {
+    for (const rel of SCAN_CORE_FILES) {
+      expect(byRel(rel).code, rel).not.toMatch(
+        /\bDate\s*\.\s*now\b|\bsetTimeout\b|\bsetInterval\b|\bperformance\s*\.|\bMath\s*\.\s*random\b/
+      );
+    }
+  });
+
+  it("환경 변수 이름·토큰 이름·핀·상태 값을 코드에 더하지 않는다", () => {
+    for (const rel of SCAN_CORE_FILES) {
+      const code = byRel(rel).code;
+      expect(code, rel).not.toContain("SEMGREP_ENABLE_VERSION_CHECK");
+      expect(code, rel).not.toContain("SEMGREP_LOG_SRCS");
+      expect(code, rel).not.toMatch(/SEMGREP_APP_TOKEN|SEMGREP_API_TOKEN/);
+      expect(code, rel).not.toMatch(
+        /pin\.json|policy_accepted|\.verified\b|(?<![A-Za-z_])verified\s*[:=]|decisions\/|lsp-security-source/
+      );
+    }
+  });
+
+  it("허용 이미지 목록은 바뀌지 않았다: git 이 없고, 새 모듈이 목록을 고치지 않는다", () => {
+    const min = byRel("lsp-min.ts").raw;
+    const start = min.indexOf("export const ALLOWED_IMAGES");
+    const end = min.indexOf("]);", start);
+    expect(start).toBeGreaterThan(-1);
+    const literal = min.slice(start, end);
+    expect(literal.toLowerCase()).not.toContain("git");
+    for (const rel of SCAN_CORE_FILES) {
+      const code = byRel(rel).code;
+      expect(code, rel).not.toMatch(/ALLOWED_IMAGES\s*(\.\s*(push|concat|unshift|splice)|\[|=)/);
+      expect(code, rel).not.toMatch(/["'`]git(\.exe)?["'`]\s*,?\s*["'`]semgrep/i);
+    }
+  });
+
+  it("didOpen 은 송신 순서 목록에만 있고, didSave·didChange·didClose·scanWorkspace·refreshRules·작업 영역 변경·파일 생성을 보내는 코드가 없다", () => {
+    for (const rel of ["lsp-scan.ts"]) {
+      const code = byRel(rel).code;
+      for (const method of [
+        "textDocument/didSave",
+        "textDocument/didChange",
+        "textDocument/didClose",
+        "semgrep/scanWorkspace",
+        "semgrep/refreshRules",
+        "workspace/didChangeWorkspaceFolders",
+        "workspace/didCreateFiles",
+      ]) {
+        expect(code, `${rel} ${method}`).not.toContain(method);
+      }
+      expect([...code.matchAll(/"textDocument\/didOpen"/g)].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("합성 대상 파일은 저장소에 한 개이고, 크기 135 와 sha256 이 고정되어 있으며 줄바꿈 변환을 막는다", () => {
+    const TARGET_REL = "data/lsp-scan-1-target.txt";
+    const TARGET_SHA256 = "097b6a5ddb0f1f822b91ccebad23fa448d1970222502e4f18447479d0cd741ba";
+    const bytes = readFileSync(join(BASE, ...TARGET_REL.split("/")));
+    expect(bytes.byteLength).toBe(135);
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(TARGET_SHA256);
+    const others = walk(join(BASE, "data"))
+      .map((f) => relative(join(BASE, "data"), f).split(sep).join("/"))
+      .filter((rel) => !/\.(tsv|json)$/.test(rel))
+      .sort();
+    expect(others).toEqual(["lsp-rules-1-probe.yaml", "lsp-scan-1-target.txt"]);
+    const attributes = readFileSync(join(ROOT, ".gitattributes"), "utf8");
+    expect(attributes).toContain("scripts/semgrep-lsp/data/lsp-scan-1-target.txt -text");
+    expect(attributes).toContain("scripts/semgrep-lsp/data/lsp-rules-1-probe.yaml -text");
+  });
+
+  it("코드에 고정된 크기·해시 상수가 파일과 같다", () => {
+    const code = byRel("lsp-scan.ts").code;
+    expect(code).toContain("LSP_SCAN_TARGET_BYTES = 135");
+    expect(code).toContain("097b6a5ddb0f1f822b91ccebad23fa448d1970222502e4f18447479d0cd741ba");
   });
 });
