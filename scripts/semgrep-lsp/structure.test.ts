@@ -177,7 +177,8 @@ describe("구조 (3) — 환경·argv·exit는 cli.ts의 진입점만 만진다"
       (x) =>
         !x.isMjs &&
         x.rel !== "lsp-min-reinterpret-cli.ts" &&
-        x.rel !== "lsp-rules-reinterpret-cli.ts"
+        x.rel !== "lsp-rules-reinterpret-cli.ts" &&
+        x.rel !== "lsp-scan-reinterpret-cli.ts"
     )) {
       const code =
         s.rel === "cli.ts" ? s.code.slice(0, s.code.indexOf("async function runEntry")) : s.code;
@@ -300,6 +301,8 @@ describe("구조 (6) — 대조 예제(.in)는 정적 입력이다", () => {
         "lsp-min-reinterpret-cli.ts",
         // LSP-RULES-1 관리자 진입점이 부르는 재해석 래퍼: 위와 같은 범위(인자로 받은 파일 둘을 읽고 하나를 쓴다, 구조 (14)가 지킨다).
         "lsp-rules-reinterpret-cli.ts",
+        // LSP-SCAN-1 관리자 진입점이 부르는 재해석 래퍼: 위와 같은 범위(인자로 받은 파일 둘(또는 .bin 둘 더)을 읽고 하나를 쓴다, 구조 (16)이 지킨다).
+        "lsp-scan-reinterpret-cli.ts",
         "process-list-node.ts",
         "run-lock-node.ts",
         "testing/evaluate-fixtures.ts",
@@ -1003,8 +1006,18 @@ const RULES_CORE_FILES = [
   "lsp-rules-reinterpret.ts",
 ];
 
-// 구조 (13)·(15)가 공유하는 LSP-SCAN-1 핵심 모듈 목록(순수 모듈 넷: URI 비교, 로그 판독, 계약, 증거 추적·판정·기록).
-const SCAN_CORE_FILES = ["scan-uri.ts", "scan-log.ts", "lsp-scan.ts", "lsp-scan-record.ts"];
+// 구조 (13)·(15)·(16)이 공유하는 LSP-SCAN-1 핵심 모듈 목록(순수 모듈: URI 비교, 로그 판독, 계약, 증거 추적·판정·기록, 그리고 실행 계층: 실시간 감시기,
+// 실행기, 러너 결과 어댑터, 관리자 문맥 재해석). 재해석 CLI 래퍼(lsp-scan-reinterpret-cli.ts)는 node:fs 를 쓰므로 목록에 없고 구조 (16)이 따로 지킨다.
+const SCAN_CORE_FILES = [
+  "scan-uri.ts",
+  "scan-log.ts",
+  "lsp-scan.ts",
+  "lsp-scan-record.ts",
+  "lsp-scan-watch.ts",
+  "lsp-scan-run.ts",
+  "lsp-scan-runner-result.ts",
+  "lsp-scan-reinterpret.ts",
+];
 
 describe("구조 (13) — LSP-MIN-1 최소 기동 관측은 별도 기록이고 기존 판정·세션에 이어지지 않는다", () => {
   const CORE = [
@@ -1416,7 +1429,13 @@ describe("구조 (15) — LSP-SCAN-1 합성 파일 반응 관측은 별도 기�
     const scanModules = /(^|\/)(scan-uri|scan-log|lsp-scan(-[a-z-]+)?)$/;
     // 시험 지원 조립기(testing/)는 판정 모듈을 먹여 보려고 가져온다. 운영 소스만 본다.
     const importers = nonTest
-      .filter((s) => !SCAN_CORE_FILES.includes(s.rel) && !s.rel.startsWith("testing/"))
+      // 재해석 CLI 래퍼는 순수 재해석 모듈 하나만 가져온다(구조 (16)이 지킨다).
+      .filter(
+        (s) =>
+          !SCAN_CORE_FILES.includes(s.rel) &&
+          s.rel !== "lsp-scan-reinterpret-cli.ts" &&
+          !s.rel.startsWith("testing/")
+      )
       .filter((s) => specifiersOf(s.code).some((spec) => scanModules.test(spec)))
       .map((s) => s.rel);
     expect(importers).toEqual([]);
@@ -1494,5 +1513,210 @@ describe("구조 (15) — LSP-SCAN-1 합성 파일 반응 관측은 별도 기�
     const code = byRel("lsp-scan.ts").code;
     expect(code).toContain("LSP_SCAN_TARGET_BYTES = 135");
     expect(code).toContain("097b6a5ddb0f1f822b91ccebad23fa448d1970222502e4f18447479d0cd741ba");
+  });
+});
+
+describe("구조 (16) — LSP-SCAN-1 실행 계층(감시기·실행기·러너 결과 어댑터·재해석)은 별도 기록이고 송신·종료·경로 규율을 코드에서 지킨다", () => {
+  const uniqueRelImports = (rel: string): string[] =>
+    [...new Set(specifiersOf(byRel(rel).code).filter((s) => s.startsWith(".")))].sort();
+
+  it("각 모듈이 가져오는 프로젝트 모듈은 정해진 목록뿐이다 (RULES·MIN 모듈은 읽기 전용 재사용)", () => {
+    expect(uniqueRelImports("lsp-scan-watch.ts")).toEqual(
+      [
+        "./framing",
+        "./lsp-min",
+        "./lsp-rules",
+        "./lsp-scan",
+        "./lsp-scan-record",
+        "./rules-log",
+        "./scan-log",
+        "./types",
+      ].sort()
+    );
+    expect(uniqueRelImports("lsp-scan-run.ts")).toEqual(
+      [
+        "./framing",
+        "./lsp-min",
+        "./lsp-rules",
+        "./lsp-scan",
+        "./lsp-scan-record",
+        "./lsp-scan-watch",
+        "./path-containment",
+        "./sha",
+        "./tool-observation",
+        "./types",
+      ].sort()
+    );
+    expect(uniqueRelImports("lsp-scan-runner-result.ts")).toEqual(
+      [
+        "./framing",
+        "./lsp-min",
+        "./lsp-rules",
+        "./lsp-scan",
+        "./lsp-scan-record",
+        "./sha",
+        "./types",
+      ].sort()
+    );
+    expect(uniqueRelImports("lsp-scan-reinterpret.ts")).toEqual(
+      [
+        "./lsp-min-reinterpret",
+        "./lsp-scan",
+        "./lsp-scan-record",
+        "./lsp-scan-runner-result",
+      ].sort()
+    );
+  });
+
+  it("감시기는 프로세스를 끝내거나 stdin 에 쓰지 않고, 실행기만 그 일을 한다", () => {
+    const watch = byRel("lsp-scan-watch.ts").code;
+    expect(watch).not.toMatch(/\.kill\s*\(|\.writeStdin\s*\(|\.endStdin\s*\(|child_process/);
+    expect(byRel("lsp-scan-run.ts").code).not.toMatch(/child_process|node:net|\bfetch\s*\(/);
+  });
+
+  it("재해석 CLI 래퍼는 node:fs 와 순수 재해석 모듈만 가져오고 프로세스·네트워크에 닿지 않는다", () => {
+    const code = byRel("lsp-scan-reinterpret-cli.ts").code;
+    expect(specifiersOf(code).sort()).toEqual(["./lsp-scan-reinterpret", "node:fs"].sort());
+    expect(code).not.toMatch(/child_process|node:net|node:http|\bspawn\b|\bfetch\s*\(/);
+    const touched = [...code.matchAll(/\bprocess\s*\.\s*(\w+)/g)].map((m) => m[1]).sort();
+    expect(touched).toEqual(["argv", "exitCode", "stdout"].sort());
+    expect(code).toMatch(/process\.argv\.slice\(2\)/);
+    // 기본 경로(cli.ts)·어떤 게이트에도 이어지지 않는다: 다른 비시험 소스가 래퍼를 가져오지 않는다.
+    const importers = nonTest
+      .filter((s) => s.rel !== "lsp-scan-reinterpret-cli.ts")
+      .filter((s) => specifiersOf(s.code).some((spec) => /lsp-scan-reinterpret-cli$/.test(spec)))
+      .map((s) => s.rel);
+    expect(importers).toEqual([]);
+  });
+
+  it("실행 계층은 cli.ts 와 하네스 기본 경로에 이어지지 않는다 (cli.ts·harness.ts 가 새 모듈을 가져오지 않는다)", () => {
+    for (const rel of ["cli.ts", "harness.ts", "session.ts", "evaluate.ts"]) {
+      expect(
+        specifiersOf(byRel(rel).code).filter((s) => /(^|\/)(lsp-scan|scan-log|scan-uri)/.test(s)),
+        rel
+      ).toEqual([]);
+    }
+  });
+
+  it("실행기: stdin 에 쓰는 곳은 send 한 곳뿐이고, 쓰기 직전에 허용 메시지 검사를 거치며 거절하면 A10 으로 중단한다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect([...code.matchAll(/\.writeStdin\s*\(/g)]).toHaveLength(1);
+    const send = code.indexOf("private async send(");
+    const guard = code.indexOf("assertAllowedScanOutbound(label, message", send);
+    const refuse = code.indexOf('condition: "A10"', guard);
+    const write = code.indexOf(".writeStdin(", send);
+    expect(send).toBeGreaterThan(-1);
+    expect(guard).toBeGreaterThan(send);
+    expect(refuse).toBeGreaterThan(guard);
+    expect(write).toBeGreaterThan(refuse);
+  });
+
+  it("실행기: initialized 와 didOpen 을 보내는 곳은 각각 한 곳뿐이고, didOpen 은 장벽이 계약대로(clean)일 때만 나간다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect([...code.matchAll(/this\.send\(\s*"initialized"/g)]).toHaveLength(1);
+    expect([...code.matchAll(/this\.send\(\s*"didOpen"/g)]).toHaveLength(1);
+    const gate = code.indexOf("if (!this.initGate().ok)");
+    const flagged = code.indexOf("this.live.markInitializedSent()", gate);
+    const sentInit = code.indexOf('this.send("initialized"', flagged);
+    const barrier = code.indexOf("this.live.barrierReady()", sentInit);
+    const markBarrier = code.indexOf("this.live.markBarrierDone(", barrier);
+    const filesCheck = code.indexOf("await this.checkFilesAtBarrier()", markBarrier);
+    const clean = code.indexOf("this.live.barrierStatus().clean", filesCheck);
+    const open = code.indexOf("this.openAndWatch()", clean);
+    const didOpen = code.indexOf('this.send("didOpen"', open);
+    const shutdown = code.indexOf("await this.shutdownAndExit()", open);
+    for (const [name, at] of Object.entries({
+      gate,
+      flagged,
+      sentInit,
+      barrier,
+      markBarrier,
+      filesCheck,
+      clean,
+      open,
+      didOpen,
+      shutdown,
+    })) {
+      expect(at, name).toBeGreaterThan(-1);
+    }
+    expect(flagged).toBeGreaterThan(gate);
+    expect(sentInit).toBeGreaterThan(flagged);
+    expect(markBarrier).toBeGreaterThan(barrier);
+    expect(filesCheck).toBeGreaterThan(markBarrier);
+    expect(clean).toBeGreaterThan(filesCheck);
+    expect(didOpen).toBeGreaterThan(open);
+    expect(shutdown).toBeGreaterThan(open);
+  });
+
+  it("실행기: 마감은 didOpen 송신 시각 + 한도(scanMs) 한 곳이고 늘리는 코드가 없다, settle 은 늦은 묶음의 창에서만 센다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect(code).toMatch(/const deadline = openedAt \+ L\.scanMs;/);
+    expect([...code.matchAll(/\bscanMs\b/g)].length).toBeLessThanOrEqual(4);
+    expect(code).toMatch(/const windowEnd = both\.settleEndMs as number;/);
+    expect(code).not.toMatch(/scanMs\s*(\+=|\*=)|\bretry\b|\bextendDeadline\b/);
+  });
+
+  it("실행기: 서버 요청에 대한 응답(result·error 메시지)을 만들지 않는다", () => {
+    for (const rel of ["lsp-scan-run.ts", "lsp-scan-watch.ts", "lsp-scan.ts"]) {
+      expect(byRel(rel).code, rel).not.toMatch(/makeResponse|result:\s*null|error:\s*\{\s*code/);
+    }
+  });
+
+  it("실행기: 강제 종료 호출은 killTree 한 곳뿐이고, 한 번만 보내도록 막혀 있다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect([...code.matchAll(/\.kill\s*\(/g)]).toHaveLength(1);
+    expect(code).toMatch(/if \(child === null \|\| this\.killCount > 0\) return;/);
+  });
+
+  it("실행기: 요청 검사 → 링크 탈출 검사 → 폴더 → 프로브 쓰기·해시 → 합성 파일 쓰기·해시 → 띄우기 순서다 (거절되면 아무것도 만들지 않는다)", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    const check = code.indexOf("checkScanRequest(this.request, sha256Hex)");
+    const escape = code.indexOf("keyIsSameOrInside(key, workKey)");
+    const mkdir = code.indexOf("this.ports.fs.mkdirp(path)");
+    const writeProbe = code.indexOf("this.ports.fs.writeFileExclusive(");
+    const probeCheck = code.indexOf("PROBE_COPY_HASH_MISMATCH", writeProbe);
+    const writeTarget = code.indexOf("this.ports.fs.writeFileExclusive(", probeCheck);
+    const targetCheck = code.indexOf("TARGET_COPY_HASH_MISMATCH", writeTarget);
+    const spawn = code.indexOf("await this.spawnChild()");
+    for (const [name, at] of Object.entries({
+      check,
+      escape,
+      mkdir,
+      writeProbe,
+      probeCheck,
+      writeTarget,
+      targetCheck,
+      spawn,
+    })) {
+      expect(at, name).toBeGreaterThan(-1);
+    }
+    expect(escape).toBeGreaterThan(check);
+    expect(mkdir).toBeGreaterThan(escape);
+    expect(writeProbe).toBeGreaterThan(mkdir);
+    expect(probeCheck).toBeGreaterThan(writeProbe);
+    expect(writeTarget).toBeGreaterThan(probeCheck);
+    expect(targetCheck).toBeGreaterThan(writeTarget);
+    expect(spawn).toBeGreaterThan(targetCheck);
+    // 쓰기 경로 확인 목록에 합성 파일이 들어 있다.
+    expect(code).toMatch(/\[\.\.\.dirs, probePathOf\(layout\), layout\.targetPath\]/);
+  });
+
+  it("실행기: 실행 뒤에 합성 파일과 프로브 해시를 다시 잰다, 자식에게는 요청의 환경만 주고 PATH 값과 작업 폴더를 기록한다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect(code).toMatch(/this\.target\.afterRunSha256 = await this\.hashFile\(/);
+    expect(code).toMatch(/this\.probe\.afterRunSha256 = await this\.hashFile\(/);
+    expect(code).toMatch(/env: this\.request\.env,/);
+    expect(code).toMatch(
+      /path: this\.spawnAttempted && typeof pathValue === "string" \? pathValue : null/
+    );
+    expect(code).toMatch(/workingDirectory: this\.spawnAttempted \? layout\.stateDir : null/);
+  });
+
+  it("실행기: 시험 이음새(attemptSends)는 runAttempts 한 곳에서만 읽힌다", () => {
+    const code = byRel("lsp-scan-run.ts").code;
+    expect([...code.matchAll(/options\.attemptSends/g)]).toHaveLength(1);
+    expect(code.indexOf("options.attemptSends")).toBeGreaterThan(
+      code.indexOf("private async runAttempts(")
+    );
   });
 });
