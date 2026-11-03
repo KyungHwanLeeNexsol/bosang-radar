@@ -148,8 +148,9 @@ describe("재해석은 실행기가 남긴 원문에서 같은 판정을 다시 
     expect(re.record.evidence_scope).toBe("SYNTHETIC_STUB_ONLY");
     expect(re.record.real_binary_verified).toBe(false);
     // 실제 출처로 표시해도 실제 바이너리 검증으로 쓰지 않는다: 성공이 말하는 것은 합성 입력 한 건의 반응뿐이다
+    // 관리자 문맥도 같은 실행 종류(semgrep-lsp)를 알릴 때만 실제 출처로 읽는다 (아래 mode 교차 확인 절)
     const real = { ...runnerJsonFromFacts(facts), mode: "semgrep-lsp" };
-    const r2 = reinterpretScanRun(real, adminContextFor(facts, SCAN_WORK));
+    const r2 = reinterpretScanRun(real, adminContextFor(facts, SCAN_WORK, { mode: "semgrep-lsp" }));
     expect(r2.record.evidence_scope).toBe("ONE_SYNTHETIC_INPUT_REACTION");
     expect(r2.record.real_binary_verified).toBe(false);
     expect(r2.record.not_established.rule_detection_performance_in_general).toBe("NOT_ESTABLISHED");
@@ -308,6 +309,157 @@ describe("관리자 쪽 사실이 틀리면 관측이 성립하지 않는다", (
       expect(re.record.verdict).not.toBe(OK);
     }
     expect(reinterpretScanRun(null, null).record.verdict).not.toBe(OK);
+  });
+});
+
+describe("관리자 문맥의 mode 와 러너 결과의 mode 를 교차 확인한다 (F6a)", () => {
+  async function base() {
+    const { facts } = await runInProcess();
+    return { json: runnerJsonFromFacts(facts), facts };
+  }
+  /** 승격되지 않았음: 출처 null 이고, 아무것도 세우지 않으며, 실제 바이너리 검증이 아니다. 실행 사실과 원문 증거는 그대로 남는다. */
+  const expectNotPromoted = (re: ReturnType<typeof reinterpretScanRun>): void => {
+    expect(re.record.status).toBe("NOT_OBSERVED");
+    expect(re.record.verdict).toMatch(/^NOT_OBSERVED:/);
+    expect(re.record.provenance).toBeNull();
+    expect(re.record.established).toEqual([]);
+    expect(re.record.evidence_scope).toBe("SYNTHETIC_STUB_ONLY");
+    expect(re.record.real_binary_verified).toBe(false);
+    expect(re.record.sent.length).toBeGreaterThan(0);
+    expect(re.record.evidence.both_complete_at_ms).not.toBeNull();
+  };
+
+  it("정상 두 종류: stub/stub 은 스텁 출처로, semgrep-lsp/semgrep-lsp 는 실제 출처로 읽는다 (스텁은 아무것도 세우지 않는다)", async () => {
+    const { json, facts } = await base();
+    const stub = reinterpretScanRun(json, adminContextFor(facts, SCAN_WORK, { mode: "stub" }));
+    expect(stub.record.verdict).toBe(OK);
+    expect(stub.record.provenance).toBe("stub");
+    expect(stub.record.established).toEqual([]);
+    expect(stub.record.evidence_scope).toBe("SYNTHETIC_STUB_ONLY");
+    expect(stub.admin.externalReasons).toEqual([]);
+    expect(stub.admin.contextProblems).toEqual([]);
+
+    const real = reinterpretScanRun(
+      { ...json, mode: "semgrep-lsp" },
+      adminContextFor(facts, SCAN_WORK, { mode: "semgrep-lsp" })
+    );
+    expect(real.record.verdict).toBe(OK);
+    expect(real.record.provenance).toBe("real");
+    expect(real.record.evidence_scope).toBe("ONE_SYNTHETIC_INPUT_REACTION");
+    expect(real.record.real_binary_verified).toBe(false);
+    expect(real.admin.externalReasons).toEqual([]);
+  });
+
+  it("관리자는 stub 인데 러너가 semgrep-lsp 라고 보고하면 실제 출처로 승격하지 않고 관측 불성립이다", async () => {
+    const { json, facts } = await base();
+    const re = reinterpretScanRun(
+      { ...json, mode: "semgrep-lsp" },
+      adminContextFor(facts, SCAN_WORK, { mode: "stub" })
+    );
+    expect(re.admin.externalReasons).toContain("ADMIN_MODE_MISMATCH:admin_stub_runner_real");
+    expectNotPromoted(re);
+  });
+
+  it("관리자는 semgrep-lsp 인데 러너가 stub 이라고 보고해도 관측 불성립이다 (관리자 mode 로 출처를 채우지 않는다)", async () => {
+    const { json, facts } = await base();
+    const re = reinterpretScanRun(
+      { ...json, mode: "stub" },
+      adminContextFor(facts, SCAN_WORK, { mode: "semgrep-lsp" })
+    );
+    expect(re.admin.externalReasons).toContain("ADMIN_MODE_MISMATCH:admin_real_runner_stub");
+    expectNotPromoted(re);
+  });
+
+  it("관리자 mode 가 없거나 모르는 값이면 러너가 무엇을 보고하든 승격하지 않고 ADMIN_CONTEXT_MALFORMED:mode 이다", async () => {
+    const { json, facts } = await base();
+    const badModes: [string, unknown][] = [
+      ["없음", undefined],
+      ["null", null],
+      ["빈 문자열", ""],
+      ["대소문자 다름", "Stub"],
+      ["공백 포함", "semgrep-lsp "],
+      ["소프트 하이픈", "stu­b"],
+      ["숫자", 1],
+      ["객체", { mode: "stub" }],
+      ["모르는 이름", "real"],
+    ];
+    for (const runnerMode of ["stub", "semgrep-lsp"]) {
+      for (const [name, bad] of badModes) {
+        const re = reinterpretScanRun(
+          { ...json, mode: runnerMode },
+          adminContextFor(facts, SCAN_WORK, { mode: bad })
+        );
+        expect(re.admin.contextProblems, `${name}/${runnerMode}`).toContain("mode");
+        expect(re.admin.externalReasons, `${name}/${runnerMode}`).toContain(
+          "ADMIN_CONTEXT_MALFORMED:mode"
+        );
+        expectNotPromoted(re);
+      }
+    }
+  });
+
+  it("러너 결과의 mode 가 없거나 모르는 값이면 관리자 mode 만으로 출처를 채우지 않고 관측 불성립이다", async () => {
+    const { json, facts } = await base();
+    const badModes: [string, unknown][] = [
+      ["없음", undefined],
+      ["null", null],
+      ["빈 문자열", ""],
+      ["대소문자 다름", "STUB"],
+      ["소프트 하이픈", "semgrep-lsp­"],
+      ["숫자", 7],
+      ["모르는 이름", "other"],
+    ];
+    for (const adminMode of ["stub", "semgrep-lsp"]) {
+      for (const [name, bad] of badModes) {
+        const runner = { ...json, mode: bad };
+        if (bad === undefined) delete (runner as Record<string, unknown>).mode;
+        const re = reinterpretScanRun(
+          runner,
+          adminContextFor(facts, SCAN_WORK, { mode: adminMode })
+        );
+        expect(re.admin.externalReasons, `${name}/${adminMode}`).toContain(
+          "ADMIN_RUNNER_MODE_INVALID"
+        );
+        expect(re.record.provenance, `${name}/${adminMode}`).toBeNull();
+        expect(re.record.status, `${name}/${adminMode}`).toBe("NOT_OBSERVED");
+        expect(re.record.established, `${name}/${adminMode}`).toEqual([]);
+        expect(re.record.verdict, `${name}/${adminMode}`).not.toBe(OK);
+      }
+    }
+  });
+
+  it("러너를 띄우지 않았다고 알린 경우에도 출처는 채우지 않고, 관리자 mode 가 틀렸으면 문맥 문제로 남는다", async () => {
+    const { facts } = await runInProcess();
+    const ok = reinterpretScanRun(
+      null,
+      adminContextFor(facts, SCAN_WORK, {
+        runnerLaunched: false,
+        refusals: [],
+        mode: "semgrep-lsp",
+      })
+    );
+    expect(ok.record.verdict).toBe("NOT_ATTEMPTED:ADMIN_RUNNER_NOT_LAUNCHED");
+    expect(ok.record.provenance).toBeNull();
+    expect(ok.admin.externalReasons).not.toContain("ADMIN_MODE_MISMATCH:admin_real_runner_stub");
+    const bad = reinterpretScanRun(
+      null,
+      adminContextFor(facts, SCAN_WORK, { runnerLaunched: false, refusals: [], mode: "x" })
+    );
+    expect(bad.admin.contextProblems).toContain("mode");
+  });
+
+  it("러너가 띄워지지 않았다고 했는데 러너 결과가 남아 있어도 그 결과의 mode 로 출처를 정하지 않는다", async () => {
+    const { json, facts } = await base();
+    const re = reinterpretScanRun(
+      { ...json, mode: "semgrep-lsp" },
+      adminContextFor(facts, SCAN_WORK, {
+        runnerLaunched: false,
+        refusals: [],
+        mode: "semgrep-lsp",
+      })
+    );
+    expect(re.record.provenance).toBeNull();
+    expect(re.record.established).toEqual([]);
   });
 });
 

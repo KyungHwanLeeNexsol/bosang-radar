@@ -6,6 +6,10 @@
 // 막는 사유(`ADMIN_*`)로 더한다. 시스템 복구 결과는 관측 판정과 **따로** 기록한다(서로를 추론하지 않는다). 문맥이 없거나 형식이 틀려도 던지지 않고 관측 불성립 쪽으로
 // 기운다.
 //
+// 실행 종류(mode): 관리자 문맥의 mode 와 러너 결과의 mode 가 모두 유효(stub | semgrep-lsp)하고 같을 때만 러너 결과의 출처를 쓴다. 한쪽이 없거나 모르는 값이거나
+// 서로 다르면 출처를 비우고(null) `ADMIN_MODE_MISMATCH:*`·`ADMIN_RUNNER_MODE_INVALID`·`ADMIN_CONTEXT_MALFORMED:mode` 로 관측 불성립이다. 러너의 자기 보고만으로
+// 출처를 올리지 않고, 관리자 mode 만 보고 출처를 채우지도 않는다. 실행 사실과 원문 증거는 지우지 않는다.
+//
 // 서버를 띄우지 않았음(NOT_ATTEMPTED)은 관리자 문맥의 `runnerLaunched === false` 또는 러너가 스스로 거절했을 때만이다. 러너를 띄운 뒤의 신원·결합·해시 실패는
 // 실행 사실을 지우지 않고 NOT_OBSERVED 로 남는다.
 //
@@ -70,6 +74,13 @@ function limitsFrom(value: unknown): ScanLimits | undefined {
   return out as ScanLimits;
 }
 
+/** 실행 종류. 관리자가 요청에 넣는 값과 러너가 결과에 되돌려 쓰는 값이 모두 이 둘 중 하나여야 한다 (=== 는 서수 비교다). */
+type RunMode = "stub" | "semgrep-lsp";
+
+function runModeOf(value: unknown): RunMode | null {
+  return value === "stub" || value === "semgrep-lsp" ? value : null;
+}
+
 function sha(value: unknown): string | null {
   return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
@@ -108,6 +119,9 @@ export function reinterpretScanRun(
   if (token === "") problems.push("runToken");
   const work = ctx === null ? null : strOrNull(ctx.work);
   if (work === null) problems.push("work");
+  // 관리자가 요청에 넣은 실행 종류. 관리자는 자기가 낸 요청의 종류를 항상 안다: 없거나 모르는 값은 문맥 형식 문제다.
+  const adminMode = ctx === null ? null : runModeOf(ctx.mode);
+  if (ctx !== null && adminMode === null) problems.push("mode");
 
   const receiverRaw = ctx === null ? null : dict(ctx.receiver);
   let receiver: ScanRunnerContext["receiver"];
@@ -179,6 +193,25 @@ export function reinterpretScanRun(
 
   // 결과가 이번 실행의 것인가: 러너가 되돌려 쓴 토큰이 관리자가 요청에 넣은 토큰과 같아야 한다.
   const rr = dict(runnerResult);
+
+  // 실행 종류 교차 확인(F6a). 출처(provenance)는 두 쪽이 모두 유효하고 **같을 때만** 러너 결과에서 온 값을 쓴다.
+  // 러너의 자기 보고만으로 출처를 올리지 않고(stub→real), 관리자 mode 만 보고 출처를 채우지도 않는다(real→stub 불일치·러너 mode 누락 포함).
+  // 어긋나면 출처를 비우고 관측 불성립 사유를 남긴다. 실행 사실·원문 증거·송신 기록은 지우지 않는다.
+  let modesAgree = false;
+  if (launched === true) {
+    const runnerMode = rr === null ? null : runModeOf(rr.mode);
+    if (rr !== null && runnerMode === null) {
+      reasons.push("ADMIN_RUNNER_MODE_INVALID");
+    } else if (adminMode !== null && runnerMode !== null) {
+      if (adminMode === runnerMode) modesAgree = true;
+      else {
+        const word = (m: RunMode): string => (m === "stub" ? "stub" : "real");
+        reasons.push(`ADMIN_MODE_MISMATCH:admin_${word(adminMode)}_runner_${word(runnerMode)}`);
+      }
+    }
+  }
+  if (!modesAgree && facts.provenance !== null) facts = { ...facts, provenance: null };
+
   if (launched !== false && token !== "" && (rr === null || rr.runToken !== token)) {
     reasons.push("ADMIN_TOKEN_MISMATCH");
   }

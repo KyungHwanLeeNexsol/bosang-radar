@@ -128,6 +128,55 @@ function Get-LsAdminAfterRunState {
     $r
 }
 
+# 실행 기록 폴더(RunDir) 바로 아래에서 같은 RunId 의 이전 SCAN 산출물(관측 보고서·기록·러너 결과·문맥·원시 출력)을 찾는다. 읽기 전용이고 하위 폴더는 보지 않는다.
+# 결과 {ok, files, error}. 폴더를 읽지 못하면 ok=$false 다(없다고 하지 않는다 — 호출자가 실행을 거절한다). 이름은 SCAN 전용 접두만 센다(MIN·RULES 기록과 섞지 않는다).
+function Find-LsAdminScanRecords {
+    param([Parameter(Mandatory)][string]$RunDir)
+    $res = [ordered]@{ ok = $false; files = @(); error = $null }
+    try {
+        $names = New-Object System.Collections.ArrayList
+        foreach ($p in [IO.Directory]::GetFileSystemEntries($RunDir)) {
+            $leaf = [IO.Path]::GetFileName($p)
+            if (Test-LsAdminScanRecordName $leaf) { [void]$names.Add($leaf) }
+        }
+        $res.files = @($names | Sort-Object { $_ } -CaseSensitive)
+        $res.ok = $true
+    } catch { $res.error = $_.Exception.Message }
+    $res
+}
+
+# 실행 시도 표지를 **배타적으로** 만든다(CreateNew: 이미 있으면 실패. 동시에 두 호출이 들어와도 하나만 만든다). 이 포트는 표지를 지우거나 덮어쓰거나 되돌리지 않는다.
+# 만들기 전에 신뢰 루트(RunDir)부터 표지까지 이미 있는 경로 조각에 링크가 없는지 본다(기존 증거 폴더 쓰기와 같은 경로 보호: 링크를 따라 바깥에 만들지 않는다).
+# 결과 {ok, created, exists, error}:
+#  · ok=$true: 이 호출이 만들었고 본문도 썼다.
+#  · exists=$true: 이미 무엇인가 있다(파일·링크 모두). 이 호출은 아무것도 만들지 않았다.
+#  · created=$true 이고 ok=$false: 만들었으나 본문을 쓰지 못했다. 표지는 남는다(자동으로 지우지 않는다) — 이 RunId 는 소모된 것이다.
+function New-LsAdminAttemptMarker {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Text, [Parameter(Mandatory)][string]$TrustedRoot)
+    $res = [ordered]@{ ok = $false; created = $false; exists = $false; error = $null }
+    # `, @(...)` 로 돌려주는 함수라 @() 로 다시 감싸지 않는다(빈 배열이 원소 하나로 보이는 함정).
+    $pb = Get-LspMinWorkPathProblems -TrustedRoot $TrustedRoot -Targets @($Path)
+    if ($pb.Count -gt 0) {
+        $res.error = 'MARKER_PATH_UNSAFE: ' + ($pb -join ' ; ')
+        if ((Get-LspMinPieceState -Path $Path) -ne 'MISSING') { $res.exists = $true }
+        return $res
+    }
+    $fs = $null
+    try {
+        try { $fs = [IO.File]::Open($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None) }
+        catch {
+            $res.error = $_.Exception.Message
+            if ((Get-LspMinPieceState -Path $Path) -ne 'MISSING') { $res.exists = $true }
+            return $res
+        }
+        $res.created = $true
+        $b = (New-Object Text.UTF8Encoding($false)).GetBytes($Text + "`n")
+        $fs.Write($b, 0, $b.Length); $fs.Flush($true)
+        $res.ok = $true
+    } catch { $res.error = $_.Exception.Message } finally { if ($null -ne $fs) { $fs.Dispose() } }
+    $res
+}
+
 # 실제 모드의 설치물 사전 확인(L01~L08, L10, L11)과 실행 전 해시. LSP-MIN-1 진입점과 같은 확인이다(그쪽은 진입 함수 안에 풀려 있어 함수로 가져올 수 없어 여기에 옮겼다).
 # 경로 문구 확인(L11)만 이 관측의 계약(Find-LrForbiddenFragment)을 쓴다. 파일은 읽기만 한다. 결과: pre(항목 {id, ok, detail}의 목록), inputs(보고서용), 경로들, 이름표 → 경로 표, 실행 전 해시.
 function Test-LsAdminInstall {

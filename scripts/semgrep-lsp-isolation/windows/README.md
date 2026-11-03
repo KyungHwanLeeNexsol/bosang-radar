@@ -378,3 +378,32 @@ powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "$d\tests\Test-Lsp
 `Test-LspScanObservation.ps1`을 이 PC에서 직접 실행하지 않는다(dry-run도 포함: 모의 시스템 위에서만 `Test-LspScanAdmin.ps1`이 부른다). `-TsxCmd`가 없으면 TS 대조·판정 사례와 골든 신선도 확인은 `SKIPPED`로 표시하고 통과로 세지 않는다. 골든 파일을 다시 만들려면 `node <repo>/node_modules/tsx/dist/cli.mjs tests/lsp-scan-bridge.mts _ golden > tests/lsp-scan-parity.json` 한 뒤 `prettier --write`로 서식을 맞춘다(저장소의 `format:check`가 이 파일을 검사한다. 내용은 서식과 무관하게 같은 JSON이다). 골든 137건은 URI 비교·감시 대본·요청 검사·송신 방어선·한도이며, 16개 판정 조건은 골든 범위 밖이고 TS 시험(`lsp-scan-record.test.ts` 등)이 다룬다.
 
 **검증하지 못한 것.** 실제 Windows에서의 효과(계정·방화벽·감사·ACL 적용은 모의로만 확인했다), 실제 Semgrep, 다른 호스트(새 프레임 시험만 pwsh 7.6.9에서 통과했고, 러너·관리자 시험은 5.1 호스트 전용이다)·다른 Windows 버전, `Test-LsAdminInstall`과 `semgrep-lsp` 모드 전체(모의가 막는다), 실제 크기의 stderr(스텁 출력은 작다. 줄바꿈이 든 청크마다 로그 분석을 다시 부르며, 독립 검토는 이것이 stderr 전체를 다시 분석하는 구조로 읽힌다고 보았다. 큰 출력에서의 지연은 재지 않았다), 마감 경계(정확히 `scanMs`에 완성되는 묶음)의 PowerShell 쪽 사례, `-TargetFile`을 생략한 관리자 진입점의 끝에서 끝까지 실행(소스상 순서 검사만 있다), 프레임 파서 밖의 PowerShell 핵심 방어에 대한 변이 점검(프레임 파서의 방어 6종과 TS 쪽 핵심 방어는 변이 점검을 했다). 판정의 본체는 TS 재해석이며 이 절의 PowerShell 코드는 흐름과 위험 차단만 정한다.
+
+## LSP-SCAN-1 실행 전 보강(F5·F6a): 확인 인자·실행 시도 표지·mode 교차 확인
+
+이 절의 변경도 **스텁·모의 검증 대상**이다. 실제 Semgrep은 `--help`·`--version`을 포함해 실행하지도 임포트하지도 않았고, 이 PC의 계정·방화벽·감사·ACL·네트워크도 건드리지 않았다. 아래 장치는 모두 **실수 방지용**이며, 소유자의 D2(실제 엔진 실행) 승인을 대신하지 않는다. `pin.json`·`verified`·`policy_accepted`·ADR 상태는 바꾸지 않았다. 상세와 시험 결과는 [보강 보고서](../../../.moai/reports/semgrep-lsp-scan-preflight-20261103.md)에 있다.
+
+**실제 모드의 확인 인자 `-ConfirmRunId`.** `Test-LspScanObservation.ps1 -Mode semgrep-lsp -Execute`는 `-ConfirmRunId <이번 resources.json의 RunId>`가 반드시 필요하다. 값은 manifest의 RunId와 **서수 비교**로 정확히 같아야 한다(대소문자만 다른 값, 앞뒤 공백, 접두만 같은 값, 소프트 하이픈·NUL이 낀 값은 모두 다르다). 없거나 다르면 어떤 사전 조건 읽기보다도 앞에서 종료 30으로 거부하며, 계정 켜기·감사 변경·수신기 생성·작업 배치 변경·러너 실행은 하나도 일어나지 않는다. 거부 메시지에는 기대 RunId를 적지 않는다. 기본은 여전히 dry-run이고, 확인 인자를 줬다는 이유만으로 실행하지 않는다 — `-Execute`도 필요하다. 스텁 모드와 dry-run에는 적용하지 않는다.
+
+```powershell
+# 실제 모드 실행(소유자의 D2 승인 뒤에만. 이 인자는 승인이 아니다)
+.\Test-LspScanObservation.ps1 -RunDir <RunDir> -DistRoot <DistRoot> -SemgrepExe <DistRoot>\venv\Scripts\semgrep.exe `
+  -ExpectedExeSha256 <64hex> -WheelPath <whl> -ExpectedWheelSha256 <64hex> -DistReport <report.md> `
+  -TsxCmd <tsx.cmd> -NodeDir <node dir> -Execute -ConfirmRunId <RunId>
+```
+
+**실행 시도 표지 `<RunDir>\lsp-scan-attempt.marker`.** 실제 모드의 `-Execute`는 읽기 전용 사전 조건과 확인 인자를 모두 통과한 뒤, 첫 실행 부작용(수신기·감사 창·계정 켜기·작업 배치 삭제와 복사) **앞에서** 이 표지를 배타적으로 만든다(`FileMode.CreateNew`, 동시에 두 호출이 들어와도 하나만 성공한다). 다음은 거절하고 새 표지를 만들지 않는다.
+
+- 표지가 이미 있다: 종료 30. 본문을 덮어쓰지 않는다.
+- 같은 실행 기록 폴더에 SCAN 산출물이 이미 있다(`lsp-scan-observation-`·`-record-`·`-runner-result-`·`-admin-context-`·`-stdout-`·`-stderr-` 접두): 종료 30. 과거 LSP-MIN-1·LSP-RULES-1 기록(`lsp-min-…`, `lsp-rules-…`)과 취소 표지(`lsp-scan-cancel.flag`)는 세지 않는다.
+- 산출물 목록을 읽지 못했거나 표지를 만들지 못했다: 종료 50. 표지는 만들었으나 본문을 쓰지 못했다면 빈 표지가 남고 그 RunId는 소모된 것이다.
+
+dry-run과 이 사전 거절은 새 표지를 만들지 않는다. **수명:** 표지를 확보한 뒤의 실패·취소·중단은 표지를 지우지도, 재시도 가능 상태로 돌리지도 않는다. 새 시도에는 새 RunId가 필요하다. `-Force`·덮어쓰기·표지 복구·삭제 기능은 없다. 표지는 실행 기록 폴더의 기존 쓰기 규칙을 따른다(실행 기록 폴더 밖에는 쓰지 않고, 실행 기록 폴더 자체나 표지 자리가 링크이면 따라가지 않고 거절한다).
+
+**복구는 표지에 막히지 않는다.** 표지는 이 진입점의 실제 실행 경계만 지킨다. `Remove-Isolation.ps1`·`Initialize-Isolation.ps1`은 표지를 읽지도 확인하지도 않으며, 이 진입점의 정리(`finally`)도 표지와 무관하게 끝까지 돈다. 보고서의 `attemptMarker`(실행 방지 기록)는 `processCleanup`·`systemRecovery`(시스템 복구 결과)와 따로 적고 서로의 결과를 바꾸지 않는다.
+
+**관리자·러너 mode 교차 확인.** TS 재해석(`reinterpretScanRun`)은 관리자 문맥의 `mode`와 러너 결과의 `mode`가 모두 `stub` 또는 `semgrep-lsp`이고 **같을 때만** 러너 결과의 출처(provenance)를 쓴다. 한쪽이 없거나 모르는 값이거나 서로 다르면(stub→real, real→stub 양방향) 출처를 비우고 `ADMIN_MODE_MISMATCH:admin_stub_runner_real`·`ADMIN_MODE_MISMATCH:admin_real_runner_stub`·`ADMIN_RUNNER_MODE_INVALID`·`ADMIN_CONTEXT_MALFORMED:mode` 중 해당하는 사유로 관측이 성립하지 않는다. 러너의 자기 보고만으로 출처를 올리지 않고, 관리자 mode만 보고 출처를 채우지도 않는다. 실행 사실·송신 기록·원문 증거는 지우지 않는다. 스텁(또는 출처 `null`) 결과의 `established`는 계속 비어 있다. PowerShell 결합 검사(`Test-LsAdminResultBinding`)는 기존 검사를 유지한 채 결과 mode를 서수 비교로 다시 보고(`MODE_MISMATCH`), 유효하지 않은 값은 `MODE_INVALID`로 막는다.
+
+**시험.** 전체 `Test-LspScanAdmin.ps1 -Engine powershell`은 224/224 통과(스텁·모의, 5.1)다. `tests/Test-LspScanAdmin.ps1`에 단위(확인 인자 서수 비교·산출물 이름·표지 본문·결합 mode), 진짜 임시 폴더 위의 포트 시험(첫 생성, 두 번째 거절, 본문 불변, 링크 거절, 여덟 실행 공간의 동시 생성에서 정확히 하나만 성공), 샌드박스 흐름 시험(`confirm`·`marker`·`marker-run`)이 더해졌다. 흐름 시험은 설치물 확인(`Test-LsAdminInstall`)만 모의 포트(`installOk`)로 대체하고, 러너를 띄우는 모의가 `semgrep-lsp` 요청을 `MOCK GUARD`로 막는다. 거절 경로에서 계정·감사·수신기·작업 배치·러너 호출이 0건인지는 모의의 `calls.log`로 센다. 시험은 `-Only confirm,marker,marker-run`처럼 나눠 부를 수 있다.
+
+**남은 한계.** 실제 Semgrep·전용 계정·방화벽·감사·ACL 아래의 실행은 시험하지 않았다. 실행 기록 폴더의 상위 경로(상태 루트)에는 링크 확인을 하지 않는다(기존 증거 쓰기와 같다). 산출물 조회와 표지 생성 사이의 시간차, 표지 생성 직후의 프로세스 강제 종료는 표지가 남는 쪽으로만 기울도록 설계했지만 실제 시스템에서 관측하지 않았다. 표지는 **같은 실행 기록 폴더**를 기준으로 하므로 다른 RunId(다른 폴더)의 실행을 막지 않는다 — 새 RunId는 새 격리 기준을 요구하는 기존 절차의 몫이다.
