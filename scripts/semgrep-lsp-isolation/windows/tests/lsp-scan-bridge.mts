@@ -2,10 +2,12 @@
 //  · golden   : TS ↔ PowerShell 골든 사례(URI 비교, 감시 대본, 요청 검사, 송신 방어선, 한도 해석)를 만든다. tests/lsp-scan-parity.json 은 이 출력이다.
 //  · verdicts : 러너 결과 JSON 들을 실제 어댑터(factsFromScanRunnerResult)와 기록 만들기(buildScanRecord)에 통과시켜 판정을 돌려준다.
 //  · contract : PowerShell 계약 이식본(LspScanContract.ps1)과 대조할 TS 쪽 값(상수, 메시지, 환경, 배치)을 돌려준다.
-// 인자: <사용 안 함> <golden|verdicts|contract> <입력 파일 또는 작업 폴더>. 결과는 표준 출력에 JSON 한 줄이다.
+//  · frames   : tests/Test-LspScanFrame.ps1 이 만든 바이트 조각(hex)을 실제 TS FrameDecoder 에 그대로 먹이고 프레임 수·오류 종류·오류 위치를 돌려준다.
+// 인자: <사용 안 함> <golden|verdicts|contract|frames> <입력 파일 또는 작업 폴더>. 결과는 표준 출력에 JSON 한 줄이다.
 // 실제 Semgrep 과 무관하다. 사례의 입력은 합성 값이며 소스에서 도출한 예측을 담는다(실제 바이너리 출력이 아니다).
 
 import { readFileSync } from "node:fs";
+import { FrameDecoder } from "../../../semgrep-lsp/framing";
 import * as lm from "../../../semgrep-lsp/lsp-min";
 import * as lr from "../../../semgrep-lsp/lsp-rules";
 import * as ls from "../../../semgrep-lsp/lsp-scan";
@@ -772,6 +774,29 @@ if (mode === "golden") {
       sent: r.sent.map((s) => s.label),
       external: facts.externalReasons ?? [],
       bothCompleteAtMs: facts.liveView ? facts.liveView.bothCompleteAtMs : null,
+    };
+  });
+  console.log(JSON.stringify(out));
+} else if (mode === "frames") {
+  // 입력: [{ id, chunks: [hex, ...] }]. 같은 바이트를 같은 조각 나눔으로 TS 디코더에 먹인다(첫 오류만 기록, 이후 조각은 영구 실패 상태에서 버려진다).
+  const items: { id: string; chunks: string[] }[] = JSON.parse(readFileSync(arg, "utf8"));
+  const fromHex = (hex: string): Uint8Array =>
+    Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
+  const out = items.map((item) => {
+    const decoder = new FrameDecoder();
+    let frames = 0;
+    let error: { kind: string; atByte: number } | null = null;
+    for (const hex of item.chunks) {
+      const r = decoder.push(fromHex(hex));
+      frames += r.messages.length;
+      if (r.error && error === null) error = { kind: r.error.kind, atByte: r.error.atByte };
+    }
+    return {
+      id: item.id,
+      frames,
+      failed: decoder.failed,
+      kind: error ? error.kind : null,
+      atByte: error ? error.atByte : null,
     };
   });
   console.log(JSON.stringify(out));

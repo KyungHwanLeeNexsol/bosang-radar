@@ -38,7 +38,7 @@ function Skip-Test([string]$Name, [string]$Why) {
 function Limit-Text([string]$Text, [int]$Max = 300) { if ($Text.Length -le $Max) { $Text } else { $Text.Substring(0, $Max) + '...' } }
 
 # ── 정적 점검: 구문, BOM, LF, 금지된 명령 ──────────────────────────────────────
-$files = 'LspScanContract.ps1', 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanAdminContract.ps1', 'LspScanAdminPorts.ps1', 'Test-LspScanObservation.ps1', 'tests\Test-LspScanRunner.ps1', 'tests\Test-LspScanAdmin.ps1', 'tests\MockPortsScan.ps1', 'tests\MockSystemScan.ps1'
+$files = 'LspScanContract.ps1', 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanAdminContract.ps1', 'LspScanAdminPorts.ps1', 'Test-LspScanObservation.ps1', 'tests\Test-LspScanRunner.ps1', 'tests\Test-LspScanFrame.ps1', 'tests\Test-LspScanAdmin.ps1', 'tests\MockPortsScan.ps1', 'tests\MockSystemScan.ps1'
 $forbidden = 'Invoke-Expression', 'iex', 'Invoke-WebRequest', 'Invoke-RestMethod', 'Start-BitsTransfer', 'curl', 'wget', 'git', 'git.exe'
 foreach ($f in $files) {
     $p = Join-Path $windowsDir $f
@@ -402,6 +402,14 @@ $cases = @(
     @{ s = 'silent-hold'; lim = @{ initMs = 1500; stdinCloseGraceMs = 1000; killConfirmMs = 5000 }; sent = $onlyInit; trig = 'INIT_TIMEOUT'; kill = 1; close = $true; notOk = $true },
     @{ s = 'exit-early'; sent = $onlyInit; trig = 'CHILD_EXITED_EARLY'; kill = 0; close = $false; exit = 3; notOk = $true },
     @{ s = 'garbage'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; notOk = $true },
+    # 초기화 응답의 프레임 경계(프레임 파서): TS 의 FrameDecoder 가 거절하는 응답이면 러너도 그 자리에서 프레임 오류로 끝내고 initialized·didOpen 을 단 한 번도 보내지 않는다.
+    # 응답 내용은 그 밖에는 정상이라 파서가 받아들이면 초기화 게이트를 통과해 initialized 가 나간다(수정 전 재현). init-header-max(헤더 8192바이트)는 경계 대조군으로 정상 경로를 그대로 간다.
+    @{ s = 'init-jsonrpc-shy'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; recv = 'initialize'; frameKind = 'MALFORMED'; notOk = $true },
+    @{ s = 'init-jsonrpc-nul'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; recv = 'initialize'; frameKind = 'MALFORMED'; notOk = $true },
+    @{ s = 'init-jsonrpc-key-shy'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; recv = 'initialize'; frameKind = 'MALFORMED'; notOk = $true },
+    @{ s = 'init-header-over'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; recv = 'initialize'; frameKind = 'MALFORMED'; notOk = $true },
+    @{ s = 'init-header-name-lf'; sent = $onlyInit; trig = 'FRAME_ERROR'; kill = 1; close = $false; recv = 'initialize'; frameKind = 'MALFORMED'; notOk = $true },
+    @{ s = 'init-header-max'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK },
     # 장벽 구간의 실시간 중단: stdin 닫기 없이 곧바로 강제 종료 한 번
     @{ s = 'download-line'; sent = $initAndInitialized; trig = 'LIVE_ABORT'; abort = 'A2'; kill = 1; close = $false; verdict = 'ABORTED:FORBIDDEN_SIGNAL' },
     @{ s = 'registry-line'; sent = $initAndInitialized; trig = 'LIVE_ABORT'; abort = 'A2'; kill = 1; close = $false; verdict = 'ABORTED:FORBIDDEN_SIGNAL' },
@@ -448,6 +456,7 @@ try {
         Assert-That "[$($c.s)] stdin 을 닫은 것은 $($c.close) 이다" ([bool]$x.stdinClosed.byHarness -eq $c.close)
         if ($c.ContainsKey('exit')) { Assert-That "[$($c.s)] 서버 종료 코드는 $($c.exit) 이다" ($x.exit.observed -and $x.exit.code -eq $c.exit) (($x.exit | ConvertTo-Json -Compress)) }
         if ($c.recv) { Assert-That "[$($c.s)] 서버가 받은 것은 [$($c.recv)] 이다" (($recv -join ',') -ceq $c.recv) ($recv -join ',') }
+        if ($c.frameKind) { Assert-That "[$($c.s)] 프레임 오류가 기록되고 종류는 $($c.frameKind) 이다 (최종 TS 판정에서만 거절하는 것이 아니라 실행 중에 이미 막았다)" ($null -ne $x.frameError -and [string]$x.frameError.kind -ceq $c.frameKind) (($x.frameError | ConvertTo-Json -Compress)) }
         if ($c.sent -ceq $happySent -and $c.trig -ceq 'NORMAL' -and $c.s -ne 'orphan' -and $c.s -ne 'nonzero-exit') {
             Assert-That "[$($c.s)] 정리가 깔끔하다 — 종료 확인, 스트림 닫힘, 남은 자손 0, 문제 없음, 프로브·합성 파일 해시 불변" ($x.cleanup.childExitConfirmed -and $x.cleanup.streamsClosed -and $x.cleanup.descendantsAliveAfter -eq 0 -and @($x.cleanup.problems).Count -eq 0 -and $x.files.probe.afterRunSha256 -ceq $Script:LsProbeSha256 -and $x.files.probe.afterCopySha256 -ceq $Script:LsProbeSha256 -and $x.files.target.afterRunSha256 -ceq $Script:LsTargetSha256 -and $x.files.target.afterWriteSha256 -ceq $Script:LsTargetSha256) (($x.cleanup | ConvertTo-Json -Compress))
             Assert-That "[$($c.s)] 자식에게 준 PATH 값과 작업 폴더가 기록된다 (이름만이 아니다)" ($x.request.envPath -ceq ('{0}\System32;{0}' -f $env:WINDIR) -and $x.request.workingDirectory -ceq $r.layout.stateDir) (($x.request | ConvertTo-Json -Compress -Depth 3))

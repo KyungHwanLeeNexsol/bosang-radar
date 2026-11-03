@@ -322,6 +322,23 @@ function Compare-LsUri {
 # ── stdout 프레임 해석(바이트 구간을 함께 기록하는 증분 해석기) ─────────────────────────────────────────────
 # LspMin 의 Step-LspMinFramer 와 같은 규칙으로 프레임을 풀되 프레임마다 첫 바이트·끝 바이트(배타)를 기록한다. 첫 위반에서 영구 실패하고 이후 바이트는 보지 않는다(재동기화 없음).
 # 오류 문구(detail)의 TS 와의 일치는 골든이 덮지 않는다(종류 MALFORMED / TRUNCATED 와 위치만 의미가 있다).
+# 파서가 서버 바이트에서 읽는 값은 모두 TS 의 FrameDecoder(framing.ts)와 같은 서수 규칙으로 본다. 문화권 비교(-ceq/-cne)와 줄 끝 앞에서도 맞는 정규식 $ 는 쓰지 않는다:
+#   · jsonrpc 의 키 이름과 값: Get-LsOrdinalMember + Test-LrOrdinalEqual (끝에 소프트 하이픈 U+00AD·NUL 이 붙은 값, 이름이 비슷한 키를 정상으로 읽지 않는다)
+#   · 헤더 크기: 현재 프레임 시작부터 종결자 직전까지 8192바이트까지 허용, 종결자를 찾았든 못 찾았든 같은 한도(한 청크로 와도 쪼개져도 결과가 같다)
+#   · 헤더 이름 정규식: 끝은 \z (TS 의 JS 정규식 $ 는 끝에서만 맞는다)
+# 입력을 다듬어 받아들이지 않는다(Trim·제어 문자 제거·정규화 없음). 위반은 모두 MALFORMED 이고 첫 위반 뒤에는 영구 실패다.
+
+# 헤더 한도(바이트): TS 의 DEFAULT_MAX_HEADER_BYTES 와 같다. 종결자(CRLFCRLF)는 세지 않는다.
+$Script:LsMaxHeaderBytes = 8192
+
+# 서버 메시지의 최상위 멤버를 이름의 서수 비교로 읽는다. Get-LmExactMember 는 -ceq 라서 "jsonrpc"+U+00AD 같은 이름도 jsonrpc 로 읽는데(5.1·7 모두), TS 는 서수 비교다(obj.jsonrpc).
+# 같은 서수 이름이 여럿이면 첫 것을 읽는다. 없으면 found=$false.
+function Get-LsOrdinalMember {
+    param($Object, [string]$Name)
+    if ($null -eq $Object -or $null -eq $Object.PSObject) { return @{ found = $false; value = $null } }
+    foreach ($p in $Object.PSObject.Properties) { if ([string]::Equals([string]$p.Name, $Name, [StringComparison]::Ordinal)) { return @{ found = $true; value = $p.Value } } }
+    @{ found = $false; value = $null }
+}
 
 function New-LsFrameDecoder {
     param([int]$MaxBody)
@@ -350,18 +367,20 @@ function Add-LsFrameBytes {
                 if ($buf[$i] -eq 13 -and $buf[$i + 1] -eq 10 -and $buf[$i + 2] -eq 13 -and $buf[$i + 3] -eq 10) { $end = $i; break }
             }
             if ($end -lt 0) {
-                if (($len - $D.pos) -gt 8192 + 3) { Set-LsFrameError $D 'MALFORMED' '헤더가 끝나지 않는다'; break }
+                if (($len - $D.pos) -gt $Script:LsMaxHeaderBytes + 3) { Set-LsFrameError $D 'MALFORMED' '헤더가 끝나지 않는다'; break }
                 $first = $buf[$D.pos]
                 if (-not (($first -ge 0x30 -and $first -le 0x39) -or ($first -ge 0x41 -and $first -le 0x5a) -or ($first -ge 0x61 -and $first -le 0x7a))) { Set-LsFrameError $D 'MALFORMED' '헤더가 아닌 바이트'; break }
                 break
             }
+            # 종결자를 찾은 경우에도 현재 프레임 시작($D.pos)부터 종결자 직전까지의 길이를 같은 한도로 본다(찾지 못한 경우의 위 검사만으로는 한 청크로 온 긴 헤더가 통과했다).
+            if (($end - $D.pos) -gt $Script:LsMaxHeaderBytes) { Set-LsFrameError $D 'MALFORMED' ('헤더가 ' + $Script:LsMaxHeaderBytes + '바이트를 넘는다'); break }
             $header = [Text.Encoding]::GetEncoding('latin1').GetString($buf, $D.pos, $end - $D.pos)
             $lengthValue = $null
             foreach ($line in $header.Split([string[]]@("`r`n"), [StringSplitOptions]::None)) {
                 $colon = $line.IndexOf(':')
                 if ($colon -lt 0) { Set-LsFrameError $D 'MALFORMED' '콜론이 없는 헤더 줄'; break }
                 $name = $line.Substring(0, $colon)
-                if ($name -cnotmatch "^[!#$%&'*+\-.^_``|~0-9A-Za-z]+$") { Set-LsFrameError $D 'MALFORMED' '헤더 이름이 올바르지 않다'; break }
+                if ($name -cnotmatch "^[!#$%&'*+\-.^_``|~0-9A-Za-z]+\z") { Set-LsFrameError $D 'MALFORMED' '헤더 이름이 올바르지 않다'; break }
                 if ($name.ToLowerInvariant() -eq 'content-length') {
                     if ($null -ne $lengthValue) { Set-LsFrameError $D 'MALFORMED' 'Content-Length 중복'; break }
                     $lengthValue = $line.Substring($colon + 1).Trim(' ', "`t")
@@ -383,8 +402,9 @@ function Add-LsFrameBytes {
         $msg = $null
         try { $msg = $bodyText | ConvertFrom-Json } catch { Set-LsFrameError $D 'MALFORMED' '본문이 유효한 JSON 이 아니다'; break }
         if ($msg -isnot [pscustomobject]) { Set-LsFrameError $D 'MALFORMED' '최상위 값이 일반 객체가 아니다'; break }
-        $jr = Get-LmExactMember $msg 'jsonrpc'
-        if ($jr -isnot [string] -or $jr -cne '2.0') { Set-LsFrameError $D 'MALFORMED' 'jsonrpc 가 2.0 이 아니다'; break }
+        # 키 이름도 값도 서수 비교다. -cne 는 문화권 비교라 "2.0"+U+00AD·"2.0"+NUL 을 "2.0" 과 같게 읽고, Get-LmExactMember 는 "jsonrpc"+U+00AD 를 jsonrpc 로 읽는다.
+        $jr = Get-LsOrdinalMember $msg 'jsonrpc'
+        if (-not $jr.found -or -not (Test-LrOrdinalEqual $jr.value '2.0')) { Set-LsFrameError $D 'MALFORMED' 'jsonrpc 가 2.0 이 아니다'; break }
         if ((Test-LmExactMember $msg 'method') -and (Get-LmExactMember $msg 'method') -isnot [string]) { Set-LsFrameError $D 'MALFORMED' 'method 가 문자열이 아니다'; break }
         if (Test-LmExactMember $msg 'id') {
             $mid = Get-LmExactMember $msg 'id'

@@ -47,7 +47,8 @@ $Script:LsStubScenarios = @(
     'rules-zero', 'yaml-error', 'invalid-rule', 'wrong-file-loaded', 'notification-only', 'log-missing', 'log-variant', 'log-duplicate', 'order-violation', 'barrier-timeout', 'download-line', 'registry-line', 'token-line',
     'settings-line', 'early-signal', 'early-notification', 'initialize-error', 'error-response', 'version-mismatch', 'wrong-id', 'silent', 'silent-hold', 'exit-early', 'garbage', 'exit-ignored', 'exit-ignored-eof',
     'nonzero-exit', 'stderr-split', 'stdout-split', 'flood-err', 'flood-out', 'orphan', 'write-ws', 'write-extra-rules', 'modify-probe', 'home-write', 'shutdown-reply', 'env-names', 'spawn-disallowed', 'requests-2',
-    'requests-3', 'request-disallowed', 'request-malformed', 'delayed-forbidden', 'header-variants', 'json-dump-signal-text', 'notification-twice'
+    'requests-3', 'request-disallowed', 'request-malformed', 'delayed-forbidden', 'header-variants', 'json-dump-signal-text', 'notification-twice',
+    'init-jsonrpc-shy', 'init-jsonrpc-nul', 'init-jsonrpc-key-shy', 'init-header-over', 'init-header-name-lf', 'init-header-max'
 )
 
 # 읽은 바이트는 보관한 것의 해시와 함께 기록한다(TS 어댑터가 b64 ↔ sha256 ↔ bytesRead 를 대조한다).

@@ -16,6 +16,9 @@
   장벽 구간 실패 시나리오(RULES 와 같은 이름): rules-zero yaml-error invalid-rule wrong-file-loaded notification-only log-missing log-variant log-duplicate order-violation barrier-timeout download-line registry-line token-line
     settings-line early-signal early-notification initialize-error error-response version-mismatch wrong-id silent silent-hold exit-early garbage exit-ignored exit-ignored-eof nonzero-exit stderr-split stdout-split
     flood-err flood-out orphan write-ws write-extra-rules modify-probe home-write shutdown-reply env-names spawn-disallowed requests-2 requests-3 request-disallowed request-malformed delayed-forbidden header-variants json-dump-signal-text notification-twice
+  초기화 응답의 프레임 경계(프레임 파서 시험용): init-jsonrpc-shy init-jsonrpc-nul init-jsonrpc-key-shy init-header-over init-header-name-lf init-header-max
+    앞의 다섯은 TS 프레임 디코더가 거절하는 응답을 보낸다(jsonrpc 값 끝에 소프트 하이픈·NUL, 키 이름 끝에 소프트 하이픈, 헤더 8193바이트, 헤더 이름 끝에 LF). 러너가 initialized 를 보내면 안 된다.
+    init-header-max 는 헤더가 정확히 8192바이트인 정상 응답이다(경계 대조군): 그대로 정상 경로로 이어진다.
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Scenario)
@@ -32,6 +35,7 @@ $allowed = @(
     'stderr-split', 'stdout-split', 'flood-err', 'flood-out', 'orphan', 'write-ws', 'write-extra-rules', 'modify-probe'
     'home-write', 'shutdown-reply', 'env-names', 'spawn-disallowed', 'requests-2', 'requests-3', 'request-disallowed', 'request-malformed'
     'delayed-forbidden', 'header-variants', 'json-dump-signal-text', 'notification-twice'
+    'init-jsonrpc-shy', 'init-jsonrpc-nul', 'init-jsonrpc-key-shy', 'init-header-over', 'init-header-name-lf', 'init-header-max'
 )
 # -cnotcontains 는 서수 비교가 아니라서(소프트 하이픈·NUL 이 낀 이름도 같다고 본다) 이 스크립트가 따로 서수로 확인한다. 허용 목록 밖이면 아무것도 하지 않고 끝낸다.
 $scenarioAllowed = $false
@@ -61,6 +65,20 @@ function Get-Frame($Object) {
     , $all
 }
 function Send-Msg($Object) { Write-Bytes $stdout (Get-Frame $Object) }
+# 헤더 줄을 직접 정한 프레임(프레임 파서의 경계 시험용). $HeaderLines 에 Content-Length 줄도 직접 넣는다. 줄은 CRLF 로 잇고 빈 줄로 끝낸다.
+function Get-RawFrame([string[]]$HeaderLines, [byte[]]$Body) {
+    $head = [Text.Encoding]::ASCII.GetBytes((($HeaderLines -join "`r`n") + "`r`n`r`n"))
+    $all = New-Object byte[] ($head.Length + $Body.Length)
+    [Array]::Copy($head, 0, $all, 0, $head.Length); [Array]::Copy($Body, 0, $all, $head.Length, $Body.Length)
+    , $all
+}
+# 정상 초기화 응답의 헤더(종결자 앞까지, CRLFCRLF 제외)가 정확히 $HeaderBytes 바이트가 되도록 X-Pad 헤더로 채운 프레임.
+function Get-PaddedInitFrame($Object, [int]$HeaderBytes) {
+    $body = [Text.Encoding]::UTF8.GetBytes(($Object | ConvertTo-Json -Depth 10 -Compress))
+    $first = "Content-Length: $($body.Length)"
+    $pad = $HeaderBytes - ($first.Length + 2 + 'X-Pad: '.Length)
+    Get-RawFrame @($first, ('X-Pad: ' + ('a' * $pad))) $body
+}
 function Write-ErrLines([string[]]$Lines) { foreach ($l in $Lines) { Write-Bytes $stderr ([Text.Encoding]::UTF8.GetBytes($l + "`r`n")) } }
 function Write-ErrRaw([string]$Text) { Write-Bytes $stderr ([Text.Encoding]::UTF8.GetBytes($Text)) }
 
@@ -383,6 +401,16 @@ function Invoke-Init($Msg) {
         'early-notification' { Send-Msg (Get-RulesRefreshed); Send-Msg ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) }
         'version-mismatch' { Send-Msg ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult '8.8.8') }) }
         'stdout-split' { foreach ($b in (Get-Frame ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }))) { Write-Bytes $stdout ([byte[]]@($b)); Start-Sleep -Milliseconds 2 } }
+        # 프레임 파서 경계: TS 의 FrameDecoder 가 거절하는 초기화 응답(그 밖의 내용은 정상이다). 러너는 이 응답으로 initialized 를 보내면 안 된다.
+        'init-jsonrpc-shy' { Send-Msg ([ordered]@{ jsonrpc = ('2.0' + [string][char]0x00AD); id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) }
+        'init-jsonrpc-nul' { Send-Msg ([ordered]@{ jsonrpc = ('2.0' + [string][char]0); id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) }
+        'init-jsonrpc-key-shy' { Send-Msg ([ordered]@{ ('jsonrpc' + [string][char]0x00AD) = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) }
+        'init-header-over' { Write-Bytes $stdout (Get-PaddedInitFrame ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) 8193) }
+        'init-header-name-lf' {
+            $b = [Text.Encoding]::UTF8.GetBytes(([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) } | ConvertTo-Json -Depth 10 -Compress))
+            Write-Bytes $stdout (Get-RawFrame @("Content-Length: $($b.Length)", "X-A`n: v") $b)
+        }
+        'init-header-max' { Write-Bytes $stdout (Get-PaddedInitFrame ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) 8192) }
         default { Send-Msg ([ordered]@{ jsonrpc = '2.0'; id = $Msg.id; result = (Get-GoodResult $Script:Ver) }) }
     }
 }
