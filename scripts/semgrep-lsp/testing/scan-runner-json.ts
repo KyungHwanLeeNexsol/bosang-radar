@@ -95,6 +95,8 @@ export function adminContextFor(
     kind: SCAN_ADMIN_CONTEXT_KIND,
     runId: f.runId,
     runToken: "token-1",
+    // 관리자가 요청에 넣은 실행 종류. 기본은 사실의 출처와 같은 쪽이고, 시험이 덮어써서 불일치를 만든다.
+    mode: f.provenance === "real" ? "semgrep-lsp" : "stub",
     work,
     expectedVersion: f.expectedVersion,
     expectedPath: f.childEnv.path,

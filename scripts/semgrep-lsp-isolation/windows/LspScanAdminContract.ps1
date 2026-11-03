@@ -25,6 +25,53 @@ $Script:LsAdminStubScenarios = @(
 # 관리자가 실행 전후로 해시를 재는 파일의 이름표. 실제 모드는 설치물 넷, 스텁 모드는 띄우는 실행 파일 하나다. 이 키가 모두 유효한 해시로 같아야 "바뀌지 않았다"고 한다.
 $Script:LsAdminRealArtifactKeys = @('semgrepExe', 'semgrepCore', 'venvPython', 'basePython')
 $Script:LsAdminStubArtifactKeys = @('launchedExe')
+# 실행 종류는 이 둘뿐이다(진입점의 -Mode ValidateSet 과 같다). 러너 결과가 되돌려 쓴 mode 도 이 둘 중 하나여야 결합이 성립한다.
+$Script:LsAdminModes = @('stub', 'semgrep-lsp')
+
+# ── 실제 SCAN 실행의 확인 인자와 실행 시도 표지(F5) ─────────────────────────────
+# 실제 모드(semgrep-lsp)에서 -Execute 를 쓸 때만 적용한다. 스텁 모드와 dry-run 은 영향이 없다.
+# 이 장치는 실수 방지용이다: 소유자의 D2(실제 엔진 실행) 승인을 대신하지 않는다.
+$Script:LsAdminAttemptMarkerName = 'lsp-scan-attempt.marker'
+$Script:LsAdminAttemptMarkerSchema = 'lsp-scan-attempt-marker/1'
+# 실행 기록 폴더 안에서 "같은 RunId 의 SCAN 이 이미 시도됐다"고 보는 이전 산출물의 이름 접두. SCAN 전용 접두만 쓴다:
+# LSP-MIN-1(lsp-min-…)·LSP-RULES-1(lsp-rules-…) 기록과 겹치지 않는다. 취소 표지(lsp-scan-cancel.flag)와 실행 시도 표지 자신은 포함하지 않는다.
+$Script:LsAdminScanRecordPrefixes = @('lsp-scan-observation-', 'lsp-scan-record-', 'lsp-scan-runner-result-', 'lsp-scan-admin-context-', 'lsp-scan-stdout-', 'lsp-scan-stderr-')
+
+# 확인 인자가 이번 manifest 의 RunId 와 서수 비교로 정확히 같은가. 문화권 비교(-ceq)가 아니라 서수 비교다: 소프트 하이픈·NUL 이 낀 값이나 대소문자만 다른 값은 같지 않다.
+# 결과 {ok, reason}. reason: CONFIRM_MISSING(없거나 비어 있음·문자열이 아님) | CONFIRM_MISMATCH | $null(일치). 기대값(RunId)은 결과에 싣지 않는다.
+function Test-LsAdminExecuteConfirmation {
+    param($Given, $RunId)
+    $r = [ordered]@{ ok = $false; reason = $null }
+    if ($Given -isnot [string] -or $Given -eq '') { $r.reason = 'CONFIRM_MISSING'; return $r }
+    if ($RunId -isnot [string] -or $RunId -eq '' -or -not [string]::Equals($Given, $RunId, [StringComparison]::Ordinal)) { $r.reason = 'CONFIRM_MISMATCH'; return $r }
+    $r.ok = $true
+    $r
+}
+
+# 실행 기록 폴더 안의 실행 시도 표지 경로(문자열 연결만 한다).
+function Get-LsAdminAttemptMarkerPath {
+    param([Parameter(Mandatory)][string]$RunDir)
+    $RunDir.TrimEnd('\', '/') + '\' + $Script:LsAdminAttemptMarkerName
+}
+
+# 파일 이름이 이전 SCAN 산출물(같은 RunId 의 실행 기록)인가. 이름 접두만 서수 비교(대소문자 무시: Windows 파일 이름)로 본다.
+function Test-LsAdminScanRecordName {
+    param($Name)
+    if ($Name -isnot [string]) { return $false }
+    foreach ($p in $Script:LsAdminScanRecordPrefixes) { if ($Name.StartsWith($p, [StringComparison]::OrdinalIgnoreCase)) { return $true } }
+    $false
+}
+
+# 표지에 적는 본문. 이 파일이 있으면 같은 RunId 의 실제 SCAN 실행은 거절된다는 사실과 수명만 담는다(자동으로 지우지도 되돌리지도 않는다).
+function New-LsAdminAttemptMarkerText {
+    param([Parameter(Mandatory)][string]$RunId, [Parameter(Mandatory)][string]$Mode, [Parameter(Mandatory)][string]$StartedUtc, [int]$ProcessId)
+    $doc = [ordered]@{
+        schema = $Script:LsAdminAttemptMarkerSchema; runId = $RunId; mode = $Mode; startedUtc = $StartedUtc; adminPid = $ProcessId
+        meaning = '이 RunId 의 실제 SCAN 실행을 시도하기 시작했다는 표지다. 시도가 실패·취소·중단돼도 이 파일은 자동으로 지워지지 않고 재시도 가능 상태로 돌아가지 않는다. 새 시도에는 새 RunId 가 필요하다.'
+        notD2Approval = '이 표지와 -ConfirmRunId 는 실수 방지 장치이며 소유자의 D2 승인을 대신하지 않는다.'
+    }
+    ($doc | ConvertTo-Json -Depth 4)
+}
 
 # 입력을 문자열 목록으로 바꾼다. $null 은 빈 목록이다(`@($null)` 은 원소가 하나인 배열이라 쓰지 않는다). 빈 문자열은 버린다.
 function ConvertTo-LsAdminList {
@@ -205,6 +252,11 @@ function Test-LsAdminResultBinding {
     foreach ($c in (Test-LspMinResultBinding -Result $view -Request $Request -RunId $RunId -LaunchedUtc $LaunchedUtc)) {
         if ([string]$c -cne 'RESULT_SCHEMA') { [void]$f.Add([string]$c) }
     }
+    # 실행 종류(F6a): 러너가 되돌려 쓴 mode 는 둘 중 하나여야 하고 요청의 mode 와 서수로 같아야 한다. MIN 의 비교(-cne)는 문화권 비교라 소프트 하이픈·NUL 이 낀 값을 같다고 볼 수 있어 여기서 서수로 다시 본다.
+    $resMode = Get-LmProp $Result 'mode'
+    $reqMode = Get-LmProp $Request 'mode'
+    if (-not (Test-LrOrdinalIn $resMode $Script:LsAdminModes)) { [void]$f.Add('MODE_INVALID') }
+    if (-not (Test-LrOrdinalEqual $resMode $reqMode)) { [void]$f.Add('MODE_MISMATCH') }
     $echo = Get-LmProp $Result 'request'
     if ($null -ne $echo) {
         foreach ($k in 'rulesMs', 'settleMs', 'scanMs') {

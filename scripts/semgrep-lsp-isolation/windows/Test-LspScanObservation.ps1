@@ -14,11 +14,17 @@
   - 판정의 본체는 TS 재해석(lsp-scan-reinterpret-cli.ts)이다: 러너 결과 원문 바이트와 이 스크립트가 모은 문맥(수신기·프로브 해시·신원·결합·감독·5157)을 다시 해석한다. 도구가 없으면 관측은 성립하지 않는다(REINTERPRETATION_NOT_RUN).
     서버를 띄우지 못한 경우(사전 조건·작업 경로·수신기·러너 실행 실패)에만 문맥의 runnerLaunched 가 false 이고 NOT_ATTEMPTED 다. 띄운 뒤의 신원·결합·해시 실패는 실행 사실을 지우지 않고 NOT_OBSERVED 로 남는다.
   - 보고는 섞지 않는다: 관측(observation) · 프로세스 정리(processCleanup) · 시스템 복구(systemRecovery) 는 서로의 결과를 바꾸지 않는다.
+  실제 모드(-Mode semgrep-lsp)의 -Execute 는 별도 안전장치 두 개를 더 거친다(스텁 모드와 dry-run 에는 적용하지 않는다):
+  - 확인 인자 -ConfirmRunId: 이번 실행 기록(resources.json)의 RunId 와 서수 비교로 정확히 같아야 한다. 없거나 다르면 계정·감사·수신기·작업 배치·러너 어느 것도 건드리기 전에 거부(30)한다. 인자를 줬다는 이유만으로 실행하지 않는다 — -Execute 도 필요하다.
+  - 실행 시도 표지: 읽기 전용 사전 조건과 확인 인자를 모두 통과한 뒤, 첫 실행 부작용(수신기·감사 창·계정 켜기·작업 배치) 앞에서 실행 기록 폴더에 표지 파일을 배타적으로 만든다. 표지가 이미 있거나 같은 RunId 의 SCAN 산출물이 이미 있으면 거부(30)한다.
+    표지는 시도가 실패·취소·중단돼도 자동으로 지우지 않고 재시도 가능 상태로 돌리지 않는다(새 시도에는 새 RunId). -Force·덮어쓰기·표지 복구 기능은 없다. 표지는 격리 자원 복구(Remove-Isolation.ps1 등)를 막지 않는다.
+  이 두 장치는 실수 방지용이며 소유자의 D2(실제 엔진 실행) 승인을 대신하지 않는다.
   종료 코드: 0 관측 성립 + 정리 완료 / 30 거부 / 50 사전 조건 실패 / 60 관측 성립하지 않음(정리는 완료) / 70 정리 불완전(프로세스 정리 또는 시스템 복구 실패).
   이 스크립트는 --help·--version 을 포함해 Semgrep 을 직접 실행하지 않는다. 실제 실행은 러너가 전용 계정으로 하며, 이 스크립트의 시험은 스텁 모드만 쓴다.
 .EXAMPLE
   .\Test-LspScanObservation.ps1 -RunDir <RunDir> -DistRoot <DistRoot> -SemgrepExe <DistRoot>\venv\Scripts\semgrep.exe -ExpectedExeSha256 <64hex> -WheelPath <whl> -ExpectedWheelSha256 <64hex> -DistReport <report.md>   # 사전 확인과 계획만
   .\Test-LspScanObservation.ps1 -RunDir <RunDir> -Mode stub -StubScenario ok -ExpectedVersion 9.9.9 -Execute -TsxCmd <tsx.cmd> -NodeDir <node dir>                                                                  # 경로 점검(스텁)
+  .\Test-LspScanObservation.ps1 -RunDir <RunDir> -DistRoot <DistRoot> ... -Execute -ConfirmRunId <이번 resources.json 의 RunId> -TsxCmd <tsx.cmd>                                                       # 실제 모드 실행(소유자의 D2 승인 뒤에만; 이 확인 인자는 승인이 아니다)
 #>
 [CmdletBinding()]
 param(
@@ -40,6 +46,7 @@ param(
     [string]$NodeDir,
     [string]$ReinterpretCli,
     [string]$CancelFile,
+    [string]$ConfirmRunId,
     [int]$TotalMs = 150000,
     [int]$InitMs = 60000,
     [int]$RulesMs = 60000,
@@ -67,7 +74,7 @@ $Script:EntryDir = $PSScriptRoot
 function Invoke-LspScanObservation {
     param(
         [string]$RunDir, [bool]$Execute, [string]$Mode, [string]$StubScenario, [string]$DistRoot, [string]$SemgrepExe, [string]$ExpectedExeSha256, [string]$ExpectedCoreSha256, [string]$WheelPath, [string]$ExpectedWheelSha256,
-        [string]$DistReport, [string]$ExpectedVersion, [string]$ProbeFile, [string]$TargetFile, [string]$TsxCmd, [string]$NodeDir, [string]$ReinterpretCli, [string]$CancelFile, $Limits, [int]$StartAllowanceMs, [int]$SupervisorGraceMs
+        [string]$DistReport, [string]$ExpectedVersion, [string]$ProbeFile, [string]$TargetFile, [string]$TsxCmd, [string]$NodeDir, [string]$ReinterpretCli, [string]$CancelFile, [string]$ConfirmRunId, $Limits, [int]$StartAllowanceMs, [int]$SupervisorGraceMs
     )
     if (-not (Test-Path -LiteralPath $RunDir)) { Write-Host "RunDir 가 없다: $RunDir"; return @{ exitCode = 30 } }
     $Script:IsoRunDir = (Resolve-Path -LiteralPath $RunDir).Path
@@ -93,6 +100,15 @@ function Invoke-LspScanObservation {
     $names = Get-IsoNames -RunId $runId
     $stamp = [DateTime]::UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'")
     if ($runId -cnotmatch $Script:LspMinAdminRunIdPattern) { Write-Host 'RunId 형식이 올바르지 않다.'; return @{ exitCode = 30 } }
+    # ── 실제 모드 실행의 확인 인자(F5): 어떤 사전 조건 읽기보다도, 어떤 변경보다도 앞에서 거부한다. 기대값(RunId)은 메시지에 싣지 않는다(복사해 붙이는 확인이 되지 않게).
+    #    스텁 모드와 dry-run 은 대상이 아니다. 이 인자는 실수 방지 장치이며 소유자의 D2 승인을 대신하지 않는다.
+    if ($Mode -eq 'semgrep-lsp' -and $Execute) {
+        $confirm = Test-LsAdminExecuteConfirmation -Given $ConfirmRunId -RunId $runId
+        if (-not $confirm.ok) {
+            Write-Host ("실제 모드 실행에는 이번 실행 기록(resources.json)의 RunId 를 -ConfirmRunId 로 정확히 입력해야 한다({0}): 거부한다. 아무것도 바꾸지 않았다. (이 인자는 실수 방지용이며 소유자의 D2 승인을 대신하지 않는다.)" -f $confirm.reason)
+            return @{ exitCode = 30 }
+        }
+    }
     if (-not $CancelFile) { $CancelFile = Join-Path $Script:IsoRunDir 'lsp-scan-cancel.flag' }
     if (-not $ProbeFile) { $ProbeFile = Join-Path (Join-Path (Join-Path $PSScriptRoot '..\..') 'semgrep-lsp') 'data\lsp-rules-1-probe.yaml' }
     # 합성 대상 파일 기본값은 P02 가 읽기 전에 채운다(검토 지적 F2: 예전에는 P02 뒤에 채워져 -TargetFile 없는 호출이 항상 거절됐다).
@@ -182,8 +198,33 @@ function Invoke-LspScanObservation {
         Write-IsoLog -Level 'PLAN' -Message ("전용 계정으로 러너 실행 → 러너가 규칙 폴더에 프로브 한 개를 쓰고(해시 대조) 셸 없이 한 번 띄움: {0} {1}  (송신은 initialize → initialized(정확히 1회, 초기화 응답이 유효하고 버전이 같을 때만) → 장벽(rulesMs {2}ms) → 감시({3}ms) → shutdown → exit; 전체 {4}ms)" -f $exe, ($argv -join ' '), $limitsDoc.rulesMs, $limitsDoc.settleMs, $limitsDoc.totalMs)
         Write-IsoLog -Level 'PLAN' -Message ("부모 감독: 수신기 읽기 + 프로세스 트리 CIM + 결과 파일 확인을 이 스크립트 루프가 계속한다. 관측 마감({0}+{1}ms)에 중단 요청, 유예 {2}ms 뒤에도 매달려 있으면 전용 계정 프로세스 종료" -f $StartAllowanceMs, $limitsDoc.totalMs, ($limitsDoc.killConfirmMs + $SupervisorGraceMs))
         Write-IsoLog -Level 'PLAN' -Message '결과 결합·신원 교차 확인 → 정리(수신기, 전용 계정 프로세스, 계정 비활성화, 감사 값 복구: 각각 독립) → 실행 뒤 프로브 해시·감시 폴더·설치물 해시 재확인 → TS 재해석 → 5157 대조 요약(귀속·식별 불가·루프백 건수를 따로)'
+        if ($Mode -eq 'semgrep-lsp') {
+            Write-IsoLog -Level 'PLAN' -Message ("실제 모드 -Execute 는 -ConfirmRunId(이번 RunId 와 서수 비교로 정확히 일치)가 필요하고, 읽기 전용 사전 조건과 확인 인자를 모두 통과한 뒤 첫 부작용 앞에서 실행 시도 표지({0})를 배타적으로 만든다. 표지나 같은 RunId 의 SCAN 산출물이 이미 있으면 거부한다. dry-run 은 표지를 만들지 않는다. 이 장치는 소유자의 D2 승인을 대신하지 않는다." -f $Script:LsAdminAttemptMarkerName)
+        }
         Write-Host 'dry-run 이라 아무것도 실행하지 않았다. 판정: NOT_EXECUTED'
         return @{ exitCode = 0 }
+    }
+
+    # ── 실행 시도 표지(F5): 실제 모드에서만. 모든 읽기 전용 사전 조건(위)과 확인 인자(위)를 통과했고, 첫 실행 부작용(수신기·감사 창·계정 켜기·작업 배치 삭제와 복사) 앞이다.
+    #    표지를 확보한 뒤의 실패·취소·중단은 표지를 지우지도 재시도 가능 상태로 돌리지도 않는다. 이 표지는 격리 자원 복구(Remove-Isolation.ps1 등)를 막지 않는다 — 아래 정리(finally)도 표지와 무관하게 돈다.
+    #    거부 경로(표지 있음·기존 SCAN 산출물 있음·표지를 만들지 못함)는 아무것도 바꾸지 않았으므로 정리할 것이 없다.
+    $attemptMarker = [ordered]@{ applicable = $false }
+    if ($Mode -eq 'semgrep-lsp') {
+        $prior = Find-LsAdminScanRecords -RunDir $Script:IsoRunDir
+        if (-not $prior.ok) { Write-Host ('같은 RunId 의 이전 SCAN 산출물이 있는지 읽지 못해 실행하지 않는다: ' + [string]$prior.error) -ForegroundColor Yellow; return @{ exitCode = 50 } }
+        if (@($prior.files).Count -gt 0) { Write-Host ('같은 RunId 의 SCAN 산출물이 이미 있어 실행하지 않는다(새 시도에는 새 RunId 가 필요하다): ' + (@($prior.files) -join ', ')) -ForegroundColor Yellow; return @{ exitCode = 30 } }
+        $markerPath = Get-LsAdminAttemptMarkerPath -RunDir $Script:IsoRunDir
+        $markerStartedUtc = [DateTime]::UtcNow.ToString('o')
+        $markerText = New-LsAdminAttemptMarkerText -RunId $runId -Mode $Mode -StartedUtc $markerStartedUtc -ProcessId $PID
+        $mk = Invoke-Mutation -Description "실행 시도 표지 배타 생성(자동으로 지우지 않는다): $markerPath" -Action { New-LsAdminAttemptMarker -Path $markerPath -Text $markerText -TrustedRoot $Script:IsoRunDir }
+        if ($null -eq $mk) { Write-Host '실행 시도 표지 결과를 받지 못해 실행하지 않는다.' -ForegroundColor Yellow; return @{ exitCode = 50 } }
+        if ([bool]$mk.exists) { Write-Host ('이 RunId 의 실행 시도 표지가 이미 있어 실행하지 않는다(새 시도에는 새 RunId 가 필요하다; 표지는 자동으로 지우지 않는다): ' + $markerPath) -ForegroundColor Yellow; return @{ exitCode = 30 } }
+        if (-not [bool]$mk.ok) {
+            $why = '표지를 만들지 못했다'; if ([bool]$mk.created) { $why = '표지는 만들어졌으나 본문을 쓰지 못했다. 표지는 남고 이 RunId 는 소모됐다' }
+            Write-Host ("$why — 실행하지 않는다: " + [string]$mk.error) -ForegroundColor Yellow
+            return @{ exitCode = 50 }
+        }
+        $attemptMarker = [ordered]@{ applicable = $true; path = $markerPath; createdUtc = $markerStartedUtc; acquired = $true; autoDelete = $false; retryable = $false; note = '실행을 막는 기록이다. 아래 processCleanup·systemRecovery 와 별개이며 서로의 결과를 바꾸지 않는다.' }
     }
 
     # ── 실행 ──
@@ -192,7 +233,7 @@ function Invoke-LspScanObservation {
     $report = [ordered]@{
         schema = $Script:LsAdminSchema; runId = $runId; runToken = $runToken; startedUtc = [DateTime]::UtcNow.ToString('o'); mode = $Mode; stubScenario = $(if ($Mode -eq 'stub') { $StubScenario } else { $null }); verdict = $null; finalStatus = $null
         scope = 'LSP-SCAN-1 합성 파일 반응 관측: initialize → initialized(정확히 1회) → 규칙 로딩 장벽 → didOpen(정확히 1회, 합성 파일 하나) → 두 묶음(진단 알림·엔진 로그) 대기 + settle 감시 → shutdown → exit. 작업 영역 스캔·규칙 다운로드·실제 저장소 스캔 없음. 이 관측이 말하는 것은 합성 입력 한 건에 대한 반응 한 번(엔진이 받은 규칙 수는 부분 관측)과 확인된 진단 필드뿐이다. 규칙 일반의 탐지 성능·음성 대조·대조 참조 자격·격리 전체의 효과·소스와 바이너리의 대응·핀과 로그 형식의 검증은 세워지지 않는다. 외부 명령(git) 시도 줄은 로그 줄과 실제 프로세스 생성을 따로 다루며 프로세스 생성 여부는 관측하지 않는다. DNS·UDP·ICMP·IPv6·서비스 대행 통신은 관측하지 않았다.'
-        preconditions = $pre; inputs = $inputs; probeSource = [ordered]@{ path = $ProbeFile; ok = [bool]$probeSrc.ok; size = $probeSrc.size; sha256 = $probeSrc.sha256; problems = @($probeSrc.problems) }; targetSource = [ordered]@{ path = $TargetFile; ok = [bool]$targetSrc.ok; size = $targetSrc.size; sha256 = $targetSrc.sha256; problems = @($targetSrc.problems) }
+        attemptMarker = $attemptMarker; preconditions = $pre; inputs = $inputs; probeSource = [ordered]@{ path = $ProbeFile; ok = [bool]$probeSrc.ok; size = $probeSrc.size; sha256 = $probeSrc.sha256; problems = @($probeSrc.problems) }; targetSource = [ordered]@{ path = $TargetFile; ok = [bool]$targetSrc.ok; size = $targetSrc.size; sha256 = $targetSrc.sha256; problems = @($targetSrc.problems) }
         account = [ordered]@{ name = $names.UserName; sid = $sid }; rule = [ordered]@{ name = $names.RuleName; localUser = $ruleScope; remoteAddress = $ruleRemote }
         request = $null; binding = $null; identity = $null; supervisor = $null; receiver = $null; osBlockObservation = $null; processes = $null
         runnerResult = $null; adminPostRun = $null; probe = $null; reinterpretation = $null; hashes = $null
@@ -623,5 +664,5 @@ function Invoke-LspScanObservation {
 
 $limitsIn = [ordered]@{ totalMs = $TotalMs; initMs = $InitMs; rulesMs = $RulesMs; settleMs = $SettleMs; scanMs = $ScanMs; exitMs = $ExitMs; stdinCloseGraceMs = $StdinCloseGraceMs; killConfirmMs = $KillConfirmMs; maxStdoutBytes = $MaxStdoutBytes; maxStderrBytes = $MaxStderrBytes; sampleIntervalMs = $SampleIntervalMs }
 $r = @(Invoke-LspScanObservation -RunDir $RunDir -Execute ([bool]$Execute) -Mode $Mode -StubScenario $StubScenario -DistRoot $DistRoot -SemgrepExe $SemgrepExe -ExpectedExeSha256 $ExpectedExeSha256 -ExpectedCoreSha256 $ExpectedCoreSha256 -WheelPath $WheelPath -ExpectedWheelSha256 $ExpectedWheelSha256 `
-        -DistReport $DistReport -ExpectedVersion $ExpectedVersion -ProbeFile $ProbeFile -TargetFile $TargetFile -TsxCmd $TsxCmd -NodeDir $NodeDir -ReinterpretCli $ReinterpretCli -CancelFile $CancelFile -Limits $limitsIn -StartAllowanceMs $StartAllowanceMs -SupervisorGraceMs $SupervisorGraceMs)[-1]
+        -DistReport $DistReport -ExpectedVersion $ExpectedVersion -ProbeFile $ProbeFile -TargetFile $TargetFile -TsxCmd $TsxCmd -NodeDir $NodeDir -ReinterpretCli $ReinterpretCli -CancelFile $CancelFile -ConfirmRunId $ConfirmRunId -Limits $limitsIn -StartAllowanceMs $StartAllowanceMs -SupervisorGraceMs $SupervisorGraceMs)[-1]
 exit $r.exitCode
