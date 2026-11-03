@@ -68,18 +68,52 @@ export const scanInitResponse = (version: string = SCAN_STUB_VERSION): JsonRpcMe
   },
 });
 
+/**
+ * 진행 알림(`$/progress`) 조립기. 모양은 고정 소스의 `Legacy_lsp_.ml`(`create_progress`·`end_progress`)와 2026-11-03 실제 관측의 프레임에서 읽은 것이다:
+ * 시작은 `{ kind:"begin", title, message }`, 끝은 `{ kind:"end" }`(메시지·제목 없음). 제목·문구는 일부러 상수 대신 **문자열 그대로** 적는다 —
+ * 계약이 바뀌면 이 시험이 먼저 깨지게 하려는 것이다(이번 실행의 토큰 값은 쓰지 않는다).
+ */
+export const progressBegin = (
+  token: string | number,
+  title: string,
+  message: string
+): JsonRpcMessage => ({
+  jsonrpc: "2.0",
+  method: "$/progress",
+  params: { token, value: { kind: "begin", title, message } },
+});
+export const progressEnd = (token: string | number): JsonRpcMessage => ({
+  jsonrpc: "2.0",
+  method: "$/progress",
+  params: { token, value: { kind: "end" } },
+});
+
+/** 초기 진행 두 수명주기의 합성 값(요청 id 와 토큰은 서로 다른 값이다). */
+export const PROGRESS_REFRESH = {
+  id: "synthetic-request-refresh",
+  token: "synthetic-token-refresh",
+};
+export const PROGRESS_SCAN = { id: "synthetic-request-scan", token: "synthetic-token-scan" };
+
+/** 새로고침 수명주기: create → begin("Semgrep" / "Refreshing Rules") → end. */
+export const refreshProgress = (p = PROGRESS_REFRESH): JsonRpcMessage[] => [
+  progressCreate(p.id, p.token),
+  progressBegin(p.token, "Semgrep", "Refreshing Rules"),
+  progressEnd(p.token),
+];
+/** 초기 열린 문서 스캔 수명주기: create → begin("Semgrep Scan in Progress" / "Scanning Open Documents") → end. */
+export const openDocumentsProgress = (p = PROGRESS_SCAN): JsonRpcMessage[] => [
+  progressCreate(p.id, p.token),
+  progressBegin(p.token, "Semgrep Scan in Progress", "Scanning Open Documents"),
+  progressEnd(p.token),
+];
+
 /** 장벽까지의 stdout: 초기화 응답 → 진행 요청·알림 → rulesRefreshed → 진행 요청·알림(열린 문서 스캔). */
 export function barrierStdoutMessages(): JsonRpcMessage[] {
-  return [
-    scanInitResponse(),
-    progressCreate(1, "refresh-token"),
-    progressNotification("refresh-token", "begin"),
-    RULES_REFRESHED,
-    progressNotification("refresh-token", "end"),
-    progressCreate(2, "scan-token"),
-    progressNotification("scan-token", "begin"),
-    progressNotification("scan-token", "end"),
-  ];
+  // 순서는 고정 소스(Legacy_scan_helpers.ml: create_progress → 규칙 읽기 → end_progress → rulesRefreshed → 열린 문서 스캔의 create_progress …)와
+  // 2026-11-03 실제 관측 프레임의 순서를 따른다. 이전 조립기는 새로고침의 end 를 rulesRefreshed **뒤**에 놓았고 begin 의 제목·문구도 "x" 였다(소스와 다름) —
+  // 이 SCAN 전용 조립기를 정정했다(RULES 조립기 rules-fixtures.ts 는 바꾸지 않았다).
+  return [scanInitResponse(), ...refreshProgress(), RULES_REFRESHED, ...openDocumentsProgress()];
 }
 
 /** Windows 서버가 로그에 남기는 작업 영역 경로 모양: 역슬래시, 드라이브 문자 소문자(LSP-RULES-1 stderr:227). */

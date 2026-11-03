@@ -64,6 +64,7 @@ import {
   type ScanStdoutAnalysis,
   type ScanTrigger,
 } from "./lsp-scan";
+import { analyzeScanProgress, type ScanProgressAnalysis } from "./lsp-scan-progress";
 import { PRE_INITIALIZED_KEYS, comparableLoadingPath } from "./rules-log";
 import {
   analyzeScanLog,
@@ -328,6 +329,13 @@ export interface ScanEvidence {
   stdout: ScanStdoutAnalysis;
   log: ScanLogAnalysis;
   preOpen: { evidence: boolean; logKeys: ScanLogKey[]; stdoutDiagnosticFrames: number };
+  /**
+   * 초기 진행 메시지 장벽(lsp-scan-progress.ts)을 `didOpen` 송신 때의 stdout 위치에서 원문으로 다시 확인한 결과. 러너의 장벽 선언과 무관하다.
+   * 위치 앞에서 **완전히** 읽힌 프레임만 센다(그 위치에 걸친 프레임은 읽히지 않은 것이다). `didOpen` 이 없으면 받은 stdout 전체를 본다.
+   */
+  progress: ScanProgressAnalysis;
+  /** progress 를 평가한 stdout 위치(`didOpen` 송신 때의 읽은 바이트 수). didOpen 이 없으면 null(전체). */
+  progressStdoutOffset: number | null;
   frames: {
     post: ScanDiagnosticFrame[];
     validPost: ScanDiagnosticFrame[];
@@ -455,6 +463,11 @@ export function deriveScanEvidence(input: ScanEvidenceInput): ScanEvidence {
   }
 
   const preKeys = log.pre.scanEvidence;
+  const progress = analyzeScanProgress(
+    stdout.progressFrames.filter(
+      (f) => stdoutOffset === null || (f.endByte !== null && f.endByte <= stdoutOffset)
+    )
+  );
   return {
     timeline: { valid: timelineValid, problems: timelineProblems },
     didOpen,
@@ -467,6 +480,8 @@ export function deriveScanEvidence(input: ScanEvidenceInput): ScanEvidence {
       logKeys: [...preKeys],
       stdoutDiagnosticFrames: preDiag.length,
     },
+    progress,
+    progressStdoutOffset: stdoutOffset,
     frames: { post, validPost, malformedPost },
     diagnostics: {
       state: diagState,
@@ -1024,8 +1039,11 @@ function evaluate(f: ScanFacts, p: ScanParsed): ConditionResult[] {
     }
     for (const e of log.pre.extras) d.push(`PRE_${e.kind}`);
     if (p.networkWordSeen) d.push("NETWORK_WORD_SEEN");
+    // 초기 진행 메시지: didOpen 송신 때의 stdout 위치 앞에서 두 수명주기(create·begin·end)가 완전한 프레임으로 읽혀 있어야 한다(원문으로 다시 확인).
+    for (const t of ev.progress.problems) d.push(t);
     // 장벽 줄이 모두 오고 나서야 didOpen 을 쓸 수 있다
     if (didOpen !== null) {
+      if (!ev.progress.complete) d.push("DID_OPEN_BEFORE_BARRIER_PROGRESS");
       const scanned = bare[3].find((l) => l.shape === "OK");
       if (scanned !== undefined && scanned.endByte > didOpen.stderrOffset)
         d.push("DID_OPEN_BEFORE_BARRIER_LINE");
@@ -1616,6 +1634,9 @@ function confirmationGaps(f: ScanFacts, p: ScanParsed, conditions: ConditionResu
     out.push("SIGNAL_ABSENT");
   if (barrier.some((t) => /_COUNT_([2-9]|[1-9]\d+)$/.test(t))) out.push("SIGNAL_DUPLICATED");
   if (barrier.includes("LOADING_PATH_UNEXPECTED")) out.push("LOADING_PATH_UNEXPECTED");
+  // 초기 진행 메시지: 모두 읽히지 않았거나(INCOMPLETE) 계약을 어겼다(INVALID). 어느 쪽이든 완료가 아니다.
+  if (ev.progress.state === "INCOMPLETE") out.push("BARRIER_PROGRESS_INCOMPLETE");
+  if (ev.progress.state === "INVALID") out.push("BARRIER_PROGRESS_INVALID");
   if (ev.didOpen !== null && has("DID_OPEN_SENDS_0")) out.push("DID_OPEN_NOT_SENT");
   if (f.markers?.didOpenSent === null && f.sends.every((s) => s.label !== "didOpen"))
     out.push("DID_OPEN_NOT_SENT");
@@ -1714,6 +1735,103 @@ export interface ScanFrameRecord {
   params_keys: string[];
 }
 
+export interface ScanProgressBarrierRecord {
+  /** COMPLETE 만 didOpen 을 허용한다. INCOMPLETE = 더 기다릴 수 있는 누락, INVALID = 이미 어긴 계약. */
+  state: ScanProgressAnalysis["state"];
+  complete: boolean;
+  /** 평가한 stdout 위치(didOpen 송신 때 읽은 바이트 수). didOpen 이 없으면 null(받은 전체). */
+  evaluated_stdout_offset: number | null;
+  frames_considered: number;
+  problems: string[];
+  pending: string[];
+  violations: string[];
+  requests: {
+    ordinal: number;
+    frame_index: number;
+    start_byte: number | null;
+    end_byte: number | null;
+    valid: boolean;
+    id_type: string | null;
+    token_type: string | null;
+    id: string | null;
+    token: string | null;
+    lifecycle: number | null;
+    duplicate: string | null;
+  }[];
+  lifecycles: {
+    ordinal: number;
+    stage: string | null;
+    token: string;
+    token_type: string;
+    request_id: string;
+    request_id_type: string;
+    create_frame: number;
+    begin_frame: number | null;
+    end_frame: number | null;
+    status: string;
+  }[];
+  notifications: {
+    frame_index: number;
+    start_byte: number | null;
+    end_byte: number | null;
+    kind: string | null;
+    token_type: string | null;
+    lifecycle: number | null;
+    token_is_request_id_only: boolean;
+    outcome: string;
+  }[];
+  rules_refreshed_frames: number[];
+}
+
+function progressBarrierRecord(ev: ScanEvidence): ScanProgressBarrierRecord {
+  const a = ev.progress;
+  return {
+    state: a.state,
+    complete: a.complete,
+    evaluated_stdout_offset: ev.progressStdoutOffset,
+    frames_considered: a.framesConsidered,
+    problems: [...a.problems],
+    pending: [...a.pending],
+    violations: [...a.violations],
+    requests: a.requests.map((r) => ({
+      ordinal: r.ordinal,
+      frame_index: r.frameIndex,
+      start_byte: r.startByte,
+      end_byte: r.endByte,
+      valid: r.valid,
+      id_type: r.idType,
+      token_type: r.tokenType,
+      id: r.id,
+      token: r.token,
+      lifecycle: r.lifecycle,
+      duplicate: r.duplicate,
+    })),
+    lifecycles: a.lifecycles.map((l) => ({
+      ordinal: l.ordinal,
+      stage: l.stage,
+      token: l.token,
+      token_type: l.tokenType,
+      request_id: l.requestId,
+      request_id_type: l.requestIdType,
+      create_frame: l.createFrame,
+      begin_frame: l.beginFrame,
+      end_frame: l.endFrame,
+      status: l.status,
+    })),
+    notifications: a.notifications.map((n) => ({
+      frame_index: n.frameIndex,
+      start_byte: n.startByte,
+      end_byte: n.endByte,
+      kind: n.kind,
+      token_type: n.tokenType,
+      lifecycle: n.lifecycle,
+      token_is_request_id_only: n.tokenIsRequestIdOnly,
+      outcome: n.outcome,
+    })),
+    rules_refreshed_frames: a.rulesRefreshed.map((r) => r.frameIndex),
+  };
+}
+
 export interface ScanObservation {
   schema: typeof LSP_SCAN_SCHEMA;
   run_id: string;
@@ -1755,6 +1873,8 @@ export interface ScanObservation {
     barrier_done_at_ms: number | null;
     deadline_at_ms: number | null;
     pre_open: { evidence: boolean; log_keys: string[]; stdout_diagnostic_frames: number };
+    /** 초기 진행 메시지 장벽: 왜 열렸거나 막혔는지 검토할 수 있게 요청·토큰·begin/end·완료 여부와 사유를 남긴다(원문에서 다시 만든 값). */
+    progress_barrier: ScanProgressBarrierRecord;
     diagnostics: {
       state: ScanDiagnosticsState;
       count: number;
@@ -2121,6 +2241,7 @@ export function buildScanRecord(f: ScanFacts): ScanObservation {
             },
       barrier_done_at_ms: ev.barrierDoneAtMs,
       deadline_at_ms: ev.deadlineAtMs,
+      progress_barrier: progressBarrierRecord(ev),
       pre_open: {
         evidence: ev.preOpen.evidence,
         log_keys: [...ev.preOpen.logKeys],

@@ -19,6 +19,11 @@
   초기화 응답의 프레임 경계(프레임 파서 시험용): init-jsonrpc-shy init-jsonrpc-nul init-jsonrpc-key-shy init-header-over init-header-name-lf init-header-max
     앞의 다섯은 TS 프레임 디코더가 거절하는 응답을 보낸다(jsonrpc 값 끝에 소프트 하이픈·NUL, 키 이름 끝에 소프트 하이픈, 헤더 8193바이트, 헤더 이름 끝에 LF). 러너가 initialized 를 보내면 안 된다.
     init-header-max 는 헤더가 정확히 8192바이트인 정상 응답이다(경계 대조군): 그대로 정상 경로로 이어진다.
+  초기 진행 메시지 장벽 시나리오(2026-11-03 실제 1회 관측이 ABORTED 로 끝난 경위의 재현·방어): 정상 경로에서도 진행 메시지는 소스·실제 관측의 순서(create → begin → end → rulesRefreshed → create → begin → end)다.
+    late-initial-progress           두 번째 초기 진행 묶음(create·begin·end)이 stderr 의 'Scanned open documents' 줄보다 한참 뒤에 도착한다. 러너는 didOpen 을 그 묶음을 다 읽은 뒤에 한 번만 보내야 한다.
+    late-initial-progress-split     위와 같되 두 번째 묶음을 1바이트씩 나눠 보낸다(프레임이 완성되기 전에는 didOpen 이 나가면 안 된다).
+    initial-progress-incomplete     두 번째 묶음이 create·begin 까지만 오고 end 가 오지 않는다. 장벽 한도(rulesMs) 안에서만 기다리고 didOpen 은 나가지 않는다.
+    initial-progress-wrong-token    두 번째 묶음의 begin·end 가 등록되지 않은 토큰이다. 장벽이 열리지 않고(INVALID) didOpen 은 나가지 않는다.
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Scenario)
@@ -36,6 +41,7 @@ $allowed = @(
     'home-write', 'shutdown-reply', 'env-names', 'spawn-disallowed', 'requests-2', 'requests-3', 'request-disallowed', 'request-malformed'
     'delayed-forbidden', 'header-variants', 'json-dump-signal-text', 'notification-twice'
     'init-jsonrpc-shy', 'init-jsonrpc-nul', 'init-jsonrpc-key-shy', 'init-header-over', 'init-header-name-lf', 'init-header-max'
+    'late-initial-progress', 'late-initial-progress-split', 'initial-progress-incomplete', 'initial-progress-wrong-token'
 )
 # -cnotcontains 는 서수 비교가 아니라서(소프트 하이픈·NUL 이 낀 이름도 같다고 본다) 이 스크립트가 따로 서수로 확인한다. 허용 목록 밖이면 아무것도 하지 않고 끝낸다.
 $scenarioAllowed = $false
@@ -84,7 +90,11 @@ function Write-ErrRaw([string]$Text) { Write-Bytes $stderr ([Text.Encoding]::UTF
 
 function Get-GoodResult([string]$Version) { [ordered]@{ capabilities = [ordered]@{ textDocumentSync = 1 }; serverInfo = [ordered]@{ name = 'Semgrep'; version = $Version } } }
 function Get-ProgressCreate([int]$Id, [string]$Token) { [ordered]@{ jsonrpc = '2.0'; id = $Id; method = 'window/workDoneProgress/create'; params = [ordered]@{ token = $Token } } }
-function Get-ProgressNote([string]$Token, [string]$Kind) { [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = $Token; value = [ordered]@{ kind = $Kind; title = 'x' } } } }
+# 진행 알림의 모양은 고정 소스(Legacy_lsp_.ml create_progress·end_progress)와 실제 관측 프레임을 따른다: 시작 = { kind, title, message }, 끝 = { kind } 뿐이다.
+function Get-ProgressBegin([string]$Token, [string]$Title, [string]$Message) { [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = $Token; value = [ordered]@{ kind = 'begin'; title = $Title; message = $Message } } } }
+function Get-ProgressEnd([string]$Token) { [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = $Token; value = [ordered]@{ kind = 'end' } } } }
+function Get-RefreshBegin([string]$Token) { Get-ProgressBegin $Token 'Semgrep' 'Refreshing Rules' }
+function Get-OpenDocumentsBegin([string]$Token) { Get-ProgressBegin $Token 'Semgrep Scan in Progress' 'Scanning Open Documents' }
 function Get-RulesRefreshed { [ordered]@{ jsonrpc = '2.0'; method = 'semgrep/rulesRefreshed'; params = [ordered]@{} } }
 
 # 부모의 표준 핸들을 그대로 물려받는 자손(종료 뒤에도 파이프를 쥔다). 91초 뒤 스스로 끝난다.
@@ -157,7 +167,7 @@ function New-HappyEvents {
     foreach ($x in @(
             (New-Ev 10 'err' '[00.80][DEBUG](default): Handling notification { "method": "initialized", "params": {}, "jsonrpc": "2.0" }'),
             (New-Ev 20 'err' 'Refreshing rules'),
-            (New-Ev 22 'out' (Get-ProgressCreate 1 'refresh-token')), (New-Ev 23 'out' (Get-ProgressNote 'refresh-token' 'begin')),
+            (New-Ev 22 'out' (Get-ProgressCreate 1 'refresh-token')), (New-Ev 23 'out' (Get-RefreshBegin 'refresh-token')),
             (New-Ev 30 'err' '[00.80][INFO]: Checking for API token in environment variables'),
             (New-Ev 35 'err' '[00.80][INFO]: No API token found in environment variables'),
             (New-Ev 40 'err' '[00.80][INFO]: No settings file found, using default settings'),
@@ -165,13 +175,13 @@ function New-HappyEvents {
             (New-Ev 50 'err' "[00.81][INFO]: loading local config from $f"),
             (New-Ev 55 'err' "[00.82][INFO]: Done loading local config from $f"),
             (New-Ev 60 'err' '[00.82][INFO]: Got 0 errors while refreshing rules in language server'),
-            (New-Ev 65 'out' (Get-RulesRefreshed)), (New-Ev 66 'out' (Get-ProgressNote 'refresh-token' 'end')),
+            (New-Ev 64 'out' (Get-ProgressEnd 'refresh-token')), (New-Ev 65 'out' (Get-RulesRefreshed)),
             (New-Ev 70 'err' 'Rules refreshed'),
             (New-Ev 75 'err' 'Scanning open documents'), (New-Ev 80 'err' (Get-ExternalLine '00.83')),
-            (New-Ev 78 'out' (Get-ProgressCreate 2 'scan-token')), (New-Ev 79 'out' (Get-ProgressNote 'scan-token' 'begin')),
+            (New-Ev 78 'out' (Get-ProgressCreate 2 'scan-token')), (New-Ev 79 'out' (Get-OpenDocumentsBegin 'scan-token')),
             (New-Ev 85 'err' '[00.83][WARNING]: No targets to scan! Not scanning anything.'),
             (New-Ev 90 'err' 'Scanned open documents'),
-            (New-Ev 92 'out' (Get-ProgressNote 'scan-token' 'end')))) { [void]$e.Add($x) }
+            (New-Ev 92 'out' (Get-ProgressEnd 'scan-token')))) { [void]$e.Add($x) }
     , $e
 }
 function Remove-Ev($Events, [string]$Like) { $keep = New-Object System.Collections.ArrayList; foreach ($x in $Events) { if (-not ($x.kind -eq 'err' -and $x.data -like $Like)) { [void]$keep.Add($x) } }; , $keep }
@@ -344,8 +354,32 @@ function Get-AfterInitializedEvents {
         'pre-open-evidence' { [void]$ev.Add((New-Ev 86 'err' 'Scanning single file')); [void]$ev.Add((New-Ev 87 'out' (Get-Publish 'file:///c%3A/x/lsp-scan-1-target.txt' @((Get-GoodDiagnostic))))) }
         'modify-target' { [void]$ev.Add((New-Ev 30 'act' 'modify-target')) }
         'ext-third-attempt' { [void]$ev.Add((New-Ev 82 'err' (Get-ExternalLine '00.835'))) }
+        # 초기 진행 메시지 장벽: 두 번째 수명주기(create·begin·end)를 stderr 의 'Scanned open documents'(+90ms)보다 훨씬 뒤로 미룬다. 시간표는 initialized 를 받은 시각부터의 ms 다.
+        'late-initial-progress' { $ev = Move-SecondProgress $ev 1500 'out' }
+        'late-initial-progress-split' { $ev = Move-SecondProgress $ev 1500 'outbytes' }
+        'initial-progress-incomplete' { $ev = Move-SecondProgress $ev 1500 'out' -DropEnd }
+        'initial-progress-wrong-token' { $ev = Move-SecondProgress $ev 120 'out' -WrongToken }
     }
     , $ev
+}
+
+# 정상 경로의 두 번째 진행 묶음(create·begin·end; 토큰 scan-token)을 $At 부터 연달아 내도록 바꾼다. -DropEnd 면 end 를 내지 않고, -WrongToken 이면 begin·end 의 토큰을 등록되지 않은 값으로 바꾼다.
+function Move-SecondProgress($Events, [int]$At, [string]$Kind, [switch]$DropEnd, [switch]$WrongToken) {
+    $keep = New-Object System.Collections.ArrayList
+    foreach ($x in $Events) {
+        $isSecond = $false
+        if ($x.kind -eq 'out') {
+            $m = $x.data
+            if ($m.method -eq 'window/workDoneProgress/create' -and $m.params.token -eq 'scan-token') { $isSecond = $true }
+            elseif ($m.method -eq '$/progress' -and $m.params.token -eq 'scan-token') { $isSecond = $true }
+        }
+        if (-not $isSecond) { [void]$keep.Add($x) }
+    }
+    $tok = 'scan-token'; if ($WrongToken) { $tok = 'not-the-scan-token' }
+    [void]$keep.Add((New-Ev $At $Kind (Get-ProgressCreate 2 'scan-token')))
+    [void]$keep.Add((New-Ev ($At + 1) $Kind (Get-OpenDocumentsBegin $tok)))
+    if (-not $DropEnd) { [void]$keep.Add((New-Ev ($At + 2) $Kind (Get-ProgressEnd $tok))) }
+    , $keep
 }
 
 function Invoke-Act([string]$Name) {

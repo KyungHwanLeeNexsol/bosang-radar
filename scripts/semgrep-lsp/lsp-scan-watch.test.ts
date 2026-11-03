@@ -11,6 +11,7 @@ import {
   type ScanAbort,
   type ScanWatchScript,
 } from "./lsp-scan-watch";
+import { analyzeScanProgress } from "./lsp-scan-progress";
 import { analyzeScanLog } from "./scan-log";
 import { chunked, happyWatchScript, toHex, watchConfig } from "./testing/scan-watch-cases";
 import {
@@ -18,8 +19,10 @@ import {
   externalCommandLine,
   frames,
   goodNotification,
+  openDocumentsProgress,
   progressCreate,
   publishDiagnostics,
+  refreshProgress,
   RULES_REFRESHED,
   scanLay,
   scanPostOpenLines,
@@ -316,12 +319,22 @@ describe("evaluateScanBarrier — didOpen 을 보내도 되는 장벽인가", ()
   const analyze = (lines: string[]) =>
     analyzeScanLog(bytesOf(lines), { workspace: scanLay.workspace, didOpenOffset: null });
   const probe = watchConfig().probePath;
+  /** 완전한 초기 진행 묶음(두 수명주기 + rulesRefreshed)의 분석: stderr 쪽 평가만 따로 보려고 stdout 쪽은 정상으로 둔다. */
+  const complete = analyzeScanProgress(
+    [...refreshProgress(), RULES_REFRESHED, ...openDocumentsProgress()].map((message, index) => ({
+      index,
+      startByte: null,
+      endByte: null,
+      message,
+    }))
+  );
 
   it("정상 줄이면 ready·clean 이다", () => {
-    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 1, probe);
+    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 1, probe, complete);
     expect(s).toEqual({
       rulesRefreshedSeen: true,
       scannedOpenDocumentsSeen: true,
+      progressState: "COMPLETE",
       ready: true,
       clean: true,
       problems: [],
@@ -329,7 +342,7 @@ describe("evaluateScanBarrier — didOpen 을 보내도 되는 장벽인가", ()
   });
 
   it("stdout rulesRefreshed 가 없으면 ready 가 아니다", () => {
-    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 0, probe);
+    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 0, probe, complete);
     expect(s.ready).toBe(false);
     expect(s.clean).toBe(false);
   });
@@ -358,14 +371,14 @@ describe("evaluateScanBarrier — didOpen 을 보내도 되는 장벽인가", ()
   ];
   for (const [name, edit, expected] of cases) {
     it(`${name} → clean 이 아니다`, () => {
-      const s = evaluateScanBarrier(analyze(edit(scanPreOpenLines())), 1, probe);
+      const s = evaluateScanBarrier(analyze(edit(scanPreOpenLines())), 1, probe, complete);
       expect(s.clean, name).toBe(false);
       expect(s.problems.join(",")).toMatch(expected);
     });
   }
 
   it("프로브 경로를 모르면 로딩 경로를 확인할 수 없으므로 clean 이 아니다", () => {
-    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 1, null);
+    const s = evaluateScanBarrier(analyze(scanPreOpenLines()), 1, null, complete);
     expect(s.clean).toBe(false);
     expect(s.problems).toContain("LOADING_PATH_UNVERIFIABLE");
   });
@@ -635,7 +648,14 @@ describe("runScanWatchScript — JSON 입력·JSON 출력 (골든 대조용)", (
       ["abort", "barrier", "frameError", "i", "initArrived", "op", "snapshot"].sort()
     );
     expect(Object.keys(step.barrier).sort()).toEqual(
-      ["clean", "problems", "ready", "rulesRefreshedSeen", "scannedOpenDocumentsSeen"].sort()
+      [
+        "clean",
+        "problems",
+        "progressState",
+        "ready",
+        "rulesRefreshedSeen",
+        "scannedOpenDocumentsSeen",
+      ].sort()
     );
     const arrivals = t.steps.filter((s) => s.initArrived);
     expect(arrivals).toHaveLength(1);
