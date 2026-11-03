@@ -66,6 +66,11 @@ export class FakeChild implements ChildHandle {
     this.errQueue.push(encoder.encode(text));
   }
 
+  /** 바이트를 그대로 stderr 로 낸다(청크 경계를 시험이 정한다: 1바이트씩 쪼개기 등). */
+  emitStderrBytes(data: Uint8Array): void {
+    this.errQueue.push(data.slice());
+  }
+
   emitStderrLine(text: string): void {
     this.errQueue.push(encoder.encode(`${text}\n`));
   }

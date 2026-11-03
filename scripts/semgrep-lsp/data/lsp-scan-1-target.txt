@@ -1,0 +1,3 @@
+LSP-SCAN-1 synthetic target. This is not a source file.
+marker: LSP_RULES_1_PROBE_TOKEN_THAT_IS_NEVER_PRESENT
+end of synthetic target.
