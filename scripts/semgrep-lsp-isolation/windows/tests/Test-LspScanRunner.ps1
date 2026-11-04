@@ -17,7 +17,16 @@
   powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\tests\Test-LspScanRunner.ps1 -TsxCmd C:\repo\node_modules\.bin\tsx.cmd -NodeDir C:\node
 #>
 [CmdletBinding()]
-param([string]$TsxCmd, [string]$NodeDir, [string]$TsDir)
+param(
+    [string]$TsxCmd, [string]$NodeDir, [string]$TsDir,
+    # 분할 실행(시스템 메모리가 모자랄 때). 기본값 All 은 예전과 똑같이 전부 돈다. 단언은 하나도 빠지거나 느슨해지지 않고, 어느 묶음에서 세는지만 나뉜다.
+    #   Pre = 정적 점검·골든·계약·TS 대조·단위(1~4절) / Cases = 5절 시나리오 중 -CaseFrom..-CaseTo 번째(1부터, 표 순서) / Post = 도착 순서 행렬·기본 한도·전체 상한·중단 파일·환경 격리·거부 경로·semgrep-lsp 모드(5절 뒷부분)
+    #   Aggregate = 6절(러너 결과 → TS 판정; 앞 묶음이 -StateFile 에 남긴 결과 파일 전체를 쓴다).
+    # Cases·Post 묶음은 -StateFile 에 결과 파일 위치를 이어 적고, 그 결과 파일이 있는 샌드박스를 지우지 않는다(-KeepSandbox 를 함께 준다). 지우는 것은 Aggregate 뒤에 시험 소유자가 한다.
+    [ValidateSet('All', 'Pre', 'Cases', 'Post', 'Aggregate')][string]$Part = 'All',
+    [int]$CaseFrom = 1, [int]$CaseTo = 0,
+    [string]$StateFile, [string]$ResultsFile, [switch]$KeepSandbox
+)
 $ErrorActionPreference = 'Stop'
 $windowsDir = Split-Path -Parent $PSScriptRoot
 . (Join-Path $windowsDir 'LspScanContract.ps1')
@@ -26,18 +35,27 @@ if (-not $TsDir) { $TsDir = Join-Path $windowsDir '..\..\semgrep-lsp' }
 $tsReady = $false
 if ($TsxCmd -and (Test-Path -LiteralPath $TsxCmd) -and (Test-Path -LiteralPath (Join-Path $TsDir 'lsp-scan.ts'))) { $tsReady = $true; $TsDir = (Resolve-Path -LiteralPath $TsDir).Path }
 
+$runPre = $Part -in 'All', 'Pre'
+$runCases = $Part -in 'All', 'Cases'
+$runPost = $Part -in 'All', 'Post'
+$runAgg = $Part -in 'All', 'Aggregate'
+# 비-Pre 묶음은 2절(정의와 섞여 있어 건너뛸 수 없는 계약 점검)을 다시 계산만 하고 그 단언은 세지 않는다. Pre 묶음(와 All)이 센다.
+$Script:Recording = $runPre
 $results = New-Object System.Collections.ArrayList
 function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
+    if (-not $Script:Recording) { return }
     [void]$results.Add([ordered]@{ name = $Name; pass = $Condition; detail = $Detail })
     if (-not $Condition) { Write-Host ("FAIL  {0}  {1}" -f $Name, $Detail) -ForegroundColor Red }
 }
 function Skip-Test([string]$Name, [string]$Why) {
+    if (-not $Script:Recording) { return }
     [void]$results.Add([ordered]@{ name = $Name; pass = $null; detail = $Why })
     Write-Host ("SKIPPED  {0}  {1}" -f $Name, $Why) -ForegroundColor Yellow
 }
 function Limit-Text([string]$Text, [int]$Max = 300) { if ($Text.Length -le $Max) { $Text } else { $Text.Substring(0, $Max) + '...' } }
 
 # ── 정적 점검: 구문, BOM, LF, 금지된 명령 ──────────────────────────────────────
+if ($runPre) {
 $files = 'LspScanContract.ps1', 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanAdminContract.ps1', 'LspScanAdminPorts.ps1', 'Test-LspScanObservation.ps1', 'tests\Test-LspScanRunner.ps1', 'tests\Test-LspScanFrame.ps1', 'tests\Test-LspScanAdmin.ps1', 'tests\MockPortsScan.ps1', 'tests\MockSystemScan.ps1'
 $forbidden = 'Invoke-Expression', 'iex', 'Invoke-WebRequest', 'Invoke-RestMethod', 'Start-BitsTransfer', 'curl', 'wget', 'git', 'git.exe'
 foreach ($f in $files) {
@@ -61,6 +79,7 @@ foreach ($f in 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanContract.ps1'
     Assert-That "git 실행 문구 없음 ($f): Start-Process·& git·git.exe 호출이 없다" ($txt -notmatch '(?i)(Start-Process[^\n]*git|&\s*git\b|\bgit\.exe\b|ProcessStartInfo[^\n]*git)') ''
 }
 Assert-That '허용 이미지 목록에 git 이 없다 (ALLOWED_IMAGES 불변)' (@($Script:LspMinAllowedImages | Where-Object { $_ -match 'git' }).Count -eq 0) ($Script:LspMinAllowedImages -join ',')
+}
 
 # ── 도구 ────────────────────────────────────────────────────────────────────
 function ConvertTo-SortedJson($Obj) {
@@ -96,6 +115,7 @@ function Invoke-Tsx([string[]]$ScriptArgs) {
 }
 
 # ═══ 1. TS ↔ PS 골든 대조 (tsx 없이): 모든 사례 ═══════════════════════════════════
+if ($runPre) {
 $goldenPath = Join-Path $PSScriptRoot 'lsp-scan-parity.json'
 # Windows PowerShell 5.1 의 ConvertFrom-Json 은 최상위 배열을 풀지 않고 한 개체로 내보낸다(7 은 푼다). -InputObject 로 받아 대입하면 두 엔진 모두 배열이 된다.
 $goldenParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($goldenPath, [Text.Encoding]::UTF8))
@@ -164,6 +184,7 @@ if (-not ((Test-LsBarrierReady $w) -and (Test-LsProgressComplete $w))) { $readyO
 $w = Invoke-GoldenWatchState $lateById['watch:late-second-progress-wrong-token']
 if (-not (Test-LsBarrierReady $w) -or (Test-LsProgressComplete $w) -or (Get-LsWatchBarrier $w).clean) { $readyOk = $false; Write-Host 'FAIL  늦은 두 번째 진행 묶음(wrong-token): 더 기다려도 달라지지 않는 위반이라 기다림은 끝나되 clean 이 아니어야 한다' -ForegroundColor Red }
 Assert-That '러너가 쓰는 판정(Test-LsBarrierReady·Test-LsProgressComplete): 두 번째 초기 진행 묶음이 없거나 create·begin 까지거나 end 가 일부만 왔으면 기다림이 끝나지 않고, 다 읽히면 끝나며, 위반(wrong-token)이면 끝나되 clean 이 아니다' $readyOk
+}
 
 # ═══ 2. 계약 자체 점검 (TS 없이) ═════════════════════════════════════════════════
 $workA = 'C:\work\scan-1'
@@ -225,6 +246,7 @@ Assert-That 'URI 비교는 정규화하지 않는다: 원문(raw)을 그대로 �
 $sandbox = Join-Path ([IO.Path]::GetTempPath()) ('bosang-ls-test-' + [guid]::NewGuid().ToString('N').Substring(0, 12))
 [void][IO.Directory]::CreateDirectory($sandbox)
 $bridge = Join-Path $PSScriptRoot 'lsp-scan-bridge.mts'
+if ($runPre) {
 if (-not $tsReady) {
     Skip-Test '계약(PS) ↔ 실제 TS lsp-scan.ts 대조' 'tsx 또는 scripts/semgrep-lsp 경로가 없어 실행하지 않았다(통과로 세지 않는다)'
     Skip-Test '골든이 낡지 않았다 (현재 TS 구현이 만든 사례와 파일이 같다)' 'tsx 가 없어 실행하지 않았다(통과로 세지 않는다)'
@@ -255,6 +277,7 @@ if (-not $tsReady) {
         else { for ($i = 0; $i -lt $fresh.Count; $i++) { if ((ConvertTo-SortedJson $fresh[$i]) -cne (ConvertTo-SortedJson $golden[$i])) { $stale++ } } }
         Assert-That '골든 신선도: 파일(tests/lsp-scan-parity.json)이 현재 TS 구현이 만든 사례와 모든 사례에서 같다 (낡았으면 다리로 다시 만든다)' ($stale -eq 0) "낡은 사례 $stale 건 (fresh=$($fresh.Count), file=$($golden.Count))"
     }
+}
 }
 
 # ═══ 4. 함수 단위 확인: Send-LsMessage (가짜 stdin) ═══════════════════════════════
@@ -334,7 +357,8 @@ function Invoke-UnitTests {
     Assert-That 'Send-LsMessage: 즉시 종료 사유가 이미 걸렸으면 아무것도 쓰지 않고 송신 기록도 남기지 않는다' ($sent -eq $false -and $fake.WriteCalls -eq 0 -and $Ctx.sends.Count -eq 0)
     Remove-Variable Ctx -ErrorAction SilentlyContinue
 }
-Invoke-UnitTests
+if ($runPre) { Invoke-UnitTests }
+$Script:Recording = $true
 
 # ═══ 5. 러너 end-to-end ═════════════════════════════════════════════════════════
 $holderMarker = 'Start-Sleep -Seconds 91'
@@ -347,6 +371,13 @@ $fakeSemgrep = Join-Path $fakeBinDir 'semgrep.exe'
 Copy-Item -LiteralPath (Join-Path $env:WINDIR 'System32\whoami.exe') -Destination $fakeSemgrep      # 내용은 whoami.exe. 이름만 semgrep.exe 인 무해한 사본
 $Script:RunCounter = 0
 $collected = New-Object System.Collections.ArrayList
+# 분할 실행: 앞 묶음이 남긴 결과 파일 위치(이름·경로·작업 폴더·PATH 값·한도)를 되살린다. 결과 파일은 앞 묶음의 샌드박스에 남아 있다.
+$collectedBase = 0
+if ($StateFile -and ($Part -in 'Post', 'Aggregate') -and (Test-Path -LiteralPath $StateFile)) {
+    $stParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($StateFile, [Text.Encoding]::UTF8))
+    foreach ($stItem in @($stParsed)) { if ($stItem) { [void]$collected.Add($stItem) } }
+    $collectedBase = $collected.Count
+}
 $URL = 'http://127.0.0.1:41999'
 $stubScript = Join-Path $sandbox 'lsp-scan-stub.ps1'
 
@@ -506,10 +537,16 @@ $cases = @(
     @{ s = 'flood-out'; lim = @{ settleMs = 2000 }; sentLike = 'initialize,initialized*'; trig = 'OUTPUT_LIMIT'; kill = 1; close = $false; notOk = $true }
 )
 
+# 이번 묶음이 돌릴 시나리오(표 순서, 1부터 센다). All·Cases 가 아니면 비어 있고, All 은 전부다.
+$casesToRun = New-Object System.Collections.ArrayList
+$caseIndex = 0
+foreach ($cc in $cases) { $caseIndex++; if ($runCases -and $caseIndex -ge $CaseFrom -and ($CaseTo -le 0 -or $caseIndex -le $CaseTo)) { [void]$casesToRun.Add($cc) } }
+Write-Host ("[분할] Part={0} 시나리오 {1}..{2} → 이번 묶음 {3}건 / 표 전체 {4}건" -f $Part, $CaseFrom, $CaseTo, $casesToRun.Count, @($cases).Count)
+
 try {
     $env:BOSANG_CANARY_SECRET = 'must-not-leak'; $env:GITHUB_TOKEN_CANARY = 'must-not-leak'; $env:HTTPS_PROXY = 'http://user:pass@127.0.0.1:9'
 
-    foreach ($c in $cases) {
+    foreach ($c in $casesToRun) {
         $limits = $null; if ($c.lim) { $limits = $c.lim }
         $r = Invoke-Scan -Scenario $c.s -Limits $limits -Name $c.s
         $x = $r.result
@@ -552,6 +589,7 @@ try {
         }
     }
 
+    if ($runPost) {
     # ── 필수 도착 순서 행렬: 같은 증거를 서로 다른 순서·쪼개기·동시 도착으로 보내도 같은 성공이다. settle 은 늦은 묶음에서 시작한다. ──
     $byName = @{}
     foreach ($item in $collected) { $byName[[string]$item.name] = Get-Content -LiteralPath $item.path -Raw -Encoding UTF8 | ConvertFrom-Json }
@@ -672,7 +710,15 @@ try {
     $r = Invoke-Scan -Mode 'semgrep-lsp' -Exe $fakeSemgrep -Args0 @('lsp', '--debug') -Limits @{ initMs = 2500; stdinCloseGraceMs = 1000; killConfirmMs = 5000 } -Name 'fake-semgrep'
     Assert-That 'semgrep-lsp 모드 실행 경로: 이름이 semgrep.exe 인 절대 경로를 [lsp,--debug] 로 셸 없이 부르고, 응답 없이 끝난 자식은 CHILD_EXITED_EARLY 로 기록한다 (initialized·didOpen 은 가지 않는다)' ($r.result.child.started -eq $true -and -not $r.result.refused -and ([string]$r.result.child.mainModule).Equals($fakeSemgrep, [StringComparison]::OrdinalIgnoreCase) -and @('CHILD_EXITED_EARLY', 'INIT_TIMEOUT') -contains $r.result.trigger -and (Get-SentLabels $r) -ceq $onlyInit) (Limit-Text ($r.result | ConvertTo-Json -Depth 5 -Compress))
 
+    }
+
     # ═══ 6. 러너 결과 → 실제 TS 어댑터와 기록 만들기 (tsx 가 있을 때만) ═══════════════
+    if ($runAgg) {
+    if ($Part -eq 'Aggregate') {
+        # 분할 실행의 마지막 묶음: 도착 순서 행렬이 쓰던 이름 → 결과 표를, 앞 묶음이 남긴 결과 파일로 다시 만든다.
+        $byName = @{}
+        foreach ($item in $collected) { $byName[[string]$item.name] = Get-Content -LiteralPath $item.path -Raw -Encoding UTF8 | ConvertFrom-Json }
+    }
     if (-not $tsReady) { Skip-Test '러너 결과 → 실제 TS factsFromScanRunnerResult·buildScanRecord (시나리오별 판정)' 'tsx 또는 scripts/semgrep-lsp 경로가 없어 실행하지 않았다(통과로 세지 않는다)' }
     else {
         $items = @()
@@ -707,6 +753,7 @@ try {
             Assert-That '러너 결과 → TS: 기본 한도(settle 2초) 정상 실행도 SCAN_RESPONSE_OBSERVED' ($by['ok-full-settle'].verdict -ceq $OK) (($by['ok-full-settle'] | ConvertTo-Json -Compress -Depth 4))
         }
     }
+    }
 } finally {
     Remove-Item Env:\BOSANG_CANARY_SECRET, Env:\GITHUB_TOKEN_CANARY, Env:\HTTPS_PROXY -ErrorAction SilentlyContinue
     # 시험이 남긴 스텁 자손·ping 이 없어야 한다(있으면 정리 실패이므로 실패로 센다). 남은 것은 치운다.
@@ -715,7 +762,27 @@ try {
     Assert-That '시험 뒤 남은 스텁 자손(대기자)이 없다' ($holdersAfter.Count -eq 0) ("남은 PID: " + ($holdersAfter -join ','))
     foreach ($sp in ($holdersAfter + $pingsAfter)) { Stop-Process -Id $sp -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Milliseconds 300
-    try { Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction Stop } catch { Write-Host "샌드박스를 지우지 못했다: $sandbox ($($_.Exception.Message))" -ForegroundColor Yellow }
+    # 분할 실행: 이번 묶음이 새로 만든 결과 파일 위치를 -StateFile 에 이어 적는다(같은 이름은 바꿔 쓴다: 같은 묶음을 다시 돌려도 겹치지 않는다).
+    if ($StateFile -and ($Part -in 'Cases', 'Post')) {
+        try {
+            $newNames = @{}; $merged = New-Object System.Collections.ArrayList
+            for ($ni = $collectedBase; $ni -lt $collected.Count; $ni++) { $newNames[[string]$collected[$ni].name] = $true }
+            if (Test-Path -LiteralPath $StateFile) {
+                $oldParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($StateFile, [Text.Encoding]::UTF8))
+                foreach ($oi in @($oldParsed)) { if ($oi -and -not $newNames.ContainsKey([string]$oi.name)) { [void]$merged.Add($oi) } }
+            }
+            for ($ni = $collectedBase; $ni -lt $collected.Count; $ni++) { [void]$merged.Add($collected[$ni]) }
+            [IO.File]::WriteAllText($StateFile, (ConvertTo-Json -InputObject ([object[]]$merged.ToArray()) -Depth 6), (New-Object Text.UTF8Encoding($false)))
+        } catch { Write-Host "상태 파일을 쓰지 못했다: $StateFile ($($_.Exception.Message))" -ForegroundColor Yellow }
+    }
+    if ($ResultsFile) {
+        try {
+            $resRows = @($results | ForEach-Object { [ordered]@{ name = $_.name; pass = $_.pass; detail = (Limit-Text ([string]$_.detail) 200) } })
+            [IO.File]::WriteAllText($ResultsFile, (ConvertTo-Json -InputObject ([object[]]$resRows) -Depth 4), (New-Object Text.UTF8Encoding($false)))
+        } catch { Write-Host "결과 파일을 쓰지 못했다: $ResultsFile ($($_.Exception.Message))" -ForegroundColor Yellow }
+    }
+    if ($KeepSandbox) { Write-Host "샌드박스를 남긴다(-KeepSandbox): $sandbox" }
+    else { try { Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction Stop } catch { Write-Host "샌드박스를 지우지 못했다: $sandbox ($($_.Exception.Message))" -ForegroundColor Yellow } }
 }
 
 $pass = @($results | Where-Object { $_.pass -eq $true }).Count
