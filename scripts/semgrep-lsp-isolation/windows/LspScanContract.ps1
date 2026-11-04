@@ -132,8 +132,8 @@ function Test-LsSameKeys {
     $true
 }
 
-# 쓰기 직전의 마지막 방어선(TS assertAllowedScanOutbound). Ctx: barrierDone(bool), sent(이미 보낸 라벨 목록), expectedUri, expectedText. 어긋나면 던진다.
-#  · didOpen 은 정확히 한 번, initialized 뒤 장벽을 넘은 다음에만 나가고, uri·본문·languageId·version 이 기대와 정확히 같고 params 에 다른 키가 없어야 한다.
+# 쓰기 직전의 마지막 방어선(TS assertAllowedScanOutbound). Ctx: barrierDone(bool), progressComplete(bool), sent(이미 보낸 라벨 목록), expectedUri, expectedText. 어긋나면 던진다.
+#  · didOpen 은 정확히 한 번, initialized 뒤 장벽을 넘고 초기 진행 메시지를 stdout 에서 다 읽은 다음에만 나가고, uri·본문·languageId·version 이 기대와 정확히 같고 params 에 다른 키가 없어야 한다.
 #  · didSave·didChange·didClose·semgrep/scanWorkspace·semgrep/refreshRules·작업 영역 변경·파일 생성·서버 요청에 대한 응답은 메서드 이름 불일치로 막힌다.
 function Assert-LsOutbound {
     param([Parameter(Mandatory)][string]$Label, [Parameter(Mandatory)]$Message, [Parameter(Mandatory)]$Ctx)
@@ -154,6 +154,9 @@ function Assert-LsOutbound {
     if (Test-LrOrdinalEqual $Label 'didOpen') {
         if (-not (Test-LrOrdinalIn 'initialized' $sent)) { throw '허용되지 않은 송신: initialized 전의 didOpen' }
         if (-not [bool]$Ctx.barrierDone) { throw '허용되지 않은 송신: 규칙 로딩 장벽 앞의 didOpen' }
+        # true 가 아닌 모든 값(없음 포함)은 확인되지 않은 것이다(TS: ctx.progressComplete !== true).
+        $pc = Get-LrMember $Ctx 'progressComplete'
+        if ($pc -isnot [bool] -or -not $pc) { throw '허용되지 않은 송신: 초기 진행 메시지를 다 읽기 전의 didOpen' }
         $params = Get-LrMember $Message 'params'
         if (-not (Test-LrPlainObject $params) -or -not (Test-LsSameKeys $params @('textDocument'))) { throw '허용되지 않은 송신 형태: didOpen의 params' }
         $doc = Get-LrMember $params 'textDocument'
@@ -425,6 +428,183 @@ function Complete-LsFrameDecoder {
     if ($D.failed) { return $null }
     if ($D.pos -lt [int]$D.ms.Length) { $where = '헤더'; if ($null -ne $D.bodyLen) { $where = '본문' }; Set-LsFrameError $D 'TRUNCATED' ($where + ' 도중에 스트림이 끝났다'); return $D.error }
     $null
+}
+
+# ── 초기 진행 메시지 장벽(TS lsp-scan-progress.ts) ─────────────────────────────
+# didOpen 을 보내기 전에 stdout 에서 초기 진행 수명주기 두 개(규칙 새로고침, 초기 열린 문서 스캔)가 완전한 프레임으로 끝까지 읽혔는지 판단한다.
+# 계약(고정 소스 Legacy_scan_helpers.ml·Legacy_lsp_.ml 에서 도출 + 2026-11-03 실제 관측 1회의 프레임 순서; 바이너리와 소스의 대응은 미확인):
+#   create → begin("Semgrep","Refreshing Rules") → end → rulesRefreshed → create → begin("Semgrep Scan in Progress","Scanning Open Documents") → end
+# 요청 id 와 토큰은 다른 것이고, 토큰은 값과 자료형이 모두 같아야 같은 토큰이다(숫자 1 과 문자열 "1" 은 다르다). 토큰 값(UUID)은 상수로 쓰지 않는다.
+# 알 수 없거나 불완전한 상태는 완료가 아니다. 상태: COMPLETE / INCOMPLETE(더 기다리면 해소될 수 있는 누락뿐) / INVALID(이미 계약을 어겼다).
+
+$Script:LsProgressStages = @(
+    @{ stage = 'REFRESH_RULES'; title = 'Semgrep'; message = 'Refreshing Rules' },
+    @{ stage = 'SCAN_OPEN_DOCUMENTS'; title = 'Semgrep Scan in Progress'; message = 'Scanning Open Documents' }
+)
+$Script:LsProgressLifecycles = 2
+
+# 키는 자료형을 앞에 붙인다. 해시테이블은 대소문자를 구별하지 않으므로 서수 비교 사전(Dictionary/HashSet)만 쓴다.
+function Get-LsProgressValueKey { param($Value) if ($Value -is [string]) { return ('s:' + $Value) }; 'n:' + [string]$Value }
+function Get-LsProgressValueType { param($Value) if ($Value -is [string]) { 'string' } else { 'number' } }
+function Add-LsProgressToken { param($List, [string]$Token) if (-not (Test-LrOrdinalIn $Token @($List))) { [void]$List.Add($Token) } }
+function Get-LsProgressStageOf {
+    param($Title, $Message)
+    for ($i = 0; $i -lt $Script:LsProgressStages.Count; $i++) {
+        if ((Test-LrOrdinalEqual $Title ([string]$Script:LsProgressStages[$i].title)) -and (Test-LrOrdinalEqual $Message ([string]$Script:LsProgressStages[$i].message))) { return $i }
+    }
+    -1
+}
+
+# 초기 진행 장벽이 보는 종류인가(진행 요청 시도, 진행 알림, rulesRefreshed).
+function Test-LsProgressRelevant {
+    param($Message)
+    $method = Get-LrMember $Message 'method'
+    if ($method -isnot [string]) { return $false }
+    (Test-LrOrdinalEqual $method $Script:LrProgressCreateMethod) -or (Test-LrOrdinalEqual $method $Script:LrProgressMethod) -or (Test-LrOrdinalEqual $method $Script:LrRulesRefreshedMethod)
+}
+
+function New-LsProgressState {
+    @{
+        pending = (New-Object System.Collections.ArrayList); violations = (New-Object System.Collections.ArrayList)
+        requests = (New-Object System.Collections.ArrayList); lifecycles = (New-Object System.Collections.ArrayList); notifications = (New-Object System.Collections.ArrayList); refreshed = (New-Object System.Collections.ArrayList)
+        byToken = (New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::Ordinal))
+        requestIds = (New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal))
+        considered = 0
+    }
+}
+
+# $/progress 알림 하나를 흡수해 기록을 돌려준다.
+function Add-LsProgressNotification {
+    param($S, $F)
+    $m = $F.message
+    $note = [ordered]@{ frameIndex = $F.index; startByte = $F.startByte; endByte = $F.endByte; kind = $null; tokenType = $null; lifecycle = $null; tokenIsRequestIdOnly = $false; outcome = 'ACCEPTED' }
+    $reject = { param($outcome, $token) Add-LsProgressToken $S.violations $token; $note.outcome = $outcome }
+    $params = Get-LrMember $m 'params'
+    $malformed = $false
+    if (Test-LrMember $m 'id') { $malformed = $true }
+    elseif ((Test-LrArrayMember $m 'params') -or -not (Test-LrPlainObject $params) -or -not (Test-LsSameKeys $params @('token', 'value'))) { $malformed = $true }
+    $token = $null; $value = $null
+    if (-not $malformed) {
+        $token = Get-LrMember $params 'token'; $value = Get-LrMember $params 'value'
+        if (($token -isnot [string] -and -not (Test-LrNumber $token)) -or (Test-LrArrayMember $params 'value') -or -not (Test-LrPlainObject $value) -or (Get-LrMember $value 'kind') -isnot [string]) { $malformed = $true }
+    }
+    if ($malformed) { & $reject 'MALFORMED' 'PROGRESS_NOTIFICATION_MALFORMED'; return $note }
+    $kind = [string](Get-LrMember $value 'kind')
+    $key = Get-LsProgressValueKey $token
+    $note.kind = $kind; $note.tokenType = Get-LsProgressValueType $token
+    $lc = $null
+    if (-not $S.byToken.TryGetValue($key, [ref]$lc)) {
+        $note.tokenIsRequestIdOnly = $S.requestIds.Contains($key)
+        & $reject 'UNREGISTERED_TOKEN' 'PROGRESS_TOKEN_UNREGISTERED'; return $note
+    }
+    $note.lifecycle = $lc.ordinal
+    if (Test-LrOrdinalEqual $kind 'begin') {
+        if ($null -ne $lc.beginFrame) { & $reject 'BEGIN_DUPLICATE' 'PROGRESS_BEGIN_DUPLICATE'; return $note }
+        $title = Get-LrMember $value 'title'; $message = Get-LrMember $value 'message'
+        if (-not (Test-LsSameKeys $value @('kind', 'title', 'message')) -or $title -isnot [string] -or $message -isnot [string]) { & $reject 'MALFORMED' 'PROGRESS_NOTIFICATION_MALFORMED'; return $note }
+        $lc.beginFrame = $F.index; $lc.beginEndByte = $F.endByte
+        $at = Get-LsProgressStageOf $title $message
+        if ($at -lt 0) { $lc.stage = 'UNKNOWN' } else { $lc.stage = [string]$Script:LsProgressStages[$at].stage }
+        if ($at -ne $lc.ordinal) {
+            if ($at -lt 0) { & $reject 'STAGE_UNEXPECTED' 'PROGRESS_STAGE_UNKNOWN' } else { & $reject 'STAGE_UNEXPECTED' 'PROGRESS_STAGE_ORDER' }
+        }
+        return $note
+    }
+    if (Test-LrOrdinalEqual $kind 'end') {
+        if ($null -eq $lc.beginFrame) { & $reject 'END_WITHOUT_BEGIN' 'PROGRESS_END_WITHOUT_BEGIN'; return $note }
+        if ($null -ne $lc.endFrame) { & $reject 'END_DUPLICATE' 'PROGRESS_END_DUPLICATE'; return $note }
+        if (-not (Test-LsSameKeys $value @('kind'))) { & $reject 'MALFORMED' 'PROGRESS_NOTIFICATION_MALFORMED'; return $note }
+        $lc.endFrame = $F.index; $lc.endEndByte = $F.endByte
+        return $note
+    }
+    & $reject 'KIND_UNEXPECTED' 'PROGRESS_KIND_UNEXPECTED'
+    $note
+}
+
+# stdout 프레임들(도착 순서; 각 원소 index·startByte·endByte·message)에서 초기 진행 장벽의 상태를 만든다. 순수 함수다.
+function Get-LsProgressAnalysis {
+    param($Frames)
+    $S = New-LsProgressState
+    foreach ($f in @($Frames)) {
+        $m = $f.message
+        $method = Get-LrMember $m 'method'
+        if ($method -isnot [string]) { continue }
+        if (Test-LrOrdinalEqual $method $Script:LrProgressCreateMethod) {
+            $S.considered++
+            $valid = [bool](Test-LrValidProgressCreate $m)
+            $id = $null; $token = $null
+            if ($valid) { $id = Get-LrMember $m 'id'; $token = Get-LrMember (Get-LrMember $m 'params') 'token' }
+            $req = [ordered]@{ ordinal = $S.requests.Count; frameIndex = $f.index; startByte = $f.startByte; endByte = $f.endByte; valid = $valid; idType = $null; tokenType = $null; id = $null; token = $null; lifecycle = $null; duplicate = $null }
+            if ($valid) { $req.idType = Get-LsProgressValueType $id; $req.tokenType = Get-LsProgressValueType $token; $req.id = Format-LrToken ([string]$id); $req.token = Format-LrToken ([string]$token) }
+            [void]$S.requests.Add($req)
+            if (-not $valid) { Add-LsProgressToken $S.violations 'PROGRESS_CREATE_INVALID'; continue }
+            $idKey = Get-LsProgressValueKey $id; $tokKey = Get-LsProgressValueKey $token
+            $idDup = $S.requestIds.Contains($idKey); $tokDup = $S.byToken.ContainsKey($tokKey)
+            [void]$S.requestIds.Add($idKey)
+            if ($idDup) { Add-LsProgressToken $S.violations 'PROGRESS_REQUEST_ID_DUPLICATE' }
+            if ($tokDup) { Add-LsProgressToken $S.violations 'PROGRESS_TOKEN_DUPLICATE' }
+            if ($idDup -or $tokDup) { if ($idDup -and $tokDup) { $req.duplicate = 'BOTH' } elseif ($idDup) { $req.duplicate = 'REQUEST_ID' } else { $req.duplicate = 'TOKEN' } }
+            if ($tokDup) { continue }
+            $lc = [ordered]@{
+                ordinal = $S.lifecycles.Count; stage = $null; token = (Format-LrToken ([string]$token)); tokenType = (Get-LsProgressValueType $token)
+                requestId = (Format-LrToken ([string]$id)); requestIdType = (Get-LsProgressValueType $id); createFrame = $f.index; beginFrame = $null; endFrame = $null
+                createEndByte = $f.endByte; beginEndByte = $null; endEndByte = $null; status = 'CREATED'
+            }
+            [void]$S.lifecycles.Add($lc); $S.byToken[$tokKey] = $lc; $req.lifecycle = $lc.ordinal
+        } elseif (Test-LrOrdinalEqual $method $Script:LrProgressMethod) {
+            $S.considered++
+            [void]$S.notifications.Add((Add-LsProgressNotification $S $f))
+        } elseif (Test-LrOrdinalEqual $method $Script:LrRulesRefreshedMethod) {
+            $S.considered++
+            [void]$S.refreshed.Add([ordered]@{ frameIndex = $f.index; startByte = $f.startByte; endByte = $f.endByte })
+        }
+    }
+    # 수명주기 완성도
+    $created = $S.lifecycles.Count
+    if ($created -ne $Script:LsProgressLifecycles) { if ($created -lt $Script:LsProgressLifecycles) { Add-LsProgressToken $S.pending "PROGRESS_CREATE_COUNT_$created" } else { Add-LsProgressToken $S.violations "PROGRESS_CREATE_COUNT_$created" } }
+    for ($i = 0; $i -lt $created; $i++) {
+        if ($i -ge $Script:LsProgressLifecycles) { break }
+        $lc = $S.lifecycles[$i]
+        if ($null -eq $lc.beginFrame) { Add-LsProgressToken $S.pending ('PROGRESS_BEGIN_MISSING:' + ($i + 1)) }
+        elseif ($null -eq $lc.endFrame) { Add-LsProgressToken $S.pending ('PROGRESS_END_MISSING:' + ($i + 1)) }
+        if ($null -ne $lc.endFrame) { $lc.status = 'COMPLETE' } elseif ($null -ne $lc.beginFrame) { $lc.status = 'BEGUN' } else { $lc.status = 'CREATED' }
+    }
+    # 순서: 스트림 안의 순서는 되돌릴 수 없으므로 위치가 어긋난 프레임은 위반이다(기다리면 해소되는 누락과 구분한다).
+    $first = $null; $second = $null
+    if ($created -ge 1) { $first = $S.lifecycles[0] }
+    if ($created -ge 2) { $second = $S.lifecycles[1] }
+    if ($S.refreshed.Count -eq 0) { Add-LsProgressToken $S.pending 'PROGRESS_RULES_REFRESHED_COUNT_0' }
+    elseif ($S.refreshed.Count -gt 1) { Add-LsProgressToken $S.violations ('PROGRESS_RULES_REFRESHED_COUNT_' + $S.refreshed.Count) }
+    if ($null -ne $second -and ($null -eq $first -or $null -eq $first.endFrame)) { Add-LsProgressToken $S.violations 'PROGRESS_ORDER' }
+    elseif ($null -ne $first -and $null -ne $second -and $second.createFrame -lt $first.endFrame) { Add-LsProgressToken $S.violations 'PROGRESS_ORDER' }
+    if ($S.refreshed.Count -ge 1) {
+        $at = $S.refreshed[0].frameIndex
+        if ($null -eq $first -or $null -eq $first.endFrame -or $first.endFrame -gt $at) { Add-LsProgressToken $S.violations 'PROGRESS_ORDER' }
+        if ($null -ne $second -and $second.createFrame -lt $at) { Add-LsProgressToken $S.violations 'PROGRESS_ORDER' }
+    }
+    $pending = [string[]]@($S.pending); [Array]::Sort($pending, [StringComparer]::Ordinal)
+    $viol = [string[]]@($S.violations); [Array]::Sort($viol, [StringComparer]::Ordinal)
+    $all = New-Object System.Collections.ArrayList
+    foreach ($t in $pending) { Add-LsProgressToken $all $t }
+    foreach ($t in $viol) { Add-LsProgressToken $all $t }
+    $problems = [string[]]@($all); [Array]::Sort($problems, [StringComparer]::Ordinal)
+    $state = 'COMPLETE'
+    if ($viol.Count -gt 0) { $state = 'INVALID' } elseif ($pending.Count -gt 0) { $state = 'INCOMPLETE' }
+    [ordered]@{
+        state = $state; complete = ($state -ceq 'COMPLETE'); problems = $problems; pending = $pending; violations = $viol
+        requests = @($S.requests); lifecycles = @($S.lifecycles); notifications = @($S.notifications); rulesRefreshed = @($S.refreshed); framesConsidered = $S.considered
+    }
+}
+
+# 골든 대조용 요약(TS 의 같은 모양): 상태·문제 토큰·수명주기 요약·유효한 요청 수·알림 결과.
+function ConvertTo-LsProgressSummary {
+    param($A)
+    $lcs = New-Object System.Collections.ArrayList
+    foreach ($l in $A.lifecycles) { [void]$lcs.Add([ordered]@{ ordinal = $l.ordinal; stage = $l.stage; status = $l.status; tokenType = $l.tokenType; requestIdType = $l.requestIdType }) }
+    $outcomes = New-Object System.Collections.ArrayList
+    foreach ($n in $A.notifications) { [void]$outcomes.Add([string]$n.outcome) }
+    $validRequests = 0; foreach ($r in $A.requests) { if ($r.valid) { $validRequests++ } }
+    [ordered]@{ state = $A.state; complete = $A.complete; problems = @($A.problems); pending = @($A.pending); violations = @($A.violations); lifecycles = @($lcs); requestsValid = $validRequests; notificationOutcomes = @($outcomes) }
 }
 
 # ── stdout 추적기(TS ScanStdoutTracker) ───────────────────────────────────────
@@ -833,14 +1013,16 @@ function Get-LsStderrBarrierProblems {
 
 # 규칙 로딩 장벽을 평가한다. ready 는 기다림의 종료 조건이고, clean 은 didOpen 을 보내도 되는 조건이다.
 function Get-LsBarrierStatus {
-    param($Log, [int]$RulesRefreshedCount, $ProbePath)
+    param($Log, [int]$RulesRefreshedCount, $ProbePath, $Progress)
     $half = Get-LsStderrBarrierProblems $Log $ProbePath
     $problems = New-Object System.Collections.ArrayList
-    foreach ($p in $half.problems) { [void]$problems.Add($p) }
-    if ($RulesRefreshedCount -ne 1) { [void]$problems.Add("RULES_REFRESHED_COUNT_$RulesRefreshedCount") }
+    foreach ($p in $half.problems) { Add-LsProgressToken $problems ([string]$p) }
+    if ($RulesRefreshedCount -ne 1) { Add-LsProgressToken $problems "RULES_REFRESHED_COUNT_$RulesRefreshedCount" }
+    # 초기 진행 메시지: stderr 신호가 다 왔어도 stdout 에서 두 수명주기가 완전한 프레임으로 읽히기 전에는 장벽이 열리지 않는다.
+    foreach ($t in @($Progress.problems)) { Add-LsProgressToken $problems ([string]$t) }
     $seen = ($RulesRefreshedCount -ge 1)
-    $ready = ($seen -and $half.scannedSeen)
-    [ordered]@{ rulesRefreshedSeen = $seen; scannedOpenDocumentsSeen = [bool]$half.scannedSeen; ready = $ready; clean = ($ready -and $problems.Count -eq 0); problems = $problems }
+    $ready = ($seen -and $half.scannedSeen -and ($Progress.state -cne 'INCOMPLETE'))
+    [ordered]@{ rulesRefreshedSeen = $seen; scannedOpenDocumentsSeen = [bool]$half.scannedSeen; progressState = [string]$Progress.state; ready = $ready; clean = ($ready -and $problems.Count -eq 0); problems = $problems }
 }
 
 # ── 증거 다시 만들기(TS deriveScanEvidence) ───────────────────────────────────
@@ -942,6 +1124,8 @@ function New-LsLiveWatch {
         decoder = (New-LsFrameDecoder -MaxBody ([int]$Config.maxStdoutBytes)); stdoutTracker = (New-LsStdoutTracker)
         stderrMs = (New-Object IO.MemoryStream); stderrLen = 0; stdoutLen = 0; chunks = (New-Object System.Collections.ArrayList)
         didOpen = $null; barrierDoneAtMs = $null; broken = $false; frameError = $null; framesChecked = 0
+        # 초기 진행 메시지 장벽: 완전한 프레임으로 읽힌 관련 stdout 메시지만 받고, didOpen 직전에 얼린다.
+        progressFrames = (New-Object System.Collections.ArrayList); progressSeen = 0; progressFrozen = $null; progressMemo = $null
         # stderr 감시기
         sDecoder = $Script:LrUtf8.GetDecoder(); sTail = ''; sHit = $null; initErrorLogged = $false; initializedOffset = $null; sDidOpenOffset = $null; sLog = $null; sScannedSeen = $false
         memo = $null; evMemo = $null
@@ -1013,6 +1197,7 @@ function Add-LsStdout {
         [void](Add-LsFrameBytes $W.decoder $Bytes)
         for ($i = $first; $i -lt $W.decoder.frames.Count; $i++) {
             $r.messages += 1; $W.framesChecked += 1
+            Add-LsProgressFrame $W $W.decoder.frames[$i].message
             $hit = Invoke-LsStdoutTracker $W.stdoutTracker $W.decoder.frames[$i].message
             if ($null -eq $r.abort) { $r.abort = $hit }
         }
@@ -1071,6 +1256,24 @@ function Set-LsInitializedSent {
 }
 function Set-LsBarrierDone { param($W, [double]$TMs) $W.barrierDoneAtMs = $TMs; $W.memo = $null; $W.evMemo = $null }
 
+# 디코딩된 stdout 메시지 하나(관련 없는 메시지도 순번만 센다). 얼린 뒤에 온 프레임은 사전 장벽에 영향을 주지 못한다.
+function Add-LsProgressFrame {
+    param($W, $Message)
+    $index = $W.progressSeen; $W.progressSeen += 1
+    if ($null -ne $W.progressFrozen) { return }
+    if (-not (Test-LsProgressRelevant $Message)) { return }
+    [void]$W.progressFrames.Add(@{ index = $index; startByte = $null; endByte = $null; message = $Message })
+    $W.progressMemo = $null
+}
+# 지금까지의 초기 진행 분석(얼린 뒤에는 얼린 시점의 분석).
+function Get-LsWatchProgress {
+    param($W)
+    if ($null -ne $W.progressFrozen) { return $W.progressFrozen }
+    if ($null -eq $W.progressMemo) { $W.progressMemo = Get-LsProgressAnalysis @($W.progressFrames) }
+    $W.progressMemo
+}
+function Test-LsProgressComplete { param($W) [bool]((Get-LsWatchProgress $W).complete) }
+
 # didOpen 을 쓰기 직전에 부른다: 두 스트림에서 이미 읽은 바이트 수가 사전/사후의 경계가 된다(처음 한 번만 기록).
 function Set-LsDidOpenSent {
     param($W, [double]$TMs)
@@ -1078,6 +1281,8 @@ function Set-LsDidOpenSent {
     $W.didOpen = [ordered]@{ tMs = $TMs; stdoutOffset = $W.stdoutLen; stderrOffset = $W.stderrLen }
     $W.stdoutTracker.didOpenSent = $true
     if ($null -eq $W.sDidOpenOffset) { $W.sDidOpenOffset = $W.stderrLen; Initialize-LsStderrLog $W; Update-LsStderrLog $W $false }
+    # 이 순간까지 완전히 읽은 stdout 프레임만 사전 장벽의 증거다.
+    if ($null -eq $W.progressFrozen) { $W.progressFrozen = Get-LsWatchProgress $W }
     $W.memo = $null; $W.evMemo = $null
 }
 
@@ -1092,17 +1297,17 @@ function Get-LsWatchEvidence {
     $W.evMemo
 }
 
-# 장벽의 양쪽 절반이 모두 왔다 — 기다림의 종료 조건(싼 값).
+# 장벽의 양쪽 절반(stdout rulesRefreshed, stderr Scanned open documents)이 모두 왔고 초기 진행 메시지가 더 기다려서 달라질 수 없는 상태(COMPLETE·INVALID)다 — 기다림의 종료 조건(싼 값).
 function Test-LsBarrierReady {
     param($W)
     Initialize-LsStderrLog $W
-    ($W.stdoutTracker.analysis.rulesRefreshedCount -ge 1) -and [bool]$W.sScannedSeen
+    ($W.stdoutTracker.analysis.rulesRefreshedCount -ge 1) -and [bool]$W.sScannedSeen -and ((Get-LsWatchProgress $W).state -cne 'INCOMPLETE')
 }
 
 function Get-LsWatchBarrier {
     param($W)
     Initialize-LsStderrLog $W
-    $status = Get-LsBarrierStatus $W.sLog ([int]$W.stdoutTracker.analysis.rulesRefreshedCount) $W.config.probePath
+    $status = Get-LsBarrierStatus $W.sLog ([int]$W.stdoutTracker.analysis.rulesRefreshedCount) $W.config.probePath (Get-LsWatchProgress $W)
     if ($W.stdoutTracker.preOpenDiagnostics -gt 0 -and -not (Test-LrOrdinalIn 'PRE_OPEN_EVIDENCE' @($status.problems))) { [void]$status.problems.Add('PRE_OPEN_EVIDENCE'); $status.clean = $false }
     $status
 }
@@ -1182,7 +1387,7 @@ function Invoke-LsWatchScript {
         $fe = $null; if ($null -ne $frameError) { $fe = [ordered]@{ kind = $frameError.kind; detail = $frameError.detail; atByte = $frameError.atByte } }
         [void]$steps.Add([ordered]@{
                 i = $i; op = [string]$ev.op; abort = $abort; frameError = $fe; initArrived = $initArrived
-                barrier = [ordered]@{ rulesRefreshedSeen = $b.rulesRefreshedSeen; scannedOpenDocumentsSeen = $b.scannedOpenDocumentsSeen; ready = $b.ready; clean = $b.clean; problems = @($b.problems) }
+                barrier = [ordered]@{ rulesRefreshedSeen = $b.rulesRefreshedSeen; scannedOpenDocumentsSeen = $b.scannedOpenDocumentsSeen; progressState = $b.progressState; ready = $b.ready; clean = $b.clean; problems = @($b.problems) }
                 snapshot = (ConvertTo-LsSnapshotJson $w)
             })
         $i++

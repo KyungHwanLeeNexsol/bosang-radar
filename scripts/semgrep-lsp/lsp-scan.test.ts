@@ -266,18 +266,28 @@ describe("assertAllowedScanOutbound", () => {
   };
   const ctx = (over: Partial<ScanSendGuardContext> = {}): ScanSendGuardContext => ({
     barrierDone: false,
+    progressComplete: false,
     sent: [],
     expectedDidOpen: expected,
     ...over,
   });
   const afterBarrier = (over: Partial<ScanSendGuardContext> = {}): ScanSendGuardContext =>
-    ctx({ barrierDone: true, sent: ["initialize", "initialized"], ...over });
+    ctx({
+      barrierDone: true,
+      progressComplete: true,
+      sent: ["initialize", "initialized"],
+      ...over,
+    });
   const didOpen = (): JsonRpcMessage => buildScanDidOpenMessage(scanLay, REAL_TARGET);
 
   it("정상 순서의 다섯 메시지는 통과한다", () => {
     const sent: ScanSendLabel[] = [];
     const run = (label: ScanSendLabel, m: JsonRpcMessage, barrierDone: boolean) => {
-      assertAllowedScanOutbound(label, m, ctx({ sent: [...sent], barrierDone }));
+      assertAllowedScanOutbound(
+        label,
+        m,
+        ctx({ sent: [...sent], barrierDone, progressComplete: barrierDone })
+      );
       sent.push(label);
     };
     run("initialize", buildScanInitializeMessage(scanLay), false);
@@ -291,6 +301,31 @@ describe("assertAllowedScanOutbound", () => {
     expect(() =>
       assertAllowedScanOutbound("didOpen", didOpen(), ctx({ sent: ["initialize", "initialized"] }))
     ).toThrow(/장벽/);
+  });
+
+  it("장벽을 넘었어도 초기 진행 메시지를 다 읽기 전의 didOpen 은 거절한다(값이 없거나 true 가 아니어도 같다)", () => {
+    const sent: ScanSendLabel[] = ["initialize", "initialized"];
+    expect(() =>
+      assertAllowedScanOutbound(
+        "didOpen",
+        didOpen(),
+        ctx({ barrierDone: true, progressComplete: false, sent })
+      )
+    ).toThrow(/진행 메시지/);
+    const missing = { ...ctx({ barrierDone: true, sent }) } as Partial<ScanSendGuardContext>;
+    delete missing.progressComplete;
+    expect(() =>
+      assertAllowedScanOutbound("didOpen", didOpen(), missing as ScanSendGuardContext)
+    ).toThrow(/진행 메시지/);
+    expect(() =>
+      assertAllowedScanOutbound(
+        "didOpen",
+        didOpen(),
+        ctx({ barrierDone: true, progressComplete: "yes" as unknown as boolean, sent })
+      )
+    ).toThrow(/진행 메시지/);
+    // 진행 메시지를 다 읽었으면 통과한다
+    expect(() => assertAllowedScanOutbound("didOpen", didOpen(), afterBarrier())).not.toThrow();
   });
 
   it("initialized 를 보내기 전의 didOpen 도 거절한다", () => {

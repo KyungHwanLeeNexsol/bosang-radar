@@ -1012,6 +1012,7 @@ const SCAN_CORE_FILES = [
   "scan-uri.ts",
   "scan-log.ts",
   "lsp-scan.ts",
+  "lsp-scan-progress.ts",
   "lsp-scan-record.ts",
   "lsp-scan-watch.ts",
   "lsp-scan-run.ts",
@@ -1396,18 +1397,22 @@ describe("구조 (15) — LSP-SCAN-1 합성 파일 반응 관측은 별도 기�
         "./jsonrpc",
         "./lsp-min",
         "./lsp-rules",
+        "./lsp-scan-progress",
         "./settings",
         "./sha",
         "./types",
         "./uri",
       ].sort()
     );
+    // 초기 진행 메시지 장벽: 순수 모듈이고 진행 요청 모양 검사(lsp-rules)와 타입만 가져온다.
+    expect(uniqueRelImports("lsp-scan-progress.ts")).toEqual(["./lsp-rules", "./types"].sort());
     expect(uniqueRelImports("lsp-scan-record.ts")).toEqual(
       [
         "./framing",
         "./lsp-min",
         "./lsp-rules",
         "./lsp-scan",
+        "./lsp-scan-progress",
         "./rules-log",
         "./scan-log",
         "./scan-uri",
@@ -1527,6 +1532,7 @@ describe("구조 (16) — LSP-SCAN-1 실행 계층(감시기·실행기·러너 
         "./lsp-min",
         "./lsp-rules",
         "./lsp-scan",
+        "./lsp-scan-progress",
         "./lsp-scan-record",
         "./rules-log",
         "./scan-log",

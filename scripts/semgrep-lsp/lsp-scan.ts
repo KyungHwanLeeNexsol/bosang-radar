@@ -41,6 +41,7 @@ import {
   type RulesStdoutAnalysis,
   type RulesTrigger,
 } from "./lsp-rules";
+import { isScanProgressRelevant, type ScanProgressFrame } from "./lsp-scan-progress";
 import { sha256Hex } from "./sha";
 import { ALLOWED_SCAN_KEYS, buildInitializationOptions, isNetworkRuleSource } from "./settings";
 import type { JsonRpcMessage } from "./types";
@@ -360,6 +361,11 @@ export function buildScanDidOpenMessage(
 export interface ScanSendGuardContext {
   /** 규칙 로딩 장벽을 넘었는가. `didOpen`은 이것이 true 일 때만 나간다. */
   barrierDone: boolean;
+  /**
+   * 초기 진행 메시지(규칙 새로고침·열린 문서 스캔의 create·begin·end)가 stdout 에서 완전한 프레임으로 모두 읽혔는가(lsp-scan-progress.ts).
+   * `didOpen`은 이것이 true 일 때만 나간다. true 가 아닌 모든 값(undefined 포함)은 확인되지 않은 것이므로 거절한다.
+   */
+  progressComplete: boolean;
   /** 지금까지 보낸 라벨(순서대로). */
   sent: readonly ScanSendLabel[];
   /** 정확히 이 값이어야 하는 `didOpen`의 uri 와 본문. */
@@ -414,6 +420,9 @@ export function assertAllowedScanOutbound(
       throw new Error("허용되지 않은 송신: initialized 전의 didOpen");
     }
     if (!ctx.barrierDone) throw new Error("허용되지 않은 송신: 규칙 로딩 장벽 앞의 didOpen");
+    if (ctx.progressComplete !== true) {
+      throw new Error("허용되지 않은 송신: 초기 진행 메시지를 다 읽기 전의 didOpen");
+    }
     const params = message.params;
     if (!isPlain(params) || !sameKeys(params, ["textDocument"])) {
       throw new Error("허용되지 않은 송신 형태: didOpen의 params");
@@ -608,6 +617,11 @@ export interface ScanDiagnosticFrame {
 export interface ScanStdoutAnalysis extends RulesStdoutAnalysis {
   frameList: ScanStdoutFrame[];
   diagnosticFrames: ScanDiagnosticFrame[];
+  /**
+   * 초기 진행 장벽이 보는 프레임(진행 요청 시도·`$/progress`·`rulesRefreshed`)을 원문의 바이트 구간과 함께 모은 것.
+   * 사후 재해석이 `didOpen` 송신 때의 stdout 위치에서 같은 조건을 다시 확인하는 데 쓴다(lsp-scan-progress.ts).
+   */
+  progressFrames: ScanProgressFrame[];
 }
 
 /** 검증을 마친 프레임들의 바이트 구간. 디코더가 이미 형식을 확인했으므로 헤더만 읽는다. */
@@ -649,12 +663,16 @@ export function analyzeScanStdout(bytes: Uint8Array, expectEof: boolean): ScanSt
   const base = emptyStdoutAnalysis();
   const frameList: ScanStdoutFrame[] = [];
   const diagnosticFrames: ScanDiagnosticFrame[] = [];
+  const progressFrames: ScanProgressFrame[] = [];
   const spans = frameSpans(bytes, pushed.messages.length);
   pushed.messages.forEach((message, index) => {
     const kind = classifyServerMessage(message);
     const span = spans[index] ?? { start: -1, end: -1 };
     const method = typeof message.method === "string" ? message.method : null;
     frameList.push({ index, startByte: span.start, endByte: span.end, kind, method });
+    if (isScanProgressRelevant(message)) {
+      progressFrames.push({ index, startByte: span.start, endByte: span.end, message });
+    }
     if (kind === "response") {
       base.frames += 1;
       if (message.id === LSP_SCAN_INIT_ID) {
@@ -685,5 +703,5 @@ export function analyzeScanStdout(bytes: Uint8Array, expectEof: boolean): ScanSt
   });
   let frameError: FrameDecodeError | null = pushed.error;
   if (frameError === null && expectEof) frameError = decoder.end().error;
-  return { ...base, frameError, frameList, diagnosticFrames };
+  return { ...base, frameError, frameList, diagnosticFrames, progressFrames };
 }

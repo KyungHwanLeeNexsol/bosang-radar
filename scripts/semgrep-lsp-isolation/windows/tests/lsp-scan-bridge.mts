@@ -11,6 +11,10 @@ import { FrameDecoder } from "../../../semgrep-lsp/framing";
 import * as lm from "../../../semgrep-lsp/lsp-min";
 import * as lr from "../../../semgrep-lsp/lsp-rules";
 import * as ls from "../../../semgrep-lsp/lsp-scan";
+import {
+  analyzeScanProgress,
+  type ScanProgressAnalysis,
+} from "../../../semgrep-lsp/lsp-scan-progress";
 import * as rec from "../../../semgrep-lsp/lsp-scan-record";
 import * as rr from "../../../semgrep-lsp/lsp-scan-runner-result";
 import {
@@ -31,7 +35,16 @@ import {
   scanStderrParts,
   barrierStdoutMessages,
   GOOD_DIAGNOSTIC,
+  PROGRESS_REFRESH,
+  PROGRESS_SCAN,
+  RULES_REFRESHED,
   TARGET_URI,
+  openDocumentsProgress,
+  progressBegin,
+  progressCreate,
+  progressEnd,
+  refreshProgress,
+  scanInitResponse,
 } from "../../../semgrep-lsp/testing/scan-fixtures";
 import { chunked, toHex, watchConfig } from "../../../semgrep-lsp/testing/scan-watch-cases";
 import { preambleLines } from "../../../semgrep-lsp/testing/rules-fixtures";
@@ -548,6 +561,7 @@ function outboundCases(): Case[] {
   const text = new TextDecoder().decode(TARGET_BYTES);
   const ctx = (over: Partial<ls.ScanSendGuardContext> = {}): ls.ScanSendGuardContext => ({
     barrierDone: true,
+    progressComplete: true,
     sent: ["initialize", "initialized"],
     expectedDidOpen: { uri: ls.scanTargetUri(layout), text },
     ...over,
@@ -577,6 +591,19 @@ function outboundCases(): Case[] {
       ctx({ sent: ["initialize", "initialized", "didOpen", "shutdown"] }),
     ],
     ["didOpen-before-barrier", "didOpen", didOpen, ctx({ barrierDone: false })],
+    ["didOpen-before-progress-complete", "didOpen", didOpen, ctx({ progressComplete: false })],
+    [
+      "didOpen-progress-complete-missing",
+      "didOpen",
+      didOpen,
+      ctx({ progressComplete: undefined as unknown as boolean }),
+    ],
+    [
+      "didOpen-progress-complete-not-boolean",
+      "didOpen",
+      didOpen,
+      ctx({ progressComplete: "true" as unknown as boolean }),
+    ],
     ["didOpen-twice", "didOpen", didOpen, ctx({ sent: ["initialize", "initialized", "didOpen"] })],
     ["didOpen-before-initialized", "didOpen", didOpen, ctx({ sent: ["initialize"] })],
     [
@@ -710,6 +737,7 @@ function outboundCases(): Case[] {
         message,
         ctx: {
           barrierDone: c.barrierDone,
+          progressComplete: c.progressComplete,
           sent: [...c.sent],
           expectedUri: c.expectedDidOpen.uri,
           expectedText: c.expectedDidOpen.text,
@@ -745,8 +773,315 @@ function limitCases(): Case[] {
   });
 }
 
+// ── 초기 진행 메시지 장벽 ─────────────────────────────────────────
+
+type Msg = Parameters<typeof frames>[0][number];
+
+function progressSummary(a: ScanProgressAnalysis): unknown {
+  return {
+    state: a.state,
+    complete: a.complete,
+    problems: [...a.problems],
+    pending: [...a.pending],
+    violations: [...a.violations],
+    lifecycles: a.lifecycles.map((l) => ({
+      ordinal: l.ordinal,
+      stage: l.stage,
+      status: l.status,
+      tokenType: l.tokenType,
+      requestIdType: l.requestIdType,
+    })),
+    requestsValid: a.requests.filter((r) => r.valid).length,
+    notificationOutcomes: a.notifications.map((n) => n.outcome),
+  };
+}
+
+function progressCases(): Case[] {
+  const [c1, b1, e1] = refreshProgress();
+  const [c2, b2, e2] = openDocumentsProgress();
+  const raw = (m: unknown): Msg => m as Msg;
+  const create = (id: number | string, token: number | string): Msg =>
+    raw({ jsonrpc: "2.0", id, method: "window/workDoneProgress/create", params: { token } });
+  const list: [string, Msg[]][] = [
+    ["good", [c1, b1, e1, RULES_REFRESHED, c2, b2, e2]],
+    ["empty", []],
+    ["first-only", [c1, b1, e1, RULES_REFRESHED]],
+    ["second-create-only", [c1, b1, e1, RULES_REFRESHED, c2]],
+    ["second-create-begin", [c1, b1, e1, RULES_REFRESHED, c2, b2]],
+    ["no-rules-refreshed", [c1, b1, e1, c2, b2, e2]],
+    ["token-duplicate", [c1, c1, b1, e1, RULES_REFRESHED, c2, b2, e2]],
+    [
+      "request-id-duplicate",
+      [
+        c1,
+        b1,
+        e1,
+        RULES_REFRESHED,
+        progressCreate(PROGRESS_REFRESH.id, PROGRESS_SCAN.token),
+        b2,
+        e2,
+      ],
+    ],
+    ["third-create", [c1, b1, e1, RULES_REFRESHED, c2, b2, e2, progressCreate("third", "t3")]],
+    [
+      "create-invalid-no-params",
+      [
+        raw({ jsonrpc: "2.0", id: 1, method: "window/workDoneProgress/create" }),
+        c1,
+        b1,
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    [
+      "begin-unregistered-token",
+      [
+        c1,
+        progressBegin("nobody", "Semgrep", "Refreshing Rules"),
+        b1,
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    ["begin-before-create", [b1, c1, e1, RULES_REFRESHED, c2, b2, e2]],
+    ["begin-duplicate", [c1, b1, b1, e1, RULES_REFRESHED, c2, b2, e2]],
+    ["end-duplicate", [c1, b1, e1, e1, RULES_REFRESHED, c2, b2, e2]],
+    ["end-without-begin", [c1, e1, b1, RULES_REFRESHED, c2, b2, e2]],
+    [
+      "kind-report",
+      [
+        c1,
+        b1,
+        raw({
+          jsonrpc: "2.0",
+          method: "$/progress",
+          params: { token: PROGRESS_REFRESH.token, value: { kind: "report", message: "x" } },
+        }),
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    [
+      "stage-unknown",
+      [
+        c1,
+        progressBegin(PROGRESS_REFRESH.token, "Semgrep", "Something Else"),
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    [
+      "stage-swapped",
+      [
+        c1,
+        progressBegin(
+          PROGRESS_REFRESH.token,
+          "Semgrep Scan in Progress",
+          "Scanning Open Documents"
+        ),
+        e1,
+        RULES_REFRESHED,
+        c2,
+        progressBegin(PROGRESS_SCAN.token, "Semgrep", "Refreshing Rules"),
+        e2,
+      ],
+    ],
+    [
+      "notification-no-value",
+      [
+        c1,
+        raw({ jsonrpc: "2.0", method: "$/progress", params: { token: PROGRESS_REFRESH.token } }),
+        b1,
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    [
+      "end-extra-key",
+      [
+        c1,
+        b1,
+        raw({
+          jsonrpc: "2.0",
+          method: "$/progress",
+          params: { token: PROGRESS_REFRESH.token, value: { kind: "end", message: "done" } },
+        }),
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    ["rules-refreshed-twice", [c1, b1, e1, RULES_REFRESHED, c2, b2, e2, RULES_REFRESHED]],
+    [
+      "token-type-mismatch-number-vs-string",
+      [
+        create("a", 1),
+        progressBegin("1", "Semgrep", "Refreshing Rules"),
+        progressEnd("1"),
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    [
+      "token-number-and-string-are-different",
+      [
+        create("a", 1),
+        progressBegin(1, "Semgrep", "Refreshing Rules"),
+        progressEnd(1),
+        RULES_REFRESHED,
+        create("b", "1"),
+        progressBegin("1", "Semgrep Scan in Progress", "Scanning Open Documents"),
+        progressEnd("1"),
+      ],
+    ],
+    [
+      "numeric-ids-and-tokens-ok",
+      [
+        create(10, 7),
+        progressBegin(7, "Semgrep", "Refreshing Rules"),
+        progressEnd(7),
+        RULES_REFRESHED,
+        create(11, 8),
+        progressBegin(8, "Semgrep Scan in Progress", "Scanning Open Documents"),
+        progressEnd(8),
+      ],
+    ],
+    [
+      "request-id-used-as-token",
+      [
+        c1,
+        progressBegin(PROGRESS_REFRESH.id, "Semgrep", "Refreshing Rules"),
+        b1,
+        e1,
+        RULES_REFRESHED,
+        c2,
+        b2,
+        e2,
+      ],
+    ],
+    ["order-second-create-before-first-end", [c1, b1, c2, e1, RULES_REFRESHED, b2, e2]],
+    ["order-rules-refreshed-before-first-end", [c1, b1, RULES_REFRESHED, e1, c2, b2, e2]],
+    ["order-second-create-before-rules-refreshed", [c1, b1, e1, c2, b2, RULES_REFRESHED, e2]],
+  ];
+  return list.map(([id, messages]) => {
+    const input = JSON.parse(JSON.stringify({ messages }));
+    const a = analyzeScanProgress(
+      messages.map((message, index) => ({ index, startByte: null, endByte: null, message }))
+    );
+    return {
+      id: `progress:${id}`,
+      kind: "progress-analysis",
+      input,
+      expected: JSON.parse(JSON.stringify(progressSummary(a))),
+    };
+  });
+}
+
+/** 두 번째 초기 진행 묶음이 stderr 의 `Scanned open documents` 줄 뒤에 늦게 오는 감시 대본(스트림이 독립이라 가능한 순서). */
+function lateProgressWatchCases(): Case[] {
+  const [c1, b1, e1] = refreshProgress();
+  const [c2, b2, e2] = openDocumentsProgress();
+  const parts = scanStderrParts();
+  const preamble = bytesOf(preambleLines(scanLay.rulesDir));
+  const barrierLines = bytesOf(parts.pre).subarray(preamble.byteLength);
+  const happy = script({});
+  const open = happy.events.findIndex((e) => e.op === "didOpenSent");
+  const tail = happy.events.slice(open); // didOpenSent, 진단, 로그
+  const head = (first: Msg[]): ScanWatchEvent[] => [
+    ...chunked("stderr", preamble, 100),
+    ...chunked("stdout", frames([scanInitResponse()]), 200),
+    { op: "initializedSent" },
+    ...chunked("stdout", frames(first), 600),
+    ...chunked("stderr", barrierLines, 650),
+  ];
+  const secondEvents = (messages: Msg[], size?: number): ScanWatchEvent[] =>
+    messages.flatMap((m, i) => chunked("stdout", frames([m]), 700 + 10 * i, size));
+  const make = (id: string, first: Msg[], second: ScanWatchEvent[], open_: boolean): Case => {
+    const s: ScanWatchScript = {
+      config: watchConfig(),
+      events: [
+        ...head(first),
+        ...second,
+        ...(open_ ? [{ op: "barrierDone", tMs: 800 } as ScanWatchEvent, ...tail] : []),
+      ],
+    };
+    return {
+      id: `watch:${id}`,
+      kind: "watch-script",
+      input: JSON.parse(JSON.stringify(s)),
+      expected: JSON.parse(JSON.stringify(runScanWatchScript(s))),
+    };
+  };
+  const full = [c1, b1, e1, RULES_REFRESHED];
+  const endBytes = frames([e2]);
+  return [
+    make("late-second-progress-complete", full, secondEvents([c2, b2, e2]), true),
+    make("late-second-progress-chunks-7", full, secondEvents([c2, b2, e2], 7), true),
+    make("late-second-progress-none", full, [], false),
+    make("late-second-progress-create-only", full, secondEvents([c2]), false),
+    make("late-second-progress-create-begin", full, secondEvents([c2, b2]), false),
+    make(
+      "late-second-progress-end-partial",
+      full,
+      [
+        ...secondEvents([c2, b2]),
+        { op: "stdout", hex: toHex(endBytes.subarray(0, endBytes.byteLength - 3)), tMs: 730 },
+      ],
+      false
+    ),
+    make(
+      "late-second-progress-wrong-token",
+      full,
+      secondEvents([
+        c2,
+        progressBegin("not-the-token", "Semgrep Scan in Progress", "Scanning Open Documents"),
+        progressEnd("not-the-token"),
+      ]),
+      false
+    ),
+    make(
+      "late-second-progress-token-reused",
+      full,
+      secondEvents(openDocumentsProgress({ id: "other-request", token: PROGRESS_REFRESH.token })),
+      false
+    ),
+    make(
+      "old-order-end-after-rules-refreshed",
+      [c1, b1, RULES_REFRESHED, e1],
+      secondEvents([c2, b2, e2]),
+      false
+    ),
+  ];
+}
+
 function goldenCases(): Case[] {
-  return [...uriCases(), ...watchCases(), ...requestCases(), ...outboundCases(), ...limitCases()];
+  return [
+    ...uriCases(),
+    ...watchCases(),
+    ...lateProgressWatchCases(),
+    ...progressCases(),
+    ...requestCases(),
+    ...outboundCases(),
+    ...limitCases(),
+  ];
 }
 
 if (mode === "golden") {

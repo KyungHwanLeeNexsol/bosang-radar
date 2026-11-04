@@ -414,6 +414,7 @@ class Run {
     if (!(LSP_SCAN_SEND_ORDER as readonly string[]).includes(label)) return "LABEL_NOT_ALLOWED";
     if (this.sends.some((s) => s.label === label)) return "DUPLICATE_SEND";
     if (label === "didOpen" && this.barrierReachedAtMs === null) return "DID_OPEN_BEFORE_BARRIER";
+    if (label === "didOpen" && !this.live.progressComplete()) return "DID_OPEN_BEFORE_PROGRESS";
     return "GUARD_REFUSED";
   }
 
@@ -426,6 +427,7 @@ class Run {
     try {
       assertAllowedScanOutbound(label, message, {
         barrierDone: this.barrierReachedAtMs !== null,
+        progressComplete: this.live.progressComplete(),
         sent: this.sends.map((s) => s.label),
         expectedDidOpen: this.expectedDidOpen ?? { uri: "", text: "" },
       });
@@ -711,7 +713,8 @@ class Run {
     if (!(await this.send("initialized", buildScanInitializedMessage(), L.initMs))) return;
     if (await this.runAttempts("initialized")) return;
 
-    // 장벽: stdout `rulesRefreshed` 와 맨줄 `Scanned open documents` 가 모두 나올 때까지.
+    // 장벽: stdout `rulesRefreshed` 와 맨줄 `Scanned open documents` 가 모두 나오고, 초기 진행 메시지(규칙 새로고침·열린 문서 스캔의 create·begin·end)가
+    // stdout 에서 완전한 프레임으로 모두 읽힐 때까지. 기다림은 rulesMs(와 전체 한도) 안에서만 한다 — 별도 유예·연장·재시도는 없다.
     const barrier = await this.waitUntil(
       () => this.live.barrierReady() || this.exitInfo !== null,
       this.clamp(L.rulesMs)

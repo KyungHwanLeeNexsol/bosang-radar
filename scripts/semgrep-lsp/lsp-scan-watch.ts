@@ -39,6 +39,11 @@ import {
 import { LSP_SCAN_INIT_ID, LSP_SCAN_SHUTDOWN_ID, LSP_SCAN_TARGET_FILE } from "./lsp-scan";
 import type { ScanAbortCondition } from "./lsp-scan";
 import {
+  ScanProgressTracker,
+  type ScanProgressAnalysis,
+  type ScanProgressState,
+} from "./lsp-scan-progress";
+import {
   ScanEvidenceTracker,
   type ScanEvidenceInput,
   type ScanLiveView,
@@ -149,7 +154,12 @@ export interface ScanBarrierStatus {
   rulesRefreshedSeen: boolean;
   /** 맨줄 `Scanned open documents` 가 정상 모양으로 줄 끝까지 왔다. */
   scannedOpenDocumentsSeen: boolean;
-  /** 장벽의 양쪽 절반이 모두 왔다(기다림의 종료 조건). */
+  /**
+   * 초기 진행 메시지(규칙 새로고침·열린 문서 스캔의 create·begin·end)의 상태(lsp-scan-progress.ts). stdout 에서 완전한 프레임으로 읽힌 것만 센다.
+   * COMPLETE 만 `didOpen` 을 허용한다. INCOMPLETE 는 더 기다릴 수 있는 상태, INVALID 는 이미 계약을 어긴 상태다.
+   */
+  progressState: ScanProgressState;
+  /** 장벽의 양쪽 절반이 모두 왔고 초기 진행 메시지의 상태가 더 기다려서 달라질 수 없는 쪽(COMPLETE·INVALID)이다(기다림의 종료 조건). */
   ready: boolean;
   /** ready 이고 사전 구간의 모든 신호가 계약대로다 — `didOpen` 을 보내도 되는 장벽. */
   clean: boolean;
@@ -237,19 +247,23 @@ function stderrBarrierProblems(
 export function evaluateScanBarrier(
   log: ScanLogAnalysis,
   rulesRefreshedCount: number,
-  probePath: string | null
+  probePath: string | null,
+  progress: ScanProgressAnalysis
 ): ScanBarrierStatus {
   const half = stderrBarrierProblems(log, probePath);
   const rulesRefreshedSeen = rulesRefreshedCount >= 1;
   const problems = [...half.problems];
   if (rulesRefreshedCount !== 1) problems.push(`RULES_REFRESHED_COUNT_${rulesRefreshedCount}`);
-  const ready = rulesRefreshedSeen && half.scannedSeen;
+  // 초기 진행 메시지: stderr 신호가 다 왔어도 stdout 에서 두 수명주기가 완전한 프레임으로 읽히기 전에는 장벽이 열리지 않는다.
+  for (const token of progress.problems) problems.push(token);
+  const ready = rulesRefreshedSeen && half.scannedSeen && progress.state !== "INCOMPLETE";
   return {
     rulesRefreshedSeen,
     scannedOpenDocumentsSeen: half.scannedSeen,
+    progressState: progress.state,
     ready,
     clean: ready && problems.length === 0,
-    problems,
+    problems: [...new Set(problems)],
   };
 }
 
@@ -470,6 +484,8 @@ export interface ScanLiveSnapshot extends ScanTrackerSnapshot {
 export class ScanLiveWatch {
   readonly tracker: ScanEvidenceTracker;
   readonly stdoutTracker = new ScanStdoutTracker();
+  /** 초기 진행 메시지 장벽(lsp-scan-progress.ts): 완전한 프레임으로 읽힌 stdout 메시지만 받는다. `didOpen` 직전에 얼린다. */
+  readonly progress = new ScanProgressTracker();
   readonly stderrWatcher: ScanStderrWatcher;
   private readonly decoder: FrameDecoder;
   private broken = false;
@@ -521,6 +537,7 @@ export class ScanLiveWatch {
       for (const message of pushed.messages) {
         messages += 1;
         this._framesChecked += 1;
+        this.progress.absorb(message);
         abort ??= this.stdoutTracker.onMessage(message);
       }
       initArrived = !hadInit && this.stdoutTracker.analysis.initMessage !== null;
@@ -573,19 +590,34 @@ export class ScanLiveWatch {
     this.tracker.markDidOpenSent(tMs);
     this.stdoutTracker.didOpenSent = true;
     this.stderrWatcher.markDidOpenSent();
+    // 이 순간까지 완전히 읽은 stdout 프레임만 사전 장벽의 증거다. 이후에 도착하는 프레임은 장벽을 바꾸지 못한다.
+    this.progress.freeze();
     this.memo = null;
   }
 
-  /** 장벽의 양쪽 절반이 모두 왔다 — 기다림의 종료 조건(싼 값). `didOpen` 을 보내도 되는지(clean)는 barrierStatus() 가 따로 평가한다. */
+  /**
+   * 장벽의 양쪽 절반(stdout rulesRefreshed, stderr Scanned open documents)이 모두 왔고 초기 진행 메시지가 더 기다려서 달라질 수 없는 상태다 —
+   * 기다림의 종료 조건(싼 값). `didOpen` 을 보내도 되는지(clean)는 barrierStatus() 가 따로 평가한다.
+   */
   barrierReady(): boolean {
-    return this.stdoutTracker.rulesRefreshedSeen && this.stderrWatcher.scannedOpenDocumentsSeen;
+    return (
+      this.stdoutTracker.rulesRefreshedSeen &&
+      this.stderrWatcher.scannedOpenDocumentsSeen &&
+      this.progress.analysis().state !== "INCOMPLETE"
+    );
+  }
+
+  /** 초기 진행 메시지가 stdout 에서 모두 완전한 프레임으로 읽혔다(송신 방어선이 확인하는 값). */
+  progressComplete(): boolean {
+    return this.progress.analysis().complete;
   }
 
   barrierStatus(): ScanBarrierStatus {
     const status = evaluateScanBarrier(
       this.stderrWatcher.log,
       this.stdoutTracker.analysis.rulesRefreshedCount,
-      this.config.probePath
+      this.config.probePath,
+      this.progress.analysis()
     );
     if (
       this.stdoutTracker.preOpenDiagnostics > 0 &&
@@ -676,7 +708,12 @@ export interface ScanWatchStep {
   initArrived: boolean;
   barrier: Pick<
     ScanBarrierStatus,
-    "rulesRefreshedSeen" | "scannedOpenDocumentsSeen" | "ready" | "clean" | "problems"
+    | "rulesRefreshedSeen"
+    | "scannedOpenDocumentsSeen"
+    | "progressState"
+    | "ready"
+    | "clean"
+    | "problems"
   >;
   snapshot: ScanWatchSnapshotJson;
 }
@@ -765,6 +802,7 @@ export function runScanWatchScript(script: ScanWatchScript): ScanWatchTranscript
       barrier: {
         rulesRefreshedSeen: b.rulesRefreshedSeen,
         scannedOpenDocumentsSeen: b.scannedOpenDocumentsSeen,
+        progressState: b.progressState,
         ready: b.ready,
         clean: b.clean,
         problems: [...b.problems],

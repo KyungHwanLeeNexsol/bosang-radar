@@ -17,7 +17,16 @@
   powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\tests\Test-LspScanRunner.ps1 -TsxCmd C:\repo\node_modules\.bin\tsx.cmd -NodeDir C:\node
 #>
 [CmdletBinding()]
-param([string]$TsxCmd, [string]$NodeDir, [string]$TsDir)
+param(
+    [string]$TsxCmd, [string]$NodeDir, [string]$TsDir,
+    # 분할 실행(시스템 메모리가 모자랄 때). 기본값 All 은 예전과 똑같이 전부 돈다. 단언은 하나도 빠지거나 느슨해지지 않고, 어느 묶음에서 세는지만 나뉜다.
+    #   Pre = 정적 점검·골든·계약·TS 대조·단위(1~4절) / Cases = 5절 시나리오 중 -CaseFrom..-CaseTo 번째(1부터, 표 순서) / Post = 도착 순서 행렬·기본 한도·전체 상한·중단 파일·환경 격리·거부 경로·semgrep-lsp 모드(5절 뒷부분)
+    #   Aggregate = 6절(러너 결과 → TS 판정; 앞 묶음이 -StateFile 에 남긴 결과 파일 전체를 쓴다).
+    # Cases·Post 묶음은 -StateFile 에 결과 파일 위치를 이어 적고, 그 결과 파일이 있는 샌드박스를 지우지 않는다(-KeepSandbox 를 함께 준다). 지우는 것은 Aggregate 뒤에 시험 소유자가 한다.
+    [ValidateSet('All', 'Pre', 'Cases', 'Post', 'Aggregate')][string]$Part = 'All',
+    [int]$CaseFrom = 1, [int]$CaseTo = 0,
+    [string]$StateFile, [string]$ResultsFile, [switch]$KeepSandbox
+)
 $ErrorActionPreference = 'Stop'
 $windowsDir = Split-Path -Parent $PSScriptRoot
 . (Join-Path $windowsDir 'LspScanContract.ps1')
@@ -26,18 +35,27 @@ if (-not $TsDir) { $TsDir = Join-Path $windowsDir '..\..\semgrep-lsp' }
 $tsReady = $false
 if ($TsxCmd -and (Test-Path -LiteralPath $TsxCmd) -and (Test-Path -LiteralPath (Join-Path $TsDir 'lsp-scan.ts'))) { $tsReady = $true; $TsDir = (Resolve-Path -LiteralPath $TsDir).Path }
 
+$runPre = $Part -in 'All', 'Pre'
+$runCases = $Part -in 'All', 'Cases'
+$runPost = $Part -in 'All', 'Post'
+$runAgg = $Part -in 'All', 'Aggregate'
+# 비-Pre 묶음은 2절(정의와 섞여 있어 건너뛸 수 없는 계약 점검)을 다시 계산만 하고 그 단언은 세지 않는다. Pre 묶음(와 All)이 센다.
+$Script:Recording = $runPre
 $results = New-Object System.Collections.ArrayList
 function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
+    if (-not $Script:Recording) { return }
     [void]$results.Add([ordered]@{ name = $Name; pass = $Condition; detail = $Detail })
     if (-not $Condition) { Write-Host ("FAIL  {0}  {1}" -f $Name, $Detail) -ForegroundColor Red }
 }
 function Skip-Test([string]$Name, [string]$Why) {
+    if (-not $Script:Recording) { return }
     [void]$results.Add([ordered]@{ name = $Name; pass = $null; detail = $Why })
     Write-Host ("SKIPPED  {0}  {1}" -f $Name, $Why) -ForegroundColor Yellow
 }
 function Limit-Text([string]$Text, [int]$Max = 300) { if ($Text.Length -le $Max) { $Text } else { $Text.Substring(0, $Max) + '...' } }
 
 # ── 정적 점검: 구문, BOM, LF, 금지된 명령 ──────────────────────────────────────
+if ($runPre) {
 $files = 'LspScanContract.ps1', 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanAdminContract.ps1', 'LspScanAdminPorts.ps1', 'Test-LspScanObservation.ps1', 'tests\Test-LspScanRunner.ps1', 'tests\Test-LspScanFrame.ps1', 'tests\Test-LspScanAdmin.ps1', 'tests\MockPortsScan.ps1', 'tests\MockSystemScan.ps1'
 $forbidden = 'Invoke-Expression', 'iex', 'Invoke-WebRequest', 'Invoke-RestMethod', 'Start-BitsTransfer', 'curl', 'wget', 'git', 'git.exe'
 foreach ($f in $files) {
@@ -61,6 +79,7 @@ foreach ($f in 'lsp-scan-runner.ps1', 'lsp-scan-stub.ps1', 'LspScanContract.ps1'
     Assert-That "git 실행 문구 없음 ($f): Start-Process·& git·git.exe 호출이 없다" ($txt -notmatch '(?i)(Start-Process[^\n]*git|&\s*git\b|\bgit\.exe\b|ProcessStartInfo[^\n]*git)') ''
 }
 Assert-That '허용 이미지 목록에 git 이 없다 (ALLOWED_IMAGES 불변)' (@($Script:LspMinAllowedImages | Where-Object { $_ -match 'git' }).Count -eq 0) ($Script:LspMinAllowedImages -join ',')
+}
 
 # ── 도구 ────────────────────────────────────────────────────────────────────
 function ConvertTo-SortedJson($Obj) {
@@ -96,12 +115,13 @@ function Invoke-Tsx([string[]]$ScriptArgs) {
 }
 
 # ═══ 1. TS ↔ PS 골든 대조 (tsx 없이): 모든 사례 ═══════════════════════════════════
+if ($runPre) {
 $goldenPath = Join-Path $PSScriptRoot 'lsp-scan-parity.json'
 # Windows PowerShell 5.1 의 ConvertFrom-Json 은 최상위 배열을 풀지 않고 한 개체로 내보낸다(7 은 푼다). -InputObject 로 받아 대입하면 두 엔진 모두 배열이 된다.
 $goldenParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($goldenPath, [Text.Encoding]::UTF8))
 $golden = @($goldenParsed)
 $kinds = @($golden | ForEach-Object { $_.kind } | Sort-Object -Unique)
-Assert-That '골든: 파일을 읽었고 사례가 100개를 넘으며 다섯 종류가 모두 있다' ($golden.Count -gt 100 -and $kinds.Count -eq 5 -and ($kinds -join ',') -ceq 'limits,outbound,request-check,uri-compare,watch-script') "count=$($golden.Count) kinds=$($kinds -join ',')"
+Assert-That '골든: 파일을 읽었고 사례가 100개를 넘으며 여섯 종류가 모두 있다' ($golden.Count -gt 100 -and $kinds.Count -eq 6 -and ($kinds -join ',') -ceq 'limits,outbound,progress-analysis,request-check,uri-compare,watch-script') "count=$($golden.Count) kinds=$($kinds -join ',')"
 
 function Get-GoldenActual($Case) {
     switch -CaseSensitive ([string]$Case.kind) {
@@ -117,6 +137,12 @@ function Get-GoldenActual($Case) {
             try { Assert-LsOutbound -Label ([string]$Case.input.label) -Message $Case.input.message -Ctx $Case.input.ctx; return 'ok' } catch { return 'throws' }
         }
         'limits' { $x = Resolve-LsLimits $Case.input; return ([ordered]@{ limits = $x.limits; problems = @($x.problems) }) }
+        'progress-analysis' {
+            # 메시지는 JSON 에서 읽은 그대로(디코더가 만드는 것과 같은 모양)이고 바이트 구간은 없다.
+            $fr = New-Object System.Collections.ArrayList; $n = 0
+            foreach ($msg in @($Case.input.messages)) { [void]$fr.Add(@{ index = $n; startByte = $null; endByte = $null; message = $msg }); $n++ }
+            return (ConvertTo-LsProgressSummary (Get-LsProgressAnalysis @($fr)))
+        }
     }
 }
 $mismatch = 0
@@ -129,6 +155,36 @@ foreach ($c in $golden) {
     Assert-That "골든 대조: $($c.id)" $same ("PS: " + (Limit-Text $a) + " / TS: " + (Limit-Text $e))
 }
 Assert-That "골든: 모든 사례(총 $($golden.Count))에서 PS 출력이 TS 기대값과 같다" ($mismatch -eq 0) "불일치 $mismatch 건"
+
+# 러너가 실제로 부르는 가벼운 판정(Test-LsBarrierReady·Test-LsProgressComplete)은 골든이 비교하는 평가 함수(Get-LsBarrierStatus)와 따로 있다.
+# 골든의 지연 사례를 감시기에 직접 되감아, 두 번째 초기 진행 묶음이 다 읽히기 전에는 기다림이 끝나지 않고(ready 아님) 다 읽힌 뒤에야 끝나는지 본다.
+function Invoke-GoldenWatchState($Case) {
+    $cfg = $Case.input.config
+    $config = [ordered]@{ workspace = [string]$cfg.workspace; expectedTargetUri = $cfg.expectedTargetUri; probePath = [string]$cfg.probePath; scanMs = [double]$cfg.scanMs; settleMs = [double]$cfg.settleMs; maxStdoutBytes = [int]$cfg.maxStdoutBytes }
+    $w = New-LsLiveWatch $config
+    foreach ($ev in @($Case.input.events)) {
+        switch -CaseSensitive ([string]$ev.op) {
+            'stdout' { [void](Add-LsStdout $w (ConvertFrom-LsHex ([string]$ev.hex)) ([double]$ev.tMs)) }
+            'stderr' { [void](Add-LsStderr $w (ConvertFrom-LsHex ([string]$ev.hex)) ([double]$ev.tMs)) }
+            'initializedSent' { Set-LsInitializedSent $w }
+            'barrierDone' { Set-LsBarrierDone $w ([double]$ev.tMs) }
+            'didOpenSent' { Set-LsDidOpenSent $w ([double]$ev.tMs) }
+        }
+    }
+    $w
+}
+$lateById = @{}; foreach ($c in $golden) { if ([string]$c.id -like 'watch:late-second-progress-*') { $lateById[[string]$c.id] = $c } }
+$readyOk = ($lateById.Count -ge 8)
+foreach ($id in 'none', 'create-only', 'create-begin', 'end-partial') {
+    $w = Invoke-GoldenWatchState $lateById["watch:late-second-progress-$id"]
+    if ((Test-LsBarrierReady $w) -or (Test-LsProgressComplete $w)) { $readyOk = $false; Write-Host "FAIL  늦은 두 번째 진행 묶음($id): 아직 기다림이 끝나면 안 된다" -ForegroundColor Red }
+}
+$w = Invoke-GoldenWatchState $lateById['watch:late-second-progress-complete']
+if (-not ((Test-LsBarrierReady $w) -and (Test-LsProgressComplete $w))) { $readyOk = $false; Write-Host 'FAIL  늦은 두 번째 진행 묶음(complete): 다 읽힌 뒤에는 기다림이 끝나야 한다' -ForegroundColor Red }
+$w = Invoke-GoldenWatchState $lateById['watch:late-second-progress-wrong-token']
+if (-not (Test-LsBarrierReady $w) -or (Test-LsProgressComplete $w) -or (Get-LsWatchBarrier $w).clean) { $readyOk = $false; Write-Host 'FAIL  늦은 두 번째 진행 묶음(wrong-token): 더 기다려도 달라지지 않는 위반이라 기다림은 끝나되 clean 이 아니어야 한다' -ForegroundColor Red }
+Assert-That '러너가 쓰는 판정(Test-LsBarrierReady·Test-LsProgressComplete): 두 번째 초기 진행 묶음이 없거나 create·begin 까지거나 end 가 일부만 왔으면 기다림이 끝나지 않고, 다 읽히면 끝나며, 위반(wrong-token)이면 끝나되 clean 이 아니다' $readyOk
+}
 
 # ═══ 2. 계약 자체 점검 (TS 없이) ═════════════════════════════════════════════════
 $workA = 'C:\work\scan-1'
@@ -152,12 +208,22 @@ $goodDid = New-LsDidOpenMessage -Layout $layoutA -TargetBytes $targetBytes
 Assert-That '계약: didOpen 은 languageId plaintext, version 1, uri 는 기대 URI, 본문은 파일 바이트의 UTF-8 이다' ($goodDid.params.textDocument.languageId -ceq 'plaintext' -and $goodDid.params.textDocument.version -eq 1 -and $goodDid.params.textDocument.uri -ceq (Get-LsTargetUri $layoutA) -and $goodDid.params.textDocument.text -ceq [Text.Encoding]::UTF8.GetString($targetBytes))
 $threw = $false; try { [void](New-LsDidOpenMessage -Layout $layoutA -TargetBytes (New-Object byte[] 135)) } catch { $threw = $true }
 Assert-That '계약: 고정 계약과 다른 바이트로는 didOpen 을 만들지 않는다 (던진다)' $threw
-$guardOk = @{ barrierDone = $true; sent = @('initialize', 'initialized'); expectedUri = (Get-LsTargetUri $layoutA); expectedText = $goodDid.params.textDocument.text }
+$guardOk = @{ barrierDone = $true; progressComplete = $true; sent = @('initialize', 'initialized'); expectedUri = (Get-LsTargetUri $layoutA); expectedText = $goodDid.params.textDocument.text }
 $okSeq = $true
 foreach ($step in @(@('initialize', $initA, @{ barrierDone = $false; sent = @(); expectedUri = ''; expectedText = '' }), @('initialized', (New-LsInitializedMessage), @{ barrierDone = $false; sent = @('initialize'); expectedUri = ''; expectedText = '' }), @('didOpen', $goodDid, $guardOk), @('shutdown', (New-LsShutdownMessage), @{ barrierDone = $true; sent = @('initialize', 'initialized', 'didOpen'); expectedUri = ''; expectedText = '' }), @('exit', (New-LsExitMessage), @{ barrierDone = $true; sent = @('initialize', 'initialized', 'didOpen', 'shutdown'); expectedUri = ''; expectedText = '' }))) {
     try { Assert-LsOutbound -Label $step[0] -Message $step[1] -Ctx $step[2] } catch { $okSeq = $false }
 }
 Assert-That '쓰기 방어선: 계약 함수가 만든 다섯 메시지는 이 순서에서 모두 통과한다' $okSeq
+# 초기 진행 메시지를 다 읽기 전의 didOpen 은 장벽을 넘었어도 거절한다. true 가 아닌 값(없음·문자열·0)도 확인되지 않은 것이다.
+$progressRefused = $true
+foreach ($pc in @($false, $null, 'true', 1)) {
+    $g = @{ barrierDone = $true; progressComplete = $pc; sent = @('initialize', 'initialized'); expectedUri = (Get-LsTargetUri $layoutA); expectedText = $goodDid.params.textDocument.text }
+    $threw = $false; try { Assert-LsOutbound -Label 'didOpen' -Message $goodDid -Ctx $g } catch { $threw = $true }
+    if (-not $threw) { $progressRefused = $false }
+}
+$g2 = @{ barrierDone = $true; sent = @('initialize', 'initialized'); expectedUri = (Get-LsTargetUri $layoutA); expectedText = $goodDid.params.textDocument.text }
+$threw = $false; try { Assert-LsOutbound -Label 'didOpen' -Message $goodDid -Ctx $g2 } catch { $threw = $true }
+Assert-That '쓰기 방어선: 초기 진행 메시지를 다 읽기 전의 didOpen 은 거절한다 (false·없음·문자열·숫자 모두)' ($progressRefused -and $threw)
 # initializationOptions 검사
 $optsGood = $initA.params.initializationOptions
 Assert-That 'SCAN 설정 검사: 계약이 만든 initializationOptions 는 문제가 없다' ((Test-LsInitializationOptions $optsGood).Count -eq 0) ((Test-LsInitializationOptions $optsGood) -join ',')
@@ -180,6 +246,7 @@ Assert-That 'URI 비교는 정규화하지 않는다: 원문(raw)을 그대로 �
 $sandbox = Join-Path ([IO.Path]::GetTempPath()) ('bosang-ls-test-' + [guid]::NewGuid().ToString('N').Substring(0, 12))
 [void][IO.Directory]::CreateDirectory($sandbox)
 $bridge = Join-Path $PSScriptRoot 'lsp-scan-bridge.mts'
+if ($runPre) {
 if (-not $tsReady) {
     Skip-Test '계약(PS) ↔ 실제 TS lsp-scan.ts 대조' 'tsx 또는 scripts/semgrep-lsp 경로가 없어 실행하지 않았다(통과로 세지 않는다)'
     Skip-Test '골든이 낡지 않았다 (현재 TS 구현이 만든 사례와 파일이 같다)' 'tsx 가 없어 실행하지 않았다(통과로 세지 않는다)'
@@ -211,6 +278,7 @@ if (-not $tsReady) {
         Assert-That '골든 신선도: 파일(tests/lsp-scan-parity.json)이 현재 TS 구현이 만든 사례와 모든 사례에서 같다 (낡았으면 다리로 다시 만든다)' ($stale -eq 0) "낡은 사례 $stale 건 (fresh=$($fresh.Count), file=$($golden.Count))"
     }
 }
+}
 
 # ═══ 4. 함수 단위 확인: Send-LsMessage (가짜 stdin) ═══════════════════════════════
 $runnerPath = Join-Path $sandbox 'lsp-scan-runner.ps1'
@@ -228,6 +296,21 @@ function Invoke-UnitTests {
     }
     $lay = Get-LsLayout -Work 'C:\work\run-1'
     $didMsg = New-LsDidOpenMessage -Layout $lay -TargetBytes $targetBytes
+    # 초기 진행 메시지(두 수명주기 + rulesRefreshed)를 stdout 에서 다 읽은 상태로 만든다. 쓰기 직전 방어선은 이것까지 확인한다.
+    function Add-FakeInitialProgress($Watch, [switch]$SecondOnlyCreate) {
+        $msgs = @(
+            [ordered]@{ jsonrpc = '2.0'; id = 'req-a'; method = 'window/workDoneProgress/create'; params = [ordered]@{ token = 'tok-a' } },
+            [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = 'tok-a'; value = [ordered]@{ kind = 'begin'; title = 'Semgrep'; message = 'Refreshing Rules' } } },
+            [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = 'tok-a'; value = [ordered]@{ kind = 'end' } } },
+            [ordered]@{ jsonrpc = '2.0'; method = 'semgrep/rulesRefreshed'; params = [ordered]@{} },
+            [ordered]@{ jsonrpc = '2.0'; id = 'req-b'; method = 'window/workDoneProgress/create'; params = [ordered]@{ token = 'tok-b' } }
+        )
+        if (-not $SecondOnlyCreate) {
+            $msgs += [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = 'tok-b'; value = [ordered]@{ kind = 'begin'; title = 'Semgrep Scan in Progress'; message = 'Scanning Open Documents' } } }
+            $msgs += [ordered]@{ jsonrpc = '2.0'; method = '$/progress'; params = [ordered]@{ token = 'tok-b'; value = [ordered]@{ kind = 'end' } } }
+        }
+        foreach ($m in $msgs) { Add-LsProgressFrame $Watch $m }
+    }
     function New-FakeCtx($Stdin, $BarrierAt) {
         $watch = New-LsLiveWatch ([ordered]@{ workspace = $lay.workspace; expectedTargetUri = (Get-LsTargetUri $lay); probePath = (Get-LsProbePath $lay); scanMs = 30000; settleMs = 2000; maxStdoutBytes = 1048576 })
         @{ sw = [Diagnostics.Stopwatch]::StartNew(); sends = (New-Object System.Collections.ArrayList); also = (New-Object System.Collections.ArrayList); trigger = $null; abort = $null; immediate = $false; stdinStream = $Stdin; watch = $watch; barrierAt = $BarrierAt; expectedUri = (Get-LsTargetUri $lay); expectedText = $didMsg.params.textDocument.text }
@@ -241,6 +324,15 @@ function Invoke-UnitTests {
     $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake 100
     [void](Send-LsMessage 'initialize' (New-LsInitializeMessage -Layout $lay)); [void](Send-LsMessage 'initialized' (New-LsInitializedMessage))
     Set-LsInitializedSent $Ctx.watch
+    # 장벽을 넘었어도 초기 진행 메시지를 다 읽기 전에는 didOpen 을 쓰지 않는다(두 번째 묶음의 end 가 아직 안 왔다).
+    Add-FakeInitialProgress $Ctx.watch -SecondOnlyCreate
+    $w0 = $fake.WriteCalls
+    $s3b = Send-LsMessage 'didOpen' $didMsg
+    Assert-That 'didOpen: 장벽을 넘었어도 초기 진행 메시지를 다 읽기 전에는 쓰지 않는다 — A10 SEND_REFUSED(DID_OPEN_BEFORE_PROGRESS), 스트림에 아무것도 쓰지 않고 감시기에 didOpen 표시도 남지 않는다' ($s3b -eq $false -and $fake.WriteCalls -eq $w0 -and $Ctx.abort.condition -ceq 'A10' -and $Ctx.abort.detail -ceq 'didOpen:DID_OPEN_BEFORE_PROGRESS' -and $null -eq $Ctx.watch.didOpen) (($Ctx.abort | ConvertTo-Json -Compress))
+    $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake 100
+    [void](Send-LsMessage 'initialize' (New-LsInitializeMessage -Layout $lay)); [void](Send-LsMessage 'initialized' (New-LsInitializedMessage))
+    Set-LsInitializedSent $Ctx.watch
+    Add-FakeInitialProgress $Ctx.watch
     $s4 = Send-LsMessage 'didOpen' $didMsg
     Assert-That 'didOpen: 장벽 뒤에는 한 번 쓰고, 송신 기록에 uri·languageId·version·본문 해시가 남고, 감시기에 사전/사후 경계가 표시된다' ($s4 -and $fake.WriteCalls -eq 3 -and $Ctx.sends[2].label -ceq 'didOpen' -and $Ctx.sends[2].didOpen.uri -ceq (Get-LsTargetUri $lay) -and $Ctx.sends[2].didOpen.textSha256 -ceq $Script:LsTargetSha256 -and $null -ne $Ctx.watch.didOpen)
     $s5 = Send-LsMessage 'didOpen' $didMsg
@@ -252,6 +344,7 @@ function Invoke-UnitTests {
             @('semgrep/scanWorkspace', { [ordered]@{ jsonrpc = '2.0'; method = 'semgrep/scanWorkspace'; params = [ordered]@{} } }))) {
         $fake = New-FakeStdin 'none'; $Ctx = New-FakeCtx $fake 100
         [void](Send-LsMessage 'initialize' (New-LsInitializeMessage -Layout $lay)); [void](Send-LsMessage 'initialized' (New-LsInitializedMessage))
+        Add-FakeInitialProgress $Ctx.watch
         $w0 = $fake.WriteCalls
         $sent = Send-LsMessage 'didOpen' (& $bad[1])
         Assert-That "Send-LsMessage: 허용 밖 송신($($bad[0]))은 방어선이 거절하고 스트림에 아무것도 쓰지 않는다 (A10)" ($sent -eq $false -and $fake.WriteCalls -eq $w0 -and $Ctx.abort.condition -ceq 'A10' -and $Ctx.immediate)
@@ -264,7 +357,8 @@ function Invoke-UnitTests {
     Assert-That 'Send-LsMessage: 즉시 종료 사유가 이미 걸렸으면 아무것도 쓰지 않고 송신 기록도 남기지 않는다' ($sent -eq $false -and $fake.WriteCalls -eq 0 -and $Ctx.sends.Count -eq 0)
     Remove-Variable Ctx -ErrorAction SilentlyContinue
 }
-Invoke-UnitTests
+if ($runPre) { Invoke-UnitTests }
+$Script:Recording = $true
 
 # ═══ 5. 러너 end-to-end ═════════════════════════════════════════════════════════
 $holderMarker = 'Start-Sleep -Seconds 91'
@@ -277,6 +371,13 @@ $fakeSemgrep = Join-Path $fakeBinDir 'semgrep.exe'
 Copy-Item -LiteralPath (Join-Path $env:WINDIR 'System32\whoami.exe') -Destination $fakeSemgrep      # 내용은 whoami.exe. 이름만 semgrep.exe 인 무해한 사본
 $Script:RunCounter = 0
 $collected = New-Object System.Collections.ArrayList
+# 분할 실행: 앞 묶음이 남긴 결과 파일 위치(이름·경로·작업 폴더·PATH 값·한도)를 되살린다. 결과 파일은 앞 묶음의 샌드박스에 남아 있다.
+$collectedBase = 0
+if ($StateFile -and ($Part -in 'Post', 'Aggregate') -and (Test-Path -LiteralPath $StateFile)) {
+    $stParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($StateFile, [Text.Encoding]::UTF8))
+    foreach ($stItem in @($stParsed)) { if ($stItem) { [void]$collected.Add($stItem) } }
+    $collectedBase = $collected.Count
+}
 $URL = 'http://127.0.0.1:41999'
 $stubScript = Join-Path $sandbox 'lsp-scan-stub.ps1'
 
@@ -336,6 +437,13 @@ $cases = @(
     @{ s = 'requests-2'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK },
     @{ s = 'env-names'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK },
     @{ s = 'shutdown-reply'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK },
+    # 초기 진행 메시지 장벽: 두 번째 묶음(create·begin·end)이 stderr 의 Scanned open documents 줄보다 한참 늦게 와도 didOpen 은 그 묶음을 다 읽은 뒤 한 번만 나가고,
+    # 완성되지 않거나(INCOMPLETE → 장벽 한도 안에서만 기다리고 RULES_TIMEOUT) 계약을 어기면(INVALID → 장벽이 열리지 않고 정상 종료) didOpen 은 나가지 않는다.
+    # 2026-11-03 실제 1회 관측이 ABORTED 로 끝난 경위(늦게 읽힌 초기 진행 요청이 didOpen 뒤로 분류됨)의 방어다.
+    @{ s = 'late-initial-progress'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK; lateProgressMs = 1450 },
+    @{ s = 'late-initial-progress-split'; sent = $happySent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = $OK; lateProgressMs = 1450 },
+    @{ s = 'initial-progress-incomplete'; lim = @{ rulesMs = 4000; stdinCloseGraceMs = 1500; killConfirmMs = 5000 }; sent = $initAndInitialized; trig = 'RULES_TIMEOUT'; abort = 'A9'; kill = 0; close = $true; verdict = 'NOT_OBSERVED:RULES_TIMEOUT'; obsMin = 4000; obsMax = 9500 },
+    @{ s = 'initial-progress-wrong-token'; sent = $noOpenSent; trig = 'NORMAL'; kill = 0; close = $false; exit = 0; verdict = 'NOT_CONFIRMED:BARRIER_PROGRESS_INVALID' },
     # 한쪽 증거만, 마감, 늦은 증거, 사전 증거
     @{ s = 'diag-only'; sent = $happySent; trig = 'SCAN_TIMEOUT'; kill = 0; close = $false; exit = 0; verdict = 'NOT_CONFIRMED:ENGINE_LOG_MISSING' },
     @{ s = 'log-only'; sent = $happySent; trig = 'SCAN_TIMEOUT'; kill = 0; close = $false; exit = 0; verdict = 'NOT_CONFIRMED:NO_DIAGNOSTIC_NOTIFICATION' },
@@ -429,10 +537,16 @@ $cases = @(
     @{ s = 'flood-out'; lim = @{ settleMs = 2000 }; sentLike = 'initialize,initialized*'; trig = 'OUTPUT_LIMIT'; kill = 1; close = $false; notOk = $true }
 )
 
+# 이번 묶음이 돌릴 시나리오(표 순서, 1부터 센다). All·Cases 가 아니면 비어 있고, All 은 전부다.
+$casesToRun = New-Object System.Collections.ArrayList
+$caseIndex = 0
+foreach ($cc in $cases) { $caseIndex++; if ($runCases -and $caseIndex -ge $CaseFrom -and ($CaseTo -le 0 -or $caseIndex -le $CaseTo)) { [void]$casesToRun.Add($cc) } }
+Write-Host ("[분할] Part={0} 시나리오 {1}..{2} → 이번 묶음 {3}건 / 표 전체 {4}건" -f $Part, $CaseFrom, $CaseTo, $casesToRun.Count, @($cases).Count)
+
 try {
     $env:BOSANG_CANARY_SECRET = 'must-not-leak'; $env:GITHUB_TOKEN_CANARY = 'must-not-leak'; $env:HTTPS_PROXY = 'http://user:pass@127.0.0.1:9'
 
-    foreach ($c in $cases) {
+    foreach ($c in $casesToRun) {
         $limits = $null; if ($c.lim) { $limits = $c.lim }
         $r = Invoke-Scan -Scenario $c.s -Limits $limits -Name $c.s
         $x = $r.result
@@ -464,12 +578,18 @@ try {
         }
         if ($c.targetChanged) { Assert-That "[$($c.s)] 합성 파일이 바뀐 것이 장벽의 해시와 실행 뒤 해시에 드러난다" ($x.files.target.barrierSha256 -cne $Script:LsTargetSha256 -and $x.files.target.afterRunSha256 -cne $Script:LsTargetSha256) (($x.files | ConvertTo-Json -Compress -Depth 4)) }
         if ($c.probeChanged) { Assert-That "[$($c.s)] 프로브가 바뀐 것이 장벽의 해시와 실행 뒤 해시에 드러난다" ($x.files.probe.barrierSha256 -cne $Script:LsProbeSha256 -and $x.files.probe.afterRunSha256 -cne $Script:LsProbeSha256) (($x.files | ConvertTo-Json -Compress -Depth 4)) }
+        if ($c.lateProgressMs) {
+            $initSend = @($x.sends | Where-Object { $_.label -ceq 'initialized' })[0]
+            $gap = [double]$x.markers.didOpenSent.tMs - [double]$initSend.tMs
+            Assert-That "[$($c.s)] didOpen 은 두 번째 초기 진행 묶음이 도착한 뒤에야 나갔다 (initialized 로부터 $([int]$gap)ms, 최소 $($c.lateProgressMs)ms)" ($gap -ge $c.lateProgressMs) "gap=$gap"
+        }
         if ($c.obsMin) { Assert-That "[$($c.s)] 장벽 한도는 늘어나지 않는다 — 관측 구간이 $($c.obsMin) ~ $($c.obsMax) ms" ($x.timeline.observationMs -ge $c.obsMin -and $x.timeline.observationMs -lt $c.obsMax) "obs=$($x.timeline.observationMs)" }
         if ($c.trig -ceq 'LIVE_ABORT' -or $c.trig -ceq 'OUTPUT_LIMIT') {
             Assert-That "[$($c.s)] 강제 종료 뒤 서버 프로세스가 사라졌고 종료 확인이 됐다" ($x.cleanup.childExitConfirmed -and -not (Test-PidAlive ([int](Get-Content -LiteralPath (Join-Path $r.layout.stateDir 'pid.txt'))))) (($x.cleanup | ConvertTo-Json -Compress))
         }
     }
 
+    if ($runPost) {
     # ── 필수 도착 순서 행렬: 같은 증거를 서로 다른 순서·쪼개기·동시 도착으로 보내도 같은 성공이다. settle 은 늦은 묶음에서 시작한다. ──
     $byName = @{}
     foreach ($item in $collected) { $byName[[string]$item.name] = Get-Content -LiteralPath $item.path -Raw -Encoding UTF8 | ConvertFrom-Json }
@@ -590,7 +710,15 @@ try {
     $r = Invoke-Scan -Mode 'semgrep-lsp' -Exe $fakeSemgrep -Args0 @('lsp', '--debug') -Limits @{ initMs = 2500; stdinCloseGraceMs = 1000; killConfirmMs = 5000 } -Name 'fake-semgrep'
     Assert-That 'semgrep-lsp 모드 실행 경로: 이름이 semgrep.exe 인 절대 경로를 [lsp,--debug] 로 셸 없이 부르고, 응답 없이 끝난 자식은 CHILD_EXITED_EARLY 로 기록한다 (initialized·didOpen 은 가지 않는다)' ($r.result.child.started -eq $true -and -not $r.result.refused -and ([string]$r.result.child.mainModule).Equals($fakeSemgrep, [StringComparison]::OrdinalIgnoreCase) -and @('CHILD_EXITED_EARLY', 'INIT_TIMEOUT') -contains $r.result.trigger -and (Get-SentLabels $r) -ceq $onlyInit) (Limit-Text ($r.result | ConvertTo-Json -Depth 5 -Compress))
 
+    }
+
     # ═══ 6. 러너 결과 → 실제 TS 어댑터와 기록 만들기 (tsx 가 있을 때만) ═══════════════
+    if ($runAgg) {
+    if ($Part -eq 'Aggregate') {
+        # 분할 실행의 마지막 묶음: 도착 순서 행렬이 쓰던 이름 → 결과 표를, 앞 묶음이 남긴 결과 파일로 다시 만든다.
+        $byName = @{}
+        foreach ($item in $collected) { $byName[[string]$item.name] = Get-Content -LiteralPath $item.path -Raw -Encoding UTF8 | ConvertFrom-Json }
+    }
     if (-not $tsReady) { Skip-Test '러너 결과 → 실제 TS factsFromScanRunnerResult·buildScanRecord (시나리오별 판정)' 'tsx 또는 scripts/semgrep-lsp 경로가 없어 실행하지 않았다(통과로 세지 않는다)' }
     else {
         $items = @()
@@ -625,6 +753,7 @@ try {
             Assert-That '러너 결과 → TS: 기본 한도(settle 2초) 정상 실행도 SCAN_RESPONSE_OBSERVED' ($by['ok-full-settle'].verdict -ceq $OK) (($by['ok-full-settle'] | ConvertTo-Json -Compress -Depth 4))
         }
     }
+    }
 } finally {
     Remove-Item Env:\BOSANG_CANARY_SECRET, Env:\GITHUB_TOKEN_CANARY, Env:\HTTPS_PROXY -ErrorAction SilentlyContinue
     # 시험이 남긴 스텁 자손·ping 이 없어야 한다(있으면 정리 실패이므로 실패로 센다). 남은 것은 치운다.
@@ -633,7 +762,27 @@ try {
     Assert-That '시험 뒤 남은 스텁 자손(대기자)이 없다' ($holdersAfter.Count -eq 0) ("남은 PID: " + ($holdersAfter -join ','))
     foreach ($sp in ($holdersAfter + $pingsAfter)) { Stop-Process -Id $sp -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Milliseconds 300
-    try { Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction Stop } catch { Write-Host "샌드박스를 지우지 못했다: $sandbox ($($_.Exception.Message))" -ForegroundColor Yellow }
+    # 분할 실행: 이번 묶음이 새로 만든 결과 파일 위치를 -StateFile 에 이어 적는다(같은 이름은 바꿔 쓴다: 같은 묶음을 다시 돌려도 겹치지 않는다).
+    if ($StateFile -and ($Part -in 'Cases', 'Post')) {
+        try {
+            $newNames = @{}; $merged = New-Object System.Collections.ArrayList
+            for ($ni = $collectedBase; $ni -lt $collected.Count; $ni++) { $newNames[[string]$collected[$ni].name] = $true }
+            if (Test-Path -LiteralPath $StateFile) {
+                $oldParsed = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($StateFile, [Text.Encoding]::UTF8))
+                foreach ($oi in @($oldParsed)) { if ($oi -and -not $newNames.ContainsKey([string]$oi.name)) { [void]$merged.Add($oi) } }
+            }
+            for ($ni = $collectedBase; $ni -lt $collected.Count; $ni++) { [void]$merged.Add($collected[$ni]) }
+            [IO.File]::WriteAllText($StateFile, (ConvertTo-Json -InputObject ([object[]]$merged.ToArray()) -Depth 6), (New-Object Text.UTF8Encoding($false)))
+        } catch { Write-Host "상태 파일을 쓰지 못했다: $StateFile ($($_.Exception.Message))" -ForegroundColor Yellow }
+    }
+    if ($ResultsFile) {
+        try {
+            $resRows = @($results | ForEach-Object { [ordered]@{ name = $_.name; pass = $_.pass; detail = (Limit-Text ([string]$_.detail) 200) } })
+            [IO.File]::WriteAllText($ResultsFile, (ConvertTo-Json -InputObject ([object[]]$resRows) -Depth 4), (New-Object Text.UTF8Encoding($false)))
+        } catch { Write-Host "결과 파일을 쓰지 못했다: $ResultsFile ($($_.Exception.Message))" -ForegroundColor Yellow }
+    }
+    if ($KeepSandbox) { Write-Host "샌드박스를 남긴다(-KeepSandbox): $sandbox" }
+    else { try { Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction Stop } catch { Write-Host "샌드박스를 지우지 못했다: $sandbox ($($_.Exception.Message))" -ForegroundColor Yellow } }
 }
 
 $pass = @($results | Where-Object { $_.pass -eq $true }).Count

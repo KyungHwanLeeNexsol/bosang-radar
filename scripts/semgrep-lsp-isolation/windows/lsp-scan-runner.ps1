@@ -48,7 +48,8 @@ $Script:LsStubScenarios = @(
     'settings-line', 'early-signal', 'early-notification', 'initialize-error', 'error-response', 'version-mismatch', 'wrong-id', 'silent', 'silent-hold', 'exit-early', 'garbage', 'exit-ignored', 'exit-ignored-eof',
     'nonzero-exit', 'stderr-split', 'stdout-split', 'flood-err', 'flood-out', 'orphan', 'write-ws', 'write-extra-rules', 'modify-probe', 'home-write', 'shutdown-reply', 'env-names', 'spawn-disallowed', 'requests-2',
     'requests-3', 'request-disallowed', 'request-malformed', 'delayed-forbidden', 'header-variants', 'json-dump-signal-text', 'notification-twice',
-    'init-jsonrpc-shy', 'init-jsonrpc-nul', 'init-jsonrpc-key-shy', 'init-header-over', 'init-header-name-lf', 'init-header-max'
+    'init-jsonrpc-shy', 'init-jsonrpc-nul', 'init-jsonrpc-key-shy', 'init-header-over', 'init-header-name-lf', 'init-header-max',
+    'late-initial-progress', 'late-initial-progress-split', 'initial-progress-incomplete', 'initial-progress-wrong-token'
 )
 
 # 읽은 바이트는 보관한 것의 해시와 함께 기록한다(TS 어댑터가 b64 ↔ sha256 ↔ bytesRead 를 대조한다).
@@ -68,11 +69,12 @@ function Get-LsStreamRecord {
 function Send-LsMessage {
     param([string]$Label, $Message)
     $labels = @($Ctx.sends | ForEach-Object { [string]$_.label })
-    $guard = @{ barrierDone = ($null -ne $Ctx.barrierAt); sent = $labels; expectedUri = [string]$Ctx.expectedUri; expectedText = [string]$Ctx.expectedText }
+    $progressDone = $false; if ($null -ne $Ctx.watch) { $progressDone = [bool](Test-LsProgressComplete $Ctx.watch) }
+    $guard = @{ barrierDone = ($null -ne $Ctx.barrierAt); progressComplete = $progressDone; sent = $labels; expectedUri = [string]$Ctx.expectedUri; expectedText = [string]$Ctx.expectedText }
     try { Assert-LsOutbound -Label $Label -Message $Message -Ctx $guard }
     catch {
         $code = 'GUARD_REFUSED'
-        if (Test-LrOrdinalIn $Label $labels) { $code = 'DUPLICATE_SEND' } elseif ((Test-LrOrdinalEqual $Label 'didOpen') -and $null -eq $Ctx.barrierAt) { $code = 'DID_OPEN_BEFORE_BARRIER' } elseif (-not (Test-LrOrdinalIn $Label $Script:LsSendOrder)) { $code = 'LABEL_NOT_ALLOWED' }
+        if (Test-LrOrdinalIn $Label $labels) { $code = 'DUPLICATE_SEND' } elseif ((Test-LrOrdinalEqual $Label 'didOpen') -and $null -eq $Ctx.barrierAt) { $code = 'DID_OPEN_BEFORE_BARRIER' } elseif ((Test-LrOrdinalEqual $Label 'didOpen') -and -not $progressDone) { $code = 'DID_OPEN_BEFORE_PROGRESS' } elseif (-not (Test-LrOrdinalIn $Label $Script:LsSendOrder)) { $code = 'LABEL_NOT_ALLOWED' }
         Add-LspMinTrigger 'LIVE_ABORT' 'A10' ("${Label}:$code")
         return $false
     }
@@ -433,7 +435,7 @@ try {
                     if ($res.files.probe.barrierSha256 -cne $Script:LsProbeSha256) { Add-LspMinTrigger 'LIVE_ABORT' 'A5' 'PROBE_CHANGED' }
                     elseif ($res.files.target.barrierSha256 -cne $Script:LsTargetSha256) { Add-LspMinTrigger 'LIVE_ABORT' 'A5' 'TARGET_CHANGED' }
                     else {
-                        # didOpen: 장벽이 계약대로(clean)이고 사전 증거가 없을 때만 보낸다. 아니면 보내지 않고 짧은 감시 뒤 정상 종료한다.
+                        # didOpen: 장벽이 계약대로(clean)이고 사전 증거가 없을 때만 보낸다(clean 은 초기 진행 메시지 두 수명주기를 stdout 에서 다 읽었다는 뜻을 포함한다). 아니면 보내지 않고 짧은 감시 뒤 정상 종료한다.
                         $bar = Get-LsWatchBarrier $W
                         if ($bar.clean) {
                             $doc = New-LsDidOpenMessage -Layout $layout -TargetBytes $targetBytes
